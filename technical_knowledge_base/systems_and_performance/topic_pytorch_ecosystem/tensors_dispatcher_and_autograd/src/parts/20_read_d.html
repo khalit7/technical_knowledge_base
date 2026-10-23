@@ -1,29 +1,134 @@
-<section id="rd-s2b">
-<h3>2.6 Autocast: mixed precision as a dispatch key</h3>
-<p><b>How it works.</b> <code>torch.autocast(device, dtype)</code> removes that device's Autocast key from the excluded set. From then on, every operator reaches the Autocast key first, and for most of them the slot is a fallthrough. Operators on the <dfn>lower_precision_fp</dfn> list (matrix multiplies, convolutions, attention, <code>linear</code>) get a kernel that casts their floating-point inputs to the autocast dtype; operators on the <dfn>fp32</dfn> list (losses, norms, reductions that lose accuracy) cast to float32. Weights stay float32: the casts are new tensors each time.</p>
-<div class="tda-q" data-q="autocast" data-hl="334,347,350,353"></div>
-<p><b>On the running example</b>, one forward under <code>torch.autocast("cpu", dtype=torch.bfloat16)</code>, seen at the Python key below autocast:</p>
-<div id="tda-ac" class="tw"></div>
-<p id="tda-ac-sum"></p>
-<div class="pr" data-pr><div class="q">Predict: under autocast bf16 on the CPU, in which dtype does <code>native_layer_norm</code> run in the running example?</div>
-<div class="opts"><button>bfloat16, like everything else</button><button data-ok>float32</button><button>It depends on the input</button></div>
-<div class="ans" hidden>float32: all 9 layer norms ran in float32 in the record. LayerNorm is not on the CPU lower_precision_fp list, and its input here is the residual stream (the sum of an embedding and float32 adds), which stays float32. Only the outputs of the matrix multiplies (addmm, mm, attention) and the GELU between them are bfloat16. <b>Mind the difference:</b> autocast does not make "the model" bf16; it makes chosen ops bf16, and everything else runs in whatever dtype reaches it.</div></div>
+<section id="rd-s3">
+<h2>3. Autograd: a graph recorded in forward, run backwards by the engine</h2>
+<p>Training needs the gradient of one number (the loss) with respect to millions of parameters. The chain rule gives it if you know every operation that produced the loss and kept what each needs to differentiate. Autograd records exactly that while forward runs (<dfn>reverse-mode automatic differentiation</dfn>), so backward costs about as much as a couple of forwards, whatever the number of parameters. Take one block of the running example, applied to the embedding output as a leaf x, with loss = mean(block(x)<sup>2</sup>), on the CPU: forward creates 33 operator nodes and 13 <code>AccumulateGrad</code> nodes (12 parameters and x), 46 in all, which keep 8.93 MB of activations between them; backward runs all 46 and makes 75 aten calls <span class="meas">recorded with node pre-hooks and a dispatch mode</span>.</p>
+<div class="vis" id="tda-e-card">
+<h4>Forward builds the graph and fills the saved-tensor memory; backward runs it from the loss and empties it</h4>
+<div class="seg" id="tda-e-seg"><button data-m="cpu_plain" class="on">CPU: plain</button><button data-m="cpu_checkpoint">CPU: checkpointed</button><button data-m="mps_plain">MPS: plain</button><button data-m="mps_offload">MPS: saved tensors to host</button></div>
+<div class="tda-eg">
+<div><div class="tda-svg" id="tda-e-svg"></div></div>
+<div><div class="tda-svg" id="tda-e-mem"></div>
+<div class="tda-lbl">Ready queue (highest sequence number first)</div><div class="tda-q2" id="tda-e-q"></div>
+<div class="tda-lbl" id="tda-e-opl">aten calls made by this node</div><div class="tda-ops" id="tda-e-ops"></div></div>
+</div>
+<div class="an-ctl" id="tda-e-ctl"></div>
+<div class="an-cap" id="tda-e-cap"></div>
+<div class="an-cnt" id="tda-e-cnt"></div>
+<p class="small mute">Block 0, input (8, 64, 256) float32. Graph, sequence numbers, saved tensors and backward order recorded (<code>src/exp/autograd_graph.py</code>); forward steps reveal nodes in sequence-number order, which is creation order. Blue node: running; yellow: in the ready queue; grey: done; a thick orange border: the node saves activations; green border: AccumulateGrad. "Saved bytes held" counts the unique activation storages of nodes that exist and have not yet run (weights excluded, they stay in memory anyway): <span class="der">derived</span> from the record, assuming a node's saved tensors are freed when it runs (the engine releases them unless retain_graph=True). The bytes "after forward" are measured: live storages on the CPU, <code>torch.mps.current_allocated_memory()</code> on MPS. Same input and weights in every variant; the gradients agree with the plain run to the bit (max difference 0).</p>
+</div>
 
-<h3>2.7 Functionalization: removing mutation for compilers</h3>
-<p><b>The problem.</b> Compilers and graph exporters want pure functions: no in-place writes, no aliasing, so they can reorder and fuse freely. Python code is full of <code>add_</code>, views and <code>x[...] = y</code>. <dfn>Functionalization</dfn> is a dispatch key (<code>Functionalize</code>, with a real kernel for <span id="tda-fn-n"></span> aten operators and a boxed fallback for the rest) that wraps tensors and replays every mutation as an out-of-place op, regenerating views from their base. torch.compile's AOTAutograd stage uses it. The same function traced with <code>make_fx</code> before and after <code>torch.func.functionalize</code>:</p>
-<div class="rd-two"><div><div class="tda-lbl">source</div><div class="code" id="tda-fn-src"></div><div class="tda-lbl">traced as written</div><div class="code" id="tda-fn-a"></div></div><div><div class="tda-lbl">functionalized: no add_, no mul_</div><div class="code" id="tda-fn-b"></div><div class="tda-lbl">and with views turned into copies too (remove="mutations_and_views")</div><div class="code" id="tda-fn-c"></div></div></div>
-<p class="small mute">Graphs printed by torch 2.14.1 (<code>src/exp/dispatch.py</code>); both functions returned the same values (checked). Note how the write through the view <code>z</code> becomes an <code>add</code> on the view followed by a <code>view</code> back to the base's shape: the mutation of y through z is now explicit data flow.</p>
+<h3>3.1 What a node holds</h3>
+<p>When the autograd kernel of an operator runs with grad mode on and an input that requires grad, it creates a <dfn>Node</dfn> (what you see as <code>y.grad_fn</code>, such as <code>AddmmBackward0</code>) and points the output at it. A node holds <dfn>edges</dfn> to the nodes that produced its inputs (<code>next_functions</code>), the <dfn>saved tensors</dfn> its gradient formula needs, and a <dfn>sequence number</dfn>, a per-thread counter taken at creation. The formula comes from <code>derivatives.yaml</code>: <code>mm</code>'s needs both <code>self</code> and <code>mat2</code>, so its node saves both; <code>gelu</code>'s needs its input. Leaves that require grad end in an <code>AccumulateGrad</code> node, whose job is to add the arriving gradient into <code>.grad</code>. The expensive saved tensors are activations, not weights: attention saves q, k and v as one shared (8, 64, 768) storage plus its output and log-sum-exp; each matrix multiply saves its input. That is the memory checkpointing gives back (3.6).</p>
+<details class="dp"><summary>Every node that saves something, with its bytes <span class="mute">(measured)</span></summary><div class="b">
+<div class="rd-five" id="tda-g5"></div>
+<div id="tda-gsaved" class="tw"></div>
+<p class="small mute">Walked from <code>loss.grad_fn</code> through <code>next_functions</code>; saved tensors read from each node's <code>_saved_*</code> attributes, deduplicated by storage. "Weight" means the saved tensor is a parameter already in memory, so saving it costs nothing extra.</p>
+</div></details>
 
-<h3>2.8 Meta and fake tensors: running a model without data</h3>
-<p>A <dfn>meta tensor</dfn> has sizes, strides and a dtype but no storage; its kernels (the <code>Meta</code> key) only compute output metadata. Built under <code>with torch.device("meta")</code>, the running example has <span id="tda-mt-p"></span> parameters and allocates nothing; a forward returns logits of shape <span id="tda-mt-l"></span>, and <code>loss.item()</code> fails: <span id="tda-mt-i" class="tda-err"></span> This is how you build a model too big for one machine and then materialize it shard by shard (<code>to_empty</code> plus your own initialization).</p>
-<div class="co warn"><div class="t">Gotcha, measured: materializing breaks tied weights</div>After <code>with torch.device("meta"): m = GPT(cfg)</code> the tie holds (<code>m.head.weight is m.tok.weight</code>: <span id="tda-mt-t0"></span>). After <code>m.to_empty(device="cpu")</code> it is <span id="tda-mt-t1"></span>: the two modules now hold two different Parameters (not even the same storage: <span id="tda-mt-t2"></span>), and training would update them separately. Re-tie after materializing (<code>m.head.weight = m.tok.weight</code>; Hugging Face models call <code>tie_weights()</code>).</div>
-<p>A <dfn>FakeTensor</dfn> is the same idea with a device attached: a tensor subclass that dispatches at the <code>Python</code> key (its keys include <code>Python</code> and <code>PythonTLSSnapshot</code>, table in 2.3) and answers every operator with metadata only. Under <code>FakeTensorMode</code> the running example ran forward and backward: logits <span id="tda-fk-l"></span>, loss a <code>FakeTensor</code> on device <code>cpu</code>, and <code>blocks.0.mlp.fc.weight.grad</code> of shape <span id="tda-fk-g"></span>, with no arithmetic done. torch.compile traces your model this way. One more measured trap: calling <code>make_model</code> (which ends in <code>.to(device)</code>) inside <code>FakeTensorMode</code> failed with <span id="tda-fk-e" class="tda-err"></span>, because moving a fake parameter swaps tensors in place and a tied parameter is held by two modules; building with <code>GPT(cfg)</code> directly worked.</p>
+<h3>3.2 The engine's rule: dependencies and a ready queue</h3>
+<p>Calling <code>loss.backward()</code> hands the graph to the <dfn>engine</dfn> (C++, <code>torch/csrc/autograd/engine.cpp</code>). It counts, for every node reachable from the loss, how many edges point into it (its <dfn>dependencies</dfn>). Then it repeatedly takes a node from a <dfn>ready queue</dfn>, runs it, adds the gradients it produces into the next nodes' input buffers, decrements their counts, and pushes each node whose count reaches zero. The queue is a priority queue: the ready node with the highest sequence number (created last in forward) runs first, and <code>AccumulateGrad</code> nodes take the largest possible number, so a parameter's <code>.grad</code> is written the moment its gradient is complete and the buffer can be freed. <b>Checked against the record:</b> re-running that rule on the recorded graph (dependencies from the edges, a max-heap on sequence number) reproduces the order the engine actually ran the 46 nodes, in all three CPU variants and both MPS variants <span class="meas">measured on Apple M1 Pro</span>. Ties between AccumulateGrad nodes (all at the same maximal number) are broken by the heap; in this record the first pushed always ran first.</p>
+<div class="pr" data-pr><div class="q">Predict: which node does the engine run right after the first <code>AddmmBackward0</code> (the MLP output projection)? Then step the graph above to check.</div>
+<div class="opts"><button>The GELU node</button><button data-ok>AccumulateGrad for mlp.proj.bias</button><button>The other residual branch</button></div>
+<div class="ans" hidden>AccumulateGrad for <code>mlp.proj.bias</code>: once AddmmBackward0 runs, three nodes become ready (the bias's AccumulateGrad, the weight's TBackward0, and the GELU path's ViewBackward0); AccumulateGrad has the largest sequence number, so it goes first. In the record the next two nodes to run are that AccumulateGrad and then TBackward0, then the weight's AccumulateGrad, and only then the GELU path.</div></div>
+<p><b>Threads.</b> CPU work runs on the thread that called <code>backward()</code>; each non-CPU device gets one long-lived worker thread with its own queue. Measured: a tensor hook fired on the calling thread for a CPU backward and on a different thread for an MPS backward. So a Python hook or a custom backward for a GPU tensor runs on the engine's device thread, not yours; PyTorch carries the thread-local dispatch and grad-mode state into it (each graph task stores the caller's <code>at::ThreadLocalState</code>, {{graph_task.h L125|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/autograd/graph_task.h#L125}}), but Python <code>threading.local</code> values you set yourself are not there.</p>
+<details class="dp"><summary>The engine's C++: the queue order, AccumulateGrad's priority, the device threads <span class="mute">(source)</span></summary><div class="b">
+<div class="tda-q" data-q="readyqueue" data-hl="100,101"></div>
+<div class="tda-q" data-q="accumulate"></div>
+<div class="tda-q" data-q="cpuqueue"></div>
+</div></details>
 
-<h3>2.9 What dispatch costs, and how to check it</h3>
-<p id="tda-ovh-p"></p>
-<div id="tda-ovh" class="bars"></div>
-<p>How to look, all real output from this machine:</p>
-<div class="code" id="tda-howto-code"></div>
-<div class="tda-out" id="tda-howto-out"></div>
-<p>For a whole program, a <code>TorchDispatchMode</code> subclass whose <code>__torch_dispatch__</code> logs <code>func</code> and calls it sees every aten call below autograd (that is how the {{Inside one step|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab counted 923 calls in one step). Mind what it sees: in training, <code>F.linear</code> reaches it as <code>t</code> plus <code>addmm</code> (decomposed at the autograd key); under <code>inference_mode</code> it reaches it as <code>linear</code> (the autograd key is skipped, so the decomposition happens below the mode). Same code, different trace, both measured in the {{Dispatcher walker|#t-tda-dsp}} tab.</p>
+<h3>3.3 Version counters: how autograd notices you overwrote what it saved</h3>
+<p>A node saved a tensor in forward; if your code overwrites that tensor in place before backward, the saved value is wrong and so is the gradient. Copying every saved tensor would cost memory, so PyTorch detects instead: every in-place write bumps the storage's version counter (the <code>ADInplaceOrView</code> kernel does it, below the copy itself); a saved tensor remembers the version it had when saved; unpacking it in backward compares the two.</p>
+<div class="vis"><h4>One counter per storage, shared by its views; the saved tensor remembers v0 and backward finds v1</h4>
+<div class="tda-svg" id="tda-vmech"></div>
+<p class="cap">The first lab case below, as it ran: <code>y = x.sigmoid()</code> saves its output y (the derivative of sigmoid is y(1 &minus; y)); <code>y.mul_(2)</code> bumps the counter; backward raises <span class="tda-err">"one of the variables needed for gradient computation has been modified by an inplace operation: [torch.FloatTensor [3]], which is output 0 of Sigmoid, is at version 1; expected version 0 instead."</span></p></div>
+<p>The counter is counting, not recording: a write under <code>no_grad</code> still bumped it, while a write through <code>.data</code> did not (<code>.data</code> hands you a tensor with a fresh counter). Inference tensors have none: reading <code>_version</code> raised "Inference tensors do not track version counter." Fourteen snippets, each run line by line with the real versions after every line; step to the last line, predict, reveal:</p>
+<div class="vis" id="tda-v-card">
+<h4 id="tda-v-title" style="margin-top:0"></h4>
+<div class="tda-cases" id="tda-v-list"></div>
+<div class="tda-lines" id="tda-v-lines"></div>
+<div class="an-ctl" id="tda-v-ctl"></div>
+<div class="pr"><div class="q"><b>Predict:</b> does the snippet run to the end, or raise?</div><div class="opts" id="tda-v-opts"><button data-a="ok">Runs</button><button data-a="error">Raises an error</button><button data-a="show">Just show me</button></div><div class="ans" id="tda-v-ans" hidden></div></div>
+<p class="small mute">Each snippet run for real with torch 2.14.1 (<code>src/exp/autograd_lab.py</code>): the badges are the real <code>_version</code> of the tracked tensors after each line and the <code>grad_fn</code> of the last one. A case shows its key line until you reveal it; then its title and colour (green runs, red raises) appear.</p>
+</div>
+<div class="co warn"><div class="t">Two ways to get a wrong gradient with no error, both measured</div>Writing through <code>.data</code> (the write is invisible: fresh counter), and installing saved-tensor hooks whose pack keeps a reference (the version check is skipped whenever hooks are installed: <code>saved_variable.cpp</code> line 165). In the sigmoid case the correct gradient is [0.2350, 0.1966, 0.1050]; through <code>.data</code> backward returned [-0.3049, 0.2486, -1.3416]. Use <code>.detach()</code>, which shares the counter and gets caught.</div>
+<details class="dp"><summary>Seven writes and the counter; the C++ that bumps and checks it; all fourteen outcomes <span class="mute">(measured, with source)</span></summary><div class="b">
+<p>Views share the counter with their base, because they share the memory:</p>
+<div id="tda-vers" class="tw"></div>
+<div class="tda-q" data-q="inplace_view" data-hl="401"></div>
+<div class="tda-q" data-q="version" data-hl="165,166,167,170"></div>
+<div id="tda-versum" class="tw"></div>
+</div></details>
+
+<h3>3.4 Your own backward: <code>torch.autograd.Function</code></h3>
+<p>When you want a different gradient than the one autograd would derive (a numerically safer formula, a fused kernel, a straight-through estimator), subclass <code>torch.autograd.Function</code>. It plugs into the same graph: <code>apply</code> runs your <code>forward</code> with recording off, your <code>setup_context</code> saves what backward needs through the same version-checked saved-tensor path, and one node of your class stands for the whole forward.</p>
+<div class="vis"><h4>A custom Function is one node: forward is not recorded inside, backward is yours</h4>
+<div class="tda-svg" id="tda-cfn"></div>
+<p class="cap">For <code>MyGelu</code> below, the output's <code>grad_fn</code> was <code>MyGeluBackward</code> <span class="meas">measured</span>. The engine treats it like any other node: it runs when its dependencies are met, and what <code>backward</code> returns is sent along its edges.</p></div>
+<div class="code">class MyGelu(torch.autograd.Function):
+    @staticmethod
+    def forward(x):                              # no ctx here
+        return 0.5 * x * (1 + torch.tanh(0.7978845608 * (x + 0.044715 * x ** 3)))
+
+    @staticmethod
+    def setup_context(ctx, inputs, output):
+        (x,) = inputs
+        ctx.save_for_backward(x)                 # goes through SavedVariable: version-checked
+
+    @staticmethod
+    def backward(ctx, g):
+        (x,) = ctx.saved_tensors
+        u = 0.7978845608 * (x + 0.044715 * x ** 3)
+        t = torch.tanh(u)
+        du = 0.7978845608 * (1 + 3 * 0.044715 * x ** 2)
+        return g * (0.5 * (1 + t) + 0.5 * x * (1 - t ** 2) * du)
+
+x = torch.randn(6, dtype=torch.float64, requires_grad=True)
+torch.autograd.gradcheck(MyGelu.apply, (x,))      # finite differences in float64
+torch.autograd.gradgradcheck(MyGelu.apply, (x,))  # its backward is differentiable too</div>
+<div class="tda-out" id="tda-cf-out"></div>
+<p>Keeping <code>forward</code> free of the context and saving in <code>setup_context</code> is what lets the function work with <code>torch.func</code> transforms. <dfn>gradcheck</dfn> compares your backward with finite differences, column by column of the Jacobian; use float64, or rounding drowns the comparison. A backward that forgets the second term of the product rule fails at once: <span class="tda-err">"Jacobian mismatch for output 0 with respect to input 0"</span>. <dfn>gradgradcheck</dfn> does the same for the backward's own gradient. If your backward uses operations autograd cannot differentiate (an external kernel), decorate it with <code>@once_differentiable</code>: then asking for a second derivative fails loudly (<span class="tda-err">"element 0 of tensors does not require grad and does not have a grad_fn"</span>) instead of silently returning a wrong one. Other context methods: <code>ctx.needs_input_grad</code> (skip work for inputs that need no gradient), <code>ctx.mark_dirty</code> (the forward wrote an input in place), <code>ctx.mark_non_differentiable</code> (integer outputs such as indices). For an operator that must also survive torch.compile and export as a single node, use <code>torch.library.custom_op</code> with <code>register_autograd</code> ({{Extending PyTorch|n:3f85c17b0d0d8158a7addcd3d601d72a}}).</p>
+
+<h3>3.5 Turning gradients off</h3>
+<p><code>no_grad</code> and <code>set_grad_enabled(False)</code> are the same switch: the grad-mode flag the autograd kernel reads (section 2.2). No key changes, outputs get no <code>grad_fn</code>, and they can still be used in training later. <code>inference_mode</code> also excludes the autograd and view-tracking keys and produces <dfn>inference tensors</dfn>, which have no version counter and can never be saved for backward: using one in training later raised <span class="tda-err">"Inference tensors cannot be saved for backward."</span> Use <code>inference_mode</code> for serving and for evaluation whose outputs you never train on; <code>no_grad</code> inside a training loop (EMA updates, metrics on tensors you may reuse).</p>
+<details class="dp"><summary>Six contexts, what the output carries, and whether it can enter training later <span class="mute">(measured)</span></summary><div class="b">
+<div id="tda-gm" class="tw"></div>
+<p class="small"><code>enable_grad</code> turns recording back on inside <code>no_grad</code>; <code>inference_mode(False)</code> does the same inside <code>inference_mode</code>.</p>
+</div></details>
+
+<h3>3.6 Trading the saved memory: saved-tensor hooks and checkpointing</h3>
+<p>The saved tensors are the activation memory that limits batch size and sequence length. <dfn>Saved-tensor hooks</dfn> (<code>torch.autograd.graph.saved_tensors_hooks(pack, unpack)</code>) intercept every tensor a node saves: <code>pack</code> may return anything (a CPU copy, a compressed version, a file name) and <code>unpack</code> must give the tensor back in backward; <code>torch.autograd.graph.save_on_cpu()</code> is the built-in pair. <dfn>Activation checkpointing</dfn> (<code>torch.utils.checkpoint.checkpoint(fn, x, use_reentrant=False)</code>) saves only the region's input and reruns the region during backward when a node first asks for a tensor it did not keep. On the whole running example with all 4 blocks checkpointed:</p>
+<div class="vis"><h4>Checkpointing cut what forward leaves behind tenfold and paid for it in backward calls</h4>
+<div class="tda-svg" id="tda-ckbars"></div>
+<p class="cap">Full running example on the CPU, live storages tracked with a dispatch mode (<code>src/exp/autograd_lab.py</code>); gradients identical to plain (max difference 0) in every variant. Non-reentrant recomputes 12 of the 16 block matrix multiplies (it stops early: the last projection's output is never needed); reentrant reruns all 16. Time per forward and backward: plain 17.47 ms, non-reentrant 25.18 ms, reentrant 23.41 ms (median of 3 &times; 10, CPU 4 threads; why non-reentrant was not faster despite 4 fewer matmuls was not investigated).</p></div>
+<p>Step the "CPU: checkpointed" graph above to see where the rerun happens: nothing is held until the first node that unpacks a saved tensor, where the block's forward runs again (the red calls). The "MPS: saved tensors to host" variant moved 25 tensors, 13,119,488 B, to host memory in forward and back in backward, leaving 524,544 B on the device after forward instead of 8,921,344 B; but a forward and backward of the whole model took 72.98 ms against 12.02 ms plain <span class="meas">measured on Apple M1 Pro, MPS, median of 3 &times; 10</span>. On this Mac's unified memory the round trip saves the allocator's bytes but not physical memory; on a CUDA GPU the copies can overlap compute with pinned memory and streams.</p>
+<p><b>Two checkpoint variants, and a default that still has not changed.</b> The original <dfn>reentrant</dfn> variant (<code>use_reentrant=True</code>) runs the region under <code>no_grad</code> and, in backward, reruns it inside a nested call to the engine. The <dfn>non-reentrant</dfn> variant (<code>use_reentrant=False</code>) is built on saved-tensor hooks: forward packs placeholders, and the first unpack in backward triggers the rerun, which can stop as soon as everything needed is rebuilt. Reentrant breaks in two measured ways: when no input requires grad (a frozen embedding before it) the output does not require grad and the region's weights get no gradient ("None of the inputs have requires_grad=True. Gradients will be None"); and with <code>torch.autograd.grad</code> it raises "When use_reentrant=True, torch.utils.checkpoint is incompatible with .grad() or passing an `inputs` parameter to .backward()". Non-reentrant handles both.</p>
+<div class="co"><div class="t">Correction to a common claim</div>The warning and the docstring say that from PyTorch 2.9 calling <code>checkpoint</code> without <code>use_reentrant</code> "will raise an exception". At 2.14.1 it still warns and falls back to <code>use_reentrant=True</code> (<code>checkpoint.py</code> line 645, and measured: the unspecified run behaved exactly like the reentrant one, 431 backward calls and 16 recomputed matmuls). Always pass <code>use_reentrant=False</code>.</div>
+<p>Where the trade lands on the full training step (34.85 MB to 3.33 MB, CPU step 22.5 to 31.6 ms) is on the root's {{Inside one step|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab; selective checkpointing policies are on the sibling {{Making training fast|n:3c65c17b0d0d810d9e1fdf9ec942c20d}}.</p>
+<details class="dp"><summary>The same block three ways on CPU and MPS; the checkpoint table; the source of the default <span class="mute">(measured, with source)</span></summary><div class="b">
+<div id="tda-sth" class="tw"></div>
+<div id="tda-ck" class="tw"></div>
+<div class="tda-q" data-q="ckpt_default" data-hl="645"></div>
+</div></details>
+<details class="dp"><summary>Hooks: five places to step in, in the order they fired <span class="mute">(depth)</span></summary><div class="b">
+<p>One backward of the block with one hook of each kind registered, in the order they fired:</p>
+<ol class="tight">
+<li>tensor hook: block output y</li>
+<li>node pre-hook: AddBackward0 (y's grad_fn)</li>
+<li>node hook: AddBackward0 (y's grad_fn)</li>
+<li>module pre-hook: mlp (grad of its output arrives)</li>
+<li>tensor hook: mlp.fc.weight (gradient before accumulation)</li>
+<li>post-accumulate-grad hook: mlp.fc.weight (.grad is set)</li>
+<li>module hook: mlp (grad of its input computed)</li>
+<li>post-accumulate-grad hook: attn.qkv.weight</li>
+<li>tensor hook: input x</li>
+</ol>
+<p>The kinds: a <dfn>tensor hook</dfn> (<code>t.register_hook(fn)</code>) sees, and may replace, the gradient flowing into that tensor; <dfn>node pre-hooks and hooks</dfn> (<code>grad_fn.register_prehook</code>, <code>register_hook</code>) run around one node; <dfn>module backward hooks</dfn> (<code>register_full_backward_pre_hook</code>, <code>register_full_backward_hook</code>) see the gradients of a module's outputs and inputs; a <dfn>post-accumulate-grad hook</dfn> (<code>p.register_post_accumulate_grad_hook(fn)</code>) runs after <code>p.grad</code> has been written, the place to step an optimiser per parameter during backward so gradients can be freed early. A hook that returns a value replaces the gradient: <code>w.register_hook(lambda g: g.clamp(-1, 1)); (w ** 3).sum().backward()</code> gave w.grad = [1, 1, 1] instead of [3, 12, 27] (measured).</p>
+</div></details>
+<details class="dp"><summary>retain_graph, create_graph and double backward <span class="mute">(depth)</span></summary><div class="b">
+<p>Backward frees each node's saved tensors as soon as the node has run, which is why backward's memory falls as it goes (the curve in the graph above). A second <code>backward()</code> through the same graph therefore fails: <span class="tda-err">"Trying to backward through the graph a second time (or directly access saved tensors after they have already been freed)."</span> With <code>retain_graph=True</code> the saved tensors stay, and since gradients accumulate, two backwards on <code>(w**2).sum()</code> at w = [1, 2, 3] gave [2, 4, 6] then [4, 8, 12].</p>
+<p><code>create_graph=True</code> goes further: backward itself is recorded, so the gradient is a tensor with its own <code>grad_fn</code> and can be differentiated again. For y = &sum;x<sup>3</sup> at x = [1, 2, 3]: first gradient [3, 12, 27] (grad_fn <code>MulBackward0</code>, requires grad), second [6, 12, 18] = 6x. Without it the gradient does not require grad and differentiating it fails with "element 0 of tensors does not require grad". This is how gradient penalties (WGAN-GP, input-gradient regularisers) and Hessian-vector products work. The cost is real: on a small MLP, forward plus one gradient took 15 aten calls; forward, gradient with <code>create_graph</code>, the penalty and its backward took 50 <span class="meas">measured, aten calls counted by a dispatch mode</span>.</p>
+</div></details>
+<details class="dp"><summary>Anomaly mode: finding the op that made a NaN <span class="mute">(depth)</span></summary><div class="b">
+<p>A NaN in a gradient usually comes from one backward formula hitting a singular point. The classic: <code>sqrt</code> at 0 has an infinite derivative, and multiplying by a zero gradient gives 0 &times; &infin; = NaN. Without help, backward just returns x.grad = [nan, 0.5] with no error. Inside <code>torch.autograd.detect_anomaly()</code> the engine checks every node's output and raises <span class="tda-err">"Function 'SqrtBackward0' returned nan values in its 0th output."</span>, after printing a warning "Error detected in SqrtBackward0. Traceback of forward call that caused the error:" with the Python stack of the forward line that created the node. It records a stack trace for every node in forward and checks every output in backward, so it is a debugging tool, not a default: one forward and backward of the running example took 42.43 ms with it against 17.47 ms without <span class="meas">measured on Apple M1 Pro, CPU, 4 threads, median of 3 &times; 10</span>.</p>
+</div></details>
 </section>

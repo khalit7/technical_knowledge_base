@@ -30,3 +30,25 @@ The question the page keeps returning to: for one call, which pieces of PyTorch 
 ## What the Methodology lacked for this page
 
 A runtime page has no published figure to reproduce; the substitute was reproducing PyTorch's own behaviour: the engine order from its scheduling rule, addresses from strides, the key set from the formula in DispatchKeyExtractor.h.
+
+## 2026-10-23 rebuild (teaching contract): what moved, what was added
+
+Kind of concept decides the form. All new visuals are SVG drawn at the measured width; none plays by itself.
+
+| Visual | Kind | Where now | Status |
+|---|---|---|---|
+| Hero: `torch.mm(x, w)` as header over storage, the keys it walks, the node it records | structure (static annotated) | top of Reading | new |
+| View against `.contiguous()` (built #1) | before/after stepper | Reading 1, redrawn as SVG with the address arrow | moved/redrawn |
+| Key ladder (built #3) | structure (static) | Reading 2.1, SVG | redrawn |
+| Walk of one call key by key (built #5 and #9 A) | process, before/after | Reading 2.2, one SVG stepper, two situations side by side, all eight records | merged; tab removed |
+| Slot statistics (built #4) | structure (static bars) | Reading 2.3, SVG | redrawn |
+| Real aten calls in four contexts (built #9 B) | explorer | Reading 2.6, closed block | moved; tab removed |
+| Autograd graph (built #10) | process: forward builds, backward runs | Reading 3, inline, with a new forward phase and a saved-bytes curve | moved and extended; tab removed |
+| Version-counter mechanism | structure in three states | Reading 3.3 | new |
+| Version-counter lab (built #11) | predict then reveal | Reading 3.3, inline | moved; tab removed |
+| Custom Function in the graph | structure (static) | Reading 3.4 | new |
+| Checkpoint variants: memory after forward, backward calls, recomputed matmuls | before/after bars | Reading 3.6 | new (was a table only) |
+| Promotion grid (#2), overhead bars (#7), functionalisation graphs (#6) | | closed blocks | kept, closed |
+| Stride explorer (#8) | explorer | own tab | kept: a tool over 44 tensors used across section 1 |
+
+Rejected in the rebuild: a separate static figure for the key-set formula (the walk stepper's step 0 caption states each side's key set and why each key is skipped, which is the formula applied); an SVG redraw of the Stride explorer's cells (the tab works and is not the explanation of one mechanism).

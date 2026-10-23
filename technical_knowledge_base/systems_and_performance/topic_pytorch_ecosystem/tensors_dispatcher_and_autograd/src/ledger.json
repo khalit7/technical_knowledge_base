@@ -1,0 +1,3350 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Tensors, the dispatcher and autograd Tensors, the dispatcher and autograd What happens between one line of PyTorch and the kernel that runs it, taught from zero: a tensor as a view on storage, the dispatcher's keys and tables, autograd's graph and the engine that runs backward, nn.Module and a training loop done right.",
+  "label": "core",
+  "key": "What happens between one line of PyTorch and the kernel that runs it",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Every trace and error on this page was recorded with torch 2.14.1 on an Apple M1 Pro (CPU and MPS); C++ quoted from the v2.14.1 tag.",
+  "label": "core",
+  "key": "recorded with torch 2.14.1 on an Apple M1 Pro",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Stride explorer Dispatcher walker Autograd engine Version-counter lab Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tabs merged: the walker, engine and version lab moved into Reading"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 Tensors 2 Dispatcher 3 Autograd 4 Modules and the loop 5 On NVIDIA GPUs Mistakes Interview",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old nav"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "In one screen: what happens when you write torch.mm(x, w) PyTorch looks like a NumPy that can also compute gradients.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "Underneath, every line goes through three machines that this page takes apart one at a time.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "A tensor is a small description (shape, strides, offset, dtype, device) laid over a flat block of memory.",
+  "label": "core",
+  "key": "headers over a flat block of bytes",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "The dispatcher is a table lookup that decides, for each call, which pieces of PyTorch get to act on it: mixed precision, gradient recording, view tracking, Python hooks, and finally the kernel that does the arithmetic.",
+  "label": "core",
+  "key": "per call a table lookup decides which of them run",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "Autograd is the part that, while the forward runs, builds a graph of what happened, and then runs that graph backwards to produce gradients.",
+  "label": "core",
+  "key": "records a node",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "The tensor header + storage x is 8 × 256 float32: 8,192 bytes of storage, strides (256, 1).",
+  "label": "core",
+  "key": "8,192 bytes of storage read through strides (256, 1)",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "A transpose writes a new header, never moves a byte.",
+  "label": "core",
+  "key": "a transpose would write a new header and move no byte",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "The key set keys of x and w, plus thread state Every CPU tensor carries CPU, ADInplaceOrView, AutogradCPU, AutocastCPU ; the thread switches some on or off.",
+  "label": "core",
+  "key": "every CPU tensor carries the keys",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "Walk down the keys Autocast, Autograd, ADInplaceOrView, CPU Each kernel does its one job and calls the operator again below itself.",
+  "label": "core",
+  "key": "redispatches",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "Autograd records MmBackward0 and keeps x and w for later.",
+  "label": "core",
+  "key": "which keeps x and w because the gradient formula needs both",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "Backward the engine runs the graph loss.backward() runs each node once its inputs are ready; AccumulateGrad writes w.grad .",
+  "label": "core",
+  "key": "AccumulateGrad writes w.grad",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "Layer What it is What it keeps on the tensor or thread How you look at it Tensor A view (shape, strides, offset) on a storage (bytes, device) dtype, device, requires_grad , grad_fn , a version counter, its dispatch keys x.stride() , x.storage_offset() , x.untyped_storage().data_ptr() , x._version Dispatcher Per operator, a table of kernels indexed by dispatch key Thread-local included and excluded key sets (grad mode, inference mode, autocast, dispatch modes) torch._C._dispatch_keys(x) , torch._C._dispatch_dump_table(\"aten::mm\") , a TorchDispatchMode Autograd A graph of Node s built during forward; an engine that runs it during backward Saved tensors per node, hooks, grad mode y.grad_fn.next_functions , _saved_* attributes, node hooks, torch.autograd.graph.saved_tensors_hooks nn.Module and the loop A tree that registers parameters, buffers and sub-modules; your loop calls forward, backward, step state_dict , .grad , optimizer state named_parameters() , state_dict().keys() , hooks The running example is the topic's tiny GPT: 4 blocks, d_model 256, 43-character vocabulary, 3,186,944 parameters, batch 8 × 64, the output layer tied to the input embedding (see the root's Inside one step tab, which records one full training step op by op).",
+  "label": "depth",
+  "key": "What it keeps on the tensor or thread",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "This page goes one level deeper than the root's sections 1 to 4 and that tab: it asks why each call took the route it did, reads the C++ that decides it, and reproduces the errors you will meet.",
+  "label": "core",
+  "key": "each call took the route it did",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "How to use this page.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "how-to-use heading"
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "Each section starts with the problem, then how it works, what it costs, when it matters and how to check it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "rote five-question structure retired by the contract"
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "The four lab tabs are where you play: the Stride explorer (real tensors, every storage address), the Dispatcher walker (real calls walked key by key in eight situations), the Autograd engine (one block's backward, node by node, plain against checkpointed against offloaded) and the Version-counter lab (fourteen in-place snippets, predict then run).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to lab tabs that no longer exist; their content is inline"
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "0. in one screen: what happens when you write torch.mm(x, w)",
+  "text": "Labels: measured on Apple M1 Pro for numbers recorded here, derived for arithmetic on them, vendor for figures from PyTorch's own docs.",
+  "label": "depth",
+  "key": "for figures from PyTorch's own docs",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Tensors: a header over a block of bytes 1.1 Storage, sizes, strides, offset The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Deep learning code reshapes, slices, transposes and splits arrays constantly: attention alone turns one (8, 64, 768) block into q, k and v, each split into 4 heads.",
+  "label": "core",
+  "key": "three views of one (8, 64, 768)",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "If each of those operations copied the data, a forward pass would spend most of its time and memory moving bytes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by the running-example paragraph"
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "A storage is one flat, untyped block of bytes on one device.",
+  "label": "core",
+  "key": "one flat, untyped block of bytes on one device",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "A tensor is a header that says how to read it: sizes (the shape), strides (how many elements to skip in storage to move one step along each dimension), a storage offset (where element [0, 0, ...] sits) and a dtype (how many bytes per element and how to read them).",
+  "label": "core",
+  "key": "how many elements to skip in storage to move one step",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "The address of any element is a dot product: address(i, j, …) = offset + i·stride 0 + j·stride 1 + … address position in the storage, in elements (multiply by the element size for bytes) stride d elements skipped per step along dimension d; 0 means \"repeat the same element\" A view is a new header on the same storage.",
+  "label": "core",
+  "key": "repeat the same element",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Measured on x = torch.arange(12.).view(3, 4) , where every value equals its storage index, so the values printed prove the addresses: Shape, strides, offset, \"contiguous\" and \"same storage\" are what torch 2.14.1 reported for each expression ( src/exp/tensors.py ); \"same storage\" compares untyped_storage().data_ptr() .",
+  "label": "core",
+  "key": "every value equals its own storage index",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Every expression, and three more bases (3-D, 4-D, channels_last), is in the Stride explorer tab.",
+  "label": "core",
+  "key": "Every expression on four bases",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Three rows deserve a second look. x[0:1].expand(3, 4) has stride 0 along rows: three rows, one row of memory (this is how broadcasting avoids copies). x.unfold(1, 2, 1) makes overlapping windows, so some cells are read twice. x.detach() shares the storage but is not a \"view\" in autograd's sense ( _base is None), which matters in section 3.",
+  "label": "core",
+  "key": "three rows over one row of storage",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "1.2 Contiguous, view against reshape, and when a copy happens A tensor is contiguous when reading it in order walks the storage in order with no gaps: strides equal the row-major ones for its shape ((4, 1) for (3, 4)).",
+  "label": "core",
+  "key": "walks the storage in order with no gaps",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Most kernels are fastest on contiguous input and some require it.",
+  "label": "core",
+  "key": "Most kernels are fastest on contiguous input",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "The rules you need: view never copies; it fails if no strides can describe the new shape over the old layout: x.t().view(12) raised reshape returns a view when it can and copies when it cannot: x.reshape(12) shared storage, x.t().reshape(12) did not. .contiguous() copies only when needed. flip , advanced indexing ( x[[0, 2]] ) and boolean masks always copy (there are no negative strides: ).",
+  "label": "core",
+  "key": "x.t().reshape(12) did not",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Before and after on the same tensor: x.t() (header only) against x.t().contiguous() (a copy) x.t(): a view x.t().contiguous(): a copy The tensor as you index it (row by row) x's storage (12 floats) New storage The cost, on the running example.",
+  "label": "core",
+  "key": "A view reads in place",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Attention's q, k and v are three views of one (8, 64, 768) qkv output at storage offsets 0, 256 and 512, all with strides (49152, 768, 1); splitting heads with view and transpose gives strides (49152, 64, 768, 1): zero bytes copied.",
+  "label": "core",
+  "key": "(49152, 64, 768, 1): zero bytes copied",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "On the CPU the attention kernel then writes its (8, 4, 64, 64) output with strides (16384, 64, 256, 1), already in (batch, position, head, dim) order, so the model's .transpose(1, 2).contiguous() finds a contiguous tensor and copies nothing measured on Apple M1 Pro, CPU .",
+  "label": "core",
+  "key": "(16384, 64, 256, 1)",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "On MPS the same line copies 524,288 bytes per layer (the root's Inside one step tab, section 1).",
+  "label": "core",
+  "key": "524,288 bytes per layer",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "1.3 Memory formats: channels_last For images, a (N, C, H, W) tensor stored row-major keeps each channel's whole image together (NCHW).",
+  "label": "depth",
+  "key": "keeps each channel's whole image together (NCHW)",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Convolution kernels on GPUs with tensor cores, and oneDNN on CPUs, prefer the channels of one pixel together (NHWC).",
+  "label": "depth",
+  "key": "prefer the channels of one pixel together (NHWC)",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "PyTorch keeps the logical shape (N, C, H, W) and changes only the strides: that is channels_last , a memory format .",
+  "label": "depth",
+  "key": "changes only the strides: that is channels_last",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "So is_contiguous() answers \"row-major?\" and says no, while is_contiguous(memory_format=torch.channels_last) says yes.",
+  "label": "depth",
+  "key": "is_contiguous(memory_format=torch.channels_last) says yes",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Element-wise ops and convolutions keep the format (measured above); view on it fails like on any non-contiguous tensor.",
+  "label": "depth",
+  "key": "Element-wise ops and convolutions keep the format",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "A tensor with C = 1 or H = W = 1 is both at once, which is why format checks are ambiguous on such shapes.",
+  "label": "depth",
+  "key": "C = 1 or H = W = 1 is both at once",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "1.4 dtypes and type promotion A dtype fixes the bytes per element and how to read them: float32 (4 bytes), bfloat16 and float16 (2), int64 (8), bool (1).",
+  "label": "depth",
+  "key": "float32 (4 bytes), bfloat16 and float16 (2)",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "When an operation mixes dtypes, PyTorch picks the result dtype with type promotion : within the same category (bool < integer < floating < complex) the wider type wins, and when neither type can hold the other, a third one is chosen.",
+  "label": "depth",
+  "key": "when neither type can hold the other, a third one is chosen",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "The grid is torch.promote_types(row, column) read from the installed wheel: Two exceptions catch everyone, both measured below: a Python scalar or a 0-dim tensor does not raise precision within its category (float16 tensor + float64 0-dim tensor stays float16), but it does move you to a higher category (an int64 tensor + 2.5 becomes float32, the default dtype).",
+  "label": "depth",
+  "key": "does not raise precision within its category",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "And an in-place op cannot change the dtype of its destination.",
+  "label": "depth",
+  "key": "cannot change the dtype",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Predict: torch.tensor([1, 2], dtype=torch.uint8) + 300 .",
+  "label": "depth",
+  "key": "uint8 [45, 46]",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "What comes out? int64 [301, 302] An overflow error uint8 [45, 46] uint8 [45, 46] (measured): the Python int does not widen a uint8 tensor (same category), and 301 and 302 wrap modulo 256.",
+  "label": "depth",
+  "key": "wrap modulo 256",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Integer overflow in PyTorch is silent.",
+  "label": "depth",
+  "key": "Integer overflow in PyTorch is silent",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Cast first if the range matters.",
+  "label": "depth",
+  "key": "Cast first if the range matters",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Range limits from torch.finfo in the wheel; smallest subnormals are 2 −24 , 2 −133 , 2 −149 and 2 −1074 . bfloat16 keeps float32's range with 8 bits of precision (eps 0.0078125); float16 has more precision but overflows above 65,504, which is why only float16 training needs a gradient scaler (section 4).",
+  "label": "depth",
+  "key": "eps 0.0078125",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Formats themselves live on Quantization and Precision .",
+  "label": "depth",
+  "key": "Formats themselves live on",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "1.5 Devices, copies between them, and pinned memory A storage lives on one device ( cpu , mps , cuda:0 ), and an operation needs all its tensors on the same device. .to(device) is a copy (an aten::_to_copy call; a no-op if already there).",
+  "label": "depth",
+  "key": "a no-op if already there",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "On a GPU that copy crosses a bus, and copying from ordinary (\"pageable\") host memory makes the driver stage it through a pinned buffer first.",
+  "label": "depth",
+  "key": "stage it through a pinned buffer first",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Pinned (page-locked) host memory can be read by the GPU's copy engine directly, which is what lets .to(\"cuda\", non_blocking=True) overlap the copy with compute.",
+  "label": "depth",
+  "key": "overlap the copy with compute",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "On this Mac, torch.randn(1024).pin_memory() worked and reported is_pinned() == True , but a DataLoader(pin_memory=True) warned and returned unpinned batches measured on Apple M1 Pro .",
+  "label": "depth",
+  "key": "returned unpinned batches",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "The overlap itself is a CUDA matter: not run here (no NVIDIA GPU); see Streams, CUDA graphs and multi-GPU .",
+  "label": "depth",
+  "key": "The overlap itself is a CUDA matter",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "1.6 The rest of the header: requires_grad, grad_fn, the version counter Beyond layout, a tensor carries autograd metadata: requires_grad (should gradients flow to it), is_leaf (made by you, not by a recorded op), grad_fn (the graph node that made it), _base (the tensor it views, if it is a view) and a version counter : an integer bumped by every in-place write.",
+  "label": "core",
+  "key": "made by you, not by a recorded op",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Views share the counter with their base, because they share the memory: Look at the last two rows. no_grad stops recording, not counting: the write under it still bumped the counter.",
+  "label": "core",
+  "key": "a write under no_grad still bumped it",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "And a write through .data did not bump it at all: .data hands you a tensor with a fresh counter, which is exactly how it fools autograd (section 3.4).",
+  "label": "core",
+  "key": "hands you a tensor with a fresh counter",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "Inference tensors (made under inference_mode ) have no counter: reading _version raised Predict: how many bytes does the running example's state_dict hold, counting each entry's tensor?",
+  "label": "core",
+  "key": "Inference tensors do not track version counter",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "12,747,776 (3,186,944 × 4) 12,791,808 25,495,552 12,791,808 derived : the state_dict has 53 entries totalling 3,197,952 elements, because the tied tok.weight and head.weight (43 × 256 = 11,008 elements) appear under both names.",
+  "label": "depth",
+  "key": "12,791,808",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "1. tensors: a header over a block of bytes",
+  "text": "They are one storage, so the real memory is 12,747,776 bytes; code that sums a state_dict overcounts (section 4).",
+  "label": "depth",
+  "key": "code that sums a state_dict overcounts",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "The dispatcher: one table lookup per call The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "One operator, say matrix multiply, has to do different things depending on context: cast to bfloat16 under mixed precision, record a graph node when gradients are needed, run on a CPU, an Apple GPU or a CUDA GPU, call back into Python when a tensor subclass or a tracing tool wants to see it, or only compute output shapes when the compiler is tracing.",
+  "label": "core",
+  "key": "call back into Python for a tensor subclass or a tracing tool",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Writing all of that into every one of thousands of kernels is impossible to maintain.",
+  "label": "core",
+  "key": "Instead of writing all of that into every one of thousands of kernels",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "PyTorch separates the concerns and lets a table decide which ones apply to each call.",
+  "label": "core",
+  "key": "gives each concern its own kernel",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "2.1 Operators and their schemas An operator is a named function in the aten namespace (ATen is PyTorch's C++ tensor library) with a schema : its signature, including which arguments it writes to and which outputs alias an input.",
+  "label": "depth",
+  "key": "which arguments it writes to and which outputs alias an input",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "The schemas are declared in native_functions.yaml , which at v2.14.1 has - func: entries; the installed wheel registers operators in the aten namespace (more than the YAML entries, because out-variants and functional variants are generated).",
+  "label": "depth",
+  "key": "2,585",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Four real entries: Read the annotations: Tensor(a!) self ... -> Tensor(a!) on add_ means \"writes into self and returns it\" (the ! is the mutation); Tensor(a) self -> Tensor(a) on view means \"the output aliases self\".",
+  "label": "depth",
+  "key": "is the mutation",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "These annotations are how autograd, functionalization and the compiler know what an op mutates and aliases without reading its code.",
+  "label": "depth",
+  "key": "without reading its code",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "The dispatch: block names the kernel per key: linear is CompositeImplicitAutograd (written in terms of other ops) except on MPS, which has its own; mm and addmm are structured (one shape-checking function shared by every backend, kernels per device).",
+  "label": "depth",
+  "key": "one shape-checking function shared by every backend",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Their gradient formulas live in a second file, tools/autograd/derivatives.yaml ( entries): 2.2 Dispatch keys and their order A dispatch key names one concern.",
+  "label": "depth",
+  "key": "688 entries",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Keys come in two parts: a functionality (Dense, Autograd, Autocast, Python, ...) and, for some functionalities, a backend bit (CPU, MPS, CUDA, ...).",
+  "label": "core",
+  "key": "a backend bit (CPU, MPS, CUDA, ...)",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "AutogradCPU is the Autograd functionality with the CPU bit.",
+  "label": "core",
+  "key": "is the Autograd functionality with the CPU bit",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "The functionality order is the priority: when several keys apply, the one with the highest number runs first.",
+  "label": "core",
+  "key": "The functionality order is the priority",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Read from the wheel's torch._C.DispatchKey : Numbers are the enum values in the installed 2.14.1 wheel (the enum order in c10/core/DispatchKey.h at v2.14.1, where Python is declared on line 229, ADInplaceOrView on line 289 and AutocastCPU on line 334).",
+  "label": "core",
+  "key": "declared on line 229",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "The keys on the right are the ones this page meets; others (functorch's vmap and grad layers, Sparse, Quantized) slot in at the numbers shown.",
+  "label": "core",
+  "key": "slot in at the numbers shown",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "2.3 The key set of one call: tensors, plus the thread, minus the thread Every tensor carries a key set .",
+  "label": "core",
+  "key": "Every tensor carries a key set",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "The keys depend on what the tensor is, measured on real tensors: The thread carries two more sets, an included set and an excluded set, changed by context managers.",
+  "label": "core",
+  "key": "changed by context managers",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "For each call the dispatcher computes keys = (∪ keys of the tensor arguments ∪ included) − excluded − fallthroughs and runs the kernel of the highest-priority key left.",
+  "label": "core",
+  "key": "and the kernel of the highest key left runs",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Two defaults explain a lot (quoted below): ADInplaceOrView is in the included set of every thread, and every Autocast key is in the excluded set until you enter torch.autocast .",
+  "label": "core",
+  "key": "is in every thread's included set",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "So a plain tensor carries AutocastCPU , but it is excluded until autocast removes the exclusion.",
+  "label": "core",
+  "key": "the thread hides it",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Measured: the effective set for a plain CPU tensor in each context.",
+  "label": "depth",
+  "key": "The thread's sets in each context",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "The table says what the root's section 2 asserted, now from the source: no_grad changes no key at all (the autograd kernel still runs and decides not to record, from the grad-mode flag), while inference_mode removes ADInplaceOrView from the included set and excludes every autograd key: 2.4 The dispatch table, and what \"math kernel\" and \"fallthrough\" mean Each operator keeps a dispatch table : one slot per runtime key.",
+  "label": "core",
+  "key": "the autograd keys are excluded",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "A slot is filled by, in order: a kernel registered for exactly that key; else a kernel registered for an alias key that covers it ( CompositeExplicitAutograd , one implementation for all backends; CompositeImplicitAutograd , a decomposition into other operators that also serves as its own autograd, shown as \"math kernel\"); else a backend fallback registered for every operator at that key; and a fallthrough means \"skip this key\".",
+  "label": "core",
+  "key": "else a backend fallback registered for every operator at that key",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "The rule, in the source: Counted over all aten operators in the wheel, which slot each key gets: From torch._C._dispatch_dump_table for every aten:: operator, torch 2.14.1 macOS arm64 wheel (no CUDA kernels in this build). \"default backend kernel\" = CompositeExplicitAutograd ; \"math kernel\" = CompositeImplicitAutograd .",
+  "label": "core",
+  "key": "no CUDA kernels in this build",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "So: about a quarter of all operators decompose (739 math kernels at the CPU key, linear into t and addmm among them); ADInplaceOrView has a real kernel only for views and in-place ops and is a fallthrough for the rest; autocast touches only the operators on its list; and the Python key is a single boxed fallback that serves every operator.",
+  "label": "core",
+  "key": "About a quarter decompose",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Boxed means the arguments arrive as a generic stack of values, which is what lets one function handle every operator.",
+  "label": "core",
+  "key": "a generic stack of values",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "At the autograd keys, the boxed fallback handles operators that have no derivative registered: What that fallback does to your own operator: a custom op tda2::noautograd with only a CPU kernel, called on a tensor that requires grad, returned a tensor with grad_fn and backward ran, with the warning (the fallback mode is \" \" ).",
+  "label": "core",
+  "key": "tda2::noautograd",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "The gradient is silently not what the op computes.",
+  "label": "core",
+  "key": "The gradient is silently not what the op computes",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Register a backward ( Extending PyTorch shows register_autograd ).",
+  "label": "core",
+  "key": "register_autograd and custom ops",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "2.5 Watch it: one call, key by key To see which kernels actually run, the walk below uses a custom operator tda::scale with a logging Python kernel registered at AutocastCPU , AutogradCPU , ADInplaceOrView , CPU and Meta .",
+  "label": "core",
+  "key": "with a logging Python kernel registered at AutocastCPU",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Each kernel records the key set it received and redispatches below itself, the way the real C++ kernels do.",
+  "label": "core",
+  "key": "each records the key set it was handed",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Nothing is simulated: the dispatcher chose which of them ran and in what order.",
+  "label": "core",
+  "key": "Nothing is simulated",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Same input, before and after: plain tensor inference_mode autocast bf16 no_grad Four lessons in it.",
+  "label": "core",
+  "key": "Four lessons in it",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Under no_grad the autograd kernel still runs (grad mode is just a flag it reads).",
+  "label": "core",
+  "key": "Under no_grad the autograd kernel still runs",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Under inference_mode it is gone, and so would ADInplaceOrView be for a plain call, but this custom op still visits it: an inference-mode call on a tensor from outside keeps the tensor's own keys.",
+  "label": "core",
+  "key": "keeps its own keys",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Under autocast the input arrives as float32 at AutocastCPU and as bfloat16 everywhere below.",
+  "label": "core",
+  "key": "as bfloat16 everywhere below",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "The Dispatcher walker tab has all eight situations (a dispatch mode, a meta tensor, an inference tensor outside inference mode) and real aten calls.",
+  "label": "core",
+  "key": "eight situations",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "2.6 Autocast: mixed precision as a dispatch key How it works. torch.autocast(device, dtype) removes that device's Autocast key from the excluded set.",
+  "label": "core",
+  "key": "removes that device's Autocast key from the excluded set",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "From then on, every operator reaches the Autocast key first, and for most of them the slot is a fallthrough.",
+  "label": "core",
+  "key": "for most the slot is a fallthrough",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Operators on the lower_precision_fp list (matrix multiplies, convolutions, attention, linear ) get a kernel that casts their floating-point inputs to the autocast dtype; operators on the fp32 list (losses, norms, reductions that lose accuracy) cast to float32.",
+  "label": "core",
+  "key": "(losses, norms, reductions that lose accuracy)",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Weights stay float32: the casts are new tensors each time.",
+  "label": "core",
+  "key": "Weights stay float32",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "On the running example , one forward under torch.autocast(\"cpu\", dtype=torch.bfloat16) , seen at the Python key below autocast: Predict: under autocast bf16 on the CPU, in which dtype does native_layer_norm run in the running example? bfloat16, like everything else float32 It depends on the input float32: all 9 layer norms ran in float32 in the record.",
+  "label": "core",
+  "key": "180 aten calls against 137",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "LayerNorm is not on the CPU lower_precision_fp list, and its input here is the residual stream (the sum of an embedding and float32 adds), which stays float32.",
+  "label": "depth",
+  "key": "LayerNorm is not on the CPU lower_precision_fp list",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Only the outputs of the matrix multiplies (addmm, mm, attention) and the GELU between them are bfloat16.",
+  "label": "depth",
+  "key": "and the GELU between them are bfloat16",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Mind the difference: autocast does not make \"the model\" bf16; it makes chosen ops bf16, and everything else runs in whatever dtype reaches it.",
+  "label": "core",
+  "key": "does not make \"the model\" bf16",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "2.7 Functionalization: removing mutation for compilers The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Compilers and graph exporters want pure functions: no in-place writes, no aliasing, so they can reorder and fuse freely.",
+  "label": "core",
+  "key": "so a traced graph has no mutation",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Python code is full of add_ , views and x[...] = y .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Functionalization is a dispatch key ( Functionalize , with a real kernel for aten operators and a boxed fallback for the rest) that wraps tensors and replays every mutation as an out-of-place op, regenerating views from their base. torch.compile's AOTAutograd stage uses it.",
+  "label": "core",
+  "key": "1,333 aten operators",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "The same function traced with make_fx before and after torch.func.functionalize : source traced as written functionalized: no add_, no mul_ and with views turned into copies too (remove=\"mutations_and_views\") Graphs printed by torch 2.14.1 ( src/exp/dispatch.py ); both functions returned the same values (checked).",
+  "label": "depth",
+  "key": "functionalised: no add_, no mul_",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Note how the write through the view z becomes an add on the view followed by a view back to the base's shape: the mutation of y through z is now explicit data flow.",
+  "label": "depth",
+  "key": "is now explicit data flow",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "2.8 Meta and fake tensors: running a model without data A meta tensor has sizes, strides and a dtype but no storage; its kernels (the Meta key) only compute output metadata.",
+  "label": "core",
+  "key": "has sizes, strides and a dtype but no storage",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Built under with torch.device(\"meta\") , the running example has parameters and allocates nothing; a forward returns logits of shape , and loss.item() fails: This is how you build a model too big for one machine and then materialize it shard by shard ( to_empty plus your own initialization).",
+  "label": "core",
+  "key": "allocates nothing",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Gotcha, measured: materializing breaks tied weights After with torch.device(\"meta\"): m = GPT(cfg) the tie holds ( m.head.weight is m.tok.weight : ).",
+  "label": "depth",
+  "key": "the tie holds",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "After m.to_empty(device=\"cpu\") it is : the two modules now hold two different Parameters (not even the same storage: ), and training would update them separately.",
+  "label": "depth",
+  "key": "two different Parameters",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Re-tie after materializing ( m.head.weight = m.tok.weight ; Hugging Face models call tie_weights() ).",
+  "label": "depth",
+  "key": "Re-tie after materialising",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "A FakeTensor is the same idea with a device attached: a tensor subclass that dispatches at the Python key (its keys include Python and PythonTLSSnapshot , table in 2.3) and answers every operator with metadata only.",
+  "label": "core",
+  "key": "a tensor subclass that dispatches at the",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Under FakeTensorMode the running example ran forward and backward: logits , loss a FakeTensor on device cpu , and blocks.0.mlp.fc.weight.grad of shape , with no arithmetic done. torch.compile traces your model this way.",
+  "label": "core",
+  "key": "torch.compile traces your model this way",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "One more measured trap: calling make_model (which ends in .to(device) ) inside FakeTensorMode failed with , because moving a fake parameter swaps tensors in place and a tied parameter is held by two modules; building with GPT(cfg) directly worked.",
+  "label": "depth",
+  "key": "Couldn't swap Embedding.weight",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "2.9 What dispatch costs, and how to check it How to look, all real output from this machine: For a whole program, a TorchDispatchMode subclass whose __torch_dispatch__ logs func and calls it sees every aten call below autograd (that is how the Inside one step tab counted 923 calls in one step).",
+  "label": "core",
+  "key": "sees everything below autograd",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Mind what it sees: in training, F.linear reaches it as t plus addmm (decomposed at the autograd key); under inference_mode it reaches it as linear (the autograd key is skipped, so the decomposition happens below the mode).",
+  "label": "core",
+  "key": "reaches it as t plus addmm",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "2. the dispatcher: one table lookup per call",
+  "text": "Same code, different trace, both measured in the Dispatcher walker tab.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates 126"
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Autograd: a graph recorded in forward, run by an engine in backward The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Training needs the gradient of one number (the loss) with respect to millions of parameters.",
+  "label": "core",
+  "key": "Training needs the gradient of one number",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "The chain rule gives it, if you know every operation that produced the loss and kept what each needs to differentiate.",
+  "label": "core",
+  "key": "kept what each needs to differentiate",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Autograd records exactly that while forward runs ( reverse-mode automatic differentiation ), so the backward pass costs about as much as a couple of forwards, whatever the number of parameters.",
+  "label": "core",
+  "key": "about as much as a couple of forwards",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "3.1 The graph: nodes, edges, saved tensors When the autograd kernel of an operator runs with grad mode on and an input that requires grad, it creates a Node (the object you see as y.grad_fn , such as AddmmBackward0 ) and points the output at it.",
+  "label": "core",
+  "key": "points the output at it",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "A node holds three things: edges to the nodes that produced its inputs ( next_functions ), the saved tensors its formula in derivatives.yaml needs, and a sequence number , a per-thread counter taken at creation.",
+  "label": "core",
+  "key": "a per-thread counter taken at creation",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Leaves that require grad (parameters, here also the input x) end in an AccumulateGrad node, whose job is to add the arriving gradient into .grad .",
+  "label": "core",
+  "key": "whose job is to add the arriving gradient into",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "One block of the running example, applied to the embedding output as a leaf x, loss = mean(block(x) 2 ), recorded on the CPU: Walked from loss.grad_fn through next_functions ; saved tensors read from each node's _saved_* attributes, deduplicated by storage. \"Weight\" means the saved tensor is a parameter already in memory, so saving it costs nothing extra.",
+  "label": "core",
+  "key": "applied to the embedding output as a leaf x",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "What to take from it: the expensive saved tensors are activations, not weights.",
+  "label": "core",
+  "key": "The expensive saved tensors are activations, not weights",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Attention saves q, k and v as one shared (8, 64, 768) storage plus its output and log-sum-exp; each matrix multiply saves its input.",
+  "label": "core",
+  "key": "plus its output and log-sum-exp",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "That is the memory activation checkpointing (3.8) gives back.",
+  "label": "core",
+  "key": "That is the memory checkpointing gives back",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "3.2 The engine: dependencies, a ready queue, and one thread per device Calling loss.backward() hands the graph to the engine (C++, torch/csrc/autograd/engine.cpp ).",
+  "label": "core",
+  "key": "torch/csrc/autograd/engine.cpp",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "It first counts, for every node reachable from the loss, how many edges point into it (its dependencies ).",
+  "label": "core",
+  "key": "how many edges point into it",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Then it repeatedly takes a node from a ready queue , runs it, adds the gradients it produces into the input buffers of the next nodes, decrements their counts, and pushes each node whose count reaches zero.",
+  "label": "core",
+  "key": "decrements their counts",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "The ready queue is a priority queue: among ready nodes, the one with the highest sequence number (the one created last in forward) runs first, and AccumulateGrad nodes take the largest possible number so they run as soon as they are ready, freeing the gradient buffer early.",
+  "label": "core",
+  "key": "take the largest possible number",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Checked against the record: re-running that rule on the recorded graph (dependencies from the edges, a max-heap on sequence number) reproduces the order the engine actually ran the nodes, recorded with node pre-hooks, in all three variants (plain, checkpointed, with saved-tensor hooks) on the CPU and both variants on MPS measured on Apple M1 Pro .",
+  "label": "core",
+  "key": "reproduces the order the engine actually ran the 46 nodes",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "One detail the source leaves open: ties between AccumulateGrad nodes (all at the same maximal number) are broken by the heap; in this record the first pushed always ran first.",
+  "label": "core",
+  "key": "the first pushed always ran first",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "The Autograd engine tab steps through it node by node with the queue and the counts visible.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the old tab; the stepper is inline"
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "CPU work runs on the thread that called backward() ; each non-CPU device gets one long-lived worker thread with its own queue: Measured: a tensor hook fired on the calling thread for a CPU backward ( ) and on a different thread for an MPS backward ( ).",
+  "label": "core",
+  "key": "each non-CPU device gets one long-lived worker thread",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Consequence: a Python hook or a custom backward for a GPU tensor runs on the engine's device thread, not yours; PyTorch carries the thread-local dispatch and grad-mode state into it (each graph task stores the caller's at::ThreadLocalState , graph_task.h L125 ), but Python threading.local values you set yourself are not there.",
+  "label": "core",
+  "key": "values you set yourself are not there",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Predict: in the block above, which node does the engine run right after the first AddmmBackward0 (the MLP output projection)?",
+  "label": "core",
+  "key": "AccumulateGrad for mlp.proj.bias",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "The GELU node AccumulateGrad for mlp.proj.bias The other residual branch AccumulateGrad for mlp.proj.bias : once AddmmBackward0 runs, three nodes become ready (the bias's AccumulateGrad, the weight's TBackward0, and the GELU path's ViewBackward0); AccumulateGrad has the largest sequence number, so it goes first.",
+  "label": "core",
+  "key": "AccumulateGrad has the largest sequence number, so it goes first",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "In the record the next two nodes to run are that AccumulateGrad and then TBackward0, then the weight's AccumulateGrad, and only then the GELU path.",
+  "label": "core",
+  "key": "then the weight's AccumulateGrad, and only then the GELU path",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "3.3 Hooks: where you can step in Autograd lets you run code at five points; one backward of the block with one of each registered, in the order they fired: The kinds: a tensor hook ( t.register_hook(fn) ) sees, and may replace, the gradient flowing into that tensor; node pre-hooks and hooks ( grad_fn.register_prehook , register_hook ) run around one node; module backward hooks ( register_full_backward_pre_hook , register_full_backward_hook ) see the gradients of a module's outputs and inputs; a post-accumulate-grad hook ( p.register_post_accumulate_grad_hook(fn) ) runs after p.grad has been written, the place to step an optimizer per parameter during backward so gradients can be freed early.",
+  "label": "depth",
+  "key": "post-accumulate-grad hook",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "A hook that returns a value replaces the gradient: 3.4 Version counters and \"modified by an inplace operation\" The problem.",
+  "label": "depth",
+  "key": "A hook that returns a value replaces the gradient",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "A node saved a tensor in forward; if your code then overwrites that tensor in place before backward, the saved value is wrong, and the gradient with it.",
+  "label": "core",
+  "key": "the saved value is wrong and so is the gradient",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Copying every saved tensor would cost memory, so PyTorch detects instead.",
+  "label": "core",
+  "key": "PyTorch detects instead",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Every in-place write bumps the tensor's version counter (the ADInplaceOrView kernel does it, below the copy itself); a saved tensor remembers the version it had when saved; unpacking it in backward compares the two.",
+  "label": "core",
+  "key": "a saved tensor remembers the version it had when saved",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "The Version-counter lab runs fourteen snippets.",
+  "label": "core",
+  "key": "Fourteen snippets",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "The summary: Two ways to get a wrong gradient with no error, both measured Writing through .data (the write is invisible: fresh counter) and installing saved-tensor hooks whose pack keeps a reference (the version check is skipped whenever hooks are installed: line 165 above).",
+  "label": "core",
+  "key": "Two ways to get a wrong gradient with no error",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "In the sigmoid case the correct gradient is ; through .data backward returned .",
+  "label": "core",
+  "key": "[0.2350, 0.1966, 0.1050]",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Use .detach() , which shares the counter and gets caught.",
+  "label": "core",
+  "key": "which shares the counter and gets caught",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "3.5 retain_graph, create_graph and double backward Backward frees each node's saved tensors as soon as the node has run, which is why backward's memory falls as it goes.",
+  "label": "depth",
+  "key": "which is why backward's memory falls as it goes",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "A second backward() through the same graph therefore fails: With retain_graph=True the saved tensors stay, and since gradients accumulate, two backwards on (w**2).sum() at w = [1, 2, 3] gave then . create_graph=True goes further: backward itself is recorded, so the gradient is a tensor with its own grad_fn and can be differentiated again.",
+  "label": "depth",
+  "key": "[4, 8, 12]",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "For y = ∑x 3 at x = [1, 2, 3]: first gradient (grad_fn MulBackward0 , requires grad), second = 6x.",
+  "label": "depth",
+  "key": "[6, 12, 18] = 6x",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Without it the gradient does not require grad and differentiating it fails with the familiar \"does not require grad\" error.",
+  "label": "depth",
+  "key": "Without it the gradient does not require grad",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "This is how gradient penalties (WGAN-GP, input-gradient regularizers) and Hessian-vector products work.",
+  "label": "depth",
+  "key": "Hessian-vector products work",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "The cost is real: on a small MLP, forward plus one gradient took aten calls; forward, gradient with create_graph , the penalty and its backward took measured, aten calls counted by a dispatch mode .",
+  "label": "depth",
+  "key": "took 15 aten calls",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "3.6 Writing your own backward: torch.autograd.Function When you want a different gradient than the one autograd would derive (a numerically safer formula, a fused kernel, a straight-through estimator), subclass torch.autograd.Function .",
+  "label": "core",
+  "key": "a straight-through estimator",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "The current style keeps forward free of the context and saves in a separate setup_context , which is what lets the function work with torch.func transforms: class MyGelu(torch.autograd.Function): @staticmethod def forward(x): # no ctx here return 0.5 * x * (1 + torch.tanh(0.7978845608 * (x + 0.044715 * x ** 3))) @staticmethod def setup_context(ctx, inputs, output): (x,) = inputs ctx.save_for_backward(x) # goes through SavedVariable: version-checked @staticmethod def backward(ctx, g): (x,) = ctx.saved_tensors u = 0.7978845608 * (x + 0.044715 * x ** 3) t = torch.tanh(u) du = 0.7978845608 * (1 + 3 * 0.044715 * x ** 2) return g * (0.5 * (1 + t) + 0.5 * x * (1 - t ** 2) * du) x = torch.randn(6, dtype=torch.float64, requires_grad=True) torch.autograd.gradcheck(MyGelu.apply, (x,)) # finite differences in float64 torch.autograd.gradgradcheck(MyGelu.apply, (x,)) # its backward is differentiable too gradcheck compares your backward with finite differences, column by column of the Jacobian; use float64, or rounding drowns the comparison.",
+  "label": "core",
+  "key": "what lets the function work with",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "A backward that forgets the second term of the product rule fails at once: gradgradcheck does the same for the backward's own gradient.",
+  "label": "core",
+  "key": "forgets the second term of the product rule",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "If your backward is written with operations autograd cannot differentiate (an external kernel), decorate it with @once_differentiable : then its output does not require grad and asking for a second derivative fails loudly ( ) instead of silently returning a wrong one.",
+  "label": "core",
+  "key": "fails loudly",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Other context methods: ctx.needs_input_grad (skip work for inputs that need no gradient), ctx.mark_dirty (the forward wrote an input in place), ctx.mark_non_differentiable (integer outputs such as indices).",
+  "label": "core",
+  "key": "ctx.mark_non_differentiable",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "For an operator that must also survive torch.compile and export as a single node, prefer torch.library.custom_op with register_autograd ( Extending PyTorch ).",
+  "label": "core",
+  "key": "must also survive torch.compile and export as a single node",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "3.7 Anomaly mode: finding the op that made a NaN A NaN in a gradient usually comes from one backward formula hitting a singular point.",
+  "label": "depth",
+  "key": "hitting a singular point",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "The classic: sqrt at 0 has an infinite derivative, and multiplying by a zero gradient gives 0 × ∞ = NaN.",
+  "label": "depth",
+  "key": "has an infinite derivative",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Without help, backward just returns .",
+  "label": "depth",
+  "key": "[nan, 0.5] with no error",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Inside torch.autograd.detect_anomaly() the engine checks every node's output and raises , after printing a warning \"Error detected in SqrtBackward0.",
+  "label": "depth",
+  "key": "returned nan values in its 0th output",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Traceback of forward call that caused the error:\" with the Python stack of the forward line that created the node.",
+  "label": "depth",
+  "key": "Traceback of forward call that caused the error",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Anomaly mode records a stack trace for every node in forward and checks every output in backward, so it is a debugging tool, not a default: 3.8 Turning gradients off: no_grad, set_grad_enabled, inference_mode So: no_grad and set_grad_enabled(False) are the same switch (the second takes a bool, handy for set_grad_enabled(is_train) ); enable_grad turns it back on inside; inference_mode also removes the autograd and view-tracking keys (2.3) and produces inference tensors that can never enter autograd later.",
+  "label": "depth",
+  "key": "so it is a debugging tool, not a default",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Use inference_mode for serving and for evaluation whose outputs you never train on; no_grad for anything inside a training loop (EMA updates, metrics on tensors you may reuse).",
+  "label": "core",
+  "key": "EMA updates, metrics on tensors you may reuse",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "3.9 Saved-tensor hooks and activation checkpointing The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "The saved tensors of 3.1 are the activation memory that limits batch size and sequence length.",
+  "label": "core",
+  "key": "the activation memory that limits batch size and sequence length",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Two tools trade something else for it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Saved-tensor hooks ( torch.autograd.graph.saved_tensors_hooks(pack, unpack) ) intercept every tensor a node saves: pack may return anything (a CPU copy, a compressed version, a file name), and unpack must give the tensor back in backward. torch.autograd.graph.save_on_cpu() is the built-in pair that copies saved tensors to host memory.",
+  "label": "core",
+  "key": "pack may return anything",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Activation checkpointing ( torch.utils.checkpoint.checkpoint(fn, x, use_reentrant=False) ) saves only the region's input and reruns the region during backward when a node first asks for a tensor it did not keep.",
+  "label": "core",
+  "key": "saves only the region's input and reruns the region",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "The same block, same input, three ways: Two checkpoint variants, and the default that still has not changed.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "headings"
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "The original reentrant variant ( use_reentrant=True ) runs the region under no_grad and, in backward, reruns it inside a nested call to the engine.",
+  "label": "core",
+  "key": "reruns it inside a nested call to the engine",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "The non-reentrant variant ( use_reentrant=False ) is built on saved-tensor hooks: forward packs placeholders, and the first unpack in backward triggers the rerun, which can stop as soon as everything needed is rebuilt.",
+  "label": "core",
+  "key": "forward packs placeholders",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "On the whole running example (4 checkpointed blocks): Correction to a common claim The warning above, and the docstring, say that from PyTorch 2.9 calling checkpoint without use_reentrant \"will raise an exception\".",
+  "label": "core",
+  "key": "will raise an exception",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "At 2.14.1 it still warns and falls back to use_reentrant=True (line 645, and measured: the unspecified run behaved exactly like the reentrant one in the table).",
+  "label": "core",
+  "key": "falls back to use_reentrant=True",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Always pass use_reentrant=False .",
+  "label": "core",
+  "key": "Always pass",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "3. autograd: a graph recorded in forward, run by an engine in backward",
+  "text": "Where the memory/compute trade lands on the full step (34.85 MB to 3.33 MB, CPU step 22.5 to 31.6 ms) is on the root's Inside one step tab; selective checkpointing policies are on the sibling Making training fast .",
+  "label": "core",
+  "key": "(34.85 MB to 3.33 MB, CPU step 22.5 to 31.6 ms)",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "4. nn.Module, state_dict, and a training loop done right 4.1 What a Module registers An nn.Module is a Python object whose attribute assignments are intercepted: assigning an nn.Parameter registers a parameter (a leaf tensor with requires_grad=True that optimizers will update), assigning a module registers a sub-module , and register_buffer registers a buffer (state that is saved but not trained, such as running statistics; persistent=False keeps it out of the state_dict).",
+  "label": "depth",
+  "key": "whose attribute assignments are intercepted",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "Everything else ( parameters() , .to() , state_dict() , train() / eval() ) walks that tree.",
+  "label": "depth",
+  "key": "walks that tree",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "On the running example: The tied weight, one level deeper than \"52 against 53\". head.weight is tok.weight : one Parameter reachable under two names. parameters() de-duplicates by object, the state_dict does not, so every tool that walks names sees two tensors sharing one storage.",
+  "label": "core",
+  "key": "counts 52 tensors",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "Measured consequences: 4.2 Loading: strict, missing and unexpected keys load_state_dict matches by name.",
+  "label": "depth",
+  "key": "load_state_dict matches by name",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "With the default strict=True , a renamed key (here blocks.0.ln1.weight saved as blocks.0.ln_1.weight ) raised: With strict=False nothing is raised and the call returns ; the missing parameter silently keeps its initial value.",
+  "label": "depth",
+  "key": "the missing parameter silently keeps its initial value",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "Check the return value, always.",
+  "label": "depth",
+  "key": "Check the return value, always",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "A shape mismatch is an error even with strict=False : Predict: you load a state_dict whose tok.weight is all 1.0 and whose head.weight is all 2.0 into the tied model.",
+  "label": "depth",
+  "key": "A shape mismatch is an error even with",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "What is model.tok.weight[0, 0] afterwards?",
+  "label": "depth",
+  "key": "model.tok.weight[0, 0]",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "1.0 2.0 An error: two values for one tensor (measured).",
+  "label": "depth",
+  "key": "An error: two values for one tensor",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "Both names copy into the same storage, in state_dict order, and head.weight comes after tok.weight , so the last one wins and no warning is given.",
+  "label": "depth",
+  "key": "the last one wins and no warning is given",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "This happens when you load an untied checkpoint (a model trained without tying) into a tied architecture.",
+  "label": "depth",
+  "key": "load an untied checkpoint",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "4.3 Forward hooks register_forward_pre_hook sees a module's inputs before forward, register_forward_hook its inputs and output after; both may replace them.",
+  "label": "depth",
+  "key": "register_forward_pre_hook sees a module's inputs",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "They are the standard way to read activations without editing the model: one hook per block of the running example, one batch, collected the output standard deviation per block, measured , the residual stream growing block by block as expected at initialization.",
+  "label": "depth",
+  "key": "0.0495, 0.0659, 0.0799 and 0.0924",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "Backward hooks on modules are in 3.3.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "cross-reference"
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "4.4 The loop, line by line model.train() opt = torch.optim.AdamW(groups, lr=6e-4, betas=(0.9, 0.95), weight_decay=0.1, fused=True) scaler = torch.amp.GradScaler(\"cuda\", enabled=(amp_dtype == torch.float16)) # only float16 needs it for step in range(steps): for micro in range(accum): # gradient accumulation x, y = get_batch(cfg, step * accum + micro, device) # batch k is the same on every run with torch.autocast(device_type, dtype=amp_dtype): # bf16 or fp16 for chosen ops _, loss = model(x, y) scaler.scale(loss / accum).backward() # .grad adds up across micro-batches scaler.unscale_(opt) # clip the true gradient, not the scaled one total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0) scaler.step(opt) # skipped if any gradient is inf or NaN scaler.update() opt.zero_grad(set_to_none=True) # free the gradients Each line, with what was measured on the running example: Predict: of the running example's 3,186,944 gradient values at step 0, how many would be flushed to zero if stored in float16 without a scaler?",
+  "label": "depth",
+  "key": "clip the true gradient, not the scaled one",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "4. nn.module, state_dict, and a training loop done right",
+  "text": "None: the gradients are not that small About 1,600 About 400,000 4.5 Determinism and seeds 4.6 DataLoader workers and pin_memory",
+  "label": "depth",
+  "key": "About 1,600",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "5. what carries over to nvidia gpus, and what does not",
+  "text": "What carries over to NVIDIA GPUs, and what does not Measured here On a CUDA GPU Strides, views, copies, channels_last strides, type promotion, version counters Identical.",
+  "label": "depth",
+  "key": "Strides, views, copies, channels_last strides, type promotion, version counters",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "5. what carries over to nvidia gpus, and what does not",
+  "text": "These are metadata rules, not device behaviour.",
+  "label": "depth",
+  "key": "metadata rules, not device behaviour",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "5. what carries over to nvidia gpus, and what does not",
+  "text": "Key sets (CPU, ADInplaceOrView, AutogradCPU, AutocastCPU), the TLS defaults, the walk order Same mechanism, CUDA keys: CUDA, AutogradCUDA, AutocastCUDA.",
+  "label": "depth",
+  "key": "Same mechanism, CUDA keys",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "5. what carries over to nvidia gpus, and what does not",
+  "text": "Autocast's CUDA list differs from the CPU list (each device registers its own; on MPS log_softmax ran in bf16, on the CPU in fp32).",
+  "label": "depth",
+  "key": "on MPS log_softmax ran in bf16",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "5. what carries over to nvidia gpus, and what does not",
+  "text": "Autograd graph, saved tensors, engine order Same graph and order for the same code , with CUDA's own kernels (attention saves what the CUDA SDPA backend needs).",
+  "label": "depth",
+  "key": "Same graph and order for the same code",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "5. what carries over to nvidia gpus, and what does not",
+  "text": "The CUDA device thread runs the GPU part of backward, as MPS's did here.",
+  "label": "depth",
+  "key": "as MPS's did here",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "5. what carries over to nvidia gpus, and what does not",
+  "text": "Per-call dispatch overhead in microseconds Different numbers, same lesson: on a GPU the overhead shows up as gaps between short kernels.",
+  "label": "depth",
+  "key": "gaps between short kernels",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "5. what carries over to nvidia gpus, and what does not",
+  "text": "See Streams, CUDA graphs and multi-GPU .",
+  "label": "depth",
+  "key": "Streams, CUDA graphs and multi-GPU",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "5. what carries over to nvidia gpus, and what does not",
+  "text": "Pinned memory: no effect on this Mac's unified memory Matters: pinned host buffers let host-to-device copies run asynchronously.",
+  "label": "depth",
+  "key": "pinned host buffers let host-to-device copies run asynchronously",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "5. what carries over to nvidia gpus, and what does not",
+  "text": "Determinism: CPU repeatable, MPS not Deterministic mode exists and raises on ops without a deterministic kernel; not run here. float16 gradient underflow counts Same arithmetic (the counts are properties of the gradients, not the device).",
+  "label": "depth",
+  "key": "Same arithmetic",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Assuming .view() after a transpose or permute will work It fails whenever the strides cannot describe the new shape; .reshape() works and may copy.",
+  "label": "depth",
+  "key": "after a transpose or permute will work",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Both are measured in 1.2.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "cross-reference"
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Writing in place into something backward needs nn.ReLU(inplace=True) after a sigmoid, x += ... on a saved activation, an optimizer step or EMA update between forward and backward.",
+  "label": "depth",
+  "key": "an optimiser step or EMA update between forward and backward",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The version check catches it: \"modified by an inplace operation\" (3.4).",
+  "label": "depth",
+  "key": "The version check catches it",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Using .data to \"get around\" autograd The write is invisible to the version counter and the gradient comes out wrong without any error (measured in 3.4).",
+  "label": "depth",
+  "key": "The write is invisible to the version counter",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use .detach() or torch.no_grad() .",
+  "label": "depth",
+  "key": "Use .detach() or torch.no_grad()",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Thinking no_grad stops version counting, or that it removes keys It only tells the autograd kernel not to record; in-place writes still bump counters (1.6) and the autograd key still runs (2.3).",
+  "label": "depth",
+  "key": "It only tells the autograd kernel not to record",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Returning a tensor made under inference_mode into training code \"Inference tensors cannot be saved for backward\" as soon as an op needs to save it; clone it first or use no_grad (3.8).",
+  "label": "depth",
+  "key": "clone it first or use no_grad",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Calling checkpoint without use_reentrant At 2.14.1 it still means the reentrant variant: no gradient when no input requires grad, no torch.autograd.grad , full recompute (3.9).",
+  "label": "depth",
+  "key": "no gradient when no input requires grad",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Ignoring load_state_dict(strict=False) 's return value Missing keys keep their random initialization silently (4.2).",
+  "label": "depth",
+  "key": "Missing keys keep their random initialisation silently",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Forgetting tied weights when saving, loading or materializing safetensors refuses shared tensors, two values loaded under the two names means the last wins, and to_empty unties them (4.1, 2.8).",
+  "label": "depth",
+  "key": "safetensors refuses shared tensors",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Accumulating gradients without dividing the loss The gradient comes out exactly the number of micro-batches times too large (4.4).",
+  "label": "depth",
+  "key": "exactly the number of micro-batches times too large",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Clipping before unscaling with a GradScaler You clip the scaled gradient (65,536 times too large at the default scale) and the threshold means nothing.",
+  "label": "depth",
+  "key": "65,536 times too large at the default scale",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Assuming torch.manual_seed seeds everything It does not seed Python's random or NumPy in the main process (measured in 4.6); DataLoader workers seed all three for you.",
+  "label": "depth",
+  "key": "DataLoader workers seed all three for you",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting autocast to make the model bfloat16 Only the listed ops run in the lower dtype; norms, adds and the loss stay float32, and the weights are re-cast every forward (2.6).",
+  "label": "depth",
+  "key": "the weights are re-cast every forward",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A custom op without an autograd registration The autograd fallback lets backward run with only a warning, and the gradient is wrong (2.4).",
+  "label": "depth",
+  "key": "The autograd fallback lets backward run with only a warning",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Interview questions, with short answers What is the difference between a tensor and a storage?",
+  "label": "depth",
+  "key": "What is the difference between a tensor and a storage?",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "When do two tensors share memory?",
+  "label": "depth",
+  "key": "When do two tensors share memory?",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The storage is the bytes on a device; the tensor is sizes, strides, offset and dtype over it.",
+  "label": "depth",
+  "key": "The storage is the bytes on a device",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Views (slicing, transpose, view, expand, split) share storage; compare untyped_storage().data_ptr() . flip, advanced indexing and contiguous() on a non-contiguous tensor copy.",
+  "label": "depth",
+  "key": "flip, advanced indexing and contiguous() on a non-contiguous tensor copy",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why can expand make a 1,000 × 1,000 tensor from 1,000 numbers?",
+  "label": "depth",
+  "key": "tensor from 1,000 numbers",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Stride 0 on the expanded dimension: every row reads the same memory.",
+  "label": "depth",
+  "key": "every row reads the same memory",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Writing into it in place is an error for that reason.",
+  "label": "depth",
+  "key": "Writing into it in place is an error for that reason",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Walk through what happens in torch.mm(x, w) with w requiring grad, under autocast.",
+  "label": "depth",
+  "key": "Walk through what happens in",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Key set = keys of x and w, plus the thread's included set, minus excluded.",
+  "label": "depth",
+  "key": "plus the thread's included set, minus excluded",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "AutocastCPU runs first (autocast removed its exclusion) and casts both to bf16, then calls mm again with Autocast excluded; AutogradCPU records MmBackward0 saving both inputs and redispatches below autograd; ADInplaceOrView is a fallthrough for mm; the CPU kernel computes.",
+  "label": "depth",
+  "key": "AutocastCPU runs first (autocast removed its exclusion)",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Measured: 2 _to_copy calls and a bf16 mm (Dispatcher walker).",
+  "label": "depth",
+  "key": "2 _to_copy calls and a bf16 mm",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What do CompositeImplicitAutograd and CompositeExplicitAutograd mean?",
+  "label": "depth",
+  "key": "What do CompositeImplicitAutograd and CompositeExplicitAutograd mean?",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Implicit: the op is written in other ops and gets its gradient from them (no derivative formula, no backend kernel), so it decomposes before autograd records.",
+  "label": "depth",
+  "key": "so it decomposes before autograd records",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Explicit: one implementation for all backends, but it needs its own derivative.",
+  "label": "depth",
+  "key": "but it needs its own derivative",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A backend may override either (MPS registers its own linear). no_grad versus inference_mode, mechanically? no_grad flips the grad-mode flag; the autograd kernel still runs and records nothing. inference_mode also excludes every autograd key, stops including ADInplaceOrView, and creates inference tensors without version counters, which can never be saved for backward.",
+  "label": "depth",
+  "key": "MPS registers its own linear",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How does the autograd engine decide the order of backward?",
+  "label": "depth",
+  "key": "How does the autograd engine decide the order of backward?",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Count dependencies; run ready nodes from a priority queue keyed on sequence number (latest-created first), AccumulateGrad first of all; CPU work on the calling thread, one worker thread per GPU device.",
+  "label": "depth",
+  "key": "AccumulateGrad first of all",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Re-running that rule reproduced the recorded order here.",
+  "label": "depth",
+  "key": "Re-running that rule reproduced the recorded order here",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How does PyTorch detect \"modified by an inplace operation\"?",
+  "label": "depth",
+  "key": "detect \"modified by an inplace operation\"",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A version counter per storage, shared by views, bumped by every in-place op (ADInplaceOrView kernels); saved tensors record the version at save time and compare at unpack.",
+  "label": "depth",
+  "key": "bumped by every in-place op (ADInplaceOrView kernels)",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "It is skipped for .data writes and when saved-tensor hooks are installed.",
+  "label": "depth",
+  "key": "It is skipped for .data writes",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What does create_graph=True cost and when do you need it?",
+  "label": "depth",
+  "key": "What does create_graph=True cost",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "It records backward as a graph so you can differentiate the gradient (penalties, Hessian-vector products, meta-learning).",
+  "label": "depth",
+  "key": "penalties, Hessian-vector products, meta-learning",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "It keeps more saved tensors and more ops: 15 against 50 aten calls on a small MLP here.",
+  "label": "depth",
+  "key": "15 against 50 aten calls",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Reentrant or non-reentrant checkpointing?",
+  "label": "depth",
+  "key": "Reentrant or non-reentrant checkpointing?",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Non-reentrant: works when inputs do not require grad, works with autograd.grad and keyword args, stops recomputing early (12 of 16 matmuls here).",
+  "label": "depth",
+  "key": "12 of 16 matmuls here",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Reentrant is the old default, still the fallback at 2.14.1 if you pass nothing.",
+  "label": "depth",
+  "key": "Reentrant is the old default",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why does only float16 need a GradScaler? float16 has 5 exponent bits: gradients below about 6e-8 vanish (1,636 of 3.19 million here) and the maximum is 65,504. bfloat16 has float32's 8 exponent bits, so its range is the same as float32's.",
+  "label": "depth",
+  "key": "1,636 of 3.19 million here",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Your parameter count from the state_dict is higher than from parameters().",
+  "label": "depth",
+  "key": "Your parameter count from the state_dict is higher",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Tied (shared) parameters appear once per name in the state_dict: 3,197,952 against 3,186,944 elements here.",
+  "label": "depth",
+  "key": "3,197,952 against 3,186,944 elements here",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How would you see every operator a model calls, and what can fool you?",
+  "label": "depth",
+  "key": "How would you see every operator a model calls",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A TorchDispatchMode logging func.",
+  "label": "depth",
+  "key": "A TorchDispatchMode logging func",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What it sees depends on grad mode: in training F.linear arrives decomposed (t + addmm), under inference_mode as linear.",
+  "label": "depth",
+  "key": "in training F.linear arrives decomposed",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The profiler sees still more (calls inside kernels).",
+  "label": "depth",
+  "key": "The profiler sees still more",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-tda-str",
+  "section": "stride explorer",
+  "text": "Stride explorer Pick a tensor, then an expression.",
+  "label": "core",
+  "key": "Pick a tensor, then an expression",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-tda-str",
+  "section": "stride explorer",
+  "text": "Every case below was evaluated by torch 2.14.1 ( src/exp/tensors.py ): shape, strides, offset, whether it shares the base's storage, and every value in index order.",
+  "label": "core",
+  "key": "whether it shares the base's storage",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-tda-str",
+  "section": "stride explorer",
+  "text": "The bases are filled with arange , so each value is its own storage index: the recorded values confirm the address the formula gives for every element (and the script checks the first element against the real data pointer).",
+  "label": "core",
+  "key": "each value is its own storage index",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-tda-str",
+  "section": "stride explorer",
+  "text": "Click any element to see its address computed; press play to walk the tensor in index order and watch where the reads land. x: 3 × 4 y: 2 × 3 × 4 z: 2 × 3 × 2 × 2 (images) the running example's q, k, v your own strides The tensor, in index order (small number: position in that order; blue corner: times this storage cell is read) Lay any header over x's 12-element storage.",
+  "label": "core",
+  "key": "Click any element to see its address computed",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-tda-str",
+  "section": "stride explorer",
+  "text": "Computed in your browser with the address formula, not by torch ; torch's as_strided accepts the same arguments (and rejects negative strides, measured: ). shape (comma separated) strides offset Read the strides, predict the layout Contiguous means strides are the running products of the trailing sizes ((4, 1) for 3 × 4).",
+  "label": "core",
+  "key": "Computed in your browser with the address formula",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-tda-str",
+  "section": "stride explorer",
+  "text": "A stride of 0 repeats data (expand); strides smaller than the next dimension's extent make windows overlap (unfold); a permutation of the contiguous strides is a transpose or permute. channels_last keeps the shape and puts the channel stride at 1.",
+  "label": "core",
+  "key": "a permutation of the contiguous strides is a transpose or permute",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-tda-dsp",
+  "section": "dispatcher walker",
+  "text": "Dispatcher walker Two ways to watch the dispatcher on real calls, both recorded with torch 2.14.1 on the CPU ( src/exp/dispatch.py ).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab intro; the two views are now in Reading"
+ },
+ {
+  "id": 274,
+  "tab": "t-tda-dsp",
+  "section": "dispatcher walker",
+  "text": "A is ground truth: a custom operator with a logging kernel at every key, so the record is literally the list of kernels the dispatcher ran, in order, each with the key set it was handed.",
+  "label": "core",
+  "key": "the dispatcher chose which ran, in what order",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-tda-dsp",
+  "section": "dispatcher walker",
+  "text": "B is real aten operators, which cannot be instrumented key by key from Python: there the route is reconstructed from the measured key sets, thread state and dispatch tables, and checked against what a TorchFunctionMode saw at the top and a TorchDispatchMode saw at the Python key.",
+  "label": "depth",
+  "key": "the route is reconstructed from the measured key sets",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-tda-dsp",
+  "section": "dispatcher walker",
+  "text": "One call, key by key: compare two situations Left Right The op: tda::scale(Tensor x) -> Tensor , defined with torch.library.Library(\"tda\", \"DEF\") ; Python kernels registered with with_keyset=True at AutocastCPU (casts to the autocast dtype and calls the op with AutocastCPU excluded, as ATen's autocast wrappers do), AutogradCPU (redispatches below autograd under _AutoDispatchBelowAutograd , as generated autograd kernels do), ADInplaceOrView, CPU and Meta.",
+  "label": "core",
+  "key": "with_keyset=True",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-tda-dsp",
+  "section": "dispatcher walker",
+  "text": "The TorchDispatchMode row appears when a mode is active.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "legend, carried by the drawing"
+ },
+ {
+  "id": 278,
+  "tab": "t-tda-dsp",
+  "section": "dispatcher walker",
+  "text": "Keys shown struck through never ran; the reason is beside them.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "legend, carried by the drawing"
+ },
+ {
+  "id": 279,
+  "tab": "t-tda-dsp",
+  "section": "dispatcher walker",
+  "text": "Real aten calls in four contexts Call Context Things to try Left \"input requires grad\", right \"under torch.no_grad()\": identical walks.",
+  "label": "core",
+  "key": "Under no_grad the autograd kernel still runs",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-tda-dsp",
+  "section": "dispatcher walker",
+  "text": "The difference is inside the autograd kernel (it reads grad mode), not in the route.",
+  "label": "core",
+  "key": "grad mode is only a flag it reads",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-tda-dsp",
+  "section": "dispatcher walker",
+  "text": "Left \"plain CPU tensor\", right \"inside a TorchDispatchMode\": the mode's Python key sits below autograd and ADInplaceOrView, so a mode sees calls after autograd has recorded them.",
+  "label": "core",
+  "key": "so a mode sees calls after autograd has recorded them",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-tda-dsp",
+  "section": "dispatcher walker",
+  "text": "In B, F.linear under training against under inference_mode: what the Python key sees changes from t, addmm to linear .",
+  "label": "depth",
+  "key": "addmm becomes linear",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-tda-dsp",
+  "section": "dispatcher walker",
+  "text": "In B, torch.mm under autocast: two _to_copy casts appear before the bf16 mm ; x.view under autocast is untouched (view is not on the list).",
+  "label": "depth",
+  "key": "two _to_copy casts appear before the bf16",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-tda-eng",
+  "section": "autograd engine",
+  "text": "Autograd engine One backward pass of one block of the running example (block 0, input the embedding output of batch 0 as a leaf x, loss = mean(block(x) 2 )), node by node, exactly in the order the engine ran it.",
+  "label": "core",
+  "key": "Block 0, input (8, 64, 256) float32",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-tda-eng",
+  "section": "autograd engine",
+  "text": "The graph, the sequence numbers, the saved tensors and the order were recorded with node pre-hooks; the ready queue and the dependency counts beside it are the engine's rule re-run on that graph, which reproduces the recorded order in every variant ( src/exp/autograd_graph.py ).",
+  "label": "core",
+  "key": "Graph, sequence numbers, saved tensors and backward order recorded",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-tda-eng",
+  "section": "autograd engine",
+  "text": "Same input and weights in every variant; the gradients agree with the plain run to the bit (max difference 0).",
+  "label": "core",
+  "key": "agree with the plain run to the bit",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-tda-eng",
+  "section": "autograd engine",
+  "text": "CPU: plain CPU: checkpointed MPS: plain MPS: saved tensors to host running ready (in the queue) done waiting for inputs AccumulateGrad (writes .grad) Ready queue (highest sequence number first) aten calls made by this node \"Saved bytes still held\" counts the unique activation storages saved by nodes that have not run yet (weights excluded, they stay in memory anyway): derived from the recorded graph, assuming a node's saved tensors are freed when it runs (the engine releases them unless retain_graph=True).",
+  "label": "core",
+  "key": "Ready queue (highest sequence number first)",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-tda-eng",
+  "section": "autograd engine",
+  "text": "For the checkpointed variant nothing is held until the first node that unpacks a saved tensor, where the block is rerun (the red calls); from there on the count is the same derivation.",
+  "label": "core",
+  "key": "nothing is held until the first node that unpacks a saved tensor",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-tda-eng",
+  "section": "autograd engine",
+  "text": "The bytes \"after forward\" are measured: live storages on the CPU, torch.mps.current_allocated_memory() on MPS.",
+  "label": "core",
+  "key": "are measured: live storages on the CPU",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-tda-eng",
+  "section": "autograd engine",
+  "text": "Read it like the engine Each node runs once all edges into it have delivered a gradient (its count reaches 0).",
+  "label": "core",
+  "key": "whose count reaches zero",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-tda-eng",
+  "section": "autograd engine",
+  "text": "Among ready nodes, the one created last in forward goes first, and AccumulateGrad goes before everything, so a parameter's .grad is written the moment its gradient is complete.",
+  "label": "core",
+  "key": "is written the moment its gradient is complete",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-tda-eng",
+  "section": "autograd engine",
+  "text": "On MPS the same rule runs on the engine's MPS worker thread, not on the thread that called backward (measured).",
+  "label": "core",
+  "key": "on a different thread for an MPS backward",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-tda-ver",
+  "section": "version-counter lab",
+  "text": "Version-counter lab Fourteen snippets about in-place writes and autograd, each run line by line with torch 2.14.1 ( src/exp/autograd_lab.py ): the badges are the real _version of the tracked tensors after each line and the grad_fn of the last one.",
+  "label": "core",
+  "key": "the badges are the real _version of the tracked tensors",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-tda-ver",
+  "section": "version-counter lab",
+  "text": "Step to the last line, predict whether it runs or raises, then reveal what happened.",
+  "label": "core",
+  "key": "step to the last line, predict, reveal",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-tda-ver",
+  "section": "version-counter lab",
+  "text": "Each case shows its key line until you reveal it; then its title and colour (green runs, red raises) appear.",
+  "label": "core",
+  "key": "A case shows its key line until you reveal it",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-tda-ver",
+  "section": "version-counter lab",
+  "text": "Predict: does the snippet run to the end, or raise?",
+  "label": "core",
+  "key": "does the snippet run to the end, or raise?",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-tda-ver",
+  "section": "version-counter lab",
+  "text": "Runs Raises an error Just show me The mechanism in four lines Every storage-sharing family of tensors has one version counter.",
+  "label": "core",
+  "key": "One counter per storage, shared by its views",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-tda-ver",
+  "section": "version-counter lab",
+  "text": "Every in-place op bumps it (the ADInplaceOrView kernel, even under no_grad).",
+  "label": "core",
+  "key": "a write under no_grad still bumped it",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-tda-ver",
+  "section": "version-counter lab",
+  "text": "A node that saves a tensor records the counter's value.",
+  "label": "core",
+  "key": "a saved tensor remembers the version it had when saved",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-tda-ver",
+  "section": "version-counter lab",
+  "text": "When backward unpacks the tensor, a different value raises the error, unless saved-tensor hooks are installed, in which case nothing is checked.",
+  "label": "core",
+  "key": "the version check is skipped whenever hooks are installed",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's tabs, the parent topic and its tabs, the sibling pages, the knowledge base pages next door, and the best outside resources, each with an approximate time.",
+  "label": "core",
+  "key": "each with an approximate time",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 2026-10-13.",
+  "label": "core",
+  "key": "Links checked on 2026-10-13",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page Reading Tensors and strides, dtypes and promotion, the dispatcher's keys, tables, autocast, functionalization and fake tensors, the autograd graph, engine, hooks, version counters and checkpointing, nn.Module, state_dict and the loop. about 60 min with the drills Stride explorer 36 recorded tensors (2-D, 3-D, 4-D and channels_last) plus 8 from the running example's attention with every element's storage address, plus your own strides.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old tab description, rewritten for the new Reading"
+ },
+ {
+  "id": 304,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 to 15 min Dispatcher walker Eight situations walked kernel by kernel side by side; real aten calls in four contexts with their reconstructed routes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "removed tab card"
+ },
+ {
+  "id": 305,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Autograd engine One block's backward node by node with the ready queue: plain, checkpointed, and with saved tensors offloaded on MPS.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "removed tab card"
+ },
+ {
+  "id": 306,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Version-counter lab Fourteen in-place snippets: predict, then see the real outcome.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "removed tab card"
+ },
+ {
+  "id": 307,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min The parent topic and its tabs Topic: pytorch-ecosystem The map: sections 1 to 4 of its Reading tab are the intuition this page deepens.",
+  "label": "core",
+  "key": "the intuition this page deepens",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min Inside one step (tab of the root) All 923 calls of one real training step with routes, the full graph, memory over time, checkpointing and no_grad on the whole step.",
+  "label": "core",
+  "key": "All 923 calls of one real training step",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 to 45 min Compile lab and Ecosystem map (tabs of the root) What torch.compile does to the same model; the same three losses through four frameworks.",
+  "label": "core",
+  "key": "the same three losses through four frameworks",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min each Sibling pages torch.compile from the user's side Dynamo, guards, graph breaks, AOTAutograd (which uses the functionalization and fake tensors of section 2), Inductor, export.",
+  "label": "core",
+  "key": "Dynamo, guards, graph breaks, AOTAutograd",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-more",
+  "section": "",
+  "text": "32 min Extending PyTorch custom_op, register_fake, register_autograd, tensor subclasses and dispatch modes: building on the dispatcher.",
+  "label": "core",
+  "key": "building on the dispatcher",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-more",
+  "section": "",
+  "text": "33 min Making training fast Profiler, memory snapshot, attention backends, selective checkpointing, torchao.",
+  "label": "core",
+  "key": "Profiler, memory snapshot, attention backends",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-more",
+  "section": "",
+  "text": "26 min Distributed PyTorch c10d, DDP, FSDP2, DTensor (a tensor subclass at the Python key), TP, PP, DCP.",
+  "label": "core",
+  "key": "DTensor (a tensor subclass at the Python key)",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Libraries on top of PyTorch The loops frameworks run for you, and their defaults.",
+  "label": "core",
+  "key": "The loops frameworks run for you",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-more",
+  "section": "",
+  "text": "29 min Next door in the knowledge base Optimisers What AdamW does with the gradients this page computes.",
+  "label": "core",
+  "key": "What AdamW does with the gradients this page computes",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-more",
+  "section": "",
+  "text": "35 min Quantization and Precision float16, bfloat16, FP8 and integer formats in depth.",
+  "label": "core",
+  "key": "FP8 and integer formats in depth",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-more",
+  "section": "",
+  "text": "23 min Memory allocators PyTorch's caching allocator: why freed activation memory stays reserved on CUDA.",
+  "label": "core",
+  "key": "why freed activation memory stays reserved on CUDA",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-more",
+  "section": "",
+  "text": "34 min Streams, CUDA graphs and multi-GPU Pinned memory, async copies and launch overhead on NVIDIA GPUs.",
+  "label": "core",
+  "key": "Pinned memory, async copies and launch overhead",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-more",
+  "section": "",
+  "text": "36 min Distributed Training Activation memory formulas for real models, and what to do when one GPU is not enough.",
+  "label": "core",
+  "key": "Activation memory formulas for real models",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-more",
+  "section": "",
+  "text": "22 min Outside resources Edward Yang: PyTorch internals (2019) The tensor-and-storage picture and the extension points, by a core maintainer.",
+  "label": "core",
+  "key": "The tensor-and-storage picture and the extension points",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-more",
+  "section": "",
+  "text": "Older file names, same ideas.",
+  "label": "core",
+  "key": "Older file names, same ideas",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min Edward Yang: Let's talk about the PyTorch dispatcher (2020) Keys, tables, fallthroughs and redispatch, drawn.",
+  "label": "core",
+  "key": "Keys, tables, fallthroughs and redispatch, drawn",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min Registering a dispatched operator in C++ Official tutorial: TORCH_LIBRARY, kernels per key, autograd and autocast kernels.",
+  "label": "core",
+  "key": "TORCH_LIBRARY, kernels per key",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min ATen native functions README (v2.14.1) Every field of native_functions.yaml, including alias annotations.",
+  "label": "core",
+  "key": "including alias annotations",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Autograd mechanics (docs 2.14) Saved tensors, grad modes, in-place correctness, multithreading, hooks.",
+  "label": "core",
+  "key": "Saved tensors, grad modes, in-place correctness",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Overview of PyTorch Autograd Engine (PyTorch blog) and its follow-up How computational graphs are executed in PyTorch : the engine's C++ walked through.",
+  "label": "core",
+  "key": "the engine's C++ walked through",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-more",
+  "section": "",
+  "text": "45 min Extending PyTorch (docs 2.14) autograd.Function with setup_context, once_differentiable, gradcheck.",
+  "label": "core",
+  "key": "autograd.Function with setup_context, once_differentiable, gradcheck",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Hooks for saved tensors (tutorial) pack/unpack, save_on_cpu, saving to disk.",
+  "label": "core",
+  "key": "pack/unpack, save_on_cpu, saving to disk",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min torch.utils.checkpoint (docs 2.14) Both variants and their differences.",
+  "label": "core",
+  "key": "Both variants and their differences",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Tensor views (docs 2.14) The list of view operations.",
+  "label": "core",
+  "key": "The list of view operations",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min Tensor attributes: type promotion (docs 2.14) The official promotion rules with examples.",
+  "label": "core",
+  "key": "The official promotion rules with examples",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Channels last memory format (tutorial) Which ops keep it and why GPUs prefer it.",
+  "label": "core",
+  "key": "Which ops keep it and why GPUs prefer it",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min Meta device (docs 2.14) Building models without memory, and to_empty.",
+  "label": "core",
+  "key": "Building models without memory, and to_empty",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min Automatic mixed precision (docs 2.14) The per-device op lists, and AMP examples (accumulation, clipping and unscale_).",
+  "label": "core",
+  "key": "The per-device op lists",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Reproducibility (docs 2.14) Seeds, deterministic algorithms, DataLoader workers.",
+  "label": "core",
+  "key": "Seeds, deterministic algorithms, DataLoader workers",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min torch.utils.data (docs 2.14) Workers, pin_memory, prefetching, samplers.",
+  "label": "core",
+  "key": "Workers, pin_memory, prefetching, samplers",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Data: every recording on this page was made 2026-10-13 with torch 2.14.1 on an Apple M1 Pro (scripts and raw records in this page's src/exp and src/inputs ); C++ and YAML quoted from the v2.14.1 tag.",
+  "label": "core",
+  "key": "every recording on this page was made 2026-10-13",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "view table: 16 expressions on x with shape, strides, offset, contiguous, same storage, values (script-rendered from tensors.json)",
+  "label": "depth",
+  "key": "Sixteen expressions on x",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "channels_last table (strides of z, zc, zc + 1, conv) and the conv timing",
+  "label": "depth",
+  "key": "4.669 ms in NCHW against 4.199 ms",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "promotion grid 11 x 11 from torch.promote_types and the measured promotion cases, incl. the in-place add_ error",
+  "label": "depth",
+  "key": "bfloat16 with float16 gives float32; uint8 with int8 gives int16",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "finfo table: bits, eps, largest, smallest normal for four float dtypes",
+  "label": "depth",
+  "key": "Range limits from torch.finfo",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "versions table: a, b = a[1:] through add_, mul_, out of place, setitem, no_grad zero_, .data fill_",
+  "label": "depth",
+  "key": "Seven writes and the counter",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "dispatch key ladder with enum values from the wheel (script-drawn SVG)",
+  "label": "core",
+  "key": "Higher number runs first",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "tensor key sets: CPU, requires_grad, inference, meta, MPS, conj, sparse, quantized, nested, FakeTensor, functional, wrapper subclass",
+  "label": "depth",
+  "key": "Key sets of twelve kinds of tensor",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "TLS included/excluded/effective per context: default, no_grad, inference_mode, autocast, inside a dispatch mode",
+  "label": "depth",
+  "key": "The thread's sets in each context",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "slot statistics per key over 3,113 aten ops (script-drawn SVG)",
+  "label": "core",
+  "key": "autocast touches 126 of 3,113, view bookkeeping 1,101",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "per-op dispatch tables for mm, linear, view, add_, gelu, sdpa, flash-attention-for-cpu",
+  "label": "depth",
+  "key": "Seven operators' tables",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "walk records of tda::scale in 8 situations with key sets, dtypes and grad mode",
+  "label": "core",
+  "key": "eight situations",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "autocast per-op dtype table; MPS bf16 and fp16 losses and casts",
+  "label": "depth",
+  "key": "Every op of one autocast forward",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "per-call overhead bars: plain 0.622, requires_grad 1.06, no_grad 1.602, inference_mode 1.545, mode 4.818, autocast 2.972 us",
+  "label": "depth",
+  "key": "Overhead in six situations",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "howto code and its output (dispatch keys, dump table, TLS sets)",
+  "label": "depth",
+  "key": "the inspection commands with real output",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "aten call explorer: 4 calls x 4 contexts, top and Python-key views, reconstructed route",
+  "label": "depth",
+  "key": "Real aten operators cannot be instrumented key by key",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "functionalisation graphs: source, traced, functionalised, mutations_and_views",
+  "label": "depth",
+  "key": "mutations_and_views",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "node and saved-bytes table and the summary cards of the block's graph",
+  "label": "depth",
+  "key": "Every node that saves something",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "block graph: 46 nodes, 8.93 MB saved activations, 75 backward calls (engine.json)",
+  "label": "core",
+  "key": "8.93 MB",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "MPS offload: 25 tensors, 13,119,488 B to host; 524,544 vs 8,921,344 B on device",
+  "label": "core",
+  "key": "13,119,488 B",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "custom Function record: gradcheck and gradgradcheck True, grad_fn MyGeluBackward, max diff vs F.gelu tanh 1.09e-12 (script output line)",
+  "label": "core",
+  "key": "MyGeluBackward",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "grad-mode table: requires_grad, grad_fn, inference, later backward per context",
+  "label": "depth",
+  "key": "Six contexts, what the output carries",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "saved-tensor hooks and checkpoint tables (CPU, MPS, whole model)",
+  "label": "depth",
+  "key": "The same block three ways on CPU and MPS",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "reentrant gotchas: no grad when inputs do not require grad; incompatible with autograd.grad",
+  "label": "core",
+  "key": "None of the inputs have requires_grad=True",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "registration table: 52 parameters, 53 state_dict entries, 42 modules, non-persistent masks",
+  "label": "depth",
+  "key": "What a Module registers",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "tie table: torch.save shares storage once, safetensors save_file refuses, save_model drops tok.weight, load wins, to_empty",
+  "label": "depth",
+  "key": "save_model writes 52 tensors and drops",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "strict error text and strict=False return value",
+  "label": "depth",
+  "key": "Loading: strict, missing and unexpected keys",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "loop items: train(), accumulation, clipping, bf16 autocast dtypes, fp16 scaler steps, scaler defaults, zero_grad",
+  "label": "depth",
+  "key": "four micro-batches of 2 with each loss divided by 4",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "fp16 underflow counts before and after scaling",
+  "label": "depth",
+  "key": "436,592",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "determinism table: CPU twice, 1 vs 4 threads, deterministic flag, MPS twice, MPS vs CPU",
+  "label": "depth",
+  "key": "MPS was not bit-repeatable even with",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "DataLoader block: spawn, worker seeding quote, two-worker RNG table, main-process seeding, prefetch_factor",
+  "label": "depth",
+  "key": "workers on macOS start with",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "MPS forward and backward time with save_on_cpu against plain",
+  "label": "core",
+  "key": "72.98 ms against 12.02 ms",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "anomaly mode timing",
+  "label": "depth",
+  "key": "42.43 ms",
+  "where": ""
+ }
+]
