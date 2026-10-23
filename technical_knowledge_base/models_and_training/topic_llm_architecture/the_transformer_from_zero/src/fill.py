@@ -4,6 +4,7 @@ zero/out/code_refs.json.
   [[snip:N]]     step N of gpt_zero.py with its real line numbers; [[snip:train]] the training loop of train_zero.py
   [[out:key]]    the printed output of a step's test (steps.py)
   [[ref:key]]    <code>repo file:line</code> of a pattern located by zero/code_refs.py
+  [[shapes:key]] the tensors a step creates on the running sequence, in numbers and in letters (static, so the ledger sees them)
   [[tbl:key]] [[err:key]] [[name]]  HTML blocks and error messages from page_text.json
 Exits non-zero on any unresolved placeholder unless --allow-pending (then writes a visible PENDING marker).
 """
@@ -51,6 +52,20 @@ def snip(k):
 ST_BY_N = {i + 1: s for i, s in enumerate(ST.values())}
 
 
+SYM = {"idx": "(B, T)", "emb.tok(idx)": "(B, T, D)", "emb.pos(arange(T))": "(T, D)", "x = tok + pos": "(B, T, D)", "x": "(T, D)",
+       "q = x @ Wq": "(T, hd)", "scores q @ k.T": "(T, T)", "y = softmax(masked) @ v": "(T, hd)", "att.q(x)": "(B, T, D)",
+       ".view(B, T, H, hd)": "(B, T, H, hd)", ".transpose(1, 2)": "(B, H, T, hd)", "q @ k.transpose(-2, -1)": "(B, H, T, T)",
+       "merge: .transpose(1, 2).reshape(B, T, D)": "(B, T, D)", "att.o(y)": "(B, T, D)", "ffn.up(x)": "(B, T, F)", "gelu(.)": "(B, T, F)",
+       "ffn.down(.)": "(B, T, D)", "block(x)": "(B, T, D)", "model(idx[:, :-1])": "(B, T-1, V)", "logits": "(B, T-1, V)",
+       "targets = idx[:, 1:]": "(B, T-1)", "cache[0]['k'] after 40 tokens": "(B, H, t, hd)"}
+
+
+def shapes(k):
+    items = [f"<code>{html.escape(x['name'])}</code> ({', '.join(f'{n:,}' for n in x['shape'])}) = {SYM.get(x['name'], '')}, {html.escape(x['note'])}"
+             for x in ST[k]["shapes"]]
+    return '<p class="tz-shp"><b>Shapes on the running sequence</b> (<code>steps.py</code>): ' + "; ".join(items) + ".</p>"
+
+
 def rep(m):
     body = m.group(1)
     try:
@@ -66,6 +81,8 @@ def rep(m):
             f = r["file"].split("/")[-1] if r["repo"] == "transformers" and "loss" not in r["file"] else r["file"].replace("src/transformers/", "")
             ln = f"{r['line']}" if r["end"] == r["line"] else f"{r['line']} to {r['end']}"
             return f"<code>{r['repo']} {f}:{ln}</code>"
+        if body.startswith("shapes:"):
+            return shapes(body[7:])
         if body.startswith("tbl:"):
             return T[body[4:]]
         if body.startswith("err:"):

@@ -1,11 +1,12 @@
-// Shape drill tab: question generator over real configs (data: TZD.acc). window.TZDR.count(m) is checked against
-// src/zero/accounting.py by src/check_data.py.
+// Shapes and counts tab (rebuilt 2026-10-23 from the Shape drill): every stored weight of one layer, every activation shape,
+// the parameter totals against the Hub and per-token FLOPs, for ten configs (data: TZD.acc). window.TZDR.count(m) is checked
+// against src/zero/accounting.py by src/check_data.py.
 (function(){
-  const D=window.TZD,$=id=>document.getElementById(id);if(!D||!$('tzd-card')||!window.RD)return;
+  const D=window.TZD,$=id=>document.getElementById(id);if(!D||!$('tzd-model')||!window.RD)return;
   const esc=RD.esc,f=n=>Math.round(n).toLocaleString('en-US');
   const NAMES={'smollm2-135m':'SmolLM2-135M','qwen3-0.6b':'Qwen3-0.6B','gpt2':'GPT-2 (124M)','llama-2-7b':'Llama 2 7B','mistral-7b-v0.1':'Mistral 7B v0.1','llama-3.1-8b':'Llama 3.1 8B','qwen3-8b':'Qwen3-8B','olmo-2-7b':'OLMo 2 7B','llama-3.1-70b':'Llama 3.1 70B'};
   const M=[{key:'tiny',name:'tiny GPT (this page)',s:{D:256,L:6,H:8,Hk:8,hd:32,F:1024,V:4096,tied:true,glu:false,bias:false,pos:'learned',P:256,qk:'none',conv:false}}];
-  D.acc.real.forEach(r=>{const s=Object.assign({},r.shape);s.conv=r.key==='gpt2';s.P=r.key==='gpt2'?1024:0;s.qk=s.qk_norm;M.push({key:r.key,name:NAMES[r.key]||r.key,s,py:r.total})});
+  D.acc.real.forEach(r=>{const s=Object.assign({},r.shape);s.conv=r.key==='gpt2';s.P=r.key==='gpt2'?1024:0;s.qk=s.qk_norm;M.push({key:r.key,name:NAMES[r.key]||r.key,s,py:r.total,hub:r.hub})});
   // the parameter formula, the same as accounting.py
   function count(s){
     const qk=s.qk.indexOf('per head')===0?2*s.hd:s.qk.indexOf('full')===0?(s.H+s.Hk)*s.hd:0;
@@ -16,58 +17,53 @@
     return {attn,ffn,norms,block,emb,head,pos,fin,total:s.L*block+emb+head+pos+fin,matmul:s.L*(s.D*s.H*s.hd+2*s.D*s.Hk*s.hd+s.H*s.hd*s.D+(s.glu?3:2)*s.D*s.F)+s.V*s.D};
   }
   window.TZDR={count,models:M};
-  let rng=12345;const rnd=n=>{rng=(rng*1103515245+12345)%2147483648;return rng%n};
+  const fl3=v=>v>=1e9?(v/1e9).toFixed(2)+' G':(v/1e6).toFixed(1)+' M';
   const sh=a=>'('+a.map(f).join(', ')+')';
-  function linear(s,out,inn){return s.conv?[inn,out]:[out,inn]}
-  const Q=[
-    {k:'w',make(m){const s=m.s,o=s.H*s.hd;const ok=linear(s,o,s.D);const nm=s.conv?'the query part of attn.c_attn':'self_attn.q_proj.weight';
-      return {q:'Shape of '+nm+' in one layer?',ok:sh(s.conv?[s.D,o]:ok),bad:[sh(s.conv?[o,s.D]:[s.D,o]),sh([s.H,s.hd]),sh([s.D,s.H*s.hd*3])],
-        why:(s.conv?'GPT-2’s Conv1D stores (in, out); its c_attn holds q, k and v side by side, (D, 3D) = '+sh([s.D,3*s.D])+', of which q is the first D columns.':'nn.Linear(D, H hd) stores its weight as (out, in) = (H hd, D) = ('+s.H+' x '+s.hd+', '+s.D+').')+(s.H*s.hd!==s.D?' Note H hd = '+f(s.H*s.hd)+' is not D = '+f(s.D)+': the head size is set separately in this config.':'')}}},
-    {k:'w',make(m){const s=m.s;if(s.conv)return null;const o=s.Hk*s.hd;
-      return {q:'Shape of self_attn.k_proj.weight in one layer?',ok:sh([o,s.D]),bad:[sh([s.H*s.hd,s.D]),sh([s.D,o]),sh([2*o,s.D])],
-        why:'Keys have H<sub>kv</sub> = '+s.Hk+' heads of hd = '+s.hd+' ('+(s.Hk<s.H?'grouped-query attention: each KV head serves '+s.H/s.Hk+' query heads':'one per query head')+'), so (H<sub>kv</sub> hd, D) = '+sh([o,s.D])+'. Using H here is the classic GQA mistake.'}}},
-    {k:'w',make(m){const s=m.s;const ok=s.conv?[s.F,s.D]:[s.D,s.F];const nm=s.conv?'mlp.c_proj.weight':'mlp.down_proj.weight';
-      return {q:'Shape of '+nm+' (the FFN’s down projection)?',ok:sh(ok),bad:[sh(ok.slice().reverse()),sh([s.D,s.D]),sh(s.conv?[4*s.D,s.D].map((x,i)=>i?x:Math.round(8*s.D/3)):[s.D,s.glu?4*s.D:Math.round(8*s.D/3)])],
-        why:'Down maps F = '+f(s.F)+' back to D = '+f(s.D)+'; '+(s.conv?'Conv1D stores (in, out) = (F, D).':'nn.Linear(F, D) stores (out, in) = (D, F).')+(s.glu?' This model uses SwiGLU, so F = '+(s.F/s.D).toFixed(3).replace(/0+$/,'').replace(/\.$/,'')+' D, not 4D.':'')}}},
-    {k:'a',make(m){const s=m.s,T=[512,1024,2048,4096][rnd(4)];
-      return {q:'Shape of the attention scores (q k<sup>T</sup>) of one layer for one sequence of T = '+f(T)+' tokens (B = 1)?',ok:sh([1,s.H,T,T]),bad:[sh([1,s.Hk,T,T]),sh([1,T,T]),sh([1,s.H,T,s.hd])],
-        why:'One T x T matrix per query head: (B, H, T, T). '+f(s.H*T*T)+' numbers per layer, '+((s.H*T*T*2)/2**20).toFixed(0)+' MiB in bf16, which is why fused kernels never store it.'+(s.Hk<s.H?' Keys are shared by groups, but every query head still gets its own scores.':'')}}},
-    {k:'a',make(m){const s=m.s,T=[256,1024,8192][rnd(3)];
-      return {q:'Shape of the logits for B = 4 sequences of T = '+f(T)+' tokens?',ok:sh([4,T,s.V]),bad:[sh([4,s.V]),sh([4,T,s.D]),sh([4*T,s.D])],
-        why:'One score per vocabulary entry at every position: (B, T, V). In fp32 that is '+(4*T*s.V*4/2**30).toFixed(2)+' GiB, often the largest single activation in training; some trainers compute the loss in chunks for that reason.'}}},
-    {k:'p',make(m){const s=m.s,c=count(s);
-      return {q:'Parameters in one decoder layer (attention, FFN and norms)?',ok:f(c.block),bad:[f(12*s.D*s.D),f(c.block+2*s.D*(s.H-s.Hk)*s.hd),f(s.D*s.F*2+4*s.D*s.D)].filter(x=>x!==f(c.block)),
-        why:'Attention '+f(c.attn)+' (q '+f(s.D*s.H*s.hd)+', k and v '+f(2*s.D*s.Hk*s.hd)+', o '+f(s.H*s.hd*s.D)+(c.attn>s.D*s.H*s.hd*2+2*s.D*s.Hk*s.hd?', biases or QK-norm gains '+f(c.attn-(2*s.D*s.H*s.hd+2*s.D*s.Hk*s.hd)):'')+') + FFN '+f(c.ffn)+' ('+(s.glu?'3':'2')+' x D x F) + norms '+f(c.norms)+' = '+f(c.block)+'.'}}},
-    {k:'p',make(m){const s=m.s,c=count(s);
-      return {q:'Total parameters?',ok:f(c.total),bad:[f(c.total+(s.tied?c.emb:-c.head)),f(s.L*c.block),f(12*s.L*s.D*s.D+c.emb)].filter(x=>x!==f(c.total)),
-        why:'L x block = '+s.L+' x '+f(c.block)+' = '+f(s.L*c.block)+'; token table '+f(c.emb)+(s.tied?' (tied: the output layer is the same matrix)':' plus a separate output layer '+f(c.head))+(c.pos?'; positions '+f(c.pos):'')+'; final norm '+f(c.fin)+'. Total '+f(c.total)+(m.py!=null?' (accounting.py: '+f(m.py)+').':'.')}}},
-    {k:'c',make(m){const s=m.s,v=2*s.L*s.Hk*s.hd*2;
-      return {q:'KV cache per token, all layers, in bf16?',ok:f(v)+' bytes',bad:[f(2*s.L*s.H*s.hd*2)+' bytes',f(s.L*s.Hk*s.hd*2)+' bytes',f(2*s.L*s.D*4)+' bytes'].filter(x=>x!==f(v)+' bytes'),
-        why:'2 (k and v) x L x H<sub>kv</sub> x hd x 2 bytes = 2 x '+s.L+' x '+s.Hk+' x '+s.hd+' x 2 = '+f(v)+' bytes ('+(v/1024).toFixed(1)+' KiB). At 32k tokens: '+(v*32768/2**30).toFixed(2)+' GiB per sequence.'}}},
-    {k:'c',make(m){const s=m.s,c=count(s),T=[1024,4096,32768][rnd(3)],att=4*s.L*T*s.H*s.hd,v=2*c.matmul+att;
-      return {q:'Forward FLOPs for the last token of a '+f(T)+'-token context (weights plus attention over the cache)?',ok:(v/1e9).toFixed(2)+' GFLOP',bad:[(2*c.total/1e9).toFixed(2)+' GFLOP',(6*c.matmul/1e9).toFixed(2)+' GFLOP',(2*c.matmul/1e9).toFixed(2)+' GFLOP'].filter(x=>x!==(v/1e9).toFixed(2)+' GFLOP'),
-        why:'Weights: 2 x '+f(c.matmul)+' matmul parameters (every block matrix plus the output layer; the embedding lookup is free) = '+(2*c.matmul/1e9).toFixed(2)+' GFLOP. Attention: 2 x 2 x T x H hd per layer = '+(att/1e9).toFixed(2)+' GFLOP. 6N would be training (forward plus backward).'}}}
-  ];
-  $('tzd-model').innerHTML='<option value="any">any</option>'+M.map(m=>'<option value="'+m.key+'">'+esc(m.name)+'</option>').join('');
-  let right=0,total=0,cur;
-  function next(){
-    const mk=$('tzd-model').value,kind=$('tzd-kind').value;let q=null,m,tries=0;
-    while(!q&&tries++<50){m=mk==='any'?M[rnd(M.length)]:M.find(x=>x.key===mk);const pool=Q.filter(x=>kind==='all'||x.k===kind);q=pool[rnd(pool.length)].make(m)}
-    if(!q)return;
-    const bad=[...new Set(q.bad)].filter(b=>b!==q.ok).slice(0,3),opts=[q.ok,...bad];
-    for(let i=opts.length-1;i>0;i--){const j=rnd(i+1);[opts[i],opts[j]]=[opts[j],opts[i]]}
-    cur={q,done:false};const s=m.s;
-    $('tzd-qt').innerHTML=esc(m.name)+': '+q.q;
-    $('tzd-cfg').innerHTML='D '+f(s.D)+' · L '+s.L+' · H '+s.H+' · H<sub>kv</sub> '+s.Hk+' · hd '+s.hd+' · F '+f(s.F)+' · V '+f(s.V)+' · '+(s.tied?'tied':'untied')+' · '+(s.glu?'SwiGLU':'GELU MLP')+(s.conv?' · Conv1D (in, out)':'');
-    $('tzd-opts').innerHTML=opts.map(o=>'<button data-v="'+esc(o)+'">'+esc(o)+'</button>').join('');
-    $('tzd-ans').hidden=true;$('tzd-ans').innerHTML=q.why;
+  const by=b=>b>=2**30?(b/2**30).toFixed(2)+' GiB':b>=2**20?(b/2**20).toFixed(1)+' MiB':b>=1024?(b/1024).toFixed(1)+' KiB':f(b)+' B';
+  // the stored tensors of one layer, by the names the checkpoints use (nn.Linear stores (out, in); GPT-2's Conv1D stores (in, out))
+  function weights(m){
+    const s=m.s,q=s.H*s.hd,kv=s.Hk*s.hd,W=[];
+    const w=(n,shape,note)=>W.push([n,shape,note||'']);
+    if(m.key==='tiny'){
+      w('att.q.weight',[s.D,s.D],'(out, in): x Wᵀ');w('att.k.weight',[s.D,s.D]);w('att.v.weight',[s.D,s.D]);w('att.o.weight',[s.D,s.D],'writes into the stream');
+      w('ffn.up.weight',[s.F,s.D],'F = 4D');w('ffn.down.weight',[s.D,s.F],'writes into the stream');w('n1.weight',[s.D],'LayerNorm gain, no bias');w('n2.weight',[s.D])}
+    else if(s.conv){
+      w('attn.c_attn.weight',[s.D,3*s.D],'Conv1D (in, out): q, k, v side by side');w('attn.c_attn.bias',[3*s.D]);w('attn.c_proj.weight',[s.D,s.D]);w('attn.c_proj.bias',[s.D]);
+      w('mlp.c_fc.weight',[s.D,s.F],'F = 4D');w('mlp.c_fc.bias',[s.F]);w('mlp.c_proj.weight',[s.F,s.D]);w('mlp.c_proj.bias',[s.D]);
+      w('ln_1.weight and .bias',[2,s.D],'LayerNorm gain and bias');w('ln_2.weight and .bias',[2,s.D])}
+    else{
+      w('self_attn.q_proj.weight',[q,s.D],q!==s.D?'H hd = '+f(q)+' is not D':'');w('self_attn.k_proj.weight',[kv,s.D],s.Hk<s.H?'GQA: '+s.Hk+' KV heads for '+s.H+' query heads':'one KV head per query head');
+      w('self_attn.v_proj.weight',[kv,s.D]);w('self_attn.o_proj.weight',[s.D,q],'writes into the stream');
+      if(s.qk.indexOf('per head')===0){w('self_attn.q_norm.weight',[s.hd],'QK-norm, shared by the heads');w('self_attn.k_norm.weight',[s.hd])}
+      if(s.qk.indexOf('full')===0){w('self_attn.q_norm.weight',[q],'QK-norm over the full width');w('self_attn.k_norm.weight',[kv])}
+      w('mlp.gate_proj.weight',[s.F,s.D],'SwiGLU, F = '+(s.F/s.D).toFixed(3).replace(/0+$/,'').replace(/\.$/,'')+' D');w('mlp.up_proj.weight',[s.F,s.D]);w('mlp.down_proj.weight',[s.D,s.F],'writes into the stream');
+      if(m.key==='olmo-2-7b'){w('post_attention_layernorm.weight',[s.D],'OLMo 2 normalises sublayer outputs');w('post_feedforward_layernorm.weight',[s.D])}
+      else{w('input_layernorm.weight',[s.D],'RMSNorm gain');w('post_attention_layernorm.weight',[s.D])}}
+    return W.map(([n,shp,note])=>({n,shp,note,c:shp.reduce((a,b)=>a*b,1)}));
   }
-  $('tzd-opts').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!cur)return;
-    $('tzd-opts').querySelectorAll('button').forEach(x=>{const ok=x.textContent===cur.q.ok;x.classList.toggle('right',ok);x.classList.toggle('wrong',x===b&&!ok)});
-    if(!cur.done){total++;if(b.textContent===cur.q.ok)right++;cur.done=true;$('tzd-score').textContent=right+' of '+total}
-    $('tzd-ans').hidden=false});
-  $('tzd-next').addEventListener('click',next);$('tzd-model').addEventListener('change',next);$('tzd-kind').addEventListener('change',next);
+  function render(){
+    const mk=$('tzd-model').value,m=M.find(x=>x.key===mk)||M[0],s=m.s,c=count(s),T=+$('tzd-T').value||256;
+    const W=weights(m),sum=W.reduce((a,x)=>a+x.c,0),kvb=2*s.L*s.Hk*s.hd*2,att=4*s.L*T*s.H*s.hd,fl=2*c.matmul+att;
+    $('tzd-cfg').innerHTML='D '+f(s.D)+' &middot; L '+s.L+' &middot; H '+s.H+' &middot; H<sub>kv</sub> '+s.Hk+' &middot; hd '+s.hd+' &middot; F '+f(s.F)+' &middot; V '+f(s.V)+' &middot; '+(s.tied?'tied':'untied')+' &middot; '+(s.glu?'SwiGLU':'GELU MLP')+' &middot; '+esc(s.pos)+' positions';
+    const hub=m.key==='tiny'?null:m.hub;
+    $('tzd-out').innerHTML=RD.stat('Parameters (formula)',f(c.total),hub==null?'equals the code: 5,836,032':'Hub safetensors '+f(hub)+(hub!==c.total?' (stored non-parameters: section 10)':', exact'))+
+      RD.stat('One layer',f(c.block),'attention '+f(c.attn)+' + FFN '+f(c.ffn)+' + norms '+f(c.norms))+
+      RD.stat('KV cache per token (bf16)',by(kvb),'2 x L x H<sub>kv</sub> x hd x 2 bytes')+
+      RD.stat('Forward FLOPs, one token at T = '+f(T),fl3(fl),'weights '+fl3(2*c.matmul)+' + attention '+fl3(att));
+    $('tzd-w').innerHTML='<thead><tr><th>Stored tensor (one layer)</th><th>Shape as stored</th><th class="num">Parameters</th><th>Note</th></tr></thead><tbody>'+
+      W.map(x=>'<tr><td><code>'+esc(x.n)+'</code></td><td>'+sh(x.shp)+'</td><td class="num">'+f(x.c)+'</td><td>'+esc(x.note)+'</td></tr>').join('')+
+      '<tr><td><b>Sum</b></td><td></td><td class="num"><b>'+f(sum)+'</b></td><td>'+(sum===c.block?'equals the formula':'differs from the formula '+f(c.block))+'</td></tr></tbody>';
+    const glu=s.glu,A=[['x, the stream',[1,T,s.D]],['q after view and transpose',[1,s.H,T,s.hd]],['k and v (each)',[1,s.Hk,T,s.hd]],['scores q kᵀ, before the mask',[1,s.H,T,T]],['heads merged',[1,T,s.H*s.hd]],['after o, added to the stream',[1,T,s.D]],[glu?'FFN gate and up (each)':'FFN hidden',[1,T,s.F]],['logits, after the last layer',[1,T,s.V]]];
+    $('tzd-a').innerHTML='<thead><tr><th>Activation (B = 1, T = '+f(T)+')</th><th>Shape</th><th class="num">Numbers</th><th class="num">bf16</th></tr></thead><tbody>'+
+      A.map(([n,a])=>{const k=a.reduce((p,q)=>p*q,1);return '<tr><td>'+n+'</td><td>'+sh(a)+'</td><td class="num">'+f(k)+'</td><td class="num">'+by(2*k)+'</td></tr>'}).join('')+'</tbody>';
+    $('tzd-p').innerHTML='<thead><tr><th>Part</th><th>Formula</th><th class="num">Parameters</th></tr></thead><tbody>'+
+      [['blocks','L x one layer = '+s.L+' x '+f(c.block),s.L*c.block],['token table','V x D',c.emb],['output layer',s.tied?'tied: the token table':'V x D, untied',c.head],['positions',c.pos?'T<sub>max</sub> x D':'none ('+esc(s.pos)+')',c.pos],['final norm',s.conv?'gain and bias':'gain',c.fin]]
+      .map(r=>'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td class="num">'+f(r[2])+'</td></tr>').join('')+'<tr><td><b>Total</b></td><td></td><td class="num"><b>'+f(c.total)+'</b></td></tr></tbody>';
+  }
+  $('tzd-model').innerHTML=M.map(m=>'<option value="'+m.key+'">'+esc(m.name)+'</option>').join('');
+  $('tzd-model').addEventListener('change',render);$('tzd-T').addEventListener('change',render);
   $('tzd-tab').innerHTML='<thead><tr><th>Model</th><th class="num">D</th><th class="num">L</th><th class="num">H</th><th class="num">H<sub>kv</sub></th><th class="num">hd</th><th class="num">F</th><th class="num">V</th><th>Tied</th><th class="num">Parameters</th></tr></thead><tbody>'+
     M.map(m=>{const s=m.s;return '<tr><td>'+esc(m.name)+'</td><td class="num">'+f(s.D)+'</td><td class="num">'+s.L+'</td><td class="num">'+s.H+'</td><td class="num">'+s.Hk+'</td><td class="num">'+s.hd+'</td><td class="num">'+f(s.F)+'</td><td class="num">'+f(s.V)+'</td><td>'+(s.tied?'yes':'no')+'</td><td class="num">'+f(count(s).total)+'</td></tr>'}).join('')+'</tbody>';
-  next();
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-drill']=window.TAB_RENDER['t-drill']||[]).push(render);
+  render();
 })();

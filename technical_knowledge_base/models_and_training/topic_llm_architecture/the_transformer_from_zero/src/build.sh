@@ -2,7 +2,7 @@
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/.
 # Data first: make_page_data.py writes parts/22_js_tz_0data.js and page_text.json from the recorded outputs in src/.
-# HTML: 01_head, 10_header (title and tab bar), 20_read_*.html (Reading tab: 20_read_a first), then 3x_tab_*.html, 39_tab_more.
+# HTML: 01_head, 10_header (title and tab bar), 20_read_*.html (Reading tab: 20_read_a first), then 3x_tab_*.html (Shapes and counts, Further reading).
 # JS: every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js (the tab wiring) last.
 # Links {{text|url}} (n:<notion id>, #t-<tab>, or https://...); then fill.py resolves [[...]] placeholders (facts, code refs).
 cd "$(dirname "$0")"
@@ -20,11 +20,11 @@ python3 fill.py ../index.html $FILL_FLAGS || exit 1
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
 D=$(printf '\342\200\224'); if grep -q "$D" ../index.html; then echo "EM DASH FOUND"; grep -n -o ".\{30\}$D.\{30\}" ../index.html | head; fi
 wc -c ../index.html
-# Reading time (230 words per minute over the Reading tab's visible text) and the best-resources total
+# Reading time estimate (static text only; the header states the audit_pages.mjs figure, which also counts script-written text) and the best-resources total
 python3 - <<'PY'
 import re
 s=open('../index.html').read()
-a=s.index('id="t-read"');b=s.index('id="t-build"')
+a=s.index('id="t-read"');b=s.index('id="t-drill"')
 r=re.sub(r'<script.*?</script>|<style.*?</style>','',s[a:b],flags=re.S)
 det=' '.join(re.findall(r'<details.*?</details>',r,flags=re.S));r=re.sub(r'<details.*?</details>',' ',r,flags=re.S)
 t=re.sub(r'<[^>]+>',' ',r);dw=len(re.sub(r'<[^>]+>',' ',det).split())

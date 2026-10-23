@@ -1,23 +1,23 @@
 <div class="tab" id="t-drill" role="tabpanel" hidden>
 <style>
-#t-drill .tzd-q{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0;background:var(--soft)}
-#t-drill .tzd-q .q{font-weight:600;font-size:14.5px}
-#t-drill .tzd-q .cfg{font-size:12.5px;color:var(--mute);margin:4px 0 8px;overflow-wrap:anywhere}
-#t-drill .tzd-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:6px}
-#t-drill .tzd-opts button{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;text-align:left;white-space:normal;overflow-wrap:anywhere}
-#t-drill .tzd-opts button.right{background:var(--open2);border-color:var(--good)}
-#t-drill .tzd-opts button.wrong{border-color:var(--bad);color:var(--bad)}
-#t-drill .tzd-ans{font-size:13.5px;border-left:3px solid var(--good);padding:4px 0 4px 10px;margin:8px 0 0;overflow-wrap:anywhere}
 #t-drill .tzd-bar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:13px;margin:6px 0}
 #t-drill .tzd-bar select{max-width:100%}
-#t-drill .tzd-score{font-weight:600}
+#t-drill .tzd-cfg{font-size:12.5px;color:var(--mute);margin:4px 0 8px;overflow-wrap:anywhere}
 #t-drill table td,#t-drill table th{font-size:12.5px}
+#t-drill td code{overflow-wrap:anywhere}
+#t-drill .stat .v{font-size:16px}
+#t-drill .tw table{min-width:520px}
 </style>
-<h2>Shape drill: predict the shape, the count, the bytes</h2>
-<p>Questions drawn from nine real configs and the tiny GPT: the shape of a stored weight or of a tensor in the forward pass, the parameters of one layer or of the whole model, the KV cache per token, the forward FLOPs per token. Commit to an answer; the reveal shows the formula with the config's numbers. Wrong options are the usual mistakes (a transposed weight, query heads where the KV heads belong, a tied table counted twice, a forgotten SwiGLU gate). Configs: the root's saved <code>config.json</code> files (read 2026-10-18); every total below matches the Hugging Face safetensors count after the stored non-parameters named in the Reading tab's section 10, checked by <code>src/zero/accounting.py</code>.</p>
-<div class="tzd-bar"><label>Model <select id="tzd-model"></select></label><label>Kind <select id="tzd-kind"><option value="all">any</option><option value="w">weight shapes</option><option value="a">activation shapes</option><option value="p">parameter counts</option><option value="c">KV cache and FLOPs</option></select></label><button id="tzd-next">Next question</button><span class="tzd-score" id="tzd-score">0 of 0</span></div>
-<div class="tzd-q" id="tzd-card"><div class="q" id="tzd-qt"></div><div class="cfg" id="tzd-cfg"></div><div class="tzd-opts" id="tzd-opts"></div><div class="tzd-ans" id="tzd-ans" hidden></div></div>
-<h3>The nine configs, as the drill reads them</h3>
+<h2>Shapes and counts: every weight and activation of ten real configs</h2>
+<p>The tool for every section of the Reading tab: pick a model and a context length, and read each stored weight of one layer with the shape the checkpoint stores, every activation through the layer, the parameter total against the Hugging Face count, the KV cache per token and the forward FLOPs of one token. The formulas are section 10's; the configs are the root's saved <code>config.json</code> files (read 2026-10-18), and every total matches the safetensors count after the stored non-parameters named in section 10, checked by <code>src/zero/accounting.py</code>. Predict first: in one layer of Llama 3.1 8B, is <code>k_proj</code> the same shape as <code>q_proj</code>, and which matrix is largest?</p>
+<div class="tzd-bar"><label>Model <select id="tzd-model"></select></label><label>Context T <select id="tzd-T"><option value="256">256</option><option value="4096">4,096</option><option value="32768">32,768</option></select></label></div>
+<div class="tzd-cfg" id="tzd-cfg"></div>
+<div class="out" id="tzd-out"></div>
+<div class="tw"><table id="tzd-w"></table></div>
+<div class="tw"><table id="tzd-a"></table></div>
+<div class="tw"><table id="tzd-p"></table></div>
+<p class="small mute">Shapes follow each checkpoint's convention: <code>nn.Linear</code> stores (out, in) and computes x W<sup>T</sup>; GPT-2 stores its linear layers as <code>Conv1D</code> with weights (in, out). With grouped-query attention, <code>k_proj</code> and <code>v_proj</code> have H<sub>kv</sub> &times; hd outputs, not H &times; hd: using H here is the classic GQA mistake. Qwen3 adds per-head q and k RMSNorm gains (hd each); OLMo 2 normalises q and k over the full width and puts its norms after the sublayers. Forward FLOPs: 2 per weight touched (every block matrix and the output layer; the embedding lookup is free) plus 4 &times; L &times; T &times; H &times; hd for the query against T keys and the weights against T values. The scores row is why fused attention kernels never store the (T, T) matrices, and the logits row (B, T, V) is often the largest single activation in training, which is why some trainers compute the loss in chunks. KV cache per token here is one line of arithmetic; sizing at a context length, with every attention design, is the {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}} page's KV-cache calculator.</p>
+<h3>The ten configs</h3>
 <div class="tw"><table id="tzd-tab"></table></div>
-<p class="small mute">D width, L layers, H query heads, H<sub>kv</sub> key-value heads, hd head size, F feed-forward width, V vocabulary. GPT-2 stores its linear layers as <code>Conv1D</code> with weights (in, out); every other model here uses <code>nn.Linear</code>, (out, in). Qwen3 adds per-head q and k RMSNorm gains (hd each); OLMo 2 normalises q and k over the full width.</p>
+<p class="small mute">D width, L layers, H query heads, H<sub>kv</sub> key-value heads, hd head size, F feed-forward width, V vocabulary.</p>
 </div>

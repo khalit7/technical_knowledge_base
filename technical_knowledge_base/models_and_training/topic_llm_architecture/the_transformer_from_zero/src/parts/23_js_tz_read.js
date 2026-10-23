@@ -61,6 +61,5 @@
     }
     $('tz-smp-t').addEventListener('input',draw);$('tz-smp-k').addEventListener('change',draw);
     RD.onRender(draw);draw();
-    $('tz-smp-tab').innerHTML=D.smp.samples.map(s=>'<tr><td>'+(s.T===0?'greedy':'T '+s.T.toFixed(1)+(s.top_k?', top-k '+s.top_k:''))+'</td><td>'+esc(s.text)+'</td></tr>').join('');
   }
 })();

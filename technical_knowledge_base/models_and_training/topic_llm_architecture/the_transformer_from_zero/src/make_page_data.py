@@ -120,20 +120,23 @@ for x in acc["real"]:
                 f"<td class=\"num\">{x['residual']:,}</td><td>{e(x['why']) or 'none'}</td></tr>")
 T["real"] = "".join(rows)
 bv = F["abl_base_val"]
-rows = []
+rows, grows = [], []
 for a in abl:
     g = a["samples"][6]["greedy"] if a["samples"] else "(not recorded: a root Block lab run, logged without a checkpoint)"
     g = g if g.strip() else "(empty: the first token chosen was end-of-text)"
     rows.append(f"<tr><td data-h=\"Run\"><b>{e(a['label'])}</b></td><td data-h=\"Change\">{e(a['what'])}</td><td data-h=\"Parameters\" class=\"num\">{a['params']:,}</td>"
-                f"<td data-h=\"Held-out\" class=\"num\">{a['val']:.3f}</td><td data-h=\"vs baseline\" class=\"num\">{'' if a['key'] == 'base' else f'{a['val'] - bv:+.3f}'}</td>"
-                f"<td data-h=\"Greedy\">{e(g[:150])}{'...' if len(g) > 150 else ''}</td></tr>")
+                f"<td data-h=\"Held-out\" class=\"num\">{a['val']:.3f}</td><td data-h=\"vs baseline\" class=\"num\">{'' if a['key'] == 'base' else f'{a['val'] - bv:+.3f}'}</td></tr>")
+    grows.append(f"<tr><td data-h=\"Run\"><b>{e(a['label'])}</b></td><td data-h=\"Greedy\">{e(g[:150])}{'...' if len(g) > 150 else ''}</td></tr>")
 T["abl"] = "".join(rows)
+T["abl_greedy"] = "".join(grows)
 T["silent"] = "".join(f"<tr><td>{e(s['what'])}</td><td class=\"num\">{s['loss']:.2f}</td><td class=\"num\">{s['leak']:g}</td><td>{e(s['greedy'])}</td></tr>" for s in T.pop("silent_rows"))
 T["err"] = {k: e(v["message"]) for k, v in err.items()}
+# the sampling table, static so the ledger and the checks can read it (was written by script before 2026-10-23)
+T["samples"] = "".join(f"<tr><td>{'greedy' if x['T'] == 0 else 'T ' + format(x['T'], '.1f') + (', top-k ' + str(x['top_k']) if x.get('top_k') else '')}</td><td>{e(x['text'])}</td></tr>" for x in smp["samples"])
+F["matmul_params"] = acc["flops"]["matmul_params"]
 
 # ---------------------------------------------------------------- data for the scripts
 D = {
-    "steps": [{"key": s["key"], "shapes": s["shapes"], "out": s["out"], "code": s["code"]} for s in steps["steps"]],
     "snaps": [{"step": s["step"], "val": s["val"], "seq": s["seq_mean"], "tok": s["tok_loss"], "greedy": s["greedy"]} for s in curve["snaps"]],
     "pieces": curve["pieces"], "prompt7": curve["prompt"], "floors": {"uniform": curve["floors"]["uniform"], "unigram": F["unigram"], "bigram": F["bigram"]},
     "smp": {"points": [{"pos": p["pos"], "context": p["context"], "next_true": p["next_true"], "logits": p["logits"],
