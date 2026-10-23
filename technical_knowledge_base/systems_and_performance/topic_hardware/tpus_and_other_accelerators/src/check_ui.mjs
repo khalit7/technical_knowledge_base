@@ -30,12 +30,11 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     if (p.length) { fails++; console.log('FAIL', w, scheme, tag, p.join(', ')); }
   };
   // Reading
-  for (const sel of ['#rd-sys-mode button', '#rd-tor-mode button', '#rd-fit-mod button', '#rd-fit-prec button', '#rd-amd-mode button', '#t-read .pr .opts button']) await clickAll(sel);
+  for (const sel of ['#rd-sys-mode button', '#rd-fit-mod button', '#rd-fit-prec button', '#rd-amd-mode button', '#t-read .pr .opts button']) await clickAll(sel);
   await page.evaluate(() => { document.querySelector('#rd-sys-mode button[data-m="sys"]').click(); });
   for (let i = 0; i < 16; i++) await page.click('#rd-sys-ctl-f');
-  await page.evaluate(() => { document.querySelectorAll('#rd-tor-svg g[data-c]')[27].dispatchEvent(new MouseEvent('click', { bubbles: true })); });
   await bad('read');
-  for (const id of ['rd-hero-card', 'rd-sys-card', 'rd-tor-card', 'rd-fit-card', 'rd-amd-card', 'rd-ws-card']) { const el = await page.$('#' + id); await el.screenshot({ path: `${shots}/${id}-${w}-${scheme}.png` }); }
+  for (const id of ['rd-hero-card', 'rd-sys-card', 'rd-fit-card', 'rd-amd-card', 'rd-ws-card']) { const el = await page.$('#' + id); await el.screenshot({ path: `${shots}/${id}-${w}-${scheme}.png` }); }
   await page.evaluate(() => { document.querySelector('#rd-sys-mode button[data-m="lanes"]').click(); });
   for (let i = 0; i < 9; i++) await page.click('#rd-sys-ctl-f');
   { const el = await page.$('#rd-sys-card'); await el.screenshot({ path: `${shots}/rd-sys-lanes-${w}-${scheme}.png` }); }
