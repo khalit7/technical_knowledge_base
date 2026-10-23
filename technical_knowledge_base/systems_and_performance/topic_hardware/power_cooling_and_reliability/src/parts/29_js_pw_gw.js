@@ -1,4 +1,4 @@
-// ---- Gigawatt planner tab ----
+// ---- Reading section 2, the per-gigawatt planner ----
 (function(){
   const P=window.PW,F=window.PWF,$=id=>document.getElementById(id);
   const st={mw:1000,pue:P.pue.root,ut:1,price:P.price};
@@ -23,6 +23,6 @@
   $('gw-ut').addEventListener('input',e=>{st.ut=+e.target.value/100;draw()});
   $('gw-pr').addEventListener('change',e=>{const v=+e.target.value;if(v>0){st.price=v;draw()}});
   draw();
-  RD.onRender(draw,'t-gw');
+  RD.onRender(draw);
   window.PW_GW={st,draw};
 })();

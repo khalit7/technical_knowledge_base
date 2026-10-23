@@ -1,5 +1,5 @@
 // Whole-page check: every tab and control at 390 px dark and 920 px light (page errors, NaN, undefined, sideways scroll);
-// the checkpoint simulator's JavaScript against src/recompute.py (the default day's totals, the exact optimum, the swing trace);
+// (2026-10-23: the simulator and planner moved into Reading) the checkpoint simulator's JavaScript against src/recompute.py (the default day's totals, the exact optimum, the swing trace);
 // screenshots per tab and per Reading section to ../../.shots/own/ (gitignored).
 // usage: node <page>/src/check/check_page.mjs   (puppeteer from html_utils/node_modules)
 import { createRequire } from 'module';
@@ -41,7 +41,13 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   if (js.f.some((x, i) => !close(x, exp.day_fails_h[i], 1e-3)) || js.nf !== exp.day_fails_h.length) { console.log('FAIL arrivals'); bad++; }
   if (!close(js.topt, exp.sim_T_opt_min, 0.01)) { console.log('FAIL t_opt', js.topt); bad++; }
   if (!close(js.effY, exp.sim_eff_exact_young, 1e-3)) { console.log('FAIL eff young', js.effY); bad++; }
-  for (const tab of ['t-read', 't-ckpt', 't-gw', 't-more']) {
+  // nothing moves before the reader acts: scroll each animation into view, wait, and expect step 0
+  for (const [card, sl] of [['pw-swing-card', 'pw-swing-ctl-s'], ['ck-card', 'ck-ctl-s']]) {
+    await p.evaluate(c => document.getElementById(c).scrollIntoView(), card); await sleep(2500);
+    const v = await p.evaluate(i => document.getElementById(i).value, sl);
+    if (v !== '0') { console.log('FAIL autoplay', card, v); bad++; }
+  }
+  for (const tab of ['t-read', 't-more']) {
     await p.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), tab);
     await sleep(300);
     if (tab === 't-read') {
@@ -58,19 +64,19 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
       const ids = await p.evaluate(() => [...document.querySelectorAll('#t-read section')].map(s => s.id));
       for (const id of ids) {
         const el = await p.$('#' + id);
-        await p.evaluate(i => document.getElementById(i).scrollIntoView(), id); await sleep(150);
+        await p.evaluate(i => document.getElementById(i).scrollIntoView(), id); await sleep(400);
         await el.screenshot({ path: path.join(shots, `${id}-${scheme}-${w}.png`) });
       }
     }
-    if (tab === 't-ckpt') {
+    if (tab === 't-read') {
       // the animation at its last step must show the Python day totals
       await p.evaluate(() => { const s = document.getElementById('ck-ctl-s'); s.value = s.max; s.dispatchEvent(new Event('input', { bubbles: true })); });
       const v = await p.evaluate(() => [...document.querySelectorAll('#ck-out .v')].map(e => e.textContent));
       const want = [exp.day_bad.committed, exp.day_young.committed].map(x => x.toFixed(1) + ' h saved');
       if (v[0] !== want[0] || v[1] !== want[1]) { console.log('FAIL day totals', v, want); bad++; }
-      await p.screenshot({ path: path.join(shots, `t-ckpt-end-${scheme}-${w}.png`), fullPage: true });
+      await (await p.$('#ck-card')).screenshot({ path: path.join(shots, `ckpt-end-${scheme}-${w}.png`) });
     }
-    if (tab === 't-gw') {
+    if (tab === 't-read') {
       const n = await p.evaluate(() => document.querySelector('#gw-tab tr:nth-child(3) td:nth-child(2)').textContent);
       if (n.replace(/,/g, '') !== String(exp.root_check_b200_per_gw)) { console.log('FAIL gw B200', n); bad++; }
     }

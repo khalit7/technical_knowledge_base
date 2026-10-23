@@ -1,4 +1,4 @@
-// ---- Checkpoint simulator tab: one day, same failures, two intervals; useful time against the interval ----
+// ---- Reading section 6, checkpoint simulator: one day, same failures, two intervals; useful time against the interval ----
 (function(){
   const P=window.PW,E=window.PWE,F=window.PWF,$=id=>document.getElementById(id),D0=P.sim_defaults;
   const st={g:D0.gpus,r:D0.rate,C:D0.C,D:D0.D,R:D0.R,T:D0.bad,seed:D0.seed,H:D0.horizon};
@@ -84,12 +84,11 @@
   $('ck-t').addEventListener('input',e=>{st.T=tFromSlider(+e.target.value);compute();stats();syncLabels();A.redraw();drawCurve()});
   $('ck-seed').addEventListener('click',()=>{st.seed=(st.seed*7919+13)%100000;all()});
   $('ck-seed0').addEventListener('click',()=>{st.seed=D0.seed;all()});
-  $('ck-aupy').textContent='0.12%';
   compute();
-  A=RD.anim({card:'ck-card',ctl:'ck-ctl',n:N,draw:drawDay,ms:260,label:'Hour of the day',tab:'t-ckpt'});
+  A=RD.anim({card:'ck-card',ctl:'ck-ctl',n:N,draw:drawDay,ms:260,label:'Hour of the day'});
   all(true);
-  RD.onRender(()=>{drawCurve()},'t-ckpt');
-  RD.onResize(()=>{A.redraw();drawCurve()},'t-ckpt');
+  RD.onRender(()=>{drawCurve()});
+  RD.onResize(()=>{A.redraw();drawCurve()});
   // exposed for the page check
   window.PW_CK={st,get sim(){return sim},partial};
 })();

@@ -17,12 +17,22 @@ What the text needs to be understood: the scale of watts from chip to site; why 
 | Gigawatt planner (site MW, PUE, average draw, price) | 7 | tab | DGX H100/B200/B300, GB200 NVL72, Ironwood pod; EIA price; rental prices from FACTS.md |
 | Predict-then-reveal: B300 energy per FLOP; Young at 131,072 GPUs | 6 | Reading s2, s7 | derived |
 
+## Added 2026-10-23 (teaching-contract rebuild)
+| Idea | Placement | Data |
+|---|---|---|
+| Hero: power in, heat out, multiplied by lockstep (static annotated diagram) | top of Reading | figures from sections 2 to 5; 167 MW and 833 MW derived at PUE 1.2 |
+| Job MTBF against GPUs at three rates, with the C + D + R line | section 5 | MTBF = 1 / (servers x rate); Llama 3 and Kokolis rates |
+| Memory fault escalation (ECC, uncorrectable, row remap, replace; SDC beside) | section 5 | NVIDIA memory error management docs |
+| Energy per training token, widening the boundary (bars) | section 8 | derived, same numbers as before |
+| Three photos (NVL72 rack, air hall, immersion) | sections 2 and 3 | Wikimedia Commons, see img/CREDITS.md |
+Moved: the Checkpoint simulator and the Gigawatt planner from tabs into sections 6 and 2. Removed: the log-scale power ladder (its numbers are in the hero and sections) and the static per-gigawatt table (the planner shows the same rows at its defaults).
+
 ## Rejected
 - A 54-day replay of Table 5: already on the Llama 3 paper page ("Run the 16K-GPU job").
 - Recovery designs on one day (sync, async, in-memory, replica groups) and a first-order goodput calculator: already on Training Infrastructure; linked.
 - A data-centre electricity history chart (IEA): the root owns it; not a hardware mechanism.
 - A Sankey of power from grid to chip with per-stage losses: per-stage efficiencies not found in a primary source for one real site.
-- Immersion cooling: no primary measurement fetched; mentioned nowhere rather than unsourced.
+- Immersion cooling as a visual: no primary measurement beyond Microsoft's 5% to 15%; one sourced sentence and a photo instead (2026-10-23).
 - Weibull (non-exponential) failures in the simulator: Aupy et al. show first-order periods stay robust; adds controls without a published dataset to calibrate.
 
 ## What the methodology lacked
