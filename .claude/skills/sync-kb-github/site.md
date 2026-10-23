@@ -23,5 +23,5 @@ python3 html_utils/build_site.py <scratch>/site/technical_knowledge_base /techni
 2. Actions, workflow "site", Run workflow (or push any page change).
 3. Settings, Collaborators: nobody else listed, so only he can push.
 
-## Notion after the move
-The Notion tree stays as the index: each page keeps its title and child pages, and its embed is replaced by one line linking to its site URL (plus the video block where there is one). That migration is one pass by the lead after the first deploy, approved by Khalid. Until it runs, Notion embeds still work as before and `SKILL.md` publishing still applies.
+## Notion
+Notion keeps the same tree; each page is one link line to `p/<id>/` on the site, plus its video and child pages ([SKILL.md](SKILL.md)). The `p/<id>/` redirect pages are written by the build for every page in `pages.json`, so a Notion link never breaks when a page moves in the repo.

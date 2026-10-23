@@ -1,6 +1,7 @@
 # Attention variants: MHA, MQA, GQA, MLA, sliding window, sparse attention and sinks
 
 Notion: https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846
+Site: https://khalit7.github.io/technical_knowledge_base/models_and_training/topic_llm_architecture/attention_variants/
 
 Child page of Topic: llm-architecture. HTML only: `index.html` is the whole page, built by `src/build.sh` from `src/parts/`.
 

@@ -1,6 +1,7 @@
 # Topic: generative-and-multimodal
 
 Notion: https://app.notion.com/p/3c65c17b0d0d817ab6ade318917bff55
+Site: https://khalit7.github.io/technical_knowledge_base/models_and_training/topic_generative_and_multimodal/
 
 Interactive page: `index.html`, built from `src/` (`sh src/build.sh`). Models that generate images, video and audio and models that see and read, taught from zero on one running example (Fashion-MNIST for the tiny models trained here; 16 colour test images with ground truth; Stable Diffusion 1.5, CLIP ViT-B/32, SigLIP 2 and SmolVLM-500M run for inference). Tabs: Reading (`src/read/`), Latent lab (`src/latent/`: AE, VAE, beta, VQ-VAE, the SD VAE and its scaling factor), Diffusion lab (`src/diff/`: schedules, targets, samplers, guidance, SD steps and time), Flow lab (`src/flow/`: transport, the CFM objective, solvers, flow vs diffusion at equal steps, reflow), Vision lab (`src/vision/`: patches, contrastive losses, zero-shot, typographic attack), VLM lab (`src/vlm/`: image tokens, the exact prompt, question set, hallucination probe), Model map (`src/map/`), Further reading. Shared data and code in `src/data/`.
 Real runs on an Apple M1 Pro (MPS and CPU), 2026-10-17; published results kept apart and dated.

@@ -1,6 +1,7 @@
 # Video and audio generation
 
 Notion: https://app.notion.com/p/3c65c17b0d0d8198bd7be111a3dc4c3a (child of Topic: generative-and-multimodal; reuses an older Notion page, retitled at publish).
+Site: https://khalit7.github.io/technical_knowledge_base/models_and_training/topic_generative_and_multimodal/video_and_audio_generation/
 
 Status: HTML-only page built 2026-10-17, published. `index.html` is the whole page, built from `src/` with `sh src/build.sh`; `src/README.md` lists the tabs, scripts, runs and checks.
 

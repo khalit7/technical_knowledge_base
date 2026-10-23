@@ -1,6 +1,7 @@
 # Deduplication: exact, MinHash, suffix arrays, semantic
 
 Notion: https://app.notion.com/p/3f95c17b0d0d8171ac17e43ab5ea276f (child of Topic: data-curation-and-datasets,
+Site: https://khalit7.github.io/technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/deduplication/
 https://app.notion.com/p/3c65c17b0d0d811fa5ecda8d365ab00f). HTML-only page: `index.html`, built by `src/build.sh`.
 
 Tabs: Reading (14 sections: evidence, exact, MinHash, clusters, SimHash, suffix arrays, Bloom filters, semantic,

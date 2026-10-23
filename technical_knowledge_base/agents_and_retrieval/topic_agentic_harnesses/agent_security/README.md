@@ -1,6 +1,7 @@
 # Agent security: permissions, sandboxes, prompt injection, egress
 
 Notion: https://app.notion.com/p/3f15c17b0d0d81ad9fb7d1dd74217335 (child of Topic: agentic-harnesses)
+Site: https://khalit7.github.io/technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/agent_security/
 
 Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). A new page (no old Notion text, no child pages, databases or video). It extends section 5 of the harnesses root and reconciles with the root's Loop lab gate: it reuses that gate's real `check()` and verdict table rather than rebuilding it.
 

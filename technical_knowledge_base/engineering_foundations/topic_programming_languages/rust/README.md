@@ -1,6 +1,7 @@
 # Rust: for Python programmers, Python extensions, services and CLIs
 
 Notion: https://app.notion.com/p/3c65c17b0d0d8156bed9ead8a22f33b0 (child of Topic: programming-languages)
+Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_programming_languages/rust/
 
 Interactive page: `index.html`, built from `src/` (`sh src/build.sh`). One page with a part bar (Start here, Part 1, Part 2, Part 3); each part has its own tabs, and each part's sources, real runs and checks live in its own `src/<part>/` folder (see its README).
 - Part 1 "For Python programmers" (`src/ra/`, tabs Reading, Ownership animated, Borrow-checker lab, Python to Rust drill): Rust from zero with real rustc errors; the `tokstat` crate is the root's token counter in modules with tests.

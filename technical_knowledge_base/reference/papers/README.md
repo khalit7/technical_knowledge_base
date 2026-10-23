@@ -1,6 +1,7 @@
 # Papers
 
 Notion: https://app.notion.com/p/3c65c17b0d0d81549dbedb27e8f2a26f
+Site: https://khalit7.github.io/technical_knowledge_base/reference/papers/
 
 Not an HTML page: in Notion it is a one-line description followed by the Papers database, one row per paper. Each row's page body becomes an interactive HTML page (method: `.claude/skills/explainer-page/page-kinds/paper.md`); the database properties stay in Notion. One folder per row:
 

@@ -11,7 +11,7 @@ Approved on Attention Is All You Need (2026-10-02); used for all 63 rows of the 
 ## Inputs
 - **An existing row** (title, Notion id, folder from `technical_knowledge_base/pages.json`, entries with `"parent": "Papers"`):
   - fetch the row page read-only and save it verbatim to `src/live.md` with a script (`save_live.py`), never retyped;
-  - the page replaces the row's body only. The database properties (Paper, Takeaway, Topics, Year) stay in Notion and are not edited. Use the Takeaway on the headline card, and flag a wrong Takeaway to Khalid rather than editing it.
+  - the row's body is only the link line to the site page. The database properties (Paper, Takeaway, Topics, Year) stay in Notion and are not edited. Use the Takeaway on the headline card, and flag a wrong Takeaway to Khalid rather than editing it.
 - **A new paper Khalid names** (title, arXiv link or PDF): the row must exist in the Papers database first. Ask him to create it, or whether to create it (its properties are his). The periodic `update-kb` pass creates rows itself for papers central to a topic (its step 6). There is no old body, so coverage runs against the paper's own claims.
 - **Either way**: fetch the paper itself (arXiv HTML where it exists, else the PDF text or the publisher page) and read it until you could teach it ([../understand/research.md](../understand/research.md)). Keep small extracts in `src/inputs/`, never PDFs or files over about 1 MB.
 
@@ -147,8 +147,7 @@ Short papers with nothing to run take about 2 hours.
 ## Many papers at once
 1. **Assign**: give each paper to one subagent with the paper brief ([../orchestration/briefs/paper-agent.md](../orchestration/briefs/paper-agent.md)): title, Notion id and folder; about four at a time.
 2. **Check each finished page**: rerun `checkpage.sh` and look at the screenshots.
-3. **Publish it** with the `sync-kb-github` steps. The row page has no children, so `replace_content` with the embed and the source line is right.
-4. **Record**: run `python3 html_utils/paper_finalize.py <slug>` (status `html_only`, published hash, commit), then push.
+3. **Publish it** with the `sync-kb-github` steps: `python3 html_utils/paper_finalize.py <slug>` commits, then push; the row page's body is the link line (no children, so `replace_content` is right).
 
 Progress is in `pages.json`. A paper with status `not_migrated` whose folder already has an `index.html` was built and not yet published; one with only a README has not started.
 

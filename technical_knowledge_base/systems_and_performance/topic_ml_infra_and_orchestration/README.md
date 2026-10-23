@@ -1,6 +1,7 @@
 # Topic: ml-infra-and-orchestration
 
 Notion: https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b
+Site: https://khalit7.github.io/technical_knowledge_base/systems_and_performance/topic_ml_infra_and_orchestration/
 
 Interactive page: `index.html`, built from `src/` (`sh src/build.sh`). The machinery around a training run, taught from zero on one running example (a tiny GPT trained with DDP over gloo, submitted the same way to a Slurm cluster in containers, a kind Kubernetes cluster with Kueue and JobSet, and Ray in containers; identical losses on all three). Tabs: Reading (`src/read/`), Scheduling lab (`src/sched/`: FIFO, backfill, fairshare, preemption, the gang deadlock and Kueue, placement groups), Launch lab (`src/launch/`: rendezvous, missing ranks, submit-to-first-step stages), Failure lab (`src/fail/`: twelve failures on three systems, resume, hangs, stragglers, elastic, goodput), Storage lab (`src/io/`: checkpoint anatomy, tiers, async checkpointing, small files), Cost lab (`src/cost/`: allocations, prices, run-cost calculator), Tool map (`src/map/`), Further reading. Shared clusters and the running example in `src/data/` (README lists the traps found).
 Real runs on an Apple M1 Pro with Docker Desktop, 2026-10-16; published cluster numbers kept apart and dated.

@@ -1,6 +1,6 @@
 # Migrate or fold: when the input is an existing Notion page
 
-What to do when a page already exists in Notion in its old written form (or as an older embed): save it, carry everything that holds up, and decide what happens to every old page, including pages folded in, reused, split or retired.
+What to do when a page already exists in Notion in its old written form (or as an older embed from before 2026-10-23): save it, carry everything that holds up, and decide what happens to every old page, including pages folded in, reused, split or retired.
 
 ## Save the old page first
 - **Fetch read-only** with the Notion connector (load it with ToolSearch).
@@ -46,16 +46,11 @@ Map every old page of the topic (the root and every old child) to the new plan b
 - **Registering it**: add it to `pages.json` with its folder ([../orchestration/topic-pipeline.md](../orchestration/topic-pipeline.md)).
 
 ## Publishing migrated pages
-Publishing is the `sync-kb-github` skill; the points that matter for migrations:
-- **A page without children or databases**: one `replace_content` with the embed and the source line.
-- **A page with child pages or databases** (every root): never `replace_content`.
-  1. Insert the embed and source line at the start with `update_content`.
-  2. Delete the old text: headings, paragraphs, lists and tables, each matched exactly. A run of consecutive blocks can be matched as one span, which saves many calls on a long page.
-  3. Keep every `<page>`, `<database>` and `<video>` tag, the video's heading and blurb.
-  4. Fetch afterwards to confirm only the embed, source line, video and page tags remain.
-- **Replacing an existing embed**: fetch with file URLs included. The stable form needs the block id from the `#notion_record` part and the S3 folder before the filename; a signed URL never matches.
-- **Retitle reused and retired pages** in the same publish pass.
-- **Record**: run `python3 html_utils/page_finalize.py <folder>` after publishing. On a root it commits everything under the folder, including children's in-progress `src/`: publish the root before children start, or check what it swept.
+Publishing is the `sync-kb-github` skill: commit and push; the old Notion page's body becomes the link line.
+- **A page without children or databases**: one `replace_content` with the link line (and its video tag, if any).
+- **A page with child pages or databases** (every root): never `replace_content`. Insert the link line at the start, then delete the old text in chunks (a run of consecutive blocks matched as one span), keeping every `<page>`, `<database>` and `<video>` tag and the video's heading. Fetch afterwards to confirm only the link line, video and child tags remain.
+- **Retitle reused and retired pages** in the same pass.
+- **Record** `"notion": "link"` in `pages.json`.
 
 ---
 (History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)

@@ -1,6 +1,7 @@
 # LLM serving in production: routing, autoscaling, cold starts, multi-LoRA, load testing
 
 Notion: https://app.notion.com/p/3f35c17b0d0d818aa406da1f7a784c62 (child of Topic: inference-and-serving)
+Site: https://khalit7.github.io/technical_knowledge_base/systems_and_performance/topic_inference_and_serving/llm_serving_in_production/
 
 HTML-only page: `index.html` (built by `src/build.sh`). Tabs: Reading, Router lab, Autoscaling lab, Load-test lab, Further reading.
 Evidence: three llama-server replicas behind a router written here, on a Mooncake-derived multi-turn trace; cold starts; multi-LoRA and

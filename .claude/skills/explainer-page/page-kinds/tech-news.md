@@ -64,7 +64,7 @@ A new issue copies the machinery and writes new annotations.
 - **Never draw an escape or attack route** step by step; the text and dated checks carry it.
 - **Hosts that block automated reading** (Reuters, Bloomberg, openai.com): try the Wayback Machine, and mark what stays unchecked.
 - **Long dashes in saved source extracts**: replace them with `--` ([../teaching/writing-style.md](../teaching/writing-style.md)).
-- **A narrated video**: keep its `<video>` block under the HTML when publishing, and name it in the header.
+- **A narrated video**: its `<video>` block stays on the Notion page under the link line; name it in the header.
 
 ## Lessons
 - **2026-10-02**: a missing page wrapper (`<div class="w">`) left cards 16 px past the phone screen with no sideways scroll, so `checkpage` passed; `clipcheck.mjs` now catches it ([../build/checks.md](../build/checks.md)).

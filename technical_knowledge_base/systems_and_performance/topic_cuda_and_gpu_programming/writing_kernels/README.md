@@ -1,6 +1,7 @@
 # Writing kernels: reductions, softmax, tiled matmul, fusion, FlashAttention
 
 Notion: https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c (child of Topic: cuda-and-gpu-programming, https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1)
+Site: https://khalit7.github.io/technical_knowledge_base/systems_and_performance/topic_cuda_and_gpu_programming/writing_kernels/
 
 Interactive page: `index.html`, built from `src/` (`sh src/build.sh`). The practical track: reductions (Harris's ladder re-run, warp shuffles, atomics and determinism, summation accuracy), scan (Hillis-Steele, Blelloch, reduce-then-scan, decoupled look-back), softmax, LayerNorm and RMSNorm (variance accuracy, Welford, fused residual + RMSNorm), the matmul ladder as the NVIDIA compiler sees it, fusion (epilogue, prologue, when it loses), the 4-bit decode GEMV, FlashAttention 2, 3 and 4 with causal skipping, the backward pass and split-KV decode, and testing kernels against references. Tabs: Reading, Reduce and scan, animated, Attention schedules, Kernel bench (M1), Compiled for NVIDIA, Further reading. No child pages, databases or video on the old page.
 

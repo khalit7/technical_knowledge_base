@@ -1,5 +1,6 @@
 # Virtual memory: paging, the TLB, mmap, copy-on-write, huge pages, the OOM killer
 
 Notion: https://app.notion.com/p/3f05c17b0d0d81a48892cea154ce950b (child of Topic: operating-systems)
+Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_operating_systems/virtual_memory/
 
 Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Address spaces and VMAs, four-level page tables on arm64 and x86-64, the TLB, ASIDs and shootdowns, the page-fault path in Linux 5.10 (zero page, fault-around, major faults), the four kinds of mmap and read amplification, the page cache and reclaim, copy-on-write including Python's reference counts and garbage collector (gc.freeze), transparent huge pages and hugetlbfs, mlock and pinned memory for GPU copies, overcommit modes, swap, memory cgroups and the OOM killer's formula, RSS/PSS/USS, NUMA policies, and ML recipes; measured on Docker Desktop's Linux 5.10 VM, kernel source quoted at v5.10 with line numbers. Tabs: Reading, Address translator, Memory replay (four measured cgroup runs and the oom_badness calculator), Further reading. A new page: no old text, child pages, databases or video.

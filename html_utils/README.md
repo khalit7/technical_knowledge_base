@@ -7,7 +7,11 @@ Runtime tools the knowledge base pages are checked and published with. How pages
 | `checkpage.sh <page folder>` | Builds and checks a page: puppeteer at phone and desktop width, light and dark, errors, clipping, em-dashes. Must end `fail=0`, `emdash 0`, `errbox 1`, `clipped 0`. |
 | `tabshot.mjs`, `clipcheck.mjs` | Screenshots per tab and the clipping check, used by `checkpage.sh`. |
 | `tex2mathml.mjs` | Converts LaTeX to MathML at build time for maths pages. |
-| `sync_status.py` | Rebuilds every page and lists those whose `index.html` differs from what Notion holds; `--record <folder>` records the published hash. |
-| `page_finalize.py`, `paper_finalize.py` | After publishing: mark `html_only`, record the hash, commit. |
+| `sync_status.py` | What is left to publish: failed builds, uncommitted pages, unpushed commits, Notion pages not yet link pages. `--no-build` is safe while agents edit. |
+| `page_finalize.py`, `paper_finalize.py` | Publish: mark `html_only` and commit each page's own files with `pages.json` (then push). |
+| `audit_pages.mjs`, `audit_pages.py` | Measure every page from the rendered DOM: core and closed-detail minutes, visuals inline and in tabs; `--concepts` flags concepts taught on several pages. |
+| `ledger.py` | The knowledge ledger: `init` drafts a page's units, `check` proves no non-fat unit was lost in a rebuild. |
+| `build_site.py` | Builds the reading site (GitHub Pages) from every page, with links rewritten and `p/<id>/` redirects. |
+| `cloud_setup.sh` | Sets up a cloud sandbox (the weekly routine) to build and check pages. |
 
 Setup: `cd html_utils && NPM_CONFIG_USERCONFIG= npm ci` (puppeteer with its own Chrome).

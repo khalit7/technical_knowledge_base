@@ -41,7 +41,8 @@ Each lesson says what happened and the rule it produced. The rules are already f
 ## Notion and network
 - **2026-10-15 to 2026-10-17, Notion disconnected.** The Notion connector dropped after the reboot and stayed down for a day; two topics were built without ids. Rule: build anyway, ids pending, siblings in plain text with a `links_todo.md`; register, wire and publish when it returns.
 - **2026-10-17, unmatched old children.** Two old child pages were left untouched with no new equivalent; neither was covered by the rebuild. Rule: grep the new pages for each unmatched old page's key terms, report coverage, ask Khalid (rebuild, fold, or retitle "TO DELETE: ...").
-- **Roots with children.** Never `replace_content` on a page with child pages or databases: insert the embed, then delete the old text in chunks, keeping the video, its note and every `<page>` tag (JAX and RAG roots, 2026-10-15).
+- **Roots with children.** Never `replace_content` on a page with child pages or databases: insert the link line, then delete the old text in chunks, keeping the video, its note and every `<page>` tag (JAX and RAG roots, 2026-10-15).
+- **2026-10-23, Notion became an index.** Pages moved to the public site (GitHub Pages); each Notion page is one link line to `p/<id>/` on the site. Reasons: fixed iframe height, poor mobile, no search across embeds, no cross-page links, no images. The embed upload flow is retired.
 
 ## Scratch and disk
 - **2026-10-15, reboot wiped the scratchpad.** Envs, models outside `~/.cache`, lock scripts and every uncommitted run output in scratch were lost; the repo survived, and the briefs survived only because copies lived outside the scratchpad. Rule: anything a page needs to rebuild goes in its `src/`; models in `~/.cache/huggingface`; briefs copied outside the scratchpad; check `last reboot` before trusting scratch after a gap.

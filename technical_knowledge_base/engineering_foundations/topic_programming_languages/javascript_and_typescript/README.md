@@ -1,6 +1,7 @@
 # JavaScript and TypeScript: the runtime, the type system, LLM apps and agents
 
 Notion: https://app.notion.com/p/3cd5c17b0d0d81dbac7be3b8686be023 (child of Topic: programming-languages)
+Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_programming_languages/javascript_and_typescript/
 
 Interactive page: `index.html`, built from `src/` (`sh src/build.sh`). One page with a part bar (Start here, Part 1, Part 2, Part 3); each part has its own tabs, and each part's sources, real runs and checks live in its own `src/<part>/` folder (see its README).
 - Part 1 "JavaScript and its runtime" (`src/ja/`, tabs Reading, Event-loop stepper, JS playground): JavaScript from zero, the event loop, promises, SSE streams, Node, packages, Bun and Deno, V8; the playground runs code live in a Web Worker where the host allows.
