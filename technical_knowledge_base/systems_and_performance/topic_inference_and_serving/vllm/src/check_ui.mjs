@@ -1,4 +1,5 @@
-// Puppeteer check of the page: every tab, every button, select and range, every stepper run stepped end to end,
+// Puppeteer check of the page: nothing moves before the reader acts (normal motion, every animation stays on step 0
+// after scrolling through the page), then every tab, every button, select and range, every stepper run stepped end to end,
 // at 390 px dark and 920 px light. Fails on page errors, NaN/undefined/Infinity in visible text, sideways scroll,
 // a visible #jsErr box. usage: node check_ui.mjs <screenshot dir>
 import { createRequire } from 'module';
@@ -21,6 +22,15 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await p.evaluateOnNewDocument(() => { try { localStorage.clear() } catch (e) {} });
   await p.goto(page_url, { waitUntil: 'load' });
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
+  // no autoplay: scroll every animation card into view, wait, and expect every scrubber still at 0
+  if (scheme === 'light') {
+    await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'no-preference' }]);
+    for (const id of await p.$$eval('#t-read input[type=range]', rs => rs.map(r => r.id))) {
+      await p.evaluate(id => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await new Promise(r => setTimeout(r, 1200));
+      const v = await p.$eval('#' + id, r => +r.value); if (v !== 0) errs.push(`autoplay: ${id} moved to ${v}`);
+    }
+    await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
+  }
   for (const t of tabs) {
     await p.click(`#tabs button[data-t="${t}"]`);
     await new Promise(r => setTimeout(r, 200));
@@ -32,7 +42,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     // ranges: min, max, middle
     await p.evaluate(t => { document.querySelectorAll(`#${t} input[type=range]`).forEach(r => { for (const v of [r.min, r.max, (+r.min + +r.max) / 2 | 0]) { r.value = v; r.dispatchEvent(new Event('input', { bubbles: true })); r.dispatchEvent(new Event('change', { bubbles: true })); } }); }, t);
     await p.evaluate(t => { document.querySelectorAll(`#${t} select`).forEach(s => { [...s.options].forEach(o => { s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true })); }); }); }, t);
-    if (t === 't-step') {
+    if (t === 't-read') {
       // every run, every step
       const runs = await p.$$eval('#vl-st-seg button', bs => bs.length);
       for (let r = 0; r < runs; r++) {
@@ -40,8 +50,8 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
         const max = await p.$eval('#vl-st-ctl-s', e => +e.max);
         for (let i = 0; i <= max; i++) {
           await p.evaluate(i => { const s = document.getElementById('vl-st-ctl-s'); s.value = i; s.dispatchEvent(new Event('input', { bubbles: true })); }, i);
-          const bad = await p.evaluate(() => /NaN|undefined|Infinity/.test(document.getElementById('t-step').innerText));
-          if (bad) { errs.push(`t-step run ${r} step ${i}: NaN/undefined`); break; }
+          const bad = await p.evaluate(() => /NaN|undefined|Infinity/.test(document.getElementById('vl-st-card').innerText));
+          if (bad) { errs.push(`stepper run ${r} step ${i}: NaN/undefined`); break; }
         }
       }
     }

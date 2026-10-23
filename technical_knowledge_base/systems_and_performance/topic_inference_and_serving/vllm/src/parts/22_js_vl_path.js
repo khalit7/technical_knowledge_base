@@ -69,6 +69,6 @@
     acnt.innerHTML=RD.stat('Time',tnow+' ms')+RD.stat('GPU busy',Math.round(100*busy/Math.max(1,tnow))+'%')+RD.stat('Steps finished',doneSteps+' of '+NS)+RD.stat('Total for 4 steps',(mode==='sync'?NS*(C+Gt+1):C+NS*Gt+1)+' ms','sync '+NS*(C+Gt+1)+' ms against async '+(C+NS*Gt+1)+' ms');
   }
   const an=RD.anim({card:'vl-async-card',ctl:'vl-async-ctl',n:frames('sync').length,draw:adraw,ms:1100,label:'Timeline event'});
-  RD.seg(document.getElementById('vl-async-seg'),m=>{mode=m;an.reset(frames(m).length);an.play()});
+  RD.seg(document.getElementById('vl-async-seg'),m=>{mode=m;an.reset(frames(m).length)});
   RD.onResize(()=>an.redraw());
 })();

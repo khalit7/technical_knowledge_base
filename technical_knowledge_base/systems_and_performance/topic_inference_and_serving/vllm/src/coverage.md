@@ -1,5 +1,7 @@
 # Coverage of the old "vLLM" page
 
+Note 2026-10-23: the Scheduler stepper (ST) is now at the end of Reading section 3 and the Knob lab (KL) is spread over Reading sections 5, 6 and 8; Mistakes and most interview questions were cut as restatements (see `ledger.json`, labelled fat with a note). This file is the 2026-10-08 coverage record and is not otherwise updated.
+
 The old page is saved verbatim in the root's `src/read/old/vllm.md` (Notion fetch, 2026-10-08; last edited 2026-09-22).
 Every claim is listed with its status and where this page carries it. Status: **verified** (source given), **corrected**
 (the source says something else; the page says what the source says), **unconfirmed** (no primary source found; not on

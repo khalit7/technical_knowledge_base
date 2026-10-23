@@ -22,3 +22,12 @@ corrects a misconception, measures the central question, absent elsewhere, anima
 
 What the methodology lacked: a rule for recording a real system's internal state as the data of a visual (here: wrapping two
 methods to snapshot objects each step). It worked well and is reusable for SGLang's radix cache.
+
+## 2026-10-23 rebuild to the teaching contract
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| VL14 | **Hero**: static annotated diagram of the API server, the engine core (loop, scheduler, KV cache manager and block pool) and the GPU worker, each knob drawn where it acts (`23_js_vl_hero.js`) | Reading, top | built |
+| VL15 | **Free queue diagram**: allocate at the head, freed unhashed blocks to the front, hashed to the tail, touch unlinks from the middle (`23_js_vl_fq.js`) | Reading s3 | built (blocks illustrative) |
+| VL16 | **V1 against V2 runner, toggle on the same event** (B finishes, E joins): V1 fills the empty row then swaps rows so decodes come first, V2 writes one row and gathers (`23_js_vl_mr.js`) | Reading s4 | built; replaces the rejection of VL12 with a static toggle whose moves are V1's code (gpu_input_batch.py L326, L582; gpu_model_runner.py L1135) |
+| VL1 | Scheduler stepper | moved from its tab to the end of Reading s3 | moved |
+| VL6, VL7, VL8, VL9 | Knob lab sweeps, metrics time series, every metric, patched metric | moved inline: sweeps beside the knob table (s5, headline charts open, the rest in closed blocks), time series in s6, every metric in a closed block in s6, the live patched metric in s8 | moved |
