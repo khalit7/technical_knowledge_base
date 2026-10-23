@@ -23,24 +23,36 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     const m = t.match(/NaN|undefined|Infinity|null GB/);
     if (m) { bad++; console.log('BAD', scheme, tag, m[0], t.slice(Math.max(0, t.indexOf(m[0]) - 80), t.indexOf(m[0]) + 40)) }
   };
-  // animation: every mode, both batches, every step
-  const modes = await p.$$eval('#anM button', bs => bs.map(b => b.dataset.m));
-  for (const B of ['4', '1']) {
-    await p.select('#anB', B);
-    for (const m of modes) {
-      await p.$eval('#anM button[data-m="' + m + '"]', e => e.click());
-      const n = await p.$eval('#anC-s', e => +e.max + 1);
-      for (let i = 0; i < n; i++) {
-        await p.$eval('#anC-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i);
-        await scan('#an', m + ' B' + B + ' step ' + i);
-      }
-      if (width === 920 || ['DP', 'PP', 'EP', 'HSDP'].includes(m)) {
-        await p.$eval('#anC-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, Math.min(2, n - 1));
-        const el = await p.$('#an'); await el.screenshot({ path: path.join(shots, `an-${m}-b${B}-${scheme}-${width}.png`) });
+  // step-throughs: every card, every mode, both batches, every step
+  const cards = await p.$$eval('.dt-an', cs => cs.map(c => c.id));
+  for (const id of cards) {
+    const modes = await p.$$eval('#' + id, cs => cs[0].dataset.modes.split(','));
+    for (const B of ['4', '1']) {
+      await p.select('#' + id + 'B', B);
+      for (const m of modes) {
+        if (modes.length > 1) await p.$eval('#' + id + 'M button[data-m="' + m + '"]', e => e.click());
+        const n = await p.$eval('#' + id + 'C-s', e => +e.max + 1);
+        for (let i = 0; i < n; i++) {
+          await p.$eval('#' + id + 'C-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i);
+          await scan('#' + id, id + ' ' + m + ' B' + B + ' step ' + i);
+        }
+        if (width === 920 || ['DP', 'PP', 'EP', 'HSDP'].includes(m)) {
+          await p.$eval('#' + id + 'C-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, Math.min(2, n - 1));
+          const el = await p.$('#' + id); await el.screenshot({ path: path.join(shots, `an-${m}-b${B}-${scheme}-${width}.png`) });
+        }
       }
     }
+    for (const c of ['ZeRO-3', 'TP']) { await p.select('#' + id + 'Cmp', c); await scan('#' + id + 'Cnt', id + ' compare ' + c) }
   }
-  for (const c of ['ZeRO-3', 'TP']) { await p.select('#anCmp', c); await scan('#anCnt', 'compare ' + c) }
+  // nothing plays by itself: every play button still says Play after load
+  const playing = await p.$$eval('.an-play', bs => bs.filter(b => /Pause/.test(b.textContent)).length);
+  if (playing) { bad++; console.log('AUTOPLAY', scheme, playing) }
+  // ZeRO slider, TP and mesh toggles, predict blocks
+  for (const v of ['0', '6', '10']) { await p.$eval('#zN', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); await scan('#zBars', 'zero n ' + v) }
+  for (const m of ['sp', 'tp']) { await p.$eval('#tpSeg button[data-m="' + m + '"]', e => e.click()); await scan('#tpf', 'tp ' + m) }
+  for (const m of ['dsv3', 'l405_8k_16k']) { await p.$eval('#meshSeg button[data-m="' + m + '"]', e => e.click()); await scan('#mesh', 'mesh ' + m) }
+  for (const id of ['zpr', 'ppr']) { await p.$eval('#' + id + ' .opts button', e => e.click()); await scan('#' + id, 'predict ' + id) }
+  for (const sel of ['#heroP', '#collP', '#cpP']) await scan(sel, sel);
   // bubble table
   for (const [P, M, V] of [['2', '1', '1'], ['8', '20', '2'], ['32', '64', '4'], ['32', '1', '1']]) {
     for (const [id, v] of [['pbP', P], ['pbM', M], ['pbV', V]]) await p.$eval('#' + id, (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v);

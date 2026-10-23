@@ -18,7 +18,7 @@
 @media (max-width:520px){#t-calc .crow{grid-template-columns:minmax(0,5.6em) minmax(0,1fr) minmax(0,7.4em);font-size:12px}}
 </style>
 <h2>Layout calculator</h2>
-<p>Pick a model and a layout, TP × CP × PP × DP (plus EP for an MoE model), and see what one GPU holds and what it sends in one optimizer step, axis by axis, on the link that axis lands on. It is the {{One training step|#t-read}} animation's arithmetic at real scale. Training time in GPU-days for a model size and token budget is the parent page's {{Scaling calculator|n:3c65c17b0d0d81b6876ee72b7056793b}} tab; this tab only uses compute to put the communication in proportion.</p>
+<p>Pick a model and a layout, TP × CP × PP × DP (plus EP for an MoE model), and see what one GPU holds and what it sends in one optimiser step, axis by axis, on the link that axis lands on. It is the arithmetic of the {{Reading|#t-read}} step-throughs at real scale. Training time in GPU-days for a model size and token budget is the parent page's {{Scaling calculator|n:3c65c17b0d0d81b6876ee72b7056793b}} tab; this tab only uses compute to put the communication in proportion.</p>
 <p class="try"><b>Try:</b> start from Llama 3 405B on 16,384 GPUs, then switch the preset to 128K context: CP = 16 takes the sixteen-fold longer sequences and activations per GPU do not move. Load DeepSeek-V3 and watch expert all-to-all dominate the step: that is the "approximately 1:1" computation-to-communication ratio DualPipe was built to hide. Set ZeRO to stage 0 on the ZeRO 7.5B preset to see 120 GB.</p>
 <div class="card" id="lc">
 <div class="lc-ctl">
@@ -31,7 +31,7 @@
 <label>PP <select id="lcPP"></select></label>
 <label>DP <select id="lcDP"></select></label>
 <label>EP (MoE only) <select id="lcEP"></select></label>
-<label>ZeRO stage over DP <select id="lcZ"><option value="0">0: replicated (DDP)</option><option value="1">1: optimizer state</option><option value="2">2: + gradients</option><option value="3">3: + weights (FSDP)</option></select></label>
+<label>ZeRO stage over DP <select id="lcZ"><option value="0">0: replicated (DDP)</option><option value="1">1: optimiser state</option><option value="2">2: + gradients</option><option value="3">3: + weights (FSDP)</option></select></label>
 <label>Sequence length <select id="lcS"><option>4096</option><option>8192</option><option>32768</option><option>131072</option></select></label>
 <label>Micro-batches per step, <i>m</i> <input type="number" id="lcM" min="1" max="512" step="1"></label>
 <label>Activations <select id="lcA"><option value="store">Stored, 34 sbh per layer</option><option value="full">Full recomputation</option><option value="off">Not counted (states only)</option></select></label>
@@ -41,7 +41,7 @@
 <div class="out" id="lcO"></div>
 <h3 style="margin:10px 0 2px">Memory per GPU</h3>
 <div class="lc-bar" id="lcBar"></div>
-<div class="lc-leg"><span><i style="background:var(--c1)"></i>weights</span><span><i style="background:var(--c5)"></i>gradients</span><span><i style="background:var(--c4)"></i>optimizer state</span><span><i style="background:var(--c3)"></i>activations (estimate)</span><span><i style="background:var(--bad)"></i>80 GB</span></div>
+<div class="lc-leg"><span><i style="background:var(--c1)"></i>weights</span><span><i style="background:var(--c5)"></i>gradients</span><span><i style="background:var(--c4)"></i>optimiser state</span><span><i style="background:var(--c3)"></i>activations (estimate)</span><span><i style="background:var(--bad)"></i>80 GB</span></div>
 <p class="small mute" id="lcMemN"></p>
 <h3 style="margin:12px 0 2px">One step: compute against communication, per GPU</h3>
 <div id="lcC"></div>
@@ -52,7 +52,7 @@
 <h3>How the numbers are made</h3>
 <ul class="tight">
 <li><b>Parameters per GPU</b>: dense parameters ÷ (TP × PP), expert parameters ÷ (EP × PP × TP); doubled for DualPipe's two copies. Counts from config.json, recounted (Llama 3 8B 8.03B, 70B 70.55B, 405B 405.85B; DeepSeek-V3 671.03B of which 653.91B routed experts and 37.55B active, from the {{DeepSeek-V3 paper page|n:3c65c17b0d0d815fb8dac9ba1e35ab81}}).</li>
-<li><b>States</b>: bytes per parameter split into weights, gradients and optimizer state; ZeRO divides them over the data-parallel group, which includes the CP ranks (as Megatron's distributed optimizer does) and, for experts, DP × CP ÷ EP ranks. Llama 3's "shards optimizer states and gradients" but keeps weights after forward is modelled as stage 2.</li>
+<li><b>States</b>: bytes per parameter split into weights, gradients and optimiser state; ZeRO divides them over the data-parallel group, which includes the CP ranks (as Megatron's distributed optimiser does) and, for experts, DP × CP ÷ EP ranks. Llama 3's "shards optimiser states and gradients" but keeps weights after forward is modelled as stage 2.</li>
 <li><b>Activations</b> <i class="nl i">estimate</i>: Korthikanti et al.'s 34<i>sbh</i> per layer for a GPT-style layer with sequence parallelism and no stored score matrix, ÷ (TP × CP), × layers per stage × micro-batches in flight on the first stage. Full recomputation keeps 2<i>sbh</i> per layer plus one layer's working set. Llama's SwiGLU and GQA and DeepSeek's MLA, FP8 caching and recomputation make the real figure differ.</li>
 <li><b>Communication</b>: bytes sent per GPU per step, ring factors from nccl-tests. DP: one all-reduce (stage 0) or reduce-scatter plus all-gather (1, 2), plus two all-gathers per micro-batch (3). TP: 4 all-reduces of 2<i>sbh</i>/CP bytes per layer per micro-batch. CP: an all-gather of K and V forward and a reduce-scatter of their gradients backward per layer. PP: one activation and one gradient per micro-batch. EP: dispatch and combine, forward and backward, <i>k</i> copies per token, (EP − 1)/EP leaving the GPU (FP8 dispatch for DeepSeek-V3).</li>
 <li><b>Links</b>: groups are laid out innermost first, TP, CP, EP, PP, DP (Llama 3's order, with EP inside DP as DeepSeek places 64 experts' GPUs on 8 servers); a group that fits in one 8-GPU server uses NVLink, otherwise the network. Peak bandwidths; real collectives reach less, and overlap with compute hides much of the time, so the bars are an upper bound on exposed time and a lower bound on transfer time.</li>

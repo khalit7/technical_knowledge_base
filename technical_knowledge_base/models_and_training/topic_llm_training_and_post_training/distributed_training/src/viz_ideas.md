@@ -56,3 +56,21 @@ Ultra-Scale Playbook's memory widget and its parallelism cheat-sheet figure; sib
 ## What the methodology lacked here
 
 A rule for "systems" pages where most published figures are layouts (degrees) rather than measured quantities: the layout products reproduce only by construction, so the independent check has to come from a derived ratio the source also states (DeepSeek's 1:1). Worth adding: look for a ratio the source states in words and recompute it from the layout.
+
+## 2026-10-23 rebuild (teaching contract): placement and new visuals
+
+Placement: the strongest visual, the step-through (#1 above), was one card in its own section while the split sections described each split in words. It is now mounted once per section (DP; ZeRO-1/2/3 and HSDP against DP; TP; PP; EP; CP), paused until the reader acts. The bubble table (#4) stays in the pipeline section; the layout calculator (#2) stays a tab, because it is used across every section.
+
+| Visual | Kind (contract) | Where | Why |
+|---|---|---|---|
+| Hero: six panels, who holds which piece of the batch and the model, bytes per split | static annotated diagram | top | the whiteboard picture of "cut one dimension, pay in bytes" |
+| Llama 3 8B memory bar against 80 GB | static, concrete number | section 1 | the problem every split solves, in one bar |
+| Five collectives, four GPUs before and after | static annotated diagram | section 2 | all-reduce = reduce-scatter + all-gather is seen, not stated |
+| ZeRO stages against the data-parallel degree | one slider; defaults reproduce ZeRO Table 1 independently | section 4 | the floor each stage leaves (4, 2, 0 bytes not sharded) |
+| TP against TP + sequence parallel, one feed-forward block on two GPUs | before/after toggle | section 5 | SP replaced the duplicated LayerNorm and dropout |
+| Ring, all-gather, Ulysses | static annotated diagram | section 8 | three traffic patterns for the same attention |
+| Llama 3 405B and DeepSeek-V3 as nested groups, seconds per axis | static diagram plus bars, toggle between two published layouts | section 9 | why the chattiest axis sits inside the server, with the calculator's numbers |
+| Activation checkpointing: store all, selective, full | static bars | section 10 | nine tenths of the memory for 2 to 3% compute |
+| Predict, then reveal: ZeRO-1 at 64 GPUs; GPipe against 1F1B | predict | sections 4 and 6 | the two misconceptions the old mistakes list named |
+
+Rejected again: a pipeline schedule animation (the DeepSeek and Llama 3 pages have them; the PP step-through already draws a 1F1B timeline); a collective-cost calculator (Interconnects owns it).

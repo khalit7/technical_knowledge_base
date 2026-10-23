@@ -18,19 +18,3 @@ s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a hre
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
 if grep -q '—' ../index.html; then echo "EM DASH FOUND"; grep -n -o '.\{30\}—.\{30\}' ../index.html | head; fi
 wc -c ../index.html
-# Reading time (230 words per minute over the Reading tab's visible text) and the best-resources total
-python3 - <<'PY'
-import re
-s=open('../index.html').read()
-a=s.index('id="t-read"');b=s.index('id="t-calc"')
-t=re.sub(r'<script.*?</script>|<style.*?</style>','',s[a:b],flags=re.S);t=re.sub(r'<[^>]+>',' ',t)
-w=len(t.split());m=round(w/230)
-tot=0
-for x in re.findall(r'class="rt">\(([^)]*)\)',s[s.index('id="more-best"'):s.index('id="more-end-best"')]):
-    h=re.search(r'(\d+)h',x);mm=re.search(r'(\d+) ?m(?:in)?\b',x)
-    tot+=(int(h.group(1))*60 if h else 0)+(int(mm.group(1)) if mm else 0)
-res='%dh %02dm'%(tot//60,tot%60)
-s=s.replace('RT_MIN',str(m)).replace('RES_TIME',res)
-open('../index.html','w').write(s)
-print('reading words',w,'minutes',m,'resources',res)
-PY
