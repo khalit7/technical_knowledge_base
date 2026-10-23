@@ -65,9 +65,18 @@ Agreed 2026-10-23 with the teaching contract ([../.claude/skills/explainer-page/
 | The PyTorch map: the layer comparison, Inside one step, the Compile and Distributed labs, the Ecosystem map | `systems_and_performance/topic_pytorch_ecosystem` (root) | |
 | JAX core: pure functions and tracing, jaxprs, the jit cache, grad/jvp/vjp, vmap and pmap history, custom rules, control flow under tracing, pytrees, PRNG keys | `systems_and_performance/topic_jax_and_tpu/jax_core` | |
 | XLA in depth: HLO, pass pipelines, fusion decisions, layouts and TPU tiling, buffer assignment, HLO dumps, compile caches, GPU against TPU, recompiles, jax.export and AOT, profiling and flags | `.../topic_jax_and_tpu/xla_and_compilation` | the compiler stack keeps the cross-compiler view |
+| The JAX training stack: Flax NNX state and transforms, Linen and Equinox state models, optax, orbax checkpointing and resume, grain pipelines, jmp loss scaling | `.../topic_jax_and_tpu/training_stack` | |
+| Translating PyTorch habits into JAX: hidden state made explicit, differing defaults, weight conversion, the ladder equivalence test, the porting checklist | `.../topic_jax_and_tpu/pytorch_to_jax` | the JAX root's Training lab links it |
+| Sharding in JAX: Mesh and PartitionSpec, jit with shardings, GSPMD and Shardy propagation, Explicit mode, shard_map and collectives as JAX calls, multi-host | `.../topic_jax_and_tpu/sharding_and_scale` | distributed training owns the forms; interconnects the wire costs |
+| TPU as a programming target: TensorCore (MXU, VPU, scalar unit), HBM and VMEM, ICI, slices and meshes from the program's view, ridge and critical batch, tiling and MXU padding, TPU profiling, MFU counting | `.../topic_jax_and_tpu/tpu_programming_and_performance` | the hardware topic owns chips and pods as hardware |
+| Pallas: grid and BlockSpecs, memory spaces, pipelining and manual DMAs, scalar prefetch, dimension semantics, testing with interpreters, production kernels, block sizes | `.../topic_jax_and_tpu/pallas_kernels` | |
+| JAX LLM codebases: MaxText, Tunix, Levanter, EasyDeL, Pax/Saxml history, logical axis rules, which to start from | `.../topic_jax_and_tpu/jax_llm_codebases` | |
+| The JAX map: the five layers, the five labs, per-example gradients, the toy tracer, the jit-cache overview | `systems_and_performance/topic_jax_and_tpu` (root) | |
+| GPU architecture as hardware: SMs, register files and caches as silicon, tensor-core throughput per generation, per-generation SM limits, floorplans and dies, NVIDIA Ampere to Rubin, the AMD MI-series chip | `systems_and_performance/topic_hardware/gpu_architecture` | programming model owns occupancy as a concept |
+| Accelerators beyond NVIDIA GPUs as hardware: TPU generations and pods, AMD boards and Helios, Trainium, Groq, Cerebras, Gaudi, SambaNova, Etched, in-house ASICs, availability | `.../topic_hardware/tpus_and_other_accelerators` | the AMD chip is GPU architecture's |
 | Tensors (storage, strides, views), the dispatcher (keys, autocast as a key, functionalisation, fake tensors), autograd (graph, engine, saved tensors, version counters, hooks), custom autograd.Function, how torch.utils.checkpoint works | `.../topic_pytorch_ecosystem/tensors_dispatcher_and_autograd` | making training fast owns the checkpointing lever; distributed training the training trade-off |
 | Interconnects and topology (NVLink, InfiniBand, ICI) | `.../topic_hardware/interconnects_and_scaling` | cluster anatomy |
-| GPU memory hierarchy as hardware (HBM, SRAM) | `.../topic_hardware/memory_technology` | CUDA memory hierarchy owns the programming view |
+| Memory technology as hardware: DRAM and SRAM cells, HBM, GDDR and LPDDR packaging, energy per bit, memory tiers including CXL, offload arithmetic, why bandwidth bounds decode | `.../topic_hardware/memory_technology` | CUDA memory hierarchy owns the programming view; long context owns KV sizing |
 
 ## Agents and retrieval
 | Concept | Owner | Others |
