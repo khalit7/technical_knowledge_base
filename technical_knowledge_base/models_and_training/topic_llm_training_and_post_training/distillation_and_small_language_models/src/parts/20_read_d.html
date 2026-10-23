@@ -1,0 +1,64 @@
+<section id="s-prune">
+<h2>Prune, then distil</h2>
+<p>Pruning starts the student from the teacher's own weights instead of random ones, so it has far less to learn. NVIDIA's Minitron recipe ranks every attention head, MLP channel, embedding dimension and layer by its effect on activations over a small calibration set (1,024 samples), cuts the least important to the target size in one shot, then heals the result with forward-KL logit distillation from the unpruned model. Its best practices: prefer width pruning to depth pruning, and "train the largest one and prune+distill iteratively to smaller LLMs" ({{Minitron, §4.1|https://arxiv.org/html/2407.14679}}).</p>
+<p class="try"><b>Predict, then switch:</b> width and depth pruning both take Llama 3.1 8B to about 4.5B parameters. Which one keeps more of the model's quality after the same 94B tokens of distillation?</p>
+<div class="card" id="pr">
+<div class="seg2" id="prM" role="group" aria-label="Model"><button data-m="t" class="on">Llama 3.1 8B (teacher)</button><button data-m="w">4B-Width</button><button data-m="d">4B-Depth</button></div>
+<div class="plotbox ch" id="prSvg"></div>
+<div class="out" id="prN"></div>
+<p class="small" id="prCap"></p>
+<p class="small mute">Shapes from {{LLM Pruning and Distillation in Practice (Minitron approach)|https://arxiv.org/html/2408.11796}}: width pruning cuts the hidden size 4096 → 3072 and the MLP 14336 → 9216 and keeps all 32 layers and the attention heads (32 query heads, 8 key-value groups, head size 128); depth pruning drops 32 → 16 layers and keeps every width. Drawn to scale: each column is one layer, its height the hidden size (lower block) plus the MLP width (upper block). Parameter counts are <i class="nl d">derived</i>: per layer 2·h·4096 (query, output) + 2·h·1024 (key, value) + 3·h·m (MLP), plus untied input and output embeddings 2 × 128,256 × h (Llama 3.1's vocabulary); norms ignored. The teacher's total, 8.03B, matches its name. Answer to the prediction: "the width-pruned Llama variant outperforms the depth-pruned one" (Table 1).</p>
+</div>
+<p>The headline is the token budget. Each bar below is the tokens used to make the student, against the tokens its teacher (or the paper's comparison model) was trained on; tap a bar for its recipe and arithmetic. The axis is logarithmic.</p>
+<div class="card" id="bd"><div id="bdSvg" class="plotbox ch"></div>
+<div class="lg"><span><i style="background:var(--dim)"></i>teacher's own pretraining tokens</span><span><i style="background:var(--c1)"></i>tokens used to make the student</span><span><i style="background:var(--c5)"></i>teacher correction (fine-tuning the teacher first)</span><span><i style="background:var(--c3)"></i>no distillation</span></div>
+<div class="sm-det" id="bdD" aria-live="polite"></div></div>
+<ul class="tight">
+<li><b>The headline ratios use different baselines.</b> Llama-3.1-Minitron 4B's "150x" (94B against its teacher's 15T, 159.6 <i class="nl d">derived</i>) leaves out the roughly 100B tokens spent first fine-tuning the teacher on the distillation data ("teacher correction"): counted in, 77 times. Minitron 8B's "40x" is against Nemotron-3 8B, a different model trained from scratch on 3.8T tokens (3,800 / 94 = 40.4 <i class="nl d">derived</i>); against its own teacher's 8T it would be 85.</li>
+<li><b>Distillation without pruning works for all of pretraining.</b> Gemma 2's 2B and 9B were trained on 2T and 8T tokens of teacher distributions, "more than 50×" the compute-optimal amount; in the ablation, a 2B on 500B tokens scored 60.3 from scratch and 67.7 distilled from a 7B teacher (Table 6), and the gain held from 200M to 1B parameters (Table 7) ({{Gemma 2|https://arxiv.org/html/2408.00118}}). Gemma 3 distilled every size, 1B to 27B, on 2T to 14T tokens ({{Gemma 3|https://arxiv.org/html/2503.19786}}).</li>
+<li><b>Pruning is not always cheap.</b> Llama 3.2 1B and 3B were pruned from Llama 3.1 8B and then pretrained on "up to 9T tokens" with the 8B's and 70B's logits as targets: 370K and 460K H100-hours, plus 86K just to generate the teachers' logits ({{Llama 3.2 model card|https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/MODEL_CARD.md}}).</li>
+</ul>
+<details class="dp"><summary>The rest of the arithmetic: MN-Minitron, the family saving, Llama 3.2, Sheared-LLaMA, what does not reproduce <span class="mute">(provenance)</span></summary><div class="b">
+<ul class="tight">
+<li>MN-Minitron 8B's 40 times is against Llama 3.1 8B's 15T, not its own teacher, Mistral NeMo 12B, whose token count is not public.</li>
+<li><b>A family is cheaper than its members.</b> Minitron prices training the 15B, 8B and 4B Nemotron-4 sizes from scratch at (4.4 + 2.5 + 1.2) × 10<sup>17</sup> FLOPs per step, against (4.4 + 2.5/40 + 1.2/40) × 10<sup>17</sup> when the small two are pruned from the big one: <i class="nl d">derived</i> 1.80 times cheaper, the paper's 1.8. The big model still has to be trained in full.</li>
+<li>Llama 3.2's teacher logits cost <i class="nl d">derived</i> 10.4% on top of the students' own training (the parent recipe: {{Llama 3 Herd|n:3c65c17b0d0d81aca58ccb9d720b474e}}). The card's "916k" cumulative H100-hours does not match its own table's 833K + 86K = 919K.</li>
+<li><b>Pruning without distillation</b> works, less well: Sheared-LLaMA pruned LLaMA 2 7B to 2.7B and healed it with 50B tokens of plain continued pretraining ({{Sheared LLaMA|https://arxiv.org/html/2310.06694}}); the Minitron papers found distillation recovers more than conventional fine-tuning (Minitron in practice, Figure 7).</li>
+</ul>
+<p class="repro"><b>Defaults reproduce</b> Minitron's 40x and 1.8x, the Llama-3.1-Minitron 150x (as 159.6, which the paper rounds down) and MN-Minitron's 40x independently from the papers' token counts. Gemma 2's "more than 50x" <b>does not reproduce</b> exactly: by 20 tokens per non-embedding parameter it is 49.4 and 48.1 times <i class="nl d">derived</i>, so the report's rule is not stated.</p>
+</div></details>
+</section>
+
+<section id="s-land">
+<h2>What makes a good small model</h2>
+<p>The 0.5B to 9B tier is now genuinely capable: tool use, a thinking mode, 128K context, images in some. The recipes behind it share three moves, and the table shows who made which:</p>
+<ol class="tight">
+<li><b>Overtrain on the best data.</b> Token budgets far past Chinchilla's 20 per parameter: SmolLM3's 11.2T tokens for 3B parameters is about 187 times the 60B that rule gives <i class="nl d">derived</i> (11.2T / (20 × 3B)). Small models are served many times, so extra training is cheaper than extra parameters at inference; budgets and data mixtures are on {{Pretraining|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}}.</li>
+<li><b>Distil from a frontier teacher</b>, through logits where the tokenizer matches, through generated text where it does not, increasingly on-policy; or <b>prune</b> the teacher first.</li>
+<li><b>Run the big models' post-training</b> (SFT, preference optimisation, RL with verifiable rewards; {{Alignment: SFT, RLHF, DPO Family, RLVR|n:3c65c17b0d0d81d5bed7e608d4061c7a}}).</li>
+</ol>
+<div class="tw"><table class="tbl-s">
+<thead><tr><th>Model</th><th>Starts from</th><th>Training tokens</th><th>Teacher and channel</th></tr></thead>
+<tbody>
+<tr><td>Qwen3 0.6B to 14B</td><td>random</td><td>not covered here</td><td>Qwen3-32B or 235B-A22B: off-policy, then on-policy logit distillation</td></tr>
+<tr><td>Gemma 2 2B, 9B; Gemma 3 1B to 27B</td><td>random</td><td>2T to 14T</td><td>a larger Gemma: logit distillation for all of pretraining</td></tr>
+<tr><td>Llama 3.2 1B, 3B</td><td>pruned Llama 3.1 8B</td><td>up to 9T</td><td>Llama 3.1 8B and 70B: logits as token-level targets</td></tr>
+<tr><td>Llama-3.1-Minitron 4B</td><td>pruned Llama 3.1 8B</td><td>94B</td><td>the corrected 8B: forward-KL logits</td></tr>
+<tr><td>Nemotron Nano 9B v2</td><td>pruned 12B hybrid (20T tokens)</td><td>about 136B</td><td>the 12B: forward-KL logits</td></tr>
+<tr><td>SmolLM3 3B</td><td>random</td><td>11.2T</td><td>Qwen3-32B: generated SFT data and preference pairs (sequence-level)</td></tr>
+<tr><td>Phi-4 14B</td><td>random</td><td>not covered here</td><td>GPT-4o: synthetic pretraining and DPO data (sequence-level)</td></tr>
+<tr><td>Sheared-LLaMA 2.7B</td><td>pruned LLaMA 2 7B</td><td>50B</td><td>none: plain continued pretraining</td></tr>
+</tbody></table></div>
+<p>Size on disk is not the cost on a device. Gemma 4's 26B A4B is a mixture of experts with 25.2B weights and 3.8B active per token: you pay 26B of weights in memory to run about 4B of matmuls per token, the right trade when latency-bound and memory-rich, the wrong one on a phone ({{Google DeepMind page|n:3c65c17b0d0d8173a0aafcb27cf7a5f3}}). Running small models locally (formats, runtimes, memory) is on {{Local and On-Device Inference|n:3c65c17b0d0d81f7a144fe25d799e811}}. Where 110 small open-weight models stand on Artificial Analysis's own measurements, over time, is in {{Small models compared|#t-small}}.</p>
+<details class="dp"><summary>The small models of 2026 and how each was made <span class="mute">(per-model detail; dated)</span></summary><div class="b">
+<ul class="tight">
+<li><b>Qwen3 0.6B to 14B (Alibaba)</b>: strong-to-weak distillation, off-policy then on-policy from Qwen3-32B or 235B-A22B, both thinking modes in one model ({{Qwen3 §4.5|n:3c65c17b0d0d81a19006e6b096a6e14b}}; {{Alibaba: Qwen|n:3c65c17b0d0d81fd8c36ce06672bb235}}).</li>
+<li><b>SmolLM3 3B (Hugging Face)</b>: the fully open blueprint: 11.2T pretraining tokens in three stages, then 1.8B tokens of SFT (1B without reasoning, 0.8B with), much of it generated by "prompting Qwen3-32B in reasoning mode", and preference pairs with Qwen3-32B's answer as chosen and Qwen3-0.6B's as rejected. Claims to beat Llama-3.2-3B and Qwen2.5-3B and to stay competitive with 4B models <i class="nl r">reported</i> ({{SmolLM3 blog|https://huggingface.co/blog/smollm3}}, 8 July 2025).</li>
+<li><b>Gemma 4 (Google)</b>: E2B and E4B for devices, a dense 12B Unified and 31B, and 26B A4B (8 of 128 experts plus a shared one). Apache 2.0.</li>
+<li><b>Phi-4 family (Microsoft)</b>: 14B and mini (3.8B), the synthetic-data lineage: pretraining and DPO data generated with GPT-4o, and the report notes it surpasses its teacher on STEM questions ({{Phi-4 report|https://arxiv.org/abs/2412.08905}}). Its "mixed real-world reputation" is the old page's judgement <i class="nl u">unconfirmed</i>, and a generator that has seen the evaluations makes contamination hard to rule out ({{Other notable providers|n:3c65c17b0d0d8154ba44e521a4ed8749}}).</li>
+<li><b>Llama 3.2 1B and 3B (Meta)</b>: pruned from Llama 3.1 8B, then pretrained against the 8B's and 70B's logits ({{Meta: Llama|n:3c65c17b0d0d81949ad8e17bcb3567f1}}).</li>
+<li><b>Nemotron Nano (NVIDIA) and OLMo 2 1B (Ai2)</b>: the pruning-and-distillation lane and the fully open lane. Nemotron Nano 9B v2 was pruned from a 12B hybrid Mamba-Transformer trained on 20T tokens and healed with about 136B tokens of forward-KL distillation ({{Nemotron Nano 2 §4|https://arxiv.org/html/2508.14444}}). OLMo publishes weights, data and code at every size ({{Ai2: OLMo|n:3c65c17b0d0d81e08697df661f83c3ac}}).</li>
+<li><b>MiniCPM5-2B (OpenBMB)</b>: a dense on-device model under Apache 2.0 for local assistants and coding, averaging 53.9 across 34 benchmarks, the lab's own figure <i class="nl r">reported</i> ({{model card|https://huggingface.co/openbmb/MiniCPM5-2B}}). The card calls it 2.5B; Artificial Analysis counts 2.6B and measured 12.5 on its Intelligence Index v4.3, the third-highest measured score under 16B on 3 October 2026.</li>
+<li><b>K2 Horizon 0.9B, 3.7B, 7B (IFM)</b>: the small tier of a fully open fleet, the lab claiming state of the art at all three sizes <i class="nl r">reported</i> ({{Pretraining|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}}). Because the training data shipped with the weights, the claim can be audited for contamination. Artificial Analysis measured 20.6 and 15.6 for the 7B and 3.7B, the two highest measured scores of any open model under 16B; the 0.9B scored 3.0 ({{Small models compared|#t-small}}).</li>
+</ul></div></details>
+</section>

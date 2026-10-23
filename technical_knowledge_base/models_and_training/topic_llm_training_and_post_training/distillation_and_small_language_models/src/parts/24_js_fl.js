@@ -75,6 +75,6 @@ window.TOYG=(function(){
     $('flFoot').innerHTML='Real samples and probabilities: teacher '+PF.comma(DS.toy.teacher.params)+' parameters, student '+PF.comma(DS.toy.student.params)+' (checkpoint: '+A.ckpt+'). Bars: blue is the training target (one-hot for SFT, the teacher\'s distribution otherwise), orange is the student\'s distribution before the update; the top six next nodes by teacher probability are shown.';
   }
   const AN=RD.anim({card:'fl',ctl:'flC',n:nSteps(),ms:1700,label:'Position',draw});
-  $('flM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...$('flM').children].forEach(x=>x.classList.toggle('on',x===b));AN.reset(nSteps());AN.play()});
+  $('flM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...$('flM').children].forEach(x=>x.classList.toggle('on',x===b));AN.reset(nSteps())});
   addEventListener('resize',()=>{if($('fl').offsetParent)AN.redraw()});
 })();

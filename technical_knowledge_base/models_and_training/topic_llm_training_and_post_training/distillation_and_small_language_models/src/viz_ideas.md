@@ -36,3 +36,11 @@ Thinking Machines' post (its per-token grading illustration), GKD's Figure 1 (me
 ## What the methodology lacked for this page
 - A rule for toy experiments whose outcome is not a published figure: here the toy reproduces nothing by design, so the page says what it can and cannot show and reports every method's spread over seeds, including results that contradict the usual story.
 - Third-party leaderboards carry their own errors (Artificial Analysis lists DeepSeek LLM 67B at 7B and dates Phi-4-mini a year early); the rule "check a curated table row by row" applies to independent trackers too.
+
+## 2026-10-23 rebuild (teaching contract)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| 14 | **Hero: one position under three signals** (the toy's real teacher and student: one-hot target, the teacher's distribution, the teacher's grade of the student's own token) | Reading, top | built (`22_js_hero.js`) |
+| 15 | **Width against depth pruning to scale** (Llama 3.1 8B, Llama-3.1-Minitron-4B-Width and -Depth, shapes from arXiv 2408.11796, derived parameter counts, prediction prompt) | Reading, Prune then distil | built (`27_js_pr.js`); the mechanism had no visual |
+| 16 | Recipe table of eight small models (start, tokens, teacher and channel) | Reading, What makes a good small model | built (static table) |
+| 17 | Moving the toy tab's checkpoint before/after into Reading | none | rejected: the whose-text stepper already shows the mechanism inline; the checkpoint view serves the seven-method lab |
