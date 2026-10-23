@@ -1,4 +1,4 @@
-// ---- Reading tab, section 7: the same 5-second stall seen by a closed-loop and an open-loop generator (before/after animation) ----
+// ---- Reading tab, section 8: the same 5-second stall seen by a closed-loop and an open-loop generator (before/after animation) ----
 (function(){
   const svgEl=document.getElementById('pr-co-svg');if(!svgEl||!window.PRD||!PRD.co)return;
   const CO=PRD.co,cap=document.getElementById('pr-co-cap'),cnt=document.getElementById('pr-co-cnt');
@@ -28,6 +28,6 @@
     cnt.innerHTML=RD.stat('Requests sent so far',done.length+flying.length,'')+RD.stat('Sent while frozen',inSt,'')+RD.stat('Recorded above 1 s',lat.filter(v=>v>1).length,'')+RD.stat('p99 of what was recorded',lat.length?pct(lat,0.99).toFixed(2)+' s':'none yet','');
   }
   const A=RD.anim({card:'pr-co-card',ctl:'pr-co-ctl',n:N,draw,ms:420,label:'Second'});
-  RD.seg(document.getElementById('pr-co-mode'),v=>{mode=v;A.reset(N);A.play()});
+  RD.seg(document.getElementById('pr-co-mode'),v=>{mode=v;A.reset(N)});
   RD.onResize(()=>A.redraw());
 })();

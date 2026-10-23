@@ -1,6 +1,6 @@
-// ---- Autoscaling lab: controls, the two-run chart animated over the half hour, and the summary table ----
+// ---- Reading tab, section 3 (moved from the Autoscaling lab): controls, the two-run chart animated over the half hour, and the summary table ----
 (function(){
-  const root=document.getElementById('t-scale');if(!root)return;
+  const root=document.getElementById('sc-chart');if(!root)return;
   const D=window.PRD||{};const m1=D.cold_preset||null;
   const COLD=[
     ['m1',m1?m1.s:3,m1?m1.label:'M1 measured (missing data)','meas'],
@@ -86,10 +86,10 @@
     window:{a:{metric:'queue',target:1,cold:'v30',win:300},b:{metric:'queue',target:1,cold:'v30',win:30}}};
   document.getElementById('sc-pre').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
     document.querySelectorAll('#sc-pre button').forEach(x=>x.classList.toggle('on',x===b));
-    const P=PRE[b.dataset.p];Object.assign(cfg.a,P.a);Object.assign(cfg.b,P.b);runPanel('sc-a','a');runPanel('sc-b','b');recompute();A.go(0);A.play()});
-  const A=RD.anim({card:'sc-chart',ctl:'sc-ctl',n:121,draw,ms:180,label:'Time step',tab:'t-scale'});
+    const P=PRE[b.dataset.p];Object.assign(cfg.a,P.a);Object.assign(cfg.b,P.b);runPanel('sc-a','a');runPanel('sc-b','b');recompute()});
+  const A=RD.anim({card:'sc-card',ctl:'sc-ctl',n:121,draw,ms:180,label:'Time step'});
   runPanel('sc-a','a');runPanel('sc-b','b');trafficPanel();
-  RD.onRender(()=>{if(!R.a)recompute();else A.redraw()},'t-scale');
-  RD.onResize(()=>A.redraw(),'t-scale');
+  RD.onRender(()=>{if(!R.a)recompute();else A.redraw()});
+  RD.onResize(()=>A.redraw());
   window.PR_SC={get R(){return R},recompute};
 })();

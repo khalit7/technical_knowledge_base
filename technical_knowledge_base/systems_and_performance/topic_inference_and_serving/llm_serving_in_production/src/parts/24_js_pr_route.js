@@ -1,6 +1,6 @@
-// ---- Router lab: per-request dots, TTFT distributions and the table of every repeat ----
+// ---- Reading tab, section 2 (moved from the Router lab): TTFT distributions, the replica-count simulation, and (closed block) per-request dots and every repeat ----
 (function(){
-  const root=document.getElementById('t-route');if(!root||!window.PRD)return;
+  const root=document.getElementById('rl-cdf');if(!root||!window.PRD)return;
   const D=PRD,REQ=D.route_req||{},RUN=(D.route&&D.route.conv)||{};
   const NAME={rr:'Round robin',ll:'Least loaded',hash1:'Hash of the first block',hash2:'Hash of the first two blocks',ca:'SGLang cache-aware',wt:'llm-d-style weighted'};
   const COL={rr:'var(--c6)',ll:'var(--c4)',hash1:'var(--bad)',hash2:'var(--c5)',ca:'var(--c1)',wt:'var(--c3)'};
@@ -26,7 +26,7 @@
     [0,0.5,0.9,1].forEach(q=>{s+=RD.t(L-4,y(q)+4,Math.round(q*100)+'%',{a:'end',fs:9.5,fill:'var(--mute)'})});
     s+=RD.t(w-10,h-2,'TTFT, seconds',{a:'end',fs:10,fill:'var(--mute)'});
     pols.forEach(p=>{const t=REQ[p].map(r=>r[4]).filter(v=>v!=null).sort((a,b)=>a-b);let d='';t.forEach((v,i)=>{d+=(i?'L':'M')+x(v).toFixed(1)+' '+y((i+1)/t.length).toFixed(1)});
-      s+='<path d="'+d+'" fill="none" stroke="'+COL[p]+'" stroke-width="'+(p===cur?2.6:1.4)+'"/>'});
+      s+='<path d="'+d+'" fill="none" stroke="'+COL[p]+'" stroke-width="'+(p==='wt'?2.8:1.4)+'"/>'});
     el.innerHTML=RD.svg(w,h,s,'TTFT distribution per routing policy')+'<div class="leg">'+pols.map(p=>'<span style="--sw:'+COL[p]+'">'+NAME[p]+'</span>').join('')+'</div>';
   }
   function table(){
@@ -52,5 +52,6 @@
     el.innerHTML=RD.svg(w,h,s,'Simulated prefix hit rate against number of replicas')+'<div class="leg">'+SIM.pol.map(p=>'<span style="--sw:'+COL[p]+'">'+NAME[p]+'</span>').join('')+'<span style="--sw:transparent">squares: measured, 3 replicas</span></div>';
   }
   function all(){dots();cdf();sim();table()}
-  RD.onRender(all,'t-route');RD.onResize(()=>{dots();cdf();sim()},'t-route');
+  RD.onRender(all);RD.onResize(()=>{dots();cdf();sim()});
+  const det=document.getElementById('rl-det');if(det)det.addEventListener('toggle',()=>{if(det.open)dots()});
 })();
