@@ -1,4 +1,4 @@
-// ---- Tabs ---- (storage key tz-tab: this page remembers its own last tab; a URL hash such as #t-journey opens that tab)
+// ---- Tabs ---- (storage key tz-tab: this page remembers its own last tab; a URL hash such as #t-build opens that tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
