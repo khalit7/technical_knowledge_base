@@ -29,3 +29,9 @@ What the text needs to be understood: why a read's cost depends on the reads bef
 
 ## What the methodology lacked
 A rule for measured data whose labels are inferences (cache levels read off a curve without performance counters): the page shades published sizes "for orientation only" and says the steps do not line up exactly.
+
+## 2026-10-23 rebuild
+- Built: hero, a static annotated ladder of one H100 server's rungs (SRAM, HBM3, host DRAM over PCIe, CXL, another node, SSD) with log bandwidth bars and the Llama 3.1 8B batch-1 ceiling (bandwidth / 16.06 GB) on each rung. Chosen over a capacity/bandwidth butterfly because several rungs have no sourced capacity.
+- Moved inline from the Memory lab tab: random blocks (section 2), working-set table (section 3 chart mode), decode attention against cache bytes (section 6), SSD table (closed, section 7).
+- Added real photos: HBM2 stack edge-on (P100), Fiji and TPU v4 packages.
+- Rejected: a new decode-on-four-memories animation (the parent root already draws it; this page states the bound as a formula and links the parent's Performance calculator); a CXL latency chart (one paper's numbers, a sentence says it).

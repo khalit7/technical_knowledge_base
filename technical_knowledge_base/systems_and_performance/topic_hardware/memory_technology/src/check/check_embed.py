@@ -21,8 +21,9 @@ f0 = lambda v: f"{v:,.0f}"
 f1 = lambda v: f"{v:,.1f}"
 f2 = lambda v: f"{v:,.2f}"
 checks = [  # (text in the page, value, formatter)
-    ("bandwidth falls from 1,239 GB/s to 127.5 GB/s", (N["m1_l1_gbs"], N["m1_dram_ws_gbs"]), lambda v: f"bandwidth falls from {f0(v[0])} GB/s to {f1(v[1])} GB/s"),
-    ("119 MB of SRAM is 0.149%", (N["h100_onchip_mb"], N["h100_onchip_share_pct"]), lambda v: f"{f0(v[0])} MB of SRAM is {v[1]:.3f}%"),
+    ("<b>Up to 128 KB</b>1,239 GB/s", N["m1_l1_gbs"], lambda v: f"<b>Up to 128 KB</b>{f0(v)} GB/s"),
+    ("this laptop: 5.76 GB/s sequential, measured</div></div><div class=\"tk\"><b>0.36</b>", (M["ssd"]["seq_GBs"], mod["l8"]["wbytes"]), lambda v: f"this laptop: {f2(v[0])} GB/s sequential, measured</div></div><div class=\"tk\"><b>{v[0]*1e9/v[1]:.2f}</b>"),
+    ("16.06 GB / 3.35 TB/s = 4.8 ms, at most 209 steps", mod["l8"]["wbytes"], lambda v: f"{v/1e9:.2f} GB / 3.35 TB/s = {v/3.35e12*1e3:.1f} ms, at most {f0(3.35e12/v)} steps"),
     ("173 times more", N["horowitz_dram_over_fmul"], lambda v: f"{f0(v)} times more"),
     ("arithmetic grew 12.8&times; and HBM bandwidth 10.8&times;", (N["gen_bf16_x"], N["gen_bw_x"]), lambda v: f"arithmetic grew {f1(v[0])}&times; and HBM bandwidth {f1(v[1])}&times;"),
     ("Capacity grew only 3.6&times;", N["gen_gb_x"], lambda v: f"Capacity grew only {f1(v)}&times;"),

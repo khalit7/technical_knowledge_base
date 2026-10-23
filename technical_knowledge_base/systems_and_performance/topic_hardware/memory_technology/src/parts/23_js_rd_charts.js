@@ -68,7 +68,12 @@ window.MC=(function(){
 (function(){
   const D=MEMD,el=document.getElementById('rd-lad-svg'),note=document.getElementById('rd-lad-note');let mode='bw';
   const bands=[{x0:4096,x1:8192,label:'L1',color:'var(--c3)'},{x0:8192,x1:262144,label:'L2',color:'var(--c1)'},{x0:262144,x1:25165824,label:'SLC 24 MB',color:'var(--c5)'},{x0:25165824,x1:1<<30,label:'DRAM',color:'var(--c2)'}];
-  function draw(){const s=mode==='bw'?D.meas.ws:D.meas.chase;
+  function draw(){
+    if(mode==='tbl'){const M=D.meas,c={};M.chase.forEach(p=>c[p.x]=p);
+      el.innerHTML='<div class="tw"><table class="tbl-sm"><thead><tr><th>Working set</th><th class="num">GB/s (all threads)</th><th class="num">run spread</th><th class="num">ns per read (one thread)</th><th class="num">run spread</th></tr></thead><tbody>'+
+        M.ws.map(p=>{const q=c[p.x];return '<tr><td>'+MC.fmtB(p.x)+'</td><td class="num">'+MC.fmtN(p.y,0)+'</td><td class="num">'+MC.fmtN(p.lo,0)+' to '+MC.fmtN(p.hi,0)+'</td><td class="num">'+(q?MC.fmtN(q.y,0):'-')+'</td><td class="num">'+(q?MC.fmtN(q.lo,0)+' to '+MC.fmtN(q.hi,0):'')+'</td></tr>'}).join('')+'</tbody></table></div>';
+      note.innerHTML='Latency was measured up to 512 MB. DRAM latency, median of the nine points from 128 MB up: '+MC.fmtN(M.dram_lat.y,0)+' ns ('+MC.fmtN(M.dram_lat.lo,0)+' to '+MC.fmtN(M.dram_lat.hi,0)+'). Apple quotes 200 GB/s for the DRAM; the parent\'s Roofline lab reached 165 with a stream copy. <span class="meas">measured here</span>';return}
+    const s=mode==='bw'?D.meas.ws:D.meas.chase;
     const bb=bands.map(b=>Object.assign({},b,{x1:Math.min(b.x1,s[s.length-1].x)}));
     MC.line(el,[{name:mode==='bw'?'read bandwidth (median of 3 runs)':'ns per dependent read',color:mode==='bw'?'var(--c1)':'var(--c2)',pts:s}],
       {logx:true,logy:mode==='bw',xfmt:MC.fmtB,yfmt:mode==='bw'?(v=>MC.fmtN(v,0)):(v=>MC.fmtN(v,0)),xl:'working set',yl:mode==='bw'?'GB/s':'ns per read',bands:bb,y0:mode==='bw'?50:0,label:'Memory ladder'});
