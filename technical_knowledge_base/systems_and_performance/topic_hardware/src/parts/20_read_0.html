@@ -1,0 +1,33 @@
+<section id="rd-one">
+<p class="core"><b>The idea.</b> A training or serving step needs three things: <b>arithmetic</b>, <b>bytes from memory</b> and <b>bytes between chips</b>. Every part of an accelerator system exists to supply one of them, and the step runs at the speed of <span class="hl">whichever runs out first</span>; choosing hardware is finding that resource before you pay for the others.</p>
+<p>The running example is one training step of Llama 3.1 8B, an ordinary dense transformer with 8,030,261,248 parameters (32 layers, hidden size 4,096, 8 key-value heads; counted from its {{config.json|https://huggingface.co/unsloth/Meta-Llama-3.1-8B/blob/main/config.json}}, an open mirror of Meta's gated repository): 64 sequences of 8,192 tokens, 524,288 tokens in all <span class="der">illustrative batch</span>, the step the {{Performance calculator|#t-calc}} animates. The map below is the page: each row is one of the three demands (plus the building that powers them), the hardware that supplies it, and the child page that owns it.</p>
+<div class="card">
+<div class="t" style="font-weight:600;font-size:14px">One training step, and the hardware that serves each of its demands</div>
+<div class="hero">
+<div class="hr" style="--sc:var(--c1)"><div class="k">Arithmetic<b>2.53 &times; 10<sup>16</sup> FLOPs</b></div><div class="m">6 &times; parameters &times; tokens. Supplied by <b>SMs and tensor cores</b> on a GPU, <b>systolic arrays</b> on a TPU and most other accelerators. On one H100 at 40% of peak: <span class="hl">64 s</span> <span class="der">derived: 2.53e16 / (989.5e12 &times; 0.4)</span>.</div><div class="o">Sections 1, 2, 4, 7. Owners: {{GPU architecture|n:3c65c17b0d0d810682aae39bd614ec64}}, {{TPUs and other accelerators|n:3c65c17b0d0d8151bbc2e0ceea196187}}</div></div>
+<div class="hr" style="--sc:var(--c2)"><div class="k">Bytes in memory<b>128.5 GB of state</b></div><div class="m">16 bytes per parameter for mixed-precision Adam, before activations. Supplied by <b>HBM</b> stacked beside the die (80 GB at 3.35 TB/s on an H100) and SRAM on it. One H100: <span class="hl">does not fit</span>.</div><div class="o">Section 3. Owner: {{Memory technology|n:3f05c17b0d0d818ab063e327e3d7009f}}</div></div>
+<div class="hr" style="--sc:var(--c3)"><div class="k">Bytes on the wire<b>16.06 GB of gradients</b></div><div class="m">Every GPU must end with the sum of everyone's bf16 gradients, every step. Supplied by <b>NVLink</b> inside a server or rack (450 GB/s each way per H100) and <b>InfiniBand or RoCE</b> between servers (50 GB/s): <span class="hl">a factor of 9</span> apart.</div><div class="o">Section 6. Owner: {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}</div></div>
+<div class="hr" style="--sc:var(--c4)"><div class="k">The building<b>watts and failures</b></div><div class="m">700 W per H100, about 1.2 kW per Blackwell GPU; liquid cooling above about a kilowatt; at 16K GPUs something fails every few hours.</div><div class="o">Section 8. Owner: {{Power, cooling, reliability and the data centre|n:3f05c17b0d0d8143851cfc3ae14c3c22}}</div></div>
+<div class="over"><b>Across all four rows: the arithmetic that predicts the step</b> (roofline, MFU, memory and time budgets, cost). Sections 5 and 9; owner {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}; tools on this page: {{Chip atlas|#t-chips}}, {{Performance calculator|#t-calc}}, {{Roofline lab|#t-roof}}.</div>
+</div>
+<p class="small mute">Read across a row to see which part of the machine one demand stresses; read down to see the order this page takes. The three demands come from the {{Performance calculator|#t-calc}}'s count (16 bytes per parameter: bf16 weights and gradients, an fp32 master copy and two fp32 Adam moments; activations add about 57 GB more at micro-batch 1, counted on {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}).</p>
+</div>
+<p><b>You need:</b> what a matrix multiply, a training step and a decoder layer are. Nothing on the hardware side is assumed.</p>
+<details class="dp"><summary>New terms on this page (13)</summary><div><dl class="terms">
+<dt>FMA</dt><dd>fused multiply-add, a &times; b + c in one instruction: 2 FLOPs</dd>
+<dt>SM</dt><dd>streaming multiprocessor, NVIDIA's GPU core</dd>
+<dt>tensor core</dt><dd>a unit that does a small matrix multiply per instruction</dd>
+<dt>systolic array</dt><dd>a grid of multiply-accumulate cells that pass operands to their neighbours</dd>
+<dt>SRAM, DRAM</dt><dd>on-die memory (fast, small) and off-die memory (dense, slower)</dd>
+<dt>HBM</dt><dd>DRAM dies stacked beside the processor on an interposer</dd>
+<dt>arithmetic intensity</dt><dd>FLOPs per byte moved</dd>
+<dt>ridge point</dt><dd>peak FLOP/s over bandwidth; below it an operation is memory-bound</dd>
+<dt>MFU</dt><dd>model FLOPs utilisation, useful FLOPs over peak</dd>
+<dt>scale-up, scale-out</dt><dd>the fast fabric inside a server or rack, and the network between them</dd>
+<dt>RDMA</dt><dd>a network card writing straight into another machine's memory</dd>
+<dt>all-reduce</dt><dd>every GPU ends with the sum of everyone's data</dd>
+<dt>MX, NVFP4</dt><dd>block-scaled 8-, 6- and 4-bit formats</dd>
+</dl></div></details>
+<div class="co"><div class="t">How numbers are labelled</div><span class="meas">measured here</span> on the Apple M1 Pro this page was built on (a real 16-core SIMT GPU; no NVIDIA GPU was available), scripts and raw runs in the {{Roofline lab|#t-roof}}; <span class="vend">vendor spec</span>, dated; <span class="indep">independent</span> third-party measurements, kept apart; <span class="der">derived</span> with the formula shown; <span class="ann">announced</span> for parts not yet shipping. Tensor-core figures are <b>dense</b> unless they say otherwise: headline numbers often assume 2:4 structured sparsity, which doubles them and which training rarely uses. Vendor figures fetched on 2026-10-05 unless dated.</div>
+<p class="small mute">Neighbours: programming the GPU (threads, kernels, Triton, profilers) is {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}}; the TPU's software is {{Topic: jax-and-tpu|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}}; the CPU underneath is Part 2 of the {{C++ page|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}; parallelism strategies are {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}.</p>
+</section>

@@ -29,7 +29,7 @@ def dense_like(c, name, src, qk_norm=False):
     return dict(name=name, src=src, L=L, h=h, nh=nh, nkv=nkv, hd=hd, V=V,
                 P=P, Pact=P, Pexp=0, E=0, k=0, moeL=0,
                 kv_full=L, kv_slide=0, window=0, kv_el=2 * nkv * hd,
-                dqk=hd, dv=hd, layer_params=attn + mlp + 2 * h, fmt="bf16", fmt_note="bf16 as released")
+                dqk=hd, dv=hd, fa=f, layer_params=attn + mlp + 2 * h, fmt="bf16", fmt_note="bf16 as released")
 
 
 def qwen3_moe(c, name, src):
@@ -46,7 +46,7 @@ def qwen3_moe(c, name, src):
     return dict(name=name, src=src, L=L, h=h, nh=nh, nkv=nkv, hd=hd, V=V,
                 P=P, Pact=Pact, Pexp=Pexp, E=E, k=k, moeL=L, exp1=exp1,
                 kv_full=L, kv_slide=0, window=0, kv_el=2 * nkv * hd,
-                dqk=hd, dv=hd, layer_params=attn + k * exp1 + 2 * h, fmt="bf16", fmt_note="bf16 as released")
+                dqk=hd, dv=hd, fa=k * fm, layer_params=attn + k * exp1 + 2 * h, fmt="bf16", fmt_note="bf16 as released")
 
 
 def deepseek_v3(c, name, src):
@@ -68,7 +68,7 @@ def deepseek_v3(c, name, src):
     return dict(name=name, src=src, L=L, h=h, nh=nh, nkv=nh, hd=nope + rope, V=V,
                 P=P, Pact=Pact, Pexp=Pexp, E=E, k=k, moeL=moeL, exp1=exp1,
                 kv_full=L, kv_slide=0, window=0, kv_el=kvl + rope,  # MLA caches the latent plus the shared rope key
-                dqk=nope + rope, dv=vd, layer_params=moe_fixed + k * exp1, fmt="fp8", fmt_note="FP8 as released (block-scaled)")
+                dqk=nope + rope, dv=vd, fa=(dense_n * f + moeL * (k + ns) * fm) / L, layer_params=moe_fixed + k * exp1, fmt="fp8", fmt_note="FP8 as released (block-scaled)")
 
 
 def gpt_oss(c, name, src):
@@ -86,7 +86,7 @@ def gpt_oss(c, name, src):
     return dict(name=name, src=src, L=L, h=h, nh=nh, nkv=nkv, hd=hd, V=V,
                 P=P, Pact=Pact, Pexp=Pexp, E=E, k=k, moeL=L, exp1=exp1,
                 kv_full=lt.count("full_attention"), kv_slide=lt.count("sliding_attention"), window=c["sliding_window"],
-                kv_el=2 * nkv * hd, dqk=hd, dv=hd, layer_params=per_fixed + k * exp1,
+                kv_el=2 * nkv * hd, dqk=hd, dv=hd, fa=k * f, layer_params=per_fixed + k * exp1,
                 fmt="mxfp4x", fmt_note="experts MXFP4, the rest bf16, as released")
 
 
@@ -137,15 +137,35 @@ def lora_params(m, r=16):
     return m["L"] * (attn + mlp)
 
 
+def act_layer_tok(m, s, ckpt):
+    """Bytes one layer keeps per token, as counted for Llama 3.1's reference code on the Performance math page
+    (16h of norms, q, k, v and the output at their own head counts, four MLP-wide tensors, FP32 log-sum-exp and norm scales)."""
+    h, nh, nkv, dq, dv, fa = m["h"], m["nh"], m["nkv"], m["dqk"], m["dv"], m["fa"]
+    flash = 16 * h + 2 * nh * (dq + dv) + 2 * nkv * (dq + dv) + 8 * fa + 4 * nh + 8
+    if ckpt == "none":  # plain attention: FP32 and BF16 score matrices, K and V repeated to every head
+        return flash - 4 * nh + 6 * nh * s + 2 * (nh - nkv) * (dq + dv)
+    return flash
+
+
+def act_post_tok(m):
+    return 8 * m["h"] + 4 * m["V"] + 8  # final norm and the FP32 logits the loss needs
+
+
 def act_bytes(m, s, b, ckpt, tp):
-    """Korthikanti et al. 2022, GPT-style count, 16-bit activations, sequence parallel with TP."""
+    """Activation memory per GPU, 16-bit, sequence parallel with TP (and vocabulary-parallel logits)."""
+    L, T = m["L"], s * b
+    if ckpt == "full":  # layer inputs kept, one layer's working set recomputed at a time
+        return (L * 2 * m["h"] + act_layer_tok(m, s, "flash") + act_post_tok(m)) * T / tp
+    return (L * act_layer_tok(m, s, ckpt) + act_post_tok(m)) * T / tp
+
+
+def act_bytes_gpt3(m, s, b, ckpt, tp):
+    """Korthikanti et al. 2022, GPT-style count (a GPT block with a 4h MLP), kept for comparison."""
     h, a, L = m["h"], m["nh"], m["L"]
     if ckpt == "none":
-        per = s * b * h * (34 + 5 * a * s / h)
-        return L * per / tp
+        return L * s * b * h * (34 + 5 * a * s / h) / tp
     if ckpt == "flash":
         return L * 34 * s * b * h / tp
-    # full: layer inputs kept, one layer's working set recomputed at a time
     return (L * 2 * s * b * h + 34 * s * b * h) / tp
 
 

@@ -28,6 +28,8 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     const root = document.getElementById('t-read'); let c = 0;
     const secs = [...root.querySelectorAll('section')];
     for (const s of secs) { s.scrollIntoView(); await new Promise(r => setTimeout(r, 60)); }
+    const card = document.getElementById('rd-tile-card'); card.scrollIntoView(); await new Promise(r => setTimeout(r, 1500));
+    const moved = [...root.querySelectorAll('.an-ctl input[type=range]')].filter(r => +r.value !== 0).length; if (moved) window.__autoplay = moved;
     const btns = [...root.querySelectorAll('button')];
     for (const b of btns) { if (b.offsetParent === null) continue; b.scrollIntoView({ block: 'center' }); b.click(); c++; await new Promise(r => setTimeout(r, 25)); }
     for (const r of root.querySelectorAll('input[type=range]')) { for (const v of [r.min, r.max, Math.round((+r.min + +r.max) / 2)]) { r.value = v; r.dispatchEvent(new Event('input', { bubbles: true })); r.dispatchEvent(new Event('change', { bubbles: true })); c++; } }
@@ -40,11 +42,11 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     const t = document.getElementById('t-read').innerText;
     const nan = (t.match(/\bNaN\b|undefined|Infinity(?! Fabric| Cache)/g) || []).length;
     const side = document.documentElement.scrollWidth > document.documentElement.clientWidth + 1;
-    const errBox = !document.getElementById('jsErr').hidden;
-    return { nan, side, errBox, words: t.split(/\s+/).length };
+    const errBox = !document.getElementById('jsErr').hidden; const auto = window.__autoplay || 0;
+    return { nan, side, errBox, auto, words: t.split(/\s+/).length };
   });
-  console.log(scheme, w, 'controls', n, 'errors', JSON.stringify(errs), 'nan', res.nan, 'sideways', res.side, 'errbox shown', res.errBox, 'words', res.words);
-  if (errs.length || res.nan || res.side || res.errBox) bad++;
+  console.log(scheme, w, 'controls', n, 'errors', JSON.stringify(errs), 'nan', res.nan, 'sideways', res.side, 'errbox shown', res.errBox, 'moved before the reader acted', res.auto, 'words', res.words);
+  if (errs.length || res.nan || res.side || res.errBox || res.auto) bad++;
   const ids = await p.evaluate(() => [...document.querySelectorAll('#t-read section')].map(s => s.id));
   for (const id of ids) {
     const el = await p.$('#' + id);

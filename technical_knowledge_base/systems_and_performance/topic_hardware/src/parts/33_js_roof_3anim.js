@@ -43,9 +43,8 @@
   $('roof-an-s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
   $('roof-an-v').addEventListener('change',e=>{st.spd=+e.target.value});
   document.querySelectorAll('#roof-anmode button').forEach(b=>b.addEventListener('click',()=>{
-    document.querySelectorAll('#roof-anmode button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;setPlay(false);st.i=0;show();if(!R.RM)setPlay(true)}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-    if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!R.RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+    document.querySelectorAll('#roof-anmode button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;setPlay(false);st.i=0;show()}));
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.2}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let lastW=0;
   R.onRender(()=>{const w=$('roof-anplot').clientWidth;if(w){lastW=w;show()}kick()});
