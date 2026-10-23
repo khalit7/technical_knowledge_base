@@ -75,7 +75,4 @@ window.SS_MESH=(function(){
   $('md-y').addEventListener('change',()=>{fillXY(+$('md-x').value,+$('md-y').value);draw()});
   ['md-model','md-batch','md-x','md-remat'].forEach(id=>$(id).addEventListener('change',draw));
   fillXY(2240,4);draw();
-  // compiler check table
-  const sum=o=>o?Object.values(o).reduce((a,b)=>a+b,0):0;
-  $('md-fc').querySelector('tbody').innerHTML=SS.fcheck.rows.filter(r=>r.predicted&&r.id!=='single').map(r=>'<tr><td>'+(r.config==='big'?'25.4M':'0.83M')+'</td><td>'+esc(r.label)+'</td><td class="num">'+U.MB(sum(r.predicted))+'</td><td class="num">'+U.MB(sum(r.measured))+'</td><td class="num">'+r.ratio_measured_over_predicted.toFixed(4)+'</td></tr>').join('');
 })();

@@ -1,5 +1,5 @@
 // ---- Shared helpers for this page's tabs (prefix ss). SSU.anim is RD.anim for any tab: it animates only while its
-// card is on screen in the visible tab, plays once when first seen, never autoplays under prefers-reduced-motion. ----
+// card is on screen in the visible tab and never autoplays: it waits on step 0 until the reader presses play or steps. ----
 window.SSU=(function(){
   const RM=RD.RM, esc=RD.esc;
   const onTab=(tab,f)=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER[tab]=window.TAB_RENDER[tab]||[]).push(f)};
@@ -26,8 +26,7 @@ window.SSU=(function(){
     $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onTab(o.tab,()=>{show();kick()});
     show();

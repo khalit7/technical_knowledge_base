@@ -35,3 +35,9 @@ Llama 3 pages (DualPipe and interleaved schedules), Switch page (Figure 9 splits
 
 ## What the methodology lacked
 A "reproduce a published figure" axis was replaced again by "reproduce the compiler": formulas are checked against compiled byte counts at two model sizes, which is stronger than matching a paper's printed number. Worth adding: when the subject is a compiler's behaviour, the compiler's own output is the primary source, and a visual should show it next to the rule that predicts it.
+
+## 2026-10-23 rebuild
+- Added: hero (static: annotation code, 2 x 4 mesh with each device's block, the three deciders feeding the partitioner); PartitionSpec widget (one variable, six specs on fc1, derived, `P('data', 'model')` matches the measured shard shape); shard_map structure diagram (static). All in `parts/26_js_ss_read0.js`.
+- Moved inline: ideas 1, 2 (section 3), 9 (section 8), 10 (section 9), 11 (section 12). The tabs are gone; the Mesh designer stays a tab.
+- Moved into a closed block: idea 6 (collective cost calculator), because collective algorithms on the wire belong to Interconnects and scaling.
+- Rejected: a photo of TPU hardware for the multi-host section (the hardware pages own it; a diagram teaches the process model better); an animated propagation order (still not in the dumps).
