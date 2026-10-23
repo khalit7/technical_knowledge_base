@@ -1,4 +1,4 @@
-// ---- Disaggregation lab (t-pd): every number from window.DDP (src/pd/pd_sim.py -> out/pd_grid.json, compacted by gen_data.py) ----
+// ---- Reading section 7, the disaggregation grid (moved from the old Disaggregation lab tab): every number from window.DDP (src/pd/pd_sim.py -> out/pd_grid.json, compacted by gen_data.py) ----
 (function(){
   const P=window.DDP;if(!P||!document.getElementById('pd-plot'))return;
   const $=id=>document.getElementById(id);
@@ -75,6 +75,5 @@
     $('pd-pr').querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.a===right)x.classList.add('right');else if(x===b)x.classList.add('wrong')});
     const a=$('pd-pr').querySelector('.ans');a.hidden=false;
     a.innerHTML='Colocated: '+fmt(m.gc,1)+' requests/s; best split ('+layName(m.kb)+'): '+fmt(m.gb,1)+' requests/s, '+Math.round(100*(m.gb/m.gc-1))+'% more. The margin is small because at 50 ms colocated engines can still batch deeply. Tighten the target to 25 ms and the split serves '+fmt(t.gb/t.gc,1)+' times as much ('+fmt(t.gb,1)+' against '+fmt(t.gc,1)+'); loosen it to 75 ms and colocated wins ('+fmt(l.gc,1)+' against '+fmt(l.gb,1)+'). Disaggregation is a latency tool first.'});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-pd']=[plot];
-  addEventListener('resize',()=>{const t=$('t-pd');if(t&&!t.hidden)plot()});
+  RD.onRender(plot);RD.onResize(plot);plot();
 })();

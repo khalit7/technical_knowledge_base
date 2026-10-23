@@ -1,4 +1,4 @@
-// ---- Expert balancer (t-ep): routing counts in window.DDE (src/ep/route.py, balance.py); EPLB's global policy ported line for line ----
+// ---- Reading section 5, expert balance (moved from the old Expert balancer tab): routing counts in window.DDE (src/ep/route.py, balance.py); EPLB's global policy ported line for line ----
 window.DDEPLB=(function(){
   const f=Math.fround;
   // deepseek-ai/EPLB eplb.py, rebalance_experts with num_groups = num_nodes = 1 (the global policy), one layer.
@@ -85,6 +85,5 @@ window.DDEPLB=(function(){
     $('ep-tnote').textContent='Busiest GPU over the mean, averaged over the '+D.L+' layers; "per batch" over every 512-token traffic window and layer; computed in Python with the unchanged eplb.py (src/ep/balance.py).';
   }
   rOpts();$('ep-g').addEventListener('change',()=>{rOpts();plot()});['ep-r','ep-l','ep-w'].forEach(id=>$(id).addEventListener('change',plot));
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-ep']=[plot,table];
-  addEventListener('resize',()=>{const t=$('t-ep');if(t&&!t.hidden){plot()}});
+  RD.onRender(plot);RD.onResize(plot);plot();table();
 })();

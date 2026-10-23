@@ -46,6 +46,6 @@
       RD.stat('Busy GPU-time in this window',fmt(100*b0.g.reduce((a,l)=>a+l.reduce((s,q)=>s+Math.max(0,Math.min(q[1],TMAX)-q[0]),0),0)/(2*TMAX))+'%','of the two GPUs');
   }
   const An=RD.anim({card:'dd-pdan-card',ctl:'dd-pdan-ctl',n:NS,draw,ms:550,label:'Time'});
-  RD.seg(document.getElementById('dd-pdan-mode'),m=>{mode=m;An.reset(NS);An.play()});
+  RD.seg(document.getElementById('dd-pdan-mode'),m=>{mode=m;An.reset(NS)});
   RD.onResize(()=>An.redraw());
 })();

@@ -60,7 +60,7 @@
       RD.stat('Conversations that fit',fmt(p.seqs,0),mode==='rep'?'8 copies':'in the KV cache');
   }
   const A=RD.anim({card:'dd-split-card',ctl:'dd-split-ctl',n:NS,draw,ms:900,label:'Progress through the step'});
-  RD.seg(document.getElementById('dd-split-mode'),m=>{mode=m;A.reset(NS);A.play()});
-  RD.seg(document.getElementById('dd-split-users'),m=>{users=+m;A.reset(NS);A.play()});
+  RD.seg(document.getElementById('dd-split-mode'),m=>{mode=m;A.reset(NS)});
+  RD.seg(document.getElementById('dd-split-users'),m=>{users=+m;A.reset(NS)});
   RD.onResize(()=>A.redraw());
 })();

@@ -1,4 +1,4 @@
-// ---- Runs on this laptop (t-m1): every number from window.DDM (src/exp/summarise.py) ----
+// ---- Reading, closed blocks 'Measured here' in sections 4 and 6 (moved from the old Runs on this laptop tab): every number from window.DDM (src/exp/summarise.py) ----
 (function(){
   const M=window.DDM;if(!M||!document.getElementById('m1-rpc'))return;
   const $=id=>document.getElementById(id);
@@ -56,7 +56,7 @@
       [[g0,'var(--c2)'],[g1,'var(--c1)']].forEach(([r,c])=>{b+='<polyline fill="none" stroke="'+c+'" stroke-width="1.6" points="'+r.map((g,i)=>x(i)+','+y(g)).join(' ')+'"/>'});
       b+=RD.t((Lm+W-R)/2,H-4,'token number in the stream (log scale of the gap)',{a:'middle',fs:10.5,fill:'var(--mute)'});
       el.innerHTML=RD.svg(W,H,b,'Gaps between tokens of a stream while a long prompt arrives')}
-    sel.addEventListener('change',draw);(window.TAB_RENDER=window.TAB_RENDER||{})['t-m1']=[draw];addEventListener('resize',()=>{if(!$('t-m1').hidden)draw()});draw();
+    sel.addEventListener('change',draw);const det=$('dd-m1-pd');if(det)det.addEventListener('toggle',()=>{if(det.open)draw()});RD.onResize(()=>{if(det&&det.open)draw()});draw();
     let h='<tr><th>Prompt sent to</th><th class="num">Its prompt tokens</th><th class="num">Its prefill</th><th class="num">Stream gap before, p50</th><th class="num">Longest gap while it ran</th><th class="num">Gap p50 while it ran</th></tr>';
     runs.forEach(r=>{h+='<tr><td>'+(r.where==='colocated'?'the same server (colocated)':'the other process (separate)')+'</td><td class="num">'+fmt(r.big_prompt_n,0)+'</td><td class="num">'+fmt(r.big_prompt_ms,0)+' ms</td><td class="num">'+fmt(r.gap_before_p50,1)+' ms</td><td class="num">'+fmt(r.gap_during_max,0)+' ms</td><td class="num">'+fmt(r.gap_during_p50,1)+' ms</td></tr>'});
     $('m1-int').innerHTML=h;

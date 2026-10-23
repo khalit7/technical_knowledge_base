@@ -24,7 +24,7 @@
     const mx=Math.max(...E.top_share);
     set('dd-s5-imb','the most popular expert of a layer takes up to '+fmt(100*mx)+'% of its choices (an even split would be '+fmt(100/E.E)+'%). Spread over 8 GPUs in the default order, the busiest GPU of a 512-token batch carries on average '+fmt(g.batch_mean,2)+' times the mean load, so about '+fmt(100*(1-1/g.batch_mean),0)+'% of the GPU time in the expert layers is spent waiting. EPLB planned on earlier text brings that to '+fmt(e0.batch_mean,2)+' times without extra slots and '+fmt(e16.batch_mean,2)+' times with 16 redundant experts.')}
   // predict, then reveal (every .pr box in the Reading tab with data-r on the right answer)
-  document.querySelectorAll('#t-read .pr').forEach(box=>box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!b.parentNode.classList.contains('opts'))return;
+  document.querySelectorAll('#t-read .pr:not(#pd-pr)').forEach(box=>box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!b.parentNode.classList.contains('opts'))return;
     box.querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.r)x.classList.add('right');else if(x===b)x.classList.add('wrong')});
     const a=box.querySelector('.ans');if(a)a.hidden=false}));
 })();

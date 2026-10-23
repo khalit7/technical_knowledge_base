@@ -79,6 +79,15 @@ so = PL.setup(o)
 st = lambda B, c: r(PL.step(o, so, B, c)['t'] * 1e3)
 out['pdanim'] = dict(co_dec=st(32, 0), co_mix=st(32, 2000), co_mix512=st(32, 512), pd_pre=st(0, 2000), pd_dec=st(64, 0), xfer_ms=out['ex_xfer']['ms']['nic400'])
 
+# memory per GPU at TP 1 and TP 2 (section 1's to-scale bars): what the planner's setup() reserves and what is left for cache
+mem = {}
+for t in (1, 2):
+    so = PL.setup(dict(D, tp=t))
+    mem[t] = dict(usable_gb=r(so['usable'] / 1e9), w_gb=r(so['w_gpu'] / 1e9), act_gb=r(so['act'] / 1e9), ovh_gb=r(so['ovh'] / 1e9),
+                  fixed_gb=r(so['fixed'] / 1e9), pool_gb=r(so['pool'] / 1e9), per_seq_mb=r(so['per_seq'] / 1e6), held=so['held'],
+                  seqs=int(so['seqs_kv']), share=D['share'])
+out['mem'] = mem
+
 os.makedirs(os.path.join(HERE, 'out'), exist_ok=True)
 json.dump(out, open(os.path.join(HERE, 'out', 'calc.json'), 'w'), indent=1)
 print(json.dumps(out)[:3000])
