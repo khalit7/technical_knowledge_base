@@ -1,6 +1,6 @@
 // ---- Shard-key lab ----
 (function(){
-  const S=window.SC;if(!S||!document.getElementById('t-lab'))return;
+  const S=window.SC;if(!S||!document.getElementById('rd-lab'))return;
   const $=id=>document.getElementById(id);
   const f=(x,d)=>x.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
   const PAT=[
@@ -17,7 +17,7 @@
     chat_hash:'Even, and opening a chat is single-shard, but a user\'s chats are scattered, so the chat list and account deletion fan out.',
     country:'Each country lives on one shard, which suits data residency, but countries are very uneven: the US alone is '+f(100*S.lab.top.country[0][2],1)+'% of messages, so adding shards stops helping once one shard holds the US.',
     user_range:'Ranges of user ids are equal in size but not in load: the oldest users (low ids) have the most chats, so the first shard is hot. Hashing the same key fixes it.',
-    month_range:'Old months spread over the shards, but all new writes land on the newest shard. Range by time is right for partitions inside one server (Reading section 4), wrong for shards.'};
+    month_range:'Old months spread over the shards, but all new writes land on the newest shard. Range by time is right for partitions inside one server (section 4), wrong for shards.'};
   function draw(){
     const key=$('lbKey').value,N=+$('lbN').value,met=+$('lbMet').value,G=+$('lbG').value/100;$('lbNv').textContent=N;$('lbGv').textContent=Math.round(G*100)+'%';
     let a=S.lab.byN[String(N)][key][met].slice();const t=a.reduce((x,y)=>x+y,0)||1;let sh=a.map(x=>x/t*(1-G));

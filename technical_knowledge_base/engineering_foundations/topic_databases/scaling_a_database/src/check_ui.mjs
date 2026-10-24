@@ -27,7 +27,19 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const setRange = async (id, v) => { await p.evaluate((id, v) => { const s = document.getElementById(id); s.value = v; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true })); }, id, v); clicks++; };
   const clickAll = async sel => { const n = await p.$$eval(sel, es => es.length); for (let i = 0; i < n; i++) { await p.evaluate((sel, i) => document.querySelectorAll(sel)[i].click(), sel, i); clicks++; } return n; };
   await p.click('button[data-t=t-read]'); await sleep(200);
-  await clickAll('#ldr button'); await shot('#rd-one', 'one'); await bad('ladder');
+  // nothing may move before the reader acts: every step animation must still be on step 1
+  await sleep(2500);
+  const still = await p.evaluate(() => ['fanCtl-s', 'rwCtl-s'].map(id => document.getElementById(id).value));
+  if (still.some(v => v !== '0')) { problems++; console.log('PROBLEM autoplay', still); }
+  await clickAll('#ldr button'); await shot('#rd-hero-card', 'hero'); await shot('#rd-one', 'one'); await bad('ladder');
+  for (const n of [1, 6, 7, 20, 100]) { await setRange('cnP', n); for (const m of ['direct', 'pool']) { await p.evaluate(m => document.querySelector(`#cnM button[data-m=${m}]`).click(), m); clicks++; if (n === 20) await shot('#cnCard', `pool-${m}`); } }
+  await bad('pool');
+  for (const m of ['naive', 'sticky', 'lsn']) { await p.evaluate(m => document.querySelector(`#rwM button[data-m=${m}]`).click(), m); clicks++;
+    for (let i = 0; i < 5; i++) { await setRange('rwCtl-s', i); if (i === 2 || i === 3) await shot('#rwCard', `ryw-${m}-${i}`); } await bad('ryw ' + m); }
+  for (const m of ['before', 'after']) { await p.evaluate(m => document.querySelector(`#fsM button[data-m="${m}"]`).click(), m); clicks++; await shot('#fsCard', `split-${m}`); }
+  for (const m of ['0', '1', '2', '3', '4']) { await p.evaluate(m => document.querySelector(`#rgM button[data-m="${m}"]`).click(), m); clicks++; if (m === '0' || m === '2') await shot('#rgCard', `ranges-${m}`); }
+  for (const m of ['rep', 'geo', 'glob']) { await p.evaluate(m => document.querySelector(`#geM button[data-m="${m}"]`).click(), m); clicks++; await shot('#geCard', `geo-${m}`); }
+  await shot('#xsCard', 'cross'); await bad('new figures');
   for (const q of ['dash', 'chat', 'chat_week']) for (const l of ['messages', 'messages_month', 'messages_hash']) {
     await p.evaluate((q, l) => { document.querySelector(`#ptQ button[data-m=${q}]`).click(); document.querySelector(`#ptL button[data-m=${l}]`).click(); }, q, l); clicks += 2;
     if (l === 'messages_month') await shot('#ptCard', `pt-${q}`);
@@ -48,11 +60,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       o.skTable = [...document.querySelectorAll('#skTable tr')].map(r => [...r.querySelectorAll('td.num')].map(td => td.textContent));
       o.rsBars = [...document.querySelectorAll('#rsBars .val')].map(e => e.textContent); return o; });
     fs.writeFileSync(path.resolve(here, 'page_numbers.json'), JSON.stringify(nums, null, 1)); }
-  await p.click('button[data-t=t-lab]'); await sleep(200);
+  await p.click('button[data-t=t-read]'); await sleep(200);
   for (const k of ['user_hash', 'chat_hash', 'country', 'user_range', 'month_range']) for (const n of [2, 8, 16]) for (const m of ['0', '1']) {
     await p.evaluate((k, m) => { document.getElementById('lbKey').value = k; document.getElementById('lbMet').value = m; }, k, m);
     await setRange('lbN', n); await setRange('lbG', n === 8 ? 10 : 0);
-    if (n === 8 && m === '1') await shot('#s-lab', `lab-${k}`);
+    if (n === 8 && m === '1') await shot('#rd-lab', `lab-${k}`);
   }
   await bad('lab');
   await p.click('button[data-t=t-more]'); await sleep(150); await shot('#s-more', 'more'); await bad('more');

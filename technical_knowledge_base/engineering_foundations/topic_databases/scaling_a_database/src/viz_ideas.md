@@ -22,3 +22,19 @@ Scores are 1 to 5 on teaching value / data reality / cost to build; built ones f
 | Application-level router across 3 local Postgres servers | 3/5/3 | | | not built: Citus built from source cheaply, so the real system replaced the hand-made one; the logical-shard and ring routers are counted on the data instead |
 
 What the methodology lacked: guidance for systems measured on one laptop where the "network" is loopback; this page states it at the top and beside each latency, and adds a fair baseline (Postgres with a real SSD flush) where the systems flush differently.
+
+## 2026-10-24 rebuild to the teaching contract
+| Idea | Kind | Placement | Data | Status |
+|---|---|---|---|---|
+| Hero: three ways to grow (one machine, copies, split) with where one request goes | static annotated diagram | top | schematic | built (`27_js_rd_hero.js`) |
+| Connections against max_connections as app pods grow, direct against PgBouncer | slider plus toggle | section 2, rung 3 | arithmetic from Running Postgres in production section 7 (SQLAlchemy 5 + 10, max_connections 100 minus 3); pool of 20 illustrative | built (`28_js_rd_pool.js`) |
+| Read-your-writes under three routes (naive, sticky primary, wait for LSN) | stepper, before/after | section 3 | LSNs illustrative; 1,993 of 2,000 and 0.105 ms from Distributed systems fundamentals | built (`29_js_rd_ryw.js`) |
+| Functional split before/after, the cut transaction | static toggle | section 5 | schematic, the root's credit-and-reply transaction | built (`30_js_rd_split.js`) |
+| Shard-key lab | lab | moved from its own tab into section 7 | unchanged | moved |
+| Crossing shards, measured (login, join, transaction pairs) | bars | section 8 | `inputs/citus.json` | built (`32_js_rd_cross.js`) |
+| Instagram id bits to scale | static | section 8 | 41/13/10 bits | built (HTML) |
+| Ranges on three nodes through the kill sequence | static toggle | section 11 | real ranges 88 to 91 and events from `inputs/crdb.json` | built (`33_js_rd_ranges.js`) |
+| Commit floor by placement, to scale | bars | section 11 | CloudPing medians already on the page | built (HTML) |
+| Multi-region patterns: a Singapore user's read and write | static toggle | section 12 | CloudPing 218 ms; CockroachDB docs quotes | built (`34_js_rd_geo.js`) |
+| Real photos (servers, data centre) | image | | | rejected: nothing physical teaches here; every mechanism is drawn better |
+| Spanner paper figure | image | | | rejected: TrueTime is one depth paragraph; the paper's licence for reuse is unclear |

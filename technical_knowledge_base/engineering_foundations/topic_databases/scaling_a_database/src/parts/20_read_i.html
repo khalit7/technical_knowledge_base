@@ -1,0 +1,98 @@
+<section id="rd-s13">
+<h2>13. How real companies climbed, with their numbers</h2>
+<p>Dates are publication dates; numbers are the companies' own. The pattern across all of them: everyone climbed the cheap rungs first; those who sharded chose a tenant-like key (workspace, user, shop, channel) and many logical shards; and the hardest part was never the router but migrating live data and rewriting the queries that crossed shards.</p>
+<div class="tw"><table><caption class="small mute" style="caption-side:top;text-align:left;padding-bottom:4px"><b style="color:var(--ink)">Nine companies on the ladder: how high each climbed, and the number that shows it</b></caption>
+<thead><tr><th>Company (date)</th><th>Highest rung</th><th>The number</th></tr></thead>
+<tbody>
+<tr><td><b>OpenAI</b> (22 Jan 2026)</td><td>replicas and a functional split; no sharding of Postgres</td><td>one primary, nearly 50 read replicas, millions of queries per second</td></tr>
+<tr><td><b>Notion</b> (2021, 2023)</td><td>application sharding by workspace</td><td>480 logical shards; 32 machines, then 96</td></tr>
+<tr><td><b>Figma</b> (2023, 2024)</td><td>bigger box, 50 tables split off, then sharding behind its own proxy</td><td>"almost 100x" growth since 2020</td></tr>
+<tr><td><b>Instagram</b> (2012)</td><td>application sharding by user</td><td>several thousand logical shards on a few servers</td></tr>
+<tr><td><b>GitHub</b> (2021, 2023)</td><td>functional splits, Vitess for the largest areas</td><td>5.5 million queries per second, more than 50 clusters</td></tr>
+<tr><td><b>Slack</b> (1 Dec 2020)</td><td>workspace shards, then Vitess</td><td>2.3 million queries per second at peak, p99 11 ms</td></tr>
+<tr><td><b>Shopify</b> (2018, 2021)</td><td>sharding by tenant (pods), moving shops online</td><td>load spread between shards from about 4x to about 2x</td></tr>
+<tr><td><b>Discord</b> (2017, 2023)</td><td>a different store, keyed by (channel, 10-day bucket)</td><td>177 Cassandra nodes became 72 ScyllaDB nodes</td></tr>
+<tr><td><b>Uber</b> (23 Feb 2021)</td><td>distributed SQL built in-house (Docstore)</td><td>partitions of 3 to 5 MySQL nodes kept consistent with Raft</td></tr>
+</tbody></table></div>
+<details class="dep"><summary>The nine stories in full, with quotes and sources <span>(depth)</span></summary>
+<p class="small mute">Where the SWE topic has the story as a case file, it is linked rather than retold.</p>
+<div class="stories">
+<div class="story"><h4>OpenAI: one primary, nearly 50 replicas</h4><div class="when">22 Jan 2026 <span class="rung">queries</span><span class="rung">bigger box</span><span class="rung">pooling</span><span class="rung">cache</span><span class="rung">replicas</span><span class="rung">functional split</span></div>
+<p>ChatGPT and the API run on "a single primary Azure PostgreSQL flexible server instance" with "nearly 50 read replicas across multiple geographic regions", at millions of queries per second after load grew more than 10x in a year. Write-heavy, shardable workloads moved to Azure Cosmos DB, and "we also no longer allow adding new tables". Schema changes have "a strict 5-second timeout"; PgBouncer cut connection time from 50 to 5 ms; cascading replication was being tested to go past 100 replicas. Result: "low double-digit millisecond p99" and five-nines availability, with one top-severity Postgres incident in a year (<a href="https://openai.com/index/scaling-postgresql/" target="_blank" rel="noopener noreferrer">OpenAI</a>; earlier detail in the <a href="https://www.pgevents.ca/events/pgconfdev2025/schedule/session/433/" target="_blank" rel="noopener noreferrer">PGConf.dev 2025 talk</a>).</p></div>
+<div class="story"><h4>Notion: 480 logical shards, then a re-shard</h4><div class="when">6 Oct 2021 and 17 Jul 2023 <span class="rung">sharding (application)</span></div>
+<p>Sharded by workspace id into 480 logical shards (Postgres schemas) on 32 machines, 15 each; limits they set: 500 GB per table, 10 TB per database. Migration: double-write, a backfill of about three days, verification, a five-minute cutover. In 2023, 32 machines became 96 (5 schemas each) by moving schemas with logical replication; syncing took 12 hours instead of 3 days, and users saw at most about a second's pause. The 480 shards never changed ({{Case files: notion-2021|n:3c65c17b0d0d81048ae0dd14ac399b4d}}; <a href="https://www.notion.com/blog/the-great-re-shard" target="_blank" rel="noopener noreferrer">re-shard post</a>).</p></div>
+<div class="story"><h4>Figma: up, apart, then sharded, still Postgres</h4><div class="when">4 Apr 2023 and 14 Mar 2024 <span class="rung">bigger box</span><span class="rung">functional split</span><span class="rung">sharding (proxy)</span></div>
+<p>Bigger instance first, then 50 tables moved to separate databases, then horizontal sharding of the biggest tables after "almost 100x" growth since 2020. They considered CockroachDB, TiDB, Spanner and Vitess and built their own: a DBProxy that parses SQL and routes it, "colos" of tables sharing a shard key, and logical sharding (views) before physical. First sharded table in September 2023, with about 10 seconds of partial availability ({{Case files: figma-2024|n:3c65c17b0d0d81048ae0dd14ac399b4d}}).</p></div>
+<div class="story"><h4>Instagram: thousands of logical shards</h4><div class="when">2012 <span class="rung">sharding (application)</span></div>
+<p>Users split into several thousand logical shards (Postgres schemas) on a few servers; growing means moving schemas, never re-bucketing. Ids carry time, shard and sequence (section 8) ({{Case files: insta-2012|n:3c65c17b0d0d81048ae0dd14ac399b4d}}).</p></div>
+<div class="story"><h4>GitHub: functional splits, Vitess for the biggest</h4><div class="when">27 Sep 2021 and 7 Dec 2023 <span class="rung">replicas</span><span class="rung">functional split</span><span class="rung">sharding (Vitess)</span></div>
+<p>Schema domains and linters, then clusters per domain (section 5). By 2023: more than 1,200 MySQL hosts, more than 300 TB, 5.5 million queries per second across more than 50 clusters, with Vitess used only for the largest areas (<a href="https://github.blog/engineering/infrastructure/upgrading-github-com-to-mysql-8-0/" target="_blank" rel="noopener noreferrer">GitHub</a>).</p></div>
+<div class="story"><h4>Slack: workspace shards, then Vitess</h4><div class="when">1 Dec 2020 <span class="rung">sharding (application, then Vitess)</span></div>
+<p>Thousands of MySQL hosts sharded by workspace by 2016, which broke down for big workspaces and cross-workspace features. Moved to Vitess: 99% of queries, 2.3 million per second at peak (2 million reads, 300,000 writes), median 2 ms, p99 11 ms (<a href="https://slack.engineering/scaling-datastores-at-slack-with-vitess/" target="_blank" rel="noopener noreferrer">Slack</a>).</p></div>
+<div class="story"><h4>Shopify: pods, and moving shops between them</h4><div class="when">2 Mar 2018 and 24 Sep 2021 <span class="rung">sharding by tenant</span><span class="rung">multi-region</span></div>
+<p>Shops grouped into pods with isolated datastores ({{Case files: shopify-2018|n:3c65c17b0d0d81048ae0dd14ac399b4d}}). Hot shards appear anyway, because shops grow unevenly; moving shops online (batch copy plus following the binary log, the Ghostferry tool) cut the load spread between shards from about 4x to about 2x (<a href="https://shopify.engineering/mysql-database-shard-balancing-terabyte-scale" target="_blank" rel="noopener noreferrer">Shopify</a>).</p></div>
+<div class="story"><h4>Discord: partition key (channel, time bucket)</h4><div class="when">13 Jan 2017 and 6 Mar 2023 <span class="rung">a different store</span></div>
+<p>Messages in Cassandra keyed by channel and a 10-day bucket so partitions stay under 100 MB; later 177 Cassandra nodes became 72 ScyllaDB nodes, with hot channels handled by request coalescing ({{Case files: discord-2023|n:3c65c17b0d0d81048ae0dd14ac399b4d}}; wide-column design is on {{NoSQL in practice|n:3ef5c17b0d0d81ec8456c41e4e8f5f6b}}).</p></div>
+<div class="story"><h4>Uber: Docstore, MySQL plus Raft</h4><div class="when">23 Feb 2021 <span class="rung">distributed SQL (built in-house)</span></div>
+<p>Uber turned its Schemaless store into Docstore: partitions of 3 to 5 MySQL nodes kept consistent with Raft, tens of petabytes, tens of millions of requests per second (<a href="https://www.uber.com/blog/schemaless-sql-database/" target="_blank" rel="noopener noreferrer">Uber</a>). Most companies buy this layer instead of building it.</p></div>
+</div>
+</details>
+</section>
+
+<section id="rd-depth">
+<h2>Depth</h2>
+<p class="small mute">Reference material, closed by default: measurement setup, the dated product table and every term.</p>
+<details class="dep"><summary>How the measurements were made <span>(versions, machine, caveats)</span></summary>
+<p>All on one Apple M1 Pro laptop, 5 October 2026: PostgreSQL 16.2 (the pgserver wheel), Citus 14.2.0 built from source against it (a coordinator and three, then four, workers), and CockroachDB v26.3.0 (three nodes). The data is the root page's chat dataset, generated by the same script with the same seeds: 100,000 users, 1 million chats, 10 million messages. Scripts and raw outputs are in <code>src/measure/</code> and <code>src/inputs/</code>; the build notes (one local Citus patch, the disk-space setting) are in <code>src/README.md</code>.</p>
+</details>
+<details class="dep" id="rd-dated"><summary>Dated: machines, prices and product status <span>(volatile; read 5 to 15 Oct 2026)</span></summary>
+<div class="tw"><table>
+<thead><tr><th>Item</th><th>Fact</th><th>Source, date read</th></tr></thead>
+<tbody>
+<tr><td>db.r8g.48xlarge, one availability zone</td><td>192 vCPU, 1,536 GiB; $22.944 per hour, about $16,750 per month (730 h)</td><td rowspan="3">AWS price list dated 1 October 2026, us-east-1, on demand, matching <a href="https://instances.vantage.sh/rds" target="_blank" rel="noopener noreferrer">instances.vantage.sh/rds</a>; storage is extra</td></tr>
+<tr><td>db.r8g.48xlarge, Multi-AZ (a standby in a second zone)</td><td>$45.888 per hour, about $33,500 per month</td></tr>
+<tr><td>db.x2iedn.32xlarge (most memory), one zone</td><td>128 vCPU, 4,096 GiB; $60.864 per hour, about $44,430 per month</td></tr>
+<tr><td>RDS storage ceilings</td><td>64 TiB; up to 256,000 IOPS on io2 Block Express, 64,000 on gp3</td><td><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Storage.html" target="_blank" rel="noopener noreferrer">RDS storage docs</a>, 5 Oct 2026</td></tr>
+<tr><td>RDS read replicas</td><td>15 per primary; cascading replicas (replicas of replicas) up to three levels deep with 5 per source below the first level</td><td><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PostgreSQL.Replication.ReadReplicas.html" target="_blank" rel="noopener noreferrer">AWS docs</a>, 5 Oct 2026</td></tr>
+<tr><td>Citus</td><td>AGPL v3 since 2022 (root's Database atlas); owned by Microsoft since 2019, offered on Azure as elastic clusters in Azure Database for PostgreSQL, while Azure Cosmos DB for PostgreSQL "is on a retirement path"</td><td><a href="https://learn.microsoft.com/en-us/azure/cosmos-db/postgresql/introduction" target="_blank" rel="noopener noreferrer">Microsoft Learn</a>, 5 Oct 2026</td></tr>
+<tr><td>PgDog</td><td>a pooler that parses queries, routes by shard key, merges cross-shard results and reshards with logical replication; says it is "used in production", some features experimental</td><td><a href="https://github.com/pgdogdev/pgdog" target="_blank" rel="noopener noreferrer">GitHub</a>, 5 Oct 2026</td></tr>
+<tr><td>Neki (PlanetScale)</td><td>"not a fork of Vitess"; available, cross-shard transactions "coming soon"</td><td><a href="https://www.neki.dev/" target="_blank" rel="noopener noreferrer">neki.dev</a>, 5 Oct 2026</td></tr>
+<tr><td>Multigres (Supabase)</td><td>led by a Vitess co-creator; early development</td><td><a href="https://supabase.com/blog/multigres-vitess-for-postgres" target="_blank" rel="noopener noreferrer">Supabase blog</a>, 5 Oct 2026</td></tr>
+<tr><td>Aurora PostgreSQL Limitless</td><td>generally available since 31 Oct 2024: routers plus hash-sharded, collocated and reference tables, managed by AWS</td><td><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/limitless-architecture.html" target="_blank" rel="noopener noreferrer">AWS docs</a>, 5 Oct 2026</td></tr>
+<tr><td>CockroachDB licence</td><td>since 24.3: free self-hosting only for companies under 10M USD revenue with telemetry; an unlicensed multi-node cluster is throttled to 5 concurrent transactions after 7 days</td><td><a href="https://docs.cockroachlabs.com/docs/stable/licensing-faqs" target="_blank" rel="noopener noreferrer">licensing FAQ</a>, 5 Oct 2026</td></tr>
+<tr><td>Aurora DSQL</td><td>generally available since 27 May 2025; a transaction may change at most 3,000 rows and 10 MiB and run 5 minutes; multi-region only within one continent</td><td><a href="https://docs.aws.amazon.com/aurora-dsql/latest/userguide/CHAP_quotas.html" target="_blank" rel="noopener noreferrer">quotas</a>, <a href="https://docs.aws.amazon.com/aurora-dsql/latest/userguide/what-is-aurora-dsql.html" target="_blank" rel="noopener noreferrer">overview</a>, 5 Oct 2026</td></tr>
+<tr><td>PostgreSQL 19</td><td>Release Candidate 1 on 15 October 2026, general availability targeted for 19 November; adds <code>WAIT FOR LSN</code></td><td><a href="https://www.postgresql.org/docs/19/release-19.html" target="_blank" rel="noopener noreferrer">release notes</a>, 15 Oct 2026</td></tr>
+</tbody></table></div>
+<p class="small mute">Monthly = hourly x 730.</p>
+</details>
+<details class="dep"><summary>Glossary: every term on this page</summary>
+<div class="gl">
+<div><b>Vertical scaling</b>: a bigger machine for the same database.</div>
+<div><b>Horizontal scaling</b>: more machines, each with part of the work.</div>
+<div><b>Read replica</b>: a copy that replays the primary's log and answers reads, a little behind.</div>
+<div><b>Replication lag</b>: how far a replica is behind the primary, in time or log bytes.</div>
+<div><b>Read-your-writes</b>: a user always sees their own last write.</div>
+<div><b>Long Fork</b>: two readers see two independent writes in opposite orders.</div>
+<div><b>Partition</b>: a physical piece of one table on the same server.</div>
+<div><b>Partition pruning</b>: skipping partitions a query cannot need.</div>
+<div><b>Functional split</b> (vertical partitioning): whole tables moved to another database.</div>
+<div><b>Shard</b>: a slice of a table's rows on its own server.</div>
+<div><b>Shard key</b> (distribution column): the column that decides a row's shard.</div>
+<div><b>Router</b>: the code or proxy that maps a key to its shard.</div>
+<div><b>Scatter-gather</b> (fan-out): sending a query to every shard and merging the answers.</div>
+<div><b>Logical shard</b>: a small fixed bucket of keys; many live on one server and move as a unit.</div>
+<div><b>Co-location</b>: related tables sharded on the same key so their rows share a server.</div>
+<div><b>Reference table</b>: a small table copied to every server.</div>
+<div><b>Lookup table</b> (lookup vindex): maps a non-key column (email) to the shard key.</div>
+<div><b>Two-phase commit</b> (2PC): prepare on every server, then commit on all.</div>
+<div><b>Hot shard / hot key</b>: a shard or single key receiving far more than its share of load.</div>
+<div><b>Resharding</b>: changing the number of shards or the key; moves data.</div>
+<div><b>Range</b> (region, tablet, split): a contiguous piece of a distributed SQL table, replicated by consensus.</div>
+<div><b>Leaseholder</b>: the replica of a range that serves its reads and proposes its writes.</div>
+<div><b>Follower read</b>: a read from a nearby replica at a slightly past timestamp.</div>
+<div><b>Geo-partitioning</b>: storing and leading each row in its owner's region.</div>
+<div><b>Data residency</b>: keeping data inside a given jurisdiction.</div>
+</div>
+</details>
+</section>
+</div>

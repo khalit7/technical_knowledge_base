@@ -1,31 +1,45 @@
-<section id="rd-s5">
-<h2>5. Functional splits: different tables on different databases</h2>
-<h3>The problem appears</h3>
-<p>The single primary takes every write: messages, credits, billing events, audit logs, rate-limit counters. They have nothing to do with each other except that they share a machine, and the busiest one slows all the others.</p>
-<h3>The idea</h3>
-<p>A <dfn>functional split</dfn> (Figma calls it <dfn>vertical partitioning</dfn>) moves whole groups of tables to their own database server: messages to one, billing to another. Each group keeps full SQL and transactions inside itself, and each server now carries only its share of writes. For the chat product: users, chats and messages stay together (they are read together), billing moves out, rate-limit counters move to Redis.</p>
-<div class="stories">
-<div class="story"><h4>GitHub, 2019 to 2021</h4><p>GitHub grouped its tables into "schema domains", added linters that fail the build when a query or transaction crosses a domain, then moved domains to their own MySQL clusters, 130 tables in one move. The main cluster had served 950,000 queries per second in 2019 (900,000 on replicas); after the splits the same tables served 1.2 million per second with half the load per host (<a href="https://github.blog/engineering/infrastructure/partitioning-githubs-relational-databases-scale/" target="_blank" rel="noopener noreferrer">GitHub, 27 Sep 2021</a>).</p></div>
-<div class="story"><h4>Figma, 2020 to 2022</h4><p>After scaling up, Figma moved groups of tables to separate databases, growing from 2 to 50 tables moved by October 2022, each move costing about 30 seconds of partial impact (about 2% of requests) (<a href="https://www.figma.com/blog/how-figma-scaled-to-multiple-databases/" target="_blank" rel="noopener noreferrer">Figma, 4 Apr 2023</a>). It bought them time; their largest tables still outgrew one machine.</p></div>
+<section id="rd-s4">
+<h2>4. Partitioning inside one Postgres</h2>
+<p>The messages table is the chat product's biggest: 10 million rows here, billions in a real product, growing every second. The product keeps one year of messages, so every night a job deletes the oldest day, and that job now runs for minutes, writes gigabytes of log, and leaves dead rows behind for vacuum to clean. Dashboards that look only at last week still read pages of old data.</p>
+<p><dfn>Partitioning</dfn> splits one logical table into several physical tables, the <dfn>partitions</dfn>, each holding the rows whose <dfn>partition key</dfn> falls in its slice. Queries still name the parent table; Postgres sends each row to its partition and, when a query's WHERE clause names the partition key, skips the partitions that cannot contain matches. That skipping is <dfn>partition pruning</dfn>, done when planning and again when executing (<a href="https://www.postgresql.org/docs/current/ddl-partitioning.html" target="_blank" rel="noopener noreferrer">PostgreSQL docs, Table partitioning</a>). Everything stays on one server: partitioning is not sharding.</p>
+<p>Postgres has had this built in ("declarative partitioning") since version 10 (range and list) and hash partitioning since 11 (<a href="https://www.postgresql.org/docs/release/11.0/" target="_blank" rel="noopener noreferrer">release notes</a>). Three ways to slice (the full syntax and its constraints are {{SQL and data modelling|n:3ef5c17b0d0d813980dcd474e19f6c3f}}'s):</p>
+<div class="vs">
+<div><h4>Range</h4><p>Each partition holds a range of values, usually time: one partition per month. The natural choice for anything that grows with time and is deleted by age.</p></div>
+<div><h4>List</h4><p>Each partition holds listed values: <code>country IN ('DE','FR','NL')</code>. Useful when the data has a few natural groups, for example to put EU users' rows on separate storage.</p></div>
+<div><h4>Hash</h4><p>Rows are spread by a hash of the key into N partitions: <code>MODULUS 8, REMAINDER 3</code>. Evens out size when there is no natural range; pruning only helps queries with key equality.</p></div>
 </div>
-<div class="cost"><div class="t">What it costs</div><p>Every JOIN and every transaction that crossed the split is gone. In the chat product, "deduct a credit and save the reply" was one transaction (the root's section 3); with billing on another server it becomes two writes that can half-fail, so it needs the outbox pattern or a saga ({{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}). That is why GitHub built linters before moving anything: first stop new code from crossing the line, then move. <b>Enough when</b> no single group of tables is too big or too busy for one server. <b>Not enough when</b> one table (here, messages) is.</p></div>
-</section>
-
-<section id="rd-s6">
-<h2>6. Sharding: split one table's rows across servers</h2>
-<h3>The problem appears</h3>
-<p>The messages table alone writes more than the largest machine can absorb, or is larger than it can hold. No rung below splits a single table across machines.</p>
-<h3>The idea</h3>
-<p><dfn>Sharding</dfn> (horizontal partitioning across servers) gives each server a slice of the rows. Each slice is a <dfn>shard</dfn>; the column that decides a row's shard is the <dfn>shard key</dfn> (Citus calls it the distribution column). Something must know which shard holds which key: the <dfn>router</dfn>, which can be application code, a proxy or the database itself. Each shard is a normal Postgres server, usually with its own replicas. The theory (range against hash, consistent hashing, hot keys) is on {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}} (section "Partitioning: splitting the data"); this page does it for real on the chat data.</p>
-<p>The rule that decides everything: <b>a query that names the shard key goes to one shard; a query that does not must ask every shard</b> and combine the answers (<dfn>scatter-gather</dfn>, or fan-out). The animation runs two of the chat product's queries against one big Postgres and against the same data sharded by user with Citus (3 workers, 32 shards), both measured on this laptop.</p>
-<div class="card" id="fanCard">
-<div class="seg" id="fanQ"><button data-m="user" class="on">A user's chat list</button><button data-m="mention">All messages mentioning "c0ffee"</button></div>
-<div class="seg" id="fanM"><button data-m="big" class="on">Before: one big node</button><button data-m="shard">After: sharded by user</button></div>
-<div class="rd-svg" id="fanSvg"></div>
-<div class="an-ctl" id="fanCtl"></div>
-<div class="an-cap" id="fanCap" aria-live="polite"></div>
-<div class="an-cnt" id="fanCnt"></div>
+<pre class="sql"><span class="c">-- the chat messages, one partition per month (what this page measured)</span>
+<span class="k">CREATE TABLE</span> messages_month (<span class="k">LIKE</span> messages <span class="k">INCLUDING DEFAULTS</span>, <span class="k">PRIMARY KEY</span> (id, created_at))
+  <span class="k">PARTITION BY RANGE</span> (created_at);
+<span class="k">CREATE TABLE</span> messages_m2025_09 <span class="k">PARTITION OF</span> messages_month
+  <span class="k">FOR VALUES FROM</span> ('2025-09-01 00:00+00') <span class="k">TO</span> ('2025-10-01 00:00+00');
+<span class="c">-- ... one per month to 2026-08; an index created on the parent is created on every partition</span>
+<span class="k">CREATE INDEX ON</span> messages_month (chat_id, created_at);</pre>
+<p>Note the primary key: <code>(id, created_at)</code>, not <code>(id)</code>. Each partition can only check uniqueness inside itself, so a unique key must include the partition key. Asking for <code>PRIMARY KEY (id)</code> fails, measured: <code class="small">ERROR: unique constraint on partitioned table must include all partitioning columns</code>. If you need <code>id</code> unique on its own, generate it so it cannot collide (a sequence or an ID that embeds time).</p>
+<h3>Measured: which queries partitioning helps</h3>
+<p>The 10 million messages were copied into two partitioned versions: by month (12 range partitions on <code>created_at</code>) and by hash of <code>chat_id</code> (8 partitions). Predict before you click: which layout is slowest for opening a chat, a query that never names <code>created_at</code>? Then pick a query and a layout.</p>
+<div class="card" id="ptCard"><h4 class="vt">A partition key helps only the queries that name it: highlighted boxes are the partitions the plan read</h4>
+<div class="seg" id="ptQ"><button data-m="dash" class="on">Dashboard: tokens per model, last 7 days</button><button data-m="chat">Open a chat: latest 50 messages</button><button data-m="chat_week">Same chat, with a date range</button></div>
+<div class="seg" id="ptL"><button data-m="messages" class="on">One table</button><button data-m="messages_month">By month (range)</button><button data-m="messages_hash">By chat (hash, 8)</button></div>
+<pre class="sql" id="ptSql"></pre>
+<div class="pt" id="ptBoxes"></div>
+<div class="nums" id="ptNums"></div>
+<p class="small mute" id="ptNote"></p>
 </div>
-<p><b>How to read it.</b> The chat list names <code>user_id</code>, the shard key: the router sends it to the one shard that holds user 4242 (<code>Task Count: 1</code> in Citus's plan). It got <i>slower</i>, about 0.46 ms against 0.10 ms at the median, because it now crosses an extra hop (the coordinator) before reaching Postgres; with a real network each hop adds a round trip, typically a few hundred microseconds inside one data centre. The mention search names no shard key, so it goes to all 32 shards (<code>Task Count: 32</code>), each scans its slice, and the coordinator merges the top 50. Here it got faster, about 375 ms against 1,502 ms, because 32 shard scans ran on more of the laptop's 10 cores at once than one Postgres query uses (2 parallel workers by default): <b>the total work did not shrink, it was spread out</b>. On a busy cluster every scatter query occupies every shard, so scatter queries are what stop a sharded system from scaling.</p>
-<div class="co warn"><div class="t">The common misunderstanding</div>Sharding does not make single queries faster. It makes the <i>system</i> able to hold more data and take more writes, by adding servers. Single-shard queries pay an extra hop; scatter queries pay every shard. A shard key is good when almost every frequent query is single-shard.</div>
+<p><b>How to read it.</b> The dashboard query names <code>created_at</code>, so the monthly layout reads only August: about <b>26 ms against 373 ms</b> for the plain table (7,341 pages against 192,372). But the "One table" layout with an ordinary index on <code>created_at</code> also answers it in <b>about 23 ms</b> (select "One table" and read the note): for reading, an index does most of what partitioning does. Opening a chat does not name <code>created_at</code>, so the monthly layout must probe all 12 partitions' indexes: <b>0.21 ms against 0.05 ms</b>, and its planning takes 2.0 ms against 0.3 ms. The hash-by-chat layout is the mirror image: one partition for the chat, all 8 for the dashboard. <b>A partition key is chosen by the queries, exactly like a shard key</b> (section 7), on a smaller stage.</p>
+<h3>Where partitioning really pays: deleting old data</h3>
+<p class="small"><b>Deleting a month: DELETE on the plain table against dropping its partition</b> (<span class="meas">measured</span>)</p>
+<div class="nums" id="ptRet"></div>
+<p>Deleting September 2025 from the plain table means finding and marking 863,999 rows, writing 160 MB of log (which every replica must replay, and every backup must store), and leaving 864 thousand dead rows for vacuum. Dropping the September partition removes one file. This, more than speed, is why time-series and log-like tables are partitioned. Archiving works the same way: detach a partition (<code>DETACH PARTITION ... CONCURRENTLY</code>, since PostgreSQL 14, takes only a weak lock on the parent), copy it to cheap storage, drop it.</p>
+<h3>Maintenance: what you now have to run</h3>
+<ul class="tight">
+<li><b>Create future partitions before data arrives.</b> An insert with no matching partition fails. Most teams use the <a href="https://github.com/pgpartman/pg_partman" target="_blank" rel="noopener noreferrer">pg_partman</a> extension or a scheduled job that creates the next few months ahead.</li>
+<li><b>Not too many partitions.</b> The docs: the planner handles "up to a few thousand partitions fairly well, provided that typical queries allow the query planner to prune all but a small number". Measured below on empty tables, planning time only.</li>
+</ul>
+<p class="small"><b>Planning time grows with the partitions that cannot be pruned</b> (<span class="meas">measured</span>)</p>
+<div class="bars" id="ptPlan"></div>
+<p class="small mute">Planning time in ms (median of 7), for a query on the partition key (pruned to one) and a query on another column (all partitions remain). Every query pays planning time, so 3,000 unpruned partitions add about 0.1 s to each one.</p>
+<div class="cost"><div class="t">What partitioning does not solve</div><p>It does not add CPU, memory, disk or connections: all partitions live on the same server, so a server that is out of any of them stays out. It makes queries that do not name the key slightly slower, constrains unique keys, and adds jobs to run. <b>Enough when</b> the pain is a huge, time-ordered table: retention, vacuum, index size, archiving. <b>Not the answer</b> when the server itself is full.</p></div>
+<details class="dep"><summary>The default partition trap, and partitionwise joins <span>(depth)</span></summary><ul class="tight"><li><b>The default partition trap.</b> A <code>DEFAULT</code> partition catches rows that fit nowhere, but attaching a new partition then scans the default partition to check none of its rows belong to the new one, under a lock, unless a CHECK constraint proves it (<a href="https://www.postgresql.org/docs/current/ddl-partitioning.html" target="_blank" rel="noopener noreferrer">docs</a>).</li>
+</ul><p>Partitionwise join and aggregate (planning joins partition by partition) exist but are off by default because they raise planning cost (<code>enable_partitionwise_join</code>, <a href="https://www.postgresql.org/docs/current/runtime-config-query.html" target="_blank" rel="noopener noreferrer">docs</a>).</p></details>
 </section>
