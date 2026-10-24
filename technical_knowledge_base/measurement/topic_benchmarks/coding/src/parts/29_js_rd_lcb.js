@@ -1,6 +1,6 @@
-// ---- LiveCodeBench by date ----
+// ---- Reading: LiveCodeBench monthly series (core) and the board for a chosen window (closed block). Moved from the old LiveCodeBench by date tab ----
 (function(){
-  const $=id=>document.getElementById(id);if(!$('t-lcb'))return;
+  const $=id=>document.getElementById(id);if(!$('lc-mon'))return;
   const L=CD.lcb,Q=L.q;
   const months=[];for(let y=2023,m=5;!(y===2025&&m>3);){months.push(y+'-'+String(m).padStart(2,'0'));m++;if(m>12){m=1;y++}}
   $('lc-s').max=months.length-1;
@@ -38,6 +38,5 @@
   }
   ['lc-a','lc-b','lc-md'].forEach(id=>$(id).addEventListener('change',mon));
   const go=()=>{table();mon()};
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-lcb']=[go];
-  addEventListener('resize',()=>{if(!$('t-lcb').hidden)mon()});
+  RD.onRender(go);RD.onResize(mon);
 })();

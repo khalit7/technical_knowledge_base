@@ -53,4 +53,5 @@
   const A=RD.anim({card:'rd-pk-card',ctl:'rd-pk-ctl',n:N+2,draw,ms:900,label:'Sample'});
   RD.seg(document.getElementById('rd-pk-mode'),m=>{mode=m;A.redraw()});
   RD.onResize(()=>A.redraw());
+  const det=document.getElementById('rd-pk-det');if(det)det.addEventListener('toggle',()=>{if(det.open)A.redraw()});
 })();

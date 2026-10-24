@@ -1,6 +1,6 @@
-// ---- One SWE-bench task: django__django-11099 ----
+// ---- Reading: one SWE-bench task, django__django-11099, through the harness. Moved from the old One SWE-bench task tab ----
 (function(){
-  const $=id=>document.getElementById(id);if(!$('t-task'))return;
+  const $=id=>document.getElementById(id);if(!$('tk-card'))return;
   const T=CD.dj,R=CD.djr,esc=RD.esc;
   $('tk-id').textContent=T.instance_id;
   $('tk-meta').innerHTML='Repository '+T.repo+', Django version '+T.version+', base commit <code>'+T.base_commit.slice(0,10)+'</code>, pull request created '+T.created_at.slice(0,10)+', annotated difficulty "'+esc(T.difficulty)+'".';
@@ -30,10 +30,8 @@
     $('tk-cnt').innerHTML=RD.stat('Username checks correct',i>=3?nPass+' / '+nOk:'not run','in the two re-run tests')+RD.stat('Re-run fail-to-pass tests passing',i>=3?(+a+ +u)+' / 2':'not run','the third is not re-run')+RD.stat('Verdict',i>=5?(f2p?'resolved':'not resolved'):'pending','');
   }
   const A=RD.anim({card:'tk-card',ctl:'tk-ctl',n:ST.length,draw,ms:1500,label:'Harness step'});
-  RD.seg($('tk-mode'),m=>{mode=m;A.go(0);A.play()});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-task']=[()=>A.redraw()];
-  // dataset statistics
+  RD.seg($('tk-mode'),m=>{mode=m;A.go(0)});
+  // the leak list (closed block in the flaws section)
   const V=CD.ver;
-  $('tk-vout').innerHTML=RD.stat('Tasks','500',V.repos.length+' repositories')+RD.stat('Django share',CM.pct(V.repos[0][1]/500),V.repos[0][1]+' tasks')+RD.stat('Gold patch edits one file',CM.pct(V.files['1']/500),V.files['1']+' tasks')+RD.stat('Median changed lines',String(V.lines_median),'gold patch')+RD.stat('Fix line found in the issue',V.leak.length+' tasks',V.leak.filter(x=>x[1]===x[2]).length+' with every such line');
   $('tk-leak').innerHTML='<table><thead><tr><th>Task</th><th class="num">lines of the fix in the issue</th></tr></thead><tbody>'+V.leak.map(x=>'<tr><td>'+esc(x[0])+'</td><td class="num">'+x[1]+' of '+x[2]+'</td></tr>').join('')+'</tbody></table>';
 })();
