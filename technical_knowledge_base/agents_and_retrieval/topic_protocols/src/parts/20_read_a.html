@@ -1,26 +1,47 @@
-
-<section id="rd-one">
-<h2>Protocols in one screen</h2>
-<p class="small mute">About 40 minutes for the prose; the tables, recorded outputs and animations are there to skim or skip. It starts from zero: every term is explained where it first appears and collected in the <a href="#rd-gloss">Glossary</a>. Each section can be read on its own. Every exchange shown here was run for this page on 5 October 2026 (an Apple M1 Pro laptop, macOS 27, Python 3.13.16 with OpenSSL 3.5.9, curl 8.7.1) or is quoted from its specification with the section number. Numbers marked <span class="meas">measured</span> come from those runs; <span class="ill">illustrative</span> marks a picture that shows a shape rather than data; <span class="ill">derived</span> numbers show their formula.</p>
-<p class="lead"><b>A protocol is an agreement about bytes: who sends what, in what order, and what each side may then assume.</b> Your chat app and an LLM API have never met, run different code on different machines, and talk across networks neither controls. They still understand each other because both follow the same dozen agreements, stacked so that each one solves a single problem and trusts the one below it to have solved the rest.</p>
-<p><b>One running example.</b> A user types "What colour is the sky?" and the app sends one streaming request to an LLM API. This page follows those bytes. To record every byte, the request goes to a local stand-in for an LLM API (the {{On the wire|#t-wire}} tab built it; it answers in the event format of Anthropic's Messages API, trimmed): a <code>POST /v1/messages</code> with a 117-byte JSON body, answered by five tokens streamed back one by one. The same request is the subject of every tab.</p>
-<div class="tw"><table id="rd-onetable">
-<thead><tr><th>Step on the wire</th><th>Protocol</th><th>The problem it solves</th><th>What it costs</th></tr></thead>
-<tbody>
-<tr><td><a href="#rd-s2">Find the server</a></td><td>DNS</td><td>Turns the name <code>api.llm.test</code> into an address a packet can be sent to</td><td>One round trip to a resolver when the answer is not cached; stale answers until a timer runs out</td></tr>
-<tr><td><a href="#rd-s3">Open a connection</a></td><td>IP, TCP (or UDP and QUIC)</td><td>Delivers bytes to the right program on the right machine, complete and in order, without flooding the network</td><td>One round trip before any data; one lost packet stalls everything behind it; speed capped by window over round-trip time</td></tr>
-<tr><td><a href="#rd-s4">Make it private</a></td><td>TLS 1.3</td><td>Proves the server is who it claims and hides the bytes from everyone in between</td><td>One more round trip and about 3.5 KB of handshake on this request (<span class="meas">measured</span>)</td></tr>
-<tr><td><a href="#rd-s5">Ask</a></td><td>HTTP/1.1, 2 or 3</td><td>A shared vocabulary for requests and answers: methods, status codes, headers</td><td>Header bytes on every request; every proxy on the path has its own timeouts</td></tr>
-<tr><td><a href="#rd-s6">Stream the answer</a></td><td>Server-Sent Events</td><td>Sends tokens as they are generated, inside one long HTTP response</td><td>A connection held open for the whole generation; buffering proxies break it</td></tr>
-<tr><td><a href="#rd-s8">Prove who is calling</a></td><td>API keys, OAuth 2.1, JWTs, mTLS</td><td>Lets the API decide whether this caller may do this</td><td>Secrets to store, rotate and never leak</td></tr>
-<tr><td><a href="#rd-s7">Call internal services</a></td><td>REST, gRPC</td><td>Typed, fast calls between the API's own services, with deadlines</td><td>Schemas and code generation; long-lived connections that load balancers handle badly</td></tr>
-<tr><td><a href="#rd-s9">Let the model use tools</a></td><td>MCP, A2A</td><td>One standard way for any agent to reach any tool or other agent</td><td>Every tool result is untrusted text entering the model's context</td></tr>
-<tr><td><a href="#rd-s3gpu">GPUs talk to each other</a></td><td>RDMA, NCCL</td><td>Moves gradients and activations between GPUs without the operating system in the path</td><td>A special, near-lossless network fabric</td></tr>
-</tbody></table></div>
+<section id="rd-top">
+<h2>The idea</h2>
+<p class="lead"><b>A protocol is an agreement about bytes, and one LLM request crosses about eight of them, stacked so that each solves one problem, costs round trips or guarantees, and fails in its own recognisable way.</b></p>
+<p><b>One running example.</b> A user types "What colour is the sky?" and the app sends one streaming request to an LLM API: a <code>POST /v1/messages</code> with a 117-byte JSON body, answered by five tokens streamed back one by one. To record every byte, the request goes to a local stand-in for an LLM API that answers in the event format of Anthropic's Messages API, trimmed (the {{On the wire|#t-wire}} tab built it, 5 October 2026, Apple M1 Pro, Python 3.13.16 with OpenSSL 3.5.9, curl 8.7.1). Step through its journey; each step names the page that owns it.</p>
+<div class="card" id="rd-jr">
+<h4>One request's journey: every step is a different protocol, and each has its own page</h4>
+<ol class="jr" id="rd-jr-steps">
+<li data-i="1"><b>Find the server</b><span>DNS</span></li>
+<li data-i="2"><b>Open a connection</b><span>IP, TCP (or QUIC)</span></li>
+<li data-i="3"><b>Make it private</b><span>TLS 1.3</span></li>
+<li data-i="4"><b>Ask</b><span>HTTP/1.1, 2 or 3</span></li>
+<li data-i="5"><b>Prove who is calling</b><span>API key, OAuth, JWT, mTLS</span></li>
+<li data-i="6"><b>Route inside the provider</b><span>REST, gRPC, load balancers</span></li>
+<li data-i="7"><b>Stream the answer</b><span>Server-Sent Events</span></li>
+<li data-i="8"><b>Use a tool or another agent</b><span>MCP, A2A</span></li>
+</ol>
+<div class="an-ctl" id="rd-jr-ctl"></div>
+<div class="rtc" id="rd-jr-rt"></div>
+<div class="jcap" id="rd-jr-cap">
+<div data-i="0"><p><b>The whole path.</b> Before the first token can arrive, the client pays for a name lookup (cached, or one round trip to a resolver), a TCP connection (one round trip), a TLS 1.3 handshake (one round trip) and the request itself (one round trip): about four round trips before the server even starts, which is why clients reuse connections and why HTTP/3 merges the TCP and TLS round trips. Press play or step.</p></div>
+<div data-i="1"><p><b>DNS turns <code>api.anthropic.com</code> into <code>160.79.104.10</code>.</b> Free when cached (2.4 ms inside curl), one round trip to a resolver when not (212 to 451 ms for an uncached name, measured in the On the wire tab). Caching is DNS's whole failure surface: a "does not exist" answer is cached too, and nothing can push a change.</p><p class="own">Owner: {{DNS: resolution, caching and the failure modes|n:3c65c17b0d0d812387d8f92b546f07af}}.</p></div>
+<div data-i="2"><p><b>TCP opens a reliable, ordered byte stream</b> with SYN, SYN-ACK, ACK: one round trip before the request can leave. IP underneath only does best effort; every guarantee is added above it. A silent drop (a firewall), a reset (nothing listening) and a connection a NAT forgot while idle are the three ways this step fails.</p><p class="own">Owner: {{Networking foundations: IP, TCP, UDP and QUIC|n:3c65c17b0d0d8117b21dcb9041879564}}.</p></div>
+<div data-i="3"><p><b>TLS 1.3 proves the server is who it claims and encrypts everything after.</b> One more round trip and about 3.5 KB of handshake on this request (measured); the client offered a hybrid post-quantum key share and the server took it. A certificate the client cannot verify stops the request here.</p><p class="own">Owner: {{TLS and certificates: the handshake, PKI, mTLS and post-quantum|n:3c65c17b0d0d8105a37ff2d2f602a421}}.</p></div>
+<div data-i="4"><p><b>HTTP carries the meaning:</b> method, path, headers, status code. Over HTTP/1.1 the request is 277 bytes of text, one TLS record of 299 bytes on the wire; over HTTP/2 the same request is a compressed HEADERS frame and a DATA frame on stream 1. Every proxy on the path has its own timeouts, and the smallest one wins.</p><p class="own">Owner: {{HTTP: semantics, 1.1 vs 2 vs 3, proxies and timeouts for LLM APIs|n:3c65c17b0d0d811bb035fa3f158b0889}}.</p></div>
+<div data-i="5"><p><b>The API decides whether this caller may do this.</b> The request carries <code>x-api-key</code>; a 401 means the credential did not prove who you are, a 403 that it did and you are not allowed. Users and agents get scoped, short-lived OAuth tokens instead of keys.</p><p class="own">Owner: {{Auth: API keys, OAuth 2.1, OIDC, JWTs, mTLS and agent-era auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}}.</p></div>
+<div data-i="6"><p><b>Behind the front door the API calls its own services</b> (rate limiting, a router, the inference servers), typically over gRPC with a deadline on every call, so that all of them give up together when the user leaves. A balancer that pins long-lived HTTP/2 connections sends one client's traffic to one replica.</p><p class="own">Owner: {{Service APIs: REST, gRPC, GraphQL and load balancing|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}.</p></div>
+<div data-i="7"><p><b>The answer streams back as Server-Sent Events</b> inside one HTTP response that does not end until the last token: status 200 first, then one event per token. On the wire each token was one TLS record of 146 to 148 bytes, about 51 ms apart. An error after the 200 can only arrive as an event, and a buffering proxy turns the stream into one burst.</p><p class="own">Owner: {{Streaming and real-time: SSE, WebSockets, webhooks, long polling|n:3c65c17b0d0d812daa9fdb38719fc82b}}.</p></div>
+<div data-i="8"><p><b>If the model asks for a tool, the host calls an MCP server</b> (a JSON-RPC <code>tools/call</code>); to hand a whole task to someone else's agent it opens an A2A task. Either way the result comes back as text the model reads, so a tool's output is untrusted input.</p><p class="own">Owners: {{MCP: building servers and clients, transports, auth and security|n:3c65c17b0d0d813f9695dc4175c44cbb}} and {{Agent-to-agent and beyond: A2A, agent commerce, agents driving devices|n:3f05c17b0d0d81199373d4d0b18706d8}}.</p></div>
+</div>
+<p class="small mute">Numbers <span class="meas">measured</span> on this page's running request (On the wire tab and <code>src/read/code/</code>); the IP address of <code>api.anthropic.com</code> was read through this machine's resolver on 5 October 2026. The engineer's own path to a GPU box is a ninth protocol, SSH (section 5).</p>
+</div>
 <div class="grid">
 <div class="sp"><div class="n">The one idea to keep</div><p>Every protocol trades <b>round trips</b> (waiting for the other side) against <b>guarantees</b> (order, delivery, privacy, identity). Most "slow" or "stuck" bugs are a round trip or a guarantee you did not know you were paying for.</p></div>
-<div class="sp"><div class="n">Where things break</div><p>A missing or stale name (DNS), a connection that never opens or silently dies (TCP, firewalls, idle timeouts), a certificate the client cannot verify (TLS), a proxy that buffers or cuts a stream (HTTP), a token sent to the wrong place (auth). Section 10 maps symptoms to layers.</p></div>
-<div class="sp"><div class="n">Agents add one new risk</div><p>MCP made tools pluggable, and with them every tool's output became text the model reads as if it were instructions. Section 9 shows one real tool call carrying a hidden instruction into the model's context.</p></div>
+<div class="sp"><div class="n">A problem shows in another layer</div><p>No layer reads the others' headers, so a problem is visible only to the layer that owns it: a bad certificate is invisible to TCP, and a TCP stall is invisible to your JSON parser, which just sees a read that never returns. Section 11 maps symptoms to layers.</p></div>
+<div class="sp"><div class="n">Agents add one new risk</div><p>MCP made tools pluggable, and with them every tool's output became text the model reads as if it were instructions (section 10).</p></div>
 </div>
-<p><b>How to use this tab.</b> Read section 1 for the map, then any section on its own. The data tabs go deeper without repeating this text: {{On the wire|#t-wire}} records the running request byte by byte on HTTP/1.1, HTTP/2 and HTTP/3; {{Failure lab|#t-fail}} breaks it on purpose (expired certificates, buffering proxies, idle timeouts) and shows the symptom each failure produces; {{Protocol atlas|#t-atlas}} compares every protocol on one set of axes with its specification and dates.</p>
+<p><b>New terms</b> (the <a href="#rd-gloss">Glossary</a> at the end of this tab has the rest):</p>
+<ul class="tight">
+<li><b>Round trip (RTT)</b>: the time for a message to reach the other side and a reply to come back. About 0.1 ms on one machine, 1 ms in a data centre, 80 to 150 ms across an ocean.</li>
+<li><b>Handshake</b>: messages exchanged before useful data can flow, to agree on parameters. Each costs at least one round trip.</li>
+<li><b>Header and payload</b>: the few bytes of addressing and control a layer puts in front of the data it carries, and that data.</li>
+<li><b>Stream</b>: an ordered sequence of bytes or messages inside a connection; HTTP/2 and QUIC carry many in one connection.</li>
+<li><b>Head-of-line blocking</b>: one slow or lost item holding up everything queued behind it.</li>
+<li><b>Bearer credential</b>: a secret that works for whoever presents it, like cash (API keys, most access tokens).</li>
+</ul>
+<p class="small mute">How this tab marks numbers: <span class="meas">measured</span> comes from this page's runs; <span class="ill">derived</span> numbers show their formula. Every exchange was run for this page on 5 October 2026 or is quoted from its specification.</p>
 </section>

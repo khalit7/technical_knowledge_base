@@ -41,7 +41,7 @@ Three recent changes that break scripts rather than security:
 **Public keys** are the baseline: `ssh-keygen -t ed25519`, always passphrase-protected (`-a 100` raises the KDF rounds). The passphrase protects the key at rest only; anything that can read your agent socket bypasses it.
 **Certificates are the right answer at cluster scale.**
 ```bash
-ssh-keygen -s ca_key -I "khalid@2026-08" -n khalid,khalid-gpu -V +8h -z 42 id_ed25519.pub
+ssh-keygen -s ca_key -I "dev@2026-08" -n dev,dev-gpu -V +8h -z 42 id_ed25519.pub
 ```
 `-I` is the key ID that lands in server logs, `-n` the principals the certificate is valid for, `-V` the validity window, `-z` a serial for revocation lists. The server trusts one CA key (`TrustedUserCAKeys`) rather than N users' keys on M nodes; revocation is a KRL update rather than a find-and-delete across the fleet; short validity makes key theft self-limiting; and **host certificates eliminate the trust-on-first-use prompt for nodes that do not exist yet**. This is what Teleport, Vault SSH, and Netflix BLESS automate. Note that 10.3 changed empty-principal certificates from matching *any* principal to matching *none*, which broke sloppy CA tooling in April 2026.
 **Agent forwarding is a delegation of your private keys.** Anyone with root on the login node, or any process running as you, can use the socket to authenticate as you anywhere. On a shared HPC login node that is a genuine risk, and `ForwardAgent yes` must never appear under `Host *`. In preference order: **use ProxyJump**, where the jump host only relays an encrypted stream and never touches your keys or the final authentication; or destination-constrained keys via `ssh-add -h` and `session-bind@openssh.com`; or `ssh-add -c` to require confirmation per use. OpenSSH 10.5 fixed a bug where agent *locking* did not stop remote operations on forwarded agents, which is one more point for ProxyJump.
@@ -58,7 +58,7 @@ Host *
 
 Host bastion
     HostName bastion.example.ac.uk
-    User khalid
+    User dev
     IdentityFile ~/.ssh/id_ed25519_sk
     ControlMaster auto
     ControlPath ~/.ssh/cm/%C

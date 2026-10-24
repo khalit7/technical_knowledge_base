@@ -1,4 +1,4 @@
-// ---- Reading tab, section 9: one MCP tool call through host, client and server (two spec revisions) ----
+// ---- Reading tab, section 10: one MCP tool call through host, client and server (two spec revisions) ----
 (function(){
   const card=document.getElementById('rd-mcp');if(!card||!RD.X||!RD.X.json.mcp)return;
   const M=RD.X.json.mcp,O=RD.X.json.tl_mcp,E=RD.esc;

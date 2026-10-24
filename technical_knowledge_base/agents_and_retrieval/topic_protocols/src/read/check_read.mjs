@@ -29,6 +29,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.goto('file://' + page);
   await p.click('button[data-t=t-read]'); await sleep(300);
   const textOf = sel => p.$$eval(sel, es => es.map(e => e.innerText).join(' '));
+  // a card may sit in a closed block (the recorded MCP call): open them first so its controls can be clicked
+  await p.$$eval('#t-read details', ds => ds.forEach(d => d.open = true));
+  // nothing may move before the reader acts (2026-10-24): every stepper starts on step 0
+  const moved = await p.$$eval('#t-read .an-ctl input[type=range]', es => es.filter(e => +e.value !== 0).map(e => e.id));
+  if (moved.length) { console.log(scheme, 'started without the reader', moved); problems++; }
   const cards = await p.$$eval('#t-read .an-ctl', es => es.map(e => e.id.replace(/-ctl$/, '')));
   for (const c of cards) {
     const modes = await p.$$eval('#' + c + '-seg button', es => es.map(e => e.dataset.m));
@@ -47,15 +52,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       await el.screenshot({ path: path.join(shots, `${c}_${m || 'x'}_${width}_${scheme}.png`) });
     }
   }
-  // sliders of the window calculator
-  for (const id of ['rd-bdp-rtt', 'rd-bdp-win', 'rd-bdp-link']) {
-    const max = await p.$eval('#' + id, e => +e.max);
-    for (let v = 0; v <= max; v++) {
-      await p.$eval('#' + id, (e, x) => { e.value = x; e.dispatchEvent(new Event('input')) }, v);
-      const t = await textOf('#rd-bdp-out');
-      if (bad(t)) { console.log(scheme, id, v, 'BAD', t); problems++; }
-    }
-  }
+  // (the window calculator was retired with the TCP card at the topic close, 2026-10-24; windows are taught on Networking foundations)
   await p.$$eval('#t-read details', ds => ds.forEach(d => d.open = true));
   // whole-tab text check (pre and code hold recorded program output, which may legitimately say anything)
   const vis = await p.$eval('#t-read', e => { const c = e.cloneNode(true); c.querySelectorAll('pre,code').forEach(x => x.remove()); return c.innerText });

@@ -1,33 +1,42 @@
-
-<section id="rd-s8">
-<h2>8. Who is calling: keys, tokens, and delegation</h2>
-<p><b>The problem.</b> TLS proved the server's identity to the client. The API now needs the reverse: who is this caller, and may they do this? Two different questions, often confused: <dfn id="g-authn">authentication</dfn> (who are you?) and <dfn id="g-authz">authorization</dfn> (what may you do?). A 401 status means the first failed, a 403 the second.</p>
-<h3>API keys: the simplest answer</h3>
-<p>The running request carries <code>x-api-key: sk-wirelab-not-a-real-key</code> (a fake). An <b>API key</b> is a long random secret: whoever holds it is the account. It is a <dfn id="g-bearer">bearer credential</dfn>, like cash: the server checks the value, not who presents it. That makes keys simple and right for one backend calling a provider, and dangerous everywhere else: no expiry by default, no user behind it, no consent, and a leaked key works for anyone until revoked. Rules: one key per service and environment, stored in a secrets manager, never in a browser, a mobile app, a notebook or a git repository, rotated, and prefixed so scanners can find leaks.</p>
-<h3>OAuth 2.1: letting an app act for a user without their password</h3>
-<p>When a third-party app (or an agent) needs to act for a user, giving it the user's password or a master key is wrong. <dfn id="g-oauth">OAuth</dfn> instead has an <b>authorization server</b> issue the app a short-lived, limited <b>access token</b> for a specific <b>resource server</b>, after the user approves. OAuth 2.1 consolidates OAuth 2.0 and a decade of security lessons; it is still an IETF draft (revision 16, 3 September 2026, {{datatracker|https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/}}) but is what new systems implement. Three flows remain:</p>
-<ul class="tight">
-<li><b>Authorization code with PKCE</b>, for anything a user logs into (web apps, mobile apps, CLIs). The app sends the user's browser to the authorization server; the user logs in and approves; the browser comes back with a one-time code; the app trades the code for tokens. <b>PKCE</b> (proof key for code exchange) makes a stolen code useless: the app first sends the hash of a random secret, and must show the secret itself when it redeems the code. The RFC's own example, computed by this page's script: verifier <code>dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk</code> hashes to challenge <code>E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM</code>, the value in {{RFC 7636, appendix B|https://www.rfc-editor.org/rfc/rfc7636#appendix-B}} (<span class="meas">measured</span>).</li>
-<li><b>Client credentials</b>, for machine to machine: a service authenticates as itself and gets a token for itself, no user involved.</li>
-<li><b>Device authorization</b> ({{RFC 8628|https://www.rfc-editor.org/rfc/rfc8628}}), for machines without a browser: the box shows a short code, you approve it on your phone, the box polls until the token arrives.</li>
-</ul>
-<p>Two parameters make tokens safe to hand around. <b>Scopes</b> limit what a token may do (<code>messages:write</code>, not "everything"). <b>Audience</b> limits where it is valid: a token minted for the billing service must be refused by the messages service ({{RFC 8707|https://www.rfc-editor.org/rfc/rfc8707}} lets the client ask for a token bound to one resource). <b>OpenID Connect</b> (OIDC) adds identity on top of OAuth: an ID token saying who logged in, which is what "Sign in with Google" returns. ID tokens are for the app to learn who the user is, never to call APIs with.</p>
-<h3>JWTs: tokens a server can check without asking anyone</h3>
-<p>Access tokens are often <dfn id="g-jwt">JSON Web Tokens</dfn> ({{RFC 7519|https://www.rfc-editor.org/rfc/rfc7519}}): three base64url parts, <code>header.payload.signature</code>. Anyone can decode the first two; the signature lets a server verify, offline, that the issuer signed exactly these claims. Here is a token this page's script made with PyJWT 2.15.1, and what three verification attempts returned:</p>
-<pre class="cd out" data-rd-json="small.jwt"></pre>
-<p>What the output shows: the claims (<code>iss</code> issuer, <code>sub</code> user, <code>aud</code> audience, <code>scope</code>, <code>iat</code> and <code>exp</code> times) are readable by anyone, so never put secrets in them. The same token presented to another service was rejected because its audience did not match, which only happens if that service checks <code>aud</code>. A forged token whose header says <code>"alg": "none"</code> was rejected because the verifier pinned the algorithm it accepts, instead of trusting the token's own header, the classic JWT mistake ({{RFC 8725, section 2.1|https://www.rfc-editor.org/rfc/rfc8725#section-2.1}}). The cost of checking offline: a JWT cannot be revoked before it expires, so lifetimes are kept to minutes and paired with refresh tokens.</p>
-<h3>Service to service, and the cloud</h3>
-<p>Inside one organisation, two stronger options avoid long-lived secrets. <b>mTLS</b> (section 4) gives every workload a short-lived certificate as its identity. <b>Cloud IAM</b> signs each request instead of sending a bearer token: AWS Signature Version 4 computes an HMAC over the request with temporary credentials from the machine's role ({{AWS docs|https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv.html}}), so nothing reusable crosses the wire. A CI job or another cloud can obtain those temporary credentials by presenting an OIDC token from its own platform, with no stored secret at all.</p>
-<h3>The agent-era twist</h3>
-<p>An agent is a program that holds credentials and decides what to do with them based on text it reads, and some of that text was written by strangers (section 9). Three rules follow. <b>Least privilege</b>: give an agent read-only scopes unless it must write, and separate tokens for destructive actions. <b>Audience binding</b>: a token issued for one tool server must not work anywhere else. <b>No token passthrough</b>: a server that receives a token must not forward it to another API; it obtains its own (the MCP specification makes this a MUST NOT, section 9). For actions that cannot be undone, a human approval outside the conversation, which text arriving through a tool cannot fake.</p>
-<div class="tw"><table>
-<thead><tr><th>Situation</th><th>Use</th></tr></thead>
+<section id="rd-s11">
+<h2>11. Debugging and choosing</h2>
+<h3>From symptom to layer</h3>
+<p>Start from what you see, find the layer, run the one command that confirms it. The order is roughly the order of the request: a failure early in the path hides everything after it. The {{Failure lab|#t-fail}} reproduces 39 of these failures on the running request, and each child page has its own symptom table.</p>
+<div class="tw"><table class="symp">
+<thead><tr><th>What you see</th><th>Layer, likely cause</th><th>First command</th></tr></thead>
 <tbody>
-<tr><td>Your backend calls an LLM provider</td><td>An API key from a secrets manager</td></tr>
-<tr><td>Users sign in to your app</td><td>OIDC, authorization code with PKCE, through a managed identity provider</td></tr>
-<tr><td>A CLI or desktop tool acts for a user</td><td>Authorization code with PKCE and a loopback redirect; a headless box: device authorization</td></tr>
-<tr><td>Service to service inside a cloud</td><td>Cloud IAM roles; inside a mesh, mTLS</td></tr>
-<tr><td>A remote MCP server</td><td>OAuth 2.1 as the MCP authorization spec defines it, tokens bound to that server, no passthrough</td></tr>
+<tr><td><code>Name or service not known</code>, <code>getaddrinfo failed</code></td><td>DNS: typo, missing record, negative cache, wrong resolver inside a container</td><td><code>dig name</code>; <code>dig name SOA</code>; compare <code>dig @8.8.8.8 name</code></td></tr>
+<tr><td>Every new connection takes about 5 s extra</td><td>DNS: a lost query and the resolver's 5 s retry</td><td><code>curl -w '%{time_namelookup}\n' -o /dev/null -s URL</code></td></tr>
+<tr><td><code>Connection refused</code> immediately</td><td>TCP: nothing listening, or wrong port</td><td><code>nc -vz host port</code>; on the server <code>ss -ltn</code></td></tr>
+<tr><td>Connect hangs, then times out</td><td>Network: firewall or security group drops packets</td><td><code>nc -vz -w 3 host port</code>; <code>mtr host</code></td></tr>
+<tr><td>Small calls work, big uploads hang</td><td>IP: MTU blackhole</td><td><code>ping -M do -s 1472 host</code> (Linux)</td></tr>
+<tr><td>Transfer far below link speed</td><td>TCP: window or loss limited, one stream</td><td><code>ss -ti</code>; <code>iperf3 -P 1</code> against <code>-P 8</code></td></tr>
+<tr><td>Idle connection fails on next use (<code>connection reset</code>)</td><td>NAT or load-balancer idle timeout</td><td>Correlate with idle time; enable keepalives below the timeout</td></tr>
+<tr><td><code>certificate verify failed</code>, <code>unable to get local issuer certificate</code></td><td>TLS: missing intermediate, proxy re-signing, stale CA bundle</td><td><code>openssl s_client -connect host:443 -servername host -showcerts</code></td></tr>
+<tr><td><code>certificate has expired</code> / <code>not yet valid</code></td><td>TLS: renewal failed / client clock wrong</td><td><code>openssl x509 -noout -dates</code>; <code>date -u</code></td></tr>
+<tr><td>401 vs 403</td><td>Auth: not authenticated vs not allowed (scope, audience, role)</td><td>Decode the token's claims; check <code>aud</code>, <code>exp</code>, <code>scope</code></td></tr>
+<tr><td>429</td><td>Rate limit</td><td>Read <code>retry-after</code> and rate-limit headers in <code>curl -i</code></td></tr>
+<tr><td>502 / 503 / 504 from a proxy</td><td>HTTP hop behind it: upstream crashed or closed / no healthy upstream / upstream too slow</td><td>The proxy's own logs; <code>curl -v</code> straight to the upstream, skipping the proxy</td></tr>
+<tr><td>Stream arrives in one burst at the end</td><td>HTTP proxy buffering</td><td><code>curl -N -v</code> through and around the proxy; check <code>X-Accel-Buffering</code></td></tr>
+<tr><td>Stream cut at a round number of seconds</td><td>Idle or read timeout on one hop</td><td>Time several failures; find the hop whose timeout matches</td></tr>
+<tr><td>gRPC traffic all lands on one replica</td><td>L4 load balancing of long-lived HTTP/2 connections</td><td>Per-replica request counts; switch to L7 or client-side balancing</td></tr>
+<tr><td>Distributed training hangs at start-up</td><td>NCCL picked the wrong network interface, or a firewall blocks its ports</td><td><code>NCCL_DEBUG=INFO</code>; set <code>NCCL_SOCKET_IFNAME</code></td></tr>
+<tr><td>An agent did something nobody asked for</td><td>Agent: instructions arrived inside a tool result</td><td>Read the transcript's tool results; check what tools and scopes the agent held</td></tr>
 </tbody></table></div>
-<div class="deepnote"><b>Go deeper (optional).</b> The {{Failure lab|#t-fail}} shows what wrong-audience and expired tokens look like on the running request. The child page {{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}} covers refresh-token rotation, token exchange ({{RFC 8693|https://www.rfc-editor.org/rfc/rfc8693}}) and agent-era auth; its MCP auth flow tab records the full MCP authorization flow byte by byte, and its JWT lab tab runs twelve real tokens through a verifier you configure.</div>
+<h3>Which protocol when</h3>
+<div class="tw"><table>
+<thead><tr><th>You need to</th><th>Use</th><th>Because</th></tr></thead>
+<tbody>
+<tr><td>Serve a public API to arbitrary clients</td><td>HTTPS + JSON (REST style), SSE for streaming</td><td>Every language and proxy understands it</td></tr>
+<tr><td>Stream tokens to a browser or app</td><td>SSE</td><td>Plain HTTP, one direction, survives proxies when configured</td></tr>
+<tr><td>Let the user interrupt (voice, realtime)</td><td>WebSockets (or WebRTC for audio from a device)</td><td>Both directions at any time</td></tr>
+<tr><td>Tell another system that a long job finished</td><td>Webhook (signed, idempotent consumer), or a queue inside your own systems</td><td>No connection held open for hours</td></tr>
+<tr><td>Call internal services at high rate</td><td>gRPC with deadlines</td><td>Typed, compact, streaming, cancellation across hops</td></tr>
+<tr><td>Move a big checkpoint over a long path</td><td>Many parallel TCP streams (multipart upload)</td><td>One stream is capped by window over RTT and per-flow limits</td></tr>
+<tr><td>Move tensors between GPUs</td><td>NCCL over NVLink and RDMA</td><td>No kernel, no copies, microsecond latency</td></tr>
+<tr><td>Give an agent tools</td><td>MCP (stdio locally, Streamable HTTP remotely)</td><td>Write a tool once, any host can use it</td></tr>
+<tr><td>Delegate a task to someone else's agent</td><td>A2A</td><td>Discovery, task lifecycle and streaming between opaque agents</td></tr>
+<tr><td>Authenticate users / services / your backend to a provider</td><td>OIDC with PKCE / mTLS or cloud IAM / an API key in a secrets manager</td><td>Section 9</td></tr>
+<tr><td>Reach a GPU box</td><td>SSH with keys (or certificates), through a jump host</td><td>Encrypted, authenticated, multiplexes forwarded ports</td></tr>
+</tbody></table></div>
 </section>
