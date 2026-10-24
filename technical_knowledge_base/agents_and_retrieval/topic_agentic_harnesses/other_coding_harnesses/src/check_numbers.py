@@ -37,7 +37,7 @@ for r in emb["runs"]:
 cx, oc = R["codex_1"], R["opencode_1"]
 check("codex calls 5", cx["totals"]["calls"] == 5 and has("5 calls, 47,636 input tokens"))
 check("codex input", cx["totals"]["in"] == 47636)
-check("codex 12 tools", len(cx["first"]["tools"]) == 12 and has("gave the unknown model 12 tools"))
+check("codex 12 tools", len(cx["first"]["tools"]) == 12 and has("gave our local model 12 tools"))
 check("codex no apply_patch", all(t["name"] != "apply_patch" for t in cx["first"]["tools"]))
 check("codex justification repeats", sum(1 for c in cx["calls"] if c["acts"] and "justification" in c["acts"][0]["args"]) == 4)
 check("codex last length", cx["calls"][-1]["finish"] == "length" and cx["calls"][-1]["out"] == 2048)
@@ -48,7 +48,7 @@ check("opencode 13 calls, explore 3091", oc["totals"]["calls"] == 13 and [c for 
 check("codex 9210 and gemini 11452 larger than opencode", cx["first"]["in"] == 9210 and R["gemini_1"]["first"]["in"] == 11452 and has("at 11,452, were larger"))
 gm, oh, mt, mx = R["gemini_1"], R["ohs_1"], R["mswe_local_tool"], R["mswe_local_text"]
 firsts = {k: r["first"]["in"] for k, r in R.items() if r.get("first")}
-check("gemini first is the largest", max(firsts, key=firsts.get) == "gemini_1" and has("The first request was the largest of all six harnesses"))
+check("gemini first is the largest", max(firsts, key=firsts.get) == "gemini_1" and has("Gemini CLI sent 11,452 tokens"))
 check("gemini chars", gm["first"]["system_chars"] == 32924 and gm["first"]["tools_chars"] == 17722 and len(gm["first"]["tools"]) == 15 and has("32,924 characters") and has("17,722 characters"))
 check("gemini 6 calls, 1 failing, 4 parallel first", gm["totals"]["calls"] == 6 and gm["tests_failed_after"] == 1 and len(gm["calls"][0]["acts"]) == 4)
 check("gemini last empty", not gm["calls"][-1]["acts"] and not gm["calls"][-1]["text"].strip())
