@@ -2,30 +2,20 @@
 (function(){
   const $=id=>document.getElementById(id),E=RD.esc,U=VEU;
   // predict-then-reveal: index of the right option per card
-  const RIGHT={'ve-p1':1,'ve-p2':2,'ve-p3':1,'ve-p4':2,'ve-p5':0,'ve-p6':1};
+  const RIGHT={'ve-p1':1,'ve-p2':2,'ve-p3':1,'ve-p4':2,'ve-p5':0,'ve-p6':1,'ve-p7':0};
   document.querySelectorAll('#t-read .pr').forEach(pr=>{const ok=RIGHT[pr.id];const ans=pr.querySelector('.ans');
     pr.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
       pr.querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(+x.dataset.a===ok)x.classList.add('right')});
       if(+b.dataset.a!==ok)b.classList.add('wrong');ans.hidden=false}))});
-  // numbers written into prose from the data
-  const R=VE.res;const fill={clip448cos:R.clip.runs['448'].cos_to_224.toFixed(2),clip448min:R.clip.runs['448'].cos_to_224_min.toFixed(2),
-    sig448cos:R.siglip.runs['448'].cos_to_224.toFixed(2)};
-  const PR=VE.probes.encoders,pc=x=>U.pct(x);
-  Object.keys(PR).forEach(k=>{const r=PR[k];fill[k.replace('_','')+'500']=pc(r.linear_probe['500'].mean);fill[k.replace('_','')+'16']=pc(r.linear_probe['16'].mean);
-    fill[k.replace('_','')+'1']=pc(r.linear_probe['1'].mean);fill[k.replace('_','')+'knn']=pc(r.knn20);fill[k.replace('_','')+'p10']=pc(r.img2img['p@10']);fill[k.replace('_','')+'map']=pc(r.img2img.map);
-    if(r.txt2img){fill[k+'t100']=pc(r.txt2img['p@100']);fill[k+'t10']=pc(r.txt2img['p@10'])}});
-  const MS=VE.maeShuffle;fill.maeInPlace=String(MS.patches_in_place_default);fill.maeP0=MS.patch0_cos_default_vs_fixed.toFixed(2);fill.maeMean=MS.mean_cos_default_vs_fixed.toFixed(6);
-  Object.keys(VE.layer).forEach(w=>{const a=VE.layer[w].per_layer_mean_patch;let b=0;a.forEach((v,i)=>{if(v>a[b])b=i});
-    fill[w+'Lbest']=String(b);fill[w+'LbestAcc']=pc(a[b]);fill[w+'Llast']=pc(a[a.length-1]);fill[w+'Lpool']=pc(VE.layer[w].pooled_output);fill[w+'L0']=pc(a[0])});
-  document.querySelectorAll('#t-read [data-rd]').forEach(s=>{const v=fill[s.dataset.rd];if(v!=null)s.textContent=v});
+  // numbers in the prose are written at build time by src/runs/fill_prose.py
+  const R=VE.res;
   // FLOP accounting table
   (function(){const el=$('ve-flops');if(!el)return;const g=x=>x==null?'':x.toFixed(2);
     let h='<h4>One formula, a FLOP counter and two published numbers</h4><div class="tw"><table class="rd-narrow"><thead><tr><th>Model, input</th><th class="num">Formula</th><th class="num">Counter, eager attention</th><th class="num">Counter, fused attention</th><th class="num">Published (timm card)</th></tr></thead><tbody>';
     VE.flops.rows.forEach(r=>{h+='<tr><td>'+E(r.name)+'</td><td class="num">'+g(r.formula_gmacs)+'</td><td class="num">'+g(r.counted_gmacs_eager)+'</td><td class="num">'+g(r.counted_gmacs_sdpa)+'</td><td class="num">'+(r.published_gmacs==null?'<span class="mute">none</span>':g(r.published_gmacs))+'</td></tr>'});
     h+='</tbody></table></div><p class="small mute">GMACs per image. Formula from section 1 (for SigLIP 2 it leaves out the attention-pooling head, which the eager count includes: 0.24 GMACs more). Counter: <code>FlopCounterMode</code> on transformers models built from the configs with random weights, CPU, 2026-10-17 <span class="meas">measured</span>; the fused count equals the formula minus 2N&sup2;DL exactly. Published: timm model cards read 2026-10-17 <span class="indep">third-party</span>. Script: <code>src/runs/flops.py</code>.</p>';
     el.innerHTML=h})();
-  // real error messages
-  (function(){const el=$('ve-errs');if(el)el.textContent='CLIP ViT-B/32, 336 x 336 input:\n'+R.clip.err+'\n\nSigLIP 2 B/16, 336 x 336 input:\n'+R.siglip.err})();
+  // the real error messages are written into the HTML (section 2); check_data.py compares them with out/resolution.json
 
   // ---- position table resize animation ----
   (function(){const card=$('ve-ra');if(!card)return;let slot=0;const sv=$('ve-ra-svg'),cap=$('ve-ra-cap'),cnt=$('ve-ra-cnt');

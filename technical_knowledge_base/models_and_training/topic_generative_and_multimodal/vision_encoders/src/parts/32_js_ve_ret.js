@@ -35,5 +35,5 @@
   const PUB=[['CLIP',68.3,33.1,52.4,62.1,81.9],['SigLIP',76.2,47.2,64.5,77.9,89.6],['SigLIP 2',78.2,52.1,68.9,80.7,93.0]];
   $('vr-pub').innerHTML='<table><thead><tr><th>Model (B/16, 224)</th><th class="num">ImageNet zero-shot</th><th class="num">COCO T&rarr;I</th><th class="num">COCO I&rarr;T</th><th class="num">Flickr T&rarr;I</th><th class="num">Flickr I&rarr;T</th></tr></thead><tbody>'+
     PUB.map(r=>'<tr><td>'+r[0]+'</td>'+r.slice(1).map(v=>'<td class="num">'+v.toFixed(1)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
-  RD.onRender(()=>{drawT();drawI()},'t-veret');drawT();drawI();
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-veret']=window.TAB_RENDER['t-veret']||[]).push(()=>{drawT();drawI()});drawT();drawI();
 })();

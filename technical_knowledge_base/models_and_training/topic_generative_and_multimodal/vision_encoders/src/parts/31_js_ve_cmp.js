@@ -51,6 +51,6 @@
     ["DINOv2","ViT-S/14","LVD-142M",79.0,81.1],["DINOv2","ViT-B/14","LVD-142M",82.1,84.5],["DINOv2","ViT-L/14","LVD-142M",83.5,86.3],["DINOv2","ViT-g/14","LVD-142M",83.5,86.5]];
   $('vc-pub').innerHTML='<table><thead><tr><th>Method</th><th>Backbone</th><th>Pre-training data</th><th class="num">kNN</th><th class="num">Linear</th><th class="num">Linear minus kNN</th></tr></thead><tbody>'+
     T4.map(r=>'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td class="num">'+r[3].toFixed(1)+'</td><td class="num">'+r[4].toFixed(1)+'</td><td class="num">'+(r[4]-r[3]).toFixed(1)+'</td></tr>').join('')+'</tbody></table>';
-  RD.onRender(()=>{draw();table()},'t-vecmp');
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-vecmp']=window.TAB_RENDER['t-vecmp']||[]).push(()=>{draw();table()});
   addEventListener('resize',()=>{const t=$('t-vecmp');if(t&&!t.hidden)draw()});
 })();

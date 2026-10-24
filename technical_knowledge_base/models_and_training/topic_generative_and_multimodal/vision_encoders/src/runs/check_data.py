@@ -60,11 +60,11 @@ claims = [
     ("all 16 true pairs pass and 1 of the 240 wrong pairs", sum(d >= 0.28 for d in diag) == 16 and sum(o >= 0.28 for o in off) == 1),
     ("s04 (0.284)", round(diag[labc["keys"].index("s04_typographic")], 3) == 0.284),
     ("about 0.28 to 0.38", round(min(diag), 2) == 0.28 and round(max(diag), 2) == 0.38),
-    ("cosine 0.91 to the 224-pixel one for CLIP at 448", round(r448c["cos_to_224"], 2) == 0.91),
+    ("keeps a cosine of only 0.91", round(r448c["cos_to_224"], 2) == 0.91),
     ("CLIP still 15 of 16, SigLIP 2 still 16 of 16", all(res["clip"]["runs"][k]["matched"] == 15 for k in ("224", "336", "448")) and all(res["siglip"]["runs"][k]["matched"] == 16 for k in ("224", "336", "448"))),
     ("about a point and a half lower", abs((P["siglip"]["linear_probe"]["500"]["mean"] - P["clip"]["linear_probe"]["500"]["mean"]) * 100 - 1.5) < 0.1),
-    ("by 0.4 to 1.1 points over the last block", round(min((max(L[w]["per_layer_mean_patch"]) - L[w]["per_layer_mean_patch"][-1]) * 100 for w in L), 1) == 0.4 and round(max((max(L[w]["per_layer_mean_patch"]) - L[w]["per_layer_mean_patch"][-1]) * 100 for w in L), 1) == 1.1),
-    ("MAE's mean patch token taken before the final LayerNorm probes at 85.2%", round(L["mae"]["per_layer_mean_patch"][-1] * 100, 1) == 85.2),
+    ("by 0.4 to 1.1 points", round(min((max(L[w]["per_layer_mean_patch"]) - L[w]["per_layer_mean_patch"][-1]) * 100 for w in L), 1) == 0.4 and round(max((max(L[w]["per_layer_mean_patch"]) - L[w]["per_layer_mean_patch"][-1]) * 100 for w in L), 1) == 1.1),
+    ("85.2% with only 200 labels per class", round(L["mae"]["per_layer_mean_patch"][-1] * 100, 1) == 85.2),
     ("against 80.6% after it", round(P["mae_mean"]["linear_probe"]["500"]["mean"] * 100, 1) == 80.6),
     ("block-0 probe reaches only about 20%", round(L["siglip"]["per_layer_mean_patch"][0] * 100) == 20),
     ("CLIP 61.3 to 66.7%, SigLIP 2 20.0 to 74.5%", round(min(zs["clip"]["acc"].values()) * 100, 1) == 61.3 and round(max(zs["clip"]["acc"].values()) * 100, 1) == 66.7 and round(min(zs["siglip"]["acc"].values()) * 100, 1) == 20.0 and round(max(zs["siglip"]["acc"].values()) * 100, 1) == 74.5),
@@ -89,6 +89,48 @@ for s, ok in claims:
         bad.append("text missing: " + s)
     elif not ok:
         bad.append("number wrong: " + s)
+
+# ---- absorbed from the root Vision lab (2026-10-24): window.VEL against the root's recordings, and the prose numbers
+mv = re.search(r"window\.VEL=(\{.*?\});\n", page, re.S); VEL = json.loads(mv.group(1))
+lab = {w: json.load(open(os.path.join(ROOT, "vision", "out", f"analyse_{w}.json"))) for w in ("clip", "siglip")}
+for w in ("clip", "siglip"):
+    same(VEL["models"][w]["sim16"], [[round(x, 4) for x in r] for r in lab[w]["sim16"]], "VEL sim16 " + w)
+    for k_, v_ in lab[w]["probes"].items():
+        same(VEL["probes"][w][k_], [[round(x, 4) for x in r] for r in v_], "VEL probes " + w + " " + k_)
+LL = O("lab_loss.json"); same(VEL["loss"], LL, "VEL loss")
+ty_c, ty_s = lab["clip"]["probes"]["typo"], lab["siglip"]["probes"]["typo"]
+C_ = LL["chunk"]
+more = [
+    ("ValueError: Input image size (336*336) doesn't match model (224*224).", res["clip"]["error_without_interpolation"] == "ValueError: Input image size (336*336) doesn't match model (224*224)."),
+    ("must match the size of tensor b (196) at non-singleton dimension 1", res["siglip"]["error_without_interpolation"].endswith("must match the size of tensor b (196) at non-singleton dimension 1")),
+    ("0.0 for CLIP", lab["clip"]["patch_check"]["max_abs_diff_unfold_matmul_vs_conv"] == 0.0),
+    ("6.9e-06 for SigLIP 2", f'{lab["siglip"]["patch_check"]["max_abs_diff_unfold_matmul_vs_conv"]:.1e}' == "6.9e-06"),
+    ("2,359,296 parameters", lab["clip"]["patch_check"]["patch_embedding_params"] == 2359296),
+    ("590,592 parameters", lab["siglip"]["patch_check"]["patch_embedding_params"] == 590592),
+    ("average a cosine of 0.333 and the other pairs 0.166", LL["clip_diag"] == 0.333 and LL["clip_off"] == 0.166),
+    ("cosines average 0.194 and", LL["siglip_diag"] == 0.194 and LL["siglip_off"] == -0.019),
+    ("15 of 16 images", LL["clip_top1"] == 15 and LL["siglip_top1"] == 16),
+    ("ln 8 = 2.079", LL["ln8"] == 2.0794 and LL["clip_soft8_t0"] == 2.0794),
+    ("its minimum, 0.071, near t = 100", LL["clip_soft8_min"] == 0.0713 and LL["clip_soft8_min_t"] == 100.0),
+    ("0.121 at t = 316", LL["clip_soft8_t316"] == 0.1205),
+    ("where all 8 rows are right, it keeps falling", LL["siglip_soft8_monotone"] is True),
+    ("t = 112.67 with b =", round(LL["siglip_scale"], 2) == 112.67 and round(LL["siglip_bias"], 2) == -16.77),
+    ("t = 100.0", LL["clip_scale"] == 100.0),
+    ("the full matrix is 4.3 GB; one device's rows b × |B| are 16.8 MB; one chunk b × b is 65.5 kB", C_["full_bytes"] == 4294967296 and C_["rows_bytes"] == 16777216 and C_["chunk_bytes"] == 65536),
+    ("cosine 0.2855 for dog against 0.2775 for cat", round(ty_c[2][1], 4) == 0.2855 and round(ty_c[2][0], 4) == 0.2775),
+    ("0.2837 against 0.2659", round(ty_c[3][2], 4) == 0.2837 and round(ty_c[3][0], 4) == 0.2659),
+    ("cat 0.2890, car 0.2827", round(ty_c[4][0], 4) == 0.289 and round(ty_c[4][3], 4) == 0.2827),
+    ("rises from 0.0684 to 0.1112", round(ty_s[0][1], 4) == 0.0684 and round(ty_s[2][1], 4) == 0.1112 and all(r.index(max(r)) == 0 for r in ty_s)),
+    ("3 of 6 right", sum(1 for i, r in enumerate(lab["clip"]["probes"]["count"]) if r.index(max(r)) == i) == 3),
+    ("4 of 6 (one to three, and six)", [i for i, r in enumerate(lab["siglip"]["probes"]["count"]) if r.index(max(r)) == i] == [0, 1, 2, 5]),
+]
+text2 = re.sub(r"\s+", " ", text)
+for s_, ok in more:
+    n += 1
+    if s_ not in text2:
+        bad.append("text missing: " + s_)
+    elif not ok:
+        bad.append("number wrong: " + s_)
 print(f"{n} checks, {len(bad)} failures")
 for b_ in bad:
     print("  ", b_)

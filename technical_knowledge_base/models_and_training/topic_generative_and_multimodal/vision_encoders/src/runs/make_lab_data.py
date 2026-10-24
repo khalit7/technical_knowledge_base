@@ -1,0 +1,80 @@
+"""Data for the Reading sections this page absorbed from the root's Vision lab (2026-10-24): the contrastive loss on the
+real 16 x 16 matrices, and the minimal-pair probes (typographic, counting, left and right, binding).
+
+Reads the root's recorded outputs (../../../src/vision/out/analyse_{clip,siglip}.json, never re-run here), writes
+../parts/20_js_ve_1lab.js (window.VEL) and out/lab_loss.json (the loss numbers quoted in the prose), and copies the
+probe images from the root's src/vision/img into ../../img/. Plain Python 3, no third-party packages.
+Usage: python3 make_lab_data.py
+"""
+import json, math, os, shutil
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.join(HERE, "..", "..", "..", "src", "vision")
+A = {w: json.load(open(os.path.join(ROOT, "out", f"analyse_{w}.json"))) for w in ("clip", "siglip")}
+r4 = lambda x: round(x, 4)
+
+
+def lse(v):
+    m = max(v); return m + math.log(sum(math.exp(x - m) for x in v))
+
+
+def softmax_loss(S, n, t):
+    L = [[t * S[i][j] for j in range(n)] for i in range(n)]
+    rows = sum(lse(L[i]) - L[i][i] for i in range(n)) / n
+    cols = sum(lse([L[i][j] for i in range(n)]) - L[j][j] for j in range(n)) / n
+    return (rows + cols) / 2
+
+
+def sigmoid_loss(S, n, t, b):
+    tot = 0.0
+    for i in range(n):
+        for j in range(n):
+            z = 1 if i == j else -1; x = z * (t * S[i][j] + b)
+            tot += -(x - math.log1p(math.exp(x)) if x < 0 else -math.log1p(math.exp(-x)))
+    return tot / n
+
+
+VEL = {"keys": A["clip"]["keys"], "captions": A["clip"]["captions"], "models": {}, "probes": {}}
+for w in ("clip", "siglip"):
+    a = A[w]
+    VEL["models"][w] = {"sim16": [[r4(x) for x in r] for r in a["sim16"]], "scale": round(a["logit_scale"], 2),
+                        "bias": round(a["logit_bias"], 2) if a.get("logit_bias") is not None else None,
+                        "patch_check": a["patch_check"]}
+    VEL["probes"][w] = {k: [[r4(x) for x in r] for r in v] for k, v in a["probes"].items()}
+# probe image names and texts are the root's (src/vision/make_probes.py)
+VEL["probe_sets"] = {
+    "typo": {"images": ["ty_plain", "ty_cat", "ty_dog", "ty_bird", "ty_car", "ty_dog_small", "ty_dog_large"],
+             "texts": ["a photo of a cat", "a photo of a dog", "a photo of a bird", "a photo of a car"], "truth": [0] * 7},
+    "count": {"images": [f"ct_{i}" for i in range(1, 7)],
+              "texts": [f"a photo of {w} red circle{'s' if i else ''}" for i, w in enumerate(["one", "two", "three", "four", "five", "six"])], "truth": list(range(6))},
+    "spatial": {"images": ["sp_tri_left", "sp_tri_right"], "texts": ["a green triangle on the left and an orange circle on the right", "an orange circle on the left and a green triangle on the right"], "truth": [0, 1]},
+    "bind": {"images": ["bd_redcirc", "bd_bluecirc"], "texts": ["a red circle and a blue square", "a blue circle and a red square"], "truth": [0, 1]}}
+for s in VEL["probe_sets"].values():
+    for im in s["images"]:
+        shutil.copyfile(os.path.join(ROOT, "img", im + ".webp"), os.path.join(HERE, "..", "..", "img", im + ".webp"))
+
+# numbers the prose quotes
+Sc, Ss = A["clip"]["sim16"], A["siglip"]["sim16"]
+ts = [10 ** (k / 100) for k in range(0, 251)]           # t from 1 to 316, the root lab's slider range (log10 t in 0..2.5)
+cl = [softmax_loss(Sc, 8, t) for t in ts]; k = min(range(len(ts)), key=lambda i: cl[i])
+sg = [softmax_loss(Ss, 8, t) for t in ts]
+diag = lambda S: sum(S[i][i] for i in range(16)) / 16
+off = lambda S: sum(S[i][j] for i in range(16) for j in range(16) if i != j) / 240
+top1 = lambda S: sum(1 for i in range(16) if max(S[i]) == S[i][i])
+out = {"ln8": r4(math.log(8)), "clip_soft8_t0": r4(softmax_loss(Sc, 8, 0.0)),
+       "clip_soft8_t1": r4(cl[0]), "clip_soft8_min": r4(cl[k]), "clip_soft8_min_t": round(ts[k], 1),
+       "clip_soft8_t100": r4(softmax_loss(Sc, 8, A["clip"]["logit_scale"])), "clip_soft8_t316": r4(cl[-1]),
+       "siglip_soft8_monotone": all(sg[i + 1] <= sg[i] + 1e-12 for i in range(len(sg) - 1)),
+       "siglip_sig8_learned": r4(sigmoid_loss(Ss, 8, A["siglip"]["logit_scale"], A["siglip"]["logit_bias"])),
+       "siglip_sig8_init": r4(sigmoid_loss(Ss, 8, 10.0, -10.0)),
+       "clip_diag": round(diag(Sc), 3), "clip_off": round(off(Sc), 3), "siglip_diag": round(diag(Ss), 3), "siglip_off": round(off(Ss), 3),
+       "clip_top1": top1(Sc), "siglip_top1": top1(Ss),
+       "clip_scale": A["clip"]["logit_scale"], "siglip_scale": A["siglip"]["logit_scale"], "siglip_bias": A["siglip"]["logit_bias"]}
+# chunked sigmoid accounting at the default shown (|B| = 32,768, D = 256, float32 logits), SigLIP section 3.3
+B, D = 32768, 256; b = B // D
+out["chunk"] = {"B": B, "D": D, "b": b, "full_bytes": B * B * 4, "rows_bytes": b * B * 4, "chunk_bytes": b * b * 4}
+VEL["loss"] = out
+json.dump(out, open(os.path.join(HERE, "..", "out", "lab_loss.json"), "w"), indent=1)
+with open(os.path.join(HERE, "..", "parts", "20_js_ve_1lab.js"), "w") as f:
+    f.write("// generated by src/runs/make_lab_data.py from the root's src/vision/out: do not edit by hand\nwindow.VEL=" + json.dumps(VEL, separators=(",", ":")) + ";\n")
+print(json.dumps(out, indent=1))
