@@ -101,9 +101,9 @@ a{color:var(--acc)}a:visited{color:var(--acc)}
 @media (max-width:520px){h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>LLM observability: traces, OpenTelemetry GenAI, Langfuse and peers, evals in the loop</h1>
-<div class="sub">How to see inside an agent run: traces and spans from zero, the OpenTelemetry GenAI conventions attribute by attribute (pinned commit cb10b70), one recorded agent run instrumented eight ways, a self-hosted Langfuse 4.53.0 fed by all of them, a Claude Code run traced across three processes with its cost reconciled to the cent, tail sampling and redaction measured on a real OpenTelemetry Collector, and scores written back onto traces. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Topic: agentic-frameworks</a>. Data as of 6 October 2026. About 29 min to read.</div>
+<div class="sub">What a trace of an agent run holds, the OpenTelemetry GenAI conventions (pinned commit cb10b70), one recorded run instrumented eight ways, self-hosted Langfuse 4.53.0, a Claude Code run traced across three processes with its cost reconciled to the cent, tail sampling and redaction measured on a real OpenTelemetry Collector, and scores written back onto traces. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Topic: agentic-frameworks</a>. Data as of 6 October 2026. <span id="rd-time">Reading: 30 min, plus 8 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-inst" aria-selected="false">Eight instrumentations</button><button role="tab" data-t="t-pipe" aria-selected="false">Pipeline lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-inst" aria-selected="false">Eight instrumentations</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -152,57 +152,83 @@ pre.fobs-pre .cm{color:var(--mute)}pre.fobs-pre .hl{background:var(--hl)}pre.fob
 .fobs-kept{display:inline-block;min-width:3.2em;text-align:center;border-radius:4px;padding:0 4px;font-weight:600}
 .fobs-kept.y{background:var(--open2);color:var(--good)}.fobs-kept.n{background:var(--soft);color:var(--bad)}
 @media (max-width:520px){.fobs-wf .r{grid-template-columns:minmax(0,8.5em) minmax(0,1fr)}.fobs-cost{grid-template-columns:minmax(0,6.5em) minmax(0,1fr) 5.6em}}
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .hero,#t-read .fig{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4,#t-read .fig h4{margin:0 0 4px;font-size:14.5px}
+#t-read .fig figcaption,#t-read .hero .cap{font-size:13px;color:var(--mute);margin-top:4px}
+#t-read .fig img{max-width:100%;height:auto;border-radius:6px;border:1px solid var(--line);display:block}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:8px 0;overflow:hidden}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+#t-read details.dp>summary::-webkit-details-marker{display:none}
+#t-read details.dp>summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+#t-read details.dp[open]>summary:before{content:"\2212"}
+#t-read details.dp>.b{padding:0 12px 9px 12px;font-size:13.5px;min-width:0}
+#t-read .fobs-svg{min-width:0;margin:4px 0}
+#fobs-sim-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:8px 0}
+#t-read .ok{color:var(--good);font-weight:600}#t-read .no{color:var(--bad);font-weight:600}
+#t-read select{max-width:100%}
 </style>
-<nav class="nav" id="rd-nav"><a href="#rs0">In one screen</a><a href="#rs1">1. Traces from zero</a><a href="#rs2">2. GenAI conventions</a><a href="#rs3">3. Instrumenting</a><a href="#rs4">4. Langfuse</a><a href="#rs5">5. Peers</a><a href="#rs6">6. Cost</a><a href="#rs7">7. Sampling</a><a href="#rs8">8. Privacy</a><a href="#rs9">9. Evals in the loop</a><a href="#rs10">10. Hosted loops</a><a href="#rs11">Mistakes and questions</a></nav>
+<nav class="nav" id="rd-nav"><a href="#rs0">The idea</a><a href="#rs1">1. Traces</a><a href="#rs2">2. GenAI conventions</a><a href="#rs3">3. Instrumenting</a><a href="#rs4">4. Langfuse</a><a href="#rs5">5. The tools</a><a href="#rs6">6. Cost</a><a href="#rs7">7. Sampling</a><a href="#rs8">8. Privacy</a><a href="#rs9">9. Evals in the loop</a></nav>
 
 <section id="rs0">
-<h2>The page in one screen</h2>
-<p class="lead">An agent run is a chain of model calls and tool calls that decide each other. When a run fails, costs too much or takes too long, its final answer does not say which step did it. <dfn>Observability</dfn> is the practice of recording enough about every step, while it runs, that you can answer questions you did not think to ask beforehand. For agents the record that works is a <dfn>trace</dfn>: one tree per run, with a timed node, a <dfn>span</dfn>, for every model call and every tool call.</p>
-<p>Four questions keep coming back, and each needs something specific in the trace:</p>
-<div class="tw"><table>
-<thead><tr><th>Question</th><th>What the trace must hold</th><th>Where on this page</th></tr></thead>
-<tbody>
-<tr><td>What did the model see, and what did it do?</td><td>A span per model call and per tool call, nested under one run, with the messages if you choose to keep them</td><td>Sections 1 to 3; tab <a href="#" data-tab="t-inst">Eight instrumentations</a></td></tr>
-<tr><td>What did it cost, and who spent it?</td><td>Token counts by kind (fresh input, cache read, cache write, output) on every model span, the model name, and the user, session and feature on the run</td><td>Section 6</td></tr>
-<tr><td>Can we keep traces without leaking data or going broke?</td><td>A sampling rule that sees the whole run, and redaction before the data leaves your network</td><td>Sections 7 and 8; tab <a href="#" data-tab="t-pipe">Pipeline lab</a></td></tr>
-<tr><td>Was the run any good, and did the last change make things worse?</td><td>Scores attached to traces, and traces promoted to a regression set</td><td>Section 9</td></tr>
-</tbody></table></div>
-<p>Everything below is measured on this page's own runs unless it says otherwise. The running example is the one used across the agent pages: a small Python repository, <code>textstats</code>, with two planted bugs and the instruction "The tests in this repository fail. Find out why and fix the code so they pass. Do not edit the tests." The user message here starts with a fake customer, "Hi, this is Dana Reyes (dana.reyes@example.com, customer ACCT-4417-2290)", so that we can see where personal data ends up.</p>
-<div class="co key"><div class="t">What was run (6 October 2026, Apple M1 Pro, 16 GB)</div>
+<h2>The idea in one screen</h2>
+<p class="core">Record every agent run as <span class="hl">one trace</span>: a tree of timed spans, one for the run, one for each model call and one for each tool call. Everything else on this page (cost, sampling, redaction, scores) reads the attributes on those spans, so what you put on them decides what you can answer later.</p>
+<p>Why: a run's final answer does not say which step failed, cost too much or took too long. Observability means recording enough about every step, while it runs, to answer questions you did not think to ask beforehand.</p>
+<div class="hero" id="fobs-hero">
+<h4>One run, one tree; every later question reads its attributes</h4>
+<div class="fobs-svg" id="fobs-hero-svg"></div>
+<div class="cap">Top: the local run of the running example as an agent trace (8 model calls, 7 tool calls; four spans shown), with what each kind of span must carry and the section that uses it. Bottom: the path the spans take, and the question each stage answers: what happened (sections 1 to 3), what it cost (section 6), what we keep and what leaks (sections 7 and 8), whether it was good (section 9).</div>
+</div>
+<p><b>You need</b> spans, context propagation and head against tail sampling in general: <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability: logs, metrics, traces, alerting</a> owns them. The parent root's section 7 and its <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Production stack</a> tab give the overview (one trace rendered, four backends, a small eval gate). This page is the agent- and LLM-specific layer.</p>
+<dl class="terms">
+<dt>span</dt><dd>one timed operation: name, start and end, parent, status, attributes, events</dd>
+<dt>trace</dt><dd>all spans sharing one 128-bit trace id: one tree per run</dd>
+<dt>GenAI conventions</dt><dd>OpenTelemetry's agreed attribute names for model calls, agents and tools (<code>gen_ai.*</code>)</dd>
+<dt>collector</dt><dd>a separate OpenTelemetry process that receives spans over OTLP and can sample, redact, rename and forward them</dd>
+<dt>generation, observation</dt><dd>Langfuse's names: an observation is any node of its trace; a generation is a model call</dd>
+<dt>head, tail sampling</dt><dd>keep or drop a trace when it starts (cheap, blind), or after its spans arrive (can keep failures)</dd>
+<dt>score</dt><dd>a number or label an evaluator (a rule, a model judge or a person) writes back onto a trace</dd>
+</dl>
+<p><b>The running example</b> is the one used across the agent pages: a small Python repository, <code>textstats</code>, with two planted bugs and the instruction "The tests in this repository fail. Find out why and fix the code so they pass. Do not edit the tests." The user message starts with a fake customer, "Hi, this is Dana Reyes (dana.reyes@example.com, customer ACCT-4417-2290)", so we can see where personal data ends up. Everything is measured on this page's own runs unless it says otherwise <span class="meas">MEASURED</span>.</p>
+<details class="dp"><summary>What was run (6 October 2026, Apple M1 Pro, 16 GB)</summary><div class="b">
 <ul>
-<li><b>One real agent run</b> of the plain tool-calling loop from the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Same agent, six ways</a> tab against a local model (Qwen3-4B-Instruct-2507, 4-bit, on mlx-lm): <span class="fobs-v" data-v="run.n"></span> model calls, 7 tool calls, both bugs fixed. Its responses were recorded, then <b>replayed byte for byte</b> to the same loop instrumented eight different ways, so every difference between the traces is the instrumentation's, not the model's.</li>
+<li><b>One real agent run</b> of the plain tool-calling loop from the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Same agent, six ways</a> tab against a local model (Qwen3-4B-Instruct-2507, 4-bit, on mlx-lm): 8 model calls, 7 tool calls, both bugs fixed. Its responses were recorded, then <b>replayed byte for byte</b> to the same loop instrumented eight different ways, so every difference between the traces is the instrumentation's, not the model's.</li>
 <li><b>Two Claude Code runs</b> (Claude Haiku 4.5 through <code>claude -p</code>, Claude Code 2.1.291, the same task) with Claude Code's beta tracing on, launched from a small Python "application" that passes its trace context down, so one trace covers three processes.</li>
 <li><b>Self-hosted Langfuse 4.53.0</b> in Docker (six containers) receiving all of it over OpenTelemetry; <b>OpenTelemetry Collector contrib 0.162.0</b> in Docker for cost mapping, tail sampling and redaction.</li>
-</ul></div>
-<div class="deepnote"><b>Where this sits.</b> The parent root's section 7 and its <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Production stack</a> tab give the overview (one trace rendered, four backends, a small eval gate). Logs, metrics, traces, context propagation and alerting as general engineering are on <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability: logs, metrics, traces, alerting</a>; the machines underneath (GPU counters, goodput, GPU-hour chargeback and capacity) are on <a href="https://app.notion.com/p/3c65c17b0d0d818ebf79d1af4532f3ee" target="_blank" rel="noopener noreferrer">Observability and cost</a>; how to grade agent runs is on <a href="https://app.notion.com/p/3ef5c17b0d0d81fdbabaf3582bff37f2" target="_blank" rel="noopener noreferrer">Agent and trajectory evaluation</a>; gates, golden sets and online scoring budgets are on <a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a>. This page is the agent- and LLM-specific layer between them.</div>
+<li>Versions: Langfuse Python SDK 4.17.0, opentelemetry-sdk 1.45.1, opentelemetry-instrumentation-openai-v2 2.4b0 with opentelemetry-util-genai 0.4b0 (1.2b0 breaks its import), OpenLLMetry's opentelemetry-instrumentation-openai 0.62.4, openinference-instrumentation-openai 0.1.63, pydantic-ai-slim 2.54.0, openai 3.25.0, Claude Code 2.1.291 (Claude subscription, <code>--setting-sources project --strict-mcp-config --no-session-persistence</code>), mlx-community/Qwen3-4B-Instruct-2507-4bit on mlx-lm 0.32.0. Scripts, collector configurations, redacted recordings and data are in this page's <code>src/</code>.</li>
+</ul></div></details>
+<p class="small mute">Neighbours that own what this page only names: GPU counters, goodput and GPU-hour chargeback are on <a href="https://app.notion.com/p/3c65c17b0d0d818ebf79d1af4532f3ee" target="_blank" rel="noopener noreferrer">Observability and cost</a>; how to grade agent runs is on <a href="https://app.notion.com/p/3ef5c17b0d0d81fdbabaf3582bff37f2" target="_blank" rel="noopener noreferrer">Agent and trajectory evaluation</a>; gates, golden sets and online scoring budgets are on <a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a>; judge design on <a href="https://app.notion.com/p/3c65c17b0d0d810ba2a2ecc08c4c233b" target="_blank" rel="noopener noreferrer">LLM-as-judge</a>.</p>
 </section>
 
 <section id="rs1">
-<h2>1. Traces and spans, from zero</h2>
-<p><b>The problem.</b> The local agent run made <span class="fobs-v" data-v="run.n"></span> model calls and 7 tool calls in a loop. Print a log line for each and you get a list. That list cannot tell you which model call asked for which tool, which calls belonged to which run when two runs interleave, or how long the run spent waiting on the model against running tools.</p>
-<p><b>How a trace answers it.</b> A <dfn>span</dfn> is one timed operation: it has a name, a start and end time, a <dfn>parent</dfn> span (or none, if it is the root), a <dfn>status</dfn> (unset, ok or error), <dfn>attributes</dfn> (key-value pairs such as the model name and token counts) and optional <dfn>events</dfn> (timestamped notes inside the span). All spans of one run share a 128-bit <dfn>trace id</dfn>, so they form one tree. The program creates spans through the OpenTelemetry API; an <dfn>exporter</dfn> ships finished spans over <dfn>OTLP</dfn> (the OpenTelemetry protocol) to a <dfn>collector</dfn> (a separate program that can filter, redact, sample and forward) or straight to a <dfn>backend</dfn> that stores and draws them (Langfuse, Jaeger, Datadog and many others).</p>
-<p>Step through the same recorded run three ways. <b>Logs</b> is what you get from print statements. <b>Auto spans</b> is what a popular auto-instrumentation package gives you for free: one span per model call, each in a trace of its own. <b>Agent trace</b> is what you want: one root span for the run, a child for each model call and each tool call.</p>
+<h2>1. Traces and spans</h2>
+<p><b>The problem.</b> The local run made <span class="fobs-v" data-v="run.n"></span> model calls and 7 tool calls in a loop. A log line per call gives a list that cannot say which model call asked for which tool, which calls belonged to which run when two runs interleave, or how long the run waited on the model against running tools.</p>
+<p><b>How a trace answers it.</b> Each span has a name, a start and end time, a <dfn>parent</dfn> span (none for the root), a <dfn>status</dfn> (unset, ok or error), <dfn>attributes</dfn> (key-value pairs such as the model name and token counts) and optional <dfn>events</dfn> (timestamped notes inside the span). The program creates spans through the OpenTelemetry API; an <dfn>exporter</dfn> ships finished spans over <dfn>OTLP</dfn> (the OpenTelemetry protocol) to a collector or straight to a <dfn>backend</dfn> that stores and draws them (Langfuse, Jaeger, Datadog and many others). Predict before stepping: what does a popular client auto-instrumentation give you for this run? Then step through the same recorded run three ways.</p>
 <div class="card" id="fobs-a1">
 <div class="seg" id="fobs-a1-mode" role="group" aria-label="View"><button data-m="logs">Logs</button><button data-m="flat">Auto spans</button><button data-m="tree" class="on">Agent trace</button></div>
 <div id="fobs-a1-view"></div>
 <div class="an-ctl" id="fobs-a1-ctl"></div>
 <div class="an-cap" id="fobs-a1-cap"></div>
 </div>
-<p class="small mute">Timings are the real run's: each model call's bar is how long the shared local server took to answer it (other agents' load varied, so call 4 took 78 s). Tool calls took milliseconds and are drawn at a minimum width. Token counts are the server's.</p>
-<p><b>Across processes.</b> A trace does not stop at the edge of your program. W3C Trace Context defines a header, <code>traceparent</code>, that carries the trace id and the parent span id from one process to the next. Claude Code reads it from a <code>TRACEPARENT</code> environment variable in <code>claude -p</code> and Agent SDK sessions, and hands its own context to every Bash subprocess in the same variable (<a href="https://code.claude.com/docs/en/monitoring-usage" target="_blank" rel="noopener noreferrer">Claude Code monitoring docs</a>). We used both: a small "application" opened a span for a ticket, started Claude Code under it, and a python3 wrapper on the PATH turned the inherited <code>TRACEPARENT</code> into a span for the test runner. The result, measured <span class="meas">MEASURED</span>:</p>
+<p class="small mute">Logs: print statements. Auto spans: one span per model call, each in a trace of its own. Agent trace: one root span for the run, a child for each model call and each tool call. Timings are the real run's: each model call's bar is how long the shared local server took to answer it (other agents' load varied, so call 4 took 78 s). Tool calls took milliseconds and are drawn at a minimum width. Token counts are the server's.</p>
+<p><b>Across processes.</b> W3C Trace Context carries the trace id and the parent span id from one process to the next in a header, <code>traceparent</code>. Claude Code reads it from a <code>TRACEPARENT</code> environment variable in <code>claude -p</code> and Agent SDK sessions, and hands its own context to every Bash subprocess in the same variable (<a href="https://code.claude.com/docs/en/monitoring-usage" target="_blank" rel="noopener noreferrer">Claude Code monitoring docs</a>). A small "application" opened a span for a ticket and started Claude Code under it; a python3 wrapper on the PATH turned the inherited <code>TRACEPARENT</code> into a span for the test runner <span class="meas">MEASURED</span>:</p>
 <div class="card" id="fobs-x3">
 <div class="fobs-legend" id="fobs-x3-leg"></div>
 <div id="fobs-x3-wf"></div>
 <div class="small mute" id="fobs-x3-note"></div>
 </div>
-<p>One trace id, three services, <span class="fobs-v" data-v="cc.nspans"></span> spans: the ticket and the agent invocation from the application, Claude Code's interaction, model requests and tool spans, and two <code>process tests/test_core.py</code> spans from the test runner, each parented under the <code>claude_code.tool.execution</code> span of the Bash call that started it. Nobody had to share a database or a request id; the context travelled in an environment variable. How the header is built byte by byte, and what goes wrong when a hop drops it, is on <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability: logs, metrics, traces, alerting</a>.</p>
-<details class="drill"><summary><b>Predict, then open.</b> The Claude Code run fixed both bugs and its result says success. Yet two of its spans have status ERROR. What were they?</summary><div>A <code>Read</code> of a directory (<code>EISDIR</code>, at 10.6 s) and a test run that exited non-zero (<code>ShellError</code>, at 19.0 s). Both are normal in an agent: a failed test run is how the agent learns what is wrong. Span status describes one operation, not the run's outcome. Section 7 shows what this does to error-based sampling.</div></details>
+<p>One trace id, three services, <span class="fobs-v" data-v="cc.nspans"></span> spans: the ticket and the agent invocation from the application, Claude Code's interaction, model requests and tool spans, and two <code>process tests/test_core.py</code> spans from the test runner, each under the <code>claude_code.tool.execution</code> span of the Bash call that started it. No shared database or request id; the context travelled in an environment variable. The header byte by byte, and what goes wrong when a hop drops it: <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability: logs, metrics, traces, alerting</a>.</p>
+<details class="drill"><summary><b>Predict, then open.</b> The Claude Code run fixed both bugs and its result says success. Yet two of its spans have status ERROR. What were they?</summary><div>A <code>Read</code> of a directory (<code>EISDIR</code>, at 10.6 s) and a test run that exited non-zero (<code>ShellError</code>, at 19.0 s). Both are normal in an agent: a failed test run is how the agent learns what is wrong. Span status describes one operation, not the run's outcome. Section 7 shows what this does to error-based sampling. When everything fails, put a typed error on the root span, with the same trace id the user's request had, so the incident is one query away.</div></details>
 </section>
 
 <section id="rs2">
-<h2>2. The OpenTelemetry GenAI conventions, attribute by attribute</h2>
-<p><b>The problem.</b> A trace is only useful across tools if everyone names things the same way. If one library writes the model under <code>model</code>, another under <code>llm.model_name</code> and a third under <code>gen_ai.request.model</code>, a backend cannot compute cost or group by model without a mapping for each. OpenTelemetry's <dfn>semantic conventions</dfn> are the agreed names; the <dfn>GenAI conventions</dfn> are the part for model calls, agents and tools.</p>
-<p><b>Where they live and how stable they are.</b> In 2026 they moved out of the main conventions repository into their own, <a href="https://github.com/open-telemetry/semantic-conventions-genai" target="_blank" rel="noopener noreferrer">open-telemetry/semantic-conventions-genai</a>. This page pins commit <a href="https://github.com/open-telemetry/semantic-conventions-genai/tree/cb10b70c15c099ccab144e8316d934c9699da0fd/model/gen-ai" target="_blank" rel="noopener noreferrer">cb10b70 (5 Oct 2026)</a> and reads the machine-readable model files (<code>spans.yaml</code>, <code>registry.yaml</code>, <code>metrics.yaml</code>), not the prose. Its manifest declares <code>stability: development</code> and schema <code>gen-ai-dev/1.42.0-dev</code>, built on the main conventions v1.44.0. "Development" means names can still change without a deprecation period; instrumentation packages that already follow the latest draft ask you to opt in with <code>OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental</code> (see the research notes in <code>src/inputs/research.md</code>) <span class="docd">SOURCE</span>.</p>
+<h2>2. The OpenTelemetry GenAI conventions</h2>
+<p><b>The problem.</b> If one library writes the model under <code>model</code>, another under <code>llm.model_name</code> and a third under <code>gen_ai.request.model</code>, a backend cannot compute cost or group by model without a mapping for each. The GenAI conventions are OpenTelemetry's agreed names for model calls, agents and tools.</p>
+<p><b>Where they live and how stable they are.</b> In 2026 they moved out of the main conventions repository into their own, <a href="https://github.com/open-telemetry/semantic-conventions-genai" target="_blank" rel="noopener noreferrer">open-telemetry/semantic-conventions-genai</a>. This page pins commit <a href="https://github.com/open-telemetry/semantic-conventions-genai/tree/cb10b70c15c099ccab144e8316d934c9699da0fd/model/gen-ai" target="_blank" rel="noopener noreferrer">cb10b70 (5 Oct 2026)</a> and reads the machine-readable model files (<code>spans.yaml</code>, <code>registry.yaml</code>, <code>metrics.yaml</code>), not the prose. Its manifest declares <code>stability: development</code> and schema <code>gen-ai-dev/1.42.0-dev</code>, built on the main conventions v1.44.0. "Development" means names can still change without a deprecation period; packages that already follow the latest draft ask you to opt in with <code>OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental</code> (see the research notes in <code>src/inputs/research.md</code>) <span class="docd">SOURCE</span>.</p>
 <p><b>Span types.</b> The model defines <span class="fobs-v" data-v="sem.nspans"></span> span types and <span class="fobs-v" data-v="sem.nops"></span> values of <code>gen_ai.operation.name</code>. Three of them carry an agent run:</p>
 <div class="tw"><table>
 <thead><tr><th>Span</th><th>Name format</th><th>Kind</th><th>One per</th></tr></thead>
@@ -225,12 +251,14 @@ pre.fobs-pre .cm{color:var(--mute)}pre.fobs-pre .hl{background:var(--hl)}pre.fob
 <li><b>Content is opt-in.</b> The system instructions, input and output messages, tool definitions, and a tool call's arguments and result are all <code>opt_in</code>: by default the conventions record that a call happened, not what was said. Section 8 measures which libraries respect that.</li>
 </ul>
 <p><b>Counting tokens.</b> The registry says <code>gen_ai.usage.input_tokens</code> "SHOULD include all types of input tokens, including cached tokens", with <code>gen_ai.usage.cache_read.input_tokens</code> and <code>gen_ai.usage.cache_write.input_tokens</code> as subsets of it. Anthropic's API counts differently, so the Anthropic section adds: "Anthropic <code>input_tokens</code> excludes cached tokens. Compute: <code>gen_ai.usage.input_tokens = input_tokens + cache_read_input_tokens + cache_write_input_tokens</code>". On the first model call of our Claude Code run that is the difference between two very different numbers:</p>
+<div class="fig" id="fobs-tok"><h4>Anthropic's input_tokens is the sliver on the left: 10 of 13,086</h4><div class="fobs-svg" id="fobs-tok-svg"></div><div class="cap small mute">The first model call of the Claude Code run, drawn to scale: 10 fresh, 8,067 cache-read and 5,009 cache-write input tokens. A dashboard that reads Anthropic's field as the GenAI value shows 10 input tokens. Cost needs the three kinds apart because they have three prices; section 6 shows what happens when they are lost.</div></div>
 <div class="fm"><div class="eq">input_tokens<sub>GenAI</sub> = <span class="fobs-v" data-v="cc.c1in"></span> + <span class="fobs-v" data-v="cc.c1cr"></span> + <span class="fobs-v" data-v="cc.c1cw"></span> = <span class="fobs-v" data-v="cc.c1sum"></span></div>
 <dl><dt>fresh</dt><dd>tokens the API reported as <code>input_tokens</code> (not cached)</dd><dt>cache read</dt><dd>tokens served from the prompt cache (10% of the input price for Haiku 4.5)</dd><dt>cache write</dt><dd>tokens written to the cache on this call (1.25x for a 5-minute entry, 2x for a 1-hour entry)</dd></dl></div>
-<p>A dashboard that reads Anthropic's <code>input_tokens</code> as if it were the GenAI value would show this call as <span class="fobs-v" data-v="cc.c1in"></span> input tokens instead of <span class="fobs-v" data-v="cc.c1sum"></span>. Cost needs the three kinds separately because they have three prices; section 6 shows what happens when they are lost.</p>
-<p><b>Other attributes worth knowing.</b> <code>gen_ai.conversation.id</code> groups the calls of one multi-turn conversation (Langfuse turns it into a session, measured below); <code>gen_ai.prompt.name</code> and <code>gen_ai.prompt.version</code> record which version of a managed prompt produced a call (the link a prompt registry needs); <code>gen_ai.conversation.compacted</code> marks a call made after the history was compacted; <code>gen_ai.request.reasoning.level</code> carries an effort setting.</p>
-<p><b>Metrics.</b> The same commit defines <span class="fobs-v" data-v="sem.nmetrics"></span> histograms, among them <code>gen_ai.client.operation.duration</code>, <code>gen_ai.invoke_agent.duration</code>, <code>gen_ai.invoke_agent.inference_calls</code> and <code>gen_ai.invoke_agent.tool_calls</code>. The last two are the ones to alert on for agents: a jump in model calls per run is the earliest sign of an agent looping. Token usage metrics are in a separate <code>token-metrics.yaml</code>.</p>
-<div class="co warn"><div class="t">The names are still moving</div>The provider attribute used to be <code>gen_ai.system</code>; it is now <code>gen_ai.provider.name</code>, and <code>gen_ai.system</code> does not appear in this repository's registry at the pinned commit. In our runs, <code>opentelemetry-instrumentation-openai-v2</code> 2.4b0 still writes only <code>gen_ai.system</code> (so its spans miss a required attribute), Pydantic AI writes both, Claude Code 2.1.291 writes <code>gen_ai.system</code> plus its own token names (<code>input_tokens</code>, <code>cache_read_tokens</code>, <code>cache_creation_tokens</code>; since 2.1.300, 14 October 2026, its spans also carry <code>gen_ai.provider.name</code>, <code>gen_ai.conversation.id</code> and <code>gen_ai.tool.name</code>, per the <a href="https://code.claude.com/docs/en/changelog" target="_blank" rel="noopener noreferrer">changelog</a>), and OpenInference uses a different convention altogether (<code>llm.token_count.prompt</code>, <code>input.value</code>) <span class="meas">MEASURED</span>. Check what your backend maps before trusting a dashboard; section 6 is what happens when you do not.</div>
+
+<details class="dp"><summary>Other attributes worth knowing (conversation, prompt version, compaction, reasoning level)</summary><div class="b"><p><code>gen_ai.conversation.id</code> groups the calls of one multi-turn conversation (Langfuse turns it into a session, measured below); <code>gen_ai.prompt.name</code> and <code>gen_ai.prompt.version</code> record which version of a managed prompt produced a call (the link a prompt registry needs); <code>gen_ai.conversation.compacted</code> marks a call made after the history was compacted; <code>gen_ai.request.reasoning.level</code> carries an effort setting. On a structured-output retry loop (validate, feed the error back, retry two or three times at most; <a href="https://app.notion.com/p/3f15c17b0d0d819fba89f9ec88feb859" target="_blank" rel="noopener noreferrer">Typed agent libraries</a> covers Pydantic AI's <code>ModelRetry</code>), record a span or event per retry with the validation error and watch the retry rate: a rising rate is a prompt or model regression.</p></div></details>
+<p><b>Metrics.</b> The same commit defines <span class="fobs-v" data-v="sem.nmetrics"></span> histograms, among them <code>gen_ai.client.operation.duration</code>, <code>gen_ai.invoke_agent.duration</code>, <code>gen_ai.invoke_agent.inference_calls</code> and <code>gen_ai.invoke_agent.tool_calls</code>. The last two are the ones to alert on for agents: a jump in model calls per run is the earliest sign of an agent looping (put the stop reason of a step, token or wall-clock budget on the root span too; budgets themselves are on <a href="https://app.notion.com/p/3c65c17b0d0d817ca14fc32338707c2f" target="_blank" rel="noopener noreferrer">Building a harness</a>). Token usage metrics are in a separate <code>token-metrics.yaml</code>.</p>
+<p><b>The names are still moving.</b> The provider attribute used to be <code>gen_ai.system</code>; it is now <code>gen_ai.provider.name</code>, and <code>gen_ai.system</code> does not appear in this repository's registry at the pinned commit. Check what your backend maps before trusting a dashboard; section 6 is what happens when you do not.</p>
+<details class="dp"><summary>Who writes which names (measured on our runs)</summary><div class="b">In our runs, <code>opentelemetry-instrumentation-openai-v2</code> 2.4b0 still writes only <code>gen_ai.system</code> (so its spans miss a required attribute), Pydantic AI writes both, Claude Code 2.1.291 writes <code>gen_ai.system</code> plus its own token names (<code>input_tokens</code>, <code>cache_read_tokens</code>, <code>cache_creation_tokens</code>; since 2.1.300, 14 October 2026, its spans also carry <code>gen_ai.provider.name</code>, <code>gen_ai.conversation.id</code> and <code>gen_ai.tool.name</code>, per the <a href="https://code.claude.com/docs/en/changelog" target="_blank" rel="noopener noreferrer">changelog</a>), and OpenInference uses a different convention altogether (<code>llm.token_count.prompt</code>, <code>input.value</code>) <span class="meas">MEASURED</span>.</div></details>
 </section>
 
 <section id="rs3">
@@ -246,26 +274,29 @@ pre.fobs-pre .cm{color:var(--mute)}pre.fobs-pre .hl{background:var(--hl)}pre.fob
 <li><b>Size follows content.</b> The same run cost <span class="fobs-v" data-v="inst.kbManual"></span> KB of attributes without content and <span class="fobs-v" data-v="inst.kbContent"></span> KB with it by hand; OpenInference, which writes the messages twice (as one JSON blob in <code>input.value</code> and flattened into one attribute per message field), reached <span class="fobs-v" data-v="inst.kbOI"></span> KB.</li>
 <li><b>Cached tokens are hit and miss.</b> The local server reported prompt-cache hits (<code>cached_tokens</code>). OpenLLMetry, OpenInference, Langfuse and Pydantic AI recorded them; openai-v2 and our first hand-written version did not, so a backend would price those tokens as fresh input.</li>
 </ul>
-<p><b>Why you want content somewhere.</b> A trace with the messages is how you check what a framework really sends. The sibling page <a href="https://app.notion.com/p/3c65c17b0d0d81529358c996382224ac" target="_blank" rel="noopener noreferrer">LangChain and LangGraph</a> recorded <code>create_agent</code>'s first request and found it is exactly your system prompt, the user message and the tool schemas, with nothing added; the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Same agent, six ways</a> tab found Pydantic AI's structured output arrives through an added <code>final_result</code> tool (details on <a href="https://app.notion.com/p/3f15c17b0d0d819fba89f9ec88feb859" target="_blank" rel="noopener noreferrer">Typed agent libraries</a>) and smolagents sends a 2,231-token system prompt of its own. Those findings came from logging the requests; with content capture on, your tracing backend shows the same thing for every run.</p>
+<details class="dp"><summary>Why you want content somewhere: what traces revealed about frameworks</summary><div class="b"><p> A trace with the messages is how you check what a framework really sends. The sibling page <a href="https://app.notion.com/p/3c65c17b0d0d81529358c996382224ac" target="_blank" rel="noopener noreferrer">LangChain and LangGraph</a> recorded <code>create_agent</code>'s first request and found it is exactly your system prompt, the user message and the tool schemas, with nothing added; the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Same agent, six ways</a> tab found Pydantic AI's structured output arrives through an added <code>final_result</code> tool (details on <a href="https://app.notion.com/p/3f15c17b0d0d819fba89f9ec88feb859" target="_blank" rel="noopener noreferrer">Typed agent libraries</a>) and smolagents sends a 2,231-token system prompt of its own. Those findings came from logging the requests; with content capture on, your tracing backend shows the same thing for every run.</p></div></details>
 <p><b>What to do.</b> Use auto-instrumentation for the model client (it captures parameters, tokens and errors you would forget) and add the agent skeleton yourself: one <code>invoke_agent</code> span around the run and one <code>execute_tool</code> span around each tool call, both with the conventions' names, so the client spans nest under them. If a framework already does it, as Pydantic AI does, use that. Decide content capture deliberately, per environment: on in evaluation runs, where graders need the arguments and results; off or redacted in production.</p>
 <div class="deepnote"><b>Go deeper.</b> Every span of every variant, with each attribute classified against the conventions (required, recommended, opt-in, outside the registry), and what Langfuse made of it: tab <a href="#" data-tab="t-inst">Eight instrumentations</a>. How each typed library's own tracing works (OpenAI Agents SDK, Pydantic AI, Google ADK): <a href="https://app.notion.com/p/3f15c17b0d0d819fba89f9ec88feb859" target="_blank" rel="noopener noreferrer">Typed agent libraries</a>. Claude Code's telemetry as a harness feature: <a href="https://app.notion.com/p/3c65c17b0d0d81db9c7fc54987c1ab65" target="_blank" rel="noopener noreferrer">Claude Code, taken apart</a>.</div>
 </section>
 
 <section id="rs4">
 <h2>4. Langfuse, self-hosted, fed by every variant</h2>
+<figure class="fig"><h4>What a backend gives you: the tree, with cost, tokens, latency and scores on every node</h4><img src="img/langfuse_trace_view.webp" alt="Langfuse trace view of a Google ADK agent run: a tree of invocation, agent_run, two call_llm generations and a say_hello tool, each with latency, tokens and cost; hallucination and toxicity scores on the root" loading="lazy" width="900" height="404"><figcaption>Notice the same shape as section 1 (run, model calls, the tool under the call that asked for it), the cost rolled up to the root (&Sigma; $0.001043), the token counts per generation (35 &rarr; 62), and two evaluator scores attached to the trace (section 9). Not our run: Langfuse's own Google ADK example. Credit: Langfuse GmbH, langfuse-docs, MIT licence, <a href="https://github.com/langfuse/langfuse-docs/blob/main/public/images/cookbook/integration-google-adk/google-adk-trace.png" target="_blank" rel="noopener noreferrer">source</a>.</figcaption></figure>
 <p><b>What it is.</b> Langfuse is an open-source platform for tracing, evaluating and managing prompts of LLM applications: MIT-licensed except its <code>ee/</code> folders (<a href="https://github.com/langfuse/langfuse/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">LICENSE</a>). ClickHouse announced it had acquired Langfuse on 16 January 2026, saying it "stays open source and self-hostable" (<a href="https://clickhouse.com/blog/clickhouse-acquires-langfuse-open-source-llm-observability" target="_blank" rel="noopener noreferrer">ClickHouse blog</a>). Version 4 became generally available on 17 August 2026 (<a href="https://langfuse.com/changelog/2026-08-17-langfuse-v4" target="_blank" rel="noopener noreferrer">changelog</a>); the latest release when we ran it was 4.53.0, published that morning (<a href="https://github.com/langfuse/langfuse/releases" target="_blank" rel="noopener noreferrer">releases</a>) <span class="docd">SOURCE</span>.</p>
 <p><b>What it took to run.</b> Langfuse's own Docker Compose file at tag v4.53.0, ports moved to localhost: six containers (web, worker, ClickHouse 25.12, Postgres 17, Redis 7, MinIO for S3-style blob storage), about <span class="fobs-v" data-v="stack.gb"></span> GB of images, and <span class="fobs-v" data-v="stack.ram"></span> GiB of memory at rest after ingesting this page's traces <span class="meas">MEASURED</span>. Postgres holds users, projects, prompts and datasets; ClickHouse holds the observations; Redis is the queue between web and worker; blob storage keeps raw events. That is the main cost of "self-hostable": you operate a column store.</p>
+<div class="fig" id="fobs-stack"><h4>Six containers; the observations live in ClickHouse</h4><div class="fobs-svg" id="fobs-stack-svg"></div><div class="cap small mute">Langfuse 4.53.0 as run here, from its own Docker Compose file. Memory per container at rest after ingesting this page's traces, measured: web 1.11 GiB, worker 1.09 GiB, ClickHouse 25.12 1.20 GiB, Postgres 17 105 MiB, MinIO 183 MiB, Redis 7 16 MiB.</div></div>
 <p><b>The data model.</b> A <dfn>trace</dfn> is one request or run; it contains <dfn>observations</dfn>, typed as span, generation (a model call), event, agent, tool, chain, retriever, evaluator, embedding or guardrail (<a href="https://langfuse.com/docs/observability/features/observation-types" target="_blank" rel="noopener noreferrer">observation types</a>). Traces group into <dfn>sessions</dfn> and are attributed to <dfn>users</dfn>; <dfn>scores</dfn> attach to traces or observations. Version 4 rebuilt storage around one wide, mostly immutable ClickHouse table, in which "traces are represented as root spans within the same table instead of a separate entity", and replaced the old batch ingestion API with OpenTelemetry (<a href="https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4" target="_blank" rel="noopener noreferrer">v3 to v4 upgrade guide</a>). We saw it directly: on the default <code>events_only</code> deployment, the old <code>GET /api/public/traces</code>, <code>/observations</code> and <code>/scores</code> endpoints answer 404 with "This endpoint is not available on deployments running in Langfuse v4 events_only mode", while <code>/api/public/v2/observations</code> and <code>/api/public/v3/scores</code> work <span class="meas">MEASURED</span>.</p>
-<p><b>How OpenTelemetry spans become observations.</b> Langfuse accepts OTLP at <code>/api/public/otel</code> with the project's public and secret key as HTTP Basic auth. Its mapping, from its docs: the observation type comes from <code>langfuse.observation.type</code>, then <code>gen_ai.operation.name</code>, then "model present means generation"; the model from <code>gen_ai.request.model</code>, <code>llm.model_name</code> or <code>model</code>; usage from <code>gen_ai.usage.*</code> or <code>llm.token_count.*</code> (<a href="https://langfuse.com/integrations/native/opentelemetry" target="_blank" rel="noopener noreferrer">OpenTelemetry integration</a>). What it stored from our eight variants <span class="meas">MEASURED</span>:</p>
+<p><b>How OpenTelemetry spans become observations.</b> Every variant's model calls became generations with the model and token counts, whatever names it used; no cost was computed for any of them, because Langfuse has no price for a local model, which is correct.</p>
+<details class="dp"><summary>The mapping rules, and what Langfuse stored from each of the eight variants</summary><div class="b"><p> Langfuse accepts OTLP at <code>/api/public/otel</code> with the project's public and secret key as HTTP Basic auth. Its mapping, from its docs: the observation type comes from <code>langfuse.observation.type</code>, then <code>gen_ai.operation.name</code>, then "model present means generation"; the model from <code>gen_ai.request.model</code>, <code>llm.model_name</code> or <code>model</code>; usage from <code>gen_ai.usage.*</code> or <code>llm.token_count.*</code> (<a href="https://langfuse.com/integrations/native/opentelemetry" target="_blank" rel="noopener noreferrer">OpenTelemetry integration</a>). What it stored from our eight variants <span class="meas">MEASURED</span>:</p>
 <div class="tw"><table id="fobs-lf-tab"></table></div>
-<p>Every variant's model calls became generations with the model and token counts, including OpenInference's <code>llm.*</code> names and Langfuse's own <code>langfuse.observation.*</code> attributes. Langfuse also split cached tokens out of the input into a separate <code>input_cached_tokens</code> bucket (its usage keys are non-overlapping: "each token must be counted in exactly one key", <a href="https://langfuse.com/docs/observability/features/token-and-cost-tracking" target="_blank" rel="noopener noreferrer">docs</a>). Our hand-written <code>gen_ai.conversation.id</code> became the session id, and Pydantic AI's became a session too. No cost was computed for any of them: Langfuse has no price for a local model, which is correct. The Claude Code run in section 6 is where prices come in.</p>
+<p>Every variant's model calls became generations with the model and token counts, including OpenInference's <code>llm.*</code> names and Langfuse's own <code>langfuse.observation.*</code> attributes. Langfuse also split cached tokens out of the input into a separate <code>input_cached_tokens</code> bucket (its usage keys are non-overlapping: "each token must be counted in exactly one key", <a href="https://langfuse.com/docs/observability/features/token-and-cost-tracking" target="_blank" rel="noopener noreferrer">docs</a>). Our hand-written <code>gen_ai.conversation.id</code> became the session id, and Pydantic AI's became a session too. No cost was computed for any of them: Langfuse has no price for a local model, which is correct. The Claude Code run in section 6 is where prices come in.</p></div></details>
 <div class="co warn"><div class="t">Telemetry loss is silent</div>On the first attempt, two of the eight variants (openai-v2 and Pydantic AI) lost every span: Langfuse, still warming up, answered their exports with HTTP 500 ("stream is not readable", 12 times in its log). The agents finished normally; the only trace of the failure was one exporter warning on standard error, "Failed to export spans batch due to timeout, max retries or shutdown". The reruns were ingested <span class="meas">MEASURED</span>. Watch the exporter's own metrics, or put a collector with a retry queue between your app and the backend.</div>
-<p><b>Langfuse's other halves</b> (from its docs, used only where marked): <b>scores</b> and <b>datasets</b> (section 9, measured); <b>LLM-as-a-judge evaluators</b> that run on observations as they arrive ("observation-level evaluators are the recommended target for live production data; trace-level evaluators are deprecated", <a href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge" target="_blank" rel="noopener noreferrer">docs</a>); <b>prompt management</b>, where labels such as <code>production</code> and <code>staging</code> point at prompt versions and an unlabelled fetch serves <code>production</code> (<a href="https://langfuse.com/docs/prompt-management/features/prompt-version-control" target="_blank" rel="noopener noreferrer">docs</a>); <b>masking</b> in the SDK before export (<code>mask_otel_spans</code> in the Python SDK v4); and <b>sampling</b> in the SDK (<code>sample_rate</code>, decided per trace).</p>
-<p><b>With a gateway.</b> If your model calls already go through LiteLLM, its <code>langfuse_otel</code> callback sends a GenAI span per request to the same endpoint with usage and cost, and LiteLLM now recommends it over the older <code>langfuse</code> callback (<a href="https://docs.litellm.ai/docs/observability/langfuse_integration" target="_blank" rel="noopener noreferrer">LiteLLM docs</a>) <span class="docd">SOURCE</span>. Gateway spans see every request but not the agent around it; app spans see the agent. Run both and join them on the trace id. After a retry or a fallback the deployment that answered may not be the one the app asked for; the LiteLLM proxy names it in the <code>x-litellm-model-id</code> response header, so copy that onto the model span and the trace shows which deployment answered (<a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a>, section 2, which counts that header to check a routing strategy). Retries, cooldowns and fallbacks themselves are its section 3.</p>
+<details class="dp"><summary>Langfuse's other halves (evaluators, prompt labels, masking, SDK sampling) and gateway spans</summary><div class="b"><p><b>Langfuse's other halves</b> (from its docs, used only where marked): <b>scores</b> and <b>datasets</b> (section 9, measured); <b>LLM-as-a-judge evaluators</b> that run on observations as they arrive ("observation-level evaluators are the recommended target for live production data; trace-level evaluators are deprecated", <a href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge" target="_blank" rel="noopener noreferrer">docs</a>); <b>prompt management</b>, where labels such as <code>production</code> and <code>staging</code> point at prompt versions and an unlabelled fetch serves <code>production</code> (<a href="https://langfuse.com/docs/prompt-management/features/prompt-version-control" target="_blank" rel="noopener noreferrer">docs</a>); <b>masking</b> in the SDK before export (<code>mask_otel_spans</code> in the Python SDK v4); and <b>sampling</b> in the SDK (<code>sample_rate</code>, decided per trace).</p>
+<p><b>With a gateway.</b> If your model calls already go through LiteLLM, its <code>langfuse_otel</code> callback sends a GenAI span per request to the same endpoint with usage and cost, and LiteLLM now recommends it over the older <code>langfuse</code> callback (<a href="https://docs.litellm.ai/docs/observability/langfuse_integration" target="_blank" rel="noopener noreferrer">LiteLLM docs</a>) <span class="docd">SOURCE</span>. Gateway spans see every request but not the agent around it; app spans see the agent. Run both and join them on the trace id. After a retry or a fallback the deployment that answered may not be the one the app asked for; the LiteLLM proxy names it in the <code>x-litellm-model-id</code> response header, so copy that onto the model span and the trace shows which deployment answered (<a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a>, section 2, which counts that header to check a routing strategy). Retries, cooldowns and fallbacks themselves are its section 3. Evaluate every model in a fallback chain, or a fallback is a silent quality cliff.</p></div></details>
 </section>
 
 <section id="rs5">
-<h2>5. The peers</h2>
+<h2>5. The tools, compared by design</h2>
 <p>All of these accept OpenTelemetry, so the cheapest insurance is to instrument with OpenTelemetry and treat the backend as configuration. They differ in what they put first, who can run them, and the licence. Facts checked on 6 October 2026 against each vendor's own docs and repositories (not run here except Langfuse) <span class="docd">SOURCE</span>:</p>
 <div class="tw"><table>
 <thead><tr><th>Tool</th><th>Leads with</th><th>Run it yourself</th><th>Licence</th><th>Its unit of work</th><th>Notes</th></tr></thead>
@@ -277,6 +308,17 @@ pre.fobs-pre .cm{color:var(--mute)}pre.fobs-pre .hl{background:var(--hl)}pre.fob
 <tr><td><b>OpenLLMetry</b> (Traceloop)</td><td>Not a backend: instrumentation for many providers, vector stores and frameworks</td><td>Library</td><td>Apache 2.0</td><td>OpenTelemetry spans</td><td>Traceloop acquired by ServiceNow (reported 2 Mar 2026; ServiceNow called it "recently completed" on 5 May 2026, <a href="https://newsroom.servicenow.com/press-releases/details/2026/ServiceNow-expands-AI-Control-Tower-to-discover-observe-govern-secure-and-measure-AI-deployed-across-any-system-in-the-enterprise/default.aspx" target="_blank" rel="noopener noreferrer">press release</a>)</td></tr>
 </tbody></table></div>
 <p><b>How to choose.</b> If you need the data on your own machines and do not want an Enterprise contract, the choice is Langfuse or Phoenix; read Phoenix's licence before offering it as a service. If your agent is LangGraph and you are happy with a hosted service, LangSmith understands its runs best (see <a href="https://app.notion.com/p/3c65c17b0d0d81529358c996382224ac" target="_blank" rel="noopener noreferrer">LangChain and LangGraph</a>). If your bottleneck is "is version 3 better than version 2" rather than debugging, Braintrust is built around that question. Whatever you pick, keep a collector in front so you can switch or send to two at once.</p>
+<p><b>When the vendor runs the loop</b>, the spans between your request and its result are produced inside the vendor's process and you see only what they export. Treat trace export as a procurement question: what is exported, in which conventions, with what content, and for how long it is kept.</p>
+<details class="dp"><summary>Hosted runtimes and SDKs: what each exports (vendor docs, 6 October 2026, not run here)</summary><div class="b">
+<div class="tw"><table>
+<thead><tr><th>Runtime or SDK</th><th>What you can trace</th></tr></thead>
+<tbody>
+<tr><td>OpenAI Agents API (public beta 10 Sep 2026)</td><td>Exports per-session traces as OTLP JSON: <code>GET /v1/agents/sessions/{session_id}/traces</code>; attribute conventions not stated (<a href="https://developers.openai.com/api/docs/guides/agents-api/tracing" target="_blank" rel="noopener noreferrer">docs</a>)</td></tr>
+<tr><td>Claude Managed Agents (public beta 8 Apr 2026)</td><td>No OpenTelemetry export found; an event log per session (<code>span.model_request_start</code> and <code>_end</code>, tool use, <code>session.usage</code> with 5-minute and 1-hour cache-write counts) and a session viewer in the Console</td></tr>
+<tr><td>OpenAI Agents SDK</td><td>Tracing on by default, sent to OpenAI's traces dashboard, not OpenTelemetry; unavailable under Zero Data Retention; replace with <code>set_trace_processors()</code> or disable with <code>OPENAI_AGENTS_DISABLE_TRACING=1</code></td></tr>
+<tr><td>Google ADK</td><td>OpenTelemetry GenAI spans (<code>invoke_agent</code>, <code>execute_tool</code>, <code>generate_content</code>); Google's own guide recommends <code>ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false</code></td></tr>
+</tbody></table></div>
+<p class="small mute">Sources for each row are in <code>src/inputs/research.md</code>; the runtimes themselves are compared on the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Production stack</a> tab.</p></div></details>
 </section>
 
 <section id="rs6">
@@ -291,7 +333,11 @@ pre.fobs-pre .cm{color:var(--mute)}pre.fobs-pre .hl{background:var(--hl)}pre.fob
 <p><b>Three independent totals agree.</b> The run's own <code>total_cost_usd</code>, Langfuse's sum over generations once the counts carried their cache duration, and Claude Code's <code>claude_code.cost.usage</code> metric (delta temporality, summed over its <span class="fobs-v" data-v="cost.exports"></span> exports) all give <span class="fobs-v" data-v="cost.result"></span>. The formula, with Haiku 4.5's list prices per million tokens (input $1, 1-hour cache write $2, cache read $0.10, output $5; <a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank" rel="noopener noreferrer">Anthropic pricing</a>):</p>
 <div class="fm"><div class="eq">cost = (<span class="fobs-v" data-v="cost.in"></span> &times; 1 + <span class="fobs-v" data-v="cost.cw"></span> &times; 2 + <span class="fobs-v" data-v="cost.cr"></span> &times; 0.10 + <span class="fobs-v" data-v="cost.out"></span> &times; 5) / 10<sup>6</sup> = $<span class="fobs-v" data-v="cost.recomp"></span></div></div>
 <p>The 16% gap in the middle step is <span class="fobs-v" data-v="cost.cw"></span> cache-write tokens priced at the 5-minute rate (1.25x) instead of the 1-hour rate (2x) that Claude Code used on these runs (<code>ephemeral_1h_input_tokens</code> in its usage, and in the shared facts for the agent pages). The GenAI conventions have one <code>cache_write</code> count and no field for the cache's lifetime, so a backend that follows them faithfully must guess; Langfuse's model table has separate <code>input_cache_creation_5m</code> and <code>_1h</code> prices, so passing the count under the explicit key fixed it. An open Langfuse issue reports the same mispricing from its LangChain integration (<a href="https://github.com/langfuse/langfuse/issues/17450" target="_blank" rel="noopener noreferrer">#17450</a>).</p>
-<p><b>Rolling cost up.</b> Once each model span has a correct cost, attribution is a group-by over the trace: by the root's attributes for user, ticket and feature (our application set <code>app.user</code>, <code>app.ticket</code>, <code>app.feature</code> on its span), by <code>gen_ai.conversation.id</code> for a session, by span name for a step. Langfuse propagates user, session and tags to every observation when you set them with <code>propagate_attributes()</code> (its Python SDK v4, the one used here; Python SDK v5, a major release on 14 October 2026, comes with a <a href="https://langfuse.com/docs/observability/sdk/upgrade-path/python-v4-to-v5" target="_blank" rel="noopener noreferrer">v4 to v5 migration guide</a>, so check it before copying v4 code). Reconcile against a second source: the gateway's spend log, the provider's invoice, or, as here, the harness's own metric. Two sources that disagree by a fixed ratio usually mean a price or a token kind is wrong, as in step 2 above.</p>
+<p><b>Rolling cost up.</b> Once each model span has a correct cost, attribution is a group-by over the trace: by the root's attributes for user, ticket and feature (our application set <code>app.user</code>, <code>app.ticket</code>, <code>app.feature</code> on its span), by <code>gen_ai.conversation.id</code> for a session, by span name for a step. Langfuse propagates user, session and tags to every observation when you set them with <code>propagate_attributes()</code> (its Python SDK v4, the one used here; Python SDK v5, a major release on 14 October 2026, comes with a <a href="https://langfuse.com/docs/observability/sdk/upgrade-path/python-v4-to-v5" target="_blank" rel="noopener noreferrer">v4 to v5 migration guide</a>, so check it before copying v4 code). Reconcile against a second source: the gateway's spend log, the provider's invoice, or, as here, the harness's own metric. Two sources that disagree by a fixed ratio usually mean a price or a token kind is wrong, as in step 2 above. Other usual causes of a gap: cache reads counted as fresh input, a model name that matches no price entry, and spans that were sampled away or lost.</p>
+<p><b>Do not count twice.</b> If the agent span carries the run's total tokens under the same names as the model spans, a backend that sums all spans counts them twice. Pydantic AI writes the totals on its agent span as <code>gen_ai.aggregated_usage.*</code> for this reason (its <code>use_aggregated_usage_attribute_names</code> setting, default on).</p>
+<details class="dp"><summary>The reconciliation call by call: eight model requests under each labelling</summary><div class="b">
+<div class="tw"><table id="fobs-cost-tab"></table></div>
+<p class="small mute">Haiku 4.5 list prices per million tokens: input $1, 5-minute cache write $1.25, 1-hour cache write $2, cache read $0.10, output $5 (<a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank" rel="noopener noreferrer">Anthropic pricing</a>). The "check" column recomputes each call at the 1-hour rate.</p></div></details>
 <div class="deepnote"><b>Go deeper.</b> Budgets and spend limits enforced at the gateway (LiteLLM virtual keys, measured): the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Production stack</a> tab and <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a> (sections 5 and 6, rate limits and budgets). Why Claude Code writes a 1-hour cache and what that costs: <a href="https://app.notion.com/p/3f15c17b0d0d811292cee46514370431" target="_blank" rel="noopener noreferrer">Context engineering</a>.</div>
 </section>
 
@@ -315,7 +361,22 @@ pre.fobs-pre .cm{color:var(--mute)}pre.fobs-pre .hl{background:var(--hl)}pre.fob
 </tbody></table></div>
 <p>The application has to say whether the run failed, on the root span: an ERROR status or an attribute such as <code>app.outcome</code>. Our first attempt at the root condition, <code>parent_span_id.string == ""</code>, matched nothing and raised no error (the policy's <code>error_mode: ignore</code> swallowed it); only the empty output file showed it. Test a sampling policy with a known failing trace before you trust it.</p>
 <p><b>Soft failures need scores, not status.</b> The worst agent failures end with status OK: the tests pass but the agent edited the tests, or the answer is wrong. No status-based rule keeps those. Keep a small random share of everything (so you can estimate rates), every run whose root says failed, and every run an online evaluator scored low (section 9); count runs with metrics, which are computed before sampling. Langfuse's SDK can also sample, per trace, with <code>sample_rate</code> (<a href="https://langfuse.com/docs/observability/features/sampling" target="_blank" rel="noopener noreferrer">docs</a>).</p>
-<div class="deepnote"><b>Go deeper.</b> Every setup on a timeline, plus a simulator of <code>decision_wait</code> and policy on the same spans checked against the six real collector runs: tab <a href="#" data-tab="t-pipe">Pipeline lab</a>.</div>
+<details class="dp" id="fobs-sim-d"><summary>Simulator: any decision_wait, either policy, on the same 49 spans (checked against the six collector runs)</summary><div class="b">
+<p>The recorded Claude Code trace, 49 spans arriving at their real end times over 29 s, the root last. The simulator applies the processor's documented rules to these arrival times; each preset is an outcome measured on the real collector (six collector pipelines, seven outcomes), and the simulator is checked against every one. Predict first: at what wait does the failed run start being kept?</p>
+<div class="card" id="fobs-sim">
+<div class="ctl">
+<label>Trace <select id="fobs-sim-run"><option value="failed">run marked failed</option><option value="ok">run as recorded (succeeded)</option></select></label>
+<label>Policy <select id="fobs-sim-pol"><option value="any">any span ERROR</option><option value="root">root span ERROR</option></select></label>
+<label>decision_wait <b id="fobs-sim-wv"></b> s<input type="range" id="fobs-sim-w" min="1" max="120" step="1" value="5"></label>
+<label><input type="checkbox" id="fobs-sim-ar"> decide 2 s after the root arrives (<code>decision_wait_after_root_received</code>)</label>
+</div>
+<div class="small">Presets measured on the real collector: <span id="fobs-sim-pre"></span></div>
+<div id="fobs-sim-svg"></div>
+<div id="fobs-sim-out"></div>
+<div class="small mute" id="fobs-sim-note"></div>
+</div>
+<p class="small mute">Late spans: in our runs the collector still held the trace's decision in memory, so spans arriving after a "drop" were dropped too, with or without the decision cache. Under heavy load, once a trace is evicted from the buffer without a decision cache, late spans are "buffered for decision_wait seconds and then a new sampling decision is made" (processor README), which yields a fragment of the trace instead. The simulator shows the measured behaviour.</p>
+</div></details>
 </section>
 
 <section id="rs8">
@@ -333,66 +394,26 @@ pre.fobs-pre .cm{color:var(--mute)}pre.fobs-pre .hl{background:var(--hl)}pre.fob
 <div id="fobs-a8-view"></div>
 </div>
 <p><b>What the measurement says.</b> Masking by pattern caught every e-mail, the account ids and every path, in span attributes and in span event attributes alike, and still missed the login name in <code>ls -la</code> output, because no pattern described it. A keyed hash (<code>hmac-sha256</code>) does the same job while keeping values joinable: the same e-mail always becomes the same digest, so you can still count one customer's runs. The allow-list of keys removed everything not on the list (<span class="fobs-v" data-v="red.allowRemovedCC"></span> attributes on the Claude Code trace) and left nothing to leak, at the price of the content you wanted to debug with. A deny-list fails open on whatever you did not think of; an allow-list fails closed. In production, use the allow-list and keep full content only where access is controlled and retention is short. The attack side of the same problem (prompt injection, exfiltration through tools) is on <a href="https://app.notion.com/p/3f15c17b0d0d81ad9fb7d1dd74217335" target="_blank" rel="noopener noreferrer">Agent security</a>.</p>
+<details class="dp"><summary>The collector configurations used (cost mapping, redaction, tail sampling), to copy</summary><div class="b">
+<p>Collector <code>otel/opentelemetry-collector-contrib:0.162.0</code> in Docker. Each configuration passed <code>otelcol-contrib validate</code> before use. Two lessons from writing them: an <code>hmac_key</code> shorter than 32 bytes is rejected for <code>hmac-sha256</code>; and an OTTL condition that matches nothing does not fail, so test policies with a trace you know should match.</p>
+<div class="seg" id="fobs-cfg-pick" role="group" aria-label="Configuration"><button data-m="to_langfuse" class="on">Cost mapping</button><button data-m="redact">Redaction</button><button data-m="sampling">Four waits</button><button data-m="sampling2">Two policies</button></div>
+<pre class="fobs-pre" id="fobs-cfg"></pre>
+</div></details>
 </section>
 
 <section id="rs9">
 <h2>9. Evals in the loop</h2>
 <p><b>The idea.</b> Traces are the raw material for evaluation. <dfn>Online evaluation</dfn> scores a sample of production traces as they arrive, with code checks where they can decide and a model judge where they cannot, and writes the result back onto the trace as a <dfn>score</dfn>. <dfn>Offline evaluation</dfn> reruns a fixed <dfn>dataset</dfn> of tasks before every change; interesting production traces get promoted into that dataset. The same trace store serves debugging, monitoring and regression testing, which is the main argument for an integrated platform over plain OpenTelemetry.</p>
+<div class="fig" id="fobs-loop"><h4>One trace store serves debugging, monitoring and the regression gate</h4><div class="fobs-svg" id="fobs-loop-svg"></div><div class="cap small mute">Online: a sample of production traces is scored as it arrives and the score is written back onto the trace. Offline: failures are promoted into a dataset that every prompt, model, tool or harness change must pass before it ships, which produces new traces.</div></div>
 <p><b>What we ran.</b> A 55-line scorer read each run's outcome and wrote four rule-based scores to Langfuse through its API (<code>tests_pass</code>, <code>summary_complete</code>, <code>turns</code>, and <code>cost_usd</code> for the Claude run), then read <span class="fobs-v" data-v="scores.n"></span> scores back from <code>/api/public/v3/scores</code>. We also created a dataset and promoted the local run's trace into it as an item with <code>sourceTraceId</code> set and an expected output <span class="meas">MEASURED</span>.</p>
 <div class="tw"><table id="fobs-sc-tab"></table></div>
 <div class="co warn"><div class="t">A rule that passed a summary it should have failed</div>The local model fixed both bugs but its final message describes only the <code>tokenize</code> change; it mentions the second one only as a test name ("including the apostrophes test, ties handling"). Our keyword rule looked for "tie" and scored the summary complete. Cheap checks drift from what they mean; check them against labelled cases (here: the diff contains two changes, the summary names one), and use a judge or a stricter structured check where a keyword cannot decide.</div>
-<p><b>Making it a loop.</b> Sample live traces for scoring (vendor docs suggest 1 to 10% for high volume, more for critical paths, and the judge bill is a budget line: figures on <a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a>); alert on score rates and on the agent metrics from section 2 (model calls and tool calls per run, cost per run, p95 duration); promote failures to the dataset; gate every prompt, model, tool or harness change on that dataset. The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Production stack</a> tab runs a small gate over 18 recorded runs. How to grade a trajectory rather than a final answer: <a href="https://app.notion.com/p/3ef5c17b0d0d81fdbabaf3582bff37f2" target="_blank" rel="noopener noreferrer">Agent and trajectory evaluation</a>; judge design and biases: <a href="https://app.notion.com/p/3c65c17b0d0d810ba2a2ecc08c4c233b" target="_blank" rel="noopener noreferrer">LLM-as-judge</a>; alert design: <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability: logs, metrics, traces, alerting</a>.</p>
+<p><b>Making it a loop.</b> Sample live traces for scoring (vendor docs suggest 1 to 10% for high volume, more for critical paths, and the judge bill is a budget line: figures on <a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a>); alert on score rates and on the agent metrics from section 2 (model calls and tool calls per run, cost per run, p95 duration); promote failures to the dataset; gate every prompt, model, tool or harness change on that dataset. The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Production stack</a> tab runs a small gate over 18 recorded runs. How to grade a trajectory rather than a final answer: <a href="https://app.notion.com/p/3ef5c17b0d0d81fdbabaf3582bff37f2" target="_blank" rel="noopener noreferrer">Agent and trajectory evaluation</a>; judge design and biases: <a href="https://app.notion.com/p/3c65c17b0d0d810ba2a2ecc08c4c233b" target="_blank" rel="noopener noreferrer">LLM-as-judge</a>; alert design: <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability: logs, metrics, traces, alerting</a>. Version prompts outside code and promote them by label after the gate; with <code>gen_ai.prompt.name</code> and <code>gen_ai.prompt.version</code> on every model span, a regression can be traced to a prompt version (Langfuse's labels in section 4; gates on <a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a>).</p>
 </section>
 
-<section id="rs10">
-<h2>10. When the vendor runs the loop</h2>
-<p>With a hosted agent runtime, the spans between your request and its result are produced inside the vendor's process; you see what they export. From their docs on 6 October 2026 (not run here) <span class="docd">SOURCE</span>:</p>
-<div class="tw"><table>
-<thead><tr><th>Runtime or SDK</th><th>What you can trace</th></tr></thead>
-<tbody>
-<tr><td>OpenAI Agents API (public beta 10 Sep 2026)</td><td>Exports per-session traces as OTLP JSON: <code>GET /v1/agents/sessions/{session_id}/traces</code>; attribute conventions not stated (<a href="https://developers.openai.com/api/docs/guides/agents-api/tracing" target="_blank" rel="noopener noreferrer">docs</a>)</td></tr>
-<tr><td>Claude Managed Agents (public beta 8 Apr 2026)</td><td>No OpenTelemetry export found; an event log per session (<code>span.model_request_start</code> and <code>_end</code>, tool use, <code>session.usage</code> with 5-minute and 1-hour cache-write counts) and a session viewer in the Console</td></tr>
-<tr><td>OpenAI Agents SDK</td><td>Tracing on by default, sent to OpenAI's traces dashboard, not OpenTelemetry; unavailable under Zero Data Retention; replace with <code>set_trace_processors()</code> or disable with <code>OPENAI_AGENTS_DISABLE_TRACING=1</code></td></tr>
-<tr><td>Google ADK</td><td>OpenTelemetry GenAI spans (<code>invoke_agent</code>, <code>execute_tool</code>, <code>generate_content</code>); Google's own guide recommends <code>ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false</code></td></tr>
-</tbody></table></div>
-<p>Treat trace export as a procurement question: what is exported, in which conventions, with what content, and for how long it is kept. Sources for each row are in <code>src/inputs/research.md</code>; the runtimes themselves are compared on the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Production stack</a> tab.</p>
-</section>
 
-<section id="rs11">
-<h2>Reliability patterns the trace should show</h2>
-<p>The old version of this page listed production patterns that are not observability themselves but that a trace must make visible. Each is owned elsewhere; what the trace needs is here.</p>
-<div class="tw"><table>
-<thead><tr><th>Pattern</th><th>What to record so you can see it working</th><th>Owned by</th></tr></thead>
-<tbody>
-<tr><td>Structured output: validate, feed the error back, retry two or three times at most</td><td>A span or event per retry with the validation error; a retry-rate metric (a rising rate is a prompt or model regression)</td><td><a href="https://app.notion.com/p/3f15c17b0d0d819fba89f9ec88feb859" target="_blank" rel="noopener noreferrer">Typed agent libraries</a> (Pydantic AI's <code>ModelRetry</code>)</td></tr>
-<tr><td>Fallbacks, retries and cooldowns at a gateway</td><td>Which deployment answered, how many attempts and fallbacks (LiteLLM returns them as response headers), on the model span; evaluate every model in the fallback chain, or a fallback is a silent quality cliff</td><td><a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a></td></tr>
-<tr><td>Step, token and wall-clock budgets per run; stop and return partial results</td><td>The stop reason on the root span; model and tool calls per run as metrics; alert on drift of their p95</td><td><a href="https://app.notion.com/p/3c65c17b0d0d817ca14fc32338707c2f" target="_blank" rel="noopener noreferrer">Building a harness</a></td></tr>
-<tr><td>Degrade explicitly when everything fails</td><td>A typed error on the root span with the same trace id the user's request had, so the incident is one query away</td><td>This page, section 1</td></tr>
-<tr><td>Version prompts outside code; promote by label after an eval gate</td><td><code>gen_ai.prompt.name</code> and <code>gen_ai.prompt.version</code> on every model span, so a regression can be traced to a prompt version</td><td>Section 4 (Langfuse prompt labels) and <a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a></td></tr>
-</tbody></table></div>
-
-<h2>Common mistakes</h2>
-<details class="mist"><summary>Turning on client auto-instrumentation and calling it agent tracing</summary><div class="b">It gives one trace per model call (section 3). Add the <code>invoke_agent</code> and <code>execute_tool</code> spans yourself or use a framework that does.</div></details>
-<details class="mist"><summary>Reading Anthropic's <code>input_tokens</code> as the input size</summary><div class="b">It excludes cache reads and writes. On our first Claude Code call it was <span class="fobs-v" data-v="cc.c1in"></span> tokens out of <span class="fobs-v" data-v="cc.c1sum"></span>. The GenAI value is the sum (section 2).</div></details>
-<details class="mist"><summary>Trusting a backend's cost without reconciling it</summary><div class="b">Our first two Langfuse totals were $0 and 16% short, both silently (section 6). Compare with a second source on every model you use.</div></details>
-<details class="mist"><summary>Error-based tail sampling on agent traces</summary><div class="b">Successful runs have ERROR spans; long runs outlive <code>decision_wait</code>. Decide on the root's outcome after the root arrives (section 7).</div></details>
-<details class="mist"><summary>Assuming content is off by default</summary><div class="b">The conventions say opt-in; four of the five instrumentation libraries we ran capture it by default, and Claude Code adds the account e-mail to every span regardless (section 8).</div></details>
-<details class="mist"><summary>Redacting with a deny-list only</summary><div class="b">Patterns catch what you anticipated. The login name in <code>ls -la</code> output got through ours. Allow-list keys for anything leaving your network.</div></details>
-<details class="mist"><summary>Not noticing lost telemetry</summary><div class="b">Exporters drop data on errors and print a warning; the application carries on (section 4). Monitor the exporter or the collector's own metrics.</div></details>
-<details class="mist"><summary>Double-counting usage on parent spans</summary><div class="b">If the agent span carries the run's total tokens under the same names as the model spans, a backend that sums all spans counts them twice. Pydantic AI writes the totals on its agent span as <code>gen_ai.aggregated_usage.*</code> for this reason (its <code>use_aggregated_usage_attribute_names</code> setting, default on).</div></details>
-
-<h2>Interview questions</h2>
-<details class="qa"><summary>What is the difference between a trace, a span and an event?</summary><div>A trace is one run (all spans sharing a trace id); a span is one timed operation in it with a parent, attributes and status; an event is a timestamped record inside a span (Claude Code puts tool output in a <code>tool.output</code> event).</div></details>
-<details class="qa"><summary>How do you get one trace across your app, an agent subprocess and the tools it runs?</summary><div>Propagate W3C trace context: inject <code>traceparent</code> into the child's environment or headers and extract it there. Claude Code reads <code>TRACEPARENT</code> in <code>-p</code> and SDK sessions and passes it to Bash subprocesses (section 1).</div></details>
-<details class="qa"><summary>Which GenAI attributes are required on a model-call span, and which do you need for cost?</summary><div>Required: <code>gen_ai.operation.name</code> and <code>gen_ai.provider.name</code> (model if available). For cost: the model and the token counts by kind (input including cache, cache read, cache write, output) plus the cache lifetime where prices differ.</div></details>
-<details class="qa"><summary>Head or tail sampling for agents?</summary><div>Tail, deciding on the root span's outcome shortly after the root arrives, plus a small random share; count with metrics computed before sampling.</div></details>
-<details class="qa"><summary>How do you keep personal data out of traces?</summary><div>Content off by default, on per environment; SDK masking; a collector with an allow-list of keys (or keyed hashing where you need joins) before data leaves your network; short retention and access control where full content is kept.</div></details>
-<details class="qa"><summary>Your trace tool says a run cost $0.035 and the bill says $0.042. Where do you look?</summary><div>Token kinds and prices: cache writes priced at the wrong lifetime (our case), cache reads counted as fresh, a model name that does not match a price entry, or missing spans (sampled or lost).</div></details>
-<details class="qa"><summary>What does an online evaluator add over tracing?</summary><div>Quality: a trace shows what happened; a score says whether it was good. Scores catch soft failures that end with status OK, drive sampling and alerts, and select traces to promote into the regression set.</div></details>
-<details class="qa"><summary>Langfuse or LangSmith?</summary><div>Langfuse if you need to self-host without an Enterprise contract or want MIT; LangSmith if LangGraph is your runtime and a hosted service is fine. Instrument with OpenTelemetry either way.</div></details>
-
-<h2>Corrections to the old version of this page</h2>
-<div class="co warn"><div class="t">Checked against primary sources on 6 October 2026</div><ul>
+<section id="rs99">
+<details class="dp"><summary>Corrections to the old version of this page (checked against primary sources on 6 October 2026)</summary><div class="b"><ul>
 <li>"the v3 stack: Postgres + ClickHouse + Redis + S3": Langfuse is on version 4 (GA 17 Aug 2026), same four stores, observations-first storage and OpenTelemetry-only ingestion; v3 gets security fixes until the end of January 2027.</li>
 <li>"Langfuse calls span-tree nodes observations (span/generation/event)": there are now ten observation types, including agent, tool, chain, retriever, evaluator, embedding and guardrail.</li>
 <li>"Arize Phoenix: open source": Elastic License 2.0, source-available. It now also ingests GenAI-convention spans directly (since May 2026).</li>
@@ -401,8 +422,7 @@ pre.fobs-pre .cm{color:var(--mute)}pre.fobs-pre .hl{background:var(--hl)}pre.fob
 <li>"Native LiteLLM integration: point the proxy's logging callback at Langfuse": still true, but it now goes through OpenTelemetry, and LiteLLM recommends the <code>langfuse_otel</code> callback.</li>
 <li>OpenLLMetry is still Apache 2.0, but Traceloop now belongs to ServiceNow (2026).</li>
 <li>Claude Code 2.1.274's <code>effort</code> span attribute and managed-settings event: confirmed (September 2026).</li>
-</ul></div>
-<p class="small mute">Data as of 6 October 2026. Versions: Langfuse 4.53.0 (Python SDK 4.17.0), OpenTelemetry Collector contrib 0.162.0, opentelemetry-sdk 1.45.1, opentelemetry-instrumentation-openai-v2 2.4b0 with opentelemetry-util-genai 0.4b0 (1.2b0 breaks its import), OpenLLMetry's opentelemetry-instrumentation-openai 0.62.4, openinference-instrumentation-openai 0.1.63, pydantic-ai-slim 2.54.0, openai 3.25.0, Claude Code 2.1.291 (Claude subscription, <code>--setting-sources project --strict-mcp-config --no-session-persistence</code>), local model mlx-community/Qwen3-4B-Instruct-2507-4bit on mlx-lm 0.32.0 (local model on Apple M1 Pro), GenAI conventions at commit cb10b70. Scripts, collector configurations, redacted recordings and data are in this page's <code>src/</code>.</p>
+</ul></div></details>
 </section>
 </div>
 <div class="tab" id="t-inst" role="tabpanel" hidden>
@@ -447,51 +467,14 @@ pre.fobs-pre .cm{color:var(--mute)}pre.fobs-pre .hl{background:var(--hl)}pre.fob
 </ul>
 <div class="deepnote"><b>Reproduce.</b> <code>src/code/agent.py MODE</code> and <code>agent_pai.py</code> against <code>replay.py</code> serving the recorded exchanges (redacted copy in <code>recordings/local_run_exchanges.jsonl</code>); <code>run_variants.sh</code> runs them all; <code>compare.py</code> classifies the spans; <code>lf_fetch.py</code> reads Langfuse back.</div>
 </div>
-<div class="tab" id="t-pipe" role="tabpanel" hidden>
-<style>
-#t-pipe .fobs-res{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:8px 0}
-#t-pipe .ok{color:var(--good);font-weight:600}#t-pipe .no{color:var(--bad);font-weight:600}
-#t-pipe .fobs-cfgsel{margin:6px 0}
-#t-pipe select,#t-read select{max-width:100%}
-</style>
-<h2>Pipeline lab: what a collector does to agent traces</h2>
-<p>An OpenTelemetry Collector sits between your services and your backend. This tab gathers the three collector experiments behind the <a href="#" data-tab="t-read">Reading</a> tab (sections 6 to 8): a tail-sampling simulator checked against six real collector runs, the per-call cost table behind the reconciliation, and the exact configurations used, so you can copy them. Collector: <code>otel/opentelemetry-collector-contrib:0.162.0</code> in Docker.</p>
-
-<h3>1. Tail-sampling simulator</h3>
-<p>The input is the recorded Claude Code trace: 49 spans arriving at their real end times over 29 s, the root last. Choose how the collector waits and what it keeps. The simulator applies the processor's documented rules to these arrival times; each preset is an outcome measured on the real collector (six collector pipelines, seven outcomes), and the simulator is checked against every one.</p>
-<div class="card" id="fobs-sim">
-<div class="ctl">
-<label>Trace <select id="fobs-sim-run"><option value="failed">run marked failed</option><option value="ok">run as recorded (succeeded)</option></select></label>
-<label>Policy <select id="fobs-sim-pol"><option value="any">any span ERROR</option><option value="root">root span ERROR</option></select></label>
-<label>decision_wait <b id="fobs-sim-wv"></b> s<input type="range" id="fobs-sim-w" min="1" max="120" step="1" value="5"></label>
-<label><input type="checkbox" id="fobs-sim-ar"> decide 2 s after the root arrives (<code>decision_wait_after_root_received</code>)</label>
-</div>
-<div class="small">Presets measured on the real collector: <span id="fobs-sim-pre"></span></div>
-<div id="fobs-sim-svg"></div>
-<div class="fobs-res" id="fobs-sim-out"></div>
-<div class="small mute" id="fobs-sim-note"></div>
-</div>
-<p class="small mute">Late spans: in our runs the collector still held the trace's decision in memory, so spans arriving after a "drop" were dropped too, with or without the decision cache. Under heavy load, once a trace is evicted from the buffer without a decision cache, late spans are "buffered for decision_wait seconds and then a new sampling decision is made" (processor README), which yields a fragment of the trace instead. The simulator shows the measured behaviour.</p>
-
-<h3>2. The cost reconciliation, call by call</h3>
-<p>The eight model requests of the Claude Code run, with the token counts its spans carried and the cost Langfuse computed under each labelling (section 6 of the Reading tab).</p>
-<div class="tw"><table id="fobs-cost-tab"></table></div>
-<p class="small mute">Haiku 4.5 list prices per million tokens: input $1, 5-minute cache write $1.25, 1-hour cache write $2, cache read $0.10, output $5 (<a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank" rel="noopener noreferrer">Anthropic pricing</a>). The "check" column recomputes each call at the 1-hour rate.</p>
-
-<h3>3. The configurations used</h3>
-<p>Each one passed <code>otelcol-contrib validate</code> before use. Two lessons from writing them: an <code>hmac_key</code> shorter than 32 bytes is rejected for <code>hmac-sha256</code>; and an OTTL condition that matches nothing does not fail, so test policies with a trace you know should match.</p>
-<div class="seg fobs-cfgsel" id="fobs-cfg-pick" role="group" aria-label="Configuration"><button data-m="to_langfuse" class="on">Cost mapping to Langfuse</button><button data-m="redact">Redaction, three policies</button><button data-m="sampling">Tail sampling, four waits</button><button data-m="sampling2">Tail sampling, two policies</button></div>
-<pre class="fobs-pre" id="fobs-cfg"></pre>
-</div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <div id="s-more">
 <h2>Further reading</h2>
 <p class="small mute">Links checked on 6 October 2026. Times are estimates for a careful read.</p>
 
-<h3>This page's tabs</h3>
+<h3>This page's lab</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-inst">Eight instrumentations</a></div><p>One replayed agent run instrumented eight ways: every span and attribute, classified against the GenAI conventions, and what Langfuse stored. <span class="rt">About 15 min.</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-pipe">Pipeline lab</a></div><p>A tail-sampling simulator checked against six real collector runs, the per-call cost reconciliation, and the collector configurations to copy. <span class="rt">About 15 min.</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-inst">Eight instrumentations</a></div><p>One replayed agent run instrumented eight ways: every span and attribute, classified against the GenAI conventions, and what Langfuse stored. <span class="rt">About 4 min to read, 15 to explore.</span></p></div>
 </div>
 
 <h3>The parent and its tabs</h3>
@@ -551,16 +534,14 @@ pre.fobs-pre .cm{color:var(--mute)}pre.fobs-pre .hl{background:var(--hl)}pre.fob
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Shared helpers (copied from the parent root, Topic: agentic-harnesses) and the step-animation controller (play, pause, step, scrub, speed) ----
-// Here RD.anim takes o.tab (default t-read) so the lab tabs can use it too.
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
-  const onRenderTab=(tab,f)=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER[tab]=window.TAB_RENDER[tab]||[]).push(f)};
-  const onRender=f=>onRenderTab('t-read',f);
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
   // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
   function anim(o){
     const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
@@ -586,9 +567,9 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
-    onRenderTab(o.tab||'t-read',()=>{show();kick()});
+    onRender(()=>{show();kick()});
     show();
     return {
       // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
@@ -604,9 +585,9 @@ window.RD=(function(){
   // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
   function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
     const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
-  return {RM,esc,stat,anim,onRender,onRenderTab,width,tabLinks};
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
 })();
-RD.onResize=(f,tab)=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById(tab||'t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
 RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
 RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
 // segmented buttons: el contains <button data-m>; calls f(value)
@@ -814,7 +795,7 @@ window.FOBSU=(function(){
     else msg='Decided at '+c.dec.toFixed(1)+' s with the failure in view: kept '+c.kept+' of 49 spans, written out '+c.emit+' s after the replay began.';
     cap.innerHTML='<p class="t">'+esc(c.lab)+'</p><p>'+msg+'</p><p class="small mute">Ticks: spans as they arrive (red: status ERROR; the last two were marked failed by us). Measured on otelcol-contrib 0.162.0.</p>'}
   const A=RD.anim({card:'fobs-a7',ctl:'fobs-a7-ctl',n:N,draw,ms:450,label:'Time'});
-  RD.seg(document.getElementById('fobs-a7-mode'),m=>{mode=m;A.reset(N);A.play()});
+  RD.seg(document.getElementById('fobs-a7-mode'),m=>{mode=m;A.reset(N)});
   RD.onResize(()=>A.redraw());
 })();
 
@@ -840,47 +821,96 @@ window.FOBSU=(function(){
   draw();
 })();
 </script>
-<script>/* 31_js_inst.js */
-// ---- fobs: tab t-inst (eight instrumentations of one replayed run) ----
+<script>/* 25_js_fobs_figs.js */
+// ---- fobs: static figures in the Reading tab: hero (the trace and its path), token accounting to scale (section 2),
+// the Langfuse stack (section 4), the eval loop (section 9). Drawn at the measured width; nothing moves. ----
 (function(){
-  const {D,fmt,wf,esc}=FOBSU;
-  const LV={required:'required',conditionally_required:'cond.',recommended:'recommended',opt_in:'opt-in',registry:'registry',gen_ai_other:'gen_ai, not in registry',other:'other'};
-  let vi=0,si=0;
-  const pick=document.getElementById('fobs-i-pick');
-  pick.innerHTML=D.inst.map((v,i)=>'<button data-m="'+i+'"'+(i===0?' class="on"':'')+'>'+esc(v.label)+'</button>').join('');
-  RD.seg(pick,m=>{vi=+m;si=0;render()});
-  const col=k=>k==='gen_ai.inference.client'?'var(--c1)':k==='gen_ai.execute_tool.internal'?'var(--c3)':k==='gen_ai.invoke_agent.internal'?'var(--c5)':'var(--mute)';
-  function depth(sp,i){let d=0,p=sp[i][2];while(p>=0){d++;p=sp[p][2]}return d}
-  function renderWf(){const v=D.inst[vi],sp=v.spans,T=Math.max(...sp.map(s=>s[5]));
-    wf(document.getElementById('fobs-i-wf'),sp.map((s,i)=>({name:(v.n_traces>1?'trace '+(s[3]+1)+': ':'')+s[0],depth:depth(sp,i),t0:s[4],t1:s[5],col:col(s[6]),cls:i===si?'new':''})),T,{axis:true});
-    document.getElementById('fobs-i-wfnote').textContent=(v.n_traces>1?'Each span is the root of its own trace: '+v.n_traces+' traces for one run. ':'One trace. ')+'Replay timing (the replay server answered in about 0.4 s), not the recorded run\'s.'}
-  function render(){const v=D.inst[vi],s=v.summary;
-    document.getElementById('fobs-i-stats').innerHTML=RD.stat('Spans / traces',v.n_spans+' / '+v.n_traces,v.mode)+
-      RD.stat('Agent root / tool spans',(s.agent_root?'yes':'no')+' / '+s.tool_spans,'')+
-      RD.stat('Fake PII occurrences',s.pii_in_spans+s.pii_in_logs,s.pii_in_logs?'in log events, not spans':'in span attributes')+
-      RD.stat('Attribute size',fmt(s.bytes/1000,1)+' KB','all spans')+
-      RD.stat('Required attributes missing',s.required_missing.length?s.required_missing.join(', '):'none','checked on every span')+
-      RD.stat('Langfuse stored',Object.entries(v.langfuse.types).map(([k,n])=>n+' '+k.toLowerCase()).join(', '),v.langfuse.gen_with_usage+' generations with usage');
-    document.getElementById('fobs-i-list').innerHTML=v.spans.map((sp,i)=>'<div data-i="'+i+'" class="'+(i===si?'on':'')+'" style="padding-left:'+(8+depth(v.spans,i)*12)+'px">'+esc(sp[0])+'</div>').join('');
-    renderWf();renderAttrs()}
-  function renderAttrs(){const v=D.inst[vi],sp=v.spans[si];
-    document.getElementById('fobs-i-head').innerHTML='<b>'+esc(sp[0])+'</b>, kind '+esc(sp[1])+(sp[6]?', convention type <code>'+esc(sp[6])+'</code>':', no convention type')+'; '+sp[8].length+' attributes, '+fmt(sp[9])+' bytes'+(sp[10]?', <span class="pill bad">'+sp[10]+' fake PII</span>':'')+(sp[7].length?' <span class="pill bad">missing required: '+esc(sp[7].join(', '))+'</span>':'');
-    document.getElementById('fobs-i-attrs').innerHTML='<thead><tr><th>Key</th><th>Class</th><th>Value</th></tr></thead><tbody>'+sp[8].map(a=>'<tr><td class="av">'+esc(a[0])+'</td><td><span class="fobs-lvl '+a[2]+'">'+(LV[a[2]]||a[2])+'</span></td><td class="av">'+(a[1]?esc(a[1]):'<span class="mute">as on the first span of this kind</span>')+'</td></tr>').join('')+'</tbody>'}
-  document.getElementById('fobs-i-list').addEventListener('click',e=>{const d=e.target.closest('div[data-i]');if(!d)return;si=+d.dataset.i;render()});
-  // matrix
-  const KEYS=['gen_ai.operation.name','gen_ai.provider.name','gen_ai.system','gen_ai.request.model','gen_ai.response.model','gen_ai.response.finish_reasons','gen_ai.usage.input_tokens','gen_ai.usage.output_tokens','gen_ai.usage.cache_read.input_tokens','gen_ai.conversation.id','server.address','gen_ai.input.messages','gen_ai.output.messages','gen_ai.tool.definitions'];
-  const firstModel=v=>v.spans.find(s=>s[6]==='gen_ai.inference.client')||v.spans[0];
-  document.getElementById('fobs-i-mx').innerHTML='<thead><tr><th>Attribute</th>'+D.inst.map(v=>'<th>'+esc(v.label)+'</th>').join('')+'</tr></thead><tbody>'+
-    KEYS.map(k=>'<tr><td><code>'+esc(k)+'</code></td>'+D.inst.map(v=>{const has=firstModel(v)[8].some(a=>a[0]===k);return '<td class="'+(has?'y':'n')+'">'+(has?'yes':'no')+'</td>'}).join('')+'</tr>').join('')+'</tbody>';
-  // logs of openai-v2
-  const o1=D.inst.find(v=>v.key==='otel_v2'),o2=D.inst.find(v=>v.key==='otel_v2_content');
-  document.getElementById('fobs-i-logs').innerHTML='<p>openai-v2 also emitted <b>'+o1.logs.n+'</b> log events per run ('+o1.logs.names.map(n=>'<code>'+esc(n)+'</code>').join(', ')+'). With defaults, '+o1.logs.with_body+' carried a body with message structure (roles, tool-call names and ids) and '+o1.logs.pii+' contained the fake PII; with <code>OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true</code>, '+o2.logs.with_body+' carried a body and '+o2.logs.pii+' contained it, for example:</p><pre class="fobs-pre">'+esc(o2.logs.example||'')+'</pre><p class="small mute">With <code>OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental</code>, newer versions of the GenAI utilities take <code>SPAN_ONLY</code>, <code>EVENT_ONLY</code> or <code>SPAN_AND_EVENT</code> instead of <code>true</code> (documented, not run here).</p>';
-  render();
-  RD.onRenderTab('t-inst',renderWf);RD.onResize(renderWf,'t-inst');
+  if(!document.getElementById('fobs-hero-svg'))return;
+  const {D,fmt}=FOBSU,T=RD.t;
+  const mk=id=>'<defs><marker id="'+id+'" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--mute)"/></marker></defs>';
+  const arrow=(x1,y1,x2,y2,id)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--mute)" stroke-width="1.4" marker-end="url(#'+id+')"/>';
+  function box(x,y,w,h,title,sub,col,o){o=o||{};
+    return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="6" fill="var(--bg)" stroke="'+(col||'var(--line)')+'" stroke-width="'+(o.sw||1.3)+'"/>'+
+      T(x+w/2,y+(sub?h/2-3:h/2+4),title,{a:'middle',fs:12,w:600,fill:'var(--ink)'})+(sub?T(x+w/2,y+h/2+12,sub,{a:'middle',fs:11,fill:'var(--mute)'}):'')}
+
+  // Hero: one trace (top) and where its spans go (bottom)
+  function hero(){const el=document.getElementById('fobs-hero-svg'),w=Math.floor(RD.width(el)),wide=w>=640;
+    const run=D.run,rows=[
+      {d:0,n:'invoke_agent textstats-fixer',c:'var(--acc)',note:'user, session, outcome: sections 6 and 7'},
+      {d:1,n:'chat Qwen3-4B (call 1, '+fmt(run[0].in)+' tokens in)',c:'var(--c1)',note:'model, tokens by kind: sections 2 and 6'},
+      {d:1,n:'execute_tool list_files',c:'var(--c3)',note:'tool name; content opt-in: section 8'},
+      {d:1,n:'... 12 more spans ...',c:null,note:''},
+      {d:1,n:'chat Qwen3-4B (call 8, final answer)',c:'var(--c1)',note:''},
+      {d:1,n:'score tests_pass = 1',c:'var(--c5)',note:'written back by an evaluator: section 9'}];
+    let b=mk('fobs-hm'),y=8;const rh=wide?26:40;
+    b+=T(4,y+8,'ONE TRACE (all spans share a trace id)',{fs:11,fill:'var(--mute)',w:600});y+=18;
+    rows.forEach((r,i)=>{const x=10+r.d*18;
+      if(r.d>0)b+='<path d="M'+(x-10)+','+(y-8)+' V'+(y+8)+' H'+(x-2)+'" fill="none" stroke="var(--line)" stroke-width="1.2"/>';
+      if(r.c)b+='<rect x="'+x+'" y="'+(y+1)+'" width="8" height="12" rx="2" fill="'+r.c+'"/>';
+      b+=T(x+(r.c?13:0),y+11,r.n,{fs:12,fill:r.c?'var(--ink)':'var(--mute)',w:r.d===0?600:null});
+      if(r.note){if(wide){const nx=Math.round(w*0.53);b+='<line x1="'+(nx-8)+'" y1="'+(y+7)+'" x2="'+(nx-2)+'" y2="'+(y+7)+'" stroke="var(--line)"/>'+T(nx,y+11,r.note,{fs:11.5,fill:'var(--mute)'})}
+        else b+=T(x+13,y+27,r.note,{fs:11,fill:'var(--mute)'})}
+      y+=r.note||!wide?rh:24});
+    y+=10;b+=T(4,y+8,'WHERE THE SPANS GO',{fs:11,fill:'var(--mute)',w:600});y+=18;
+    const st=[['App + SDK','creates spans: 3'],['Collector','samples, redacts: 7, 8'],['Backend','stores, prices: 4 to 6'],['Evaluators','score, gate: 9']];
+    if(wide){const g=26,bw=(w-8-3*g)/4,bh=46;
+      st.forEach((s,i)=>{const x=4+i*(bw+g);b+=box(x,y,bw,bh,s[0],s[1],i===0?'var(--acc)':null);if(i<3)b+=arrow(x+bw+2,y+bh/2,x+bw+g-2,y+bh/2,'fobs-hm')});
+      y+=bh+6}
+    else{const g=14,bw=(w-8-g)/2,bh=44;
+      st.forEach((s,i)=>{const x=4+(i%2)*(bw+g),yy=y+Math.floor(i/2)*(bh+22);b+=box(x,yy,bw,bh,s[0],s[1],i===0?'var(--acc)':null)});
+      b+=arrow(4+bw+1,y+bh/2,4+bw+g-1,y+bh/2,'fobs-hm')+arrow(4+bw+g+bw/2,y+bh+2,4+bw/2+6,y+bh+20,'fobs-hm')+arrow(4+bw+1,y+bh+22+bh/2,4+bw+g-1,y+bh+22+bh/2,'fobs-hm');
+      y+=2*bh+28}
+    el.innerHTML=RD.svg(w,y,b,'An agent run as one trace tree, with what each span carries, and the path from SDK through collector and backend to evaluators')}
+
+  // Section 2: the first Claude Code call's input tokens to scale
+  function tok(){const el=document.getElementById('fobs-tok-svg');if(!el)return;const w=Math.floor(RD.width(el));
+    const a=D.cc.spans.filter(s=>s[3]==='claude_code.llm_request')[0][7];
+    const f=a.input_tokens,r=a.cache_read_tokens,c=a.cache_creation_tokens,tot=f+r+c,x0=6,W=w-12,sx=v=>v/tot*W;
+    const wf=Math.max(3,sx(f)),wr=sx(r)-(wf-sx(f)),wc=sx(c);let b='';const y=40,h=24;
+    b+='<rect x="'+x0+'" y="'+y+'" width="'+wf+'" height="'+h+'" fill="var(--c1)"/>';
+    b+='<rect x="'+(x0+wf)+'" y="'+y+'" width="'+wr+'" height="'+h+'" fill="var(--c6)" opacity=".85"/>';
+    b+='<rect x="'+(x0+wf+wr)+'" y="'+y+'" width="'+wc+'" height="'+h+'" fill="var(--c5)" opacity=".85"/>';
+    b+=T(x0+wf+wr/2,y+16,'cache read '+fmt(r),{a:'middle',fs:11.5,fill:'var(--bg)',w:600});
+    b+=T(x0+wf+wr+wc/2,y+16,'cache write '+fmt(c),{a:'middle',fs:11.5,fill:'var(--bg)',w:600});
+    b+='<path d="M'+(x0+1)+','+(y-3)+' V'+(y-14)+' H'+(x0+14)+'" fill="none" stroke="var(--acc)" stroke-width="1.5"/>'+T(x0+18,y-10,'Anthropic input_tokens = '+fmt(f)+' (fresh only)',{fs:12,fill:'var(--acc)',w:600});
+    b+='<path d="M'+x0+','+(y+h+4)+' V'+(y+h+10)+' H'+(x0+W)+' V'+(y+h+4)+'" fill="none" stroke="var(--ink)" stroke-width="1.2"/>'+T(x0+W/2,y+h+26,'gen_ai.usage.input_tokens = '+fmt(tot),{a:'middle',fs:12,fill:'var(--ink)',w:600});
+    el.innerHTML=RD.svg(w,y+h+34,b,'Input tokens of the first model call: fresh, cache read and cache write, drawn to scale')}
+
+  // Section 4: the self-hosted Langfuse stack
+  function stack(){const el=document.getElementById('fobs-stack-svg');if(!el)return;const w=Math.floor(RD.width(el)),id='fobs-sk';let b=mk(id),H;
+    const S={app:['Your app or collector','OTLP + Basic auth'],web:['langfuse-web','UI, API, /api/public/otel'],redis:['Redis 7','queue'],worker:['langfuse-worker','ingests, evaluates'],
+      ch:['ClickHouse','observations, scores'],pg:['Postgres','users, prompts, datasets'],s3:['MinIO','raw events (S3)']};
+    if(w>=640){const g=24,bw=(w-8-3*g)/4,bh=46,y1=6,y2=y1+bh+44,X=i=>4+i*(bw+g);
+      ['app','web','redis','worker'].forEach((k,i)=>{b+=box(X(i),y1,bw,bh,S[k][0],S[k][1],k==='app'?'var(--acc)':null);if(i<3)b+=arrow(X(i)+bw+2,y1+bh/2,X(i+1)-2,y1+bh/2,id)});
+      const cw=bw;
+      b+=box(X(3),y2,cw,bh,S.ch[0],S.ch[1],'var(--c1)',{sw:2})+box(X(0),y2,cw,bh,S.pg[0],S.pg[1])+box(X(1),y2,cw,bh,S.s3[0],S.s3[1]);
+      b+=arrow(X(3)+bw/2,y1+bh+2,X(3)+cw/2,y2-2,id)+arrow(X(1)+bw/2-20,y1+bh+2,X(0)+cw/2+20,y2-2,id)+arrow(X(1)+bw/2,y1+bh+2,X(1)+cw/2,y2-2,id);
+      H=y2+bh+6}
+    else{const bw=w-8,bh=40,g=18;let y=4;
+      ['app','web','redis','worker'].forEach((k,i)=>{b+=box(4,y,bw,bh,S[k][0],S[k][1],k==='app'?'var(--acc)':null);y+=bh;b+=arrow(4+bw/2,y+2,4+bw/2,y+g-2,id);y+=g});
+      const cw=(w-8-12)/3,h2=46;
+      [['ch','var(--c1)'],['pg',null],['s3',null]].forEach(([k,c],i)=>{const x=4+i*(cw+6);
+        b+='<rect x="'+x+'" y="'+y+'" width="'+cw+'" height="'+h2+'" rx="6" fill="var(--bg)" stroke="'+(c||'var(--line)')+'" stroke-width="'+(c?2:1.3)+'"/>'+T(x+cw/2,y+18,S[k][0],{a:'middle',fs:11.5,w:600,fill:'var(--ink)'})+T(x+cw/2,y+34,S[k][1].split(',')[0],{a:'middle',fs:11,fill:'var(--mute)'})});
+      H=y+h2+4}
+    el.innerHTML=RD.svg(w,H,b,'Langfuse self-hosted: app sends OTLP to langfuse-web, Redis queues to the worker, which writes observations to ClickHouse; Postgres and MinIO hold the rest')}
+
+  // Section 9: the eval loop
+  function loop(){const el=document.getElementById('fobs-loop-svg');if(!el)return;const w=Math.floor(RD.width(el)),id='fobs-lp';let b=mk(id);
+    const g=w>=640?40:12,bw=(w-8-2*g)/3,bh=46,y1=4,y2=y1+bh+40,X=i=>4+i*(bw+g);
+    const top=[['Traces','production'],['Evaluator','rule or judge'],['Score','on the trace']],bot=[['Deploy','new version'],['Gate','every change'],['Dataset','promoted failures']];
+    top.forEach((s,i)=>{b+=box(X(i),y1,bw,bh,s[0],s[1],i===2?'var(--acc)':null);if(i<2)b+=arrow(X(i)+bw+1,y1+bh/2,X(i+1)-1,y1+bh/2,id)});
+    bot.forEach((s,i)=>{b+=box(X(i),y2,bw,bh,s[0],s[1]);if(i<2)b+=arrow(X(i+1)-1,y2+bh/2,X(i)+bw+1,y2+bh/2,id)});
+    b+=arrow(X(2)+bw/2,y1+bh+2,X(2)+bw/2,y2-2,id)+arrow(X(0)+bw/2,y2-2,X(0)+bw/2,y1+bh+2,id);
+    b+=T(X(2)+bw/2-6,y1+bh+24,'low scores',{a:'end',fs:11,fill:'var(--mute)'})+T(X(0)+bw/2+6,y1+bh+24,'new runs',{fs:11,fill:'var(--mute)'});
+    b+=T(X(1)+bw/2,y1+bh+24,w>=640?'online above, offline below':'',{a:'middle',fs:11,fill:'var(--mute)'});
+    el.innerHTML=RD.svg(w,y2+bh+4,b,'The eval loop: traces are scored online; low scores are promoted to a dataset; every change passes a gate on it before deploy')}
+
+  function all(){hero();tok();stack();loop()}
+  all();RD.onRender(all);RD.onResize(all);
 })();
 </script>
-<script>/* 32_js_pipe.js */
-// ---- fobs: tab t-pipe (tail-sampling simulator, cost table, collector configs) ----
+<script>/* 26_js_fobs_pipe.js */
+// ---- fobs: Reading closed blocks: tail-sampling simulator (section 7), cost table (section 6), collector configs (section 8). Moved from the old Pipeline lab tab ----
 (function(){
   const {D,fmt,esc}=FOBSU;
   const S=D.samp.sent,first=S[0][1],rootIdx=S.length-1,rootAt=S[rootIdx][1];
@@ -921,7 +951,7 @@ window.FOBSU=(function(){
     const pm=PRE.find(p=>p.run===o.run&&p.pol===o.pol&&p.w===o.w&&p.ar===o.ar);
     $('fobs-sim-note').innerHTML=pm?'This setting was run on the real collector: '+pm.kept+' spans kept'+(pm.emit?', written out '+pm.emit+' s after the first span':'')+'.':'Not run on the real collector; simulated.'}
   ['fobs-sim-run','fobs-sim-pol','fobs-sim-w','fobs-sim-ar'].forEach(id=>$(id).addEventListener('input',draw));
-  draw();RD.onRenderTab('t-pipe',draw);RD.onResize(draw,'t-pipe');
+  draw();RD.onRender(draw);RD.onResize(draw);$('fobs-sim-d').addEventListener('toggle',draw);
 
   // cost table
   const C2=D.cost,M=C2.ways.mapped.gens,T2=C2.ways.ttl.gens;
@@ -935,8 +965,48 @@ window.FOBSU=(function(){
   RD.seg($('fobs-cfg-pick'),cfg);cfg('to_langfuse');
 })();
 </script>
+<script>/* 31_js_inst.js */
+// ---- fobs: tab t-inst (eight instrumentations of one replayed run) ----
+(function(){
+  const {D,fmt,wf,esc}=FOBSU;
+  const LV={required:'required',conditionally_required:'cond.',recommended:'recommended',opt_in:'opt-in',registry:'registry',gen_ai_other:'gen_ai, not in registry',other:'other'};
+  let vi=0,si=0;
+  const pick=document.getElementById('fobs-i-pick');
+  pick.innerHTML=D.inst.map((v,i)=>'<button data-m="'+i+'"'+(i===0?' class="on"':'')+'>'+esc(v.label)+'</button>').join('');
+  RD.seg(pick,m=>{vi=+m;si=0;render()});
+  const col=k=>k==='gen_ai.inference.client'?'var(--c1)':k==='gen_ai.execute_tool.internal'?'var(--c3)':k==='gen_ai.invoke_agent.internal'?'var(--c5)':'var(--mute)';
+  function depth(sp,i){let d=0,p=sp[i][2];while(p>=0){d++;p=sp[p][2]}return d}
+  function renderWf(){const v=D.inst[vi],sp=v.spans,T=Math.max(...sp.map(s=>s[5]));
+    wf(document.getElementById('fobs-i-wf'),sp.map((s,i)=>({name:(v.n_traces>1?'trace '+(s[3]+1)+': ':'')+s[0],depth:depth(sp,i),t0:s[4],t1:s[5],col:col(s[6]),cls:i===si?'new':''})),T,{axis:true});
+    document.getElementById('fobs-i-wfnote').textContent=(v.n_traces>1?'Each span is the root of its own trace: '+v.n_traces+' traces for one run. ':'One trace. ')+'Replay timing (the replay server answered in about 0.4 s), not the recorded run\'s.'}
+  function render(){const v=D.inst[vi],s=v.summary;
+    document.getElementById('fobs-i-stats').innerHTML=RD.stat('Spans / traces',v.n_spans+' / '+v.n_traces,v.mode)+
+      RD.stat('Agent root / tool spans',(s.agent_root?'yes':'no')+' / '+s.tool_spans,'')+
+      RD.stat('Fake PII occurrences',s.pii_in_spans+s.pii_in_logs,s.pii_in_logs?'in log events, not spans':'in span attributes')+
+      RD.stat('Attribute size',fmt(s.bytes/1000,1)+' KB','all spans')+
+      RD.stat('Required attributes missing',s.required_missing.length?s.required_missing.join(', '):'none','checked on every span')+
+      RD.stat('Langfuse stored',Object.entries(v.langfuse.types).map(([k,n])=>n+' '+k.toLowerCase()).join(', '),v.langfuse.gen_with_usage+' generations with usage');
+    document.getElementById('fobs-i-list').innerHTML=v.spans.map((sp,i)=>'<div data-i="'+i+'" class="'+(i===si?'on':'')+'" style="padding-left:'+(8+depth(v.spans,i)*12)+'px">'+esc(sp[0])+'</div>').join('');
+    renderWf();renderAttrs()}
+  function renderAttrs(){const v=D.inst[vi],sp=v.spans[si];
+    document.getElementById('fobs-i-head').innerHTML='<b>'+esc(sp[0])+'</b>, kind '+esc(sp[1])+(sp[6]?', convention type <code>'+esc(sp[6])+'</code>':', no convention type')+'; '+sp[8].length+' attributes, '+fmt(sp[9])+' bytes'+(sp[10]?', <span class="pill bad">'+sp[10]+' fake PII</span>':'')+(sp[7].length?' <span class="pill bad">missing required: '+esc(sp[7].join(', '))+'</span>':'');
+    document.getElementById('fobs-i-attrs').innerHTML='<thead><tr><th>Key</th><th>Class</th><th>Value</th></tr></thead><tbody>'+sp[8].map(a=>'<tr><td class="av">'+esc(a[0])+'</td><td><span class="fobs-lvl '+a[2]+'">'+(LV[a[2]]||a[2])+'</span></td><td class="av">'+(a[1]?esc(a[1]):'<span class="mute">as on the first span of this kind</span>')+'</td></tr>').join('')+'</tbody>'}
+  document.getElementById('fobs-i-list').addEventListener('click',e=>{const d=e.target.closest('div[data-i]');if(!d)return;si=+d.dataset.i;render()});
+  // matrix
+  const KEYS=['gen_ai.operation.name','gen_ai.provider.name','gen_ai.system','gen_ai.request.model','gen_ai.response.model','gen_ai.response.finish_reasons','gen_ai.usage.input_tokens','gen_ai.usage.output_tokens','gen_ai.usage.cache_read.input_tokens','gen_ai.conversation.id','server.address','gen_ai.input.messages','gen_ai.output.messages','gen_ai.tool.definitions'];
+  const firstModel=v=>v.spans.find(s=>s[6]==='gen_ai.inference.client')||v.spans[0];
+  document.getElementById('fobs-i-mx').innerHTML='<thead><tr><th>Attribute</th>'+D.inst.map(v=>'<th>'+esc(v.label)+'</th>').join('')+'</tr></thead><tbody>'+
+    KEYS.map(k=>'<tr><td><code>'+esc(k)+'</code></td>'+D.inst.map(v=>{const has=firstModel(v)[8].some(a=>a[0]===k);return '<td class="'+(has?'y':'n')+'">'+(has?'yes':'no')+'</td>'}).join('')+'</tr>').join('')+'</tbody>';
+  // logs of openai-v2
+  const o1=D.inst.find(v=>v.key==='otel_v2'),o2=D.inst.find(v=>v.key==='otel_v2_content');
+  document.getElementById('fobs-i-logs').innerHTML='<p>openai-v2 also emitted <b>'+o1.logs.n+'</b> log events per run ('+o1.logs.names.map(n=>'<code>'+esc(n)+'</code>').join(', ')+'). With defaults, '+o1.logs.with_body+' carried a body with message structure (roles, tool-call names and ids) and '+o1.logs.pii+' contained the fake PII; with <code>OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true</code>, '+o2.logs.with_body+' carried a body and '+o2.logs.pii+' contained it, for example:</p><pre class="fobs-pre">'+esc(o2.logs.example||'')+'</pre><p class="small mute">With <code>OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental</code>, newer versions of the GenAI utilities take <code>SPAN_ONLY</code>, <code>EVENT_ONLY</code> or <code>SPAN_AND_EVENT</code> instead of <code>true</code> (documented, not run here).</p>';
+  render();
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-inst']=window.TAB_RENDER['t-inst']||[]).push(renderWf);
+  let rt=0;addEventListener('resize',()=>{const t=document.getElementById('t-inst');if(!t||t.hidden)return;clearTimeout(rt);rt=setTimeout(renderWf,60)});
+})();
+</script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace fobs-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -954,6 +1024,8 @@ window.FOBSU=(function(){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('fobs-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

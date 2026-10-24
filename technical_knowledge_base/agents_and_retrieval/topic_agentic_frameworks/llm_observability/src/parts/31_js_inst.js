@@ -33,5 +33,6 @@
   const o1=D.inst.find(v=>v.key==='otel_v2'),o2=D.inst.find(v=>v.key==='otel_v2_content');
   document.getElementById('fobs-i-logs').innerHTML='<p>openai-v2 also emitted <b>'+o1.logs.n+'</b> log events per run ('+o1.logs.names.map(n=>'<code>'+esc(n)+'</code>').join(', ')+'). With defaults, '+o1.logs.with_body+' carried a body with message structure (roles, tool-call names and ids) and '+o1.logs.pii+' contained the fake PII; with <code>OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true</code>, '+o2.logs.with_body+' carried a body and '+o2.logs.pii+' contained it, for example:</p><pre class="fobs-pre">'+esc(o2.logs.example||'')+'</pre><p class="small mute">With <code>OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental</code>, newer versions of the GenAI utilities take <code>SPAN_ONLY</code>, <code>EVENT_ONLY</code> or <code>SPAN_AND_EVENT</code> instead of <code>true</code> (documented, not run here).</p>';
   render();
-  RD.onRenderTab('t-inst',renderWf);RD.onResize(renderWf,'t-inst');
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-inst']=window.TAB_RENDER['t-inst']||[]).push(renderWf);
+  let rt=0;addEventListener('resize',()=>{const t=document.getElementById('t-inst');if(!t||t.hidden)return;clearTimeout(rt);rt=setTimeout(renderWf,60)});
 })();

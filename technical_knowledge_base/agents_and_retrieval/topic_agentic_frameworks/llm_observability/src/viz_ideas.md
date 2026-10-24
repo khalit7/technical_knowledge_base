@@ -25,3 +25,8 @@ What the text needs to be understood: what a span tree adds over log lines; what
 
 ## What the methodology lacked here
 A pattern for "replay one recorded run through N instrumentations": recording model responses once and replaying them byte for byte made the comparison exact and cost no further model calls.
+
+## 2026-10-24 rebuild
+- Built: hero (trace tree plus span path, static, structure); token accounting to scale (static, the misconception "input_tokens is the input"); Langfuse stack (static, structure); eval loop (static, process with a cycle, a stepper would add nothing); real image of Langfuse's trace view (a real UI the reader may not have seen).
+- Moved inline: the Pipeline lab's simulator, cost table and configs (closed blocks in sections 7, 6, 8).
+- Rejected: an animated span-arrival hero (the change over time is not the point at the top); a separate instrumentation diagram in section 3 (the "Auto spans" against "Agent trace" toggle in section 1 already shows it).
