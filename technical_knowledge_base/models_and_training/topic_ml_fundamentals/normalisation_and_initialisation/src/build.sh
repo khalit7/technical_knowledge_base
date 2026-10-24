@@ -3,7 +3,8 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/
 # Assemble ../index.html from parts/.
 # HTML: 01_head, 02_css, 10_header (title and tab bar), 20_read_a..e.html (Reading tab), then 3x_tab_*.html (one per tab, in file-name order).
 # JS: every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js (the tab wiring) last.
-# Generated part: 30_js_data.js (gen_data.py, from data/wine.json, real/real_streams.json, recompute_output.json).
+# Generated part: 30_js_data.js (gen_data.py, from data/wine.json, real/real_streams.json, recompute_output.json, signal_output.json).
+# The header's reading time is written by hand from html_utils/audit_pages.mjs (core and closed details apart); the word count printed below is the whole Reading tab.
 # Links may be written {{text|url}} (url may be n:<notion id>, or #t-<tab> for a link to a tab); plain <a> tags pass through.
 cd "$(dirname "$0")"
 { cat parts/01_head.html parts/02_css.html parts/10_header.html

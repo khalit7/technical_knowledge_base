@@ -33,3 +33,12 @@ Data and formulas, with sources:
 Inspiration: GroupNorm's Figure 2 (the four norms' axes as cubes), the MLA explainer pattern (before/after on one input), Distill-style predict-and-reveal (not used here).
 
 What the methodology lacked for this page: a rule for measurements on finished checkpoints that look like controlled comparisons. The six models differ in size, data and training, so their stream curves are labelled as measurements of checkpoints, not as an ablation of placement; the controlled comparison is the toy.
+
+## 2026-10-24 rebuild to the teaching contract
+| # | Idea | Decision |
+|---|---|---|
+| NI15 | **Hero: mean square after each of 20 ReLU layers** for PyTorch's default, N(0, 0.02), Xavier, He, orthogonal (gain sqrt 2) and default plus LayerNorm, measured in PyTorch (`recompute.py`, `signal_prop.py`) | built, static figure at the top. NI9 was rejected in 2026-10 as the parent's five-networks animation; it returns as a static measured hero because this page owns signal propagation and the hero is the whiteboard picture the page elaborates (the parent's animation stays linked). |
+| NI16 | Orthogonal against Gaussian: singular values of a 20-layer linear product | stated as measured numbers in section 2 (median 9.2e-4 and max 6.4 against all 1.000); a chart of 512 singular values would add little to three numbers. |
+| NI4, NI5 | Theorem 1 sweep; six released models | moved from the removed Depth and placement tab into closed blocks of section 6 (placement is owned by Normalisation, residuals and stability; the measurements stay here because that page links to them). |
+| NI3 | Placement toy | moved into a closed block of section 6 with the sweep, for the same reason. |
+| NI6 | Qwen3 QK-norm ceilings | moved into a closed block of section 5. |

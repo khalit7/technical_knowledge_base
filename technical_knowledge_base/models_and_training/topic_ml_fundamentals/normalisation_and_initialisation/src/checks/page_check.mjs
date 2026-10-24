@@ -13,7 +13,10 @@ async function bad(){return p.evaluate(()=>{const t=document.querySelector('.tab
 async function clickAll(sel,steps){const n=await p.$$eval(sel,a=>a.length);for(let i=0;i<n;i++){await p.evaluate((s,i)=>document.querySelectorAll(s)[i].click(),sel,i);await wait(60);
   if(steps)for(let k=0;k<steps;k++){await p.evaluate(s=>{const c=document.querySelector(s);c&&c.click()},steps===true?'':steps);}
   const B=await bad();if(B.length)console.log('BAD after',sel,i,B)}}
-// Reading tab
+// Reading tab: nothing may play before the reader acts (scroll through, then read every play button)
+for(let y=0;y<20000;y+=600){await p.evaluate(y=>scrollTo(0,y),y);await wait(80)}await wait(1500);
+console.log('playing at load (must be empty)',await p.$$eval('.an-play',a=>a.filter(b=>/Pause/.test(b.textContent)).map(b=>b.id)));
+await p.evaluate(()=>document.querySelectorAll('details.dp').forEach(d=>d.open=true));await wait(200);
 console.log('wide at load',await wide());
 for(const ctl of ['sc-ctl','bn-ctl','pl-ctl']){
   const n=await p.$eval('#'+ctl+'-s',e=>+e.max);
@@ -31,8 +34,8 @@ for(const v of ['','pre','deep','none','post']){await p.select('#pl-cmp',v)}
 for(const id of ['in-fi','in-fo','in-L']){for(const v of ['4','14','2','100','9','20']){await p.evaluate((id,v)=>{const e=document.getElementById(id);if(+v>=+e.min&&+v<=+e.max){e.value=v;e.dispatchEvent(new Event('input'))}},id,v)}}
 await p.select('#in-act','lin');
 console.log('reading bad',await bad(),'wide',await wide());
-// Depth tab
-await p.click('button[data-t=t-depth]');await wait(4000);
+// Reading 6, closed blocks (opened above): the depth sweep and the six released models
+await wait(4000);
 for(const sel of ['#dp-q button','#rm-q button','#rm-models button','#rm-models button']){const n=await p.$$eval(sel,a=>a.length);for(let i=0;i<n;i++){await p.evaluate((s,i)=>document.querySelectorAll(s)[i].click(),sel,i);await wait(30);const B=await bad();if(B.length)console.log('BAD',sel,i,B)}}
 console.log('depth note:',await p.$eval('#dp-note',e=>e.innerText));
 console.log('depth wide',await wide());
