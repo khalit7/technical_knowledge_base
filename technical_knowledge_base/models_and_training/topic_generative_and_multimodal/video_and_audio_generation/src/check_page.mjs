@@ -10,7 +10,7 @@ const require=createRequire(path.resolve(here,'../../../../../html_utils/package
 const puppeteer=require('puppeteer');
 const page_=path.resolve(here,'../index.html');
 const shots=process.argv[2]||path.resolve(here,'..','.shots_va');fs.mkdirSync(shots,{recursive:true});
-const TABS=['t-read','t-vapatch','t-varvq','t-vatime','t-more'];
+const TABS=['t-read','t-vapatch','t-varvq','t-more'];
 const b=await puppeteer.launch({headless:'shell'});
 let bad=0;
 try{
@@ -47,8 +47,8 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
       await p.screenshot({path:path.join(shots,`${w}_${scheme}_${tab}_${id}.png`)})}
   }
   if(w===920){const words=await p.evaluate(()=>{const T=document.getElementById('t-read').cloneNode(true);
-      T.querySelectorAll('details.qa,table,pre,.an-cnt,.an-cap,svg,.rd-card,nav,style').forEach(e=>e.remove());
-      const all=T.innerText.split(/\s+/).length;const qa=[...document.querySelectorAll('#t-read details.qa')].map(d=>d.innerText).join(' ').split(/\s+/).length;return [all,qa]});
+      T.querySelectorAll('details,table,pre,.an-cnt,.an-cap,svg,.rd-card,nav,style').forEach(e=>e.remove());
+      const all=T.innerText.split(/\s+/).length;const qa=[...document.querySelectorAll('#t-read details')].map(d=>d.innerText).join(' ').split(/\s+/).length;return [all,qa]});
     console.log('reading words',words[0],'about',Math.round(words[0]/200),'min; folded answers',words[1],'about',Math.round(words[1]/200),'min')}
   console.log('errors',errs.length);errs.slice(0,8).forEach(e=>console.log('  ',e));if(errs.length)bad++;
   await p.close();

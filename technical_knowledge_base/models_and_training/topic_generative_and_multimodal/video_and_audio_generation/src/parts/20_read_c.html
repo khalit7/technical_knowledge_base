@@ -1,43 +1,58 @@
-<section id="va-s1">
-<h2>1. Video as space-time patches</h2>
-<p><b>The problem.</b> A video is a stack of images, and neighbouring frames are almost the same picture. Wan 2.1's default clip (480 &times; 832 pixels, 81 frames, about 5 s at 16 frames per second) is 97 million numbers. An image VAE applied to every frame separately (8 &times; 8 smaller in space) still leaves 81 latent frames, and with 2 &times; 2 patches that is 81 &times; 30 &times; 52 = 126,360 tokens, most of them repeating the frame before. Attention cost grows with the square of the token count, so redundancy across time is the first thing to remove.</p>
-<p><b>How it works: a causal video VAE.</b> A <dfn>video VAE</dfn> is the image VAE (sibling page {{Autoencoders and VAEs|n:3c65c17b0d0d814da93bdb159b7c1e11}}) with 3-D convolutions, so it also shrinks the time axis. Every open model on this page compresses time by 4 (or 6, or 8) as well as space by 8 (or 16, or 32). Two details recur:</p>
+<section id="va-s3">
+<h2>3. Conditioning: text, a first frame, sound</h2>
+<p>A video denoiser takes three kinds of condition, and each enters at a different place in the sequence.</p>
+<div class="rd-card" id="va-c-cond"><h4>Text enters through attention, an image as latent frame 0, sound as a second stream aligned in time</h4>
+<div class="rd-svg" id="va-cond"></div>
+<p class="va-small">Wan 2.1 1.3B's default clip: 21 latent frames (6 drawn), 512 umT5 text tokens; the audio row follows LTX-2's design. Structure from the papers and configs named below; sizes not to scale.</p></div>
 <ul>
-<li><b>Causal in time.</b> The encoder's convolutions only look at the current and earlier frames (all the padding goes at the start of the time axis, {{CogVideoX, Sec 2.1|https://arxiv.org/abs/2408.06072}}), so the latent of frame group <i>t</i> never depends on later frames. That lets one model encode an image (a 1-frame video) and lets a decoder stream.</li>
-<li><b>The first frame alone.</b> Wan's VAE encodes frame 1 on its own and then each further group of 4 frames into one latent frame, carrying a cache of features from earlier groups. So a clip must have 4<i>k</i> + 1 frames, and 81 frames become 1 + 80 / 4 = 21 latent frames. Wan's paper: "the first frame is only spatially compressed to better handle the image data" ({{Wan 2025, Sec 4.1|https://arxiv.org/abs/2503.20314}}).</li>
+<li><b>Text.</b> Two designs, both from image models. <b>Cross-attention</b> to the text encoder's output in every block (Wan with umT5, LTX-Video with T5; LTX reports cross-attention beat joint attention for them, Sec 2.3), or <b>joint attention</b> over text and video tokens together, MMDiT-style (CogVideoX, HunyuanVideo's dual-stream then single-stream blocks, Mochi's asymmetric streams with a visual stream "nearly 4 times" the text stream's parameters, {{Mochi card|https://huggingface.co/genmo/mochi-1-preview}}). The text encoders keep growing: T5 (CogVideoX, LTX, Mochi), a multimodal LLM (HunyuanVideo), Qwen2.5-VL (HunyuanVideo 1.5), Gemma 3 12B (LTX-2).</li>
+<li><b>Image to video</b> is the same model with the first frame given: the causal VAE encodes it alone (section 1), and its latent replaces or conditions the first latent frame (LTX-Video gives conditioning tokens a small timestep, Sec 2.4). This is the second reason the first frame is encoded on its own.</li>
+<li><b>Audio with video</b> (Veo 3, LTX-2, Sora 2) adds an audio latent stream with its own 1-D positions and cross-attention between the streams; LTX-2 uses only the time component of RoPE in that cross-attention so sound aligns with frames (Sec 3.1.1) <span class="vend">vendor</span>.</li>
 </ul>
-<pre class="rd-code" id="va-code-wanvae"></pre>
-<p class="rd-codecap">diffusers v0.41.0 <span class="va-mono">models/autoencoders/autoencoder_kl_wan.py</span>, lines <span id="va-wanvae-lines"></span>: the encode loop. The first call sees only frame 0; each later call sees 4 frames plus the cached features of everything before.</p>
-
-<p><b>Then patches.</b> The denoiser cuts the latent into <dfn>space-time patches</dfn>: Wan, HunyuanVideo and Movie Gen use 1 &times; 2 &times; 2 (one latent frame, 2 &times; 2 latent pixels), so each token stands for 4 &times; 16 &times; 16 = 1,024 pixels across 4 frames. Sora's report put it as "spacetime patches which act as transformer tokens. This scheme works for images too since images are just videos with a single frame" ({{OpenAI, Feb 2024, archived|https://web.archive.org/web/20250105124831/https://openai.com/index/video-generation-models-as-world-simulators/}}) <span class="vend">vendor</span>. From the configs, the token count of a clip of F frames at H &times; W is</p>
-<p style="text-align:center" class="va-mono">tokens = (1 + (F &minus; 1) / c<sub>t</sub>) &times; H / (c<sub>s</sub> p) &times; W / (c<sub>s</sub> p)</p>
-<p>with time compression c<sub>t</sub>, space compression c<sub>s</sub> and patch size p. For Wan 2.1's default: 21 &times; 30 &times; 52 = <b>32,760</b>, about a quarter of the per-frame count. The source computes the first factor the same way (<span class="va-mono">num_latent_frames = (num_frames - 1) // self.vae_scale_factor_temporal + 1</span>, {{pipeline_wan.py:341|https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/wan/pipeline_wan.py#L341}}).</p>
-
-<div class="rd-card" id="va-c-patch"><h4>Animation: one clip, three compressors (before and after, to scale)</h4>
-<p class="va-small">The same 81-frame, 480 &times; 832 clip through an image VAE applied per frame (the "before"), Wan 2.1's causal video VAE, and LTX-Video's 32 &times; 32 &times; 8 VAE. Each small square in the last step is one token, drawn at the same scale for all three. The clip itself is an illustration (a moving disc); every count is computed from the configs.</p>
-<div class="seg" id="va-patch-mode"><button data-m="img">Image VAE per frame</button><button data-m="wan" class="on">Wan 2.1 video VAE</button><button data-m="ltx">LTX-Video VAE</button></div>
-<div class="va-stage"><canvas id="va-patch-cv" width="860" height="300" aria-label="Clip compressed to tokens"></canvas></div>
-<div class="an-cap" id="va-patch-cap"></div>
-<div class="an-cnt" id="va-patch-cnt"></div>
-<div class="an-ctl" id="va-patch-ctl"></div>
-</div>
-
-<p><b>The video VAEs behind eight models, read from seven open configs and Movie Gen's paper.</b> "Ratio" is how many input numbers (3 colours &times; pixels &times; frames) each latent number replaces; "pixels per token" includes the denoiser's patch.</p>
-<div class="tw"><table id="va-vae-table"></table></div>
-<p class="va-small" id="va-vae-repro"></p>
-
-<p><b>Measured: Wan 2.1's VAE on two clips.</b> Both 17-frame clips become a latent of 16 &times; 5 &times; 32 &times; 32 (5 = 1 + 16 / 4), 48 times fewer numbers. Then decoded and compared frame by frame with <dfn>PSNR</dfn> (peak signal-to-noise ratio in decibels; higher is closer, and every 6 dB halves the typical error).</p>
-<div class="rd-card" id="va-c-vae"><h4>The same frames before and after the video VAE</h4>
-<div class="seg" id="va-vae-clip"><button data-m="slow" class="on">Slow pan (2 px per frame)</button><button data-m="fast">Fast pan (14 px per frame)</button></div>
-<div class="va-grid2"><div><div class="va-small">Original, reconstruction, and their difference (amplified 4 times) at frame <span id="va-vae-fi">0</span></div>
-<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px" id="va-vae-trio"></div>
-<input type="range" id="va-vae-f" min="0" max="16" value="0" style="width:100%" aria-label="Frame"></div>
-<div><div class="va-small">PSNR per frame (dB), both clips; the chosen clip highlighted</div><div class="rd-svg" id="va-vae-chart"></div></div></div>
-<p class="va-small" id="va-vae-note"></p>
-</div>
-<p><b>What the run shows.</b> Frame 0, encoded alone, comes back at <span data-va="vae.f0"></span> dB in both clips. With slow motion the other frames stay close (mean <span data-va="vae.slow_rest"></span> dB): four nearly identical frames share one latent frame cheaply. With fast motion every later frame drops to about <span data-va="vae.fast_rest"></span> dB on average, with a ripple of period 4 (the group size): the latent frame has to describe four quite different pictures with the same 16 channels. That is the cost of temporal compression, and why fast motion is where video generators blur first. Measured on Apple M1 Pro CPU (float32, 4 threads): encode <span data-va="vae.slow_enc"></span> s and decode <span data-va="vae.slow_dec"></span> s for 17 frames at 256 &times; 256; peak memory <span data-va="vae.rss"></span> GB, over this topic's 6 GB guideline, so a rerun should use smaller clips or the VAE's tiling. PSNRs transfer to any hardware (same weights, float32); the times do not.</p>
-<div class="pr" id="va-pr-frames"><div class="q">Predict: Wan 2.1 1.3B, same resolution, clip doubled from 81 to 161 frames (10 s). Tokens grow by about 2. By how much does the self-attention compute of one denoiser pass grow?</div>
+<p><b>The levers the open models pulled.</b> All of them are a latent transformer with full attention and flow matching (CogVideoX: diffusion with v-prediction); they differ in where they spend tokens and parameters.</p>
+<ul>
+<li><b>Compress harder</b> (LTX-Video, 2024): a 32 &times; 32 &times; 8 VAE with 128 channels ("1:192", "a pixels-to-tokens ratio of 1:8192") leaves so few tokens that a 1.9B model runs "faster-than-real-time": "2 seconds to generate 121 frames at 768x512 pixels and 20 diffusion steps on an Nvidia H100 GPU" ({{Sec 1|https://arxiv.org/abs/2501.00103}}) <span class="vend">vendor</span>. The price is fine detail, so its decoder also performs the last denoising step.</li>
+<li><b>Split denoising by noise level</b> (Wan 2.2, 2025): two 14B experts, "a high-noise expert for the early stages ... and a low-noise expert for the later stages" (27B total, 14B active per step), plus a 5B model on a 4 &times; 16 &times; 16 VAE ({{card|https://huggingface.co/Wan-AI/Wan2.2-T2V-A14B}}).</li>
+<li><b>Sparse attention</b> (HunyuanVideo 1.5, 2025): 8.3B, a 16 &times; 16 &times; 4 VAE with 32 channels and no extra patching, sparse "SSTA" attention 1.87 times faster than FlashAttention-3 end to end for 10 s at 720p (card) <span class="vend">vendor</span>.</li>
+<li><b>Scale the context</b> (Movie Gen, Meta, 2024, weights not released): a 30B flow-matching transformer with "a maximum context length of 73K video tokens, corresponding to a generated video of 16 seconds at 16 frames-per-second" ({{abstract|https://arxiv.org/abs/2410.13720}}), the most detailed public recipe.</li>
+</ul>
+<p>The arc in one line: factorised U-Nets (2022) to diffusion transformers on space-time patches (2024) to flow-matching transformers that also make sound (2025 to 2026). <b>Closed models disclose almost nothing</b>: Sora's report says "Model and implementation details are not included in this report"; Veo 3's model card says "latent diffusion ... applied to the temporal audio latents, and the spatio-temporal video latents", trained on TPUs with JAX ({{model card|https://storage.googleapis.com/deepmind-media/Model-Cards/Veo-3-Model-Card.pdf}}) <span class="vend">vendor</span>.</p>
+<details class="dp"><summary>Eight video models in one table <span class="mute">(from configs, pipeline defaults and papers)</span></summary><div class="b">
+<div class="tw"><table id="va-models-table"></table></div>
+<p class="va-small">Parameters: counted from each config on the meta device (diffusers 0.41.0, no weights), except Movie Gen (stated). Default clip: diffusers v0.41.0 pipeline defaults or the model card; tokens from the formula in section 1 (Movie Gen's 8 &times; 8 &times; 8 VAE has no separate first frame). Release dates, licences and status: the root's Model map tab.</p></div></details>
+<details class="dp"><summary>Per-model notes: data, speed and win-rate claims <span class="mute">(vendor figures)</span></summary><div class="b">
+<ul>
+<li><b>Movie Gen</b>: O(100M) video-text pairs and O(1B) images; training on "up to 6,144 H100 GPUs"; stages of 256 px text-to-image, then 256 px and 768 px joint image and video. Its human evaluation reports a net win rate (wins minus losses) on overall quality of 8.23% against Sora, "within 1-2" standard deviations of &plusmn;5.07, and 3.87% against Kling 1.5, "on par" (Table 6) <span class="vend">vendor</span>.</li>
+<li><b>CogVideoX</b> (Zhipu, 2024): a causal 3-D VAE, v-prediction with zero terminal SNR, an "expert transformer" with separate adaptive LayerNorms for text and video tokens; about 35M clips and 2B images. On an H800 the 5B model takes 113 s for 6 s at 480 &times; 720 with 50 steps (Table 7) <span class="vend">vendor</span>.</li>
+<li><b>HunyuanVideo</b> (Tencent, 2024): 13B, dual-stream then single-stream blocks like FLUX, a multimodal LLM as text encoder; its VAE reaches 35.39 dB PSNR on the MCL-JCV video set against 33.22 for CogVideoX 1.5's (Table 1) <span class="vend">vendor</span>. HunyuanVideo 1.5 trained on about 800M video segments.</li>
+<li><b>Wan 2.1</b> (Alibaba, 2025): 1.3B and 14B DiTs with cross-attention to umT5, the 1.3B "requiring only 8.19 GB VRAM"; VBench total 86.22% for 14B against 84.28% for Sora (Table 4) <span class="vend">vendor</span>.</li>
+<li><b>LTX-2</b> (2026) generates video and synchronised audio in one model; its own paper gives 14B + 5B in the abstract, 13B + 3B in the conclusion and 19B in Table 1 (the checkpoints are named 19b) ({{arXiv 2601.03233|https://arxiv.org/abs/2601.03233}}).</li>
+<li><b>Sora</b>: it "is a diffusion transformer" trained to predict "clean" patches, on re-captioned videos at native aspect ratios, generating up to a minute <span class="vend">vendor</span>. <b>Veo 3</b> through the Gemini API serves 8 s at 24 fps, 720p or 1080p.</li>
+</ul></div></details>
+</section>
+<section id="va-s4">
+<h2>4. What one clip costs</h2>
+<p><b>The arithmetic.</b> One denoiser pass over N video tokens costs about</p>
+<p style="text-align:center" class="va-mono">FLOPs per pass &asymp; 2 P N + 4 L N<sup>2</sup> D</p>
+<p>where P is the parameter count (every weight used once per token: one multiply and one add), L the number of blocks and D the attention width (query-key scores plus the weighted sum of values, each N<sup>2</sup>D multiply-adds per layer). A clip costs that times the sampling steps times the passes per step (2 with classifier-free guidance). The first term grows with the clip's length, the second with its square. The image version, fitted to eleven image denoisers, is on {{Latent diffusion and diffusion transformers|n:3fc5c17b0d0d814fbcb5e0c8df5289f3}} (section 9).</p>
+<div class="pr" id="va-pr-frames"><div class="q">Predict, then drag: Wan 2.1 1.3B, same resolution, clip doubled from 81 to 161 frames (10 s). Tokens grow by about 2. By how much does the self-attention compute of one denoiser pass grow?</div>
 <div class="opts"><button data-ok="0">About 2 times</button><button data-ok="1">About 4 times</button><button data-ok="0">About 8 times</button></div>
 <div class="ans" hidden></div></div>
-<p class="deepnote">Go deeper (optional): VAE losses, KL and quantized latents on the sibling page {{Autoencoders and VAEs|n:3c65c17b0d0d814da93bdb159b7c1e11}}; latent channels and scaling factors of image VAEs on the root's Latent lab; every combination of size, frames and model in the {{Space-time patch calculator|#t-vapatch}}.</p>
+<div class="rd-card" id="va-c-cost"><h4>Duration is the expensive axis: attention grows with its square and overtakes everything else</h4>
+<div class="va-slide"><label for="va-cost-f">Clip length</label><input type="range" id="va-cost-f" min="1" max="20" step="1" value="5" aria-label="Clip length in seconds"><b id="va-cost-fl"></b></div>
+<div class="an-cnt" id="va-cost-cnt"></div>
+<div class="va-small">One pass, to scale against 20 s: <span style="color:var(--c1);font-weight:600">linear layers 2 P N</span> and <span style="color:var(--c2);font-weight:600">self-attention 4 L N<sup>2</sup> D</span></div>
+<div class="va-cbar" id="va-cost-bar"></div>
+<p class="va-small" id="va-cost-note"></p>
+</div>
+<p><b>Checked against a real count.</b> Wan 2.1 1.3B's config instantiated on the meta device (no weights) and run once at its default clip under PyTorch's FLOP counter: <span data-va="fc.counted"></span> TFLOP, of which <span data-va="fc.bmm"></span> TFLOP (<span data-va="fc.share"></span>) are the attention matrix products. The formula gives <span data-va="fc.formula"></span> TFLOP (<span data-va="fc.resid"></span>): it charges all 1.42B parameters to every video token, including the text cross-attention's key and value projections that act on the 512 text tokens only, and it leaves out cross-attention's scores. So attention is about two thirds of the compute even at 480p and 5 s; at HunyuanVideo's 720p and 129 frames the formula puts it at <span data-va="hyv.share"></span>.</p>
+<div class="pr" id="va-pr-res"><div class="q">Predict: which costs more per denoiser pass with Wan 2.1 1.3B, 720p for 5 s (81 frames) or 480p for 10 s (161 frames)?</div>
+<div class="opts"><button data-ok="1">720p for 5 s</button><button data-ok="0">480p for 10 s</button><button data-ok="0">About the same</button></div>
+<div class="ans" hidden></div></div>
+<p><b>Where else the time goes, and the levers.</b> The text encoder runs once and the VAE decoder once per clip, but a video decoder is heavy: in the measured run of section 1, decoding 17 small frames took longer than encoding them. The published speed-ups attack each factor: fewer steps by distillation (CausVid distils 50 steps to 4; HunyuanVideo 1.5 ships 8 or 12 step variants), fewer tokens by a stronger VAE (LTX-Video, Wan 2.2's 5B model), cheaper attention by sparsity (HunyuanVideo 1.5's SSTA, 1.87 times end to end, vendor), and lower resolution plus a separate upsampler (Movie Gen to 1080p, HunyuanVideo 1.5's few-step super-resolution).</p>
+<details class="dp"><summary>Cost of eight models at their defaults, and whether published speeds add up <span class="mute">(derived)</span></summary><div class="b">
+<div class="tw"><table id="va-cost-table"></table></div>
+<p class="va-small">Derived from configs and defaults with the formula above (not run here: the weights are not needed for counting). "Per clip" multiplies by the default steps and passes; HunyuanVideo embeds guidance in the model, so one pass per step.</p>
+<div class="co"><div class="t">Do published speeds agree? (derived)</div><p id="va-implied"></p></div></div></details>
+<p class="deepnote">Any model, resolution, duration and step count: the {{Space-time patch calculator|#t-vapatch}}. Serving costs and batching: {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}.</p>
 </section>

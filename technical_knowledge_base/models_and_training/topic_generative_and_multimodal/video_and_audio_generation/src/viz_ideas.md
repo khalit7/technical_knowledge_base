@@ -15,7 +15,7 @@ Central question: what a second of video or audio becomes in tokens, and what th
 | 9 | Codebook order diagram (flatten, parallel, delay) | 4/exact/MusicGen's 1500 steps for 30 s/toggle/partly/low | Reading 8 | built |
 | 10 | Space-time patch calculator, all models by duration | 5/5/four published figures reproduced/-/yes/medium | own tab | built |
 | 11 | RVQ codec explorer with difference spectrograms and token-rate table | 5/real/bitrates of nine settings recomputed/-/yes/medium | own tab | built |
-| 12 | Model timeline from the Model map rows plus method papers | 3/data/-/-/partly (Model map has a timeline of all families)/low | own tab | built; adds method papers and what this page measured, links the Model map for licences |
+| 12 | Model timeline from the Model map rows plus method papers | 3/data/-/-/partly (Model map has a timeline of all families)/low | own tab | built 2026-10-17; removed 2026-10-24 (repeats the root Model map's timeline; not a tool used across the page) |
 
 Rejected:
 - Generating a video with Wan 2.1 1.3B: minutes on a datacenter GPU, far more on this Mac, and it teaches less than the arithmetic (brief: cheap demos only).
@@ -25,3 +25,16 @@ Rejected:
 - Arena leaderboard snapshot: changes weekly and the only reading was through a summarising fetch; linked instead.
 
 What the methodology lacked: a rule for media in a no-network page. Audio players are data URIs of 32 kbps MP3 copies; metrics are always computed on the raw decoder output and the page says the players add their own coding.
+
+## 2026-10-24 rebuild (teaching contract)
+
+| # | Idea | Kind | Placement | Status |
+|---|---|---|---|---|
+| 13 | Hero: video and audio pipelines side by side (compress, tokenise, generate, decode), the token count each generator sees highlighted | static annotated diagram | Reading top | built |
+| 14 | Where conditions enter: text through attention, the image as latent frame 0, audio as a time-aligned stream | static annotated diagram | Reading 3 | built (section 3 had no visual) |
+| 15 | One slider over clip length (Wan 2.1 1.3B, 480p): linear against attention FLOPs per pass to scale, 5 s default on the formula value beside the FLOP counter | parameter slider | Reading 4 | built; the calculator tab keeps the many-parameter version |
+| 16 | Moshi's streams: text, Moshi and user codes per 80 ms step, temporal against depth transformer | static annotated diagram | Reading 8 | built |
+| 17 | F5-TTS infilling: text padded with filler tokens to the mel length, masked frames filled by flow | static annotated diagram | Reading 8 | built |
+| 18 | Evaluation as one table (what each measure does, its blind spot) | table | Reading 9 | built |
+
+Rejected in this pass: a 3-D RoPE channel-split bar (a sentence with the three numbers says it); a photo or paper figure (no openly licensed figure teaches more than the page's own measured spectrograms and frames).
