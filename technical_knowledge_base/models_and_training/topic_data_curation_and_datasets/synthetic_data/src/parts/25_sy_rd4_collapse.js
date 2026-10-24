@@ -1,4 +1,4 @@
-// ---- Collapse lab: categorical model refit on its own samples; same algorithm and PRNG as src/scripts/collapse_categorical.py ----
+// ---- Reading section 7 (moved from the Collapse lab tab 2026-10-24): categorical model refit on its own samples; same algorithm and PRNG as src/scripts/collapse_categorical.py ----
 (function(){
   const D=window.SY||{},esc=RD.esc;const $=id=>document.getElementById(id);if(!$('sc-card'))return;
   function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -50,8 +50,7 @@
   compute();
   A=RD.anim({card:'sc-card',ctl:'sc-ctl',n:R.m.length,draw:drawStep,ms:350,label:'Generation'});
   parity(params());
-  RD.seg($('sc-mode'),m=>{mode=m;rebuild();A.play()});
+  RD.seg($('sc-mode'),m=>{mode=m;rebuild()});
   ['sc-n','sc-s','sc-pi','sc-g','sc-seed'].forEach(id=>$(id).addEventListener('change',rebuild));
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-syco']=window.TAB_RENDER['t-syco']||[]).push(()=>A.redraw());
-  addEventListener('resize',()=>{const t=$('t-syco');if(t&&!t.hidden)A.redraw()});
+  RD.onRender(()=>A.redraw());RD.onResize(()=>A.redraw());
 })();
