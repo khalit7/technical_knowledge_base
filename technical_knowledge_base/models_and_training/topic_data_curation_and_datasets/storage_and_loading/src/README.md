@@ -70,3 +70,6 @@ table and design rehearsal are closed.
 346 units: core 258, depth 29, owned 2 (S3 request rates and Llama 3's Tectonic, at Storage and data movement), fat 57. 333 were drafted from the old page by
 `ledger.py init`; 13 were added by hand: 8 for script-rendered tables and visuals, 1 absorbed (prefetch), 4 new (core idea and hero, the
 split_dataset_by_node rule, the tar-member figure, the sharding diagram). Fat units carry a `note` saying why.
+
+## Topic close (2026-10-24)
+The root was rebuilt as a map; this page's Further reading now quotes the root as "31 min, plus 7" and siblings as their headers, and its ledger keys that quoted old times were re-keyed. The Parquet correction now says the root gives the cause; the root card has its time.
