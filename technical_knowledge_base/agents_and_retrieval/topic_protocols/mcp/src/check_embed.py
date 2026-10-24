@@ -34,7 +34,7 @@ m = {(o["client"][:6], o["server"][:6]): o for o in comp}
 claim("<code>-32602 Invalid request parameters</code>", "Invalid request parameters" in m[("modern", "legacy")]["detail"])
 f = auth["failures"]
 claim("<code>401</code> with <code>WWW-Authenticate", f["no_token"]["status"] == 401 and f["wrong_audience"]["status"] == 401 and f["missing_scope"]["status"] == 403)
-claim('error="insufficient_scope", scope="ckpt:write"', "ckpt:write" in f["missing_scope"]["www_authenticate"])
+claim("named <code>ckpt:write</code> only in its human-readable <code>error_description</code>", "ckpt:write" in f["missing_scope"]["www_authenticate"] and not re.search(r'[ ,]scope="', f["missing_scope"]["www_authenticate"]))
 w = {c["case"]: c for c in wc}
 claim("403 and 421", w["browser page on another site (Origin: http://evil.example)"]["status"] == 403 and w["DNS rebinding (Host: rebind.evil.example)"]["status"] == 421)
 claim("Unknown tool: rm_rf", '"isError":true' in w["unknown tool"]["resp"])

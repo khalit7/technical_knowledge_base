@@ -1,5 +1,6 @@
-// ---- Two replicas tab: the recorded confirm-then-delete call, animated request by request ----
+// ---- Reading section 5: the recorded confirm-then-delete call through two replicas, stepped request by request (moved from the Two replicas tab on 2026-10-24; never plays by itself) ----
 (function(){
+  if(!document.getElementById('rp-card'))return;
   const D=window.MCPD,E=RD.esc,$=id=>document.getElementById(id);
   const label=r=>(r.era==='legacy'?'2025-11-25 session':'2026-07-28')+', '+(r.lb==='rr'?'round robin':'affinity')+(r.era==='modern'?(r.key?', shared key':', per-process keys'):'');
   let cur=0,an=null;
@@ -26,18 +27,18 @@
     const r=D.rep[cur],tr=r.trace,n=tr.length,last=i>=2*n;
     const W=RD.width($('rp-svg')),H=210,cx=[W*0.12,W*0.38,W*0.64,W*0.88];
     let b='';
-    ['Client','Balancer','Replica A','Replica B'].forEach((s,k)=>{b+='<rect x="'+(cx[k]-Math.min(70,W*0.1))+'" y="6" width="'+Math.min(140,W*0.2)+'" height="26" rx="6" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(cx[k],23,s,{a:'middle',fs:W<480?10:12,w:600});
+    ['Client','Balancer','Replica A','Replica B'].forEach((s,k)=>{b+='<rect x="'+(cx[k]-Math.min(70,W*0.1))+'" y="6" width="'+Math.min(140,W*0.2)+'" height="26" rx="6" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(cx[k],23,s,{a:'middle',fs:W<480?11:12,w:600});
       b+='<line x1="'+cx[k]+'" y1="34" x2="'+cx[k]+'" y2="'+(H-46)+'" stroke="var(--line)" stroke-dasharray="3 3"/>'});
     // memory boxes
     let sess={A:null,B:null};const completed=last?n:Math.floor(i/2)+(i%2);
     for(let k=0;k<completed;k++){const t=tr[k],sid=(t.sh||{})['mcp-session-id'];if(sid&&rpc(t)==='initialize')sess[t.rep]=sid;if(t.m==='DELETE'&&t.st<300)sess[t.rep]=null}
-    ['A','B'].forEach((R,k)=>{const x=cx[2+k],txt=r.era==='legacy'?(sess[R]?'session '+sess[R].slice(0,6)+'...':'no sessions'):(r.key?'shared key':'own key');
-      b+='<rect x="'+(x-Math.min(68,W*0.1))+'" y="'+(H-40)+'" width="'+Math.min(136,W*0.2)+'" height="30" rx="5" fill="'+(sess[R]?'var(--closed2)':'var(--bg)')+'" stroke="var(--line)"/>'+RD.t(x,H-21,txt,{a:'middle',fs:W<480?9:11})});
+    ['A','B'].forEach((R,k)=>{const x=cx[2+k],nw=W<480,txt=r.era==='legacy'?(sess[R]?(nw?'sess '+sess[R].slice(0,4):'session '+sess[R].slice(0,6)+'...'):(nw?'none':'no sessions')):(r.key?(nw?'shared':'shared key'):(nw?'own key':'own key'));
+      b+='<rect x="'+(x-Math.min(68,W*0.1))+'" y="'+(H-40)+'" width="'+Math.min(136,W*0.2)+'" height="30" rx="5" fill="'+(sess[R]?'var(--closed2)':'var(--bg)')+'" stroke="var(--line)"/>'+RD.t(x,H-21,txt,{a:'middle',fs:11})});
     if(!last){const k=Math.floor(i/2),t=tr[k],ph=i%2,y=60+ph*50,rx=cx[t.rep==='A'?2:3];
       const col=ph===0?'var(--acc)':(t.st<300?'var(--good)':'var(--bad)');
       const arrow=(x1,x2,yy)=>'<line x1="'+x1+'" y1="'+yy+'" x2="'+x2+'" y2="'+yy+'" stroke="'+col+'" stroke-width="2.5" marker-end="url(#rpa)"/>';
       b+='<defs><marker id="rpa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="'+col+'"/></marker></defs>';
-      if(ph===0){b+=arrow(cx[0],cx[1],y)+arrow(cx[1],rx,y+14);b+=RD.t((cx[0]+cx[1])/2,y-6,E(rpc(t)),{a:'middle',fs:W<480?9:11})}
+      if(ph===0){b+=arrow(cx[0],cx[1],y)+arrow(cx[1],rx,y+14);b+=RD.t(W<480?4:(cx[0]+cx[1])/2,y-6,E(rpc(t)),{a:W<480?'start':'middle',fs:11})}
       else{b+=arrow(rx,cx[1],y+14)+arrow(cx[1],cx[0],y);b+=RD.t((cx[0]+cx[1])/2,y-6,String(t.st),{a:'middle',fs:11,w:600,fill:col})}
     }
     $('rp-svg').innerHTML=RD.svg(W,H,b,'Client, balancer and two replicas');
@@ -55,7 +56,6 @@
   }
   function steps(){return 2*D.rep[cur].trace.length+1}
   an=RD.anim({card:'rp-card',ctl:'rp-ctl',n:steps(),draw,ms:1700,label:'Step through the call'});
-  RD.seg($('rp-seg'),v=>{cur=+v;an.reset(steps());an.play()});
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-rep']=window.TAB_RENDER['t-rep']||[]).push(()=>an.redraw());
-  addEventListener('resize',()=>{const t=$('t-rep');if(t&&!t.hidden)an.redraw()});
+  RD.seg($('rp-seg'),v=>{cur=+v;an.reset(steps())});
+  RD.onResize(()=>an.redraw());
 })();

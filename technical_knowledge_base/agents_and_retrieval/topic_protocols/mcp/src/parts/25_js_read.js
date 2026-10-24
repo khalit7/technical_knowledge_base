@@ -2,11 +2,14 @@
 (function(){
   const D=window.MCPD,E=RD.esc,$=id=>document.getElementById(id);
   const fmt=n=>n==null?'':(+n).toLocaleString('en-US');
-  // section 2: the stdio call
-  const st=D.tr.find(r=>r.name.indexOf('stdio, 2026-07-28')===0);
-  const m=st.coldmsgs;
-  $('rd-msg-req').textContent=m[0].s;
-  $('rd-msg-res').textContent=m[1].s;
+  // section 2: the same tools/call before and after, _meta highlighted
+  (function(){
+    const call=r=>r.coldmsgs.find(m=>m.d==='client->server'&&m.s.indexOf('"tools/call"')>=0);
+    const mo=call(D.tr.find(r=>r.name.indexOf('stdio, 2026-07-28')===0)),lo=call(D.tr.find(r=>r.name.indexOf('stdio, legacy')===0));
+    const hl=s=>{const i=s.indexOf('"_meta":');if(i<0)return E(s);let d=0,j=i+8;for(;j<s.length;j++){if(s[j]==='{')d++;else if(s[j]==='}'){d--;if(d===0){j++;break}}}
+      return E(s.slice(0,i))+'<span class="mh">'+E(s.slice(i,j))+'</span>'+E(s.slice(j))};
+    $('env-old').innerHTML=lo?E(lo.s):'';$('env-new').innerHTML=mo?hl(mo.s):'';
+  })();
   // section 4: progress stream
   $('rd-prog').textContent=D.prog.up.replace(/\r/g,'')+'\n\n'+D.prog.down.replace(/\r/g,'');
   // section 4: hostile requests
@@ -52,6 +55,18 @@
     Object.keys(D.auth.fails).forEach(k=>{const f=D.auth.fails[k];h+='<tr><td>'+E(names[k]||k)+'</td><td><span class="pill '+(f.st<300?'ok':'bad')+'">'+f.st+'</span></td><td class="small"><code>'+E(f.wa||'(none)')+'</code></td></tr>'});
     $('rd-auth-f').innerHTML=h+'</tbody>';
     $('rd-mixup').textContent=D.auth.mixup||'';
+  })();
+  // section 4 closed block: openings and hostile requests in full (moved from the Wire lab tab)
+  (function(){
+    const sel=$('lb-tr-sel');sel.innerHTML=D.tr.map((r,i)=>'<option value="'+i+'">'+E(r.name)+'</option>').join('');
+    function tr(){const r=D.tr[+sel.value];
+      $('lb-tr-list').innerHTML=r.coldmsgs.length?r.coldmsgs.map(m=>'<div class="msg"><div class="h"><span>'+(m.d==='client->server'?'client to server':'server to client')+'</span></div><pre>'+E(m.s.replace(/\r/g,''))+'</pre></div>').join(''):'<p class="small mute">(not recorded)</p>'}
+    sel.addEventListener('change',tr);tr();
+    const ws=$('lb-wc-sel');ws.innerHTML=D.wc.map((c,i)=>'<option value="'+i+'">'+E(c.case)+'</option>').join('');
+    function wc(){const c=D.wc[+ws.value];
+      $('lb-wc-out').textContent=c.method+' /mcp\n'+Object.entries(c.hdr).map(([a,v])=>a+': '+v).join('\n')+'\n\n-> HTTP '+c.st+'\n'+(c.resp||'(empty body)')}
+    ws.addEventListener('change',wc);wc();
+    $('lb-ver').textContent='Versions recorded: '+D.ver.replace(/\n/g,'; ');
   })();
   // predict, then reveal
   document.querySelectorAll('#t-read .pr').forEach(p=>{
