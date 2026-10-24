@@ -41,7 +41,7 @@
       (fresh?'Refresh: the target network copies the online weights, and the target jumps to r + γV<sup>−</sup>(s₂) computed from that copy. ':'The target stands still (copied '+((k-1)%C)+' update'+((k-1)%C===1?'':'s')+' ago); the estimate regresses onto it like ordinary supervised learning. ')+'Error after '+STEPS+' updates: '+RD.n(err(R.tn[STEPS-1]),3)+' against '+RD.n(err(R.on[STEPS-1]),1)+' online.');
     Nc.innerHTML=RD.stat('Estimate (V(s₁), V(s₂))','('+RD.n(cur[0],2)+', '+RD.n(cur[1],2)+')','true (9, 10)')+RD.stat('Target (y₁, y₂)','('+RD.n(cur[2],2)+', '+RD.n(cur[3],2)+')',mode==='on'?'moves every update':'frozen between refreshes')+RD.stat('Target refreshes',mode==='on'?k:(C===0?k:Math.floor((k-1)/C)+1),'C = '+(mode==='on'?1:cName(p.C)))}
   const an=RD.anim({card:'vb-tn',ctl:'vb-tnK',n:STEPS,ms:220,draw,label:'Update'});
-  document.getElementById('vb-tnM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));an.reset(STEPS);an.play()});
+  document.getElementById('vb-tnM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));an.reset(STEPS)});
   [Cs,Ds,As].forEach(s=>s.addEventListener('input',()=>an.redraw()));RD.onResize(()=>an.redraw());
   // Extended Data Table 3 of the Nature paper (transcribed from the image): replay x target network, 5 games, 10M frames
   const ED=[['Breakout',316.8,240.7,10.2,3.2],['Enduro',1006.3,831.4,141.9,29.1],['River Raid',7446.6,4102.8,2867.7,1453.0],['Seaquest',2894.4,822.6,1003.0,275.8],['Space Invaders',1088.9,826.3,373.2,302.0]];

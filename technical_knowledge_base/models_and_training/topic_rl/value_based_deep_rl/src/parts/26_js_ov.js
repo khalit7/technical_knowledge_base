@@ -36,7 +36,7 @@
     else{Tt.textContent='Double estimator: average error = '+RD.sg(R.full.avgDbl,3);Xp.innerHTML='Pick the best action with one set of fits and value it with fits made from other samples (action a<sub>i+5</sub>\'s for a<sub>i</sub>): the errors no longer line up with the choice, and the average lands near 0'+(pr?' (printed '+pr[1]+')':'')+'.'}
     Nc.innerHTML=RD.stat('Average max − true',i>=11?RD.sg(R.full.avgMax,3):'…',pr?'printed '+pr[0]:'no printed value for this degree')+RD.stat('Average double − true',i>=12?RD.sg(R.full.avgDbl,3):'…',pr?'printed '+pr[1]:'')+RD.stat('Setting',fun==='sin'?'sin(s)':'2 exp(−s²)','degree '+deg+', 10 actions')}
   const an=RD.anim({card:'vb-ov',ctl:'vb-ovC',n:N,ms:900,draw,label:'Step'});
-  document.getElementById('vb-ovF').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const [f,d]=b.dataset.f.split('|');fun=f;Ds.value=d;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));an.reset(N);an.play()});
+  document.getElementById('vb-ovF').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const [f,d]=b.dataset.f.split('|');fun=f;Ds.value=d;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));an.reset(N)});
   Ds.addEventListener('input',()=>{[...document.getElementById('vb-ovF').children].forEach(x=>x.classList.toggle('on',x.dataset.f===fun+'|'+Ds.value));an.redraw()});
   RD.onResize(()=>an.redraw());
 })();
