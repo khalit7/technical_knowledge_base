@@ -23,7 +23,7 @@
     host.innerHTML=RD.svg(W,H,s,'Standard error of the accuracy against samples per question');
     $('rd-var-cnt').innerHTML=RD.stat('Var(x), item variance',c.vx.toFixed(4),'variance of P(correct) over questions')+RD.stat('E[σ²], within-item',c.es.toFixed(4),(100*c.share).toFixed(0)+'% of one sample\'s variance')+
       RD.stat('SE, one sample → probability',(100*c.pred(1)).toFixed(2)+' → '+(100*c.seP).toFixed(2),'points; K = 5: '+(100*c.pred(5)).toFixed(2))+RD.stat('Accuracy: sampled vs greedy',(100*c.accP).toFixed(1)+'% vs '+(100*c.accG).toFixed(1)+'%','the thermostat moves the mean');
-    $('rd-var-cap').innerHTML=S.race.models[mj]+'. Horizontal: samples per question K (log scale); vertical: standard error of the accuracy, points. Line: Miller\'s √((Var(x) + E[σ²]/K)/n) with the measured components. Dots: actual standard errors when each question\'s answer is drawn K times from the model\'s probabilities over the four letters (seeded) <i class="nl r">real data</i>. Dashed green: scoring by the probability itself (no sampling noise); dashed orange: the most likely letter (temperature 0). "Sampling" here draws from the renormalised letter probabilities, not from free generation <i class="nl i">simplification</i>.';
+    $('rd-var-cap').innerHTML=S.race.models[mj]+'. Standard error of the accuracy (points) against samples per question K, log scale; line √((Var(x) + E[σ²]/K)/n); dots draw K answers from the letter probabilities renormalised over A to D, not free generation <i class="nl i">simplification</i>. Dashed: scoring by the probability (green) and by the most likely letter, T = 0 (orange).';
   }
   RD.seg($('rd-var-m'),m=>{mj=+m;draw()});
   document.querySelectorAll('#rd-var-m button').forEach((b,i)=>b.textContent=S.race.models[i]);

@@ -37,6 +37,10 @@ const near = (name, a, b, tol) => { const ok = Math.abs(a - b) <= tol; if (!ok) 
   near('Miller n969', C.genCore.m969, Math.ceil(R.miller.n969), 0); near('Miller MDE K1', C.genCore.mk1, 100 * R.miller.mde_K1, 0.001); near('Miller MDE K10', C.genCore.mk10, 100 * R.miller.mde_K10, 0.001);
   near('Bowyer wald 100', C.cov100.wald, R.bowyer['100'].wald, 2e-4); near('Bowyer wilson 100', C.cov100.wilson, R.bowyer['100'].wilson, 2e-4); near('Bowyer cp 100', C.cov100.cp, R.bowyer['100'].cp, 2e-4); near('Bowyer bayes 100', C.cov100.bayes, R.bowyer['100'].bayes, 2e-4);
   near('20 slices FWER', C.mult20.fw, R.root.fwer20, 1e-9);
+  // 2026-10-24 rebuild: the new Reading figures agree with recompute.json
+  for (const k of ['diff', 'unpaired', 'paired', 'clustered']) near('hero ' + k, C.hero[k], R.race.four_greedy[k], 1e-9);
+  near('power figure n80 paired', C.power.np, R.root.nP, 0); near('power figure n80 unpaired', C.power.nu, R.root.nU, 0);
+  near('error bar at n = 200', C.sen[200], 1.959964 * 100 * Math.sqrt(0.21 / 200), 1e-9);
   for (const k of Object.keys(R.madaan)) near('Madaan CI at mean ' + k, C.madaan[k], R.madaan[k].ci_at_mean, 1e-9);
   C.ma.forEach(m => near('MathArena median within share ' + m.name, m.medShare, (R.ma_rows[m.name].map(r => r.sig2 + r.varx > 0 ? r.sig2 / (r.sig2 + r.varx) : null).filter(v => v !== null).sort((a, b) => a - b))[R.ma_rows[m.name].filter(r => r.sig2 + r.varx > 0).length >> 1], 1e-9));
   C.hv.pairs.forEach((p, i) => { near('hv within ' + i, p.w, R.hv[i].within, 1e-9); near('hv between ' + i, p.b, R.hv[i].between, 1e-9) });
