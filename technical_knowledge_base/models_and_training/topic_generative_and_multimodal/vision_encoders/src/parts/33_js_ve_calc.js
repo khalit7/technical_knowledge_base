@@ -70,6 +70,7 @@ window.VEcalc=(function(){
     s+=RD.t(10,13,'',{});
     el.innerHTML=RD.svg(W,H,s,'Image shapes to scale')+'<div class="leg"><span style="--sw:var(--mute)">original</span><span style="--sw:var(--c1)">CLIP\'s centre crop (what survives, before the resize)</span><span style="--sw:var(--c3)">Qwen2.5-VL\'s resized input, at its own scale</span></div>'}
   ['vk-w','vk-h'].forEach(i=>$(i).addEventListener('input',rules));$('vk-nf').addEventListener('change',rules);
-  RD.onRender(()=>{draw();rules()},'t-vecalc');
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-vecalc']=window.TAB_RENDER['t-vecalc']||[]).push(draw);
+  RD.onRender(rules);RD.onResize(rules);  // the aspect-ratio card sits in Reading section 2 since 2026-10-24
   load(0);rules();
 })();

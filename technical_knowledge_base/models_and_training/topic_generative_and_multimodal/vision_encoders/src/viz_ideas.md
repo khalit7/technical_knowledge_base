@@ -27,3 +27,14 @@ Scores: quantity the reader moves (0-2), reproduces a published figure (0-2, cou
 | 13 | Semantic segmentation probe (ADE20K) | 6 | none | rejected: dataset licence and size; DINOv2 Table 10 and SigLIP 2 Table 2 quoted instead |
 
 What the methodology lacked: a rule for encoders, whose "figure to reproduce" is usually a benchmark that cannot be run here. The substitute used: run the same protocol (linear probe, kNN, retrieval) on the running example, and set the published table beside it without mixing the two.
+
+## Added 2026-10-24 (teaching-contract rebuild)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| 14 | **Hero**: one backbone, three training signals, two outputs, measured numbers on the lanes (static annotated diagram) | Reading top | built |
+| 15 | **Patchify stepper**: one image through cut, flatten, one matrix, positions, extra tokens, attention, readout; patch 32 / 16 / 14 switch with counters | Reading 1 | built (replaces a link to the root's patch animation) |
+| 16 | **Contrastive loss on the real matrix**: CLIP or SigLIP 2 cosines, softmax or sigmoid, batch size and scale, probability matrix and loss-against-scale curve | Reading 4 | built (absorbs the root Vision lab's loss calculator and matrix explorer in one widget) |
+| 17 | **Softmax all-gather against chunked sigmoid** (before/after, static), SigLIP section 3.3 accounting at 32,768 on 256 devices | Reading 4 | built (replaces the root's bar calculator: the point is the shape of what each device holds, one number each) |
+| 18 | **Typographic attack before/after** on the real cat images with both models' cosines, plus a minimal-pair table with the probe images | Reading 6 | built |
+| 19 | Processor aspect-ratio card | moved from the Tokens and cost tab into Reading 2 | moved |
+| 20 | A zero-shot prompt explorer | none | rejected here: the root's Vision lab keeps it; this page states the ranges and the case trap with numbers |

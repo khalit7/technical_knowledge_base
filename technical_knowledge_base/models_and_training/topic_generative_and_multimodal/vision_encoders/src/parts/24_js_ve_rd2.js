@@ -35,7 +35,7 @@
       'Block 2: the layout of the picture appears in every model; colours still follow brightness and colour more than meaning.',
       'Block 4: regions of similar texture share a colour; in SigLIP 2 and DINOv2 the object starts to separate from the background.',
       'Block 6: DINOv2 and SigLIP 2 separate the object cleanly; DINOv2 starts to colour its parts (on the cat: eyes, nose and fur get different colours).',
-      'Block 8: DINOv2 colours object parts consistently (eyes, nose, fur; the puppy against the grass). In SigLIP 2 single saturated patches can appear near the corners: its high-norm tokens (section 1), left out of the fit but still drawn.',
+      'Block 8: DINOv2 colours object parts consistently (eyes, nose, fur; the puppy against the grass). In SigLIP 2 single saturated patches can appear near the corners: its high-norm tokens (section 3), left out of the fit but still drawn.',
       'Block 10: SigLIP 2\'s background turns speckled while the object stays; its patch tokens are being reshaped for the pooled output. DINOv2\'s map stays clean. MAE\'s stays smooth and close to the picture\'s own colours and edges, the mark of a pixel-reconstruction objective.',
       'Block 12, the last: what a dense head or a VLM projector reads by default. DINOv2 gives the cleanest part map, as its dense-probe scores predict; SigLIP 2\'s map is noisy, the object only faintly visible on some images; CLIP\'s 7 &times; 7 grid is too coarse to show shape at all.'];
     function draw(i){$('ve-la-in').src=VE.thumbs[D.pick[img]];

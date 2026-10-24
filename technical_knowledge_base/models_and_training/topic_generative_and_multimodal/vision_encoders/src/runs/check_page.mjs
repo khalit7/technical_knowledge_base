@@ -1,5 +1,5 @@
 // Check the whole page: every control in every tab clicked at 390 px dark and 920 px light; no page errors, no NaN or
-// undefined, no sideways scroll; reading time of the Reading tab (220 words per minute); card screenshots to argv[2].
+// undefined, no sideways scroll; reading words of the Reading tab (audit_pages.mjs is the measure); card screenshots to argv[2].
 // Usage: node check_page.mjs <shots dir>
 import {createRequire} from 'module';
 import path from 'path';
@@ -43,13 +43,22 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   }
   // screenshots of the animations at chosen steps, and of the tabs' main cards
   await p.evaluate(()=>document.querySelector('#tabs button[data-t="t-read"]').click());await wait(200);
-  for(const [id,ctl,steps] of [['ve-ra','ve-ra-ctl-s',[0,2,3,4]],['ve-la','ve-la-ctl-s',[0,3,4,6]]]){
+  for(const [id,ctl,steps] of [['ve-pt','ve-pt-ctl-s',[0,1,2,3,4,5,6,7]],['ve-ra','ve-ra-ctl-s',[0,2,3,4]],['ve-la','ve-la-ctl-s',[0,3,4,6]]]){
     for(const s of steps){await p.evaluate((c,s)=>{const e=document.getElementById(c);e.value=s;e.dispatchEvent(new Event('input'))},ctl,s);
       const el=await p.$('#'+id);await el.scrollIntoView();await wait(120);await el.screenshot({path:path.join(shots,id+'_'+s+'_'+w+'.png')})}}
-  for(const id of ['ve-reg','ve-laion','ve-board','ve-layers','ve-flops']){const el=await p.$('#'+id);if(el){await el.scrollIntoView();await wait(100);await el.screenshot({path:path.join(shots,id+'_'+w+'.png')})}}
+  for(const id of ['ve-hero','ve-loss','ve-chunk','ve-typo','vk-shapes','vk-rules','ve-reg','ve-laion','ve-board','ve-layers','ve-flops']){const el=await p.$('#'+id);if(el){await el.scrollIntoView();await wait(100);await el.screenshot({path:path.join(shots,id+'_'+w+'.png')})}}
   const myErrs=errs;if(myErrs.length)bad++;
   console.log(w,scheme,JSON.stringify(out),'errors',JSON.stringify(myErrs.slice(0,5)),'reading min',(out['t-read'].words/220).toFixed(1));
   await p.close();
 }
+// fresh page, normal and reduced motion: nothing may move before the reader acts; default-state card screenshots
+for(const rm of ['no-preference','reduce']){const p=await b.newPage();await p.setViewport({width:920,height:900});
+  await p.emulateMediaFeatures([{name:'prefers-reduced-motion',value:rm}]);await p.goto('file://'+page_);
+  const H=await p.evaluate(()=>document.body.scrollHeight);for(let y=0;y<H;y+=500){await p.evaluate(y=>scrollTo(0,y),y);await wait(120)}
+  await wait(3000);
+  const moved=await p.evaluate(()=>[...document.querySelectorAll('.an-ctl input[type=range]')].filter(r=>+r.value!==0).map(r=>r.id));
+  if(moved.length)bad++;console.log('motion',rm,'animations off step 0:',JSON.stringify(moved));
+  if(rm==='no-preference')for(const id of ['ve-hero','ve-pt','ve-loss','ve-chunk','ve-typo']){const el=await p.$('#'+id);if(el){await el.scrollIntoView();await wait(100);await el.screenshot({path:path.join(shots,id+'_default_920.png')})}}
+  await p.close()}
 await b.close();
 console.log(bad?'FAIL '+bad:'ALL OK');
