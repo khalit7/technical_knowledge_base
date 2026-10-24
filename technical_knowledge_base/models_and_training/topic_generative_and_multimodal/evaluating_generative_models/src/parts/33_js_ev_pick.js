@@ -14,7 +14,7 @@
      use:['exactly the paper\'s protocol: features, N, reference set (often full training set), resize library, file format','or recompute the baseline yourself with your protocol (ADM recomputed all baselines with one codebase)'],
      set:['clean-fid legacy modes reproduce old TensorFlow or pytorch-fid numbers','never compare an FID from a different implementation without re-running both'],
      rep:['the full protocol line: extractor and weights, resize, format, reference, N'],
-     ev:'Section 5 and the Pitfall lab: JPEG and resizing alone move FID by more than typical gaps between methods.'},
+     ev:'Section 5 (its JPEG stepper and pitfall explorer): JPEG and resizing alone move FID by more than typical gaps between methods.'},
     {id:'div',name:'Is my model dropping modes or losing variety (for example from guidance)?',
      use:['recall (k-NN coverage) and its partner precision','per-class counts with a classifier when labels exist','FID alone cannot tell this apart from blur'],
      set:['equal N on both sides; k = 3 as in Kynk&auml;&auml;nniemi et al.','density and coverage (Naeem et al.) if outliers matter'],

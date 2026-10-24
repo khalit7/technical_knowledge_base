@@ -1,5 +1,5 @@
 // Check the whole page: every control in every tab clicked at 390 px dark and 920 px light; no page errors, no NaN or
-// undefined, no sideways scroll; reading time of the Reading tab (220 words per minute); card screenshots to argv[2].
+// undefined, no sideways scroll; card screenshots to argv[2]. Reading time: html_utils/audit_pages.mjs (230 words a minute).
 // Usage: node check_page.mjs <shots dir>
 import {createRequire} from 'module';
 import path from 'path';
@@ -21,7 +21,7 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   await p.goto('file://'+page_);
   await p.evaluate(()=>{try{localStorage.clear()}catch(e){}});
   const out={};
-  for(const tab of ['t-read','t-evcmp','t-evpit','t-evpick','t-more']){
+  for(const tab of ['t-read','t-evcmp','t-evpick','t-more']){
     await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);await wait(250);
     const H=await p.evaluate(()=>document.body.scrollHeight);for(let y=0;y<H;y+=700){await p.evaluate(y=>scrollTo(0,y),y);await wait(25)}
     const n=await p.evaluate(async tab=>{let k=0;const T=document.getElementById(tab);const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -47,12 +47,11 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
     for(const m of modes){await p.evaluate((g,m)=>document.querySelector('#'+g+' button[data-m="'+m+'"]').click(),seg,m);await wait(80);
       for(let s=0;s<n;s++){await p.evaluate((c,s)=>{const e=document.getElementById(c);e.value=s;e.dispatchEvent(new Event('input'))},id+'-ctl-s',s);
         const el=await p.$('#'+id);await el.scrollIntoView();await wait(100);await el.screenshot({path:path.join(shots,id+'_'+m+'_'+s+'_'+w+'.png')})}}}
-  for(const id of ['ev-sets','ev-bias','ev-pr','ev-sd','ev-sd-tab','ev-ranktab']){const el=await p.$('#'+id);if(el){await el.scrollIntoView();await wait(100);await el.screenshot({path:path.join(shots,id+'_'+w+'.png')})}}
-  for(const tab of ['t-evcmp','t-evpit','t-evpick']){await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);await wait(300);await p.evaluate(()=>scrollTo(0,0));
+  for(const id of ['ev-sets','ev-bias','ev-pr','ev-sd','ev-sd-tab','ev-ranktab','ev-pit']){const el=await p.$('#'+id);if(el){await el.scrollIntoView();await wait(100);await el.screenshot({path:path.join(shots,id+'_'+w+'.png')})}}
+  for(const tab of ['t-evcmp','t-evpick']){await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);await wait(300);await p.evaluate(()=>scrollTo(0,0));
     const el=await p.$('#'+tab);await el.screenshot({path:path.join(shots,tab+'_'+w+'.png')})}
   const myErrs=errs;if(myErrs.length)bad++;
-  if(w===920)fs.writeFileSync(path.resolve(here,'../out/reading.json'),JSON.stringify({words_rendered:out['t-read'].words,wpm:220}));
-  console.log(w,scheme,JSON.stringify(out),'errors',JSON.stringify(myErrs.slice(0,5)),'reading min',(out['t-read'].words/220).toFixed(1));
+  console.log(w,scheme,JSON.stringify(out),'errors',JSON.stringify(myErrs.slice(0,5)));
   await p.close();
 }
 await b.close();

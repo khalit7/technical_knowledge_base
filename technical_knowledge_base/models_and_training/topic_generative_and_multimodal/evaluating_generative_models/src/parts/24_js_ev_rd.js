@@ -56,7 +56,7 @@
       RD.stat('FID',i>=5?fmt(d.mean+d.cov,2):'&middot;',i>=5?'floor (real set) '+E.txt['m:real:fid:10000']:'');
   }
   const an1=RD.anim({card:'ev-an1',ctl:'ev-an1-ctl',n:6,draw:draw1,ms:2600,label:'FID step'});
-  RD.seg($('ev-an1-set'),m=>{A1.set=m;an1.reset(6);an1.play()});
+  RD.seg($('ev-an1-set'),m=>{A1.set=m;an1.reset(6)});
   RD.onResize(()=>an1.redraw());
 
   // ---------- FID against N ----------
@@ -139,7 +139,7 @@
       RD.stat('FID',i>=3?fmt(E.pit['real_jpeg'+q].fid,2):'&middot;','floor '+fmt(E.pit.real.fid,2));
   }
   const an2=RD.anim({card:'ev-an2',ctl:'ev-an2-ctl',n:4,draw:draw2,ms:2400,label:'JPEG step'});
-  RD.seg($('ev-an2-q'),m=>{A2.q=m;an2.reset(4);an2.play()});RD.onResize(()=>an2.redraw());
+  RD.seg($('ev-an2-q'),m=>{A2.q=m;an2.reset(4)});RD.onResize(()=>an2.redraw());
 
   // ---------- Stable Diffusion: four guidance scales ----------
   const S=E.sd,A3={p:Object.keys(S.prompts)[0],seed:'0'};
