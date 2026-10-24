@@ -5,19 +5,19 @@
   if(!$('rd-st'))return;
   const N='https://app.notion.com/p/',ln=(t,id)=>'<a href="'+N+id+'" target="_blank" rel="noopener noreferrer">'+t+'</a>';
   const ST=[
-    {nm:'Data, init',sec:'rd-s1',ch:['Normalisation and initialisation','3c65c17b0d0d81369e1cc38ed4e11d48'],
+    {nm:'Data, init',sec:'rd-s1',ch:['Normalisation and initialisation','3c65c17b0d0d81369e1cc38ed4e11d48','sections 1 and 2'],
       c:{classic:'32 standardised inputs; He init',modern:'32 inputs; fan-in init, branches &times; &frac14;'}},
-    {nm:'Forward',sec:'rd-s2',ch:['Activation functions','3c65c17b0d0d819f8049c255e6f206e2'],
+    {nm:'Forward',sec:'rd-s2',ch:['Activation functions','3c65c17b0d0d819f8049c255e6f206e2','"In one screen"'],
       c:{classic:'ReLU, BatchNorm, residual',modern:'SwiGLU, pre-RMSNorm, residual'}},
-    {nm:'Loss',sec:'rd-s3',ch:['Loss functions','3c65c17b0d0d8161a72bc8c572f37d55'],
+    {nm:'Loss',sec:'rd-s3',ch:['Loss functions','3c65c17b0d0d8161a72bc8c572f37d55','"Cross entropy: likelihood, KL, and the gradient p &minus; y"'],
       c:{classic:'cross entropy',modern:'cross entropy'}},
-    {nm:'Backward',sec:'rd-s4',ch:['Normalisation and initialisation','3c65c17b0d0d81369e1cc38ed4e11d48'],
+    {nm:'Backward',sec:'rd-s4',ch:['Normalisation and initialisation','3c65c17b0d0d81369e1cc38ed4e11d48','section 6, depth'],
       c:{classic:'backprop, no clipping',modern:'backprop, clip to norm 1'}},
-    {nm:'Update',sec:'rd-s5',ch:['Optimisers and learning-rate schedulers','3c65c17b0d0d817080bbc90954681d09'],
+    {nm:'Update',sec:'rd-s5',ch:['Optimisers and learning-rate schedulers','3c65c17b0d0d817080bbc90954681d09','sections 2 and 7'],
       c:{classic:'SGD, momentum 0.9; step decay',modern:'AdamW; warmup, cosine or WSD'}},
-    {nm:'Regularise',sec:'rd-s6',ch:['Regularisation','3c65c17b0d0d81e988b5c3cb5e197f98'],
+    {nm:'Regularise',sec:'rd-s6',ch:['Regularisation','3c65c17b0d0d81e988b5c3cb5e197f98','section 3, weight decay'],
       c:{classic:'L2 10<sup>&minus;4</sup> in the gradient',modern:'decoupled decay 0.1'}},
-    {nm:'Measure',sec:'rd-s7',ch:['Evaluation metrics','3c65c17b0d0d81a29acef722e842a29b'],
+    {nm:'Measure',sec:'rd-s7',ch:['Evaluation metrics','3c65c17b0d0d81a29acef722e842a29b','sections 1 and 2'],
       c:{classic:'held-out loss, accuracy',modern:'held-out loss, accuracy'}}
   ];
   let rec='modern',an;
@@ -56,7 +56,7 @@
   function draw(i){strip(i);const [t,p,c]=text(i);$('rd-stT').textContent=t;
     $('rd-stP').innerHTML=p.replace('{{Training lab|#t-lab}}','<a href="#" data-tab="t-lab">Training lab</a>');
     $('rd-stN').innerHTML=c.map(x=>RD.stat(x[0],x[1],x[2])).join('');
-    const s=ST[i];$('rd-stG').innerHTML='Read: <a href="#'+s.sec+'">section '+(i+1)+', '+s.nm.toLowerCase()+'</a> · in depth: '+ln(s.ch[0],s.ch[1]);
+    const s=ST[i];$('rd-stG').innerHTML='Read: <a href="#'+s.sec+'">section '+(i+1)+', '+s.nm.toLowerCase()+'</a> · in depth: '+ln(s.ch[0],s.ch[1])+', '+s.ch[2];
     $('rd-stR').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.r===rec))}
   an=RD.anim({card:'rd-st',ctl:'rd-stC',n:7,draw,ms:2600,label:'Stage of the training step'});
   $('rd-stS').addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(b)an.go(+b.dataset.i)});

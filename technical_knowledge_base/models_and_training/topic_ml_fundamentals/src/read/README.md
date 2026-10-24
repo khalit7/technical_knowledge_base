@@ -1,5 +1,7 @@
 # Reading tab and Further reading: sources, scripts, visual choices
 
+2026-10-24: the Reading tab was rebuilt as a map (see `../README.md`); the update-geometry, schedule, weight-decay and ROC/PR visuals in the table below were retired to `../retired/parts/` (their owners: Optimisers sections 4 and 7, Regularisation section 3, Evaluation metrics section 2). Their engine functions and expected values stay.
+
 Parts: `parts/20_read.html` (styles, One step strip, steps 1 to 3), `20_read_b.html` (steps 4 to 7), `20_read_c.html` (the four threads, Beyond one network, When it goes wrong; closes the tab), `21_js_rd_common.js` (RD helpers and the step-animation controller, from the training topic), `22_js_rd_engine.js` (RDE: every computation, no DOM), `23` to `29` (one script per visual), `39_tab_more.html`. Ids are prefixed `rd-`; CSS is scoped under `#t-read`.
 
 Shape: the Reading tab follows one training step (Khalid, 2026-10-03) instead of Part A's axis sections: each component appears at the stage where it acts, then four threads that cross stages, then the paradigms beyond one supervised network, then a hand-off to the t-debug tab.

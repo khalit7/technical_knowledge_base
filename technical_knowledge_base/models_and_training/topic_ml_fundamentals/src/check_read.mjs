@@ -1,7 +1,8 @@
 // Exercise every control of the Reading tab at 390 px dark and 920 px light: the step strip (both recipes, every stage,
 // every stage button, the script-written tab link), the five-network animation (every network, every comparison, every step,
-// the thread buttons that load it), the loss explorer, cross entropy split, update geometry, schedules, weight decay,
-// BPTT and ROC/PR controls, and every link to another tab. Fails on console errors, NaN or undefined in the tab text,
+// the thread buttons that load it), the loss explorer, cross entropy split and BPTT controls, and every link to another tab;
+// first, that neither animation moves before the reader acts (2026-10-24 rebuild: update geometry, schedules, weight decay
+// and ROC/PR widgets retired to src/retired/parts). Fails on console errors, NaN or undefined in the tab text,
 // or sideways scroll. Screenshots land in ../.shots/rd-*.png.
 // usage: node src/check_read.mjs   (from anywhere)
 import { createRequire } from 'node:module';
@@ -48,6 +49,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     if (on === 't-read') problems.push(label + ': tab link did not switch tab');
     await p.click('button[data-t=t-read]'); await wait(120);
   };
+  // nothing moves before the reader acts: scroll to both animations and confirm they stay on their opening step (the strip opens on step 1, the variance animation on its full picture)
+  for (const c of ['rd-st', 'rd-vn']) { await p.$eval('#' + c, e => e.scrollIntoView()); await wait(300); const v0 = await p.$eval(`#${c}C-s`, s => +s.value); await wait(1500); const v = await p.$eval(`#${c}C-s`, s => +s.value); if (v !== v0) problems.push(c + ' moved before the reader acted (step ' + v0 + ' to ' + v + ')') }
   // step strip
   let nst = 0;
   for (const r of ['classic', 'modern']) {
@@ -75,22 +78,10 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await setRange('rd-lsP', 600); await setRange('rd-lsG', 20); await shot('#rd-ls', 'loss');
   const npre = await p.$$eval('#rd-ceB button', a => a.length);
   for (let k = 0; k < npre; k++) { await p.evaluate(k => document.querySelectorAll('#rd-ceB button')[k].click(), k); nsl += await sweep('rd-ceQ', 'ce ' + k); await setRange('rd-ceQ', 40); await shot('#rd-ce', 'ce-' + k) }
-  // update geometry, schedules
-  await p.$eval('#rd-ug', e => e.scrollIntoView()); await wait(300);
-  const nug = await stepAll('rd-ugC', 'geometry');
-  for (const i of [0, 5, 6, 7]) { await setRange('rd-ugC-s', i); await shot('#rd-ug', 'ug-' + i) }
-  nsl += await sweep('rd-scE', 'schedule'); await setRange('rd-scE', 60); await shot('#rd-sc', 'sched');
-  // weight decay, both optimisers
-  await p.$eval('#rd-wd', e => e.scrollIntoView()); await wait(300);
-  let nwd = 0;
-  for (const m of ['l2', 'adamw']) { await p.$eval(`#rd-wdM button[data-m=${m}]`, b => b.click()); await wait(60); nwd += await stepAll('rd-wdC', 'wd ' + m); await setRange('rd-wdC-s', 30); await shot('#rd-wd', 'wd-' + m) }
-  // BPTT and ROC/PR
+  // BPTT
   nsl += await sweep('rd-bpW', 'bptt w') + await sweep('rd-bpF', 'bptt bf');
   for (const [w, f] of [[300, 60], [30, -20], [250, 30], [100, 10]]) { await setRange('rd-bpW', w); await setRange('rd-bpF', f); await check(`bptt ${w} ${f}`) }
   await shot('#rd-bp', 'bptt');
-  nsl += await sweep('rd-prP', 'pr prevalence') + await sweep('rd-prD', 'pr dprime') + await sweep('rd-prT', 'pr threshold');
-  await setRange('rd-prP', 0); await setRange('rd-prD', 20); await setRange('rd-prT', 150); await shot('#rd-pr', 'pr-50');
-  await setRange('rd-prP', 85); await shot('#rd-pr', 'pr-rare');
   // every link from the Reading tab to another tab
   const tabLinks = await p.$$eval('#t-read a[data-tab]', a => a.map(x => x.dataset.tab));
   for (let i = 0; i < tabLinks.length; i++) { await p.evaluate(i => document.querySelectorAll('#t-read a[data-tab]')[i].click(), i); await wait(60); await tabBack('reading link ' + tabLinks[i]) }
@@ -101,7 +92,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   if (inPage.length) problems.push('in-page links with no target: ' + inPage.join(' '));
   await shot('#rd-over', 'over');
   if (errs.length) problems.push('errors ' + JSON.stringify(errs.slice(0, 5)));
-  console.log(`${scheme} ${width}: strip steps ${nst}, network steps ${nvn}, thread loaders ${nld}, slider positions ${nsl}, geometry steps ${nug}, decay frames ${nwd}, tab links ${tabLinks.length}, checks ${checks}; problems ${problems.length}`);
+  console.log(`${scheme} ${width}: strip steps ${nst}, network steps ${nvn}, thread loaders ${nld}, slider positions ${nsl}, tab links ${tabLinks.length}, checks ${checks}; problems ${problems.length}`);
   problems.slice(0, 12).forEach(x => console.log('  ' + x));
   bad += problems.length;
   await p.close();
