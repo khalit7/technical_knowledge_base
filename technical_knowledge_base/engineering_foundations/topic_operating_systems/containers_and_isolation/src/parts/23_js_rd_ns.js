@@ -82,5 +82,5 @@
     document.getElementById('rd-stop-log').textContent='the job\'s log (seconds from docker stop):\n'+m.log.slice(0,last?99:Math.min(m.log.length,1+Math.floor(i/2))).join('\n');
   }
   const a=RD.anim({card:'rd-stop-card',ctl:'rd-stop-ctl',n:6,draw,ms:1700,label:'Step of the stop'});
-  RD.seg(document.getElementById('rd-stop-mode'),m=>{cur=m;a.reset(V[m].s.length);a.play()});
+  RD.seg(document.getElementById('rd-stop-mode'),m=>{cur=m;a.reset(V[m].s.length)});
 })();

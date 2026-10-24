@@ -67,7 +67,7 @@ def adj(q, mr, cap):
 cases = [("Guaranteed", 8000, 64 * G, 512 * G), ("Burstable", 8000, 64 * G, 512 * G), ("BestEffort", 0, 0, 512 * G), ("Burstable", 2000, 8 * G, 64 * G), ("Burstable", 0, 32 * G, 512 * G)]
 py = [[w_lin(shares(c)), w_quad(shares(c)), adj(q, m, cap)] for q, c, m, cap in cases]
 js = r"""
-global.window={};eval(require('fs').readFileSync('parts/32_js_pod.js','utf8').split('(function(){\n  const P=window.POD')[0]);
+global.window={};eval(require('fs').readFileSync('parts/28_js_rd_pod.js','utf8').split('(function(){\n  const P=window.POD')[0]);
 const P=window.POD,G=P.GiB;const r=[];
 for(const [cs,cap] of [[[{cr:8000,cl:8000,mr:64*G,ml:64*G}],512*G],[[{cr:8000,cl:null,mr:64*G,ml:64*G}],512*G],[[{cr:null,cl:null,mr:null,ml:null}],512*G],[[{cr:2000,cl:4000,mr:8*G,ml:16*G},{cr:100,cl:200,mr:G/4,ml:G/2}],64*G],[[{cr:null,cl:null,mr:32*G,ml:null}],512*G]]){
  const q=P.qos(cs),c=P.container(q,cs[0],cap);r.push([q,c.wl,c.wq,c.adj])}

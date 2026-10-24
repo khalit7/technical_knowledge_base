@@ -1,4 +1,4 @@
-// ---- Build a container tab: step through minictr's run, each view compared with the previous step or step 0 ----
+// ---- Reading section 0: step through minictr's run, each view compared with the previous step or step 0 (moved from the old Build a container tab, 2026-10-24) ----
 (function(){
   const D=window.CT_DATA,E=RD.esc,$=id=>document.getElementById(id),S=D.mini;
   const L='https://github.com/torvalds/linux/blob/v5.10/';

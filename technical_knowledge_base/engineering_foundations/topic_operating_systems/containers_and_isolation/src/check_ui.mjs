@@ -44,6 +44,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       if (shot && (i === 0 || i === n - 1 || i === 1)) { const el = await p.$('#' + shot); await el.screenshot({ path: `${out}/${scheme}_${width}_${shot}_${i}.png` }); }
     }
   };
+  // No autoplay: scroll each animation into view and wait; every scrubber must still be at step 0
+  for (const c of ['bl', 'rd-stop', 'ct-ov', 'rd-mem']) {
+    await p.$eval('#' + c + '-card', e => e.scrollIntoView()); await sleep(2200);
+    const v = await p.$eval('#' + c + '-ctl-s', e => +e.value); if (v !== 0) errs.push(scheme + ' ' + c + ' moved by itself to ' + v);
+  }
   // Reading (the tab choice is remembered across loads)
   await p.click('button[data-t=t-read]'); await sleep(200);
   await check('t-read', scheme + ' read');
@@ -61,26 +66,26 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await check('t-read', scheme + ' read after drills');
   for (const id of ['rd-nscost', 'rd-fz', 'rd-caps', 'rd-scprobe', 'rd-uring', 'rd-rt']) { const el = await p.$('#' + id); await el.screenshot({ path: `${out}/${scheme}_${width}_${id}.png` }); }
   await p.screenshot({ path: `${out}/${scheme}_${width}_read.png`, fullPage: true });
-  // Build a container
-  await p.click('button[data-t=t-build]'); await sleep(200);
+  // Section 0: the build stepper (moved from its own tab into Reading)
   for (const m of [0, 1]) {
     await p.$$eval('#bl-cmp button', (bs, m) => bs[m].click(), m);
     const n = await p.$$eval('#bl-steps button', bs => bs.length);
-    for (let i = 0; i < n; i++) { await p.$$eval('#bl-steps button', (bs, i) => bs[i].click(), i); await check('t-build', scheme + ' build step ' + i + ' cmp ' + m); }
+    for (let i = 0; i < n; i++) { await p.$$eval('#bl-steps button', (bs, i) => bs[i].click(), i); await check('t-read', scheme + ' build step ' + i + ' cmp ' + m); }
     await ctl('bl-ctl');
   }
   for (const i of [4, 9]) { await p.$$eval('#bl-steps button', (bs, i) => bs[i].click(), i); await (await p.$('#bl-card')).screenshot({ path: `${out}/${scheme}_${width}_build_${i}.png` }); }
-  // Pod to cgroup
-  await p.click('button[data-t=t-pod]'); await sleep(200);
+  // Section 3: the overlay stepper
+  await ctl('ct-ov-ctl'); await check('t-read', scheme + ' overlay');
+  // Section 12: the Pod to cgroup calculator (moved from its own tab into Reading)
   const np = await p.$$eval('#pd-pre button', bs => bs.length);
   for (let i = 0; i < np; i++) {
-    await p.$$eval('#pd-pre button', (bs, i) => bs[i].click(), i); await check('t-pod', scheme + ' pod preset ' + i);
+    await p.$$eval('#pd-pre button', (bs, i) => bs[i].click(), i); await check('t-read', scheme + ' pod preset ' + i);
     if (scheme === 'light') console.log('  preset ' + i + ': ' + (await p.$eval('#pd-q', e => e.textContent)) + ' | ' + (await p.$eval('#pd-out', e => e.innerText.replace(/\s+/g, ' ').slice(0, 260))));
   }
   await p.$eval('#pd-in input', e => { e.value = ''; e.dispatchEvent(new Event('input', { bubbles: true })) });
   await p.$eval('#pd-node', e => { e.value = ''; e.dispatchEvent(new Event('input')) });
-  await check('t-pod', scheme + ' pod blanks');
-  await p.screenshot({ path: `${out}/${scheme}_${width}_pod.png`, fullPage: true });
+  await check('t-read', scheme + ' pod blanks');
+  await (await p.$('#pd-wrap')).screenshot({ path: `${out}/${scheme}_${width}_pod.png` });
   // Further reading
   await p.click('button[data-t=t-more]'); await sleep(200);
   await check('t-more', scheme + ' more');

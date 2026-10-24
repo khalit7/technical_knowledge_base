@@ -50,6 +50,6 @@
     $('rd-mem-cnt').innerHTML=RD.stat('elapsed',(last&&cur==='high'?'60,000 (timeout)':p[1].toLocaleString('en-US'))+' ms','measured')+RD.stat('memory.current',p[2]+' MiB','charged')+RD.stat('memory.events',last?'oom_kill '+m.ev.oom_kill+', high '+m.ev.high.toLocaleString('en-US'):'...','after the run');
   }
   const a=RD.anim({card:'rd-mem-card',ctl:'rd-mem-ctl',n:M.max.pts.length+1,draw,ms:450,label:'Allocation step'});
-  RD.seg($('rd-mem-mode'),m=>{cur=m;a.reset(M[m].pts.length+1);a.play()});
+  RD.seg($('rd-mem-mode'),m=>{cur=m;a.reset(M[m].pts.length+1)});
   RD.onResize(()=>a.redraw());
 })();

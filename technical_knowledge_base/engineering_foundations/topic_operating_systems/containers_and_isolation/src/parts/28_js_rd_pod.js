@@ -1,4 +1,4 @@
-// ---- Pod to cgroup tab: Kubernetes v1.34 requests and limits to cgroup v2 files (formulas checked by recompute.py) ----
+// ---- Reading section 12: the Pod to cgroup calculator, Kubernetes v1.34 requests and limits to cgroup v2 files (formulas checked by recompute.py; moved from its own tab, 2026-10-24) ----
 window.POD=(function(){
   const GiB=1073741824;
   const shares=m=>{if(!m)return 2;const s=Math.floor(m*1024/1000);return Math.min(262144,Math.max(2,s))};          // MilliCPUToShares

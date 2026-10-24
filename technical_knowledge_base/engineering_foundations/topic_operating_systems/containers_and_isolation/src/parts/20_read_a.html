@@ -1,14 +1,27 @@
 <section id="rd-one">
-<h2>In one screen</h2>
-<p class="lead">A container is not a thing the kernel knows about. There is no "container" object in Linux. A container is <b>ordinary processes</b> on the host's one kernel, started with four kinds of restriction: <b>namespaces</b> (what they can see), <b>cgroups</b> (how much they can use), <b>capabilities, seccomp and LSMs</b> (what they may do) and a <b>layered root file system</b> (what files they have). Everything a container runtime such as Docker does is a sequence of ordinary system calls you can make yourself, and the {{Build a container|#t-build}} tab does exactly that, one call at a time, printing what the process sees after each.</p>
-<p>The root page, {{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}} section 8, read these four restrictions from inside one container; its {{Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}} reproduces the OOM kill, the <code>/dev/shm</code> limit, CPU throttling and the pids limit. This page goes one level down: how each restriction works in the kernel (Linux v5.10, the kernel these runs used, file and line), what it costs, where it bites a training or serving job, the command that shows it, and the fix. Each mechanism follows one pattern: <b>problem, how it works, what it costs here, when it bites in ML, the command that shows it, the fix.</b></p>
-<div class="mech">
-<div><b>See: namespaces</b>a private view of one kind of global resource: PIDs, mounts, network, hostname, IPC, users, cgroup paths, clocks (<a href="#rd-s1">1</a> to <a href="#rd-s3">3</a>)</div>
-<div><b>Use: cgroups v2</b>a tree of process groups with limits and accounting: CPU, memory, I/O, PIDs (<a href="#rd-s4">4</a>, <a href="#rd-s5">5</a>)</div>
-<div><b>Do: capabilities, seccomp, LSMs</b>root's powers split into about 40 bits; a filter on every system call; a mandatory access policy (<a href="#rd-s6">6</a> to <a href="#rd-s8">8</a>)</div>
-<div><b>Have: an image</b>read-only layers merged by overlayfs, plus one writable layer, mounted as the root (<a href="#rd-s3">3</a>)</div>
+<h2>The idea</h2>
+<p class="core">A container is not a thing the kernel knows about: it is <b>ordinary processes</b> on the host's one kernel, given a private view (<b>namespaces</b>), a budget (<b>cgroups</b>), fewer powers (<b>capabilities, seccomp, LSMs</b>) and a layered root file system (<b>an image</b>). Because the kernel is shared, a container keeps well-behaved jobs apart but is <b>not a security boundary like a VM</b>: hostile code needs another kernel in the way.</p>
+<div class="card"><p class="ftitle">One kernel, many containers: each restriction is a separate kernel mechanism, and nothing stands between an allowed system call and the host kernel</p>
+<div class="rd-chart" id="ct-hero"></div>
+<p class="small mute">Static diagram. Everything a runtime such as Docker does is a sequence of ordinary system calls; section 0 makes them by hand, one at a time, and section 9 shows who makes them for real (containerd, a shim, runc). Section numbers say where each part is taught.</p></div>
+<p><b>You need</b>: what a process, <code>fork</code>, <code>exec</code> and signals are ({{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}) and section 8 of {{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}}, which reads these four restrictions from inside one container; its {{Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}} reproduces the OOM kill, the <code>/dev/shm</code> limit, CPU throttling and the pids limit. This page goes one level down: how each restriction works in the kernel (Linux v5.10, the kernel these runs used), what it costs, where it bites a training or serving job, and the command that shows it.</p>
+<p class="small"><b>Owned elsewhere</b>, linked where they come up: the OOM killer and its score ({{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}}), <code>cpu.weight</code> and <code>cpu.max</code> throttling ({{Scheduling and CPU time|n:3f05c17b0d0d81ed9c18cc47c6bfdf76}}), hypervisors, the IOMMU and GPU passthrough ({{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}}), Kubernetes as a system ({{Kubernetes for ML|n:3c65c17b0d0d81cf9417de52108cfbce}}) and sandboxing agents as a security design ({{Agent security|n:3f15c17b0d0d81ad9fb7d1dd74217335}}).</p>
+<p class="small"><b>New terms</b> (each defined again where it is taught):</p>
+<div class="terms">
+<div><b>namespace</b>: a private copy of one global kernel table (PIDs, mounts, network...)</div>
+<div><b>cgroup</b>, <b>controller</b>: a group of processes in one tree; the code that limits one resource for it</div>
+<div><b>overlayfs</b>, <b>copy-up</b>, <b>whiteout</b>: layers merged into one tree; a file copied to the writable layer on first write; a marker that hides a deleted name</div>
+<div><b>OCI image</b>, <b>bundle</b>: a manifest, a config and layer archives; a root file system plus <code>config.json</code></div>
+<div><b>capability</b>: one of about 40 slices of root's power</div>
+<div><b>user namespace</b>, <b>rootless</b>: its own user-ID numbering; root inside, an ordinary user outside</div>
+<div><b>seccomp-bpf</b>: a small program run on every system call entry</div>
+<div><b>LSM</b>: a mandatory policy checked on objects (AppArmor, SELinux, Landlock)</div>
+<div><b>runtime</b>, <b>shim</b>: runc and containerd; the per-container parent process</div>
+<div><b>gVisor</b>, <b>microVM</b>: a kernel in user space; a minimal VM with its own kernel</div>
+<div><b>CDI</b>: a file listing what giving a container a device means</div>
+<div><b>QoS class</b>: Kubernetes' Guaranteed, Burstable or BestEffort</div>
 </div>
-<div class="co key"><div class="t">Eight things to remember</div>
+<details class="dp"><summary><b>In one screen</b>: eight things to remember</summary><div>
 <ol class="tight">
 <li><b>A container is processes plus restrictions.</b> The same kernel runs it; a kernel bug reachable through an allowed system call is a way out. Code you do not trust needs a sandbox with its own kernel or a kernel in user space (<a href="#rd-s10">section 10</a>).</li>
 <li><b>Namespaces are cheap, except the network one.</b> Creating a UTS, PID, cgroup or time namespace took 3 to 5 microseconds here; a network namespace took 2.4 ms (<a href="#rd-s1">section 1</a>).</li>
@@ -17,10 +30,10 @@
 <li><b>Kubernetes kills the whole container on an OOM.</b> On cgroup v2 the kubelet sets <code>memory.oom.group=1</code>, so a DataLoader worker going over the limit takes the main process with it; under Docker's default only the worker dies (<a href="#rd-s5">section 5</a>).</li>
 <li><b>Root inside is not all of root.</b> Docker's 14 default capabilities cannot raise priority, pin 64 MiB of memory or mount anything; Docker's default seccomp profile changed the answer for 7 of the 12 calls probed, five of which worked without it (<a href="#rd-s6">6</a>, <a href="#rd-s7">7</a>).</li>
 <li><b>Some limits are per user, not per container.</b> io_uring rings and BPF programs on Linux 5.10 are charged to the UID: two containers running as the same UID shared one 64 KiB budget, and root's was already spent (<a href="#rd-s7">section 7</a>).</li>
-<li><b>Kubernetes requests become cgroup files</b> by formulas you can check: <code>requests.cpu</code> becomes <code>cpu.weight</code> (1 CPU gives 39 under runc 1.1, 100 under newer runc), <code>limits.cpu</code> becomes <code>cpu.max</code>, <code>limits.memory</code> becomes <code>memory.max</code>, the QoS class becomes <code>oom_score_adj</code> ({{Pod to cgroup|#t-pod}}, <a href="#rd-s12">section 12</a>).</li>
-</ol></div>
-<p class="small mute">How this page was measured: Docker Desktop's Linux VM on an Apple M1 laptop (Linux 5.10.104-linuxkit, arm64, 5 CPUs, about 10 GB, cgroup v2 with the cgroupfs driver), Docker 20.10.17 with runc v1.1.2, October 2026, image <code>kb-os-cont:1</code> (the root's lab image plus busybox, tini 0.19 and dumb-init 1.2.5). No container was privileged. Two experiments needed one extra right each, stated where used: <code>--cap-add SYS_ADMIN</code> to create namespaces and to remount the container's <b>own</b> cgroup subtree writable; <code>--security-opt seccomp=unconfined</code> where Docker's default filter blocks the very call being taught (<code>pivot_root</code>, or <code>unshare(CLONE_NEWUSER)</code> as a non-root user). This kernel has no pressure stall information (<code>CONFIG_PSI</code> is not set) and no AppArmor or SELinux, so those are taught from the kernel source and documentation and tagged <span class="nrh">not run here</span>, as are gVisor, Firecracker, GPU containers and Kubernetes itself. Labels: <span class="meas">measured</span> ran here; <span class="src">source</span> read from source or documentation. Scripts and raw outputs: <code>src/exp/</code> and <code>src/raw/</code> in the repository.</p>
-<details class="xc"><summary>OSTEP chapter map for this page</summary><div>
+<li><b>Kubernetes requests become cgroup files</b> by formulas you can check: <code>requests.cpu</code> becomes <code>cpu.weight</code> (1 CPU gives 39 under runc 1.1, 100 under newer runc), <code>limits.cpu</code> becomes <code>cpu.max</code>, <code>limits.memory</code> becomes <code>memory.max</code>, the QoS class becomes <code>oom_score_adj</code> (<a href="#rd-s12">section 12</a>).</li>
+</ol></div></details>
+<details class="dp"><summary><b>How this page was measured</b>, and the OSTEP chapter map</summary><div>
+<p class="small">Docker Desktop's Linux VM on an Apple M1 laptop (Linux 5.10.104-linuxkit, arm64, 5 CPUs, about 10 GB, cgroup v2 with the cgroupfs driver), Docker 20.10.17 with runc v1.1.2, October 2026, image <code>kb-os-cont:1</code> (the root's lab image plus busybox, tini 0.19 and dumb-init 1.2.5). No container was privileged. Two experiments needed one extra right each, stated where used: <code>--cap-add SYS_ADMIN</code> to create namespaces and to remount the container's <b>own</b> cgroup subtree writable; <code>--security-opt seccomp=unconfined</code> where Docker's default filter blocks the very call being taught (<code>pivot_root</code>, or <code>unshare(CLONE_NEWUSER)</code> as a non-root user). This kernel has no pressure stall information (<code>CONFIG_PSI</code> is not set) and no AppArmor or SELinux, so those are taught from the kernel source and documentation and tagged <span class="nrh">not run here</span>, as are gVisor, Firecracker, GPU containers and Kubernetes itself. Labels: <span class="meas">measured</span> ran here; <span class="src">source</span> read from source or documentation. Scripts and raw outputs: <code>src/exp/</code> and <code>src/raw/</code> in the repository.</p>
 <p class="small">OSTEP does not have a containers chapter: containers are built from mechanisms it teaches in other places. This map says where each piece starts in the book and what this page adds.</p>
 <div class="tw"><table class="tbl-sm"><thead><tr><th>OSTEP chapter</th><th>Here</th><th>What this page adds</th></tr></thead><tbody>
 <tr><td>4 The Abstraction: The Process, 5 Process API</td><td><a href="#rd-s1">1</a>, <a href="#rd-s2">2</a></td><td>namespaces as per-process views; PID 1 of a namespace and its kill rule</td></tr>
@@ -32,4 +45,29 @@
 </tbody></table></div>
 <p class="small">OSTEP is free at {{pages.cs.wisc.edu/~remzi/OSTEP|https://pages.cs.wisc.edu/~remzi/OSTEP/}}. Read chapter 55 (Access Control) alongside sections 6 and 7 here.</p>
 </div></details>
+</section>
+<section id="rd-s0">
+<h2>0. A container in ten system calls</h2>
+<p>A container runtime in about 170 lines of C (<code>src/exp/minictr.c</code>) starts as an ordinary root process, applies one restriction per step, and after each step prints everything the process can observe: its PID, hostname, namespace numbers, how many processes and mounts it sees, its network interfaces, its cgroup and visible limits, its capabilities and seccomp state. Then it <code>execve</code>s a busybox shell that runs a small workload. Step through it before the mechanisms: every later section explains one of these steps.</p>
+<div class="card" id="bl-card">
+<p class="ftitle">Each call changes exactly one thing the process can see or do; changed values are highlighted, the old value struck through</p>
+<div class="bl-steps" id="bl-steps" role="group" aria-label="Jump to step"></div>
+<div class="seg" id="bl-cmp" role="group" aria-label="Compare with"><button data-m="prev" class="on">compare with the previous step</button><button data-m="zero">compare with step 0 (before everything)</button></div>
+<div class="bl-cap" id="bl-cap"></div>
+<div class="an-ctl" id="bl-ctl"></div>
+<div class="panes">
+<div><h5>The call</h5><pre class="cd" id="bl-code"></pre><div id="bl-tries"></div></div>
+<div><h5>What the process sees now</h5><div class="tw"><table class="bl-view" id="bl-view"></table></div></div>
+</div>
+<pre class="cd out" id="bl-out" hidden></pre>
+<p class="small mute">Every value was printed by that run <span class="meas">measured</span> (<code>src/raw/minictr.txt</code>). It ran inside a Docker container started with <code>--cap-add SYS_ADMIN --security-opt seccomp=unconfined</code>, so that it could do what runc does on the host: create namespaces, mount, and call <code>pivot_root</code> (which Docker 20.10's default profile blocks). Beforehand a shell script made a busybox root file system for the overlay's lower layer and a cgroup <code>/ctr</code> with <code>memory.max</code> 64 MiB, <code>memory.swap.max</code> 0 and <code>pids.max</code> 16 (<code>src/exp/minictr.sh</code>).</p>
+</div>
+<div class="co key"><div class="t">What to notice</div><ul class="tight">
+<li><b>Step 2:</b> the PID becomes 1 only after the fork, yet <code>ps</code> would still see the outer processes: <code>/proc</code> is the old namespace's until step 4 mounts a new one.</li>
+<li><b>Step 3:</b> <code>/proc/self/cgroup</code> becomes <code>0::/</code>, but the visible <code>memory.max</code> is still the outer container's 1.5 GB: a cgroup namespace changes how paths are shown, and the mounted cgroup file system is the old view until step 4 remounts it.</li>
+<li><b>Step 4:</b> one visible process, seven root entries, eight mounts: the host's tree is gone from this mount namespace, not merely hidden.</li>
+<li><b>Step 5:</b> the network namespace has no <code>eth0</code>, only loopback and two tunnel devices this kernel creates in every namespace. A real runtime would now add one end of a virtual Ethernet pair.</li>
+<li><b>Step 7:</b> <code>CapEff</code> drops from <code>a82425fb</code> (Docker's 14 plus <code>CAP_SYS_ADMIN</code>) to <code>a80425fb</code>, Docker's 14: bit 21 gone. Root can still <code>chown</code>, but no longer change the hostname or mount.</li>
+<li><b>Step 9:</b> the cgroup limits bite: a fork past 16 tasks fails, and a 100 MB allocation is OOM-killed inside the 64 MiB group while the shell survives. The deleted <code>/etc/passwd</code> becomes a whiteout in the upper layer.</li>
+</ul></div>
 </section>
