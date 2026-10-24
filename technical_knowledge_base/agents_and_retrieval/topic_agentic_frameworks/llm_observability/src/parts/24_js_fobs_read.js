@@ -90,7 +90,7 @@
     else msg='Decided at '+c.dec.toFixed(1)+' s with the failure in view: kept '+c.kept+' of 49 spans, written out '+c.emit+' s after the replay began.';
     cap.innerHTML='<p class="t">'+esc(c.lab)+'</p><p>'+msg+'</p><p class="small mute">Ticks: spans as they arrive (red: status ERROR; the last two were marked failed by us). Measured on otelcol-contrib 0.162.0.</p>'}
   const A=RD.anim({card:'fobs-a7',ctl:'fobs-a7-ctl',n:N,draw,ms:450,label:'Time'});
-  RD.seg(document.getElementById('fobs-a7-mode'),m=>{mode=m;A.reset(N);A.play()});
+  RD.seg(document.getElementById('fobs-a7-mode'),m=>{mode=m;A.reset(N)});
   RD.onResize(()=>A.redraw());
 })();
 

@@ -1,4 +1,4 @@
-// ---- fobs: tab t-pipe (tail-sampling simulator, cost table, collector configs) ----
+// ---- fobs: Reading closed blocks: tail-sampling simulator (section 7), cost table (section 6), collector configs (section 8). Moved from the old Pipeline lab tab ----
 (function(){
   const {D,fmt,esc}=FOBSU;
   const S=D.samp.sent,first=S[0][1],rootIdx=S.length-1,rootAt=S[rootIdx][1];
@@ -39,7 +39,7 @@
     const pm=PRE.find(p=>p.run===o.run&&p.pol===o.pol&&p.w===o.w&&p.ar===o.ar);
     $('fobs-sim-note').innerHTML=pm?'This setting was run on the real collector: '+pm.kept+' spans kept'+(pm.emit?', written out '+pm.emit+' s after the first span':'')+'.':'Not run on the real collector; simulated.'}
   ['fobs-sim-run','fobs-sim-pol','fobs-sim-w','fobs-sim-ar'].forEach(id=>$(id).addEventListener('input',draw));
-  draw();RD.onRenderTab('t-pipe',draw);RD.onResize(draw,'t-pipe');
+  draw();RD.onRender(draw);RD.onResize(draw);$('fobs-sim-d').addEventListener('toggle',draw);
 
   // cost table
   const C2=D.cost,M=C2.ways.mapped.gens,T2=C2.ways.ttl.gens;

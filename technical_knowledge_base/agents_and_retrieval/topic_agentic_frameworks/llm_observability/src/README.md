@@ -4,8 +4,9 @@
 
 ## Parts
 - `01_head.html` shared CSS (from the langchain_and_langgraph sibling), `10_header.html` title and tab bar, `05z_errbox.js.html`.
-- Reading: `20_read_a.html` (wrapper, CSS, nav, s0, s1), `20_read_b.html` (s2, s3), `20_read_c.html` (s4 to s6), `20_read_d.html` (s7 to s10), `20_read_e.html` (reliability table, mistakes, interview questions, corrections; closes the tab).
-- JS: `21_js_rd_common.js` (RD helpers, step-animation controller), `22_js_data.js` (generated: window.FOBS), `23_js_fobs_core.js` (values, waterfall, s1), `24_js_fobs_read.js` (s2 to s9), `31_*` Eight instrumentations, `32_*` Pipeline lab, `39_tab_more.html` Further reading, `99_js_tabs.js`.
+- Reading: `20_read_a.html` (wrapper, CSS, nav, the idea in one screen: core sentence, hero, you need, new terms, running example; section 1), `20_read_b.html` (sections 2, 3), `20_read_c.html` (4 to 6), `20_read_d.html` (7 to 9), `20_read_z.html` (corrections, closed; closes the tab).
+- JS: `21_js_rd_common.js` (the skill template: never autoplays), `22_js_data.js` (generated: window.FOBS), `23_js_fobs_core.js` (values, waterfall, section 1), `24_js_fobs_read.js` (sections 2 to 9), `25_js_fobs_figs.js` (static figures: hero, token accounting to scale, Langfuse stack, eval loop), `26_js_fobs_pipe.js` (closed blocks: tail-sampling simulator, per-call cost table, collector configs; was the Pipeline lab tab), `31_*` Eight instrumentations, `39_tab_more.html` Further reading, `99_js_tabs.js` (template, key `fobs-tab`).
+- Checks: `check_page.py` (data and prose numbers), `check_controls.mjs` (every control, both themes, no autoplay), `shot_el.mjs` (element screenshots), `../../../../html_utils/ledger.py check`.
 
 ## What was run (6 October 2026, Apple M1 Pro 16 GB)
 Scripts as run are in `code/` (they ran from a scratch folder; paths there are redacted to /work in everything committed).
@@ -31,3 +32,24 @@ Scripts as run are in `code/` (they ran from a scratch folder; paths there are r
 - No `recompute.py`: the only derived numbers are costs and counts, recomputed in `check_page.py`.
 - The instrumentation comparison uses a replayed run rather than eight live runs, so differences are the instrumentation's alone; tool calls still ran for real.
 - Phoenix, LangSmith and Braintrust were not run (docs only, marked); Langfuse was.
+
+## The 2026-10-24 rebuild to the teaching contract (editing only, no new runs)
+- **Top**: the core idea in one sentence ("record every agent run as one trace ... everything else reads the attributes"), a static hero figure (the local run's trace tree with what each span kind must carry and the section that uses it, then the path SDK, collector, backend, evaluators), "You need", new terms. The four-questions table became the hero's labels (fat).
+- **New inline visuals**: hero; section 2 token accounting to scale (Anthropic `input_tokens` = 10 of 13,086 on the first Claude Code call) before the formula; section 4 a real image (Langfuse's own trace view, MIT, `img/CREDITS.md`) and a static diagram of the six-container stack; section 9 the eval loop. Existing steppers and toggles stay inline (one run three ways, three-process waterfall, cost reconciliation, tail sampling, redaction).
+- **Pipeline lab tab removed**: each part explained one mechanism, so the simulator moved into section 7, the per-call cost table into section 6 and the collector configurations into section 8, each as a closed block.
+- **Sections 10 and the reliability table folded**: hosted runtimes became a dated closed block in section 5 (now "The tools, compared by design"); each reliability pattern went beside the section that records it (retries in 2, fallbacks in 4, budgets in 2, degrade explicitly in 1, prompt versions in 9).
+- **Deleted as fat**: common mistakes and interview questions (each restated a section); the two that added something (double counting on parent spans, the gap-diagnosis list) are now core text in section 6.
+- **Moved to closed blocks**: what was run and versions, other attributes, who writes which names, why content capture matters, the Langfuse mapping table, Langfuse's other features and gateway spans, corrections.
+- **No autoplay**: the template `21_js_rd_common.js`; the sampling toggle no longer starts playback.
+
+## Length judgement
+| | Before (2026-10-23 audit) | After (2026-10-24) |
+|---|---|---|
+| Reading, core (230 words a minute) | 35.2 min | 29.9 min |
+| Reading, closed details | 2.4 min | 8.4 min |
+| Other tabs | 10.1 min (three tabs) | 6.7 min (Eight instrumentations, Further reading) |
+| Visuals inline in Reading (svg, canvas, img) | 1 | 7 |
+
+Thirty minutes is right for this page: it owns nine concepts that the rest of the knowledge base links to (trace structure for agents, the GenAI conventions, instrumentation choices, a backend's data model, tools by design, cost attribution, sampling, redaction, evals on traces), each carried by a measured run and its visual. What was cut is restatement; what moved is depth a first read does not need.
+
+Ledger (`src/ledger.json`, 348 units): core 234, depth 48, volatile 15, fat 51; `ledger.py check` problems 0.
