@@ -1,6 +1,6 @@
-// ---- Text metrics lab (ids tx-) ----
+// ---- Reading, section 7: your own sentences, every overlap score, and the presets table (ids tx-) ----
 (function(){
-  const $=id=>document.getElementById(id),F=RD.f,esc=RD.esc;if(!$('t-text'))return;
+  const $=id=>document.getElementById(id),F=RD.f,esc=RD.esc;if(!$('tx-R'))return;
   const T=EM.text;$('tx-R').value=T.ref;$('tx-C').value=T.cands.find(c=>c.key==='para').text;
   $('tx-P').innerHTML=T.cands.map(c=>'<button data-k="'+c.key+'">'+esc(c.label)+'</button>').join('');
   function live(){const R=$('tx-R').value,C=$('tx-C').value;

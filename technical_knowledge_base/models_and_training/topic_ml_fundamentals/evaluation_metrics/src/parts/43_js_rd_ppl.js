@@ -27,8 +27,8 @@
     return h+'</tbody></table><p class="small mute">PPL per word = exp(total nats / '+D.texts[tk].words+' whitespace-separated words); bits per byte = total bits / '+D.texts[tk].bytes+' UTF-8 bytes. Recomputed in <code>src/recompute.py</code>.</p>'}
   $('rd-pxT').innerHTML=Object.entries(D.texts).map(([k,v])=>'<button data-k="'+k+'"'+(k===tk?' class="on"':'')+'>'+esc(v.label)+'</button>').join('');
   const nSteps=()=>seq().length+2;
-  $('rd-pxT').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;tk=b.dataset.k;$('rd-pxT').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(nSteps());A.play()});
-  $('rd-pxM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mk=b.dataset.m;$('rd-pxM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(nSteps());A.play()});
-  A=RD.anim({card:'rd-px',ctl:'rd-pxC',n:nSteps(),draw,ms:420,label:'Token'});
+  $('rd-pxT').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;tk=b.dataset.k;$('rd-pxT').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(nSteps());A.go(nSteps()-1)});
+  $('rd-pxM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mk=b.dataset.m;$('rd-pxM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(nSteps());A.go(nSteps()-1)});
+  A=RD.anim({card:'rd-px',ctl:'rd-pxC',n:nSteps(),start:nSteps()-1,draw,ms:420,label:'Token'});
   let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>A.redraw(),150)});
 })();

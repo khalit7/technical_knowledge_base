@@ -75,6 +75,6 @@
       box.innerHTML=s+'</svg><div class="leg"><span><i style="background:var(--c1)"></i>paired resamples, 95% interval (upper line)</span><span><i style="background:var(--mute);opacity:.5"></i>unpaired resamples, 95% interval (lower line)</span><span><i style="background:var(--c2);border-radius:50%"></i>observed difference</span></div>'}
     let t;const go=()=>{clearTimeout(t);t=setTimeout(run,60)};
     $('rd-bsN').addEventListener('input',()=>{$('rd-bsNv').textContent=$('rd-bsN').value;go()});$('rd-bsB').addEventListener('change',go);$('rd-bsR').addEventListener('click',()=>{seed++;go()});
-    RD.onRender(run);run();let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(run,150)});
+    RD.onRender(run);run();RD.onResize(run);const dd=$('rd-bsD');if(dd)dd.addEventListener('toggle',()=>{if(dd.open)run()});
   })();
 })();

@@ -5,6 +5,8 @@ s = json.load(open('inputs/sst2_scores.json'))
 g = json.load(open('inputs/glass_cm.json'))
 pp = json.load(open('inputs/ppl_tokens.json'))
 tx = json.load(open('inputs/text_presets.json'))
+rg = json.load(open('inputs/reg_diabetes.json'))   # data_reg.py
+rk = json.load(open('inputs/rank_example.json'))   # rank_example.py
 
 def cut(t, n=90):
     return t if len(t) <= n else t[:n - 1].rstrip() + '…'
@@ -18,6 +20,8 @@ EM = {
   'sst2': {'y': ''.join(str(v) for v in s['y']), 'logit': {k: [lg(v) for v in s['p'][k]] for k in ['lr', 'nb', 'nbc']},
            'text': [cut(t) for t in s['text']], 'perm': perm},
   'glass': {'classes': g['classes'], 'cm': g['cm']},
+  'reg': {'y': rg['y'], 'yhat': rg['yhat']},
+  'rank': {'grades': rk['grades'], 'missing': rk['missing']},
   'ppl': {'texts': pp['texts'], 'models': {k: {'repo': m['repo'], 'vocab': m['vocab'], 'params': m['params'], 'start': m['start_token'],
           'scores': {t: {'tokens': v['tokens'], 'nb': v['nb'], 'lp': v['lp']} for t, v in m['scores'].items()}} for k, m in pp['models'].items()}},
   'text': {'ref': tx['ref'], 'cands': [{'key': c['key'], 'label': c['label'], 'text': c['text'],

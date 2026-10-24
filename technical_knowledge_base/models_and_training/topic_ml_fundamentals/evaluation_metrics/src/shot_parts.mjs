@@ -12,7 +12,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.goto('file://' + page); await wait(300); await p.click('button[data-t="t-read"]'); await wait(200);
   const scan = async (sel, what) => { const t = await p.$eval(sel, e => e.innerText); if (/NaN|undefined(?! *\|)|Infinity/.test(t.replace(/undefined\b(?=<)/g, ''))) { if (/NaN|Infinity/.test(t) || /\bundefined\b/.test(t.replace('undefined', ''))) { bad++; console.log('BAD TEXT', what, t.slice(0, 200)) } } };
   const shot = async (sel, name) => { const el = await p.$(sel); await el.scrollIntoView(); await wait(150); await el.screenshot({ path: path.join(out, name + '-' + scheme + '-' + width + '.png') }) };
-  for (const id of ['rd-trap', 'rd-mc', 'rd-pn', 'rd-bs']) await shot('#' + id, id);
+  await p.$eval('#rd-bsD', e => { e.open = true }); await wait(300);
+  for (const id of ['rd-hero', 'rd-trap', 'rd-rp', 'rd-cal', 'rd-mc', 'rd-rg', 'rd-rk', 'rd-tx', 'rd-pn', 'rd-ed', 'rd-px', 'rd-bs']) await shot('#' + id, id);
+  for (const v of [0, 500, 1000]) { await p.$eval('#rd-rgD', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); await scan('#rd-rg', 'reg ' + v) }
+  await shot('#rd-rg', 'rd-rg-1000');
+  for (let v = 1; v <= 10; v++) { await p.$eval('#rd-rkK', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); await scan('#rd-rk', 'rank ' + v) }
   // animations: step through every step of every mode
   const stepAll = async (card, ctl, modesSel, presetSel) => {
     const modes = modesSel ? await p.$$(modesSel + ' button') : [null]; const pres = presetSel ? await p.$$(presetSel + ' button') : [null];
@@ -33,23 +37,30 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   for (const a of ['weighted', 'micro', 'macro']) { await p.click('#rd-mcM button[data-a="' + a + '"]'); await scan('#rd-mc', 'mc ' + a) }
   for (const v of [50, 200, 872]) { await p.$eval('#rd-bsN', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); await wait(400); await scan('#rd-bs', 'bs ' + v) }
   await p.click('#rd-bsR'); await wait(300);
-  // threshold lab
-  await p.click('button[data-t="t-thr"]'); await wait(200);
+  // hero (threshold explorer)
   for (const m of ['lr', 'nb', 'nbc']) for (const d of ['all', 'rare']) {
     await p.click('#th-M button[data-m="' + m + '"]'); await p.click('#th-D button[data-d="' + d + '"]');
-    for (const t of ['0.5', 'f1', 'mcc', 'bacc']) { await p.click('#t-thr .pre button[data-th="' + t + '"]'); await scan('#t-thr', 'thr ' + m + d + t) }
-    for (const v of [0, 1, 250, 999, 1000]) { await p.$eval('#th-T', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); await scan('#t-thr', 'thr slider ' + m + d + v) }
-    for (const c of ['tp', 'fp', 'fn', 'tn']) { await p.click('#th-CM button[data-c="' + c + '"]'); await scan('#t-thr', 'thr cell ' + c) }
+    for (const t of ['0.5', 'f1', 'mcc', 'bacc']) { await p.click('#th-Pre button[data-th="' + t + '"]'); await scan('#rd-hero', 'thr ' + m + d + t) }
+    for (const v of [0, 1, 250, 999, 1000]) { await p.$eval('#th-T', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); await scan('#rd-hero', 'thr slider ' + m + d + v) }
+    for (const c of ['tp', 'fp', 'fn', 'tn']) { await p.click('#th-CM button[data-c="' + c + '"]'); await scan('#rd-hero', 'thr cell ' + c) }
   }
-  await p.click('#th-M button[data-m="nb"]'); await p.click('#th-D button[data-d="rare"]'); await p.click('#t-thr .pre button[data-th="mcc"]'); await p.click('#th-CM button[data-c="fp"]');
-  await p.click('#th-X button[data-x="l"]'); await scan('#t-thr', 'thr logodds'); await shot('#t-thr .card', 'thr');
-  // text lab
-  await p.click('button[data-t="t-text"]'); await wait(200);
-  for (const k of ['copy', 'reorder', 'para', 'syn', 'neg', 'morph', 'short', 'salad']) { await p.click('#tx-P button[data-k="' + k + '"]'); await scan('#t-text', 'text ' + k) }
+  await p.click('#th-M button[data-m="nb"]'); await p.click('#th-D button[data-d="rare"]'); await p.click('#th-Pre button[data-th="mcc"]'); await p.click('#th-CM button[data-c="fp"]');
+  await p.click('#th-X button[data-x="l"]'); await scan('#rd-hero', 'thr logodds'); await shot('#rd-hero', 'rd-hero-nb-rare');
+  // own sentences editor and presets table
+  await p.$$eval('#rd-s7 details', ds => ds.forEach(d => { d.open = true }));
+  for (const k of ['copy', 'reorder', 'para', 'syn', 'neg', 'morph', 'short', 'salad']) { await p.click('#tx-P button[data-k="' + k + '"]'); await scan('#rd-s7', 'text ' + k) }
   for (const [r, c] of [['a', 'b'], ['', 'x'], ['The cat.', 'The cat.'], ['x y z', 'z y x'], ['Ünïcode façade 123-456, 7.5!', 'unicode facade 123 456 7,5']]) {
-    await p.$eval('#tx-R', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, r); await p.$eval('#tx-C', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, c); await wait(200); await scan('#t-text', 'text custom ' + r + '|' + c) }
-  await p.click('#tx-P button[data-k="neg"]'); await wait(150); await shot('#t-text', 'text');
+    await p.$eval('#tx-R', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, r); await p.$eval('#tx-C', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, c); await wait(200); await scan('#rd-s7', 'text custom ' + r + '|' + c) }
+  await p.click('#tx-P button[data-k="neg"]'); await wait(150); await shot('#rd-ed', 'rd-ed-neg'); await shot('#tx-A', 'tx-A');
   await p.close();
 }
+// no autoplay: with normal motion, scroll through the page and check every step slider is where it started
+{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 1000 }); await p.goto('file://' + page); await wait(300);
+  const before = await p.$$eval('.an-ctl input[type=range]', es => es.map(e => e.value));
+  for (const id of ['rd-cal', 'rd-tx', 'rd-px']) { await (await p.$('#' + id)).scrollIntoView(); await wait(3500) }
+  const after = await p.$$eval('.an-ctl input[type=range]', es => es.map(e => e.value));
+  const playing = await p.$$eval('.an-play', es => es.filter(e => /Pause/.test(e.textContent)).length);
+  if (JSON.stringify(before) !== JSON.stringify(after) || playing) { errs.push('autoplay: ' + before + ' -> ' + after + ', playing ' + playing) } else console.log('no autoplay: sliders', before.join(','));
+  await p.close() }
 await b.close();
 console.log('shot_parts: errors', JSON.stringify(errs), 'bad text', bad); process.exit(errs.length || bad ? 1 : 0);
