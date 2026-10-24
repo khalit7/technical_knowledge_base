@@ -1,4 +1,4 @@
-// ---- Reading tab, sections 5 to 9: published mixes, measured table, classifier bars, survival calculator, bigram collapse animation, cost calculator ----
+// ---- Reading tab, sections 5 to 9: published mixes (sources written statically in 20_read_d), measured table, classifier bars, survival calculator, bigram collapse animation, cost calculator ----
 (function(){
   const D=window.SY||{},esc=RD.esc,S={};(D.sets||[]).forEach(s=>S[s.key]=s);
   const col=g=>g==='real'?'var(--c3)':g==='rephrased'?'var(--c1)':'var(--c2)';
@@ -16,8 +16,7 @@
       ['SmolLM2 final stage',4,'r','Cosmopedia v2 at 4% of stage 4 (Section 4.5, arXiv 2502.02737)'],
       ['FinePhrase sweep: plateau',70,'a','60 to 80% best, 1.2B model on 21B tokens, benchmark average (Table 22, arXiv 2604.13977); bar at the middle'],
       ['Kang et al. sweep: best',30,'a','"converging to ~30%" for rephrased data by validation loss (arXiv 2510.01631)']];
-    el.innerHTML=M.map(m=>'<div title="'+esc(m[3])+'"><span class="nm">'+esc(m[0])+'</span><span class="tr"><span style="width:'+m[1]+'%;background:'+(m[2]==='r'?'var(--c1)':'var(--c3)')+'"></span></span><span class="v">'+m[1]+'%</span></div>').join('');
-    document.getElementById('sy-mix-src').innerHTML=M.map(m=>'<li><b>'+esc(m[0])+'</b>: '+esc(m[3])+'</li>').join('')})();
+    el.innerHTML=M.map(m=>'<div title="'+esc(m[3])+'"><span class="nm">'+esc(m[0])+'</span><span class="tr"><span style="width:'+m[1]+'%;background:'+(m[2]==='r'?'var(--c1)':'var(--c3)')+'"></span></span><span class="v">'+m[1]+'%</span></div>').join('');})();
 
   // measured table, eight sets
   (function(){const el=document.getElementById('sy-m6');if(!el||!D.sets)return;
@@ -57,7 +56,7 @@
       document.getElementById('sy-bg-cap').innerHTML='<div class="t">'+NAME[mode]+', generation '+i+(i===0?' (trained on real stories)':'')+'</div><p>'+(i===0?'The bigram model counted '+B.params.train_tokens.toLocaleString('en-US')+' words of real TinyStories. Every later generation is refit on text sampled from the model before it.':mode==='replace'?'Refit only on the previous model\'s samples: every word pair the sample missed is gone for good.':mode==='keep10'?'Refit on 90% sampled text plus a fresh random 10% of the real stories: lost words can come back.':'Refit on the real stories plus every sample so far: nothing real is ever removed.')+'</p><p class="small"><i>Sampled: "'+esc(x.examples[0])+'"</i></p>';
       document.getElementById('sy-bg-cnt').innerHTML=RD.stat('Perplexity, real stories',x.test_ppl.toFixed(1),'generation 0: '+x0.test_ppl.toFixed(1))+RD.stat('Word types in training data',x.vocab.toLocaleString('en-US'),'of '+x0.vocab.toLocaleString('en-US'))+RD.stat('Distinct word pairs',x.bigrams.toLocaleString('en-US'),'of '+x0.bigrams.toLocaleString('en-US'))}
     const A=RD.anim({card:'sy-bg-card',ctl:'sy-bg-ctl',n:G+1,draw,ms:900,label:'Generation'});
-    RD.seg(document.getElementById('sy-bg-seg'),m=>{mode=m;A.go(0);A.play()});RD.onResize(()=>A.redraw())})();
+    RD.seg(document.getElementById('sy-bg-seg'),m=>{mode=m;A.go(0)});RD.onResize(()=>A.redraw())})();
 
   // cost calculator
   (function(){const g=document.getElementById('sy-cost-g');if(!g)return;

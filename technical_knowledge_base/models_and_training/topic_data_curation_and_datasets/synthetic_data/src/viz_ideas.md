@@ -29,3 +29,8 @@ Central question: what does model-written pretraining text buy, how do you check
 
 ## What the methodology lacked
 Rules for showing model-generated text: flag unsupported claims by hand and say so; prefer seeds from organisations; keep source pages' author boxes out (the QA example is cut before a staff bio).
+
+## 2026-10-24 rebuild
+- Built: hero static diagram (three lanes, gate, mix, collapse loop); MegaMath Table 6 bars (same pages, three forms); Shumailov et al. Figure 1 as a real image (CC BY 4.0), the paper's canonical figure.
+- Moved inline: WRAP four-style stepper (section 3 opener), categorical collapse simulation (section 7). Removed: the Rephrasing lab's separate Nemotron-CC pair viewer (the section 3 stepper shows the same five pairs; its table is kept in a closed block).
+- Rejected: a Self-Instruct animation (Post-training data already draws its filter step by step; linked).

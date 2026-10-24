@@ -3,4 +3,4 @@
 Notion: https://app.notion.com/p/3c65c17b0d0d8171b5d9e36e05b7a5d0 (child of Topic: data-curation-and-datasets; reuses the old "Synthetic data and post-training data" page, whose post-training half moved to Post-training data).
 Site: https://khalit7.github.io/technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/synthetic_data/
 
-HTML-only page: `index.html`, built by `src/build.sh`. Tabs: Reading, Rephrasing lab, Collapse lab, Diversity meter, Further reading. Measured on an Apple M1 Pro from public samples (Cosmopedia, Nemotron-CC, TinyStories, MegaMath, FineWeb, DCLM, Wikipedia); one GPU run (Qwen3-4B rephrasing 200 pages, `src/scripts/run_pending.sh`). Details in `src/README.md`.
+HTML-only page: `index.html`, built by `src/build.sh`. Tabs: Reading (rebuilt 2026-10-24 to the teaching contract; the rephrasing and collapse labs are now inline in sections 3 and 7), Diversity meter, Further reading. Measured on an Apple M1 Pro from public samples (Cosmopedia, Nemotron-CC, TinyStories, MegaMath, FineWeb, DCLM, Wikipedia); one GPU run (Qwen3-4B rephrasing 200 pages, `src/scripts/run_pending.sh`). Details in `src/README.md`.

@@ -77,5 +77,5 @@
       else{a.innerHTML=K.html;al.textContent='After: the published row'}
       document.getElementById('sy-nm-cnt').innerHTML=RD.stat('Words before',p.before_words,'jusText extract')+RD.stat('Words after',i>=4?p.after_words:'...','published row')+RD.stat('After / before',i>=4?(p.after_words/p.before_words).toFixed(2):'...','length ratio')+RD.stat('Copied phrasing',i>=5?(100*K.share).toFixed(0)+'%':'...','of output words in 4-grams from the page')}
     const A=RD.anim({card:'sy-nm-card',ctl:'sy-nm-ctl',n:6,draw,ms:2600,label:'Step'});
-    RD.seg(seg,m=>{cur=+m;A.go(0);A.play()})})();
+    RD.seg(seg,m=>{cur=+m;A.go(0)})})();
 })();
