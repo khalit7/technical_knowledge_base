@@ -1,0 +1,94 @@
+<section id="tc-s3">
+<h2>3. What parallel sampling is worth: the selector decides</h2>
+<p>Parallel sampling is the one way of spending test-time compute whose returns can be written down exactly, and the formulas explain most of the folklore about it. Three selectors, three formulas, one chart.</p>
+<h3>A perfect verifier reaches pass@k</h3>
+<p>If one sample solves a problem with probability p, and samples are independent:</p>
+<div class="fm">
+<math display="block"><mtext>pass@</mtext><mi>k</mi><mo>=</mo><mn>1</mn><mo>−</mo><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>p</mi><mo>)</mo></mrow><mi>k</mi></msup></math>
+<dl><dt>p</dt><dd>the single-sample success probability on this problem</dd><dt>k</dt><dd>the number of samples drawn</dd><dt>(1 − p)<sup>k</sup></dt><dd>the probability that all k fail</dd></dl>
+</div>
+<p>With p = 0.2: one sample succeeds 20% of the time; five give 1 − 0.8<sup>5</sup> = 1 − 0.32768 = 0.672; ten give 1 − 0.8<sup>10</sup> = 1 − 0.107 = 0.893. A verifier that recognises a correct answer turns this directly into accuracy, which is why best-of-n against unit tests or a proof checker is the strongest form of parallel scaling. It also shows the ceiling: a problem with p = 0 stays unsolved at any k.</p>
+<h3>Majority voting amplifies whatever is most likely</h3>
+<p>Self-consistency needs no verifier, only answers that can be compared. In the simplest case, one correct answer against one competing wrong answer, with n odd:</p>
+<div class="fm">
+<math display="block"><msub><mi>P</mi><mtext>maj</mtext></msub><mo>=</mo><munder><mo>∑</mo><mrow><mi>j</mi><mo>&gt;</mo><mi>n</mi><mo>/</mo><mn>2</mn></mrow></munder><mrow><mo>(</mo><mfrac linethickness="0"><mi>n</mi><mi>j</mi></mfrac><mo>)</mo></mrow><msup><mi>p</mi><mi>j</mi></msup><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>p</mi><mo>)</mo></mrow><mrow><mi>n</mi><mo>−</mo><mi>j</mi></mrow></msup></math>
+<dl><dt>P<sub>maj</sub></dt><dd>the probability that the majority answer is correct</dd><dt>j</dt><dd>runs over the numbers of correct samples that form a majority</dd><dt>term</dt><dd>the binomial probability of exactly j correct samples out of n</dd></dl>
+</div>
+<p>With p = 0.6 and n = 5: 10 × 0.6<sup>3</sup> × 0.4<sup>2</sup> + 5 × 0.6<sup>4</sup> × 0.4 + 0.6<sup>5</sup> = 0.3456 + 0.2592 + 0.0778 = 0.683, up from 0.6. With p = 0.4 the same vote gives 0.317, down from 0.4, and more samples make it worse: voting amplifies whichever answer is most likely, right or wrong. Real wrong answers usually scatter, which is why voting works as well as it does: with p = 0.4 and the remaining 0.6 spread evenly over four different wrong answers (0.15 each), the correct answer is the most likely single answer, and a plurality vote is right 54.9% of the time over 5 samples and 78.0% over 15.</p>
+<div class="card" id="ttcSel">
+<h4 style="margin:0 0 4px;font-size:14.5px">A verifier climbs towards 1; a vote climbs only if the right answer is the most likely one</h4>
+<p class="small mute" style="margin:0 0 4px">Predict: set p = 0.4 with one wrong answer. Does a vote over 63 samples beat one sample?</p>
+<div class="ctl"><label>p, chance one sample is correct <b id="ttcSelPv"></b><input type="range" id="ttcSelP" min="0.05" max="0.9" step="0.05" value="0.4"></label>
+<label>n, samples for the worked numbers <b id="ttcSelNv"></b><input type="range" id="ttcSelN" min="1" max="63" step="2" value="5"></label></div>
+<div class="small mute">How the wrong answers spread (each gets an equal share of 1 − p)</div>
+<div class="seg" id="ttcSelM"><button class="on" data-m="1">1 wrong answer</button><button data-m="2">2</button><button data-m="4">4</button><button data-m="9">9 different wrong answers</button></div>
+<div id="ttcSelSvg" class="chart"></div>
+<div class="out" id="ttcSelOut"></div><p class="q" id="ttcSelNote"></p>
+<p class="small mute" style="margin:2px 0 0">The plurality curve is computed exactly by enumerating how the wrong samples split among the wrong answers, ties broken at random (checked by brute force in <code>src/recompute.py</code>). At p = 0.4 with four wrong answers it gives 54.9% at n = 5 and 78.0% at n = 15; with one wrong answer at p = 0.6, 68.3% at n = 5 and at p = 0.4, 31.7%.</p>
+</div>
+<p>The original self-consistency paper sampled 40 reasoning paths and reported gains over single-sample chain-of-thought prompting of 17.9 points on GSM8K (60.1% to 78.0% with code-davinci-002), 11.0 on SVAMP, 12.2 on AQuA, 6.4 on StrategyQA and 3.9 on ARC-challenge (<a href="https://arxiv.org/abs/2203.11171" target="_blank" rel="noopener noreferrer">Wang et al., 2022</a>, Tables 2 and 3). The gap between voting and a verifier is the part people forget: on MATH with Llama-3-8B-Instruct, the chance that some sample is right rose from 82.9% at 100 samples to 98.44% at 10,000, while majority voting or a reward model rose only from 40.50% to 41.41% over the same range (<a href="https://arxiv.org/abs/2407.21787" target="_blank" rel="noopener noreferrer">Brown et al., 2024</a>).</p>
+<div class="fig" id="ttcSlFig"><h4>What the selector keeps, measured: the same samples, scored four ways</h4>
+<div id="ttcSlBars"></div>
+<p class="cap">A perfect verifier (the coverage ceiling) is only available where answers can be checked; voting and learned scorers recover part of the gap, and how much depends on the task. Compare within a model, never across: benchmarks, models and dates differ. Sources: o1 on AIME 2024, "74% (11.1/15) with a single sample per problem, 83% (12.5/15) with consensus among 64 samples, and 93% (13.9/15) when re-ranking 1000 samples with a learned scoring function" (<a href="https://openai.com/index/learning-to-reason-with-llms/" target="_blank" rel="noopener noreferrer">OpenAI, September 2024</a>). DeepSeek-R1 on AIME 2024: pass@1 79.8%, majority voting 86.7%, pass@64 90.0% (<a href="https://arxiv.org/abs/2501.12948" target="_blank" rel="noopener noreferrer">arXiv v2, January 2026</a>). Llama-3-8B-Instruct on MATH at 10,000 samples (Brown et al.). code-davinci-002 on GSM8K: chain-of-thought 60.1%, self-consistency over 40 paths 78.0% (Wang et al., Table 2). <span class="vend">published</span></p></div>
+<p class="small">Over a whole benchmark the curves change shape: problems have different p, so coverage follows a power law in k and a vote saturates at the share of problems whose right answer is the most likely one. The {{Benchmark sampling lab|#t-lab}} tab computes both exactly and recomputes Brown et al.'s coverage fits.</p>
+
+<h3>Best-of-n against a learned reward model is a search for its errors</h3>
+<p>With a learned reward model as the selector, a larger n is a stronger optimisation of the proxy, and the true quality first rises and then falls. <a href="https://arxiv.org/abs/2210.10760" target="_blank" rel="noopener noreferrer">Gao, Schulman and Hilton (2022)</a> measured this against a much larger "gold" reward model standing in for the true objective, and fitted:</p>
+<div class="fm">
+<math display="block"><msub><mi>R</mi><mtext>bon</mtext></msub><mo>(</mo><mi>d</mi><mo>)</mo><mo>=</mo><mi>d</mi><mo>(</mo><msub><mi>α</mi><mtext>bon</mtext></msub><mo>−</mo><msub><mi>β</mi><mtext>bon</mtext></msub><mi>d</mi><mo>)</mo><mo>,</mo><mspace width="1em"/><mi>d</mi><mo>=</mo><msqrt><msub><mtext>KL</mtext><mtext>bon</mtext></msub></msqrt><mo>,</mo><mspace width="1em"/><msub><mtext>KL</mtext><mtext>bon</mtext></msub><mo>=</mo><mo>ln</mo><mi>n</mi><mo>−</mo><mfrac><mrow><mi>n</mi><mo>−</mo><mn>1</mn></mrow><mi>n</mi></mfrac></math>
+<dl><dt>R<sub>bon</sub></dt><dd>the gold reward gained over the unoptimised policy (zero at n = 1 by definition)</dd>
+<dt>KL<sub>bon</sub></dt><dd>the Kullback-Leibler divergence of the best-of-n distribution from the original policy, which has this closed form (computed analytically, not measured)</dd>
+<dt>d</dt><dd>its square root, the paper's measure of how far optimisation has moved the policy</dd>
+<dt>α<sub>bon</sub>, β<sub>bon</sub></dt><dd>fitted coefficients that change smoothly with the proxy reward model's size; the paper shows them only as plots, so the values used here are illustrative</dd>
+<dt>n</dt><dd>the number of samples</dd></dl>
+</div>
+<div class="card" id="ttcBon">
+<h4 style="margin:0 0 4px;font-size:14.5px">The gold reward peaks and falls while the proxy keeps climbing</h4>
+<div class="ctl"><label>n, samples <b id="ttcBonNv"></b><input type="range" id="ttcBonN" min="0" max="5" step="0.01" value="1.2041"></label>
+<label>α<sub>bon</sub> <span class="ill">illustrative</span> <b id="ttcBonAv"></b><input type="range" id="ttcBonA" min="0.2" max="2" step="0.05" value="1"></label>
+<label>β<sub>bon</sub> <span class="ill">illustrative</span> <b id="ttcBonBv"></b><input type="range" id="ttcBonB" min="0.05" max="0.6" step="0.01" value="0.25"></label></div>
+<div id="ttcBonSvg" class="chart"></div><div class="out" id="ttcBonOut"></div>
+<p class="small mute" style="margin:2px 0 0">Defaults reproduce the worked numbers by construction: with n = 16, KL = ln 16 − 15/16 = 2.773 − 0.938 = 1.835 and d = 1.355; with illustrative coefficients α = 1 and β = 0.25 (not the paper's fitted values), R = 1.355 × (1 − 0.25 × 1.355) = 0.896; the peak is at d* = α/(2β) = 2, reached near n = 147, and by n = 4,096 the gold reward has fallen back to 0.876. A larger reward model behaves like a smaller β: the peak moves out, which is why a larger reward model beats a larger n.</p>
+</div>
+<p>The KL grows only logarithmically in n, so the peak arrives late but it arrives: past it the proxy score keeps rising while true quality falls, and nothing in the proxy signals it. The general over-optimisation picture is on {{Reward Hacking|n:3c65c17b0d0d8196a6f1f29a817aa974}}.</p>
+<details class="dp"><summary>The unbiased pass@k estimator, and Gao et al.'s RL form</summary><div>
+<p>In evaluation, pass@k is estimated from n ≥ k samples of which c are correct, with the unbiased estimator of <a href="https://arxiv.org/abs/2107.03374" target="_blank" rel="noopener noreferrer">Chen et al. (2021)</a>, who drew n = 200 samples per problem for k ≤ 100 and showed that the naive 1 − (1 − c/n)<sup>k</sup> is biased:</p>
+<div class="fm">
+<math display="block"><mover><mrow><mtext>pass@</mtext><mi>k</mi></mrow><mo>^</mo></mover><mo>=</mo><mn>1</mn><mo>−</mo><mfrac><mrow><mo>(</mo><mfrac linethickness="0"><mrow><mi>n</mi><mo>−</mo><mi>c</mi></mrow><mi>k</mi></mfrac><mo>)</mo></mrow><mrow><mo>(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo>)</mo></mrow></mfrac></math>
+<dl><dt>n</dt><dd>samples drawn per problem</dd><dt>c</dt><dd>how many of them are correct</dd><dt>ratio</dt><dd>the probability that a random subset of k of the n samples contains no correct one</dd></dl>
+</div>
+<div class="card"><div class="ctl">
+<label>n, samples drawn <b id="ttcChNv"></b><input type="range" id="ttcChN" min="1" max="200" step="1" value="10"></label>
+<label>c, correct among them <b id="ttcChCv"></b><input type="range" id="ttcChC" min="0" max="10" step="1" value="2"></label>
+<label>k <b id="ttcChKv"></b><input type="range" id="ttcChK" min="1" max="10" step="1" value="5"></label></div>
+<div class="out" id="ttcChOut"></div>
+<p class="small mute" style="margin:2px 0 0">Defaults: C(8, 5) = 56 and C(10, 5) = 252, so the estimate is 1 − 56/252 = 0.778.</p></div>
+<p>For RL against the same proxy Gao et al. fit a different form, R<sub>RL</sub>(d) = d(α<sub>RL</sub> − β<sub>RL</sub> ln d), which declines more slowly than best-of-n's.</p>
+</div></details>
+</section>
+
+<section id="tc-s4">
+<h2>4. Verifiers and process reward models</h2>
+<p>Where no program can check an answer, the selector is learned, and where it looks matters. An <b>outcome reward model</b> (ORM) reads a finished solution and predicts whether it is right. A <b>process reward model</b> (PRM) predicts, for each intermediate step, whether the solution so far is on track. That buys two things: an error is caught at the step where it happens rather than diluted over a long answer, and search can prune a bad partial solution before paying to finish it.</p>
+<p><a href="https://arxiv.org/abs/2305.20050" target="_blank" rel="noopener noreferrer">Lightman et al. (2023)</a>, "Let's Verify Step by Step", compared the two on MATH: "process supervision significantly outperforms outcome supervision", and their process-supervised model "solves 78% of problems from a representative subset of the MATH test set"; they released PRM800K, "800,000 step-level human feedback labels". Human step labels are expensive, so later work labels steps automatically: <a href="https://arxiv.org/abs/2408.03314" target="_blank" rel="noopener noreferrer">Snell et al. (2024)</a> found a PRM trained on PRM800K "easy to exploit" with their PaLM 2 models (a distribution shift from its GPT-4 samples) and instead estimated each step's correctness from Monte Carlo rollouts continued from it, so the PRM's per-step prediction is a value estimate of reward-to-go; their PRM "consistently outperforms the ORM".</p>
+<div class="card" id="ttcPrmCard">
+<h4 style="margin:0 0 4px;font-size:14.5px">Beam search against a PRM spends the budget on prefixes that still look right</h4>
+<div class="rd-svg" id="ttcPrm"></div>
+<div class="an-ctl" id="ttcPrmCtl"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="ttcPrmStep"></div><p id="ttcPrmCap"></p></div>
+<p class="small mute" style="margin:6px 0 0">Snell et al.'s procedure (Section 5.2) with N = 4 beams and beam width M = 2: sample N first steps, score them with the PRM, keep the top N/M, sample M continuations of each, repeat to the end (at most 40 rounds in the paper), then pick the answer by best-of-N weighted, summing the PRM's scores over solutions with the same final answer. A solution's score is the PRM's prediction at its last step, which they found worked better than the product or minimum of the step scores. The scores and answers here are illustrative.</p>
+</div>
+<p>Search against a verifier is still optimisation against a learned model, with section 3's failure. Snell et al. found beam search best at low generation budgets and on harder questions, while "on the easier problems (bins 1 and 2), beam search shows signs of over-optimization with higher budgets, whereas best-of-N does not". Where answers can be checked by a program, prefer the program: it cannot be over-optimised on the property it checks (only gamed around it, section 8).</p>
+</section>
+
+<section id="tc-s5">
+<h2>5. Compute-optimal test-time scaling: the best spend depends on the question</h2>
+<p>Which way to spend a fixed budget depends on how hard the question is for this model. <a href="https://arxiv.org/abs/2408.03314" target="_blank" rel="noopener noreferrer">Snell et al. (2024)</a> binned questions by the base model's own success rate and compared, per bin and per budget, sequential revisions (the model rewrites its previous answer) against parallel samples, and beam search against a PRM against best-of-N.</p>
+<div class="tdiff">
+<div style="--sc:var(--c3)"><b>Easier for this model</b>Purely sequential revisions win: "easier questions benefit from purely sequential test-time compute". Against a PRM, best-of-N beats beam search, which over-optimises.</div>
+<div style="--sc:var(--c5)"><b>Harder, but some progress</b>A mix of sequential and parallel works best, "some ideal ratio of sequential to parallel compute"; beam search against the PRM beats best-of-N, especially at low budgets.</div>
+<div style="--sc:var(--c2)"><b>Out of reach</b>Test-time compute stops substituting for scale: on the hardest questions, a larger pretrained model wins in a FLOPs-matched comparison.</div>
+</div>
+<p class="small mute">Read from the paper's takeaways (Sections 5 and 6) and its FLOPs-matched comparison (Section 7), PaLM 2-S* on MATH. <span class="vend">published</span></p>
+<p>Choosing the setting per question, "compute-optimal" allocation, improved "the efficiency of test-time compute scaling by more than 4× compared to a best-of-N baseline", and "on problems where a smaller base model attains somewhat non-trivial success rates, test-time compute can be used to outperform a 14× larger model" in a FLOPs-matched evaluation. The qualifier is the point: on problems the small model cannot make progress on, pretraining scale still wins. In practice the difficulty is not known in advance, so it is estimated (by the verifier, by a router, or by the model itself deciding how long to think), which is where section 6 begins.</p>
+</section>
