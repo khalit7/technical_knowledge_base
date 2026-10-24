@@ -43,7 +43,7 @@ window.CO=(function(){
     g('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
     g('s').addEventListener('input',()=>{setPlay(false);st.i=+g('s').value;show()});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{es.forEach(e=>{st.vis=e.isIntersecting;
-      if(st.vis&&!st.started&&!RM&&tabVisible()){st.started=true;setPlay(true)}else if(st.vis&&st.play&&!st.timer)st.timer=setTimeout(tick,400)})},{threshold:0.3}).observe(card)}
+      if(st.vis&&st.play&&!st.timer)st.timer=setTimeout(tick,400)})},{threshold:0.3}).observe(card)}
     document.addEventListener('visibilitychange',()=>{if(!document.hidden&&st.play&&!st.timer)st.timer=setTimeout(tick,400)});
     show();
     return {reset(n){setPlay(false);st.n=n||st.n;st.i=0;show()},redraw:show,get i(){return st.i}};
