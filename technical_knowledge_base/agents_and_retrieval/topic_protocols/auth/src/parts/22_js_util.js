@@ -60,11 +60,12 @@ window.AU = (function () {
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
   // Animation controller: steps 0..n-1, play/pause/step/scrub/speed; advances only when the element is on screen and its tab visible.
+  // It never autoplays (2026-10-23): it waits on step 0 until the reader presses play or steps. draw(i, touched) gets touched=false until then.
   function anim(opts) {
-    const st = { i: 0, playing: false, speed: 1, timer: null, onScreen: false };
+    const st = { i: 0, playing: false, speed: 1, timer: null, onScreen: false, touched: false };
     const root = opts.root, n = () => opts.count();
     const play = root.querySelector('[data-a=play]'), scrub = root.querySelector('[data-a=scrub]'), spd = root.querySelector('[data-a=speed]');
-    function render() { if (scrub) { scrub.max = n() - 1; scrub.value = st.i; } if (play) play.textContent = st.playing ? 'Pause' : 'Play'; opts.draw(st.i); }
+    function render() { if (scrub) { scrub.max = n() - 1; scrub.value = st.i; } if (play) play.textContent = st.playing ? 'Pause' : 'Play'; opts.draw(st.i, st.touched); }
     function visible() { const t = root.closest('.tab'); return st.onScreen && (!t || !t.hidden); }
     function tick() {
       clearTimeout(st.timer);
@@ -76,18 +77,75 @@ window.AU = (function () {
     }
     root.querySelectorAll('[data-a]').forEach(b => {
       const a = b.dataset.a;
+      b.addEventListener('click', () => { st.touched = true; }, true);
       if (a === 'play') b.addEventListener('click', () => { if (!st.playing && st.i >= n() - 1) st.i = 0; st.playing = !st.playing; render(); tick(); });
       if (a === 'prev') b.addEventListener('click', () => { st.playing = false; st.i = Math.max(0, st.i - 1); render(); });
       if (a === 'next') b.addEventListener('click', () => { st.playing = false; st.i = Math.min(n() - 1, st.i + 1); render(); });
       if (a === 'reset') b.addEventListener('click', () => { st.playing = false; st.i = 0; render(); });
     });
-    if (scrub) scrub.addEventListener('input', () => { st.playing = false; st.i = +scrub.value; render(); });
+    if (scrub) scrub.addEventListener('input', () => { st.touched = true; st.playing = false; st.i = +scrub.value; render(); });
     if (spd) spd.addEventListener('change', () => { st.speed = +spd.value; tick(); });
     try { new IntersectionObserver(es => { st.onScreen = es[0].isIntersecting; }).observe(root); } catch (e) { st.onScreen = true; }
-    if (opts.autoplay && !reduced()) { st.playing = true; tick(); }
     render();
-    return { go(i) { st.playing = false; st.i = i; render(); }, redraw: render, state: st };
+    return { go(i, touched) { st.playing = false; st.i = i; if (touched) st.touched = true; render(); }, redraw: render, state: st };
   }
   const ctrlHTML = '<div class="ctrl"><button data-a="play">Play</button><button data-a="prev" aria-label="previous step">&#8592;</button><button data-a="next" aria-label="next step">&#8594;</button><input type="range" data-a="scrub" min="0" max="1" value="0" aria-label="scrub"><select data-a="speed" aria-label="speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select><button data-a="reset">Reset</button></div>';
-  return { sha256, hmac, hex, b64u, b64uDec, utf8, esc, anim, ctrlHTML, reduced };
+  // Sequence lanes: steps [{from,to,label,kind,back,backKind,chip,chipColor,dash}]; from===to draws a note at that lane.
+  // i = last step shown (earlier steps faded unless all is true). Labels wrap to the width; text is 11 px or more.
+  // The layout is computed for every step, so stepping never moves what is already drawn.
+  function lanes(svg, names, steps, i, W, all) {
+    const fs = W < 480 ? 11 : 11.5, lh = fs + 2.5, cw = fs * 0.56;
+    const wrap = (t, maxW) => { t = String(t); const words = t.split(' '), out = []; let cur = '';
+      words.forEach(w => { const n = cur ? cur + ' ' + w : w; if (n.length * cw > maxW && cur) { out.push(cur); cur = w; } else cur = n; }); if (cur) out.push(cur); return out; };
+    const xs = names.map((_, k) => (0.5 + k) / names.length * W);
+    const nameLines = Math.max(...names.map(l => l.split('\n').length));
+    const top = 10 + nameLines * 13 + 8;
+    const col = { ok: 'var(--c1)', bad: 'var(--bad)', good: 'var(--good)', note: 'var(--mute)', xc: 'var(--c4)' };
+    const clampX = (x, lines) => { const hw = Math.min(W / 2 - 2, Math.max(...lines.map(l => l.length)) * cw / 2 + 4); return Math.max(hw + 2, Math.min(W - hw - 2, x)); };
+    const halo = ' paint-order="stroke" stroke="var(--bg)" stroke-width="3"';
+    // layout pass
+    let y = top; const L = steps.map(s => {
+      const r = { y0: y }; const maxW = W - 8;
+      if (s.from === s.to) { r.lab = wrap(s.label, maxW - 14); r.ya = y; r.h = r.lab.length * lh + 8; y += r.h + 10; return r; }
+      r.lab = wrap(s.label, maxW); r.ya = y + r.lab.length * lh + 3;
+      r.bk = s.back !== undefined && s.back !== '' ? wrap(s.back, maxW) : null;
+      r.yb = r.bk ? r.ya + r.bk.length * lh + 6 : r.ya;
+      r.yc = r.yb + 6; y = r.yb + 10 + (s.chip ? 22 : 0); return r; });
+    const H = y + 4;
+    let o = '<defs><marker id="' + svg.id + 'Ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="context-stroke"/></marker></defs>';
+    names.forEach((l, k) => {
+      o += `<line x1="${xs[k]}" y1="${top - 6}" x2="${xs[k]}" y2="${H - 2}" stroke="var(--line)" stroke-width="2"/>`;
+      l.split('\n').forEach((part, j) => { o += `<text x="${xs[k]}" y="${14 + j * 13}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="var(--ink)">${esc(part)}</text>`; });
+    });
+    steps.forEach((s, k) => {
+      if (k > i) return;
+      const r = L[k], op = all || k === i ? 1 : 0.42, c = col[s.kind || 'ok'];
+      const x1 = xs[s.from], x2 = xs[s.to], mid = (x1 + x2) / 2;
+      const tc = s.kind === 'bad' ? 'var(--bad)' : 'var(--ink)';
+      o += `<g opacity="${op}">`;
+      if (s.from === s.to) {
+        const tw = Math.min(W - 6, Math.max(...r.lab.map(l => l.length)) * cw + 14), x0 = Math.max(3, Math.min(W - tw - 3, x1 - tw / 2));
+        o += `<rect x="${x0}" y="${r.y0}" width="${tw}" height="${r.h}" rx="5" fill="var(--soft)" stroke="${c}"/>`;
+        r.lab.forEach((t, j) => { o += `<text x="${x0 + tw / 2}" y="${r.y0 + 4 + (j + 1) * lh - 2}" text-anchor="middle" font-size="${fs}" fill="${tc}">${esc(t)}</text>`; });
+      } else {
+        const cx = clampX(mid, r.lab);
+        r.lab.forEach((t, j) => { o += `<text x="${cx}" y="${r.y0 + (j + 1) * lh - 2}" text-anchor="middle" font-size="${fs}"${halo} fill="${tc}">${esc(t)}</text>`; });
+        o += `<line x1="${x1}" y1="${r.ya}" x2="${x2}" y2="${r.ya}" stroke="${c}" stroke-width="${k === i || all ? 2.2 : 1.5}"${s.dash ? ' stroke-dasharray="5 4"' : ''} marker-end="url(#${svg.id}Ar)"/>`;
+        if (r.bk) {
+          const cb = col[s.backKind || 'ok'], bx = clampX(mid, r.bk), bc = s.backKind === 'bad' ? 'var(--bad)' : s.backKind === 'good' ? 'var(--good)' : 'var(--mute)';
+          r.bk.forEach((t, j) => { o += `<text x="${bx}" y="${r.ya + (j + 1) * lh}" text-anchor="middle" font-size="${fs}"${halo} fill="${bc}">${esc(t)}</text>`; });
+          o += `<line x1="${x2}" y1="${r.yb}" x2="${x1}" y2="${r.yb}" stroke="${cb}" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#${svg.id}Ar)"/>`;
+        }
+        if (s.chip && (k === i || all)) {
+          const t = s.chip, tw = Math.min(W - 4, t.length * cw + 12), cx2 = Math.max(tw / 2 + 2, Math.min(W - tw / 2 - 2, mid));
+          o += `<rect x="${cx2 - tw / 2}" y="${r.yc}" width="${tw}" height="17" rx="8" fill="${s.chipColor || 'var(--acc2)'}" stroke="${c}"/><text x="${cx2}" y="${r.yc + 12.5}" text-anchor="middle" font-size="${fs}" fill="var(--ink)">${esc(t)}</text>`;
+        }
+      }
+      o += '</g>';
+    });
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
+    svg.innerHTML = o;
+  }
+  const width = el => { const w = el && el.clientWidth; return w && w > 60 ? w : Math.max(300, Math.min(880, (document.documentElement.clientWidth || 900) - 60)); };
+  return { lanes, width, sha256, hmac, hex, b64u, b64uDec, utf8, esc, anim, ctrlHTML, reduced };
 })();

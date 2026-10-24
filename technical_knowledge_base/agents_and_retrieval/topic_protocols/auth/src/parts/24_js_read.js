@@ -48,11 +48,11 @@
   const P = phase('P pkce misuse');
   $('rdPkceRec').innerHTML = [P[1], P[4]].filter(Boolean).map(x => wireHTML(x, { noReqHead: true, body: 300 })).join('\n\n<span class="mute">----- later: the same code redeemed a second time -----</span>\n\n');
   const R = D.flows.R;
-  $('rdRot').innerHTML = table(R, [['Step', r => E(r.step)], ['Status', r => st(r.status)], ['Answer', r => r.body && r.body.refresh_token ? 'new access token; new refresh token <code>' + E(r.body.refresh_token.slice(0, 8)) + '...</code>' : brief(r.body)]]);
+  if ($('rdRot')) $('rdRot').innerHTML = table(R, [['Step', r => E(r.step)], ['Status', r => st(r.status)], ['Answer', r => r.body && r.body.refresh_token ? 'new access token; new refresh token <code>' + E(r.body.refresh_token.slice(0, 8)) + '...</code>' : brief(r.body)]]);
   const C = D.flows.C;
   $('rdCC').innerHTML = table(C.slice(0, 2), [['Step', r => E(r.step)], ['Status', r => st(r.status)], ['Answer', r => r.body && r.body.access_token ? 'access token, <code>' + E(r.body.token_type) + '</code>, ' + r.body.expires_in + ' s, scope <code>' + E(r.body.scope) + '</code>' : brief(r.body) + (r['www-authenticate'] ? '<br><code>WWW-Authenticate: ' + E(r['www-authenticate']) + '</code>' : '')]]);
   const V = D.flows.V;
-  $('rdDev').innerHTML = table(V, [['t (s)', r => r.t.toFixed(2)], ['Step', r => E(r.step)], ['Status', r => st(r.status)], ['Answer', r => r.body && r.body.user_code ? 'user code <code>' + E(r.body.user_code) + '</code>, interval ' + r.body.interval + ' s, expires in ' + r.body.expires_in + ' s' : r.body && r.body.access_token ? 'tokens issued' : brief(r.body)]]);
+  if ($('rdDev')) $('rdDev').innerHTML = table(V, [['t (s)', r => r.t.toFixed(2)], ['Step', r => E(r.step)], ['Status', r => st(r.status)], ['Answer', r => r.body && r.body.user_code ? 'user code <code>' + E(r.body.user_code) + '</code>, interval ' + r.body.interval + ' s, expires in ' + r.body.expires_in + ' s' : r.body && r.body.access_token ? 'tokens issued' : brief(r.body)]]);
   $('rdUcBits').textContent = (8 * Math.log2(20)).toFixed(1);
   // s4/s5: discovery documents
   const G = D.disc.docs.google;
@@ -92,7 +92,7 @@
   $('rdMixErr').textContent = D.sdk.phases.E.error;
   const ph = D.sdk.phases, who = b => b && b.upstream_believes_caller_is;
   const rows = [['Passthrough to a careful upstream (checks aud)', ph.C_strict], ['Passthrough to a careless upstream (signature only)', ph.C_naive], ['Token exchange, then the careful upstream', ph.D]];
-  $('rdPass').innerHTML = table(rows, [['Tool call', r => r[0]], ['Upstream status', r => st(r[1].upstream_status)], ['Who the upstream believes is calling', r => { const x = who(r[1].upstream_body); return x ? 'sub <code>' + E(x.sub) + '</code>, client <code>' + E(x.client_id) + '</code>, act <code>' + (x.act ? E(JSON.stringify(x.act)) : '(none)') + '</code>, aud <code>' + E(x.aud) + '</code>' : brief(r[1].upstream_body); }]]);
+  if ($('rdPass')) $('rdPass').innerHTML = table(rows, [['Tool call', r => r[0]], ['Upstream status', r => st(r[1].upstream_status)], ['Who the upstream believes is calling', r => { const x = who(r[1].upstream_body); return x ? 'sub <code>' + E(x.sub) + '</code>, client <code>' + E(x.client_id) + '</code>, act <code>' + (x.act ? E(JSON.stringify(x.act)) : '(none)') + '</code>, aud <code>' + E(x.aud) + '</code>' : brief(r[1].upstream_body); }]]);
   // s7: SigV4 calculator
   const vec = D.small.sigv4;
   const SH = s => AU.hex(AU.sha256(s));

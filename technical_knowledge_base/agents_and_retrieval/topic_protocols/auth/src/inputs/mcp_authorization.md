@@ -349,7 +349,7 @@ scope during runtime operations, the server **SHOULD** respond with:
 parameter, consistent with
 [RFC 6750 Section 3.1](https://datatracker.ietf.org/doc/html/rfc6750#section-3.1).
 The `scope` attribute describes the scopes necessary to access
-the requested resource — servers are not required to include
+the requested resource -- servers are not required to include
 the client's previously granted scopes.
 
 Whatever scope-inclusion strategy a server adopts, servers **SHOULD** include all

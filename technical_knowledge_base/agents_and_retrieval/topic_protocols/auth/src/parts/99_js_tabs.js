@@ -1,4 +1,4 @@
-// ---- Tabs ----
+// ---- Tabs ---- (replace auth-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -16,5 +16,11 @@
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('auth-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  let jump='';
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h;
+    // the MCP auth flow and JWT lab tabs moved into Reading on 2026-10-24: old links land on their sections
+    const old={'t-mcpflow':'mf-sec','t-jwt':'jl-sec'};if(old[h]){start='t-read';jump=old[h]}}catch(e){}
   show(start,false);
+  if(jump){const el=document.getElementById(jump);if(el)setTimeout(()=>el.scrollIntoView({block:'start'}),0)}
 })();

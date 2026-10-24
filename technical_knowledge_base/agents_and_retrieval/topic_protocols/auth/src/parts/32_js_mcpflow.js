@@ -1,42 +1,10 @@
-// ---- Tab "MCP auth flow": the recorded SDK flow as a stepper, passthrough vs exchange as a before/after animation, the mix-up refusal ----
+// ---- Reading s9 (recorded SDK flow, a stepper), s8 (passthrough against exchange, before/after) and the s9 mix-up block. Moved from the old MCP auth flow tab, 2026-10-24 ----
 (function () {
   const D = AUTHDATA, E = AU.esc, $ = id => document.getElementById(id);
   const phase = n => (D.wire.find(p => p.phase === n) || { ex: [] }).ex;
   const firstLine = s => s.split('\r\n')[0];
   const bodyOf = s => s.replace(/\r/g, '').split('\n\n').slice(1).join('\n\n');
-  // generic lane drawing: steps [{from,to,label,kind,back,backLabel,chip}]
-  function lanesSVG(svg, lanes, steps, i, W) {
-    const top = 42, rowH = 36, H = top + steps.length * rowH + 8;
-    const xs = lanes.map((_, k) => (0.5 + k) / lanes.length * W);
-    const fs = W < 480 ? 9.5 : 11;
-    let o = '<defs><marker id="' + svg.id + 'Ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="context-stroke"/></marker></defs>';
-    lanes.forEach((l, k) => {
-      o += `<line x1="${xs[k]}" y1="${top - 10}" x2="${xs[k]}" y2="${H - 4}" stroke="var(--line)" stroke-width="2"/>`;
-      l.split('\n').forEach((part, j) => { o += `<text x="${xs[k]}" y="${14 + j * 13}" text-anchor="middle" font-size="${fs + 0.5}" font-weight="600">${E(part)}</text>`; });
-    });
-    const col = { ok: 'var(--c1)', bad: 'var(--bad)', good: 'var(--good)', note: 'var(--mute)', xc: 'var(--c4)' };
-    steps.forEach((s, k) => {
-      if (k > i) return;
-      const y = top + k * rowH + 12, op = k === i ? 1 : 0.42, c = col[s.kind || 'ok'];
-      const x1 = xs[s.from], x2 = xs[s.to], mid = (x1 + x2) / 2;
-      const clampX = x => Math.max(50, Math.min(W - 50, x));
-      o += `<g opacity="${op}">`;
-      o += `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${c}" stroke-width="${k === i ? 2.2 : 1.5}" marker-end="url(#${svg.id}Ar)"/>`;
-      o += `<text x="${clampX(mid)}" y="${y - 4}" text-anchor="middle" font-size="${fs}">${E(s.label)}</text>`;
-      if (s.back) {
-        const cb = col[s.backKind || 'ok'];
-        o += `<line x1="${x2}" y1="${y + 16}" x2="${x1}" y2="${y + 16}" stroke="${cb}" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#${svg.id}Ar)"/>`;
-        o += `<text x="${clampX(mid)}" y="${y + 13}" text-anchor="middle" font-size="${fs}" fill="${s.backKind === 'bad' ? 'var(--bad)' : 'var(--mute)'}">${E(s.back)}</text>`;
-      }
-      if (s.chip && k === i) {
-        const t = s.chip, tw = Math.min(W - 4, t.length * fs * 0.58 + 12), cx = Math.max(tw / 2 + 2, Math.min(W - tw / 2 - 2, mid)), cy = y + (s.back ? 26 : 14);
-        o += `<rect x="${cx - tw / 2}" y="${cy - 1}" width="${tw}" height="16" rx="8" fill="${s.chipColor || 'var(--acc2)'}" stroke="${c}"/><text x="${cx}" y="${cy + 11}" text-anchor="middle" font-size="${fs - 0.5}">${E(t)}</text>`;
-      }
-      o += '</g>';
-    });
-    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
-    svg.innerHTML = o;
-  }
+  const lanesSVG = (svg, lanes, steps, i, W) => AU.lanes(svg, lanes, steps, i, W);
 
   // ---------- Part 1: the recorded flow ----------
   const A = document.getElementById('mfA');
@@ -96,9 +64,9 @@
       $('mfWire').innerHTML = s.ex ? AU.wireHTML(s.ex, { body: 1400 }) : '<span class="mute">(TLS request from the AS to https://localhost:30613/client.json; not recorded on the wire)</span>';
       list.querySelectorAll('.exbtn').forEach(b => b.classList.toggle('on', +b.dataset.k === i));
     } });
-    list.querySelectorAll('.exbtn').forEach(b => b.addEventListener('click', () => an.go(+b.dataset.k)));
-    (TAB_RENDER['t-mcpflow'] = TAB_RENDER['t-mcpflow'] || []).push(() => an.redraw());
-    addEventListener('resize', () => an.redraw());
+    list.querySelectorAll('.exbtn').forEach(b => b.addEventListener('click', () => an.go(+b.dataset.k, true)));
+    (TAB_RENDER['t-read'] = TAB_RENDER['t-read'] || []).push(() => an.redraw());
+    let w1 = 0; addEventListener('resize', () => { if (A.clientWidth !== w1) { w1 = A.clientWidth; an.redraw(); } });
   }
 
   // ---------- Part 2: passthrough vs exchange ----------
@@ -142,9 +110,9 @@
       $('mfCnt2').innerHTML = `<span>Tokens in play: <b>${s.c.tokens}</b></span><span>Token the mail API received is for: <b>${E(s.c.aud)}</b></span><span>Mail API believes the caller is: <b>${E(s.c.who)}</b></span>`;
       $('mfWire2').innerHTML = s.ex ? AU.wireHTML(s.ex, { body: 900 }) : '';
     } });
-    B.querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => { mode = b.dataset.p; B.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b)); an2.go(0); }));
-    (TAB_RENDER['t-mcpflow'] = TAB_RENDER['t-mcpflow'] || []).push(() => an2.redraw());
-    addEventListener('resize', () => an2.redraw());
+    B.querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => { mode = b.dataset.p; B.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b)); an2.go(0, true); }));
+    (TAB_RENDER['t-read'] = TAB_RENDER['t-read'] || []).push(() => an2.redraw());
+    let w2 = 0; addEventListener('resize', () => { if (B.clientWidth !== w2) { w2 = B.clientWidth; an2.redraw(); } });
   }
   // ---------- Part 3: mix-up ----------
   const m = phase('E mix-up'), mx = $('mfMix');
