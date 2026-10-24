@@ -1,23 +1,46 @@
 <div class="tab" id="t-read" role="tabpanel">
-<nav class="nav" id="rd-nav"><a href="#rd-one">In one screen</a><a href="#rd-why">Does it help?</a><a href="#rd-exact">Exact</a><a href="#rd-mh">MinHash</a><a href="#rd-uf">Clusters</a><a href="#rd-sim">SimHash</a><a href="#rd-sa">Suffix arrays</a><a href="#rd-bloom">Bloom filters</a><a href="#rd-sem">Semantic</a><a href="#rd-scale">At scale</a><a href="#rd-cont">Contamination</a><a href="#rd-prod">Who does what</a><a href="#rd-mist">Mistakes</a><a href="#rd-iq">Interview</a></nav>
+<nav class="nav" id="rd-nav"><a href="#rd-top">The idea</a><a href="#rd-why">Does it help?</a><a href="#rd-exact">Exact</a><a href="#rd-mh">MinHash</a><a href="#rd-uf">Clusters</a><a href="#rd-sim">SimHash</a><a href="#rd-sa">Suffix arrays</a><a href="#rd-bloom">Bloom filters</a><a href="#rd-sem">Semantic</a><a href="#rd-scale">At scale</a><a href="#rd-prod">Recipes</a><a href="#rd-iq">Interview</a></nav>
 
-<p class="lead">The web repeats itself. The same cookie banner sits on thousands of sites, a news story is syndicated to hundreds, a shop renders the same template for every product, and Common Crawl recrawls the same pages every month. <b>Deduplication</b> finds those copies and decides which to keep. This page teaches it from zero: what the evidence says it buys, then every method a pretraining pipeline uses, each with the problem it solves, how it works, what it costs, when it matters and how to check it, measured on the topic's running example.</p>
-<p>The <b>running example</b>, used on every tab of the {{root page|n:3c65c17b0d0d811fa5ecda8d365ab00f}}: one WARC file (Common Crawl's raw archive of HTTP responses) from the July 2024 crawl CC-MAIN-2024-30, 20,991 responses, taken through a FineWeb-style datatrove pipeline (<i>run0</i>). Its stages: 19,241 <i>extracted</i> documents (text out of HTML), 2,692 <i>filtered</i> documents (English, passed the quality rules; this is what reaches dedup), 2,617 <i>final</i>. Everything labelled <span class="lbl me">measured</span> was run on an Apple M1 Pro, CPU only, in October 2026; <span class="lbl pub">published</span> numbers are the authors' own, at their scale, with the table they come from; <span class="lbl der">derived</span> numbers show their formula; <span class="lbl ven">vendor</span> marks a claim by someone selling the tool. The root's {{Dedup lab|n:3c65c17b0d0d811fa5ecda8d365ab00f}} tab ran every method once on this file; this page goes deeper on each and reuses its scripts and numbers.</p>
+<section id="rd-top">
+<p class="core"><b>Every dedup method turns "is this a copy?" into a key that copies share</b> (a hash, a band of MinHash minimums, neighbouring entries of a sorted suffix list, a nearby embedding), groups items by that key so nothing is compared pair by pair, and keeps one item per group. The key decides <i>which</i> copies a method can see; the scope it runs over (one file, one crawl, every crawl) decides <i>how many</i> it finds.</p>
 
-<section id="rd-one">
-<h2>1. In one screen</h2>
+<div class="card"><h4 style="margin:0 0 4px">Four keys, four kinds of copy: each step catches what the one before cannot see</h4>
+<div class="dp-hero">
+<div><h4><span>1</span>Exact hash</h4><div class="key">key: a 64-bit hash of a URL, document, paragraph or line</div><div class="cat">catches byte-identical copies, recrawls, menu lines</div>
+<div class="n1"><i>one WARC</i><span><b>50</b> of 2,692 documents</span></div><div class="n2"><i>web scale</i><span>Dolma 3: <b>67%</b> of its pool</span></div></div>
+<div><h4><span>2</span>MinHash + LSH</h4><div class="key">key: all 8 minimums of one band equal (FineWeb 14 &times; 8)</div><div class="cat">catches near copies, Jaccard about 0.75 and up: templates, syndication</div>
+<div class="n1"><i>one WARC</i><span><b>25</b> more documents (75 on its own)</span></div><div class="n2"><i>web scale</i><span>Dolma 3: <b>23%</b> removed by this step</span></div></div>
+<div><h4><span>3</span>Semantic</h4><div class="key">key: cosine &ge; 1 &minus; &epsilon; inside one k-means cluster</div><div class="cat">catches paraphrases that share no 5-word phrase</div>
+<div class="n1"><i>one WARC</i><span><b>6</b> more documents at &epsilon; 0.05</span></div><div class="n2"><i>50k rows</i><span>FineWeb-Edu: <b>96</b> of 50,000 at &epsilon; 0.05</span></div></div>
+<div><h4><span>4</span>Suffix array</h4><div class="key">key: neighbours in sorted suffix order sharing &ge; 230 bytes</div><div class="cat">catches a banner or disclaimer repeated inside otherwise unique pages</div>
+<div class="n1"><i>one WARC</i><span><b>14.1 kB</b> cut from 25 survivors (keep one copy)</span></div><div class="n2"><i>web scale</i><span>Dolma 3: <b>14% of text</b></span></div></div>
+</div>
+<p class="small mute"><span class="lbl me">measured</span> one WARC: the running example's 2,692 filtered documents through the four steps in this order (the {{Method comparer|#t-cmp}} runs every combination). <span class="lbl pub">published</span> web scale: Dolma 3 (allenai/dolma3 pool README), which runs exact, MinHash and suffix arrays over a whole multi-crawl pool; the semantic number is our run on 50,000 already deduplicated FineWeb-Edu rows (section 8). The gap between the two rows is the point: one file has 2.8% near-duplicate documents; the web has most of its text in copies.</p></div>
+
+<p><b>You need:</b> the root's running example ({{Topic: data-curation-and-datasets|n:3c65c17b0d0d811fa5ecda8d365ab00f}}): one WARC file (Common Crawl's raw archive of HTTP responses) from the July 2024 crawl CC-MAIN-2024-30, 20,991 responses, taken through a FineWeb-style datatrove pipeline (<i>run0</i>): 19,241 <i>extracted</i> documents, 2,692 <i>filtered</i> documents (English, passed the quality rules; this is what reaches dedup), 2,617 <i>final</i>. Embeddings for section 8 ({{Topic: rag-and-retrieval|n:3c65c17b0d0d81b89145c37dfe8a3b0b}}). Labels: <span class="lbl me">measured</span> on an Apple M1 Pro, CPU only, October 2026; <span class="lbl pub">published</span> by the authors, with the table; <span class="lbl der">derived</span> with its formula; <span class="lbl ven">vendor</span> claims by the tool's maker.</p>
+<p><b>New terms</b></p>
+<dl class="dp-terms">
+<dt>shingle</dt><dd>a run of <i>n</i> consecutive words (FineWeb: 5); a document becomes the set of its shingles</dd>
+<dt>Jaccard similarity</dt><dd>shared shingles over all distinct shingles of two documents, |A &cap; B| / |A &cup; B|</dd>
+<dt>MinHash signature</dt><dd><i>k</i> numbers per document, each the smallest hash of its shingles under one hash function</dd>
+<dt>band, candidate pair</dt><dd>a slice of <i>r</i> signature values; two documents equal on a whole band become a candidate pair</dd>
+<dt>connected component</dt><dd>documents linked by any chain of candidate pairs; one is kept per component</dd>
+<dt>suffix array</dt><dd>every position of a text, sorted by the text that follows it, so repeated spans sit next to each other</dd>
+<dt>Bloom filter</dt><dd>a bit array that answers "seen before?" in fixed memory, with no misses and a few false alarms</dd>
+<dt>&epsilon; (SemDeDup)</dt><dd>remove a document whose embedding has cosine &ge; 1 &minus; &epsilon; to a kept one</dd>
+<dt>scope</dt><dd>the set deduplicated together: a shard, a crawl, every crawl ("global")</dd>
+<dt>rehydration</dt><dd>repeating kept documents in proportion to how many copies dedup removed</dd>
+</dl>
+
+<details class="dp"><summary>All six methods in one table <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>Method</th><th>Unit and test</th><th>Catches</th><th>Misses</th><th>Cost at web scale</th><th>Used by (dated)</th></tr></thead>
 <tbody>
 <tr><td><b>Exact hash</b></td><td>a 64-bit or larger hash of each URL, document, paragraph or line; equal hash = duplicate</td><td>byte-identical copies, recrawls, menu lines</td><td>a copy with one changed date or footer</td><td>one pass, 8 to 16 bytes per item, or a Bloom filter</td><td>everyone first: Dolma 3 exact removed 67% of its pool (2025)</td></tr>
 <tr><td><b>MinHash + LSH</b></td><td>sets of word <i>n</i>-grams; estimated Jaccard similarity above about 0.7 to 0.85</td><td>near copies: templates, syndicated text, boilerplate-dominated pages</td><td>paraphrases; long shared spans inside different pages</td><td>signature of 100 to 9,000 hashes per document, a shuffle by band, union-find</td><td>GPT-3 (2020), RefinedWeb (2023), FineWeb (2024), Llama 3 (2024), Dolma 3 (2025)</td></tr>
-<tr><td><b>SimHash</b></td><td>a 64-bit fingerprint; Hamming distance &le; <i>k</i></td><td>near-identical pages (crawler use)</td><td>most of what MinHash catches at 0.8 (measured below)</td><td>8 bytes per document, permuted tables</td><td>Google's crawler (2007); some Chinese web corpora</td></tr>
+<tr><td><b>SimHash</b></td><td>a 64-bit fingerprint; Hamming distance &le; <i>k</i></td><td>near-identical pages (crawler use)</td><td>most of what MinHash catches at 0.8 (section 5)</td><td>8 bytes per document, permuted tables</td><td>Google's crawler (2007); some Chinese web corpora</td></tr>
 <tr><td><b>Suffix array</b></td><td>every repeated substring of at least <i>L</i> tokens or bytes</td><td>a disclaimer or banner inside otherwise unique pages</td><td>near copies with small edits every few words</td><td>RAM about 8 to 16 bytes per text byte while building; disk 5 to 8 times the text</td><td>Lee et al. (2021), RefinedWeb (2023), Dolma 3 (2025)</td></tr>
 <tr><td><b>Bloom filter</b></td><td>exact membership of hashed items (paragraphs, <i>n</i>-grams) in fixed memory</td><td>repeated paragraphs, documents mostly made of seen <i>n</i>-grams (DCLM)</td><td>anything not byte-identical at the item level</td><td>about 10 bits per distinct item at 1% false positives</td><td>Dolma (2024), DCLM-baseline (2024)</td></tr>
 <tr><td><b>Semantic</b></td><td>cosine similarity of document embeddings inside k-means clusters</td><td>paraphrases, the same message in other words</td><td>nothing exact; it also removes different-but-similar pages</td><td>an encoder pass over every document (GPU), k-means</td><td>SemDeDup (2023), D4 (2023), NeMo Curator (2024 on); more in synthetic and SFT data</td></tr>
-</tbody></table></div>
-<div class="co key"><div class="t">The three things to remember</div>
-<ol><li><b>Duplication is about scope.</b> One WARC file has 2.8% near-duplicate documents; a whole crawl, then all crawls, have far more. DCLM measured that a global MinHash would still remove 85% of its finished, already deduplicated DCLM-baseline (<span class="lbl pub">published</span> Table 23). Every number on this page says over what scope it was measured.</li>
-<li><b>Removing copies cuts memorisation strongly and wasted compute clearly; its effect on benchmark scores is small and sometimes negative.</b> The evidence in section 2 is consistent on the first and mixed on the second.</li>
-<li><b>Each method sees a different unit</b>, so they are run in sequence, cheapest first: exact hashes, then MinHash on whole documents, then (optionally) suffix arrays on spans, then semantic dedup where paraphrase is the problem. The {{Method comparer|#t-cmp}} runs every combination on the same 2,692 documents.</li></ol></div>
+</tbody></table></div></div></details>
 </section>
