@@ -1,4 +1,4 @@
-// ---- Attention work tab: attention work per decoded token of every GLM attention design, from config.json (cache sizing moved to Long context's KV-cache calculator, 2026-10-23) ----
+// ---- Attention work per decoded token (inline in Reading, IndexShare section): attention work per decoded token of every GLM attention design, from config.json (cache sizing moved to Long context's KV-cache calculator, 2026-10-23) ----
 (function(){if(!$('cxFl'))return;
   const K=2048,IX=32*128;
   const M=[
@@ -39,15 +39,9 @@
     const f=M.find(m=>m.id==='fl'),g=M.find(m=>m.id==='g53'),g5=M.find(m=>m.id==='g5');
     const wf=work(f,L,pool,wt),wg=work(g,L,pool,wt),wi=wg.ix/wg.tot;
     $('cxOut').innerHTML=stat('GLM-5.3 against Flash, work',(wg.tot/wf.tot).toFixed(1)+'×','per decoded token at '+fK(L))+stat('Indexer share of GLM-5.3\'s work',(100*wi).toFixed(0)+'%',wt?'including active weights':'of attention work only');
-    // reproduction lines, always on Zhipu's conventions (IndexPool on, 1M)
-    const Lm=1048576;
-    const isr=work(g5,Lm,true,true).tot/work(g,Lm,true,true).tot;
-    const ph=(m,LL)=>work(m,LL,true,false).tot/(m.lay*64),r30=ph(g,Lm)/ph(f,Lm);
-    $('cxRepro').innerHTML='<b>Defaults reproduce</b>, independently from the configs:<ul class="tight">'
-      +'<li>IndexShare\'s 2.9x fewer per-token FLOPs at 1M ({{GLM-5.2 card|@c52}}): with active weights counted as 40 × 10⁹ multiply-adds, our count is <b>'+isr.toFixed(2)+'x</b>; it reaches 2.9x if the weights term is about 25 × 10⁹, so the result depends on what is counted as active work.</li>'
-      +'<li><span class="no">Not reproduced:</span> Flash\'s 3.01x less attention compute, "per head per layer". At 1M our per-head count gives '+r30.toFixed(1)+'x; Zhipu does not state the context length or the terms counted. GLM-5\'s "1.5 to 2 times" saving from DSA ({{report|@r5}}) is not compared either: it refers to long-sequence attention in general, while this tab counts decode only.</li></ul>'}
+  }
   $('cxL').addEventListener('input',upd);['cxPool','cxW'].forEach(id=>$(id).addEventListener('change',upd));
   $('cxM').querySelectorAll('input').forEach(c=>c.addEventListener('change',()=>{on[c.dataset.m]=c.checked?1:0;upd()}));
-  onTab('t-ctx',upd);
-  let w=0;addEventListener('resize',()=>{const n=$('cxFl').clientWidth<520;if(n!==w){w=n;if($('t-ctx').hidden===false)upd()}});
+  onTab('t-read',upd);upd();
+  let w=0;addEventListener('resize',()=>{const n=$('cxFl').clientWidth<520;if(n!==w){w=n;if($('t-read').hidden===false)upd()}});
 })();

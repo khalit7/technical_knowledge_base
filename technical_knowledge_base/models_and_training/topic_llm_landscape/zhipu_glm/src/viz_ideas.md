@@ -41,3 +41,8 @@ DeepSeek MLA explainer (D14) for the before/after animation pattern; Anthropic s
 - A rule for vendor "fair comparison" normalisations (per layer, per head): the published ratio and the whole-model ratio differ by almost 2x, so both must be shown.
 - A rule for figures whose values are printed as labels on an image (transcription is exact, unlike reading a curve); used here with a label.
 - A way to handle stale third-party claims about a fast-changing repository (Atria's README gained an API and a benchmark table after launch coverage).
+
+## 2026-10-24 rebuild
+- Built: hero (generations by adopted against own parts, cache per token to scale); depth against width to scale (Table 1); GRPO against critic after compaction (static, illustrative); the GLM-4.5 report's Figure 10 (slime), CC BY 4.0.
+- Moved inline: Z2 (attention work, now beside IndexShare), Z4 (lineage, cards as static closed notes).
+- Removed: Z3 slime animation (RL for LLMs owns the sync/async before/after on real lengths); Z6 job-cost calculator (prices volatile, one worked sentence kept); Z7 AA scatter (cross-provider comparison is the landscape root's).
