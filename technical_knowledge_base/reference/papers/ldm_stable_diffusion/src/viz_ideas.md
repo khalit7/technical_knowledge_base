@@ -25,6 +25,7 @@ Scoring (0 to 2 each; reproduce and computable count double; build cost subtract
 | P-ldm_stable_diffusion.17 | Convolutional sampling beyond the training size (Sec. 4.3.2) in the toy | | | runner-up: the toy's prompt names one of nine absolute positions, so a larger canvas has no defined meaning for it |
 | P-ldm_stable_diffusion.18 | Latent rescaling (Appendix G, D.1) as a toggle that trains the toy without rescaling | | | runner-up: needs another trained model; carried as a box with the toy's measured 1/σ̂, SD's 0.18215 and FLUX's 0.3611 |
 | P-ldm_stable_diffusion.19 | Training-bill or GPU-days tab | | | rejected: a pattern Khalid removed; compute is shown only where it carries the argument (predict 3, Table 18) |
+| P-ldm_stable_diffusion.20 | **Figure 1 at a glance** (2026-10-24): PSNR bars with reconstruction FID for the f = 4 autoencoder, DALL-E's f = 8 tokenizer and VQGAN f = 16, drawn from Table 8's printed rows, beside the Problem claim that milder compression keeps detail | Reading, Problem | 9 | built (the Problem section had no visual; the paper's Figure 1 itself is not CC BY) |
 
 ## Data and formulas
 - Paper: arXiv HTML v2, `inputs/paper_v2.txt`, tables parsed with bold flags by `parse_tables.py` into `inputs/tables_parsed.json`, `tables.json` by `mk_tables.py`.

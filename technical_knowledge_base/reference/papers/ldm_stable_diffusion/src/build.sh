@@ -18,7 +18,7 @@ import html, json, re
 P = json.load(open('paper.json'))
 AX = 'https://arxiv.org/html/%s%s' % (P['arxiv'], P['arxiv_v'])
 HTML = ['00_top.html', '01_css.html', '02_header.html', '03_paper.html', '04_run.html', '05_tables.html', '06_then.html', '_gen_more.html']
-JS = ['10_js_common.js', '_gen_data.js', '20_model_data.js', '11_js_ui.js', '22_js_model.js', '13_js_read.js', '23_js_run.js', '24_js_tables.js', '25_js_then.js', '90_js_tabs.js']
+JS = ['10_js_common.js', '_gen_data.js', '20_model_data.js', '11_js_ui.js', '22_js_model.js', '13_js_read.js', '14_js_fig.js', '23_js_run.js', '24_js_tables.js', '25_js_then.js', '90_js_tabs.js']
 rd = lambda f: open('parts/' + f, encoding='utf-8').read()
 body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html'))
 A = lambda u, t: '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>' % (u, t)
@@ -44,12 +44,17 @@ for bad, msg in (('{{', 'unexpanded link'), ('[[S', 'unexpanded margin label'), 
 a = out.index('id="t-read"'); b = out.index('id="t-run"')
 t = re.sub(r'<script.*?</script>|<style.*?</style>|<details.*?</details>', '', out[a:b], flags=re.S); t = re.sub(r'<[^>]+>', ' ', t)  # <details> blocks are opt-in reading, not counted
 w = len(t.split()); mins = round(w / 230)
+cmin = 0
+# reading.json holds the rendered-DOM count of html_utils/audit_pages.mjs (core and closed blocks apart, 230 words a minute); it wins when present
+import os
+if os.path.exists('reading.json'):
+    R = json.load(open('reading.json')); mins, cmin = R['core_min'], R['closed_min']
 fr = out[out.index('id="t-more"'):]
 tot = 0
 for x in re.findall(r'class="rt">\(([^)]*)\)', fr):
     h = re.search(r'(\d+)h', x); mm = re.search(r'(\d+) ?m(?:in)?\b', x)
     tot += (int(h.group(1)) * 60 if h else 0) + (int(mm.group(1)) if mm else 0)
-out = out.replace('RT_MIN', str(mins)).replace('RES_TIME', '%dh %02dm' % (tot // 60, tot % 60))
+out = out.replace('RT_MIN', str(mins)).replace('RT_CLOSED', str(cmin)).replace('RES_TIME', '%dh %02dm' % (tot // 60, tot % 60))
 open('../index.html', 'w', encoding='utf-8').write(out)
 print('reading words', w, 'minutes', mins, 'resources %dh %02dm' % (tot // 60, tot % 60), 'bytes', len(out.encode()))
 PY

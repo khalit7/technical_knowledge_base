@@ -6,7 +6,7 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Headline card, then Problem, Idea (the two-chain animation, predict 1), Stage 1 (autoencoder explorer, latent rescaling), Stage 2, Conditioning (Figure 3 redrawn, predict 2), How much compression (Tables 8, 13, 14 chart), Results (predict 3), Limitations, How much to believe, Why it matters, Connections. |
+| The paper | `t-read` | Headline card, the idea in one sentence, the hero (Figure 3 redrawn), You need and New terms, then Problem (Figure 1 chart), Idea (the two-chain animation, predict 1), Stage 1 (autoencoder explorer, latent rescaling), Stage 2, Conditioning (predict 2), How much compression (Tables 8, 13, 14 chart), Results (predict 3), Limitations, How much to believe, Why it matters, Connections. |
 | Generate in latent space | `t-run` | The two toy models live: prompt, guidance, steps, samples, seed; graded samples; cross-attention maps; measured results, training curves, honesty box. |
 | The paper's tables, rebuilt | `t-tables` | Tables 1 to 11 and 18 as printed (sortable, bold kept, derived columns) and 18 checks of the paper's numbers. |
 | Then and now | `t-then` | The recipe card from LDM to SD v1, SD 2, DiT, SDXL, SVD, Sora, SD3, FLUX.1. |
@@ -18,7 +18,7 @@
 - Toy: `toy.py` (data, checker, autoencoder, UNet with cross-attention, τθ, schedule, DDIM), `train.py` (`ae <f>`, `dm <name>`, `eval`), `run_all.sh` (the whole training queue), `export.py` (per-row quantised weights to `parts/20_model_data.js`, quantisation report), `check_forward.py` + `check_forward.mjs` (JS against PyTorch on the shipped weights). Logs, reports and checkpoints in `model/` (`model/old_c16/`: the first, too narrow autoencoder, kept for the record).
   Rerun, in the background: `AES=4 DMS="f4 pix" AE_STEPS=5000 DM_STEPS=7000 sh run_all.sh` (about 12 minutes for the autoencoder, 4 for the latent model, 15 for the pixel model at 2 threads), then `sh run_long.sh` (the f = 4 model again for 28,000 steps, about the pixel model's training time, 14 minutes; then `train.py eval`, about 10 minutes), then `SHIP_AE=4 ... export.py 8`, `SHIP_AE=4 ... check_forward.py 8` (writes `model/check_ref.json`, 1.2 MB, not kept), `node check_forward.mjs`, `python3 recompute.py`, `sh build.sh`. Prefix each Python step with `OMP_NUM_THREADS=2 uv run --with torch --with numpy python`.
   `model/` keeps the four float checkpoints (`ae4`, `dm_f4`, `dm_pix`, `dm_f4long`: export, check and eval load them), their logs, `eval_report.json`, `quant_report8.json` and `quant_report6.json`, `check_forward.json`; about 1 MB.
-- `parts/`: `13_js_read.js` (shared image helpers, the animation, explorer, Figure 3, f sweep, predict reveals), `22_js_model.js` (the toy in JS and the checker), `23_js_run.js`, `24_js_tables.js`, `25_js_then.js`; the rest copied from the DDPM page.
+- `parts/`: `13_js_read.js` (shared image helpers, the animation, explorer, Figure 3, f sweep, predict reveals), `14_js_fig.js` (the Figure 1 chart, from `PAPER.tables.T8`), `11_js_ui.js` (`makeAnim` never autoplays since 2026-10-24), `22_js_model.js` (the toy in JS and the checker), `23_js_run.js`, `24_js_tables.js`, `25_js_then.js`; the rest copied from the DDPM page.
 
 ## Departures from .claude/skills/explainer-page/page-kinds/paper.md
 - The live ingredient is a **two-stage toy**: an autoencoder trained first, then diffusion models in its latent and in pixel space with matched parameters and steps, because the paper's claim is a comparison of spaces, not a component ablation. DDPM's own mechanism is not rebuilt; the DDPM page runs it and is linked.
@@ -40,3 +40,28 @@ The checker scores 99.7% on 1,000 real images; the f = 4 autoencoder reconstruct
 
 ## Checks (3 October 2026)
 `sh html_utils/checkpage.sh <folder>`: 5 tabs, 381 KB, emdash 0, errbox 1, clipped 0, fail=0. `node <folder>/src/check_page.mjs`: 306 actions, 0 problems. `python3 mk_coverage.py`: 58 of 58 items verified. `recompute.py`: 18 checks of the paper's numbers, 9 hold, 9 flagged (the inconsistencies the page reports). `check_forward.mjs`: PASS within 3.1e-5.
+
+## The 2026-10-24 rebuild (teaching contract, light pass for papers)
+
+- **Top**: the core idea in one sentence under the headline card (which already had the verdict); Figure 3, already redrawn, moved up from Conditioning to be the hero (the arXiv licence is non-exclusive distribution, not CC BY, so no copy of the original; nothing physical to photograph); "You need" (DDPM, Diffusion from zero, and Latent diffusion and diffusion transformers for today's models) and New terms.
+- **A visual beside every core claim**: the Problem section had none; Figure 1's numbers (PSNR and reconstruction FID of the f = 4 autoencoder, DALL-E's f = 8 tokenizer and VQGAN f = 16) are now bars drawn from `PAPER.tables.T8` (`14_js_fig.js`). The two-chain animation, the autoencoder explorer, the f sweep and the predict reveals are unchanged.
+- **No autoplay**: `makeAnim` in `11_js_ui.js` (the fixed copy RAG uses) waits on step 1 for `ldx` and `thx`; `check_page.mjs` fails if either draws a frame in 1.5 s on screen before any click. The toy chains are still computed when the animation first scrolls into view (a progress bar, no motion of the figure). The page keeps its own `90_js_tabs.js` and `makeAnim` instead of the templates' `99_js_tabs.js` and `RD.anim`.
+- **Closed blocks** (depth, not lost): rescaling the latent (the 0.18215); the text encoder and layout tokens; the cross-table inconsistencies (one open sentence keeps the finding); video and audio latent models (dated, October 2026).
+- **Owners linked**: classifier-free guidance's mechanism at Diffusion from zero (one sentence on what this paper did with it stays); the modern latent stack at Latent diffusion and diffusion transformers.
+- Header: "Reading: N min, plus M in closed details." from `reading.json` (the rendered-DOM count of `html_utils/audit_pages.mjs`); `mk_coverage.py` now looks for that line.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After (2026-10-24) |
+|---|---|---|
+| The paper, core | 4,537 words, 19.7 min | 4,569 words, 19.9 min |
+| The paper, closed details | 41 words | 411 words, 1.8 min |
+| Generate, Tables, Then and now, Further reading | 641, 1,010, 283, 370 | unchanged |
+| Visuals in The paper (audit count) | 4 | 5 |
+
+Why about 20 minutes is right: the page owns every detail of the paper and its evidence section; the new top (core sentence, hero caption, terms, about 1 minute) is paid for by what moved into closed blocks (about 1.6 minutes), and what stays open is the argument in the paper's order with the numbers the verdict rests on.
+
+## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
+181 units, drafted from the committed page before the rebuild: core 165, depth 12, owned 1 (classifier-free guidance at Diffusion from zero, key "extrapolating from the unconditional prediction"), fat 3 (the old reading-time crumb, the tab names, the old reduced-motion sentence). Keys proposed by a script (a 4 to 6 word window of each unit found in the built page; depth when found only inside closed blocks) and set by hand for one unit.
+
+## Checks (2026-10-24)
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 387 KB. `check_page.mjs`: 306 actions, 0 problems (with the no-autoplay check). `mk_coverage.py`: 58 of 58. `recompute.py`: 18 checks, 9 hold, 9 flagged (unchanged). `ledger.py check`: problems 0. Model, weights and `check_forward` untouched.

@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header and links
- ('Reading time line "9 min read, +~3h 50m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "9 min read, +~3h 50m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['in closed details', 'of resources']),
  ('Authors: Rombach, Blattmann, Lorenz, Esser, Ommer (CompVis, LMU Munich and IWR Heidelberg; Runway ML)', R + ', headline card', ['Robin Rombach, Andreas Blattmann, Dominik Lorenz, Patrick Esser, Björn Ommer', 'Ludwig Maximilian University of Munich', 'Runway ML']),
  ('Date: December 2021 (CVPR 2022)', R + ', headline card', ['CVPR 2022', 'December 2021']),
  ('Link arXiv 2112.10752 (~45 min)', 'card and Further reading', ['https://arxiv.org/abs/2112.10752', '(45 min)']),
