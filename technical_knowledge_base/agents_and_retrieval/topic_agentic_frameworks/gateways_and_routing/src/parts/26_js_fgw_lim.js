@@ -1,4 +1,4 @@
-// ---- Limits lab (t-lim): recorded traces through four limiters, and the budget runs ----
+// ---- Reading section 5: recorded traces through four limiters; section 6 (closed block): every call of the budget runs ----
 (function(){
   const F=window.FGW,E=RD.esc;
   let mode='burst',lim=10;
@@ -25,7 +25,7 @@
     document.getElementById('lm-tab').innerHTML='<thead><tr><th>Limiter</th><th class="num">accepted</th><th class="num">most accepted in any 15 s</th><th class="num">matches the recording</th></tr></thead><tbody>'+R.filter(x=>x[2]).map(([n,r])=>'<tr><td>'+E(n)+'</td><td class="num">'+r.filter(v=>v===200).length+' of '+ts.length+'</td><td class="num">'+best15(ts,r)+'</td><td class="num">'+(lim===10?r.filter((v,k)=>v===R[0][1][k]).length+' of '+ts.length:'')+'</td></tr>').join('')+'</tbody>';
     document.getElementById('lm-note').textContent=lim===10?'At the recorded limit (10) the replayed LiteLLM rule matches all '+ts.length+' recorded decisions.':'The recording was made at limit 10; other limits show only the replayed rules.'}
   const ts0=F.e4[mode].length;
-  const an=RD.anim({card:'lm-card',ctl:'lm-ctl',n:ts0,draw,ms:220,label:'Request',tab:'t-lim',start:ts0-1});
+  const an=RD.anim({card:'lm-card',ctl:'lm-ctl',n:ts0,draw,ms:220,label:'Request',start:ts0-1});
   RD.seg(document.getElementById('lm-mode'),m=>{mode=m;an.reset(F.e4[m].length);an.go(F.e4[m].length-1)});
   document.getElementById('lm-lim').addEventListener('input',e=>{lim=+e.target.value;document.getElementById('lm-limv').textContent=lim;an.redraw()});
 
@@ -41,6 +41,7 @@
     document.getElementById('lm-bnote').textContent=rr.length+' calls, '+ok+' accepted (green), '+(rr.length-ok)+' refused with 422 (red); final spend $'+sp+' against $'+F.e5.budget+'.';
     document.getElementById('lm-msg').textContent=msg}
   RD.seg(document.getElementById('lm-bmode'),m=>{bm=m;bdraw()});
-  RD.onRender(()=>{an.redraw();bdraw()},'t-lim');
-  addEventListener('resize',()=>{const t=document.getElementById('t-lim');if(t&&!t.hidden){an.redraw();bdraw()}});
+  RD.onRender(()=>{an.redraw();bdraw()});RD.onResize(()=>{an.redraw();bdraw()});
+  document.getElementById('fgw-bdet').addEventListener('toggle',e=>{if(e.target.open)bdraw()});
+  bdraw();
 })();
