@@ -9,12 +9,16 @@ const puppeteer = require('puppeteer');
 const [file, shots] = process.argv.slice(2); fs.mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell' });
 let bad = 0;
-const TABS = ['t-read', 't-ingview', 't-ingtab', 't-ingcd', 't-ingmm', 't-more'];
+const TABS = ['t-read', 't-ingview', 't-more'];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
   await p.setViewport({ width, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto('file://' + path.resolve(file));
+  { // nothing moves before the reader acts: every step controller keeps its value for 1.5 s after load
+    const v0 = await p.$$eval('[id$="-ctl-s"]', es => es.map(e => e.value)); await new Promise(r => setTimeout(r, 1500));
+    const v1 = await p.$$eval('[id$="-ctl-s"]', es => es.map(e => e.value));
+    console.log(scheme, width, 'no autoplay', JSON.stringify(v0) === JSON.stringify(v1) ? 'ok' : 'MOVED'); if (JSON.stringify(v0) !== JSON.stringify(v1)) bad = 1 }
   for (const tab of TABS) {
     await p.click(`button[data-t=${tab}]`); await new Promise(r => setTimeout(r, 250));
     const res = await p.evaluate(async (tab) => {

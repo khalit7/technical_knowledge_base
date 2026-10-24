@@ -1,4 +1,4 @@
-// ---- Re-indexing lab (t-ingcd): hash every chunk of the new version, embed only unseen hashes (data: ING.cd) ----
+// ---- Reading s9, re-indexing: hash every chunk of the new version, embed only unseen hashes (data: ING.cd) ----
 (function(){
   const C=window.ING&&ING.cd;const viz=document.getElementById('ing-cd-viz');if(!C||!viz)return;
   const P=x=>(x>0&&x<0.01?(100*x).toFixed(2):(100*x).toFixed(1))+'%';const NAMES={fixed:'Fixed 200 words',overlap:'Fixed, 50 overlap',structure:'Structure-aware',cdc:'Content-defined'};
@@ -30,9 +30,9 @@
     const k=i,ok=m.flags[k];
     document.getElementById('ing-cd-cap').innerHTML='Chunk '+(k+1)+' ('+m.sizes[k]+' words): its SHA-256 '+(ok?'<b>is</b> in the old version\'s set, so its stored vector is reused.':'<b>is not</b> in the old version\'s set, so it is embedded again.');
   }
-  const an=RD.anim({card:'ing-cd-card',ctl:'ing-cd-ctl',n:C.papers[pid][mode].sizes.length,draw,ms:260,label:'Chunk'});
-  // RD.anim registers redraws on t-read; this tab redraws itself when shown
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-ingcd']=window.TAB_RENDER['t-ingcd']||[]).push(()=>{an.redraw();all()});
+  const n0=C.papers[pid][mode].sizes.length;
+  // starts on its last step (the final picture, nothing moves); play replays the chunks one by one
+  const an=RD.anim({card:'ing-cd-card',ctl:'ing-cd-ctl',n:n0,start:n0-1,draw,ms:260,label:'Chunk'});
   RD.seg(document.getElementById('ing-cd-mode'),v=>{mode=v;an.reset(C.papers[pid][mode].sizes.length);an.go(C.papers[pid][mode].sizes.length-1)});
   sel.addEventListener('change',()=>{pid=sel.value;an.reset(C.papers[pid][mode].sizes.length);an.go(C.papers[pid][mode].sizes.length-1)});
   addEventListener('resize',()=>{if(!card.offsetParent)return;an.redraw();all()});
@@ -44,5 +44,4 @@
     el.innerHTML=h;
   }
   all();
-  document.getElementById('ing-cd-note').innerHTML=C.note;
 })();

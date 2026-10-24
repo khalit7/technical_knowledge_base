@@ -1,8 +1,8 @@
-// ---- Table lab (t-ingtab): one real table, ground truth from LaTeX, each parser's output scored (data: ING.table) ----
+// ---- Reading s6, one real table: one real table, ground truth from LaTeX, each parser's output scored (data: ING.table) ----
 (function(){
   const T=window.ING&&ING.table;const gtEl=document.getElementById('ing-t-gt');if(!T||!gtEl)return;
   let view='raw',par=T.order[0];
-  document.getElementById('ing-t-about').innerHTML=T.about;
+
   document.getElementById('ing-t-img').innerHTML=T.img?'<img alt="Crop of the table in the PDF" src="'+T.img+'">':'';
   const chips=document.getElementById('ing-t-parsers');
   chips.innerHTML=T.order.map(p=>'<button data-p="'+p+'"'+(p===par?' class="on"':'')+'>'+RD.esc(T.names[p]||p)+'</button>').join('');
@@ -22,6 +22,6 @@
   document.getElementById('ing-t-q').innerHTML=T.question_html;
   function bars(){const el=document.getElementById('ing-t-bars');const W=1;
     el.innerHTML=T.order.map(p=>{const R=T.parsers[p],v=R.hdr_ok||0;return '<div class="row"><span class="nm">'+RD.esc(T.names[p]||p)+'</span><span class="track"><span class="fill" style="width:'+(100*v).toFixed(1)+'%;background:var(--c1)"></span></span><span class="val">'+(R.hdr_ok==null?'no grid':(100*v).toFixed(0)+'%')+'</span></div>'}).join('')}
-  bars();document.getElementById('ing-t-note').innerHTML=T.note;
+  bars();
   draw();
 })();

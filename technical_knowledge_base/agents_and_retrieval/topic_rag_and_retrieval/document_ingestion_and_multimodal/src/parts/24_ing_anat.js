@@ -24,7 +24,9 @@
     const cur=box(shown[shown.length-1]);
     stepEl.innerHTML='<p class="small" style="margin:4px 0">'+NOTE[mode]+'</p><b>Line '+(i+1)+' of '+order.length+':</b> <span class="mono">'+RD.esc(cur.t.slice(0,110))+'</span><br>Column switches so far: <b>'+sw+'</b> &middot; lines that cross the gutter: <b>'+cross+'</b>'+(mode==='read'?' &middot; lines dropped: <b>'+A.dropped.length+'</b>':'');
   }
-  const an=RD.anim({card:'ing-anat-card',ctl:'ing-anat-ctl',n:units().length,draw,ms:220,label:'Line'});
-  RD.seg(document.getElementById('ing-anat-mode'),m=>{mode=m;an.reset(units().length);an.play()});
+  // starts on its last step (the whole order drawn, nothing moves); a mode switch shows that reader's final order; play replays it
+  const n0=units().length;
+  const an=RD.anim({card:'ing-anat-card',ctl:'ing-anat-ctl',n:n0,start:n0-1,draw,ms:220,label:'Line'});
+  RD.seg(document.getElementById('ing-anat-mode'),m=>{mode=m;an.reset(units().length);an.go(units().length-1)});
   RD.onResize(()=>an.redraw());
 })();

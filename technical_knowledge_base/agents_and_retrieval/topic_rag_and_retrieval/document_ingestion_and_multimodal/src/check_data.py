@@ -36,7 +36,7 @@ q = D("results_auto.json")["qasper"]["parsers"]
 cd = D("cd.json"); T = cd["totals"]; ts = D("table_auto.json")["parsers"]
 pct = lambda x: "%.1f%%" % (100 * x)
 claims = [
-    ("%d of 107" % q["pdfplumber"]["evidence"]["intact"], "1 of 107"),
+    ("loses %d and keeps %d intact" % (q["pdfplumber"]["evidence"]["lost"], q["pdfplumber"]["evidence"]["intact"]), None),
     ("pdfplumber loses %d" % q["pdfplumber"]["evidence"]["lost"], None),
     ("pypdf keeps %d intact and loses %d" % (q["pypdf"]["evidence"]["intact"], q["pypdf"]["evidence"]["lost"]), None),
     ("Docling keeps %d intact" % q["docling"]["evidence"]["intact"], None),
@@ -47,7 +47,7 @@ claims = [
     ("content-defined chunks %s" % pct(T["cdc"]["reembed_word_share"]), None),
     ("1 of %d re-embedded" % cd["papers"]["1801.02073"]["structure"]["chunks_new"], None),
     ("1 of %d" % cd["papers"]["1801.02073"]["cdc"]["chunks_new"], None),
-    ("all %d chunks" % cd["papers"]["1801.02073"]["fixed"]["chunks_new"], None),
+    ("All %d." % cd["papers"]["1801.02073"]["fixed"]["chunks_new"], None),
 ]
 ra = D("results_auto.json"); cost = ra["cost"]
 I = lambda p: q[p]["evidence"]["intact"]
