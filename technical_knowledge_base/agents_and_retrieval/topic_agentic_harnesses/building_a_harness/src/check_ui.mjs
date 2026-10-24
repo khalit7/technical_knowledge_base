@@ -5,7 +5,7 @@ import path from 'path';
 const require = createRequire(path.resolve('package.json'));
 const puppeteer = require('puppeteer');
 const file = path.resolve(process.argv[2]);
-const tabs = ['t-read', 't-tok', 't-edit', 't-stop', 't-more'];
+const tabs = ['t-read', 't-edit', 't-more'];
 let problems = 0;
 const b = await puppeteer.launch({ headless: 'shell' });
 for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {

@@ -53,5 +53,5 @@
     sts.innerHTML=s.st.map(x=>stat(x[0],x[1],x[2])).join('');
   }
   const an=RD.anim({card:'hb-wire',ctl:'hb-wire-ctl',n:S.length,draw,ms:2600,label:'Step of the tool call'});
-  RD.seg(document.getElementById('hb-wire-mode'),m=>{mode.m=m;S=steps();an.reset(S.length);an.play()});
+  RD.seg(document.getElementById('hb-wire-mode'),m=>{mode.m=m;S=steps();an.reset(S.length)});
 })();

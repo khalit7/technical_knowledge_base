@@ -1,6 +1,6 @@
-// ---- Stop lab tab (t-stop): data HB.stop (native.py runs) and HB.cc.limits (Claude Code) ----
+// ---- Reading, section 10: the stop-rule runs, inline (data HB.stop from native.py runs, HB.cc.limits from Claude Code) ----
 (function(){
-  const H=window.HB; if(!H||!H.stop||!document.getElementById('t-stop'))return;
+  const H=window.HB; if(!H||!H.stop||!document.getElementById('hbs-pair'))return;
   const esc=RD.esc, runs=H.stop, by={};runs.forEach(r=>by[r.id]=r);
   const fmt=n=>n==null?'-':Number(n).toLocaleString();
   const stopTxt=r=>r.stop==='model stopped (no tool call)'?'reply without a tool call':(r.stop||'-');
@@ -37,8 +37,8 @@
     const sp=r=>{const t=r.turns[Math.min(k,r.turns.length)-1];return t?t.spent:0};
     st.innerHTML=[a,b].map(r=>RD.stat(esc(r.rule)+' tokens so far',fmt(sp(r)),'turns '+Math.min(k,r.turns.length)+' of '+r.turns.length)).join('');
   }
-  const an=RD.anim({card:'hbs-pair',ctl:'hbs-pair-ctl',n:nturns(),draw,ms:1700,label:'Turn',tab:'t-stop'});
-  sel.addEventListener('change',()=>{P=pairs[+sel.value];an.reset(nturns());an.play()});
+  const an=RD.anim({card:'hbs-pair',ctl:'hbs-pair-ctl',n:nturns(),draw,ms:1700,label:'Turn'});
+  sel.addEventListener('change',()=>{P=pairs[+sel.value];an.reset(nturns())});
   // ---------- replay
   const budgets=[2000,3000,4000,5000,6000,8000,10000,12000,15000,20000,25000,30000,Infinity];
   const capEl=document.getElementById('hbs-cap'),budEl=document.getElementById('hbs-bud'),repEl=document.getElementById('hbs-rep');
@@ -79,6 +79,6 @@
   if(L){document.getElementById('hbs-cc').innerHTML='<div class="grid">'+[['cc_maxturns','--max-turns 3'],['cc_budget','--max-budget-usd 0.01']].map(([k,flag])=>{const x=L[k];if(!x)return '';
     return '<div class="sp"><div class="n">'+esc(flag)+'</div><p>result <code>subtype: "'+esc(x.res.subtype)+'"</code>, <code>is_error: '+x.res.is_error+'</code>, errors: "'+esc((x.res.errors||[]).join('; '))+'". '+
       x.calls.length+' tool call'+(x.calls.length>1?'s':'')+' asked for, '+x.results+' run. Cost $'+x.res.total_cost_usd.toFixed(4)+(k==='cc_budget'?', above the $0.01 cap: the budget is checked after a call has been paid for, and the call it had just asked for was never run.':'; the model never saw the result of its last call.')+'</p></div>'}).join('')+'</div>'}
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-stop']=window.TAB_RENDER['t-stop']||[]).push(()=>{drawReplay()});
+  RD.onRender(drawReplay);
   drawReplay();showRun(runs[0].id);
 })();

@@ -1,4 +1,4 @@
-// ---- Tool call, token by token (t-tok): data HB.tok ----
+// ---- Reading, section 1 (closed block): every token of five requests; data HB.tok ----
 (function(){
   const H=window.HB,T=H&&H.tok,g=document.getElementById('hbt-grid'); if(!T||!g)return; const esc=RD.esc;
   const toks=T.toks, cuts=T.cuts;
@@ -18,9 +18,5 @@
     document.getElementById('hbt-info').insertAdjacentHTML('afterbegin','');
     const inf=document.getElementById('hbt-info');inf.innerHTML=RD.stat('token '+(i+1),'id '+t[0],(t[0]>=151643?'special, ':'')+NAMES[reg[i]])+RD.stat('text',esc(JSON.stringify(t[1])),'as the tokenizer splits it')+inf.innerHTML.split('</div></div>').slice(2).join('</div></div>')});
   kEl.addEventListener('input',draw);draw();
-  // stacked bars per call
-  const max=cuts[cuts.length-1];
-  document.getElementById('hbt-stack').innerHTML=cuts.map((end,j)=>{const c={};for(let i=0;i<end;i++)c[reg[i]]=(c[reg[i]]||0)+1;
-    return '<div class="row"><span>call '+(j+1)+'</span><span class="tr" style="width:'+(end/max*100)+'%">'+Object.keys(NAMES).map(r=>'<span style="width:'+((c[r]||0)/end*100)+'%;background:'+COL[r]+'" title="'+NAMES[r]+': '+(c[r]||0)+'"></span>').join('')+'</span><span>'+end.toLocaleString()+'</span></div>'}).join('');
   const nl=T.toks.find(t=>t[1]==='\n\n\n');document.getElementById('hbt-nl').textContent=nl?'id '+nl[0]+' ("\\n\\n\\n")':'';
 })();
