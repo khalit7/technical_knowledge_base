@@ -6,7 +6,7 @@
   // INTELLECT-1 report (arXiv 2412.01152): 100 inner steps take 38 min on an 8xH100 node; median all-reduce of the int8 pseudo-gradient
   const R={us:{n:'USA',ar:103,pub:95.7},ta:{n:'USA and Europe',ar:382,pub:85.6},gl:{n:'Global (USA, Europe, Asia)',ar:469,pub:83.0}};
   const IN=100,C=38*60,STEP=C/IN,P=10e9; // 10B parameters
-  const st={m:'dp',r:'us',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
+  const st={m:'dp',r:'us',k:0,t:RM?1:0,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
   const cl=v=>v<0?0:v>1?1:v;
   const ar=()=>R[st.r].ar, arDP=()=>4*ar(); // fp32 gradient is 4 times the int8 payload; this page assumes time scales with bytes
   const T=()=>{const a=ar();return [STEP,STEP+arDP(),C,C+a,2*C+a,2*(C+a)]};
@@ -72,7 +72,7 @@
   $('dlSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   $('dlR').addEventListener('change',e=>{st.r=e.target.value;st.lk=-1;draw()});
   const seg=$('dlM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM)st.play=true;draw();kick()}));
+    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;st.play=false;draw();kick()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});

@@ -1,31 +1,35 @@
 #!/bin/sh
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
-# Assemble ../index.html from parts/: head and CSS, the HTML parts in order, then each script in its own <script>, tabs last.
-# Links in any part are written {{text|url}}; url may be n:<notion id>. They expand to target="_blank" links.
-cd "$(dirname "$0")"
-{ cat parts/00_top.html parts/01_css.html parts/02_header.html parts/03_read_a.html parts/04_read_b.html parts/05_read_c.html parts/06_tabs.html parts/07_more.html
+# Assemble ../index.html from parts/. Copy this file to <page folder>/src/build.sh; it needs no edits for the standard layout.
+# What to change for a new page: nothing here unless the layout differs. Set the <title> in parts/01_head.html,
+# the storage key in parts/99_js_tabs.js, and add a tex2mathml pass (below, commented) only if the page has LaTeX.
+# HTML order: 01_head, 10_header (title and tab bar), 20_read.html if present, then 20_read_*.html (Reading tab, byte order:
+#   name the first part 20_read_a.html and the closing part 20_read_z.html), then 3*_tab_*.html (one group per tab, file-name order).
+# A part may carry its own <style>; a tab's CSS is scoped under its tab id (#t-<tab> ...).
+# JS: every *.js in parts/ in file-name order, each in its own <script> so one failing part cannot stop the others;
+#   99_js_tabs.js (the tab wiring) last. The hidden #jsErr box and the error handler (05z_errbox.js.html) come before the scripts.
+# Links: {{text|url}} becomes an external link (new tab); url may be n:<notion id> (a Notion page) or #t-<tab> (switches tab).
+#   Plain <a> tags pass through untouched.
+# Never put a literal backslash-n through echo here; keep such snippets in part files and cat them.
+cd "$(dirname "$0")" || exit 1
+P=parts
+reads=$(ls $P/20_read_*.html 2>/dev/null | LC_ALL=C sort)
+tabs=$(ls $P/3*_tab_*.html 2>/dev/null | LC_ALL=C sort)
+js=$(ls $P/*.js 2>/dev/null | LC_ALL=C sort)
+{ cat $P/01_head.html $P/10_header.html
+  [ -f $P/20_read.html ] && cat $P/20_read.html
+  for f in $reads; do cat "$f"; done
+  for f in $tabs; do cat "$f"; done
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
-  cat parts/05z_errbox.js.html
-  for f in parts/10_js_common.js parts/11_js_hyb.js parts/12_js_dl.js parts/13_js_mem.js parts/14a_aa_data.js parts/14_js_aa.js parts/15a_cmp_data.js parts/15_js_cmp.js parts/16a_size_data.js parts/16_js_size.js parts/90_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
-  echo '</div></body></html>'; } | perl -CSD -pe '
-s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);$u=~s{^n:}{https:\/\/app.notion.com\/p\/};"<a href=\"$u\" target=\"_blank\" rel=\"noopener noreferrer\">$t<\/a>"/ge;
+  cat $P/05z_errbox.js.html
+  for f in $js; do [ "$(basename "$f")" = 99_js_tabs.js ] && continue; echo "<script>/* $(basename "$f") */"; cat "$f"; echo '</script>'; done
+  echo "<script>/* 99_js_tabs.js */"; cat $P/99_js_tabs.js; echo '</script>'
+  echo '</body></html>'; } | perl -CSD -pe '
+s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a href=\"#\" data-tab=\"$1\">$t<\/a>"}else{$u=~s{^n:}{https:\/\/app.notion.com\/p\/};"<a href=\"$u\" target=\"_blank\" rel=\"noopener noreferrer\">$t<\/a>"}/ge;
 ' > ../index.html
+# LaTeX pages only: convert \( \) and \[ \] to MathML at build time (fails loudly on a bad formula).
+# R=$(git rev-parse --show-toplevel); node "$R/html_utils/tex2mathml.mjs" < ../index.html > ../index.tmp && mv ../index.tmp ../index.html
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
-if grep -q '—' ../index.html; then echo "EM DASH FOUND"; fi
+ED=$(printf '\342\200\224')  # the em-dash character, written as bytes so this file contains none
+if grep -q "$ED" ../index.html; then echo "EM DASH FOUND"; grep -n -o ".\{30\}$ED.\{30\}" ../index.html | head; fi
 wc -c ../index.html
-python3 - <<'PY'
-import re
-s=open('../index.html').read()
-a=s.index('id="t-read"');b=s.index('id="t-cmp"')
-t=re.sub(r'<script.*?</script>|<style.*?</style>','',s[a:b],flags=re.S);t=re.sub(r'<[^>]+>',' ',t)
-w=len(t.split());m=round(w/230)
-fr=s[s.index('<h3>Best resources</h3>'):]
-tot=0
-for x in re.findall(r'class="rt">\(([^)]*)\)',fr):
-    h=re.search(r'(\d+)h',x);mm=re.search(r'(\d+) ?m(?:in)?\b',x)
-    tot+=(int(h.group(1))*60 if h else 0)+(int(mm.group(1)) if mm else 0)
-res='%dh %02dm'%(tot//60,tot%60)
-s=s.replace('RT_MIN',str(m)).replace('RES_TIME',res)
-open('../index.html','w').write(s)
-print('reading words',w,'minutes',m,'resources',res)
-PY

@@ -1,7 +1,7 @@
 // ---- Scale and sparsity: every long-tail model with published sizes, over time or total against active ----
 (function(){
   if(!$('sz'))return;
-  let view='time',refs=true,sel=null;
+  let view='sp',refs=true,sel=null;
   const COL={open:'var(--open)',openr:'var(--c5)',full:'var(--c6)',api:'var(--closed)'};
   function draw(){
     const narrow=$('sz').clientWidth<560,W=narrow?360:760,H=narrow?380:440,pl=narrow?42:52,pr=narrow?8:14,pt=14,pb=38;
@@ -33,5 +33,5 @@
   }
   segBind('szV',v=>{view=v;draw()});
   $('szR').addEventListener('change',e=>{refs=e.target.checked;draw()});
-  addEventListener('resize',()=>{if(!$('t-size').hidden)draw()});onTab('t-size',draw);
+  addEventListener('resize',()=>{if(!$('t-read').hidden)draw()});onTab('t-read',draw);draw();
 })();

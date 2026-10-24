@@ -21,3 +21,11 @@ Scoring: 0 to 2 per question (parameter to move; reproduces a published figure (
 
 ## What the methodology lacked here
 A rule for breadth pages with many small subjects: the "same axes" table needs an explicit evidence column (vendor / independent / mixed), and dots for models with missing active counts need a labelled fallback rather than omission.
+
+## 2026-10-24 rebuild (teaching contract, OLMo merged)
+- **Built: hero** (static, Reading top): eight constraints, the labs on each, the number that shows each bet. Replaces the axes grid and the closing summary.
+- **Built: NaiveAI before/after layer strip** (static, Open scale): MiMo-V2.5's 39 SWA + 9 full-attention layers against Naive-N0.5-Flash's 39 SWA + 9 DSA, positions from NaiveAI's card. The 2026-10-01 rejection ("belongs on the attention pages") is reversed: this is the lab's choice, drawn as before/after; the DSA mechanism stays on Attention variants.
+- **Built: call-shape diagram** (static, Not a single model): a model, Fugu, Jev. Structure only; no routing data exists, so no animation (the earlier rejection of a routing animation stands).
+- **Moved**: sparsity chart into Reading (Open scale); OLMo stability before/after into Reading (OLMo 2). OLMo's Training log and Data mix became one tab, Inspect an open run (a dataset view of a released run).
+- **Changed**: the three animations no longer autoplay.
+- The OLMo page's own candidates and scores are in `olmo/viz_ideas_olmo.md`.
