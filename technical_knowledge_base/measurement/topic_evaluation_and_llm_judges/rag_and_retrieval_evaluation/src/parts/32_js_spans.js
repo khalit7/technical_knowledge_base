@@ -32,5 +32,5 @@
   }
   $('sp-item').addEventListener('change',draw);
   RD.seg($('sp-view'),m=>{view=m;draw()});
-  RD.onRender(()=>{if(!$('sp-tab').innerHTML){tab();draw()}},'t-spans');
+  RD.onRenderTab(()=>{if(!$('sp-tab').innerHTML){tab();draw()}},'t-spans');
 })();

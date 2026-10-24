@@ -21,6 +21,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.setViewport({ width, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
   await p.goto(file, { waitUntil: 'load' });
+  await p.$eval('#tabs button[data-t="t-read"]', e => e.click());  // the page remembers the last tab
   const audit = async (where) => {
     const r = await p.evaluate(() => {
       const vis = [...document.querySelectorAll('.tab:not([hidden])')].map(x => x.innerText).join(' ');
@@ -36,6 +37,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const click = async (sel) => { await p.$eval(sel, e => e.click()); await audit(sel); };
   const select = async (sel, v) => { await p.select(sel, v); await audit(sel + '=' + v); };
   const tag = `${scheme}-${width}`;
+  // nothing moves before the reader acts: scroll both step cards into view with motion allowed (checked once, below, without reduced motion)
   // Reading: animation, every case, mode, model and step
   for (const cs of ['carry', 'ampk']) {
     await select('#an-case', cs);
@@ -68,12 +70,22 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await click('#mc-list button[data-i="2"]'); await click('#mc-list button[data-i="2"]');
   { const el = await p.$('#mc-card'); await el.screenshot({ path: `${shots}/calc-${tag}.png` }); }
   { const el = await p.$('#rd-xtab'); await el.screenshot({ path: `${shots}/xtab-${tag}.png` }); }
-  { const el = await p.$('#rd-real'); await el.screenshot({ path: `${shots}/real-${tag}.png` }); }
+  { const el = await p.$('#rd-real-tab'); await el.screenshot({ path: `${shots}/real-${tag}.png` }); }
   const real = await p.$eval('#rd-real-tab', e => e.innerText);
   if (!/0\.676/.test(real) || !/0\.369/.test(real)) problems.push(`${tag} real table missing 0.676 / 0.369`);
-  // mistakes
-  for (const d of await p.$$('#rd-mist details summary')) { await d.click(); }
-  await audit('mistakes open');
+  // closed details open
+  for (const d of await p.$$('#t-read details summary')) { await d.click(); }
+  await audit('details open');
+  // recall curve, faithfulness stepper, paired comparison
+  for (const s of ['nfcorpus', 'fiqa', 'scifact']) await click(`#rc-set button[data-m="${s}"]`);
+  for (const a of ['l13', 'mis']) { await click(`#fs-ans button[data-m="${a}"]`);
+    for (let i = 0; i < 4; i++) { await p.$eval('#fs-ctl-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i); await audit(`faith ${a} step ${i}`); }
+    { const el = await p.$('#fs-card'); await el.screenshot({ path: `${shots}/faith-${a}-${tag}.png` }); } }
+  for (const s of ['nfcorpus', 'fiqa', 'scifact']) for (const pr of ['bm25_lucene|hybrid_rrf', 'bm25_lucene|bm25okapi', 'bm25_lucene|dense_minilm']) { await click(`#pd-set button[data-m="${s}"]`); await click(`#pd-pair button[data-m="${pr}"]`);
+    const r = await p.evaluate((s, pr) => { const [a, b] = pr.split('|'); const R = PDCALC(s, a, b), P = PAIRED.pairs[s + '|' + pr]; return [R.w, R.t, R.l, R.mean, P.wins, P.ties, P.losses, P.mean_delta]; }, s, pr);
+    if (r[0] !== r[4] || r[1] !== r[5] || r[2] !== r[6] || Math.abs(r[3] - r[7]) > 6e-5) problems.push(`${tag} paired ${s} ${pr}: page ${r.slice(0, 4)} vs paired.py ${r.slice(4)}`); }
+  { const bad = await p.evaluate(() => { const out = []; for (const ds of ['scifact', 'nfcorpus', 'fiqa']) for (const [s, c] of Object.entries(PAIRED.curves[ds])) { const j = RCURVE(ds, RDATA.sys.indexOf(s)); c.forEach((v, k) => { if (Math.abs(v - j[k]) > 6e-5) out.push(ds + ' ' + s + ' k' + (k + 1)); }); } return out; }); if (bad.length) problems.push(`${tag} recall curves differ from paired.py: ${bad.slice(0, 3)}`); }
+  for (const id of ['rd-hero', 'rd-tri', 'rc-card', 'ci-fig', 'ag-fig', 'pd-card']) { const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/${id}-${tag}.png` }); }
   // run tab
   await click('#tabs button[data-t="t-run"]');
   for (const s of ['scifact', 'nfcorpus', 'fiqa']) {
@@ -101,6 +113,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   if (errs.length) problems.push(`${tag} errors: ${errs.slice(0, 3).join(' | ')}`);
   await p.close();
 }
+// no autoplay, with motion allowed: scroll each step card into view, wait, and confirm it is still on step 0
+{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(file, { waitUntil: 'load' }); await p.$eval('#tabs button[data-t="t-read"]', e => e.click());
+  for (const id of ['an', 'fs']) { await p.$eval('#' + id + '-card', e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 3500));
+    const v = await p.$eval('#' + id + '-ctl-s', e => +e.value); if (v !== 0) problems.push(`autoplay: ${id} moved to step ${v} without input`); }
+  await p.close(); }
 await b.close();
 console.log(`actions ${actions}, problems ${problems.length}`);
 problems.slice(0, 40).forEach(x => console.log(x));

@@ -34,5 +34,5 @@
   $('rn-q').addEventListener('change',e=>{qi=+e.target.value;qview()});
   $('rn-prev').addEventListener('click',()=>{const n=RDATA.beir[ds].sample.length;qi=(qi+n-1)%n;$('rn-q').value=qi;qview()});
   $('rn-next').addEventListener('click',()=>{const n=RDATA.beir[ds].sample.length;qi=(qi+1)%n;$('rn-q').value=qi;qview()});
-  RD.onRender(()=>{if(!$('rn-table').innerHTML){table();qopts();qview()}},'t-run');
+  RD.onRenderTab(()=>{if(!$('rn-table').innerHTML){table();qopts();qview()}},'t-run');
 })();

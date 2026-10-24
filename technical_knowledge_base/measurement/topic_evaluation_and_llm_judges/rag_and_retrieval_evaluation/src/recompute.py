@@ -4,7 +4,8 @@
 2. Our runs against the published numbers (Anserini BM25 flat, MTEB results for all-MiniLM-L6-v2).
 3. The rank-list calculator's worked example (22_js_calc.js) against the old page's printed values.
 4. RAGTruth counts recomputed from the release against the paper's Tables 2, 3 and 10 (arXiv v2).
-5. The figures quoted in the Reading prose."""
+5. The figures quoted in the Reading prose.
+6. The paired comparison and recall curves (inputs/paired.json, from paired.py) against this file's own metric code, and the numbers quoted in their captions."""
 import json, math
 D = json.load(open('inputs/page_data.json'))
 FULL = json.load(open('inputs/beir_summary.json'))
@@ -97,4 +98,21 @@ for ds, si, k, f, want in [('scifact', 0, 10, 'ndcg', 0.676), ('scifact', 3, 10,
                            ('fiqa', 2, 10, 'ndcg', 0.217), ('fiqa', 1, 10, 'ndcg', 0.253), ('nfcorpus', 0, 10, 'recall', 0.152),
                            ('nfcorpus', 0, 10, 'hit', 0.684), ('scifact', 0, 10, 'recall', 0.800), ('scifact', 0, 100, 'recall', 0.925)]:
     check(f'prose {ds} {D["sys"][si]} {f}@{k}', agg(ds, si, k)[f], want, 0.0005)
+
+print('# 6. paired comparison and recall curves (paired.py) and their captions')
+PD = json.load(open('inputs/paired.json'))
+for ds in ['scifact', 'nfcorpus', 'fiqa']:
+    for s, c in PD['curves'][ds].items():
+        si = D['sys'].index(s)
+        for k in (10, 100): check(f'curve {ds} {s} recall@{k}', c[k - 1], agg(ds, si, k)['recall'], 6e-5)
+for ds, s, k, want in [('fiqa', 'bm25_lucene', 100, 0.538), ('fiqa', 'dense_minilm', 100, 0.706), ('fiqa', 'hybrid_rrf', 100, 0.711)]:
+    check(f'caption {ds} {s} recall@{k}', PD['curves'][ds][s][k - 1], want, 0.0005)
+for key, md, lo, hi in [('scifact|bm25_lucene|dense_minilm', -0.031, -0.067, 0.005), ('scifact|bm25_lucene|hybrid_rrf', 0.043, 0.020, 0.065),
+                        ('fiqa|bm25_lucene|dense_minilm', 0.130, 0.106, 0.155), ('scifact|bm25_lucene|bm25okapi', -0.024, -0.046, -0.002)]:
+    P = PD['pairs'][key]
+    check(f'caption {key} mean delta', P['mean_delta'], md, 0.0005); check(f'caption {key} ci low', P['ci95'][0], lo, 0.0005); check(f'caption {key} ci high', P['ci95'][1], hi, 0.0005)
+    a, b = key.split('|')[1:]; ds = key.split('|')[0]
+    check(f'{key} means match agg', P['meanB'] - P['meanA'], agg(ds, D['sys'].index(b), 10)['ndcg'] - agg(ds, D['sys'].index(a), 10)['ndcg'], 2e-4)
+for key, w, l in [('scifact|bm25_lucene|dense_minilm', 68, 70), ('scifact|bm25_lucene|hybrid_rrf', 74, 20)]:
+    check(f'caption {key} wins', PD['pairs'][key]['wins'], w, 0); check(f'caption {key} losses', PD['pairs'][key]['losses'], l, 0)
 print('ALL OK' if ok else 'SOME CHECKS FAILED')

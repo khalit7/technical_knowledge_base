@@ -1,17 +1,61 @@
 
-<section id="rd-real">
-<h2>A real run, scored and reproduced</h2>
-<p>To see what the metrics say on real labels, we ran five retrievers over three BEIR test sets (<a href="https://arxiv.org/abs/2104.08663" target="_blank" rel="noopener noreferrer">Thakur et al., NeurIPS 2021 Datasets and Benchmarks</a>) and scored them against the released qrels: SciFact (5,183 abstracts, 300 scientific claims), NFCorpus (3,633 medical documents, 323 queries, graded labels 1 and 2) and FiQA-2018 (57,638 financial forum posts, 648 questions). The systems: BM25 reimplemented the way Anserini's "flat" regression runs it (title and text as one field, Lucene's English stopwords, Porter stemming, k1 = 0.9, b = 0.4), the same BM25 with k1 = 1.2 and b = 0.75, the <code>rank_bm25</code> package as installed, a small dense retriever (all-MiniLM-L6-v2, 22M parameters, cosine), and a hybrid fusing BM25 and dense with reciprocal rank fusion (k = 60). All runs took under 15 minutes on a laptop CPU, two threads (<code>src/beir_run.py</code>).</p>
-<div class="tw"><table id="rd-real-tab"></table></div>
-<p class="small mute" id="rd-real-note"></p>
-<div class="co key"><div class="t">Defaults reproduce published numbers, independently</div><span id="rd-real-repro"></span></div>
-<p>What the run teaches:</p>
-<ul class="tight" id="rd-real-list">
-<li><b>The winner depends on the corpus.</b> BM25 beats the dense model on SciFact (nDCG@10 0.676 against 0.645), where claims reuse the abstracts' technical terms, and loses badly on FiQA (0.239 against 0.369), where forum questions paraphrase. A leaderboard average hides both; test on your corpus.</li>
-<li><b>Fusion wins everywhere here.</b> The RRF hybrid is best on all three sets (0.719, 0.356, 0.373) and lifts SciFact recall@100 from 0.925 to 0.962: the two retrievers miss different passages.</li>
-<li><b>"BM25" is not one system.</b> <code>rank_bm25</code> as installed (no stemming, no stopwords, k1 = 1.5, b = 0.75) scores 0.652 on SciFact and 0.217 on FiQA, against 0.676 and 0.239 for the Lucene-style run; moving k1 and b alone takes FiQA from 0.239 to 0.253. Quote the implementation and parameters with the score.</li>
-<li><b>Recall and hit rate tell different stories when labels are many.</b> NFCorpus has 38 labelled passages per query on average, so BM25's recall@10 is 0.152 while 68% of queries have at least one relevant passage in the top 10 (hit@10 0.684), and precision@10 can never approach 1 on SciFact (1.1 labels per query).</li>
-<li><b>Measure at the reranker's depth.</b> On SciFact, BM25 recall@10 is 0.800 and recall@100 0.925: a reranker reading the top 100 has 12.5 more points of recall to work with than the prompt ever sees, and none beyond 0.925.</li>
+<section id="rd-faith">
+<h2>Faithfulness: split into claims, verify each, apply a rule</h2>
+<p>RAGAS's own example: the passage says Einstein was born on 14 March 1879 in Germany; the answer says "Einstein was born in Germany on 20th March 1879". The judge splits it into "born in Germany" (supported) and "born on 20th March 1879" (not supported), so faithfulness = 1/2 = 0.5 ({{RAGAS docs|https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/}}). Every faithfulness metric runs these steps; they differ in the checker and in the rule that turns verdicts into a score. Predict: which instruments fail an answer that is true but not in the passages?</p>
+<div class="card" id="fs-card">
+<div class="seg" id="fs-ans"><button data-m="mis" class="on">Mistral-7B-Instruct: a contradiction</button><button data-m="l13">Llama-2-13B-chat: true but unsourced</button></div>
+<div id="fs-body"></div>
+<div class="an-cap" id="fs-cap" aria-live="polite"></div>
+<div class="an-ctl" id="fs-ctl"></div>
+</div>
+<p class="small mute">Answers and spans: RAGTruth, as released. The claim split and the verdicts are ours, made as a RAGAS-style judge is prompted to make them, and agree with RAGTruth's span labels; the scores are each instrument's documented rule applied to those verdicts, not runs of the tools (<span class="ill">illustrative</span> split, <span class="der">derived</span> scores).</p>
+<div class="fm"><div class="eq">faithfulness = claims in the answer supported by the passages / claims in the answer</div></div>
+<h3>Three kinds of checker</h3>
+<ul class="tight">
+<li><b>An LLM judge per claim</b> (RAGAS, DeepEval, TruLens): flexible, but the split and the verdict are both judge calls, so the judge's biases enter twice.</li>
+<li><b>An NLI or fact-checking model</b>: the claim is the hypothesis and the passages the premise. ALCE used TRUE, a T5-11B fine-tuned for entailment; RAGAS's <code>FaithfulnesswithHHEM</code> uses Vectara's HHEM-2.1-Open, a flan-t5-base classifier; MiniCheck-FT5 (770M) scored 74.7% balanced accuracy on LLM-AggreFact against GPT-4's 75.3%, at about $0.24 against $107 for the benchmark (<a href="https://arxiv.org/abs/2404.10774" target="_blank" rel="noopener noreferrer">Tang et al., EMNLP 2024</a>). Cheap and deterministic.</li>
+<li><b>A trained span detector</b>: marks where in the answer the unsupported text is, not only whether. RAGTruth's fine-tuned Llama-2-13B is the reference point (below).</li>
 </ul>
-<div class="deepnote"><b>Go deeper (optional):</b> the {{Score a real retrieval run|#t-run}} tab recomputes every metric at any cutoff and opens single queries where the lexical and dense runs disagree.</div>
+<h3>Three things faithfulness is not</h3>
+<ul class="tight">
+<li><b>Not correctness.</b> GPT-4's answer to the same question is perfectly faithful and four of its six "still alive" are now wrong, because the passage dates from about 2014 (June Whitfield died in 2018, Barbara Windsor in 2020, Leslie Phillips in 2022 and Julian Holloway in 2025, per Wikipedia as read on 4 October 2026). Freshness and source checks are a separate test.</li>
+<li><b>Not completeness.</b> Llama-2-7B's answer names three of the six and has no marked span, so faithfulness passes it; only a correctness or context-recall check catches the gap.</li>
+<li><b>Not the same as "true".</b> RAGTruth's annotators flagged whether each hallucinated span was nevertheless true in the world (<code>implicit_true</code>): 846 of the 2,927 question-answering spans were (28.9%; the model filled the gap from memory, correctly). A faithfulness metric fails them: right for a system that must answer from its sources, wrong if you only care about accuracy.</li>
+</ul>
+<h3>How a faithfulness judge fails</h3>
+<p>A faithfulness metric is an LLM judge with a fixed prompt, so it inherits position, verbosity and self-preference biases and drift across versions; {{LLM-as-judge|n:3c65c17b0d0d810ba2a2ecc08c4c233b}} owns the catalogue and the calibration method. What is specific to faithfulness:</p>
+<ul class="tight">
+<li><b>Decomposition decides the score.</b> Claim-level factuality scores are "sensitive to the decomposition method used" (<a href="https://arxiv.org/abs/2403.11903" target="_blank" rel="noopener noreferrer">Wanner et al., 2024</a>): a split that drops a qualifier turns a faithful sentence unfaithful and charges the generator for the judge's error.</li>
+<li><b>Leniency is a setting.</b> DeepEval's default passes unsupported claims and TruLens counts abstentions as grounded, by design. Read the prompt before reading the number.</li>
+<li><b>Prompted judges over-flag.</b> On RAGTruth's QA responses, prompted GPT-4-turbo found 90.6% of hallucinated answers but only 33.2% of the answers it flagged were hallucinated (F1 45.6; span F1 32.6). A 13B model fine-tuned on the labels reached 68.2 and 58.2.</li>
+<li><b>Judges grade their own family up.</b> FACTS Grounding uses three judges from three labs because, measured, each rated its own family's responses 3.23% higher on average (<a href="https://arxiv.org/abs/2501.03200" target="_blank" rel="noopener noreferrer">Jacovi et al., Jan 2025</a>).</li>
+<li><b>Long contexts.</b> With 20 passages the judge's prompt is long, and judges degrade with length as generators do. We found no clean measurement of faithfulness-judge accuracy against context length (unconfirmed); measure it on your own lengths before trusting a single judge there.</li>
+<li><b>Unpinned judges.</b> Upgrading the judge model moves every generation metric; treat it as a new instrument and recalibrate on the gold slice.</li>
+</ul>
+<details class="dp"><summary>RAGTruth's detector baselines: response-level and span-level F1</summary><div>
+<p>RAGTruth (<a href="https://arxiv.org/abs/2401.00396" target="_blank" rel="noopener noreferrer">Niu et al., ACL 2024</a>, arXiv v2, Tables 5 and 6). A response-level detector says whether an answer contains any hallucination; a span-level one must find where.</p>
+<div class="tw"><table>
+<thead><tr><th>Detector</th><th class="num">Response F1, QA</th><th class="num">Response F1, all tasks</th><th class="num">Span F1, QA</th><th class="num">Span F1, all tasks</th></tr></thead>
+<tbody>
+<tr><td>Prompted GPT-3.5-turbo</td><td class="num">30.8</td><td class="num">52.9</td><td class="num">12.1</td><td class="num">12.8</td></tr>
+<tr><td>Prompted GPT-4-turbo</td><td class="num">45.6</td><td class="num">63.4</td><td class="num">32.6</td><td class="num">28.3</td></tr>
+<tr><td>SelfCheckGPT (GPT-3.5-turbo)</td><td class="num">43.7</td><td class="num">58.8</td><td class="num">n/a</td><td class="num">n/a</td></tr>
+<tr><td>LMvLM (GPT-4-turbo)</td><td class="num">30.1</td><td class="num">49.4</td><td class="num">n/a</td><td class="num">n/a</td></tr>
+<tr><td>Llama-2-13B fine-tuned on RAGTruth</td><td class="num"><b>68.2</b></td><td class="num"><b>78.7</b></td><td class="num"><b>58.2</b></td><td class="num"><b>52.7</b></td></tr>
+</tbody></table></div>
+<p>The prompted judges have high recall and low precision on QA: they call too many faithful answers hallucinated. A 13B model fine-tuned on the labels beats them, which is the paper's point and a reason the field moved to trained detectors.</p></div></details>
+<h3>Choosing the checker</h3>
+<p>Hallucination-detection benchmarks score the checkers themselves. On easy, synthetic perturbations (HaluBench) detectors look nearly solved; on natural errors of strong models (FaithBench) they were at chance until judges got examples. Your traffic is the second kind, so choose the checker on a benchmark of natural errors before trusting it. The practical answer in 2026 is a small trained detector for the bulk (cheap, deterministic, span-level) and a calibrated frontier judge, or a person, for the disputed slice. The {{Hallucination spans|#t-spans}} tab shows six models' answers to eight questions with every RAGTruth span marked.</p>
+<details class="dp"><summary>Hallucination-detection benchmarks and their best detectors, dated</summary><div>
+<p>These measure the detectors, not the generators: each holds model outputs labelled faithful or not against their sources.</p>
+<div class="tw"><table>
+<thead><tr><th>Benchmark</th><th>What it holds</th><th>Best reported detector</th></tr></thead>
+<tbody>
+<tr><td><b>RAGTruth</b> (<a href="https://arxiv.org/abs/2401.00396" target="_blank" rel="noopener noreferrer">ACL 2024</a>)</td><td>17,790 responses of six 2023 models (QA, data-to-text, summarisation), every hallucinated span marked with one of four types; 43.1% of responses have at least one.</td><td>Fine-tuned Llama-2-13B: response F1 78.7, span F1 52.7, above prompted GPT-4-turbo (63.4, 28.3).</td></tr>
+<tr><td><b>LLM-AggreFact</b> (<a href="https://arxiv.org/abs/2404.10774" target="_blank" rel="noopener noreferrer">MiniCheck, EMNLP 2024</a>)</td><td>Ten grounding datasets (eleven on the <a href="https://llm-aggrefact.github.io/" target="_blank" rel="noopener noreferrer">leaderboard</a>), a claim against its grounding document, balanced accuracy.</td><td>Leaderboard (last updated Sep 2025): Bespoke-MiniCheck-7B 77.4, Claude-3.5 Sonnet 77.2, Granite Guardian 3.3 76.5.</td></tr>
+<tr><td><b>HaluBench</b> (<a href="https://arxiv.org/abs/2407.08488" target="_blank" rel="noopener noreferrer">Patronus, Lynx, Jul 2024</a>)</td><td>About 15,000 context, question, answer triples from FinanceBench, DROP, COVID-QA, PubMedQA, HaluEval and RAGTruth, with perturbed answers.</td><td>Lynx-70B 87.4% accuracy against GPT-4o 86.5% and Claude-3-Sonnet 78.8%.</td></tr>
+<tr><td><b>FaithBench</b> (<a href="https://arxiv.org/abs/2410.13210" target="_blank" rel="noopener noreferrer">Oct 2024</a>)</td><td>660 summaries from ten models over 66 source passages, labelled by annotators (including "questionable" and "benign").</td><td>All detectors near 50% balanced accuracy in the paper (best, MiniCheck-DeBERTa-L, 54.95%). FaithJudge, a few-shot judge given human-labelled examples, later reached 84.0% with o3-mini-high (<a href="https://arxiv.org/abs/2505.04847" target="_blank" rel="noopener noreferrer">arXiv 2505.04847, EMNLP 2025 Industry</a>).</td></tr>
+<tr><td><b>Vectara HHEM-2.1-Open</b> (<a href="https://huggingface.co/vectara/hallucination_evaluation_model" target="_blank" rel="noopener noreferrer">model card</a>)</td><td>The checker inside RAGAS's HHEM variant and Vectara's hallucination leaderboard.</td><td>Model card: RAGTruth-QA balanced accuracy 74.28% against GPT-4's 74.11% (vendor figure).</td></tr>
+</tbody></table></div></div></details>
+
 </section>
