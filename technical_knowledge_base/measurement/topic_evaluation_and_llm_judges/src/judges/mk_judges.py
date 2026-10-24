@@ -42,9 +42,9 @@ S = {
  'mjb': ('Wang et al., Benchmarking LLM Judges for Mobile Agent Evaluation (MobileJudgeBench; arXiv 2608.11434 v1, preprint)', ax('2608.11434'), '2026-08-11'),
  'rmbench': ('Liu et al., RM-Bench: Benchmarking Reward Models of Language Models with Subtlety and Style (arXiv 2410.16184 v1)', ax('2410.16184'), '2024-10-21'),
  'reliab': ('Norman et al., Reliability without Validity: A Systematic, Large-Scale Evaluation of LLM-as-a-Judge Models (arXiv 2606.19544 v1, preprint)', ax('2606.19544'), '2026-06-17'),
- 'biaslab': ('Judge bias lab tab of this page (position-consistency recount on the released MT-Bench judgments)', '#t-bias', ''),
+ 'biaslab': ('Judge bias lab tab of LLM-as-judge (position-consistency recount on the released MT-Bench judgments)', 'https://app.notion.com/p/3c65c17b0d0d810ba2a2ecc08c4c233b#t-bias', ''),
  'shi': ('Shi et al., Judging the Judges: A Systematic Study of Position Bias in LLM-as-a-Judge (arXiv 2406.07791)', ax('2406.07791'), '2024-06-12'),
- 'guard_child': ('Guardrails: staged runtime safety for LLM systems (child page of this topic)', 'https://app.notion.com/p/3c65c17b0d0d819bbfa5dffa9246c297', ''),
+ 'guard_child': ('Guardrails: staged runtime safety for LLM systems (a child of Topic: agentic-harnesses)', 'https://app.notion.com/p/3c65c17b0d0d819bbfa5dffa9246c297', ''),
  'safety_child': ('Safety and honesty benchmarks (child page of Topic: benchmarks)', 'https://app.notion.com/p/3ef5c17b0d0d818da9d5efda1a443166', ''),
  'hf_prom7': ('prometheus-eval/prometheus-7b-v2.0 on Hugging Face (Apache-2.0)', 'https://huggingface.co/prometheus-eval/prometheus-7b-v2.0', '2024-02-13'),
  'hf_judgelm': ('BAAI/JudgeLM-33B-v1.0 on Hugging Face (no licence tag on the repo)', 'https://huggingface.co/BAAI/JudgeLM-33B-v1.0', '2023-10-28'),
@@ -247,7 +247,7 @@ W(id='gpt4', n='GPT-4-class single judge', sub='GPT-4, GPT-4o, Claude 3.5 Sonnet
   st='legacy', what='One strong chat model reads the question and the answer (or two answers) and returns a score or a preference: the setup MT-Bench named in 2023.',
   why='On MT-Bench it agrees with experts as often as experts agree with each other (85% against 81% without ties). On JudgeBench\'s hard pairs with an objectively right answer, GPT-4o with the Arena-Hard prompt scores 56.57%, near the 50% of a coin, and its 2026 kappa there is 0.309. Reasoning models have replaced it as the strong single judge.',
   iss=[['Position bias, hardest case: GPT-4 kept its verdict after swapping the two answers in 65.0% of cases with the default prompt (MT-Bench Table 2), on pairs built as two GPT-3.5 samples at temperature 0.7 of the same first-turn question, so the answers are near-identical.', 'mtbench'],
-       ['Position bias, ordinary case (a different measurement, not the same metric as the 65.0%): on the released MT-Bench judgments of the leaderboard models, the GPT-4 judge names the same winner in both orders 83.6% of the time (recount on the Judge bias lab tab), and consistency rises as the quality gap between the two answers grows (Shi et al. 2024).', 'biaslab'],
+       ['Position bias, ordinary case (a different measurement, not the same metric as the 65.0%): on the released MT-Bench judgments of the leaderboard models, the GPT-4 judge names the same winner in both orders 83.6% of the time (recount on the Judge bias lab tab of LLM-as-judge), and consistency rises as the quality gap between the two answers grows (Shi et al. 2024).', 'biaslab'],
        ['Shi et al., Judging the Judges: a systematic study of position bias in LLM-as-a-judge (15 judges, MT-Bench and DevBench).', 'shi']])
 W(id='frontier', n='Frontier reasoning model as single judge', sub='o1, o3-mini, DeepSeek-R1, Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.4', kind='judge', modes=['pairwise', 'pointwise'], d='2024-10', s='judgebench',
   ow='mixed', owt='Some are open weights (DeepSeek-R1 and V3.2, GPT-oss 120B, Kimi K2.5, GLM-5); most are API-only.',
@@ -307,7 +307,7 @@ W(id='agentjudge', n='Agent-as-a-judge', sub='A judge with tools: reads files, r
   why='The original paper reports 90.44% alignment with expert consensus against 60.38% for an LLM judge (its own runs, 55 tasks). AJ-Bench (April 2026, third party) confirms the direction: the agentic mode adds 12.85 points for DeepSeek V3.2 and 13.41 for GPT-5-mini (low). MobileJudgeBench adds a caution: a simple screenshot judge matched purpose-built pipelines.')
 W(id='guard', n='Guard models', sub='Safety classifiers that screen prompts and outputs at runtime', kind='pointer', modes=['classifier'], d='', s='guard_child', st='pointer',
   what='A judge specialised for one question (is this unsafe?) and run in the request path, not offline.',
-  why='Owned by the Guardrails child page of this topic; their benchmark side (XSTest, HarmBench, refusal graders) is on the Safety and honesty child of Topic: benchmarks. Not scored here.',
+  why='Owned by the Guardrails page, a child of Topic: agentic-harnesses since 24 October 2026; their benchmark side (XSTest, HarmBench, refusal graders) is on the Safety and honesty child of Topic: benchmarks. Not scored here.',
   page=['Guardrails: staged runtime safety for LLM systems', 'n:3c65c17b0d0d819bbfa5dffa9246c297'], page2=['Safety and honesty benchmarks', 'n:3ef5c17b0d0d818da9d5efda1a443166'])
 
 # meta-evaluations
@@ -336,7 +336,7 @@ W(id='judgebench', n='JudgeBench', sub='Hard pairs where one answer is objective
 W(id='evalbiasbench', n='EvalBiasBench', sub='Hand-written pairs that trigger six known judge biases', kind='meta', modes=['pairwise'], d='2024-07', s='offsetbias',
   size='80 pairs, each in both orders (160 items)', chance='50%', st='active',
   what='Length, concreteness, empty reference, content continuation, nested instruction and familiar knowledge: each pair is built so the biased choice is the wrong one.',
-  why='Separates judges sharply: GPT-4o 86.9%, Llama 3 70B 75.0%, but PandaLM 18.1% and Prometheus 2 near 34%. Small: 80 pairs, 12 to 17 per bias (24 to 34 items each once both orders are counted), so per-bias numbers carry wide error bars. The Judge bias lab tab goes deeper on the biases themselves.')
+  why='Separates judges sharply: GPT-4o 86.9%, Llama 3 70B 75.0%, but PandaLM 18.1% and Prometheus 2 near 34%. Small: 80 pairs, 12 to 17 per bias (24 to 34 items each once both orders are counted), so per-bias numbers carry wide error bars. The Judge bias lab tab of LLM-as-judge goes deeper on the biases themselves.')
 W(id='rmbench', n='RM-Bench', sub='Reward models on subtle content changes and style bias', kind='meta', modes=['pairwise'], d='2024-10', s='rmbench',
   size='Chat, safety, code, math; normal, easy and hard settings', chance='50%', st='active',
   what='Pairs that differ in one subtle factual point, shown with the style of each side varied, so a judge that prefers style over substance fails the hard setting.',

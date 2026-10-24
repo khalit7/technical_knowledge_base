@@ -90,7 +90,8 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   }
   const tj = await p.$('#ja-tip button.jump'); if (tj) { await tj.evaluate(e => e.click()); await check('tip jump') }
   await p.evaluate(() => window.JA.show('gpt4', false));
-  const tabOk = await p.evaluate(() => { const a = document.querySelector('#ja-det a[data-tab="t-bias"]'); if (!a) return 'no link'; a.click(); const ok = !document.getElementById('t-bias').hidden; document.querySelector('#tabs button[data-t="t-judges"]').click(); return ok ? '' : 't-bias not shown' });
+  // the bias lab moved to LLM-as-judge on 2026-10-24: the row's link must point at that page's t-bias tab
+  const tabOk = await p.evaluate(() => { const a = [...document.querySelectorAll('#ja-det a')].find(x => /3c65c17b0d0d810ba2a2ecc08c4c233b#t-bias/.test(x.href)); return a ? '' : 'no link' });
   if (tabOk) problems.push(w + ' bias lab link: ' + tabOk); actions++;
   // back to the default chart and the top for screenshots
   await p.evaluate(() => { document.querySelector('#ja-mch button[data-m="jb_acc"]').click(); document.querySelector('#ja-view button[data-v="date"]').click() });

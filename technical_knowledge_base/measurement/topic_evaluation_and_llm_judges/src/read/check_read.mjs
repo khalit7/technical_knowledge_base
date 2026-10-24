@@ -1,4 +1,4 @@
-// Exercise every Reading and Further reading control at 390 dark and 920 light; compare RD_CHECK with recompute.json.
+// Exercise every Reading and Further reading control (rebuilt 2026-10-24: hero, statistics chart, attribution stepper) at 390 dark and 920 light; compare RD_CHECK with recompute.json.
 // Run from the repo root: node technical_knowledge_base/measurement/topic_evaluation_and_llm_judges/src/read/check_read.mjs [shotdir]
 import { createRequire } from 'module';
 import fs from 'fs'; import path from 'path'; import os from 'os';
@@ -30,28 +30,13 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     actions++;
   };
   await scan('load');
+  await pg.$eval('#rd-att-card', e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 3000));
+  const st0 = await pg.$eval('#rd-att-ctl-s', e => +e.value); if (st0 !== 0) problems.push(`${w} attribution stepper moved by itself (${st0})`);
   // RD_CHECK against recompute.json
   const got = await pg.evaluate(() => window.RD_CHECK);
   const close = (a, b) => Math.abs(a - b) < 1e-6;
-  for (const k of ['g4', 'g35', 'c1', 'math']) if (JSON.stringify(got.modes[k]) !== JSON.stringify(want.modes[k])) problems.push(`modes ${k} ${got.modes[k]} vs ${want.modes[k]}`);
-  for (const k of ['a', 'b']) if (!close(got.kappa[k], want.kappa[k])) problems.push(`kappa ${k}`);
   for (const k of Object.keys(want.stat)) if (!close(got.stat[k], want.stat[k])) problems.push(`stat ${k} ${got.stat[k]} vs ${want.stat[k]}`);
   for (const b of Object.keys(want.attr)) for (const f of ['n', 'q', 'g', 'm']) if (got.attr[b][f] !== want.attr[b][f]) problems.push(`attr ${b} ${f}`);
-  // grading-mode animation: both modes, every judge, every step
-  for (const m of ['pos', 'math']) {
-    await pg.click(`#rd-mode-seg button[data-m="${m}"]`);
-    const judges = m === 'pos' ? ['g4', 'g35', 'c1'] : ['g4'];
-    for (const j of judges) {
-      if (m === 'pos') await pg.select('#rd-mode-judge', j);
-      for (let i = 0; i < 4; i++) {
-        await pg.$eval('#rd-mode-ctl-s', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, i);
-        const nsq = await pg.$$eval('#rd-mode-sq i', a => a.length);
-        if (nsq !== (m === 'pos' ? 80 : 20)) problems.push(`${w} modes ${m} squares ${nsq}`);
-        await scan(`modes ${m} ${j} ${i}`);
-        if (j === 'g4' && (i === 1 || i === 3)) await (await pg.$('#rd-mode-card')).screenshot({ path: path.join(shots, `mode_${m}_${i}_${w}.png`) });
-      }
-    }
-  }
   for (const b of ['all', 'HLE-Physics', 'PRISM-Physics', 'PHYBench', 'UGPhysics']) {
     await pg.select('#rd-att-b', b);
     for (let i = 0; i < 5; i++) {
@@ -65,16 +50,14 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     }
   }
   // play / pause / step buttons and speed
-  for (const c of ['rd-mode-ctl', 'rd-att-ctl']) {
+  for (const c of ['rd-att-ctl']) {
     for (const s of ['p', 'f', 'b', 'p']) { await pg.click(`#${c}-${s}`); await scan(`${c} ${s}`) }
     await pg.select(`#${c}-v`, '2'); actions++;
   }
-  for (const m of ['s1', 's2']) { await pg.click(`#rd-agr-seg button[data-m="${m}"]`); await scan('agr ' + m) }
-  await (await pg.$('#rd-agr-card')).screenshot({ path: path.join(shots, `agr_${w}.png`) });
-  for (const m of ['b', 'a']) { await pg.click(`#rd-kap-seg button[data-m="${m}"]`); await scan('kap ' + m) }
-  await (await pg.$('#rd-kap-card')).screenshot({ path: path.join(shots, `kap_${w}.png`) });
+  // hero figure drawn, with seven boxes
+  const nb = await pg.$$eval('#rd-hero svg rect', a => a.length); if (nb !== 7) problems.push(`${w} hero boxes ${nb}`);
+  await (await pg.$('#rd-hero-card')).screenshot({ path: path.join(shots, `hero_${w}.png`) });
   await (await pg.$('#rd-ci-card')).screenshot({ path: path.join(shots, `ci_${w}.png`) });
-  const kb = await pg.$eval('#rd-kap-out', e => e.innerText); if (!/0\.00/.test(kb)) problems.push('kappa a not 0.00');
   // nav links and tab links inside reading
   const nav = await pg.$$eval('#rd-nav a', a => a.map(x => x.getAttribute('href')));
   for (const h of nav) { await pg.click(`#rd-nav a[href="${h}"]`); await scan('nav ' + h) }
