@@ -15,7 +15,7 @@ for n in bastion node1 node2; do mkdir -p "$W/cfg_$n"; cp "$HERE/lab/sshd_config
 export PROTO_SRC=$(cd "$HERE/../.." && pwd)/src
 cd "$W/keys"
 for k in id_ed25519 user_ca host_ca id_cert_only; do [ -f $k ] || ssh-keygen -q -t ed25519 -N '' -C "lab $k" -f $k; done
-for n in bastion node1 node2; do cp user_ca.pub "$W/cfg_$n/"; cp id_ed25519.pub "$W/cfg_$n/authorized_keys.khalid"; done
+for n in bastion node1 node2; do cp user_ca.pub "$W/cfg_$n/"; cp id_ed25519.pub "$W/cfg_$n/authorized_keys.dev"; done
 cd "$W/lab"
 docker build -q -t proto-ssh-edge:1 -f Dockerfile.edge . >/dev/null
 docker build -q -t proto-ssh-legacy:1 -f Dockerfile.legacy . >/dev/null

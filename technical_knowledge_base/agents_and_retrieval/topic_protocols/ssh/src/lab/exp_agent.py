@@ -6,9 +6,9 @@ AG = f"{SSH} -o IdentityAgent=a.sock"
 run("ssh-add -D", env=A); run("ssh-add keys/id_ed25519", env=A)
 # bastion needs to know the nodes' host keys for the hop it makes itself
 run(f"{SSH} bastion 'mkdir -p ~/.ssh; ssh-keyscan -t ed25519 gpu-node-01 gpu-node-02 > ~/.ssh/known_hosts 2>/dev/null'")
-ROOTSPY = ("docker exec proto-ssh-bastion sh -c 'for s in $(find /home/khalid/.ssh/agent /tmp -type s 2>/dev/null); do "
+ROOTSPY = ("docker exec proto-ssh-bastion sh -c 'for s in $(find /home/dev/.ssh/agent /tmp -type s 2>/dev/null); do "
            "echo socket: $s; SSH_AUTH_SOCK=$s ssh-add -l; "
-           "for h in gpu-node-01 gpu-node-02; do SSH_AUTH_SOCK=$s ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR khalid@$h \"echo root on bastion logged in to \\$(hostname) as \\$(id -un)\" || echo root on bastion refused at $h; done; done; echo done'")
+           "for h in gpu-node-01 gpu-node-02; do SSH_AUTH_SOCK=$s ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR dev@$h \"echo root on bastion logged in to \\$(hostname) as \\$(id -un)\" || echo root on bastion refused at $h; done; done; echo done'")
 def scenario(name, sess_cmd, note):
     p = subprocess.Popen(sess_cmd, shell=True, cwd=S, env=dict(os.environ, **A), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     time.sleep(2.5)

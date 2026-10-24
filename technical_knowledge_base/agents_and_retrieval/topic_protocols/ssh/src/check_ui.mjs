@@ -49,15 +49,17 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   };
   const seg = async (segId, m) => p.evaluate((s, m) => document.querySelector('#' + s + ' [data-m="' + m + '"]').click(), segId, m);
   await p.click('#tabs button[data-t="t-read"]');
-  await shot('one-topo', 'one-topo'); await shot('layers-fig', 'layers');
+  await shot('hero-card', 'hero'); await shot('layers-fig', 'layers');
   for (const m of ['curve25519-sha256', 'sntrup761x25519-sha512', 'ecdh-sha2-nistp256', 'mlkem768x25519-sha256']) { await seg('hs-seg', m); await scrub('hs-ctl', 'hs ' + m); }
   await p.evaluate(() => { const r = document.getElementById('hs-ctl-s'); r.value = 4; r.dispatchEvent(new Event('input')); }); await shot('hs-card', 'hs');
   await shot('rtt-fig', 'rtt');
-  for (const m of ['cert_expired', 'cert_wrong_principal', 'cert_no_principal', 'cert_revoked']) { await seg('cert-seg', m); await check('cert ' + m); }
+  for (const m of ['cert_good', 'cert_expired', 'cert_wrong_principal', 'cert_no_principal', 'cert_revoked']) { await seg('cert-seg', m); await check('cert ' + m); }
   await shot('cert-card', 'cert');
   for (const m of ['forward', 'constrained', 'proxyjump']) { await seg('ag-seg', m); await scrub('ag-ctl', 'agent ' + m); }
   await seg('ag-seg', 'forward'); await p.evaluate(() => { const r = document.getElementById('ag-ctl-s'); r.value = 3; r.dispatchEvent(new Event('input')); }); await shot('ag-card', 'agent');
   for (const m of ['fresh', 'mux', 'both']) { await seg('mux-seg', m); await scrub('mux-ctl', 'mux ' + m); }
+  for (const c of ['hk', 'hc', 'pj', 'tn']) { await scrub(c + '-ctl', 'stepper ' + c); await shot(c + '-card', 'step-' + c); }
+  for (const f of ['ca-fig', 'ka-fig', 'pen-fig', 'dbg-fig']) await shot(f, f);
   await shot('mux-card', 'mux'); await shot('fwd-fig', 'fwd'); await shot('reach-tbl', 'reach'); await shot('xfer-fig', 'xfer');
   const nc = await p.$$eval('#cfg-card .cfg div[role=option]', d => d.length);
   for (let i = 0; i < nc; i++) { await p.evaluate(i => document.querySelectorAll('#cfg-card .cfg div[role=option]')[i].click(), i); await check('cfg ' + i); }
@@ -68,10 +70,6 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   const nn = await p.$$eval('#rd-nav a', a => a.length);
   for (let i = 0; i < nn; i++) { await p.evaluate(i => document.querySelectorAll('#rd-nav a')[i].click(), i); }
   await check('nav');
-  // Cluster lab
-  await p.click('#tabs button[data-t="t-lab"]');
-  const ns = await p.$$eval('#lab-list button', b => b.length);
-  for (let i = 0; i < ns; i++) { await p.evaluate(i => document.querySelectorAll('#lab-list button')[i].click(), i); await scrub('lab-ctl', 'lab ' + i); if (i === 2 || i === 7) await shot('lab-card', 'lab' + i); }
   // Error decoder
   await p.click('#tabs button[data-t="t-err"]');
   const ne = await p.$$eval('#err-list button', b => b.length);
@@ -85,6 +83,14 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   const links = await p.$$eval('#t-more a[target=_blank]', a => a.filter(x => !/^https:\/\//.test(x.href)).length); if (links) { bad++; console.log('FAIL non-https link'); }
   await p.close();
 }
+{ const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(page_url);
+  const ids = await p.$$eval('#t-read input[type=range]', r => r.map(x => x.id));
+  for (const id of ids) { await p.$eval('#' + id, e => e.closest('.card').scrollIntoView()); await sleep(250); }
+  await sleep(3500);
+  const moved = await p.$$eval('#t-read input[type=range]', r => r.filter(x => +x.value !== 0 && x.id !== 'hs-ctl-s').map(x => x.id + '=' + x.value));
+  const hs = await p.$eval('#hs-ctl-s', x => +x.value);
+  total++; if (moved.length || hs !== 0) { bad++; console.log('FAIL autoplay', moved, 'hs', hs); } else console.log('no autoplay: ' + ids.length + ' animations still on step 1');
+  await p.close(); }
 await browser.close();
 console.log('checks', total, 'failures', bad);
 process.exit(bad ? 1 : 0);

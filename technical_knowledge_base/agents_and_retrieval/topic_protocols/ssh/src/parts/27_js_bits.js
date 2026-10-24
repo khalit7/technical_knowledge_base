@@ -3,7 +3,7 @@
   const L=SSHD.logs;
   // certificates: client side against server side
   const co=document.getElementById('cert-out');
-  function cert(k){const t=L[k]||'';const parts=t.split('--- gpu-node-01 sshd log ---');const cl=(parts[0]||'').split('\n').filter(l=>/Offering public key: .*cert_only|Permission denied|Authenticated to gpu|Warning: certificate|^\s+(Valid|Serial|Principals|alice|khalid$)|revoked|\[exit/.test(l)).join('\n');
+  function cert(k){const t=L[k]||'';const parts=t.split('--- gpu-node-01 sshd log ---');const cl=(parts[0]||'').split('\n').filter(l=>/Offering public key: .*cert_only|Permission denied|Authenticated to gpu|Warning: certificate|^\s+(Valid|Serial|Principals|alice|dev$)|revoked|\[exit/.test(l)).join('\n');
     const sv=(parts[1]||'').split('\n').filter(l=>/Refusing|revoked|Failed publickey|Accepted|invalid/i.test(l)).join('\n');
     co.innerHTML='<div><div class="band">What the client shows</div><pre class="blk">'+RD.esc(cl)+'</pre></div><div><div class="band">What the node logs</div><pre class="blk">'+RD.esc(sv)+'</pre></div>'}
   cert('cert_expired');RD.seg(document.getElementById('cert-seg'),cert);

@@ -27,14 +27,14 @@ probes = {
   "alice on gpu-node-01 -> 127.0.0.1:8888 with the token": f"docker exec -u alice proto-ssh-node1 {PY} 'http://127.0.0.1:8888/?token={TOK}'",
   "gpu-node-02 -> gpu-node-01:8888 (loopback-bound)": f"docker exec proto-ssh-node2 {PY} http://gpu-node-01:8888/",
   "gpu-node-02 -> gpu-node-01:8889 (bound to 0.0.0.0)": f"docker exec proto-ssh-node2 {PY} http://gpu-node-01:8889/",
-  "alice on gpu-node-01 -> Unix socket in khalid's 0700 directory": "docker exec -u alice proto-ssh-node1 python3 -c \"import socket;s=socket.socket(socket.AF_UNIX)\ntry:\n s.connect('/home/khalid/.nb/nb.sock');print('connected')\nexcept Exception as e: print('refused:',e)\"",
+  "alice on gpu-node-01 -> Unix socket in dev's 0700 directory": "docker exec -u alice proto-ssh-node1 python3 -c \"import socket;s=socket.socket(socket.AF_UNIX)\ntry:\n s.connect('/home/dev/.nb/nb.sock');print('connected')\nexcept Exception as e: print('refused:',e)\"",
 }
 res = {k: run(v)[1].strip() for k, v in probes.items()}
 json.dump(res, open(os.path.join(RAW, "fwd_who_reaches.json"), "w"), indent=1); print(json.dumps(res, indent=1))
 # 3. -L to a Unix socket on the node
-p = bg(f"{SSH} -N -L 30986:/home/khalid/.nb/nb.sock gpu-node-01")
+p = bg(f"{SSH} -N -L 30986:/home/dev/.nb/nb.sock gpu-node-01")
 r = run(f"curl -sS -m 5 'http://127.0.0.1:30986/?token={TOK}'")[1]; stop(p)
-save("fwd_L_unix.txt", f"# ssh -N -L 30986:/home/khalid/.nb/nb.sock gpu-node-01: a TCP port on the laptop to a Unix socket on the node\n$ curl http://127.0.0.1:30986/?token=...\n{r}")
+save("fwd_L_unix.txt", f"# ssh -N -L 30986:/home/dev/.nb/nb.sock gpu-node-01: a TCP port on the laptop to a Unix socket on the node\n$ curl http://127.0.0.1:30986/?token=...\n{r}")
 # 4. -D: a SOCKS proxy on the laptop; names resolve on the far side only with socks5h
 p = bg(f"{SSH} -N -D 30989 bastion")
 a = run(f"curl -sS -m 5 --socks5-hostname 127.0.0.1:30989 'http://gpu-node-01:8889/?token={TOK}'")

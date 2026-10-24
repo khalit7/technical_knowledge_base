@@ -52,9 +52,9 @@ keep = [l for l in o.splitlines() if l.split(" ")[0] in ("hostname", "user", "po
         "userknownhostsfile", "controlmaster", "controlpath", "serveraliveinterval", "serveralivecountmax", "kexalgorithms", "forwardagent", "warnweakcrypto")]
 save("ssh_G.txt", "# ssh -G gpu-node-01: what the client will actually use (config resolved, defaults filled in)\n" + "\n".join(keep) + "\n")
 # f. ssh -Z (new in 10.5), run with the bastion's 10.5 client
-run("docker exec -u khalid proto-ssh-bastion sh -c 'cd ~/.ssh && for t in ed25519 ecdsa; do [ -f id_$t ] || ssh-keygen -q -t $t -N \"\" -f id_$t; done'")
-o = run("docker exec -u khalid proto-ssh-bastion ssh -Z khalid@gpu-node-01")
-save("ssh_Z.txt", f"# ssh -Z (OpenSSH 10.5): the keys that would be tried, in order, without connecting. Run on the bastion (10.5p1 client); the laptop's 10.3p1 client lacks it\n$ ssh -Z khalid@gpu-node-01\n[exit {o[0]}]\n{o[1]}{o[2]}")
+run("docker exec -u dev proto-ssh-bastion sh -c 'cd ~/.ssh && for t in ed25519 ecdsa; do [ -f id_$t ] || ssh-keygen -q -t $t -N \"\" -f id_$t; done'")
+o = run("docker exec -u dev proto-ssh-bastion ssh -Z dev@gpu-node-01")
+save("ssh_Z.txt", f"# ssh -Z (OpenSSH 10.5): the keys that would be tried, in order, without connecting. Run on the bastion (10.5p1 client); the laptop's 10.3p1 client lacks it\n$ ssh -Z dev@gpu-node-01\n[exit {o[0]}]\n{o[1]}{o[2]}")
 # g. what the banner says against what is installed (distributions backport fixes without changing the version)
 b = run(f"{SSH} -v gpu-node-02 true")[2]
 ban = [l for l in b.splitlines() if "remote software version" in l]
