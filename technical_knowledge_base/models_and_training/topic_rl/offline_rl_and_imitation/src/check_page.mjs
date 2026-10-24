@@ -20,6 +20,13 @@ const bad = async (where) => { const t = await p.evaluate(() => document.body.in
 const shot = async (sel, name) => { const el = await p.$(sel); if (el) await el.screenshot({ path: path.join(out, name + '-' + scheme + '-' + width + '.png') }) };
 const scrub = async (id, v) => p.evaluate((id, v) => { const s = document.getElementById(id); s.value = v; s.dispatchEvent(new Event('input')) }, id, v);
 const info = {};
+// nothing may move before the reader acts: scroll past both animations, wait, and require step 0 and no Pause button
+for (const id of ['dv', 'xq']) { await p.evaluate(id => document.getElementById(id).scrollIntoView(), id); await wait(1600) }
+const moved = await p.evaluate(() => ['dv-C', 'xq-C'].filter(id => +document.getElementById(id + '-s').value !== 0 || /Pause/.test(document.getElementById(id + '-p').textContent)));
+if (moved.length) errs.push('autoplay: ' + moved.join(', '));
+// the expectile slider and the hero's section jumps
+for (const v of ['0.5', '0.7', '0.99', '0.9']) { await p.evaluate(v => { const s = document.getElementById('rd-ex'); s.value = v; s.dispatchEvent(new Event('input')) }, v); await bad('ex ' + v) }
+info.ex = await p.evaluate(() => document.getElementById('rd-exP').innerText);
 // driving animation
 await p.evaluate(() => document.getElementById('dv').scrollIntoView()); await wait(300);
 for (const m of ['bc', 'dag']) { await p.click(`#dv-M button[data-m=${m}]`);
