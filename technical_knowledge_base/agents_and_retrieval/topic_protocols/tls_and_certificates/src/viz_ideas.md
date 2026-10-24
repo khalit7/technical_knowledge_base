@@ -28,3 +28,8 @@ Scores: teaching value x data quality x novelty against the parent and siblings 
 
 ## What the methodology lacked
 Protocol pages have no published figures to reproduce; the equivalent check here is decryption: the page's numbers come from records that `recompute.py` re-decrypts, and whose Finished MACs it recomputes from the key log.
+
+## 2026-10-24 rebuild (teaching contract)
+- Moved inline: rank 1 (Handshake, decrypted) to Reading section 2 and rank 4 (Certificate dissector) to section 4; both explain one mechanism, and the prose described them in words one click away.
+- Added, static SVG at measured width (kind of concept: structure or process shown as stills): hero sequence diagram (key shares, certificate and signature, Finished, AEAD records); a record to scale (277 + 1 + 16 behind a 5-byte header); the key schedule, simplified (inputs, HKDF, six outputs; the earlier rejection was of an animated tree with real values, which the key log cannot supply; this one is structural and says it is simplified); full against resumed against 0-RTT handshakes with the replay; the real api.anthropic.com chain with the cross-sign and two paths to a root; revocation paths; termination hops on a serving path; TLS inspection and which clients trust it.
+- Rejected: an MTC size bar (still no implementation to measure); photos (nothing physical to show).

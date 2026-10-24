@@ -1,27 +1,42 @@
-<div class="tab" id="t-read">
-<nav class="nav" id="rd-nav"><a href="#s-one">One screen</a><a href="#s-tools">1 Building blocks</a><a href="#s-hs">2 Handshake</a><a href="#s-res">3 Resumption, 0-RTT</a><a href="#s-x509">4 Certificates</a><a href="#s-issue">5 Issuance</a><a href="#s-rev">6 Revocation</a><a href="#s-mtls">7 mTLS</a><a href="#s-pq">8 Post-quantum</a><a href="#s-trust">9 Trust stores, failures</a><a href="#s-ml">10 ML serving</a><a href="#s-iv">11 Interview</a><a href="#s-new">Recent changes</a><a href="#s-gl">Glossary</a></nav>
 
 <section id="s-one">
-<h2>TLS in one screen</h2>
-<p class="lead">Your code sends <code>POST /v1/messages</code> with an API key and a user's words. Between your laptop and the API sit a Wi-Fi router, an internet provider, maybe a corporate proxy and several cloud hops; any of them could read those bytes, change them, or pretend to be the API. <b>TLS</b> (Transport Layer Security) is the layer that stops all three. It runs on top of TCP (or inside QUIC for HTTP/3), under HTTP, and it is the "S" in HTTPS. The current version is TLS 1.3, re-published in July 2026 as {{RFC 9846|https://www.rfc-editor.org/rfc/rfc9846}}, which replaced RFC 8446 (and TLS 1.2's RFC 5246).</p>
-<div class="grid">
-<div class="sp"><div class="n">Confidentiality</div><p>Nobody in between can read the request or the streamed tokens. Done with a symmetric cipher keyed by a secret the two ends agree on in public (section 1).</p></div>
-<div class="sp"><div class="n">Integrity</div><p>Any changed, dropped or reordered byte is detected and the connection fails. Done with authenticated encryption: every record carries a tag.</p></div>
-<div class="sp"><div class="n">Authentication</div><p>The client knows it reached the real <code>api.anthropic.com</code>: the server proves it holds the private key named in a certificate that a trusted authority signed (sections 4 and 5). With mutual TLS the client proves it too (section 7).</p></div>
-</div>
-<p>The whole handshake, as recorded on this machine for the running request (TLS 1.3, Python 3.13 with OpenSSL 3.5.9, 5 October 2026). Grey is readable by anyone on the path; the lock means encrypted. One round trip, then the request:</p>
+<h2>The idea in one screen</h2>
+<p class="lead core1"><b>TLS agrees a fresh secret with a stranger in public, proves the stranger is the named server by a signature that chains up to a root your client already trusts, and then encrypts every byte with keys derived from that secret and the whole conversation.</b></p>
+<p>Your code sends <code>POST /v1/messages</code> with an API key and a user's words. Between your laptop and the API sit a Wi-Fi router, an internet provider, maybe a corporate proxy and several cloud hops. Any of them could <i>read</i> those bytes, <i>change</i> them, or <i>pretend</i> to be the API. TLS (Transport Layer Security) stops all three: it gives confidentiality, integrity and authentication. It runs on top of TCP (or inside QUIC for HTTP/3), under HTTP, and it is the "S" in HTTPS. The current version is TLS 1.3, re-published in July 2026 as {{RFC 9846|https://www.rfc-editor.org/rfc/rfc9846}}, which replaced RFC 8446 (and TLS 1.2's RFC 5246).</p>
+<figure class="tl-fig" id="tl-hero-card">
+<figcaption class="tl-ft">One round trip buys all three properties</figcaption>
+<div id="tl-hero" class="tl-svg"></div>
+<ol class="tl-legend">
+<li><b>Key shares</b> cross in the clear; each side combines its own private value with the other's public one and both get the same <span class="hlw">secret</span>. Fresh per connection, so a key stolen later unlocks nothing recorded today (forward secrecy). Confidentiality.</li>
+<li>The server sends its <b>certificate chain</b> and signs the transcript with the certificate's private key. The client checks the chain up to a <span class="hlw">root in its own trust store</span>, the dates and the name. Authentication.</li>
+<li><b>Finished</b>: each side sends a MAC over every handshake byte. A changed byte means different keys and a failed check. Integrity.</li>
+<li>Everything after travels in <b>AEAD records</b> keyed from the secret. The request leaves one round trip after TCP's.</li>
+</ol>
+</figure>
+<p>The same handshake, as recorded on this machine for the running request (Python 3.13 with OpenSSL 3.5.9, 5 October 2026). Grey-yellow chips are readable by anyone on the path; the lock means encrypted:</p>
 <div class="card" id="one-fig"></div>
+<p class="small"><b>You need</b>: TCP, round trips and the congestion window from {{Networking foundations|n:3c65c17b0d0d8117b21dcb9041879564}}; what HTTP sends inside the pipe from {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}}. <b>Not here</b>: API keys and OAuth tokens inside the encrypted request ({{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}}), the name lookup that happens first, CAA and the HTTPS record ({{DNS|n:3c65c17b0d0d812387d8f92b546f07af}}), SSH keys ({{SSH|n:3c65c17b0d0d81f88f50e478c94ebdcd}}). The parent's {{On the wire|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab times TLS 1.2 against 1.3 and a cold against a resumed connection on an emulated 50 ms path, and its {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab reproduces eight TLS failures with the exact error text of five clients; this page links them by name instead of repeating them.</p>
+<details class="mist tl-terms"><summary>New terms on this page (open when one is unfamiliar)</summary><div class="b"><dl class="kv">
+<dt>AEAD</dt><dd>Authenticated encryption with associated data: a cipher that encrypts and adds a tag detecting any change (AES-GCM, ChaCha20-Poly1305).</dd>
+<dt>Key share, KEM</dt><dd>A public value for key exchange; a key encapsulation mechanism sends a secret wrapped to the other side's public key (ML-KEM).</dd>
+<dt>SNI, ALPN</dt><dd>Server Name Indication: the host name in the ClientHello, in clear unless ECH is used. Application-Layer Protocol Negotiation: the ClientHello extension that picks http/1.1, h2 or h3 inside the handshake.</dd>
+<dt>CA, root, intermediate</dt><dd>Certificate authority; a root is a self-signed CA certificate in a trust store; an intermediate is a CA certificate signed by a root that issues leaves.</dd>
+<dt>Trust store</dt><dd>The set of root certificates a client trusts; differs per OS, browser and runtime.</dd>
+<dt>SAN</dt><dd>Subject Alternative Name: the names (DNS, IP, URI) a certificate is valid for; the only place hostnames are checked.</dd>
+<dt>PSK, session ticket</dt><dd>Pre-shared key from an earlier session, carried in an opaque ticket, used for resumption.</dd>
+<dt>0-RTT, early data</dt><dd>Application data sent in the first flight of a resumed connection; replayable.</dd>
+<dt>mTLS</dt><dd>Mutual TLS: the client also presents a certificate and signs the transcript.</dd>
+<dt>Hybrid key exchange</dt><dd>A classical and a post-quantum exchange run together, both mixed into the secret (X25519MLKEM768).</dd>
+</dl><p class="small mute">The full glossary is in the Reference section at the end.</p></div></details>
 <h3>What to remember</h3>
 <ol class="tight">
-<li><b>Two handshakes before the first byte.</b> A new HTTPS connection costs TCP's round trip plus one for TLS 1.3 (two for TLS 1.2). Reuse connections: on this machine a request on a kept-alive connection took 0.05 ms against 1.4 ms with a fresh handshake, even with no network delay at all (section 10).</li>
-<li><b>Forward secrecy is built in.</b> Every connection agrees on a fresh key; stealing the server's long-term key later does not unlock recorded traffic.</li>
-<li><b>A certificate binds a name to a public key</b>, signed by a certificate authority (CA) your trust store already trusts. The client checks the signatures up to that root, the dates, and that the name it dialled is in the certificate's subject alternative names.</li>
-<li><b>Most TLS outages are certificate operations</b>: expiry, a missing intermediate, a trust store that lacks a root, a clock that is wrong. Public certificates now last at most 200 days, falling to 47 by March 2029, so renewal must be automatic (ACME, section 5).</li>
+<li><b>Two handshakes before the first byte.</b> A new HTTPS connection costs TCP's round trip plus one for TLS 1.3 (two for TLS 1.2). Reuse connections: on this machine a request on a kept-alive connection took 0.05 ms against 1.4 ms with a fresh handshake, even with no network delay at all (section 3).</li>
+<li><b>A certificate binds a name to a public key</b>, signed by a certificate authority (CA) your trust store already trusts. Most TLS outages are certificate operations: expiry, a missing intermediate, a trust store that lacks a root, a wrong clock. Public certificates now last at most 200 days, falling to 47 by March 2029, so renewal must be automatic (ACME, section 5).</li>
 <li><b>0-RTT early data can be replayed.</b> Recorded here: one captured request replayed to nginx produced three more billed generations (section 3). Never accept a generation or a tool call as early data.</li>
 <li><b>Post-quantum key exchange is already on</b>: 10 of the 12 public endpoints probed here (Anthropic, OpenAI, Google, Hugging Face and others) negotiated the hybrid X25519MLKEM768. Post-quantum <i>certificates</i> are years away because their signatures are large (section 8).</li>
 <li><b>Never "fix" a certificate error by disabling verification.</b> Serve the full chain, or add the right CA to the right trust store; which variable each client reads is measured in section 9.</li>
 </ol>
-<h3>Symptom to section</h3>
+<details class="mist"><summary>Symptom to section: an error message, its likely cause, where to read</summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>You see</th><th>Likely cause</th><th>Go to</th></tr></thead>
 <tbody>
@@ -32,6 +47,5 @@
 <tr><td>gRPC fails only behind a load balancer</td><td>No ALPN <code>h2</code> on that hop</td><td><a href="#s-ml">10</a></td></tr>
 <tr><td>Handshake fails only through one network, after a library upgrade</td><td>A middlebox that cannot handle a large post-quantum ClientHello</td><td><a href="#s-pq">8</a></td></tr>
 <tr><td>Duplicate generations or tool calls after enabling "TLS 1.3 early data"</td><td>0-RTT replay</td><td><a href="#s-res">3</a></td></tr>
-</tbody></table></div>
-<p class="small mute">Neighbours: the parent page's {{On the wire|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab times TLS 1.2 against 1.3 and a cold against a resumed connection on an emulated 50 ms path, and its {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab reproduces eight TLS failures with the exact error text of five clients; this page links them by name instead of repeating them. {{Networking foundations|n:3c65c17b0d0d8117b21dcb9041879564}} owns TCP and QUIC underneath, {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}} what runs on top, {{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}} the tokens and keys inside the encrypted request, and {{DNS|n:3c65c17b0d0d812387d8f92b546f07af}} the lookup that happens first (CAA records, the HTTPS record that carries the ECH key, DNS-01 validation).</p>
+</tbody></table></div></div></details>
 </section>

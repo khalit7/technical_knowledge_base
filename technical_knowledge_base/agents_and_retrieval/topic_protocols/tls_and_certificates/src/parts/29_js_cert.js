@@ -1,4 +1,4 @@
-// ---- Tab: Certificate dissector (real chains, field explanations, client-side checks with faults) ----
+// ---- Reading section 4: Certificate dissector (real chains, field explanations, client-side checks with faults) ----
 window.CERTCHK=(function(){
   // RFC 9525: exact match, or a wildcard as the whole left-most label matching exactly one label
   function nameMatch(name,sans){

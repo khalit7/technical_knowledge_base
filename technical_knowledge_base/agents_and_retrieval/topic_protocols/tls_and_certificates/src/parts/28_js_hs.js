@@ -1,4 +1,4 @@
-// ---- Tab: Handshake, decrypted (record-by-record stepper) ----
+// ---- Reading section 2: Handshake, decrypted (record-by-record stepper) ----
 (function(){
   const D=window.D,fmt=TLS.fmt,esc=RD.esc;
   let rec='tls13',view='obs';
@@ -64,7 +64,7 @@
   }
   list.addEventListener('click',e=>{const tr=e.target.closest('tr[data-i]');if(tr)A.go(+tr.dataset.i)});
   build();
-  const A=RD.anim({card:'hs-card',ctl:'hs-ctl',n:D.hs[rec].recs.length,draw,ms:1600,label:'Record',tab:'t-hs'});
+  const A=RD.anim({card:'hs-card',ctl:'hs-ctl',n:D.hs[rec].recs.length,draw,ms:1600,label:'Record'});
   RD.seg(document.getElementById('hs-rec'),m=>{rec=m;build();A.reset(D.hs[rec].recs.length)});
   RD.seg(document.getElementById('hs-view'),m=>{view=m;build();A.redraw()});
 })();
