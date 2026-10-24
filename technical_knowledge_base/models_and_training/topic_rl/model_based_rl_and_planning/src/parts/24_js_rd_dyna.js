@@ -1,4 +1,4 @@
-// ---- Reading section 2 and 3: Dyna maze animation (Figure 8.3), Figure 8.2 curves, Figures 8.4 and 8.5 ----
+// ---- Reading section 2: the maze drawer and the episode-2 animation (Figure 8.3); the curves are in 31_js_dyna.js ----
 (function(){
   const DY={alpha:0.1,eps:0.1,gamma:0.95};
   const ARW=['&#8593;','&#8595;','&#8594;','&#8592;'];
@@ -31,34 +31,8 @@
     const msOf=()=>Math.max(40,Math.round(12000/ep.frames.length));
     an=RD.anim({card:'rd-dq',ctl:'rd-dqC',n:ep.frames.length,draw,ms:msOf(),label:'Step of episode 2'});
     document.getElementById('rd-dqM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
-      document.querySelectorAll('#rd-dqM button').forEach(x=>x.classList.toggle('on',x===b));n=+b.dataset.n;load();an.reset(ep.frames.length);an.play()});
+      document.querySelectorAll('#rd-dqM button').forEach(x=>x.classList.toggle('on',x===b));n=+b.dataset.n;load();an.reset(ep.frames.length)});
     RD.onResize(()=>an.redraw());
   }
 
-  // ---- 2b. Figure 8.2 ----
-  const f82=document.getElementById('rd-f82P');let cur=null;
-  function drawF82(){if(!f82)return;if(!cur)cur=MB.dynaCurves([0,5,50],30,50,DY);
-    const xs=[];for(let e=2;e<=50;e++)xs.push(e);const se=[[0,'var(--c2)','n = 0 (direct RL only)'],[5,'var(--c3)','n = 5'],[50,'var(--c1)','n = 50']].map(([n,col,lab])=>({xs,ys:cur[n].mean.slice(1),col,lab,w:1.8}));
-    RD.chart(f82,se,{x0:2,x1:50,y0:0,y1:800,H:230,xt:[[2,'2'],[10,'10'],[20,'20'],[30,'30'],[40,'40'],[50,'50 episodes']],yt:[[0,'0'],[200,'200'],[400,'400'],[600,'600'],[800,'800']],ylab:'steps per episode',hl:[{y:14,lab:'shortest path: 14 steps'}],label:'Steps per episode for n = 0, 5 and 50'});
-    RD.legend(document.getElementById('rd-f82L'),se);
-    const reach=n=>{const m=cur[n].mean;for(let e=1;e<50;e++)if(m.slice(e).every(x=>x<=20))return e+1;return '>50'};
-    const first=cur[0].first.reduce((a,b)=>a+b,0)/cur[0].first.length;
-    document.getElementById('rd-f82R').innerHTML='<b>Defaults reproduce the shape of Sutton and Barto\'s Figure 8.2, independently</b> (same maze, α, ε, γ, 30 runs, random tie-breaking; our random numbers). Every later mean is at most 20 steps from episode '+reach(0)+' for n = 0, '+reach(5)+' for n = 5 and '+reach(50)+' for n = 50; the book reads about 25, 5 and 3 episodes to ε-optimal. <b>Not reproduced:</b> the book\'s first episode, "about 1700 steps". Here it averages '+first.toFixed(0)+' over the 30 runs, and the exact expected length of a random walk from S to G in this layout is 869 steps (computed in src/recompute.py); the book does not say whether 1,700 is one run or a mean. The shortest path is 14 steps; with ε = 0.1 the ε-greedy mean stays a few steps above it.'}
-  RD.onRender(drawF82);RD.onResize(drawF82);
-
-  // ---- 3. Figures 8.4 and 8.5 (computed after first paint: about 18 million table updates) ----
-  const CH={n:50,alpha:1,eps:0.1,gamma:0.95,kappa:1e-3,runs:20};let ch=null;
-  function compCh(){ch={};for(const [nm,steps,sw] of [['block',3000,1000],['short',6000,3000]])for(const plus of [false,true])ch[nm+(plus?'+':'')]=MB.changingMaze(nm,plus,steps,sw,CH.n,CH.alpha,CH.eps,CH.gamma,plus?CH.kappa:0,CH.runs)}
-  function drawCh(){const a=document.getElementById('rd-f84P'),b=document.getElementById('rd-f85P');if(!a)return;
-    if(!ch){a.innerHTML=b.innerHTML='<p class="small mute">Computing 20 runs of each agent...</p>';setTimeout(()=>{compCh();drawCh()},30);return}
-    const one=(el,nm,steps,sw,top)=>{const xs=[];for(let t=0;t<steps;t+=20)xs.push(t+1);const pick=arr=>xs.map(x=>arr[x-1]);
-      RD.chart(el,[{xs,ys:pick(ch[nm]),col:'var(--c2)',w:1.8},{xs,ys:pick(ch[nm+'+']),col:'var(--c1)',w:1.8}],{x0:0,x1:steps,y0:0,y1:top,H:200,
-        xt:[[0,'0'],[sw,sw.toLocaleString('en-US')],[steps,steps.toLocaleString('en-US')+' steps']],yt:[[0,'0'],[top/2,String(top/2)],[top,String(top)]],ylab:'cumulative reward',
-        extra:(X,Y)=>'<line x1="'+X(sw)+'" x2="'+X(sw)+'" y1="'+Y(top)+'" y2="'+Y(0)+'" stroke="var(--mute)" stroke-dasharray="3 3"/>',label:'Cumulative reward, '+nm+' maze'})};
-    one(a,'block',3000,1000,200);one(b,'short',6000,3000,400);
-    const sl=(arr,k)=>(arr[arr.length-1]-arr[arr.length-1-k])/k,e=v=>(1/v).toFixed(1);
-    document.getElementById('rd-f845R').innerHTML='<b>Defaults reproduce the shape of Figures 8.4 and 8.5, independently.</b> The book prints no parameters for these two figures; ours are α = 1 (the maze is deterministic), ε = 0.1, γ = 0.95, n = 50, κ = 10<sup>−3</sup>, layouts as in Zhang\'s reproduction code (illustrative choices, not the book\'s). Blocking maze at step 3,000: Dyna-Q+ '+ch['block+'][2999].toFixed(0)+' goals, Dyna-Q '+ch['block'][2999].toFixed(0)+' (the book\'s axis ends at 150). Shortcut maze at step 6,000: Dyna-Q+ '+ch['short+'][5999].toFixed(0)+', Dyna-Q '+ch['short'][5999].toFixed(0)+' (axis 400). Over the last 1,000 steps Dyna-Q reaches the goal every '+e(sl(ch['short'],1000))+' steps, the long way round; Dyna-Q+ every '+e(sl(ch['short+'],1000))+', through the shortcut. Rerun with other settings in the {{Dyna lab|#t-dyna}}.'.replace(/\{\{([^|]+)\|#(t-[\w-]+)\}\}/g,'<a href="#" data-tab="$2">$1</a>');
-    const rr=document.getElementById('rd-f845R');if(!rr.dataset.tl){rr.dataset.tl=1;RD.tabLinks(rr)}}
-  if('IntersectionObserver' in window){const c=document.getElementById('rd-f845');if(c){let done=false;new IntersectionObserver(es=>{if(!done&&es[es.length-1].isIntersecting){done=true;drawCh()}},{rootMargin:'300px'}).observe(c)}}else RD.onRender(drawCh);
-  RD.onResize(()=>{if(ch)drawCh()});
 })();

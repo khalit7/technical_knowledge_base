@@ -32,7 +32,7 @@
       N.innerHTML=RD.stat('Step',i,'of 50 (0.05 s each)')+RD.stat('Real θ',RD.n(MB.wrap(ro.T[i]),2),'rad')+RD.stat('Model θ',RD.n(MB.wrap(ro.M[i]),2),'rad')+RD.stat('Error',RD.n(e,3),'rad')}
     const an=RD.anim({card:'rd-pd',ctl:'rd-pdC',n:51,draw,ms:240,label:'Step'});
     document.getElementById('rd-pdM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
-      document.querySelectorAll('#rd-pdM button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;load();an.reset(51);an.play()});
+      document.querySelectorAll('#rd-pdM button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;load();an.reset(51)});
     RD.onResize(()=>an.redraw());}
   // ---- chart: error by horizon over 200 starts (log scale) ----
   const el=document.getElementById('rd-pc');let cv=null;
@@ -46,7 +46,7 @@
     RD.chart(P,se,{x0:1,x1:50,y0:-3.5,y1:0.5,H:240,xt:[[1,'1'],[10,'10'],[20,'20'],[30,'30'],[40,'40'],[50,'50 steps']],yt:[[-3,'0.001'],[-2,'0.01'],[-1,'0.1'],[0,'1 rad']],ylab:'mean |angle error|, log scale',label:'Model error by rollout length'});
     RD.legend(document.getElementById('rd-pcL'),se);
     const m=mean(cv.o),mb=mean(cv.b),avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
-    document.getElementById('rd-pcR').innerHTML='<b>Computed live from the five networks over 200 random starts and torque sequences; src/recompute.py gives the same values in Python.</b> Mean error: '+RD.n(m[0],4)+' rad after 1 step, '+RD.n(m[9],4)+' after 10, '+RD.n(m[24],3)+' after 25, '+RD.n(m[49],3)+' after 50 ('+Math.round(m[49]/m[0])+' times the one-step error). Mean over steps 1 to 50: '+RD.n(avg(m),4)+' open loop, '+RD.n(avg(mb),4)+' with restarts every 5 steps. Network 1 at step 50: median '+RD.n(D.m0_step50.median,3)+' rad, mean '+RD.n(D.m0_step50.mean,3)+', '+D.m0_step50.over_0p5+' of 200 starts off by more than 0.5 rad. The model, its data and its training are in src/fit_pendulum.py (illustrative in scale: one small ensemble on one environment).'}
+    document.getElementById('rd-pcR').innerHTML='<b>Computed live from the five networks over 200 random starts; src/recompute.py gives the same values in Python.</b> Mean error after 50 steps: '+RD.n(m[49],3)+' rad open loop; mean over steps 1 to 50: '+RD.n(avg(m),4)+' open loop, '+RD.n(avg(mb),4)+' with restarts every 5 steps. Illustrative in scale: one small ensemble on one environment.'}
   if(el&&'IntersectionObserver' in window){let done=false;new IntersectionObserver(es=>{if(!done&&es[es.length-1].isIntersecting){done=true;drawC()}},{rootMargin:'300px'}).observe(el)}
   RD.onResize(()=>{if(cv)drawC()});
 })();

@@ -1,9 +1,7 @@
-// ---- Dyna lab tab ----
+// ---- Reading sections 2 and 3: Figure 8.2 and Figures 8.4 and 8.5, rerun with the reader's settings (was the Dyna lab tab) ----
 (function(){
-  const tab=document.getElementById('t-dyna');if(!tab)return;
+  if(!document.getElementById('dl-a'))return;
   const $=id=>document.getElementById(id);
-  const reg=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-dyna']=window.TAB_RENDER['t-dyna']||[]).push(f)};
-  const visible=()=>!tab.hidden&&tab.offsetParent!==null;
   const COLS={0:'var(--c2)',1:'var(--c5)',5:'var(--c3)',10:'var(--c6)',50:'var(--c1)',200:'var(--c4)'};
   // ---- 1. Figure 8.2 ----
   let A=null;
@@ -43,14 +41,14 @@
     const sl=a=>(a[B.steps-1]-a[B.steps-1001])/1000,per=v=>v>0?(1/v).toFixed(1)+' steps per goal':'no goals';
     $('dl-bO').innerHTML=RD.stat('Dyna-Q at the end',B.q[B.steps-1].toFixed(1),'goals; last 1,000 steps: '+per(sl(B.q)))+RD.stat('Dyna-Q+ at the end',B.qp[B.steps-1].toFixed(1),'goals; last 1,000 steps: '+per(sl(B.qp)))+RD.stat('At the change',B.q[B.sw-1].toFixed(1)+' / '+B.qp[B.sw-1].toFixed(1),'Dyna-Q / Dyna-Q+');
     const def=B.n===50&&B.a===1&&Math.abs(B.k-1e-3)<1e-12&&B.runs===20;
-    $('dl-bRep').innerHTML=(def?'<b>Page defaults</b> (n = 50, α = 1, ε = 0.1, γ = 0.95, κ = 10<sup>−3</sup>, 20 runs): the same curves as Reading section 3, checked against Python. ':'Settings: n = '+B.n+', α = '+B.a.toFixed(2)+', κ = '+(B.k?B.k.toExponential(1):'0')+', '+B.runs+' runs. ')+'Too large a κ makes Dyna-Q+ wander testing old transitions instead of collecting reward; κ = 0 removes the incentive to re-test, and in the shortcut maze Dyna-Q+ then keeps the long path too. Computed in '+(B.ms/1000).toFixed(2)+' s.'}
+    $('dl-bRep').innerHTML=(def?'<b>Page defaults</b> (n = 50, α = 1, ε = 0.1, γ = 0.95, κ = 10<sup>−3</sup>, 20 runs): checked against Python. ':'Settings: n = '+B.n+', α = '+B.a.toFixed(2)+', κ = '+(B.k?B.k.toExponential(1):'0')+', '+B.runs+' runs. ')+'Too large a κ makes Dyna-Q+ wander testing old transitions instead of collecting reward; κ = 0 removes the incentive to re-test, and in the shortcut maze Dyna-Q+ then keeps the long path too. Computed in '+(B.ms/1000).toFixed(2)+' s.'}
   $('dl-bM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;document.querySelectorAll('#dl-bM button').forEach(x=>x.classList.toggle('on',x===b));maze=b.dataset.m;runB()});
   $('dl-bN').addEventListener('input',e=>{$('dl-bNv').textContent=e.target.value});
   $('dl-bK').addEventListener('input',()=>{const k=kappa();$('dl-bKv').textContent=k?k.toExponential(1):'0'});
   $('dl-bA').addEventListener('input',e=>{$('dl-bAv').textContent=(e.target.value/100).toFixed(2)});
   $('dl-bGo').addEventListener('click',runB);
   $('dl-bDef').addEventListener('click',()=>{$('dl-bN').value=50;$('dl-bK').value=20;$('dl-bA').value=100;$('dl-bR').value=20;$('dl-bNv').textContent='50';$('dl-bKv').textContent='1.0e-3';$('dl-bAv').textContent='1.00';runB()});
-  let started=false;
-  reg(()=>{if(!started){started=true;runA();runB()}else{drawA();drawB()}});
-  addEventListener('resize',()=>{if(visible()){drawA();drawB()}});
+  // computed when each card first comes near the screen; redrawn on resize
+  RD.lazy($('dl-a'),runA);RD.lazy($('dl-b'),runB);
+  RD.onRender(()=>{drawA();drawB()});RD.onResize(()=>{drawA();drawB()});
 })();

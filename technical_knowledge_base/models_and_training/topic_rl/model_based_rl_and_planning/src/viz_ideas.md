@@ -44,3 +44,9 @@ Chosen with the Methodology in `.claude/skills/explainer-page/visuals/choosing.m
 ## What the methodology lacked for this page
 - A rule for **training a small model for a page** (the tic-tac-toe network, the pendulum ensemble): we kept the training script, its log and seeds, stored the weights quantised and treated the quantised network as the object measured, so the page and Python agree exactly.
 - A rule for **diagrams that are not data** (the MuZero stepper): we labelled it "a diagram, not data" in the card.
+
+## 2026-10-24 rebuild (teaching contract)
+- Moved inline: the Dyna lab's two cards replace the Reading's Figure 8.2 and 8.4/8.5 cards (same defaults, plus controls; the 8.4/8.5 controls sit in a closed block); the Self-play lab's training-run and checkpoint-inspector cards sit in §7, its simulations-needed chart in §5 beside the claim it proves, its checkpoint table in a closed block. Both lab tabs removed.
+- Added, all hand-built SVG at the measured width: **hero** (Sutton and Barto's Figure 8.1 redrawn, static annotated, planning in the highlight colour); **AlphaGo against AlphaZero** (toggle-compare of the same search fed by four learned functions or by one network whose targets come from the search; the method that replaced another); **Dreamer's imagination** (static: the model learns on real frames, behaviour on latent steps only); **MPC's receding horizon** (static: plan 12, apply 1, replan).
+- Considered and rejected: a stepper for MPC on the learned pendulum (still the 600,000-model-call cost above); a chart of the video world models (categorical facts with different metrics; a table carries them).
+- Images: none. The page is about mechanisms; no openly licensed photo or paper figure teaches more than the redrawn diagrams (AlphaGo's and MuZero's figures are Nature/arXiv licensed, not reusable; Genie's frames are not openly licensed).
