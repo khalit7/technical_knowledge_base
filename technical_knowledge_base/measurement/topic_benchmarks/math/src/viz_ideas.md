@@ -10,11 +10,23 @@ Scores: quantity the reader moves (0-2), reproduces a published figure (x2), com
 | M2 | **Sample lab** | All 15,213 released answers for AIME 2025, AIME 2026, HMMT Feb 2026: scores by rule for any model, k = 1 to 4; answer grid; answer distribution per problem; all models with three kinds of interval; exact paired permutation test between any two | 2+2+2+2+2+2+1 = 13 | Same datasets; pass@1 reproduces 120 of 122 table rows exactly; the ± rule reproduces all 123 | Own tab | built |
 | M3 | **GSM-Symbolic, one question perturbed (before/after)** | Original GSM8K item, its template, three real instances, M1, P1, P2 and NoOp, with a chosen model's Table 1 accuracy bars, the 50-set spread and binomial chance at 100 items | 2+1+2+2+2+1+2 = 12 | arXiv 2410.05229v2 Figures 1, 5, 7 and Table 1; apple/GSM-Symbolic instances (verbatim, CC BY-NC-ND) | Reading, GSM8K | built |
 | M4 | **FrontierMath tier ladder filling by model release date** | Four tiers with Epoch's descriptions, access and holdout, and the best Epoch v2 score on Tiers 1-3 and Tier 4 as the date advances; counts of problems left | 1+1+2+2+2+2+1 = 11 | Epoch about page, v2 changelog, January 2025 statement; Epoch v2 series via the parent's saturation.json | Reading, FrontierMath | built |
-| M5 | **95% half-width by item count for the math sets** | At 80% or at today's top: AIME ±14.3 against GSM8K ±2.2 | 1+0+2+1+1+2+1 = 8 | 1.96·√(p(1−p)/n) | Reading, Error bars | built |
+| M5 | **95% half-width by item count for the math sets** | One accuracy slider (default 80%): AIME ±14.3 against GSM8K ±2.2; SVG since 2026-10-24 (was a two-mode toggle) | 2+0+2+1+1+2+1 = 9 | 1.96·√(p(1−p)/n) | Reading, Error bars | built |
 | M6 | MathArena interval rule | Not a chart: the ± reproduced as 1.96·√(p(1−p)/answers) on all 123 rows, against clustered and binomial-on-problems intervals | finding | recompute.py | Reading text and Sample lab | built |
 | M7 | Run a small open model on GSM-Symbolic offline | Would add real per-instance answers, but the paper's Table 1 already covers 25 models and the CPU budget is better spent on M2 | rejected | | | rejected |
 | M8 | Re-draw the saturation curves for GSM8K, MATH, AIME, FrontierMath | The parent's Saturation timeline owns them | rejected | | | rejected |
 | M9 | IMO score chart | Too few points and graded three different ways; a table with the grader stated is clearer | rejected | | | rejected |
 | M10 | Omni-MATH judge disagreement demo | No released per-item judge outputs to show; the board is dormant | rejected | | | rejected |
+
+## Added in the 2026-10-24 rebuild (teaching contract)
+| # | Idea | What it shows | Kind | Data | Placement | Status |
+|---|---|---|---|---|---|---|
+| M11 | **Hero: every math set by year and kind of check** | 17 sets on a grid (rows: proof checker to human graders; columns: year), coloured saturated, saturating, open, probe | static annotated diagram (structure) | the page's own dated table | Reading, top | built |
+| M12 | **One answer, three checkers** | HMMT Feb 2026 problem 7: a real boxed answer through exact string, normalised string and symbolic checks; then a truncated Cardano parse whose released grade does not follow the parse | stepper (process), real data | `mk_check_example.py` over MathArena/hmmt_feb_2026_outputs | Reading, section 1 | built |
+| M13 | **MATH test split to scale** | 12,500 = 7,500 + 5,000; 4,500 of the test into PRM800K, 500 = MATH-500 | static diagram | Hendrycks et al.; Lightman et al. | Reading, MATH | built |
+| M14 | **Contest freshness** | Best pre-contest (clean) against best later (flagged) score, AIME 2025, AIME 2026, HMMT Feb 2026 | before/after bars | MathArena tables, read 4 Oct 2026 | Reading, Contests | built |
+| M15 | **FrontierMath v1 against v2** | o4-mini and GPT-5 (high) on both versions | before/after slope | Epoch runs | Reading, FrontierMath | built |
+| M16 | **What the formal checker checks** | problem, formal statement, proof, kernel; only the last arrow is verified | static diagram | PutnamBench notes; Bastounis et al. | Reading, Formal | built |
+| M17 | A real image (photo or paper figure) | Math benchmarks are not physical objects, and no openly licensed canonical figure teaches more than M11 to M16 | | | | rejected |
+| M18 | Re-draw voting accuracy against k | Test-time compute and reasoning owns the method; this page keeps only "as reported" (M1) | | | | rejected |
 
 What the methodology lacked: a rule for intervals when a protocol has several runs per item (answers versus problems as the unit); this page reports all three and says which question each answers.
