@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "10 min read, +~3h 10m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "10 min read, +~3h 10m resources"', 'dropped: replaced by the measured reading time in the header (2026-10-25 light pass)', ['Reading: ', 'in closed details']),
  ('Authors: Su, Lu, Pan, Murtadha, Wen, Liu (Zhuiyi Technology, Shenzhen)', R + ', headline card', ['Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen, Yunfeng Liu', 'Zhuiyi Technology, Shenzhen']),
  ('Date: April 2021 arXiv v1; v5 November 2023; Neurocomputing 2024', R + ', headline card', ['April 2021', 'v5 November 2023', 'Neurocomputing 2024']),
  ('Link arXiv:2104.09864 (~45 min)', 'card and Further reading', ['https://arxiv.org/abs/2104.09864', '(45 min)']),
@@ -53,9 +53,9 @@ C = [
  ('Properties that won: exact relative + per-token absolute (cached keys rotated once), zero params, norm preservation, every layer', R + ', Why it matters', ['each cached key is rotated once, at cache time', 'zero parameters, norm preservation, and applicability at every layer']),
  ('Base frequency scaling: Llama 3 500,000; 1M common', R + ', Why it matters; Then and now', ['Llama 3 uses 500,000', '1,000,000 is common']),
  ('Position Interpolation (Meta 2023): m * L_train/L_target; small fine-tune', R + ', Why it matters; Then and now; toy PI test', ['Position Interpolation', 'within 1,000 fine-tuning steps']),
- ('NTK-aware / dynamic NTK: rescale the base; high-frequency dims interpolated less', R + ', Why it matters; Then and now', ['NTK-aware and dynamic NTK scaling', 'high-frequency pairs (local resolution) are interpolated less']),
- ('YaRN: NTK-by-parts plus temperature; standard for 128k+ models incl. DeepSeek', R + ', Why it matters; Then and now', ['NTK-by-parts', 'DeepSeek-V3\'s extension']),
- ('Partial and interleaved RoPE: GPT-NeoX rotary_pct; DeepSeek MLA decoupled RoPE key; Llama 4 iRoPE; Qwen2-VL M-RoPE', R + ', Why it matters; Then and now', ['rotary_pct', 'decoupled RoPE key', 'iRoPE', 'M-RoPE']),
+ ('NTK-aware / dynamic NTK: rescale the base; high-frequency dims interpolated less', 'Why it matters names it; taught on Positional Encodings section 7 (linked, 2026-10-25 light pass); Then and now steps it', ['NTK-aware scaling', 'NTK-aware, change the base instead']),
+ ('YaRN: NTK-by-parts plus temperature; standard for 128k+ models incl. DeepSeek', R + ', Why it matters; Then and now', ['NTK-by-parts', 'DeepSeek-V3 extends by a factor of 40']),
+ ('Partial and interleaved RoPE: GPT-NeoX rotary_pct; DeepSeek MLA decoupled RoPE key; Llama 4 iRoPE; Qwen2-VL M-RoPE', R + ', Why it matters (follow-ups block); Then and now (GPT-NeoX 25%); rotary_pct itself on Positional Encodings', ['GPT-NeoX 25%', 'decoupled RoPE key', 'iRoPE', 'M-RoPE']),
  ('2D-pair rotation became a standard reasoning tool (attention sinks, length generalisation)', R + ', Why it matters', ['attention-sink analyses, length-generalisation theory']),
  # connections
  ('Attention Is All You Need: additive sinusoidal encoding whose spectrum RoPE reuses', 'Connections; Further reading', ['3c65c17b0d0d81999af7f16f8ed8ee9e', 'whose frequency spectrum RoPE reuses multiplicatively']),

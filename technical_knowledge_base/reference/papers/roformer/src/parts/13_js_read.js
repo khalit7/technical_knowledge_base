@@ -1,4 +1,23 @@
 // ---- The paper tab: many-pair dials, the shift test on trained weights, Figure 2 rebuilt, GLUE reveal ----
+// ---- Hero: one 8-dimensional query and key as 4 rotation pairs, at positions (5, 2) and (43, 40); theta_i = 10000^(-2i/8) ----
+(function(){const host=$('heroSvg');if(!host)return;
+  const TH=[0,1,2,3].map(i=>Math.pow(10000,-2*i/8));
+  // illustrative unrotated pairs: [angle, length] for q and k (fixed, so the figure is reproducible)
+  const Q=[[0.3,1],[1.2,1],[2.0,1],[-0.5,1]],K=[[1.4,1],[0.2,.85],[-1.0,1],[2.4,.9]];
+  const ROWS=[[5,2],[43,40]];
+  function draw(w){const n=4,cw=w/n,R=Math.max(22,Math.min(36,cw/2-14)),rh=2*R+82,top=0,H=top+2*rh;let s='';
+    ROWS.forEach(([m,nn],r)=>{const y0=top+r*rh;let tot=0;
+      s+=tx(4,y0+14,(w<520?'q at ':'query at position ')+m+', '+(w<520?'k at ':'key at ')+nn+' (offset '+(m-nn)+')',{fs:12,w:600});
+      for(let i=0;i<n;i++){const cx=cw*i+cw/2,cy=y0+R+28,aq=Q[i][0]+m*TH[i],ak=K[i][0]+nn*TH[i],c=Q[i][1]*K[i][1]*Math.cos(aq-ak);tot+=c;
+        s+='<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="'+R.toFixed(1)+'" fill="none" stroke="var(--line)"/>';
+        s+=ln2(cx,cy,cx+Q[i][1]*R*.92*Math.cos(aq),cy-Q[i][1]*R*.92*Math.sin(aq),'var(--c1)',{sw:2.6});
+        s+=ln2(cx,cy,cx+K[i][1]*R*.92*Math.cos(ak),cy-K[i][1]*R*.92*Math.sin(ak),'var(--c2)',{sw:2.4,da:'4 3'});
+        s+=tx(cx,cy+R+15,'θ = '+(TH[i]>=0.01?String(+TH[i].toPrecision(2)):TH[i].toPrecision(1)),{fs:11,a:'middle',c:'var(--mute)'});
+        s+=tx(cx,cy+R+30,(c>=0?'+':'')+c.toFixed(3),{fs:12,a:'middle',w:600})}
+      s+=tx(w-4,y0+14,'q⊤k = '+tot.toFixed(3),{fs:12,a:'end',w:600,c:'var(--c3)'})});
+    host.innerHTML=svgW(w,H,s,'Four rotation pairs of a query and a key at positions 5 and 2, and again at 43 and 40: the arrows turn, the angles between them and the score do not')}
+  onTab('t-read',()=>fit(host,draw));fit(host,draw)})();
+
 (function(){
   const rcd=window.PAPER.rc;
   // ---------- many-pair dials (#clk): d = 16, 8 pairs, theta_i = 10000^(-2i/16) ----------

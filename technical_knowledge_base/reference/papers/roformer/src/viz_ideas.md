@@ -1,6 +1,6 @@
 # RoFormer (RoPE): visualisation ideas
 
-The question the paper keeps returning to: **does making attention depend only on the offset buy anything measurable, and does the evidence show it?** Visuals are scored 0 to 2 on the Methodology's questions (parameter to move, reproduces a published figure ×2, computable ×2, shows what a sentence cannot, corrects a misconception, measures the central question, absent from existing explainers and from the KB, animation), minus build cost. The LLM Architecture Gallery page already has the one-pair dial and the YaRN bands, so neither is rebuilt.
+The question the paper keeps returning to: **does making attention depend only on the offset buy anything measurable, and does the evidence show it?** Visuals are scored 0 to 2 on the Methodology's questions (parameter to move, reproduces a published figure ×2, computable ×2, shows what a sentence cannot, corrects a misconception, measures the central question, absent from existing explainers and from the KB, animation), minus build cost. Positional Encodings owns the one-pair dial and the YaRN bands (the LLM Architecture Gallery had them when this page was built), so neither is rebuilt.
 
 ## Built (ids P-roformer.k)
 
@@ -14,6 +14,8 @@ The question the paper keeps returning to: **does making attention depend only o
 | P-roformer.6 | **Table 5 with the noise** | Accuracies with 95% intervals, test-set size toggle (v1's 1,536 or v5's 6:2:2), the gap in standard errors | 1+2×1+2×2+1+2+2+2+0−0 = 14 | Tables tab | recompute.py; v1's Table 3 |
 | P-roformer.7 | **Then and now spectrum morph** | 11 steps from the 2017 sinusoid to Llama 4's iRoPE: turns per pair inside the context, kept, interpolated, ramped or not rotated | 1+1×2+2×2+2+1+1+1+2−1 = 13 | Own tab | each step's paper and config.json (GPT-J, DeepSeek-V3, Qwen2-VL), YaRN Eqs. 13 to 20 |
 | P-roformer.8 | Table 4 against length | Six stages' accuracy against their maximum length (log), with CAIL's 1,024 marked | 0+0+2×2+1+1+1+1+0−0 = 8 | Tables tab | Table 4; correlation in recompute.py |
+| P-roformer.9 | **Hero (2026-10-25): four rotation pairs at two positions** | One 8-dimensional query and key as 4 dials at θ = 1, 0.1, 0.01, 0.001, at positions (5, 2) and (43, 40); every arrow turns, each pair's share and the sum q⊤k stay the same; static | 1+0+2×2+2+1+2+1+2−0 = 13 | Reading, top | Eqs. 14 to 16; illustrative vectors, exact arithmetic |
+| P-roformer.10 | The paper's own Figure 1 as an image | rejected: arXiv licence CC BY-NC-ND 4.0, not CC BY; redrawn as the hero instead | | | |
 
 ## Rejected
 
