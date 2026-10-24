@@ -88,7 +88,7 @@
   }
   function draw(i){const s=st()[i];view(s);caption(s)}
   const A=RD.anim({card:'an-card',ctl:'an-ctl',n:st().length,draw,ms:2600,label:'Animation step'});
-  RD.seg($('an-mode'),m=>{mode=m;A.reset(st().length);A.play()});
+  RD.seg($('an-mode'),m=>{mode=m;A.reset(st().length)});
   cSel.addEventListener('change',()=>{cs=cSel.value;mWrap.style.display=cs==='carry'?'':'none';A.reset(st().length)});
   mSel.addEventListener('change',()=>A.redraw());
 })();

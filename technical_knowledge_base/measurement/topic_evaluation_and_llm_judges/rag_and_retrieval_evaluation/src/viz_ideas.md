@@ -15,6 +15,16 @@ Scored 1 to 5 on teaching value (T), real data (D), not already on a sibling or 
 | Sample-size calculator for retrieval comparisons | 3 | 2 | 1 | | rejected: owned by Eval statistics |
 | TREC RAG nugget scoring animation | 3 | 2 | 4 | | rejected for now: judgments of one topic would be needed; described in rd-fw with dated numbers |
 
+| Hero: five objects and the metric comparing each pair (arc diagram; list at phone width) | 5 | 3 (definitions) | 5 | Reading top | built 2026-10-24 (26_js_figs.js) |
+| Recall@k curves k = 1..100, prompt k and reranker depth marked, three sets | 5 | 5 | 5 | Reading, rd-ret | built 2026-10-24 (25_js_curve.js) |
+| Faithfulness stepper: one real answer, claims, verdicts, each tool's rule (Mistral contradiction, Llama-2-13B unsupported) | 5 | 4 (real answers; split and verdicts ours) | 5 | Reading, rd-faith | built 2026-10-24 (26_js_faith.js) |
+| Citation accuracy diagram (ALCE rules on three statements) | 3 | 1 (illustrative) | 5 | Reading, rd-cite | built 2026-10-24 |
+| Agreement with people: RAGChecker correlations against the human ceiling; TREC tau for runs against topics | 4 | 5 (published) | 5 | Reading, rd-agree | built 2026-10-24 |
+| Triage chain for a wrong answer (replaces the bucket list) | 4 | 2 | 3 | Reading, rd-halves | built 2026-10-24; the measured split stays on the retrieval pipeline page |
+| Paired per-query comparison with bootstrap intervals | 5 | 5 | 4 | Reading, rd-cmp | built 2026-10-24 (28_js_paired.js, paired.py); sample size stays on Eval statistics |
+| A second rank-list calculator for the metric definitions | 2 | 2 | 1 | | rejected 2026-10-24: Evaluation metrics section 6 owns one; ours stays only as the context-precision widget |
+| Real photos or a paper's figure | 1 | | | | rejected: nothing physical to show; every mechanism here is drawn better as a diagram |
+
 ## Methodology gaps noticed
 - No rule yet for mixing two datasets in one animation: here the case selector keeps each case on one dataset and says so.
 - Human readings (end-to-end correctness of six answers; verdicts on two generated answers) are stated in the captions and src/README.md rather than hidden in code.

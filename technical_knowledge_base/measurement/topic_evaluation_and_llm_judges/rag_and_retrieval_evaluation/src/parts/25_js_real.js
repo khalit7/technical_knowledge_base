@@ -9,5 +9,5 @@
   let r='';
   SETS.forEach((d,j)=>{const B=RDATA.beir[d],P=B.pub,a=RUN.agg(d,0,10,false),b=RUN.agg(d,0,100,false),c=RUN.agg(d,3,10,false),e=RUN.agg(d,3,100,false);
     r+=(j?' ':'')+'<b>'+B.name+'</b>: BM25 '+a.ndcg.toFixed(4)+' and R@100 '+b.recall.toFixed(4)+' against Anserini '+P.bm25_lucene.ndcg10.toFixed(4)+' and '+P.bm25_lucene.r100.toFixed(4)+'; MiniLM '+c.ndcg.toFixed(4)+' and '+e.recall.toFixed(4)+' against MTEB '+P.dense_minilm.ndcg10.toFixed(4)+' and '+P.dense_minilm.r100.toFixed(4)+'.'});
-  document.getElementById('rd-real-repro').innerHTML=r+' The dense run matches MTEB\'s published results to the fourth decimal; our BM25 lands within 0.004 of <a href="https://github.com/castorini/anserini/tree/master/docs/reproduce/from-document-collection" target="_blank" rel="noopener noreferrer">Anserini\'s flat regressions</a> (a Python reimplementation, not Lucene\'s exact analyzer). The BEIR paper\'s own BM25 (0.665, 0.325, 0.236) indexed title and text as separate fields, a slightly different system.';
+  document.getElementById('rd-real-repro').innerHTML=r;
 })();
