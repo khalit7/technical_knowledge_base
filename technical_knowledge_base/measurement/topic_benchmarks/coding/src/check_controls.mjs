@@ -1,6 +1,8 @@
 // Exercise every control on every tab at 390 dark and 920 light; report errors, NaN/undefined, sideways scroll and
 // elements wider than the viewport; check the page's JS numbers against recompute_out.json; save screenshots.
-// usage (from src/): python3 recompute.py && node check_page.mjs
+// usage (from src/): python3 recompute.py && node check_controls.mjs
+// Since 2026-10-24 every widget lives in the Reading tab (the lab tabs were moved inline); closed blocks are opened first.
+// Also checks that no animation moves before the reader acts (normal motion, cards scrolled into view).
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -66,28 +68,25 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await (await p.$('#rd-rb-card')).screenshot({ path: `${shots}/rd-rb-${scheme}-${width}.png` });
   await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true)); await scan('t-read', 'details open');
   // ---- pass@k lab ----
-  await tab('t-pk'); await scan('t-pk', 'pk initial');
-  for (const [n, c, k] of [[1, 0, 1], [1, 1, 1], [10, 1, 10], [200, 4, 100], [200, 200, 200], [50, 0, 7]]) { await slide('pk-n', n); await slide('pk-c', c); await slide('pk-k', k); await scan('t-pk', `pk ${n},${c},${k}`) }
-  for (const [pp, n] of [[1, 2], [60, 100], [10, 10], [33, 57]]) { await slide('pk-p', pp); await slide('pk-n2', n); await scan('t-pk', `bias ${pp},${n}`) }
+  await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => { d.open = true; d.dispatchEvent(new Event('toggle')) })); await scan('t-read', 'pk initial');
+  for (const [n, c, k] of [[1, 0, 1], [1, 1, 1], [10, 1, 10], [200, 4, 100], [200, 200, 200], [50, 0, 7]]) { await slide('pk-n', n); await slide('pk-c', c); await slide('pk-k', k); await scan('t-read', `pk ${n},${c},${k}`) }
+  for (const [pp, n] of [[1, 2], [60, 100], [10, 10], [33, 57]]) { await slide('pk-p', pp); await slide('pk-n2', n); await scan('t-read', `bias ${pp},${n}`) }
   const nm = await p.evaluate(() => document.getElementById('pk-m').options.length);
-  for (let i = 0; i < nm; i++) for (const f of ['all', 'e', 'm', 'h']) { await sel('pk-m', i); await sel('pk-f', f); await scan('t-pk', `real ${i} ${f}`) }
-  await p.screenshot({ path: `${shots}/x-t-pk-${scheme}-${width}.png`, fullPage: true });
+  for (let i = 0; i < nm; i++) for (const f of ['all', 'e', 'm', 'h']) { await sel('pk-m', i); await sel('pk-f', f); await scan('t-read', `real ${i} ${f}`) }
   // ---- LiveCodeBench by date ----
-  await tab('t-lcb'); await scan('t-lcb', 'lcb initial');
-  for (let s = 0; s <= 22; s += 3) for (const d of ['', 'e', 'm', 'h']) { await p.evaluate(d => { document.getElementById('lc-d').value = d }, d); await slide('lc-s', s); await scan('t-lcb', `win ${s} ${d}`) }
-  for (const pl of ['l', 'a', 'c']) { await p.evaluate(v => { document.getElementById('lc-p').value = v }, pl); await slide('lc-s', 22); await scan('t-lcb', 'plat ' + pl) }
+  await scan('t-read', 'lcb initial');
+  for (let s = 0; s <= 22; s += 3) for (const d of ['', 'e', 'm', 'h']) { await p.evaluate(d => { document.getElementById('lc-d').value = d }, d); await slide('lc-s', s); await scan('t-read', `win ${s} ${d}`) }
+  for (const pl of ['l', 'a', 'c']) { await p.evaluate(v => { document.getElementById('lc-p').value = v }, pl); await slide('lc-s', 22); await scan('t-read', 'plat ' + pl) }
   await p.evaluate(() => { document.getElementById('lc-p').value = ''; document.getElementById('lc-d').value = '' }); await slide('lc-s', 0);
-  for (let a = 0; a < 28; a += 3) for (const d of ['m', '', 'e', 'h']) { await sel('lc-a', a); await sel('lc-md', d); await scan('t-lcb', `mon ${a} ${d}`) }
+  for (let a = 0; a < 28; a += 3) for (const d of ['m', '', 'e', 'h']) { await sel('lc-a', a); await sel('lc-md', d); await scan('t-read', `mon ${a} ${d}`) }
   await sel('lc-a', await p.evaluate(() => CD.lcb.models.findIndex(m => m.m === 'DeepSeek-V3'))); await sel('lc-md', 'm');
-  await p.screenshot({ path: `${shots}/x-t-lcb-${scheme}-${width}.png`, fullPage: true });
   // ---- One SWE-bench task ----
-  await tab('t-task'); await scan('t-task', 'task initial');
+  await scan('t-read', 'task initial');
   const verdicts = {};
-  for (const m of ['gold', 'issue', 'half', 'none']) { await p.click(`#tk-mode button[data-m=${m}]`); for (let i = 0; i < 6; i++) { await slide('tk-ctl-s', i); await scan('t-task', `task ${m} ${i}`) } verdicts[m] = await p.evaluate(() => document.getElementById('tk-cap').innerText.split('\n')[0]) }
+  for (const m of ['gold', 'issue', 'half', 'none']) { await p.click(`#tk-mode button[data-m=${m}]`); for (let i = 0; i < 6; i++) { await slide('tk-ctl-s', i); await scan('t-read', `task ${m} ${i}`) } verdicts[m] = await p.evaluate(() => document.getElementById('tk-cap').innerText.split('\n')[0]) }
   const exp = { gold: 'RESOLVED', issue: 'RESOLVED', half: 'NOT RESOLVED', none: 'NOT RESOLVED' };
   for (const m in exp) if (!verdicts[m].endsWith(': ' + exp[m])) { bad++; console.log('verdict', m, verdicts[m]) }
-  await p.evaluate(() => document.querySelectorAll('#t-task details').forEach(d => d.open = true)); await scan('t-task', 'task details');
-  await p.screenshot({ path: `${shots}/x-t-task-${scheme}-${width}.png`, fullPage: true });
+  await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true)); await scan('t-read', 'task details');
   // ---- Further reading: every tab link ----
   await tab('t-more'); await scan('t-more', 'more');
   const links = await p.evaluate(() => [...document.querySelectorAll('#t-more a[data-tab]')].map(a => a.dataset.tab));
@@ -98,4 +97,16 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   console.log(scheme, width, 'done');
   await p.close();
 }
+// ---- nothing moves before the reader acts (normal motion) ----
+{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
+  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
+  await p.goto('file://' + file); await p.evaluate(() => { try { localStorage.clear() } catch (e) {} }); await p.reload();
+  await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => { d.open = true; d.dispatchEvent(new Event('toggle')) }));
+  for (const c of ['rd-pk-card', 'rd-he-card', 'tk-card']) {
+    await p.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2500));
+    const v = await p.$eval('#' + c.replace('card', 'ctl') + '-s', e => +e.value); if (v !== 0) { bad++; console.log('AUTOPLAY', c, v) } }
+  // a mode switch must not start playback either
+  await p.click('#rd-he-mode button[data-m=c4]'); await new Promise(r => setTimeout(r, 2500));
+  if (await p.$eval('#rd-he-ctl-s', e => +e.value) !== 0) { bad++; console.log('AUTOPLAY after mode switch') }
+  console.log('no-autoplay check done'); await p.close(); }
 await b.close(); console.log('problems', bad);

@@ -1,6 +1,6 @@
-// ---- pass@k lab ----
+// ---- Reading: pass@k on real LiveCodeBench counts (core), and the estimator calculator and bias plot (closed block). Moved from the old pass@k lab tab ----
 (function(){
-  const $=id=>document.getElementById(id);if(!$('t-pk'))return;
+  const $=id=>document.getElementById(id);if(!$('pk-real'))return;
   const n=$('pk-n'),c=$('pk-c'),k=$('pk-k');
   function one(){
     const N=+n.value;c.max=N;k.max=N;const C=Math.min(+c.value,N),K=Math.min(+k.value,N);c.value=C;k.value=K;
@@ -26,6 +26,7 @@
   ['pk-p','pk-n2'].forEach(id=>$(id).addEventListener('input',bias));
   const MS=CD.lcb.models.filter(m=>m.n>1);
   $('pk-m').innerHTML=MS.map((m,i)=>'<option value="'+i+'">'+m.m+' (n = '+m.n+')</option>').join('');
+  $('pk-m').value=String(Math.max(0,MS.findIndex(m=>m.m==='GPT-4O-2024-08-06')));
   function curve(M,f){const idx=[];CD.lcb.q.forEach((q,i)=>{if(f==='all'||q[2]===f)idx.push(i)});const cs=idx.map(i=>CM.dig(M.c[i]));
     const u=[],p=[];for(let kk=1;kk<=M.n;kk++){let a=0,b=0;for(const cc of cs){a+=CM.passk(M.n,cc,kk);b+=CM.plug(M.n,cc,kk)}u.push(a/cs.length);p.push(b/cs.length)}return {u,p,np:cs.length}}
   function real(){
@@ -45,6 +46,6 @@
   }
   ['pk-m','pk-f'].forEach(id=>$(id).addEventListener('change',real));
   const go=()=>{bias();real()};
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-pk']=[go];
-  addEventListener('resize',()=>{if(!$('t-pk').hidden)go()});
+  RD.onRender(go);RD.onResize(go);
+  const det=$('rd-pk-det');if(det)det.addEventListener('toggle',()=>{if(det.open)bias()});
 })();

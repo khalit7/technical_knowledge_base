@@ -31,5 +31,5 @@
     cnt.innerHTML=RD.stat('HumanEval tests passed',cb('p')+' / '+st.b,'of '+nb)+RD.stat('HumanEval+ inputs passed',cp('p')+' / '+st.p,'of '+np)+RD.stat('Wrong answers',String(cb('w')+cp('w')),'')+RD.stat('Over '+H.limit+' s',String(cp('t')),'this page\'s limit');
   }
   const A=RD.anim({card:'rd-he-card',ctl:'rd-he-ctl',n:steps.length,draw,ms:1000,label:'Batch of tests'});
-  RD.seg(document.getElementById('rd-he-mode'),m=>{mode=m;A.go(0);A.play()});
+  RD.seg(document.getElementById('rd-he-mode'),m=>{mode=m;A.go(0)});
 })();
