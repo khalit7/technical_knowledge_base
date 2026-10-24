@@ -50,12 +50,17 @@ opt = ' '.join(re.findall(r'<details.*?</details>|<div class="reveal" hidden>.*?
 t = re.sub(r'<details.*?</details>|<div class="reveal" hidden>.*?</div></div>', ' ', t, flags=re.S)
 t = re.sub(r'<[^>]+>', ' ', t); opt = re.sub(r'<[^>]+>', ' ', opt)
 w = len(t.split()); mins = round(w / 230); wo = len(opt.split())
+# reading.json holds the rendered-DOM count of html_utils/audit_pages.mjs (core and closed blocks apart, 230 words a minute); it wins when present
+import os
+mins_o = round(wo / 230)
+if os.path.exists('reading.json'):
+    R = json.load(open('reading.json')); mins, mins_o = R['core_min'], R['closed_min']
 fr = out[out.index('id="t-more"'):]
 tot = 0
 for x in re.findall(r'class="rt">\(([^)]*)\)', fr):
     h = re.search(r'(\d+)h', x); mm = re.search(r'(\d+) ?m(?:in)?\b', x)
     tot += (int(h.group(1)) * 60 if h else 0) + (int(mm.group(1)) if mm else 0)
-out = out.replace('RT_OPT', str(round(wo / 230))).replace('RT_MIN', str(mins)).replace('RES_TIME', '%dh %02dm' % (tot // 60, tot % 60))
+out = out.replace('RT_OPT', str(mins_o)).replace('RT_MIN', str(mins)).replace('RES_TIME', '%dh %02dm' % (tot // 60, tot % 60))
 open('../index.html', 'w', encoding='utf-8').write(out)
 print('reading words', w, 'minutes', mins, 'optional words', wo, 'resources %dh %02dm' % (tot // 60, tot % 60), 'bytes', len(out.encode()))
 PY

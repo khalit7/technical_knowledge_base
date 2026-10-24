@@ -6,7 +6,7 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Headline card (from `paper.json`, with the database Takeaway and the verdict), then Problem, Idea (top-2 against top-1 animation), Capacity, Balancing loss (predict: the loss at collapse), Training tricks (predict: bfloat16 and the router softmax; Table 2 and 4 bars), Table 1 chart, Scaling, Downstream (Table 5 deltas), Parallelism (Figure 9 redrawn), Trillion scale (predict: Switch-C against Switch-XXL), Appendices, How much of this to believe, What it takes to use this, Why it matters, Connections. |
+| The paper | `t-read` | Headline card (from `paper.json`, with the database Takeaway and the verdict), the idea in one sentence, the hero (the paper's Figure 2, CC BY), You need and New terms, then Problem, Idea (top-2 against top-1 animation), Capacity, Balancing loss (predict: the loss at collapse), Training tricks (predict: bfloat16 and the router softmax; Table 2 and 4 bars), Table 1 chart, Scaling (the paper's Figure 4), Downstream (Table 5 deltas), Parallelism (Figure 9 redrawn), Trillion scale (predict: Switch-C against Switch-XXL), Appendices, How much of this to believe, What it takes to use this, Why it matters, Connections. |
 | Train a Switch layer | `t-run` | The live ingredient: two toy Switch layers trained side by side in the browser, six presets and every knob; the offline sweeps (3 seeds) and a reproduces / does not reproduce table. |
 | The paper's tables, rebuilt | `t-tables` | Table 9 recounted from configurations (printed, Table 9 row, released gin file), Table 1, Table 5 with deltas, Tables 6 to 8 recomputed, Tables 2, 3, 4, 10, 11, and 22 checks on the paper's own numbers. |
 | Then and now | `t-then` | Switch's eight recipe lines against GLaM, ST-MoE, MegaBlocks, Mixtral, DeepSeek-V3 and Qwen3, one step each, every cell sourced. |
@@ -18,7 +18,7 @@
 - **No generic MoE rebuild.** Topic: llms has a "Deeper: inside an MoE" tab with the generic router, capacity animation, global-batch balancing and expert parallelism; this page links it and builds only the paper's specifics (top-1 against top-2 on one batch, the f · P loss, selective precision, Table 9's arithmetic, Figure 9).
 - **Then and now is a two-column step-through, not a morph.** The paper's legacy is a recipe (k, expert count and size, layers, scores, balancing, capacity, precision, extra losses), so each step compares one later source with Switch line by line; two columns fit a phone, seven would not.
 - **"What it takes to use this" is kept although the method is now standard**, because the released checkpoints and gin files are still used and they differ from Table 9 in ways a user would trip over.
-- **Reading length**: about 19 minutes plus 4 in expandable details (the old page was 10). The paper is JMLR length and this page owns all of it; the fine-tuning protocol, the partly trained Switch-XXL numbers, the appendices and the pseudocode note are folded into details blocks. `build.sh` counts details and predict answers separately in the header.
+- **Reading length** (2 October): about 19 minutes plus 4 in expandable details (the old page was 10); superseded by the length judgement below. The paper is JMLR length and this page owns all of it; the fine-tuning protocol, the partly trained Switch-XXL numbers, the appendices and the pseudocode note are folded into details blocks. `build.sh` counts details and predict answers separately in the header.
 
 ## Files
 
@@ -34,8 +34,33 @@
 ## Parts
 
 HTML: `00_top`, `01_css` (the T5 page's CSS), `02_header`, `03_paper`, `04_run`, `05_tables`, `06_then`, generated `_gen_card`, `_gen_more`.
-JS: `10_js_common`, `_gen_data`, `11_js_ui` (reference helpers; `fit` now measures the content width inside padding), `12_js_charts` (bars, frames), `13_js_read` (animation, reveals, Reading charts, Figure 9), `20_js_switch_core`, `20b_sweep_data`, `21_js_run`, `24_js_tables`, `25_js_then`, `90_js_tabs`.
+JS: `10_js_common`, `_gen_data`, `11_js_ui` (reference helpers; `fit` now measures the content width inside padding; `makeAnim` never autoplays since 2026-10-24), `12_js_charts` (bars, frames), `13_js_read` (animation, reveals, Reading charts, Figure 9), `20_js_switch_core`, `20b_sweep_data`, `21_js_run`, `24_js_tables`, `25_js_then`, `90_js_tabs`.
 
 ## Checks (2 October 2026)
 
 `sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 179 KB. `check_page.mjs`: 304 actions, 0 problems. `check_grad.py`: PASS on 5 configurations. `check_tables.py`: 246 cells, 0 missing. `mk_coverage.py`: 58 of 58 verified.
+
+## The 2026-10-24 rebuild (teaching contract, light pass for papers)
+
+- **Top**: the core idea in one sentence under the headline card (which already had the verdict); the paper's own **Figure 2** (the Switch layer) as the hero, since JMLR publishes the paper under CC BY 4.0 (rendered from the vector PDF; on phones only its right half, the layer itself); a "You need" line (Mixture of experts, T5) and New terms.
+- **A visual beside every core claim**: Scaling had none (its figures print no values); the paper's **Figure 4** now sits beside the 7.5x and 7x claims, panels stacked on phones. The other visuals (top-1 against top-2 animation, Table 1, 2, 4, 5 charts, Figure 9 redrawn, predict reveals) are unchanged. Images and licences: `../img/CREDITS.md`.
+- **No autoplay**: `makeAnim` in `11_js_ui.js` (the fixed copy RAG uses) waits on step 1 for `rta` and `thn`; `check_page.mjs` fails if either draws a frame in 1.5 s on screen before any click. The page keeps its own `90_js_tabs.js` (no autoplay, no storage) and `makeAnim` instead of the templates' `99_js_tabs.js` and `RD.anim`; the Train tab never started by itself.
+- **Closed blocks** (depth, not lost): the dispatch tensor and all-to-all shapes (Eq. 7); distillation across teacher sizes and after fine-tuning (Tables 7, 8); the seven internal inconsistencies (one open sentence names the one that matters); the current frontier list (dated, October 2026). The duplicated Switch-Base+ heads paragraph was folded into the inconsistencies.
+- **Owners linked**: Distributed Training for the cost of each parallelism and the all-to-all, Quantization and Precision for the bfloat16 format, Distillation and Small Language Models for distillation in general. The generic MoE layer was already delegated to Mixture of experts.
+- Header: "Reading: N min, plus M in closed details." from `reading.json` (the rendered-DOM count of `html_utils/audit_pages.mjs`); `mk_coverage.py` now looks for that line.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After (2026-10-24) |
+|---|---|---|
+| The paper, core | 4,894 words, 21.3 min | 5,079 words, 22.1 min |
+| The paper, closed details | 534 words, 2.3 min | 787 words, 3.4 min |
+| Train, Tables, Then and now, Further reading | 817 + 251 closed, 1,625, 366, 556 | unchanged |
+| Visuals in The paper (audit count) | 6 | 8 |
+
+Why about 22 minutes is right: the page owns the whole JMLR-length paper, and every open section is the argument in the paper's order with its numbers. The new top (core sentence, hero caption, terms: about 1.3 minutes) is offset only partly by what moved into closed blocks (about 1.1 minutes), because the rest is the evidence the verdict rests on (Table 1's margins, the downstream wins and exceptions, the trillion-scale anomaly).
+
+## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
+237 units: core 202, depth 31, owned 1 (the cost of data and model parallelism at Distributed Training, key "all-reduce of the gradients"), fat 3 (the old reading-time crumb, the tab names, the old reduced-motion sentence). Keys proposed by a script (a 4 to 6 word window of each unit found in the built page; depth when found only inside closed blocks) and set by hand for the unit whose paragraph moved.
+
+## Checks (2026-10-24)
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 185 KB (images 133 KB beside it in `img/`). `check_page.mjs`: 304 actions, 0 problems (with the no-autoplay check). `check_tables.py`: 246 cells, 0 missing. `mk_coverage.py`: 58 of 58. `ledger.py check`: problems 0. The toy, `check_grad.py` and the sweep are untouched.

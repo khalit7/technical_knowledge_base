@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header and links
- ('Reading time line "10 min read, +~4h 45m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "10 min read, +~4h 45m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['in closed details', 'of resources']),
  ('Authors: William Fedus, Barret Zoph, Noam Shazeer (Google Brain)', R + ', headline card', ['William Fedus', 'Barret Zoph', 'Noam Shazeer', 'Google Brain']),
  ('Date: January 2021, arXiv v1 2021-01-11, published JMLR 2022', R + ', headline card', ['January 2021', 'arXiv v1 11 January 2021', 'JMLR 2022']),
  ('Link arXiv 2101.03961 (~1h 30m, JMLR-length paper)', 'card and Further reading', ['https://arxiv.org/abs/2101.03961', '(1h 30m)', 'JMLR length']),

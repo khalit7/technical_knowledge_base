@@ -34,6 +34,7 @@ Constraint from the brief: Topic: llms already has a "Deeper: inside an MoE" tab
 | P-switch_transformers.17 | A multi-layer toy LM to test the init-scale and instability results | Instability shows up at scale (Switch-XXL), not in a CPU toy; would cost training time on a shared machine and still not test the claim. |
 | P-switch_transformers.18 | Training-cost or TPU-hours tab | A pattern Khalid removed; the paper gives no cost. |
 | P-switch_transformers.19 | No-Token-Left-Behind as a toy variant | The paper found no benefit and gives no numbers to compare against; a one-line mention suffices. |
+| P-switch_transformers.20 | **The paper's own Figures 2 and 4 as images** (2026-10-24): Figure 2 (the Switch layer) as the hero, Figure 4 (loss against experts at fixed FLOPs; curves against steps) beside the scaling claims; JMLR publishes the paper under CC BY 4.0, rendered from the vector PDF, phone crops (right half of Figure 2; Figure 4 stacked) | Reading top, Scaling | 10 | built; Scaling had no visual and its figures print no values, so a redraw would mean reading curves by eye |
 
 ## What the methodology lacked here
 
