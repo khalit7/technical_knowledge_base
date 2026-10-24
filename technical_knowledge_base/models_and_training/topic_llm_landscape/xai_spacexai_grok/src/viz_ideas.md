@@ -1,4 +1,4 @@
-# xAI / SpaceXAI: Grok — visualisation ideas (v3, 1 October 2026)
+# xAI / SpaceXAI: Grok: visualisation ideas (v3, 1 October 2026)
 
 The question the page keeps returning to: **how does xAI turn capital into compute into shipped models, and what do its published numbers really say about where Grok stands?** Every visual below is scored against that.
 
@@ -63,3 +63,10 @@ Scoring: 0 to 2 per question (parameter the reader moves; reproduces a stated fi
 - Stale claims found: Grok 4.1 Fast and Grok Code Fast retired 15 May 2026; Fast variant is Cursor and Grok Build only; Grok 2 weights are under the Community License, not Apache 2.0; Adversa's 3 June date is the report, 20 Aug the disclosure.
 - Anthropic's own Terminal-Bench table confirms xAI's 57.9% for Fable 5.1 is Anthropic's GPT-6 Astra figure (Fable 5.1: 55.8%).
 - Grok 5's slipped targets could not be confirmed (no web search left; no primary source on disk); marked unconfirmed. The S-1 confirms Grok 5 in training at Colossus II.
+
+## 2026-10-24 rebuild (teaching contract)
+- Built: static hero (five stages, linked boxes); recipe matrix (structure: what each release changed, coloured by new base and stated RL change); Grok 4.6 against 4.7 tokens bars (same price, 2.25x tokens, 2x cost per task; AA article and leaderboard).
+- Moved inline: the lineage chart (order explains the strategy), cards to a closed block.
+- Removed: the Price and position scatter (cross-provider comparison is owned by the landscape root's Capability vs price tab).
+- Rejected: a real photo of Colossus (no openly licensed photograph on Wikimedia Commons; the only file is an editorial cartoon); an RL-versus-pretraining compute bar (the "as much RL as pretraining" ratio is unconfirmed and xAI gives no absolute numbers).
+- Autoplay removed from the Heavy and injection animations.

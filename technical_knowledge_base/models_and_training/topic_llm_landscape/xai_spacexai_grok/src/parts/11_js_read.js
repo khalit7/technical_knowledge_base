@@ -44,8 +44,8 @@ function hbRows(rows,max,fmtv){return rows.map(r=>'<div class="hb'+(r.g?' grok':
 (function(){
   const box=$('ixPanels');if(!box)return;
   const pre=[{n:'Claude Fable 5',v:62},{n:'Grok 4.6',v:61,g:1},{n:'GPT-5.6 Sol',v:61}];
-  const pick=s=>AA.find(r=>r.m.startsWith(s));
-  const v43=[['Grok 4.7 (xhigh)','Grok 4.7'],['GPT-5.6 Sol (max)','GPT-5.6 Sol'],['Grok 4.6 (high)','Grok 4.6'],['Kimi K3','Kimi K3']].map(([s,n])=>{const r=pick(s);return r?{n:n,s:r.m,v:r.ix,g:/Grok/.test(n)}:null}).filter(Boolean).sort((a,b)=>b.v-a.v);
+  // AA v4.3 (methodology 4.3.2), read 1 Oct 2026: the four rows used here, from src/inputs/aa_v43_snapshot.js
+  const v43=[{n:'GPT-5.6 Sol',s:'GPT-5.6 Sol (max)',v:47.0},{n:'Grok 4.7',s:'Grok 4.7 (xhigh)',v:46.4,g:1},{n:'Grok 4.6',s:'Grok 4.6 (high)',v:44.3,g:1},{n:'Kimi K3',s:'Kimi K3 (max)',v:43.6}];
   const col=r=>Object.assign(r,{c:r.g?'var(--c2)':'var(--dim)'});
   box.innerHTML='<div><h4>Launch scale, before v4.2 (12 August 2026)</h4><div class="q">Grok 4.6 level with GPT-5.6 Sol, one behind Fable 5; Kimi K3 behind, value not stated ('+A('https://siliconangle.com/2026/08/12/spacexai-releases-flagship-grok-4-6-model-advanced-reasoning-capabilities/','SiliconANGLE')+')</div>'+hbRows(pre.map(col),70,v=>fmt(v))+'</div>'+
    '<div><h4>v4.3, methodology 4.3.2 (read 1 October 2026)</h4><div class="q">GPT-5.6 Sol '+(47.0-44.3).toFixed(1)+' points ahead of Grok 4.6; Grok 4.7 '+(46.4-44.3).toFixed(1)+' above it ('+A('https://artificialanalysis.ai/leaderboards/models','Artificial Analysis')+')</div>'+hbRows(v43.map(col),70,v=>v.toFixed(1))+'</div>';
@@ -94,4 +94,11 @@ function hbRows(rows,max,fmtv){return rows.map(r=>'<div class="hb'+(r.g?' grok':
       stat('At or above 200K',usd(hi,3),'prompt '+fmt(Math.max(pr,200000))+'; '+(hi/lo).toFixed(2)+'x')}
   ['lcMod','lcP','lcC','lcO'].forEach(id=>$(id).addEventListener('input',draw));
   onTab('t-read',draw);let rw=$('lcCard').clientWidth<560;addEventListener('resize',()=>{const w=$('lcCard').clientWidth<560;if(w!==rw){rw=w;draw()}});draw();
+})();
+
+// Grok 4.6 against Grok 4.7: same price per token, different tokens per task (AA article and leaderboard)
+(function(){
+  const box=$('tkBars');if(!box)return;
+  const M=[['Price per 1M output tokens',6,6,v=>'$'+v],['Output tokens per index task',36000,81000,v=>fmt(v/1000)+'k'],['Cost per index task',1.86,3.74,v=>'$'+v.toFixed(2)],['Intelligence Index v4.3',44.3,46.4,v=>v.toFixed(1)]];
+  box.innerHTML=M.map(([k,a,b,f])=>{const mx=Math.max(a,b);return '<h4>'+k+'</h4>'+hbRows([{n:'Grok 4.6',s:'high',v:a,c:'var(--dim)'},{n:'Grok 4.7',s:'xhigh',v:b,c:'var(--c2)',g:1}],mx,f)}).join('');
 })();
