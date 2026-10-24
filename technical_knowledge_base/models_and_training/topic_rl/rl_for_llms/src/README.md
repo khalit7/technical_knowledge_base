@@ -54,3 +54,5 @@ Why about 42 minutes is right: the page owns a whole family of algorithms (PPO f
 ## Checks
 
 Last build, 24 October 2026: `checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0, 3 tabs, 254 KB; `check_page.mjs` 590 actions, 0 problems (both themes, 920 and 390 px, reduced motion; no autoplay under normal motion); `check_engine.mjs` PASS (42 checks against `recompute.py`); `mk_coverage.py` 134 of 134 facts of `live.md` found; `ledger.py check` problems 0.
+
+2026-10-24 (topic close of Topic: rl): Further reading quotes the root as "17 min, plus 2" and siblings and neighbours as their headers; Fault tolerance at scale and the DSec paper page quoted as their headers; ledger keys that quoted old times re-keyed.
