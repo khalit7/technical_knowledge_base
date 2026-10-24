@@ -24,3 +24,15 @@ Singh et al.'s ConTAM comparisons, Presidio's demo UI, Data Provenance Explorer.
 
 What the methodology lacked: a way to score "precision by reading" visuals; here labels on every flagged pair are the
 reproduction target (the counts must match the labelled data, checked by `scripts/check_numbers.py`).
+
+## 2026-10-24 rebuild (teaching contract)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| dg14 | Hero: the three checks, tool, catch and cost each | Reading, top | built (`24_js_dg_vis.js`) |
+| dg15 | Share of documents sharing an n-gram, n = 5 / 8 / 13 (one control) | Reading, section 2 | built |
+| dg16 | Pairs per rule split into copy / grey zone / false positive, web against post-training | Reading, section 3 | built |
+| dg17 | datatrove answer-only against question n-grams on RLVR | Reading, section 3 | built |
+| dg18 | Similarity bands and the judge by label | Reading, section 4 | built (dg5's table moved to a closed block) |
+| dg9, dg10 | Removal units, Min-K% AUC | Reading, sections 6 and 5 | redrawn as SVG |
+| dg6, dg8 | PII lab, provenance chain | moved from tabs into sections 7 and 9 | moved |
+| dg19 | A real image | rejected: no physical object; mechanisms are drawn |

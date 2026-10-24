@@ -40,6 +40,6 @@
     let h='<div class="tw"><table><thead><tr><th>Detector, set</th>'+types.map(t=>'<th class="num">'+E(t)+'</th>').join('')+'</tr></thead><tbody>';
     dets.forEach(d=>{h+='<tr><td>'+E(d)+'</td>'+types.map(t=>'<td class="num">'+((R[d].spans||{})[t]||'')+'</td>').join('')+'</tr>'});
     $('pl-real').innerHTML=h+'</tbody></table></div><p class="small">Cells: detections (spans). '+E(P.real_note||'')+'</p>'})();
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-dgpii']=[render];
+  RD.onRender(render);
   render();
 })();

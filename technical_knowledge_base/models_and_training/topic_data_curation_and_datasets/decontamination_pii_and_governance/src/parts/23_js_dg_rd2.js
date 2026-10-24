@@ -25,8 +25,8 @@ window.DGCAT=['copy','variant','source','passage','phrase','diagram'];
     const st=EM.stats||{};
     h+='</tbody></table></div><p class="small">Nearest-prompt similarity per benchmark (items with a training prompt at 0.95 / 0.90 / 0.85 or more): '+Object.keys(st).map(b=>E(DG.bench_names[b])+' '+st[b].s95+' / '+st[b].s90+' / '+st[b].s85+' of '+f(st[b].n)).join('; ')+'.</p>';
     ev.innerHTML=h}
-  // section 5: Min-K% results
-  const mv=$('dg-mink-view'),MK=DG.gpu&&DG.gpu.mink;
+  // section 5: Min-K% results (table in a closed block; the chart is in 24_js_dg_vis.js)
+  const mv=$('dg-mink-tab'),MK=DG.gpu&&DG.gpu.mink;
   if(mv&&MK){const ms=Object.keys(MK),bs=[...new Set(ms.flatMap(m=>Object.keys(MK[m].auc)))],mets=[['loss','loss'],['mink','Min-K%'],['minkpp','Min-K%++'],['zlib','zlib']];
     let h='<div class="tw"><table><thead><tr><th>Model</th><th>Benchmark</th>'+mets.map(x=>'<th class="num">'+x[1]+'</th>').join('')+'</tr></thead><tbody>';
     ms.forEach(m=>bs.forEach(b=>{const a=MK[m].auc[b];if(!a)return;h+='<tr><td>'+E(m)+'</td><td>'+E(DG.bench_names[b])+'</td>'+mets.map(x=>'<td class="num">'+a[x[0]].toFixed(2)+'</td>').join('')+'</tr>'}));
@@ -44,8 +44,6 @@ window.DGCAT=['copy','variant','source','passage','phrase','diagram'];
     let h='<div class="out">'+RD.stat('raw responses, July 2024',f(O.records),'one WARC file')+RD.stat('with a noai tag or header',f((O.records_meta_noai||0)+(O.records_header_noai||0)),'meta robots or X-Robots-Tag')+
       RD.stat('with tdm-reservation: 1',f((O.records_meta_tdm_reservation||0)+(O.records_header_tdm_reservation||0)),'TDMRep meta or header')+RD.stat('with Content-Usage header',f(O.records_header_content_usage||0),'IETF aipref draft')+'</div>';
     h+='<div class="out">'+RD.stat('FineWeb kept from this WARC',f(c.docs),'documents')+RD.stat('whose host now has a robots.txt',f(c.with_robots),RN.date)+RD.stat('now blocked for an AI trainer',f(c.blocked_any_ai_trainer),(100*c.blocked_any_ai_trainer/c.docs).toFixed(1)+'% of kept documents')+RD.stat('now blocked for every crawler (*)',f(c.blocked_star),'')+'</div>';
-    const ag=Object.keys(b).sort((x,y)=>b[y]-b[x]),mx=Math.max(...ag.map(a=>b[a]));
-    h+='<div class="rd-bars">'+ag.map(a=>'<div><span class="nm">'+E(a)+'</span><span class="tr"><span style="width:'+(100*b[a]/mx).toFixed(1)+'%"></span></span><span class="v">'+f(b[a])+'</span></div>').join('')+'</div>';
     h+='<p class="small">Unreachable hosts: '+f(c.unreachable)+'; no robots.txt (4xx): '+f(c.no_robots_4xx_or_other)+'; server errors: '+f(c.server_error)+'. Documents kept in FineWeb that carried a noai signal in 2024: '+f((O.fineweb_kept_meta_noai||0)+(O.fineweb_kept_header_noai||0))+'.</p>';
     ov.innerHTML=h}
 })();
