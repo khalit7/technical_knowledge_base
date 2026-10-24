@@ -9,12 +9,13 @@ const puppeteer = require('puppeteer');
 const page = path.resolve(here, '../index.html'), out = path.resolve(here, '../.shots/parts');
 fs.mkdirSync(out, { recursive: true });
 const SHOTS = [
+  ['t-read', '#rd-hero-card', null], ['t-read', '#rd-grade-card', null], ['t-read', '#rd-phys-card', null],
   ['t-read', '#rd-one', null], ['t-read', '#rd-tools-card', null], ['t-read', '#rd-arc3-card', null], ['t-read', '#rd-sqa-card', null], ['t-read', '#rd-gpqa .card', null],
-  ['t-key', '#ky-card', p => p.evaluate(() => { document.getElementById('ky-ctl-s').value = 3; document.getElementById('ky-ctl-s').dispatchEvent(new Event('input')) })],
-  ['t-key', '#ky-card', p => p.evaluate(() => { document.querySelector('#ky-mode button[data-m=hle]').click(); const s = document.getElementById('ky-ctl-s'); s.value = 3; s.dispatchEvent(new Event('input')) }), 'hle'],
-  ['t-key', '#ky-map', null],
-  ['t-arc', '#ar-card', p => p.evaluate(() => { document.querySelector('#ar-rule button[data-m=up]').click(); const s = document.getElementById('ar-ctl-s'); s.value = 9; s.dispatchEvent(new Event('input')) })],
-  ['t-arc', '#sv-card', null], ['t-arc', '#rh-card', null],
+  ['t-read', '#ky-card', p => p.evaluate(() => { document.getElementById('ky-ctl-s').value = 3; document.getElementById('ky-ctl-s').dispatchEvent(new Event('input')) })],
+  ['t-read', '#ky-card', p => p.evaluate(() => { document.querySelector('#ky-mode button[data-m=hle]').click(); const s = document.getElementById('ky-ctl-s'); s.value = 3; s.dispatchEvent(new Event('input')) }), 'hle'],
+  ['t-read', '#rd-map-card', null],
+  ['t-read', '#ar-card', p => p.evaluate(() => { document.querySelector('#ar-rule button[data-m=up]').click(); const s = document.getElementById('ar-ctl-s'); s.value = 9; s.dispatchEvent(new Event('input')) })],
+  ['t-read', '#sv-card', p => p.evaluate(() => { document.getElementById('sv-det').open = true; dispatchEvent(new Event('resize')) })], ['t-read', '#rh-card', null],
   ['t-grade', '#gr-virology_88', p => p.evaluate(() => document.querySelector('#gr-virology_88 .opts button[data-i="2"]').click())],
   ['t-grade', '#gr-sqa', null],
 ];

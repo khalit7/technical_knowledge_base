@@ -1,7 +1,7 @@
 """Write parts/11_js_data.js (window.KR): the real data behind every visual, from inputs/ and tables.py.
 Run after recompute.py: python3 recompute.py && python3 mk_data.py"""
 import json
-from tables import REDUX_T2, REDUX_T2_SUBJECTS, HLEV_T2, HLEV_SPLIT, SQA_T3, MMLUPRO_T3, HLE_TOOLS, HLED
+from tables import REDUX_T2, REDUX_T2_SUBJECTS, HLEV_T2, HLEV_SPLIT, SQA_T3, MMLUPRO_T3, HLE_TOOLS, HLED, HERO, PHYS
 
 rx = json.load(open('inputs/redux_all.json'))
 sizes = json.load(open('inputs/mmlu_test_sizes.json'))['test_n']
@@ -49,6 +49,8 @@ KR = {
     'hled': HLED,
     'sqa': SQA_T3,
     'mmlupro': MMLUPRO_T3,
+    'hero': HERO,
+    'phys': PHYS,
     'rc': {k: rc[k] for k in ['gpqa_ci95_at_90', 'gpqa_ci95_at_96', 'gpqa_gap95_at_90', 'sqa_guess_threshold_gpt4o', 'hlev_share_range',
                               'hlev_full_gain_range', 'hlev_sub_gain_range', 'redux_strat_pct', 'redux_wrong_gt_pct']},
 }

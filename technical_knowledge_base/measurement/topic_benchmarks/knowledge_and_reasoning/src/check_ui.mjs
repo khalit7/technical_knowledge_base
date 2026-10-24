@@ -54,16 +54,17 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const sq = await p.$$eval('#gr-sqa-out .stat .v', e => e.map(x => x.textContent));
   if (sq.join('|') !== '3|0|1|85.7') problems.push('SimpleQA toy grader tally ' + sq.join('|') + ', expected 3|0|1|85.7');
   await bad('grade after answers');
-  // Fix the key
-  await p.click('button[data-t=t-key]'); await bad('key');
+  // Fix the key (Reading, section rd-key; the defect map is in the MMLU section)
+  await p.click('button[data-t=t-read]'); await bad('read key');
   for (const s of [0, 1, 2, 3, 4]) { await p.evaluate(s => document.querySelectorAll('#ky-subj button')[s].click(), s); await scrub('ky-ctl-s', 5, 'mmlu subj ' + s) }
   await p.click('#ky-mode button[data-m=hle]'); await scrub('ky-ctl-s', 5, 'hle');
   const lead = await p.evaluate(() => [...document.querySelectorAll('#ky-cnt .stat')].map(x => x.innerText).join(' / '));
   if (!/Grok 4\.1 fast|GPT-5\.2|Gemini 3 Pro/.test(lead)) problems.push('HLE leader not shown: ' + lead);
   await p.click('#ky-mode button[data-m=mmlu]'); await clickAll('#ky-sort button', 'map'); await clickAll('#ky-n button', 'map'); await clickAll('#ky-map .row', 'map');
   for (const b2 of ['ky-ctl-p', 'ky-ctl-f', 'ky-ctl-b']) { await p.click('#' + b2); actions++ }
-  // ARC lab
-  await p.click('button[data-t=t-arc]'); await bad('arc');
+  // ARC (Reading, section rd-arc; the solver sits in a closed block, opened here)
+  await p.click('button[data-t=t-read]'); await bad('read arc');
+  await p.evaluate(() => { document.getElementById('sv-det').open = true; dispatchEvent(new Event('resize')) });
   for (const r of ['frac', 'up']) {
     await p.click(`#ar-rule button[data-m=${r}]`);
     for (let k = 0; k < 6; k++) {
@@ -108,6 +109,19 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   }
   await p.click('button[data-t=t-more]'); await bad('more');
   if (errs.length) problems.push(scheme + ' errors: ' + errs.join(' | '));
+  await p.close();
+}
+// no autoplay: with normal motion, scroll each animation into view, wait, and expect it still on step 0
+{
+  const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
+  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
+  await p.goto('file://' + page);
+  for (const id of ['ky-card', 'ar-card']) {
+    await p.evaluate(id => document.getElementById(id).scrollIntoView({ block: 'center' }), id);
+    await new Promise(r => setTimeout(r, 3000));
+    const v = await p.evaluate(id => document.getElementById(id.replace('card', 'ctl') + '-s').value, id);
+    if (v !== '0') problems.push(`${id} moved by itself to step ${v}`);
+  }
   await p.close();
 }
 await b.close();
