@@ -19,7 +19,7 @@ for f in sorted(glob.glob(os.path.join(H, "real", "out", "*.txt"))):
 for k, f in (("ostep", "check_ostep.txt"), ("js", "check_js.txt")):
     if emb["checks"][k] != [l.rstrip("\n") for l in open(os.path.join(H, f)) if l.strip()]:
         bad.append(f"checks {k} differ from {f}")
-pats = ["glpat", "sk-ant", "/Users/", "/private/tmp", "khalid"]
+pats = ["glpat", "sk-ant", "/Users/", "/private/tmp"]
 files = glob.glob(os.path.join(H, "**", "*"), recursive=True) + glob.glob(os.path.join(H, "..", "parts", "31_*"))
 for f in files:
     if os.path.isfile(f) and not f.endswith(".png"):

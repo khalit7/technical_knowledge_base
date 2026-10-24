@@ -65,7 +65,7 @@ ok(max(r["max_abs_loss_diff_vs_single"] for r in st["strategies"]) < 2e-6, "all 
 ok(st["steps"] == 20, "20 steps")
 
 # 3. privacy
-pat = re.compile(r"/Users/|Users-|khalid|glpat|sk-ant|[\w.]+@[\w-]+\.[a-z]{2,}")
+pat = re.compile(r"/Users/|Users-|" + re.escape(__import__("getpass").getuser()) + r"|glpat|sk-ant|[\w.]+@[\w-]+\.[a-z]{2,}")
 for d in (HERE, PARTS):
     for f in os.listdir(d):
         if f.startswith(("34_", "sh_", "check_tab.mjs", "README", "viz_")):

@@ -30,7 +30,7 @@ prose = {  # literal in the HTML -> value from the data
 for lit, want in prose.items():
     ok(lit in html and lit == want, "prose %r present and equal to data %r" % (lit, want))
 # privacy
-pat = re.compile(r"/Users/|Users-|khalid|glpat|sk-ant|scratchpad|private/tmp|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}|\b(?:\d{1,3}\.){3}\d{1,3}\b")
+pat = re.compile(r"/Users/|Users-|" + re.escape(__import__("getpass").getuser()) + r"|glpat|sk-ant|scratchpad|private/tmp|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}|\b(?:\d{1,3}\.){3}\d{1,3}\b")
 hits = []
 for root, dirs, files in os.walk(PAGE):
     if ".shots" in root: continue

@@ -63,7 +63,7 @@ for a in ("1.037GiB", "1.251GiB"):
     if a not in mem: fails.append("memory reading " + a + " not in e12.mem.txt")
 if "1.04 to 1.25 GiB" not in page: fails.append("prose memory 1.04 to 1.25 GiB")
 # privacy over everything that will be committed
-pat = re.compile(r"/Users/|Users-|khalid|glpat|sk-ant|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}|\.local\b(?!\s*$)")
+pat = re.compile(r"/Users/|Users-|" + re.escape(__import__("getpass").getuser()) + r"|glpat|sk-ant|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}|\.local\b(?!\s*$)")
 for p in glob.glob(os.path.join(H, "..", "**", "*"), recursive=True):
     if os.path.isdir(p) or "/.shots/" in p or p.endswith("check_embed.py") or p.endswith(".png"):
         continue

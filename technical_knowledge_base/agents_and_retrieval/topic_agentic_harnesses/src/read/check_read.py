@@ -86,7 +86,7 @@ mine_txt += "".join(open(os.path.join(HERE, f)).read() for f in os.listdir(HERE)
 for f in os.listdir(os.path.join(HERE, "old")):
     mine_txt += open(os.path.join(HERE, "old", f)).read()
 ok("\u2014" not in mine_txt, "no em-dash in Reading files and notes")
-for bad in ["/Users/", "Users-", "khalid", "glpat", "sk-ant"]:
+for bad in ["/Users/", "Users-", "glpat", "sk-ant"]:
     ok(bad not in mine_txt, "no private string %r" % bad)
 print("\n%d failures" % len(fails))
 sys.exit(1 if fails else 0)

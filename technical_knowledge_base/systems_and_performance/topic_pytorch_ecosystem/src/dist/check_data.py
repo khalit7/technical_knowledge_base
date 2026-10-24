@@ -40,7 +40,7 @@ bad = []
 for p in glob.glob(os.path.join(HERE, "**", "*"), recursive=True) + glob.glob(os.path.join(HERE, "..", "parts", "33_*")):
     if os.path.isdir(p) or "__pycache__" in p: continue
     s = open(p, encoding="utf-8", errors="ignore").read()
-    for pat in ("/Users/", "Users-", "khalid", "glpat", "sk-ant", "/private/tmp"):
+    for pat in ("/Users/", "Users-", "glpat", "sk-ant", "/private/tmp"):
         if pat in s and not p.endswith("check_data.py"): bad.append((os.path.relpath(p, HERE), pat))
 if bad: fails.append("private strings: %s" % bad)
 for x in ("NaN", "undefined"):

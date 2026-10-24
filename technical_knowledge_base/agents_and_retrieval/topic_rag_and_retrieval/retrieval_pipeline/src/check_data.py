@@ -85,7 +85,7 @@ if (c["in_K"], c["in_k"], c["correct_strict"], E2["oracle"]["strict"], E2["close
 if E2["rr10@1"]["correct_strict"] != 97 or E2["rr20@3"]["correct_strict"] != 96:
     bad.append("prompt budget numbers differ from the root's e2e.json")
 # 5. privacy and hygiene
-pat = re.compile(r"/Users/|Users-|khalid|glpat|sk-ant|[\w.+-]+@[\w-]+\.[\w.]+|claude-502")
+pat = re.compile(r"/Users/|Users-|" + re.escape(__import__("getpass").getuser()) + r"|glpat|sk-ant|[\w.+-]+@[\w-]+\.[\w.]+|claude-502")
 for dp, dn, fn in os.walk(PAGE):
     if ".shots" in dp:
         continue

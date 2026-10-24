@@ -110,7 +110,7 @@ if not (n["processes_agree"] and n["max_abs_loss_diff_vs_one_device"] <= 4.8e-7)
     fails.append("multi run")
 
 # 3. privacy: everything under the page folder that will be committed
-pat = re.compile(r"/Users/|Users-|khalid|glpat|sk-ant|[\w.+-]+@[\w-]+\.[\w.]+|\.local\b|MacBook")
+pat = re.compile(r"/Users/|Users-|" + re.escape(__import__("getpass").getuser()) + r"|glpat|sk-ant|[\w.+-]+@[\w-]+\.[\w.]+|\.local\b|MacBook")
 root_dir = os.path.dirname(HERE)
 for dp, dns, fns in os.walk(root_dir):
     dns[:] = [d for d in dns if d not in (".shots", "__pycache__")]
