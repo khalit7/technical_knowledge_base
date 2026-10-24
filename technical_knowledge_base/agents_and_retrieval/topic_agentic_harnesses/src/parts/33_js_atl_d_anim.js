@@ -1,4 +1,4 @@
-// ---- Harness atlas: the harness-tax animation (two real recordings), the experiment table ----
+// ---- Harness atlas: the harness-tax animation (two real recordings) ----
 (function(){
   const {A,RM,$,esc,onRender,tabShown,n0}=window.ATLX;
   const AN=A.anim;if(!AN||!AN.loop)return;
@@ -47,72 +47,4 @@
   if(RM)k=0;
   onRender(draw);let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(tabShown())draw()},120)});
 
-  // the failed mini-swe-agent attempt
-  const X=A.x;if(X&&X.calls){const t=X.totals;
-    $('atl-xstat').innerHTML=[['Model calls',t.calls,'stopped by hand'],['Replies with invented output',t.replies_with_invented_output,'the model wrote the command\'s result itself'],['Format errors',t.format_errors,'more than one action in a reply'],['Output tokens',n0(t.out_tokens),'in '+Math.round(t.wall_s)+' s of model time'],['Tests after',X.tests_after.split(' (')[0],'code unchanged']].map(s=>'<div class="stat"><div class="k">'+s[0]+'</div><div class="v">'+s[1]+'</div><div class="d">'+s[2]+'</div></div>').join('');
-    $('atl-xtab').innerHTML='<thead><tr><th class="num">Call</th><th class="num">Input</th><th class="num">Output</th><th class="num">Seconds</th><th class="num">Actions in reply</th><th>Ran</th></tr></thead><tbody>'+X.calls.map(c=>'<tr><td class="num">'+c.call+'</td><td class="num">'+n0(c.in)+'</td><td class="num">'+n0(c.out)+'</td><td class="num">'+c.wall_s.toFixed(1)+'</td><td class="num">'+c.actions_in_reply+(c.invented_output?' <span class="ill">invented output</span>':'')+'</td><td><code>'+esc(c.executed||'(rejected)')+'</code></td></tr>').join('')+'</tbody>'}
-})();
-
-// ---- RL environment stepper (SFT against RL on the same task), environment table, LEGO-RL bars ----
-(function(){
-  const {A,RM,$,esc,link,onRender,tabShown}=window.ATLX;
-  const ST={sft:[
-    ['Task','The running example: a repository with failing tests and one instruction. In supervised fine-tuning (SFT) the task matters only through a transcript someone already recorded.'],
-    ['Recorded trajectory','One successful run, for example a Claude Code session from the Trace lab: every message, tool call and tool result, in order.'],
-    ['Mask','The transcript becomes tokens; the loss is computed only on the tokens the model wrote (its reasoning and tool calls), not on the tool results it was shown.'],
-    ['Loss','Cross-entropy: raise the probability of each recorded token. One trajectory, one fixed target.'],
-    ['No environment','Nothing is executed during training. The model never learns what its own, different actions would have caused; it learns to imitate.'],
-    ['Update','Cheap and stable, and capped by the trajectories: imitating 35.8k source trajectories scored 36.7 on Terminal-Bench 2.1 in Terminal-Universe, below re-solving the same tasks (52.1).']],
-   rl:[
-    ['Task','The same task, now an environment: a container image with the repository at the pre-fix commit, the instruction, and a verifier (the fail-to-pass tests).'],
-    ['Reset','Start several fresh containers from the same image, one per rollout (4 here, to keep the picture small).'],
-    ['Roll out','The current policy acts through the harness in each container: read, edit, run tests, finish. The four transcripts differ because sampling differs.'],
-    ['Verify','Run the tests in each container after the agent stops. Reward 1 if the failing tests now pass and the others still pass, else 0: here 1, 0, 1, 0.'],
-    ['Advantage','Group-relative (GRPO): reward minus the group mean (0.5), divided by the group standard deviation (0.5): +1, -1, +1, -1. No value network needed.'],
-    ['Update','Raise the probability of the tokens in the passing rollouts, lower it in the failing ones, then repeat on new tasks. The model learns from the consequences of its own actions, at the price of running thousands of containers.']]};
-  let mode='sft',k=0,timer=null;
-  function draw(){
-    const el=$('atl-rl');const W=Math.max(300,el.clientWidth||600);const s5=ST[mode];const n=s5.length;
-    const narrow=W<560;const cols=narrow?2:n;const bw=(W-(cols-1)*8)/cols,bh=46;const rows=Math.ceil(n/cols);
-    const extra=mode==='rl'?78:4;const H=rows*(bh+10)+extra;
-    let s='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Training steps">';
-    s5.forEach((st,i)=>{const c=i%cols,r=Math.floor(i/cols);const x=c*(bw+8),y=r*(bh+10);const cur=i===k,done=i<k;
-      s+='<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="7" fill="'+(cur?'var(--acc2)':'var(--soft)')+'" stroke="'+(cur?'var(--acc)':'var(--line)')+'" stroke-width="'+(cur?2:1)+'" opacity="'+(done||cur?1:0.55)+'"/>';
-      s+='<text x="'+(x+bw/2)+'" y="'+(y+20)+'" font-size="12" font-weight="600" text-anchor="middle">'+(i+1)+'. '+esc(st[0])+'</text>';
-      s+='<text x="'+(x+bw/2)+'" y="'+(y+36)+'" font-size="10.5" text-anchor="middle" fill="var(--mute)">'+(mode==='sft'?(i===4?'no container runs':'offline'):(i===0?'built once':i<=3?'containers run':'trainer'))+'</text>'});
-    const y0=rows*(bh+10)+6;
-    if(mode==='rl'){const R=[1,0,1,0],adv=['+1','-1','+1','-1'];const cw=(W-30)/4;
-      R.forEach((r,i)=>{const x=i*(cw+10);const on=k>=1;
-        s+='<rect x="'+x+'" y="'+y0+'" width="'+cw+'" height="30" rx="5" fill="none" stroke="var(--line)" opacity="'+(on?1:0.3)+'"/>';
-        s+='<text x="'+(x+8)+'" y="'+(y0+19)+'" font-size="11" fill="var(--mute)" opacity="'+(on?1:0.3)+'">rollout '+(i+1)+'</text>';
-        if(k>=2){const len=(0.35+0.15*((i*7)%3))*(cw-80);s+='<rect x="'+(x+64)+'" y="'+(y0+11)+'" width="'+len.toFixed(1)+'" height="8" rx="2" fill="var(--c1)" opacity="0.7"/>'}
-        if(k>=3)s+='<text x="'+(x+cw-6)+'" y="'+(y0+19)+'" font-size="12" font-weight="600" text-anchor="end" fill="'+(r?'var(--good)':'var(--bad)')+'">'+(k>=4?adv[i]:'r='+r)+'</text>';
-      });
-      s+='<text x="0" y="'+(y0+48)+'" font-size="11" fill="var(--mute)">'+(k>=4?'advantages: (r - 0.5) / 0.5':k>=3?'rewards from the tests':k>=2?'trajectories of different lengths':'four fresh containers')+'</text>'}
-
-    el.innerHTML=s+'</svg>';
-    $('atl-rstep').innerHTML='<b>'+esc(s5[k][0])+'.</b> '+esc(s5[k][1]);$('atl-rscrub').value=k;
-  }
-  function stop(){if(timer){clearInterval(timer);timer=null}$('atl-rplay').textContent='Play'}
-  $('atl-rplay').addEventListener('click',()=>{if(timer){stop();return}if(k>=5)k=0;$('atl-rplay').textContent='Pause';timer=setInterval(()=>{if(!tabShown())return;if(k>=5){stop();return}k++;draw()},1800)});
-  $('atl-rfwd').addEventListener('click',()=>{stop();k=Math.min(5,k+1);draw()});
-  $('atl-rback').addEventListener('click',()=>{stop();k=Math.max(0,k-1);draw()});
-  $('atl-rscrub').addEventListener('input',()=>{stop();k=+$('atl-rscrub').value;draw()});
-  $('atl-rmode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;$('atl-rmode').querySelectorAll('button').forEach(q=>q.classList.toggle('on',q===b));draw()});
-  onRender(draw);let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(tabShown())draw()},120)});
-
-  // environment table
-  $('atl-rpat').textContent=A.rlpat||'';
-  const R=(A.rl||[]).slice();let sk='date',sd=1;
-  const cols=[['name','Environment or method'],['what','What it is'],['size','Size'],['harness','Rollout harness'],['reward','Reward'],['headline','Headline result'],['date','Date']];
-  function table(){R.sort((a,b)=>String(a[sk]).localeCompare(String(b[sk]))*sd);
-    $('atl-rtab').innerHTML='<thead><tr>'+cols.map(c=>'<th data-k="'+c[0]+'">'+c[1]+(sk===c[0]?(sd>0?' &#9650;':' &#9660;'):'')+'</th>').join('')+'</tr></thead><tbody>'+R.map(r=>'<tr>'+cols.map(c=>'<td style="min-width:'+(c[0]==='what'?'16em':c[0]==='date'?'6em':'9em')+'">'+(c[0]==='name'?link(r.src,r.name):esc(r[c[0]]))+'</td>').join('')+'</tr>').join('')+'</tbody>'}
-  $('atl-rtab').addEventListener('click',e=>{const th=e.target.closest('th');if(!th)return;const kk=th.dataset.k;sd=sk===kk?-sd:1;sk=kk;table()});
-  table();
-
-  // LEGO-RL before/after bars
-  const lg=A.lego||[];const hs=['OpenHands SDK','Claude Code','OpenCode'];
-  const v=(pre,h)=>{const r=lg.find(p=>p.model.indexOf(pre)>=0&&p.harness===h);return r?r.value:null};
-  $('atl-legobars').innerHTML=hs.map(h=>{const b=v('base',h),a=v('after',h);if(b==null||a==null)return '';
-    return '<div class="row"><span class="nm">'+h+'</span><span class="track"><span class="fill" style="width:'+a+'%;background:var(--c3)"></span><span class="fill" style="width:'+b+'%;background:var(--c1)"></span></span><span class="val">'+b+' to '+a+'</span></div>'}).join('')+'<p class="atl-cap"><span style="color:var(--c1)">&#9632;</span> before RL, <span style="color:var(--c3)">&#9632;</span> after RL in that harness; % of 500 SWE-bench Verified tasks.</p>';
 })();

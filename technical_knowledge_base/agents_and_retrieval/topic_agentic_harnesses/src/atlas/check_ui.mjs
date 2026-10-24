@@ -32,9 +32,7 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     s.value = 'tb20'; s.dispatchEvent(new Event('change')); return n });
   counts.anim = await page.evaluate(() => { const f = document.getElementById('atl-afwd'); for (let i = 0; i < 14; i++) f.click(); document.getElementById('atl-aback').click(); const r = document.getElementById('atl-ascrub'); r.value = 5; r.dispatchEvent(new Event('input')); return 16 });
   await page.click('#atl-aplay'); await new Promise(r => setTimeout(r, 1200)); await page.click('#atl-aplay');
-  counts.rl = await page.evaluate(() => { let n = 0; for (const m of document.querySelectorAll('#atl-rmode button')) { m.click(); for (let i = 0; i < 6; i++) { document.getElementById('atl-rfwd').click(); n++ } document.getElementById('atl-rback').click() } return n });
-  counts.rth = await clickAll('#atl-rtab th');
-  counts.drill = await page.evaluate(() => { let n = 0; document.querySelectorAll('#atl-drills .atl-drill').forEach(d => { const b = d.querySelectorAll('button'); b[0].click(); b[b.length - 1].click(); n++ }); document.querySelectorAll('#atl-iq details').forEach(d => d.open = true); return n });
+  counts.iq = await page.evaluate(() => { document.querySelectorAll('#t-atlas details').forEach(d => d.open = true); return document.querySelectorAll('#atl-iq p').length });
   const r = await page.evaluate((w) => {
     const t = document.getElementById('t-atlas'); const txt = t.innerText;
     const bad = (txt.match(/\bNaN\b|\bundefined\b|\bnull\b|Infinity/g) || []);
