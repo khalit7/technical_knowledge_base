@@ -1,4 +1,4 @@
-// ---- Self-improvement: paper comparison table, environment papers, and the harness-search simulator ----
+// ---- Reading section 7 (was the Self-improvement tab): paper comparison table, environment papers, and the harness-search simulator ----
 (function(){
   const HT=window.HT,esc=RD.esc,$=id=>document.getElementById(id);
   const P=HT.papers.papers,EP=HT.papers.env_papers;
@@ -65,5 +65,6 @@
   }
   ['sf-k','sf-n','sf-s','sf-r'].forEach(i=>$(i).addEventListener('input',run));
   RD.seg($('sf-rule'),v=>{HTX.sfRule=v;run()});
-  RD.onRenderTab('t-self',run);RD.onResize(run,'t-self');
+  // the simulator sits in a closed block in Reading section 7: draw when it opens, and on resize while open
+  const det=$('ht-rig');det.addEventListener('toggle',()=>{if(det.open)run()});RD.onResize(()=>{if(det.open)run()});
 })();

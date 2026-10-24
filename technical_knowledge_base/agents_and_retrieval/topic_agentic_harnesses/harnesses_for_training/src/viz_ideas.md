@@ -18,6 +18,13 @@ Scored 1 to 5 on: teaches the mechanism (T), uses real data (D), not already on 
 | Rollout to dataset: redaction counts, one rollout in three formats, SFT filter funnel, every group's advantages | 4 | 5 | 5 | 4 | Rollout to dataset tab | recordings, `inputs/redaction.json` |
 | RL frameworks table | 3 | 4 | 4 | 5 | Reading s8 | `inputs/frameworks.json` |
 
+## Added 2026-10-24
+| Idea | Where | Data |
+|---|---|---|
+| Hero: one episode (task, policy, harness, sandbox, verifier, reward) as a static annotated diagram, with four use cards | Reading top | none (structure) |
+| The same six parts as a fleet with published sizes | Reading s8 | DSec, DeepSWE; 512 = 64 x 8 derived |
+| Format viewer, SFT funnel, groups table, simulator sliders, paper tables | moved from the Rollout to dataset and Self-improvement tabs into Reading s4, s6, s7 | unchanged |
+
 ## Rejected
 - Rebuilding a GRPO group widget from scratch with made-up rewards: RL for LLMs owns it (live group widget); ours uses real agent groups only.
 - An SFT vs RL animation on illustrative rollouts: the parent's atlas already has one ("Harnesses for training").
