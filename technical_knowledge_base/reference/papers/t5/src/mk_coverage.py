@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "11 min read, +4h 12m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "11 min read, +4h 12m resources"', 'dropped: replaced by the measured reading time in the header (2026-10-24)', ['Reading:', 'in closed details']),
  ('Authors: Raffel, Shazeer, Roberts, Lee, Narang, Matena, Zhou, Li, Liu (Google)', R + ', headline card', ['Colin Raffel', 'Noam Shazeer', 'Adam Roberts', 'Katherine Lee', 'Sharan Narang', 'Michael Matena', 'Yanqi Zhou', 'Wei Li', 'Peter J. Liu', 'Google']),
  ('Date: October 2019 (arXiv v1); JMLR 21(140), 2020', R + ', headline card', ['October 2019', 'JMLR 21(140), 2020']),
  ('Link arXiv:1910.10683 (~1h 30m; 53 pages, read it as a survey)', 'card and Further reading', ['https://arxiv.org/abs/1910.10683', '(1h 30m)', '53 pages: read it as a survey rather than a paper']),
@@ -36,9 +36,9 @@ C = [
  ('Payoff: one model, loss, decoding, hyperparameter set covers translation, summarisation, QA, classification; why ablations comparable', R + ', Idea', ['one model, one loss, one decoding procedure and one hyperparameter set', 'the only reason the ablations that follow are comparable']),
  # baseline model
  ('Encoder-decoder, each stack BERT-Base: 12 blocks, d_model 768, d_ff 3072, 12 heads; ~220M, twice BERT-Base', R + ', Baseline; parameter recount in the grid tab (222.9M)', ['12 blocks', '768', '3072', '12 heads', 'About 220 million parameters', 'twice BERT-Base because there are two stacks']),
- ('Rescale-only layer norm (no bias, no mean subtraction) = later RMSNorm', R + ', Baseline', ['Rescale-only layer norm', 'no mean subtraction', 'RMSNorm']),
- ('Layer norm outside the residual path', R + ', Baseline', ['Outside the residual path']),
- ('Relative position: one learned scalar per logit, 32 buckets, log ranges to 128, shared across layers', R + ', Baseline, with the bucket chart from T5\'s own function', ['one learned scalar added to each attention logit', '32 buckets', 'up to an offset of 128', 'shared across layers']),
+ ('Rescale-only layer norm (no bias, no mean subtraction) = later RMSNorm', R + ', Baseline', ['Rescale-only layer norm', 'No bias and no subtraction of mean', 'RMSNorm']),
+ ('Layer norm outside the residual path', R + ', Baseline', ['pre-norm, not the original post-norm']),
+ ('Relative position: one learned scalar per logit, 32 buckets, log ranges to 128, shared across layers', R + ', Baseline, with the bucket chart from T5\'s own function (closed since 2026-10-24)', ['one learned scalar per head added to each attention logit', '32 buckets', 'up to an offset of 128', 'shared across layers']),
  ('Adafactor: factorises second moment into row and column vectors', R + ', Baseline: Training', ['Adafactor', 'row and column vectors']),
  ('Inverse-square-root learning-rate schedule', R + ', Baseline: Training, with chart', ['inverse square root decay']),
  ('SentencePiece 32k shared, English mixed 10:1:1:1 with German, French, Romanian', R + ', Baseline: Training', ['32,000 wordpieces shared by input and output', '10:1:1:1']),

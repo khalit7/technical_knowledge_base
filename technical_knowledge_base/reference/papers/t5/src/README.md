@@ -7,7 +7,7 @@
 | Tab | id | What it holds |
 |---|---|---|
 | The paper | `t-read` | Headline card from `paper.json` (Takeaway, three headline numbers, the verdict linking to the evidence section), then Problem, Text to text (the paper's own Appendix D examples), Baseline, Span corruption (animated: the same sentence through BERT-style, i.i.d. and span corruption), Architectures (the attention-mask animation for encoder-decoder, language model and prefix LM), Objectives, Data, Fine-tuning and mixing, Scaling, Final models, Results, How much of this to believe, Why it matters (beyond the paper, each claim sourced), Connections. Three predict-then-reveal questions: the architecture ablation, unfiltered C4, and how to spend 4x compute. |
-| Corrupt a sentence | `t-run` | The live ingredient: T5's own preprocessing (`random_spans_noise_mask`, `noise_span_to_unique_sentinel`, `random_spans_helper`, i.i.d. noise, BERT-style) ported line by line from `t5/data/preprocessors.py` to `parts/12_js_t5core.js`, run on any text with rate and span-length sliders, the paper's score beside each setting, and the target-length cost of every objective per 512 tokens. |
+| (Corrupt a sentence) | `t-run` | Removed on 2026-10-24: its stepper, playground and cost chart are now in the Reading tab (see the light pass below); `#t-run` links open Reading at the stepper. |
 | The paper's tables, rebuilt | `t-tables` | Every scored table in `tables.json` (Tables 1, 2 and 4 to 16; Table 3 is example text) as one sortable ablation grid with delta from the baseline in standard deviations of Table 1; the checks on the paper's own tables; the parameter recount of the five sizes; Table 14 against the previous best. |
 | Further reading | `t-more` | Generated from `paper.json`. |
 
@@ -39,3 +39,31 @@
 ## Checks (2 October 2026)
 
 `sh html_utils/checkpage.sh <folder>`: tabs 4, 210 KB, emdash 0, errbox 1, clipped 0, fail=0. `check_page.mjs`: 550 actions, 0 problems. `check_core.mjs`: PASS. `mk_coverage.py`: 78 of 78 items verified.
+
+## The 2026-10-24 light pass (teaching contract)
+
+What changed and why:
+- **Top**: the core sentence; the hero is the paper's own Figure 1 (the text-to-text diagram), embedded as `img/t5_figure1_text_to_text.webp` because the JMLR version is CC BY 4.0 (credited under it and in `img/CREDITS.md`); then "You need" (Attention Is All You Need, The transformer from zero, Families and objectives) and four new terms.
+- **The Corrupt a sentence tab moved into Reading**, because it explained one mechanism: the stepper (BERT-style, i.i.d. and random spans on Figure 2's sentence) sits in Span corruption under a heading saying what to notice; the playground on your own text is a closed block under it; the target-length chart ("a fifth of BERT-style's target, no worse a score") sits in Objectives beside "choose on cost". At 390 px the chart is taller and the three full-reconstruction labels at x = 512 are stacked (they overlapped).
+- **No autoplay**: `11_js_ui.js` patched as on the ZeRO and Megatron-LM pages (waits on step 1; a mode switch resets and pauses). `90_js_tabs.js` replaced by the template `99_js_tabs.js` (storage key `t5-tab`; `#t-run` opens Reading at the stepper; tab links open the closed block after their target). `check_page.mjs` now fails if `msk` or `spx` moves before a click and opens every closed block to exercise its controls.
+- **Owned elsewhere, linked with one or two sentences kept**: RMSNorm and pre-norm in general (Normalisation, residuals and stability), the T5 bias against other position schemes (Positional encodings), span corruption among the objectives (Families and objectives), C4's rules run on real text (Extraction and filtering), repetition and temperature mixing at today's scale (Data mixing), objectives as a family and scaling laws (Pretraining). What T5 itself chose and measured stays here.
+- **Closed**: the bucket slider, the rest of the training recipe with the learning-rate chart, the two printed numbers that do not quite reproduce (32×, Large's 770M), and in the tables tab the checks list and the parameter recount. **Volatile**: where the checkpoints are used now (Flan-T5 ladder, Imagen, SD3, FLUX.1) is one dated closed block.
+- Header: "Reading: 21 min, plus 2 in closed details.", read by `build.sh` from `reading.json`.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After |
+|---|---|---|
+| The paper, core | 18.8 min | 21.3 min |
+| The paper, closed details | 0 | 2.3 min |
+| Corrupt a sentence (tab) | 3.3 min | removed (moved into Reading) |
+| The ablation grid, rebuilt | 4.7 min | 1.7 min, plus 3.1 closed |
+| Further reading | 2.6 min | 2.6 min |
+| Visuals in Reading (audit) | 4 | 7 |
+
+Why about 21 minutes is right: Reading now holds what took 22.1 core minutes across two tabs, plus the core sentence, the hero and the new terms, with recipe details, the bucket slider and the playground closed. What is open is the paper's argument in its order, one short section per ablation, the evidence and what later work showed; the general mechanisms are one sentence and a link each. A 53-page ablation study owned by this page does not fit in less without dropping ablations.
+
+## Knowledge ledger (`ledger.json`, labelled by `label_ledger.py`)
+203 units: core 177, depth 14, owned 6, volatile 1, fat 5. 190 drafted by `ledger.py init`; 13 added (core sentence, hero, new terms, six owner links, four units for the script-drawn tables with keys in static captions). `ledger.py check`: problems 0.
+
+## Checks (24 October 2026)
+`checkpage.sh`: tabs 3, 217 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 550 actions, 0 problems (including no movement before a click). `check_core.mjs`: PASS. `mk_coverage.py`: 78 of 78 (four keys updated for the reworded baseline bullets and the header).

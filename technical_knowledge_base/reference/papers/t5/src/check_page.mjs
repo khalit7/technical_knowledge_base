@@ -42,6 +42,14 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
+    // nothing may move before the reader acts (2026-10-24): scroll each animation into view and wait
+    for (const id of ['msk', 'spx']) {
+      if (!(await p.$(`#${t} #${id}`))) continue;
+      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(900);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`);
+    }
+    // closed details hold controls too (the bucket slider, the playground, the recount): open them all
+    await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(200); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }
@@ -71,12 +79,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     const segs = await p.$$(`#${t} .seg button`);
     for (const s of segs) { if (await s.evaluate(b => b.offsetParent !== null)) { await s.evaluate(b => b.click()); actions++; await wait(30) } }
     await audit(t + ' after controls');
-    if (t === 't-run') {
+    if (t === 't-read') {
       for (const txt of ['', 'one', 'a b', 'Thank you for inviting me to your party last week .']) {
         await p.evaluate(v => { const e = document.getElementById('pgText'); e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })) }, txt); actions++;
         for (const o of ['prefix', 'bert', 'deshuf', 'mass', 'iidrep', 'iiddrop', 'spans']) { await p.select('#pgObj', o); await clk('#pgSeed'); actions += 2 }
       }
-      await audit('t-run playground edge cases');
+      await audit('t-read playground edge cases');
     }
     if (t === 't-tables') {
       for (const src of ['main', 'app']) { await p.select('#tbSrc', src);

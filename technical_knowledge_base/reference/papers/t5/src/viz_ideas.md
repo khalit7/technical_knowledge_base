@@ -18,3 +18,11 @@ The question the paper keeps returning to: **with everything else held fixed, wh
 |---|---|---|
 | P-t5.6 | Toy encoder-decoder trained with each objective | The paper's gaps among denoising variants are fractions of a point at 220M; a toy would show noise and invite over-reading. |
 | P-t5.7 | Then and now morph to T5 1.1 / Flan-T5 | Four small changes; a sourced paragraph in "Why it matters" carries them. |
+
+## Light pass, 2026-10-24
+| id | Idea | Decision |
+|---|---|---|
+| P-t5.8 | Hero: the paper's own Figure 1 (text to text), embedded as WebP | Built. The JMLR version is CC BY 4.0, so the canonical figure is embedded with credit (`img/CREDITS.md`) rather than redrawn. |
+| P-t5.9 | Move the objectives stepper (BERT-style, i.i.d., spans on one sentence) into the Span corruption section | Built: it is a before/after of the method against the one it replaced, so it belongs beside the claim. The playground went into a closed block under it. |
+| P-t5.10 | Move the target-length cost chart into Objectives | Built: it is the evidence for "choose on cost"; at 390 px it is taller and the three x = 512 labels are stacked. |
+| P-t5.11 | Bucket slider and learning-rate chart | Kept, closed: the T5 bias in general belongs to Positional encodings; the schedule is recipe detail. |

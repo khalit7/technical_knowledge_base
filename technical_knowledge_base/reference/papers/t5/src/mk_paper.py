@@ -31,8 +31,8 @@ def card():
     h.append('</div>')
     if P.get('verdict'):
         h.append('<p class="vd"><b>How far to trust it:</b> %s <a href="#s-trust">The evidence, point by point.</a></p>' % html.escape(P['verdict']))
-    h.append('<div class="hero-l">%s · %s · %s · <a href="#" data-tab="%s">%s</a></div>'
-             % (A(AX, 'read it (arXiv HTML)'), A('https://arxiv.org/pdf/' + P['arxiv'] + P['arxiv_v'], 'PDF'), A(P['code']['url'], 'code (' + P['code']['title'] + ')'), P['live']['tab'], P['live']['text']))
+    h.append('<div class="hero-l">%s · %s · %s · <a href="#" data-tab="%s" data-to="%s">%s</a></div>'
+             % (A(AX, 'read it (arXiv HTML)'), A('https://arxiv.org/pdf/' + P['arxiv'] + P['arxiv_v'], 'PDF'), A(P['code']['url'], 'code (' + P['code']['title'] + ')'), P['live']['tab'], P['live'].get('to', ''), P['live']['text']))
     h.append('</div>')
     return '\n'.join(h)
 

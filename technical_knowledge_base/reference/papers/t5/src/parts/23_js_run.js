@@ -64,18 +64,19 @@ const L512={bert:{inp:512,tgt:512},iid:T5.lenIid(512,0.15),span:T5.lenSpans(512,
     add('i.i.d. 15% (baseline)',T5.lenIid(512,.15).tgt,'T5','Replace corrupted spans');add('drop tokens',T5.lenIid(512,.15).drop,'T5','Drop corrupted tokens');
     [10,25,50].forEach(p=>add('i.i.d. '+p+'%',T5.lenIid(512,p/100).tgt,'T6',p+'%'));[2,3,5,10].forEach(s=>add('spans '+s,T5.lenSpans(512,.15,s).tgt,'T7',''+s));return P};
   const P=pts();
-  function draw(W){const j=+$('lenMet').value,H=W<560?300:270,pl=44,pr=12,pt=14,pb=36;const vs=P.map(p=>+p.v[j]),lo=Math.min(...vs),hi=Math.max(...vs),pad=(hi-lo)*.12;
+  function draw(W){const j=+$('lenMet').value,H=W<560?440:270,pl=44,pr=12,pt=26,pb=36;const vs=P.map(p=>+p.v[j]),lo=Math.min(...vs),hi=Math.max(...vs),pad=(hi-lo)*.12;
     const X=x=>pl+(W-pl-pr)*(x-40)/(540-40),Y=v=>pt+(H-pt-pb)*(1-(v-(lo-pad))/((hi+pad)-(lo-pad)));let s='';
     const best=Math.max(...vs);s+=rc(pl,Y(best),W-pl-pr,Y(best-2*SD7[j])-Y(best),'var(--acc2)',{r:0,op:.75});
     [100,200,300,400,500].forEach(x=>{s+=ln2(X(x),H-pb,X(x),H-pb+4,'var(--mute)')+tx(X(x),H-pb+16,x,{fs:11,a:'middle',c:'var(--mute)'})});
     const st=(hi-lo)>8?2:(hi-lo)>3?1:0.5;for(let v=Math.ceil((lo-pad)/st)*st;v<=hi+pad;v+=st)s+=ln2(pl,Y(v),W-pr,Y(v),'var(--line)')+tx(pl-5,Y(v)+4,+v.toFixed(1),{fs:11,a:'end',c:'var(--mute)'});
     s+=tx((pl+W-pr)/2,H-2,'target tokens per 512 tokens of text (computed)',{fs:11,a:'middle',c:'var(--mute)'});
-    const L=P.map(p=>({x:X(p.x),y:Y(+p.v[j]),t:p.n,fs:11,p}));placeLabels(L,W-16,H-pb);L.forEach(l=>{const w=l.t.length*11*.62;if(l.la==='start'&&l.lx+w>W-4){l.la='end';l.lx=l.x-8}if(l.la==='middle'&&l.lx+w/2>W-4){l.la='end';l.lx=W-4}});
+    const L=P.map(p=>({x:X(p.x),y:Y(+p.v[j]),t:p.n,fs:11.8,p}));placeLabels(L,W-8,H-pb);L.forEach(l=>{l.fs=11});
+    {const R5=L.filter(l=>l.p.x===512).sort((a,b)=>a.y-b.y);let last=-99;R5.forEach(l=>{l.la='end';l.lx=l.x-9;l.ly=Math.max(l.y+4,last+13);last=l.ly})} // the three full-reconstruction rows share x = 512: stack their labels to the leftL.forEach(l=>{const w=l.t.length*11*.62;if(l.la==='start'&&l.lx+w>W-4){l.la='end';l.lx=l.x-8}if(l.la==='middle'&&l.lx+w/2>W-4){l.la='end';l.lx=W-4}});
     L.forEach(l=>{const c=/spans/.test(l.t)?'var(--c3)':/i\.i\.d|drop/.test(l.t)?'var(--c1)':'var(--c2)';s+='<circle cx="'+l.x.toFixed(1)+'" cy="'+l.y.toFixed(1)+'" r="4.5" fill="'+c+'"><title>'+escH(l.t)+': '+l.p.v[j]+' ('+l.p.t.replace('T','Table ')+')</title></circle>'+tx(l.lx,l.ly,escH(l.t),{fs:11,a:l.la})});
     el.innerHTML=svgW(W,H,s,'Target length against score');
     const sp=P.find(p=>p.n==='spans 3'),be=P.find(p=>p.n==='BERT-style');
     $('lenO').innerHTML='Spans of mean 3 write '+sp.x.toFixed(0)+' target tokens per 512 against BERT-style\'s 512 ('+(512/sp.x).toFixed(1)+'× fewer) and score '+sp.v[j]+' against '+be.v[j]+' on '+$('lenMet').selectedOptions[0].textContent+'. Shaded: within two baseline standard deviations ('+(2*SD7[j]).toFixed(2)+') of the best point. Blue: i.i.d. noise; green: spans; orange: other objectives. Hover a point for its table.'}
-  $('lenMet').addEventListener('change',()=>refit(el));onTab('t-run',()=>refit(el));fit(el,draw);
+  $('lenMet').addEventListener('change',()=>refit(el));onTab('t-read',()=>refit(el));fit(el,draw);
   // the JS port's lengths against recompute.py's port of random_spans_helper
   let n=0,ok=0;Object.keys(RC.spans).forEach(k=>{const [d,s]=k.split('_').map(Number),a=T5.helper(512,d,s),b=RC.spans[k];n++;if(a.raw===b.raw&&a.inputs===b.inputs&&a.targets===b.targets)ok++});
   Object.keys(RC.spans_per512).forEach(k=>{const [d,s]=k.split('_').map(Number),a=T5.lenSpans(512,d,s),b=RC.spans_per512[k];n++;if(a.inp===b.inputs&&a.tgt===b.targets)ok++});
