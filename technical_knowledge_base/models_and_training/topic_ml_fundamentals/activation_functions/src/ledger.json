@@ -1,0 +1,1866 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Activation functions Topic: ml-fundamentals · deep dive · ⏱ 20 min read · +4h 30m resources Activation functions The nonlinearity between two linear maps: the saturating classics (sigmoid, tanh), the ReLU family and its dead units, the smooth ReLUs (GELU, SiLU, Mish), the gated units that every current LLM uses (GLU, ReGLU, GEGLU, SwiGLU) with the 2/3 width rule, the output layer, and what these functions actually do inside three released models.",
+  "label": "core",
+  "key": "the gated units every current LLM uses",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Every curve on this page is computed in your browser and checked against PyTorch; the dead-unit and real-model numbers were measured offline.",
+  "label": "core",
+  "key": "checked against PyTorch",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Sources are linked inline; checked 3 October 2026.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "date moved: Data as of October 2026"
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Activation atlas Inside real models Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar and nav"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "In one screen Why a nonlinearity Sigmoid and tanh The ReLU family Dead units Smooth ReLUs Gated units The 2/3 rule Inside real models The output layer Mistakes",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar and nav"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "In one screen An activation function is the elementwise nonlinearity between two linear maps.",
+  "label": "core",
+  "key": "elementwise nonlinearity between two linear maps",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "It decides three things: whether the gradient survives many layers ( saturation ), whether units can switch off for good ( dead units ), and, at the output, what the numbers mean ( probabilities, or a value ).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the core sentence and the family table"
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "In 2026 the answer for hidden layers of a language model is a gated unit, almost always SwiGLU; GELU survives in vision transformers and older encoders; the ReLU family in convolutional networks and a few efficiency-minded LLMs; sigmoid and tanh only inside gates and at outputs.",
+  "label": "core",
+  "key": "almost always SwiGLU",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "This page owns the details.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The parent topic places the activation in one training step and has three live pieces this page links rather than repeats: \"one batch through five networks\" (sigmoid with Xavier, ReLU with 1/ n , ReLU with He, BatchNorm residual, pre-RMSNorm SwiGLU, with the variance and the gradient of every layer) in step 2 of the Reading tab of Topic: ml-fundamentals ; the Training lab tab, which trains the same network with six activations swapped live; and the Defaults across models tab, which lists the activation and FFN width of twenty-one models from AlexNet to Kimi K2, each with its source.",
+  "label": "core",
+  "key": "one batch through five networks",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Family Members Where it lives now What goes wrong Saturating sigmoid, tanh gates (LSTM, GRU), binary outputs slope near 0 on both sides: gradients vanish through many layers ( below ) Rectified ReLU, leaky ReLU, PReLU, ELU, SELU, squared ReLU convolutional networks; OPT (ReLU), Nemotron-4 (squared ReLU) ReLU units can die: zero output and zero gradient on every input ( measured below ) Smooth rectifiers GELU (exact or tanh form), SiLU (Swish), Mish BERT, GPT-2, GPT-3, ViT several \"GELU\"s that are not interchangeable in a trained checkpoint ( below ) Gated GLU, bilinear, ReGLU, GEGLU, SwiGLU the feed-forward block of nearly every LLM since PaLM and Llama a third weight matrix: the hidden width is cut to keep the parameter count ( the 2/3 rule ) Output sigmoid, softmax, none (linear) the last layer, chosen by the task must match the loss, which in PyTorch usually wants the raw logits ( below ) Every function on this page, with its derivative, the region where it saturates and the region where its slope is exactly zero, is drawn in the Activation atlas tab; what these functions actually output inside OPT-125m, GPT-2 and SmolLM2-135M is the Inside real models tab.",
+  "label": "core",
+  "key": "convolutional networks; OPT (ReLU), Nemotron-4 (squared ReLU)",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "why a nonlinearity, and what it must be",
+  "text": "Why a nonlinearity, and what it must be Non-linear, or the stack collapses: W 2 ( W 1 x ) = ( W 2 W 1 ) x , one linear map however many layers there are.",
+  "label": "core",
+  "key": "one linear map however many layers",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "why a nonlinearity, and what it must be",
+  "text": "Not a polynomial, which is the precise condition for a one-hidden-layer network to approximate any continuous function: \"a standard multilayer feedforward network with a locally bounded piecewise continuous activation function can approximate any continuous function to any degree of accuracy if and only if the network's activation function is not a polynomial\" ( Leshno, Lin, Pinkus and Schocken 1993 ). x 2 alone would not do; squared ReLU, max(0, x ) 2 , is piecewise and is not a polynomial, so it qualifies.",
+  "label": "depth",
+  "key": "locally bounded piecewise continuous activation function",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "why a nonlinearity, and what it must be",
+  "text": "Differentiable almost everywhere is enough for gradient descent: ReLU has no derivative at exactly 0 and frameworks simply pick one (PyTorch's autograd uses 0 there; this page's derivatives agree with autograd everywhere else, src/recompute.py ).",
+  "label": "core",
+  "key": "PyTorch's autograd uses 0 there",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "why a nonlinearity, and what it must be",
+  "text": "Everything else is a trade between four properties: slope near 1 over a wide range (gradients survive depth), outputs centred on zero (updates do not zig-zag), cheap to compute, and smooth (the optimiser sees a smooth surface).",
+  "label": "core",
+  "key": "Everything else is a trade between four properties",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "why a nonlinearity, and what it must be",
+  "text": "No function has all four; the history below is the field trading one for another.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restatement"
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "sigmoid and tanh: saturation",
+  "text": "Sigmoid and tanh: saturation Activation Formula Range Largest slope Good at Trouble Sigmoid σ 1 / (1 + e − x ) (0, 1) 0.25, at x = 0 an output read as a probability; a gate that opens between 0 and 1 saturates on both sides; outputs always positive, not zero-centred Tanh tanh x = 2σ(2 x ) − 1 (−1, 1) 1, at x = 0 zero-centred: outputs, and so the next layer's updates, can have either sign still saturates: slope below 0.01 once | x | > 3.0 derived Saturation.",
+  "label": "core",
+  "key": "slope below 0.01 once",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "sigmoid and tanh: saturation",
+  "text": "Backpropagation multiplies the gradient by the activation's slope at every layer.",
+  "label": "core",
+  "key": "Backpropagation multiplies the gradient by the activation's",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "sigmoid and tanh: saturation",
+  "text": "A sigmoid's slope is at most 0.25, so even at its best a gradient shrinks by 4 per layer, and in a saturated unit (| x | large) the slope is close to 0: the slope of the sigmoid is below 0.01 once | x | > 4.6 derived from σ(1 − σ) = 0.01 .",
+  "label": "core",
+  "key": "4.6",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "sigmoid and tanh: saturation",
+  "text": "On the parent's \"one batch through five networks\", the first layer of the 16-layer sigmoid network receives a gradient about 2 billion times smaller than the last (step 2 of the Reading tab of Topic: ml-fundamentals ).",
+  "label": "core",
+  "key": "about 2 billion times smaller",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "sigmoid and tanh: saturation",
+  "text": "Tanh is a rescaled sigmoid (the identity above), with four times the slope at 0, which is why it was preferred for hidden layers before ReLU.",
+  "label": "core",
+  "key": "four times the slope at 0",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "sigmoid and tanh: saturation",
+  "text": "A unit's weight gradient is its input times one shared error term.",
+  "label": "core",
+  "key": "input times one shared error term",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "sigmoid and tanh: saturation",
+  "text": "If every input is positive (a sigmoid layer's output always is), every weight of that unit moves in the same direction at each step, so reaching a target that needs some weights up and others down takes a zig-zag.",
+  "label": "core",
+  "key": "takes a zig-zag",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "sigmoid and tanh: saturation",
+  "text": "LeCun et al. recommend inputs with mean close to zero for this reason, and a scaled tanh, 1.7159 tanh(2 x /3), for hidden units ( Efficient BackProp, 1998 , sections 4.3 and 4.4).",
+  "label": "core",
+  "key": "1.7159 tanh(2",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "sigmoid and tanh: saturation",
+  "text": "Where they still live.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "sigmoid and tanh: saturation",
+  "text": "Inside gates, where a value between 0 and 1 is the point: the LSTM's forget, input and output gates are sigmoids and its cell candidate a tanh ( Sequence models: the pre-transformer lineage ); the gated units below are this idea moved into the feed-forward block.",
+  "label": "core",
+  "key": "forget, input and output gates are sigmoids",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "sigmoid and tanh: saturation",
+  "text": "And at the output, for a binary or multilabel probability.",
+  "label": "core",
+  "key": "for a binary or multilabel probability",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "the relu family",
+  "text": "The ReLU family ReLU, max(0, x ), has slope exactly 1 for every positive input, so the gradient passes through any number of active layers unshrunk, and it costs one comparison.",
+  "label": "core",
+  "key": "it costs one comparison",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "the relu family",
+  "text": "It entered deep learning through restricted Boltzmann machines ( Nair and Hinton 2010 ) and deep supervised networks ( Glorot, Bordes and Bengio 2011 , who stressed that it makes representations sparse: many units output exactly 0).",
+  "label": "depth",
+  "key": "Glorot, Bordes and Bengio 2011",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "the relu family",
+  "text": "AlexNet made it the default: a four-layer convolutional network with ReLUs reached 25% training error on CIFAR-10 six times faster than the same network with tanh ( Krizhevsky, Sutskever and Hinton 2012 , section 3.1).",
+  "label": "core",
+  "key": "six times faster than the same network with tanh",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "the relu family",
+  "text": "Its variants each patch one weakness: Variant Formula, for x ≤ 0 (all are x for x > 0 unless said) What it fixes, and its cost Source Leaky ReLU α x , α fixed (0.01 in the paper and PyTorch's default) a small gradient for negative inputs, so a unit cannot be stuck at zero gradient; one more hyperparameter Maas, Hannun and Ng 2013 PReLU a x , a learned (per channel or shared), initialised at 0.25 the network picks the slope; He initialisation was derived for it in the same paper He et al.",
+  "label": "core",
+  "key": "initialised at 0.25",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "the relu family",
+  "text": "2015 ELU α(e x − 1), α = 1 a smooth negative side that saturates at −α, which pushes mean outputs towards zero (the paper's argument for faster learning); costs an exponential Clevert, Unterthiner and Hochreiter 2015 SELU λα(e x − 1), and λ x for x > 0; λ ≈ 1.0507, α ≈ 1.6733 constants chosen so that mean 0 and variance 1 is a fixed point of a layer with LeCun initialisation: the network normalises itself without BatchNorm, in fully connected networks Klambauer et al.",
+  "label": "core",
+  "key": "1.0507",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "the relu family",
+  "text": "2017 Squared ReLU 0, and x 2 for x > 0 found by Primer's search as \"the most effective modification\" to a Transformer's feed-forward block; used by Nemotron-4 15B and the Nemotron Mini and Minitron models (config relu2 ) So et al.",
+  "label": "core",
+  "key": "the most effective modification",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "the relu family",
+  "text": "2021 , Nemotron-4 15B , config.json SELU's fixed point, reproduced.",
+  "label": "core",
+  "key": "relu2",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "the relu family",
+  "text": "For a standard normal input, this page's numerical integration gives E[SELU( z )] = 0.0000 and E[SELU( z ) 2 ] = 1.0000 reproduces Klambauer et al. independently ; for ReLU, E[ReLU( z ) 2 ] = 0.5, the half that He initialisation's factor 2 puts back.",
+  "label": "depth",
+  "key": "E[ReLU( z ) 2 ] = 0.5",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "the relu family",
+  "text": "Both are rows of the statistics table in the Activation atlas , beside PyTorch's calculate_gain .",
+  "label": "depth",
+  "key": "calculate_gain",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "Dead units, measured A ReLU unit whose input is negative for every example outputs 0 everywhere and receives zero gradient, so nothing in backpropagation pushes it back: it is dead .",
+  "label": "core",
+  "key": "nothing in backpropagation pushes it back",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "A high learning rate or a large negative bias can kill many at once.",
+  "label": "core",
+  "key": "large negative bias can kill many at once",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "The usual statement is that a dead unit \"never recovers\".",
+  "label": "core",
+  "key": "never recovers",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "That is exact only for a unit whose inputs cannot change (the first layer, fed fixed data); a dead unit deeper in the network can come back when the layers below it change, as the measured run below shows.",
+  "label": "core",
+  "key": "can come back when the layers below it change",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "Try: a real network, trained offline: a 64-128-128-128-10 network on 1,797 handwritten digits, He initialisation, SGD with momentum 0.9, 30 epochs.",
+  "label": "core",
+  "key": "64-128-128-128-10",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "Each square is one of the 384 hidden units; its shade is the share of the 1,797 images on which it is on, and a red square is dead (off on every image).",
+  "label": "core",
+  "key": "a red square is dead",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "Press play to run the epochs, then switch runs: the same network at learning rate 0.04, at 0.08, and at 0.08 with leaky ReLU.",
+  "label": "core",
+  "key": "at 0.08 with leaky ReLU",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "ReLU, rate 0.04 ReLU, rate 0.08 Leaky ReLU, rate 0.08 Measured with src/dead_relu_toy.py (PyTorch 2.14, CPU, seed 0 for these three runs).",
+  "label": "core",
+  "key": "seed 0 for these three runs",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "Data: scikit-learn's digits (UCI), pixels standardised, 1,437 images to train on and 360 held out; \"dead\" is judged on all 1,797.",
+  "label": "core",
+  "key": "1,437 images to train on and 360 held out",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "A leaky unit with negative input on every image is counted the same way, though it still passes 1% of the gradient.",
+  "label": "core",
+  "key": "still passes 1% of the gradient",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "Across five seeds and ten learning rates (the chart below, from the same script): up to a rate of 0.04 no ReLU unit dies; at 0.05 and 0.06 a handful die and the network still reaches 96 to 98% held-out accuracy; from 0.07 most runs lose a whole layer, after which every image produces the same output, the loss sits at ln 10 = 2.303 and accuracy at chance.",
+  "label": "core",
+  "key": "ln 10 = 2.303",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "With leaky ReLU nothing can go fully silent, so the same rates do not end in a dead network; they end in a loss that overflows to \"not a number\".",
+  "label": "core",
+  "key": "overflows to \"not a number\"",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "The learning rate is the cause in both; the activation decides only whether the failure is silent or loud.",
+  "label": "core",
+  "key": "whether the failure is silent or loud",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "What to do about dead units Check for them: count, over a batch or a held-out set, the units whose output is 0 on every example (the parent's When training goes wrong tab runs a network whose biases start at −3, so most ReLUs are off from the start, and shows the plateau that follows).",
+  "label": "core",
+  "key": "biases start at",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "Lower the learning rate, warm it up, clip gradients: the runs above die only above a threshold rate.",
+  "label": "core",
+  "key": "warm it up, clip gradients",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "Initialise for the activation (He for the ReLU family) and keep biases at 0, not negative.",
+  "label": "core",
+  "key": "keep biases at 0, not negative",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "Normalise before the activation, which keeps pre-activations centred, or switch to a variant with a negative side (leaky, ELU, GELU, SiLU).",
+  "label": "core",
+  "key": "switch to a variant with a negative side",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "Neither removes the cause if the rate is too high.",
+  "label": "core",
+  "key": "Neither removes the cause",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "In a released model.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading and wind-up"
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "Dead units are not only a training accident.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading and wind-up"
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "In OPT, whose feed-forward blocks use ReLU, \"many neurons (more than 70% in some layers of the 66b model) are 'dead', i.e. they never activate on a large collection of diverse data\", all of them in the first half of the network ( Voita, Ferrando and Nalmpantis 2023 ).",
+  "label": "core",
+  "key": "more than 70% in some layers of the 66b model",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "dead units, measured",
+  "text": "The Inside real models tab measures the same thing on OPT-125m over 283,287 tokens of WikiText-2:",
+  "label": "core",
+  "key": "283,287 tokens of WikiText-2",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "smooth rectifiers: gelu, silu, mish",
+  "text": "Smooth rectifiers: GELU, SiLU, Mish Activation Formula Lowest value derived Origin Used in GELU x Φ( x ), Φ the standard normal CDF −0.170 at x = −0.752 Hendrycks and Gimpel 2016 GPT-1, BERT, GPT-2, GPT-3, ViT (the parent's Defaults across models tab gives each source) SiLU, also Swish-1 x σ( x ) −0.278 at x = −1.278 named in the GELU paper and by Elfwing, Uchibe and Doya 2017 ; Swish, x σ(β x ), by Ramachandran, Zoph and Le 2017 the gate of SwiGLU, so every Llama-style model Mish x tanh(softplus( x )) −0.309 at x = −1.192 Misra 2019 object detectors such as YOLOv4 ; rare in language models GELU's idea.",
+  "label": "core",
+  "key": "0.170 at",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "smooth rectifiers: gelu, silu, mish",
+  "text": "Multiply the input by a random mask m ~ Bernoulli(Φ( x )): kept with a probability that grows with x .",
+  "label": "core",
+  "key": "Bernoulli(Φ(",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "smooth rectifiers: gelu, silu, mish",
+  "text": "Its expected value is x Φ( x ), so GELU is a deterministic version of a stochastic regulariser that blends ReLU (a mask of 0 or 1 set by the sign), dropout (a random 0) and zoneout (a random 1) ( GELU paper , section 2).",
+  "label": "core",
+  "key": "zoneout (a random 1)",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "smooth rectifiers: gelu, silu, mish",
+  "text": "Unlike ReLU it is smooth, not monotone (a small dip below 0), and lets small negative inputs pass a small gradient.",
+  "label": "core",
+  "key": "not monotone",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "smooth rectifiers: gelu, silu, mish",
+  "text": "The paper gives two cheaper forms, and trained models use all three; a checkpoint must be run with the form it was trained with: Form Formula Largest gap from exact GELU on [−6, 6] derived Who uses it Exact x Φ( x ) = ½ x (1 + erf( x /√2)) 0 BERT as configured in Hugging Face ( gelu ; the Google BERT code first used this form and later the tanh one, per the comments in Transformers' activations.py ); PyTorch F.gelu Tanh ½ x (1 + tanh[√(2/π)( x + 0.044715 x 3 )]) 4.7 × 10 −4 GPT-2 ( gelu_new ), Gemma 3 ( gelu_pytorch_tanh ); PyTorch approximate='tanh' Sigmoid (\"QuickGELU\") x σ(1.702 x ) 0.020 CLIP's released code ( class QuickGELU ) Correction: SiLU is not \"nearly identical\" to GELU, and was not found by the search The old version of this page said SiLU has a \"nearly identical curve to GELU\" and was \"found by architecture search\".",
+  "label": "core",
+  "key": "gelu_pytorch_tanh",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "smooth rectifiers: gelu, silu, mish",
+  "text": "The curves differ by up to 0.193 derived, max |SiLU − GELU| on [−6, 6] , and SiLU's dip is 64% deeper (−0.278 against −0.170).",
+  "label": "core",
+  "key": "64% deeper",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "smooth rectifiers: gelu, silu, mish",
+  "text": "The near-identity is GELU against x σ(1.702 x ): SiLU is that curve stretched 1.702 times along x (and rescaled).",
+  "label": "core",
+  "key": "stretched 1.702 times",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "smooth rectifiers: gelu, silu, mish",
+  "text": "As for the search: x σ( x ) was already in the GELU paper (as SiLU) and in Elfwing et al.; Ramachandran et al.'s automated search found the family x σ(β x ), which they named Swish, and their paper says that with β = 1 \"Swish is equivalent to the Sigmoid-weighted Linear Unit (SiL) of Elfwing et al.\" Their result is that replacing ReLU with Swish raised ImageNet top-1 accuracy by 0.9% for Mobile NASNet-A and 0.6% for Inception-ResNet-v2.",
+  "label": "depth",
+  "key": "Sigmoid-weighted Linear Unit (SiL)",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "smooth rectifiers: gelu, silu, mish",
+  "text": "Overlay the curves in the Activation atlas .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer kept as one line"
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "smooth rectifiers: gelu, silu, mish",
+  "text": "Why the smooth ones win in transformers is not settled.",
+  "label": "core",
+  "key": "is not settled",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "smooth rectifiers: gelu, silu, mish",
+  "text": "The papers report empirical gains (GELU over ReLU and ELU on their benchmarks, Swish over ReLU on ImageNet and translation); the old page's \"self-scaling\" has no source beyond the Bernoulli motivation above.",
+  "label": "core",
+  "key": "self-scaling",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "smooth rectifiers: gelu, silu, mish",
+  "text": "In Shazeer's controlled comparison (next section), GELU and Swish alone barely beat ReLU in pre-training perplexity (1.983 and 1.994 against 1.997 at 65,536 steps, with run-to-run spreads of 0.003 to 0.005) and were behind it at the end of training (1.679 and 1.683 against 1.677): the gain that stuck came from gating.",
+  "label": "core",
+  "key": "the gain that stuck came from gating",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "Gated units: GLU, ReGLU, GEGLU, SwiGLU A gated linear unit computes two projections of the same input and multiplies them elementwise, one passed through a nonlinearity ( Dauphin et al.",
+  "label": "core",
+  "key": "Dauphin et al. 2016",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "2016 , for gated convolutional language models).",
+  "label": "core",
+  "key": "Dauphin et al. 2016",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "Shazeer put the variants into the Transformer's feed-forward block, without biases ( GLU Variants Improve Transformer, 2020 , equation 6): FFN SwiGLU ( x ) = (SiLU( x W ) ⊙ x V ) W 2 x one token's vector, width d W, V the gate and up projections, d × h each (in Llama's code w1 and w3 , in Hugging Face gate_proj and up_proj ) W 2 the down projection, h × d ⊙ elementwise product Variant Gate function on x W Source GLU sigmoid σ Dauphin et al.",
+  "label": "core",
+  "key": "gate_proj",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "2016 Bilinear none (identity): still nonlinear, a product of two linear maps Dauphin et al., attributed to Mnih and Hinton 2007 ReGLU ReLU Shazeer 2020 GEGLU GELU Shazeer 2020; T5 v1.1, Gemma (tanh GELU) SwiGLU SiLU (Swish with β = 1) Shazeer 2020; PaLM, Llama, Mistral, Qwen, DeepSeek, SmolLM and most open LLMs since What the gate does to the gradient.",
+  "label": "core",
+  "key": "attributed to Mnih and Hinton 2007",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "With g = x W and u = x V , the hidden unit is h = SiLU( g ) u , so ∂ h /∂ u = SiLU( g ): the slope of the linear path is not a fixed function of its own input but is set, token by token, by a second projection of the same input.",
+  "label": "core",
+  "key": "set, token by token, by a second projection",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "That is the old page's \"learned adaptive slope\", and the only mechanism the formula itself shows.",
+  "label": "core",
+  "key": "learned adaptive slope",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "Its other claims for gated units (\"very expressive, stable training, balanced mean/variance\") are unconfirmed : the paper that introduced them offers none, and says so: \"We offer no explanation as to why these architectures seem to work; we attribute their success, as all else, to divine benevolence.\" Try: one real token, \" cat\" in \"The cat sat on the mat because it was tired.\", through two real feed-forward blocks: GPT-2 small's (layer 6, a plain GELU block of width 4 d ) and SmolLM2-135M's (layer 15, a SwiGLU block of width 8 d /3).",
+  "label": "core",
+  "key": "divine benevolence",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "Both are drawn to scale in units of their own d , and both cost 8 d 2 parameters.",
+  "label": "core",
+  "key": "both cost 8",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "Each strip is a vector, one thin column per number, blue for positive and orange for negative.",
+  "label": "core",
+  "key": "blue for positive and orange for negative",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "Step through, then switch blocks; in the SwiGLU block, try another gate function on the same pre-activations.",
+  "label": "core",
+  "key": "try another gate function",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "Plain FFN (GPT-2, GELU) SwiGLU FFN (SmolLM2-135M) Gate function SiLU (as trained: SwiGLU) sigmoid (GLU) ReLU (ReGLU) GELU (GEGLU) none (bilinear) Vectors recorded with forward hooks by src/real_models.py (float32, stored as 16-bit integers with one scale per vector); the GELU and the gate products are recomputed in your browser from the stored pre-activations. \"Near zero\" means | h | below 0.1 times the root mean square of that token's hidden vector.",
+  "label": "core",
+  "key": "stored as 16-bit integers",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "Gate functions other than SiLU are applied to SmolLM2's own gate pre-activations, which were trained for SiLU: illustrative , to show what each gate passes, not how a model trained with it would behave.",
+  "label": "core",
+  "key": "which were trained for SiLU",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "All variants matched for parameters and computation, on T5's span-filling pre-training (the base model, d = 768) and then fine-tuned once on a mixture of GLUE, SuperGLUE and SQuAD.",
+  "label": "core",
+  "key": "span-filling pre-training",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "Lower log-perplexity is better; at 65,536 steps the bracket is the standard deviation over runs of the same model.",
+  "label": "core",
+  "key": "the bracket is the standard deviation",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "Log-perplexity, 65,536 steps Log-perplexity, 524,288 steps GLUE average SuperGLUE average Read with the noise in mind: at 65,536 steps GEGLU (1.942 ± 0.004) and SwiGLU (1.944 ± 0.010) are indistinguishable, and both are about 0.05 below ReLU (1.997 ± 0.005), ten times the spread derived .",
+  "label": "core",
+  "key": "ten times the spread",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "The fine-tuning scores come from one run each and the paper calls them \"noisy\"; the spread T5 measured for the GLUE average was 0.235.",
+  "label": "core",
+  "key": "0.235",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "Every gated variant beat every ungated one in pre-training perplexity, at both lengths derived from Table 1 .",
+  "label": "core",
+  "key": "Every gated variant beat every ungated one",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "PaLM adopted SwiGLU on this evidence: \"they have been shown to significantly increase quality compared to standard ReLU, GeLU, or Swish activations (Shazeer, 2020).",
+  "label": "depth",
+  "key": "three matrix multiplications in the MLP rather than two",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "Note that this does require three matrix multiplications in the MLP rather than two\" ( Chowdhery et al.",
+  "label": "depth",
+  "key": "three matrix multiplications in the MLP rather than two",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "2022 , section 2).",
+  "label": "depth",
+  "key": "three matrix multiplications in the MLP rather than two",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "Llama followed: \"We replace the ReLU non-linearity by the SwiGLU activation function ...",
+  "label": "depth",
+  "key": "2/3 4d instead of 4d as in PaLM",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "We use a dimension of 2/3 4d instead of 4d as in PaLM\" ( Touvron et al.",
+  "label": "depth",
+  "key": "2/3 4d instead of 4d as in PaLM",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "2023 , section 2.2), and so did nearly every open model since; the parent's Defaults across models tab shows the switch year by year.",
+  "label": "depth",
+  "key": "2/3 4d instead of 4d as in PaLM",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "A later line of work goes the other way for inference speed: replacing SiLU and GELU with ReLU in a pre-trained Llama or Falcon and fine-tuning briefly brings back exact zeros that a server can skip ( Mirzadeh et al.",
+  "label": "core",
+  "key": "ReLU Strikes Back",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "gated units: glu, reglu, geglu, swiglu",
+  "text": "2023, \"ReLU Strikes Back\" ).",
+  "label": "core",
+  "key": "ReLU Strikes Back",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "the 2/3 rule, and who follows it",
+  "text": "The 2/3 rule, and who follows it A plain feed-forward block with hidden width 4 d has two matrices: 2 · d · 4 d = 8 d 2 parameters, and as many multiply-adds per token.",
+  "label": "core",
+  "key": "and as many multiply-adds per token",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "the 2/3 rule, and who follows it",
+  "text": "A gated block has three: 3 d h .",
+  "label": "core",
+  "key": "A gated block has three",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "the 2/3 rule, and who follows it",
+  "text": "Matching them gives h = 8 d /3 = ⅔ · 4 d .",
+  "label": "core",
+  "key": "Matching them gives",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "the 2/3 rule, and who follows it",
+  "text": "Shazeer did exactly this: \"we reduce the hidden layer to d ff = 2048\" from 3,072 at d = 768 (2 × 768 × 3,072 = 3 × 768 × 2,048 = 4,718,592).",
+  "label": "core",
+  "key": "4,718,592",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "the 2/3 rule, and who follows it",
+  "text": "Llama's code applies the same rule, then an optional multiplier, then rounds up to a hardware-friendly multiple: h = m · ⌈ int( f · int(2 · 4 d / 3)) / m ⌉ f ffn_dim_multiplier (none in Llama 1) m multiple_of ; both from meta-llama/llama, model.py and the per-model values in llama-models, sku_list.py \"Relative size\" is 3 h / 8 d for a gated block (2 h / 8 d for a plain one): its parameters against a plain 4 d block's.",
+  "label": "core",
+  "key": "ffn_dim_multiplier",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "the 2/3 rule, and who follows it",
+  "text": "Every \"rule gives\" cell reproduces the released config.json independently ( src/recompute.py ).",
+  "label": "core",
+  "key": "reproduces the released config.json independently",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "the 2/3 rule, and who follows it",
+  "text": "The parent's Defaults across models tab lists the FFN width of twenty-one models; this table adds the rule that produces it.",
+  "label": "core",
+  "key": "this table adds the rule that produces it",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "the 2/3 rule, and who follows it",
+  "text": "Correction: \"usually shrunk to 2/3 · 4d\" is one convention among several PaLM uses SwiGLU with \"d ff always 4 × d model \" ( PaLM , section 2), so its feed-forward blocks are 1.5 times the size of a plain block; Gemma 3 keeps 4 d or more with GeGLU; most of the Llama 3 family multiplies the 2/3 width by 1.2 to 1.5.",
+  "label": "core",
+  "key": "always 4 × d",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "the 2/3 rule, and who follows it",
+  "text": "Only Llama 1, Llama 3.2 3B and SmolLM2 in the table sit at (or within 1% of) the matched size.",
+  "label": "core",
+  "key": "Only Llama 1, Llama 3.2 3B and SmolLM2",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "the 2/3 rule, and who follows it",
+  "text": "What survives everywhere is the habit of quoting the width relative to d , so always count three matrices.",
+  "label": "core",
+  "key": "always count three matrices",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "inside real models",
+  "text": "Inside real models The page's Inside real models tab measures every feed-forward hidden unit of three released models on the same 283,000-odd tokens of WikiText-2 (Wikipedia articles), layer by layer.",
+  "label": "core",
+  "key": "283,000-odd tokens",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "inside real models",
+  "text": "Three findings: So \"sparse activations\" means different things: exact zeros that a server can skip in a ReLU model, mostly small values in a GELU or SwiGLU model.",
+  "label": "core",
+  "key": "means different things",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "inside real models",
+  "text": "The published numbers it checks: Voita et al. on dead neurons in OPT (qualitatively, on less data and the smallest model), and Mirzadeh et al.'s \"all layers exhibit sparsity exceeding 90%\" for OPT 6.7B (OPT-125m: ).",
+  "label": "core",
+  "key": "all layers exhibit sparsity exceeding 90%",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "the output layer",
+  "text": "The output layer The last layer's activation is chosen by what the output has to be, and it must agree with the loss (the loss for each is on Loss functions ).",
+  "label": "core",
+  "key": "it must agree with the loss",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "the output layer",
+  "text": "In PyTorch the loss usually applies the output activation itself, so the network should end with the raw scores (logits): The output is Output activation PyTorch loss, fed what any real number (regression) none (linear) MSELoss , HuberLoss , on the value a positive number (a rate, a variance) softplus or exp PoissonNLLLoss(log_input=True) on the log rate; GaussianNLLLoss on a softplus variance a value in a fixed range tanh, then rescale for example continuous actions in DDPG: \"The final output layer of the actor was a tanh layer, to bound the actions\" ( Lillicrap et al.",
+  "label": "core",
+  "key": "PoissonNLLLoss(log_input=True)",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "the output layer",
+  "text": "2015 ) yes or no sigmoid BCEWithLogitsLoss , on the logit several yes/no labels at once one sigmoid per label BCEWithLogitsLoss , on the logits one class out of K softmax CrossEntropyLoss , on the logits the next token softmax over the vocabulary cross entropy on the logits in training; at generation the logits are divided by a temperature and filtered (top- k , top- p , min- p ) Softmax, in four facts.",
+  "label": "core",
+  "key": "to bound the actions",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "the output layer",
+  "text": "(1) Adding a constant to every logit changes nothing, softmax( z + c ) = softmax( z ), which is why every implementation subtracts the largest logit before exponentiating (without it, e 1000 overflows).",
+  "label": "core",
+  "key": "e 1000 overflows",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "the output layer",
+  "text": "(2) With two classes it is the sigmoid: softmax([ x , 0]) 1 = σ( x ) checked to 10 −15 , so a binary sigmoid output is a two-class softmax with one logit fixed at 0.",
+  "label": "core",
+  "key": "checked to 10",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "the output layer",
+  "text": "(3) Its derivative, ∂ p i /∂ z j = p i (δ ij − p j ), goes to zero as one probability approaches 1: a softmax saturates like a sigmoid, which is why it is paired with a log in the loss (cross entropy's gradient on the logits is simply p − y ).",
+  "label": "core",
+  "key": "p i (δ ij − p j )",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "the output layer",
+  "text": "(4) A temperature T , softmax( z / T ), sharpens ( T < 1) or flattens ( T > 1) the distribution without changing the order; try it on a real model's logits in the Sampler lab of Sampling and Decoding .",
+  "label": "core",
+  "key": "without changing the order",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "the output layer",
+  "text": "Softmax also normalises attention scores ( Attention Is All You Need ) and mixture-of-experts router scores.",
+  "label": "core",
+  "key": "mixture-of-experts router scores",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "the output layer",
+  "text": "Correction: with a large vocabulary, the cost is the projection, not the softmax The old page called softmax \"expensive for very large K\".",
+  "label": "core",
+  "key": "expensive for very large K",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "the output layer",
+  "text": "The exponentials are cheap; what grows with the vocabulary V is the output projection that produces the logits: d · V multiply-adds per token against V exponentials.",
+  "label": "depth",
+  "key": "multiply-adds per token against",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "the output layer",
+  "text": "For Qwen2.5-0.5B ( d = 896, V = 151,936, config.json ) that is 136 million multiply-adds against 152 thousand exponentials, 896 times more derived ; and in training the logits themselves take memory: a batch of 8 sequences of 4,096 tokens holds 8 × 4,096 × 151,936 = 5.0 billion logits, 19.9 GB in 32-bit floats derived .",
+  "label": "depth",
+  "key": "19.9 GB",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "the output layer",
+  "text": "Sampled and hierarchical softmaxes, and fused or chunked cross-entropy kernels, target these two costs.",
+  "label": "depth",
+  "key": "fused or chunked cross-entropy kernels",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Applying softmax (or sigmoid) before a loss that applies it again CrossEntropyLoss expects \"the unnormalized logits for each class\" ( PyTorch docs ); a softmax in front of it squashes the scores twice, so training still runs but the gradients are wrong and confidence is capped.",
+  "label": "depth",
+  "key": "the unnormalized logits for each class",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "End the network with logits and put the softmax only where probabilities are read.",
+  "label": "depth",
+  "key": "the unnormalized logits for each class",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Sigmoid followed by BCELoss instead of BCEWithLogitsLoss The combined loss \"is more numerically stable than using a plain Sigmoid followed by a BCELoss as, by combining the operations into one layer, we take advantage of the log-sum-exp trick for numerical stability\" ( PyTorch docs ).",
+  "label": "depth",
+  "key": "log-sum-exp trick",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A saturated sigmoid rounds to exactly 0 or 1, and the log of that is infinite.",
+  "label": "depth",
+  "key": "log-sum-exp trick",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A ReLU or sigmoid on a regression output A ReLU output can never predict a negative value and receives no gradient when it outputs 0; a sigmoid caps it at 1.",
+  "label": "depth",
+  "key": "A ReLU output can never predict a negative value",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Regression outputs are linear unless the target's range is known (then softplus for positive values, tanh for a bounded range).",
+  "label": "depth",
+  "key": "A ReLU output can never predict a negative value",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Running a checkpoint with a different GELU GPT-2 runs with the tanh form, CLIP with x σ(1.702x), BERT's Hugging Face configs with the exact form.",
+  "label": "depth",
+  "key": "quick_gelu",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The tanh form is within 4.7 × 10 −4 of exact; the sigmoid form is off by up to 0.020 per unit, which compounds over layers.",
+  "label": "depth",
+  "key": "quick_gelu",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use the activation string in the model's config ( gelu , gelu_new , gelu_pytorch_tanh , quick_gelu ).",
+  "label": "depth",
+  "key": "quick_gelu",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Treating SiLU and GELU as the same function They differ by up to 0.19 ( above ).",
+  "label": "depth",
+  "key": "in a model trained from scratch either works",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Swapping one for the other in a trained model changes its outputs; in a model trained from scratch either works.",
+  "label": "depth",
+  "key": "in a model trained from scratch either works",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Counting a SwiGLU block as two matrices It has three, so its parameters are 3 d h .",
+  "label": "depth",
+  "key": "2.69",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A width quoted as \"4 d \" means a block 1.5 times the size of a plain 4 d one (PaLM, Gemma 3); \"2.69 d \" means the matched size ( the 2/3 rule ).",
+  "label": "depth",
+  "key": "2.69",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "An initialisation that does not match the activation Xavier was derived for sigmoid and tanh, He for the ReLU family, LeCun's 1/ n for SELU; the wrong one shrinks or grows the signal at every layer.",
+  "label": "depth",
+  "key": "LeCun's 1/",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The parent's thread 2 (\"keep the variance constant\", in the Reading tab of Topic: ml-fundamentals ) shows each mismatch, and the Activation atlas table gives the variance-preserving gain of every function here; the details are on Normalisation and initialisation .",
+  "label": "depth",
+  "key": "LeCun's 1/",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting exact zeros from a SwiGLU model SiLU is never exactly 0 for a nonzero input, so a SwiGLU block has small values, not zeros; tricks that skip zero rows (built for ReLU models such as OPT) need a threshold or a ReLU fine-tune first ( Mirzadeh et al.",
+  "label": "depth",
+  "key": "need a threshold or a ReLU fine-tune first",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "See the Inside real models tab.",
+  "label": "depth",
+  "key": "need a threshold or a ReLU fine-tune first",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Blaming the activation for a learning rate that is too high In the runs above, ReLU networks die and leaky ReLU networks overflow at the same learning rates.",
+  "label": "depth",
+  "key": "Swapping the activation changes the symptom",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Swapping the activation changes the symptom; lowering or warming up the rate removes the cause.",
+  "label": "depth",
+  "key": "Swapping the activation changes the symptom",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The parent's When training goes wrong tab goes from symptom to cause.",
+  "label": "depth",
+  "key": "Swapping the activation changes the symptom",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "Activation atlas Every activation on this page and its derivative, on the same axes.",
+  "label": "core",
+  "key": "where it is exactly 0 the unit can die",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "The derivative is what backpropagation multiplies by: where it is near 0 the gradient dies ( saturation ), where it is exactly 0 the unit can die ( dead region ).",
+  "label": "core",
+  "key": "where it is exactly 0 the unit can die",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "Try: tick the functions to compare (GELU and SiLU together, to see that they are not the same curve; GELU's three forms, to see that they nearly are).",
+  "label": "core",
+  "key": "Hover or tap the plot",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "Pick one to shade : its saturated region (|f′| below the threshold) and its dead region (f′ exactly 0) are marked on both panels.",
+  "label": "core",
+  "key": "Hover or tap the plot",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "Hover or tap the plot to read every ticked function at that x .",
+  "label": "core",
+  "key": "Hover or tap the plot",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "Shade Saturated where |f′| < Range −4 to 4 −6 to 6 −10 to 10 −2 to 2 f(x) the activation f′(x) its slope: what the gradient is multiplied by Exact formulas as PyTorch defines them ( F.gelu with an exact error function, leaky slope 0.01, PReLU at its initial 0.25, ELU and SELU with their default constants, softplus with β = 1).",
+  "label": "core",
+  "key": "PReLU at its initial 0.25",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "The page's own JavaScript was compared with torch.nn.functional and autograd in float64 on 2,401 points from −12 to 12: the largest relative difference is below 10 −12 for every function and derivative ( src/recompute.py , 120 checks, 0 failures).",
+  "label": "core",
+  "key": "2,401 points",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "On a standard normal input What one layer of each function does to an input drawn from N(0, 1), the situation initialisation tries to create.",
+  "label": "core",
+  "key": "the situation initialisation tries to create",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "The variance-preserving gain is 1/√E[f( z ) 2 ]: the factor by which to scale weights of variance 1/ n so that the next layer's pre-activations keep variance 1.",
+  "label": "core",
+  "key": "variance-preserving gain",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "E[f′( z ) 2 ] is the matching factor for the gradient on the way back.",
+  "label": "core",
+  "key": "variance-preserving gain",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "PyTorch's calculate_gain is shown beside it.",
+  "label": "core",
+  "key": "variance-preserving gain",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "Computed in your browser by Simpson's rule on [−12, 0] and [0, 12], and checked against SciPy's adaptive quadrature to 10 −9 .",
+  "label": "core",
+  "key": "SciPy's adaptive quadrature",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "Reproduces independently: ReLU's gain √2 (He et al.'s factor 2) and leaky ReLU's √(2/(1 + α 2 )), exactly PyTorch's formulas; SELU's mean 0 and second moment 1 (Klambauer et al.'s fixed point).",
+  "label": "core",
+  "key": "He et al.'s factor 2",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "Does not reproduce, by design: PyTorch's tanh gain is 5/3, a heuristic, against 1.59 here; its sigmoid gain is 1 against 1.85; its SELU gain is 3/4, which its documentation says \"sacrifices the normalization effect for more stable gradient flow in rectangular layers\" and tells SELU users to pass nonlinearity='linear' (gain 1) instead ( torch.nn.init ).",
+  "label": "core",
+  "key": "sacrifices the normalization effect",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-atlas",
+  "section": "activation atlas",
+  "text": "A gain only fixes the second moment at initialisation; the parent's thread 2 shows what happens over 16 layers, and Normalisation and initialisation owns the schemes.",
+  "label": "core",
+  "key": "A gain only fixes the second moment at initialisation",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "Inside real models What the activation actually outputs in three released models, measured on every feed-forward hidden unit, every layer and every token of the same text: OPT-125m (ReLU), GPT-2 small (GELU, tanh form) and SmolLM2-135M (SwiGLU).",
+  "label": "core",
+  "key": "every layer and every token of the same text",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "Try: pick a model and a measure.",
+  "label": "core",
+  "key": "Tap a layer's bar",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "Move the threshold that counts a value as \"near zero\", or the activity below which a unit counts as dead, and watch which layers respond.",
+  "label": "core",
+  "key": "Tap a layer's bar",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "Tap a layer's bar to see how often each of its units is on.",
+  "label": "core",
+  "key": "Tap a layer's bar",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "Near zero Negative Never on How it was measured Text: WikiText-2 (raw), test split, the whole of it: 283,287 tokens for OPT and GPT-2 (they share a tokenizer), 301,948 for SmolLM2 ( Salesforce/wikitext ), in chunks of 511 tokens after the model's start token, which is left out of every count.",
+  "label": "core",
+  "key": "301,948",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "What is recorded: the input of the down projection, captured with a forward hook: ReLU( x W 1 + b 1 ) for OPT, GELU( x W 1 + b 1 ) for GPT-2, SiLU( x W gate ) ⊙ x W up for SmolLM2; in float32 on CPU with PyTorch 2.14 and Transformers.",
+  "label": "core",
+  "key": "the input of the down projection",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "Near zero compares each value with the root mean square of its own token's hidden vector, so that one threshold means the same in every layer and model; exact zeros count as near zero.",
+  "label": "core",
+  "key": "one threshold means the same in every layer",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "Values are binned in fifths of a decade from 10 −5 , and the page interpolates within a bin.",
+  "label": "core",
+  "key": "fifths of a decade",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "On means: OPT, output above 0; GPT-2, pre-activation above 0 (where GELU is close to the identity); SmolLM2, gate pre-activation above 0 (where SiLU passes most of u ).",
+  "label": "core",
+  "key": "where SiLU passes most of",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "A unit that is never on in GPT-2 or SmolLM2 still outputs small values and still receives a small gradient; in OPT it outputs exactly 0 and receives none.",
+  "label": "core",
+  "key": "in OPT it outputs exactly 0 and receives none",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "Caveats: one text from one domain; Voita et al. used over 20 million tokens from many domains and up to 66 billion parameters, so a unit that is never on here may fire on other text.",
+  "label": "core",
+  "key": "over 20 million tokens",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "Script: src/real_models.py ; results in src/inputs/real_models.json .",
+  "label": "core",
+  "key": "src/inputs/real_models.json",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "Voita et al.: dead neurons concentrated in the first half of OPT, the second half \"fully alive\" ( 2023 ): reproduced on OPT-125m qualitatively (their per-layer values are only plotted, not printed, and are not read off the figure).",
+  "label": "core",
+  "key": "fully alive",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-real",
+  "section": "inside real models",
+  "text": "Mirzadeh et al.: for OPT 6.7B, \"all layers exhibit sparsity exceeding 90%\" ( 2023 , Figure 1a): on OPT-125m, a different and smaller model, .",
+  "label": "core",
+  "key": "Figure 1a",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Best resources GLU Variants Improve Transformer (Shazeer 2020) The four-page paper behind GEGLU and SwiGLU, with the 2/3 width rule and the line about divine benevolence.",
+  "label": "core",
+  "key": "the line about divine benevolence",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(20 min) Gaussian Error Linear Units (Hendrycks and Gimpel 2016) GELU's definition, its stochastic-regulariser motivation, and both approximations.",
+  "label": "core",
+  "key": "both approximations",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min) Searching for Activation Functions (Ramachandran, Zoph and Le 2017) The automated search that found Swish, x σ(βx), and its comparisons against ReLU.",
+  "label": "core",
+  "key": "Searching for Activation Functions",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min) PyTorch: non-linear activations Exact formulas, defaults and variants; the definitions this page's checks use.",
+  "label": "core",
+  "key": "the definitions this page's checks use",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(15 min) Neurons in Large Language Models: Dead, N-gram, Positional (Voita, Ferrando and Nalmpantis 2023) Dead neurons and token detectors across the OPT family, 125m to 66b; what the Inside real models tab checks.",
+  "label": "core",
+  "key": "token detectors across the OPT family",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(40 min) ReLU Strikes Back (Mirzadeh et al.",
+  "label": "core",
+  "key": "turning SiLU and GELU models back into ReLU models",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2023) Activation sparsity in OPT, and turning SiLU and GELU models back into ReLU models for faster inference.",
+  "label": "core",
+  "key": "turning SiLU and GELU models back into ReLU models",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(40 min) Efficient BackProp (LeCun, Bottou, Orr and Müller 1998) Sections 4.3 to 4.5: why inputs and activations should be zero-centred, and the scaled tanh.",
+  "label": "core",
+  "key": "Sections 4.3 to 4.5",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30 min) The parent topic Topic: ml-fundamentals Reading tab, step 2: activations and normalisation compared, and \"one batch through five networks\" (sigmoid with Xavier, ReLU with 1/n, ReLU with He, BatchNorm residual, pre-RMSNorm SwiGLU) with each layer's variance and gradient; thread 2, keeping the variance constant.",
+  "label": "core",
+  "key": "six activations swapped in a network that trains live",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Training lab tab: six activations swapped in a network that trains live.",
+  "label": "core",
+  "key": "six activations swapped in a network that trains live",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Defaults across models tab: the activation and FFN width of twenty-one models.",
+  "label": "core",
+  "key": "six activations swapped in a network that trains live",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "When training goes wrong tab: dead ReLUs and vanishing gradients, from symptom to fix.",
+  "label": "core",
+  "key": "six activations swapped in a network that trains live",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(35 min) Related pages Normalisation and initialisation Xavier, He and LeCun initialisation, BatchNorm, LayerNorm and RMSNorm: the other two sides of keeping the variance constant.",
+  "label": "core",
+  "key": "the other two sides of keeping the variance constant",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Loss functions The loss that goes with each output activation, and the losses that act on the logits.",
+  "label": "core",
+  "key": "the losses that act on the logits",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Sequence models: the pre-transformer lineage The LSTM's sigmoid gates and tanh cell, the ancestors of the gated units.",
+  "label": "core",
+  "key": "the ancestors of the gated units",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Sampling and Decoding The Sampler lab: temperature, top-k, top-p and min-p on a real model's softmax.",
+  "label": "core",
+  "key": "min-p on a real model's softmax",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Attention Is All You Need (paper page) Its Then and now tab turns the 2017 ReLU block into a 2026 SwiGLU block, one change at a time.",
+  "label": "core",
+  "key": "one change at a time",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The Llama 3 Herd of Models (paper page) The model whose SwiGLU widths the 2/3 table recomputes.",
+  "label": "core",
+  "key": "The model whose SwiGLU widths",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "LLM Architecture Gallery Activation, FFN width and every other architectural choice of current LLMs, side by side.",
+  "label": "core",
+  "key": "every other architectural choice",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Primary sources cited on this page Nair and Hinton 2010, Rectified Linear Units Improve Restricted Boltzmann Machines ; Glorot, Bordes and Bengio 2011, Deep Sparse Rectifier Neural Networks ; Krizhevsky, Sutskever and Hinton 2012, ImageNet Classification with Deep Convolutional Neural Networks ; Leshno et al.",
+  "label": "core",
+  "key": "Deep Sparse Rectifier Neural Networks",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "1993, nonpolynomial activation functions .",
+  "label": "core",
+  "key": "Deep Sparse Rectifier Neural Networks",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Maas, Hannun and Ng 2013, leaky ReLU ; He et al.",
+  "label": "core",
+  "key": "Mish ; So et al.",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2015, PReLU and He initialisation ; Clevert et al.",
+  "label": "core",
+  "key": "Mish ; So et al.",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2015, ELU ; Klambauer et al.",
+  "label": "core",
+  "key": "Mish ; So et al.",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2017, SELU ; Elfwing, Uchibe and Doya 2017, SiLU ; Misra 2019, Mish ; So et al.",
+  "label": "core",
+  "key": "Mish ; So et al.",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2016, Gated Convolutional Networks ; Chowdhery et al.",
+  "label": "core",
+  "key": "sku_list.py",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2022, PaLM ; Touvron et al.",
+  "label": "core",
+  "key": "sku_list.py",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2023, LLaMA ; Nvidia 2024, Nemotron-4 15B ; Lillicrap et al.",
+  "label": "core",
+  "key": "sku_list.py",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2015, DDPG ; Meta, llama/model.py and sku_list.py .",
+  "label": "core",
+  "key": "sku_list.py",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Built from the repository's src/ for this page.",
+  "label": "core",
+  "key": "Built from the repository",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Every curve and statistic is computed in the page and checked offline against PyTorch 2.14 and SciPy ( check_core.mjs , recompute.py ); the dead-unit runs come from dead_relu_toy.py and the real-model measurements from real_models.py .",
+  "label": "core",
+  "key": "Built from the repository",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Checked 3 October 2026.",
+  "label": "core",
+  "key": "Checked 3 October 2026",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "New hero: five activations and their slopes on the same axes, plus the SwiGLU block",
+  "label": "core",
+  "key": "where the slope is low, the gradient fades",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "New: the same 3,072 GPT-2 pre-activations through five slopes; ReLU passes least (mean 0.112, 88.8% exactly 0)",
+  "label": "core",
+  "key": "Below 0.01 at × 3",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "New: at x 3, tanh 44.9%, GELU 43.9%, SiLU 8.8% of units below slope 0.01",
+  "label": "core",
+  "key": "44.9%",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "New: GLU prediction answer, GELU block 5.5% near zero against SwiGLU 24.2%",
+  "label": "core",
+  "key": "24.2%",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "New terms: pre-activation, saturation, dead unit, gated unit, logit",
+  "label": "core",
+  "key": "a raw output score before softmax or sigmoid",
+  "where": ""
+ }
+]

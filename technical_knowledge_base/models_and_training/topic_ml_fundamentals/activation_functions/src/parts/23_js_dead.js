@@ -43,7 +43,7 @@
   }
   const A=RD.anim({card:'dr',ctl:'drC',n:FR[0].f.length,draw,ms:900,label:'Epoch'});
   $('drM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;run=+b.dataset.r;
-    $('drM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(FR[run].f.length);A.play()});
+    $('drM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(FR[run].f.length)});
   $('drL').innerHTML='<span><i style="background:var(--acc);opacity:.2"></i>on for few images</span><span><i style="background:var(--acc);opacity:.9"></i>on for most images</span><span><i style="background:var(--bad)"></i>dead: off for all 1,797</span>';
   addEventListener('resize',()=>A.redraw());
 

@@ -128,57 +128,110 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 .lbox label{margin-right:10px;white-space:nowrap;font-size:13px}
 .ftbl td,.ftbl th{font-size:12.5px}
 .sw{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:4px;margin-right:5px}
+.core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:12px 0}
+.hl{color:var(--acc);font-weight:600}
+.hero h4,.card h4{margin:0 0 6px;font-size:14.5px}
+.hr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,140px),1fr));gap:8px 12px}
+.hr-p{margin:0;min-width:0}.hr-p figcaption{font-size:12.5px;line-height:1.35;color:var(--mute)}.hr-p figcaption b{color:var(--ink)}
+.hr-s{width:100%;overflow:hidden}
+.terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.terms dt{font-weight:600}.terms dd{margin:0}
+@media (max-width:520px){.terms{grid-template-columns:minmax(0,1fr)}.terms dd{margin:0 0 4px}}
+details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+details.dp>summary .mute{font-weight:400}
+details.dp>.b{padding:0 12px 10px;font-size:14px}
+.tw table.nar{min-width:0}
+details.dp.corr{border-left:3px solid var(--bad)}details.dp.corr>summary{color:var(--bad)}
 @media (max-width:520px){h1{font-size:21px}.ctl2 input[type=range]{width:110px}}
 </style></head><body><div class="w">
-<div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a> · deep dive · <span id="rtime">⏱ 20 min read · +4h 30m resources</span></div>
+<div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a> · deep dive</div>
 <h1>Activation functions</h1>
-<div class="sub">The nonlinearity between two linear maps: the saturating classics (sigmoid, tanh), the ReLU family and its dead units, the smooth ReLUs (GELU, SiLU, Mish), the gated units that every current LLM uses (GLU, ReGLU, GEGLU, SwiGLU) with the 2/3 width rule, the output layer, and what these functions actually do inside three released models. Every curve on this page is computed in your browser and checked against PyTorch; the dead-unit and real-model numbers were measured offline. Sources are linked inline; checked 3 October 2026.</div>
+<div class="sub">The nonlinearity between two linear maps, judged by its slope: saturation in sigmoid and tanh, dead units in the ReLU family, the smooth ReLUs (GELU, SiLU), the gated units every current LLM uses (SwiGLU) with the 2/3 width rule, and softmax at the output. Curves computed in your browser and checked against PyTorch; dead units and three released models measured offline. Data as of October 2026. <span id="rd-time">Reading: 22 min, plus 5 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
 <button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-atlas" aria-selected="false">Activation atlas</button><button role="tab" data-t="t-real" aria-selected="false">Inside real models</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
-<nav class="nav" aria-label="Sections"><a href="#s-over">In one screen</a><a href="#s-why">Why a nonlinearity</a><a href="#s-sat">Sigmoid and tanh</a><a href="#s-relu">The ReLU family</a><a href="#s-dead">Dead units</a><a href="#s-smooth">Smooth ReLUs</a><a href="#s-glu">Gated units</a><a href="#s-width">The 2/3 rule</a><a href="#s-inside">Inside real models</a><a href="#s-out">The output layer</a><a href="#s-mist">Mistakes</a></nav>
+<nav class="nav" aria-label="Sections"><a href="#s-top">The idea</a><a href="#s-over">In one screen</a><a href="#s-why">Why a nonlinearity</a><a href="#s-sat">Saturation</a><a href="#s-relu">The ReLU family</a><a href="#s-dead">Dead units</a><a href="#s-smooth">Smooth ReLUs</a><a href="#s-glu">Gated units</a><a href="#s-width">The 2/3 rule</a><a href="#s-inside">Inside real models</a><a href="#s-out">Output and softmax</a></nav>
+
+<section id="s-top">
+<p class="core">An activation function is the elementwise nonlinearity between two linear maps, and what decides how well a network trains is its <span class="hl">slope</span>: backpropagation multiplies every unit's gradient by it, so a slope near 0 (saturation) or exactly 0 (a dead unit) stops learning. Since 2020, language models replace the single function with a gate: a second projection of the same input that sets each unit's <span class="hl">slope</span>, token by token (SwiGLU).</p>
+<div class="hero card" id="hr">
+<h4>Each activation (dark line) and its <span class="hl">slope</span> (blue): where the slope is low, the gradient fades</h4>
+<div class="hr-grid" id="hrG"></div>
+<p class="small mute" style="margin:4px 0 0">Red: slope exactly 0, no gradient at all. Grey: slope below 0.01, saturated. Dashed line: slope 1, where the gradient passes unchanged. All curves computed in your browser from PyTorch's definitions (<code>src/recompute.py</code> checks them).</p>
+</div>
+<p class="small"><b>You need:</b> backpropagation and a feed-forward block. Where the activation sits in one training step, and what a whole network of each does to the variance, is step 2 of the <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Reading tab of Topic: ml-fundamentals</a>; the block around the activation is on <a href="https://app.notion.com/p/3fd5c17b0d0d8174980ddde4a20c7b3c" target="_blank" rel="noopener noreferrer">The transformer from zero</a>; normalisation and initialisation are on <a href="https://app.notion.com/p/3c65c17b0d0d81369e1cc38ed4e11d48" target="_blank" rel="noopener noreferrer">Normalisation and initialisation</a>.</p>
+<dl class="terms">
+<dt>pre-activation</dt><dd>the number a unit computes before the activation: one entry of <i>x</i><i>W</i> + <i>b</i></dd>
+<dt>saturation</dt><dd>inputs where the slope is close to 0, so almost no gradient flows back</dd>
+<dt>dead unit</dt><dd>a ReLU unit whose input is negative on every example: output 0, gradient 0, nothing pulls it back</dd>
+<dt>gated unit (GLU)</dt><dd>two projections of the same input multiplied elementwise, one passed through an activation</dd>
+<dt>logit</dt><dd>a raw output score before softmax or sigmoid</dd>
+</dl>
+</section>
 
 <section id="s-over">
 <h2>In one screen</h2>
-<p class="lead">An activation function is the elementwise nonlinearity between two linear maps. It decides three things: whether the gradient survives many layers (<b>saturation</b>), whether units can switch off for good (<b>dead units</b>), and, at the output, what the numbers mean (<b>probabilities, or a value</b>). In 2026 the answer for hidden layers of a language model is a <b>gated</b> unit, almost always SwiGLU; GELU survives in vision transformers and older encoders; the ReLU family in convolutional networks and a few efficiency-minded LLMs; sigmoid and tanh only inside gates and at outputs.</p>
-<p>This page owns the details. The parent topic places the activation in one training step and has three live pieces this page links rather than repeats: "one batch through five networks" (sigmoid with Xavier, ReLU with 1/<i>n</i>, ReLU with He, BatchNorm residual, pre-RMSNorm SwiGLU, with the variance and the gradient of every layer) in step 2 of the <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Reading tab of Topic: ml-fundamentals</a>; the <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Training lab</a> tab, which trains the same network with six activations swapped live; and the <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Defaults across models</a> tab, which lists the activation and FFN width of twenty-one models from AlexNet to Kimi K2, each with its source.</p>
+<p>In 2026 the answer for hidden layers of a language model is a <b>gated</b> unit, almost always SwiGLU; GELU survives in vision transformers and older encoders; the ReLU family in convolutional networks and a few efficiency-minded LLMs; sigmoid and tanh only inside gates and at outputs.</p>
 <div class="tw"><table class="choose">
 <tr><th>Family</th><th>Members</th><th>Where it lives now</th><th>What goes wrong</th></tr>
 <tr><td>Saturating</td><td>sigmoid, tanh</td><td>gates (LSTM, GRU), binary outputs</td><td>slope near 0 on both sides: gradients vanish through many layers (<a href="#s-sat">below</a>)</td></tr>
-<tr><td>Rectified</td><td>ReLU, leaky ReLU, PReLU, ELU, SELU, squared ReLU</td><td>convolutional networks; OPT (ReLU), Nemotron-4 (squared ReLU)</td><td>ReLU units can die: zero output and zero gradient on every input (<a href="#s-dead">measured below</a>)</td></tr>
-<tr><td>Smooth rectifiers</td><td>GELU (exact or tanh form), SiLU (Swish), Mish</td><td>BERT, GPT-2, GPT-3, ViT</td><td>several "GELU"s that are not interchangeable in a trained checkpoint (<a href="#s-smooth">below</a>)</td></tr>
+<tr><td>Rectified</td><td>ReLU, leaky ReLU, PReLU, ELU, SELU, squared ReLU</td><td>convolutional networks; OPT (ReLU), Nemotron-4 (squared ReLU); SELU in self-normalising fully connected networks</td><td>ReLU units can die: zero output and zero gradient on every input (<a href="#s-dead">measured below</a>)</td></tr>
+<tr><td>Smooth rectifiers</td><td>GELU (exact or tanh form), SiLU (Swish), Mish</td><td>BERT, GPT-2, GPT-3, ViT; Mish in object detectors</td><td>several "GELU"s that are not interchangeable in a trained checkpoint (<a href="#s-smooth">below</a>)</td></tr>
 <tr><td>Gated</td><td>GLU, bilinear, ReGLU, GEGLU, SwiGLU</td><td>the feed-forward block of nearly every LLM since PaLM and Llama</td><td>a third weight matrix: the hidden width is cut to keep the parameter count (<a href="#s-width">the 2/3 rule</a>)</td></tr>
 <tr><td>Output</td><td>sigmoid, softmax, none (linear)</td><td>the last layer, chosen by the task</td><td>must match the loss, which in PyTorch usually wants the raw logits (<a href="#s-out">below</a>)</td></tr>
 </table></div>
-<p class="small mute">Every function on this page, with its derivative, the region where it saturates and the region where its slope is exactly zero, is drawn in the <a href="#" data-tab="t-atlas">Activation atlas</a> tab; what these functions actually output inside OPT-125m, GPT-2 and SmolLM2-135M is the <a href="#" data-tab="t-real">Inside real models</a> tab.</p>
+<p class="small mute">Linked, not rebuilt, on the root: "one batch through five networks" (step 2 of its <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Reading tab</a>), the <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Training lab</a> (six activations swapped live) and <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Defaults across models</a> (twenty-one models from AlexNet to Kimi K2). Here: every function with its derivative in the <a href="#" data-tab="t-atlas">Activation atlas</a>; three released models in <a href="#" data-tab="t-real">Inside real models</a>.</p>
 </section>
 
 <section id="s-why">
 <h2>Why a nonlinearity, and what it must be</h2>
 <ul>
 <li><b>Non-linear,</b> or the stack collapses: <i>W</i><sub>2</sub>(<i>W</i><sub>1</sub><i>x</i>) = (<i>W</i><sub>2</sub><i>W</i><sub>1</sub>)<i>x</i>, one linear map however many layers there are.</li>
-<li><b>Not a polynomial,</b> which is the precise condition for a one-hidden-layer network to approximate any continuous function: "a standard multilayer feedforward network with a locally bounded piecewise continuous activation function can approximate any continuous function to any degree of accuracy if and only if the network's activation function is not a polynomial" (<a href="https://doi.org/10.1016/S0893-6080(05)80131-5" target="_blank" rel="noopener noreferrer">Leshno, Lin, Pinkus and Schocken 1993</a>). <i>x</i><sup>2</sup> alone would not do; squared ReLU, max(0, <i>x</i>)<sup>2</sup>, is piecewise and is not a polynomial, so it qualifies.</li>
+<li><b>Not a polynomial,</b> the exact condition for a one-hidden-layer network to approximate any continuous function (Leshno et al. 1993, below). <i>x</i><sup>2</sup> alone would not do; squared ReLU, max(0, <i>x</i>)<sup>2</sup>, is piecewise and is not a polynomial, so it qualifies.</li>
 <li><b>Differentiable almost everywhere</b> is enough for gradient descent: ReLU has no derivative at exactly 0 and frameworks simply pick one (PyTorch's autograd uses 0 there; this page's derivatives agree with autograd everywhere else, <code>src/recompute.py</code>).</li>
 </ul>
-<p>Everything else is a trade between four properties: slope near 1 over a wide range (gradients survive depth), outputs centred on zero (updates do not zig-zag), cheap to compute, and smooth (the optimiser sees a smooth surface). No function has all four; the history below is the field trading one for another.</p>
+<p>Everything else is a trade between four properties: slope near 1 over a wide range (gradients survive depth), outputs centred on zero (updates do not zig-zag), cheap to compute, and smooth (the optimiser sees a smooth surface). No function has all four.</p>
+<details class="dp"><summary>The universal approximation condition, quoted <span class="mute">(Leshno, Lin, Pinkus and Schocken 1993)</span></summary><div class="b">
+<p>"A standard multilayer feedforward network with a locally bounded piecewise continuous activation function can approximate any continuous function to any degree of accuracy if and only if the network's activation function is not a polynomial" (<a href="https://doi.org/10.1016/S0893-6080(05)80131-5" target="_blank" rel="noopener noreferrer">Leshno, Lin, Pinkus and Schocken 1993</a>).</p>
+</div></details>
 </section>
 
 <section id="s-sat">
-<h2>Sigmoid and tanh: saturation</h2>
+<h2>Saturation: sigmoid and tanh</h2>
 <div class="tw"><table>
 <tr><th>Activation</th><th>Formula</th><th>Range</th><th>Largest slope</th><th>Good at</th><th>Trouble</th></tr>
 <tr><td>Sigmoid σ</td><td>1 / (1 + e<sup>&minus;<i>x</i></sup>)</td><td>(0, 1)</td><td>0.25, at <i>x</i> = 0</td><td>an output read as a probability; a gate that opens between 0 and 1</td><td>saturates on both sides; outputs always positive, not zero-centred</td></tr>
 <tr><td>Tanh</td><td>tanh <i>x</i> = 2σ(2<i>x</i>) &minus; 1</td><td>(&minus;1, 1)</td><td>1, at <i>x</i> = 0</td><td>zero-centred: outputs, and so the next layer's updates, can have either sign</td><td>still saturates: slope below 0.01 once |<i>x</i>| &gt; 3.0 <i class="nl d">derived</i></td></tr>
 </table></div>
-<p><b>Saturation.</b> Backpropagation multiplies the gradient by the activation's slope at every layer. A sigmoid's slope is at most 0.25, so even at its best a gradient shrinks by 4 per layer, and in a saturated unit (|<i>x</i>| large) the slope is close to 0: the slope of the sigmoid is below 0.01 once |<i>x</i>| &gt; 4.6 <i class="nl d">derived from σ(1 &minus; σ) = 0.01</i>. On the parent's "one batch through five networks", the first layer of the 16-layer sigmoid network receives a gradient about 2 billion times smaller than the last (step 2 of the <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Reading tab of Topic: ml-fundamentals</a>). Tanh is a rescaled sigmoid (the identity above), with four times the slope at 0, which is why it was preferred for hidden layers before ReLU.</p>
+<p>Backpropagation multiplies the gradient by the activation's <span class="hl">slope</span> at every unit of every layer. A sigmoid's slope is at most 0.25, so even at its best a gradient shrinks by 4 per layer, and in a saturated unit the slope is close to 0: below 0.01 once |<i>x</i>| &gt; 4.6 <i class="nl d">derived from σ(1 &minus; σ) = 0.01</i>. On the root's "one batch through five networks", the first layer of the 16-layer sigmoid network receives a gradient about 2 billion times smaller than the last (step 2 of the <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Reading tab of Topic: ml-fundamentals</a>). Tanh is a rescaled sigmoid (the identity above) with four times the slope at 0, which is why it was preferred for hidden layers before ReLU.</p>
+<p class="try"><b>Predict, then press:</b> below are the 3,072 real pre-activations of one token in one GPT-2 block. Which function passes the <i>least</i> gradient back through them: sigmoid (slope never above 0.25), tanh, ReLU, GELU or SiLU? Then multiply the inputs by 3, as happens when a layer's inputs grow without normalisation, and see which ones change.</p>
+<div class="card" id="sl">
+<h4>The same 3,072 pre-activations, five <span class="hl">slopes</span>: ReLU cuts nine units in ten to zero, tanh saturates only when the inputs grow</h4>
+<div class="seg2" id="slF" role="group" aria-label="Activation"><button data-m="sigmoid">Sigmoid</button><button data-m="tanh">Tanh</button><button data-m="relu">ReLU</button><button data-m="gelut" class="on">GELU</button><button data-m="silu">SiLU</button></div>
+<div class="seg2" id="slK" role="group" aria-label="Input scale"><button data-m="1" class="on">Inputs as recorded</button><button data-m="3">Inputs × 3</button></div>
+<div id="slSvg" class="plotbox"></div>
+<div class="an-cap" aria-live="polite"><p id="slP" style="margin:0"></p></div>
+<div class="cnt" id="slN"></div>
+<p class="small mute">Input: GPT-2 small, layer 6, the token " cat" in "The cat sat on the mat because it was tired.": 3,072 pre-activations <i>x</i><i>W</i><sub>1</sub> + <i>b</i><sub>1</sub>, recorded by <code>src/real_models.py</code>, 88.8% of them negative, sorted from &minus;4.24 to 2.57. GPT-2 was trained with GELU; the other four functions are applied to the same numbers <i class="nl i">illustrative</i>, to compare slopes on one input, not to predict a model trained with them. Grey bars: slope below 0.01. Red ticks: slope exactly 0.</p>
+<details class="dp"><summary>The answer, in numbers <span class="mute">(src/slope_numbers.mjs)</span></summary><div class="b">
+<div class="tw"><table class="nar"><tr><th>On these inputs</th><th class="num">Mean |slope|</th><th class="num">Slope exactly 0</th><th class="num">Below 0.01</th><th class="num">Below 0.01 at × 3</th></tr>
+<tr><td>Sigmoid</td><td class="num">0.191</td><td class="num">0%</td><td class="num">0%</td><td class="num">22.4%</td></tr>
+<tr><td>Tanh</td><td class="num">0.512</td><td class="num">0%</td><td class="num">0.7%</td><td class="num">44.9%</td></tr>
+<tr><td>ReLU</td><td class="num">0.112</td><td class="num">88.8%</td><td class="num">88.8%</td><td class="num">88.8%</td></tr>
+<tr><td>GELU (tanh form)</td><td class="num">0.198</td><td class="num">0%</td><td class="num">2.7%</td><td class="num">43.9%</td></tr>
+<tr><td>SiLU</td><td class="num">0.210</td><td class="num">0%</td><td class="num">3.6%</td><td class="num">8.8%</td></tr></table></div>
+<p>ReLU passes the least: its mean slope, 0.112, is the share of positive inputs, and it does not move with scale, because only signs matter. Sigmoid never saturates here but caps every unit at 0.25. GELU's few "below 0.01" units at × 1 sit at the bottom of its dip (<i>x</i> near &minus;0.75, where the slope crosses 0), not in a flat tail.</p>
+</div></details>
+</div>
 <p><b>Why zero-centred matters.</b> A unit's weight gradient is its input times one shared error term. If every input is positive (a sigmoid layer's output always is), every weight of that unit moves in the same direction at each step, so reaching a target that needs some weights up and others down takes a zig-zag. LeCun et al. recommend inputs with mean close to zero for this reason, and a scaled tanh, 1.7159 tanh(2<i>x</i>/3), for hidden units (<a href="http://yann.lecun.com/exdb/publis/pdf/lecun-98b.pdf" target="_blank" rel="noopener noreferrer">Efficient BackProp, 1998</a>, sections 4.3 and 4.4).</p>
-<p><b>Where they still live.</b> Inside gates, where a value between 0 and 1 is the point: the LSTM's forget, input and output gates are sigmoids and its cell candidate a tanh (<a href="https://app.notion.com/p/3c65c17b0d0d818da4ded61ace6847ce" target="_blank" rel="noopener noreferrer">Sequence models: the pre-transformer lineage</a>); the gated units below are this idea moved into the feed-forward block. And at the output, for a binary or multilabel probability.</p>
+<p><b>Where they still live.</b> Inside gates, where a value between 0 and 1 is the point: the LSTM's forget, input and output gates are sigmoids and its cell candidate a tanh (<a href="https://app.notion.com/p/3c65c17b0d0d818da4ded61ace6847ce" target="_blank" rel="noopener noreferrer">Sequence models: the pre-transformer lineage</a>); the gated units below move this idea into the feed-forward block. And at the output, for a binary or multilabel probability.</p>
 </section>
 
 <section id="s-relu">
 <h2>The ReLU family</h2>
-<p>ReLU, max(0, <i>x</i>), has slope exactly 1 for every positive input, so the gradient passes through any number of active layers unshrunk, and it costs one comparison. It entered deep learning through restricted Boltzmann machines (<a href="https://www.cs.toronto.edu/~hinton/absps/reluICML.pdf" target="_blank" rel="noopener noreferrer">Nair and Hinton 2010</a>) and deep supervised networks (<a href="https://proceedings.mlr.press/v15/glorot11a.html" target="_blank" rel="noopener noreferrer">Glorot, Bordes and Bengio 2011</a>, who stressed that it makes representations sparse: many units output exactly 0). AlexNet made it the default: a four-layer convolutional network with ReLUs reached 25% training error on CIFAR-10 six times faster than the same network with tanh (<a href="https://papers.nips.cc/paper_files/paper/2012/hash/c399862d3b9d6b76c8436e924a68c45b-Abstract.html" target="_blank" rel="noopener noreferrer">Krizhevsky, Sutskever and Hinton 2012</a>, section 3.1). Its variants each patch one weakness:</p>
+<p>ReLU, max(0, <i>x</i>), has <span class="hl">slope</span> exactly 1 for every positive input, so the gradient passes through any number of active layers unshrunk, and it costs one comparison. AlexNet made it the default: a four-layer convolutional network with ReLUs reached 25% training error on CIFAR-10 six times faster than the same network with tanh (<a href="https://papers.nips.cc/paper_files/paper/2012/hash/c399862d3b9d6b76c8436e924a68c45b-Abstract.html" target="_blank" rel="noopener noreferrer">Krizhevsky, Sutskever and Hinton 2012</a>, section 3.1). Its variants each patch one weakness:</p>
 <div class="tw"><table>
 <tr><th>Variant</th><th>Formula, for <i>x</i> &le; 0 (all are <i>x</i> for <i>x</i> &gt; 0 unless said)</th><th>What it fixes, and its cost</th><th>Source</th></tr>
 <tr><td>Leaky ReLU</td><td>α<i>x</i>, α fixed (0.01 in the paper and PyTorch's default)</td><td>a small gradient for negative inputs, so a unit cannot be stuck at zero gradient; one more hyperparameter</td><td><a href="https://ai.stanford.edu/~amaas/papers/relu_hybrid_icml2013_final.pdf" target="_blank" rel="noopener noreferrer">Maas, Hannun and Ng 2013</a></td></tr>
@@ -187,14 +240,18 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>SELU</td><td>λα(e<sup><i>x</i></sup> &minus; 1), and λ<i>x</i> for <i>x</i> &gt; 0; λ &asymp; 1.0507, α &asymp; 1.6733</td><td>constants chosen so that mean 0 and variance 1 is a fixed point of a layer with LeCun initialisation: the network normalises itself without BatchNorm, in fully connected networks</td><td><a href="https://arxiv.org/abs/1706.02515" target="_blank" rel="noopener noreferrer">Klambauer et al. 2017</a></td></tr>
 <tr><td>Squared ReLU</td><td>0, and <i>x</i><sup>2</sup> for <i>x</i> &gt; 0</td><td>found by Primer's search as "the most effective modification" to a Transformer's feed-forward block; used by Nemotron-4 15B and the Nemotron Mini and Minitron models (config <code>relu2</code>)</td><td><a href="https://arxiv.org/abs/2109.08668" target="_blank" rel="noopener noreferrer">So et al. 2021</a>, <a href="https://arxiv.org/abs/2402.16819" target="_blank" rel="noopener noreferrer">Nemotron-4 15B</a>, <a href="https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct/blob/main/config.json" target="_blank" rel="noopener noreferrer">config.json</a></td></tr>
 </table></div>
-<p><b>SELU's fixed point, reproduced.</b> For a standard normal input, this page's numerical integration gives E[SELU(<i>z</i>)] = 0.0000 and E[SELU(<i>z</i>)<sup>2</sup>] = 1.0000 <i class="nl r">reproduces Klambauer et al. independently</i>; for ReLU, E[ReLU(<i>z</i>)<sup>2</sup>] = 0.5, the half that He initialisation's factor 2 puts back. Both are rows of the statistics table in the <a href="#" data-tab="t-atlas">Activation atlas</a>, beside PyTorch's <code>calculate_gain</code>.</p>
+<details class="dp"><summary>Where ReLU came from <span class="mute">(2010 and 2011)</span></summary><div class="b"><p>It entered deep learning through restricted Boltzmann machines (<a href="https://www.cs.toronto.edu/~hinton/absps/reluICML.pdf" target="_blank" rel="noopener noreferrer">Nair and Hinton 2010</a>) and deep supervised networks (<a href="https://proceedings.mlr.press/v15/glorot11a.html" target="_blank" rel="noopener noreferrer">Glorot, Bordes and Bengio 2011</a>, who stressed that it makes representations sparse: many units output exactly 0).</p></div></details>
+<details class="dp"><summary>SELU's fixed point, reproduced <span class="mute">(and ReLU's factor of 2)</span></summary><div class="b">
+<p>For a standard normal input, this page's numerical integration gives E[SELU(<i>z</i>)] = 0.0000 and E[SELU(<i>z</i>)<sup>2</sup>] = 1.0000 <i class="nl r">reproduces Klambauer et al. independently</i>; for ReLU, E[ReLU(<i>z</i>)<sup>2</sup>] = 0.5, the half that He initialisation's factor 2 puts back. Both are rows of the statistics table in the <a href="#" data-tab="t-atlas">Activation atlas</a>, beside PyTorch's <code>calculate_gain</code>.</p>
+</div></details>
 </section>
 
 <section id="s-dead">
 <h2>Dead units, measured</h2>
 <p>A ReLU unit whose input is negative for every example outputs 0 everywhere and receives zero gradient, so nothing in backpropagation pushes it back: it is <b>dead</b>. A high learning rate or a large negative bias can kill many at once. The usual statement is that a dead unit "never recovers". That is exact only for a unit whose inputs cannot change (the first layer, fed fixed data); a dead unit deeper in the network can come back when the layers below it change, as the measured run below shows.</p>
-<p class="try"><b>Try:</b> a real network, trained offline: a 64-128-128-128-10 network on 1,797 handwritten digits, He initialisation, SGD with momentum 0.9, 30 epochs. Each square is one of the 384 hidden units; its shade is the share of the 1,797 images on which it is on, and a red square is dead (off on every image). Press play to run the epochs, then switch runs: the same network at learning rate 0.04, at 0.08, and at 0.08 with leaky ReLU.</p>
+<p class="try"><b>Predict, then step:</b> will dead units come back once they die? A real network, trained offline: a 64-128-128-128-10 network on 1,797 handwritten digits, He initialisation, SGD with momentum 0.9, 30 epochs. Each square is one of the 384 hidden units; its shade is the share of the 1,797 images on which it is on, and a red square is dead (off on every image). Press play or step through the epochs, then switch runs: the same network at learning rate 0.04, at 0.08, and at 0.08 with leaky ReLU.</p>
 <div class="card" id="dr">
+<h4>Same network, three runs: at rate 0.08 a whole ReLU layer goes dark and accuracy falls to chance</h4>
 <div class="seg2" id="drM" role="group" aria-label="Run"><button data-r="0" class="on">ReLU, rate 0.04</button><button data-r="1">ReLU, rate 0.08</button><button data-r="2">Leaky ReLU, rate 0.08</button></div>
 <div id="drSvg" class="plotbox"></div>
 <div class="lg" id="drL"></div>
@@ -205,6 +262,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 </div>
 <p><b>Across five seeds and ten learning rates</b> (the chart below, from the same script): up to a rate of 0.04 no ReLU unit dies; at 0.05 and 0.06 a handful die and the network still reaches 96 to 98% held-out accuracy; from 0.07 most runs lose a whole layer, after which every image produces the same output, the loss sits at ln 10 = 2.303 and accuracy at chance. With leaky ReLU nothing can go fully silent, so the same rates do not end in a dead network; they end in a loss that overflows to "not a number". The learning rate is the cause in both; the activation decides only whether the failure is silent or loud.</p>
 <div class="card" id="ds">
+<h4>Up to rate 0.04 nothing dies; from 0.07 ReLU runs collapse and leaky ReLU runs overflow</h4>
 <div id="dsSvg" class="plotbox"></div>
 <div class="lg" id="dsL"></div>
 <p class="small mute" id="dsX"></p>
@@ -236,7 +294,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>Sigmoid ("QuickGELU")</td><td><i>x</i>&thinsp;σ(1.702<i>x</i>)</td><td>0.020</td><td>CLIP's released code (<a href="https://github.com/openai/CLIP/blob/main/clip/model.py" target="_blank" rel="noopener noreferrer">class QuickGELU</a>)</td></tr>
 </table></div>
 <div class="co corr"><div class="t">Correction: SiLU is not "nearly identical" to GELU, and was not found by the search</div>
-<p style="margin:2px 0">The old version of this page said SiLU has a "nearly identical curve to GELU" and was "found by architecture search". The curves differ by up to 0.193 <i class="nl d">derived, max |SiLU &minus; GELU| on [&minus;6, 6]</i>, and SiLU's dip is 64% deeper (&minus;0.278 against &minus;0.170). The near-identity is GELU against <i>x</i>&thinsp;σ(1.702<i>x</i>): SiLU is that curve stretched 1.702 times along <i>x</i> (and rescaled). As for the search: <i>x</i>&thinsp;σ(<i>x</i>) was already in the GELU paper (as SiLU) and in Elfwing et al.; Ramachandran et al.'s automated search found the family <i>x</i>&thinsp;σ(β<i>x</i>), which they named Swish, and their paper says that with β = 1 "Swish is equivalent to the Sigmoid-weighted Linear Unit (SiL) of Elfwing et al." Their result is that replacing ReLU with Swish raised ImageNet top-1 accuracy by 0.9% for Mobile NASNet-A and 0.6% for Inception-ResNet-v2. Overlay the curves in the <a href="#" data-tab="t-atlas">Activation atlas</a>.</p></div>
+<p style="margin:2px 0">The old version of this page said SiLU has a "nearly identical curve to GELU" and was "found by architecture search". The curves differ by up to 0.193 <i class="nl d">derived, max |SiLU &minus; GELU| on [&minus;6, 6]</i>, and SiLU's dip is 64% deeper (&minus;0.278 against &minus;0.170). The near-identity is GELU against <i>x</i>&thinsp;σ(1.702<i>x</i>): SiLU is that curve stretched 1.702 times along <i>x</i> (and rescaled). SiLU was not found by the search either (below).</p>
+<details class="dp"><summary>Who found SiLU, and what Swish's search found <span class="mute">(Ramachandran et al. 2017)</span></summary><div class="b"><p>As for the search: <i>x</i>&thinsp;σ(<i>x</i>) was already in the GELU paper (as SiLU) and in Elfwing et al.; Ramachandran et al.'s automated search found the family <i>x</i>&thinsp;σ(β<i>x</i>), which they named Swish, and their paper says that with β = 1 "Swish is equivalent to the Sigmoid-weighted Linear Unit (SiL) of Elfwing et al." Their result is that replacing ReLU with Swish raised ImageNet top-1 accuracy by 0.9% for Mobile NASNet-A and 0.6% for Inception-ResNet-v2.</p></div></details>
+<p style="margin:2px 0">Overlay the curves in the <a href="#" data-tab="t-atlas">Activation atlas</a>.</p></div>
 <p><b>Why the smooth ones win in transformers</b> is not settled. The papers report empirical gains (GELU over ReLU and ELU on their benchmarks, Swish over ReLU on ImageNet and translation); the old page's "self-scaling" has no source beyond the Bernoulli motivation above. In Shazeer's controlled comparison (next section), GELU and Swish alone barely beat ReLU in pre-training perplexity (1.983 and 1.994 against 1.997 at 65,536 steps, with run-to-run spreads of 0.003 to 0.005) and were behind it at the end of training (1.679 and 1.683 against 1.677): the gain that stuck came from gating.</p>
 </section>
 
@@ -254,8 +314,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>SwiGLU</td><td>SiLU (Swish with β = 1)</td><td>Shazeer 2020; PaLM, Llama, Mistral, Qwen, DeepSeek, SmolLM and most open LLMs since</td></tr>
 </table></div>
 <p><b>What the gate does to the gradient.</b> With <i>g</i> = <i>x</i><i>W</i> and <i>u</i> = <i>x</i><i>V</i>, the hidden unit is <i>h</i> = SiLU(<i>g</i>)&thinsp;<i>u</i>, so &part;<i>h</i>/&part;<i>u</i> = SiLU(<i>g</i>): the slope of the linear path is not a fixed function of its own input but is set, token by token, by a second projection of the same input. That is the old page's "learned adaptive slope", and the only mechanism the formula itself shows. Its other claims for gated units ("very expressive, stable training, balanced mean/variance") are <i class="nl u">unconfirmed</i>: the paper that introduced them offers none, and says so: "We offer no explanation as to why these architectures seem to work; we attribute their success, as all else, to divine benevolence."</p>
-<p class="try"><b>Try:</b> one real token, " cat" in "The cat sat on the mat because it was tired.", through two real feed-forward blocks: GPT-2 small's (layer 6, a plain GELU block of width 4<i>d</i>) and SmolLM2-135M's (layer 15, a SwiGLU block of width 8<i>d</i>/3). Both are drawn to scale in units of their own <i>d</i>, and both cost 8<i>d</i><sup>2</sup> parameters. Each strip is a vector, one thin column per number, blue for positive and orange for negative. Step through, then switch blocks; in the SwiGLU block, try another gate function on the same pre-activations.</p>
+<p class="try"><b>Predict, then step:</b> with the same parameter budget, will the gated block leave more hidden values near zero than the GELU block, or fewer? One real token, " cat" in "The cat sat on the mat because it was tired.", through two real feed-forward blocks: GPT-2 small's (layer 6, a plain GELU block of width 4<i>d</i>) and SmolLM2-135M's (layer 15, a SwiGLU block of width 8<i>d</i>/3). Both are drawn to scale in units of their own <i>d</i>, and both cost 8<i>d</i><sup>2</sup> parameters. Each strip is a vector, one thin column per number, blue for positive and orange for negative. Step through, then switch blocks; in the SwiGLU block, try another gate function on the same pre-activations.</p>
 <div class="card" id="gf">
+<h4>One token, two blocks of 8<i>d</i><sup>2</sup> parameters: GELU squashes negatives, the gate multiplies and keeps both signs</h4>
 <div class="seg2" id="gfM" role="group" aria-label="Block"><button data-m="plain" class="on">Plain FFN (GPT-2, GELU)</button><button data-m="glu">SwiGLU FFN (SmolLM2-135M)</button></div>
 <label class="small" id="gfGl" style="margin-left:8px">Gate function <select id="gfG"><option value="silu" selected>SiLU (as trained: SwiGLU)</option><option value="sigmoid">sigmoid (GLU)</option><option value="relu">ReLU (ReGLU)</option><option value="gelu">GELU (GEGLU)</option><option value="id">none (bilinear)</option></select></label>
 <div id="gfSvg" class="plotbox"></div>
@@ -263,15 +324,20 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div class="an-cap" aria-live="polite"><div class="t" id="gfT"></div><p id="gfP" style="margin:2px 0 0"></p></div>
 <div class="cnt" id="gfN"></div>
 <p class="small mute">Vectors recorded with forward hooks by <code>src/real_models.py</code> (float32, stored as 16-bit integers with one scale per vector); the GELU and the gate products are recomputed in your browser from the stored pre-activations. "Near zero" means |<i>h</i>| below 0.1 times the root mean square of that token's hidden vector. Gate functions other than SiLU are applied to SmolLM2's own gate pre-activations, which were trained for SiLU: <i class="nl i">illustrative</i>, to show what each gate passes, not how a model trained with it would behave.</p>
+<details class="dp"><summary>The answer <span class="mute">(on this token)</span></summary><div class="b"><p>More. GPT-2's GELU block leaves 5.5% of its 3,072 hidden values below 0.1 &times; rms, and 88.8% of them negative but small (inside GELU's dip); SmolLM2's SwiGLU block leaves 24.2% of its 1,536 below 0.1 &times; rms, and 50.7% negative, because the sign of each product comes from <i>u</i>. The gate shuts units multiplicatively, without the exact zeros of ReLU. One token each: the <a href="#" data-tab="t-real">Inside real models</a> tab gives the same measures over 283 thousand tokens and every layer.</p></div></details>
 </div>
 <p><b>Shazeer's results.</b> All variants matched for parameters and computation, on T5's span-filling pre-training (the base model, <i>d</i> = 768) and then fine-tuned once on a mixture of GLUE, SuperGLUE and SQuAD. Lower log-perplexity is better; at 65,536 steps the bracket is the standard deviation over runs of the same model.</p>
 <div class="card" id="sz">
+<h4>Every gated variant beats every ungated one in pre-training perplexity</h4>
 <div class="seg2" id="szM" role="group" aria-label="Measure"><button data-k="p65" class="on">Log-perplexity, 65,536 steps</button><button data-k="p524">Log-perplexity, 524,288 steps</button><button data-k="glue">GLUE average</button><button data-k="sglue">SuperGLUE average</button></div>
 <div id="szSvg" class="plotbox"></div>
 <p class="small mute" id="szX"></p>
 </div>
 <p>Read with the noise in mind: at 65,536 steps GEGLU (1.942 &plusmn; 0.004) and SwiGLU (1.944 &plusmn; 0.010) are indistinguishable, and both are about 0.05 below ReLU (1.997 &plusmn; 0.005), ten times the spread <i class="nl d">derived</i>. The fine-tuning scores come from one run each and the paper calls them "noisy"; the spread T5 measured for the GLUE average was 0.235. Every gated variant beat every ungated one in pre-training perplexity, at both lengths <i class="nl d">derived from Table 1</i>.</p>
-<p>PaLM adopted SwiGLU on this evidence: "they have been shown to significantly increase quality compared to standard ReLU, GeLU, or Swish activations (Shazeer, 2020). Note that this does require three matrix multiplications in the MLP rather than two" (<a href="https://arxiv.org/abs/2204.02311" target="_blank" rel="noopener noreferrer">Chowdhery et al. 2022</a>, section 2). Llama followed: "We replace the ReLU non-linearity by the SwiGLU activation function ... We use a dimension of 2/3 4d instead of 4d as in PaLM" (<a href="https://arxiv.org/abs/2302.13971" target="_blank" rel="noopener noreferrer">Touvron et al. 2023</a>, section 2.2), and so did nearly every open model since; the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Defaults across models</a> tab shows the switch year by year. A later line of work goes the other way for inference speed: replacing SiLU and GELU with ReLU in a pre-trained Llama or Falcon and fine-tuning briefly brings back exact zeros that a server can skip (<a href="https://arxiv.org/abs/2310.04564" target="_blank" rel="noopener noreferrer">Mirzadeh et al. 2023, "ReLU Strikes Back"</a>).</p>
+<p><b>Why gating won.</b> On this evidence PaLM (2022) and then Llama (2023) replaced ReLU and GELU with SwiGLU, accepting a third matrix, and nearly every open model since did the same; the root's <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Defaults across models</a> tab shows the switch year by year. A later line of work goes the other way for inference speed: replacing SiLU and GELU with ReLU in a pre-trained Llama or Falcon and fine-tuning briefly brings back exact zeros that a server can skip (<a href="https://arxiv.org/abs/2310.04564" target="_blank" rel="noopener noreferrer">Mirzadeh et al. 2023, "ReLU Strikes Back"</a>).</p>
+<details class="dp"><summary>What PaLM and Llama said when they adopted it <span class="mute">(quoted)</span></summary><div class="b">
+<p>PaLM: "they have been shown to significantly increase quality compared to standard ReLU, GeLU, or Swish activations (Shazeer, 2020). Note that this does require three matrix multiplications in the MLP rather than two" (<a href="https://arxiv.org/abs/2204.02311" target="_blank" rel="noopener noreferrer">Chowdhery et al. 2022</a>, section 2). Llama: "We replace the ReLU non-linearity by the SwiGLU activation function ... We use a dimension of 2/3 4d instead of 4d as in PaLM" (<a href="https://arxiv.org/abs/2302.13971" target="_blank" rel="noopener noreferrer">Touvron et al. 2023</a>, section 2.2).</p>
+</div></details>
 </section>
 
 <section id="s-width">
@@ -297,7 +363,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 </section>
 
 <section id="s-out">
-<h2>The output layer</h2>
+<h2>The output layer, and softmax as an activation</h2>
 <p>The last layer's activation is chosen by what the output has to be, and it must agree with the loss (the loss for each is on <a href="https://app.notion.com/p/3c65c17b0d0d8161a72bc8c572f37d55" target="_blank" rel="noopener noreferrer">Loss functions</a>). In PyTorch the loss usually applies the output activation itself, so the network should end with the raw scores (logits):</p>
 <div class="tw"><table class="choose">
 <tr><th>The output is</th><th>Output activation</th><th>PyTorch loss, fed what</th></tr>
@@ -310,12 +376,11 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>the next token</td><td>softmax over the vocabulary</td><td>cross entropy on the logits in training; at generation the logits are divided by a temperature and filtered (top-<i>k</i>, top-<i>p</i>, min-<i>p</i>)</td></tr>
 </table></div>
 <p><b>Softmax, in four facts.</b> (1) Adding a constant to every logit changes nothing, softmax(<i>z</i> + <i>c</i>) = softmax(<i>z</i>), which is why every implementation subtracts the largest logit before exponentiating (without it, e<sup>1000</sup> overflows). (2) With two classes it is the sigmoid: softmax([<i>x</i>, 0])<sub>1</sub> = σ(<i>x</i>) <i class="nl d">checked to 10<sup>&minus;15</sup></i>, so a binary sigmoid output is a two-class softmax with one logit fixed at 0. (3) Its derivative, &part;<i>p</i><sub><i>i</i></sub>/&part;<i>z</i><sub><i>j</i></sub> = <i>p</i><sub><i>i</i></sub>(δ<sub><i>ij</i></sub> &minus; <i>p</i><sub><i>j</i></sub>), goes to zero as one probability approaches 1: a softmax saturates like a sigmoid, which is why it is paired with a log in the loss (cross entropy's gradient on the logits is simply <i>p</i> &minus; <i>y</i>). (4) A temperature <i>T</i>, softmax(<i>z</i>/<i>T</i>), sharpens (<i>T</i> &lt; 1) or flattens (<i>T</i> &gt; 1) the distribution without changing the order; try it on a real model's logits in the Sampler lab of <a href="https://app.notion.com/p/3c65c17b0d0d8115bafcda29a2c7086e" target="_blank" rel="noopener noreferrer">Sampling and Decoding</a>. Softmax also normalises attention scores (<a href="https://app.notion.com/p/3c65c17b0d0d81999af7f16f8ed8ee9e" target="_blank" rel="noopener noreferrer">Attention Is All You Need</a>) and mixture-of-experts router scores.</p>
-<div class="co corr"><div class="t">Correction: with a large vocabulary, the cost is the projection, not the softmax</div>
-<p style="margin:2px 0">The old page called softmax "expensive for very large K". The exponentials are cheap; what grows with the vocabulary <i>V</i> is the output projection that produces the logits: <i>d</i> &middot; <i>V</i> multiply-adds per token against <i>V</i> exponentials. For Qwen2.5-0.5B (<i>d</i> = 896, <i>V</i> = 151,936, <a href="https://huggingface.co/Qwen/Qwen2.5-0.5B/blob/main/config.json" target="_blank" rel="noopener noreferrer">config.json</a>) that is 136 million multiply-adds against 152 thousand exponentials, 896 times more <i class="nl d">derived</i>; and in training the logits themselves take memory: a batch of 8 sequences of 4,096 tokens holds 8 &times; 4,096 &times; 151,936 = 5.0 billion logits, 19.9 GB in 32-bit floats <i class="nl d">derived</i>. Sampled and hierarchical softmaxes, and fused or chunked cross-entropy kernels, target these two costs.</p></div>
+<details class="dp corr"><summary>Correction: with a large vocabulary, the cost is the projection, not the softmax <span class="mute">(the numbers)</span></summary><div class="b"><p>The old page called softmax "expensive for very large K". The exponentials are cheap; what grows with the vocabulary <i>V</i> is the output projection that produces the logits: <i>d</i> &middot; <i>V</i> multiply-adds per token against <i>V</i> exponentials. For Qwen2.5-0.5B (<i>d</i> = 896, <i>V</i> = 151,936, <a href="https://huggingface.co/Qwen/Qwen2.5-0.5B/blob/main/config.json" target="_blank" rel="noopener noreferrer">config.json</a>) that is 136 million multiply-adds against 152 thousand exponentials, 896 times more <i class="nl d">derived</i>; and in training the logits themselves take memory: a batch of 8 sequences of 4,096 tokens holds 8 &times; 4,096 &times; 151,936 = 5.0 billion logits, 19.9 GB in 32-bit floats <i class="nl d">derived</i>. Sampled and hierarchical softmaxes, and fused or chunked cross-entropy kernels, target these two costs.</p></div></details>
 </section>
 
 <section id="s-mist">
-<h2>Common mistakes</h2>
+<details class="dp"><summary>Common mistakes, nine of them <span class="mute">(each with its fix)</span></summary><div class="b">
 <details class="mist"><summary>Applying softmax (or sigmoid) before a loss that applies it again</summary><div class="b"><code>CrossEntropyLoss</code> expects "the unnormalized logits for each class" (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html" target="_blank" rel="noopener noreferrer">PyTorch docs</a>); a softmax in front of it squashes the scores twice, so training still runs but the gradients are wrong and confidence is capped. End the network with logits and put the softmax only where probabilities are read.</div></details>
 <details class="mist"><summary>Sigmoid followed by BCELoss instead of BCEWithLogitsLoss</summary><div class="b">The combined loss "is more numerically stable than using a plain Sigmoid followed by a BCELoss as, by combining the operations into one layer, we take advantage of the log-sum-exp trick for numerical stability" (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html" target="_blank" rel="noopener noreferrer">PyTorch docs</a>). A saturated sigmoid rounds to exactly 0 or 1, and the log of that is infinite.</div></details>
 <details class="mist"><summary>A ReLU or sigmoid on a regression output</summary><div class="b">A ReLU output can never predict a negative value and receives no gradient when it outputs 0; a sigmoid caps it at 1. Regression outputs are linear unless the target's range is known (then softplus for positive values, tanh for a bounded range).</div></details>
@@ -325,6 +390,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <details class="mist"><summary>An initialisation that does not match the activation</summary><div class="b">Xavier was derived for sigmoid and tanh, He for the ReLU family, LeCun's 1/<i>n</i> for SELU; the wrong one shrinks or grows the signal at every layer. The parent's thread 2 ("keep the variance constant", in the <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Reading tab of Topic: ml-fundamentals</a>) shows each mismatch, and the <a href="#" data-tab="t-atlas">Activation atlas</a> table gives the variance-preserving gain of every function here; the details are on <a href="https://app.notion.com/p/3c65c17b0d0d81369e1cc38ed4e11d48" target="_blank" rel="noopener noreferrer">Normalisation and initialisation</a>.</div></details>
 <details class="mist"><summary>Expecting exact zeros from a SwiGLU model</summary><div class="b">SiLU is never exactly 0 for a nonzero input, so a SwiGLU block has small values, not zeros; tricks that skip zero rows (built for ReLU models such as OPT) need a threshold or a ReLU fine-tune first (<a href="https://arxiv.org/abs/2310.04564" target="_blank" rel="noopener noreferrer">Mirzadeh et al. 2023</a>). See the <a href="#" data-tab="t-real">Inside real models</a> tab.</div></details>
 <details class="mist"><summary>Blaming the activation for a learning rate that is too high</summary><div class="b">In the runs above, ReLU networks die and leaky ReLU networks overflow at the same learning rates. Swapping the activation changes the symptom; lowering or warming up the rate removes the cause. The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">When training goes wrong</a> tab goes from symptom to cause.</div></details>
+</div></details>
 </section>
 </div>
 <div class="tab" id="t-atlas" role="tabpanel" hidden>
@@ -395,6 +461,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 
 <h3>Related pages</h3>
 <div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8174980ddde4a20c7b3c" target="_blank" rel="noopener noreferrer">The transformer from zero</a></div><p>The feed-forward block as a whole: where the activation sits, its shapes, and a GPT you train.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81369e1cc38ed4e11d48" target="_blank" rel="noopener noreferrer">Normalisation and initialisation</a></div><p>Xavier, He and LeCun initialisation, BatchNorm, LayerNorm and RMSNorm: the other two sides of keeping the variance constant.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8161a72bc8c572f37d55" target="_blank" rel="noopener noreferrer">Loss functions</a></div><p>The loss that goes with each output activation, and the losses that act on the logits.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d818da4ded61ace6847ce" target="_blank" rel="noopener noreferrer">Sequence models: the pre-transformer lineage</a></div><p>The LSTM's sigmoid gates and tanh cell, the ancestors of the gated units.</p></div>
@@ -474,10 +541,10 @@ window.DATA={"toy":{"summ":{"relu|0.01":[[0,0.9639,0],[0,0.9778,0],[0,0.9639,0],
   G.AF={erf,Phi,phi,sig,softplus,L,BY,gaussE,stats,minOf,softmax,ffn,llamaHidden,SELU_A,SELU_L};
 })(typeof window!=='undefined'?window:globalThis);
 </script>
-<script>/* 22_js_common.js */
-// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed) ----
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -508,7 +575,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -528,6 +595,18 @@ window.RD=(function(){
     const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
   return {RM,esc,stat,anim,onRender,width,tabLinks};
 })();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+</script>
+<script>/* 22_js_common.js */
 // ---- page helpers: colours, number formats, SVG ----
 window.PF=(function(){
   const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -587,7 +666,7 @@ window.PF=(function(){
   }
   const A=RD.anim({card:'dr',ctl:'drC',n:FR[0].f.length,draw,ms:900,label:'Epoch'});
   $('drM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;run=+b.dataset.r;
-    $('drM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(FR[run].f.length);A.play()});
+    $('drM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(FR[run].f.length)});
   $('drL').innerHTML='<span><i style="background:var(--acc);opacity:.2"></i>on for few images</span><span><i style="background:var(--acc);opacity:.9"></i>on for most images</span><span><i style="background:var(--bad)"></i>dead: off for all 1,797</span>';
   addEventListener('resize',()=>A.redraw());
 
@@ -719,7 +798,7 @@ window.AFD=(function(){
     $('gfT').textContent='Step '+(i+1)+' of '+(mode==='plain'?4:6)+': '+t;$('gfP').innerHTML=p;
   }
   const A=RD.anim({card:'gf',ctl:'gfC',n:4,draw,ms:2400,label:'Feed-forward step'});
-  function setMode(m){mode=m;$('gfM').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));$('gfGl').style.display=m==='glu'?'':'none';A.reset(m==='plain'?4:6);A.play()}
+  function setMode(m){mode=m;$('gfM').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));$('gfGl').style.display=m==='glu'?'':'none';A.reset(m==="plain"?4:6)}
   $('gfM').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.m)});
   $('gfG').addEventListener('change',e=>{gate=e.target.value;prepGate();A.redraw()});
   $('gfGl').style.display='none';
@@ -773,6 +852,114 @@ window.AFD=(function(){
   const z=o.L.map(l=>l.z),mi=z.indexOf(Math.min(...z));
   $('in-mir').textContent=pc(z[mi])+' in layer '+(mi+1)+', '+rng(z.filter((v,i)=>i!==mi))+' in the others';
   function cm(n){return n.toLocaleString('en-US')}
+})();
+</script>
+<script>/* 25_js_hero.js */
+// ---- Reading, top: the hero figure. Five activations with their slopes on the same axes, and the gated block ----
+// Static (no motion): each panel is drawn at its measured width. f in ink, f' (the slope) in the page's highlight colour,
+// the region where the slope is exactly 0 in red, where it is below 0.01 shaded grey. Curves from AF (21_js_core.js).
+(function(){
+  const box=document.getElementById('hrG');if(!box)return;
+  const P=[
+    {id:'sigmoid',t:'Sigmoid',note:'slope at most 0.25: the gradient shrinks at every layer'},
+    {id:'tanh',t:'Tanh',note:'slope 1 at 0, below 0.01 beyond |x| = 3: saturates'},
+    {id:'relu',t:'ReLU',note:'slope exactly 1 or exactly 0: a unit can die'},
+    {id:'gelu',t:'GELU',note:'smooth ReLU with a dip to −0.17; BERT, GPT-2, ViT'},
+    {id:'silu',t:'SiLU (Swish)',note:'dip to −0.28; the gate inside SwiGLU'}
+  ];
+  box.innerHTML=P.map(p=>'<figure class="hr-p"><div class="hr-s" id="hr-'+p.id+'"></div><figcaption><b>'+p.t+'</b> '+p.note+'</figcaption></figure>').join('')+
+    '<figure class="hr-p hr-g"><div class="hr-s" id="hr-glu"></div><figcaption><b>SwiGLU block</b> a second projection <i>g</i> sets the slope of the <i>u</i> path, unit by unit and token by token</figcaption></figure>';
+  const X0=-4,X1=4,Y0=-1.2,Y1=2.2;
+  function panel(p){
+    const el=document.getElementById('hr-'+p.id),W=Math.max(140,RD.width(el)),H=Math.round(Math.min(150,W*0.72)),a=AF.BY[p.id];
+    const ml=4,mr=4,mt=6,mb=14,sx=x=>ml+(W-ml-mr)*(x-X0)/(X1-X0),sy=y=>mt+(H-mt-mb)*(Y1-Math.max(Y0-1,Math.min(Y1+1,y)))/(Y1-Y0);
+    let s='',sat='',dead='';const n=Math.round(W);
+    for(let i=0;i<n;i++){const x=X0+(X1-X0)*(i+0.5)/n,d=a.d(x);
+      if(a.dead&&x<0)dead+='M'+sx(x).toFixed(1)+' '+sy(0).toFixed(1)+'h'+((W-ml-mr)/n+0.3).toFixed(2);
+      else if(Math.abs(d)<0.01)sat+='<rect x="'+(sx(x)-(W-ml-mr)/n/2).toFixed(1)+'" y="'+mt+'" width="'+((W-ml-mr)/n+0.4).toFixed(2)+'" height="'+(H-mt-mb)+'" fill="var(--dim)" opacity=".28"/>'}
+    s+=sat;
+    s+='<line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+sy(0)+'" y2="'+sy(0)+'" stroke="var(--line)"/><line x1="'+sx(0)+'" x2="'+sx(0)+'" y1="'+mt+'" y2="'+(H-mb)+'" stroke="var(--line)"/>';
+    s+='<line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+sy(1)+'" y2="'+sy(1)+'" stroke="var(--line)" stroke-dasharray="2 3"/>';
+    const path=f=>{let d='';for(let i=0;i<=n;i++){const x=X0+(X1-X0)*i/n;d+=(i?'L':'M')+sx(x).toFixed(1)+' '+sy(f(x)).toFixed(1)}return d};
+    const cid='hrc-'+p.id;s+='<clipPath id="'+cid+'"><rect x="0" y="'+mt+'" width="'+W+'" height="'+(H-mt-mb)+'"/></clipPath><g clip-path="url(#'+cid+')">';
+    s+='<path d="'+path(a.f)+'" fill="none" stroke="var(--ink)" stroke-width="1.6"/>';
+    s+='<path d="'+path(a.d)+'" fill="none" stroke="var(--acc)" stroke-width="2.2"/></g>';
+    if(dead)s+='<path d="'+dead+'" stroke="var(--bad)" stroke-width="4" fill="none"/>';
+    s+=RD.t(sx(0)+3,sy(1)-3,'1',{fs:10.5,fill:'var(--mute)'})+RD.t(ml,H-2,'−4',{fs:10.5,fill:'var(--mute)'})+RD.t(W-mr,H-2,'4',{fs:10.5,fill:'var(--mute)',a:'end'})+RD.t(sx(0),H-2,'x = 0',{fs:10.5,fill:'var(--mute)',a:'middle'});
+    el.innerHTML=RD.svg(W,H,s,p.t+' and its slope');
+  }
+  function glu(){
+    const el=document.getElementById('hr-glu'),W=Math.max(140,RD.width(el)),H=Math.round(Math.min(150,W*0.72));
+    const bw=Math.min(62,W*0.27),bh=22,cx=W*0.5;let s='';
+    const bx=(x,y,w,t,hl)=>'<rect x="'+(x-w/2).toFixed(1)+'" y="'+(y-bh/2)+'" width="'+w.toFixed(1)+'" height="'+bh+'" rx="5" fill="'+(hl?'var(--acc2)':'var(--soft)')+'" stroke="'+(hl?'var(--acc)':'var(--line)')+'"/>'+RD.t(x,y+4,t,{a:'middle',fs:11});
+    const ar=(x1,y1,x2,y2)=>'<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="var(--mute)" stroke-width="1.2"/>';
+    const xl=W*0.2,xr=W*0.72,y0=14,y1=48,y2=82,y3=H-16;
+    s+=RD.t(cx,y0+4,'x (width d)',{a:'middle',fs:11});
+    s+=ar(cx,y0+8,xl,y1-bh/2)+ar(cx,y0+8,xr,y1-bh/2);
+    s+=bx(xl,y1,bw,'W_gate')+bx(xr,y1,bw,'W_up');
+    s+=ar(xl,y1+bh/2,xl,y2-bh/2)+bx(xl,y2,bw,'SiLU(g)',1);
+    s+=ar(xr,y1+bh/2,xr,y2-9)+RD.t(xr-12,y1+bh/2+14,'u',{fs:11,fill:'var(--mute)'})+RD.t(xl+bw/2+3,y1+bh/2+14,'g',{fs:11,fill:'var(--mute)'});
+    s+='<circle cx="'+xr+'" cy="'+y2+'" r="9" fill="var(--bg)" stroke="var(--acc)" stroke-width="1.5"/>'+RD.t(xr,y2+4,'⊙',{a:'middle',fs:12});
+    s+=ar(xl+bw/2,y2,xr-9,y2);
+    s+=ar(xr,y2+9,cx,y3-bh/2)+bx(cx,y3,bw,'W_down');
+    el.innerHTML=RD.svg(W,H,s,'SwiGLU block: two projections of x, one through SiLU, multiplied, then the down projection');
+  }
+  function draw(){P.forEach(panel);glu()}
+  RD.onRender(draw);draw();RD.onResize(draw);
+})();
+</script>
+<script>/* 26_js_slope.js */
+// ---- Reading, saturation section: the same 3,072 real pre-activations through five activations' slopes ----
+// Before/after on one input (toggle-compare, no motion). Input: GPT-2 small's pre-activations of " cat" in layer 6
+// (recorded by real_models.py, stored in DATA). Units sorted by pre-activation; top strip the pre-activation, bottom
+// the slope f'(x) each unit multiplies its gradient by. src/slope_numbers.mjs prints the same counters.
+(function(){
+  const card=document.getElementById('sl');if(!card)return;
+  const $=id=>document.getElementById(id);
+  const pre0=AFD.dq(AFD.M.gpt2.tok.pre).slice().sort((a,b)=>a-b);
+  const NM={sigmoid:'Sigmoid',tanh:'Tanh',relu:'ReLU',gelut:'GELU (tanh form, as GPT-2 runs it)',silu:'SiLU'};
+  let fn='gelut',k=1;
+  const pc=v=>(v*100).toFixed(1)+'%';
+  function stats(){const a=AF.BY[fn],x=pre0.map(v=>v*k),d=x.map(a.d);
+    return {x,d,mean:d.reduce((p,q)=>p+Math.abs(q),0)/d.length,zero:a.dead?x.filter(v=>v<=0).length/x.length:0,
+      low:d.filter(v=>Math.abs(v)<0.01).length/d.length,max:Math.max(...d)}}
+  function draw(){
+    const el=$('slSvg'),W=RD.width(el),S=stats(),n=S.x.length,ml=34,mr=6,iw=W-ml-mr;
+    const xlo=Math.min(...S.x),xhi=Math.max(...S.x),h1=70,t1=16,t2=t1+h1+30,h2=90,H=t2+h2+24;
+    const zx=t1+h1*xhi/(xhi-xlo);   // y of pre-activation 0 in the top strip
+    const SY=v=>t2+h2*(1.15-Math.max(-0.2,Math.min(1.15,v)))/1.35,Y0=SY(0);
+    const cols=Math.max(1,Math.floor(iw));let s='',top='',bot='',red='',grey='';
+    for(let c=0;c<cols;c++){const a=Math.floor(c*n/cols),b=Math.max(a+1,Math.floor((c+1)*n/cols));let xm=0,dm=0,dead=false,low=true;
+      for(let i=a;i<b;i++){xm+=S.x[i];dm+=S.d[i];if(AF.BY[fn].dead&&S.x[i]<=0)dead=true;if(Math.abs(S.d[i])>=0.01)low=false}
+      xm/=(b-a);dm/=(b-a);const X=(ml+c+0.5).toFixed(1);
+      top+='M'+X+' '+zx.toFixed(1)+'V'+(t1+h1*(xhi-xm)/(xhi-xlo)).toFixed(1);
+      const yb=Y0,yh=SY(dm);
+      if(dead&&dm===0)red+='M'+X+' '+(Y0-3)+'V'+(Y0+3);
+      else{bot+='M'+X+' '+yb+'V'+yh.toFixed(1);if(low)grey+='M'+X+' '+(t2)+'V'+(t2+h2)}}
+    s+=RD.t(ml,11,'pre-activation x, the 3,072 units sorted'+(k!==1?' (× '+k+')':''),{fs:11,fill:'var(--mute)'});
+    s+='<path d="'+top+'" stroke="var(--mute)" stroke-width="1"/>';
+    s+='<line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+zx.toFixed(1)+'" y2="'+zx.toFixed(1)+'" stroke="var(--line)"/>';
+    s+=RD.t(ml-4,t1+8,xhi.toFixed(1),{fs:10.5,a:'end',fill:'var(--mute)'})+RD.t(ml-4,zx+4,'0',{fs:10.5,a:'end',fill:'var(--mute)'})+RD.t(ml-4,t1+h1,xlo.toFixed(1),{fs:10.5,a:'end',fill:'var(--mute)'});
+    s+=RD.t(ml,t2-8,"slope f′(x): what each unit's gradient is multiplied by",{fs:11,fill:'var(--mute)'});
+    s+='<path d="'+grey+'" stroke="var(--dim)" stroke-width="1" opacity=".3"/>';
+    const y1=SY(1);s+='<line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+y1.toFixed(1)+'" y2="'+y1.toFixed(1)+'" stroke="var(--line)" stroke-dasharray="3 3"/>';
+    s+='<path d="'+bot+'" stroke="var(--acc)" stroke-width="1"/>';
+    if(red)s+='<path d="'+red+'" stroke="var(--bad)" stroke-width="1"/>';
+    s+='<line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+Y0+'" y2="'+Y0+'" stroke="var(--line)"/>';
+    s+=RD.t(ml-4,y1+4,'1',{fs:10.5,a:'end',fill:'var(--mute)'})+RD.t(ml-4,Y0+4,'0',{fs:10.5,a:'end',fill:'var(--mute)'});
+    s+=RD.t(ml,H-4,'most negative',{fs:10.5,fill:'var(--mute)'})+RD.t(W-mr,H-4,'most positive',{fs:10.5,a:'end',fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,H,s,'Slope of '+NM[fn]+' on the same 3,072 pre-activations');
+    $('slN').innerHTML=RD.stat('Mean |slope|',S.mean.toFixed(3),'over the 3,072 units')+RD.stat('Slope exactly 0',pc(S.zero),S.zero?'dead region: no gradient at all':'never exactly 0')+
+      RD.stat('Slope below 0.01',pc(S.low),'saturated: gradient almost gone')+RD.stat('Largest slope',S.max.toFixed(3),fn==='sigmoid'?'the 0.25 ceiling':'');
+    const msg={sigmoid:'No unit is saturated, yet none passes more than a quarter of its gradient: through ten such layers the slopes alone shrink the gradient at least a million times (4<sup>10</sup> = 1,048,576).',
+      tanh:'At this scale tanh is the most generous: these inputs sit near 0, where its slope is close to 1. Scale the inputs by 3 and almost half of them saturate.',
+      relu:'Almost nine units in ten have a negative input, and pass exactly no gradient back; the rest pass all of it. Scaling the inputs changes nothing: the dead share depends only on signs.',
+      gelut:'The function GPT-2 was trained with. Negative inputs pass a small slope (down to about −0.13), not zero, so no unit is cut off completely on this token.',
+      silu:'Like GELU, with a longer negative tail: at × 3 only 8.8% of units fall below 0.01, against 43.9% for GELU.'};
+    $('slP').innerHTML='<b>'+NM[fn]+(k!==1?', inputs × '+k:'')+'.</b> '+msg[fn];
+  }
+  RD.seg($('slF'),m=>{fn=m;draw()});RD.seg($('slK'),m=>{k=+m;draw()});
+  RD.onRender(draw);draw();RD.onResize(draw);
 })();
 </script>
 <script>/* 30_js_atlas.js */
@@ -906,7 +1093,7 @@ window.AFD=(function(){
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace af-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -924,6 +1111,8 @@ window.AFD=(function(){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('af-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>
