@@ -50,3 +50,5 @@ Why about 30 minutes is right: the page now carries two tabs' worth of visuals i
 
 ## Images
 None added. The subject is software; the one physical-looking candidate (an MLflow or W&B dashboard screenshot) would repeat the run record table, and the old rejection stands (screenshots carry local URLs).
+
+2026-10-24 topic close: Further reading training-root time 27 to 22 (the Ray link carries no time; the 30 min beside it is Launching's and is right); ledger key 317 updated.
