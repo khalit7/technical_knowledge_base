@@ -1,4 +1,4 @@
-// ---- Cost by context tab: stored, read and computed per decoded token, against context ----
+// ---- Reading, section 'What each route stores, reads and computes': stored, read and computed per decoded token, against context ----
 (function(){
   if(!$('ccSvg'))return;
   const T=[4096,8192,16384,32768,65536,131072,262144,524288,1048576,2097152,4194304];
@@ -31,5 +31,5 @@
     const r=compB('m2',1048576)/compB('m3',1048576,o);
     $('ccNote').innerHTML=M==='st'?'MiniMax-01 includes its fixed 140 MiB state (BF16 assumed). M3 '+(o.idx?'includes':'excludes')+' its index keys, 256 bytes per token in each of 57 layers. Storage is where MSA saves nothing: M3 is below M2 only because it has 4 KV heads per layer instead of 8.':M==='rd'?'Decode is memory-bound, so bytes read per token is the closest of the three to decode speed. M3 reads all index keys plus 16 blocks per group in its 57 MSA layers, and everything in its first 3 layers'+(o.all?' (here: none, all 60 sparse)':'')+'.':'At 1M, M2 against M3 is '+r.toFixed(1)+'× with these settings; MiniMax quote 1/20 without stating their accounting. Lightning layers cost the same at any context, which is why MiniMax-01 looks flat until its softmax layers dominate.'}
   segBind('ccM',m=>{M=m;draw()});['ccAll','ccIdx'].forEach(id=>$(id).addEventListener('change',draw));$('ccT').addEventListener('input',draw);
-  onTab('t-cost',draw);
+  onTab('t-read',draw);let rw=0;addEventListener('resize',()=>{const w=$('ccSvg').clientWidth;if(w&&w!==rw){rw=w;draw()}});
 })();

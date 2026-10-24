@@ -1,4 +1,4 @@
-// ---- Reading tab: lightning stepper, layer strip, recomputed claims ----
+// ---- Reading tab: lightning stepper, SWA ablation chart, recomputed claims ----
 (function(){ // lightning toy: token by token against blocks of B = 2
   if(!$('lt'))return;
   const q=[1,2,1,3],k=[1,1,2,1],v=[2,1,1,3],kv=k.map((x,i)=>x*v[i]);
@@ -28,27 +28,6 @@
   draw();
 })();
 
-(function(){ // layer strip: which layers grow with context
-  if(!$('ls'))return;
-  const T=[4096,32768,131072,196608,204800,524288,1048576,2097152,4194304];
-  const mk=(id,types)=>{const el=$(id);el.style.gridTemplateColumns='repeat('+types.length+',minmax(0,1fr))';el.innerHTML=types.map((t,i)=>'<span class="'+t+'" data-i="'+i+'" title="layer '+(i+1)+'"></span>').join('')};
-  const A=[...Array(80)].map((_,i)=>(i%8===7)?'sm':'lin'),B=[...Array(62)].map(()=>'sm'),C=[...Array(60)].map((_,i)=>i<3?'fa':'msa');
-  mk('lsA',A);mk('lsB',B);mk('lsC',C);
-  const per=(t,n)=>t==='lin'?64*128*128*2:t==='sm'?2*8*128*2*n:t==='fa'?2*4*128*2*n:2*4*128*2*n+128*2*n;
-  const NAME={lin:'lightning layer: one 64 × 128 × 128 state, fixed',sm:'softmax GQA layer, 8 KV heads: 4 KiB per token',fa:'full-attention GQA layer, 4 KV heads: 2 KiB per token',msa:'MSA layer: 2 KiB of keys and values plus 256 bytes of index key per token (BF16 assumed)'};
-  let sel=null;
-  function draw(){const n=T[+$('lsT').value];$('lsTv').textContent=fmt(n)+' tokens';
-    const rows=[['lsA',A,'MiniMax-01',4194304],['lsB',B,'M2',196608],['lsC',C,'M3',1048576]];
-    let mx=0;rows.forEach(r=>r[1].forEach(t=>mx=Math.max(mx,per(t,n))));
-    rows.forEach(r=>{$(r[0]).querySelectorAll('span').forEach((s,i)=>{const b=per(r[1][i],n);s.style.opacity=(0.35+0.65*Math.sqrt(b/mx)).toFixed(2);s.classList.toggle('on',sel&&sel[0]===r[0]&&sel[1]===i)})});
-    const tot=r=>r[1].reduce((s,t)=>s+per(t,n),0);
-    $('lsOut').innerHTML=rows.map(r=>stat(r[2]+' per sequence',fmtBytes(tot(r)),n>r[3]?'beyond its '+(r[2]==='MiniMax-01'?'4M claimed':fmt(r[3]))+' window':(r[2]==='MiniMax-01'?'KV cache of 10 layers + 140 MiB state':r[2]==='M2'?'62 layers × 4 KiB per token':'60 × 2 KiB + 57 × 256 B per token'))).join('');
-    if(sel){const r=rows.find(x=>x[0]===sel[0]),t=r[1][sel[1]];$('lsCap').innerHTML='<b>'+r[2]+', layer '+(sel[1]+1)+'</b>: '+NAME[t]+'. At this context it holds '+fmtBytes(per(t,n))+'.'}
-    else $('lsCap').textContent='Shade shows each layer\'s memory at this context relative to the largest layer shown (square-root scale). Click a layer for its formula.'}
-  ['lsA','lsB','lsC'].forEach(id=>$(id).addEventListener('click',e=>{const s=e.target.closest('span');if(!s)return;sel=[id,+s.dataset.i];draw()}));
-  $('lsT').addEventListener('input',draw);draw();
-})();
-
 (function(){ // SWA ablation: hybrid sliding window minus full attention
   if(!$('sw'))return;
   const D={pt:[['HELMET ICL',75.8,72.7],['MMLU',85.5,85.6],['MATH',60.3,60.3],['RULER 128K CWE',90.0,72.0],['RULER 128K MQ',99.0,93.0],['RULER 32K CWE',99.0,99.0],['RULER 32K MQ',99.0,99.0],['MTOB K-e Bleurt',60.0,45.0],['MTOB e-k ChrF',44.8,27.2]],
@@ -62,7 +41,7 @@
       s+='<rect x="'+(d<0?cx-w:cx)+'" y="'+(y+5)+'" width="'+Math.max(w,d?0:1.5)+'" height="13" rx="2" fill="'+(d?c:'var(--mute)')+'"/>';
       s+='<text x="'+(W-r+8)+'" y="'+(y+15)+'" font-size="11" fill="var(--mute)">'+x[1].toFixed(1)+' → '+x[2].toFixed(1)+' <tspan fill="'+(d?c:'var(--mute)')+'" font-weight="600">('+(d>0?'+':d<0?'−':'±')+Math.abs(d).toFixed(1)+')</tspan></text>'});
     $('swSvg').innerHTML=svgEl(W,H+4,s,'Hybrid sliding-window attention minus full attention, '+(m==='pt'?'pretraining':'after fine-tuning'))}
-  segBind('swM',draw);draw('pt');
+  let cur='pt';segBind('swM',m=>{cur=m;draw(m)});draw('pt');onTab('t-read',()=>draw(cur));let rw=0;addEventListener('resize',()=>{const w=$('swSvg').clientWidth;if(w&&w!==rw){rw=w;draw(cur)}});
 })();
 
 (function(){ // recomputed claim cells
