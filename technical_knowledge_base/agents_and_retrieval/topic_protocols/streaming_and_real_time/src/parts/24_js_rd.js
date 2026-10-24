@@ -23,6 +23,15 @@
   function steps(){const sc=D.rc.scenarios[mode];return sc.client}
   function draw(i){
     const sc=D.rc.scenarios[mode],cl=sc.client.slice(0,i+1);
+    // timeline strip: connections as bars, tokens as dots (red when repeated), up to this step
+    (function(){const el=document.getElementById('rc-svg');if(!el)return;const W=RD.width(el),all=sc.client,TM=Math.max(...all.map(e=>e[0]))*1.04+0.1;
+      const x=t=>8+t/TM*(W-16),H=64;let b='',open=null,seen={};const T=RD.t;
+      for(let g=0;g<=TM;g+=TM>8?2:1)b+='<line x1="'+x(g)+'" x2="'+x(g)+'" y1="8" y2="'+(H-18)+'" stroke="var(--line)"/>'+T(x(g),H-4,g+(g===0?' s':''),{a:'middle',fs:11,fill:'var(--mute)'});
+      cl.forEach(e=>{if(e[1]==='open')open=e[0];else if(e[1]==='error'&&open!==null){b+='<rect x="'+x(open)+'" y="14" width="'+Math.max(2,x(e[0])-x(open))+'" height="26" rx="3" fill="var(--acc2)" stroke="var(--acc)"/>';open=null}});
+      if(open!==null)b+='<rect x="'+x(open)+'" y="14" width="'+Math.max(2,x(cl[cl.length-1][0])-x(open))+'" height="26" rx="3" fill="var(--acc2)" stroke="var(--acc)"/>';
+      cl.forEach(e=>{if(e[1]==='content_block_delta'){const k=TXT(e),d=seen[k];seen[k]=1;b+='<circle cx="'+x(e[0])+'" cy="27" r="4" fill="'+(d?'var(--bad)':'var(--c1)')+'"/>'}
+        if(e[1]==='error')b+='<line x1="'+x(e[0])+'" x2="'+x(e[0])+'" y1="10" y2="44" stroke="var(--bad)" stroke-width="2"/>'});
+      el.innerHTML=RD.svg(W,H,b,'Connections and tokens over time')})();
     let shown='',seen={},n=0;const toks=[];
     cl.forEach(e=>{if(e[1]==='content_block_delta'){const t=TXT(e);const key=t;const dup=seen[key];seen[key]=1;toks.push('<span'+(dup?' class="dup"':'')+'>'+esc(t).replace(/ /g,'&nbsp;')+'</span>')}});
     document.getElementById('rc-shot').innerHTML=toks.length?toks.join(''):'<span class="mute">(nothing yet)</span>';
@@ -40,6 +49,7 @@
     const reps=toks.filter(t=>t.indexOf('dup')>0).length;
     document.getElementById('rc-cnt').innerHTML=RD.stat('Connections opened',String(opens),'')+RD.stat('Tokens shown',String(toks.length),reps?reps+' of them repeats':'no repeats')+RD.stat('Last-Event-ID sent',String(srv.filter((r,k)=>k<opens&&r.last_event_id!==null).length),'reconnects that could resume');
   }
+  RD.onResize(()=>A.redraw());
   const A=RD.anim({card:'rc-card',ctl:'rc-ctl',n:steps().length,draw,ms:900,label:'Step'});
-  RD.seg(document.getElementById('rc-mode'),v=>{mode=v;A.reset(steps().length);A.play()});
+  RD.seg(document.getElementById('rc-mode'),v=>{mode=v;A.reset(steps().length)});
 })();

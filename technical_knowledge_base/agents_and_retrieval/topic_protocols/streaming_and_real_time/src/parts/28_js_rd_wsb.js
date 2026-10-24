@@ -1,4 +1,4 @@
-// ---- WebSocket bytes tab ----
+// ---- Section 7: the recorded WebSocket session, frame by frame (moved from the old WebSocket bytes tab) ----
 (function(){
   const W=window.SDATA.wsb,esc=RD.esc,F=W.frames;
   const list=document.getElementById('wb-list');if(!list)return;
@@ -32,14 +32,14 @@
     document.getElementById('wb-leg').innerHTML=used.map(c=>'<span class="f'+c+'" style="color:#fff;border-radius:3px;padding:0 6px;margin-right:6px">'+NAMES[c]+'</span>').join('');
     document.getElementById('wb-fields').innerHTML=f.opcode?'<div class="tw"><table><thead><tr><th>Field</th><th>Bits or bytes</th><th>Meaning</th></tr></thead><tbody>'+x.rows.map(r=>'<tr><td>'+r[0]+'</td><td class="mono">'+esc(r[1])+'</td><td>'+esc(r[2])+'</td></tr>').join('')+'</tbody></table></div>':'<pre class="hs">'+esc((f.text||'').replace(/\r/g,'').replace(/^Date:.*\n/m,''))+'</pre>';
     const mk=document.getElementById('wb-mask');
-    if(x.m&&x.b.length>x.ps){mk.hidden=false;const pl=x.b.slice(x.ps);maskA.reset(pl.length);maskA.go(0);if(!RD.RM)maskA.play()}else mk.hidden=true;
+    if(x.m&&x.b.length>x.ps){mk.hidden=false;const pl=x.b.slice(x.ps);maskA.reset(pl.length)}else mk.hidden=true;
   }
   function drawMask(k){const f=F[cur],x=fields(f);if(!x.m)return;const pl=x.b.slice(x.ps);
     const h=v=>v.toString(16).padStart(2,'0'),ch=v=>v>=32&&v<127?String.fromCharCode(v):'·';
     document.getElementById('wb-xr').innerHTML=pl.map((v,j)=>{const o=v^x.key[j%4];return '<div class="'+(j===k?'on':'')+'">'+h(v)+' xor '+h(x.key[j%4])+'<br>= '+(j<=k?h(o)+' "'+esc(ch(o))+'"':'??')+'</div>'}).join('');
     const o=pl[k]^x.key[k%4];
     document.getElementById('wb-cap').innerHTML='<div class="t">Byte '+(k+1)+' of '+pl.length+'</div><p>Masked byte '+h(pl[k])+' XOR key byte '+(k%4+1)+' ('+h(x.key[k%4])+') = '+h(o)+', the character "'+esc(ch(o))+'".</p>'}
-  maskA=RD.anim({card:'wb-card',ctl:'wb-ctl',n:4,draw:drawMask,ms:900,label:'Byte',tab:'t-ws'});
+  maskA=RD.anim({card:'wb-card',ctl:'wb-ctl',n:4,draw:drawMask,ms:900,label:'Byte'});
   list.addEventListener('click',e=>{const b=e.target.closest('button');if(b)render(+b.dataset.i)});
   render(3);
   // header size calculator

@@ -1,4 +1,4 @@
-// ---- Parser test tab ----
+// ---- Section 2, closed block: the parser test (moved from the old Parser test tab) ----
 (function(){
   const D=window.SDATA.parsers,esc=RD.esc;
   const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
