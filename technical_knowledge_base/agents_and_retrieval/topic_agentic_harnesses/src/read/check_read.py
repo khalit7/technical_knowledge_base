@@ -66,17 +66,17 @@ for lab, label in [("6,653", "ctx_none"), ("13,219", "ctx_six"), ("21,140", "ctx
     v = first_input(label)
     ok("{:,}".format(v) == lab and has(lab), "startup %s = %s" % (label, lab))
 md = first_input("md_haiku_1") - first_input("std_haiku_1")
-ok(has("added %d tokens" % md), "CLAUDE.md adds %d tokens" % md)
+ok(md == 184, "CLAUDE.md adds %d tokens (quoted on the Trace and context lab and Context engineering since 2026-10-24)" % md)
 ok(any("479.4KB" in l and "256KB" in l for l in open(os.path.join(TR, "log_haiku_1.jsonl"))) or
    any("479.4KB" in l for l in open(os.path.join(TR, "log_sonnet_1.jsonl"))), "479 KB file refused (256 KB limit) in a recording")
 L = D["loopcmp"]
-ok(has("${:.4f}".format(L["ours_cost"])) or True, "loop cost shown by script")
+ok(has("${:.4f}".format(L["ours_cost"])) and has("${:.4f}".format(L["cc_cost"])), "loop cost $%.4f against Claude Code $%.4f written in the caption" % (L["ours_cost"], L["cc_cost"]))
 ok(abs(L["ours_cost"] - 0.0738) < 0.00005 and abs(L["cc_cost"] - 0.0384) < 0.00005, "Loop lab Sonnet $0.0738 vs Claude Code $0.0384")
 step5 = open(os.path.join(SRC, "loop", "harness", "step5.py")).read().splitlines()
 code = [l for l in step5 if l.strip() and not l.strip().startswith("#")]
 ok(len(step5) == 240 and has("240 lines"), "step5.py has 240 lines (%d)" % len(step5))
 ok(abs(len(code) - 190) <= 3 and has("190 of them code"), "step5.py about 190 code lines (%d, docstrings counted)" % len(code))
-ok(len(D["gates"]) == 11 and has("eleven actions"), "eleven gate cases")
+ok(len(D["gates"]) == 11, "eleven gate cases in the data (the gate stepper moved to Agent security section 4 on 2026-10-24)")
 ok(sum(1 for r in D["runs"] if "haiku" in r["label"]) == 3, "three Haiku runs")
 
 # 3. em-dash and privacy
@@ -85,7 +85,7 @@ mine_txt = "".join(open(os.path.join(PARTS, f)).read() for f in mine)
 mine_txt += "".join(open(os.path.join(HERE, f)).read() for f in os.listdir(HERE) if f.endswith(".md"))
 for f in os.listdir(os.path.join(HERE, "old")):
     mine_txt += open(os.path.join(HERE, "old", f)).read()
-ok("—" not in mine_txt, "no em-dash in Reading files and notes")
+ok("\u2014" not in mine_txt, "no em-dash in Reading files and notes")
 for bad in ["/Users/", "Users-", "khalid", "glpat", "sk-ant"]:
     ok(bad not in mine_txt, "no private string %r" % bad)
 print("\n%d failures" % len(fails))

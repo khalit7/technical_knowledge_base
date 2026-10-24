@@ -58,7 +58,7 @@ window.TRC=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM)setPlay(true)}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25})  /* never autoplays (2026-10-23): waits on step 0 until the reader acts */.observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();

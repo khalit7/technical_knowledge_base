@@ -1,4 +1,4 @@
-// ---- Trace and context lab: init panel, startup context, caching before/after, budget model, compaction, drills ----
+// ---- Trace and context lab: init panel, startup context, caching before/after, budget model ----
 (function(){
   const X=window.TRC;if(!X||!X.D.length)return;
   const {by,esc,n0,k1,usd,P,ctxOf,main,derived}=X;
@@ -117,61 +117,13 @@
       $('trc-bm-w').value=q.m.indexOf('sonnet')>=0?'1000000':'200000';bm()}));
   }
 
-  // ---------- compaction ----------
-  const K={run:'std_haiku_2',ctl:null};
-  function kSeq(){ // blocks: startup, then growth per call (real); compaction applied on the right column
-    const r=by[K.run],cs=main(r),S=ctxOf(cs[0]);const grow=[];for(let i=1;i<cs.length;i++)grow.push(Math.max(0,ctxOf(cs[i])-ctxOf(cs[i-1])));
-    const rr=r.ev.find(e=>e.k==='res'&&e.n==='Read'&&/core\.py/.test((r.ev.find(t=>t.id===e.id&&t.k==='tool')||{}).s||''));
-    const file=rr?Math.round(rr.len/3.5):400; // characters to tokens, about 3.5 characters per token for code (labelled estimate)
-    return {S,grow,file};
-  }
-  function kdraw(i){
-    const el=$('trc-kp-svg');if(!el)return;const q=kSeq(),Bud=+$('trc-kp-w').value,sum=+$('trc-kp-s').value;
-    $('trc-kp-wv').textContent=n0(Bud);$('trc-kp-sv').textContent=n0(sum);
-    // the history above the startup context, against a toy budget for history (window minus startup); right column compacts when the next call would exceed it
-    const left=[],right=[];let compacted=0;const events=[];
-    for(let j=0;j<i&&j<q.grow.length;j++){left.push(['call '+(j+2),q.grow[j]]);
-      const tot=right.reduce((s,b)=>s+b[1],0);
-      if(tot+q.grow[j]>Bud){compacted++;right.length=0;right.push(['summary',sum],['re-read core.py',q.file]);events.push(j+2)}
-      right.push(['call '+(j+2),q.grow[j]])}
-    const tl=left.reduce((s,b)=>s+b[1],0),tr=right.reduce((s,b)=>s+b[1],0),tot0=q.grow.reduce((a,b)=>a+b,0);
-    const W=Math.min(860,X.width(el)),SH=26,H=270,T0=16,B=36,colW=Math.min(150,(W-120)/2),mx=Math.max(Bud*1.2,tot0,tl);
-    const yv=v=>(H-T0-B-SH)*v/mx;let b='';
-    const col=(blocks,x0,title,tot)=>{let y=H-B-SH;let s='<rect x="'+x0+'" y="'+y+'" width="'+colW+'" height="'+SH+'" fill="var(--dim)"/>'+X.T(x0+colW/2,y+16,'startup '+n0(q.S)+' (not to scale)',{a:'middle',fs:9.5});
-      blocks.forEach((bl,k)=>{const h=yv(bl[1]);y-=h;
-        const f=bl[0]==='summary'?'var(--c4)':bl[0].indexOf('re-read')===0?'var(--c5)':(k%2?'var(--c1)':'var(--c6)');
-        s+='<rect x="'+x0+'" y="'+y.toFixed(1)+'" width="'+colW+'" height="'+Math.max(.6,h).toFixed(1)+'" fill="'+f+'" stroke="var(--bg)" stroke-width=".6"><title>'+bl[0]+': '+n0(bl[1])+' tokens</title></rect>';
-        if(h>11&&(bl[0]==='summary'||bl[0].indexOf('re-read')===0))s+=X.T(x0+colW/2,y+h/2+4,bl[0],{a:'middle',fs:10,fill:'var(--bg)'})});
-      s+=X.T(x0+colW/2,H-B+14,title,{a:'middle',fs:11,w:600})+X.T(x0+colW/2,H-B+27,'history '+n0(tot)+' tokens',{a:'middle',fs:10.5,fill:tot>Bud?'var(--bad)':'var(--mute)'});return s};
-    const x1=Math.max(50,(W-2*colW)/3),x2=x1*2+colW,yw=(H-B-SH-yv(Bud)).toFixed(1);
-    b+='<line x1="'+(x1-14)+'" x2="'+(x2+colW+14)+'" y1="'+yw+'" y2="'+yw+'" stroke="var(--bad)" stroke-dasharray="5 3"/>'+X.T(x1-16,+yw+4,'window',{a:'end',fs:10,fill:'var(--bad)'});
-    b+=col(left,x1,'without compaction',tl)+col(right,x2,'with compaction',tr);
-    el.innerHTML=X.svg(W,H,b,'Context growth with and without compaction');
-    const n=q.grow.length;
-    $('trc-kp-cap').innerHTML=i===0?'The startup context of <i>'+esc(by[K.run].title)+'</i> ('+n0(q.S)+' tokens) is drawn as a fixed slab: it reloads after compaction, so only the history above it can be squeezed. Each step appends what the next model call added ('+n0(Math.min(...q.grow))+' to '+n0(Math.max(...q.grow))+' tokens here).':
-      (tl>Bud?'Without compaction the history is '+n0(tl)+' tokens, past the toy window: the next request would be rejected. ':'Without compaction: '+n0(tl)+' tokens of history, still inside the window. ')+
-      (compacted?'With compaction it ran '+compacted+' time'+(compacted>1?'s':'')+' (before call '+events.join(', ')+'): the history became a '+n0(sum)+'-token summary plus a re-read of the modified file, '+n0(tr)+' tokens now. Anything not in the summary is gone, and the next call writes a new cache prefix.':'Compaction has not been needed yet.')+(i>=n?' End of the recorded session.':'');
-  }
-  function kinit(){
-    const s=$('trc-kp-run');if(!s||s.options.length)return;
-    ['std_haiku_2','md_haiku_1','cli_sonnet_1','log_sonnet_1'].filter(k=>by[k]).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=by[k].title;s.appendChild(o)});
-    s.value=K.run;s.addEventListener('change',()=>{K.run=s.value;K.ctl.reset(kSeq().grow.length+1)});
-    ['trc-kp-w','trc-kp-s'].forEach(id=>$(id).addEventListener('input',()=>K.ctl.redraw()));
-    K.ctl=X.anim({card:'trc-kp-card',ctl:'trc-kp-ctl',n:kSeq().grow.length+1,draw:kdraw,label:'Call',ms:1100});
-  }
-
-  // ---------- drills ----------
-  function drills(){document.querySelectorAll('#t-trace .trc-drill').forEach(d=>{if(d.dataset.on)return;d.dataset.on=1;
-    d.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{d.querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.o===d.dataset.ans)x.classList.add('right')});
-      if(b.dataset.o!==d.dataset.ans)b.classList.add('wrong');d.querySelector('.ans').hidden=false}))})}
-
   let once=false;
   function init(){
-    if(!once){once=true;initPanel();cinit();kinit();drills();
+    if(!once){once=true;initPanel();cinit();
       ['trc-bm-model','trc-bm-cache','trc-bm-s','trc-bm-g','trc-bm-o','trc-bm-n','trc-bm-w','trc-bm-pre'].forEach(id=>{const e=$(id);if(e)e.addEventListener(e.tagName==='SELECT'||e.type==='checkbox'?'change':'input',bm)});
       $('trc-bm-model').addEventListener('change',()=>{$('trc-bm-w').value=$('trc-bm-model').value.indexOf('sonnet')>=0?'1000000':'200000';bm()});
       bmVal()}
     startup();bm();
   }
-  X.onRender(init);X.onResize(()=>{startup();bm();if(C.ctl)C.ctl.redraw();if(K.ctl)K.ctl.redraw()});
+  X.onRender(init);X.onResize(()=>{startup();bm();if(C.ctl)C.ctl.redraw()});
 })();

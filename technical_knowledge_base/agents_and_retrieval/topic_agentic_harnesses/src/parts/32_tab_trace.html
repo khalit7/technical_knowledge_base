@@ -45,7 +45,7 @@
 #t-trace .trc-kvg dt{color:var(--mute)}#t-trace .trc-kvg dd{margin:0;overflow-wrap:anywhere}
 </style>
 <nav class="nav" id="trc-nav" aria-label="Sections of this tab">
-<a href="#trc-s0">What this is</a><a href="#trc-s1">A recording</a><a href="#trc-s2">All runs</a><a href="#trc-s3">Trace viewer</a><a href="#trc-s4">Run to run</a><a href="#trc-s5">Experiments</a><a href="#trc-s6">Startup context</a><a href="#trc-s7">Caching</a><a href="#trc-s8">Budget model</a><a href="#trc-s9">Compaction</a><a href="#trc-s10">Drills</a><a href="#trc-s11">Sources</a>
+<a href="#trc-s0">What this is</a><a href="#trc-s1">A recording</a><a href="#trc-s2">All runs</a><a href="#trc-s3">Trace viewer</a><a href="#trc-s4">Run to run</a><a href="#trc-s5">Experiments</a><a href="#trc-s6">Startup context</a><a href="#trc-s7">Caching</a><a href="#trc-s8">Budget model</a><a href="#trc-s10">Depth</a><a href="#trc-s11">Sources</a>
 </nav>
 <section id="trc-s0">
 <h2>What this tab is: real Claude Code runs, opened up</h2>
@@ -133,7 +133,7 @@
 <p>The <b>context window</b> is everything the model reads on one call, measured in tokens (pieces of words, about four characters of English each). On the first call it holds only what the harness put there: system prompt, tool definitions, environment, memory files, and your prompt. The stream does not show that text, but it shows its size, so six one-call runs ("Reply with the single word OK.") with different tool sets measure what each piece costs.</p>
 <div class="trc-svg" id="trc-startup"></div>
 <div id="trc-startup-notes"></div>
-<p class="trc-cap">Each bar is the first call's input (fresh + cache write + cache read) for Haiku 4.5. Differences between bars are exact for these runs; the split inside the "no tools" bar is not observable and is not drawn.</p>
+<p class="trc-cap">Each bar is the first call's input (fresh + cache write + cache read) for Haiku 4.5: 6,653 tokens with no tools, 13,219 with the six tools of the task runs, 21,140 with every default tool. The task runs' first call read 13,242 (system prompt, six tool definitions, environment and the prompt; the 22-token task is under 0.2% of it); Sonnet 5.5's first call read 7,233. Differences between bars are exact for these runs; the split inside the "no tools" bar is not observable and is not drawn.</p>
 </section>
 
 <section id="trc-s7">
@@ -147,7 +147,7 @@
 <div class="trc-step" id="trc-ccap"></div>
 <div class="out" id="trc-cstats"></div>
 </div>
-<p class="trc-cap">Bar length is input billed in base-input-token units: fresh input x1, cache write x2 (1-hour lifetime, as recorded) or x1.25 (5-minute), cache read x0.1. Output tokens are the same in both cases and are left out of the bars; the dollar counters include them. Prices: {{Anthropic pricing|https://platform.claude.com/docs/en/about-claude/pricing}}, read 2026-10-05.</p>
+<p class="trc-cap">In the replayed session (Haiku, run 1) 177,132 of 181,145 input tokens were cache reads, over 90%: each call re-reads the previous conversation, and all of it except the newest piece is already cached. Bar length is input billed in base-input-token units: fresh input x1, cache write x2 (1-hour lifetime, as recorded) or x1.25 (5-minute), cache read x0.1. Output tokens are the same in both cases and are left out of the bars; the dollar counters include them. Prices: {{Anthropic pricing|https://platform.claude.com/docs/en/about-claude/pricing}}, read 2026-10-05.</p>
 </section>
 
 <section id="trc-s8">
@@ -172,39 +172,15 @@
 <p>For each recorded session, take its own S (first call's input), g (average growth between its calls), o and N, and whether its first call found a cached prefix, and compare the predicted API-price equivalent with the one the CLI reported. Click a row to load its numbers into the sliders.</p>
 <div id="trc-bm-val"></div>
 </section>
-<section id="trc-s9">
-<h2>Context lab 4: compaction, before and after on the same history</h2>
-<p>When the conversation approaches the window, something must leave. Claude Code's documented answer (<a href="https://code.claude.com/docs/en/how-claude-code-works" target="_blank" rel="noopener noreferrer">How Claude Code works</a>, <a href="https://code.claude.com/docs/en/context-window" target="_blank" rel="noopener noreferrer">context window explorer</a>): it first clears older tool outputs, then <b>compacts</b>, replacing the conversation with a structured summary (your requests, key concepts, files examined or modified with important snippets, errors and fixes, pending tasks, current work). The startup content reloads, up to five of the most recently modified files are re-read (a file over 5,000 tokens comes back only as a path), and the bodies of invoked skills are re-injected (capped at 5,000 tokens each). By default it compacts when the conversation reaches the model's context limit, and at about 967K tokens for models with a native 1M window such as Sonnet 5.5 (<a href="https://code.claude.com/docs/en/model-config" target="_blank" rel="noopener noreferrer">model configuration</a>).</p>
-<p>None of the recorded sessions came near a 200K or 1M window, so nothing compacted in them. Real compactions are recorded on {{Context engineering|n:3f15c17b0d0d811292cee46514370431}}: its Compaction lab forced them by hand (<code>/compact</code>, 17,969 to 18,968 tokens down to 2,258 to 2,472) and automatically (<code>--autocompact 100000</code>, 127,242 tokens down to 1,971), with the summaries verbatim. To watch the mechanism on real growth, the animation takes a recorded session's call-by-call context sizes and shrinks the room for history to a toy size you choose. Left: the history as it grew. Right: the same history with compaction at the threshold.</p>
-<div class="trc-bar"><label>Session <select id="trc-kp-run" aria-label="Recorded session for the compaction animation"></select></label>
-<label>Toy window for history: <b id="trc-kp-wv"></b> <input type="range" id="trc-kp-w" min="500" max="12000" step="100" value="2500" style="width:150px" aria-label="Toy window size"></label>
-<label>Summary size: <b id="trc-kp-sv"></b> <input type="range" id="trc-kp-s" min="100" max="2000" step="50" value="500" style="width:130px" aria-label="Summary size"></label></div>
-<div class="card" id="trc-kp-card">
-<div class="trc-svg" id="trc-kp-svg"></div>
-<div class="an-ctl" id="trc-kp-ctl"></div>
-<div class="trc-step" id="trc-kp-cap"></div>
-</div>
-<p class="trc-cap">Block heights are real token counts from the recording (what each call added; the startup slab is not to scale). The toy window (room left for history after the startup context), the threshold (the window itself, as for Haiku by default) and the summary size are illustrative inputs, not measurements; real summaries vary with the session. Re-read files are drawn at the size the recording shows for reading <code>core.py</code>.</p>
-<div class="co"><div class="t">What compaction costs</div><p>Compaction is a lossy model call: a summary of the conversation, written by the model, replaces the conversation. Exact tool outputs, failed attempts and early instructions can be lost, which is why the docs advise putting rules that must survive in CLAUDE.md (reloaded from disk) rather than in the chat. It also breaks the prompt cache: the new, shorter history is a different prefix, so the next call writes it again.</p></div>
-</section>
-
 <section id="trc-s10">
-<h2>Drills</h2>
-<div class="trc-drill" data-ans="c"><div class="q">1. Before the Haiku runs read any file, how many tokens had the model already read on its first call?</div>
-<div class="opts"><button data-o="a">about 500</button><button data-o="b">about 3,000</button><button data-o="c">about 13,000</button><button data-o="d">about 50,000</button></div>
-<div class="ans" hidden>13,242 tokens: system prompt, six tool definitions, environment and the prompt. Your 22-token task is under 0.2% of it. With every default tool it was 21,140.</div></div>
-<div class="trc-drill" data-ans="b"><div class="q">2. Across a 12-call Haiku session, what share of the input the model processed was read from the cache?</div>
-<div class="opts"><button data-o="a">about 50%</button><button data-o="b">over 90%</button><button data-o="c">about 10%</button></div>
-<div class="ans" hidden><span data-trc="std_haiku_2.crpct"></span> in run 2 (<span data-trc="std_haiku_2.cr"></span> of <span data-trc="std_haiku_2.inTot"></span> tokens). Each call re-reads the previous conversation, and all of it except the newest piece is already cached.</div></div>
-<div class="trc-drill" data-ans="a"><div class="q">3. Sonnet 5.5 costs twice Haiku 4.5 per token. Did its runs of the standard task cost about twice as much?</div>
-<div class="opts"><button data-o="a">No, about the same</button><button data-o="b">Yes, about twice</button><button data-o="c">More than three times</button></div>
-<div class="ans" hidden>About the same: <span data-trc="std_sonnet_1.cost"></span>, <span data-trc="std_sonnet_2.cost"></span>, <span data-trc="std_sonnet_3.cost"></span> against <span data-trc="std_haiku_1.cost"></span>, <span data-trc="std_haiku_2.cost"></span>, <span data-trc="std_haiku_3.cost"></span>. Sonnet used fewer calls and a smaller startup context (7,233 tokens), and calls multiply cost.</div></div>
-<h3>Interview questions</h3>
-<details class="mist"><summary>Why does an agent session's cost grow faster than linearly in the number of steps, and what fixes it?</summary><div class="b">Each step resends the whole conversation, so input processed is N S + g N(N&minus;1)/2: quadratic in N. Prompt caching makes the repeated prefix cost 0.1x; fewer, larger steps (batching tool calls) cut N; truncating tool outputs cuts g; compaction resets the history when it gets too long.</div></details>
-<details class="mist"><summary>What can and cannot you learn from a Claude Code stream-json trace?</summary><div class="b">You get the configuration (tools, model, permission mode), every tool call and result, per-call token usage including cache reads and writes, stop reasons, denials, timing and cost equivalents. You do not get the system prompt text, tool schemas or thinking text; for those you rely on documentation or a harness you control.</div></details>
-<details class="mist"><summary>A tool returns a 500 KB file. What should a harness do?</summary><div class="b">Never paste it whole into the context. Claude Code's Read tool refuses files over 256 KB with an error that tells the model to use offset and limit or search, and the shell output is cut at 30,000 characters by default. The model then greps for what it needs. In your own harness: cap tool outputs, say they were cut and how to page, and offer search tools.</div></details>
-<details class="mist"><summary>When does a subagent help?</summary><div class="b">When a subtask would fill the main context with material the main thread does not need afterwards (wide searches, long logs): the subagent reads it in its own window and returns a summary. It costs an extra startup context and its own calls, and on a small task it only adds cost, as the recorded run shows.</div></details>
-<details class="mist"><summary>How would you check that a harness setting does what its name says?</summary><div class="b">Run the same task with and without it and read the usage fields. Here, an undocumented "disable caching" variable left caching on; the documented TTL variable changed the write lifetime exactly as described.</div></details>
+<h2>Depth</h2>
+<details class="mist"><summary>Interview rehearsal: five questions on reading traces (answer each aloud before reading on)</summary><div class="b">
+<p><b>Why does an agent session's cost grow faster than linearly in the number of steps, and what fixes it?</b> Each step resends the whole conversation, so input processed is N S + g N(N&minus;1)/2: quadratic in N. Prompt caching makes the repeated prefix cost 0.1x; fewer, larger steps (batching tool calls) cut N; truncating tool outputs cuts g; compaction resets the history when it gets too long.</p>
+<p><b>What can and cannot you learn from a Claude Code stream-json trace?</b> You get the configuration (tools, model, permission mode), every tool call and result, per-call token usage including cache reads and writes, stop reasons, denials, timing and cost equivalents. You do not get the system prompt text, tool schemas or thinking text; for those you rely on documentation or a harness you control.</p>
+<p><b>A tool returns a 500 KB file. What should a harness do?</b> Never paste it whole into the context. Claude Code's Read tool refuses files over 256 KB with an error that tells the model to use offset and limit or search, and the shell output is cut at 30,000 characters by default. The model then greps for what it needs. In your own harness: cap tool outputs, say they were cut and how to page, and offer search tools.</p>
+<p><b>When does a subagent help?</b> When a subtask would fill the main context with material the main thread does not need afterwards (wide searches, long logs): the subagent reads it in its own window and returns a summary. It costs an extra startup context and its own calls, and on a small task it only adds cost, as the recorded run shows.</p>
+<p><b>How would you check that a harness setting does what its name says?</b> Run the same task with and without it and read the usage fields. Here, an undocumented "disable caching" variable left caching on; the documented TTL variable changed the write lifetime exactly as described.</p>
+</div></details>
 </section>
 
 <section id="trc-s11">
