@@ -1,5 +1,6 @@
 // Drive every control of the built page in headless Chrome: no script errors, no NaN or undefined in any text; element screenshots in ../../.shots/.
 // usage (from the page folder): node src/checks/check_page.mjs [light|dark] [width]   (needs html_utils' node_modules)
+// Also checks that no animation moves before the reader acts (normal motion) and that the page never scrolls sideways.
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +9,7 @@ const require = createRequire(path.resolve(here, '../../../../../../html_utils/p
 const puppeteer = require('puppeteer');
 const [scheme = 'light', width = '920'] = process.argv.slice(2);
 const out = path.resolve(here, '../../.shots'), file = path.resolve(here, '../../index.html');
-const b = await puppeteer.launch({ headless: 'shell' });
+const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 const p = await b.newPage(); const errs = [];
 p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
 await p.setViewport({ width: +width, height: 1000 });
@@ -22,12 +23,7 @@ const slide = scrub;
 const click = sel => p.evaluate(s => document.querySelector(s).click(), sel);
 const txt = async id => p.evaluate(id => document.getElementById(id).innerText.replace(/\n+/g, ' / '), id);
 const res = {};
-// triad
-await p.evaluate(() => document.getElementById('vb-tr').scrollIntoView()); await wait(200);
-for (const x of ['w2w', 'baird']) { await click(`#vb-trX button[data-x=${x}]`);
-  for (const m of ['off', 'on']) { await click(`#vb-trM button[data-m=${m}]`); for (const v of [0, 1, 10, 50]) { await scrub('vb-trC-s', v); await bad(`tr ${x} ${m} ${v}`) } await shot('#vb-tr', `tr-${x}-${m}`); res[`tr ${x} ${m}`] = await txt('vb-trT') } }
-await click('#vb-trX button[data-x=w2w]'); for (const [g, a] of [[40, 10], [99, 20], [0, 1]]) { await slide('vb-trG', g); await slide('vb-trA', a); await bad('tr sliders ' + g + ' ' + a) }
-await slide('vb-trG', 90); await slide('vb-trA', 10);
+// (the triad widget moved to Model-free prediction and control on 2026-10-24)
 // target network
 await p.evaluate(() => document.getElementById('vb-tn').scrollIntoView()); await wait(200);
 for (const m of ['on', 'tn']) { await click(`#vb-tnM button[data-m=${m}]`);
@@ -51,14 +47,26 @@ await p.select('#vb-c5N', '11'); await click('#vb-c5M button[data-m=alg1]'); awa
 await click('#vb-c5Z'); await bad('c5 zero'); res.c5zero = await txt('vb-c5K'); await shot('#vb-c5', 'c5-zero');
 await click('#vb-c5M button[data-m=eq7]'); await slide('vb-c5R', 10); await slide('vb-c5G', 90); await scrub('vb-c5C-s', 5); await shot('#vb-c5', 'c5-eq7'); res.c5eq7 = await txt('vb-c5K');
 await shot('#vb-ev', 'ev'); await shot('#vb-abS', 'abS'); await shot('#vb-sd', 'sd');
-// ablation tab
-await click('button[data-t=t-abl]'); await wait(200); await bad('abl');
+// ablation (inline in Reading section 10 since 2026-10-24)
+await p.evaluate(() => document.getElementById('vb-abl').scrollIntoView()); await wait(200); await bad('abl');
+await p.evaluate(() => document.querySelectorAll('#rd-rainbow details').forEach(d => d.open = true));
 for (const k of ['no double', 'no priority']) { await click(`#ab-k button[data-k="${k}"]`); await bad('abl ' + k) }
 await click('#ab-s button[data-s=n]'); await bad('abl sort');
 for (const c of ['hurt', 'k', 'clip']) { await click(`#ab-sum th[data-c=${c}]`); await bad('abl th ' + c) }
 await p.select('#ab-g', '30'); await click('#ab-q button[data-g="30"]'); await bad('abl q'); res.ablq = await txt('ab-qA');
-await shot('#t-abl', 'abl');
+await shot('#vb-abl', 'abl');
+// new visuals of 2026-10-24: hero, dueling, n-step, NoisyNet
+await shot('#vb-hero', 'hero');
+for (const m of ['max', 'mean']) { await click(`#vb-duM button[data-m=${m}]`); await bad('du ' + m); res['du ' + m] = await txt('vb-duT') } await shot('#vb-du', 'du');
+for (const n of [1, 3, 5, 12]) { await slide('vb-nsN', n); await bad('ns ' + n); res['ns ' + n] = await txt('vb-nsT') } await slide('vb-nsN', 3); await shot('#vb-ns', 'ns');
+for (const m of ['ind', 'fac']) { await click(`#vb-nzM button[data-m=${m}]`); await click('#vb-nzR'); await bad('nz ' + m); res['nz ' + m] = await txt('vb-nzT') } await shot('#vb-nz', 'nz');
+const side = await p.evaluate(() => document.documentElement.scrollWidth > innerWidth); if (side) errs.push('sideways scroll');
 await click('button[data-t=t-more]'); await bad('more');
 const box = await p.evaluate(() => { const d = document.getElementById('jsErr'); return d && !d.hidden ? d.textContent : '' }); if (box) errs.push('errbox: ' + box);
+// no autoplay under normal motion: scroll every animation into view, wait, and check each scrubber is still at step 0
+const q = await b.newPage(); await q.setViewport({ width: +width, height: 1000 }); await q.goto('file://' + file);
+for (const id of ['vb-tn', 'vb-ov', 'vb-c5']) { await q.evaluate(id => document.getElementById(id).scrollIntoView(), id); await wait(1500) }
+const moved = await q.evaluate(() => ['vb-tnK-s', 'vb-ovC-s', 'vb-c5C-s'].filter(id => +document.getElementById(id).value !== 0));
+if (moved.length) errs.push('autoplay: ' + moved.join(' ')); res.autoplay = moved.length ? moved : 'none';
 console.log(JSON.stringify({ errs, res }, null, 1));
 await b.close();

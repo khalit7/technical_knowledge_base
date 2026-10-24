@@ -23,3 +23,14 @@ Existing visuals checked first: the parent root's Method atlas, Taxonomy and Mil
 | VB-15 | NoisyNet weight-noise toy | No published figure to reproduce; the effect needs a full agent | | none | 4 | rejected |
 
 What the methodology lacked for this page: a rule for figures that are drawn as vector shapes. Decoding rectangle heights from the PDF is exact (unlike reading curves), and was validated against the figure's own highlighting; it is labelled "decoded from the figure".
+
+## 2026-10-24 rebuild to the teaching contract
+| # | Change | Why |
+|---|---|---|
+| VB-16 | **Hero: DQN's loop as a static annotated diagram** (`29_js_hero.js`), with a blue tag where each later fix acts (Double, dueling, prioritised, multi-step, distributional, NoisyNet). Three columns from 600 px, two below | The page is "one loop, six repairs": a structure, so a static diagram; it is the map every section returns to. Built |
+| VB-14 | Dueling, revived as a **toggle-compare of end states** (`26b_js_du.js`): V, A, A minus mean or max, Q, on the text's example V = 5, A = (1, −1, 3) | The rejection said "nothing to move"; the point is the two combinations (ranking survives, meaning of V does not), which a toggle shows. Built |
+| VB-17 | **n-step corridor** (`27b_js_ns.js`): one slider n, four sweeps of synchronous n-step backups on 12 states | The only mechanism without a picture; exact (reach after k sweeps is k·n), defaults land on the ⌈12/n⌉ formula in the caption. Built |
+| VB-15 | NoisyNet, revived as a **static structure**: factorised against independent noise for a 6 × 4 layer (`28b_js_nz.js`) | Shows why factorised noise costs p + q draws (rank one), the claim the text makes; values labelled illustrative. Built |
+| VB-5 | Rainbow ablation moved from its own tab into Reading §10 (summary bars and table, one game across six removals, the predict; every game per component in a closed block) | It explains one mechanism (the ablation) at the moment the text discusses it. Moved |
+| VB-2 | Triad widget (w, 2w and Baird) **removed**: Model-free prediction and control's Reading section 7 now owns the deadly triad with Baird's counterexample and each leg switchable | One owner per concept. The engine functions (`VBE.triad`, `VBE.baird`) stay in `21_js_vb_engine.js` and its checks, no longer drawn. Removed |
+| | Real images | None: the canonical figures (Nature DQN Figure 1, Rainbow figures) are not openly licensed, and an Atari console photo would not teach the mechanism. |

@@ -1,4 +1,4 @@
-// ---- Tab: Rainbow ablation, game by game (decoded Figure 4) ----
+// ---- Section 10: Rainbow ablation, game by game (decoded Figure 4), inline in Reading since 2026-10-24 ----
 (function(){
   const E=window.VBE,F=window.VB_F4,A=window.VB_ABL;const ks=Object.keys(F.rows);
   const pretty=g=>g.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()).replace('N Down','n Down').replace('Of Wor','of Wor').replace('Ms Pacman','Ms. Pac-Man').replace('Montezuma Revenge','Montezuma\'s Revenge').replace('Yars Revenge','Yars\' Revenge');
@@ -25,5 +25,5 @@
   document.getElementById('ab-q').addEventListener('click',e=>{const b=e.target.closest('button[data-g]');if(!b)return;const a=document.getElementById('ab-qA');a.hidden=false;
     a.innerHTML='<b>'+dbl.hurt+' games</b> got worse without double Q-learning, and '+dbl.helped+' got better: a near coin flip, which is what "no significant aggregate difference" means here. It was never the strongest drop. Multi-step\'s removal hurt '+stats.find(s=>s.k==='no multi-step').hurt+' games.'+(+b.dataset.g===30?' Your guess was right.':'')});
   const all=()=>{drawSum();drawList();drawGame()};
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-abl']=window.TAB_RENDER['t-abl']||[]).push(all);all();
+  RD.onRender(all);all();
 })();
