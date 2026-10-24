@@ -90,4 +90,19 @@ x = ranks([st[(m, 'DR')] for m in both]); y = ranks([st[(m, 'TAP-T')] for m in b
 mx, my = sum(x) / n, sum(y) / n
 rho = sum((a - mx) * (b - my) for a, b in zip(x, y)) / (sum((a - mx) ** 2 for a in x) * sum((b - my) ** 2 for b in y)) ** .5
 chk('Spearman DR vs TAP-T (standard)', '%d models, rho %.2f' % (n, rho), re.search(r'(\d+) models;.*?= ([\d.]+)', J['hb_sum']).group(1) + ' models, rho ' + re.search(r'= ([\d.]*\d)', J['hb_sum']).group(1))
+
+# SimpleQA Table 3 (arXiv 2411.04368, Nov 2024) scored four ways: the page's static table and its toggle
+SQ = [('Claude 3 Haiku', 5.1, 75.3, 19.6, 8.2), ('Claude 3 Sonnet', 5.7, 75.0, 19.3, 9.2), ('Claude 3 Opus', 23.5, 39.6, 36.9, 29.3), ('Claude 3.5 Sonnet', 28.9, 35.0, 36.1, 35.0),
+      ('GPT-4o mini', 8.6, 0.9, 90.5, 8.6), ('GPT-4o', 38.2, 1.0, 60.8, 38.4), ('o1-mini', 8.1, 28.5, 63.4, 9.4), ('o1-preview', 42.7, 9.2, 48.1, 44.8)]
+chk('SimpleQA shares sum to 100', all(abs(c + n + i - 100) < 0.05 for _, c, n, i, _f in SQ), True)
+chk('F = 2C/(2C+2I+N) reproduces published F to 0.1 except Claude 3 Sonnet', [m for m, c, n, i, f in SQ if abs(200 * c / (2 * c + 2 * i + n) - f) > 0.051], ['Claude 3 Sonnet'])
+page = open('../index.html').read(); page = page[page.index('id="rd-fact"'):page.index('id="rd-hon"')]
+for m, c, n, i, f in SQ:
+    row = re.search(r'<tr><td>' + re.escape(m) + r'</td>(.*?)</tr>', page).group(1)
+    cells = [re.sub(r'<[^>]+>', '', x).replace('&minus;', '-') for x in re.findall(r'<td class="num">(.*?)</td>', row)]
+    chk('static abstention row ' + m, cells, ['%.1f' % c, '%.1f' % n, '%.1f' % i, '%.1f' % f, '%.1f' % (c - i), '%.1f%%' % (100 * i / (i + n))])
+order = {'c': sorted(SQ, key=lambda d: -d[1]), 'h': sorted(SQ, key=lambda d: d[3] / (d[3] + d[2])), 'ci': sorted(SQ, key=lambda d: -(d[1] - d[3]))}
+for k, o in order.items():
+    labels = [t for t in J['abs_' + k].split('|') if t in [d[0] for d in SQ]]
+    chk('abstention toggle order ' + k, labels, [d[0] for d in o])
 print('ALL OK' if ok else 'SOME FAILED')

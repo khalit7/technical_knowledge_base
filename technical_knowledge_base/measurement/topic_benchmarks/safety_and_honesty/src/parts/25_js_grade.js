@@ -9,6 +9,7 @@
   let h='<table class="rd-t"><thead><tr><th>Configuration</th><th class="num">Safe refused: human</th><th class="num">string match</th><th class="num">GPT-4 cls.</th><th class="num">Unsafe refused: human</th><th class="num">string match</th><th class="num">GPT-4 cls.</th></tr></thead><tbody>';
   MS.forEach(m=>{const H=rates(m,'h'),S=rates(m,'s'),G=rates(m,'g');
     h+='<tr><td>'+esc(U.MOD[m].sh)+'</td><td class="num">'+RD.pct(H.s)+'</td><td class="num">'+RD.pct(S.s)+'</td><td class="num">'+RD.pct(G.s)+'</td><td class="num">'+RD.pct(H.u)+'</td><td class="num">'+RD.pct(S.u)+'</td><td class="num">'+RD.pct(G.u)+'</td></tr>'});
+  window.GR={rates,MS};
   el.innerHTML=h+'</tbody></table>';
   const G=rates('llama2orig','g'),S=rates('mistralinstruct','s');
   document.getElementById('gr-note').innerHTML='Refused means full or partial refusal. Computed in the page from the released label files; the human and automated columns reproduce the XSTest paper\'s Tables 1 and 2 (independently recomputed). On Llama 2 with its original prompt, the released GPT-4 labels call <b>'+G.fu+'</b> of the 199 answers that humans marked as full refusals of unsafe prompts &ldquo;full compliance&rdquo;; on Mistral without a prompt, string match agrees with the human refuse-or-not call on '+RD.pct(S.a)+' of the 450 answers.';
