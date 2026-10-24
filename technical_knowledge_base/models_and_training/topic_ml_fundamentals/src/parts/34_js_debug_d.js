@@ -131,8 +131,7 @@
   }));
   if ('IntersectionObserver' in window) new IntersectionObserver(es => { st.vis = es[es.length - 1].isIntersecting; kick(); }, {threshold: .15}).observe(card); else st.vis = true;
   document.addEventListener('visibilitychange', kick);
-  let first = true;
-  function render() { if ($('t-debug').hidden) return; if (first) { first = false; if (!RM) st.play = true; } draw(); kick(); }
+  function render() { if ($('t-debug').hidden) return; draw(); kick(); }  // waits on its first frame until the reader presses play (2026-10-24)
   window.TAB_RENDER = window.TAB_RENDER || {}; (window.TAB_RENDER['t-debug'] = window.TAB_RENDER['t-debug'] || []).push(render);
   let rw = 0; addEventListener('resize', () => { const w = card.clientWidth; if (!$('t-debug').hidden && Math.abs(w - rw) > 20) { rw = w; draw(); } });
 })(window.DG);
