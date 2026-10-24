@@ -31,3 +31,10 @@ Scoring follows `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each
 
 - A rule for figures whose claims depend on an unstated reading threshold: make the threshold a control and report the range, not a single multiple.
 - A rule for simulators: port the Python line for line into JS and have the check script compare every default number, so the page and the script cannot drift.
+
+## 2026-10-25 light pass
+| id | Idea | Placement | Status |
+|---|---|---|---|
+| P-pagedattention.11 | **Hero: the paper's own Figures 3 and 7** (CC BY 4.0), the same two requests contiguous and then paged, a before/after in the paper's own drawing; each in a sideways scroll box on phones | Reading, top | built |
+| P-pagedattention.12 | Figure 2, Figure 15 and Figure 18b (each against the simulator) moved out of their predict reveals into titled inline cards after the questions | Reading | built |
+| P-pagedattention.13 | A hand-built SVG before/after hero | | rejected: the paper's figures are CC BY, are the ones people cite, and the inline block-table animation already redraws Figures 6 to 9 step by step |

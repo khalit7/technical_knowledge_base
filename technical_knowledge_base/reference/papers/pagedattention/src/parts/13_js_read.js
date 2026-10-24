@@ -54,7 +54,7 @@ function drawF2(){fit($('f2Svg'),W=>{const rows=[];SYS.forEach(([k,n])=>{const p
   $('f2Rep').innerHTML='Top bar of each pair: Figure 2 as printed (vLLM\'s three unlabelled slivers are read from the vector graphics: '+RC.fig2_vector_vllm.filter(b=>b[0]!=='token states').map(b=>b[0]+' '+(b[2]-b[1]).toFixed(1)+'%').join(', ')+'). Bottom bar: this page\'s simulator on ShareGPT-like traffic (the %RUN% tab), which knows only Table 1\'s 12 GB, the length histograms of Figure 11 and the allocation rules of §6.1: Orca (Oracle) '+f1(s.token)+'% token states against the paper\'s 38.2%, vLLM '+f1(v.token)+'% against 96.3%, Orca (Max) '+f1(m.token)+'% against 20.4%. The reproduction is independent: nothing was tuned to Figure 2.';
   $('f2Rep').innerHTML=$('f2Rep').innerHTML.replace('%RUN%','<a href="#" data-tab-go="t-run">Simulate the KV cache</a>');wireTabLinks($('f2Rep'))}
 function wireTabLinks(el){el.querySelectorAll('a[data-tab-go]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();const b=document.querySelector('#tabs button[data-t='+a.dataset.tabGo+']');if(b)b.click()}))}
-PRED_REVEAL['pr-oracle']=drawF2;
+drawF2();
 // Figure 15 against the simulator
 function drawF15(){fit($('f15Svg'),W=>{const pl=Math.min(170,W*.4),bh=14,sc=(W-pl-40)/60;let y=6,s='';
   const row=(n,v,c,sim)=>{s+=tx(pl-6,y+bh-3,n,{fs:11,a:'end',c:sim?'var(--mute)':'var(--ink)'})+rc(pl,y,v*sc,bh,c,{r:2})+tx(pl+v*sc+4,y+bh-3,v.toFixed(2)+'%',{fs:11});y+=bh+4};
@@ -62,7 +62,7 @@ function drawF15(){fit($('f15Svg'),W=>{const pl=Math.min(170,W*.4),bh=14,sc=(W-p
   [2,4,6].forEach((n,i)=>row('beam search, width '+n,TB.fig15.beam[i],'var(--c4)'));
   $('f15Svg').innerHTML=svgW(W,y+2,s,'Figure 15, memory saving from sharing')});
   $('f15Rep').innerHTML='Figure 15 as printed (OPT-13B, Alpaca), with this page\'s simulator for parallel sampling under the authors\' released benchmark rule (every sample runs to the trace\'s output length): '+[2,4,6].map(n=>f1(SC['alpaca_vllm_n'+n].saving,2)+'%').join(', ')+' against 6.09%, 8.53%, 9.79%. The simulator cannot run beam search: which beams survive depends on the model\'s probabilities.'}
-PRED_REVEAL['pr-par']=drawF15;
+drawF15();
 // Figure 18b and the simulator's memory side
 function drawBS(){fit($('bsSvg'),W=>{const two=W>=600,w1=two?Math.floor(W/2)-6:W,H=200;
   const A=frame({W:w1,H,pl:40,pr:10,pt:12,pb:34,x:[1,256],xlog:1,y:[0,18],xt:[1,2,4,8,16,32,64,128,256].map(v=>[v,String(v)]),yt:[[0,'0'],[5,'5'],[10,'10'],[15,'15']],xl:'block size',yl:'normalized latency (s/token)'});
@@ -71,10 +71,10 @@ function drawBS(){fit($('bsSvg'),W=>{const two=W>=600,w1=two?Math.floor(W/2)-6:W
   const bs=[1,4,8,16,32,64,128,256],g=b=>b===16?SC.alpaca_vllm:SC['alpaca_vllm_b'+b];
   const B=frame({W:w1,H,pl:40,pr:10,pt:12,pb:34,x:[1,256],xlog:1,y:[0,100],xt:bs.map(v=>[v,String(v)]),yt:[[0,'0'],[50,'50'],[100,'100%']],xl:'block size',yl:'simulated, Alpaca'});
   const tok=bs.map(b=>[b,g(b).token]),bat=bs.map(b=>[b,g(b).batch/2]);
-  let s2=B.s+poly(tok,B.lx,B.ly,'var(--good)')+dots(tok,B.lx,B.ly,'var(--good)')+poly(bat,B.lx,B.ly,'var(--c4)',{da:'4 3'})+dots(bat,B.lx,B.ly,'var(--c4)')+tx(B.lx(1),11,'This page\'s simulator',{fs:11,w:600})+tx(B.lx(2),B.ly(93),'% of memory holding tokens',{fs:11,c:'var(--good)'})+tx(B.lx(2),B.ly(bat[2][1])+16,'batch ÷ 2',{fs:11,c:'var(--c4)'});
+  let s2=B.s+poly(tok,B.lx,B.ly,'var(--good)')+dots(tok,B.lx,B.ly,'var(--good)')+poly(bat,B.lx,B.ly,'var(--c4)',{da:'4 3'})+dots(bat,B.lx,B.ly,'var(--c4)')+tx(B.lx(1),11,'This page\'s simulator',{fs:11,w:600})+tx(B.lx(1.2),B.ly(42),'% of memory holding tokens',{fs:11,c:'var(--good)'})+tx(B.lx(1.2),B.ly(30),'batch ÷ 2',{fs:11,c:'var(--c4)'});
   $('bsSvg').innerHTML=two?'<div style="display:flex;gap:12px">'+svgW(w1,H,s,'Figure 18b')+svgW(w1,H,s2,'simulated memory by block size')+'</div>':svgW(w1,H,s,'Figure 18b')+svgW(w1,H,s2,'simulated memory by block size')});
   $('bsRep').innerHTML='Left: Figure 18b read from its vector graphics. Right: the simulator (OPT-13B memory, Alpaca lengths, saturated queue): the share of memory holding tokens falls from '+f1(SC.alpaca_vllm_b1.token)+'% at block size 1 to '+f1(SC.alpaca_vllm.token)+'% at 16 and '+f1(SC.alpaca_vllm_b256.token)+'% at 256, and the batch from '+f1(SC.alpaca_vllm_b1.batch,0)+' to '+f1(SC.alpaca_vllm.batch,0)+' to '+f1(SC.alpaca_vllm_b256.batch,0)+' requests. The simulator has no kernel cost, so it shows only why large blocks hurt, not why small ones do.'}
-PRED_REVEAL['pr-bs']=drawBS;
+drawBS();
 
 // ---- Block tables, step by step (Figures 6 to 9) ----
 (function(){

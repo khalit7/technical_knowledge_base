@@ -6,7 +6,7 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Headline card with the verdict, then Problem (Figure 1 redrawn, predict question on Orca (Oracle)'s waste), Background, The idea (Eq. 4), Block tables (the Figures 6 to 9 animation on the paper's own block numbers), Sharing (predict question on parallel-sampling savings), Preemption, Distributed, Implementation, Results, Ablations (predict question on block size), Limits, How much of this to believe, What it takes to use this, Why it matters, Connections. |
+| The paper | `t-read` | Headline card with the verdict, the core sentence and the hero (the paper's Figures 3 and 7, before and after), You need and new terms, then Problem (Figure 1 redrawn, predict question on Orca (Oracle)'s waste), Background, The idea (Eq. 4), Block tables (the Figures 6 to 9 animation on the paper's own block numbers), Sharing (predict question on parallel-sampling savings), Preemption, Distributed, Implementation, Results, Ablations (predict question on block size), Limits, How much of this to believe, What it takes to use this, Why it matters, Connections. |
 | Simulate the KV cache | `t-run` | The live ingredient: eight illustrative requests on 64 slots, animated for Orca (Max), Orca (Pow2), Orca (Oracle) and vLLM on the same memory; then the same simulator at the paper's OPT-13B scale (15,728 slots, Figure 11 length distributions) with trace, block size, samples per request and seed controls, against Figure 2 and Figure 13. |
 | The paper's figures, rebuilt | `t-tables` | Throughput curves (Figures 12, 14, 16, 17) with a latency threshold slider and the ratios they give; Table 1 recomputed; the bar charts (Figures 2, 13, 15); the ablations (Figures 18a, 19); the Figure 11 workloads; every number in the text checked. |
 | Then and now | `t-then` | Orca (2022), vLLM's release, the paper, everyone paging the KV cache, what paging left open, V1, the 2026 removal of swap space; a survived/changed table. |
@@ -18,7 +18,7 @@
 - **The live ingredient is a simulator, not a toy model** (the method's "systems" row). A trained model would teach nothing here; the claim is about memory allocation, which can be simulated exactly from the paper's rules (§6.1) and its own length distributions.
 - **The block-table animation sits inline in Reading**, not on its own tab, because it is the explanation of §4.3 and §4.4 and uses the paper's own figures' numbers.
 - **"Then and now" kept** (the method treats it as optional): the paged KV cache became the standard layout, and the paper's swap path has since been removed from vLLM, which a reader of the paper should know.
-- **Reading is long (about 25 minutes against the old page's 11)**: the paper page owns every detail of the paper plus the evidence section; the old summary's facts are all carried (`coverage.json`).
+- **Reading is long (about 25 minutes against the old page's 11; 24 core plus 6 closed after the 2026-10-25 pass)**: the paper page owns every detail of the paper plus the evidence section; the old summary's facts are all carried (`coverage.json`).
 
 ## Files
 
@@ -44,3 +44,31 @@
 ## Checks (3 October 2026)
 
 `sh html_utils/checkpage.sh technical_knowledge_base/reference/papers/pagedattention`: tabs 5, emdash 0, errbox 1, clipped 0, fail=0. `check_page.mjs`: simulator 270 numbers and curve crossings 558 numbers identical to Python; 614 actions, 0 problems. `mk_coverage.py`: 61 of 61 verified. Page about 227 KB.
+
+## The 2026-10-25 light pass (teaching contract)
+
+What changed and why:
+- **Top**: the core sentence (blocks through a block table, waste at most one block, copy-on-write sharing, bigger batches, and the paper's 2 to 4× beside what its own Figure 12 gives against the ideal contiguous baseline). The hero is a before/after in the paper's own drawings (CC BY 4.0, `img/`, `img/CREDITS.md`): Figure 3 (two requests in contiguous chunks, the three wastes labelled) above Figure 7 (the same kind of two requests in 4-token blocks), each in a sideways scroll box at phone width. Then "You need" (KV cache, its size per token, memory-bound decode, with owners) and the new terms.
+- **Visuals inline**: Figure 2, Figure 15 and Figure 18b (each against the simulator) left their predict reveals; each sits in its own titled card right after its question. The Figure 18b card's labels no longer overlap the simulator panel's title.
+- **No autoplay**: `makeAnim` in `11_js_ui.js` replaced by the patched copy (as on DPO, ReAct, CLIP), so the block-table and toy-memory animations wait on their first step; `90_js_tabs.js` replaced by the template `99_js_tabs.js` (storage key `pagedattention-tab`). `check_page.mjs` now fails if `bt` or `kv` moves before a click, and opens every closed block.
+- **Owned elsewhere, linked with this paper's sentence kept**: why a KV cache exists (The transformer from zero), bytes per token (Long context), memory-bound decode (Performance math), iteration-level batching, prefix caching, chunked prefill and preemption today (Batching, KV cache and scheduling in depth), tensor parallelism at serve time (Distributed and disaggregated serving), vLLM as it is now (vLLM: inside the default engine).
+- **Closed**: §2 in full; footnote 1 (block per layer and head); the Figure 6 walk-through in words (the animation's captions carry it); Figure 9 block by block; the three kernels; the full §6.1 setup; related work; the version-by-version paper-against-code diff; the Alpaca batch check.
+- **Volatile**: vLLM's later features, the V1 dates, PyTorch Foundation, llm-d, RL rollout engines, today's hardware backends, stars and the latest release moved into one dated closed block ("sources read 3 October 2026"); Why it matters keeps one durable sentence and the owner link.
+- Header: "Reading: 24 min, plus 6 in closed details.", read by `build.sh` from `reading.json`.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After |
+|---|---|---|
+| The paper, core | 24.7 min (5,688 words) | 24.0 min (5,516) |
+| The paper, closed | 0 | 5.7 min (1,304) |
+| Simulate the KV cache | 3.6 min | unchanged |
+| The paper's figures, rebuilt | 5.8 min | unchanged |
+| Then and now | 3.2 min | unchanged |
+
+Why about 24 minutes is right: the paper has more distinct method pieces than most (block tables, sharing in three forms, preemption by swap or recompute, distributed execution, kernels) and four result families plus two ablations, each with numbers this page checks. The added top (about 2.5 minutes) was paid for by closing background the owner pages teach, appendix-level detail and the dated vLLM history. What stays open is the paper's argument in order and the evidence section; cutting further would drop results or the corrections, not repetition.
+
+## Knowledge ledger (`ledger.json`, labelled by `label_ledger.py`)
+283 units: core 243, depth 27, owned 6, volatile 5, fat 2. 271 drafted by `ledger.py init` from the page before the pass; 12 added (core sentence, hero, terms, three moved charts, six owner links). Fat: the two old animation-manners lines. `ledger.py check`: problems 0.
+
+## Checks (25 October 2026)
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: simulator and curve crossings identical to Python; 0 problems (including no movement before a click and every closed block opened). `mk_coverage.py`: 61 of 61 (the reading-time item's keys and the batching key updated).

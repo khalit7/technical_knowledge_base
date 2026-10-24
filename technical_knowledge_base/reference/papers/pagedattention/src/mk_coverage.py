@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "11 min read, +~2h 40m resources"', 'dropped: replaced by the build-computed reading time and resources total of the new page', ['min to read', 'of resources']),
+ ('Reading time line "11 min read, +~2h 40m resources"', 'dropped: replaced by the build-computed reading time and resources total of the new page', ['Reading: ', 'in closed details']),
  ('Authors: Kwon, Li, Zhuang, Sheng, Zheng, Yu, Gonzalez, Zhang, Stoica', R + ', headline card', ['Woosuk Kwon', 'Zhuohan Li', 'Siyuan Zhuang', 'Ying Sheng', 'Lianmin Zheng', 'Cody Hao Yu', 'Joseph E. Gonzalez', 'Hao Zhang', 'Ion Stoica']),
  ('Lab: UC Berkeley, with Stanford and UCSD; SOSP 2023', R + ', headline card (independent researcher added from the paper)', ['UC Berkeley, with Stanford, UC San Diego', 'SOSP 2023']),
  ('Date: September 2023 (arXiv 2023-09-12; SOSP 23, October 2023)', R + ', headline card', ['arXiv 2023-09-12', "SOSP '23"]),
@@ -23,7 +23,7 @@ C = [
  ('Aleksa Gordic: Inside vLLM (~45 min): code-level walkthrough of the modern engine', 'Further reading, Best resources', ['https://www.aleksagordic.com/blog/vllm', 'the bridge from this paper to today', '(45 min)']),
  ('vLLM V1 alpha release blog (January 2025, ~15 min)', 'Further reading, Best resources; Then and now', ['https://blog.vllm.ai/2025/01/27/v1-alpha-release.html', 'a year and a half of production', '(15 min)']),
  # problem
- ('Serving throughput is memory-bound; decode underutilises the GPU; fix is batching; batch capped by KV cache', R + ', Problem', ['memory-bound', 'underutilizes the computation power of GPUs', 'batch many requests']),
+ ('Serving throughput is memory-bound; decode underutilises the GPU; fix is batching; batch capped by KV cache', R + ', Problem', ['memory-bound', 'underutilizes the computation power of GPUs', 'shares each weight read across many requests']),
  ('A100-40GB, 13B model: weights ~65%, KV cache over 30%', R + ', Problem, Figure 1', ['about 65% of memory holds the weights', '">30%" in Figure 1']),
  ('800 KB per OPT-13B token = 2 x 5120 x 40 x 2 bytes; 2048-token request needs 1.6 GB', R + ', Problem; Tables tab', ['800 KB', '5,120 (hidden size)', '40 (layers)', '2,048 tokens', '1.6 GB']),
  ('FasterTransformer and Orca pre-allocate one contiguous chunk per request at the maximum length (e.g. 2048)', R + ', Problem', ['one contiguous chunk', 'maximum possible length']),

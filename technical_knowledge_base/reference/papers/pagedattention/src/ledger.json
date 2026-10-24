@@ -1,0 +1,2568 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "PagedAttention and vLLM Papers · 2023 · added to the knowledge base 2026-08-24 · ⏱ About 25 min to read The paper tab · +3h 20m of resources.",
+  "label": "core",
+  "key": "pagedattention and vllm papers · 2023 · added",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "The paper Simulate the KV cache The paper's figures, rebuilt Then and now Further reading",
+  "label": "core",
+  "key": "the paper simulate the kv cache the paper's",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "t-read",
+  "section": "",
+  "text": "Paper · SOSP 2023 · arXiv 2309.06180 Efficient Memory Management for Large Language Model Serving with PagedAttention (PagedAttention, vLLM) Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E.",
+  "label": "core",
+  "key": "paper · sosp 2023 · arxiv 2309.06180 efficient",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "t-read",
+  "section": "",
+  "text": "Gonzalez, Hao Zhang, Ion Stoica UC Berkeley, with Stanford, UC San Diego and an independent researcher · September 2023 (arXiv 2023-09-12); SOSP '23, Koblenz, 23 to 26 October 2023 In one line: PagedAttention pages the KV cache into fixed 16-token blocks with OS-style block tables, copy-on-write sharing, and swap/recompute preemption, lifting KV memory utilization from about 20 to 38% to 96% and serving throughput 2 to 4x over Orca; it became the industry-standard KV layout and the foundation of vLLM.",
+  "label": "core",
+  "key": "gonzalez, hao zhang, ion stoica uc berkeley, with",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "96.3% of KV memory holds tokens against 20.4% to 38.2% in the three Orca variants contiguous chunks waste the rest on reservations and fragmentation · Figure 2 2.2× more requests per batch 30.42 against Orca (Oracle)'s 13.62, OPT-13B on ShareGPT 4.3× Orca (Max)'s 7.00 · Figure 13 2 to 4× request rate at equal latency over FasterTransformer and Orca (abstract) read off Figure 12 at 0.5 s/token: 1.5 to 2.3× over Orca (Oracle) on ShareGPT · Figure 12 read it (arXiv HTML) · PDF · code (vllm-project/vllm) · simulate the KV cache How far to trust it: Believe the mechanism and the memory accounting: the waste figures reproduce from Table 1 and the paper's own length distributions, and paged KV caches became the default of every major serving stack.",
+  "label": "core",
+  "key": "96.3% of kv memory holds tokens against 20.4%",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "Treat the throughput multiples as the top of a range: they come from single runs against the authors' own reimplementation of Orca, and read off the paper's figures the gain over the strongest baseline is 1.5 to 2.4x on ShareGPT, about 1.3 to 1.8x on Alpaca, and near 1x where memory is not the bottleneck.",
+  "label": "core",
+  "key": "treat the throughput multiples as the top of",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "The evidence, judged .",
+  "label": "core",
+  "key": "the evidence, judged .",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "Problem Background The idea Block tables Sharing Preemption Distributed Implementation Results Ablations Limits How much to believe Using it Why it matters Connections",
+  "label": "core",
+  "key": "problem background the idea block tables sharing preemption",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "Problem: the batch size is capped by KV cache memory §1 Introduction, §3 An LLM generates one token per step, and each step has to read all the model's weights.",
+  "label": "core",
+  "key": "problem: the batch size is capped by kv",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "Generating for one request at a time is therefore memory-bound : it \"underutilizes the computation power of GPUs and limits the serving throughput\" ( §1 ).",
+  "label": "core",
+  "key": "\"underutilizes the computation power of gpus and limits",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "The fix is to batch many requests into each step, so that one read of the weights serves all of them.",
+  "label": "core",
+  "key": "batching shares each weight read across many requests",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "How many requests fit is decided by GPU memory, and specifically by the space for their KV cache : the key and value vectors of every token so far, kept so that each new token can attend to them ( §2.2 ).",
+  "label": "core",
+  "key": "for their kv cache",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "The cache is large.",
+  "label": "core",
+  "key": "the cache is large.",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "For OPT-13B one token's KV cache is 800 KB : 2 (key and value) × 5,120 (hidden size) × 40 (layers) × 2 bytes (FP16) = bytes, exactly 800 KiB.",
+  "label": "core",
+  "key": "for opt-13b one token's kv cache is 800",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "OPT can generate sequences of up to 2,048 tokens, so one request can need as much as 1.6 GB ( GiB) ( §3 ).",
+  "label": "core",
+  "key": "opt can generate sequences of up to 2,048",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "On an A100 with 40 GB serving a 13B model, about 65% of memory holds the weights (26 GB) and the KV cache gets the rest: \"close to 30%\" in the text, \">30%\" in Figure 1's label; activations take a small remainder ( Figure 1 ).",
+  "label": "core",
+  "key": "on an a100 with 40 gb serving a",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "Table 1 makes it concrete: 12 GB for the KV cache, which is 15.7K token slots ( Table 1 ; 12 GiB / 800 KiB = ).",
+  "label": "core",
+  "key": "table 1 makes it concrete: 12 gb for",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "Even if all of memory went to the cache, \"only a few tens of requests could be accommodated\" ( §3 ).",
+  "label": "core",
+  "key": "even if all of memory went to the",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "And it will get worse: from A100 to H100 the FLOPS rose more than 2× while GPU memory stayed at 80 GB at most ( §3 ).",
+  "label": "core",
+  "key": "and it will get worse: from a100 to",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "Figure 1 (right), redrawn from the points in its vector graphics: memory against batch size for \"existing systems\" and vLLM, and the throughput a batch of that size reaches.",
+  "label": "core",
+  "key": "figure 1 (right), redrawn from the points in",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "The dotted lines are the paper's: where memory hits 40 GB, the batch size and therefore the throughput stop.",
+  "label": "core",
+  "key": "the dotted lines are the paper's: where memory",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "The diagnosis: existing systems (FasterTransformer, Orca) store each request's KV cache in one contiguous chunk , because deep learning frameworks want tensors contiguous, and since the output length is unknown they pre-allocate the chunk for the maximum possible length ( §3.1 ).",
+  "label": "core",
+  "key": "the diagnosis: existing systems (fastertransformer, orca) store each",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "The KV cache, unlike ordinary tensors, \"dynamically grows and shrinks over time\" and its lifetime and length are not known in advance ( §1 ).",
+  "label": "core",
+  "key": "the kv cache, unlike ordinary tensors, \"dynamically grows",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "That wastes memory three ways ( Figure 3 , §3.1 ): Reserved slots for tokens the request will generate later.",
+  "label": "core",
+  "key": "that wastes memory three ways ( figure 3",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "They are eventually used, but held empty for the request's whole lifetime, so shorter requests cannot use them meanwhile.",
+  "label": "core",
+  "key": "they are eventually used, but held empty for",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "Internal fragmentation : slots reserved for a maximum length the request never reaches.",
+  "label": "core",
+  "key": "internal fragmentation : slots reserved for a maximum",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "Figure 3's request A has a 2,048-token maximum and finishes after 10 tokens: 2,038 slots are never used; request B (maximum 512) leaves 507 ( Figure 3 ; 2,048 − 10 = , 512 − 5 = ).",
+  "label": "core",
+  "key": "figure 3's request a has a 2,048-token maximum",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "This waste is only known once the request finishes.",
+  "label": "core",
+  "key": "this waste is only known once the request",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "External fragmentation from the allocator (the paper assumes a buddy allocator for Orca), because every chunk has a different size.",
+  "label": "core",
+  "key": "external fragmentation from the allocator (the paper assumes",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "It \"will never be used for generated tokens, which is known before serving a request\".",
+  "label": "core",
+  "key": "it \"will never be used for generated tokens,",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "The paper's profiling puts the result at \"only 20.4% to 38.2% of the KV cache memory\" holding actual token states ( Figure 2 ).",
+  "label": "core",
+  "key": "the paper's profiling puts the result at \"only",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "The Simulate the KV cache tab replays exactly this, the four systems on the same memory.",
+  "label": "core",
+  "key": "the simulate the kv cache tab replays exactly",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "Orca (Oracle) is the paper's idealised baseline: it is told every request's true output length in advance, so it reserves exactly prompt + output and never over-provisions.",
+  "label": "core",
+  "key": "orca (oracle) is the paper's idealised baseline: it",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "On the ShareGPT experiment, what share of its KV cache memory holds actual tokens?",
+  "label": "core",
+  "key": "on the sharegpt experiment, what share of its",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "About 95%: it never over-reserves About 70% About 38% About 20% 38.2% ( Figure 2 ).",
+  "label": "core",
+  "key": "about 95%: it never over-reserves about 70% about",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "Knowing the length removes internal fragmentation (zero for Oracle), but two wastes remain.",
+  "label": "core",
+  "key": "knowing the length removes internal fragmentation (zero for",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "The chunk for a request's future tokens is reserved from the start (25.2%), and the buddy allocator rounds every chunk up to a power of two and leaves gaps between chunks of different sizes (36.6% \"external fragmentation and others\"). vLLM, allocating 16-token blocks on demand, keeps 96.3% of the memory holding tokens.",
+  "label": "core",
+  "key": "the chunk for a request's future tokens is",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "The second problem is sharing .",
+  "label": "core",
+  "key": "the second problem is sharing .",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "Parallel sampling (several outputs for one prompt, as in code assistants) and beam search keep several sequences per request that could share their prompt's KV cache, and beam candidates share much more, but with each sequence in its own contiguous chunk \"memory sharing is not possible\" ( §1 ).",
+  "label": "core",
+  "key": "parallel sampling (several outputs for one prompt, as",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "In the paper's §6.3 experiment the prompt is 12% of the total KV cache under parallel sampling, and beam search can share enough to save up to 55% ( §3 ).",
+  "label": "core",
+  "key": "in the paper's §6.3 experiment the prompt is",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "Compaction, the textbook fix for fragmentation, is \"impractical\" with a cache this large and would still not allow sharing ( §3.1 ).",
+  "label": "core",
+  "key": "compaction, the textbook fix for fragmentation, is \"impractical\"",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "problem: the batch size is capped by kv cache memory",
+  "text": "The third challenge is scheduling for unknown lengths : as outputs grow the cache can exhaust memory, and the system has to decide whose cache to delete or swap out ( §3 ).",
+  "label": "core",
+  "key": "the third challenge is scheduling for unknown lengths",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "background: prompt phase, generation phase, iteration-level batching",
+  "text": "Background: prompt phase, generation phase, iteration-level batching §2 Background A request's prompt (x 1 , ..., x n ) and its generated tokens together form a sequence .",
+  "label": "core",
+  "key": "background: prompt phase, generation phase, iteration-level batching §2",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "background: prompt phase, generation phase, iteration-level batching",
+  "text": "Generation has two phases ( §2.2 ).",
+  "label": "depth",
+  "key": "generation has two phases ( §2.2 ).",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "background: prompt phase, generation phase, iteration-level batching",
+  "text": "The prompt phase takes the whole prompt at once, computes the first new token and the keys and values k 1 ..k n , v 1 ..v n ; it is a matrix-matrix computation that uses the GPU well.",
+  "label": "depth",
+  "key": "the prompt phase takes the whole prompt at",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "background: prompt phase, generation phase, iteration-level batching",
+  "text": "The autoregressive generation phase then adds one token per iteration, computing only the new token's key and value and reading all the cached ones; it is matrix-vector work, memory-bound, and \"responsible for most portion of the latency of a single request\".",
+  "label": "depth",
+  "key": "the autoregressive generation phase then adds one token",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "background: prompt phase, generation phase, iteration-level batching",
+  "text": "A token's KV cache depends on every token before it, so the same token at a different position has a different cache ( §2.2 ).",
+  "label": "depth",
+  "key": "a token's kv cache depends on every token",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "background: prompt phase, generation phase, iteration-level batching",
+  "text": "Batching requests that arrive at different times with different lengths is the job of iteration-level scheduling (Orca; cellular batching before it): after every iteration finished requests leave the batch and new ones join, so a new request waits one iteration instead of a whole batch, and special kernels remove the need to pad inputs and outputs ( §2.3 ).",
+  "label": "depth",
+  "key": "batching requests that arrive at different times with",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "background: prompt phase, generation phase, iteration-level batching",
+  "text": "PagedAttention keeps this and attacks what still limits it: \"the number of requests that can be batched together is still constrained by GPU memory capacity\" ( §3 ).",
+  "label": "depth",
+  "key": "pagedattention keeps this and attacks what still limits",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "background: prompt phase, generation phase, iteration-level batching",
+  "text": "The paper calls the two techniques complementary: Orca interleaves requests so more can run, vLLM raises memory utilisation so more fit ( §9 ).",
+  "label": "depth",
+  "key": "the paper calls the two techniques complementary: orca",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "the idea: page the kv cache like virtual memory",
+  "text": "The idea: page the KV cache like virtual memory §4.1 PagedAttention The move is the operating system's answer to fragmentation and sharing, virtual memory with paging (Kilburn et al., 1962): \"one can think of blocks as pages, tokens as bytes, and requests as processes\" ( §1 ).",
+  "label": "core",
+  "key": "the idea: page the kv cache like virtual",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "the idea: page the kv cache like virtual memory",
+  "text": "PagedAttention splits each sequence's KV cache into KV blocks of a fixed number of tokens B, the block size, which need not sit next to each other in memory ( §4.1 ).",
+  "label": "core",
+  "key": "pagedattention splits each sequence's kv cache into kv",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "the idea: page the kv cache like virtual memory",
+  "text": "With key block K j = (k (j−1)B+1 , ..., k jB ) and value block V j likewise, attention for query q i becomes a sum over blocks ( Eq.",
+  "label": "core",
+  "key": "with key block k j = (k (j−1)b+1",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "the idea: page the kv cache like virtual memory",
+  "text": "4 ): A ij = exp(q i ⊤ K j / √d) / Σ t=1 ⌈i/B⌉ exp(q i ⊤ K t 1 / √d), o i = Σ j=1 ⌈i/B⌉ V j A ij ⊤ A ij the row of attention scores of query i on block j, (a i,(j−1)B+1 , ..., a i,jB ) ⌈i/B⌉ the number of blocks holding tokens up to i; the kernel fetches each block wherever it lives, through the block table The output is exactly ordinary attention (Eq.",
+  "label": "core",
+  "key": "4 ): a ij = exp(q i ⊤",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "the idea: page the kv cache like virtual memory",
+  "text": "3): only where the operands live changes.",
+  "label": "core",
+  "key": "3): only where the operands live changes.",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "the idea: page the kv cache like virtual memory",
+  "text": "In Figure 5 the query \"forth\" attends over three non-contiguous blocks, \"Four score and seven\", \"years ago our fathers\", \"brought forth\" ( Figure 5 ).",
+  "label": "core",
+  "key": "in figure 5 the query \"forth\" attends over",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "the idea: page the kv cache like virtual memory",
+  "text": "A footnote adds that a block can hold one token's keys and values across all layers and heads, or each layer and head can have its own block and block table; \"the two designs have no performance difference\" and vLLM uses the second ( §4.1, footnote 1 ).",
+  "label": "depth",
+  "key": "a footnote adds that a block can hold",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "the idea: page the kv cache like virtual memory",
+  "text": "What paging buys: small blocks allocated on demand remove reservation and bound internal fragmentation; one fixed block size eliminates external fragmentation ; and blocks can be shared between sequences, within a request or even across requests ( §1 ).",
+  "label": "core",
+  "key": "what paging buys: small blocks allocated on demand",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "The KV cache manager and the block table §4.2 to §4.3, Figures 6 and 7 A request's cache is a list of logical KV blocks , filled left to right, the last block's empty slots kept for future tokens.",
+  "label": "core",
+  "key": "the kv cache manager and the block table",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "On each GPU worker a block engine takes one contiguous chunk of GPU memory and cuts it into physical KV blocks (the same on CPU memory, for swapping).",
+  "label": "core",
+  "key": "on each gpu worker a block engine takes",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "The block manager keeps a block table per request: for each logical block, its physical block and the number of filled positions, exactly like a page table ( §4.2 ).",
+  "label": "core",
+  "key": "the block manager keeps a block table per",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "Below, the paper's Figure 6 walk-through (block size 4, the prompt \"Four score and seven years ago our\"), then its Figures 7, 8 and 9 on the same physical memory.",
+  "label": "core",
+  "key": "below, the paper's figure 6 walk-through (block size",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "6) Two requests (Fig.",
+  "label": "core",
+  "key": "6) two requests (fig.",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "7) Parallel sampling (Fig.",
+  "label": "core",
+  "key": "7) parallel sampling (fig.",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "8) Beam search (Fig.",
+  "label": "core",
+  "key": "8) beam search (fig.",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "9) ◀◀ ▶ Play ▶▶ Speed 0.5× 1× 2× Block numbers, words and reference counts are the paper's own (Figures 6 to 9).",
+  "label": "core",
+  "key": "9) ◀◀ ▶ play ▶▶ speed 0.5× 1×",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "Beam search shows block tables only, as Figure 9 does: each box is a block of four tokens.",
+  "label": "core",
+  "key": "beam search shows block tables only, as figure",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "The animation runs only while it is on screen, and starts paused if your system asks for reduced motion.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "animation-manners line (autoplay on screen), replaced by \"Nothing moves until you press play or step\""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "The walk-through ( §4.3 ): (1) the prefill step reserves only the blocks the 7-token prompt needs, logical blocks 0 and 1 mapped to physical blocks 7 and 1, computes the prompt's KV cache with ordinary attention and the first output token; (2) the first decoding step runs PagedAttention over blocks 7 and 1 and writes the new token's KV into the last free slot of block 1, updating its fill count; (3) the next step finds the last block full and maps a new logical block to a newly allocated physical block 3.",
+  "label": "depth",
+  "key": "the walk-through ( §4.3 ): (1) the prefill",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "Every iteration, vLLM picks the sequences to batch, allocates the blocks they newly need, concatenates all the iteration's input tokens (whole prompts for prompt-phase requests, the latest token for the others) into one sequence for the model, and the kernel reads and writes the blocks through the tables ( §4.3 ).",
+  "label": "depth",
+  "key": "every iteration, vllm picks the sequences to batch,",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "Since blocks are filled left to right and a new one is taken only when the last is full, a request's waste is at most one partly filled block , and its blocks are freed the moment it finishes ( §4.3 ).",
+  "label": "core",
+  "key": "since blocks are filled left to right and",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "the kv cache manager and the block table",
+  "text": "Larger blocks let the kernel process more positions in parallel but fragment more; that trade-off is the block-size ablation ( §7.2 , below).",
+  "label": "core",
+  "key": "larger blocks let the kernel process more positions",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "Sharing: reference counts and copy-on-write §4.4 Other decoding scenarios Parallel sampling ( Figure 8 ): both samples' logical blocks 0 and 1 map to the same physical blocks 7 and 1, so the prompt's cache is stored once.",
+  "label": "core",
+  "key": "sharing: reference counts and copy-on-write §4.4 other decoding",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "Each physical block carries a reference count (here 2).",
+  "label": "core",
+  "key": "each physical block carries a reference count (here",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "When sample A1 writes to its last logical block, vLLM sees physical block 1's count is above 1, allocates block 3, has the block engine copy block 1 into it and decrements the count to 1; when A2 then writes, block 1's count is already 1 and it writes in place.",
+  "label": "core",
+  "key": "when sample a1 writes to its last logical",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "This is copy-on-write at block granularity , as when an OS forks a process; only the prompt's last, partly filled block is ever copied ( §4.4 ).",
+  "label": "core",
+  "key": "this is copy-on-write at block granularity , as",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "Beam search shares much more and the pattern changes as decoding goes, like the process tree of repeated forks ( Figure 9 ): with beam width k = 4, all candidates share block 0 (the prompt), candidate 3 diverged at the second block, candidates 0 to 2 share three blocks.",
+  "label": "depth",
+  "key": "beam search shares much more and the pattern",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "When the next top-4 all descend from candidates 1 and 2, the blocks of candidates 0 and 3 lose their references and blocks 2, 4, 5 and 8 are freed; new blocks 9 to 12 hold the new tokens.",
+  "label": "depth",
+  "key": "when the next top-4 all descend from candidates",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "Where earlier systems would copy \"a large portion of candidate 2's KV cache\" to continue candidate 3, vLLM copies at most one block ( §4.4 ).",
+  "label": "depth",
+  "key": "where earlier systems would copy \"a large portion",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "Shared prefix ( Figure 10 ): a long system prompt (instructions and examples, Figure 10's English-to-French few-shot prompt) can be cached once by the provider in reserved physical blocks, \"as how OS handles shared library across processes\"; a request maps its first logical blocks to them, the last one marked copy-on-write, and the prompt phase then runs only on the user's own input ( §4.4 ).",
+  "label": "core",
+  "key": "shared prefix ( figure 10 ): a long",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "Mixed decoding methods : because the kernel only ever sees a list of physical block IDs per sequence, requests with different decoding methods batch together freely, \"which existing systems cannot efficiently do\" ( §4.4 ).",
+  "label": "core",
+  "key": "mixed decoding methods : because the kernel only",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "All of it is built from three primitives: fork (a new sequence from an existing one), append (a token) and free (a finished sequence) ( §5.2 ).",
+  "label": "core",
+  "key": "all of it is built from three primitives:",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "Parallel sampling with 6 outputs per prompt, OPT-13B on the Alpaca trace.",
+  "label": "core",
+  "key": "parallel sampling with 6 outputs per prompt, opt-13b",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "The six samples share the prompt's KV cache.",
+  "label": "core",
+  "key": "the six samples share the prompt's kv cache.",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "How much KV memory does sharing save?",
+  "label": "core",
+  "key": "how much kv memory does sharing save?",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "About 83%: five of six prompt copies disappear About 50% About 10% Nothing measurable 9.79% ( Figure 15 ).",
+  "label": "core",
+  "key": "about 83%: five of six prompt copies disappear",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "Only the prompt is shared, and Alpaca's prompts are short: 19.31 tokens on average against 58.45 output tokens ( Figure 11 ), so about one 16-token block per prompt, and the partly filled last block is copied anyway.",
+  "label": "core",
+  "key": "only the prompt is shared, and alpaca's prompts",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "ShareGPT's prompts are 8.4× longer and the saving rises to 16.2% to 30.5%.",
+  "label": "core",
+  "key": "sharegpt's prompts are 8.4× longer and the saving",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "sharing: reference counts and copy-on-write",
+  "text": "Beam search shares generated blocks too: 37.6% to 55.2% on Alpaca, 44.3% to 66.3% on ShareGPT ( §6.3 ).",
+  "label": "core",
+  "key": "beam search shares generated blocks too: 37.6% to",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "scheduling and preemption",
+  "text": "Scheduling and preemption §4.5 Scheduling and Preemption vLLM serves requests first come, first served , which ensures fairness and prevents starvation; when it must preempt, the latest arrivals go first ( §4.5 ).",
+  "label": "core",
+  "key": "scheduling and preemption §4.5 scheduling and preemption vllm",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "scheduling and preemption",
+  "text": "When the physical blocks run out it faces the two classic paging questions.",
+  "label": "core",
+  "key": "when the physical blocks run out it faces",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "scheduling and preemption",
+  "text": "Which blocks to evict?",
+  "label": "core",
+  "key": "which blocks to evict?",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "scheduling and preemption",
+  "text": "Since all of a sequence's blocks are read every step, eviction is all-or-nothing per sequence, and the sequences of one request (the beams of a beam search) form a sequence group that is gang-scheduled, preempted and rescheduled together, because they share memory.",
+  "label": "core",
+  "key": "since all of a sequence's blocks are read",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "scheduling and preemption",
+  "text": "How to bring them back?",
+  "label": "core",
+  "key": "how to bring them back?",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "scheduling and preemption",
+  "text": "Two ways: Swapping : copy the evicted blocks to CPU memory, managed by a CPU block allocator ( Figure 4 ).",
+  "label": "core",
+  "key": "two ways: swapping : copy the evicted blocks",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "scheduling and preemption",
+  "text": "While any sequence is swapped out, vLLM accepts no new requests; the swap space never exceeds the GPU's KV memory, so it is bounded.",
+  "label": "core",
+  "key": "while any sequence is swapped out, vllm accepts",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "scheduling and preemption",
+  "text": "Recomputation : drop the blocks and recompute them on rescheduling.",
+  "label": "core",
+  "key": "recomputation : drop the blocks and recompute them",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "scheduling and preemption",
+  "text": "This is cheaper than it sounds: the generated tokens are appended to the prompt and the whole cache is rebuilt in one prompt-phase iteration, not token by token.",
+  "label": "core",
+  "key": "this is cheaper than it sounds: the generated",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "scheduling and preemption",
+  "text": "An OS cannot do this; an LLM server can ( §4.5 , §8 ).",
+  "label": "core",
+  "key": "an os cannot do this; an llm server",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "scheduling and preemption",
+  "text": "Which is faster depends on the CPU to GPU bandwidth and the GPU's compute ( §7.3 , below).",
+  "label": "core",
+  "key": "which is faster depends on the cpu to",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "distributed execution",
+  "text": "Distributed execution §4.6 Distributed Execution Models too large for one GPU run with Megatron-LM-style tensor parallelism: linear layers split for block-wise matrix multiplies, attention split by heads, the GPUs synchronising with all-reduce in an SPMD schedule.",
+  "label": "core",
+  "key": "distributed execution §4.6 distributed execution models too large",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "distributed execution",
+  "text": "Every shard processes the same tokens and so needs the KV cache for the same positions; vLLM therefore keeps one KV cache manager in the centralised scheduler , and every worker uses the same logical-to-physical mapping while storing only its own heads' part of each block ( §4.6 ).",
+  "label": "core",
+  "key": "every shard processes the same tokens and so",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "distributed execution",
+  "text": "Each step the scheduler broadcasts the input token IDs and the block tables; the workers run the model, all-reduce among themselves without the scheduler, and send back the sampled tokens.",
+  "label": "core",
+  "key": "each step the scheduler broadcasts the input token",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "distributed execution",
+  "text": "Workers never coordinate on memory management ( §4.6 ).",
+  "label": "core",
+  "key": "workers never coordinate on memory management ( §4.6",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "implementation",
+  "text": "Implementation §5 Implementation vLLM is 8.5K lines of Python and 2K lines of C++/CUDA, with a FastAPI frontend that extends the OpenAI API (each request can set its own sampling parameters, maximum length and beam width).",
+  "label": "core",
+  "key": "implementation §5 implementation vllm is 8.5k lines of",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "implementation",
+  "text": "The scheduler and block manager are Python; models (GPT, OPT, LLaMA) use PyTorch and Hugging Face Transformers; NCCL carries tensors between GPUs ( §5 ).",
+  "label": "core",
+  "key": "the scheduler and block manager are python; models",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "implementation",
+  "text": "Three kinds of custom kernel make paging cheap ( §5.1 ): Fused reshape and block write : each layer's new KV is split into blocks, reshaped to the layout the reads want and written where the block table says, in one kernel launch.",
+  "label": "core",
+  "key": "three kinds of custom kernel make paging cheap",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "implementation",
+  "text": "Fused block read and attention : FasterTransformer's attention kernel adapted to read the cache through the block table on the fly, with one GPU warp per block for coalesced reads and support for different sequence lengths in one batch.",
+  "label": "depth",
+  "key": "fused block read and attention : fastertransformer's attention",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "implementation",
+  "text": "Fused block copy : copy-on-write copies of scattered blocks batched into one launch instead of many small cudaMemcpyAsync calls.",
+  "label": "depth",
+  "key": "fused block copy : copy-on-write copies of scattered",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "results",
+  "text": "Results §6 Evaluation Setup ( §6.1 ): OPT-13B, 66B and 175B and LLaMA-13B on Google Cloud A2 instances with A100 GPUs (Table 1: one A100-40GB, four A100s, eight A100-80GB).",
+  "label": "core",
+  "key": "results §6 evaluation setup ( §6.1 ): opt-13b,",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "results",
+  "text": "Workloads are synthesised from the input and output lengths of ShareGPT (user-shared ChatGPT conversations) and Alpaca (GPT-3.5 self-instruct data); ShareGPT's prompts are 8.4× longer and its outputs 5.8× longer on average, with more variance ( Figure 11 ).",
+  "label": "depth",
+  "key": "workloads are synthesised from the input and output",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "results",
+  "text": "Arrival times are Poisson at a chosen request rate, since the datasets have no timestamps.",
+  "label": "depth",
+  "key": "arrival times are poisson at a chosen request",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "results",
+  "text": "Baselines: FasterTransformer with a custom dynamic batching scheduler (batch size as large as memory allows), and Orca , which is not public, so the authors implemented their own , with a buddy allocator, in three versions: Oracle (knows the true output lengths, \"infeasible to achieve in practice\"), Pow2 (over-reserves outputs up to 2×, 25 becomes 32) and Max (always reserves the 2,048-token maximum).",
+  "label": "depth",
+  "key": "baselines: fastertransformer with a custom dynamic batching scheduler",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "results",
+  "text": "The metric is normalized latency (the mean of each request's end-to-end latency divided by its output length, as in Orca) against request rate, over 1-hour traces (15 minutes for OPT-175B, for cost).",
+  "label": "depth",
+  "key": "the metric is normalized latency (the mean of",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "results",
+  "text": "Basic sampling ( Figure 12 , §6.2 ): each curve is flat until the rate passes the system's capacity, then latency explodes as the queue grows without bound.",
+  "label": "core",
+  "key": "basic sampling ( figure 12 , §6.2 ):",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "results",
+  "text": "On ShareGPT vLLM sustains \"1.7× to 2.7×\" the request rate of Orca (Oracle) and \"2.7× to 8×\" that of Orca (Max) at similar latency, and up to 22× FasterTransformer's.",
+  "label": "core",
+  "key": "on sharegpt vllm sustains \"1.7× to 2.7×\" the",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "results",
+  "text": "The reason is the batch: on OPT-13B vLLM runs 2.2× as many requests at once as Orca (Oracle) and 4.3× as many as Orca (Max) ( Figure 13 ; 30.42 / 13.62 = , 30.42 / 7.00 = ).",
+  "label": "core",
+  "key": "the reason is the batch: on opt-13b vllm",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "results",
+  "text": "Alpaca follows the same trend except OPT-175B, where 264 GB of KV memory and short sequences let even the Orca baselines batch a lot, and serving becomes compute-bound rather than memory-bound.",
+  "label": "core",
+  "key": "alpaca follows the same trend except opt-175b, where",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "results",
+  "text": "The abstract and §1 add that the improvement \"is more pronounced with longer sequences, larger models, and more complex decoding algorithms\": true for longer sequences (ShareGPT over Alpaca) and for decoding (below), but not monotone in model size, since read off Figure 12 the lead over Orca (Oracle) on ShareGPT is largest at 66B and smallest at 175B.",
+  "label": "core",
+  "key": "\"is more pronounced with longer sequences, larger models,",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "results",
+  "text": "The curves, rebuilt reads every ratio off the paper's figures.",
+  "label": "core",
+  "key": "the curves, rebuilt reads every ratio off the",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "results",
+  "text": "Parallel sampling and beam search ( Figure 14 , §6.3 ): the more sequences per request, the larger vLLM's lead; over Orca (Oracle) on OPT-13B and Alpaca it grows from 1.3× in basic sampling to 2.3× in beam search with width 6.",
+  "label": "core",
+  "key": "parallel sampling and beam search ( figure 14",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "results",
+  "text": "Memory saved by sharing, \"the number of blocks we saved by sharing divided by the number of total blocks without sharing\": 6.1% to 9.8% (parallel sampling) and 37.6% to 55.2% (beam search) on Alpaca, 16.2% to 30.5% and 44.3% to 66.3% on ShareGPT ( Figure 15 ).",
+  "label": "core",
+  "key": "memory saved by sharing, \"the number of blocks",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "results",
+  "text": "Shared prefix ( §6.4 ): LLaMA-13B translating WMT16 English to German with a shared instruction-and-examples prefix: 1.67× Orca (Oracle)'s throughput with a 1-shot prefix (80 tokens) and 3.58× with 5 shots (341 tokens) ( Figure 16 ).",
+  "label": "core",
+  "key": "shared prefix ( §6.4 ): llama-13b translating wmt16",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "results",
+  "text": "Chatbot ( §6.5 ): OPT-13B answering ShareGPT conversation histories cut to the last 1,024 tokens, with at most 1,024 generated, and no KV cache kept between rounds: vLLM sustains \"2× higher request rates\" than all three Orca baselines, which behave alike because the buddy allocator makes each of them reserve 1,024 output slots regardless of its length prediction ( Figure 17 ).",
+  "label": "core",
+  "key": "chatbot ( §6.5 ): opt-13b answering sharegpt conversation",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "ablations",
+  "text": "Ablations §7 Ablation Studies Kernel overhead ( §7.1 ): reading the block table, extra branches and variable lengths make vLLM's attention kernel \"20 to 26%\" slower than FasterTransformer's in isolation ( Figure 18a ).",
+  "label": "core",
+  "key": "ablations §7 ablation studies kernel overhead ( §7.1",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "ablations",
+  "text": "The paper calls it small because only attention pays it, not the linear layers, and end to end vLLM wins anyway.",
+  "label": "core",
+  "key": "the paper calls it small because only attention",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "ablations",
+  "text": "Read off the figure, the overhead is 19% to 26% at batch size 32 but 25% to 44% at batch size 8 ( Kernel overhead, rebuilt ).",
+  "label": "core",
+  "key": "read off the figure, the overhead is 19%",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "ablations",
+  "text": "Block size: bigger blocks let the kernel process more positions in parallel; smaller ones waste less memory.",
+  "label": "core",
+  "key": "block size: bigger blocks let the kernel process",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "ablations",
+  "text": "On the Alpaca trace (short sequences), which block size gives the lowest end-to-end latency?",
+  "label": "core",
+  "key": "on the alpaca trace (short sequences), which block",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "ablations",
+  "text": "1 token: no waste at all 16 or 32 tokens 128 tokens 256 tokens: the most parallel 16 and 32 ( Figure 18b , §7.2 ).",
+  "label": "core",
+  "key": "1 token: no waste at all 16 or",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "ablations",
+  "text": "Below 8 the kernel cannot use the GPU's parallelism; on Alpaca, larger blocks \"significantly degrade the performance since the sequences become shorter than the block sizes\".",
+  "label": "core",
+  "key": "below 8 the kernel cannot use the gpu's",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "ablations",
+  "text": "On ShareGPT, with longer sequences, 16 to 128 are all best. vLLM's default is 16, \"large enough to efficiently utilize the GPU and small enough to avoid significant internal fragmentation in most workloads\", and it still is (DEFAULT_BLOCK_SIZE = 16 in vLLM's cache config today ).",
+  "label": "core",
+  "key": "on sharegpt, with longer sequences, 16 to 128",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "ablations",
+  "text": "The right panel is the memory side of the trade-off from this page's simulator: the share of KV memory holding tokens, and the batch it allows, by block size.",
+  "label": "core",
+  "key": "the right panel is the memory side of",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "ablations",
+  "text": "Recomputation against swapping ( Figure 19 , §7.3 ): swapping many small blocks means many small CPU to GPU transfers, which throttles the effective PCIe bandwidth, so swapping is slow at small block sizes; recomputation does not touch the blocks and costs the same at every size.",
+  "label": "core",
+  "key": "recomputation against swapping ( figure 19 , §7.3",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "ablations",
+  "text": "Recomputation wins for small blocks, swapping for large ones, and from 16 to 64 the two perform alike end to end.",
+  "label": "core",
+  "key": "recomputation wins for small blocks, swapping for large",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "ablations",
+  "text": "The paper's phrasing, \"recomputation overhead is never higher than 20% of swapping's latency\", cannot mean what it says: at block size 256 recomputation takes 39.1 ms against swapping's 33.4 ms, 117% of it.",
+  "label": "core",
+  "key": "the paper's phrasing, \"recomputation overhead is never higher",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "ablations",
+  "text": "It holds read as \"never more than 20% slower than swapping\" (17% at most in the figure).",
+  "label": "core",
+  "key": "it holds read as \"never more than 20%",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "where paging does not help, and what is llm-specific",
+  "text": "Where paging does not help, and what is LLM-specific §8 Discussion, §9 Related work The authors are explicit about the limits ( §8 ): paging pays off here because the workload allocates memory dynamically (output length unknown) and its performance is bound by GPU memory capacity.",
+  "label": "core",
+  "key": "where paging does not help, and what is",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "where paging does not help, and what is llm-specific",
+  "text": "In DNN training tensor shapes are static and allocation can be planned ahead; serving non-LLM DNNs is mostly compute-bound, so better memory efficiency may buy nothing; in such cases the indirection and non-contiguous blocks \"may rather degrade the performance\".",
+  "label": "core",
+  "key": "in dnn training tensor shapes are static and",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "where paging does not help, and what is llm-specific",
+  "text": "What vLLM adds to the OS idea is application knowledge: all-or-nothing eviction (a request needs all its tokens resident), recomputation as a recovery path (impossible for an OS), and fused kernels that hide the indirection ( §8 ).",
+  "label": "core",
+  "key": "what vllm adds to the os idea is",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "where paging does not help, and what is llm-specific",
+  "text": "Related work ( §9 ): general serving systems (Clipper, TensorFlow Serving, Nexus, InferLine, Clockwork; DVABatch, REEF, Shepherd, AlpaServe) ignore the autoregressive token state; Transformer-specific systems use kernel optimisations, advanced batching, model parallelism and parameter sharing, with Orca the closest.",
+  "label": "depth",
+  "key": "related work ( §9 ): general serving systems",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "where paging does not help, and what is llm-specific",
+  "text": "Swapping and recomputation were used before to cut training memory; FlexGen swaps weights and token states for offline inference on small GPUs, not online serving; OLLA optimises tensor lifetimes and placement but not at block level; FlashAttention tiles attention to cut its peak memory and IO.",
+  "label": "depth",
+  "key": "swapping and recomputation were used before to cut",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "where paging does not help, and what is llm-specific",
+  "text": "Block-level memory management for online serving is the paper's new idea.",
+  "label": "depth",
+  "key": "block-level memory management for online serving is the",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "How much of this to believe What holds up.",
+  "label": "core",
+  "key": "how much of this to believe what holds",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "It is arithmetic anyone can redo: 800 KiB per token, 15.7K slots in 12 GB and 60.1K for OPT-175B recompute exactly from the OPT configurations ( Table 1, rebuilt ).",
+  "label": "core",
+  "key": "it is arithmetic anyone can redo: 800 kib",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "This page's simulator, given only Table 1's memory, the paper's own length distributions (Figure 11) and the allocation rules of §6.1, independently lands near Figure 2 and Figure 13 on ShareGPT: Orca (Max) batches exactly 7 requests and leaves 8.9% of memory free, and vLLM keeps about 96% of memory holding tokens ( Simulate the KV cache ).",
+  "label": "core",
+  "key": "this page's simulator, given only table 1's memory,",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "The simulator, with the authors' released benchmark rule (every sample runs to the trace's output length), gives 6.2%, 9.2% and 9.9% for 2, 4 and 6 parallel samples on Alpaca against the paper's 6.09%, 8.53% and 9.79%.",
+  "label": "core",
+  "key": "the simulator, with the authors' released benchmark rule",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "The mechanism has been reimplemented and adopted across the industry (Hugging Face TGI, NVIDIA TensorRT-LLM, DeepSpeed-FastGen, SGLang; see Then and now ), which is the strongest evidence that the memory win is real.",
+  "label": "core",
+  "key": "the mechanism has been reimplemented and adopted across",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "Fair statements of weakness.",
+  "label": "core",
+  "key": "fair statements of weakness.",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "The paper reports its own kernel overhead, names the setup where it gains little (OPT-175B on Alpaca, compute-bound) and says where paging would hurt (§8).",
+  "label": "core",
+  "key": "the paper reports its own kernel overhead, names",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "That counts in its favour.",
+  "label": "core",
+  "key": "that counts in its favour.",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "The strongest baseline is the authors' own code.",
+  "label": "core",
+  "key": "the strongest baseline is the authors' own code.",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "Orca was not public, so all three Orca variants are reimplementations, and \"we assume Orca uses the buddy allocation algorithm\" ( §6.1 ).",
+  "label": "core",
+  "key": "orca was not public, so all three orca",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "The buddy allocator's power-of-two rounding is a large part of the measured waste (36.6% \"external fragmentation and others\" for Oracle), so the baseline's waste is partly a modelling choice.",
+  "label": "core",
+  "key": "the buddy allocator's power-of-two rounding is a large",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "FasterTransformer, likewise, ran under a scheduler the authors wrote.",
+  "label": "core",
+  "key": "fastertransformer, likewise, ran under a scheduler the authors",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "Single runs, no error bars.",
+  "label": "core",
+  "key": "single runs, no error bars.",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "Every curve in Figures 12, 14, 16 and 17 is one run of one synthetic trace per rate (15 minutes for OPT-175B); no seeds or spreads are reported.",
+  "label": "core",
+  "key": "every curve in figures 12, 14, 16 and",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "The multiples depend on how they are read. \"Sustains N× higher request rates at similar latency\" has no stated latency threshold.",
+  "label": "core",
+  "key": "the multiples depend on how they are read.",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "Reading the curves from the paper's vector graphics at 0.5 s/token, vLLM over Orca (Oracle) on ShareGPT is 1.75×, 2.33× and 1.47× for 13B, 66B and 175B: the 175B panel falls below the stated \"1.7× to 2.7×\" at every threshold from 0.2 to 0.9 s/token.",
+  "label": "core",
+  "key": "reading the curves from the paper's vector graphics",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "The chatbot's \"2×\" reads as about 1.4× to 1.7× ( The curves, rebuilt ).",
+  "label": "core",
+  "key": "the chatbot's \"2×\" reads as about 1.4× to",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "The shared-prefix 1.67× and 3.58× and the beam-search 2.3× do reproduce.",
+  "label": "core",
+  "key": "the shared-prefix 1.67× and 3.58× and the beam-search",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "Alpaca's batch is not purely memory-bound.",
+  "label": "depth",
+  "key": "alpaca's batch is not purely memory-bound.",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "The simulator's memory-limited vLLM batch on Alpaca is about 177 requests against Figure 13's 132.44, while Orca (Oracle) matches (72.6 against 72.75).",
+  "label": "depth",
+  "key": "the simulator's memory-limited vllm batch on alpaca is",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "At 30 requests/s vLLM is close to its capacity knee (Figure 12d), so its batch is likely set by arrivals, not memory; the 1.8× batch ratio there reflects the offered load, not the memory limit.",
+  "label": "depth",
+  "key": "at 30 requests/s vllm is close to its",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "Paper and released code differ in places. §4.3 says each iteration concatenates prompt-phase and decode-phase tokens; the released scheduler did so in v0.1.0 (June 2023), but from v0.1.3 (2 August 2023) through v0.1.7 (11 September 2023, the day before the arXiv posting) a step with new prompts ran the prompts only.",
+  "label": "depth",
+  "key": "paper and released code differ in places. §4.3",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "Not stated in the paper: the released defaults capped a step at 2,560 tokens and 256 sequences and kept 1% of blocks free as a watermark ( v0.1.7 arguments , block manager ).",
+  "label": "depth",
+  "key": "not stated in the paper: the released defaults",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "Two sentences do not match their figures : the kernel overhead is \"20 to 26%\" only at batch size 32 (25% to 44% at batch 8), and the recomputation sentence above.",
+  "label": "core",
+  "key": "two sentences do not match their figures :",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "Verdict: believe the mechanism and the memory numbers; they reproduce from first principles and the whole industry adopted the design.",
+  "label": "core",
+  "key": "verdict: believe the mechanism and the memory numbers;",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "how much of this to believe",
+  "text": "Treat \"2 to 4×\" as the top of a range measured against a baseline the authors built: the gain over an ideal contiguous allocator is real, about 1.5 to 2.4× on ShareGPT-like traffic, and shrinks toward 1× when memory is not the bottleneck.",
+  "label": "core",
+  "key": "treat \"2 to 4×\" as the top of",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "what it takes to use this",
+  "text": "What it takes to use this Code and licence : vllm-project/vllm , Apache-2.0, about 93,000 GitHub stars on 3 October 2026; installed with pip install vllm (latest 0.30.0 on PyPI , 22 September 2026, Python 3.10 to 3.14).",
+  "label": "core",
+  "key": "what it takes to use this code and",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "what it takes to use this",
+  "text": "Everything in the paper is released; the paper-era engine (V0) has since been replaced (see Then and now ).",
+  "label": "core",
+  "key": "everything in the paper is released; the paper-era",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "what it takes to use this",
+  "text": "Hardware : NVIDIA, AMD and Intel GPUs and x86, ARM and PowerPC CPUs, plus plugins for TPUs, Gaudi, Ascend and others ( README ).",
+  "label": "volatile",
+  "key": ": nvidia, amd and intel gpus and x86,",
+  "where": "",
+  "note": "dated closed block \"vLLM since the paper\" (sources read 3 October 2026)"
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "what it takes to use this",
+  "text": "The paper's own results are A100s; a single A100-40GB serves OPT-13B with 12 GB of cache.",
+  "label": "core",
+  "key": "the paper's own results are a100s; a single",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "what it takes to use this",
+  "text": "Settings that matter : block size (16 is still the default), the fraction of GPU memory given to the cache, and the per-step token and sequence limits; paging needs no model changes.",
+  "label": "core",
+  "key": "settings that matter : block size (16 is",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "what it takes to use this",
+  "text": "When it pays off : many concurrent requests, long or unpredictable outputs, parallel sampling, beam search or shared prefixes, and memory-bound decoding.",
+  "label": "core",
+  "key": "when it pays off : many concurrent requests,",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "what it takes to use this",
+  "text": "When it buys little : short sequences on a server with memory to spare (OPT-175B on Alpaca, where the Orca baselines nearly matched it), a single user who needs latency rather than throughput, or workloads with static shapes such as training ( §8 ).",
+  "label": "core",
+  "key": "when it buys little : short sequences on",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "why it matters (beyond the paper)",
+  "text": "Why it matters (beyond the paper) This is the paper that made high-throughput LLM serving an open-source commodity, and it did it by importing operating-system ideas from the 1960s (paging, copy-on-write, swapping) rather than new mathematics.",
+  "label": "core",
+  "key": "why it matters (beyond the paper) this is",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "why it matters (beyond the paper)",
+  "text": "The paged KV cache became the standard layout: Hugging Face TGI's PagedAttention \"leverages the custom cuda kernels developed by the vLLM Project\", TensorRT-LLM enables a paged KV cache (8 to 128 tokens per block) by default, DeepSpeed-FastGen credits vLLM for \"blocked KV caching\", and SGLang's RadixAttention stores its prefix-cache tensors \"in a non-contiguous, paged layout, where the size of each page is equivalent to one token\".",
+  "label": "core",
+  "key": "the paged kv cache became the standard layout:",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "why it matters (beyond the paper)",
+  "text": "Continuous batching with a paged cache became the baseline later serving papers measure against: Sarathi-Serve , for one, reports its gains \"as compared to vLLM\".",
+  "label": "core",
+  "key": "continuous batching with a paged cache became the",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "why it matters (beyond the paper)",
+  "text": "Later work refined rather than replaced it. vAttention (2024) keeps the cache contiguous in virtual memory with CUDA's virtual memory APIs and reports up to 1.23× over paged kernels, measuring that paged prefill kernels run up to 37% (FlashAttention-2) and 42% (FlashInfer) slower than their non-paged versions.",
+  "label": "core",
+  "key": "later work refined rather than replaced it. vattention",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "why it matters (beyond the paper)",
+  "text": "Sarathi-Serve's chunked prefill and DistServe's disaggregated prefill and decode attacked the prefill-decode interference that step-level scheduling leaves open.",
+  "label": "core",
+  "key": "sarathi-serve's chunked prefill and distserve's disaggregated prefill and",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "why it matters (beyond the paper)",
+  "text": "Multi-head latent attention (DeepSeek) shrinks the cache from the model side. vLLM itself became the reference open engine.",
+  "label": "core",
+  "key": "multi-head latent attention (deepseek) shrinks the cache from",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "why it matters (beyond the paper)",
+  "text": "It added automatic prefix caching, chunked prefill, speculative decoding, quantisation including a quantised KV cache , structured (guided) outputs, disaggregated serving and backends well beyond NVIDIA GPUs ( README ).",
+  "label": "volatile",
+  "key": "it added automatic prefix caching, chunked prefill, speculative",
+  "where": "",
+  "note": "dated closed block \"vLLM since the paper\" (sources read 3 October 2026)"
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "why it matters (beyond the paper)",
+  "text": "The V1 engine (alpha January 2025, default from v0.8.0 in March 2025, the only engine from v0.11.0 in October 2025) rebuilt the scheduler around a per-request token budget that treats prefill and decode alike, made hash-based prefix caching nearly free, isolated the scheduler and executor in an EngineCore process, and delivered up to 1.7× the throughput of V0. vLLM became a PyTorch Foundation-hosted project on 7 May 2025, and llm-d (Red Hat with founding contributors CoreWeave, Google Cloud, IBM Research and NVIDIA) is \"powered by a native Kubernetes architecture, vLLM-based distributed inference\".",
+  "label": "volatile",
+  "key": "the v1 engine (alpha january 2025, default from",
+  "where": "",
+  "note": "dated closed block \"vLLM since the paper\" (sources read 3 October 2026)"
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "why it matters (beyond the paper)",
+  "text": "It is also a standard rollout engine for reinforcement-learning post-training: verl integrates vLLM and SGLang, TRL documents a vLLM integration and OpenRLHF is built on \"Ray + vLLM\", so this memory model now sits inside training pipelines too.",
+  "label": "volatile",
+  "key": "it is also a standard rollout engine for",
+  "where": "",
+  "note": "dated closed block \"vLLM since the paper\" (sources read 3 October 2026)"
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "why it matters (beyond the paper)",
+  "text": "For anyone reading vLLM's code today, the block manager, scheduler and paged kernels descend directly from §4.2 to §4.5, and this paper is still the right mental model of the core.",
+  "label": "volatile",
+  "key": "for anyone reading vllm's code today, the block",
+  "where": "",
+  "note": "dated closed block \"vLLM since the paper\" (sources read 3 October 2026)"
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "connections",
+  "text": "Connections Attention Is All You Need : the KV cache being paged is the per-token key and value state of its self-attention.",
+  "label": "core",
+  "key": "connections attention is all you need : the",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "connections",
+  "text": "FlashAttention : the complementary attention-systems paper.",
+  "label": "core",
+  "key": "flashattention : the complementary attention-systems paper.",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "connections",
+  "text": "FlashAttention optimises compute and IO inside the kernel, PagedAttention where the KV operands live across requests; engines use both (vLLM V1 integrated FlashAttention 3, and the paper's prefill step uses FlashAttention-style attention, §4.3 ).",
+  "label": "core",
+  "key": "flashattention optimises compute and io inside the kernel,",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "connections",
+  "text": "Megatron-LM : vLLM's distributed execution is Megatron-style tensor parallelism with the KV manager centralised above it.",
+  "label": "core",
+  "key": "megatron-lm : vllm's distributed execution is megatron-style tensor",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "connections",
+  "text": "DeepSeek-V3 : multi-head latent attention shrinks the KV cache at the architecture level, the model-side attack on the same bottleneck; serving it needed new paged kernels (vLLM ships FlashMLA, per its README ).",
+  "label": "core",
+  "key": "deepseek-v3 : multi-head latent attention shrinks the kv",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "connections",
+  "text": "DeepSeek-R1 : reinforcement-learning post-training depends on vLLM-class engines for fast rollout generation.",
+  "label": "core",
+  "key": "deepseek-r1 : reinforcement-learning post-training depends on vllm-class engines",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "connections",
+  "text": "Topics: inference-and-serving (continuous batching, PagedAttention and KV caching are named scope items), cuda-and-gpu-programming (the fused paged-attention kernels), swe-and-system-design (a model systems paper: operating-system abstractions applied to a new resource).",
+  "label": "core",
+  "key": "topics: inference-and-serving (continuous batching, pagedattention and kv caching",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "Simulate the KV cache The same eight requests served from the same KV cache memory by the four systems of the paper's evaluation ( §6.1 ): Orca (Max) reserves the maximum length for every request, Orca (Pow2) reserves prompt plus the output rounded up to a power of two, Orca (Oracle) knows each true output length, and all three take contiguous chunks from a buddy allocator. vLLM takes 4-slot blocks on demand.",
+  "label": "core",
+  "key": "simulate the kv cache the same eight requests",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "Every step every running request adds one token, as in iteration-level scheduling ( §2.3 ), and a new request is admitted, first come first served, as soon as its memory can be found.",
+  "label": "core",
+  "key": "every step every running request adds one token,",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "Memory is drawn to scale: one square per token slot.",
+  "label": "core",
+  "key": "memory is drawn to scale: one square per",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "Try: play Orca (Max) first: two requests run at a time and most of each chunk is red: slots reserved for a maximum length the request never reaches.",
+  "label": "core",
+  "key": "try: play orca (max) first: two requests run",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "Switch to Orca (Oracle): no red, but the light reserved slots and the grey rounding of the buddy allocator still block other requests.",
+  "label": "core",
+  "key": "switch to orca (oracle): no red, but the",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "Then vLLM: almost every slot holds a token, up to seven requests run at once, and the eight finish in about half the steps.",
+  "label": "core",
+  "key": "then vllm: almost every slot holds a token,",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "Watch for a preemption: when blocks run out, vLLM evicts the latest request and recomputes it later ( §4.5 ).",
+  "label": "core",
+  "key": "watch for a preemption: when blocks run out,",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "Orca (Max) Orca (Pow2) Orca (Oracle) vLLM ◀◀ ▶ Play ▶▶ Speed 0.5× 1× 2× 4× Toy sizes, chosen so the whole memory fits on screen: 64 token slots, a maximum sequence length of 32, vLLM blocks of 4 (the paper's figures use 4 too; vLLM's default is 16).",
+  "label": "core",
+  "key": "orca (max) orca (pow2) orca (oracle) vllm ◀◀",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "The eight requests (prompt + output tokens) are illustrative: A 7 + 6, B 3 + 9, C 12 + 4, D 5 + 14, E 9 + 3, F 4 + 8, G 10 + 7, H 6 + 5.",
+  "label": "core",
+  "key": "the eight requests (prompt + output tokens) are",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "The simulator is the same code that runs at the paper's scale below; see src/sim.py for every rule.",
+  "label": "core",
+  "key": "the simulator is the same code that runs",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "The animation runs only while it is on screen and starts paused if your system asks for reduced motion.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "the same line on the simulator tab, replaced likewise"
+ },
+ {
+  "id": 205,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "At the paper's scale The same simulator at the size of the paper's OPT-13B server: 12 GB of KV cache at 800 KB per token, 15,728 slots ( Table 1 ), with requests whose prompt and output lengths are drawn from the paper's own ShareGPT or Alpaca histograms ( Figure 11 , read from its vector graphics) and filtered as the authors' released benchmark does.",
+  "label": "core",
+  "key": "at the paper's scale the same simulator at",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "The queue never empties, as in Figure 13 , where every system is past its capacity.",
+  "label": "core",
+  "key": "the queue never empties, as in figure 13",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "Each system runs 6,000 steps; the averages skip the first 1,500.",
+  "label": "core",
+  "key": "each system runs 6,000 steps; the averages skip",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "Trace ShareGPT (Figure 2, Figure 13a) Alpaca (Figure 13b) vLLM block size 1 4 8 16 (default) 32 64 128 256 Samples per request (parallel sampling) 1 (basic sampling) 2 4 6 New random requests seed 1 What the simulator leaves out, so read its batch sizes as memory limits: time (it counts steps, not seconds; prefill, recomputation and the kernel cost nothing), arrivals (the queue is always full, so a system whose real batch is set by the arrival rate, as vLLM's probably is on Alpaca at 30 requests/s, comes out larger here), the pairing of prompt and output lengths in the real traces (drawn independently here), swapping (preemption is by recomputation, the released default for single sequences), and anything Orca's real implementation did that the paper's reimplementation did not.",
+  "label": "core",
+  "key": "trace sharegpt (figure 2, figure 13a) alpaca (figure",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-run",
+  "section": "simulate the kv cache",
+  "text": "Limits it keeps from the released vLLM v0.1.0 code, not stated in the paper: 2,560 tokens and 256 sequences per step, and 1% of blocks kept free.",
+  "label": "core",
+  "key": "limits it keeps from the released vllm v0.1.0",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-tables",
+  "section": "the paper's figures, rebuilt",
+  "text": "The paper's figures, rebuilt The paper has one table; its evidence is in its figures.",
+  "label": "core",
+  "key": "the paper's figures, rebuilt the paper has one",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-tables",
+  "section": "the paper's figures, rebuilt",
+  "text": "The arXiv HTML ships them as vector graphics, so every line and bar here is read from the plotted paths, calibrated on each panel's own tick marks (worst tick residual below 0.001 of a unit; see src/extract_figs.py ), not by eye.",
+  "label": "core",
+  "key": "the arxiv html ships them as vector graphics,",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-tables",
+  "section": "the paper's figures, rebuilt",
+  "text": "Printed labels are transcribed.",
+  "label": "core",
+  "key": "printed labels are transcribed.",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-tables",
+  "section": "the paper's figures, rebuilt",
+  "text": "Every derived number is recomputed in src/recompute.py .",
+  "label": "core",
+  "key": "every derived number is recomputed in src/recompute.py .",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-tables",
+  "section": "the paper's figures, rebuilt",
+  "text": "Throughput curves: how much higher a request rate at the same latency?",
+  "label": "core",
+  "key": "throughput curves: how much higher a request rate",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-tables",
+  "section": "the paper's figures, rebuilt",
+  "text": "The paper's throughput claims are read off curves of normalized latency against request rate: a system \"sustains\" a rate until its curve turns up.",
+  "label": "core",
+  "key": "the paper's throughput claims are read off curves",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-tables",
+  "section": "the paper's figures, rebuilt",
+  "text": "The paper does not say at which latency it compares.",
+  "label": "core",
+  "key": "the paper does not say at which latency",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-tables",
+  "section": "the paper's figures, rebuilt",
+  "text": "Here you choose: the table gives the rate at which each curve first crosses your threshold (linear between the plotted points) and vLLM's ratio to each baseline, beside what the text claims.",
+  "label": "core",
+  "key": "here you choose: the table gives the rate",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-tables",
+  "section": "the paper's figures, rebuilt",
+  "text": "Figure Figure 12, ShareGPT (basic sampling) Figure 12, Alpaca (basic sampling) Figure 14, parallel sampling (OPT-13B, Alpaca) Figure 14, beam search (OPT-13B, Alpaca) Figure 16, shared prefix (LLaMA-13B) Figure 17, chatbot (OPT-13B) Latency threshold = 0.5 s/token Table 1, rebuilt Model sizes and server configurations ( Table 1 ), with the token slots recomputed from the KV cache memory and the KV size per token, 2 × hidden size × layers × 2 bytes, from the OPT configurations (13B: 5,120 × 40; 66B: 9,216 × 64; 175B: 12,288 × 96), reading GB as GiB.",
+  "label": "core",
+  "key": "figure figure 12, sharegpt (basic sampling) figure 12,",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-tables",
+  "section": "the paper's figures, rebuilt",
+  "text": "The bar charts: batch sizes and sharing The ablations The workloads: Figure 11's length distributions The input to the simulator.",
+  "label": "core",
+  "key": "the bar charts: batch sizes and sharing the",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-tables",
+  "section": "the paper's figures, rebuilt",
+  "text": "Histograms of prompt and output lengths, read bar by bar from the vector graphics; the means recomputed from the bars (bin midpoints) agree with the printed means to within a quarter of a token.",
+  "label": "core",
+  "key": "histograms of prompt and output lengths, read bar",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-tables",
+  "section": "the paper's figures, rebuilt",
+  "text": "Every number in the text, checked",
+  "label": "core",
+  "key": "every number in the text, checked",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "Then and now What came before the paper, what it changed, and what has become of its design three years on.",
+  "label": "core",
+  "key": "then and now what came before the paper,",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "Each step has its source; dated facts were checked on 3 October 2026.",
+  "label": "core",
+  "key": "each step has its source; dated facts were",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "2022: Orca, iteration-level scheduling Orca (Yu et al., OSDI 2022) schedules at the granularity of one iteration, so finished requests leave and new ones join every step.",
+  "label": "core",
+  "key": "2022: orca, iteration-level scheduling orca (yu et al.,",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "It still stores each request's KV cache contiguously, sized for its maximum length.",
+  "label": "core",
+  "key": "it still stores each request's kv cache contiguously,",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "The paper's strongest baseline is a reimplementation of it ( §6.1 ).",
+  "label": "core",
+  "key": "the paper's strongest baseline is a reimplementation of",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "June 2023: vLLM released The announcement reports up to 24× the throughput of Hugging Face Transformers and up to 3.5× that of Hugging Face TGI, \"a mere waste of under 4%\" of memory, and up to 55% less memory for parallel sampling and beam search, which \"can translate into up to 2.2x improvement in throughput\". vLLM had served Chatbot Arena and the Vicuna demo for two months.",
+  "label": "core",
+  "key": "june 2023: vllm released the announcement reports up",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "Version 0.1.0 reached PyPI on 20 June 2023 ( PyPI ).",
+  "label": "core",
+  "key": "version 0.1.0 reached pypi on 20 june 2023",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "September to October 2023: the paper arXiv on 12 September 2023, SOSP in Koblenz on 23 to 26 October.",
+  "label": "core",
+  "key": "september to october 2023: the paper arxiv on",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "The default block size of 16 was set here ( §7.2 ).",
+  "label": "core",
+  "key": "the default block size of 16 was set",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "2023 to 2024: everyone pages the KV cache Hugging Face TGI : \"TGI's PagedAttention implementation leverages the custom cuda kernels developed by the vLLM Project\".",
+  "label": "core",
+  "key": "2023 to 2024: everyone pages the kv cache",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "NVIDIA TensorRT-LLM : a paged KV cache with 8 to 128 tokens per block, enabled by default.",
+  "label": "core",
+  "key": "nvidia tensorrt-llm : a paged kv cache with",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "DeepSpeed-FastGen : \"blocked KV caching\", credited to vLLM.",
+  "label": "core",
+  "key": "deepspeed-fastgen : \"blocked kv caching\", credited to vllm.",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "SGLang's RadixAttention (December 2023): a radix tree of cached prefixes over a paged layout with pages of one token, so any shared prefix is reused, not only pre-declared ones.",
+  "label": "core",
+  "key": "sglang's radixattention (december 2023): a radix tree of",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "2024: what paging left open Prefill and decode interference.",
+  "label": "core",
+  "key": "2024: what paging left open prefill and decode",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "Sarathi-Serve splits prompts into chunks so decodes never stall (\"chunked prefills\"; up to 2.6× the serving capacity of vLLM on Mistral-7B); DistServe puts prefill and decode on different GPUs.",
+  "label": "core",
+  "key": "sarathi-serve splits prompts into chunks so decodes never",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "The cost of paging inside kernels. vAttention measures paged prefill kernels up to 37% (FlashAttention-2) and 42% (FlashInfer) slower than non-paged ones, and keeps the KV cache contiguous in virtual memory with CUDA's virtual memory APIs, up to 1.23× faster than paged kernels.",
+  "label": "core",
+  "key": "the cost of paging inside kernels. vattention measures",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "Multi-head latent attention ( DeepSeek ) shrinks the cache itself; vLLM now ships FlashMLA kernels for it ( README ).",
+  "label": "core",
+  "key": "multi-head latent attention ( deepseek ) shrinks the",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "2025: vLLM V1 The V1 alpha (January 2025) rebuilt the engine: a scheduler that gives each request a number of tokens per step under a fixed token budget, which makes chunked prefill, prefix caching and speculative decoding the same mechanism; \"zero-overhead\" hash-based prefix caching with LRU eviction; the scheduler and model executor in an isolated EngineCore process; FlashAttention 3 integrated; up to 1.7× the throughput of V0.",
+  "label": "core",
+  "key": "2025: vllm v1 the v1 alpha (january 2025)",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "V1 became the default in v0.8.0 (18 March 2025) and the only engine in v0.11.0 (2 October 2025). vLLM became a PyTorch Foundation-hosted project on 7 May 2025, and Red Hat launched llm-d for distributed serving on top of it with founding contributors CoreWeave, Google Cloud, IBM Research and NVIDIA.",
+  "label": "core",
+  "key": "v1 became the default in v0.8.0 (18 march",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "2026: the paper's swap path is gone v0.18.0 (20 March 2026) removed the swap_space parameter as part of retiring V0, leaving recomputation as the preemption path of §4.5; v0.19.0 (April 2026) added general CPU KV cache offloading with block-level preemption handling instead.",
+  "label": "core",
+  "key": "2026: the paper's swap path is gone v0.18.0",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "The current release is 0.30.0 (22 September 2026); the default block size is still 16 ( cache.py ).",
+  "label": "core",
+  "key": "the current release is 0.30.0 (22 september 2026);",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "What survived and what changed The paper (2023) Today Fixed-size KV blocks, block tables, allocation on demand (§4.2) Survived everywhere: vLLM, TGI, TensorRT-LLM, DeepSpeed-FastGen, SGLang. vAttention is the main dissent, keeping virtual contiguity.",
+  "label": "core",
+  "key": "what survived and what changed the paper (2023)",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "Block size 16 (§7.2) Still vLLM's default; TensorRT-LLM supports 8 to 128; SGLang pages one token at a time.",
+  "label": "core",
+  "key": "block size 16 (§7.2) still vllm's default; tensorrt-llm",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "Reference counts and copy-on-write for parallel sampling and beam search (§4.4) Survived; prefix sharing grew from provider-reserved prefixes into automatic, hash-based (vLLM) or radix-tree (SGLang) prefix caching across requests.",
+  "label": "core",
+  "key": "reference counts and copy-on-write for parallel sampling and",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "Iteration-level scheduling with prompt and decode tokens in one step (§4.3) Generalised: V1's per-request token budget, with chunked prefill splitting long prompts.",
+  "label": "core",
+  "key": "iteration-level scheduling with prompt and decode tokens in",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "Preemption by swapping or recomputation (§4.5) Recomputation remains; swap space was removed in v0.18.0; CPU offloading returned as a separate KV cache tier.",
+  "label": "core",
+  "key": "preemption by swapping or recomputation (§4.5) recomputation remains;",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "Centralised KV manager over Megatron-style tensor parallelism (§4.6) Extended to pipeline, data, expert and context parallelism and to disaggregated prefill and decode ( README ).",
+  "label": "core",
+  "key": "centralised kv manager over megatron-style tensor parallelism (§4.6)",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-then",
+  "section": "then and now",
+  "text": "A fused paged attention kernel adapted from FasterTransformer (§5.1) Replaced by FlashAttention, FlashInfer, TRTLLM-GEN, FlashMLA and Triton backends that read paged caches ( README ).",
+  "label": "core",
+  "key": "a fused paged attention kernel adapted from fastertransformer",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Every link opens in a new tab.",
+  "label": "core",
+  "key": "further reading every link opens in a new",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Reading time of the resources below: 3h 20m.",
+  "label": "core",
+  "key": "reading time of the resources below: 3h 20m.",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The paper Efficient Memory Management for Large Language Model Serving with PagedAttention (arXiv HTML v1) SOSP 2023, the paper itself; the HTML version has the anchors this page links to. abstract page , PDF .",
+  "label": "core",
+  "key": "the paper efficient memory management for large language",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min) vllm-project/vllm the authors' serving engine, now a PyTorch Foundation project, Apache-2.0 licence (repo, about 25 minutes for the README and entry path).",
+  "label": "core",
+  "key": "(45 min) vllm-project/vllm the authors' serving engine, now",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(25 min) Best resources vLLM: Easy, Fast, and Cheap LLM Serving with PagedAttention (announcement blog, June 2023) the vLLM team: the authors' own short version, with the clearest animations of block tables and copy-on-write sharing, and the up-to-24x-over-Hugging-Face headline.",
+  "label": "core",
+  "key": "(25 min) best resources vllm: easy, fast, and",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(10 min) How continuous batching enables 23x throughput in LLM inference Anyscale: the best explanation of iteration-level (continuous) batching, the Orca idea that PagedAttention composes with; benchmarks vLLM against static-batching baselines.",
+  "label": "core",
+  "key": "(10 min) how continuous batching enables 23x throughput",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(20 min) Inside vLLM: anatomy of a high-throughput LLM inference system Aleksa Gordić: a code-level walkthrough of the modern engine (scheduler, KV cache manager, paged attention kernels), the bridge from this paper to today's codebase.",
+  "label": "core",
+  "key": "(20 min) inside vllm: anatomy of a high-throughput",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min) vLLM V1: a major upgrade to vLLM's core architecture (January 2025) the vLLM team: what the project learned in a year and a half of production, and how the rebuilt V1 engine changes the scheduler and cache manager described here.",
+  "label": "core",
+  "key": "(45 min) vllm v1: a major upgrade to",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(15 min) vAttention: dynamic memory management for serving LLMs without PagedAttention Prabhu, Nayak, Mohan, Ramjee and Panwar (Microsoft Research India): the strongest critique: it measures what paging costs inside attention kernels and keeps the KV cache contiguous in virtual memory instead.",
+  "label": "core",
+  "key": "(15 min) vattention: dynamic memory management for serving",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(40 min) Connected papers in this knowledge base Attention Is All You Need (Transformer) 2017: the KV cache being paged here is the per-token key and value state of its self-attention.",
+  "label": "core",
+  "key": "(40 min) connected papers in this knowledge base",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "FlashAttention 2022: the complementary attention-systems paper; FlashAttention optimises compute and IO inside the kernel, PagedAttention where the KV operands live across requests.",
+  "label": "core",
+  "key": "flashattention 2022: the complementary attention-systems paper; flashattention optimises",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Modern engines use both (vLLM V1 integrated FlashAttention 3).",
+  "label": "core",
+  "key": "modern engines use both (vllm v1 integrated flashattention",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Megatron-LM 2019: vLLM's distributed execution uses Megatron-style tensor parallelism, with the KV cache manager centralised above it.",
+  "label": "core",
+  "key": "megatron-lm 2019: vllm's distributed execution uses megatron-style tensor",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "DeepSeek-V3 Technical Report 2024: multi-head latent attention shrinks the KV cache at the architecture level, the model-side attack on the same bottleneck; vLLM ships FlashMLA kernels for it.",
+  "label": "core",
+  "key": "deepseek-v3 technical report 2024: multi-head latent attention shrinks",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "DeepSeek-R1 2025: reinforcement-learning post-training generates rollouts with vLLM-class engines (verl, for one, integrates vLLM and SGLang).",
+  "label": "core",
+  "key": "deepseek-r1 2025: reinforcement-learning post-training generates rollouts with vllm-class",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Language Models are Few-Shot Learners (GPT-3) 2020: the 175B size of the largest model served here, and the source of Figure 10's few-shot translation prefix.",
+  "label": "core",
+  "key": "language models are few-shot learners (gpt-3) 2020: the",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "ZeRO 2019: the training-side counterpart, memory as the binding constraint and removed by not storing redundant state.",
+  "label": "core",
+  "key": "zero 2019: the training-side counterpart, memory as the",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Topics Topic: inference-and-serving primary: continuous batching, PagedAttention and KV caching are named scope items.",
+  "label": "core",
+  "key": "topics topic: inference-and-serving primary: continuous batching, pagedattention and",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Topic: cuda-and-gpu-programming the fused paged-attention, block-write and block-copy kernels.",
+  "label": "core",
+  "key": "topic: cuda-and-gpu-programming the fused paged-attention, block-write and block-copy",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Topic: swe-and-system-design a model systems paper: operating-system abstractions applied to a new resource.",
+  "label": "core",
+  "key": "topic: swe-and-system-design a model systems paper: operating-system abstractions",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "DeepSeek (lab page, multi-head latent attention) the KV-cache size attack from the model side, with the MLA animation.",
+  "label": "core",
+  "key": "deepseek (lab page, multi-head latent attention) the kv-cache",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "This page is one row of the Papers database; its properties (Paper, Takeaway, Topics, Year) live there.",
+  "label": "core",
+  "key": "this page is one row of the papers",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "light pass 2026-10-25",
+  "text": "Core sentence: KV cache in fixed-size blocks through a per-request block table, as OS paging; memory taken as tokens arrive, at most one partly filled block wasted, copy-on-write sharing; bigger batches; paper 2 to 4x, Figure 12 read 1.5 to 2.3x over Orca (Oracle) on ShareGPT.",
+  "label": "core",
+  "key": "each sequence wastes at most one partly filled block",
+  "where": "",
+  "added": true
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "light pass 2026-10-25",
+  "text": "Hero: the paper's Figures 3 and 7 (CC BY 4.0), the same two requests contiguous against paged, with what to notice.",
+  "label": "core",
+  "key": "notice where the waste goes",
+  "where": "",
+  "added": true
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "light pass 2026-10-25",
+  "text": "You need and new terms: KV block, block table, internal and external fragmentation, reference count and copy-on-write, Orca variants, normalized latency.",
+  "label": "core",
+  "key": "the authors' reimplementations of orca reserving the maximum length",
+  "where": "",
+  "added": true
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "light pass 2026-10-25",
+  "text": "Figure 2 against the simulator shown inline in its own card after the predict question.",
+  "label": "core",
+  "key": "even the oracle wastes most of its memory",
+  "where": "",
+  "added": true
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "light pass 2026-10-25",
+  "text": "Figure 15 against the simulator shown inline in its own card.",
+  "label": "core",
+  "key": "parallel sampling saves under 10% on alpaca",
+  "where": "",
+  "added": true
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "light pass 2026-10-25",
+  "text": "Figure 18b and the simulated memory side shown inline in its own card.",
+  "label": "core",
+  "key": "larger blocks leave more of each last block empty",
+  "where": "",
+  "added": true
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "light pass 2026-10-25",
+  "text": "Why a KV cache exists.",
+  "label": "owned:models_and_training/topic_llm_architecture/the_transformer_from_zero",
+  "key": "the keys and values of earlier positions, kept during generation",
+  "where": "",
+  "added": true
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "light pass 2026-10-25",
+  "text": "KV bytes per token for any model; paged-block rounding in the memory budget.",
+  "label": "owned:models_and_training/topic_llm_architecture/long_context",
+  "key": "paged-block rounding and fragmentation",
+  "where": "",
+  "added": true
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "light pass 2026-10-25",
+  "text": "Why decode is memory-bound (roofline, arithmetic intensity).",
+  "label": "owned:systems_and_performance/topic_hardware/performance_math",
+  "key": "compute-bound or memory-bound",
+  "where": "",
+  "added": true
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "light pass 2026-10-25",
+  "text": "Continuous (iteration-level) batching, paging, prefix caching, chunked prefill and preemption as they work today.",
+  "label": "owned:systems_and_performance/topic_inference_and_serving/batching_kv_cache_and_scheduling",
+  "key": "iteration-level scheduling",
+  "where": "",
+  "added": true
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "light pass 2026-10-25",
+  "text": "Tensor parallelism at serve time and multi-node serving.",
+  "label": "owned:systems_and_performance/topic_inference_and_serving/distributed_and_disaggregated_serving",
+  "key": "two all-reduces per layer for every token",
+  "where": "",
+  "added": true
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "light pass 2026-10-25",
+  "text": "vLLM today: V1 engine, recompute-only preemption, governance.",
+  "label": "owned:systems_and_performance/topic_inference_and_serving/vllm",
+  "key": "there is no swap to cpu memory in this engine",
+  "where": "",
+  "added": true
+ }
+]
