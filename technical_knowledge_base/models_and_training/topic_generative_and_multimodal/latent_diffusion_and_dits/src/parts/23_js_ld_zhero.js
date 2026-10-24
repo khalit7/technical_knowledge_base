@@ -1,6 +1,6 @@
 // ---- Hero (top of Reading): SD 1.5's three networks for one image, the denoiser's 50 passes, and where the time goes ----
 // Parameters: counted (U-Net from out/arch.json; text encoder and VAE from the root's src/data/README.md).
-// Times: the root page's Diffusion lab on Apple M1 Pro (0.610 s per guided step, 0.488 s per VAE decode); 25 steps is the topic's setting.
+// Times: the topic's diffusion runs (root Diffusion lab recordings) on Apple M1 Pro (0.610 s per guided step, 0.488 s per VAE decode); 25 steps is the topic's setting.
 (function(){
   const el=document.getElementById('ld-hero');if(!el)return;
   const U=window.LDU,L=U.L;

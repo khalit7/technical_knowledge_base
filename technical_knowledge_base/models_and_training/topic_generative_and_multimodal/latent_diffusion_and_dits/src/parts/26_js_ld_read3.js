@@ -39,7 +39,7 @@
       el.innerHTML=RD.svg(W,H,s,'SD 1.5 U-Net time per pass against image size')}
     draw();RD.onResize(draw);RD.onRender(draw);
     const a=pts[0],z=pts[pts.length-1],m=pts.find(p=>p.px===512);
-    $('ld-m1-note').innerHTML='<span style="color:var(--c1)">&#9679;</span> seconds per pass (median of 3), <span style="color:var(--c2)">- -</span> achieved TFLOP/s (counted FLOPs / time, right axis). '+pts.map(p=>p.px+': '+U.fx(p.s,3)+' s, '+U.FL(p.f)+', '+U.fx(p.tf,2)+' TFLOP/s').join('; ')+'. The pass at '+z.px+' does '+U.fx(z.f/a.f,1)+' times the FLOPs of '+a.px+' and takes '+U.fx(z.s/a.s,1)+' times as long. At 512 the batch-1 pass takes '+U.fx(m.s,3)+' s here (the Diffusion lab measured 0.319 s in its own process). <span class="meas">measured on Apple M1 Pro (MPS), float16, attention slicing</span>';
+    $('ld-m1-note').innerHTML='<span style="color:var(--c1)">&#9679;</span> seconds per pass (median of 3), <span style="color:var(--c2)">- -</span> achieved TFLOP/s (counted FLOPs / time, right axis). '+pts.map(p=>p.px+': '+U.fx(p.s,3)+' s, '+U.FL(p.f)+', '+U.fx(p.tf,2)+' TFLOP/s').join('; ')+'. The pass at '+z.px+' does '+U.fx(z.f/a.f,1)+' times the FLOPs of '+a.px+' and takes '+U.fx(z.s/a.s,1)+' times as long. At 512 the batch-1 pass takes '+U.fx(m.s,3)+' s here (the root diffusion runs measured 0.319 s in their own process). <span class="meas">measured on Apple M1 Pro (MPS), float16, attention slicing</span>';
   })();
   // ------------------------------------------------ profile summary
   (function(){
