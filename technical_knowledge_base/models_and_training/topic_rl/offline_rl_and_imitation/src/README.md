@@ -49,3 +49,5 @@ Defaults reproduce: Ross and Bagnell's T²ε bound holds and its quadratic growt
 Findings shown on the page: the CQL paper's Table 1 and D4RL's Table 2 swap CQL's hopper- and walker2d-medium-expert values (111.0 and 98.7), and CQL's walker2d-medium-expert row repeats its walker2d-mixed baselines (which is right is marked unconfirmed); IQL's note that DT and one-step papers compared against v0 CQL numbers; RvS's AntMaze "v2" table includes v0 numbers flagged by an asterisk.
 
 Unconfirmed or avoided: Ng and Russell's PDF does not extract as text, so their R = 0 degeneracy is stated from the paper's well-known §3 setup without a quote; the Nature Medicine guidelines comment is paywalled, so the page quotes Gottesman et al.'s arXiv paper instead.
+
+2026-10-24 (topic close of Topic: rl): Further reading quotes the root as "17 min, plus 2" and siblings and neighbours as their headers; ledger keys that quoted old times re-keyed.
