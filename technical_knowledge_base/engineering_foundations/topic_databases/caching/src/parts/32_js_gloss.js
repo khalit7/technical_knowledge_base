@@ -11,6 +11,8 @@
     ['g-pagecache','Page cache','the operating system\'s cache of file blocks in free RAM'],['g-bufpool','Buffer pool','the database\'s own cache of pages (shared_buffers in Postgres)'],
     ['g-aside','Cache-aside','read the cache, fill it from the database on a miss, delete the key after a write'],
     ['g-inval','Invalidation','retiring a cached copy that is no longer true'],['g-staleset','Stale set','a slow reader writing an old value into the cache after a writer invalidated it'],
+    ['g-stampede','Stampede','many requests missing the same hot key at once, each rebuilding it'],
+    ['g-cdn','CDN','a cache run for you in hundreds of cities, in front of your servers'],
     ['g-lease','Lease','a token from the cache that permits one fill, revoked by a delete'],
     ['g-remote','Remote marker','a flag that sends reads of a just-written key to the primary database'],
     ['g-evict','Eviction policy','the rule for choosing what to drop when the cache is full'],
@@ -29,4 +31,7 @@
   el.innerHTML=G.filter(g=>document.getElementById(g[0])).map(g=>'<div><b><a href="#'+g[0]+'">'+g[1]+'</a></b>: '+g[2]+'.</div>').join('');
   const missing=G.filter(g=>!document.getElementById(g[0])).map(g=>g[0]);
   if(missing.length&&window.__jsErr)window.__jsErr('glossary terms without a definition: '+missing.join(', '));
+  // a link to a term or section inside a closed details block opens that block first
+  document.getElementById('t-read').addEventListener('click',e=>{const a=e.target.closest('a[href^="#"]');if(!a)return;
+    const t=document.getElementById(a.getAttribute('href').slice(1));if(!t)return;for(let d=t.closest('details');d;d=d.parentElement.closest('details'))d.open=true});
 })();

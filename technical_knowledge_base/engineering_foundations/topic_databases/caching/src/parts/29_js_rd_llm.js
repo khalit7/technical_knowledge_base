@@ -33,20 +33,11 @@
       g+='<path d="'+d1+'" fill="none" stroke="var(--bad)" stroke-width="2"/><path d="'+d2+'" fill="none" stroke="var(--good)" stroke-width="2.4"/>';
       g+=RD.t(xs(K)-4,ys(plain(K))+14,'no cache',{a:'end',fs:11,fill:'var(--bad)'})+RD.t(xs(K)-4,ys(cost(K))-6,below?'not cacheable':'with cache',{a:'end',fs:11,fill:'var(--good)'});
       box.innerHTML=RD.svg(W,H,g,'Input cost of a prefix against number of uses');}
-    ['rd-be-model','rd-be-tok','rd-be-n'].forEach(id=>document.getElementById(id).addEventListener('input',be));RD.onRender(be);RD.onResize(be);be();}
-  // ---------- semantic cache curves ----------
-  const SM=CA.sem,sb=document.getElementById('rd-sem-svg');
-  if(sb&&SM){let model='mini',data='qqp';
-    function draw(){const m=SM[model][data],T=SM.thresholds;const W=Math.min(RD.width(sb),760),H=Math.round(Math.min(280,Math.max(210,W*0.42))),L=44,R=12,Tp=10,B=34,w=W-L-R,h=H-Tp-B;
-      const xs=t=>L+(t-0.5)/0.5*w,ys=v=>Tp+h-v*h;let g='';
-      for(let i=0;i<=4;i++){const y=ys(i/4);g+='<line x1="'+L+'" x2="'+(L+w)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/>'+RD.t(L-5,y+4,(i*25)+'%',{a:'end',fs:10,fill:'var(--mute)'})}
-      for(let t=0.5;t<=1.0001;t+=0.1){const x=xs(t);g+='<line x1="'+x+'" x2="'+x+'" y1="'+Tp+'" y2="'+(Tp+h)+'" stroke="var(--line)"/>'+RD.t(x,Tp+h+14,t.toFixed(1),{a:'middle',fs:10,fill:'var(--mute)'})}
-      g+=RD.t(L+w/2,H-3,'similarity threshold',{a:'middle',fs:11,fill:'var(--mute)'});
-      [['tpr','var(--good)'],['fpr','var(--bad)']].forEach(([k,c])=>{let d='';T.forEach((t,i)=>{d+=(d?' L':'M')+xs(t).toFixed(1)+','+ys(m[k][i]).toFixed(1)});g+='<path d="'+d+'" fill="none" stroke="'+c+'" stroke-width="2.4"/>'});
-      [0.9,0.95].forEach(t=>{const i=T.indexOf(t),x=xs(t);g+='<line x1="'+x+'" x2="'+x+'" y1="'+Tp+'" y2="'+(Tp+h)+'" stroke="var(--mute)" stroke-dasharray="3 3"/>'+
-        RD.t(x+3,ys(m.tpr[i])-4,(m.tpr[i]*100).toFixed(0)+'%',{fs:10,fill:'var(--good)'})+RD.t(x+3,ys(m.fpr[i])-4,(m.fpr[i]*100).toFixed(0)+'%',{fs:10,fill:'var(--bad)'})});
-      sb.innerHTML=RD.svg(W,H,g,'Share of duplicates and non-duplicates served from cache by threshold');}
-    RD.seg(document.getElementById('rd-sem-model'),v=>{model=v;draw()});RD.seg(document.getElementById('rd-sem-data'),v=>{data=v;draw()});RD.onRender(draw);RD.onResize(draw);draw();
+    ['rd-be-model','rd-be-tok','rd-be-n'].forEach(id=>document.getElementById(id).addEventListener('input',be));RD.onRender(be);RD.onResize(be);be();
+    const det=document.getElementById('rd-pc-det');if(det)det.addEventListener('toggle',()=>{if(det.open)be()});}
+  // ---------- hand-written semantic pairs (the threshold curves are drawn by 33_js_sem.js) ----------
+  const SM=CA.sem;
+  if(SM){
     const ht=document.getElementById('rd-sem-hand');
     if(ht)ht.innerHTML='<tr><th>Stored question</th><th>Incoming question</th><th class="num">Cosine</th><th>Same answer?</th><th>Served at 0.90?</th></tr>'+SM.hand_pairs.map(p=>{const s=p.sim>=0.9;const ok=s===p.same_answer;
       return '<tr><td>'+RD.esc(p.a)+'</td><td>'+RD.esc(p.b)+'</td><td class="num">'+p.sim.toFixed(3)+'</td><td>'+(p.same_answer?'yes':'<b>no</b>')+'</td><td style="color:'+(ok?'var(--good)':'var(--bad)')+'">'+(s?'served':'not served')+(ok?'':(s?': wrong answer':': missed saving'))+'</td></tr>'}).join('');}

@@ -1,4 +1,4 @@
-// ---- Threshold lab tab: measured true-hit and false-hit curves, combined with a traffic mix and costs ----
+// ---- Section 12 (moved from the Threshold lab tab on 2026-10-24): measured true-hit and false-hit curves, combined with a traffic mix and costs ----
 (function(){
   const SM=CA.sem,$=id=>document.getElementById(id);if(!SM||!$('sem-model'))return;
   const CALL=[0.0001,0.001,0.01,0.03,0.1,0.3],WRONG=[0,0.01,0.1,0.5,1,5,20];
@@ -11,7 +11,8 @@
     $('sem-split').innerHTML='<span style="width:'+(right*100)+'%;background:var(--good)">'+(right>0.08?(right*100).toFixed(0)+'%':'')+'</span><span style="width:'+(wrong*100)+'%;background:var(--bad)">'+(wrong>0.08?(wrong*100).toFixed(0)+'%':'')+'</span><span style="width:'+(none*100)+'%;background:var(--dim);color:var(--ink)">'+(none>0.12?(none*100).toFixed(0)+'%':'')+'</span>';
     const val=1000*(served*c-wrong*wc);
     $('sem-out').innerHTML=RD.stat('Served from cache',(served*100).toFixed(1)+'%','of all queries')+RD.stat('Wrong among served',served?((wrong/served)*100).toFixed(1)+'%':'-','answers to a different question')+
-      RD.stat('True matches served',(tpr*100).toFixed(1)+'%','measured true-hit rate')+RD.stat('Value per 1,000 queries','<span style="color:'+(val>=0?'var(--good)':'var(--bad)')+'">'+money(val)+'</span>','calls saved minus wrong answers');
+      RD.stat('True matches served',(tpr*100).toFixed(1)+'%','measured true-hit rate')+RD.stat('False hits',(fpr*100).toFixed(1)+'%','of non-matching questions served');
+    $('sem-val').innerHTML=RD.stat('Value per 1,000 queries','<span style="color:'+(val>=0?'var(--good)':'var(--bad)')+'">'+money(val)+'</span>','calls saved minus wrong answers');
     // curves with the wrong-share-of-served curve for this mix
     const box=$('sem-svg'),W=Math.min(RD.width(box),760),H=Math.round(Math.min(280,Math.max(210,W*0.42))),L=44,Rr=12,Tp=10,B=34,w=W-L-Rr,h=H-Tp-B;
     const xs=v=>L+(v-0.5)/0.5*w,ys=v=>Tp+h-v*h;let g='';
@@ -31,7 +32,6 @@
       '<tr><td colspan="3" class="small mute">The first matches at cosine 0.9 or above with this model, in dataset order: mostly the same question asked twice on Quora, which is why the labelled numbers understate correct hits slightly.</td></tr>';
   }
   ['sem-model','sem-data','sem-t','sem-p','sem-c','sem-w'].forEach(id=>$(id).addEventListener('input',render));
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-sem']=[render];
-  addEventListener('resize',()=>{const t=$('t-sem');if(t&&!t.hidden)render()});
+  RD.onRender(render);RD.onResize(render);
   render();
 })();

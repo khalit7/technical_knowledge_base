@@ -55,14 +55,29 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   // section 5: eviction chart per workload
   for (const w of ['wiki6h', 'zipf0.7', 'zipf0.9', 'zipf1.1', 'wiki']) { await clickSeg('#rd-ev-work', w); await shot('#rd-ev-card', 'ev-' + w); }
   await bad('ev');
-  if (width === 920) { nums.ev_find = await txt('#rd-ev-find'); nums.cw_tbl = await txt('#rd-cw-tbl'); }
-  // section 11: break-even calculator
+  if (width === 920) { nums.ev_find = await p.$eval('#rd-ev-find', e => e.textContent); nums.cw_tbl = await txt('#rd-cw-tbl'); }
+  // section 11: break-even calculator (inside a closed block)
+  await p.evaluate(() => { const d = document.getElementById('rd-pc-det'); d.open = true; d.dispatchEvent(new Event('toggle')); });
   const pm = await p.$$eval('#rd-be-model option', o => o.length);
   for (let m = 0; m < pm; m++) for (const t of [0, 3, 6]) for (const n of [1, 2, 10, 50]) { await setV('rd-be-model', m); await setV('rd-be-tok', t); await setV('rd-be-n', n); if (width === 920 && n === 2 && t === 3) nums['be_' + m] = await txt('#rd-be-out'); }
   await setV('rd-be-model', 0); await setV('rd-be-tok', 3); await setV('rd-be-n', 10); await shot('#rd-be-card', 'be'); await bad('be');
-  // section 12: semantic curves
-  for (const m of ['bge', 'mini']) for (const d of ['paws', 'qqp']) { await clickSeg('#rd-sem-model', m); await clickSeg('#rd-sem-data', d); await shot('#rd-sem-card', `sem-${m}-${d}`); }
-  await bad('sem');
+  // section 3: patterns; section 6: hit-rate slider; section 7: jitter slider and stampede modes
+  await shot('#rd-hero-card', 'hero');
+  for (const m of ['through', 'wthrough', 'behind', 'around', 'aside']) { await clickSeg('#rd-pat-mode', m); await shot('#rd-pat-card', 'pat-' + m); }
+  for (const h of [0, 40, 95, 90]) { await setV('rd-hit-h', h); if (width === 920) nums['hit_' + h] = await txt('#rd-hit-out'); }
+  await shot('#rd-hit-card', 'hit');
+  for (const j of [0, 1, 2, 3, 4, 5]) { await setV('rd-jit-j', j); if (width === 920) nums['jit_' + j] = await txt('#rd-jit-out'); if (j === 0 || j === 4) await shot('#rd-jit-card', 'jit-' + j); }
+  for (const m of ['coalesce', 'swr', 'xfetch', 'none']) { await clickSeg('#rd-st-mode', m); if (width === 920) nums['st_' + m] = await txt('#rd-st-out'); await shot('#rd-st-card', 'st-' + m); }
+  await bad('patterns, hit, jitter, stampede');
+  // section 12: the threshold widget (moved from the Threshold lab tab)
+  await p.evaluate(() => document.querySelectorAll('#rd-sem-card details').forEach(d => d.open = true));
+  for (const m of ['mini', 'bge']) for (const d of ['qqp', 'paws']) for (const t of [0, 20, 40, 45, 50]) for (const q of [1, 37, 95]) {
+    await setV('sem-model', m); await setV('sem-data', d); await setV('sem-t', t); await setV('sem-p', q);
+    if (width === 920 && q === 37 && (t === 40 || t === 45)) nums[`semlab_${m}_${d}_${t}`] = await txt('#sem-out');
+  }
+  for (const c of [0, 5]) for (const w of [0, 6]) { await setV('sem-c', c); await setV('sem-w', w); }
+  await setV('sem-model', 'mini'); await setV('sem-data', 'qqp'); await setV('sem-t', 40); await setV('sem-p', 37); await setV('sem-c', 2); await setV('sem-w', 3);
+  await shot('#rd-sem-card', 'sem'); await bad('sem');
   await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true)); await bad('details');
   // Cache lab
   await p.click('button[data-t=t-lab]'); await sleep(200); clicks++;
@@ -79,15 +94,6 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await setV('lab-work', 'wiki'); await setV('lab-cap', 1); await setV('lab-c1', 2); await setV('lab-c2', 7);
   await p.evaluate(() => document.querySelector('#lab-pol button[data-k="allkeys-lfu"]').click());
   await shot('#t-lab', 'lab'); await bad('lab');
-  // Threshold lab
-  await p.click('button[data-t=t-sem]'); await sleep(200); clicks++;
-  for (const m of ['mini', 'bge']) for (const d of ['qqp', 'paws']) for (const t of [0, 20, 40, 45, 50]) for (const q of [1, 37, 95]) {
-    await setV('sem-model', m); await setV('sem-data', d); await setV('sem-t', t); await setV('sem-p', q);
-    if (width === 920 && q === 37 && (t === 40 || t === 45)) nums[`semlab_${m}_${d}_${t}`] = await txt('#sem-out');
-  }
-  for (const c of [0, 5]) for (const w of [0, 6]) { await setV('sem-c', c); await setV('sem-w', w); }
-  await setV('sem-model', 'mini'); await setV('sem-data', 'qqp'); await setV('sem-t', 40); await setV('sem-p', 37); await setV('sem-c', 2); await setV('sem-w', 3);
-  await shot('#t-sem', 'semlab'); await bad('semlab');
   await p.click('button[data-t=t-more]'); await sleep(200); await shot('#t-more', 'more'); await bad('more');
   await p.close();
 }

@@ -53,6 +53,60 @@ ok('GreedyDual hit at 50k', float(row.split('\t')[2].rstrip('%')), round(gd['hit
 # semantic lab: served = p*TPR + (1-p)*FPR at p = 0.37, t = 0.90
 t = mini['qqp_pairs']; served = 0.37 * t['tpr'][40] + 0.63 * t['fpr'][40]
 ok('Threshold lab served (MiniLM, QQP, 0.90, 37%)', float(re.search(r'Served from cache\s+([0-9.]+)%', P['semlab_mini_qqp_40']).group(1)), round(served * 100, 1))
+
+# section 6: hit-rate arithmetic (1,000 reads a second, 600 capacity, measured Redis GET and usage aggregate)
+TC, TD = pg['costs']['redis_get']['median_ms'], pg['costs']['usage_aggregate']['median_ms']
+for h in (0, 40, 95, 90):
+    txt = P['hit_%d' % h]; hh = h / 100
+    ok('hit %d%%: database reads' % h, float(re.search(r'Database reads a second\s+([0-9,]+)', txt).group(1).replace(',', '')), round((1 - hh) * 1000))
+    ok('hit %d%%: mean latency' % h, float(re.search(r'Mean latency\s+([0-9.]+) ms', txt).group(1)), round(hh * TC + (1 - hh) * (TC + TD), 2))
+# section 7: jitter peak = 10,000 / (300 j)
+for i, j in enumerate([0, 0.01, 0.02, 0.05, 0.1, 0.2]):
+    ok('jitter %g peak' % j, float(re.search(r'Peak expiries a second\s+([0-9,]+)', P['jit_%d' % i]).group(1).replace(',', '')), round(10000 / (300 * j)) if j else 10000)
+# section 7: stampede, Python twin of 30_js_rd_stamp.js (Capacity planning's model.py stampede plus serve-stale)
+import math
+def mulberry32(a):
+    a &= 0xffffffff
+    def f():
+        nonlocal a
+        a = (a + 0x6D2B79F5) & 0xffffffff; t = a
+        t = ((t ^ (t >> 15)) * (t | 1)) & 0xffffffff
+        t = (t ^ ((t + (((t ^ (t >> 7)) * (t | 61)) & 0xffffffff)) & 0xffffffff)) & 0xffffffff
+        return ((t ^ (t >> 14)) & 0xffffffff) / 4294967296
+    return f
+def stampede(mode, rate=200, rec=0.3, horizon=2.0, seed=5, beta=1.0):
+    rnd = mulberry32(seed); exp_at, pending, db, t, waits, stale = 1.0, None, 0, 0.0, [], 0
+    while t < horizon:
+        if pending is not None and pending <= t: exp_at = pending + 10.0; pending = None
+        if mode == 'xfetch' and t < exp_at:
+            u = 1 - rnd()
+            if pending is None and t - rec * beta * math.log(u) >= exp_at: db += 1; pending = t + rec; waits.append(rec)
+            else: waits.append(0.0)
+        elif t < exp_at: waits.append(0.0)
+        elif mode == 'coalesce':
+            if pending is None: db += 1; pending = t + rec
+            waits.append(pending - t)
+        elif mode == 'swr':
+            if pending is None: db += 1; pending = t + rec
+            waits.append(0.0); stale += 1
+        else:
+            db += 1; waits.append(rec)
+            if pending is None or t + rec < pending: pending = t + rec
+        t = math.floor((t + 1 / rate) * 1e9 + 0.5) / 1e9
+    return db, max(waits), stale
+for m, want in (('none', 60), ('coalesce', 1), ('swr', 1), ('xfetch', 1)):
+    db, w, st = stampede(m)
+    ok('stampede %s: queries (expected %d)' % (m, want), int(re.search(r'Database queries\s+([0-9]+)', P['st_' + m]).group(1)), db)
+    assert db == want, (m, db)
+    ok('stampede %s: longest wait' % m, float(re.search(r'Longest wait\s+([0-9]+) ms', P['st_' + m]).group(1)), round(w * 1000))
+    ok('stampede %s: served old' % m, int(re.search(r'Served the old value\s+([0-9]+)', P['st_' + m]).group(1)), st)
+
+# build-time prefill (prefill.py) must write exactly what 26_js_fill.js writes at run time
+static = re.findall(r'<span class="nv" data-n="([^"]+)"[^>]*>([^<]*)</span>', open(os.path.join(H, '..', 'index.html')).read())
+ok('static numbers equal run-time numbers (%d spans)' % len(static), sum(nv.get(k) != v for k, v in static), 0)
+# the static summary of section 5 quotes the script-written findings: each number must appear there
+for k in ['19 of 20', '10.1', 'within 2.0 points', '55.1%', '39.4%', '36.5%', '781,318']:
+    ok('section 5 summary number ' + k, k in P['ev_find'], True)
 bad = [c for c in checks if not c['ok']]
 json.dump({'checks': checks, 'failed': len(bad)}, open(os.path.join(H, 'recompute_out.json'), 'w'), indent=1)
 for c in bad: print('MISMATCH', c)

@@ -4,7 +4,7 @@
 
 ## Parts
 - `01_head.html`, `05z_errbox.js.html`, `21_js_rd_common.js`, `99_js_tabs.js`: copied from the sibling NoSQL in practice (the root's look and the step-animation controller `RD.anim`).
-- `10_header.html`: title and tabs (Reading, Cache lab, Threshold lab, Further reading).
+- `10_header.html`: title, subtitle with the reading time, tabs (Reading, Cache lab, Further reading).
 - `20_read_a.html` (styles) to `20_read_j.html`: the Reading tab. `b` nav, one screen, section 1; `c` layers; `d` invalidation and consistency; `e` Redis eviction; `f` cost-weighted hit ratio and Redis or Memcached; `g` Postgres and HTTP; `h` KV cache and prompt caching; `i` semantic caching; `j` choosing, mistakes, glossary, footer.
 - `23` skew charts, `24` layer ladder, `25` the race animation (before/after), `26` fills `<span class="nv" data-n="path">` from `window.CA`, `27` eviction chart, findings and the cost-weighted table (also `window.CAEV`, used by the lab), `28` Postgres tables, `29` KV calculator, price table, break-even calculator, semantic curves, `32` glossary.
 - `31_tab_lab.html`, `31_js_lab.js`: Cache lab. `33_tab_sem.html`, `33_js_sem.js`: Threshold lab. `39_tab_more.html`: Further reading.
@@ -32,3 +32,31 @@ Each script: `CA_SCRATCH=$PWD CA_REDIS=<path to redis-server> uv run --no-projec
 - Size about 265 KB.
 
 Overlap fix (19 October 2026): section 10 no longer teaches the KV cache and prefix caching from zero (the KV calculator was removed, with its checks in `check_ui.mjs` and `recompute.py`; `kv.json` stays in the data but is unused); it points to Topic: inference-and-serving section 2 and Batching, KV cache and scheduling section 3. Section 11 keeps the price table (rules columns dropped), the break-even formula and calculator, and points to Context engineering section 2 for the provider rules. Section 12 links RAG in production for semantic caching in retrieval.
+
+## The 2026-10-24 rebuild to the teaching contract
+
+**What changed and why.**
+- **Top**: the core sentence, a static hero (`30_js_rd_hero.js`: every copy one chat request can hit, web lane and LLM lane, hit time and who keeps each correct), "You need", eight new terms. The one-screen table and the "what other pages own" note moved into a closed reference block; the five habits were folded into Choosing.
+- **New owned content** (OWNERS: this page now owns the patterns, hit-rate arithmetic, TTLs and jitter, stampedes, local against distributed, CDN caching at the system level), absorbed from Capacity planning and performance's Caching strategy section with its sources: the five patterns with a new toggle diagram (`30_js_rd_pat.js`) and the cache-aside code; hit-rate arithmetic with a new one-slider figure (`30_js_rd_hit.js`, measured Redis GET and usage-aggregate costs, the root's illustrative 1,000 against 600 reads a second); TTL choice and jitter with a new slider (`30_js_rd_stamp.js`, derived peak = N / (300 j)); stampedes with a four-mode toggle (the capacity page's `model.py` `stampede` ported line by line plus a serve-stale mode; 60, 1, 1, 1 queries checked by `recompute.py`), the single-flight code and the defences' quotes in a closed block; Gutter; CDNs and `s-maxage`.
+- **Absorbed from ML system design's closed caches block**: OpenAI's "above 15 requests per minute" overflow routing, `prompt_cache_key`, "Caches are not shared across organizations" (all checked against `inputs/docs/oai.txt`), LiteLLM's `redis-semantic` with `similarity_threshold: 0.8`, the GPT Semantic Cache study's "exceeding 97%". Stale citations of ML system design "section 9" now read sections 6 and 7.
+- **Threshold lab tab moved into section 12** (it explains one mechanism): `33_js_sem.js` now renders in Reading; the costs and the 10,000-entry view are closed blocks inside the card. The duplicate curves chart of section 12 was removed. The Cache lab stays a tab (it serves sections 5 and 6).
+- **Moved to closed blocks**: the ladder table, the pattern table and code, the lease and versioned-key code, remote markers, the Redis policy menu and the approximation details, the script-written eviction findings (a static summary with the same numbers stays in core and is checked against them), Redis against Memcached, the dashboard list, prewarm's table, the materialised view's "when not", Memoize, the dated price table and break-even calculator (volatile; redrawn on opening), published semantic-cache measurements with the old-page correction, the production list, the glossary.
+- **No autoplay**: `21_js_rd_common.js` and `99_js_tabs.js` are the skill templates (storage key `ca-tab`); the race no longer starts on a mode switch (checked: still on step 0 after 4 s in view with normal motion).
+- **Static numbers**: `prefill.py` (run by `build.sh`) writes every `<span class="nv">` number into the HTML at build time with the same formats as `26_js_fill.js`; `recompute.py` checks that the static and run-time numbers agree (70 spans), so the ledger check sees them.
+- **No real images**: the page is about mechanisms; no physical object here is one a photo would teach (the brief's image step), and the Facebook paper's figures are not openly licensed.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After (2026-10-24) |
+|---|---|---|
+| Reading, core (230 words a minute) | 50 min (11,462 words) | 40 min (9,268 words) |
+| Reading, closed details | 2 min | 22 min |
+| Threshold lab tab | 2.3 min | moved into Reading |
+| Cache lab | 1.6 min | 1.6 min |
+| Further reading | 5.1 min | 5.4 min |
+| Visuals drawn in Reading | 6 | 11 |
+
+40 minutes is right because the page now owns about a dozen concepts that other pages defer to (patterns, invalidation and the race, consistency windows, eviction, hit-rate arithmetic and miss cost, TTLs, jitter and stampedes, CDN policy, Postgres result caching, and the three LLM caches), five of them newly absorbed from Capacity planning (about 1,700 words of core); the core keeps each mechanism with its picture and its measured evidence, and provenance, code, menus and dated prices sit in closed blocks.
+
+**Ledger** (`src/ledger.json`, `python3 html_utils/ledger.py check` prints problems 0): 426 units: core 319, depth 93, volatile 1 (the dated price table, kept here in a dated closed block), fat 13 (wind-ups, the old reading-time line and tab bar, section previews, the lab's try-line). 20 units added by hand for script-rendered tables and absorbed content.
+
+**Checks**: `checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0; `node src/check_ui.mjs` (repo root) 1,716 actions, 0 problems; `python3 src/recompute.py` 71 checks, 0 failed.

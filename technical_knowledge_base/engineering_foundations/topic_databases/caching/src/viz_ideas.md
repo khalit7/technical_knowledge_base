@@ -15,9 +15,11 @@ The question the page keeps returning to: which copy is a reader seeing, and wha
 | Semantic curves (TPR and FPR by threshold) per model and dataset; hand-written pairs table | 4 | 5 | 5 | Reading 12 | `m_sem.py` | Hand pairs are illustrative inputs with measured similarities. |
 | Materialised view, Memoize and prewarm tables | 3 | 5 | 5 | Reading 8 | `m_pg.py` | Tables, not charts: few numbers each. |
 
+Added 2026-10-24 (teaching-contract rebuild): hero diagram of every copy (static, structure); patterns toggle (type 3, five designs on one layout); hit-rate slider (one parameter, the cold-cache crossing); jitter slider (one parameter, derived); stampede toggle of end states (ported model, counts 60/1/1/1 checked). The Threshold lab moved inline into section 12.
+
 Rejected or not built:
-- A stampede animation (one hot key expiring): built on Capacity planning and performance; linked.
-- A prompt-layout animation (timestamp first against static first): built on ML system design, section 9; linked.
+- A stepped stampede animation: the end states (requests strip and queries in flight) carry the comparison; a toggle was chosen over a stepper.
+- A prompt-layout animation (timestamp first against static first): built on ML system design, section 6; linked.
 - An LRU/LFU eviction animation of a toy cache: the concept is on Capacity planning; the measured curves teach the comparison on real traffic.
 - A replica-lag fill experiment with a real Postgres replica: the window is the same shape as the stale set and Facebook's remote-marker text describes it; Scaling a database owns replicas.
 - Running a real LLM provider to measure prompt caching: needs keys and money; the arithmetic is exact from published prices and the OpenAI guide states the same 1.35 against 2.00.

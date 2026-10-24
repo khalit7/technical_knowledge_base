@@ -65,7 +65,7 @@
     tri.innerHTML='Trial '+(t.trial+1)+' of the measurement: reader pause '+t.pause_ms.toFixed(1)+' ms, writer start '+t.wait_ms.toFixed(1)+' ms. Timestamps as recorded by the clients.';
   }
   const an=RD.anim({card:'rd-race-card',ctl:'rd-race-ctl',n:steps(mode).log.length,draw,ms:1700,label:'Race step'});
-  RD.seg(document.getElementById('rd-race-mode'),m=>{mode=m;an.reset(steps(m).log.length);an.play()});
+  RD.seg(document.getElementById('rd-race-mode'),m=>{mode=m;an.reset(steps(m).log.length)});
   RD.onResize(()=>an.redraw());
   // results table
   const names={delete:'Delete on write (cache-aside)',double_delete:'Delete, then delete again 50 ms later',lease:'Lease (Facebook memcache, emulated in Redis)',version:'Versioned keys',set_on_write:'Set the new value on write (two writers)'};
