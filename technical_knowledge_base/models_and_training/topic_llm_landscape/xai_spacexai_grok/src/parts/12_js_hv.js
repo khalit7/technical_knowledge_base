@@ -3,7 +3,7 @@
   const card=$('hv');if(!card)return;
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const A=8,S=2,MS=120; // tokens per attempt and synthesis, in thousands (illustrative); ms per 1,000 tokens at 1x
-  const st={m:'par',n:4,t:RM?0:0,play:!RM,spd:1,vis:false,raf:0,last:0,lp:-1};
+  const st={m:'par',n:4,t:0,play:false,spd:1,vis:false,raf:0,last:0,lp:-1};
   const T=()=>st.m==='par'?A+S:st.n*A+S;
   const phases=()=>st.m==='par'?[0,A,A+S]:[0,st.n*A,st.n*A+S];
   const phaseOf=t=>{const p=phases();return t<=0?0:t<p[1]?1:t<p[2]?2:3};
@@ -44,8 +44,8 @@
   $('hvBack').addEventListener('click',()=>{pause();const p=phases();const b=p.filter(v=>v<st.t-1e-9);st.t=b.length?b[b.length-1]:0;draw()});
   $('hvScrub').addEventListener('input',e=>{pause();st.t=T()*(+e.target.value)/400;draw()});
   $('hvSpd').addEventListener('change',e=>{st.spd=+e.target.value});
-  $('hvN').addEventListener('change',e=>{st.n=+e.target.value;st.t=0;st.lp=-1;if(!RM)st.play=true;draw();kick()});
-  const seg=$('hvM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});st.m=b.dataset.m;st.t=0;st.lp=-1;if(!RM)st.play=true;draw();kick()}));
+  $('hvN').addEventListener('change',e=>{pause();st.n=+e.target.value;st.t=0;st.lp=-1;draw()});
+  const seg=$('hvM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});pause();st.m=b.dataset.m;st.t=0;st.lp=-1;draw()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});

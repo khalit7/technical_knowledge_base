@@ -21,7 +21,7 @@
     {f:1,t:0,k:'Step 7: summary, no leak',c:'The user still gets a summary. A gate keyed to what the action does (send private state to an unknown host) catches what a filter keyed to where the text came from cannot.',res:4,sent:0,v:'pass (ciphertext)'}]);
   const SC={enc,plain,gate};
   const DUR=2400;
-  const st={m:'enc',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
+  const st={m:'enc',k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
   const cl=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v);
   function pos(i,narrow,W){const cols=narrow?2:3,bw=narrow?150:180,bh=46,gx=(W-cols*bw)/(cols+1),r=Math.floor(i/cols),c=i%cols;
     const order=narrow?[0,1,2,3,4,5]:[0,1,2,3,4,5];const j=order[i];return {x:gx+(j%cols)*(bw+gx),y:20+Math.floor(j/cols)*(bh+(narrow?34:56)),w:bw,h:bh}}
@@ -60,7 +60,7 @@
   $('ijScrub').addEventListener('input',e=>{pause();const L=SC[st.m],v=+e.target.value;st.k=Math.min(L.length-1,Math.floor(v/100));st.t=cl(v/100-st.k);draw()});
   $('ijSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   const seg=$('ijM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM)st.play=true;draw();kick()}));
+    pause();st.m=b.dataset.m;st.k=0;st.t=1;draw()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});

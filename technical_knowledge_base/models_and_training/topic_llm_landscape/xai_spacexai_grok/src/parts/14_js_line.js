@@ -1,4 +1,4 @@
-// ---- Lineage tab: lanes on one time axis, cards below ----
+// ---- Lineage (Reading, section Lineage and owner): lanes on one time axis, cards in a closed block below ----
 const U={wg:'https://en.wikipedia.org/wiki/Grok_(chatbot)',wsx:'https://en.wikipedia.org/wiki/SpaceXAI',s1:'https://www.sec.gov/Archives/edgar/data/1181412/000162828026036936/spaceexplorationtechnologi.htm',
  verge:'https://www.theverge.com/ai-artificial-intelligence/925469/xai-is-becoming-spacexai',bi:'https://www.businessinsider.com/xai-rebrand-spacexai-new-logo-x-handle-spacex-2026-7',
  sa46:'https://siliconangle.com/2026/08/12/spacexai-releases-flagship-grok-4-6-model-advanced-reasoning-capabilities/',mtp45:'https://www.marktechpost.com/2026/07/08/spacexai-releases-grok-4-5/',
@@ -69,10 +69,10 @@ const U={wg:'https://en.wikipedia.org/wiki/Grok_(chatbot)',wsx:'https://en.wikip
       s+='<g data-i="'+E.indexOf(e)+'" style="cursor:pointer"><title>'+e.t+', '+dstr(e)+'</title><circle cx="'+x.toFixed(1)+'" cy="'+y+'" r="'+(on?8:6)+'" fill="'+(e.h?'var(--bg)':c)+'" stroke="'+(on?'var(--ink)':c)+'" stroke-width="'+(on?2.5:1.6)+'"'+(e.h?' stroke-dasharray="2 2"':'')+'/><circle cx="'+x.toFixed(1)+'" cy="'+y+'" r="13" fill="transparent"/>';
       if(!e.h&&(e.l==='flag'||(range==='z'&&e.l==='fast')))s+='<text x="'+x.toFixed(1)+'" y="'+(up?y+21:y-11)+'" font-size="10" text-anchor="middle" fill="var(--mute)">'+e.t.replace(/^Grok 5 target: /,'G5? ').replace(/ and Heavy/,'').slice(0,range==='z'?24:12)+'</text>';
       s+='</g>'});
-    $('lnSvg').innerHTML=svgEl(W,H,s,'xAI lineage, '+vis.length+' events');
-    $('lnSvg').querySelectorAll('g[data-i]').forEach(g=>g.addEventListener('click',()=>{sel=E[+g.dataset.i];draw();const c=document.getElementById('lnc'+g.dataset.i);if(c)c.scrollIntoView({block:'nearest'})}));
+    $('lnSvg').innerHTML=svgEl(W,H,s,'xAI lineage, '+vis.length+' events');{const sv=$('lnSvg').querySelector('svg');if(sv)sv.style.minWidth=W+'px'}
+    $('lnSvg').querySelectorAll('g[data-i]').forEach(g=>g.addEventListener('click',()=>{sel=E[+g.dataset.i];draw();const d=$('lnDet');if(d)d.open=true;const c=document.getElementById('lnc'+g.dataset.i);if(c)c.scrollIntoView({block:'nearest'})}));
     $('lnCards').innerHTML=vis.slice().reverse().map(e=>'<div class="tl-item'+(sel===e?' sel':'')+'" id="lnc'+E.indexOf(e)+'"><h3>'+e.t+'</h3><div class="dt">'+dstr(e)+' · '+LANES.find(l=>l[0]===e.l)[1]+(e.h?' · passed target':'')+'</div><p style="margin:4px 0 0;font-size:14px">'+e.x+(e.s?' ('+A(U[e.s],'source')+')':' <span class="ill">unconfirmed</span>')+'</p></div>').join('')}
   segBind('lnR',v=>{range=v;draw()});
   const ch=$('lnF');ch.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ch.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));filt=b.dataset.m;draw()}));
-  onTab('t-line',draw);
+  onTab('t-read',draw);let rw=$('lnCard').clientWidth;addEventListener('resize',()=>{const w=$('lnCard').clientWidth;if(w&&Math.abs(w-rw)>40){rw=w;draw()}});draw();
 })();
