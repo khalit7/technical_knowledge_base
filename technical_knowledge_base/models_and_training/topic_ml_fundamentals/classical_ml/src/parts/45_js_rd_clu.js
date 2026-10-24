@@ -52,7 +52,7 @@
     const best=Math.min(...res.km,...res.kmpp),f=a=>a.filter(v=>v<=best*1.01).length,med=a=>a.slice().sort((x,y)=>x-y)[50];
     el.innerHTML='<b>100 restarts, k = '+k+':</b> random starts end within 1% of the best result found in '+f(res.km)+' of 100 runs (median '+med(res.km).toFixed(1)+', worst '+Math.max(...res.km).toFixed(1)+'); k-means++ starts in '+f(res.kmpp)+' of 100 (median '+med(res.kmpp).toFixed(1)+', worst '+Math.max(...res.kmpp).toFixed(1)+'). Best found: '+best.toFixed(1)+'. This is why libraries run several starts and keep the best (scikit-learn\'s KMeans: n_init).'}
   const A=RD.anim({card:'rd-cl',ctl:'rd-clC',n:2,draw,ms:1100,label:'Step'});
-  function restart(play){run=null;compute();A.reset(run.steps.length);if(play)A.play()}
+  function restart(play){run=null;compute();A.reset(run.steps.length)}
   $('rd-clM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;$('rd-clM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));$('rd-clKw').hidden=mode==='dbscan';$('rd-clEw').hidden=mode!=='dbscan';restart(true)});
   $('rd-clD').addEventListener('change',e=>{ds=e.target.value;k=DATA[ds].k;eps=DATA[ds].eps;$('rd-clK').value=k;$('rd-clKv').textContent=k;$('rd-clE').value=eps;$('rd-clEv').textContent=eps;restart(true)});
   $('rd-clK').addEventListener('input',e=>{k=+e.target.value;$('rd-clKv').textContent=k;restart(false)});

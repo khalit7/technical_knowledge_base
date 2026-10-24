@@ -18,7 +18,9 @@ Not rebuilt, linked instead: the parent's comparison-level summary (Reading, "Be
 | `node check/check_search.mjs` | Bayesian-optimisation paths equal to the NumPy port for 3 seeds, 40 of 40 steps each |
 | `recompute.py` (`inputs/recompute.json`) | every number quoted in prose, from scikit-learn: tree depth accuracies, mcycle errors (tree, boosting, sklearn forests over 5 seeds), SVM C sweep, PCA, surface statistics, grid values, BO distributions |
 | `sh html_utils/checkpage.sh <page folder>` | fail=0, emdash 0, errbox 1 |
-| every control exercised in headless Chrome (all animation steps of all modes, all datasets and models in the lab at slider extremes, presets) | no errors, no NaN / undefined / Infinity |
+| `node <page>/src/check/check_controls.mjs <page>/index.html` (from the repo root): every control in 390 px dark and 920 px light, every animation stepped to its end, every lab model and slider extreme, then reduced motion | clean: no errors, no NaN / undefined / Infinity, no sideways scroll, nothing moves before the reader acts |
+| `node check/hero_numbers.mjs` | the hero caption's numbers (`check/hero_numbers.json`) |
+| `python3 html_utils/ledger.py check <page>` | problems 0 |
 
 ## Data (all small, in `inputs/`)
 
@@ -34,6 +36,31 @@ Not rebuilt, linked instead: the parent's comparison-level summary (Reading, "Be
 
 ## Parts
 
-`01_head.html` (CSS shared with the siblings plus this page's), `10_header.html`, `20_read_a.html` (sections 0 to 4), `20_read_b.html` (5 to 10, mistakes), `50_tab_lab.html`, `59_tab_more.html`; JS: `21_js_common.js` (RD helpers and step-animation controller, from the siblings), `30_js_ml.js`, `31_js_data.js` (generated), `32_js_plot.js` (canvas helpers), `33_js_models.js` (fit and draw one of seven classifiers), `40` tree depth animation, `41` one tree / forest / boosting animation, `42` leaderboard bars, `43` SVM C sweep animation, `44` distance concentration, `45` clustering animation, `46` PCA raw against standardised, `47` search animation, `51_js_lab.js` (ids `lb-`), `99_js_tabs.js` last.
+`01_head.html` (CSS shared with the siblings plus this page's), `10_header.html`, `20_read_a.html` (the idea in one screen and sections 1 to 4), `20_read_b.html` (5 to 10, mistakes), `50_tab_lab.html`, `59_tab_more.html`; JS: `21_js_rd_common.js` (the explainer-page skill template: RD helpers and the step controller, never autoplays), `22_js_rd_fmt.js` (this page's number formats), `30_js_ml.js`, `31_js_data.js` (generated), `32_js_plot.js` (canvas helpers), `33_js_models.js` (fit and draw one of seven classifiers), `34_js_rd_hero.js` (the hero: three model shapes on the same points), `40` tree depth animation, `41` one tree / forest / boosting animation, `42` leaderboard bars, `43` SVM C sweep animation, `44` distance concentration, `45` clustering animation, `46` PCA raw against standardised, `47` search animation, `48_js_rd_iso.js` (isolation forest stepper on Old Faithful), `51_js_lab.js` (ids `lb-`), `99_js_tabs.js` last.
 
 Size: about 270 KB, of which 117 KB is data.
+
+## The 2026-10-24 rebuild to the teaching contract
+What changed and why (`.claude/skills/explainer-page/teaching/teaching-contract.md`):
+- **Top**: the core idea in one sentence, a new hero (logistic regression, a depth-3 tree and boosting with 100 depth-2 trees fitted to the same points, live, data selectable; on circles 50.0%, 88.3%, 98.3% held out; on the real tumours the line already wins, 90.6% against 90.1%), "You need" and new terms. The paradigm map moved to a closed block.
+- **New visuals inline where a mechanism had none**: naive Bayes double counting (static bars, derived 75%, 90%, 96.4%); level-wise against leaf-wise tree growth (static SVG, XGBoost depthwise and max_depth 6 against LightGBM num_leaves 31); an isolation-forest stepper on the real Old Faithful eruptions (one random tree isolating the most and least anomalous eruption, then the score over 100 trees on samples of 256). CM10 in `viz_ideas.md`, rejected before, is now built: the contract asks for a visual for every mechanism.
+- **No autoplay**: the template controller replaces the old one (which played on first view); mode switches in the ensemble, SVM, clustering and search animations now reset to step 0 instead of playing. `check/check_controls.mjs` confirms it.
+- **Moved to closed blocks** (depth, not fat): every "checked against scikit-learn" provenance line under a card, the leaderboard reading notes, the four studies' quotes (the three Grinsztajn reasons stay in the core prose), XGBoost's objective, leaf weight and gain with the Huber correction, the SVM cost, Platt and solver details, the clustering comparison table, the other anomaly detectors, the search-surface analysis.
+- **Ownership**: ridge, lasso and elastic net are reduced to one clause and a link to Regularisation (ledger unit owned there); calibration and rare-positive evaluation stay linked to Evaluation metrics; SVD and projections to Linear algebra for ML (now in "You need" and section 9).
+- **Mistakes**: four of seven were restatements of what the core now shows (tree depth, early stopping, k-means restarts, t-SNE reading); three remain, and the n_init advice was merged into the third.
+- The Boundary lab stays a tab: it is a tool used across the page (linked from the hero and sections 1, 2 and 6), not one mechanism.
+- No photos: nothing on the page is a physical object; the diagrams carry the mechanisms.
+
+## Length judgement
+| | Before (2026-10-23 audit) | After (2026-10-24) |
+|---|---|---|
+| Reading, core (230 words a minute, `html_utils/audit_pages.mjs`) | 27.7 min (6,365 words) | 24.6 min (5,654) |
+| Reading, closed details | 0.9 min | 7.8 min |
+| Boundary lab | 1.7 min | 1.7 min |
+| Further reading | 2.3 min | 2.3 min |
+| Visuals in Reading | 9 | 15 (one hero of three panels, three new) |
+
+Why about 25 minutes is right: the page owns ten method families plus the tabular-benchmark question, each now with a picture beside its claim; about a fifth of the core words are captions written by the animations. What was cut from the core is provenance and secondary detail (now closed, nothing lost) and four restated mistakes. Going shorter would mean dropping a family the brief says this page owns.
+
+## Knowledge ledger (`ledger.json`)
+209 units: core 147, depth 45, fat 16, owned 1 (ridge and lasso, at Regularisation). 197 were drafted by `ledger.py init` from the old page; 12 were added for the new visuals and for script-hidden or merged material. Fat units carry a `note` (navigation, tab names, fragments, restatements, the old reading-time line). `python3 html_utils/ledger.py check`: problems 0.
