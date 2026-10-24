@@ -71,8 +71,16 @@ $('pd-kinds').innerHTML=P.kinds.map(k=>'<div style="--kc:'+k.c+'"><b>'+E(k.k)+'<
    RD.stat('Median tokens, right vs wrong',f0(t.correct_tok['0.5'])+' / '+f0(t.wrong_tok['0.5']),'by the recorded Math-Verify verdict')})();
 (function(){const j=P.judge;bars($('pd-judge-bars'),j.map((x,i)=>[x[0],x[1],i===4?'var(--bad)':'var(--good)',x[1]+' of 30']),{max:30})})();
 
-// 5. one row's tokens and the mask
-(function(){const t=P.tok;$('pd-tok').innerHTML=t.pieces.map(p=>'<span class="'+(p[1]?'l':'m')+'">'+E(p[0])+'</span>').join('');
-  $('pd-tok-note').textContent='Row '+t.id+' (Persona Hub math, synthetic): '+f0(t.n)+' tokens, '+f0(t.trained)+' with loss ('+pc(t.trained,t.n,0)+'). Grey: template headers and the prompt.';
+// 4. one row before (stored messages) and after (rendered, tokenized, loss mask)
+(function(){const t=P.tok;const full=t.pieces.map(p=>p[0]).join('');
+  const parts=full.split(/<\|(user|assistant|system)\|>\n/);const msgs=[];for(let i=1;i<parts.length;i+=2)msgs.push({role:parts[i],content:parts[i+1].replace(/<\|endoftext\|>\s*$/,'').replace(/\n+$/,'')});
+  let mode='raw';
+  function draw(){const v=$('pd-row-view'),c=$('pd-row-cnt');
+    if(mode==='raw'){v.innerHTML='<div class="pd-json">{"messages": [\n'+msgs.map(m=>'  {"role": <span class="r">"'+E(m.role)+'"</span>,\n   "content": '+E(JSON.stringify(m.content))+'}').join(',\n')+'\n]}</div>';
+      c.innerHTML=RD.stat('Turns',msgs.length)+RD.stat('Characters',f0(msgs.reduce((a,m)=>a+m.content.length,0)))+RD.stat('Tokens graded','not yet','no template, no mask')}
+    else{v.innerHTML='<div class="pd-tok">'+t.pieces.map(p=>'<span class="'+(p[1]?'l':'m')+'">'+E(p[0])+'</span>').join('')+'</div>';
+      c.innerHTML=RD.stat('Tokens',f0(t.n),'Qwen3 tokenizer')+RD.stat('Graded (green)',f0(t.trained))+RD.stat('Share trained',pc(t.trained,t.n,0),'headers and prompt masked')}}
+  $('pd-tok-note').textContent='Row '+t.id+' (Persona Hub math, synthetic). After: grey tokens are the template headers and the prompt (masked); green tokens, the answer and its end token, get loss.';
+  RD.seg($('pd-row-mode'),m=>{mode=m;draw()});draw();
   bars($('pd-mask-bars'),P.lin.map(x=>[x.label,x.trained,x.trained>0.9?'var(--c4)':x.trained<0.3?'var(--c2)':'var(--acc)',pc(x.trained,1,0)]),{max:1})})();
 })();

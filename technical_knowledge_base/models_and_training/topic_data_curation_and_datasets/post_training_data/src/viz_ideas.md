@@ -35,3 +35,13 @@ Scores 0 to 2 per methodology question; reproduces and computable count double; 
 ## What the methodology lacked
 A rule for data pages whose truth is a checker: re-run the dataset's own checker and report whether its stored verdicts
 reproduce (they did for Tulu 3's MATH verifier on OLMo 3's rollouts; they did not for Math-Verify across versions).
+
+## Added 2026-10-24 (teaching-contract rebuild)
+| Idea | Kind | Placement | Why |
+|---|---|---|---|
+| Hero: four kinds of row, prompt, signal, what it trains, measured failure | static annotated diagram | top | the core idea as one picture |
+| SFT lineage dot plot (published sizes, log axis, by date, coloured by author) | one axis | section 1 | replaced a 16-row table read as prose |
+| One Tulu 3 row before (stored messages) and after (rendered, tokenized, masked) | before/after | section 4 | what a row becomes; mask mechanics linked to Alignment |
+| One prompt pool feeding SFT, preference and RL | static diagram | section 8 | structure stated only in prose before |
+Moved: the Pair inspector and Checker lab tabs into closed blocks of sections 5 and 6 (each explained one mechanism).
+Rejected: redrawing the loss-mask widget (Alignment owns it); a log-axis bar chart for the lineage (dots instead, no areas on a log scale).

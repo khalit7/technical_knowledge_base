@@ -1,4 +1,4 @@
-// ---- Reading tab, sections 6 to 9 (prefix pd) ----
+// ---- Reading tab, sections 5 to 8 (prefix pd) ----
 (function(){
 const P=window.PD,E=RD.esc,$=id=>document.getElementById(id),{f0,pc,bars}=window.PDU;
 
@@ -10,7 +10,7 @@ const P=window.PD,E=RD.esc,$=id=>document.getElementById(id),{f0,pc,bars}=window
     $('pd-bin-prompt').innerHTML='<b>Prompt '+(Math.floor(k/3)+1)+' of '+X.length+'</b> (UltraFeedback evol_instruct): '+E(e.prompt);
     $('pd-bin-comp').innerHTML=e.comps.map((c,i)=>{const cls=ph>=1&&i===ci?'ch':ph>=2&&i===ri?'rj':ph>=2?'out':'';
       const m=mean(c);return '<div class="'+cls+'"><div class="h"><span>'+E(c.model||'')+'</span><span>'+f0(c.tok)+' tokens</span></div><div class="h"><span>overall_score '+(c.overall==null?'n/a':c.overall)+'</span><span>mean of aspects '+(m==null?'n/a':m.toFixed(2))+'</span></div>'+
-        (cls==='ch'?'<span class="badge" style="color:var(--good)">chosen</span>':cls==='rj'?'<span class="badge" style="color:var(--bad)">rejected</span>':'')+'<div class="t">'+E(c.text)+'</div></div>'}).join('');
+        (cls==='ch'?'<span class="badge" style="color:var(--good)">chosen</span>':cls==='rj'?'<span class="badge" style="color:var(--bad)">rejected</span>':'')+'<div class="t">'+E(c.text.length>220?c.text.slice(0,220)+' [...]':c.text)+'</div></div>'}).join('');
     const c=e.comps[ci],r=e.comps[ri];
     const cap=['<div class="t">Four answers from four models, each rated by GPT-4</div><p>overall_score comes from a critique pass; the four aspect ratings (instruction following, honesty, truthfulness, helpfulness) are separate. Lengths in Qwen3 tokens.</p>',
       '<div class="t">The rule picks the chosen answer</div><p>'+E(P.pref.rules[rule]||'')+'.</p>',
@@ -67,6 +67,6 @@ const P=window.PD,E=RD.esc,$=id=>document.getElementById(id),{f0,pc,bars}=window
   if(!names.length){$('pd-contam').innerHTML='<div class="pend"><b>Scan not recorded yet.</b> <code>python -I -B src/scripts/pd_contam.py</code></div>';return}
   const LB=P.contam_lab||{};const NMc={pd_openr1:'OpenR1-Math, 6k',pd_code:'Code problems (tested), 5k',pd_if_multi:'IF_multi_constraints_upto5, all',pd_dolci_rl:'Dolci-Think-RL-7B, 4k',pd_dolci_sft:'Dolci-Instruct-SFT, 4k',pd_dolci_think:'Dolci-Think-SFT-7B, 3k',pd_tulu3_pref:'Tulu 3 8B preferences, 5k',pd_alpaca:'Alpaca, all'};
   $('pd-contam').innerHTML='<table><thead><tr><th>Set (rows scanned)</th><th class="num">Rows sharing a 13-gram</th><th class="num">Pairs over the 50% rule</th><th class="num">Read: copies (rows)</th><th class="num">Variants</th><th class="num">False alarms</th></tr></thead><tbody>'+
-    names.map(k=>{const v=c[k],l=LB[k]||{};return '<tr><td>'+E(NMc[k]||k)+' ('+f0(v.docs)+')</td><td class="num">'+f0(v.any13)+'</td><td class="num">'+f0(v.flag_cov8)+'</td><td class="num">'+f0(l.copy||0)+' ('+f0(l.rows_copy||0)+')</td><td class="num">'+f0((l.variant||0)+(l['same question (common trivia)']||0))+'</td><td class="num">'+f0(l['false alarm']||0)+'</td></tr>'}).join('')+'</tbody></table>'+
-    (P.contam_ex||[]).map(e=>'<div class="rd-card"><div class="small"><b>'+E(e.label)+'</b>: '+E(e.bench)+' item '+e.idx+' in '+E(NMc[e.corpus]||e.corpus)+' (coverage '+pc(e.cov8,1,0)+')</div><div class="pd-ex"><div><div class="pd-lab">benchmark item</div><div class="rd-doc">'+E(e.item)+'</div></div><div><div class="pd-lab">training row, matched region</div><div class="rd-doc">'+E(e.excerpt)+'</div></div></div></div>').join('')})();
+    names.map(k=>{const v=c[k],l=LB[k]||{};return '<tr><td>'+E(NMc[k]||k)+' ('+f0(v.docs)+')</td><td class="num">'+f0(v.any13)+'</td><td class="num">'+f0(v.flag_cov8)+'</td><td class="num">'+f0(l.copy||0)+' ('+f0(l.rows_copy||0)+')</td><td class="num">'+f0((l.variant||0)+(l['same question (common trivia)']||0))+'</td><td class="num">'+f0(l['false alarm']||0)+'</td></tr>'}).join('')+'</tbody></table>';
+  $('pd-contam-ex').innerHTML=(P.contam_ex||[]).map(e=>'<div class="rd-card"><div class="small"><b>'+E(e.label)+'</b>: '+E(e.bench)+' item '+e.idx+' in '+E(NMc[e.corpus]||e.corpus)+' (coverage '+pc(e.cov8,1,0)+')</div><div class="pd-ex"><div><div class="pd-lab">benchmark item</div><div class="rd-doc">'+E(e.item)+'</div></div><div><div class="pd-lab">training row, matched region</div><div class="rd-doc">'+E(e.excerpt)+'</div></div></div></div>').join('')})();
 })();

@@ -1,4 +1,4 @@
-// ---- Checker lab (tab t-pdchk) ----
+// ---- Checker lab (Reading section 6, closed block #pd-pc) ----
 (function(){
 const P=window.PD,E=RD.esc,$=id=>document.getElementById(id),{f0,pc}=window.PDU;const C=P.check;
 const NM={last_number:'Last number',tulu_math:'Tulu 3 MATH',minerva:'Minerva sentence',boxed_exact:'Exact \\boxed{}',answer_is:'"The answer is"',math_verify:'Math-Verify 0.8.0',rec_mv:'Recorded Math-Verify (2025-02)'};
@@ -10,7 +10,7 @@ function mat(){const A=C[view].agree,n=C.n;let h='<table class="hm" style="min-w
   $('pc-mat').innerHTML=h+'</tbody></table>';
   $('pc-mat').querySelectorAll('td.v').forEach(td=>td.addEventListener('click',()=>{pairSel=[td.dataset.a,td.dataset.b];cat='pair';i=0;mat();sel();one()}))}
 function qt(){const q=C[view].by_qtype;$('pc-qt').innerHTML='<table><thead><tr><th>Checker</th>'+Object.keys(q).map(k=>'<th class="num">'+E(k)+' ('+f0(C.qtype_n[k])+')</th>').join('')+'</tr></thead><tbody>'+cols.map(c=>'<tr><td>'+E(NM[c])+'</td>'+Object.keys(q).map(k=>'<td class="num">'+pc(q[k][c],C.qtype_n[k],0)+'</td>').join('')+'</tr>').join('')+'</tbody></table>'}
-function cats(){$('pc-cats').innerHTML='<table><thead><tr><th>Kind</th><th class="num">Generations</th></tr></thead><tbody>'+Object.keys(CAT).map(k=>'<tr><td>'+E(CAT[k])+'</td><td class="num">'+f0(C.cat_counts[k])+'</td></tr>').join('')+'</tbody></table><p class="small mute">Of the '+f0(C.llama.n)+' generations the Llama judge saw (all rejected by Math-Verify), it accepted '+f0(C.llama.true)+'; 30 of those were read by hand (Reading, section 4). At least one checker or the recorded verdict accepts '+f0(C.any_ok)+' of '+f0(C.n)+'.</p>'}
+function cats(){$('pc-cats').innerHTML='<table><thead><tr><th>Kind</th><th class="num">Generations</th></tr></thead><tbody>'+Object.keys(CAT).map(k=>'<tr><td>'+E(CAT[k])+'</td><td class="num">'+f0(C.cat_counts[k])+'</td></tr>').join('')+'</tbody></table><p class="small mute">Of the '+f0(C.llama.n)+' generations the Llama judge saw (all rejected by Math-Verify), it accepted '+f0(C.llama.true)+'; 30 of those were read by hand (section 3). At least one checker or the recorded verdict accepts '+f0(C.any_ok)+' of '+f0(C.n)+'.</p>'}
 function list(){if(cat==='pair'){const [a,b]=pairSel;const V=view==='answer'?'v':'vf';return C.examples.filter(e=>a!=='rec_mv'&&b!=='rec_mv'?e[V][a][1]!==e[V][b][1]:(e[V][a==='rec_mv'?b:a][1]!==e.rec_mv))}return C.examples.filter(e=>e.cat===cat)}
 function sel(){const s=$('pc-cat');s.innerHTML=Object.keys(CAT).map(k=>'<option value="'+k+'"'+(k===cat?' selected':'')+'>'+E(CAT[k])+'</option>').join('')+(pairSel?'<option value="pair"'+(cat==='pair'?' selected':'')+'>'+E(NM[pairSel[0]]+' against '+NM[pairSel[1]])+'</option>':'')}
 function one(){const L=list();if(!L.length){$('pc-one').innerHTML='<p class="small">No example in the seeded set for this choice.</p>';$('pc-pos').textContent='';return}
@@ -26,6 +26,6 @@ function render(){mat();qt();cats();sel();one()}
 RD.seg($('pc-view'),m=>{view=m;render()});
 $('pc-cat').addEventListener('change',e=>{cat=e.target.value;i=0;one()});
 $('pc-prev').addEventListener('click',()=>{i--;one()});$('pc-next').addEventListener('click',()=>{i++;one()});
-(window.TAB_RENDER=window.TAB_RENDER||{})['t-pdchk']=[render];
+RD.onRender(render);
 rl();render();
 })();
