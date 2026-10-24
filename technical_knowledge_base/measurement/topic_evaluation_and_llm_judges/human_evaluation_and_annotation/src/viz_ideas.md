@@ -17,3 +17,18 @@ Central question: how much can you trust a human label, and what do you do when 
 | H11 | Dawid-Skene simulator | none | MT-Bench raters too sparse per expert to fit well; mechanism adequately described | rejected |
 
 What the methodology lacked: guidance for data whose "truth" is itself a human label (the audit lab scores model-proposed suspects against another human audit, which is also fallible; said on the page).
+
+## 2026-10-24 rebuild to the teaching contract
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| H3, H4 | Agreement lab and Audit lab | moved from their own tabs into Reading (each explains one mechanism): the agreement calculator is a closed block under Agreement; the review-queue lab sits inline in Finding errors, its item list and per-model table in closed blocks | moved |
+| H12 | Hero: the life of a label, six stages, each tagged with the failure it controls (noisy, biased, wrong thing) and one sourced number; 3 by 2 snake at 560 px and up, one column below | Reading, top | built (`25_js_figs.js`) |
+| H13 | Rater pairings dot plot (Arena, InstructGPT, earlier work, Anthropic HH), compare within a row only | Reading, Who and cost | built |
+| H14 | Annotated rubric (one criterion, six labelled parts, illustrative) | Reading, Rubrics | built (HTML) |
+| H15 | Prevalence curve: kappa and AC1 against the pass share at fixed 90% raw agreement, marker on the slider value, prediction prompt | Reading, Agreement (extends H6) | built |
+| H16 | ChaosNLI bars (5-vote majority lost the 100-vote majority: 20%, 31%, 10%) | Reading, Disagreement | built |
+| H17 | Gold-label record (illustrative JSON with every field) | Reading, Gold slice | built (HTML) |
+| H18 | Gold-error-aware routine flow (consensus battery branch, adjudication, verified-subset gate, loop) | Reading, Finding errors | built |
+| H19 | Preference forms side by side (Llama 2 forced choice and margin; MT-Bench and Arena with tie) | Reading, Preference data | built (HTML) |
+| H20 | Bar chart of every audit's error rate | none | rejected: the audits count different things (wrong key, any flaw, removed tasks), so one axis would mix figure kinds; the table stays |
+| H21 | Photo or paper figure | none | rejected: nothing physical to show; MMLU-Redux's taxonomy figure is already carried by the format table and the decision order |
