@@ -56,3 +56,6 @@ No `live.md` or `coverage.json`: the page is new, with no old text. Measurements
 - `memory.high` without swap stalled a growing process indefinitely with no OOM and no error (17.3 s for one 10 MiB step, then no progress); with swap it finished in 0.3 s.
 - tini's process-group mode and dumb-init do not fix the shell-in-between trap: the shell still dies, the init exits, and the namespace's SIGKILL beats Python's handler.
 - On Linux 5.10 root in this VM could create no io_uring ring at all under the default 64 KiB memlock limit: UID 0's locked_vm budget, shared across containers and probably consumed by runc's per-container BPF device programs, was already used.
+
+## Topic close (2026-10-24)
+Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.
