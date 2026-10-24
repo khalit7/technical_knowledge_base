@@ -40,17 +40,17 @@ C = [
  ('Extensive ablations attribute the gain to the design rather than added parameters, in particular the separate weight sets', R + ', Results (LoRA16); Ablations; How much to believe (qualified: two of ten ablation gaps within noise)', ['extra parameters alone do not explain them', 'Shared Weights', 'components not all shown necessary']),
  # why it matters
  ('The causal mask over the prompt is a legacy of the generation objective, not a requirement of it, and its cost is measurable', R + ', Why it matters', ['the causal mask over the prompt is a legacy of the generation objective, not a requirement of it']),
- ('Prefix-LM architectures made the same observation years earlier', R + ', Why it matters; Ablations (Naive Bidir. = prefix-LM)', ['Prefix-LMs made the same observation years earlier', 'turning a pretrained decoder into a prefix-LM']),
+ ('Prefix-LM architectures made the same observation years earlier', R + ', Why it matters; Ablations (Naive Bidir. = prefix-LM)', ['Prefix LMs made the same observation years earlier', 'turning a pretrained decoder into a prefix-LM']),
  ('Bitune\'s contribution: doing it to an already-pretrained decoder without retraining, and showing the two feature types need separate projections', R + ', Why it matters', ['doing it to an already-pretrained decoder without retraining it', 'need their own weights and a mix with the causal ones']),
- ('Caveat: gains consistent but not transformational', R + ', Why it matters; verdict', ['the gains are consistent but not transformational']),
+ ('Caveat: gains consistent but not transformational', R + ', Why it matters; verdict', ['the gains are consistent in direction but not transformational']),
  ('Caveat: roughly doubles prompt-processing compute; real cost at long context; paper\'s setting is short instructions', R + ', Cost (refined: two passes\' work, measured 9.3 times the prefill time; training 3.1 times); Why it matters', ['doubles prompt-processing work', 'the paper\'s setting is short instructions', '9.3 times longer']),
- ('Caveat: the frontier has largely not adopted it', R + ', Why it matters (marked unconfirmed: no model card or report documents it)', ['Whether frontier labs use anything like it is not documented in any model card or report we know of (unconfirmed)']),
+ ('Caveat: the frontier has largely not adopted it', R + ', Why it matters, dated block "Since the paper" (marked unconfirmed: no model card or report documents it)', ['Whether frontier labs use anything like it is not documented in any model card or report we know of (unconfirmed, as of 3 October 2026)']),
  ('Read it for the diagnosis more than the recipe', R + ', Why it matters', ['Read it for the diagnosis more than the recipe']),
  # connections
  ('The same observation drives encoder repurposing: LLM2Vec, NV-Embed, the bidirectional-encoder half of Encoder-Decoder Gemma', 'Connections; Why it matters; Further reading', ['the bidirectional encoder half of', '3d45c17b0d0d81a9a22ffaada508db5c', 'https://arxiv.org/abs/2504.06225']),
  ('Attention masking and prefix-LM variants: see the llms topic', 'Connections', ['Attention masking and prefix-LM variants', '3fd5c17b0d0d8172b490dc9f9ac281df']),
  ('Adjacent in this batch: LLM Modules and Trained Persistent Memory; all three attach trainable structure to a frozen pretrained model', 'Connections; Further reading', ['3ce5c17b0d0d810191d0ebcffc54f608', '3ce5c17b0d0d81978137dd8f8cab1c74', 'All three attach trainable structure to a frozen pretrained model rather than retraining it']),
- ('Database property Takeaway', 'stays in the database; the headline card carries an updated one-line takeaway', ['The causal mask is required by generation, not by prompt processing']),
+ ('Database property Takeaway', 'stays in the database; the headline card carries an updated, softened one-line takeaway (2026-10-25: "needed for generation but not, in principle, for reading a prompt")', ['The causal mask is needed for generation but not, in principle, for reading a prompt that is already complete']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)
 out, miss = [], []

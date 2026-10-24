@@ -19,6 +19,7 @@ Scores: teaching value (T), faithfulness to sources (F), interactivity worth (I)
 | P-bitune.9 | **Toy: look inside**: attention grids of every pass and of the answer token per block and head, and the share of attention person tokens put on the club token to their right; learned α per block against the paper's mean | Run tab | 4 | 5 | 4 | live |
 | P-bitune.10 | **Toy results with seeds and logged curves**, plus an in-browser test that reruns the shipped model on fresh prompts | Run tab | 4 | 5 | 3 | `results.json`, `finetune.log` |
 | P-bitune.11 | **Checks on the text** table (claims against recomputed values) and the **graded GSM8K samples** of A.13 | Tables tab | 4 | 5 | 1 | `recompute.py`, `inputs/gsm8k_samples.json` |
+| P-bitune.12 | **Hero: the paper's Figure 1** (CC BY 4.0, `img/bitune_fig1_overview.webp`) at the top with a what-to-notice caption: two prefill passes meeting only in the cache, causal decoding over it (light pass 2026-10-25) | Reading, top | 4 | 5 | 1 | the paper's own figure, rendered from its arXiv SVG |
 
 ## Rejected
 
