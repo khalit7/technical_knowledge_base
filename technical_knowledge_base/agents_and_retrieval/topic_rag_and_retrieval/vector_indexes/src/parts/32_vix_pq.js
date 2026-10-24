@@ -1,4 +1,4 @@
-// ---- IVF-PQ lab (t-vixpq): a real FAISS IndexIVFPQ, recomputed in the browser from its codes and lookup tables ----
+// ---- IVF-PQ lab (inline in Reading): a real FAISS IndexIVFPQ, recomputed in the browser from its codes and lookup tables ----
 (function(){
   const P=window.VIX&&window.VIX.pq;if(!P)return;
   const $=id=>document.getElementById(id),esc=RD.esc;
@@ -61,7 +61,7 @@
   RD.seg($('vix-p-np'),v=>{st.np=+v;A.redraw()});
   RD.seg($('vix-p-meth'),v=>{st.m=v;A.redraw()});
   $('vix-p-q').addEventListener('change',e=>{st.q=+e.target.value;A.go(0)});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-vixpq']=[()=>A.redraw()];
-  addEventListener('resize',()=>{if(!$('t-vixpq').hidden)A.redraw()});
+  RD.onRender(()=>A.redraw());
+  RD.onResize(()=>A.redraw());
   all();
 })();

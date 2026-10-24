@@ -9,7 +9,7 @@ const puppeteer = require('puppeteer');
 const [file, shots] = process.argv.slice(2); fs.mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell' });
 let bad = 0;
-const TABS = ['t-read', 't-vixhnsw', 't-vixpq', 't-vixfront', 't-vixfilt', 't-more'];
+const TABS = ['t-read', 't-vixfront', 't-more'];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });

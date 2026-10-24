@@ -1,4 +1,4 @@
-// ---- HNSW lab (t-vixhnsw): replays the port's recorded build and search traces (data/hnsw_anim.json) ----
+// ---- HNSW lab (inline in Reading): replays the port's recorded build and search traces (data/hnsw_anim.json) ----
 (function(){
   const H=window.VIX&&window.VIX.hnsw;if(!H)return;
   const $=id=>document.getElementById(id), esc=RD.esc;
@@ -104,7 +104,7 @@
   RD.seg($('vix-h-var'),v=>{st.vr=v;reset()});
   $('vix-h-layer').addEventListener('change',e=>{st.layer=+e.target.value;A.redraw()});
   $('vix-h-q').addEventListener('change',e=>{st.q=+e.target.value;reset()});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-vixhnsw']=[()=>A.redraw()];
-  addEventListener('resize',()=>{if(!$('t-vixhnsw').hidden)A.redraw()});
+  RD.onRender(()=>A.redraw());
+  RD.onResize(()=>A.redraw());
   reset();
 })();

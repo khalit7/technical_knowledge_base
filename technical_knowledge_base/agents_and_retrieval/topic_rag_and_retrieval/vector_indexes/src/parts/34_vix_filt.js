@@ -1,4 +1,4 @@
-// ---- Filter lab (t-vixfilt): measured filtered search (data/results.json: filter, acorn, qdrant) ----
+// ---- Filter lab (inline in Reading): measured filtered search (data/results.json: filter, acorn, qdrant) ----
 (function(){
   const R=window.VIX&&window.VIX.r;if(!R||!R.filter)return;
   const F=R.filter,A=R.acorn||{},Qd=R.qdrant||{rows:[]};
@@ -37,6 +37,6 @@
   const keys=[...new Set(qd.map(r=>r.collection+'|'+r.filter))],efs=[...new Set(qd.map(r=>r.hnsw_ef))].sort((a,b)=>a-b);
   $('vix-l-qd').innerHTML='<table><tr><th>Collection, filter (share kept)</th>'+efs.map(e=>'<th class="num">ef '+e+'</th>').join('')+'</tr>'+keys.map(k=>{const rs=qd.filter(r=>r.collection+'|'+r.filter===k);const r0=rs[0];
     return '<tr><td>'+esc(r0.collection.replace('vix_','').replace('_graph',' (graph forced)').replace('_default',' (default threshold)')+', '+r0.filter+' ('+(r0.selectivity*100).toFixed(2)+'%)')+'</td>'+efs.map(e=>{const r=rs.find(x=>x.hnsw_ef===e);return '<td class="num">'+(r?r.recall10.toFixed(3):'')+'</td>'}).join('')+'</tr>'}).join('')+'</table><p class="small mute">Recall@10 against the exact filtered top 10.</p>';
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-vixfilt']=[()=>A1.redraw()];
-  addEventListener('resize',()=>{if(!$('t-vixfilt').hidden)A1.redraw()});
+  RD.onRender(()=>A1.redraw());
+  RD.onResize(()=>A1.redraw());
 })();
