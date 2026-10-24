@@ -1,35 +1,133 @@
-<section id="s-why"><h2>1. Why test at all</h2>
-<p>You already test: you run the code, try an input, look at the output. An automated test writes that check down so a machine can repeat it in milliseconds, every time anything changes. Three things follow.</p>
-<ul>
-<li><b>Confidence to change.</b> The real value of a test suite shows up the day you refactor, upgrade a library or swap a model provider: you change the code, run the suite, and know within a minute whether anything a caller relies on broke. Without tests, every change is a gamble, so people stop changing things and the code rots.</li>
-<li><b>Documentation that cannot go stale.</b> <code>test_client_errors_are_not_retried[404]</code> tells the next reader exactly what the retry policy promises, and it fails the moment it stops being true.</li>
-<li><b>Design pressure.</b> Code that is hard to test (it opens its own database connection, reads the clock, calls the model directly) is usually hard to change for the same reasons.</li>
-</ul>
-<p>What tests cannot do is prove the code correct. Edsger Dijkstra, 1970: "Program testing can be used to show the presence of bugs, but never to show their absence!" ({{EWD249|https://www.cs.utexas.edu/~EWD/ewd02xx/EWD249.PDF}}). Each kind of test below is a different net; the craft is choosing nets that catch the bugs you are likely to have, at a cost you can afford to run on every change.</p>
-<div class="corr"><div class="t">Checked: "a bug costs 100 times more in production"</div>
-<p style="margin:2px 0">The number is everywhere and weaker than it sounds. Its usual source is Boehm and Basili's 2001 "Software Defect Reduction Top 10 List" ({{IEEE Computer|https://www.cs.umd.edu/projects/SoftEng/ESEG/papers/82.78.pdf}}): "Finding and fixing a software problem after delivery is often 100 times more expensive than finding and fixing it during the requirements and design phase", which the same article qualifies: for small, noncritical systems the factor is "more like 5:1 than 100:1". It traces back to 1970s and 1980s data from large waterfall projects. Menzies, Nichols, Shull and Layman tested it on 171 modern projects and "found no evidence for the delayed issue effect" ({{arXiv 1609.04886|https://arxiv.org/abs/1609.04886}}, Empirical Software Engineering 2017); Laurent Bossavit traces how the figure spread in {{The Leprechauns of Software Engineering|https://leanpub.com/leprechauns}} (chapter 10).</p>
-<p style="margin:4px 0 0">What does hold, without a multiplier: a bug caught by a test on your laptop costs you seconds and nobody else anything; the same bug in production costs an incident, a rollback, a postmortem and some users' trust ({{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}). Argue for tests from that, not from the 100x.</p></div>
-</section>
-
-<section id="s-shape"><h2>2. The test pyramid, the trophy, and what each layer catches</h2>
-<p>Tests are grouped by how much of the system they run at once:</p>
-<ul>
-<li><dfn id="g-unit">Unit test</dfn>: one function or class, in one process, no network or disk. Milliseconds.</li>
-<li><dfn id="g-int2">Integration test</dfn>: your code together with a real dependency (database, queue, another module). Milliseconds to seconds.</li>
-<li><dfn id="g-e2e">End-to-end test</dfn>: the whole deployed system driven like a user would (HTTP requests to the real API, a browser clicking the UI). Seconds to minutes, and the most likely to be flaky.</li>
-<li><dfn id="g-static">Static checks</dfn>: type checkers and linters (mypy, pyright, ruff) that read the code without running it.</li>
-</ul>
-<p>Because "unit" and "integration" mean different things to different teams, Google sorts tests by the resources they use instead: "small tests run in a single process, medium tests run on a single machine, and large tests run wherever they want" ({{Software Engineering at Google, ch. 11|https://abseil.io/resources/swe-book/html/ch11.html}}). The PostgreSQL tests on this page are medium: one machine, a local server.</p>
-<p>The <dfn id="g-pyramid">test pyramid</dfn> (Mike Cohn, <i>Succeeding with Agile</i>, 2009; {{Fowler's summary|https://martinfowler.com/bliki/TestPyramid.html}}, 2012) says: many fast unit tests at the base, fewer integration tests, very few end-to-end tests at the top. Google's testing blog suggested "a 70/20/10 split: 70% unit tests, 20% integration tests, and 10% end-to-end tests" as a first guess ({{Wacker, 2015|https://testing.googleblog.com/2015/04/just-say-no-to-more-end-to-end-tests.html}}). The <dfn id="g-trophy">testing trophy</dfn> (Kent C. Dodds, 2018; {{his 2021 write-up|https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications}}) puts static checks at the base and makes integration the widest layer, after Guillermo Rauch's line "Write tests. Not too many. Mostly integration." (2016). Click a layer.</p>
+<section id="s-shape"><h2>2. Layers: what each catches, what it costs</h2>
+<p>Tests are grouped by how much of the system one test runs: a <dfn id="g-unit">unit test</dfn> runs one function or class in one process, no network or disk (milliseconds); an <dfn id="g-int2">integration test</dfn> runs your code with a real dependency such as a database, queue or another module (milliseconds to seconds); an <dfn id="g-e2e">end-to-end test</dfn> drives the whole deployed system like a user (HTTP requests to the real API, a browser clicking the UI: seconds to minutes, and the flakiest); <dfn id="g-static">static checks</dfn> (mypy, pyright, ruff) read the code without running it. Because "unit" and "integration" mean different things to different teams, Google sorts tests by the resources they use instead: "small tests run in a single process, medium tests run on a single machine, and large tests run wherever they want" ({{Software Engineering at Google, ch. 11|https://abseil.io/resources/swe-book/html/ch11.html}}). The PostgreSQL tests on this page are medium: one machine, a local server.</p>
 <div class="card" id="lay-card">
-<div class="lay">
-<div><div class="small mute" style="text-align:center">Pyramid</div><div class="shape" id="lay-pyr">
-<button data-l="e2e" style="width:34%">End-to-end</button><button data-l="int" style="width:62%">Integration</button><button data-l="unit" style="width:92%">Unit</button></div></div>
-<div><div class="small mute" style="text-align:center">Trophy</div><div class="shape" id="lay-tro">
-<button data-l="e2e" style="width:36%">End-to-end</button><button data-l="int" style="width:90%">Integration</button><button data-l="unit" style="width:58%">Unit</button><button data-l="static" style="width:72%">Static</button></div></div>
-</div>
+<div class="ft" style="font-weight:600;font-size:14px">Pyramid and trophy agree on the top; they differ on how wide the middle is</div>
+<div class="rd-svg" id="tq-lay"></div>
+<p class="cap">Band widths are the shapes' proportions, not measurements. Click a band for what that layer catches, misses and costs on this page.</p>
 <div class="detail" id="lay-detail"></div>
 </div>
-<p><b>Which shape?</b> They agree more than the arguments suggest: both want most of the checking done by fast, reliable tests, and few slow end-to-end ones. The pyramid fits code with a lot of logic of its own (a retry policy, a tokenizer, a pricing engine); the trophy fits code that is mostly wiring between other systems (a web front end, a thin API over a database), where a unit test with everything mocked checks little. A practical rule: <b>test each behaviour at the lowest layer that can catch its bugs</b>. The case-sensitivity bug in <a href="#s-int">section 6</a> cannot be caught below the integration layer; the chunker bug in <a href="#s-prop">section 7</a> needs nothing above a unit test.</p>
-<p>ML systems add a layer on top: <b>evals</b>, which score a model or prompt on a set of cases and compare against a threshold. They are statistical, slow and costly, so they run on merge or nightly; {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}} owns them.</p>
+<p>The <dfn id="g-pyramid">test pyramid</dfn> (Mike Cohn, <i>Succeeding with Agile</i>, 2009; {{Fowler's summary|https://martinfowler.com/bliki/TestPyramid.html}}, 2012): many fast unit tests at the base, fewer integration tests, very few end-to-end tests. Google's testing blog suggested "a 70/20/10 split: 70% unit tests, 20% integration tests, and 10% end-to-end tests" as a first guess ({{Wacker, 2015|https://testing.googleblog.com/2015/04/just-say-no-to-more-end-to-end-tests.html}}). The <dfn id="g-trophy">testing trophy</dfn> (Kent C. Dodds, 2018; {{his 2021 write-up|https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications}}) puts static checks at the base and makes integration the widest layer, after Guillermo Rauch's line "Write tests. Not too many. Mostly integration." (2016).</p>
+<p><b>Which shape?</b> Both want most of the checking done by fast, reliable tests and few slow end-to-end ones. The pyramid fits code with a lot of logic of its own (a retry policy, a tokenizer, a pricing engine); the trophy fits code that is mostly wiring between other systems (a web front end, a thin API over a database), where a unit test with everything mocked checks little. ML systems add a band on top, <b>evals</b>, which score a model or prompt on a set of cases against a threshold; they are statistical, slow and costly, so they run on merge or nightly ({{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}} owns them).</p>
+</section>
+
+<section id="s-unit"><h2>3. Unit tests that survive refactoring</h2>
+<p>The first piece of the chat product under test is the <b>chunker</b>: before a document can be searched by meaning (retrieval, the R in RAG), it is cut into overlapping windows of text, each embedded separately. The function and three ordinary pytest tests:</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/hyp/chunking.py</code></div>
+<pre class="cv py">def chunk(text: str, size: int, overlap: int) -&gt; list[str]:
+    """Split text into windows of `size` characters; neighbours share `overlap` characters."""
+    if not 0 &lt;= overlap &lt; size:
+        raise ValueError("need 0 &lt;= overlap &lt; size")
+    step = size - overlap
+    return [text[i:i + size] for i in range(0, len(text) - size + 1, step)]
+
+def unchunk(chunks: list[str], overlap: int) -&gt; str:
+    """Inverse of chunk: glue the windows back, dropping each repeated overlap."""
+    if not chunks:
+        return ""
+    return chunks[0] + "".join(c[overlap:] for c in chunks[1:])</pre>
+<div class="cvh"><span class="real">real</span> <code>experiments/hyp/test_chunking_examples.py</code></div>
+<pre class="cv py">from chunking import chunk, unchunk
+
+def test_splits_into_overlapping_windows():
+    assert chunk("abcdefghij", size=4, overlap=1) == ["abcd", "defg", "ghij"]
+
+def test_no_overlap():
+    assert chunk("abcdef", size=2, overlap=0) == ["ab", "cd", "ef"]
+
+def test_round_trip():
+    text = "the quick brown fox jumps over the lazy dog!!"   # 45 characters
+    assert unchunk(chunk(text, size=10, overlap=5), overlap=5) == text</pre>
+<div class="term">$ pytest -q test_chunking_examples.py
+...                                                                      [100%]
+<b class="g">3 passed in 0.53s</b></div>
+<p>All green, and the function has a bug: look at <code>len(text) - size + 1</code>. Any document shorter than one window produces no chunks at all, so it silently vanishes from the search index. The three examples happen to use lengths where the windows fit exactly. <a href="#s-prop">Section 6</a> finds it without being told where to look.</p>
+
+<h3>Test behaviour, not implementation</h3>
+<p>The most useful idea in test design: a test checks <b>what</b> the code promises (its outputs, its errors, its effects others can see), not <b>how</b> it does it. Google's testing book puts the goal as tests that are "unchanging": they only need to change when the requirements change ({{Software Engineering at Google, ch. 12|https://abseil.io/resources/swe-book/html/ch12.html}}). The figure is why: the two kinds of test answer two kinds of change in opposite ways.</p>
+<div class="fig"><div class="ft">A test tied to the how fails on a correct refactor and passes a real bug</div><div class="rd-svg" id="tq-beh"></div>
+<p class="cap">The retry policy's <code>backoff_delay(attempt)</code> returns 0.5 s doubled per attempt, capped at 8. The real bug is mutant <code>backoff_delay #2</code> from <a href="#s-mut">section 10</a> (cap 8 changed to 9), which survived the weak suite. The brittle test is illustrative (<code>mocker</code> comes from pytest-mock).</p></div>
+<div class="cmp">
+<div><h4><span class="lbl b">brittle</span> tests the implementation</h4>
+<pre class="cv py">def test_backoff_uses_min(mocker):
+    spy = mocker.spy(builtins, "min")
+    backoff_delay(3)
+    spy.assert_called_once()
+
+def test_retryable_set():
+    assert 503 in retrypolicy.RETRYABLE</pre></div>
+<div><h4><span class="lbl p">robust</span> tests the behaviour</h4>
+<pre class="cv py">def test_backoff_doubles_from_base_then_caps():
+    assert [backoff_delay(a) for a in range(1, 7)] \
+        == [0.5, 1, 2, 4, 8, 8]
+
+def test_stops_at_max_attempts():
+    assert not should_retry(503, attempt=3)</pre></div>
+</div>
+<p>How a good test reads:</p>
+<ul>
+<li><b>Arrange, act, assert</b>: build the inputs, call the code once, check the result. If a test needs three acts, it is three tests.</li>
+<li><b>One reason to fail</b>, and a name that says the behaviour: <code>test_retry_preserves_idempotency_key</code>, not <code>test_retry_2</code>. When it goes red in CI, the name is the bug report.</li>
+<li><b>Tiny literal inputs</b> written in the test itself, so the expected output can be checked by eye.</li>
+<li><b>Write the failing test before fixing a bug.</b> It proves you reproduced the bug and stops it coming back (a <dfn id="g-regression">regression test</dfn>). Every production incident should leave one behind; for model behaviour the equivalent is a new case in the golden set ({{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}).</li>
+<li><b>Design for testing</b>: a function that takes its inputs as arguments and returns a value (a <dfn id="g-pure">pure function</dfn>) needs no setup at all. Anything that touches S3, a database or the clock goes behind an interface a test can replace. {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}} (sections 4 and 8: functional core, dependency injection) shows the refactoring on a real handler.</li>
+</ul>
+<details class="dp"><summary>pytest in one screen <span class="mute">(runner, fixtures, parametrisation, errors, floats, markers, a starting config)</span></summary><div class="b">
+<p>{{pytest|https://docs.pytest.org/en/stable/}} is the standard test runner for Python. A <dfn id="g-runner">test runner</dfn> finds your tests, runs each one in isolation, and reports which passed. pytest's rules are short: files named <code>test_*.py</code>, functions named <code>test_*</code>, and a plain <code>assert</code> statement as the check. When an assert fails, pytest rewrites it to show both sides ({{assertion introspection|https://docs.pytest.org/en/stable/how-to/assert.html}}), so you never need special <code>assertEqual</code> methods.</p>
+<div class="tw"><table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody>
+<tr><td><code>pytest -q</code></td><td>Run everything under the current folder, one character per test.</td></tr>
+<tr><td><code>pytest tests/test_search.py::test_search_ignores_case</code></td><td>Run one test by its <dfn id="g-nodeid">node id</dfn> (file, then <code>::</code>, then name).</td></tr>
+<tr><td><code>pytest -k "retry and not slow"</code></td><td>Run tests whose names match an expression.</td></tr>
+<tr><td><code>pytest -x --lf</code></td><td>Stop at the first failure; rerun only the tests that failed last time.</td></tr>
+<tr><td><code>pytest -m "not slow"</code></td><td>Skip tests carrying the <code>slow</code> marker (below).</td></tr>
+<tr><td><code>pytest --durations=10</code></td><td>List the ten slowest tests: where your suite's time goes.</td></tr>
+</tbody></table></div>
+<p><b>Fixtures.</b> A <dfn id="g-fixture">fixture</dfn> is a function that builds something a test needs (a database connection, a temporary folder, a fake server) and cleans it up afterwards. A test asks for it by naming it as an argument; pytest calls the fixture, passes in the value, and after the test runs the code after <code>yield</code> ({{fixtures docs|https://docs.pytest.org/en/stable/how-to/fixtures.html}}). The <dfn id="g-scope">scope</dfn> says how often it is rebuilt: <code>function</code> (default, once per test), <code>module</code>, or <code>session</code> (once per run, for expensive things). Fixtures shared by many files live in a <code>conftest.py</code>, which pytest loads automatically. These are the real fixtures behind the PostgreSQL tests in <a href="#s-int">section 5</a>:</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/integ/conftest.py</code> (timing code removed)</div>
+<pre class="cv py">import sqlite3, tempfile
+import pytest, psycopg, pgserver
+
+@pytest.fixture
+def sqlite_conn():
+    conn = sqlite3.connect(":memory:")
+    yield conn                      # the test runs here
+    conn.close()                    # teardown, even if the test failed
+
+@pytest.fixture(scope="session")    # start PostgreSQL once for the whole run
+def pg_server():
+    yield pgserver.get_server(tempfile.mkdtemp(prefix="pgtest"), cleanup_mode="stop")
+
+@pytest.fixture
+def pg_conn(pg_server):             # fixtures can use other fixtures
+    with psycopg.connect(pg_server.get_uri(), autocommit=False) as conn:
+        yield conn
+        conn.rollback()             # every test's writes vanish: tests stay independent</pre>
+<p>pytest ships useful fixtures too: <code>tmp_path</code> (a fresh folder per test), <code>monkeypatch</code> (change an attribute, dict item or environment variable and undo it after the test; it fixes the order-dependent flake in <a href="#s-flaky">section 9</a>), <code>capsys</code> (capture printed output) and <code>caplog</code> (capture log records).</p>
+<p><b>Parametrisation.</b> <code>@pytest.mark.parametrize</code> runs the same test body once per row, each reported as its own test (<code>test_parse_retry_after[-3-0.0]</code>), so one bad row does not hide the others ({{parametrize docs|https://docs.pytest.org/en/stable/how-to/parametrize.html}}). From the retry policy the chat product uses when the model provider fails:</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/mut/tests/test_strong.py</code> (excerpt)</div>
+<pre class="cv py">import pytest
+from retrypolicy import should_retry, backoff_delay, parse_retry_after
+
+@pytest.mark.parametrize("status", [408, 429, 500, 502, 503, 504])
+def test_retryable_statuses_are_retried(status):
+    assert should_retry(status, attempt=1)
+
+@pytest.mark.parametrize("header,expected", [
+    ("2", 2.0), ("1.5", 1.5), ("0", 0.0), ("-3", 0.0), (None, None), ("soon", None),
+])
+def test_parse_retry_after(header, expected):
+    assert parse_retry_after(header) == expected</pre>
+<ul>
+<li><code>with pytest.raises(ValueError, match="overlap"):</code> passes only if the block raises that exception type with a matching message. Assert the type and the condition, not merely that "something failed".</li>
+<li><code>assert total == pytest.approx(0.3)</code> compares floats with a tolerance (default relative 1e-6); <code>0.1 + 0.2 == 0.3</code> is false in binary floating point. <a href="#s-ml">Section 8</a> shows why this matters for ML code.</li>
+<li><dfn id="g-marker">Markers</dfn> label tests: <code>@pytest.mark.slow</code>, <code>@pytest.mark.gpu</code>. Declare them under <code>markers</code> in your config and add <code>--strict-markers</code> so a typo is an error, not a silently unselected test ({{markers docs|https://docs.pytest.org/en/stable/how-to/mark.html}}).</li>
+</ul>
+<div class="cvh"><code>pyproject.toml</code> (a sensible starting config)</div>
+<pre class="cv py">[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+  "slow: takes more than a second; skipped on every push",
+  "gpu: needs a GPU runner",
+]</pre>
+</div></details>
 </section>

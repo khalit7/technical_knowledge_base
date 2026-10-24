@@ -9,7 +9,12 @@ const shots = path.join(base, '.shots'); fs.mkdirSync(shots, { recursive: true }
 const ref = JSON.parse(execSync('python3 recompute.py', { cwd: path.join(base, 'src') }).toString());
 const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox'] });
 const problems = []; let actions = 0;
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// autoplay check: with normal motion, nothing may move in 2 s without the reader
+{ const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + path.join(base, 'index.html'));
+  await p.evaluate(() => document.getElementById('pb-card').scrollIntoView()); await sleep(2500);
+  const v = await p.$eval('#pb-ctl-s', s => s.value); if (v !== '0') problems.push('property animation moved by itself: step ' + v); await p.close() }
 for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const p = await browser.newPage();
   await p.setViewport({ width: w, height: 900 });
@@ -38,8 +43,16 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await tab('t-read'); await check('load');
   const calc = await p.evaluate(() => window.TQ.calc);
   for (const k of Object.keys(ref)) if (String(calc[k]) !== String(ref[k])) problems.push('calc ' + k + ': page ' + calc[k] + ' vs recompute ' + ref[k]);
-  // pyramid / trophy
-  await clickAll('#lay-card .shape button'); await shot('#lay-card', 'layers');
+  // nothing moves before the reader acts (normal motion is emulated in the extra pass below)
+  // pyramid / trophy (SVG bands)
+  for (const l of ['e2e', 'int', 'unit', 'static']) { await p.evaluate(l => document.querySelector('#tq-lay .lay-pick[data-l="' + l + '"]').dispatchEvent(new MouseEvent('click', { bubbles: true })), l); await sleep(30); await check('layer ' + l) }
+  await shot('#lay-card', 'layers');
+  // predict blocks
+  await clickAll('#t-read .pr .opts button');
+  // static prose numbers against recompute.py
+  const html = fs.readFileSync(path.join(base, 'index.html'), 'utf8');
+  for (const s of ['killed only ' + ref.mutWeak + ' of ' + ref.mutN, (ref.mutN - ref.mutWeak) + ' of ' + ref.mutN + ' planted bugs', ref.mutWeak + ': about seven in ten', ref.mutWeakCrash + ' of the ' + ref.mutWeak + ' kills'])
+    if (w === 390 && !html.includes(s) && !(await p.evaluate(s => document.body.innerText.includes(s), s))) problems.push('prose number missing: ' + s);
   // property animation: every mode, every step
   for (const m of ['ex', 'pb', 'fx']) {
     await p.evaluate(m => document.querySelector('#pb-mode button[data-m="' + m + '"]').click(), m); await sleep(50);
@@ -54,8 +67,8 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await shot('#fl-card', 'flaky'); await shot('#s-mut', 'mut-section');
   await clickAll('#rd-nav a');
   const gl = await p.$$eval('#gloss div', a => a.length); if (gl < 30) problems.push(w + ' glossary has ' + gl);
-  // Mutation lab
-  await tab('t-mut'); await check('lab');
+  // Mutation lab (inline in section 10)
+  await p.evaluate(() => document.querySelectorAll('#ml-card details').forEach(d => d.open = true));
   for (const pr of ['weak', 'strong', 'all', 'none', 'min']) {
     await p.evaluate(pr => document.querySelector('#ml-pre button[data-m="' + pr + '"]').click(), pr); await sleep(30); await check('preset ' + pr);
     const v = await p.$$eval('#ml-stats .stat .v', a => a.map(x => x.textContent));
@@ -66,7 +79,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await clickAll('#ml-tests input');
   await clickAll('#ml-list .mrow');
   await p.evaluate(() => document.querySelector('#ml-pre button[data-m="weak"]').click()); await p.evaluate(() => document.querySelectorAll('#ml-list .mrow')[8].click());
-  await shot('#t-mut', 'lab');
+  await shot('#ml-card', 'lab');
   await tab('t-more'); await check('more');
   const links = await p.$$eval('a[href^="http"]', a => a.filter(x => x.target !== '_blank').length); if (links) problems.push(w + ' links without target ' + links);
   await clickAll('#t-more a[data-tab]');

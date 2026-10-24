@@ -25,3 +25,22 @@ DeepSeek MLA explainer (step animation controller reused via code_design's RD.an
 
 ## What the methodology lacked
 Nothing structural; for an engineering page the "real data" rule meant running experiments rather than fetching published numbers, and the main risk was environment drift (shrink results varied slightly between repeated runs of the same seed), handled by storing the logged runs and reading the page from them.
+
+## 2026-10-24 rebuild (teaching contract): added
+| Idea | Kind | Data | Placement | Status |
+|---|---|---|---|---|
+| Hero: every bug on this page at the lowest layer that caught it, plus "testing the nets" (mutation, flakiness) | static annotated diagram | TQ (measured) | top | built |
+| Pyramid and trophy as SVG bands, click for catches/misses/speed | static, clickable | shapes' proportions (labelled as such) | section 2 | built (replaces the button stack) |
+| Brittle against robust test under a refactor and under a real mutant (2 x 2) | before/after | mutant backoff_delay #2 (real); brittle test illustrative | section 3 | built |
+| Real, fake, mock behind one seam: what each proves | static diagram | measured PostgreSQL cost | section 4 | built |
+| Pact in four steps | static sequence | Pact docs | section 4 | built (a stepper would add clicks without adding understanding) |
+| SQLite against PostgreSQL on the same rows, with cost per test | before/after | experiments/integ (measured) | section 5 | built |
+| Shrink plot under the property animation (text length per call, smallest failure so far) | chart linked to the stepper | trace_6.json | section 6 | built |
+| LLM feature with a check per piece, seam highlighted | static diagram | page's own experiments | section 7 | built |
+| Code, data, model | static comparison | page text | section 8 | built (replaces the table) |
+| Smoke-test losses against the 10% threshold | bar chart | smoke_out.json | section 8 | built |
+| Flaky-test causes | bar chart | Luo et al. 2014 (published counts, percentages as printed) | section 9 | built |
+| Coverage against mutation score as tests are added | line chart | killmatrix.json, coverage_per_test.json; checked by recompute.py (curveCov, curveKill) | section 10 | built |
+| CI job graph | static diagram | experiments/ci/ci.yml | section 11 | built |
+| Real photo or paper figure | real image | none suitable: no physical object; the pyramid's canonical drawings are not openly licensed | - | rejected |
+| Mutation lab as a tab | lab | - | - | moved inline into section 10 (it explains one mechanism) |

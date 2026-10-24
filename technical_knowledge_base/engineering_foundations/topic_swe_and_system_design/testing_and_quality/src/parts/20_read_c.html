@@ -1,127 +1,42 @@
-<section id="s-pytest"><h2>3. pytest from zero</h2>
-<p>{{pytest|https://docs.pytest.org/en/stable/}} is the standard test runner for Python. A <dfn id="g-runner">test runner</dfn> finds your tests, runs each one in isolation, and reports which passed. pytest's rules are short: files named <code>test_*.py</code>, functions named <code>test_*</code>, and a plain <code>assert</code> statement as the check. When an assert fails, pytest rewrites it to show both sides ({{assertion introspection|https://docs.pytest.org/en/stable/how-to/assert.html}}), so you never need special <code>assertEqual</code> methods.</p>
-<p>The first piece of the chat product under test is the <b>chunker</b>: before a document can be searched by meaning (retrieval, the R in RAG), it is cut into overlapping windows of text, each embedded separately. Here are the function and three ordinary tests.</p>
-<div class="cvh"><span class="real">real</span> <code>experiments/hyp/chunking.py</code></div>
-<pre class="cv py">def chunk(text: str, size: int, overlap: int) -&gt; list[str]:
-    """Split text into windows of `size` characters; neighbours share `overlap` characters."""
-    if not 0 &lt;= overlap &lt; size:
-        raise ValueError("need 0 &lt;= overlap &lt; size")
-    step = size - overlap
-    return [text[i:i + size] for i in range(0, len(text) - size + 1, step)]
-
-def unchunk(chunks: list[str], overlap: int) -&gt; str:
-    """Inverse of chunk: glue the windows back, dropping each repeated overlap."""
-    if not chunks:
-        return ""
-    return chunks[0] + "".join(c[overlap:] for c in chunks[1:])</pre>
-<div class="cvh"><span class="real">real</span> <code>experiments/hyp/test_chunking_examples.py</code></div>
-<pre class="cv py">from chunking import chunk, unchunk
-
-def test_splits_into_overlapping_windows():
-    assert chunk("abcdefghij", size=4, overlap=1) == ["abcd", "defg", "ghij"]
-
-def test_no_overlap():
-    assert chunk("abcdef", size=2, overlap=0) == ["ab", "cd", "ef"]
-
-def test_round_trip():
-    text = "the quick brown fox jumps over the lazy dog!!"   # 45 characters
-    assert unchunk(chunk(text, size=10, overlap=5), overlap=5) == text</pre>
-<div class="term">$ pytest -q test_chunking_examples.py
-...                                                                      [100%]
-<b class="g">3 passed in 0.53s</b></div>
-<p>All green, and the function has a bug: look at <code>len(text) - size + 1</code>. Any document shorter than one window produces no chunks at all, so it silently vanishes from the search index. The three examples happen to use lengths where the windows fit exactly. Hold that thought; <a href="#s-prop">section 7</a> finds it without being told where to look.</p>
-
-<h3>Running tests</h3>
-<div class="tw"><table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody>
-<tr><td><code>pytest -q</code></td><td>Run everything under the current folder, one character per test.</td></tr>
-<tr><td><code>pytest tests/test_search.py::test_search_ignores_case</code></td><td>Run one test by its <dfn id="g-nodeid">node id</dfn> (file, then <code>::</code>, then name).</td></tr>
-<tr><td><code>pytest -k "retry and not slow"</code></td><td>Run tests whose names match an expression.</td></tr>
-<tr><td><code>pytest -x --lf</code></td><td>Stop at the first failure; rerun only the tests that failed last time.</td></tr>
-<tr><td><code>pytest -m "not slow"</code></td><td>Skip tests carrying the <code>slow</code> marker (below).</td></tr>
-<tr><td><code>pytest --durations=10</code></td><td>List the ten slowest tests: where your suite's time goes.</td></tr>
-</tbody></table></div>
-
-<h3>Fixtures: setup that tests ask for by name</h3>
-<p>A <dfn id="g-fixture">fixture</dfn> is a function that builds something a test needs (a database connection, a temporary folder, a fake server) and cleans it up afterwards. A test asks for it by naming it as an argument; pytest calls the fixture, passes in the value, and after the test runs the code after <code>yield</code> ({{fixtures docs|https://docs.pytest.org/en/stable/how-to/fixtures.html}}). The <dfn id="g-scope">scope</dfn> says how often it is rebuilt: <code>function</code> (default, once per test), <code>module</code>, or <code>session</code> (once per run, for expensive things). Fixtures shared by many files live in a <code>conftest.py</code>, which pytest loads automatically. These are the real fixtures behind the PostgreSQL tests in <a href="#s-int">section 6</a>:</p>
-<div class="cvh"><span class="real">real</span> <code>experiments/integ/conftest.py</code> (timing code removed)</div>
-<pre class="cv py">import sqlite3, tempfile
-import pytest, psycopg, pgserver
-
-@pytest.fixture
-def sqlite_conn():
-    conn = sqlite3.connect(":memory:")
-    yield conn                      # the test runs here
-    conn.close()                    # teardown, even if the test failed
-
-@pytest.fixture(scope="session")    # start PostgreSQL once for the whole run
-def pg_server():
-    yield pgserver.get_server(tempfile.mkdtemp(prefix="pgtest"), cleanup_mode="stop")
-
-@pytest.fixture
-def pg_conn(pg_server):             # fixtures can use other fixtures
-    with psycopg.connect(pg_server.get_uri(), autocommit=False) as conn:
-        yield conn
-        conn.rollback()             # every test's writes vanish: tests stay independent</pre>
-<p>pytest ships useful fixtures too: <code>tmp_path</code> (a fresh folder per test), <code>monkeypatch</code> (change an attribute, dict item or environment variable and undo it after the test; it fixes the order-dependent flake in <a href="#s-flaky">section 13</a>), <code>capsys</code> (capture printed output) and <code>caplog</code> (capture log records).</p>
-
-<h3>Parametrisation: one test, many cases</h3>
-<p><code>@pytest.mark.parametrize</code> runs the same test body once per row, each reported as its own test (<code>test_parse_retry_after[-3-0.0]</code>), so one bad row does not hide the others ({{parametrize docs|https://docs.pytest.org/en/stable/how-to/parametrize.html}}). From the retry policy that the chat product uses when the model provider fails:</p>
-<div class="cvh"><span class="real">real</span> <code>experiments/mut/tests/test_strong.py</code> (excerpt)</div>
-<pre class="cv py">import pytest
-from retrypolicy import should_retry, backoff_delay, parse_retry_after
-
-@pytest.mark.parametrize("status", [408, 429, 500, 502, 503, 504])
-def test_retryable_statuses_are_retried(status):
-    assert should_retry(status, attempt=1)
-
-@pytest.mark.parametrize("header,expected", [
-    ("2", 2.0), ("1.5", 1.5), ("0", 0.0), ("-3", 0.0), (None, None), ("soon", None),
-])
-def test_parse_retry_after(header, expected):
-    assert parse_retry_after(header) == expected</pre>
-<h3>Checking errors, floats and slow tests</h3>
-<ul>
-<li><code>with pytest.raises(ValueError, match="overlap"):</code> passes only if the block raises that exception type with a matching message. Assert the type and the condition, not merely that "something failed".</li>
-<li><code>assert total == pytest.approx(0.3)</code> compares floats with a tolerance (default relative 1e-6); <code>0.1 + 0.2 == 0.3</code> is false in binary floating point. <a href="#s-ml">Section 11</a> shows why this matters for ML code.</li>
-<li><dfn id="g-marker">Markers</dfn> label tests: <code>@pytest.mark.slow</code>, <code>@pytest.mark.gpu</code>. Declare them under <code>markers</code> in your config and add <code>--strict-markers</code> so a typo is an error, not a silently unselected test ({{markers docs|https://docs.pytest.org/en/stable/how-to/mark.html}}).</li>
-</ul>
-<div class="cvh"><code>pyproject.toml</code> (a sensible starting config)</div>
-<pre class="cv py">[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-ra --strict-markers --strict-config"
-markers = [
-  "slow: takes more than a second; skipped on every push",
-  "gpu: needs a GPU runner",
-]</pre>
+<section id="s-dbl"><h2>4. Test doubles: prefer real, then fake, then mock</h2>
+<p>Real dependencies (the model provider, a payment API, a database) can be slow, cost money, need network access or fail at random. A <dfn id="g-double">test double</dfn> stands in for one during a test, the way a stunt double stands in for an actor. Gerard Meszaros named the kinds in <i>xUnit Test Patterns</i> (2007); Martin Fowler's {{Mocks Aren't Stubs|https://martinfowler.com/articles/mocksArentStubs.html}} (2004, revised 2007) is the classic explanation. A <dfn id="g-dummy">dummy</dfn> fills a parameter and is never used (a <code>logger=None</code>); a <dfn id="g-stub">stub</dfn> returns canned answers (a model client whose <code>complete()</code> always returns <code>"Hello"</code>); a <dfn id="g-spy">spy</dfn> is a stub that also records how it was called; a <dfn id="g-mock">mock</dfn> is pre-programmed with expected calls and fails the test if they differ (<code>unittest.mock</code>, <code>pytest-mock</code>: <code>client.complete.assert_called_once_with(...)</code>); a <dfn id="g-fake">fake</dfn> is a small working implementation with shortcuts (an in-memory chat store, an HTTP handler that answers like a chat-completions API).</p>
+<div class="fig"><div class="ft">What a test proves depends on what stands behind the seam</div><div class="rd-svg" id="tq-dbl"></div>
+<p class="cap">The same chat-search handler tested three ways. Only the real engine catches the case-sensitivity bug in <a href="#s-int">section 5</a>; the fake catches it only if whoever wrote the fake knew PostgreSQL's rule; the mock catches nothing about results, because it checks that a call was made.</p></div>
+<p><b>Prefer real, then fake, then mock.</b> Google's testing book: "A real implementation should be preferred over a test double. A fake is often the ideal solution if a real implementation can't be used" ({{Software Engineering at Google, ch. 13|https://abseil.io/resources/swe-book/html/ch13.html}}), and mocks sparingly. A test made of mocks restates the implementation, so it passes when the code is wrong and fails when the code is refactored correctly. {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}'s Review lab has a real example: a mock-only test that still passes with the function it claims to test broken.</p>
+<div class="two">
+<div><h4>Where a mock is the right tool</h4><p class="small">The interaction <i>is</i> the behaviour: "a payment is charged exactly once", "the alert is sent", "we never call the provider when the cache hits". Mock at the boundary you own (your <code>PaymentGateway</code> wrapper), not deep inside third-party libraries.</p></div>
+<div><h4>Where a mock lies</h4><p class="small">Mocking the database, then asserting the SQL string was passed. Mocking <code>requests.post</code> to return a dict that the real API never returns. Mocking a function in the same module you are testing. Each passes forever while production breaks.</p></div>
+</div>
+<h3>Contract tests: keeping fakes honest</h3>
+<p>A fake drifts: the real service changes a field name and your fake does not. A <dfn id="g-contract">contract test</dfn> checks the agreement between two sides directly. In <b>consumer-driven contract testing</b> ({{Pact|https://docs.pact.io/}}, "a code-first consumer-driven contract testing tool"; pact-python 3.4.1, 2026-09-17), each side tests alone, yet a breaking change is caught before deploy:</p>
+<div class="fig"><div class="ft">Consumer-driven contracts: the consumer writes the expectations, the provider's CI replays them</div><div class="rd-svg" id="tq-pact"></div></div>
+<p><b>Cost and when not to:</b> it needs a place to share pacts (the Pact Broker or PactFlow) and buy-in from both teams. For a third-party API you do not control (a model provider), the provider will never run your pacts; use recorded responses and schema checks instead (<a href="#s-llm">section 7</a>), and an OpenAPI document as the contract when one exists ({{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}, section 16).</p>
 </section>
 
-<section id="s-beh"><h2>4. Test behaviour, not implementation</h2>
-<p>The single most useful idea in test design: a test should check <b>what</b> the code promises (its outputs, its errors, its effects that others can see), not <b>how</b> it does it. A test tied to the how breaks every time you improve the code without changing what it does, which teaches people to stop refactoring. Google's testing book puts the goal as tests that are "unchanging": they only need to change when the requirements change ({{Software Engineering at Google, ch. 12|https://abseil.io/resources/swe-book/html/ch12.html}}).</p>
-<div class="cmp">
-<div><h4><span class="lbl b">brittle</span> tests the implementation</h4>
-<pre class="cv py">def test_backoff_uses_min(mocker):
-    spy = mocker.spy(builtins, "min")
-    backoff_delay(3)
-    spy.assert_called_once()
+<section id="s-int"><h2>5. Integration tests against the engine you ship</h2>
+<p>An <dfn id="g-integration">integration test</dfn> runs your code with a real dependency (the actual database engine, a real Redis, a real HTTP stack) and catches the bugs that live <i>between</i> components: SQL a different engine reads differently, a transaction that does not roll back, a type the driver converts. A common shortcut is SQLite in memory in tests while production runs PostgreSQL. What that shortcut cost, measured:</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/integ/</code>: the same test against SQLite and PostgreSQL <span data-v="env.postgres"></span></div>
+<pre class="cv py">def search_chats(conn, owner, text):
+    """Chats of this owner whose title contains `text`, ignoring case (the product spec)."""
+    rows = conn.execute(q(conn, "SELECT id FROM chats WHERE owner = ? AND title LIKE ? ORDER BY id"),
+                        (owner, f"%{text}%")).fetchall()
+    return [r[0] for r in rows]
 
-def test_retryable_set():
-    assert 503 in retrypolicy.RETRYABLE</pre>
-<p class="small">Illustrative (<code>mocker</code> comes from pytest-mock). Breaks if you rewrite the cap as an <code>if</code>; passes if the delay is wrong; reaches into a private detail.</p></div>
-<div><h4><span class="lbl p">robust</span> tests the behaviour</h4>
-<pre class="cv py">def test_backoff_doubles_from_base_then_caps():
-    assert [backoff_delay(a) for a in range(1, 7)] \
-        == [0.5, 1, 2, 4, 8, 8]
-
-def test_stops_at_max_attempts():
-    assert not should_retry(503, attempt=3)</pre>
-<p class="small">Survives any rewrite that keeps the promise; fails on any change a caller could notice.</p></div>
-</div>
-<h3>How a good test reads</h3>
-<ul>
-<li><b>Arrange, act, assert</b>: build the inputs, call the code once, check the result. If a test needs three acts, it is three tests.</li>
-<li><b>One reason to fail</b>, and a name that says the behaviour: <code>test_retry_preserves_idempotency_key</code>, not <code>test_retry_2</code>. When it goes red in CI, the name is the bug report.</li>
-<li><b>Tiny literal inputs</b> written in the test itself, so the expected output can be checked by eye.</li>
-<li><b>Write the failing test before fixing a bug.</b> It proves you reproduced the bug, and it stops the bug coming back (a <dfn id="g-regression">regression test</dfn>). Every production incident should leave one behind; for model behaviour, the equivalent is a new case in the golden set ({{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}).</li>
-<li><b>Design for testing</b>: a function that takes its inputs as arguments and returns a value (a <dfn id="g-pure">pure function</dfn>) needs no setup at all. Anything that touches S3, a database or the clock goes behind an interface that a test can replace. {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}} (sections 4 and 8: functional core, dependency injection) shows the refactoring on a real handler.</li>
-</ul>
+@pytest.mark.parametrize("db", ["sqlite_conn", "pg_conn"])
+def test_search_ignores_case(db, request):
+    conn = request.getfixturevalue(db)
+    seed(conn)   # "Trip planning for Lisbon", "trip budget spreadsheet" (ada); "Trip ideas" (bob)
+    assert search_chats(conn, "ada", "trip") == [1, 2]</pre>
+<div class="fig"><div class="ft">Same query, same rows, two engines: PostgreSQL misses the capitalised title</div><div class="rd-svg" id="tq-int"></div>
+<p class="cap">Measured on 2026-10-04 (median of 50 runs each, <code>experiments/integ/test_timing.py</code>): per test, create a table, 3 inserts, 1 search. pytest's verdict: <code>FAILED test_search.py::test_search_ignores_case[pg_conn] - assert [2] == [1, 2]</code>.</p></div>
+<p>SQLite's <code>LIKE</code> ignores case for ASCII letters by default ({{SQLite docs|https://www.sqlite.org/lang_expr.html#like}}); PostgreSQL's <code>LIKE</code> is case-sensitive and offers <code>ILIKE</code> for the other behaviour ({{PostgreSQL docs|https://www.postgresql.org/docs/16/functions-matching.html#FUNCTIONS-LIKE}}). So the SQLite suite was green while production users searching "trip" never saw "Trip planning for Lisbon". The fix, <code>lower(title) LIKE lower(?)</code>, passes on both; at scale you would add a trigram index ({{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}} owns that depth).</p>
+<div class="term" id="int-cost"></div>
+<p>The usual objection is speed: here a real PostgreSQL costs well under a second of startup per test run and a couple of milliseconds per test, so a suite of 500 such tests adds about a second. A little time for tests that use the engine you ship.</p>
+<p><b>Keeping tests independent.</b> Tests sharing a database leak state into each other. The cheapest isolation is a transaction rolled back after each test (the <code>pg_conn</code> fixture in section 3's pytest block). When the code under test commits on its own, truncate the tables after each test, or clone a prepared database per test with <code>CREATE DATABASE t1 TEMPLATE base</code>. With parallel workers (<code>pytest-xdist</code>), give each worker its own database. <b>When not to:</b> logic that does not touch the dependency (pricing rules, parsing, retry decisions) belongs in fast unit tests; integration tests are for the seams: queries, transactions, migrations, serialisation, configuration.</p>
+<details class="dp"><summary>Three ways to get the real thing <span class="mute">(pgserver, testcontainers, CI service containers)</span></summary><div class="b">
+<div class="tw"><table><thead><tr><th>Option</th><th>How</th><th>Cost</th></tr></thead><tbody>
+<tr><td>{{pgserver|https://pypi.org/project/pgserver/}} (used here)</td><td>PostgreSQL binaries inside a pip wheel; <code>pgserver.get_server(dir)</code> starts one. No Docker.</td><td>PostgreSQL only; version fixed by the wheel (<span data-v="env.postgres"></span> in <span data-v="env.pgserver"></span>).</td></tr>
+<tr><td>{{testcontainers-python|https://testcontainers-python.readthedocs.io/}}</td><td>Starts a throwaway Docker container per session: <code>with PostgresContainer("postgres:17") as pg:</code>. Also Kafka, Redis, MinIO, LocalStack.</td><td>Needs Docker; first pull is slow; seconds per start. Any image and version, so it can match production exactly.</td></tr>
+<tr><td>CI service containers</td><td>The CI system starts the database next to the job (<code>services:</code> in GitHub Actions, <a href="#s-ci">section 11</a>).</td><td>Only in CI; locally you still need one of the above.</td></tr>
+</tbody></table></div></div></details>
 </section>
