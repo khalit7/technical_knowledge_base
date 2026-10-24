@@ -3,7 +3,8 @@
 // 1. clicks every control in every tab at 390 px dark and 920 px light (reduced motion): no JS errors, NaN, undefined,
 //    Infinity in visible text, no sideways page scroll; screenshots to <page>/.shots/qc_*.png;
 // 2. the page embeds exactly data/qc_data.json; every fact in data/facts.json appears in the page text; no @@ left;
-// 3. the JS recomputes from the embedded data what the prose quotes (keep counts at published cuts, overlap, hand precision).
+// 3. the JS recomputes from the embedded data what the prose quotes (keep counts at published cuts, overlap, hand precision,
+//    the threshold reveal's counts, the DSIR figure's numbers); 4. nothing autoplays after a scroll through the page.
 import {createRequire} from 'module';
 import path from 'path';
 import fs from 'fs';
@@ -55,8 +56,22 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
     const jm=DATA.jacc.m[DATA.jacc.keys.indexOf('edu')][DATA.jacc.keys.indexOf('dclm')];
     ok(Math.abs(j-jm)<0.002,'top-10% Jaccard FineWeb-Edu vs DCLM: JS '+j.toFixed(3)+' = Python '+jm);
     ok(T.lab.filter(l=>l.src==='random').length===200,'200 random hand labels embedded');
+    // the threshold reveal (Reading section 5) quotes yes / labelled-kept counts at given keep rates
+    const labs=T.lab.filter(l=>l.src==='random');
+    const pk=(key,k)=>{const c=Math.round(k/100*N),kept=labs.filter(l=>T.rank[key][l.i]<c);return kept.filter(l=>l.keep==='y').length+' of '+kept.length};
+    for(const [key,k,want] of [['dclm',30,'34 of 63'],['dclm',10,'16 of 28'],['dclm',5,'7 of 16'],['edu',60,'56 of 116'],['edu',10,'13 of 16']]){
+      ok(pk(key,k)===want&&html.includes(want),'threshold reveal '+key+' top '+k+'%: '+pk(key,k)+' (prose '+want+')')}
+    // DSIR figure and prose use the recorded medians and correlations
+    const ds=DATA.dsir.targets;ok(ds.wiki.selected_median_tokens===615&&ds.oh_eli5.selected_median_tokens===231&&ds.fwedu.selected_median_tokens===1627&&ds.fwedu.pool_median_tokens===855,'DSIR medians 615, 231, 1,627 against 855 (out/dsir.json)');
+    ok(Math.abs(ds.fwedu.kl_target_raw-0.023)<0.0005&&Math.abs(ds.wiki.kl_target_raw-0.12)<0.005&&Math.abs(ds.oh_eli5.kl_target_raw-0.18)<0.005,'DSIR KL values quoted in prose (0.023, 0.12, 0.18)');
   }
   await p.close();
 }
+// nothing moves before the reader acts: no animation is playing after load and a scroll through the page (normal motion)
+{const p=await b.newPage();await p.setViewport({width:920,height:900});await p.goto('file://'+page_path,{waitUntil:'load'});
+  await p.evaluate(async()=>{for(let y=0;y<document.body.scrollHeight;y+=600){scrollTo(0,y);await new Promise(r=>setTimeout(r,60))}});
+  await new Promise(r=>setTimeout(r,1500));
+  const playing=await p.$$eval('.an-play',bs=>bs.filter(x=>/Pause/.test(x.textContent)).length);
+  ok(playing===0,'no autoplay after scrolling the page (normal motion): '+playing+' playing');await p.close()}
 await b.close();
 console.log(fail?('FAILED '+fail):'all checks passed');process.exit(fail?1:0);

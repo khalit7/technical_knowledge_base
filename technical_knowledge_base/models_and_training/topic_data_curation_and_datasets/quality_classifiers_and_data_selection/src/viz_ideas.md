@@ -10,9 +10,9 @@ Scores 0 to 2 on the methodology's questions (moves with a control, reproduces a
 | # | Idea | Score | Placement | Data |
 |---|---|---|---|---|
 | QC1 | **One page, two reference sets, step by step** (before/after animation): tokens, word features, hashed bigrams, average, sigmoid and cut, coloured by each feature's real push; toggle DCLM / Wikipedia / GPT-3 approx on the same document; counters reconcile to the logit | 13 | Reading s2 | real weights, exact rebuild of fastText v0.9.2 (max error 1e-5) |
-| QC2 | Classifier replay tab: reference examples, top words both ways, logit strip of all 2,617 docs with the cut, token-coloured document, 6 classifiers x 16 documents | 12 | Own tab | vocab_*.json, explain/*.json |
-| QC3 | Threshold explorer: keep-rate slider for 17 scorers, precision/recall against a uniform random hand-labelled sample, overlap with every other scorer against the random baseline, Llama-grade P/R and AUC, jump to published cut | 13 | Own tab | ranks, labels, annot curves |
-| QC4 | Bias browser: keep rate or lift by WebOrganizer topic / format / country domain, click a cell to read the labelled documents; controlled-edit table (typography, case, bullets, spelling); Nemotron-CC paired rewrites | 12 | Own tab | WebOrganizer classifiers on run0, dialect.json, perturb.json, pairs |
+| QC2 | Classifier replay: reference examples, top words both ways, logit strip of all 2,617 docs with the cut, token-coloured document, 6 classifiers x 16 documents | 12 | Reading s3 (was its own tab until 2026-10-24) | vocab_*.json, explain/*.json |
+| QC3 | Threshold explorer: keep-rate slider for 17 scorers, precision/recall against a uniform random hand-labelled sample, overlap with every other scorer against the random baseline, Llama-grade P/R and AUC, jump to published cut | 13 | Reading s5 (was its own tab) | ranks, labels, annot curves |
+| QC4 | Bias browser: keep rate or lift by WebOrganizer topic / format / country domain, click a cell to read the labelled documents; controlled-edit table (typography, case, bullets, spelling); Nemotron-CC paired rewrites | 12 | Reading s10 (heatmap), s3 (edits and pairs, closed blocks); was its own tab | WebOrganizer classifiers on run0, dialect.json, perturb.json, pairs |
 | QC5 | GPT-3 Pareto keep curve P = (2 - s)^-9 with the GPT-3-style classifier's run0 histogram | 9 | Reading s2 | derived; simulation check |
 | QC6 | DCLM Table 5 bars | 7 | Reading s3 | published table |
 | QC7 | Reference-set table (keep, overlaps, hand precision, Llama AUC) | 11 | Reading s3 | measured |
@@ -20,6 +20,18 @@ Scores 0 to 2 on the methodology's questions (moves with a control, reproduces a
 | QC9 | Nemotron-CC ensemble confusion matrix against published levels | 11 | Reading s5 | rebuilt ensemble, 1,000 docs |
 | QC10 | Repetition calculator: keep share x pool against training tokens, effective data by Muennighoff's fit | 10 | Reading s10 | derived (R* = 15.39) |
 | QC11 | Predict-then-reveal x 3 (strongest word, DCLM cut on FineWeb, curly quotes) | 9 | Reading | measured |
+
+## Added 2026-10-24 (teaching-contract rebuild)
+| # | Idea | Kind | Placement | Data |
+|---|---|---|---|---|
+| QC12 | Hero: pool, scorer families, run0's real DCLM logit histogram with the published cut, kept sets | static annotated diagram | top | tr.logits.dclm, facts |
+| QC13 | LLM-graded pipeline: annotator, student, combine, cut for FineWeb-Edu and Nemotron-CC | static annotated diagram | Reading s4 | published |
+| QC14 | DSIR length bias: median selected length toward three targets against the pool, Spearman per target | static bars on real data | Reading s7 | out/dsir.json |
+| QC15 | Gradient alignment: target direction and three candidates with cosines | static diagram, labelled illustrative | Reading s8 | none (illustrative) |
+| QC16 | DCLM Table 4 as bars (the family comparison every later paper quotes) | static bars | Reading s11 | published |
+| QC17 | Threshold reveal: DCLM's hand precision plateaus, FineWeb-Edu's climbs | predict then reveal (closed) | Reading s5 | counted from th, checked by check_page.mjs |
+
+No real image: the page is about mechanisms and data, not a physical object; a paper figure would repeat what the recomputed figures show.
 
 ## Rejected
 - Live fastText training in the browser: models are about 1 GB; the replay of real weights teaches the same mechanism.
