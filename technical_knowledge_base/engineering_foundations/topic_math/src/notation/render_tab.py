@@ -195,7 +195,7 @@ def conventions():
 
 
 INTRO = """<p class="nd-lead">Fourteen equations that carry modern ML, quoted exactly as their papers print them, decoded symbol by symbol. The aim is to read the next paper's maths without getting stuck: every symbol named, every shape given with real sizes, every equation run once on tiny numbers.</p>
-<div class="co key"><div class="t">How to read any equation: the five steps from the {{Reading tab ("How to read an equation in a paper")|#t-read}}, used on every card</div>
+<div class="co key"><div class="t">How to read any equation: the five steps from the {{Reading tab, section 5 ("How to read an equation in a paper")|#t-read}}, used on every card</div>
 <ol class="tight" style="margin:4px 0;padding-left:20px"><li><b>Name every symbol.</b> Find the line where the paper defines it; the same letter means different things in different papers (\\(\\beta\\) is a decay rate in Adam, a KL weight in DPO, a noise level in DDPM). Here: tap a symbol.</li>
 <li><b>Write the shape beside every symbol.</b> Check that every product's inner sizes match; most misreadings fail this test.</li>
 <li><b>Read the operations from the inside out, in words.</b> Here: the "Read it aloud" sentence.</li>

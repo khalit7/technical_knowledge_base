@@ -133,4 +133,10 @@ put("attn_weights_unscaled", np.round(softmax(K @ q_), 3).tolist())
 rng = np.random.default_rng(0); draws = np.eye(3)[rng.choice(3, size=200000, p=p)]
 put("onehot_cov_mc_diag", np.round(np.cov(draws.T).diagonal(), 3).tolist())
 
+# ---------- added 2026-10-24 for the rebuilt Reading (section 2 and new terms) ----------
+put("bits_per_nat", round(1 / math.log(2), 3))
+put("ln_50000_init_loss", round(math.log(50000), 2))
+put("bench500_ci_halfwidth_points", round(100 * 1.96 * math.sqrt(0.25 / 500), 1))
+put("float32_exp_overflow_z", round(math.log(float(np.finfo(np.float32).max)), 2))
+
 json.dump(R, open(sys.argv[1] if len(sys.argv) > 1 else "numbers.json", "w"), indent=1, default=lambda o: o if not isinstance(o, np.generic) else o.item())

@@ -122,7 +122,7 @@ EQ.append({
     "links": [["Attention Is All You Need (paper page, with a live toy Transformer)", "n:3c65c17b0d0d81999af7f16f8ed8ee9e"],
               ["LLM Architecture Gallery: what changed in attention since 2017", "n:3c65c17b0d0d81be8a07f2562fa2030a"]],
     "anim": True,
-    "note_html": "A smaller case is worked in the {{Reading tab, section \"How to read an equation in a paper\"|#t-read}}: one query against the tiny model's three keys, d<sub>k</sub> = 2, scores (2, 1, 0), weights (0.576, 0.284, 0.140). This one adds a second and third query so the whole matrix form, and every shape, shows.",
+    "note_html": "A smaller case is worked in the {{Reading tab, section 5 (\"How to read an equation in a paper\")|#t-read}}: one query against the tiny model's three keys, d<sub>k</sub> = 2, scores (2, 1, 0), weights (0.576, 0.284, 0.140). This one adds a second and third query so the whole matrix form, and every shape, shows.",
 })
 
 # ---------------------------------------------------------------- multi-head attention
@@ -303,7 +303,7 @@ EQ.append({
     ],
     "links": [["Loss functions (cross-entropy and its relatives)", "n:3c65c17b0d0d8161a72bc8c572f37d55"],
               ["Pretraining (where this objective is run at scale)", "n:3c65c17b0d0d814f82cffd0d5c0dd5ba"],
-              ["Reading tab: why the loss is the negative log-likelihood", "#t-read"]],
+              ["Probability for ML, section 7: why the loss is the negative log-likelihood", "n:3c65c17b0d0d815f9a47d613409b5a0c#rd-s7"]],
 })
 
 # ---------------------------------------------------------------- Adam
