@@ -1,0 +1,51 @@
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[S4.SS5|the evidence in §3.3, §4.5, §5.3 and the appendices]]
+<p><b>What holds up.</b> The bill is internally consistent and externally plausible: Table 1's sums, the 180K hours per trillion tokens and the 3.7 days all recompute, and a FLOPs count at 6 × active parameters × tokens gives the same utilisation (about 34% of BF16 peak) as Llama 3.1 405B's published hours, so nothing about the GPU-hour figure needs special explanation ({{The bill|tab:t-read:s-bill}}). The model is open: the weights and config are public, the parameter counts recompute exactly (671.03B, 37.55B active, 684.5B with the MTP module), and the infrastructure has since been released and used by others (DeepGEMM, DeepEP, DualPipe, EPLB). The training detail is unusually complete, down to SM counts and accumulation intervals. The authors also name their own limitations: a large deployment unit, and room to speed decoding further ({{§6|ax:S6}}).</p>
+<p><b>Where to be careful.</b></p>
+<ul>
+<li><b>The $5.576M is a rental-price conversion of one run's GPU hours.</b> The paper says so; the number is a theoretical estimate, not money spent. The R1-series expert models that generated the reasoning SFT data are not counted, and post-training's 5K hours (2.4 hours on the cluster) covers V3's own SFT and RL only.</li>
+<li><b>The ablations are single runs with no error bars,</b> and several gains are smaller than run-to-run noise usually is (TriviaQA +0.2, Pile BPB −0.001). MTP lowers large-scale MMLU by 0.9 and the bias rule lowers it by 1.1 ({{Table 4|ax:S4.T4}}, {{Table 5|ax:S4.T5}}).</li>
+<li><b>The ablation baselines are not V3.</b> They are 15.7B and 228.7B models on 0.5 to 1.3T tokens, and the large MTP and balancing ablations used different token counts (540B against 578B), so they are two separate experiments, not one grid. The aux-loss baselines used V2's loss strengths, untuned for these runs.</li>
+<li><b>The balancing gain is about scope, by the paper's own test.</b> A batch-wise auxiliary loss matched the bias rule exactly (2.253 and 2.080) at 1B and 3B ({{§4.5.3|ax:S4.SS5.SSS3}}). The bias rule is a cheap way to balance by batch, not evidence that losses are harmful as such. To the authors' credit, they ran and printed this.</li>
+<li><b>FP8 is shown on smaller models,</b> about 16B and 230B for about 1T tokens, not on V3 itself, where no BF16 twin exists. The 0.25% figure has no curve values printed, only {{Figure 10|ax:A2.F10}}. One recipe variant diverged (block-wise activation gradients), which they report.</li>
+<li><b>The "nearly 2%" accumulation error is under-specified:</b> no input distribution, metric or precise hardware model. The page's simulator, built from the v2 text's description, gives 0.3% or 6.8% at K = 4,096 depending on how the description is read, bracketing 2%; promotion every 128 elements cuts either by one to two orders of magnitude ({{the accumulation animation|tab:t-read:ax-h}}). The v1 and v2 texts of §3.5.2 describe the mechanism differently.</li>
+<li><b>The benchmark tables are the authors' harness.</b> Base models were all run in DeepSeek's internal framework; closed models through their APIs, with an 8K output cap that may not suit every model ({{§5.3.1|ax:S5.SS3.SSS1}}). LongBench v2 appeared weeks before the release, so contamination is unlikely there, but most suites are older.</li>
+<li><b>Some text claims do not match the tables.</b> §5.3.3 says Arena-Hard "over 86%"; Table 7 prints 85.5. "About 10% above Qwen2.5 72B" on AIME, MATH-500 and CNMO is 15.9, 10.2 and 27.3 points, and on AIME LLaMA-3.1 405B ties Qwen as second-best. AlpacaEval's "20%" over V2.5 is 19.5 points. None changes a conclusion ({{Every number checked|tab:t-tables:tb-chk}}).</li>
+</ul>
+<p class="lead"><b>Verdict:</b> believe the engineering and the bill as defined; they check out and the artefacts are public. Treat the MTP and auxiliary-loss-free gains as real but modest single-run results, the second explained by balancing scope, and the benchmark comparisons as the authors' own measurements.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<ul>
+<li><b>The model:</b> weights on Hugging Face in FP8 only (FP8 is native to the training), with a script to convert to BF16; code under MIT, weights under the DeepSeek Model License, which allows commercial use ({{README|https://github.com/deepseek-ai/DeepSeek-V3}}). At one byte per weight the 685B release is about 685 GB, more than one 8 × 80 GB node holds (640 GB) but within one node of 141 GB GPUs ({{H200|https://www.nvidia.com/en-us/data-center/h200/}}, 1,128 GB), before any KV cache (derived); the paper's own serving units are 32 GPUs for prefill and 320 for decode, which it lists as a limitation for small teams ({{§6|ax:S6}}).</li>
+<li><b>The recipe:</b> the bias balancing rule is a few lines of code; MTP adds one block and a loss term; FP8 with 1×128 and 128×128 scaling now ships as a stock recipe (versions in the dated block below).</li>
+<li><b>When it pays off:</b> FP8 and MoE help most when GEMMs dominate and the cluster is large enough for expert parallelism; DualPipe and the all-to-all kernels matter when communication is close to 1:1 with compute, as on bandwidth-limited H800s. On a small dense model they buy little.</li>
+</ul>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="mute small">(beyond the paper)</span></h2>
+<p>The release collapsed the assumed cost floor for frontier-class training and, with {{DeepSeek-R1|n:3c65c17b0d0d813faca4f7a51eaa0c65}} a month later, triggered a broad repricing of AI-compute narratives, the "DeepSeek moment" ({{Stratechery's FAQ|https://stratechery.com/2025/deepseek-faq/}}). Technically it is the reference blueprint for large-scale MoE efficiency: MLA, fine-grained experts with auxiliary-loss-free balancing, FP8 with tile and block scaling, and scheduling that hides the all-to-all behind compute have all been widely studied and adopted since. It normalised publishing real systems detail, SM counts, PTX-level tricks and hardware requests to NVIDIA, in an open model report. And it is the base model of DeepSeek-R1, the substrate of the 2025 wave of open reasoning models. V3 is a case study in what co-design buys when GPU supply is the binding constraint.</p>
+<details class="card"><summary><b>What came after, and where to run it</b> (dated: checked 3 October 2026)</summary>
+<ul class="small">
+<li><b>Serving stacks</b> at release: SGLang (recommended; NVIDIA and AMD, MLA optimisations, FP8), LMDeploy, vLLM, TensorRT-LLM (BF16 and INT4/8 first), LightLLM, and Huawei Ascend via MindIE. MTP speculative decoding was "under active development within the community" ({{README|https://github.com/deepseek-ai/DeepSeek-V3}}).</li>
+<li><b>The FP8 recipe, upstream:</b> FP8 training with 1×128 and 128×128 scaling is now a stock recipe: Transformer Engine's Float8BlockScaling uses 1-D blocks for activations and gradients, 2-D for weights, and enforces split (promoted) accumulation "for numerical accuracy" ({{Transformer Engine recipe|https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/common/recipe/__init__.py}}). DeepGEMM, the open FP8 kernel, reports up to 1,550 TFLOPS on an H800 ({{DeepGEMM|https://github.com/deepseek-ai/DeepGEMM}}).</li>
+<li><b>The code, released:</b> DeepSeek followed with the code itself in its February 2025 open-source week ({{open-infra-index|https://github.com/deepseek-ai/open-infra-index}}: {{DeepGEMM|https://github.com/deepseek-ai/DeepGEMM}}, {{DeepEP|https://github.com/deepseek-ai/DeepEP}}, {{DualPipe|https://github.com/deepseek-ai/DualPipe}}, {{EPLB|https://github.com/deepseek-ai/EPLB}}, all MIT).</li>
+<li><b>The hardware caught up:</b> its fine-grained scaling anticipated the hardware: Blackwell's MXFP8 scales every 32 values with a power-of-two (E8M0) factor ({{Transformer Engine MXFP8 recipe|https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/common/recipe/__init__.py}}).</li>
+<li><b>The line since:</b> the {{DeepSeek lab page|n:3c65c17b0d0d81a2ae7ec6796947a235}} follows the line from V3 through V3.1 and V3.2 to V4, and {{Topic: llm-landscape|n:3c65c17b0d0d812d9e00f6ec89965286}} lists the open MoE models that adopted the bias rule.</li>
+</ul></details>
+</section>
+
+<section id="s-con"><h2>Connections</h2>
+<ul>
+<li>{{DeepSeek-R1|n:3c65c17b0d0d813faca4f7a51eaa0c65}}: RL-based reasoning built on V3-Base, and the distillation source for V3's reasoning SFT data.</li>
+<li>{{DeepSeekMath|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}}: origin of GRPO, used in V3's RL.</li>
+<li>{{Mixtral of Experts|n:3c65c17b0d0d81eba72af0ac91ddc6b3}} and {{Switch Transformers|n:3c65c17b0d0d81a8b541c9babbf40c94}}: earlier open MoE designs; the bias rule addresses the auxiliary-loss trade-off Switch introduced.</li>
+<li>{{RoFormer|n:3c65c17b0d0d81cfa5e9f54459720098}}: RoPE, whose incompatibility with low-rank KV compression is why MLA needs a decoupled key.</li>
+<li>{{ZeRO|n:3c65c17b0d0d81879a7ed90bca007699}} and {{Megatron-LM|n:3c65c17b0d0d8133ae92fbe90a1f308e}}: the DP, TP and PP toolbox V3 remixes (ZeRO-1 DP, no TP, DualPipe PP).</li>
+<li>{{The Llama 3 Herd of Models|n:3c65c17b0d0d81aca58ccb9d720b474e}}: the dense 405B baseline V3 overtakes with 37B active parameters, and the yardstick for its GPU hours.</li>
+<li>{{Constitutional AI|n:3c65c17b0d0d815a9b31e9443961c700}}: the basis of V3's self-rewarding feedback for open-ended RL.</li>
+<li>Topics: {{llms|n:3c65c17b0d0d812d9e00f6ec89965286}}, {{llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}}, {{inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}, {{hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}}.</li>
+</ul>
+</section>
+</section>

@@ -29,8 +29,8 @@ def card():
         h.append('<div class="stat"><div class="v">%s <span class="u">%s</span></div><div class="k">%s</div><div class="d">%s · %s</div></div>'
                  % (x['v'], x['u'], x['k'], x['d'], A(AX + '#' + x['at'], where_label(x['at']))))
     h.append('</div>')
-    h.append('<div class="hero-l">%s · %s · %s · <a href="#" data-tab="%s">%s</a></div>'
-             % (A(AX, 'read it (arXiv HTML)'), A('https://arxiv.org/pdf/' + P['arxiv'] + P['arxiv_v'], 'PDF'), A(P['code']['url'], 'code (' + P['code']['title'] + ')'), P.get('run_tab', 't-run'), P.get('run_label', 'run it')))
+    h.append('<div class="hero-l">%s · %s · %s · <a href="#" data-tab="%s"%s>%s</a></div>'
+             % (A(AX, 'read it (arXiv HTML)'), A('https://arxiv.org/pdf/' + P['arxiv'] + P['arxiv_v'], 'PDF'), A(P['code']['url'], 'code (' + P['code']['title'] + ')'), P.get('run_tab', 't-run'), (' data-to="%s"' % P['run_to']) if P.get('run_to') else '', P.get('run_label', 'run it')))
     if P.get('verdict'):
         h.append('<p class="tk" style="margin-top:10px"><b>How far to trust it:</b> %s <a href="#" data-tab="t-read" data-to="s-trust">The evidence, judged</a>.</p>' % html.escape(P['verdict']))
     h.append('</div>')

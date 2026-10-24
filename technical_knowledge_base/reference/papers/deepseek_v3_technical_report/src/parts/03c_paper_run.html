@@ -1,0 +1,70 @@
+
+<section id="s-pre"><h2>Pre-training</h2>
+[[S4.SS1|§4.1 to §4.3]]
+<p><b>Data</b> ({{§4.1|ax:S4.SS1}}): 14.8T tokens, with more maths and code than V2, more languages beyond English and Chinese, and less redundancy. Documents are packed without cross-sample attention masking. Fill-in-the-middle in the prefix-suffix-middle layout, inherited from DeepSeekCoder-V2, is applied to 10% of documents.</p>
+<details class="card"><summary><b>A tokenizer fix</b> (§4.1)</summary><p class="small">The tokenizer's new tokens that join punctuation and line breaks caused a token-boundary bias on multi-line prompts without a final newline, so a share of them are randomly split during training.</p></details>
+<details class="card"><summary><b>Hyper-parameters</b> (§4.2)</summary>
+<p class="small"><b>Hyper-parameters</b> ({{§4.2|ax:S4.SS2}}): AdamW with β<sub>1</sub> = 0.9, β<sub>2</sub> = 0.95, weight decay 0.1, gradient clipping 1.0, sequence length 4K. Learning rate: linear warm-up to 2.2 × 10<sup>−4</sup> over 2K steps, constant until 10T tokens, cosine decay to 2.2 × 10<sup>−5</sup> over 4.3T tokens, then 2.2 × 10<sup>−5</sup> for 333B tokens and 7.3 × 10<sup>−6</sup> for the last 167B. Batch size ramps from 3,072 to 15,360 sequences over the first 469B tokens.</p></details>
+<p><b>Long context</b> ({{§4.3|ax:S4.SS3}}): YaRN applied only to the decoupled key k<sup>R</sup> (scale s = 40, α = 1, β = 32, √t = 0.1 ln s + 1; YaRN itself is taught on {{Positional Encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}}), then two 1,000-step phases that take the window from 4K to 32K and then to 128K, at learning rate 7.3 × 10<sup>−6</sup>: 32K sequences in batches of 1,920, then 128K in batches of 480. After fine-tuning the model passes "Needle in a Haystack" across the whole 128K window ({{Figure 8|ax:S4.F8}}). Those two phases are about 126B tokens for 119K GPU hours, about 950 GPU hours per billion tokens against 180 in pre-training (derived), because attention over long sequences is expensive.</p>
+</section>
+
+<section id="s-bill"><h2>The bill, precisely</h2>
+[[S1.T1|§1, Table 1]]
+<p>{{Table 1|ax:S1.T1}}: 2,664K H800 GPU hours of pre-training, 119K of context extension and 5K of post-training, 2,788K in all; at an <b>assumed rental price of $2 per GPU hour</b>, $5.328M, $0.238M, $0.01M and $5.576M. Pre-training costs 180K GPU hours per trillion tokens, 3.7 days on the 2,048-GPU cluster, so under two months in all ({{§1|ax:S1}}). Recomputed, with the price as the one input you can change:</p>
+<div class="ctl"><label>Rental price per H800 GPU hour = <b id="bpV">$2.00</b> (the paper's assumption)<input type="range" id="bp" min="1" max="4" step="0.25" value="2"></label></div>
+<div class="tw"><table class="tb" id="billT"></table></div>
+<p class="small" id="billNote"></p>
+<p>The paper is explicit that this "include[s] only the official training of DeepSeek-V3, excluding the costs associated with prior research and ablation experiments on architectures, algorithms, or data". It does not mention hardware purchase, staff, failed runs, or the R1-series models whose outputs became V3's reasoning data. Much of the January 2025 discussion ignored that sentence; the honest reading is "the marginal compute cost of one training run", still roughly an order of magnitude below contemporary dense frontier runs.</p>
+<details class="card"><summary><b>What the $5.576M leaves out, item by item</b></summary>
+<ul class="small">
+<li><b>Research and ablations</b> on architectures, algorithms and data: excluded by the paper's own sentence ({{§1|ax:S1}}). The ablations alone include 15.7B and 228.7B models on up to 1.33T tokens, twice each for MTP and for balancing, and FP8 against BF16 at two scales ({{§4.5|ax:S4.SS5}}, {{Appendix B|ax:A2.SS1}}).</li>
+<li><b>The R1-series expert models</b> that generated V3's reasoning data ({{§5.1|ax:S5.SS1}}); R1's own later report gives its RL cost, quoted on the {{DeepSeek lab page|n:3c65c17b0d0d81a2ae7ec6796947a235}}.</li>
+<li><b>Hardware, power, staff and data.</b> The 2,048 H800s cost far more to buy than $5.6M; the lab page quotes SemiAnalysis's estimate of DeepSeek's hardware. The paper never claims otherwise: $2 an hour is a rental-equivalent price.</li>
+</ul>
+<p class="small">The fair one-line version: "the final training run used 2.788M H800 GPU hours, worth about $5.6M at rental prices". That claim checks out.</p></details>
+<div class="pred" id="pr-cost" data-ans="2"><div class="q">Llama 3.1 405B's pre-training took 30.84M H100 GPU hours, 11 times V3's total. An H800 has the same compute as an H100. How much of that 11× is explained simply by Llama doing more work: 405B active parameters on 15.6T tokens against 37B on 14.8T?</div>
+<div class="opts"><button>About a third: the rest is DeepSeek's efficiency</button><button>About half</button><button>Nearly all of it</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p><b>Nearly all of it.</b> Active parameters × tokens is 11.5 times larger for Llama, against 11.1 times the GPU hours (11.6 against pre-training alone). Counted as 6 × active parameters × tokens, both runs used about 34% of the GPUs' dense BF16 peak.</p>
+</div></div>
+<div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">Llama 3.1 405B did 11.5× the work for 11.6× the hours</div>
+<div id="costMini"></div>
+<p class="small mute" style="margin:6px 0 0">Sources: Llama 3.1 hours from the {{model card|https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/MODEL_CARD.md}}, tokens from the {{Llama 3 paper|https://arxiv.org/html/2407.21783v3#S1}}; peak 989 TFLOPS dense BF16 from the {{H100 datasheet|https://www.nvidia.com/en-us/data-center/h100/}} (1,979 with sparsity); same compute on the H800 per {{planetbanatt|https://planetbanatt.net/articles/v3fermi.html}}. V3 pre-training hours only (2,664K).</p></div>
+<p><b>From GPU hours to utilisation.</b> Training costs about 6 FLOPs per active parameter per token (the 6ND rule and what it leaves out are on {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}). For V3 that is 36.6B (37.55B active minus the 0.93B input embedding, which is a lookup, not a multiply; recounted from {{config.json|https://huggingface.co/deepseek-ai/DeepSeek-V3/blob/main/config.json}}). Divide by GPU-seconds and by the H800's peak and you get the run's model FLOPs utilisation (MFU); Meta reported 38 to 43% BF16 MFU for Llama 3.1 405B ({{Llama 3, Table 4|https://arxiv.org/html/2407.21783v3#S3.T4}}). Predict before ticking: does counting attention and the MTP module push V3 above or below Meta's band?</p>
+<div class="ctl">
+<label><input type="checkbox" id="fAtt"> add attention FLOPs (4K context for V3, 8K for Llama)</label>
+<label><input type="checkbox" id="fMtp"> add V3's MTP module (one extra block and output head)</label>
+<label>Peak to divide by <select id="fPk"><option value="bf16" selected>989 TFLOPS dense BF16</option><option value="fp8">1,979 TFLOPS dense FP8 (V3's GEMMs)</option></select></label>
+</div>
+<div id="mfuSvg"></div>
+<div class="out" id="mfuOut"></div>
+<div class="co key"><div class="t">What this shows</div>
+<p class="small" style="margin:0" id="mfuKey"></p></div>
+<details class="card"><summary><b>How the utilisation is counted</b>, the cost per unit of work, and the wall clock</summary>
+<p class="small mute">Peaks: H100 SXM, 1,979 and 3,958 TFLOPS "with sparsity", halved for dense ({{NVIDIA|https://www.nvidia.com/en-us/data-center/h100/}}); the H800 has the H100's compute with less interconnect bandwidth ({{planetbanatt|https://planetbanatt.net/articles/v3fermi.html}}). Llama: 405B parameters, 15.6T tokens ({{Llama 3 §1|https://arxiv.org/html/2407.21783v3#S1}}), 30.84M GPU hours ({{model card|https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/MODEL_CARD.md}}). Attention FLOPs per token per layer, training: 3 × 2 × heads × (key + value dimension) × average causal context. V3 pre-training hours only (2,664K); Llama's figure is its model card's training time for 405B. Assumptions are first-order: no recomputation, no pipeline bubble, no failed steps.</p>
+<p class="small"><b>The same work, costed per unit:</b> GPU hours per billion active parameters per trillion tokens, the price of one unit of "6ND" work on each cluster.</p>
+<div id="unitSvg"></div>
+<p class="small mute" id="unitNote"></p>
+<p class="small"><b>Wall clock and stages:</b></p>
+<div class="out" id="wallOut"></div>
+<p class="small mute">Derived from Table 1 and §4.3 at 2,048 GPUs. Context extension: 1,000 steps of 1,920 sequences of 32K plus 1,000 steps of 480 sequences of 128K ({{§4.3|ax:S4.SS3}}).</p></details>
+<p>The cheapness, then, is mostly the architecture: an MoE does a dense 405B model's job with a tenth of the arithmetic per token. What FP8, DualPipe and the kernels bought is that the MoE's communication overhead did not eat that saving: counting attention and the MTP module, V3 reached about 41% of the BF16 peak (about 20% of FP8's), in line with the 38 to 43% BF16 utilisation Meta reported for Llama 3 ({{Llama 3, Table 4|https://arxiv.org/html/2407.21783v3#S3.T4}}). {{planetbanatt's Fermi estimate|https://planetbanatt.net/articles/v3fermi.html}} reaches the same verdict from the other side: plausible.</p>
+</section>
+
+<section id="s-post"><h2>Post-training</h2>
+[[S5|§5.1, §5.2, §5.4]]
+<p><b>Supervised fine-tuning</b> ({{§5.1|ax:S5.SS1}}): 1.5M instances. Reasoning data (maths, competition code, logic puzzles) comes from an internal DeepSeek-R1 model, whose answers are accurate but overthink, are poorly formatted and run long. So DeepSeek first trains a domain expert (code, maths, general reasoning) with SFT and RL on two kinds of samples, &lt;problem, original response&gt; and &lt;system prompt, problem, R1 response&gt;, the system prompt asking for reflection and verification; RL with high-temperature sampling teaches the expert to blend R1's patterns into answers even without the prompt; rejection sampling from the experts then produces the final SFT data. Non-reasoning data (creative writing, role-play, simple QA) comes from DeepSeek-V2.5 and is checked by human annotators.</p>
+<p><b>Reinforcement learning</b> ({{§5.2|ax:S5.SS2}}): rule-based rewards where an answer can be checked (a boxed final answer for maths, compiler test cases for LeetCode problems), because they resist reward hacking; elsewhere a reward model trained from V3's SFT checkpoints, either matching a free-form reference answer or judging open-ended answers, trained on preference data that includes the chain of thought behind each reward. The optimiser is GRPO ({{Eq. 26 to 28|ax:S5.E26}}), introduced in {{DeepSeekMath|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}}; how its group baseline replaces PPO's critic is taught on {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}. For open-ended questions V3 judges itself, with voting, in the style of Constitutional AI ({{§5.4.2|ax:S5.SS4.SSS2}}); {{Table 8|ax:S5.T8}} shows why it can: on RewardBench V3 scores 87.0 (89.6 with six-vote majority), level with the best GPT-4o and Claude 3.5 Sonnet versions.</p>
+<details class="card"><summary><b>SFT settings and RL prompt domains</b></summary>
+<p class="small">SFT: two epochs, cosine learning rate from 5 × 10<sup>−6</sup> to 1 × 10<sup>−6</sup>, packed sequences with sample masking ({{§5.1|ax:S5.SS1}}). RL prompts span coding, maths, writing, role-play and QA ({{§5.2|ax:S5.SS2}}).</p></details>
+<p><b>Distillation, measured</b> ({{Table 9|ax:S5.T9}}): on DeepSeek-V2.5, R1-style data lifted LiveCodeBench-CoT from 31.1 to 37.4 and MATH-500 from 74.6 to 83.2, while MATH-500 answers nearly doubled in length (769 to 1,510 tokens). The settings for V3 were chosen to balance accuracy against length ({{§5.4.1|ax:S5.SS4.SSS1}}).</p>
+</section>
+
+<section id="s-res"><h2>Results</h2>
+[[S4.SS4|§4.4, §5.3]]
+<p><b>Base model</b> ({{Table 3|ax:S4.T3}}, all models run in DeepSeek's internal harness with the same settings): MMLU 87.1, BBH 87.5, HumanEval 65.2, MATH 61.6. Counting with the caption's rule that gaps of 0.3 or less are a tie, V3-Base beats LLaMA-3.1 405B Base on 20 of 32 rows, ties 7 and loses 5 (PIQA, RACE-Middle, RACE-High, NaturalQuestions, C3), with 11 times fewer active parameters; it beats Qwen2.5 72B Base on 28. The paper calls it the strongest open base model, "especially in code and math".</p>
+<p><b>Chat model</b> ({{Table 6|ax:S5.T6}}, output capped at 8K tokens, AIME and CNMO averaged over 16 samples at temperature 0.7): MMLU 88.5, MMLU-Pro 75.9, GPQA-Diamond 59.1, MATH-500 90.2 (above o1-preview, per §1), AIME 2024 39.2, LiveCodeBench 40.5 with chain of thought, Codeforces 51.6th percentile, SWE-bench Verified 42.0 (below Claude 3.5 Sonnet's 50.8, far above the other open models). V3 has the best score in 13 of the 22 rows and the best open-model score in 20; Claude 3.5 Sonnet leads on MMLU-Pro, IF-Eval, GPQA, SWE-bench and Aider-Edit, GPT-4o on SimpleQA and FRAMES. Open-ended ({{Table 7|ax:S5.T7}}): Arena-Hard 85.5, the first open model above 85, level with Claude 3.5 Sonnet's 85.2; AlpacaEval 2.0 length-controlled 70.0.</p>
+<p><b>Efficiency</b>: the whole run in 2.788M H800 hours; 1.8× decoding speed from MTP drafts; and an end-to-end generation speed more than twice V2's ({{§6|ax:S6}}).</p>
+<p class="small">Every row of every table, sortable, with deltas and win counts: {{The paper's tables, rebuilt|tab:t-tables}}.</p>
+</section>

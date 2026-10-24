@@ -32,3 +32,9 @@ Scoring follows `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each
 ## What the methodology lacked
 
 A paper that is several kinds at once (architecture, systems, recipe, cost claim) with its mechanisms already built elsewhere in the KB: the method's table assumes one live ingredient chosen by kind. The rule used here: link what exists, and build the ingredient for the claims only this paper makes.
+
+## 2026-10-25 light pass
+- P-deepseek_v3_technical_report.h1 (built): the hero, seven co-designed pieces in two rows (cut arithmetic per token: MoE, balancing, MLA, MTP; keep the cluster busy: FP8, DualPipe, kernels), each with the paper's number, adding up to the bill; static.
+- P-deepseek_v3_technical_report.h2 (built): one token's all-to-all dispatch, 8 experts on 4 nodes, IB once per remote node then NVLink fan-out (3 IB sends against 6); static, expert placement illustrative. The mechanism had no visual before.
+- Moved, not new: the Quantise and accumulate tab (scaling and accumulation animations, error against K) into the FP8 section, beside the claims they test; the Check the bill tab (Table 1 with the price slider, utilisation chart, cost per unit, wall clock) into The bill; the balancing-loss bars and the Llama hours-against-work bars out of predict reveals.
+- Rejected: embedding the paper's Figures 2 to 7 (arXiv non-exclusive licence); a photo of an 8-GPU HGX or H800 node (none openly licensed on Commons; the CC BY 3.0 H100 PCIe photos there do not show the node layout the claim is about).

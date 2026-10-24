@@ -1,4 +1,4 @@
-// ---- Quantise and accumulate tab: the scaling animation (sx), the accumulation animation (ax) and the error-against-K chart (ak) ----
+// ---- FP8 in the Reading tab (formerly the Quantise and accumulate tab): the scaling animation (sx), the accumulation animation (ax) and the error-against-K chart (ak) ----
 (function(){
 const F=window.FP8;if(!F||!$('sx'))return;
 // theme colours as rgb triples, for the canvas heatmaps
@@ -125,6 +125,6 @@ function akDraw(w){const d=akData(),H=w<520?270:250;const all=[].concat(...Objec
   const rcA=window.PAPER&&PAPER.rc&&PAPER.rc.fp8&&PAPER.rc.fp8.acc;let same=0,tot=0;if(rcA)['A','B'].forEach(r=>[0,128].forEach(nc=>KS.forEach((K,i)=>{const v=rcA[AK.D+'|'+r+'|'+nc+'|'+K];if(v!=null){tot++;if(Math.abs(v-d[r+nc][i])<=1e-15*Math.max(1,v))same++}})));
   $('akNote').innerHTML='At K = 4,096: reading A '+pct(d.A0[4])+' falling to '+pct(d.A128[4])+' with promotion; reading B '+pct(d.B0[4])+' falling to '+pct(d.B128[4])+'. Computed in your browser just now; '+same+' of '+tot+' points identical to fp8_sim.py\'s run (inputs/fp8_sim.json).'}
 $('akD').addEventListener('change',()=>{AK.D=$('akD').value;refit($('akSvg'))});
-onTab('t-fp8',()=>{fit($('akSvg'),akDraw);if(sxA)sxA.draw();if(axA)axA.draw()});
+fit($('akSvg'),akDraw);onTab('t-read',()=>{refit($('akSvg'));if(sxA)sxA.draw();if(axA)axA.draw()});
 try{const c=window.PAPER&&PAPER.rc&&PAPER.rc.fp8check;if(c)$('fpN').textContent=c.compared}catch(e){}
 })();

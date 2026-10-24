@@ -1,6 +1,6 @@
-// ---- Check the bill tab: Table 1 with a price slider, utilisation against Llama 3.1 405B, cost per unit of work, wall clock ----
+// ---- The bill in the Reading tab (formerly the Check the bill tab): Table 1 with a price slider, utilisation against Llama 3.1 405B, cost per unit of work, wall clock ----
 (function(){
-if(!$('t-cost'))return;const RC=PAPER.rc,B=RC.bill,FL=RC.flops;
+if(!$('billT'))return;const RC=PAPER.rc,B=RC.bill,FL=RC.flops;
 const M=v=>'$'+(v/1e6).toFixed(3)+'M';
 function bill(){const p=+$('bp').value;$('bpV').textContent='$'+p.toFixed(2);const h=[B.usd.pre/2,B.usd.ext/2,B.usd.post/2];const tot=h[0]+h[1]+h[2];
   const T1=PAPER.tables.T1;let s='<thead><tr><th class="l">Training costs</th>'+T1.cols.map(c=>'<th>'+c+'</th>').join('')+'</tr></thead><tbody>';
@@ -28,9 +28,9 @@ function mfuDraw(w){const r=mfu(),H=150,pl=w<520?92:176,pr=46,bw=w-pl-pr;const X
 ['fAtt','fMtp'].forEach(id=>$(id).addEventListener('change',()=>refit($('mfuSvg'))));$('fPk').addEventListener('change',()=>refit($('mfuSvg')));
 function unitDraw(w){const ds=2664e3/(37*14.8),ll=30.84e6/(405*15.6),H=110,pl=w<520?92:150,bw=w-pl-60,X=v=>pl+bw*v/5500;let s='';
   [['DeepSeek-V3',ds,'var(--c1)'],['Llama 3.1 405B',ll,'var(--c2)']].forEach(([n,v,c],i)=>{const y=14+i*40;s+=tx(pl-6,y+14,n,{fs:12,a:'end',w:600})+rc(pl,y,X(v)-pl,22,c,{r:3})+tx(X(v)+5,y+16,fmt(v)+' h',{fs:12,w:600})});
-  s+=tx(pl,H-8,'GPU hours per (billion active parameters × trillion tokens)',{fs:11,c:'var(--mute)'});
+  s+=tx(w<520?4:pl,H-8,w<520?'GPU h per (B active params × T tokens)':'GPU hours per (billion active parameters × trillion tokens)',{fs:11,c:'var(--mute)'});
   $('unitSvg').innerHTML=svgW(w,H,s,'GPU hours per unit of work');
   $('unitNote').textContent='V3: 2,664K hours / (37B × 14.8T) = '+fmt(ds)+'; Llama 3.1 405B: 30.84M / (405B × 15.6T) = '+fmt(ll)+'. They differ by '+(100*Math.abs(ds/ll-1)).toFixed(1)+'%. Uses the paper\'s rounded 37B; with the recounted 37.55B, V3\'s figure is '+fmt(2664e3/(37.55*14.8))+'.'}
 $('wallOut').innerHTML=stat('Per trillion tokens',B.days_per_T.toFixed(2)+' days','180K h / 2,048 GPUs; the paper says 3.7')+stat('Pre-training',B.pre_days.toFixed(1)+' days','"less than two months"')+stat('Context extension',B.ext_days.toFixed(1)+' days',(B.ext_tokens/1e9).toFixed(1)+'B tokens at '+fmt(B.ext_hours_per_B)+' h per billion, against '+fmt(B.pre_hours_per_B)+' in pre-training')+stat('Post-training',B.post_hours_wall.toFixed(1)+' hours','5K GPU hours on the whole cluster')+stat('Throughput',fmt(B.tokens_per_gpu_s)+' tokens/s','per GPU, averaged over pre-training');
-onTab('t-cost',()=>{fit($('mfuSvg'),mfuDraw);fit($('unitSvg'),unitDraw)});
+fit($('mfuSvg'),mfuDraw);fit($('unitSvg'),unitDraw);onTab('t-read',()=>{refit($('mfuSvg'));refit($('unitSvg'))});
 })();

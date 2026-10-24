@@ -9,6 +9,7 @@ def txt(x):
     x = re.sub(r'</t[dh]>', '\t', x)
     x = re.sub(r'<[^>]+>', '', x)
     x = html.unescape(x)
+    x = re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}', '[email removed]', x)  # author emails are not kept (2026-10-25)
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
 os.makedirs('inputs', exist_ok=True)
 for path, ver in zip(sys.argv[1:], ['v2', 'v1']):

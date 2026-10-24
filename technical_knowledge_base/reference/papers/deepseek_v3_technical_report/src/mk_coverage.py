@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', raw)))
 R, Q, B, T, F = 'The paper tab', 'Quantise and accumulate tab', 'Check the bill tab', "The paper's tables tab", 'Further reading'
 C = [
  # header
- ('Reading time line "12 min read, +~3h 5m resources"', 'replaced by the build-computed reading time and resources total (3h 20m: one resource added)', ['min to read', '3h 20m of resources']),
+ ('Reading time line "12 min read, +~3h 5m resources"', 'replaced on 2026-10-25 by the standard subtitle, measured by audit_pages.mjs (reading.json)', ['Reading:', 'in closed details']),
  ('Authors/lab: DeepSeek-AI', R + ', headline card', ['DeepSeek-AI']),
  ('Date: December 2024 (arXiv v1 2024-12-27; v2 2025-02-18)', R + ', headline card', ['arXiv v1 27 December 2024; v2 18 February 2025']),
  ('Link arXiv 2412.19437 (~1h 30m, technical report)', 'card and ' + F, ['https://arxiv.org/abs/2412.19437', '(1h 30m)']),
@@ -29,7 +29,7 @@ C = [
  ('671B total, 37B active; 61 layers, hidden 7168, 128 heads; 14.8T tokens; no irrecoverable spikes, no rollbacks', R + ', Problem and Architecture; card', ['671B total parameters, 37B active per token', '61 layers, hidden size 7,168, 128 attention heads', 'no irrecoverable loss spikes and no rollbacks']),
  # MLA
  ('MLA: h_t down-projected to latent c_KV of 512, up-projected per head', R + ', Architecture', ['d c = 512', 'up-projected per head for keys and values']),
- ('RoPE cannot commute through the up-projection: decoupled shared key k_R of 64 dims concatenated to every head', R + ', Architecture', ['RoPE cannot pass through the up-projection', 'of 64 dimensions, shared by all heads', 'concatenated to every head']),
+ ('RoPE cannot commute through the up-projection: decoupled shared key k_R of 64 dims concatenated to every head', R + ', Architecture', ['RoPE cannot pass through the absorbed product', '64 dimensions shared by all heads', 'Eq. 4']),
  ('Only c_KV and k_R cached: 576 per token vs 32768 (K+V), ~57x reduction', R + ', Architecture; ' + T + ' checks', ['576 numbers per token per layer', '32,768', 'about 57 times fewer']),
  ('"matching or beating standard MHA quality" (corrected: the paper says comparable performance, evidence from V2)', R + ', Architecture', ['while maintaining performance comparable to standard Multi-Head Attention']),
  ('Query low-rank compression (1536) only to cut training activation memory; up-projections absorbed at inference', R + ', Architecture', ["d c ′ = 1,536", 'only to cut activation memory in training', 'absorbed into the neighbouring matrices']),
