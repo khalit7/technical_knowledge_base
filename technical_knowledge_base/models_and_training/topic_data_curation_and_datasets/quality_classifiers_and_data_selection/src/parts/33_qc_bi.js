@@ -1,4 +1,4 @@
-// Bias browser (t-qcbi): keep rates by topic / format / country domain, controlled edits, Nemotron-CC pairs
+// Bias browser, inline in Reading sections 3 and 10 (#qc-bi, #bi-edits, #bi-pairs): keep rates by topic / format / country domain, controlled edits, Nemotron-CC pairs
 (function(){
   const B=window.QC&&window.QC.bi; if(!B)return;
   const $=id=>document.getElementById(id), esc=RD.esc, pc=x=>(x*100).toFixed(x<0.1&&x>0?1:0)+'%';
@@ -34,5 +34,5 @@
       $('bi-pairs').innerHTML=p+'</tbody></table>';$('bi-pairs-note').innerHTML=B.pairs.note}
   }
   $('bi-dim').addEventListener('change',()=>{sel=null;table();docs()});$('bi-show').addEventListener('change',table);
-  RD.onTab('t-qcbi',()=>{table();docs()});table();edits();
+  RD.onRender(()=>{table();docs()});table();edits();
 })();

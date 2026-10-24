@@ -7,7 +7,7 @@
     pr.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
       pr.querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(+x.dataset.a===ans.right)x.classList.add('right')});
       if(+b.dataset.a!==ans.right)b.classList.add('wrong');
-      const a=pr.querySelector('.ans');a.hidden=false;a.innerHTML=ans.html;RD.tabLinks(a);
+      const a=pr.querySelector('.ans');a.hidden=false;a.innerHTML=ans.html.replace(/All four lists are in the <a href='#' data-tab='t-qctr'>Classifier replay<\/a> tab\./,'Every classifier\'s lists are in section 3.');
     }));
   });
   // ---------- Pareto keep curve ----------

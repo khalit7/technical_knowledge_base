@@ -3,7 +3,7 @@
   const D=window.QC, esc=RD.esc, pc=x=>x==null?'n/a':(x*100).toFixed(x<0.1&&x>0?1:0)+'%';
   // Table 5 bars
   const t5=document.getElementById('qc-t5');
-  if(t5&&D.t5){t5.innerHTML=D.t5.map((r,i)=>'<div'+(i===0?' class="hl"':'')+'><span class="nm">'+esc(r.name)+'</span><span class="tr"><span style="width:'+(r.core/45*100).toFixed(1)+'%"></span></span><span class="v">'+r.core.toFixed(1)+'</span></div>').join('')+
+  if(t5&&D.t5){t5.innerHTML=D.t5.map((r,i)=>'<div'+(i===0?' class="hl2"':'')+'><span class="nm">'+esc(r.name)+'</span><span class="tr"><span style="width:'+(r.core/45*100).toFixed(1)+'%"></span></span><span class="v">'+r.core.toFixed(1)+'</span></div>').join('')+
     '<div class="small mute" style="display:block">Bars: Core (0 to 45 shown). MMLU: '+D.t5.map(r=>esc(r.name.split(',')[0])+(r.name.includes('15')?' (15%)':r.name.includes('20')?' (20%)':'')+' '+r.mmlu.toFixed(1)).join('; ')+'.</div>'}
   // reference table
   const rt=document.getElementById('qc-reftab');

@@ -1,4 +1,4 @@
-// Classifier replay (t-qctr): reference examples, top words, logit strip of run0, token-level pushes of one document
+// Classifier replay, inline in Reading section 3 (#qc-tr): reference examples, top words, logit strip of run0, token-level pushes of one document
 (function(){
   const Q=window.QC, T=Q&&Q.tr; if(!T)return;
   const $=id=>document.getElementById(id), esc=RD.esc, f2=x=>(Math.abs(x)>=100?x.toFixed(0):Math.abs(x)>=10?x.toFixed(1):x.toFixed(2));
@@ -32,5 +32,5 @@
     $('tr-text').innerHTML=h;
   }
   sm.addEventListener('change',render);sd.addEventListener('change',render);
-  RD.onTab('t-qctr',render);RD.onResize(render,'t-qctr');render();
+  RD.onRender(render);RD.onResize(render);render();
 })();

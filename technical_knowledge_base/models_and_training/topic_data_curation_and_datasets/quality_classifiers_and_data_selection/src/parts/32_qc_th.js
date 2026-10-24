@@ -1,4 +1,4 @@
-// Threshold explorer (t-qcth): keep the top k% of run0 by a classifier; hand-label precision/recall, overlap, annotation P/R
+// Threshold explorer, inline in Reading section 5 (#qc-th): keep the top k% of run0 by a classifier; hand-label precision/recall, overlap, annotation P/R
 (function(){
   const T=window.QC&&window.QC.th; if(!T)return;
   const $=id=>document.getElementById(id), esc=RD.esc, pc=x=>(x*100).toFixed(x<0.1&&x>0?1:0)+'%';
@@ -44,6 +44,6 @@
   }
   sel.addEventListener('change',render);K.addEventListener('input',render);
   $('th-pub').addEventListener('click',()=>{const m=model();if(m.pub_keep){K.value=Math.max(1,Math.min(60,Math.round(m.pub_keep*100)));render()}});
-  RD.onTab('t-qcth',render);RD.onResize(render,'t-qcth');
+  RD.onRender(render);RD.onResize(render);
   render();
 })();
