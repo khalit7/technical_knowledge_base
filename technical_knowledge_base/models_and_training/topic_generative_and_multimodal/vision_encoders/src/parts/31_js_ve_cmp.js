@@ -27,7 +27,7 @@
     $('vc-cap').innerHTML={pca:'Each patch token of the chosen block is projected on that block\'s top 3 principal components (per image), shown as red, green and blue. Similar colours mean similar vectors. Components are fitted without high-norm outlier tokens (more than 3 times the median norm), which would otherwise take a component each; signs are aligned block to block so colours do not flip.',
       sim:'Only the 8 leading principal components of the last block\'s unit-length patch tokens are shipped per image (int8), so these cosines approximate the full 768-number ones; the correlation with the full cosines is under each map. Enough to see which encoder finds the matching parts of an object.',
       norm:'Token L2 norm in the last block, divided by the image\'s median patch norm; colour saturates at 4 times. SigLIP 2 shows three bright fixed slots in every image (a fourth on the flat synthetic images); DINOv2 B mild ones; with registers they are gone.',
-      att:'Attention of the [CLS] token over the patches in the last block, averaged over the 12 heads and scaled to its maximum. Attention is not an explanation (see the Vision lab), but outlier tokens show up here as bright dots.'}[view]}
+      att:'Attention of the [CLS] token over the patches in the last block, averaged over the 12 heads and scaled to its maximum. Attention is not an explanation, but outlier tokens show up here as bright dots.'}[view]}
   $('vc-img').addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;img=+b.dataset.i;$('vc-img').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));draw()});
   RD.seg($('vc-view'),m=>{view=m;draw()});
   $('vc-layer').addEventListener('input',e=>{layer=+e.target.value;draw()});
@@ -43,7 +43,7 @@
     let h='<table><thead><tr><th>Vector</th>'+COLS.map((c,i)=>'<th class="num sort" data-c="'+i+'">'+c[0]+(i===sortC?' &darr;':'')+'</th>').join('')+'</tr></thead><tbody>';
     rows.forEach(k=>{h+='<tr><td>'+U.ENC[k]+'</td>'+COLS.map((c,i)=>{const v=c[1](PR[k]);return '<td class="num'+(i&&v===best[i]?' best':'')+'">'+(v==null?'<span class="mute">no text tower</span>':i===0?v:U.pct(v))+'</td>'}).join('')+'</tr>'});
     $('vc-table').innerHTML=h+'</tbody></table>';
-    $('vc-tnote').innerHTML='Probe: '+E(VE.probes.settings.probe)+'. kNN: '+E(VE.probes.settings.knn)+'. Retrieval: '+E(VE.probes.settings.retrieval)+'; text queries are the 10 class sentences of each model\'s best Vision lab prompt set. CPU float32, '+E(VE.probes.date)+' <span class="meas">measured</span>; script <code>src/runs/probes.py</code>.'}
+    $('vc-tnote').innerHTML='Probe: '+E(VE.probes.settings.probe.replace("the Vision lab's","the root zero-shot study's"))+'. kNN: '+E(VE.probes.settings.knn)+'. Retrieval: '+E(VE.probes.settings.retrieval)+'; text queries are the 10 class sentences of each model\'s best prompt set in the root\'s Zero-shot lab. CPU float32, '+E(VE.probes.date)+' <span class="meas">measured</span>; script <code>src/runs/probes.py</code>.'}
   $('vc-table').addEventListener('click',ev=>{const th=ev.target.closest('th[data-c]');if(!th)return;sortC=+th.dataset.c;table()});
   // published Table 4
   const T4=[["CLIP","ViT-L/14","WIT-400M",79.8,84.3],["CLIP","ViT-L/14 at 336","WIT-400M",80.5,85.3],["OpenCLIP","ViT-G/14","LAION-2B",83.2,86.2],["EVA-CLIP","ViT-g/14","custom",83.5,86.4],

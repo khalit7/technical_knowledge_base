@@ -94,7 +94,7 @@ for name, (Xv, yv, Xt) in feats.items():
     res[name] = m
     print(name, m["linear_probe"]["16"]["mean"], m["linear_probe"]["500"]["mean"], m["knn20"], m["img2img"], m.get("txt2img"), flush=True)
 R["encoders"] = res
-R["settings"] = {"probe": lab_zs["clip"]["probe_settings"] + " (the Vision lab's function and random draws)",
+R["settings"] = {"probe": lab_zs["clip"]["probe_settings"] + " (the root zero-shot study's function and random draws)",
                  "knn": "weighted vote, k = 20, weights exp(cos/0.07), train = 5,000 val images",
                  "retrieval": "class-level relevance; img2img queries exclude themselves (9,999 candidates)"}
 dump("probes.json", R)

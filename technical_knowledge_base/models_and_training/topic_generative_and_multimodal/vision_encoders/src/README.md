@@ -47,3 +47,11 @@ Why 28 minutes is right: the core now carries the contrastive loss, batch size a
 
 ## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 352 units: core 242, depth 56, fat 54. 309 were drafted from the old page by `ledger.py init`; 39 record what was absorbed from the root's Vision lab (section "absorbed", `where` empty); 4 were added by hand for script-rendered visuals (section "added by hand"). No unit is labelled owned or volatile.
+
+## 2026-10-24, topic close
+The root's Vision lab became the "Zero-shot lab" (only the zero-shot prompt study and the CPU timings); its VLM lab was slimmed.
+- Pointers fixed: the prompt-study references now name the Zero-shot lab (section 7, the Encoder comparison table note); "see the Vision lab" after "attention is not an explanation" cut; other "root Vision lab" mentions reworded as provenance (the root's vision recordings, `src/vision/out`; the zero-shot study's probe settings); the Retrieval tab's matrix points to Reading section 4; the SmolVLM 1,088-token row cites the root VLM runs and links Vision-language models for tiling.
+- The probe-settings string in `20_js_ve_0data.js` comes from `out/probes.json` (needs the scratch arrays to regenerate), so `31_js_ve_cmp.js` rewords "the Vision lab's" at display time; `runs/probes.py` writes the new wording on its next run.
+- Further reading: the root entry names the Zero-shot lab, the VLM lab line and the "about 30 min for the two labs" time cut; sibling times corrected (Vision-language models 26, Autoencoders 35, Contrastive and self-supervised 27). Ledger unit 191's key follows the new wording.
+- Checks: `check_data.py` 77 of 77, `check_calc.mjs` 59 of 59, `check_page.mjs` all OK. Reading time unchanged: 28 min, plus 10 (6,500 and 2,338 words).
+- Root fat audit (2026-10-24): two units the root close-out had dropped restored as closed blocks: "Trusting attention maps as explanations" (section 1) and the typographic attack in image search (section 6), ledger units 353 and 354. Depth now 2,418 words: 28 min, plus 11.
