@@ -43,7 +43,7 @@ window.DZC=(function(){
     if(x1===x0)x1=x0+1;if(y1===y0)y1=y0+1;
     const X=v=>L+(tx(v)-tx(x0))/(tx(x1)-tx(x0))*pw,Y=v=>Tp+ph-(ty(Math.max(o.ylog?1e-12:-1e300,Math.min(y1,Math.max(y0,v))))-ty(y0))/(ty(y1)-ty(y0))*ph;
     let s='';
-    const ticks=(a,b,log)=>{if(log){const out=[];for(let e=Math.floor(Math.log10(a));e<=Math.ceil(Math.log10(b));e++){[1,2,5].forEach(m=>{const v=m*10**e;if(v>=a*0.999&&v<=b*1.001)out.push(v)})}return out.length>7?out.filter((v,i)=>String(v).startsWith('1')):out}
+    const ticks=(a,b,log)=>{if(log){const out=[];for(let e=Math.floor(Math.log10(a));e<=Math.ceil(Math.log10(b));e++){[1,2,5].forEach(m=>{const v=m*10**e;if(v>=a*0.999&&v<=b*1.001)out.push(v)})}return out.length>7?out.filter(v=>Math.abs(Math.log10(v)-Math.round(Math.log10(v)))<1e-9):out}   // powers of ten only (the old String(v).startsWith('1') test dropped 0.01, 0.001, ...)
       const st=Math.pow(10,Math.floor(Math.log10((b-a)/4)));const k=[1,2,5,10].find(m=>(b-a)/(m*st)<=6)*st;const out=[];for(let v=Math.ceil(a/k)*k;v<=b+1e-9;v+=k)out.push(+v.toPrecision(10));return out};
     const lab=v=>Math.abs(v)>=1e4||(Math.abs(v)<1e-3&&v!==0)?v.toExponential(0):String(+v.toPrecision(3)).replace(/^(-?)0\./,'$10.');
     ticks(y0,y1,o.ylog).forEach(v=>{s+='<line x1="'+L+'" x2="'+(L+pw)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RD.t(L-4,Y(v)+4,lab(v),{a:'end',fill:'var(--mute)'})});

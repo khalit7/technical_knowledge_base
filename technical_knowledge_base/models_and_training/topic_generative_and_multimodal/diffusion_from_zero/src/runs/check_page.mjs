@@ -21,7 +21,7 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   await p.goto('file://'+page_);
   await p.evaluate(()=>{try{localStorage.clear()}catch(e){}});
   const out={};
-  for(const tab of ['t-read','t-dzsamp','t-dzsched','t-dzguide','t-more']){
+  for(const tab of ['t-read','t-more']){
     await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);await wait(250);
     const H=await p.evaluate(()=>document.body.scrollHeight);for(let y=0;y<H;y+=700){await p.evaluate(y=>scrollTo(0,y),y);await wait(25)}
     const n=await p.evaluate(async tab=>{let k=0;const T=document.getElementById(tab);const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -47,9 +47,13 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
     for(const m of ['0','1']){await p.evaluate(m=>document.querySelector('#dz-toyan-m button[data-m="'+m+'"]').click(),m);await wait(100);
     for(const s of steps){await p.evaluate((c,s)=>{const e=document.getElementById(c);e.value=s;e.dispatchEvent(new Event('input'))},ctl,s);
       const el=await p.$('#'+id);await el.scrollIntoView();await wait(120);await el.screenshot({path:path.join(shots,id+'_'+m+'_'+s+'_'+w+'.png')})}}}
-  for(const id of ['dz-toyx','dz-w-chart','dz-samp-mini','dz-resc-ims','dz-zt-ims','dz-lcm-ims','dz-bug-cv']){const el=await p.$('#'+id);if(el){await el.scrollIntoView();await wait(100);await el.screenshot({path:path.join(shots,id+'_'+w+'.png')})}}
-  for(const tab of ['t-dzsamp','t-dzsched','t-dzguide']){await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);await wait(300);await p.evaluate(()=>scrollTo(0,0));
-    const el=await p.$('#'+tab);await el.screenshot({path:path.join(shots,tab+'_'+w+'.png')})}
+  for(const id of ['dz-hero','dz-fwd','dz-sd','dz-err','dz-ev','dz-toyx','dz-traj-card','dz-sw','dz-gx','dz-gs','dz-w-chart','dz-gx-chart','dz-zt-ims','dz-lcm-ims','dz-bug-cv','dz-dist-tab']){const el=await p.$('#'+id);if(el){await el.scrollIntoView();await wait(150);await el.screenshot({path:path.join(shots,id+'_'+w+'.png')})}}
+  // nothing moves before the reader acts: every animation's scrubber is still at 0 after scrolling past it
+  await p.goto('file://'+page_);await wait(200);
+  const H2=await p.evaluate(()=>document.body.scrollHeight);for(let y=0;y<H2;y+=500){await p.evaluate(y=>scrollTo(0,y),y);await wait(60)}
+  await wait(1500);
+  const moved=await p.evaluate(()=>[...document.querySelectorAll('.an-ctl input[type=range]')].filter(r=>+r.value!==0).map(r=>r.id));
+  if(moved.length){bad++;console.log('autoplay:',moved)}
   const myErrs=errs;if(myErrs.length)bad++;
   console.log(w,scheme,JSON.stringify(out),'errors',JSON.stringify(myErrs.slice(0,5)),'reading min',(out['t-read'].words/220).toFixed(1));
   await p.close();
