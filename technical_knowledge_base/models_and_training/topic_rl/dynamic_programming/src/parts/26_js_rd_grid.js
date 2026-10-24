@@ -33,6 +33,6 @@
         'After '+f.ep+' episodes and '+f.samples.toLocaleString('en-US')+' transitions the largest gap to the model-based values is '+RD.n(mx,3)+'. Value iteration reached the same numbers in about 20 sweeps without moving once.';
       N.innerHTML=RD.stat('Episodes',String(f.ep),'random start cells')+RD.stat('Transitions used',f.samples.toLocaleString('en-US'),'real samples')+RD.stat('Model lookups','0','model-free')+RD.stat('Largest gap to V*',RD.n(mx,3),'mean '+RD.n(mn,3))}}
   const an=RD.anim({card:'rd-gw',ctl:'rd-gwC',n:VI.length,ms:900,draw,label:'Step'});
-  document.getElementById('rd-gwM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));an.reset(mode==='vi'?VI.length:QL.length);an.play()});
+  document.getElementById('rd-gwM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));an.reset(mode==='vi'?VI.length:QL.length)});
   RD.onResize(()=>an.redraw());
 })();

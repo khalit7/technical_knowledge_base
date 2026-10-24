@@ -35,6 +35,6 @@
         mode==='sync'?'Synchronous: the backup reads the values from before this sweep, shown in the cell.':'In place: the backup reads the latest values, including any written earlier in this sweep.'}
     N.innerHTML=RD.stat('Sweep',String(st.sweep),'')+RD.stat('Backups',String(i),'one state each')+RD.stat('Largest gap to '+(mode==='pe'?'V<sub>π</sub>':'V<sub>*</sub>'),RD.n(err,4),'over A, B, C')}
   const an=RD.anim({card:'dp-co',ctl:'dp-coC',n:steps.length,ms:1100,draw,label:'Backup'});
-  document.getElementById('dp-coM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));steps=build(mode);an.reset(steps.length);an.play()});
+  document.getElementById('dp-coM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));steps=build(mode);an.reset(steps.length)});
   RD.onResize(()=>an.redraw());
 })();
