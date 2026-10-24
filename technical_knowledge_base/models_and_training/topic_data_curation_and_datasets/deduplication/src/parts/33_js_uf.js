@@ -1,4 +1,4 @@
-// ---- Union-find clusters (tab t-uf) ----
+// ---- Union-find clusters (Reading section 4; was tab t-uf) ----
 (function(){
   const F=DP.uf,U=DPU,$=id=>document.getElementById(id),esc=U.esc;
   const NAMES=['25 pages: one cookie banner','8 pages: a consent notice','8 pages: flower-shop template'];
@@ -47,5 +47,5 @@
       F.clusters.map((c,i)=>'<tr><td class="num">'+(i+1)+'</td><td class="num">'+c.n+'</td><td>'+c.hosts.map(h=>esc(short(h))).join(', ')+(c.nhosts>4?' and '+(c.nhosts-4)+' more':'')+'</td><td class="num">'+c.j_min.toFixed(2)+' to '+c.j_max.toFixed(2)+'</td><td class="num">'+(c.n-1)+'</td><td class="num">'+c.chk+'</td></tr>').join('')+'</tbody>';
     $('dp-uf-tabnote').innerHTML='Total: '+F.removed+' removed by datatrove, '+F.removed_with_check08+' with the check. The kept root is the longest member in '+F.kept_is_longest+' of 31 clusters and the lowest document index in '+F.kept_is_first+'. Candidate pair records written: '+F.pair_records+' ('+F.distinct_pairs+' distinct pairs).'}
   table();
-  U.onTab('t-uf',()=>an.redraw());
+  U.onTab('t-read',()=>an.redraw());
 })();

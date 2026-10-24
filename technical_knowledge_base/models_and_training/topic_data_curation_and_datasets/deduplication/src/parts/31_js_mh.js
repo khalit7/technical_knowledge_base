@@ -1,4 +1,4 @@
-// ---- MinHash step by step (tab t-mh) ----
+// ---- MinHash step by step (Reading section 3; was tab t-mh) ----
 (function(){
   const D=DP.mhdemo,U=DPU,esc=U.esc;
   let pair='forum',mode='mh',an=null;
@@ -29,7 +29,7 @@
       c='Hash function '+(f+1)+' of 112 gives every shingle a pseudo-random number (shown as a fraction of its range). Keep each page\'s <b>smallest</b> value (outlined): A\'s is '+(A.f8[f][ma]/1000).toFixed(3)+' on "'+esc(A.shingles[ma])+'", B\'s is '+(B.f8[f][mb]/1000).toFixed(3)+' on "'+esc(B.shingles[mb])+'". '+(eq?'<b>Equal</b>: the smallest value over both pages fell on a shared shingle.':'<b>Different</b>: the smallest value over both pages fell on a shingle only one page has.')+' This happens with probability exactly J: the minimum of the union is equally likely to be any of its '+p.union+' shingles, and '+p.inter+' of them are shared.';
       h='<div class="dp-two"><div>'+head(A,0)+chips(A,B,{hl:1,f})+'</div><div>'+head(B,1)+chips(B,A,{hl:1,f})+'</div></div>'+sigGrid(p,f+1)}
     else if(i===11){const ne=p.eq.reduce((a,b)=>a+b,0);
-      c='All 112 functions: '+ne+' minimums are equal, so the estimate is '+ne+' / 112 = <b>'+p.est.toFixed(3)+'</b> against a true '+p.j.toFixed(3)+'. Each page is now 112 numbers (896 bytes), whatever its length. The standard error of this estimate is &radic;(J(1&minus;J)/112) = '+Math.sqrt(p.j*(1-p.j)/112).toFixed(3)+' (the histogram below shows it).';
+      c='All 112 functions: '+ne+' minimums are equal, so the estimate is '+ne+' / 112 = <b>'+p.est.toFixed(3)+'</b> against a true '+p.j.toFixed(3)+'. Each page is now 112 numbers (896 bytes), whatever its length. The standard error of this estimate is &radic;(J(1&minus;J)/112) = '+Math.sqrt(p.j*(1-p.j)/112).toFixed(3)+' (the closed block on 2,000 hash families shows the histogram).';
       h=sigGrid(p,112)}
     else{const nb=p.bands.reduce((a,b)=>a+b,0),pr=U.P(p.j,14,8);
       c='<b>LSH</b>: cut the signature into 14 bands of 8. Two pages become a <b>candidate pair</b> if all 8 values agree in at least one band; in practice each band\'s 8 values are hashed and sorted, so pages with an equal band end up next to each other, and nothing is compared pairwise. Here '+nb+' band'+(nb===1?'':'s')+' matched: '+(p.candidate?'<b>candidate</b>':'<b>not a candidate</b>')+'. For a pair at J = '+p.j.toFixed(2)+' the chance is 1&minus;(1&minus;J<sup>8</sup>)<sup>14</sup> = '+U.pct(pr)+(pair==='forum'?': this pair was unlucky, and run0 did remove one of the two pages.':'.');
@@ -46,7 +46,7 @@
   RD.seg(document.getElementById('dp-mh-pair'),m=>{pair=m;an.go(an.i>=NSTEP[mode]?0:an.i)});
   RD.seg(document.getElementById('dp-mh-mode'),m=>{mode=m;reset()});
   an=RD.anim({card:'dp-mh-card',ctl:'dp-mh-ctl',n:NSTEP.mh,draw,ms:2600,label:'MinHash step'});
-  U.onTab('t-mh',()=>{an.redraw();hist();cand()});
+  U.onTab('t-read',()=>{an.redraw();hist();cand()});
 
   // ---- 2,000 hash families ----
   const S=DP.seeds,sel=document.getElementById('dp-sd-pair');

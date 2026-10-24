@@ -1,27 +1,74 @@
 <section id="rd-mh">
-<h2>4. MinHash and LSH, from zero</h2>
-<p><b>The problem.</b> Most web duplicates are not byte-identical: a syndicated article with a different header, a product page that differs by one name, a forum page with a different visitor count. We want pairs whose text is <i>mostly</i> the same, among 10<sup>9</sup> documents, without comparing 5&times;10<sup>17</sup> pairs.</p>
+<h2>3. MinHash and LSH: near copies without comparing pairs</h2>
+<p><b>The problem.</b> Most web duplicates are not byte-identical: a syndicated article with a different header, a product page that differs by one name, a forum page with a different visitor count. We want pairs whose text is <i>mostly</i> the same among 10<sup>9</sup> documents, without comparing 5&times;10<sup>17</sup> pairs.</p>
+<p><b>A concrete pair.</b> Normalise two forum pages from the running example (lowercase, no punctuation, numbers normalised), split them into words, and take every run of 5 consecutive words, each kept once: their <b>shingle</b> sets share 43 of 73 distinct shingles, a <b>Jaccard similarity</b> of 43/73 = 0.589. "Near duplicate" means J above a <b>threshold</b> such as 0.75 or 0.8. (FineWeb uses 5-word shingles; Gopher 13; NeMo Curator 24 characters. Short shingles make unrelated documents look alike; long ones let one changed word break many shingles.) Step through what MinHash does with this pair:</p>
 
-<h3>Step 1: documents as sets of shingles</h3>
-<p>Normalise the text (lowercase, no punctuation, numbers normalised), split it into words, and take every run of <i>n</i> consecutive words: a <b>shingle</b> (FineWeb uses <i>n</i> = 5; Gopher 13; NeMo Curator uses 24 characters instead of words). A document becomes the <i>set</i> of its shingles, each kept once. Short shingles make unrelated documents look alike (common phrases); long ones make a single changed word break many shingles.</p>
-<h3>Step 2: Jaccard similarity</h3>
-<p>The <b>Jaccard similarity</b> of two sets is |A &cap; B| / |A &cup; B|, the shared shingles over all distinct shingles. Two forum pages from the running example share 43 of 73 distinct shingles: J = 0.589. "Near duplicate" means J above a <b>threshold</b> such as 0.75 or 0.8.</p>
-<h3>Step 3: the min-hash trick, and why it works</h3>
-<p>Pick a random hash function <i>h</i> that maps every shingle to a number, and keep each document's <b>smallest</b> value, min<i>h</i>(A). Then</p>
+<div class="card" id="dp-mh-card"><h4 style="margin:0 0 4px">MinHash never computes J: equal minimums estimate it, and one equal band makes a candidate</h4>
+<div class="dp-ctl"><span class="small mute">Pair</span><span class="seg" id="dp-mh-pair"><button data-m="forum" class="on">Two forums (0.59)</button><button data-m="agilent">One shop, two products (0.86)</button><button data-m="stack">Two Stack Exchange sites (0.95)</button></span></div>
+<div class="dp-ctl"><span class="small mute">Method</span><span class="seg" id="dp-mh-mode"><button data-m="mh" class="on">MinHash + LSH</button><button data-m="ex">Exact Jaccard (what it replaces)</button></span></div>
+<div class="an-ctl dp-ctl" id="dp-mh-ctl"></div>
+<div class="dp-cap" id="dp-mh-cap"></div>
+<div id="dp-mh-stage"></div>
+<div class="dp-cnt" id="dp-mh-cnt"></div>
+<p class="small mute"><span class="lbl me">measured</span> shingles, hash values and signatures computed with datatrove 0.10.1's own <code>MinhashDedupSignature</code> (seed 1, the FineWeb default), checked equal to the signature it writes; hash values are shown as thousandths of their range (2<sup>61</sup>&minus;1); text passed through the running example's PII formatter. Both pages of each pair are site chrome (forum software, a shop template, a network sign-up banner), not anyone's writing. Switch to <b>exact Jaccard</b> to see the pairwise work MinHash avoids.</p>
+</div>
+
+<h3>Why the minimum works</h3>
+<p>Pick a random hash function <i>h</i> over shingles and keep each document's <b>smallest</b> value, min<i>h</i>(A). Then</p>
 <div class="fm"><div class="eq">P[ min <i>h</i>(A) = min <i>h</i>(B) ] = |A &cap; B| / |A &cup; B| = J(A, B)</div>
 <p class="small">Proof (Broder 1997, Theorem 1): look at the smallest value over the union A &cup; B. Every shingle of the union is equally likely to own it. The two minimums are equal exactly when that shingle is in both sets, which happens for |A &cap; B| of the |A &cup; B| shingles.</p></div>
-<p>With <i>k</i> independent hash functions, each document becomes a <b>signature</b> of <i>k</i> minimums, and the share of positions where two signatures agree is an unbiased estimate of J. The number of agreements is binomial, so the estimate's standard deviation is &radic;(J(1&minus;J)/<i>k</i>): at J = 0.75 and FineWeb's <i>k</i> = 112, 0.041. Halving the noise costs four times the hashes.</p>
-<div class="card"><div id="rd-var"></div>
-<p class="small mute"><span class="lbl me">measured</span> dots: the standard deviation of the estimate for 24 real pairs, each hashed with 2,000 independent families (the {{MinHash step by step|#t-mh}} tab shows the full histograms); <span class="lbl der">derived</span> lines: &radic;(J(1&minus;J)/<i>k</i>). The binomial model holds to within a few thousandths at every <i>k</i>.</p></div>
-<p>In practice the "random functions" are a cheap family: datatrove hashes each shingle once to 64 bits (xxhash), then computes (<i>a</i>&middot;<i>x</i> + <i>b</i>) mod (2<sup>61</sup>&minus;1) for 112 random pairs (<i>a</i>, <i>b</i>) in one vectorised line (<code>minhash.py:182</code>). Because the product is computed in unsigned 64-bit arithmetic it wraps around before the modulus, so the family is not exactly the textbook one; the measurements above (and the root lab's estimate-vs-truth chart) show it does not matter.</p>
+<p>With <i>k</i> hash functions each document becomes a <b>signature</b> of <i>k</i> minimums, and the share of positions where two signatures agree estimates J without bias. The count of agreements is binomial, so the estimate's standard deviation is &radic;(J(1&minus;J)/<i>k</i>): at J = 0.75 and FineWeb's <i>k</i> = 112, 0.041. Halving the noise costs four times the hashes.</p>
+<div class="card"><h4 style="margin:0 0 4px">The noise follows the binomial law at every signature size</h4><div id="rd-var"></div>
+<p class="small mute"><span class="lbl me">measured</span> dots: the standard deviation of the estimate for 24 real pairs, each hashed with 2,000 independent families; <span class="lbl der">derived</span> lines: &radic;(J(1&minus;J)/<i>k</i>). The binomial model holds to within a few thousandths at every <i>k</i>.</p></div>
 
-<h3>Step 4: locality-sensitive hashing (LSH) with bands</h3>
-<p>Signatures make each comparison cheap, but there are still too many pairs. <b>LSH</b> avoids pairwise comparison: cut the <i>k</i> = <i>b</i>&times;<i>r</i> values into <i>b</i> <b>bands</b> of <i>r</i> rows, and for each band group documents by the band's <i>r</i> values (a sort or a hash table). Two documents that agree on all <i>r</i> values of at least one band become a <b>candidate pair</b>.</p>
+<h3>LSH: bands turn the estimate into a cheap yes/no</h3>
+<p>Signatures make each comparison cheap, but there are still too many pairs. <b>Locality-sensitive hashing (LSH)</b> avoids comparing pairs at all: cut the <i>k</i> = <i>b</i>&times;<i>r</i> values into <i>b</i> <b>bands</b> of <i>r</i> rows, and per band group documents by the band's <i>r</i> values (a sort or a hash table). Two documents equal on all <i>r</i> values of at least one band become a <b>candidate pair</b>.</p>
 <div class="fm"><div class="eq">P(candidate | J = s) = 1 &minus; (1 &minus; s<sup><i>r</i></sup>)<sup><i>b</i></sup></div>
-<p class="small">A band matches with probability s<sup><i>r</i></sup> (all <i>r</i> rows equal, each with probability s). It fails with 1&minus;s<sup><i>r</i></sup>; all <i>b</i> bands fail with (1&minus;s<sup><i>r</i></sup>)<sup><i>b</i></sup>. The curve is an S whose steep part sits near s &asymp; (1/<i>b</i>)<sup>1/<i>r</i></sup>. FineWeb's 14 &times; 8 gives 56%, 77%, 92%, 98.8% at 0.70, 0.75, 0.80, 0.85, the numbers its Appendix E.1 states (recomputed here).</p></div>
-<p><b>Rows sharpen, bands widen.</b> More rows per band make the S steeper and push it right (fewer false candidates, more misses); more bands push it left (higher recall, more candidates, more hashes). Choosing them is a trade-off with a standard rule: datasketch picks the (<i>b</i>, <i>r</i>) that minimises a weighted sum of the area under the S left of the target (false positives) and above it right of the target (false negatives). With 128 hashes and equal weights it picks 11 &times; 11 for a 0.75 target and 9 &times; 13 for 0.8 (<span class="lbl der">derived</span> with its own code). The {{Band designer|#t-band}} runs that rule and checks every choice against real pairs.</p>
+<p class="small">A band matches with probability s<sup><i>r</i></sup>; all <i>b</i> bands fail with (1&minus;s<sup><i>r</i></sup>)<sup><i>b</i></sup>. The curve is an S whose steep part sits near s &asymp; (1/<i>b</i>)<sup>1/<i>r</i></sup>. FineWeb's 14 &times; 8 gives 56%, 77%, 92%, 98.8% at 0.70, 0.75, 0.80, 0.85, the numbers its Appendix E.1 states (recomputed here).</p></div>
+<p><b>Rows sharpen, bands widen.</b> More rows per band make the S steeper and push it right (fewer false candidates, more misses); more bands push it left (higher recall, more candidates, more hashes). Predict, then move the target from 0.75 to 0.9 with 112 hashes: does the rule pick more bands or fewer?</p>
+<div class="card" id="rd-band"><h4 style="margin:0 0 4px">Band designer: the S-curve for any (b, r), checked against real pairs</h4>
+<div class="dp-ctl"><span class="small mute">Presets</span><span class="seg" id="dp-bd-pre">
+<button data-m="fw" class="on">FineWeb 14 &times; 8</button><button data-m="d3">Dolma 3 web 26 &times; 11</button><button data-m="nemo">NeMo Curator 20 &times; 13</button><button data-m="dsk">datasketch default (0.9, 128)</button><button data-m="td">text-dedup Spark (0.7, 250)</button><button data-m="rw">RefinedWeb 450 &times; 20</button></span></div>
+<div class="dp-ctl">
+<label>target <i>t</i> <input type="range" id="dp-bd-t" min="0.5" max="0.95" step="0.01" value="0.75"><b id="dp-bd-tv"></b></label>
+<label>hashes <select id="dp-bd-k"><option>64</option><option selected>112</option><option>128</option><option>250</option><option>256</option><option>286</option><option>512</option><option>1024</option></select></label>
+<label>false-negative weight <input type="range" id="dp-bd-w" min="0.1" max="0.9" step="0.05" value="0.5"><b id="dp-bd-wv"></b></label>
+</div>
+<div class="dp-ctl"><span class="small mute">Bands and rows</span><span class="seg" id="dp-bd-mode"><button data-m="opt">rule&rsquo;s optimum</button><button data-m="man" class="on">set by hand</button></span>
+<label><i>b</i> <input type="range" id="dp-bd-b" min="1" max="128" step="1" value="14"><b id="dp-bd-bv"></b></label>
+<label><i>r</i> <input type="range" id="dp-bd-r" min="1" max="32" step="1" value="8"><b id="dp-bd-rv"></b></label></div>
+<div class="dp-res" id="dp-bd-res"></div>
+<div class="dp-svg" id="dp-bd-plot"></div>
+<div class="dp-cnt" id="dp-bd-cnt"></div>
+<p class="small mute" id="dp-bd-note"></p>
+<p class="small mute">The rule is datasketch's: with 128 hashes and equal weights it picks 11 &times; 11 for a 0.75 target and 9 &times; 13 for 0.8 (<span class="lbl der">derived</span> with its own code); FineWeb's 14 &times; 8 is not the rule's optimum for 0.75 (it sits lower, catching more). <span class="lbl me">measured</span> dots: <span id="dp-bd-np"></span> real pairs with Jaccard &ge; 0.01 (<span id="dp-bd-n1"></span> identical shingle sets plus <span id="dp-bd-nm"></span> with 1,024-bit equality masks from a hash family drawn with seed 2, independent of the one used to find the pairs), candidate rate per 0.05-wide bin, bands as consecutive slices; <span class="lbl der">derived</span> line and expected counts: 1&minus;(1&minus;<i>s</i><sup><i>r</i></sup>)<sup><i>b</i></sup> summed over every pair's true Jaccard.</p>
+</div>
+<div class="pr" data-ans="c"><div class="q">Predict: on the running example, FineWeb's 14 &times; 8 meets 308 pairs with true Jaccard &ge; 0.8. How many does it miss?</div>
+<div class="opts"><button data-k="a">About 25 (8%, as the formula's 92% at 0.8 suggests)</button><button data-k="b">About 10</button><button data-k="c">None</button></div>
+<div class="ans" hidden>None. 92% is the chance at exactly 0.8; most real pairs above 0.8 are far above it (143 of the 308 have identical shingle sets, where the chance is 100%), and pairs between 0.8 and 0.85 have 92% to 98.8%. The root lab measured 0 misses and 0 candidates below Jaccard 0.5 on all 3,622,086 pairs. Recall depends on the similarity distribution of your data, not just on the curve.</div></div>
+<p><b>Cost:</b> signatures are <i>documents</i> &times; <i>shingles</i> &times; <i>k</i> multiply-adds, embarrassingly parallel; the grouping is one sort per band (a shuffle across machines); memory is <i>k</i> &times; 8 bytes per document (112 hashes: 112 GB per 10<sup>9</sup> documents of 64-bit values). <b>How to check it:</b> sample candidate pairs in several similarity bins and read them; compute the true Jaccard of each candidate (cheap: candidates are few); recompute the S-curve and confirm it reproduces any probabilities a paper states before copying its setting (RefinedWeb's "20 buckets of 450" does not; section 10).</p>
 
-<h3>Running it with the real tool</h3>
+<details class="dp"><summary>How the band rule chooses, and the presets' sources <span class="mute">(depth)</span></summary><div class="b">
+<p>datasketch's <code>MinHashLSH</code> (v2.0.0, <code>lsh.py:21-48</code>) tries every <i>b</i> and <i>r</i> with <i>b</i> &times; <i>r</i> &le; the number of hashes and keeps the pair that minimises <i>w</i><sub>fp</sub> &middot; (area under the S-curve left of <i>t</i>) + <i>w</i><sub>fn</sub> &middot; (area above it right of <i>t</i>), weights 0.5 and 0.5 by default. The areas treat every similarity as equally likely, which real data is not: on the web almost all pairs sit near 0, so a false-positive area that looks small still multiplies by billions of pairs. That is why the designer reports both the measured pairs and the expected candidates over all 3,622,086 pairs of the running example, and why production pipelines add a true-Jaccard check on candidates (Dolma 3) or accept a low <i>r</i> because candidates are cheap to verify.</p>
+<p class="small mute">Presets: <span class="lbl pub">published</span> FineWeb paper Appendix E.1 and datatrove <code>minhash.py:51-54</code>; Dolma 3 pool README (allenai/dolma3 @ 1a9daced); NeMo Curator 1.4.0 <code>fuzzy/workflow.py:75-83</code> (character 24-grams, so not directly comparable with word 5-grams); datasketch defaults <code>lsh.py:149-151</code>; text-dedup's Spark script defaults (tag 2023.09.20, <code>minhash_spark.py:365-370</code>); RefinedWeb Appendix G.3.1 read as 450 bands of 20 (the only reading that reproduces its own probabilities).</p>
+</div></details>
+
+<details class="dp"><summary>The same pair hashed 2,000 times: estimates and candidate rates <span class="mute">(depth)</span></summary><div class="b">
+<p>MinHash is a random estimate: a different set of hash functions gives a different signature. We took 24 real pairs from the running example, from Jaccard 0.30 to 0.96, and hashed each with 2,000 independent families of 1,024 functions (datatrove's arithmetic, seeds 1,000 to 2,999). Each family gives one estimate (the share of equal minimums) and one yes/no for "becomes a candidate".</p>
+<div class="card">
+<div class="dp-ctl"><label class="small">Pair <select id="dp-sd-pair"></select></label></div>
+<div class="dp-svg" id="dp-sd-hist"></div>
+<p class="small mute" id="dp-sd-note"></p>
+</div>
+<div class="card">
+<div class="dp-ctl"><span class="small mute">Setting</span><span class="seg" id="dp-sd-set"></span></div>
+<div class="dp-svg" id="dp-sd-cand"></div>
+<p class="small mute"><span class="lbl me">measured</span> dots: share of the 2,000 hash families in which the pair became a candidate (bands are consecutive slices of the signature, as datatrove's <code>np.split</code>); <span class="lbl der">derived</span> line: 1&minus;(1&minus;<i>s</i><sup><i>r</i></sup>)<sup><i>b</i></sup>. 26 &times; 11 is Dolma 3's web setting; 20 &times; 5 and 9 &times; 13 are two other shapes for comparison.</p>
+</div>
+<p>In practice the "random functions" are a cheap family: datatrove hashes each shingle once to 64 bits (xxhash), then computes (<i>a</i>&middot;<i>x</i> + <i>b</i>) mod (2<sup>61</sup>&minus;1) for 112 random pairs (<i>a</i>, <i>b</i>) in one vectorised line (<code>minhash.py:182</code>). Because the product is computed in unsigned 64-bit arithmetic it wraps around before the modulus, so the family is not exactly the textbook one; the measurements above (and the root lab's estimate-vs-truth chart) show it does not matter.</p>
+</div></details>
+
+<details class="dp"><summary>Running it with the real tool <span class="mute">(code and output)</span></summary><div class="b">
 <pre class="code">from datatrove.pipeline.dedup.minhash import MinhashConfig, MinhashDedupSignature
 from datatrove.utils.hashing import HashConfig
 import numpy as np
@@ -40,8 +87,5 @@ equal minimums 77 of 112, estimate 0.688
 bands where all 8 agree: [8] -> candidate: True
 P(candidate) at this similarity: 0.185</pre>
 <p class="small mute"><span class="lbl me">measured</span> <code>src/scripts/snippet_minhash.py</code>, datatrove 0.10.1. The estimate came out 0.10 above the truth (2.1 standard deviations), one band matched, and a pair below the 0.75 target became a candidate: an 18.5% event that happened. run0 removed one of these two pages.</p>
-<div class="pr" data-ans="c"><div class="q">Predict: on the running example, FineWeb's 14 &times; 8 meets 308 pairs with true Jaccard &ge; 0.8. How many does it miss?</div>
-<div class="opts"><button data-k="a">About 25 (8%, as the formula's 92% at 0.8 suggests)</button><button data-k="b">About 10</button><button data-k="c">None</button></div>
-<div class="ans" hidden>None. 92% is the chance at exactly 0.8; most real pairs above 0.8 are far above it (143 of the 308 have identical shingle sets, where the chance is 100%), and pairs between 0.8 and 0.85 have 92% to 98.8%. The root lab measured 0 misses and 0 candidates below Jaccard 0.5 on all 3,622,086 pairs. Recall depends on the similarity distribution of your data, not just on the curve.</div></div>
-<p><b>When it matters:</b> every web pipeline. <b>Cost:</b> computing signatures is <i>documents</i> &times; <i>shingles</i> &times; <i>k</i> multiply-adds, embarrassingly parallel; the grouping is one sort per band (a shuffle across machines); memory is <i>k</i> &times; 8 bytes per document (112 hashes: 112 GB per 10<sup>9</sup> documents of 64-bit values). <b>How to check it:</b> sample candidate pairs in several similarity bins and read them; compute the true Jaccard of each candidate (cheap: candidates are few); recompute the S-curve and confirm it reproduces any probabilities a paper states before copying its setting (RefinedWeb's "20 buckets of 450" does not; section 12).</p>
+</div></details>
 </section>

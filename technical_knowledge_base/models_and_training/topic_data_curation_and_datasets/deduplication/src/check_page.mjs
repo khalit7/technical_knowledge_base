@@ -1,6 +1,6 @@
 // Page check for the deduplication child page (prefix dp). From the repo root:
 //   node technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/deduplication/src/check_page.mjs [shot dir]
-// 1. clicks every control in every tab at 390 px dark and 920 px light (reduced motion), failing on JS errors, NaN,
+// 1. clicks every control in every tab (Reading now holds the MinHash stepper, Band designer and union-find replay) at 390 px dark and 920 px light (reduced motion), failing on JS errors, NaN,
 //    undefined or Infinity in visible text, or sideways page scroll; screenshots each chart at 390 px into [shot dir];
 // 2. checks the page embeds exactly data/dp_data.json, that the page's JS reproduces published and Python results
 //    (datasketch's (b, r) choices, the S-curve, union-find totals, comparer totals), and that prose numbers match data.
@@ -55,6 +55,8 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
     ok(opt112!=='14x8','rule optimum at 0.75 with 112 hashes is not 14x8 (prose claim): '+opt112);
     const cm=await p.evaluate(()=>{const r=DPCMP.result({ex:'off',fz:'minhash',se:'off',sa:'off'});return r.steps[1].length});
     ok(cm===75,'comparer: MinHash alone removes 75 (= run0)');
+    const hero=await p.evaluate(()=>{const r=DPCMP.result({ex:'on',fz:'minhash',se:'0.05',sa:'keep'}),S=DPCMP.stats(r,3);return [r.steps[0].length,r.steps[1].length,r.steps[2].length,r.steps[3].length,S.per[3].b]});
+    ok(hero[0]===50&&hero[1]===25&&hero[2]===6&&hero[3]===25&&Math.round(hero[4]/100)===141,'hero: exact 50, MinHash 25, semantic 6, suffix array 14.1 kB from 25 docs: '+hero.join(' '));
     const sh=await p.evaluate(()=>{const r=DPCMP.result({ex:'on',fz:'simhash',se:'off',sa:'off'});return r.steps[1].length});
     ok(sh===1,'comparer: SimHash after exact removes 1 (prose)');
     // prose numbers against data

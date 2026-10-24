@@ -1,8 +1,19 @@
 <section id="rd-exact">
-<h2>3. Exact dedup: hashes of URLs, documents, paragraphs and lines</h2>
-<p><b>The problem.</b> The cheapest duplicates are byte-identical: the same page fetched twice, the same file mirrored, the same "Home | About | Contact" line on every page of a site.</p>
-<p><b>How it works.</b> A <b>hash function</b> maps any text to a fixed-size number (64 or 128 bits) so that equal inputs always give equal numbers and different inputs almost never do. Hash every unit, keep the first unit with each hash value, drop the rest. On one machine the "seen" set is a hash table; on many machines, items are routed by their hash (all items whose hash starts with the same bits go to the same worker, a <b>shuffle</b>), so each worker deduplicates its own share and no worker needs the whole set.</p>
-<p><b>The unit decides what you catch.</b> Common Crawl already removes repeated URLs inside one crawl, so URL dedup only matters across crawls (Llama 3 keeps the most recent version of each URL across its whole dataset, {{Section 3.1.1|https://arxiv.org/html/2407.21783}}). Document hashes catch mirrors and empty or error pages. Line and paragraph hashes catch boilerplate, and also strip structure (table separators, list markers, repeated headings). Normalising before hashing (lowercase, no punctuation, digits as 0) catches a few more.</p>
+<h2>2. Exact dedup: hashes of URLs, documents, paragraphs and lines</h2>
+<p><b>The cheapest duplicates are byte-identical</b>: the same page fetched twice, a mirrored file, the same "Home | About | Contact" line on every page of a site. Hash every unit to 64 or 128 bits, keep the first unit with each hash value, drop the rest. On one machine the "seen" set is a hash table; on many, items are routed by their hash (a <b>shuffle</b>: all items whose hash starts with the same bits go to the same worker), so no worker needs the whole set.</p>
+<p><span class="lbl me">measured</span> On run0's 19,241 extracted documents: <b>258</b> exact copies, 284 after normalising (lowercase, no punctuation, digits as 0); of 743,644 non-blank lines, 256,024 (<b>34.4%</b>) repeat an earlier line; the most repeated are "|", "-", "Home" and "Search". After the quality filters, exact document copies fall to 50 of 2,692, all inside MinHash's clusters (root lab).</p>
+<p><b>The unit decides what you catch.</b> Common Crawl already removes repeated URLs inside one crawl, so URL dedup only matters across crawls (Llama 3 keeps the most recent version of each URL across its whole dataset, {{Section 3.1.1|https://arxiv.org/html/2407.21783}}). Document hashes catch mirrors and empty or error pages. Line and paragraph hashes catch boilerplate, and also strip structure (table separators, list markers, repeated headings).</p>
+
+<h3>How big must the hash be?</h3>
+<p>Two different items with the same hash are a <b>collision</b>: the second is wrongly dropped. With <i>n</i> items and a <i>b</i>-bit hash there are <i>n</i><sup>2</sup>/2 pairs, each colliding with probability 2<sup>&minus;<i>b</i></sup> (the birthday problem). Predict before you change the selects: is 64 bits enough for 10<sup>12</sup> lines?</p>
+<div class="card"><div class="ctl" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:13px">
+<label>items <select id="rd-bd-n"><option value="2e7">2&times;10<sup>7</sup> (lines of a WARC sample)</option><option value="1e9">10<sup>9</sup> (documents in a crawl)</option><option value="1e10" selected>10<sup>10</sup> (documents, many crawls)</option><option value="1e12">10<sup>12</sup> (paragraphs or lines, many crawls)</option><option value="1e13">10<sup>13</sup> (13-grams of a 10T-token corpus)</option></select></label>
+<label>hash bits <select id="rd-bd-b"><option>32</option><option selected>64</option><option>96</option><option>128</option></select></label></div>
+<div id="rd-bd-out" class="out" style="font-size:14px;margin-top:6px"></div>
+<p class="small mute"><span class="lbl der">derived</span> expected colliding pairs = <i>n</i>(<i>n</i>&minus;1)/2 &middot; 2<sup>&minus;<i>b</i></sup>, and memory for a plain set = <i>n</i> &times; <i>b</i>/8 bytes (a hash table needs 1.5 to 2 times more). A 32-bit hash is unusable past a few tens of thousands of items; 64 bits is fine for documents and marginal for 10<sup>12</sup> lines.</p></div>
+<p><b>When it matters:</b> always, first: it is a single pass and removes the bulk at web scale. <b>How to check it:</b> count items per hash and read the 50 most frequent; for a line rule, sample removed lines from pages you consider good (Llama 3's own warning, below).</p>
+
+<details class="dp"><summary>The code that produced these numbers, and line dedup in practice <span class="mute">(depth)</span></summary><div class="b">
 <pre class="code">import hashlib, re
 def h(s):                       # 8 bytes of SHA-1 is plenty below ~10^9 items (see the calculator)
     return hashlib.sha1(s.encode("utf-8")).digest()[:8]
@@ -20,22 +31,11 @@ for t in docs:                  # run0's 19,241 extracted documents
             lines += 1; k = h(line); dup_lines += k in seen_line; seen_line.add(k)</pre>
 <pre class="out">documents 19,241: exact copies 258, after normalising 284
 non-blank lines 743,644: repeats of an earlier line 256,024 (34.4%)</pre>
-<p class="small mute"><span class="lbl me">measured</span> <code>src/scripts/snippet_exact.py</code> (the code above plus the running example's loader). The root lab's normalisation (datatrove's <code>simplify_text</code>) finds 288 instead of 284. A third of all non-blank lines in raw extracted text repeat an earlier line; the most repeated are "|", "-", "Home" and "Search". After the quality filters, exact document copies fall to 50 of 2,692, all inside MinHash's clusters (root lab).</p>
-
-<h3>How big must the hash be?</h3>
-<p>Two different items with the same hash are a <b>collision</b>: the second one is wrongly dropped. With <i>n</i> distinct items and a <i>b</i>-bit hash, the expected number of colliding pairs is about <i>n</i><sup>2</sup> / 2<sup><i>b</i>+1</sup> (the birthday problem: there are <i>n</i><sup>2</sup>/2 pairs and each collides with probability 2<sup>&minus;<i>b</i></sup>).</p>
-<div class="card"><div class="ctl" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:13px">
-<label>items <select id="rd-bd-n"><option value="2e7">2&times;10<sup>7</sup> (lines of a WARC sample)</option><option value="1e9">10<sup>9</sup> (documents in a crawl)</option><option value="1e10" selected>10<sup>10</sup> (documents, many crawls)</option><option value="1e12">10<sup>12</sup> (paragraphs or lines, many crawls)</option><option value="1e13">10<sup>13</sup> (13-grams of a 10T-token corpus)</option></select></label>
-<label>hash bits <select id="rd-bd-b"><option>32</option><option selected>64</option><option>96</option><option>128</option></select></label></div>
-<div id="rd-bd-out" class="out" style="font-size:14px;margin-top:6px"></div>
-<p class="small mute"><span class="lbl der">derived</span> expected colliding pairs = <i>n</i>(<i>n</i>&minus;1)/2 &middot; 2<sup>&minus;<i>b</i></sup>, and memory for a plain set = <i>n</i> &times; <i>b</i>/8 bytes (a hash table needs 1.5 to 2 times more). A 32-bit hash is unusable past a few tens of thousands of items; 64 bits is fine for documents and marginal for 10<sup>12</sup> lines.</p></div>
-
-<h3>Line and span dedup in practice</h3>
+<p class="small mute"><span class="lbl me">measured</span> <code>src/scripts/snippet_exact.py</code> (the code above plus the running example's loader). The root lab's normalisation (datatrove's <code>simplify_text</code>) finds 288 instead of 284.</p>
 <ul>
 <li><b>CCNet</b> (used by Llama 1 and the first Dolma) hashes paragraphs within groups of shards of one crawl; in Dolma it "removed approximately 70% of paragraphs, primarily consisting of headers and navigation elements" ({{Dolma Section 5.1|https://arxiv.org/html/2402.00159}}).</li>
 <li><b>Llama 3</b> removes "lines that appeared more than 6 times in each bucket of 30M documents", and notes this removes "frequent high-quality text" too, yet "our empirical evaluations showed strong improvements" (Section 3.1.1). A count threshold rather than "keep the first" keeps a line that recurs a few times, such as a common quote.</li>
-<li><b>Dolma v1</b>, all with its Bloom filter (section 8): exact URL dedup removed 53.2% of documents, exact document dedup 14.9% of the rest, exact paragraph dedup 18.7% of paragraphs ({{Section 5.4|https://arxiv.org/html/2402.00159}}). <b>Dolma 3</b> (2025): exact dedup removed 67% of the pool after heuristic filtering, before MinHash.</li>
+<li><b>Dolma v1</b>, all with its Bloom filter (section 7): exact URL dedup removed 53.2% of documents, exact document dedup 14.9% of the rest, exact paragraph dedup 18.7% of paragraphs ({{Section 5.4|https://arxiv.org/html/2402.00159}}). <b>Dolma 3</b> (2025): exact dedup removed 67% of the pool after heuristic filtering, before MinHash.</li>
 <li><b>C4</b> removed every repeated three-sentence span; datatrove's <code>SentenceDedup</code> implements it (the root lab measured it: 70 of 2,692 documents dropped, 24 shortened).</li>
-</ul>
-<p><b>When it matters:</b> always, first: it is a single pass and removes the bulk at web scale. <b>How to check it:</b> count items per hash and read the 50 most frequent; for a line rule, sample removed lines from pages you consider good (Llama 3's own warning).</p>
+</ul></div></details>
 </section>

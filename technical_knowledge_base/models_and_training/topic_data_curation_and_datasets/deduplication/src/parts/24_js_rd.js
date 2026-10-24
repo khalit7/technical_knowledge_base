@@ -80,3 +80,5 @@
   '<div class="tw"><table><thead><tr><th>D4, share kept</th><th class="num">median score kept</th><th class="num">median score pruned</th><th class="num">score &ge; 3 kept</th><th class="num">score &ge; 3 pruned</th></tr></thead><tbody>'+
   R.d4.map(d=>'<tr><td>'+U.pct(d.keep,0)+'</td><td class="num">'+d.score_median_kept.toFixed(2)+'</td><td class="num">'+(d.score_median_pruned==null?'n/a':d.score_median_pruned.toFixed(2))+'</td><td class="num">'+U.fmt(d.score3_kept)+'</td><td class="num">'+U.fmt(d.score3_pruned)+'</td></tr>').join('')+'</tbody></table></div>'+
   '<p class="small mute"><span class="lbl me">measured</span> on the Mac\'s GPU ('+R.device+', '+R.dtype+' weights, embedding '+U.fmt(R.embed_seconds)+' s, rough); k-means 100 clusters on CPU. Score: the rows\' own FineWeb-Edu classifier score (0 to 5).</p>'})();
+// a chart inside a closed block measures its width when the block opens
+document.querySelectorAll('#t-read details').forEach(d=>d.addEventListener('toggle',()=>{if(d.open)dispatchEvent(new Event('resize'))}));

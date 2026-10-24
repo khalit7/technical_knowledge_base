@@ -1,4 +1,4 @@
-// ---- Band designer (tab t-band) ----
+// ---- Band designer (Reading section 3, #rd-band; was tab t-band) ----
 (function(){
   const B=DP.band,U=DPU,$=id=>document.getElementById(id);
   const masks=B.masks.map(m=>({j:m[0],u:U.b64(m[1])}));
@@ -55,6 +55,6 @@
   $('dp-bd-k').addEventListener('change',e=>{st.K=+e.target.value;st.pre='';if(st.b*st.r>st.K){st.r=Math.max(1,Math.floor(st.K/st.b))}syncSeg();render()});
   $('dp-bd-b').addEventListener('input',e=>{st.mode='man';st.pre='';st.b=+e.target.value;if(st.b*st.r>st.K)st.r=Math.max(1,Math.floor(st.K/st.b));syncSeg();render()});
   $('dp-bd-r').addEventListener('input',e=>{st.mode='man';st.pre='';st.r=+e.target.value;if(st.b*st.r>st.K)st.b=Math.max(1,Math.floor(st.K/st.r));syncSeg();render()});
-  U.onTab('t-band',render);
+  U.onTab('t-read',render);
   window.DPBAND={optimal:(t,K)=>U.optimal(t,K,0.5,0.5)};
 })();
