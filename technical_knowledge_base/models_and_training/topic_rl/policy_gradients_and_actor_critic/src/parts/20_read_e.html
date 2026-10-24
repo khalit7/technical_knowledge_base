@@ -1,0 +1,90 @@
+<section id="rd-dpg">
+<h2><span class="num">11</span>Deterministic policy gradients and DDPG</h2>
+<p>For a robot arm the action is a vector of torques, and Q-learning's max over actions becomes an optimisation problem at every step. The off-policy actor-critics train an actor that performs the max. Their theory is the <b>deterministic policy gradient</b> ({{Silver et al. 2014|https://proceedings.mlr.press/v32/silver14.html}}): for a deterministic policy <i>a</i> = μ<sub>θ</sub>(<i>s</i>),</p>
+<div class="fm"><div class="eq">∇<sub>θ</sub> <i>J</i>(μ<sub>θ</sub>) = 𝔼<sub><i>s</i>~ρ<sup>μ</sup></sub>[ ∇<sub>θ</sub> μ<sub>θ</sub>(<i>s</i>) · ∇<sub><i>a</i></sub> <i>Q</i><sup>μ</sup>(<i>s</i>, <i>a</i>) |<sub><i>a</i>=μ<sub>θ</sub>(<i>s</i>)</sub> ]</div>
+<dl><dt>∇<sub>a</sub>Q</dt><dd>the critic's slope: which way to nudge the action to make it better</dd><dt>∇<sub>θ</sub>μ</dt><dd>the chain rule through the actor: how to change θ to move the action that way</dd></dl></div>
+<p>There is no log-probability and no integral over actions, only over states, so "the deterministic policy gradient can be estimated much more efficiently than the usual stochastic policy gradient", and it is "the limiting case, as policy variance tends to zero, of the stochastic policy gradient" (Theorem 2). Because the expectation is only over states, it can be learned from data gathered by any exploratory behaviour policy, without importance ratios on actions.</p>
+<div class="card" id="rd-oacC"><h4>One loop serves DDPG, TD3 and SAC: replay feeds a critic, the critic's slope trains the actor, slow target copies make the critic's target</h4>
+<div class="seg" id="rd-oacM" role="group" aria-label="Algorithm"><button data-m="ddpg" class="on">DDPG</button><button data-m="td3">TD3</button><button data-m="sac">SAC</button></div>
+<div class="rd-svg" id="rd-oac"></div>
+<p class="small" id="rd-oacX"></p>
+</div>
+<p><b>DDPG</b>, deep deterministic policy gradient ({{Lillicrap et al. 2015|https://arxiv.org/abs/1509.02971}}), put this on networks with DQN's two stabilisers: a replay buffer (10<sup>6</sup> transitions) and target networks, here updated softly, θ′ ← τθ + (1 − τ)θ′ with τ = 0.001. The critic regresses onto <i>r</i> + γ<i>Q</i>′(<i>s′</i>, μ′(<i>s′</i>)); the actor climbs ∇<sub><i>a</i></sub><i>Q</i>; exploration is noise added to the actor's output. It "robustly solves more than 20 simulated physics tasks", nearly all "within 2.5 million steps of experience (and usually far fewer), a factor of 20 fewer steps than DQN requires" for Atari. In practice it proved brittle and sensitive to its settings, which is what TD3 set out to fix. (Replay and target networks are explained on {{Value-based deep RL|n:3ee5c17b0d0d818689b2c0dbce434ece}}.)</p>
+<details class="dp"><summary>DDPG's paper settings <span class="mute">under 1 min</span></summary><div class="b"><p>Exploration by an Ornstein-Uhlenbeck process with θ = 0.15, σ = 0.2; Adam with learning rates 10<sup>−4</sup> (actor) and 10<sup>−3</sup> (critic); L2 weight decay 10<sup>−2</sup> on the critic; γ = 0.99; minibatch 64; batch normalisation.</p></div></details>
+</section>
+
+<section id="rd-td3">
+<h2><span class="num">12</span>TD3: three fixes for overestimation</h2>
+<p>The maximisation bias of Q-learning (the max of noisy estimates is biased upwards) does not need an explicit max: an actor trained to climb a noisy critic finds and exploits the critic's overestimates just as well. {{Fujimoto, van Hoof and Meger (2018)|https://arxiv.org/abs/1802.09477}} showed "this problem persists in an actor-critic setting" and fixed DDPG with three changes (switch the diagram above to TD3):</p>
+<ol>
+<li><b>Clipped double Q-learning.</b> Two critics; the target uses the smaller: <i>y</i> = <i>r</i> + γ min<sub><i>i</i>=1,2</sub> <i>Q</i><sub>θ′<sub><i>i</i></sub></sub>(<i>s′</i>, π<sub>φ′</sub>(<i>s′</i>) + ε). For two independent unbiased estimates with noise σ, 𝔼[min] = −σ/√π ≈ −0.56σ below the truth, where 𝔼[max] is +0.56σ above <i class="nl d">derived</i>: deliberately pessimistic, because "underestimated actions will not be explicitly propagated" through the policy update; the actor moves away from them.</li>
+<li><b>Delayed policy updates.</b> Update the actor (and the target networks) once every <i>d</i> = 2 critic updates, so the actor climbs a critic whose error has had time to fall.</li>
+<li><b>Target policy smoothing.</b> Add clipped noise to the target action, ε ~ clip(𝒩(0, 0.2), −0.5, 0.5), so the target averages the critic over a small neighbourhood and a narrow spurious peak cannot be exploited.</li>
+</ol>
+<details class="dp"><summary>TD3's paper settings against the authors' current code <span class="mute">under 1 min</span></summary><div class="b"><p>Paper: exploration noise 𝒩(0, 0.1), τ = 0.005, Adam 10<sup>−3</sup>, minibatch 100, and purely random actions for the first 10,000 steps (HalfCheetah, Ant) or 1,000 (the others). The authors' current code uses batch 256, learning rate 3 × 10<sup>−4</sup> and 25,000 random steps, and its README warns it is "no longer exactly representative of the code used in the paper" ({{sfujim/TD3|https://github.com/sfujim/TD3}}).</p></div></details>
+</section>
+
+<section id="rd-sac">
+<h2><span class="num">13</span>SAC and maximum-entropy RL</h2>
+<p><b>SAC</b>, soft actor-critic ({{Haarnoja et al. 2018a|https://arxiv.org/abs/1801.01290}}; {{2018b|https://arxiv.org/abs/1812.05905}}), changes the objective: maximise reward <b>and</b> the policy's entropy. A policy split evenly between two actions has entropy ln 2 ≈ 0.693, worth 0.2 × 0.693 ≈ 0.139 reward per step at α = 0.2; a deterministic policy earns nothing <i class="nl d">derived</i>.</p>
+<div class="fm"><div class="eq"><i>J</i>(π) = Σ<sub><i>t</i></sub> 𝔼[ <i>r</i>(<i>s<sub>t</sub></i>, <i>a<sub>t</sub></i>) + α ℋ(π(· | <i>s<sub>t</sub></i>)) ], &nbsp; ℋ(π(· | <i>s</i>)) = −𝔼<sub><i>a</i>~π</sub>[ log π(<i>a</i> | <i>s</i>) ]</div>
+<dl><dt>ℋ</dt><dd>the entropy of the action distribution (a sum for discrete actions, an integral for continuous ones)</dd><dt>α</dt><dd>the temperature: how much randomness is worth relative to reward</dd></dl></div>
+<p>The entropy enters the Bellman equation too: the soft value is <i>V</i>(<i>s</i>) = 𝔼<sub><i>a</i>~π</sub>[<i>Q</i>(<i>s</i>, <i>a</i>) − α log π(<i>a</i> | <i>s</i>)] and the critic's target is <i>r</i> + γ𝔼[<i>V</i>(<i>s′</i>)], with the minimum of two Q networks as in TD3. Policy improvement moves π toward the Boltzmann distribution of the critic, π<sub>new</sub> = arg min<sub>π′</sub> KL(π′(· | <i>s</i>) ‖ exp(<i>Q</i>(<i>s</i>, ·)/α) / <i>Z</i>(<i>s</i>)); in practice the actor minimises 𝔼[α log π(<i>a</i> | <i>s</i>) − <i>Q</i>(<i>s</i>, <i>a</i>)] with actions drawn by the <b>reparameterisation trick</b>, <i>a</i> = tanh(μ(<i>s</i>) + σ(<i>s</i>) ⊙ ξ), ξ ~ 𝒩(0, <i>I</i>), so the gradient flows through the sampled action into the critic ("a lower variance estimator" than the score function). The tanh keeps actions bounded and changes the density: log π(<i>a</i> | <i>s</i>) = log μ(<i>u</i> | <i>s</i>) − Σ<sub><i>i</i></sub> log(1 − tanh<sup>2</sup>(<i>u<sub>i</sub></i>)) (Appendix C), a correction that implementations forget at their peril.</p>
+<p><b>The temperature is learned.</b> The 2018b version adjusts α so that the policy's entropy stays near a target ℋ̄, minimising <i>J</i>(α) = 𝔼[−α log π(<i>a</i> | <i>s</i>) − αℋ̄]; its gradient is ℋ(π) − ℋ̄, so α falls while the policy is more random than the target and rises when it is less. The default target is "−dim(A) (e.g., −6 for HalfCheetah-v1)". The widget shows what α does on a one-dimensional action <i class="nl i">illustrative reward, exact computation</i>: a tall narrow reward peak at +0.6, a lower wide one at −0.5, and an effort cost 0.5<i>a</i><sup>2</sup>. For each α it computes the soft-optimal policy exp(<i>r</i>/α)/<i>Z</i> and the best Gaussian actor (the maximiser of 𝔼[<i>r</i>] + αℋ over all Gaussians, SAC's projection onto its policy class).</p>
+<p class="pred"><b>Predict:</b> as α rises from 0.005, does the best Gaussian widen smoothly on the tall peak, or jump?</p>
+<div class="card" id="rd-sa"><h4>Raise the temperature and the best Gaussian jumps from the tall narrow peak to the wide one</h4>
+<div class="rd-sl"><label>Temperature α = <b id="rd-saAv">0.050</b><input type="range" id="rd-saA" min="0" max="200" value="87" aria-label="Temperature (log scale)"></label><div class="rd-btns"><button id="rd-saB">SAC's automatic α (target entropy −1)</button></div></div>
+<div class="rd-svg" id="rd-saP"></div>
+<div class="rd-svg" id="rd-saQ"></div>
+<p class="small" id="rd-saO"></p>
+<p class="small mute">Below about 0.16 the best Gaussian sits narrowly on the tall peak; just above, it jumps to the wide peak, where it can be much wider for little lost reward; by α ≈ 0.3 it covers both. The soft-optimal policy (purple) changes smoothly and is bimodal in between: a single Gaussian cannot represent it, which is the price of SAC's policy class. Expected rewards and entropies are exact (closed form for the Gaussian, an 801-point grid for the soft-optimal policy); the Gaussian is found on a 481 × 241 grid of means and widths.</p>
+</div>
+<p>The paper's claim is stability as much as sample efficiency: "in contrast to other off-policy algorithms, our approach is very stable, achieving very similar performance across different random seeds" ({{2018a|https://arxiv.org/abs/1801.01290}}). Entropy bonuses and KL penalties toward a reference policy play the role of α ℋ in LLM training, keeping the policy from collapsing onto one mode; a KL to a fixed reference pulls toward a particular distribution, not toward uniform, so it is not the same thing ({{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}} covers each there).</p>
+<details class="dp"><summary>Real robots, and SAC's default settings <span class="mute">under 1 min</span></summary><div class="b"><p>A Minitaur quadruped "learns to walk from 160k environment steps, or approximately 400 episodes ... approximately 2 hours of real-world training time", and a 3-finger dexterous hand learned to turn a valve from camera images in about 300,000 steps, "the equivalent of 20 hours of training" (from the valve's position alone, 3 hours, against 7.4 hours for PPO) ({{2018b, §7|https://arxiv.org/abs/1812.05905}}). Its settings are the defaults most libraries copied: Adam 3 × 10<sup>−4</sup>, γ = 0.99, replay 10<sup>6</sup>, minibatch 256, τ = 0.005, two hidden layers of 256 units.</p></div></details>
+</section>
+
+<section id="rd-cc">
+<h2><span class="num">14</span>Continuous control in practice</h2>
+<ul>
+<li><b>The Gaussian head.</b> A network outputs the mean of each action dimension; dimensions are independent (the log-probability is the sum over dimensions). PPO's reference code keeps a <b>state-independent</b> log standard deviation, a learned vector initialised to 0; SAC outputs a state-dependent one. Andrychowicz et al. found the two "very close" ({{37 details, continuous section|https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/}}).</li>
+<li><b>Bounded actions.</b> PPO's reference code clips the sampled action when stepping the environment but stores and trains on the unclipped sample; SAC squashes with tanh and corrects the density. Andrychowicz et al. found tanh squashing better.</li>
+<li><b>Normalise observations and scale rewards.</b> Running mean and variance for observations, clipped to [−10, 10]; rewards divided by the standard deviation of a running discounted return, also clipped. Engstrom et al. found reward scaling "can significantly affect" results.</li>
+<li><b>On-policy or off-policy.</b> PPO is simple, robust to settings and parallelises over many simulators, but discards every batch after a few epochs. SAC and TD3 reuse every transition from replay many times and need far fewer environment steps, which matters when the environment is a real robot.</li>
+</ul>
+<details class="dp"><summary>Stable-Baselines3 defaults for PPO and SAC <span class="mute">under 1 min</span></summary><div class="b"><p>PPO: 2,048 steps per rollout, 10 epochs of minibatch 64, γ 0.99, λ 0.95, clip 0.2, value coefficient 0.5, gradient norm 0.5, learning rate 3 × 10<sup>−4</sup> and no entropy bonus. SAC: a 10<sup>6</sup> buffer, minibatch 256, τ 0.005, automatic α with target −dim(A), learning starts after 100 steps ({{SB3 PPO|https://stable-baselines3.readthedocs.io/en/master/modules/ppo.html}}, {{SB3 SAC|https://stable-baselines3.readthedocs.io/en/master/modules/sac.html}}).</p></div></details>
+</section>
+
+<section id="rd-when">
+<h2><span class="num">15</span>Which method when</h2>
+<div class="tw"><table class="rd-t">
+<tr><th>Situation</th><th>Start with</th><th>Why, and what it costs</th></tr>
+<tr><td>Any action space, cheap parallel simulation, stability first</td><td>PPO</td><td>Simple, robust to settings, first-order; on-policy, so it spends many environment steps</td></tr>
+<tr><td>Continuous control, samples expensive (a real robot)</td><td>SAC, or TD3</td><td>Off-policy replay buys sample efficiency; more moving parts (twin critics, target networks, a temperature)</td></tr>
+<tr><td>A stochastic policy is required, or states are aliased</td><td>Any stochastic policy-gradient method</td><td>Greedy value methods cannot represent a specific probability (the short corridor)</td></tr>
+<tr><td>Need a guaranteed small step, compute is not the constraint</td><td>TRPO or a natural-gradient method</td><td>The KL constraint is explicit; second-order machinery and no parameter sharing</td></tr>
+<tr><td>A teaching or debugging baseline</td><td>REINFORCE with a learned baseline, or A2C</td><td>Few parts, unbiased (REINFORCE) or low-variance (A2C); slow</td></tr>
+<tr><td>Discrete actions and replay matters most</td><td>The DQN family</td><td>See {{Value-based deep RL|n:3ee5c17b0d0d818689b2c0dbce434ece}}</td></tr>
+<tr><td>Post-training a language model</td><td>PPO with a value model, or GRPO, RLOO and their corrections</td><td>See {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}</td></tr>
+</table></div>
+<p>On language models, PPO with a learned reward and a value model is the RLHF recipe; GRPO and RLOO delete the critic and use a group baseline, and the clip, the KL and the ratio all return in token form ({{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}} owns that, including the 2025 to 2026 corrections to GRPO). Beyond this page: AlphaZero's network is an actor-critic (a policy head and a value head) trained by search rather than by a policy gradient ({{Model-based RL and planning|n:3ee5c17b0d0d8116be5fd39e10bd94c5}}); offline actor-critics (CQL, IQL) and behaviour cloning learn with no interaction ({{Offline RL and imitation|n:3ee5c17b0d0d81d4995ec47e428de9b3}}).</p>
+</section>
+
+<section id="rd-depth">
+<h2>Depth</h2>
+<details class="dp"><summary>Eleven misconceptions, each answered by a section above <span class="mute">2 min</span></summary><div class="b"><ul>
+<li><b>"A baseline biases the gradient."</b> Any baseline that depends only on the state leaves it unbiased (section 4); one that depends on the action taken would bias it.</li>
+<li><b>"The value function is the best baseline."</b> It is the natural one and close to the best, but the variance-minimising constant is the score-weighted mean of the returns, which differs from <i>V</i> whenever the score vectors differ in length (Greensmith et al. 2004).</li>
+<li><b>"REINFORCE with a learned baseline, RLOO and GRPO are actor-critic methods."</b> Their baseline is computed before the action and never bootstraps from the next state, so it cannot assess the action (Sutton and Barto §13.5).</li>
+<li><b>"A critic is always an improvement."</b> It trades variance for bias; a critic that cannot tell states apart turns the trade into failure (the short corridor's actor-critic drifts to −44 while baselined REINFORCE finds −11.7).</li>
+<li><b>"PPO's clip bounds the ratio."</b> It bounds only the incentive. The ratio can leave [1 − ε, 1 + ε] during several epochs (Engstrom et al. found PPO does not keep a ratio-based trust region), and the gradient that corrects a wrong-way move is never clipped.</li>
+<li><b>"PPO is on-policy, so it cannot reuse data."</b> It reuses each batch for several epochs; the ratio corrects for the drift. It cannot use data from much older policies.</li>
+<li><b>"PPO beats TRPO because of the clipped objective."</b> Engstrom et al. attribute most of the gap to code-level optimisations.</li>
+<li><b>"A3C works because its actors are asynchronous."</b> The synchronous A2C performed as well or better.</li>
+<li><b>"Off-policy means offline."</b> DDPG, TD3 and SAC interact with the environment online and learn off-policy from a replay buffer; learning from a fixed dataset with no interaction is offline RL ({{Offline RL and imitation|n:3ee5c17b0d0d81d4995ec47e428de9b3}}).</li>
+<li><b>"Entropy bonuses are a hack."</b> In SAC the entropy is part of the objective, with a temperature learned toward a target entropy.</li>
+<li><b>"The policy gradient needs a model of the environment."</b> The dynamics drop out of ∇ log <i>p</i>(τ) (section 2).</li>
+</ul>
+<p>Why can DQN or SAC use a replay buffer but A2C cannot without corrections? Their targets do not depend on which policy chose the stored action (Q-learning's max, SAC's soft value under the current policy). A policy gradient is an expectation under the current policy, so stale data needs importance ratios, which PPO uses for slightly stale data only.</p>
+</div></details>
+</section>
+</div>

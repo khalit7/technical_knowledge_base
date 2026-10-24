@@ -12,8 +12,8 @@
       s+='<polyline fill="none" stroke="var(--c2)" stroke-width="1.4" stroke-dasharray="5 4" points="'+pu.join(' ')+'"/><polyline fill="none" stroke="var(--c5)" stroke-width="1.4" stroke-dasharray="2 3" points="'+pc.join(' ')+'"/><polyline fill="none" stroke="var(--c1)" stroke-width="2.8" opacity=".9" points="'+pm.join(' ')+'"/>';
       const L=E.ppoL(r,A,e,true),gz=E.ppoDL(r,A,e)===0;
       s+='<line x1="'+X(r)+'" x2="'+X(r)+'" y1="'+t+'" y2="'+(H-b)+'" stroke="var(--ink)" stroke-dasharray="3 3"/><circle cx="'+X(r)+'" cy="'+Y(L)+'" r="5.5" fill="'+(gz?'var(--mute)':'var(--c1)')+'" stroke="var(--bg)"/>';
-      [0,0.5,1,1.5,2,2.5].forEach(v=>s+=RD.t(X(v),H-8,RD.n(v,1),{a:'middle',fs:10,fill:'var(--mute)'}));
-      s+=RD.t(l-4,Y(A>0?2.5:-2.5)+4,A>0?'2.5':'−2.5',{a:'end',fs:9.5,fill:'var(--mute)'});
+      [0,0.5,1,1.5,2,2.5].forEach(v=>s+=RD.t(X(v),H-8,RD.n(v,1),{a:'middle',fs:11,fill:'var(--mute)'}));
+      s+=RD.t(l-4,Y(A>0?2.5:-2.5)+4,A>0?'2.5':'−2.5',{a:'end',fs:11,fill:'var(--mute)'});
       el.innerHTML=RD.svg(W,H,s,'Clipped objective, advantage '+A);
       const u=r*A,c=Math.max(1-e,Math.min(1+e,r))*A;
       return 'Â = '+(A>0?'+1':'−1')+', r = '+RD.n(r,2)+': unclipped '+RD.n(u,3)+', clipped '+RD.n(c,3)+', min = <b>'+RD.n(L,3)+'</b>, gradient '+(gz?'<b>zero</b> (moved far enough '+(A>0?'up':'down')+' already)':(Math.abs(r-1)<=e?'active (inside the band)':'<b>active</b>: the ratio moved the wrong way, so the correction is never clipped'))}
@@ -33,15 +33,15 @@
       const pu=[],pc=[];for(let k=0;k<=170;k++){const rr=k*rmax/170;pu.push(X(rr).toFixed(1)+','+Y(E.ppoL(rr,A,e,false)).toFixed(1));pc.push(X(rr).toFixed(1)+','+Y(E.ppoL(rr,A,e,true)).toFixed(1))}
       s+='<polyline fill="none" stroke="var(--c2)" stroke-width="1.6" stroke-dasharray="5 4" points="'+pu.join(' ')+'"/><polyline fill="none" stroke="var(--c1)" stroke-width="2.6" points="'+pc.join(' ')+'"/>';
       s+='<circle cx="'+X(Math.min(rmax,u.r))+'" cy="'+Y(u.L)+'" r="5" fill="var(--c2)"/><circle cx="'+X(Math.min(rmax,c.r))+'" cy="'+Y(c.L)+'" r="5.5" fill="var(--c1)" stroke="var(--bg)"/>';
-      [0,1,2,3].forEach(v=>s+=RD.t(X(v),H-8,'r = '+v,{a:'middle',fs:10,fill:'var(--mute)'}));
-      s+=RD.t(X(1),t+12,'1 ± ε',{a:'middle',fs:10,fill:'var(--mute)'});
+      [0,1,2,3].forEach(v=>s+=RD.t(X(v),H-8,'r = '+v,{a:'middle',fs:11,fill:'var(--mute)'}));
+      s+=RD.t(X(1),t+12,'1 ± ε',{a:'middle',fs:11,fill:'var(--mute)'});
       PO.innerHTML=RD.svg(W,H,s,'Clipped objective')+'<div class="leg"><span><i class="ln" style="background:var(--c1)"></i>clipped L<sup>CLIP</sup></span><span><i class="ln" style="background:var(--c2)"></i>unclipped r·Â</span></div>';
       // ratio per epoch
       W=RD.width(PR);const all=rc.hist.concat(ru.hist).map(x=>x.r),y0=Math.min(0,...all),y1=Math.max(...all,1+e)+0.1,XX=j=>l+(W-l-r)*j/EP,YY=v=>t+(H-t-b)*(y1-v)/(y1-y0);s='';
       s+='<rect x="'+l+'" y="'+YY(1+e)+'" width="'+(W-l-r)+'" height="'+(YY(1-e)-YY(1+e))+'" fill="var(--soft)"/>';
-      [1-e,1,1+e].forEach(v=>s+=RD.t(l-4,YY(v)+4,RD.n(v,2),{a:'end',fs:9.5,fill:'var(--mute)'}));
-      [[ru,'var(--c2)','no clip'],[rc,'var(--c1)','clip']].forEach(([run,col,lab],k)=>{s+='<polyline fill="none" stroke="'+col+'" stroke-width="'+(k?2.6:1.8)+'" points="'+run.hist.slice(0,i+1).map((x,j)=>XX(j).toFixed(1)+','+YY(x.r).toFixed(1)).join(' ')+'"/>'+RD.t(Math.min(W-30,XX(i)+4),YY(run.hist[i].r)+(k?12:-4),lab,{fs:10,fill:col})});
-      s+=RD.t(l,H-8,'epoch 0',{fs:10,fill:'var(--mute)'})+RD.t(W-r,H-8,'epoch '+EP,{a:'end',fs:10,fill:'var(--mute)'});
+      [1-e,1,1+e].forEach(v=>s+=RD.t(l-4,YY(v)+4,RD.n(v,2),{a:'end',fs:11,fill:'var(--mute)'}));
+      [[ru,'var(--c2)','no clip'],[rc,'var(--c1)','clip']].forEach(([run,col,lab],k)=>{s+='<polyline fill="none" stroke="'+col+'" stroke-width="'+(k?2.6:1.8)+'" points="'+run.hist.slice(0,i+1).map((x,j)=>XX(j).toFixed(1)+','+YY(x.r).toFixed(1)).join(' ')+'"/>'+RD.t(Math.min(W-30,XX(i)+4),YY(run.hist[i].r)+(k?12:-4),lab,{fs:11,fill:col})});
+      s+=RD.t(l,H-8,'epoch 0',{fs:11,fill:'var(--mute)'})+RD.t(W-r,H-8,'epoch '+EP,{a:'end',fs:11,fill:'var(--mute)'});
       PR.innerHTML=RD.svg(W,H,s,'Ratio over epochs');
       Tt.textContent='Epoch '+i+': ratio '+RD.n(c.r,3)+' with the clip, '+RD.n(u.r,3)+' without';
       Xp.innerHTML=i===0?'Before any update the policy is the one that sampled, so the ratio is 1 and both objectives agree. The sampled action had probability '+RD.n(rc.old,3)+'.':

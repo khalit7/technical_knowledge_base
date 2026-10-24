@@ -1,22 +1,22 @@
-// ---- Short corridor tab: Example 13.1 exact, one run of each learner animated on J(p), Figures 13.1 and 13.2 rerun ----
+// ---- The short corridor in the Reading tab (moved from its own tab on 2026-10-24): one run of each learner animated on J(p)
+// (section 5) and Figures 13.1 and 13.2 rerun (section 4) ----
 (function(){
-  const E=window.PGE,$=id=>document.getElementById(id);if(!$('t-cor'))return;
-  const reg=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-cor']=window.TAB_RENDER['t-cor']||[]).push(f)};
-  const onRes=f=>addEventListener('resize',()=>{const t=$('t-cor');if(t&&!t.hidden)f()});
+  const E=window.PGE,$=id=>document.getElementById(id);if(!$('co-ex'))return;
+  const reg=RD.onRender,onRes=RD.onResize;
   const EPS=1000,FLOOR=0.05,MAXT=5000;
   // ---- 1. J(p) with three learners moving on it ----
   (function(){
-    const P=$('co-exP'),Tt=$('co-exT'),Xp=$('co-exX'),N=$('co-exN'),S=$('co-exS');let mode='rf',runs;
+    const P=$('co-exP'),Tt=$('co-exT'),Xp=$('co-exX'),N=$('co-exN'),S=$('co-exS');let mode='ac',runs;
     const L=[{k:'rf',at:Math.pow(2,-13),aw:0,lab:'REINFORCE',col:'var(--c2)'},{k:'rfb',at:Math.pow(2,-9),aw:Math.pow(2,-6),lab:'with baseline',col:'var(--c1)'},{k:'ac',at:Math.pow(2,-9),aw:Math.pow(2,-6),lab:'actor-critic',col:'var(--c4)'}];
     function compute(){runs=L.map(o=>E.corRun(o.k,o.at,o.aw,EPS,+S.value,FLOOR,MAXT))}
     function avg(a,i0,i1){let s=0;for(let i=i0;i<i1;i++)s+=a[i];return s/(i1-i0)}
     function draw(i){const ep=i*10,W=RD.width(P),H=232,l=40,r=12,t=10,b=38,lo=-100,hi=-5,X=p=>l+(W-l-r)*p,Y=v=>t+(H-t-b)*(hi-Math.max(lo,v))/(hi-lo);
-      let s='';[-100,-80,-60,-40,-20].forEach(v=>s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RD.t(l-4,Y(v)+4,String(v).replace('-','−'),{a:'end',fs:10,fill:'var(--mute)'}));
+      let s='';[-100,-80,-60,-40,-20].forEach(v=>s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RD.t(l-4,Y(v)+4,String(v).replace('-','−'),{a:'end',fs:11,fill:'var(--mute)'}));
       const pts=[];for(let k=1;k<200;k++){const p=k/200;pts.push(X(p).toFixed(1)+','+Y(E.corV(p)[0]).toFixed(1))}
       s+='<polyline fill="none" stroke="var(--ink)" stroke-width="1.8" points="'+pts.join(' ')+'"/>';
-      const mk=(p,lab,col,dy)=>'<circle cx="'+X(p)+'" cy="'+Y(E.corV(p)[0])+'" r="4" fill="none" stroke="'+col+'" stroke-width="1.6"/>'+RD.t(X(p)+(p>0.5?-6:6),Y(E.corV(p)[0])+dy,lab,{a:p>0.5?'end':'start',fs:10,fill:col});
+      const mk=(p,lab,col,dy)=>'<circle cx="'+X(p)+'" cy="'+Y(E.corV(p)[0])+'" r="4" fill="none" stroke="'+col+'" stroke-width="1.6"/>'+RD.t(X(p)+(p>0.5?-6:6),Y(E.corV(p)[0])+dy,lab,{a:p>0.5?'end':'start',fs:11,fill:col});
       s+=mk(0.05,'ε-greedy left −82.1','var(--mute)',-6)+mk(0.95,'ε-greedy right −44.2','var(--mute)',16)+mk(E.COR.pStar,'optimum p* 0.586, −11.66','var(--good)',-8);
-      [0,0.2,0.4,0.6,0.8,1].forEach(v=>s+=RD.t(X(v),H-16,RD.n(v,1),{a:'middle',fs:10,fill:'var(--mute)'}));s+=RD.t((l+W-r)/2,H-2,'probability of right, p',{a:'middle',fs:10,fill:'var(--mute)'});
+      [0,0.2,0.4,0.6,0.8,1].forEach(v=>s+=RD.t(X(v),H-16,RD.n(v,1),{a:'middle',fs:11,fill:'var(--mute)'}));s+=RD.t((l+W-r)/2,H-2,'probability of right, p',{a:'middle',fs:11,fill:'var(--mute)'});
       const show=mode==='ac'?L:L.slice(0,2);
       show.forEach((o,j)=>{const ru=runs[j],p=ru.ps[ep];s+='<circle cx="'+X(p)+'" cy="'+Y(E.corV(p)[0])+'" r="6.5" fill="'+o.col+'" stroke="var(--bg)" stroke-width="1.5"/>'});
       P.innerHTML=RD.svg(W,H,s,'Value of the start state against the probability of right')+'<div class="leg">'+show.map(o=>'<span><i style="background:'+o.col+'"></i>'+o.lab+'</span>').join('')+'</div>';
@@ -48,9 +48,9 @@
         Sx.textContent='Computing '+c.lab+': run '+acc.done+' of '+n+'...';
         if(acc.done<n){setTimeout(chunk,0)}else{cache[key(c)]=acc;draw();setTimeout(run,0)}})()}
     function draw(){const W=RD.width(P),H=230,l=40,r=12,t=10,b=24,lo=-100,hi=-5,X=e=>l+(W-l-r)*e/EPS,Y=v=>t+(H-t-b)*(hi-Math.min(hi,Math.max(lo,v)))/(hi-lo);
-      let s='';[-100,-80,-60,-40,-20].forEach(v=>s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RD.t(l-4,Y(v)+4,String(v).replace('-','−'),{a:'end',fs:10,fill:'var(--mute)'}));
-      s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(E.COR.vStar)+'" y2="'+Y(E.COR.vStar)+'" stroke="var(--good)" stroke-dasharray="5 3"/>'+RD.t(W-r,Y(E.COR.vStar)-4,'v*(s₀) = −11.66',{a:'end',fs:10,fill:'var(--good)'});
-      [1,200,400,600,800,1000].forEach(v=>s+=RD.t(X(v),H-6,String(v),{a:'middle',fs:10,fill:'var(--mute)'}));
+      let s='';[-100,-80,-60,-40,-20].forEach(v=>s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RD.t(l-4,Y(v)+4,String(v).replace('-','−'),{a:'end',fs:11,fill:'var(--mute)'}));
+      s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(E.COR.vStar)+'" y2="'+Y(E.COR.vStar)+'" stroke="var(--good)" stroke-dasharray="5 3"/>'+RD.t(W-r,Y(E.COR.vStar)-4,'v*(s₀) = −11.66',{a:'end',fs:11,fill:'var(--good)'});
+      [1,200,400,600,800,1000].forEach(v=>s+=RD.t(X(v),H-6,String(v),{a:'middle',fs:11,fill:'var(--mute)'}));
       const rows=[];
       C.forEach(c=>{const d=cache[key(c)];if(!c.on||!d)return;const pts=[];for(let e=0;e<EPS;e++)pts.push(X(e+1).toFixed(1)+','+Y(d.m[e]).toFixed(1));
         s+='<polyline fill="none" stroke="'+c.col+'" stroke-width="1.3" points="'+pts.join(' ')+'"/>';
@@ -61,6 +61,9 @@
       const pend=C.filter(c=>c.on&&!cache[key(c)]).length;Sx.textContent=pend?'':'Seeds 1 to '+Nr.value+' for every curve; 1,000 episodes each; '+(Fl.checked?'probability floor 0.05.':'no floor (episodes cut at '+MAXT+' steps).')}
     K.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const c=C.find(x=>x.id===b.dataset.id);c.on=!c.on;b.classList.toggle('on',c.on);run()});
     Nr.addEventListener('change',run);Fl.addEventListener('change',run);
-    let started=false;reg(()=>{if(!started){started=true;run()}else draw()});onRes(draw);
+    // the 600 runs are computed in chunks when the card first comes near the screen (computation only; nothing moves)
+    let started=false;const go=()=>{if(!started){started=true;run()}};
+    if('IntersectionObserver' in window)new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting)&&$('co-fig').offsetParent)go()},{rootMargin:'300px 0px'}).observe($('co-fig'));else go();
+    reg(()=>{if(started)draw()});onRes(draw);
   })();
 })();

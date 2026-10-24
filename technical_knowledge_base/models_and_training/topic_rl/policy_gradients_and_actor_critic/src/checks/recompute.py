@@ -388,5 +388,36 @@ ok('KL of a unit logit step: 0.120 at p 0.5, 0.0037 at p 0.99', round(kl_bern(0,
 ok('natural step for KL 0.01: 0.283 and 1.42; exact KL 0.00997 and 0.0066', round(math.sqrt(0.02 / 0.25), 3) == 0.283 and round(math.sqrt(0.02 / 0.0099), 2) == 1.42 and round(kl_bern(0, math.sqrt(0.08)), 5) == 0.00997 and round(kl_bern(z99, math.sqrt(0.02 / 0.0099)), 4) == 0.0066)
 ok('E[min of two N(0,1)] = -1/sqrt(pi) = -0.564', round(-1 / math.sqrt(math.pi), 3) == -0.564)
 
+# ---- 2026-10-24: the natural-gradient slider's engine (PGE.ngStep) against Python, at every slider position checked ----
+for key, d in JS['ngStep'].items():
+    p, delta = (float(x) for x in key.split('|'))
+    z = math.log(p / (1 - p))
+    F = p * (1 - p)
+    q = 1 / (1 + math.exp(-(z + 1)))
+    dzN = math.sqrt(2 * delta / F)
+    qN = 1 / (1 + math.exp(-(z + dzN)))
+    kl = lambda a, b: a * math.log(a / b) + (1 - a) * math.log((1 - a) / (1 - b))
+    ok('ngStep ' + key, close([F, q, kl(p, q), 0.5 * F, dzN, qN, kl(p, qN)], [d['F'], d['q'], d['kl'], d['quad'], d['dzN'], d['qN'], d['klN']], 1e-9), d)
+ok('slider default p 0.5, delta 0.01 lands on the prose numbers', round(JS['ngStep']['0.5|0.01']['q'], 3) == 0.731 and round(JS['ngStep']['0.5|0.01']['dzN'], 3) == 0.283)
+ok('slider at p 0.99 lands on 0.996, 0.0037, 1.42, 0.0066', round(JS['ngStep']['0.99|0.01']['q'], 3) == 0.996 and round(JS['ngStep']['0.99|0.01']['kl'], 4) == 0.0037 and round(JS['ngStep']['0.99|0.01']['dzN'], 2) == 1.42 and round(JS['ngStep']['0.99|0.01']['klN'], 4) == 0.0066)
+
+# ---- 2026-10-24: the A3C/A2C clock (illustrative durations 2.0, 2.6, 3.4, 2.3; gap 0.2; horizon 7.2) and its caption ----
+DUR, TEND, GAP = [2.0, 2.6, 3.4, 2.3], 7.2, 0.2
+seg = []
+for w, dd in enumerate(DUR):
+    t = 0.0
+    while t + dd <= TEND + 1e-12:
+        seg.append([w, t, t + dd])
+        t += dd + GAP
+ends = sorted(x[2] for x in seg)
+info = [(w, sum(e <= t0 + 1e-9 for e in ends), sum(e <= t1 + 1e-9 for e in ends)) for w, t0, t1 in seg]
+w3 = [x for x in info if x[0] == 2]
+ok('A3C caption: worker 3 second rollout computed on v4, applied as v9 (four others between)', w3[1][1] == 4 and w3[1][2] == 9 and max(m - 1 - o for _, o, m in info) == 4)
+ok('A2C: two synchronous updates within the horizon', int((TEND + GAP) // (max(DUR) + GAP)) == 2)
+
+# ---- 2026-10-24: the reward-to-go figure (rewards 1, 0, 2, -1) ----
+RW = [1, 0, 2, -1]
+ok('reward-to-go weights 2, 1, 1, -1 and whole return 2', [sum(RW[t:]) for t in range(4)] == [2, 1, 1, -1] and sum(RW) == 2)
+
 print('checks', checks, 'fails', fails)
 sys.exit(1 if fails else 0)
