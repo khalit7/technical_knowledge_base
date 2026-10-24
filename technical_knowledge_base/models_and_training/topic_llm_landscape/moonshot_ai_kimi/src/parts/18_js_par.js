@@ -1,6 +1,6 @@
-// ---- Parameters and memory tab: parameter tables from config.json, checkpoint bytes, cache against context ----
+// ---- Reading: parameter breakdown from config.json (shape section), checkpoint bytes (precision section), cache against context (KDA section) ----
 (function(){
-  if(!$('t-par'))return;
+  if(!$('ppTab'))return;
   const V=163840,d=7168;
   // K3 (config.json text_config + modeling_kimi_linear.py shapes)
   const K3={L:93,nK:69,nM:24,H:96,hd:128,E:896,k:16,lat:3584,fi:3072,ns:2,dense:33792,r:512,rope:64,ql:1536,conv:4};
@@ -95,5 +95,5 @@
   }
   segBind('ppM',m=>{PM=m;drawP()});segBind('pmS',m=>{SCH=m;drawM()});segBind('pcD',m=>{DB=+m;drawC()});
   $('pcCtx').addEventListener('input',drawC);
-  const all=()=>{drawP();drawC()};onTab('t-par',all);addEventListener('resize',()=>{if(!$('t-par').hidden)all()});
+  const all=()=>{drawP();drawC()};onTab('t-read',all);addEventListener('resize',()=>{if(!$('t-read').hidden)all()});
 })();

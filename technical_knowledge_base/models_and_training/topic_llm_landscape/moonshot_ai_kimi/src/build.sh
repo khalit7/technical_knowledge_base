@@ -3,10 +3,10 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/
 # Assemble ../index.html from parts/: head and CSS, the HTML parts in order, the error box, then each script in its own <script>, tabs last.
 # Links in any part are written {{text|url}}; url may be an alias (@name, below) or n:<notion id>.
 cd "$(dirname "$0")"
-{ cat parts/00_top.html parts/00_css_base.css parts/01_css_kimi.css parts/02_header.html parts/03_read_a.html parts/04_read_b.html parts/05_read_c.html parts/06_tabs.html parts/07_more.html
+{ cat parts/00_top.html parts/00_css_base.css parts/01_css_kimi.css parts/02_header.html parts/03_read_a.html parts/04_read_b.html parts/05_read_c.html parts/07_more.html
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html
-  for f in parts/10_js_common.js parts/11_js_ns.js parts/12_js_qk.js parts/13_js_dr.js parts/14_js_kx.js parts/15_js_hr.js parts/16_js_qb.js parts/17_js_ar.js parts/18_js_par.js parts/19_js_line.js parts/90_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
+  for f in parts/10_js_common.js parts/21_js_rd_common.js parts/12_js_qk.js parts/13_js_dr.js parts/14_js_kx.js parts/15_js_hr.js parts/16_js_qb.js parts/17_js_ar.js parts/18_js_par.js parts/19_js_line.js parts/20_js_hero.js parts/99_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
   echo '</body></html>'; } | perl -CSD -pe '
 BEGIN{%A=(
 k2=>"https://arxiv.org/abs/2507.20534",
@@ -43,7 +43,7 @@ wc -c ../index.html
 python3 - <<'PY'
 import re
 s=open('../index.html').read()
-a=s.index('id="t-read"');b=s.index('id="t-par"')
+a=s.index('id="t-read"');b=s.index('id="t-more"')
 t=re.sub(r'<script.*?</script>|<style.*?</style>','',s[a:b],flags=re.S)
 det=''.join(re.findall(r'<details(?! open).*?</details>',t,flags=re.S));t=re.sub(r'<details(?! open).*?</details>','',t,flags=re.S)
 wc=lambda x:len(re.sub(r'<[^>]+>',' ',x).split())
@@ -54,7 +54,9 @@ for x in re.findall(r'class="rt">\(([^)]*)\)',fr):
     h=re.search(r'(\d+)h',x);mm=re.search(r'(\d+) ?m(?:in)?\b',x)
     tot+=(int(h.group(1))*60 if h else 0)+(int(mm.group(1)) if mm else 0)
 res='%dh %02dm'%(tot//60,tot%60)
-s=s.replace('RT_MIN',str(m)).replace('RT_DET',str(d)).replace('RES_TIME',res)
+import json,os
+rt=json.load(open('rt.json')) if os.path.exists('rt.json') else {'core':m,'closed':d}  # rt.json: minutes from html_utils/audit_pages.mjs (230 words a minute)
+s=s.replace('RT_CORE',str(rt['core'])).replace('RT_CLOSED',str(rt['closed'])).replace('RES_TIME',res)
 open('../index.html','w').write(s)
-print('reading words',w,'minutes',m,'closed details',d,'resources',res)
+print('reading words (prose only)',w,'minutes',m,'closed details',d,'; header from rt.json',rt,'resources',res)
 PY

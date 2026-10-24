@@ -1,7 +1,7 @@
 // ---- Delta-rule sandbox: a 2-channel associative memory under four update rules ----
 (function(){
   const card=$('dr');if(!card)return;
-  let P='ow',R='delta';
+  let P='keep',R='kda';
   const st={beta:1,a:0.99,a1:0.99,a2:0.5,ow_a:1};
   const T=m=>[[m[0][0],m[1][0]],[m[0][1],m[1][1]]];
   const mul=(A,B)=>[[A[0][0]*B[0][0]+A[0][1]*B[1][0],A[0][0]*B[0][1]+A[0][1]*B[1][1]],[A[1][0]*B[0][0]+A[1][1]*B[1][0],A[1][0]*B[0][1]+A[1][1]*B[1][1]]];
@@ -51,7 +51,7 @@
     }
     $('drState').innerHTML='<div class="tw"><table><tr><th>Token</th><th>State <i>S</i> (columns are key channels)</th><th>Read <i>S</i><b>q</b>, <b>q</b> = <b>k</b></th></tr>'+rows+'</table></div>';
     $('drRead').innerHTML='<p class="small"><b>Rule.</b> '+({lin:'Linear attention: add <b>vk</b><sup>⊤</sup>.',delta:'Delta rule: <i>S</i>(I − β<b>kk</b><sup>⊤</sup>) + β<b>vk</b><sup>⊤</sup>, no decay.',gdn:'Gated DeltaNet: one scalar <i>α</i> per head per token multiplies the whole state before the erase.',kda:'KDA: Diag(<b>α</b>) gives every key channel its own rate before the erase.'}[R])+'</p><p class="small">'+note+'</p>';
-    $('drNote').innerHTML='Numbers computed with the rule shown, in the gallery layout (state <i>d<sub>v</sub></i> × <i>d<sub>k</sub></i>). Defaults reproduce the page\'s two worked examples by construction.';
+    $('drNote').innerHTML='Numbers computed with the rule shown, in Beyond attention\'s layout (state <i>d<sub>v</sub></i> × <i>d<sub>k</sub></i>). Defaults reproduce the page\'s two worked examples by construction.';
   }
   segBind('drP',m=>{P=m;if(m==='keep'&&R==='delta'){}run()});
   segBind('drR',m=>{R=m;controls();run()});

@@ -49,3 +49,14 @@ DeepSeek MLA explainer (pattern, scale unit of 64 numbers), OpenAI gpt-oss MoE a
 
 ## What the methodology lacked here
 It has no rule for when a model card and a later technical report disagree with the page's earlier "not stated" entries (dense layers, expert grouping, the LatentMoE mechanism): the fix was to treat the report as the newer primary source and say what changed. It also has no rule for a leaderboard that is re-run in place (Real-SWE moved from 18.8% to 20.00% for K3 in a week): treated as two dated readings shown side by side, like contradictory primary sources.
+
+## 2026-10-24 rebuild (teaching contract)
+| Visual | Decision | Why |
+|---|---|---|
+| Hero: K2 and K3 as one square per layer, coloured by attention type, K3's 8 AttnRes blocks bracketed | **Built**, static, top of Reading | Structure: the whiteboard picture the page elaborates; to scale in depth from the configs |
+| K3 post-training: SFT, nine RL experts (3 domains x 3 efforts), one distilled student | **Built**, static HTML diagram | Structure of a recipe that prose listed in one long sentence |
+| K4 Newton-Schulz stepper and shape select | **Removed**; shape values became a static table; worked example closed | Optimisers and learning-rate schedulers owns Muon and draws a Newton-Schulz stepper on a real gradient |
+| K2 Parameters and memory tab | **Split inline**: cache chart in KDA, parameter bars in experts, weight bytes in precision | Each card proves one section's claim; a tab hid them |
+| K10 Lineage tab | **Moved inline** as "The line"; cards became a closed static table; config diff merged with the shape table | The order explains the design; one table instead of two overlapping ones |
+| K3 delta-rule sandbox | **Kept**, opens on per-channel against scalar gates | Kimi's own point; the delta rule itself is Beyond attention's |
+| A paper figure (K2 loss curve, AttnRes) | **Rejected** | arXiv licence CC BY-NC-ND 4.0, outside the licences allowed for embedding |
