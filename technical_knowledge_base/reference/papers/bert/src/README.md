@@ -6,13 +6,13 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Headline card (with the verdict line), then Problem, Idea (the leak animation in three modes, a predict question run on the toy models), Model and input (sizes recounted, Figure 2 redrawn with the toy's vectors), Masked LM (masking demo and tally), Next sentence prediction, Pretraining setup, Fine-tuning (predict: the left-to-right tagger on right-cue names), Results, Ablations (predict: NSP or direction; Figure 5 decoded), How much of this to believe (ending in the verdict), Why it matters, Connections. |
+| The paper | `t-read` | Headline card (with the verdict line), the idea in one sentence, the hero (`12_js_hero.js`), new terms, then Problem, Idea (the leak animation in three modes, a predict question run on the toy models), Model and input (sizes recounted, Figure 2 redrawn with the toy's vectors), Masked LM (masking demo and tally), Next sentence prediction, Pretraining setup, Fine-tuning (predict: the left-to-right tagger on right-cue names), Results (with the results chart), Ablations (predict: NSP or direction; Figure 5 decoded), How much of this to believe (ending in the verdict), Why it matters, Connections. |
 | Run a toy BERT | `t-run` | The live ingredient: a trained toy BERT and its left-to-right twin in plain JS; build a sentence, hide a word, tag names, see attention; fine-tuning accuracy by labelled-set size, toy Figure 5, training curves, an in-browser test, and how far to trust the toy. |
 | The paper's tables, rebuilt | `t-tables` | Tables 1 to 8 sortable with derived deltas, parameters recounted, Figure 5's decoded points. |
 | Then and now | `t-then` | BERT-Base to ModernBERT-base, one sourced change at a time, recounted at every step (lands on 149M); what changed and what survived. |
 | Further reading | `t-more` | Generated from `paper.json`. |
 
-**Departures from papers.md.** "What it takes to use this" is skipped: the method is standard and Then and now covers what a builder uses today. The toy model is an encoder, not the reference's encoder-decoder, and its task (a made-up English where eight names are a person or a place depending on a cue before or after them) was designed before training so that right-side context would separate the two directions; the NSP ablation was not tuned to reproduce. Because the fine-tuning seeds all share one pretrained model, the NSP ablation was repeated with a second pretraining seed (`train.py seed2`, `model/seed2.json`) before the page says anything about it. The Reading tab is 22 minutes against the old page's 9, because the paper page owns every detail of the paper and now carries the evidence section; the training details could fold into a details block if Khalid prefers shorter.
+**Departures from papers.md.** "What it takes to use this" is skipped: the method is standard and Then and now covers what a builder uses today. The toy model is an encoder, not the reference's encoder-decoder, and its task (a made-up English where eight names are a person or a place depending on a cue before or after them) was designed before training so that right-side context would separate the two directions; the NSP ablation was not tuned to reproduce. Because the fine-tuning seeds all share one pretrained model, the NSP ablation was repeated with a second pretraining seed (`train.py seed2`, `model/seed2.json`) before the page says anything about it. Reading time after the 2026-10-24 rebuild: see Length judgement below.
 
 ## Files
 
@@ -31,3 +31,29 @@
 - JS against PyTorch: same argmax on 200/200 inputs per model; logits within 1e-5, attention within 6e-7.
 - Quantisation (6-bit matrices, float16 vectors) changes held-out masked-word accuracy from 66.1% to 66.3% and the tagger from 94.4% to 94.3%.
 - The grammar has 10,740 distinct sentences and pretraining saw all of them as unlabelled text; 6.45% of the test sentences are in the 128 labelled ones. Half of every cue list is held out of the labels, which is what the "held out" test subsets measure.
+
+## The 2026-10-24 rebuild (teaching contract, light pass for papers)
+
+- **Top**: the core idea in one sentence under the headline card (which already carried the verdict), then a new hero figure (`12_js_hero.js`): one encoder pretrained with the masked LM and NSP, then copied and fine-tuned per task with one output layer, after the paper's Figure 1 (redrawn; the arXiv paper is not CC BY, so no image of the original). A short "New terms" line.
+- **A visual beside every core claim**: Results had none; it now has a static chart of the previous best against BERT-Large on the five headline benchmarks (numbers from §4.1 and Tables 2, 3, 4, 7, as the prose quotes them). The other visuals (leak animation, Figure 2 with real vectors, masking widget, Figure 5 decoded, the predict reveals) are unchanged.
+- **No autoplay**: `11_js_ui.js` is the reference folder's fixed copy (the Transformer page, same date): `makeAnim` no longer starts on scroll or on a mode switch and opens each step fully drawn; `placeLabels` keeps fallback labels inside the chart. `check_page.mjs` fails if `sx` or `thx` draws a frame in 1.5 s on screen before any click.
+- **Closed blocks** (depth, not lost): how the parameters were recounted; Whole Word Masking; earlier sentence objectives; how many tokens the run really saw; the four differences from GPT with numbers (one sentence stays open); every task's output layer and settings (the SQuAD formula stays open); fine-tuning hyperparameters (A.3); why not ELMo-style concatenation; model size against earlier work; the arithmetic behind "what holds up"; three smaller evidence points; the encoder lineage as of 2 October 2026 (ModernBERT, Ettin), with a one-paragraph open summary that links the owners (embedding models, rerankers, families and objectives). Run tab: the training-log chart and "How far to trust the toy".
+- **Moved, not cut**: ModernBERT's "noticeable overhead" quote on NSP now sits in the evidence section's NSP bullet, beside RoBERTa's finding (with "training on blocks of text from single documents").
+- **Owners linked**: MLM against other objectives at Families and objectives; descendants (ELECTRA and others) at Families and objectives; BEiT and MAE at Contrastive and self-supervised learning.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After (2026-10-24) |
+|---|---|---|
+| The paper, core | 5,134 words, 22.3 min | 4,479 words, 19.5 min |
+| The paper, closed details | 0 | 1,270 words, 5.5 min |
+| Run a toy BERT | 1,581 core | 1,195 core + 392 closed |
+| Tables, Then and now | 999, 477 | 999, 468 |
+| Visuals drawn in The paper (audit count) | 3 | 5 (plus the predict reveals' charts) |
+
+Why about 19 minutes is right: this page owns every detail of the paper and its evidence section, which the paper method requires and which carries the page's main finding (NSP did not hold up). What remains open is the argument in the paper's order: problem, the leak and the masked LM, the input, both pretraining tasks, the recipe, fine-tuning, results, the ablations that carry the claim, and the judged evidence. Provenance, recounts, appendix settings and dated follow-up work are closed.
+
+## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
+254 units: core 217, depth 30, owned 2 (descendants at Families and objectives, key "ELECTRA"; BEiT and MAE at Contrastive and self-supervised learning, key "BEiT"), fat 5 (the old reading-time crumb, tab names, section nav, a subheading replaced by its summary line, a motion-manners sentence). 247 drafted by `ledger.py init`, 7 added by hand for the new top, chart, owner links and the dated block. Keys were proposed by a script (a 4 to 7 word window of each unit found in the built page) and checked by hand where the prose changed.
+
+## Checks (2026-10-24)
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 281 KB. `check_page.mjs`: 390 actions, 0 problems (with the no-autoplay check). `mk_coverage.py`: 56 of 56 (the reading-time needle now looks for "Reading: "). `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched.

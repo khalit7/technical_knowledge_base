@@ -19,7 +19,7 @@ import html, json, re
 P = json.load(open('paper.json'))
 AX = 'https://arxiv.org/html/%s%s' % (P['arxiv'], P['arxiv_v'])
 HTML = ['00_top.html', '01_css.html', '02_header.html', '03_paper.html', '04_run.html', '05_tables.html', '06_then.html', '_gen_more.html']
-JS = ['10_js_common.js', '_gen_data.js', '_gen_results.js', '11_js_ui.js', '20_model_data.js', '21_js_lang.js', '22_js_model.js',
+JS = ['10_js_common.js', '_gen_data.js', '_gen_results.js', '11_js_ui.js', '12_js_hero.js', '20_model_data.js', '21_js_lang.js', '22_js_model.js',
       '13_js_read.js', '23_js_run.js', '24_js_tables.js', '25_js_then.js', '90_js_tabs.js']
 rd = lambda f: open('parts/' + f, encoding='utf-8').read()
 body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html'))
@@ -44,14 +44,20 @@ for bad, msg in (('{{', 'unexpanded link'), ('[[S', 'unexpanded margin label'), 
     if bad in out: raise SystemExit(msg + ': ' + out[out.index(bad) - 80:out.index(bad) + 80])
 # reading time of The paper tab (230 words a minute) and the resources total
 a = out.index('id="t-read"'); b = out.index('id="t-run"')
-t = re.sub(r'<script.*?</script>|<style.*?</style>', '', out[a:b], flags=re.S); t = re.sub(r'<[^>]+>', ' ', t)
-w = len(t.split()); mins = round(w / 230)
+t = re.sub(r'<script.*?</script>|<style.*?</style>|<svg.*?</svg>|<nav.*?</nav>', '', out[a:b], flags=re.S)
+words = lambda x: len(re.sub(r'<[^>]+>', ' ', x).split())
+det = sum(words(re.sub(r'<summary.*?</summary>', '', d, flags=re.S)) for d in re.findall(r'<details.*?</details>', t, flags=re.S))
+w = words(t) - det; mins = round(w / 230); cmin = round(det / 230)
+# reading.json holds the rendered-DOM count from html_utils/audit_pages.mjs (it includes script-written captions); it wins when present
+import os
+if os.path.exists('reading.json'):
+    R = json.load(open('reading.json')); mins, cmin = R['core_min'], R['closed_min']
 fr = out[out.index('id="t-more"'):]
 tot = 0
 for x in re.findall(r'class="rt">\(([^)]*)\)', fr):
     h = re.search(r'(\d+)h', x); mm = re.search(r'(\d+) ?m(?:in)?\b', x)
     tot += (int(h.group(1)) * 60 if h else 0) + (int(mm.group(1)) if mm else 0)
-out = out.replace('RT_MIN', str(mins)).replace('RES_TIME', '%dh %02dm' % (tot // 60, tot % 60))
+out = out.replace('RT_MIN', str(mins)).replace('RT_CLOSED', str(cmin)).replace('RES_TIME', '%dh %02dm' % (tot // 60, tot % 60))
 open('../index.html', 'w', encoding='utf-8').write(out)
-print('reading words', w, 'minutes', mins, 'resources %dh %02dm' % (tot // 60, tot % 60), 'bytes', len(out.encode()))
+print('reading words', w, 'closed', det, 'minutes', mins, cmin, 'resources %dh %02dm' % (tot // 60, tot % 60), 'bytes', len(out.encode()))
 PY

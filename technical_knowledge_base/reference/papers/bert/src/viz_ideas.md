@@ -58,3 +58,11 @@ Old page's visuals: none (prose only). Its links (arXiv, google-research/bert, t
 ## What the methodology lacked for this page
 
 - A rule for **pretraining-seed variance** in toy ablations: fine-tuning seeds alone share one pretrained model, so a gap between two pretrained variants can be pure pretraining-seed noise. Repeat the pretraining with a second seed before reporting an ablation gap as an effect.
+
+## 2026-10-24 light pass (teaching contract)
+
+| id | Visual | Kind | Decision |
+|---|---|---|---|
+| P-bert.20 | Hero: one encoder pretrained with MLM and NSP, then copied and fine-tuned per task with one output layer (after Figure 1) | static annotated diagram | built (`12_js_hero.js`): the whiteboard figure for BERT; tokens illustrative |
+| P-bert.21 | Results at a glance: previous best against BERT-Large on GLUE, SQuAD v1.1, SQuAD v2.0, SWAG, NER (dumbbell, axis from 70) | static chart | built: the Results section had no visual beside its claims; NER drawn in orange because BERT is below CSE there |
+| P-bert.22 | The paper's own Figure 1 as an image | real image | rejected: the arXiv licence is not CC BY; the redraw carries it |

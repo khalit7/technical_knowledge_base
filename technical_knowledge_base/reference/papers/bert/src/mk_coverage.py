@@ -9,7 +9,7 @@ txt = html.unescape(re.sub(r'<[^>]+>', ' ', raw))
 txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
- ('Reading time line "9 min read, +~2h 40m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "9 min read, +~2h 40m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['Reading: ', 'of resources']),
  ('Authors: Devlin, Chang, Lee, Toutanova (Google AI Language)', R + ', headline card', ['Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova', 'Google AI Language']),
  ('Date: October 2018 (arXiv v1; v2 May 2019, NAACL 2019 best paper)', R + ', headline card', ['October 2018', 'v2 24 May 2019', 'NAACL 2019 (best long paper)']),
  ('Link arXiv:1810.04805 (~45 min)', 'card and Further reading', ['https://arxiv.org/abs/1810.04805', '(45 min)']),
