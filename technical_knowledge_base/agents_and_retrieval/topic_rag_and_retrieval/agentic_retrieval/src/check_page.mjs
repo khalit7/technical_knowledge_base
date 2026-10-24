@@ -27,7 +27,7 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     });
     if (r.nan || r.undef || r.side || r.err) { bad++; console.log('FAIL', scheme, w, label, JSON.stringify(r)); }
   };
-  const tab = async t => { await page.click('#tabs button[data-t="' + t + '"]'); await new Promise(r => setTimeout(r, 150)); };
+  const tab = async t => { await page.evaluate(() => scrollTo(0, 0)); await page.click('#tabs button[data-t="' + t + '"]'); await new Promise(r => setTimeout(r, 150)); };
   // Reading: every animation control, every chip, every seg button, every predict chip, every details
   await tab('t-read');
   for (const id of ['ar-hopctl', 'ar-taxctl']) {

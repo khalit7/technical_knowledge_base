@@ -51,3 +51,6 @@ The core fell by 14 minutes while gaining 13 figures. It stays at 31 minutes bec
 
 ## Ledger
 `src/ledger.json`: 391 units from the page as built on 2026-10-19: core 292, depth 54, owned 3 (Mem0 and Graphiti numbers at Context engineering; the KV cache definition at Long context), fat 42, problems 0 (`python3 html_utils/ledger.py check`).
+
+## Topic close (2026-10-24)
+New closed block at the end of Reading ("The root page's agentic runs in detail"): the root's retired Agentic lab units this page did not carry (run provenance, the second-hop examples, the 4B strategies' tokens and seconds, tokens per step, lost in the middle on 20 paragraphs, the router on a mixed set, published tables, mistakes and a design). References to the root's Agentic lab, its section 7 and its replay now name its shared runs and section 5. Header remeasured: 31 min, plus 20 in closed details. Every quoted sibling time now matches its header (`html_utils/check_times.py`); the ledger keys that quoted old times or tab names were re-pointed to the current text (problems 0).

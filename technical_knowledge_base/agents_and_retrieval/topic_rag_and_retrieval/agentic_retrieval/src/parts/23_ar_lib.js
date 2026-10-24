@@ -30,7 +30,7 @@ window.ARL=(function(){
         return '<div class="tw"><table><thead><tr><th>Paragraphs (mean tokens)</th>'+rels.map(r=>'<th class="num">'+(r==='0.00'?'first':r==='1.00'?'last':r)+'</th>').join('')+'</tr></thead><tbody>'+Ns.map(N=>'<tr><td>'+N+' ('+fmtInt(P.lim_tok[N])+')</td>'+rels.map(r=>'<td class="num">'+f3(P.lim[N][r])+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'}},
     'ar-pend-mem':{cmd:'sh src/scripts/run_pending.sh core   # memory ~6 min',what:'The final answer of the root\'s ReAct trajectories (2 or more searches) re-generated from: everything read, the last observation, or the top 3 read paragraphs by question plus last thought (one prompt, no thoughts).',
       rows:[['everything read','memory.all'],['last observation','memory.last'],['top 3 by question + thought','memory.top3']]},
-    'ar-pend-traj':{cmd:'the root\'s chain (Qwen3-4B runs) and sh src/scripts/run_pending.sh core',what:'Trajectories of the 4B model (root Agentic lab chain, running) and of IRCoT and Self-Ask (this page) are not in the comparer yet: their runs are pending.',rows:[]},
+    'ar-pend-traj':{cmd:'the root\'s chain (Qwen3-4B runs) and sh src/scripts/run_pending.sh core',what:'Trajectories of the 4B model (root agent runs chain, running) and of IRCoT and Self-Ask (this page) are not in the comparer yet: their runs are pending.',rows:[]},
     'ar-pend-route':{cmd:'sh src/scripts/run_pending.sh core',what:'The LLM router, CRAG-style query rewriting and the self-check critique are not policies in this lab yet: their runs are pending (results appear in the Reading tab, sections 4 and 5, when they land).',rows:[]}
   };
   const get=k=>k.split('.').reduce((o,x)=>o==null?null:o[x],P);
