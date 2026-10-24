@@ -126,6 +126,56 @@ chk("bf16 rounding", max(errs) == 0, errs)
 # z-loss value and gradient
 v = torch.tensor(J["z"]["v"], requires_grad=True); z = torch.logsumexp(v, 0); zl = 1e-4 * z ** 2; zl.backward()
 chk("z-loss", abs(zl.item() - J["z"]["loss"]) < 1e-15 and max(abs(a - b) for a, b in zip(v.grad.tolist(), J["z"]["grad"])) < 1e-15, [zl.item(), J["z"]["loss"]])
+# gradient on the logits: PyTorch's CrossEntropyLoss (with label_smoothing), focal and Brier through autograd
+errs = []
+for row in J["logit"]["rows"]:
+    z = torch.tensor(J["logit"]["z"], requires_grad=True); t = torch.tensor([row["t"]])
+    p = torch.softmax(z, 0)
+    if row["k"] == "ce": L = torch.nn.CrossEntropyLoss()(z[None], t)
+    elif row["k"] == "ls": L = torch.nn.CrossEntropyLoss(label_smoothing=0.1)(z[None], t)
+    elif row["k"] == "focal": pt = p[row["t"]]; L = -(1 - pt) ** 2 * torch.log(pt)
+    else: y = torch.nn.functional.one_hot(t[0], 5).double(); L = ((p - y) ** 2).sum()
+    L.backward()
+    errs.append(max(abs(L.item() - row["loss"]), max(abs(a - b) for a, b in zip(z.grad.tolist(), row["grad"]))))
+chk("logit gradients (CE, label smoothing, focal, Brier) vs autograd", max(errs) < 1e-12, max(errs))
+pz = torch.softmax(torch.tensor(J["logit"]["z"]), 0).tolist()
+chk("page prose: p = 0.743 0.166 0.061 0.022 0.008", [round(v, 3) for v in pz] == [0.743, 0.166, 0.061, 0.022, 0.008], pz)
+gce = {(r["k"], r["t"]): r["grad"] for r in J["logit"]["rows"]}
+prose = {"ce easy -0.257": round(gce[("ce", 0)][0], 3) == -0.257, "ce wrong -0.992": round(gce[("ce", 4)][4], 3) == -0.992,
+         "brier wrong -0.026": round(gce[("brier", 4)][4], 3) == -0.026, "ratio 38": round(gce[("ce", 4)][4] / gce[("brier", 4)][4]) == 38,
+         "focal easy -0.046": round(gce[("focal", 0)][0], 3) == -0.046, "focal wrong -1.053": round(gce[("focal", 4)][4], 3) == -1.053,
+         "5.6x": round(gce[("ce", 0)][0] / gce[("focal", 0)][0], 1) == 5.6, "ls easy -0.177": round(gce[("ls", 0)][0], 3) == -0.177,
+         "ls car up 0.012": round(-gce[("ls", 0)][4], 3) == 0.012}
+chk("page prose: logit widget numbers", all(prose.values()), prose)
+# ranking: RankNet cost through autograd on the pairwise logistic loss; LambdaRank recomputed with numpy (Burges 2010 eqs 3, 4, 6)
+def ndcg_np(l):
+    l = np.array(l, float); d = 1 / np.log2(np.arange(len(l)) + 2); g = 2 ** l - 1
+    return (g * d).sum() / (np.sort(g)[::-1] * d).sum()
+errs = []
+for row in J["rank"]["rows"]:
+    s = torch.tensor(J["rank"]["s"], requires_grad=True); l = row["l"]; n = len(l)
+    pairs = [(i, j) for i in range(n) for j in range(n) if l[i] > l[j]]
+    if not row["lr"]:
+        C = sum(torch.nn.functional.softplus(-(s[i] - s[j])) for i, j in pairs); C.backward()
+        errs.append(max(abs(a - b) for a, b in zip(s.grad.tolist(), row["lam"]))); errs.append(abs(C.item() - row["cost"]))
+    else:
+        sv = np.array(J["rank"]["s"]); lam = np.zeros(n); rank = np.argsort(-sv, kind="stable").argsort()
+        ideal = ((2 ** np.sort(np.array(l, float))[::-1] - 1) / np.log2(np.arange(n) + 2)).sum()
+        for i, j in pairs:
+            sw = list(l); ri, rj = rank[i], rank[j]; order = [None] * n
+            for k in range(n): order[rank[k]] = l[k]
+            sw_order = list(order); sw_order[ri], sw_order[rj] = sw_order[rj], sw_order[ri]
+            dn = abs(ndcg_np(sw_order) - ndcg_np(order))
+            lij = -1 / (1 + math.exp(sv[i] - sv[j])) * dn; lam[i] += lij; lam[j] -= lij
+        errs.append(max(abs(a - b) for a, b in zip(lam, row["lam"])))
+    errs.append(abs(ndcg_np([l[k] for k in np.argsort(-np.array(J["rank"]["s"]), kind="stable")]) - row["ndcg"]))
+chk("ranking: RankNet lambdas vs autograd, LambdaRank by explicit swaps, NDCG", max(errs) < 1e-12, max(errs))
+r10 = {r["lr"]: r for r in J["rank"]["rows"] if r["pos"] == 10}
+rp = {"errs 9": r10[False]["errs"] == 9, "ndcg 0.564": round(r10[False]["ndcg"], 3) == 0.564, "fixA 0.624": round(J["rank"]["fixA"], 3) == 0.624,
+      "fixB 0.790": round(J["rank"]["fixB"], 3) == 0.790,
+      "0.30": round(r10[False]["lam"][1] / r10[False]["lam"][9], 2) == 0.30, "0.42": round(r10[True]["lam"][1] / r10[True]["lam"][9], 2) == 0.42,
+      "0.24": round(-r10[False]["lam"][0] / r10[False]["lam"][9], 2) == 0.24, "0.75": round(-r10[True]["lam"][0] / r10[True]["lam"][9], 2) == 0.75}
+chk("page prose: ranking numbers", all(rp.values()), rp)
 # published figures the page reproduces
 chk("Anscombe 1973: y = 3.00 + 0.500x", round(J["fits"]["anscombe3"]["mse"]["a"], 2) == 3.00 and round(J["fits"]["anscombe3"]["mse"]["b"], 3) == 0.500, J["fits"]["anscombe3"]["mse"])
 chk("Lin et al. 2017: 100x at pt 0.9, about 1000x at pt 0.968 (gamma 2)", abs(1 / (1 - 0.9) ** 2 - 100) < 1e-9 and 950 < 1 / (1 - 0.968) ** 2 < 1050, [1 / (1 - 0.9) ** 2, 1 / (1 - 0.968) ** 2])

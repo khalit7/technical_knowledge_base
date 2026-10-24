@@ -59,7 +59,7 @@
     const c=caps(i);$('oa-cap').innerHTML='<div class="t">Step '+(i+1)+' of 6'+(c[0]?': '+c[0]:'')+'</div>'+c[1]}
   A=RD.anim({card:'oa-card',ctl:'oa-ctl',n:6,draw,ms:2200,label:'Outlier animation step'});
   function seg(id,key){document.getElementById(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
-    [...e.currentTarget.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===b));st[key]=b.dataset[key==='sc'?'s':'l'];prep();A.reset(6);A.play()})}
+    [...e.currentTarget.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===b));st[key]=b.dataset[key==='sc'?'s':'l'];prep();A.reset(6)})}
   seg('oa-sc','sc');seg('oa-l','rl');
   addEventListener('resize',()=>{if(card.offsetParent)A.redraw()});
 })();

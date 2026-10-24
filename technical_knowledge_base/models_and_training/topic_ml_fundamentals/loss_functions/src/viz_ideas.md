@@ -22,3 +22,14 @@ Scores: quantity the reader moves (0-2), reproduces a published figure (x2), com
 
 Rule proposed for section 2: when a robustness claim is checked on data, test both kinds of outlier (bad target, unusual input); the stars showed MAE doing worse than MSE under leverage, which no curve plot reveals.
 What the methodology lacked here: a pattern for "what does this objective estimate" (the minimiser of the expected loss) as a visual; LF3 and LF4's third panel are that pattern, reusable for any loss or scoring-rule page.
+
+## 2026-10-24 rebuild (teaching contract)
+| # | Idea | Score | Data and formulas | Placement | Status |
+|---|---|---|---|---|---|
+| LF12 | **Hero: pull against error and margin**, static, labels on the curves (MSE, Huber, MAE; exponential, hinge, cross entropy, focal) | 9 | the page's checked formulas | Reading, top | built |
+| LF13 | **Same logits, four losses**: gradient on every logit under CE beside label smoothing, focal or MSE on probabilities, easy against confidently wrong | 12 | illustrative logits; autograd-checked; prose numbers checked by recompute.py | Reading, cross entropy | built |
+| LF14 | **RankNet against LambdaRank on one list**: lambdas per document, one slider (rank of the second relevant document); counters for wrong pairs, NDCG and push shares | 11 | Burges 2010 eqs. 3, 4, 6; illustrative scores; RankNet by autograd, LambdaRank by explicit swaps | Reading, ranking | built |
+| LF4 | Loss shapes cards | | | moved from their own tab into Reading (regression, margins), beside the claims they prove | moved |
+| LF5 | z-loss on real logits | | | moved into a closed block: z-loss is owned by Normalisation, residuals and stability | moved |
+| LF15 | Triplet loss geometry (anchor, positive, negative in 2-D with the margin) | 6 | | none | rejected: the Contrastive sibling owns metric learning; a sentence and the PyTorch formula carry what this page needs |
+| LF16 | Real logits for LF13 from SmolLM2 | 8 | | none | not built: the model is not in the local cache and the brief allows no downloads or new runs; illustrative logits labelled as such. Proposal: extend `real_logits.py` to dump one easy and one wrong next-token prediction (seconds on CPU once the model is cached) |
