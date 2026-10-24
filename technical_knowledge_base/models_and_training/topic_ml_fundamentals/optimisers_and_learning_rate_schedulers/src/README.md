@@ -35,3 +35,5 @@ Why about 29 minutes is right: the page teaches nine mechanisms (momentum, adapt
 
 ## Departures
 No real-model data beyond configs and one real gradient's singular values: the subject is update rules, so the "real data" is exactness (every rule checked against PyTorch). No photo: a mechanism page with nothing physical to show. The anneal-phase practice (data switch, microanneals) is owned by Pretraining and linked.
+
+- 2026-10-24, topic close: the root card no longer describes the retired update-geometry and schedule widgets (Muon's Newton-Schulz now lives only in section 4 here); times set to headers. Ledger units 13 and 295 re-keyed, 300 to 307 keys without the old times.
