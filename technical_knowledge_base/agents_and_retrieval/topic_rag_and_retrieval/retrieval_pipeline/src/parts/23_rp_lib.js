@@ -1,4 +1,4 @@
-// ---- rp: shared library for the retrieval_pipeline page (chunkers ported line by line from the root Pipeline lab's
+// ---- rp: shared library for the retrieval_pipeline page (chunkers ported line by line from the root's
 // src/pipe/chunkers.py; checked against the Python output by src/check_js.mjs), a small BM25, fusion functions, SVG helpers.
 window.RP=(function(){
   const D=window.RPD;

@@ -46,3 +46,6 @@ Why about 44 minutes is right: about 8 of the 43.5 are text the visuals display 
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 418 units: core 260, depth 129, fat 29. 394 drafted by `ledger.py init`; keys were found by searching each unit's distinctive phrase or number in the rebuilt page and checked by hand where none matched; 15 added for script-rendered tables; 9 record what section 9 absorbed from the root (section "absorbed from root section 6").
+
+## Topic close (2026-10-24)
+New closed block at the end of section 10: the root's retired Pipeline lab units this page did not carry (BM25 by hand, more chunking cuts, contextual retrieval run, post-filter numbers, end to end by label, the answer-prompt choice). "root lab" labels now read "root runs"; references to the root's Pipeline lab tab, its lever calculator and the ingestion page's Re-indexing lab now name what exists. Header remeasured: 42 min, plus 34 in closed details. Every quoted sibling time now matches its header (`html_utils/check_times.py`); the ledger keys that quoted old times or tab names were re-pointed to the current text (problems 0).
