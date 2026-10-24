@@ -40,5 +40,5 @@
     st.innerHTML=RD.stat('Server first flight',fmt(M.F.total)+' B','measured, record headers included')+RD.stat('Certificate message',fmt(M.F.parts.Certificate)+' B','leaf + intermediate')+RD.stat('Segments needed',M.n,'initial window: '+IW)+RD.stat('Round trips for this flight',sent<=IW&&!s.wait&&M.n<=IW?'1':(sent>IW||s.wait?'2':'1 so far'),M.n>IW?'one more than ECDSA':'');
   }
   const a=RD.anim({card:'fl-card',ctl:'fl-ctl',n:M.steps.length,draw,ms:900,label:'Segment'});
-  RD.seg(document.getElementById('fl-mode'),m=>{mode=m;M=model(m);a.reset(M.steps.length);a.play()});
+  RD.seg(document.getElementById('fl-mode'),m=>{mode=m;M=model(m);a.reset(M.steps.length)});
 })();

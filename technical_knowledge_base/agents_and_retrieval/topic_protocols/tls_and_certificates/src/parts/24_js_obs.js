@@ -35,5 +35,5 @@
       RD.stat('TLS round trips before the request',i>=reqIdx?String(fls.slice(0,reqIdx).filter(g=>g.d==='s2c').length):'waiting ('+rtts+' so far)',mode==='tls13'?'TLS 1.3: one':'TLS 1.2: two');
   }
   const a=RD.anim({card:'obs-card',ctl:'obs-ctl',n:model[mode].length,draw,ms:2200,label:'Handshake step'});
-  RD.seg(document.getElementById('obs-mode'),m=>{mode=m;a.reset(model[m].length);a.play()});
+  RD.seg(document.getElementById('obs-mode'),m=>{mode=m;a.reset(model[m].length)});
 })();

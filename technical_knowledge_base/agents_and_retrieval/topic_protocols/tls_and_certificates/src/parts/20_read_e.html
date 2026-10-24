@@ -1,13 +1,11 @@
 <section id="s-x509">
 <h2>4. Certificates: what is inside, and how a client checks a chain</h2>
-<p>A certificate is an <b>X.509</b> document ({{RFC 5280|https://www.rfc-editor.org/rfc/rfc5280}}) encoded in DER (binary) and usually stored as PEM (that DER in base64 between <code>-----BEGIN CERTIFICATE-----</code> lines). The fields that matter, with the values of the certificate <code>api.anthropic.com</code> served on 5 October 2026:</p>
-<div class="tw" id="x509-tab"></div>
-<p>The {{Certificate dissector|#t-cert}} tab shows every field of every certificate in twelve real chains (and the lab's own), with what each one is for.</p>
-
-<h3>The chain, and why servers send what they send</h3>
-<p>The leaf is signed by an <b>intermediate</b> CA, which is signed by a <b>root</b>. Roots live offline in vaults and sign rarely; intermediates do the daily issuing, so a compromised intermediate can be revoked without changing every trust store on earth. The server must send its leaf and every intermediate; sending the root is useless (the client must already have it to trust it) but harmless. Path building is a search, not a list: a client starts from the leaf and looks for any issuer it can chain to a root in <i>its</i> store. That matters because of <b>cross-signing</b>, visible in the survey: <code>api.anthropic.com</code>'s chain ends with a certificate for "GTS Root R4" that is itself signed by "GlobalSign Root CA". A client that already trusts GTS Root R4 stops there; an older client that only knows GlobalSign follows the cross-sign one step further. Different clients can therefore build different valid paths through the same chain, which is the usual reason for "works in Chrome, fails in Java".</p>
-<div class="tw" id="pub-tab"></div>
-<p class="small mute">Survey: one TLS handshake per host with OpenSSL 3.6.5 (which offers the hybrid post-quantum group first), no HTTP request, 5 October 2026 (<code>src/lab/public_chains.py</code>). "Validity" is notAfter minus notBefore of the leaf. "Sent" counts the certificates the server sent.</p>
+<p>A certificate is an <b>X.509</b> document ({{RFC 5280|https://www.rfc-editor.org/rfc/rfc5280}}) encoded in DER (binary) and usually stored as PEM (that DER in base64 between <code>-----BEGIN CERTIFICATE-----</code> lines). The leaf is signed by an <b>intermediate</b> CA, which is signed by a <b>root</b>. Roots live offline in vaults and sign rarely; intermediates do the daily issuing, so a compromised intermediate can be revoked without changing every trust store on earth. The server must send its leaf and every intermediate; sending the root is useless (the client must already have it to trust it) but harmless. The chain <code>api.anthropic.com</code> served on 5 October 2026:</p>
+<figure class="tl-fig" id="tl-chain-card">
+<figcaption class="tl-ft">Two clients can build two valid paths through the same chain</figcaption>
+<div id="tl-chain" class="tl-svg"></div>
+<p class="small">Path building is a search, not a list: a client starts from the leaf and looks for any issuer it can chain to a root in <i>its</i> store. That matters because of <b>cross-signing</b>: the third certificate, "GTS Root R4", is itself signed by "GlobalSign Root CA". A client that already trusts GTS Root R4 stops there; an older client that only knows GlobalSign follows the cross-sign one step further. Different clients can therefore build different valid paths through the same chain, the usual reason for "works in Chrome, fails in Java".</p>
+</figure>
 
 <h3>What the client checks, in order</h3>
 <ol class="tight">
@@ -17,10 +15,30 @@
 <li><b>Purpose</b>: Extended Key Usage must include <code>serverAuth</code> for a server (and <code>clientAuth</code> for an mTLS client, section 7).</li>
 <li><b>Policy extras</b> that depend on the client: Chrome and Safari require embedded Certificate Transparency proofs (section 5); some check revocation (section 6); Python 3.13 and later apply <code>VERIFY_X509_STRICT</code> by default, rejecting certificates missing fields RFC 5280 requires, such as the Authority Key Identifier ({{Python 3.13 what's new|https://docs.python.org/3/whatsnew/3.13.html#ssl}}). The parent's {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}} case "Python 3.13 rejects a certificate that curl and Node accept" shows the same certificate passing curl and Node and failing Python.</li>
 </ol>
+<p>Run those checks yourself on twelve real chains, exactly as the servers sent them (one handshake each with OpenSSL 3.6.5, no HTTP request; <code>src/lab/public_chains.py</code>). Predict before you move anything: <code>api.anthropic.com</code> with the date dragged past 20 December 2026, and <code>a.b.api.anthropic.com</code> as the dialled name. Then pick <code>api.deepseek.com</code> (a wildcard) and dial a name two labels deep, and compare a Google-issued chain (three certificates, ending in a cross-signed root) with pypi.org's (two).</p>
+<div class="card" id="ce-card">
+<label class="small">Host <select id="ce-host"></select></label>
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))">
+<div><div class="band">Chain as sent (leaf first)</div><div id="ce-chain"></div></div>
+<div><div class="band">Fields of the selected certificate</div><div id="ce-fields"></div></div>
+</div>
+<div class="band">Validate it like a client</div>
+<div class="ctl">
+<label>Date of the check: <b id="ce-dv"></b><input type="range" id="ce-date" min="0" max="600" value="0" aria-label="Days after 5 October 2026"></label>
+<label>Name dialled <select id="ce-name"></select></label>
+<label><input type="checkbox" id="ce-drop"> Server forgets the intermediate</label>
+<label><input type="checkbox" id="ce-store"> Client trust store lacks this root</label>
+</div>
+<ul class="chk-list" id="ce-checks"></ul>
+<div id="ce-verdict"></div>
+<p class="small mute">The checks follow RFC 5280 path validation, RFC 9525 name matching and Chrome's CT policy, simplified: signatures are not recomputed here (OpenSSL verified every chain when recorded: "Verify return code: 0"), and "trusted root" means a root in the certifi bundle used for the recording. Error strings are OpenSSL's verify messages, the ones curl and Python print.</p>
+</div>
 <p>The parent's Failure lab reproduces each failure with real error text: "Expired certificate", "Wrong hostname (SAN mismatch)", "Unknown CA: the issuer is not trusted here", "Missing intermediate certificate", "Clock skew: certificate not yet valid". The first command for all of them:</p>
 <pre class="fm" style="font-size:12.5px;white-space:pre-wrap">openssl s_client -connect api.example.com:443 -servername api.example.com -showcerts &lt;/dev/null
 #  look at: the depth lines (how many certificates came back), "Verify return code", the issuer of depth 0
 openssl x509 -in leaf.pem -noout -subject -issuer -dates -ext subjectAltName,extendedKeyUsage</pre>
 <p>Always pass <code>-servername</code>: without SNI, a server hosting many names may send a default certificate and you will debug the wrong one.</p>
+<details class="mist"><summary>Every field of the api.anthropic.com leaf, and what each is for</summary><div class="b"><div class="tw" id="x509-tab"></div></div></details>
+<details class="mist"><summary>The twelve surveyed chains in one table (issuer, key, validity, key exchange)</summary><div class="b"><div class="tw" id="pub-tab"></div><p class="small mute">Survey: one TLS handshake per host with OpenSSL 3.6.5 (which offers the hybrid post-quantum group first), no HTTP request, 5 October 2026 (<code>src/lab/public_chains.py</code>). "Validity" is notAfter minus notBefore of the leaf. "Sent" counts the certificates the server sent.</p></div></details>
 <details class="mist"><summary>Predict, then reveal: a service has a valid certificate for <code>*.internal.example.com</code>. A client calls <code>gpu-3.us-east.internal.example.com</code>. What happens?</summary><div class="b">Hostname mismatch: the wildcard covers one label, and <code>gpu-3.us-east</code> is two. Fix by adding <code>*.us-east.internal.example.com</code> as a SAN, or naming hosts one level below the wildcard. Remember too that a public certificate's names are published in Certificate Transparency logs (section 5), so internal host names belong on a private CA.</div></details>
 </section>

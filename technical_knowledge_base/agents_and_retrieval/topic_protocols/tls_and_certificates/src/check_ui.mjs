@@ -59,9 +59,8 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   }
   await p.evaluate(() => document.querySelectorAll('#t-read details summary').forEach(s => s.click()));
   await check('reading details');
-  for (const id of ['one-fig', 'dh-card', 'hrr-tab', 'cost-bars', 'zr-card', 'x509-tab', 'pub-tab', 'life-card', 'rot-card', 'speed-bars', 'tm-tab']) await shot(id, id);
-  // Handshake tab
-  await p.click('#tabs button[data-t="t-hs"]');
+  for (const id of ['tl-hero-card', 'tl-aead-card', 'tl-ks-card', 'tl-res-card', 'tl-chain-card', 'tl-rev-card', 'tl-term-card', 'tl-insp-card', 'one-fig', 'dh-card', 'hrr-tab', 'cost-bars', 'zr-card', 'x509-tab', 'pub-tab', 'life-card', 'rot-card', 'speed-bars', 'tm-tab']) await shot(id, id);
+  // Handshake, decrypted (Reading section 2 since 2026-10-24)
   for (const r of ['tls13', 'mtls', 'tls12']) for (const v of ['obs', 'end']) {
     await p.evaluate((r, v) => { document.querySelector('#hs-rec [data-m="' + r + '"]').click(); document.querySelector('#hs-view [data-m="' + v + '"]').click(); }, r, v);
     await scrub('hs-ctl', 'hs ' + r + ' ' + v);
@@ -69,8 +68,7 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     await shot('hs-card', 'hs-' + r + '-' + v);
   }
   await p.evaluate(() => document.querySelector('#hs-list tr[data-i="2"]').click()); await check('hs row click');
-  // Certificate dissector: every host, every certificate, every name, date ends, both faults
-  await p.click('#tabs button[data-t="t-cert"]');
+  // Certificate dissector (Reading section 4 since 2026-10-24): every host, every certificate, every name, date ends, both faults
   const nh = await p.$$eval('#ce-host option', o => o.length);
   for (let h = 0; h < nh; h++) {
     await p.evaluate(h => { const s = document.getElementById('ce-host'); s.value = String(h); s.dispatchEvent(new Event('change')); }, h);
@@ -88,7 +86,24 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await shot('ce-card', 'cert');
   // Further reading: tab links
   await p.click('#tabs button[data-t="t-more"]'); await check('more');
-  await p.evaluate(() => document.querySelector('#t-more a[data-tab="t-hs"]').click()); await check('more link');
+  await p.close();
+}
+// No autoplay (2026-10-23 rule): with normal motion, scroll each animation into view, wait, and expect step 0 and a Play button
+{
+  const p = await browser.newPage();
+  await p.setViewport({ width: 920, height: 900 });
+  await p.goto(page_url);
+  for (const c of ['hs', 'obs', 'acme', 'fl']) {
+    await p.evaluate(c => document.getElementById(c + '-card').scrollIntoView(), c); await sleep(2500);
+    const r = await p.evaluate(c => [document.getElementById(c + '-ctl-s').value, document.getElementById(c + '-ctl-p').textContent], c);
+    if (r[0] !== '0' || !/Play/.test(r[1])) { bad++; console.log('FAIL autoplay', c, r); }
+    // a mode switch must not start it either
+    const seg = { hs: '#hs-rec [data-m="mtls"]', obs: '#obs-mode [data-m="tls12"]', acme: '#acme-pick [data-m="1"]', fl: '#fl-mode [data-m="rsa"]' }[c];
+    await p.evaluate(s => document.querySelector(s).click(), seg); await sleep(2500);
+    const r2 = await p.evaluate(c => [document.getElementById(c + '-ctl-s').value, document.getElementById(c + '-ctl-p').textContent], c);
+    if (r2[0] !== '0' || !/Play/.test(r2[1])) { bad++; console.log('FAIL autoplay after mode switch', c, r2); }
+    total += 2;
+  }
   await p.close();
 }
 await browser.close();
