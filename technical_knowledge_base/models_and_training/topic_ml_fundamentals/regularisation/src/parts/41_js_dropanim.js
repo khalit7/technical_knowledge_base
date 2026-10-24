@@ -44,6 +44,6 @@
       RD.stat('inference ÷ training',i>=7?(inf/mean).toFixed(2)+'×':'…',i>=7?(Math.abs(inf/mean-1)<0.05?'<span class="ok">matches</span>':'<span class="warn">off by 1/p</span>'):'');
   }
   const A=RD.anim({card:'da-card',ctl:'da-ctl',n:8,draw,ms:2000,label:'Dropout step'});
-  $('da-m').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.v;A.reset(8);A.play()});
+  $('da-m').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.v;A.reset(8)});
   addEventListener('resize',()=>{if(card.offsetParent)A.redraw()});
 })();

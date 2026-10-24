@@ -21,3 +21,15 @@ Scores: quantity the reader moves (0-2), reproduces a published figure (x2), com
 | RG11 | Train a toy with/without augmentation | 5 | | none | rejected: a toy would not complete a published result; RG5 carries published effects |
 
 What the methodology lacked here: a rule for comparing methods whose knobs are on different scales. A ridge λ and a lasso λ are not comparable, so RG1 compares at equal training error (the same ellipse) instead of equal λ. Proposed rule: when two methods trade the same quantity, put them side by side at equal cost of that quantity, not at equal knob value.
+
+## 2026-10-24 rebuild to the teaching contract
+| # | Idea | Placement now | Status |
+|---|---|---|---|
+| RG12 | **Hero: train against test loss of one MLP, no regulariser against dropout** (before/after toggle on the same seed; gap bar at epoch 300; the unregularised run's lowest test loss marked as the early-stopping point) | Reading, top | built from the recorded curves of `train_digits.py` (was the "With and without dropout" chart of the Dropout tab) |
+| RG13 | **Adam with L2 against AdamW on the same noise** (six weights, pure-noise gradients, stepper) | Reading, section 3 | absorbed from the parent root's thread 4 (this page owns why AdamW decouples); checked against torch by `check_wd.py` |
+| RG2b | Held-out error against λ with a training-size slider | Reading, section 1 (the bias-variance visual) | moved from the Coefficient paths tab, with a predict prompt |
+| RG4 | Thinned networks on a digit | Reading, section 4 | moved from the Dropout tab |
+| RG4b | Monte Carlo averaging against weight scaling | Reading, section 4, closed block (does-not-reproduce box visible) | moved from the Dropout tab |
+| RG2 | Coefficient paths explorer | own tab (an explorer across all ten coefficients) | kept; held-out part moved out |
+
+Removed: the Dropout as an ensemble tab (its three visuals now sit beside the claims they prove). No real image: this is a mechanism page and no object or canonical figure with a clear reuse licence teaches more than the diagrams (the dropout paper's Figure 1 is drawn by the thinned-network stepper).

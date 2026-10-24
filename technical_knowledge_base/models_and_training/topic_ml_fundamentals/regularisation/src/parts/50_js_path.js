@@ -1,4 +1,4 @@
-// ---- Coefficient paths tab: lasso, ridge and elastic net paths on all 442 diabetes patients; held-out error against lambda ----
+// ---- Coefficient paths tab: lasso, ridge and elastic net paths on all 442 diabetes patients; and (Reading, section 1, moved 2026-10-24) held-out error against lambda ----
 (function(){
   const card=document.getElementById('pa-card');if(!card)return;
   const $=id=>document.getElementById(id);
@@ -38,7 +38,7 @@
   $('pa-ev').innerHTML=knots.map(k=>{const e=k.ev;if(!e)return '<li>λ = 0: least squares, all ten in</li>';const j=+e.slice(1);return '<li>λ = '+fmtL(k.lam)+': <b>'+NM[j]+'</b> '+(e[0]==='+'?'enters':'<span class="warn">leaves</span>')+'</li>'}).join('');
   (function(){const tk=knots.map(k=>sum1(k.b));let i=tk.findIndex(t=>t>=1000);const k0=knots[i-1],k1=knots[i],f=(1000-tk[i-1])/(tk[i]-tk[i-1]);const bb=k0.b.map((v,j)=>v+f*(k1.b[j]-v));
     const inn=bb.map((v,j)=>Math.abs(v)>1e-10?j:-1).filter(j=>j>=0);
-    $('pa-repro').innerHTML='<b>Defaults reproduce Efron et al. (2004), section 1, independently:</b> the lasso reaches least squares at t = Σ|b| = '+sum1(ols).toFixed(2)+' (printed: 3,460.00; the published data carry rounded values) and at t = 1,000 only '+inn.map(j=>NM[j].split(' ')[0]).join(', ')+' are in the model (printed: "only variables 3, 9, 4, and 7", the same four). The path has '+(knots.length-1)+' steps for 10 variables because one variable (s3) leaves and re-enters, the lasso modification of least angle regression (section 3.1).'})();
+    $('pa-repro').innerHTML='<b>Recomputed in your browser just now:</b> t = '+sum1(ols).toFixed(2)+' at least squares; at t = 1,000 the model holds '+inn.map(j=>NM[j].split(' ')[0]).join(', ')+'; '+(knots.length-1)+' steps.'})();
   // ---- held-out error ----
   const HO={m:40,res:null};
   const LG=[...Array(31).keys()].map(i=>LMIN*Math.pow(LMAX*1.3/LMIN,i/30));
@@ -62,7 +62,8 @@
   $('pa-l').addEventListener('input',e=>{st.u=e.target.value/1000;draw()});
   $('pa-r').addEventListener('input',e=>{st.rho=+e.target.value;$('pa-rv').textContent=st.rho.toFixed(2);draw()});
   let tm=0;$('ho-m').addEventListener('input',e=>{HO.m=+e.target.value;$('ho-mv').textContent=HO.m;clearTimeout(tm);tm=setTimeout(drawHO,120)});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-path']=[draw,drawHO];
-  addEventListener('resize',()=>{if(card.offsetParent){draw();drawHO()}});
+  (window.TAB_RENDER=window.TAB_RENDER||{})['t-path']=[draw];
+  RD.onRender(drawHO);
+  addEventListener('resize',()=>{if(card.offsetParent)draw();if($('ho-card').offsetParent)drawHO()});
   window.PATH_TEST={draw,drawHO,st,HO};
 })();
