@@ -94,7 +94,7 @@ for root, dirs, files in os.walk(os.path.dirname(HERE)):
         for m in email.findall(t):
             if m not in ("user@example", "support@anthropic.com") and not m.endswith(("@anthropic.com",)):
                 fail.append(f"e-mail-like string {m} in {os.path.relpath(p, HERE)}")
-if "—" in PAGE: fail.append("em-dash in page")
+if "\u2014" in PAGE: fail.append("em-dash in page")
 print(f"{len(CHECKS)} prose numbers checked, {len(D['runs'])} runs embedded")
 print("FAIL\n" + "\n".join(sorted(set(fail))) if fail else "OK")
 sys.exit(1 if fail else 0)

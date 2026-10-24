@@ -1,4 +1,4 @@
-// ---- Reading tab: one-screen numbers, architecture drawing, session phases, permission pipeline animation ----
+// ---- Reading tab: one-screen numbers, architecture drawing (hero), rewind, structured output ----
 (function(){
   const F=window.FSDK,R=F.runs,esc=RD.esc;
   const fmt=n=>n==null?'n/a':Number(n).toLocaleString('en-US');
@@ -37,7 +37,7 @@
       s+=RD.t(0,14,'stdin: '+nIn+' lines (prompt, initialize, '+(nIn-2)+' answers)   stdout: '+nOut+' lines ('+ctrlOut.length+' questions, '+nMsgOut+' messages and replies)',{fs:11});
       s+=RD.t(0,H-12,'One JSON object per line in both directions; each question carries a request id that its answer echoes.',{fs:11,fill:'var(--mute)'});
     } else {
-      const bw=W-2,bh=112;let y=22;H=3*bh+2*44+40;
+      const bw=W-2,bh=112;let y=22;H=22+3*bh+2*44-40+10;
       s+=box(0,y,bw,bh,'Your process (Python SDK)',A,'var(--good)');
       const ay=(y1,y2,x,lab,col)=>'<line x1="'+x+'" y1="'+y1+'" x2="'+x+'" y2="'+y2+'" stroke="'+col+'" stroke-width="2" marker-end="url(#fsdkAr)"/>'+RD.t(x+8,(y1+y2)/2+4,lab,{fs:10.5,fill:'var(--mute)'});
       s+=ay(y+bh+2,y+bh+40,W*0.3,'stdin '+nIn,'var(--good)')+ay(y+bh+40,y+bh+2,W*0.62,'stdout '+nOut,'var(--acc)');
@@ -50,10 +50,6 @@
     el.innerHTML=RD.svg(W,H,defs+s,'Your process, the Claude Code child process and the API, with the message counts of run s1');
   }
   arch();RD.onRender(arch);RD.onResize(arch);
-
-  // session phases (s4)
-  const ph={turn1:['Turn 1','ClaudeSDKClient: run the tests, change nothing'],turn2:['Turn 2','same process: fix the first failure only'],resume:['Resume','new process, resume=session id: fix the rest'],fork:['Fork','new process, fork_session: what is fixed so far?']};
-  document.getElementById('fsdk-sess').innerHTML=R.s4_session.results.map(r=>'<div class="fsdk-ph"><b>'+ph[r.phase][0]+'</b><span class="s">'+ph[r.phase][1]+'</span><br>reported '+usd(r.cost)+'<br>own '+usd(r.own_cost)+'<br><span class="s">'+r.num_turns+(r.num_turns===1?' turn, ':' turns, ')+r.session+'</span></div>').join('');
 
   // rewind (s9)
   const rw=R.s9_rewind.other.filter(o=>o.kind==='tests');

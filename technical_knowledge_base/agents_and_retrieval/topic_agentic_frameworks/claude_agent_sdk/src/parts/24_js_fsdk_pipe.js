@@ -40,5 +40,5 @@
       RD.stat('Allowed by your callback',c(x=>x.at===5&&x.v==='allow'),'')+RD.stat('Refused',c(x=>x.v==='deny'),L==='s3_bare'?'nobody to ask':'');
   }
   const A=RD.anim({card:'fsdk-pipe-card',ctl:'fsdk-pipe-ctl',n:S.length,draw,ms:1700,label:'Tool call'});
-  RD.seg(document.getElementById('fsdk-pipe-mode'),m=>{L=m;S=steps(L);A.reset(S.length);A.play();});
+  RD.seg(document.getElementById('fsdk-pipe-mode'),m=>{L=m;S=steps(L);A.reset(S.length);});
 })();

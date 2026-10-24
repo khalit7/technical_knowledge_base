@@ -1,5 +1,6 @@
-// ---- Wire lab: replay of the recorded stdin/stdout lines of runs s1 and s3 ----
+// ---- Reading tab, section 1: replay of the recorded stdin/stdout lines of runs s1 and s3 ----
 (function(){
+  if(!document.getElementById('fw-card'))return;
   const F=window.FSDK,esc=RD.esc;
   let L='s1_wire',only=false,rows=[];
   const get=(s,k)=>{const m=new RegExp('"'+k+'": "([^"]*)"').exec(s||'');return m?m[1]:''};
@@ -58,7 +59,7 @@
       RD.stat('Refusals',n(r=>r[2]==='system'&&r[3]==='permission_denied'),L==='s3_bare'?'nobody to ask':'');
   }
   build();
-  const A=RD.anim({card:'fw-card',ctl:'fw-ctl',n:rows.length,draw,ms:900,label:'Wire line',tab:'t-wire'});
-  RD.seg(document.getElementById('fw-mode'),m=>{L=m;build();A.reset(rows.length);A.play();});
+  const A=RD.anim({card:'fw-card',ctl:'fw-ctl',n:rows.length,draw,ms:900,label:'Wire line'});
+  RD.seg(document.getElementById('fw-mode'),m=>{L=m;build();A.reset(rows.length);});
   document.getElementById('fw-ctl-only').addEventListener('change',e=>{only=e.target.checked;build();A.reset(rows.length);});
 })();

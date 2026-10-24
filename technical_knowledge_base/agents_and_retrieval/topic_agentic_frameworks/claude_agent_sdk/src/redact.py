@@ -35,7 +35,7 @@ def git_ident():
 IDENT = git_ident()
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b")
-EMD = "—"
+EMD = "\u2014"
 emdash_count = 0
 
 DOC_TOOLS = {"Read", "Edit", "Write", "Bash", "WebFetch", "WebSearch", "Skill", "Task", "Agent", "NotebookEdit",
