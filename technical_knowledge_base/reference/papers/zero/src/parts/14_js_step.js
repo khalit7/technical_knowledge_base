@@ -23,10 +23,10 @@ const commTo=(st,k)=>{let s=0;for(let j=0;j<=k;j++)comms(st,j).forEach(c=>s+=c.v
 // GPU 0's model-state bytes per parameter at step k
 function memAt(st,nd,k){const c=cells(st,nd,k,0);let m=0;for(let l=0;l<L;l++){m+=(c.P[l]?2:0)/L+(c.G[l]?2:0)/L+(c.O[l]?12:0)/L}return m}
 const peakTo=(st,nd,k)=>{let p=0;for(let j=0;j<=k;j++)p=Math.max(p,memAt(st,nd,j));return p};
-const TITLES=['Start of the step','Forward, layers 1 and 2','Forward, layers 3 and 4','Forward, layers 5 and 6','Forward, layers 7 and 8','Backward, layers 8 and 7','Backward, layers 6 and 5','Backward, layers 4 and 3','Backward, layers 2 and 1','Optimizer step','End of the step'];
+const TITLES=['Start of the step','Forward, layers 1 and 2','Forward, layers 3 and 4','Forward, layers 5 and 6','Forward, layers 7 and 8','Backward, layers 8 and 7','Backward, layers 6 and 5','Backward, layers 4 and 3','Backward, layers 2 and 1','Optimiser step','End of the step'];
 function say(st,k){const ph=phase(k),n=SSHORT[st];
-  if(st==='dp')return ph==='rest'?'every GPU holds everything: all parameters, gradients and optimizer states, 16 bytes per parameter.':ph==='fwd'?'computes these layers with its own full copy; no communication.':ph==='bwd'?'computes these layers\' gradients, then all-reduces them across GPUs (bucketed): 2 × 1/4 of Ψ per GPU.':ph==='opt'?'every GPU runs the same full Adam update on its own copy, redundantly.':'nothing left to do; total moved: 2Ψ.';
-  if(st==='os')return ph==='rest'?'like DDP, but each GPU keeps only its own 1/N<sub>d</sub> of the optimizer states.':ph==='fwd'?'same as DDP: full parameters, no communication.':ph==='bwd'?'reduces these gradients onto the GPU that owns them (a reduce-scatter, 1/4 of Ψ); the full gradient buffer stays allocated.':ph==='opt'?'each GPU updates only the fp32 master parameters it owns, 1/N<sub>d</sub> of the work.':'all-gathers the updated fp16 parameters (Ψ) so every GPU is in sync: total 2Ψ, DDP\'s volume.';
+  if(st==='dp')return ph==='rest'?'every GPU holds everything: all parameters, gradients and optimiser states, 16 bytes per parameter.':ph==='fwd'?'computes these layers with its own full copy; no communication.':ph==='bwd'?'computes these layers\' gradients, then all-reduces them across GPUs (bucketed): 2 × 1/4 of Ψ per GPU.':ph==='opt'?'every GPU runs the same full Adam update on its own copy, redundantly.':'nothing left to do; total moved: 2Ψ.';
+  if(st==='os')return ph==='rest'?'like DDP, but each GPU keeps only its own 1/N<sub>d</sub> of the optimiser states.':ph==='fwd'?'same as DDP: full parameters, no communication.':ph==='bwd'?'reduces these gradients onto the GPU that owns them (a reduce-scatter, 1/4 of Ψ); the full gradient buffer stays allocated.':ph==='opt'?'each GPU updates only the fp32 master parameters it owns, 1/N<sub>d</sub> of the work.':'all-gathers the updated fp16 parameters (Ψ) so every GPU is in sync: total 2Ψ, DDP\'s volume.';
   if(st==='os_g')return ph==='rest'?'also keeps only its own gradients: 2 + 14/N<sub>d</sub> bytes per parameter.':ph==='fwd'?'full parameters, no communication.':ph==='bwd'?'computes these gradients, reduce-scatters them to their owner (1/4 of Ψ) and frees every gradient it does not own at once.':ph==='opt'?'each GPU updates its own slice.':'all-gathers the updated parameters (Ψ): total 2Ψ, still DDP\'s volume.';
   return ph==='rest'?'keeps only its own 1/N<sub>d</sub> of everything, parameters included: 16/N<sub>d</sub> bytes per parameter.':ph==='fwd'?'the owner broadcasts these layers\' weights (an all-gather, 1/4 of Ψ); every GPU computes them and discards the weights it does not own.':ph==='bwd'?'gathers these weights again (1/4 of Ψ), computes their gradients, reduce-scatters them to the owner (1/4 of Ψ), and frees both.':ph==='opt'?'each GPU updates its own slice, which is all it stores.':'nothing to gather: the next forward fetches weights on demand. Total 3Ψ, 1.5× DDP.'}
 const modes={};Object.keys(PAIRS).forEach(m=>{const [a,b]=PAIRS[m];modes[m]=TITLES.map((t,k)=>({t,c:'<b>'+SSHORT[a]+':</b> '+say(a,k)+'<br><b>'+SSHORT[b]+':</b> '+say(b,k)}))});
@@ -54,12 +54,12 @@ function panel(st,nd,k,e,w,y0){const lw=50,gp=6,sw=w-lw-2*gp-4,u=sw/16,rh=15,rs=
   labs.forEach((t,i)=>s+=tx(0,top+nd*rs+12+i*14,t,{fs:11,c:'var(--mute)'}));
   return {s,h:nd*rs+22+20+14}}
 const fmtPsi=v=>{if(v===0)return '0';const w=Math.floor(v+1e-9),f=Math.round((v-w)*4),fr=['','¼','½','¾'][f];return (w?w:'')+fr+'Ψ'};
-const SVGN={dp:'Baseline DP (DDP): nothing partitioned',os:'ZeRO-1: optimizer states partitioned',os_g:'ZeRO-2: optimizer states and gradients partitioned',os_g_p:'ZeRO-3: parameters partitioned too'};
+const SVGN={dp:'Baseline DP (DDP): nothing partitioned',os:'ZeRO-1: optimiser states partitioned',os_g:'ZeRO-2: optimiser states and gradients partitioned',os_g_p:'ZeRO-3: parameters partitioned too'};
 function draw(m,k,e,w){const [a,b]=PAIRS[m],nd=ndOf();const lw=50,gp=6,sw=w-lw-2*gp-4,u=sw/16;
   let s='',y=0;
   // column headers
   const X={p:lw,g:lw+2*u+gp,o:lw+4*u+2*gp};
-  s+=tx(X.p,10,'P',{fs:11,c:'var(--c1)',w:600})+tx(X.g,10,'G',{fs:11,c:'var(--c2)',w:600})+tx(X.o,10,'optimizer states (fp32)',{fs:11,c:'var(--c3)',w:600});y=16;
+  s+=tx(X.p,10,'P',{fs:11,c:'var(--c1)',w:600})+tx(X.g,10,'G',{fs:11,c:'var(--c2)',w:600})+tx(X.o,10,'optimiser states (fp32)',{fs:11,c:'var(--c3)',w:600});y=16;
   const A=panel(a,nd,k,e,w,y);s+=A.s;y+=A.h+6;const B=panel(b,nd,k,e,w,y);s+=B.s;y+=B.h;
   return svgW(w,y,s,'One training step under '+SSHORT[a]+' and '+SSHORT[b])}
 function counters(m,k){const [a,b]=PAIRS[m],nd=ndOf();
@@ -76,5 +76,5 @@ function scale(){const psi=+$('stsM').value*1e9,nd=ND_STEPS[+$('stsN').value];$(
   $('stsT').innerHTML=h+'</tbody>';
   $('stsRep').innerHTML=(+$('stsM').value===7.5&&nd===64?'Defaults reproduce Figure 1 independently: 120, 31.4, 16.6 and 1.9 GB (the paper\'s '+A(PAPER.meta.ax+'#S1.F1','Figure 1')+', '+A(PAPER.meta.ax+'#S5','§5')+').':'Figure 1\'s example is 7.5B at N<sub>d</sub> = 64.')+' "Moved" is the paper\'s per-process volume; one step is one gradient update, however many micro-batches it accumulates.'}
 ['stsM','stsN'].forEach(id=>$(id).addEventListener('input',scale));$('stsM').addEventListener('change',scale);
-onTab('t-step',()=>{scale();anim&&anim.draw()});
+onTab('t-read',()=>{scale();anim&&anim.draw()});const sd=$('sts-d');if(sd)sd.addEventListener('toggle',()=>{if(sd.open)scale()});
 })();

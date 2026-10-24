@@ -60,3 +60,11 @@ Old page's visuals: none (one table of stages). Its links (arXiv, DeepSpeed repo
 ## What the methodology lacked here
 
 A rule for papers whose appendix tables disagree with the body (Table 4 against Table 5, the appendix's figure numbering): treat the run configuration table as the source, as a config beats a paper, and say which.
+
+## 2026-10-24 light pass (teaching contract)
+
+| # | Idea | What it shows | Placement | Decision |
+|---|---|---|---|---|
+| P-zero.H | Hero: DDP against ZeRO-3 on 4 GPUs (static before/after) | Each GPU's model states for the 7.5B model to scale (2 : 2 : 12 bytes), all filled under DDP, one quarter filled under ZeRO-3; 120 against 30 GB per GPU, 2Ψ against 3Ψ per step | top of Reading | built (`16_js_hero.js`); the paper's Figure 1 is not CC BY, so redrawn; intermediate stages left to the live Figure 1 |
+| (moved) | The training-step step-through | unchanged | Reading, end of Communication | moved from the removed tab: it proves the 2Ψ and 3Ψ claim beside it |
+| (rejected) | A DGX-2 photo | the 16-GPU node the paper ran on | none | a mechanism page; the photo would not change what the reader understands |

@@ -11,7 +11,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, N = 'The paper tab', 'Step through a training step tab', "The paper's tables tab", 'Then and now tab'
 C = [
  # header
- ('Reading time line "9 min read, +~3h 45m resources"', 'dropped: replaced by the build-computed reading time and resources total (3h 45m, the same)', ['min to read', '3h 45m of resources']),
+ ('Reading time line "9 min read, +~3h 45m resources"', 'dropped: replaced by the build-computed reading time and resources total (3h 45m, the same)', ['in closed details', 'Reading time of the resources below']),
  ('Authors: Rajbhandari, Rasley, Ruwase, He (Microsoft)', R + ', headline card', ['Samyam Rajbhandari', 'Jeff Rasley', 'Olatunji Ruwase', 'Yuxiong He', 'Microsoft']),
  ('Date: October 2019 (arXiv v1); v3 May 2020; published at SC20', R + ', headline card', ['October 2019 (arXiv v1); v3 May 2020; published at SC20']),
  ('Link arXiv 1910.02054 (~1h)', 'card and Further reading', ['https://arxiv.org/abs/1910.02054', '(1h)']),
@@ -26,7 +26,7 @@ C = [
  ('DP replicates the full model state on every GPU; DDP OOM beyond ~1.4B on 32GB V100s regardless of GPU count', R + ', Problem', ['replicates the full model state on every GPU', '1.4B parameters', 'however many GPUs you add']),
  ('Model parallelism (Megatron tensor parallelism) partitions memory but fine-grained compute and heavy per-layer communication; collapses past one NVLink node', R + ', Problem', ['slicing every layer across GPUs', 'works within one node but collapses beyond it']),
  ('40B model across two DGX-2 nodes ran at ~5 TFLOPS/GPU, under 5% of peak', R + ', Problem; Tables tab check', ['about 5 TFLOPS per V100, under 5% of peak', '40B model with Megatron-LM across two DGX-2 nodes']),
- ('Real culprit: optimizer states and gradients replicated, not the fp16 weights', R + ', Problem "The diagnosis"', ['Most of the memory is not the fp16 weights; it is the optimizer states and gradients']),
+ ('Real culprit: optimizer states and gradients replicated, not the fp16 weights', R + ', Problem "The diagnosis"', ['Most of the memory is not the fp16 weights; it is the optimiser states and gradients']),
  # method: accounting
  ('Accounting: "Where did all the memory go?"', R + ', section title', ['Where did all the memory go?']),
  ('fp16 parameters 2Ψ, fp16 gradients 2Ψ, optimizer K Ψ with K = 12 (fp32 master 4Ψ + momentum 4Ψ + variance 4Ψ)', R + ', predict reveal and memory bar', ['fp16 parameters (2Ψ bytes', 'fp16 gradients (2Ψ)', '4Ψ + 4Ψ + 4Ψ', 'K = 12 for mixed-precision Adam']),
@@ -59,8 +59,8 @@ C = [
  # why it matters
  ('Launched DeepSpeed, defined the vocabulary ZeRO-1/2/3, stage 3', R + ', Why it matters', ['launched DeepSpeed', '"ZeRO-1, 2, 3" and "stage 3"']),
  ('Core insight: DP memory redundancy eliminated without giving up DP communication efficiency or model surgery; default way to train large models without or alongside TP', R + ', Why it matters', ['memory redundancy can be removed without giving up its communication efficiency or touching model code', 'alone or alongside tensor parallelism']),
- ('BLOOM, Turing-NLG, MT-NLG 530B and countless fine-tuning runs sit on it', R + ' and Then and now (corrected: BLOOM ZeRO stage 1; MT-NLG\'s report names 3D parallelism with DeepSpeed and Megatron but states no ZeRO stage, and counts 20 bytes per parameter)', ['BLOOM used ZeRO stage 1', 'MT-NLG 530B', 'its stage is not stated']),
- ('FSDP (and FSDP2 with DTensor sharding) is the direct native descendant of ZeRO-3; SHARD_GRAD_OP ~ ZeRO-2, FULL_SHARD ~ ZeRO-3', R + ' and Then and now, with the docs quoted', ['FULL_SHARD is ZeRO-3', 'SHARD_GRAD_OP shards gradients and optimizer states while keeping parameters gathered', 'shards parameters as DTensors']),
+ ('BLOOM, Turing-NLG, MT-NLG 530B and countless fine-tuning runs sit on it', R + ' and Then and now (corrected: BLOOM ZeRO stage 1; MT-NLG\'s report names 3D parallelism with DeepSpeed and Megatron but states no ZeRO stage, and counts 20 bytes per parameter)', ['BLOOM with ZeRO stage 1', 'MT-NLG 530B', 'its stage is not stated']),
+ ('FSDP (and FSDP2 with DTensor sharding) is the direct native descendant of ZeRO-3; SHARD_GRAD_OP ~ ZeRO-2, FULL_SHARD ~ ZeRO-3', R + ' and Then and now, with the docs quoted', ['FULL_SHARD is ZeRO-3', 'SHARD_GRAD_OP shards gradients and optimiser states while keeping parameters gathered', 'shards parameters as DTensors']),
  ('ZeRO-Offload (2021): optimizer states and update to CPU', R + ' and Then and now', ['ZeRO-Offload', 'optimizer states and the update step on CPU']),
  ('ZeRO-Infinity (2021): NVMe offload, trillion-parameter fine-tuning on modest clusters', R + ' and Then and now (made precise: one DGX-2 node; 32T parameters on 512 GPUs)', ['ZeRO-Infinity', 'fine-tune trillion parameter models on a single NVIDIA DGX-2 node', '32 trillion parameters on 512 V100s']),
  ('ZeRO++ (2023): quantised weights/gradients and hierarchical partitioning cut stage-3 communication', R + ' and Then and now', ['ZeRO++', 'quantised weight all-gather', 'hierarchical weight partition', 'reduces communication volume of ZeRO by 4x']),

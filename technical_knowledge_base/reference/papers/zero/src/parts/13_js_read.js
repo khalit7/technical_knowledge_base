@@ -2,13 +2,13 @@
 (function(){
 // 16 bytes per parameter, to scale
 function mem(){const psi=+$('memM').value*1e9,k=+$('memK').value;$('memKv').textContent=k;
-  fit($('memSvg'),w=>{const segs=[['fp16 parameters',2,COL.p],['fp16 gradients',2,COL.g],['fp32 optimizer states',k,COL.o]],tot=4+k,maxT=18;
+  fit($('memSvg'),w=>{const segs=[['fp16 parameters',2,COL.p],['fp16 gradients',2,COL.g],['fp32 optimiser states',k,COL.o]],tot=4+k,maxT=18;
     const u=(w-4)/maxT;let s='',x=0;segs.forEach(([n,b,c])=>{if(b>0)s+=rc(x,6,b*u-1,26,c,{r:3});x+=b*u});
     s+=ln2(16*u,0,16*u,40,'var(--ink)',{da:'3 3',op:.6})+(16*u+190<w?tx(16*u+4,48,'16 bytes: mixed-precision Adam',{fs:11,c:'var(--mute)'}):tx(16*u-4,48,'16 bytes: mixed-precision Adam',{fs:11,a:'end',c:'var(--mute)'}));
     const L=legend(segs.filter(q=>q[1]>0).map(([n,b,c])=>[n+' '+b+' B',c]),0,72,w);s+=L.s;
     $('memSvg').innerHTML=svgW(w,72+L.h,s,'Model-state bytes per parameter')});
   const tot=(4+k)*psi;
-  $('memO').innerHTML=stat('fp16 weights alone',gb(2*psi)+' GB','2 bytes per parameter')+stat('Model states, K = '+k,gb(tot)+' GB',(4+k)+' bytes per parameter')+stat('Optimizer share',fmt(100*k/(4+k),0)+'%','of the model states')+stat('32 GB V100s just to hold them',fmt(Math.ceil(tot/32e9)),'if they could be split, which plain DP cannot')}
+  $('memO').innerHTML=stat('fp16 weights alone',gb(2*psi)+' GB','2 bytes per parameter')+stat('Model states, K = '+k,gb(tot)+' GB',(4+k)+' bytes per parameter')+stat('Optimiser share',fmt(100*k/(4+k),0)+'%','of the model states')+stat('32 GB V100s just to hold them',fmt(Math.ceil(tot/32e9)),'if they could be split, which plain DP cannot')}
 ['memM','memK'].forEach(id=>{$(id).addEventListener('input',mem);$(id).addEventListener('change',mem)});
 // Figure 1: rows are stages, three GPUs shown, bars to scale against the baseline
 function f1(){const psi=+$('f1M').value*1e9,nd=ND_STEPS[+$('f1N').value];$('f1Nv').textContent=nd;
