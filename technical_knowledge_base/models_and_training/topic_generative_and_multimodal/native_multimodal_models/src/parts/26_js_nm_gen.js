@@ -28,7 +28,7 @@
     mask:{x:'steps',lab:'masked rounds (s = 1, 2, 3)',pts:()=>N.smp.mask,xf:v=>v,log:true,series:'s'}};
   let swm='ar_temp',swSel=null;
   function drawSw(){
-    const c=SW[swm],el=$('g-swc'),w=Math.max(280,RD.width(el)),h=210,L=44,R=10,T=12,B=34;
+    const c=SW[swm],el=$('g-swc'),w=Math.max(280,RD.width(el)),h=222,L=44,R=10,T=24,B=34;
     let pts=c.pts().filter(Boolean).map(p=>Object.assign({},p)).sort((a,b)=>a[c.x]-b[c.x]);
     const xs=[...new Set(pts.map(p=>p[c.x]))].sort((a,b)=>a-b);
     const X=v=>{const i=xs.indexOf(v);return L+(xs.length>1?i/(xs.length-1):0.5)*(w-L-R)};
@@ -46,7 +46,7 @@
       gp.forEach(p=>{const on=swSel&&swSel===p;s+='<circle data-i="'+pts.indexOf(p)+'" cx="'+X(p[c.x])+'" cy="'+Y(p.fd)+'" r="'+(on?6:4.5)+'" fill="'+cols[gi]+'" stroke="var(--bg)" style="cursor:pointer"><title>'+c.lab+' '+p[c.x]+': FD '+p.fd+'</title></circle>'});
       if(g!=null)s+=RD.t(w-R,T+10+13*gi,'guidance s = '+g,{a:'end',fs:10.5,fill:cols[gi],w:600})});
     xs.forEach(v=>{s+=RD.t(X(v),h-B+14,String(c.xf(v)),{a:'middle',fs:10})});
-    s+=RD.t(L+(w-L-R)/2,h-4,c.lab,{a:'middle',fs:11})+RD.t(4,T+2,'FD',{fs:10});
+    s+=RD.t(L+(w-L-R)/2,h-4,c.lab,{a:'middle',fs:11})+RD.t(4,12,'FD',{fs:11});
     el.innerHTML=RD.svg(w,h,s,'FD against '+c.lab);
     el.querySelectorAll('circle').forEach(ci=>ci.addEventListener('click',()=>{swSel=pts[+ci.dataset.i];drawSw()}));
     if(!swSel||!pts.includes(swSel)){swSel=pts.find(p=>p.fd===Math.min(...pts.map(q=>q.fd)))}
@@ -76,15 +76,11 @@
     }
   }
   function setClass(c){wc=c;frameImg=new Image();frameImg.onload=()=>drawWatch(A3?A3.i:0);frameImg.src=N.img['ar_frames__1.0_c'+c]}
-  function init(){
-    if(init.done){drawSw();return}init.done=1;
-    ['g-t','g-k','g-s'].forEach(id=>$(id).addEventListener('input',drawSamp));
-    RD.seg($('g-swm'),m=>{swm=m;swSel=null;drawSw()});
-    $('g-wc').addEventListener('change',e=>{setClass(+e.target.value);A3.go(0)});
-    setClass(3);
-    A3=RD.anim({card:'g-watch',ctl:'g-wctl',n:65,draw:drawWatch,ms:450,label:'Token'});
-    drawSamp();drawSw();
-    let t=0;addEventListener('resize',()=>{if($('t-nmgen').hidden)return;clearTimeout(t);t=setTimeout(drawSw,80)});
-  }
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-nmgen']=window.TAB_RENDER['t-nmgen']||[]).push(init);
+  ['g-t','g-k','g-s'].forEach(id=>$(id).addEventListener('input',drawSamp));
+  RD.seg($('g-swm'),m=>{swm=m;swSel=null;drawSw()});
+  $('g-wc').addEventListener('change',e=>{setClass(+e.target.value);A3.go(0)});
+  setClass(3);
+  A3=RD.anim({card:'g-watch',ctl:'g-wctl',n:65,draw:drawWatch,ms:450,label:'Token'});
+  drawSamp();drawSw();
+  RD.onRender(drawSw);RD.onResize(drawSw);
 })();

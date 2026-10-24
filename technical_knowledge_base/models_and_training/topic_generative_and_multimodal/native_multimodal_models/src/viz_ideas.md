@@ -24,3 +24,13 @@ Central question: when one network reads and writes images and speech, what does
 
 ## What the methodology lacked
 - A rule for comparing generator families at "equal compute" when one needs a separately trained tokenizer: here the generator's training FLOPs are matched and the tokenizer's are reported apart (about 8% of the budget).
+
+## Rebuild 2026-10-24 (teaching contract)
+| # | Idea | Placement | Kind |
+|---|---|---|---|
+| 11 | Hero: design grid, what an image becomes going in against how it is written out, every named model placed | Reading top | static annotated diagram (HTML table, cards at phone width) |
+| 12 | Transfusion against Chameleon-style tokens: parity FLOP ratio on six metrics (Table 3) | Reading s6 | static bars |
+| 13 | Data mixes of Chameleon, Transfusion, Janus and Janus-Pro, each 100% of its own unit | Reading s7 | static stacked bars |
+| 14 | MoT: separate weights, shared attention; savings against the dense baseline | Reading s7 | static diagram plus bars |
+| 15 | Cascade against Moshi's frame layout (17 tokens per 80 ms step, acoustic codebooks one frame late) | Reading s9 | static diagram at measured width |
+Moved inline: #2 (Fusion explorer, now s6) and #8 (Token generator lab: stepper and sweeps in s3, the 45-setting grid closed). Removed: #5's temperature table (the sweep chart carries the same rows). Rejected: a paper's canonical figure (Transfusion Figure 1, Chameleon Figure 1): the explorer already draws the same masks in this page's colours, and the arXiv licences were not checked as reusable.

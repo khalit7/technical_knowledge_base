@@ -2,13 +2,12 @@
 
 Child 7 of Topic: generative-and-multimodal: "Native multimodal and any-to-any models". `sh build.sh` writes `../index.html` from `parts/`.
 
-## Tabs
-- Reading (`parts/20_read_a.html` to `20_read_i.html`, closed by `20_read_z.html`; scripts `23_js_nm_fa.js` for the section 1 animation, `24_js_nm_read.js` for recorded numbers, the token viewer, the three-way decoding animation and the equal-compute table). Sections: in one screen; 1 fusion words and a pipeline-against-early-fusion animation; 2 two kinds of image token; 3 one token at a time; 4 faster decoding; 5 equal compute against the root's DDPM and flow models; 6 unified models; 7 closed systems; 8 speech; 9 native or pipeline; 10 mistakes; 11 interview questions; 12 what transfers.
-- Fusion explorer (`31_*`): ten designs, attention masks on one toy request.
-- Token generator lab (`32_*`): recorded samples of the tiny AR and masked models.
+## Tabs and parts (rebuilt 2026-10-24 to the teaching contract)
+- Reading (`parts/20_read_a.html` to `20_read_i.html`, closed by `20_read_z.html`). Sections: the idea in one screen (core sentence, hero design grid, you need, new terms, what was measured, the seven-design table closed); 1 early against late fusion with the pipeline-against-early-fusion stepper; 2 two kinds of image token; 3 one token at a time (stepper of one image written, the sweep chart, the 45-setting grid and the sampling code closed); 4 faster decoding (comparison table, method details closed, three-way stepper); 5 equal compute; 6 unified models (the fusion explorer inline, the Transfusion parity chart, scores and Chameleon provenance closed); 7 interleaved data and modality balance (new: data-mix bars, loss weights, MoT diagram and savings); 8 closed systems; 9 speech (cascade and Moshi frame diagram); 10 native or pipeline; 11 depth (six mistakes, two design questions, what transfers, all closed).
+  Scripts: `23_js_nm_fa.js` (section 1 stepper), `24_js_nm_read.js` (recorded numbers, token viewer, heat maps, three-way stepper, equal-compute chart), `25_js_nm_fx.js` (fusion explorer, was the Fusion explorer tab), `26_js_nm_gen.js` (sweeps, 45-setting grid and the token-by-token stepper, was the Token generator lab tab), `27_js_nm_sp.js` (Moshi frame diagram).
 - Token economics (`33_*`): request tokens, cache, generation calls and FLOPs, speech budget. Its Qwen3.5 and SmolVLM ports are checked by `checks/check_tok.mjs` against the VLM sibling's recorded processor outputs (`inputs/vm_token_rules.json`).
 - Further reading (`39_tab_more.html`).
-Shared parts copied from the root: `01_head.html` (title changed), `05z_errbox.js.html`, `21_js_rd_common.js`; `99_js_tabs.js` with storage key `nm-tab`. The Reading CSS is the av sibling's, prefixes renamed.
+Shared parts: `01_head.html` (title changed), `05z_errbox.js.html`; `21_js_rd_common.js` and `99_js_tabs.js` are the explainer-page skill templates (never autoplay; storage key `nm-tab`). `prefill.py`, run by `build.sh`, writes every recorded number (`data-nm` spans) into the static HTML so the page reads without JavaScript and the ledger check can find them.
 
 ## Runs (Apple M1 Pro, MPS under the bench lock, PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.45; one model per process)
 1. `ar/tokenize_data.py` (CPU): the 70,000 images as 64 tokens with the av sibling's FSQ-1000 tokenizer and the Latent lab's VQ-128; reconstruction FD on 1,000 validation images; FLOPs of TinyUNet and the transformers. Out: `out/tokenize.json`; tokens in `GM_SCRATCH/nm/`.
@@ -22,7 +21,32 @@ The DDPM and flow numbers are the root labs' recorded JSON (`src/diff/out`, `src
 `inputs/published_ar.md`, `inputs/published_unified.md`, `inputs/published_closed_omni.md` (verbatim quotes with versions, collected 2026-10-17), `inputs/published_api_tokens.md`, `inputs/source_lines.json` (transformers v5.20.1 lines located by `checks/source_lines.py`). `facts.md` lists the verified facts this page adds.
 
 ## Checks
-`checks/check_tok.mjs`, `checks/check_data.py` (embedded data equals the recorded files; static numbers in prose against data), `checks/check_page.mjs` (puppeteer, every control at 390 dark and 920 light), and `html_utils/checkpage.sh`.
+`checks/check_tok.mjs`, `checks/check_data.py` (embedded data equals the recorded files; static numbers in prose against data), `checks/check_page.mjs` (puppeteer, every control at 390 dark and 920 light; tabs t-read, t-nmtok, t-more), and `html_utils/checkpage.sh`.
+
+## The 2026-10-24 rebuild: what changed and why
+Rebuilt to the teaching contract (`.claude/skills/explainer-page/teaching/teaching-contract.md`), editing only, no new runs.
+- **Top**: the core idea in one sentence and a static hero, the design grid (what an image becomes going in against how it is written out, every named model placed, cells linking to their sections); "You need" (VLM, autoencoders, diffusion, flow siblings); seven new terms; the measured summary written statically; the old "In one screen" table closed as reference.
+- **Lab tabs folded into Reading.** The Fusion explorer became the visual of section 6 (masks and losses are what separate the unified designs); the Token generator lab's token-by-token stepper and sweep chart became section 3's visuals, its 45-setting grid a closed block. Token economics stays a tab: a calculator used by sections 2, 8 and 9.
+- **New visuals where a core idea had none**: the hero grid; Transfusion's parity FLOP ratios on six metrics (section 6, Table 3); the data-mix bars (Chameleon, Transfusion, Janus and Janus-Pro) and the MoT diagram with its savings (section 7); the cascade against Moshi's 17-tokens-per-80-ms frame diagram (section 9). The temperature table was replaced by the sweep chart, which carries the same rows.
+- **New section 7, interleaved data and modality balance**, which this page owns but barely covered; every number is from `inputs/published_unified.md` (Chameleon 2.2.1, Transfusion 1 and 3, Janus-Pro 2.2 and 2.3, MoT abstract and 6.1, BAGEL 2.2, Llama 4 blog). MoT's figures moved here from section 6.
+- **No autoplay**: template controller; the two mode switches that called `play()` (sections 1 and 4) no longer do. Checked under normal and reduced motion: all three steppers stay on step 0.
+- **Closed (depth)**: the four faster-decoding methods' details, Chameleon's evidence and release, Emu3's numbers, unified-model scores and Gemma's config, the Gemini API units, AnyGPT and licences, NExT-GPT, the sampling code, positions-per-image table, six mistakes, two design questions, what transfers.
+- **Deleted as fat** (23 ledger units, each with a note): wind-ups and headings, pointers to removed tabs, the greedy and "native means no encoder" mistakes (the core shows both), six interview answers that restated sections 1 to 6.
+- **Figures at least 11 px**: the fusion explorer's labels went from 9 to 11 px (column labels turned); the heat-map numbers from 9 to 11 px.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After (2026-10-24) |
+|---|---|---|
+| Reading, core (230 words a minute, `audit_pages.mjs`) | 8,068 words, 35 min | 7,515 words, 33 min |
+| Reading, closed details | 1,081 words, 5 min | 2,690 words, 12 min |
+| Other tabs, core | Fusion explorer 375, Token generator lab 446, Token economics 678: 6.5 min | Token economics 678: 3 min |
+| Core of the subject (Reading plus lab tabs) | 41.5 min | 35.6 min |
+| Visuals inline in Reading | 8 | 15 |
+
+Why 33 minutes is right: the Reading tab now holds what two lab tabs used to carry (the explorer and the generator's stepper and sweeps, about 820 words of captions and controls) and a new section on data and balance that this page owns, while the core of the subject fell by six minutes. Every core unit explains one of the two design choices in the hero, measures its price on the running example, or records what a design's own document says. What could still go: the closed-systems table (section 8) is long, but it is the only place the omni systems' disclosures and silences are set side by side, which this page owns.
+
+## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
+351 units: core 245, depth 83, fat 23. 335 were drafted from the old page by `ledger.py init`; 16 were added by hand (script-rendered tables and the explorer, the moved lab, and the new section 7 and figures). Fat units carry a `note`.
 
 ## Departures from the child-page method
-None of substance: the Reading tab is organised by the subject's logic, three tabs hold what needs room. The old Notion page could not be read (Notion disconnected): see `coverage.md`.
+The Reading tab is organised by the subject's logic; one tool tab (Token economics) remains. The old Notion page could not be read (Notion disconnected): see `coverage.md`.

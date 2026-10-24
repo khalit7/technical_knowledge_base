@@ -1,4 +1,4 @@
-// ---- Reading tab: recorded numbers into the prose, token viewer, three-way decoding animation, equal-compute table ----
+// ---- Reading tab: recorded numbers into the prose (prefill.py writes the same values statically), token viewer, three-way decoding stepper, equal-compute chart ----
 (function(){
   const N=window.NM;if(!N)return;
   const $=id=>document.getElementById(id),E=RD.esc;
@@ -24,16 +24,10 @@
   function heat(el,vals,max,title){const w=Math.min(240,RD.width(el.parentNode)),c=w/8;let s='';
     vals.forEach((v,j)=>{const x=(j%8)*c,y=Math.floor(j/8)*c,a=Math.min(1,v/max);
       s+='<rect x="'+x+'" y="'+y+'" width="'+(c-1)+'" height="'+(c-1)+'" fill="var(--c2)" fill-opacity="'+(0.08+0.92*a).toFixed(3)+'"><title>'+title+' '+v.toFixed(2)+' bits</title></rect>'+
-      (c>22?RD.t(x+c/2,y+c/2+3,v.toFixed(1),{a:'middle',fs:9}):'')});
+      (c>26?RD.t(x+c/2,y+c/2+4,v.toFixed(1),{a:'middle',fs:11}):'')});
     el.innerHTML=RD.svg(w,w,s,title)}
   function heats(){if(!$('nm-heat-a'))return;heat($('nm-heat-a'),N.tok.fsq1000.pos_entropy_bits,8,'no context');heat($('nm-heat-b'),N.d.bpp,8,'AR model')}
   RD.onRender(heats);RD.onResize(heats);heats();
-  // ---- section 3: temperature table
-  if($('nm-temp-tbl')){
-    const rows=N.smp.ar_temp.slice().sort((a,b)=>a.T-b.T);
-    $('nm-temp-tbl').innerHTML='<tr><th>Temperature</th><th>Samples (one per class)</th><th class="num">FD</th><th class="num">Right class</th><th class="num">Diversity</th><th class="num">Distinct per class</th></tr>'+
-      rows.map(r=>'<tr><td>'+(r.T===0?'0 (greedy)':r.T)+'</td><td style="min-width:200px"><img class="nm-sprite" src="'+N.img[r.img]+'" alt="samples at temperature '+r.T+'"></td><td class="num">'+r.fd.toFixed(1)+'</td><td class="num">'+(100*r.acc).toFixed(1)+'%</td><td class="num">'+r.div.toFixed(1)+'</td><td class="num">'+r.distinct_per_class.toFixed(0)+'</td></tr>').join('');
-  }
   // ---- section 4: one image three ways (before/after on the same class)
   const card=$('nm-3w-card');
   if(card){
@@ -57,8 +51,8 @@
       $('nm-3w-cnt').innerHTML=RD.stat('Sequential calls',String(m.calls(i)),'')+RD.stat('Compute so far',(m.fl(i)/1e9).toFixed(3)+' GFLOP','per image, 2 FLOPs per multiply-add')+RD.stat('Per call',mode==='ar'?'1 new token':mode==='mask'?'all 65 positions':'all 1,024 pixels','');
       $('nm-3w-cap').innerHTML='<div class="t">'+(mode==='ar'?'Autoregressive, raster order':mode==='mask'?'Masked, 8 parallel rounds':'Diffusion (DDIM), 20 steps')+'</div><p>'+E(m.cap(i))+'</p>'}
     var A=RD.anim({card:'nm-3w-card',ctl:'nm-3w-ctl',n:M.ar.n,draw,ms:260,label:'Step'});
-    RD.seg($('nm-3w-mode'),m=>{mode=m;A.reset(M[m].n);load();A.play()});
-    RD.seg($('nm-3w-cls'),c=>{cls=+c;load();A.go(0);A.play()});
+    RD.seg($('nm-3w-mode'),m=>{mode=m;A.reset(M[m].n);load()});
+    RD.seg($('nm-3w-cls'),c=>{cls=+c;load();A.go(0)});
     load();
   }
   // ---- section 5: equal compute
@@ -76,10 +70,4 @@
       el.innerHTML=RD.svg(w,h,s,'FD of each model, lower is better')}
     RD.onRender(bars);RD.onResize(bars);bars();
   }
-  // ---- section 0: the measured summary
-  const s0=$('nm-s0-meas');
-  if(s0){const d=N.d,r=d.rows;
-    s0.innerHTML='A 3.07M-parameter transformer trained for '+Math.round(r[0].train_s/60)+' minutes on the topic\'s Fashion-MNIST images as 64 FSQ tokens each, at the same training FLOPs as the root Diffusion lab\'s DDPM, scores FD '+r[0].fd.toFixed(1)+' without guidance and '+r[1].fd.toFixed(1)+' with s = '+d.best_cfg.s+
-      ' (DDPM, 1,000 steps: '+r[3].fd.toFixed(1)+'; flow, 50 steps with guidance: '+r[6].fd.toFixed(1)+'; real images: '+N.tok.floor_fd_val1000.toFixed(1)+'). The tokenizer alone, reconstructing real images, scores '+N.tok.fsq1000.recon_val1000_fd.toFixed(1)+
-      ': the ceiling. Per image it needs 64 sequential calls and about '+(r[0].flops/1e9).toFixed(2)+' GFLOP, against 1,000 calls and '+(r[3].flops/1e9).toFixed(0)+' GFLOP for the DDPM. Measured on Apple M1 Pro (MPS); details in sections 2 to 5 and the Token generator lab.'}
 })();
