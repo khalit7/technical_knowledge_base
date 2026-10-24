@@ -56,3 +56,5 @@ Why 32 minutes is right: the core lost about 9 minutes of listings, line referen
 
 ## Knowledge ledger
 402 units (`ledger.py check`: problems 0): core 252, depth 126, fat 24, owned 0, volatile 0. 392 were drafted from the old page by `ledger.py init`; 10 were added by hand for the new owned content and for script-rendered tables (TrainJob variables, the cycle's side-by-side table, the PVC output, the hero). Keys were found automatically where at least 60% of a unit's word 4-grams survive on the new page; the 87 units below that were labelled by hand.
+
+2026-10-24 topic close: section 2's exit-code finding links Launching distributed training section 3 (torchrun's agent); Further reading times fixed (training root 27 to 22, LLM serving in production 32 to 30); ledger keys 377, 378 updated.
