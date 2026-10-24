@@ -20,3 +20,7 @@ Built 2026-10-06. Scores: teaching value / data honesty / cost to build, each ou
 
 ## What the methodology lacked
 Nothing for a page about a product category with no published benchmark; the "build a toy that completes something published" rule became "build a small agent and record the mechanisms the docs describe" (steering, memory tiers, gating), with every recorded claim checked by src/check.py.
+
+## Rebuild of 2026-10-24
+Built: **hero** (static annotated diagram of the resident agent, drawn at measured width); **one page, two ways** (stepper over real headless-Chrome captures of a fake booking form: screenshot with click overlay against the accessibility tree; a cookie banner shifts the layout 49 px and the remembered point lands on the wrong slot); **long horizons** (one-slider derived curve P = p^n, illustrative, labelled). Moved inline: the Gate designer (section 6).
+Rejected: a computer-use benchmark chart (Agentic benchmarks owns OSWorld and draws it); a photo or vendor screenshot of a computer-use product (licence unclear, and the real capture of a page made for this page teaches the mechanism better); an animated injection example (Agent security owns it).
