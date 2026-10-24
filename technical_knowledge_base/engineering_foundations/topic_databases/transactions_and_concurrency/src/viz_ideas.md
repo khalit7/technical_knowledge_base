@@ -25,3 +25,16 @@ Inspiration: Kleppmann's Hermitage (two-session scripts per anomaly), Jepsen rep
 
 ## What the methodology lacked for this page
 Nothing structural. One addition worth recording: when the subject is concurrency, a *recorded* trace (real sessions, a coordinator, block detection through the server's own wait events) is both cheaper and more trustworthy than an illustrative animation, and a single harness then feeds the Reading cards, the matrix and the lab tab.
+
+## Added 2026-10-24 (teaching-contract rebuild)
+| Idea | Kind | Placement |
+|---|---|---|
+| Hero: the lost update and its three fixes as two-lane session diagrams, from recorded runs | static diagram | top |
+| SSI dangerous structure on the read-only anomaly (C to A to B to C, pivot A) | static diagram | section 4 |
+| Snapshot visibility: the real snapshot 744:744: on the xid axis and the two versions on the page | static diagram | section 5 |
+| Lock queue: A granted, B (ALTER TABLE) waiting, C queued behind B | static diagram | section 6 |
+| Deadlock wait-for graph, opposite order against same order | static diagram (the 2026-10-04 rejection was of an animated one) | section 7 |
+| Outbox: one transaction, a relay with SKIP LOCKED, the queue | static diagram | section 11 |
+| Long transaction: pages and read latency as bars | bars | section 10 |
+| Durability and contention bars redrawn as SVG at the measured width | bars | sections 2, 9 |
+Still rejected: the Adya dependency graph per anomaly (the SSI figure shows the one cycle that matters), an InnoDB undo-chain animation (no InnoDB page dumps were recorded).

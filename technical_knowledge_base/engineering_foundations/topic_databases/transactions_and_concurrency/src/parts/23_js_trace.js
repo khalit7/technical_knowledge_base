@@ -77,6 +77,5 @@ window.TX=(function(){
   box.innerHTML=h+'</table>';
   box.addEventListener('click',ev=>{const a=ev.target.closest('a[data-open]');if(!a)return;ev.preventDefault();
     const [e,k,l]=a.dataset.open.split('|');if(window.TXLAB)window.TXLAB.open(e,k,l,null)});
-  const P=TXD.engines.pg,Y=TXD.engines.my;
-  document.getElementById('rd-mx-note').innerHTML='Recorded '+P.date+' on PostgreSQL '+TX.esc(P.version)+' (pgserver wheel, deadlock_timeout '+TX.esc(P.deadlock_timeout||'')+') and MySQL '+TX.esc(Y.version)+' (InnoDB, conda-forge build; innodb_lock_wait_timeout '+TX.esc((Y.defaults||[])[1])+' s), each run from freshly created tables. "Not seen" means the transaction read a snapshot that hid the other change; "waited for a lock" means a lock made the second transaction wait until the first finished. Scripts: src/measure/run_matrix.py and scenarios.py.';
+  // the provenance note is static HTML in 20_read_d.html
 })();

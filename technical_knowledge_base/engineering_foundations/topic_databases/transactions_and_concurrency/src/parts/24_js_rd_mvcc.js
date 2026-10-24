@@ -88,6 +88,6 @@
     $('rd-mv-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+st.length+': '+fill(c[0],v)+'</div><p>'+fill(c[1],v)+'</p>';
   }
   const a=RD.anim({card:'rd-mv-card',ctl:'rd-mv-ctl',n:M.runs.naive.steps.length,ms:2600,label:'MVCC step',draw});
-  RD.seg($('rd-mv-mode'),m=>{mode=m;a.reset(M.runs[m].steps.length);a.play()});
+  RD.seg($('rd-mv-mode'),m=>{mode=m;a.reset(M.runs[m].steps.length)});
   $('rd-mv-note').innerHTML='Recorded '+M.date+' on PostgreSQL '+esc(M.version)+' (the conda-forge build, used here because it ships pageinspect; every other run on this page used 16.2 from the pgserver wheel). Transaction ids differ between the three runs because each run is a new transaction on the same server. Script: src/measure/mvcc_trace.py.';
 })();
