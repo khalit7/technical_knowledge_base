@@ -49,3 +49,6 @@ Why 28 minutes is right: the page owns nine distinct things a corpus user needs 
 
 ## Departures from the method
 None of note; the "compare everything" data tabs of a root page do not apply. The lineage (now inline in section 3) is drawn as a row per corpus (time down the page) rather than a horizontal timeline so that 39 names stay readable at 390 px.
+
+## Topic close (2026-10-24)
+The root was rebuilt as a map; this page's Further reading now quotes the root as "31 min, plus 7" and siblings as their headers, and its ledger keys that quoted old times were re-keyed. The Deduplication card points at section 1 (the 171B bars).
