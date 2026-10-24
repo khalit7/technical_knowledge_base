@@ -58,3 +58,5 @@ Why 22 minutes is right: the page now covers everything its OWNERS row assigns (
 232 units: core 185, depth 27, owned 3 (the root's prevalence widget and entropy thread, Eval statistics' clustered errors), fat 17 (wind-ups, pointers to removed tabs, the stale reading time, the removed reliability panel; each with a `note`). 212 were drafted by `ledger.py init`; 20 were added for the new sections and for script-rendered numbers.
 
 Departures from the method: none of substance. The page is about 273 KB, of which 118 KB is data. No real images: a mechanism page with no physical object; hand-built SVG throughout.
+
+- 2026-10-24, topic close: the sentence pointing to the root's prevalence widget removed (the widget was retired; section 2 here is the owner); the root card in Further reading updated; the garbled bootstrap sentence in section 10 repaired; the bootstrap caption now says the widget's seed gives -1.1 to +3.2 against NumPy's -1.0 to +3.4 (resampling noise). Times set to headers. Ledger unit 37 relabelled fat.
