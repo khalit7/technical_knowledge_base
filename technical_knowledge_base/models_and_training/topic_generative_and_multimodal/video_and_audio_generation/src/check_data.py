@@ -39,7 +39,6 @@ sp = cod['clips']['speech']['codecs']; mi = json.load(open(os.path.join(H, 'code
 meta = json.load(open(os.path.join(H, 'calc', 'out', 'meta.json')))
 checks = [
  ('32,760', f"{rc['wan13']['tokens']:,}"), ('75,600', f"{rc['wan14']['tokens']:,}"), ('27,280', f"{rc['wan22']['tokens']:,}"), ('73,728', f"{rc['moviegen']['tokens']:,}"),
- ('44,520', f"{rc['mochi']['tokens']:,}"), ('17,550', f"{rc['cogx']['tokens']:,}"), ('118,800', f"{rc['hyv']['tokens']:,}"),
  ('126,360', f"{81 * 30 * 52:,}"), ('97,044,480', f"{81 * 480 * 832 * 3:,}"), ('88,080', f"{round(3.67 * 24000):,}"), ('58,720', f"{mi['wrong_rate']['input_samples']:,}"),
  ('1.07 billion', f"{rc['wan13']['full_pairs'] / 1e9:.2f} billion"), ('about 21 times fewer', f"about {round(rc['wan13']['fact_ratio'])} times fewer"),
  ('126.9M parameters', f"{vae['params'] / 1e6:.1f}M parameters"), ('16 &times; 5 &times; 32 &times; 32', ' &times; '.join(str(v) for v in vae['clips']['slow']['latent_shape'][1:])),
@@ -49,6 +48,9 @@ checks = [
  ('about two thirds of the compute even at 480p', 'about two thirds of the compute even at 480p' if 0.6 < meta['flop_check']['by_op']['aten.bmm'] / meta['flop_check']['counted'] < 0.75 else 'x'),
  ('MUSHRA 83.1 at 6 kbps against 76.5 for Opus at 12 kbps and 30.1', 'MUSHRA 83.1 at 6 kbps against 76.5 for Opus at 12 kbps and 30.1'),
 ]
+# these three were quoted only by the removed Model timeline tab (2026-10-24); the tables now render them from the same formula
+for s, want in [('44,520', f"{rc['mochi']['tokens']:,}"), ('17,550', f"{rc['cogx']['tokens']:,}"), ('118,800', f"{rc['hyv']['tokens']:,}")]:
+    ok(s == want, f'token count "{s}" (Mochi card, CogVideoX, HunyuanVideo) equals recompute.py ("{want}")')
 for s, want in checks:
     ok(s == want and s in page, f'prose "{s}" matches data ("{want}") and is on the page')
 for s in ['600 tokens a second at 6 kbps', '100 a second for Mimi at 1.1 kbps', '75 frames a second']:

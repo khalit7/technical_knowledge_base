@@ -1,4 +1,4 @@
-// ---- Reading sections 6 to 9 and the end: waveform and spectrogram, the RVQ animation, codebook orders, mistakes, reading time ----
+// ---- Reading sections 6 to 8 and the depth blocks: waveform and spectrogram, the RVQ animation, codebook orders, mistakes ----
 (function(){
   const U=window.VAU,V=U.V,$=id=>document.getElementById(id);
   const A=V.audio.speech,SP=V.spec.speech;
@@ -33,7 +33,7 @@
   function draw(i){if(mode==='enc'){const k=KS[i],r=er[k-1];$('va-rvq-img').src=SP['encodec'+k];$('va-rvq-lab').textContent='Reconstruction from the first '+k+' codebook'+(k>1?'s':'');
       const prev=i?er[KS[i-1]-1]:null;
       $('va-rvq-cap').innerHTML='<div class="t">k = '+k+': '+U.fx(r.kbps,2)+' kbps, '+k*75+' tokens a second</div><p>'+(i===0?'One codebook of 1,024 vectors per 13.3 ms frame: the harmonics of the voice are there but smeared, the high band is noise.':
-        'Stages '+(KS[i-1]+1)+' to '+k+' quantize what the earlier stages left: unexplained energy '+U.pct(prev.resid,2)+' to '+U.pct(r.resid,2)+', spectral error '+U.fx(prev.mel_l1,3)+' to '+U.fx(r.mel_l1,3)+'.')+(k===8?' This is EnCodec at 6 kbps, the setting VALL-E used.':'')+(k===32?' The full 24 kbps: further stages would add little.':'')+'</p>';
+        'Stages '+(KS[i-1]+1)+' to '+k+' quantise what the earlier stages left: unexplained energy '+U.pct(prev.resid,2)+' to '+U.pct(r.resid,2)+', spectral error '+U.fx(prev.mel_l1,3)+' to '+U.fx(r.mel_l1,3)+'.')+(k===8?' This is EnCodec at 6 kbps, the setting VALL-E used.':'')+(k===32?' The full 24 kbps: further stages would add little.':'')+'</p>';
       $('va-rvq-cnt').innerHTML=RD.stat('Codebooks',k)+RD.stat('Bitrate',U.fx(r.kbps,2)+' kbps')+RD.stat('Unexplained energy',U.pct(r.resid,2))+RD.stat('Spectral error',U.fx(r.mel_l1,3))+RD.stat('SNR',U.fx(r.snr_db,1)+' dB')}
     else{const k=i?12:6,o=i?op.opus12:op.opus6;$('va-rvq-img').src=SP['opus'+k];$('va-rvq-lab').textContent='Opus at '+k+' kbps (libopus via PyAV)';
       $('va-rvq-cap').innerHTML='<div class="t">Opus '+k+' kbps</div><p>'+(i?'At 12 kbps Opus reaches about EnCodec\'s 6 kbps spectral error ('+U.fx(o.mel_l1,3)+' against '+U.fx(er[7].mel_l1,3)+').':'At 6 kbps Opus keeps the low band and drops much of the rest: spectral error '+U.fx(o.mel_l1,3)+', twice EnCodec\'s '+U.fx(er[7].mel_l1,3)+' at the same bitrate.')+'</p>';
@@ -63,9 +63,6 @@
   $('va-mis-bw').textContent=V.mist.encodec_bandwidth_5;$('va-mis-mimi').textContent=V.mist.mimi_40_codebooks;
   $('va-mis-play').addEventListener('click',e=>U.play(A.wrongrate,e.currentTarget));
 
-  // ---------- reading time and predict cards ----------
-  (function(){const r=$('t-read');if(!r)return;const c=r.cloneNode(true);c.querySelectorAll('.rd-card,pre,style,script,nav,table,.pr,details').forEach(n=>n.remove());
-    const words=(c.textContent.match(/\S+/g)||[]).length;$('va-time').textContent=Math.round(words/200);
-    let qa=0;r.querySelectorAll('details').forEach(d=>{qa+=(d.textContent.match(/\S+/g)||[]).length});$('va-time-qa').textContent=Math.max(1,Math.round(qa/200));const mt=$('va-more-time');if(mt)mt.textContent='about '+Math.round(words/200)+' min, plus '+Math.max(1,Math.round(qa/200))+' for the folded answers'})();
+  // ---------- predict cards (the reading time is static in the header, measured by html_utils/audit_pages.mjs) ----------
   U.wirePredicts();
 })();
