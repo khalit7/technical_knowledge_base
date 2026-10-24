@@ -27,3 +27,18 @@ Scores: teaching value (1 to 5) x data reality (1 to 3), minus clutter.
 
 ## What the methodology lacked
 Nothing structural. One addition worth recording: when a measurement contradicts the textbook (writeback timing), keep the contradiction, repeat the run several times, show the spread, and label the explanation "likely, not traced" rather than choosing one run.
+
+## Rebuild of 2026-10-24 (teaching contract)
+Kind of concept decided the form. Added:
+| Visual | Kind | Placement | Data | Why |
+|---|---|---|---|---|
+| Hero: how far each call pushes data and metadata, with the power-cut line | static annotated diagram | top | measured medians (`raw/synccost.txt`) | the page's core idea in one picture; replaces the clickable stack map |
+| blk-mq software queues to NVMe queue pairs to the controller | static annotated diagram (structure) | section 1 | this VM's queue settings; NVMe spec | the block layer and NVMe had no picture |
+| FTL remapping and garbage collection, write amplification counter | stepper (process) | section 1 | illustrative, OSTEP ch. 44 | write amplification is a mechanism with no visual before |
+| VFS objects over the real ext4 image (fd, file, dentry, inode, extent; a hard link) | static annotated diagram | section 2 | `raw/fsimage.txt` | the debugfs dump becomes a picture; the dump moves to a closed block |
+| fsync error reporting, before 4.13 and with errseq_t | before/after stepper | section 5 | LWN, lib/errseq.c | the fsync failure story was prose only |
+| One jbd2 commit under data=ordered, journal, writeback, with the crash outcome per step | stepper with mode toggle | section 7 | fs/jbd2/commit.c, ext4 docs | journaling's order was prose and a table |
+| Where the bytes are copied: buffered, O_DIRECT, GPUDirect Storage | static before/after diagram | section 8 | open(2), GDS overview | the replaced path against its replacements, side by side |
+| NFS close-to-open across ranks and a restarted node | static sequence diagram | section 9 | nfs(5) | cross-node visibility is the semantics a checkpoint depends on |
+Moved: the Crash lab tab into Reading section 6 (it explains atomic replace; the every-point grid is closed). Removed: the clickable stack (the hero replaces it) and the glossary (term names without definitions; the new-terms list replaces it).
+Rejected: a guarantees matrix across ext4, NFS, Lustre, object stores and FUSE (several cells, such as rename atomicity on NFS and Lustre, have no source on this page and would have been guessed); a photo of an NVMe drive or SSD board (the page is about mechanisms, and no openly licensed image would teach the queue or FTL behaviour better than the diagrams; none added).

@@ -1,4 +1,4 @@
-// ---- Section 4: the readahead window, measured (io.stat after every read) against the v5.10 source rules ----
+// ---- Section 3: the readahead window, measured (io.stat after every read) against the v5.10 source rules ----
 (function(){
 const D=window.ST_DATA,$=id=>document.getElementById(id);if(!$('rd-ra-card'))return;
 const N=64; // first 64 reads of each run are animated (the "off" and random runs made exactly 64)
@@ -33,9 +33,9 @@ function draw(k){ // k = number of reads done (0..N)
 }
 const an=RD.anim({card:'rd-ra-card',ctl:'rd-ra-ctl',n:N+1,draw,ms:420,label:'Reads done'});
 const seg=$('rd-ra-mode');seg.innerHTML=MODES.map((m,i)=>'<button data-m="'+m[0]+'"'+(i===0?' class="on"':'')+'>'+m[1]+'</button>').join('');
-RD.seg(seg,v=>{mode=v;load();an.reset(N+1);an.play()});
+RD.seg(seg,v=>{mode=v;load();an.reset(N+1)});
 load();an.redraw();
 // agreement of the model with every measured sequential event (all 512 reads)
 const ok=[0,1].map(j=>{const r=D.ra[j],mx=j?64:32,p=predict(mx,r.reads);return r.ev.every(e=>p[e[0]]===e[2])&&Object.keys(p).length===r.ev.length});
-$('rd-ra-note').innerHTML='Blue: pages in the page cache; orange: the window fetched by the latest request; outlined: the page this read() asked for. Defaults reproduce the measurement independently: the two source rules predict every request of the 512-read sequential runs (default: '+(ok[0]?'all '+D.ra[0].ev.length+' requests match':'mismatch')+'; doubled window: '+(ok[1]?'all '+D.ra[1].ev.length+' match':'mismatch')+'). Times are this VM\'s: the "device" is macOS\'s cache of the disk file.';
+if(!(ok[0]&&ok[1]))throw new Error('readahead: the v5.10 rules no longer predict every measured request; update the caption');
 })();

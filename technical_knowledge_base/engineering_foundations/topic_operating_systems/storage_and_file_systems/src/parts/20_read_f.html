@@ -1,19 +1,9 @@
-<section id="rd-s6">
-<h2>6. Durability: fsync and its relatives</h2>
-<p class="ostep">ch. 39 Files and Directories, ch. 45 Data Integrity and Protection</p>
-<p><b>The problem.</b> Some data must survive a crash: a checkpoint, a database log, the "this checkpoint is complete" marker. The program needs a call that returns only when the data is on stable storage, and it needs to know exactly what that call covers.</p>
-<h3>The family, and what each one promises</h3>
-<div class="tw"><table class="tbl-sm">
-<thead><tr><th>Call</th><th>Covers</th><th>Source</th></tr></thead><tbody>
-<tr><td><code>fsync(fd)</code></td><td>all of the file's dirty data and all its metadata, then a device cache flush. "This includes writing through or flushing a disk cache if present." Not the directory entry that names the file.</td><td>{{fsync(2)|https://man7.org/linux/man-pages/man2/fsync.2.html}}</td></tr>
-<tr><td><code>fdatasync(fd)</code></td><td>the data, plus only the metadata "needed in order to allow a subsequent data retrieval to be correctly handled": the size and block map yes, the modification time no</td><td>{{fsync(2)|https://man7.org/linux/man-pages/man2/fsync.2.html}}</td></tr>
-<tr><td><code>open(..., O_DSYNC)</code> / <code>O_SYNC</code></td><td>every <code>write()</code> behaves as if followed by <code>fdatasync</code> / <code>fsync</code></td><td>{{open(2)|https://man7.org/linux/man-pages/man2/open.2.html}}</td></tr>
-<tr><td><code>sync_file_range(fd, off, n, flags)</code></td><td>starts and/or waits for writeback of a byte range; no metadata, no cache flush. The kernel's own comment: "there are no guarantees here that the data will be available on disk after a crash"</td><td>fs/sync.c lines 351 to 355 (v5.10)</td></tr>
-<tr><td><code>syncfs(fd)</code>, <code>sync()</code></td><td>everything dirty on one file system, or on all of them; heavy, and in a shared machine you wait for other people's data too</td><td>{{sync(2)|https://man7.org/linux/man-pages/man2/sync.2.html}}</td></tr>
-</tbody></table></div>
-<h3>Inside ext4's fsync</h3>
-<p><span class="src">source</span> <code>ext4_sync_file</code> (fs/ext4/fsync.c line 129, v5.10) does three things in order. (1) <code>file_write_and_wait_range</code>: write the file's dirty pages and wait for them. (2) <code>ext4_fsync_journal</code> (line 104): wait until the journal transaction that last changed this inode has committed; for <code>fdatasync</code> it waits only for the transaction that last changed what data retrieval needs (<code>i_datasync_tid</code> against <code>i_sync_tid</code>, line 109), and if that already committed there is nothing to wait for. The wait goes through <code>ext4_fc_commit</code> (line 115), which is a full journal commit unless the newer "fast commit" feature was enabled when the file system was created (a feature flag that needs privileges to read on this VM). (3) If needed, <code>blkdev_issue_flush</code> (line 177): the device cache flush of <a href="#rd-s1">section 1</a>. The animation runs one 4 KiB overwrite of a preallocated file through three calls, with this VM's measured median times.</p>
+<section id="rd-s5">
+<h2>5. Durability: fsync, fdatasync, and when fsync fails</h2>
+<p>A checkpoint, a database log or a "this checkpoint is complete" marker must survive a crash, so the program needs a call that returns only when the data is on stable storage, and it must know exactly what that call covers. <code>fsync(fd)</code> covers the file's data and all its metadata, then a device cache flush ("This includes writing through or flushing a disk cache if present", {{fsync(2)|https://man7.org/linux/man-pages/man2/fsync.2.html}}); not the directory entry that names the file. <code>fdatasync(fd)</code> covers the data plus only the metadata "needed in order to allow a subsequent data retrieval to be correctly handled": size and block map yes, modification time no. <code>sync_file_range</code> only starts or waits for writeback of a byte range; the kernel's own comment: "there are no guarantees here that the data will be available on disk after a crash" (fs/sync.c lines 351 to 355, v5.10).</p>
+<p><span class="src">source</span> <code>ext4_sync_file</code> (fs/ext4/fsync.c line 129, v5.10) does three things in order: write the file's dirty pages and wait; wait for the journal transaction that last changed what this call covers; flush the device cache. Step through one 4 KiB overwrite under each call, then compare the measured costs below.</p>
 <div class="card" id="rd-fs-card">
+<div class="fig-t">fsync pays for a journal commit that fdatasync skips on an overwrite; sync_file_range never reaches the media</div>
 <div class="seg" id="rd-fs-mode"></div>
 <div class="rd-chart" id="rd-fs-svg"></div>
 <div class="an-cap" id="rd-fs-cap"></div>
@@ -24,16 +14,31 @@
 <p class="small" style="margin:2px 0 6px">1,000 records each; median and 99th percentile in microseconds. "Append" grows the file (size changes every time); "overwrite" rewrites a preallocated, already-synced file (only data and times change). tmpfs keeps files only in memory, so it has nothing to flush.</p>
 <div class="seg" id="rd-sc-mode"><button data-m="ext4" class="on">ext4 (/data)</button><button data-m="tmpfs">tmpfs (/dev/shm)</button></div>
 <div class="rd-chart" id="rd-sc"></div>
-<p class="small" id="rd-sc-note"></p>
+<p class="small">Log scale. On an overwrite, fdatasync cost 3.3x less than fsync (393 against 1,305 us); on an append only 1.3x less (997 against 1,265 us). sync_file_range is cheaper because it flushes nothing and commits nothing: it is not a durability call. On tmpfs every call costs about a microsecond.</p>
 </div>
 <div class="drill"><div class="q">On an overwrite, fdatasync cost about a third of fsync here. Why, given that both wrote the same 4 KiB?</div>
 <div class="ch"><button>fdatasync skips the device cache flush</button><button data-ok="1">fsync must also commit the inode's new modification time through the journal; fdatasync does not need to</button><button>fdatasync writes less data</button></div>
 <div class="ans" hidden>An overwrite changes no size and no block map, only the data and the inode's times. fdatasync's required metadata is unchanged, so it writes the page and flushes; fsync must also log the time change in a journal transaction and wait for its commit, which is a second ordered write and flush. On append the size changes, so fdatasync needs the journal too and costs nearly as much as fsync: preallocating a log file (<code>fallocate</code>) and overwriting it is how databases make fdatasync cheap.</div></div>
 <h3>When fsync fails</h3>
-<p>A device error during writeback is reported to the next <code>fsync</code>. Before Linux 4.13 the error could be reported to one caller only and the failed pages were marked clean, so a second <code>fsync</code> returned success with the data lost: the PostgreSQL "fsyncgate" story in the root's section 7. Since 4.13 the kernel records writeback errors in an <code>errseq_t</code>, a counter plus error code that "allow[s] any number of 'subscribers' to tell whether it has changed since a previous point where it was sampled" (lib/errseq.c lines 8 to 10, v5.10), so every file descriptor open at the time sees the error once ({{LWN, Improved block-layer error handling|https://lwn.net/Articles/724307/}}). The pages may still be gone. The rule: <b>a failed fsync means that file's recent writes are lost; rewrite it from memory, or abort.</b> With delayed allocation, running out of space can also surface only at <code>fsync</code> or <code>close</code> rather than at <code>write</code>, so check both: Python's <code>f.close()</code> raises <code>OSError</code> if the underlying close fails.</p>
-<div class="ff"><div class="t">When it bites in ML, and the fix</div><ul>
+<p>A device error during writeback is reported to the next <code>fsync</code>. Before Linux 4.13 the error could reach one caller only and the failed pages were marked clean, so a second <code>fsync</code> returned success with the data lost: the PostgreSQL "fsyncgate" story in the root's section 7. Since 4.13 the kernel records writeback errors in an <code>errseq_t</code>, a counter plus error code that "allow[s] any number of 'subscribers' to tell whether it has changed since a previous point where it was sampled" (lib/errseq.c lines 8 to 10, v5.10), so every file descriptor open at the time sees the error once ({{LWN, Improved block-layer error handling|https://lwn.net/Articles/724307/}}). The pages may still be gone.</p>
+<div class="card" id="rd-fe-card"><div class="fig-t">The error now reaches everyone, but the data is still lost</div>
+<div class="seg" id="rd-fe-mode"><button data-m="old" class="on">Before Linux 4.13</button><button data-m="new">Since 4.13 (errseq_t)</button></div>
+<div id="rd-fe"></div>
+<div class="an-cap" id="rd-fe-cap"></div>
+<div class="an-ctl" id="rd-fe-ctl"></div>
+<p class="small mute">Two descriptors on one file: A (the checkpoint writer) and B (another process, say a log shipper). Sequence from the LWN article and lib/errseq.c; simplified to one page.</p></div>
+<p>The rule: <b>a failed fsync means that file's recent writes are lost; rewrite it from memory, or abort.</b> With delayed allocation, running out of space can also surface only at <code>fsync</code> or <code>close</code> rather than at <code>write</code>, so check both: Python's <code>f.close()</code> raises <code>OSError</code> if the underlying close fails.</p>
+<details class="dp"><summary>The rest of the family, and how to count calls in a running job <span class="mute">(depth)</span></summary><div class="b">
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>Call</th><th>Covers</th><th>Source</th></tr></thead><tbody>
+<tr><td><code>open(..., O_DSYNC)</code> / <code>O_SYNC</code></td><td>every <code>write()</code> behaves as if followed by <code>fdatasync</code> / <code>fsync</code></td><td>{{open(2)|https://man7.org/linux/man-pages/man2/open.2.html}}</td></tr>
+<tr><td><code>syncfs(fd)</code>, <code>sync()</code></td><td>everything dirty on one file system, or on all of them; heavy, and in a shared machine you wait for other people's data too</td><td>{{sync(2)|https://man7.org/linux/man-pages/man2/sync.2.html}}</td></tr>
+</tbody></table></div>
+<p><span class="src">source</span> The journal wait is <code>ext4_fsync_journal</code> (line 104): for <code>fdatasync</code> it waits only for the transaction that last changed what data retrieval needs (<code>i_datasync_tid</code> against <code>i_sync_tid</code>, line 109), and if that already committed there is nothing to wait for. It goes through <code>ext4_fc_commit</code> (line 115), a full journal commit unless the newer "fast commit" feature was enabled when the file system was created (a feature flag that needs privileges to read on this VM). The flush is <code>blkdev_issue_flush</code> (line 177).</p>
+<ul class="small">
 <li><b>An fsync per step is about a millisecond per call here</b> and can be tens of milliseconds on cloud block storage <span class="nrh">not run here</span>: fine once per checkpoint, ruinous once per logged metric line. Buffer logs and fsync on a timer.</li>
 <li><b>Count the calls:</b> <code>strace -f -e trace=fsync,fdatasync,sync_file_range,rename,renameat -p PID</code>, or <code>strace -c</code> for totals.</li>
 <li><b>Never retry a failed fsync and continue.</b> Save the checkpoint again to a new file.</li>
-</ul></div>
+</ul>
+</div></details>
 </section>

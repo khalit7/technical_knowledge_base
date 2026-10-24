@@ -1,44 +1,52 @@
 <section id="rd-one">
-<h2>In one screen</h2>
-<p class="lead">When <code>torch.save</code> returns, your checkpoint is in <b>memory</b>, not on the disk. The kernel keeps file data in a cache (the page cache) and writes it to the device later, in its own order, on its own schedule. Everything on this page is about that gap: how data moves between your program, the cache and the device, what each system call promises about it, and how to write a checkpoint that a crash can never destroy.</p>
-<p>The root page, {{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}} section 7, gave the intuition, animated one write's journey, and traced the running job's checkpoint (its {{Syscall tracer|n:3f05c17b0d0d81c5a97ce991644af140}} tab); its OS simulators tab crashes a block-level write with and without a journal. This page goes one level down: the kernel's code paths (Linux v5.10, the kernel these runs used, file and line), the exact guarantee of every call, new measurements, and the checkpoint libraries you actually use. Each mechanism follows one pattern: <b>problem, how it works, what it costs here, when it bites in ML, the command that shows it, the fix.</b></p>
-<div class="card" id="rd-stack-card">
-<div class="small mute" style="margin-bottom:4px">The storage stack, top to bottom. Click a layer to jump to its section.</div>
-<div id="rd-stack"></div>
-</div>
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core"><b>Returned is not durable.</b> <code>write()</code> and <code>torch.save</code> return once the bytes are in kernel memory, the <span class="hl">page cache</span>; the kernel moves them to the device later, in its own order and on its own schedule. What a crash can leave is decided only by <code>fsync</code> (of the file, and of its directory) and <code>rename</code>; what a read costs is decided by whether the page cache and readahead can serve it.</p>
+<div class="hero" id="rd-hero-card"><h4>How far each call pushes one 4 KiB write before it returns</h4>
+<div class="rd-svg" id="rd-hero"></div>
+<p class="small" id="rd-hero-cap">Rows are the layers your bytes cross, top to bottom (section numbers in brackets). Each column is one call: the <span class="hl">solid bar</span> is how far the data has got when the call returns, the dashed bar how far the file's metadata (size, block map, times) has got. Only what is below the red line survives a power cut. Medians of 1,000 overwrites of one 4 KiB record on ext4 <span class="meas">measured</span>; fsync needs a journal commit, fdatasync on an overwrite does not (section 5).</p></div>
 <div class="tw"><table class="tbl-sm">
 <thead><tr><th>Call</th><th>When it returns, what is guaranteed</th><th>Cost here <span class="meas">measured</span></th></tr></thead>
 <tbody>
-<tr><td><code>write()</code></td><td>the bytes are in the page cache; other processes can read them; <b>nothing</b> is on the device</td><td id="one-c-write"></td></tr>
-<tr><td><code>fsync(fd)</code></td><td>the file's data and its metadata (size, block map, times) are on stable storage, device cache flushed</td><td id="one-c-fsync"></td></tr>
-<tr><td><code>fdatasync(fd)</code></td><td>the data, plus only the metadata needed to read it back (size, block map); not the times</td><td id="one-c-fdatasync"></td></tr>
-<tr><td><code>sync_file_range()</code></td><td>the pages were sent to the device; <b>no</b> metadata, <b>no</b> device cache flush: not durable</td><td id="one-c-sfr"></td></tr>
-<tr><td><code>rename(tmp, final)</code></td><td>atomic for every reader now; durable only after the next journal commit or an <code>fsync</code> of the directory</td><td>part of the protocol below</td></tr>
-<tr><td><code>fsync(dir_fd)</code></td><td>the directory's entries (names created, renamed, removed) are durable</td><td id="one-c-dirfsync"></td></tr>
+<tr><td><code>write()</code></td><td>the bytes are in the page cache; other processes can read them; <b>nothing</b> is on the device</td><td>1.4 us</td></tr>
+<tr><td><code>fsync(fd)</code></td><td>the file's data and its metadata (size, block map, times) are on stable storage, device cache flushed</td><td>1,305 us</td></tr>
+<tr><td><code>fdatasync(fd)</code></td><td>the data, plus only the metadata needed to read it back (size, block map); not the times</td><td>393 us</td></tr>
+<tr><td><code>sync_file_range()</code></td><td>the pages were sent to the device; <b>no</b> metadata, <b>no</b> device cache flush: not durable</td><td>161 us</td></tr>
+<tr><td><code>rename(tmp, final)</code></td><td>atomic for every reader now; durable only after the next journal commit or an <code>fsync</code> of the directory</td><td>part of the protocol (section 6)</td></tr>
+<tr><td><code>fsync(dir_fd)</code></td><td>the directory's entries (names created, renamed, removed) are durable</td><td>2.3 ms (after a rename)</td></tr>
 </tbody></table></div>
-<p class="small mute" id="one-c-note"></p>
-<div class="co key"><div class="t">Six things to remember</div>
+<p class="small mute">Medians of 1,000 overwrites of one 4 KiB record of a preallocated file on ext4 (section 5 has appends and the 99th percentiles); the directory fsync is from the 256 MiB checkpoint runs of section 10.</p>
+<p><b>You need:</b> file descriptors and system calls ({{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}, section 7) and the page cache as memory that is reclaimed and counted against containers ({{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}}). The root {{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}} section 7 gives the intuition with one write's journey; this page is the mechanism, measured.</p>
+<dl class="terms">
+<dt>Page cache</dt><dd>kernel memory holding file pages; every buffered read and write goes through it.</dd>
+<dt>Dirty page</dt><dd>a cached page changed in memory and not yet written to the device.</dd>
+<dt>Writeback</dt><dd>the kernel writing dirty pages to the device, by age, by threshold, or because someone called fsync.</dd>
+<dt>Device cache, FLUSH, FUA</dt><dd>the drive's own volatile memory; a flush or a Force Unit Access write is what pushes data past it.</dd>
+<dt>Inode, extent</dt><dd>the per-file record (size, owner, where the data lives); an extent is one "start, length" run of blocks.</dd>
+<dt>Journal (jbd2)</dt><dd>ext4's log: metadata changes are written there first and committed as transactions, so a crash replays or discards them whole.</dd>
+<dt>Readahead</dt><dd>the kernel fetching the next pages of a file before a sequential reader asks.</dd>
+<dt>O_DIRECT</dt><dd>an open flag that moves data between your buffer and the device without the page cache.</dd>
+</dl>
+<div class="co key"><div class="t">The page in six claims</div>
 <ol class="tight">
-<li><b>Returned is not durable.</b> The 256 MiB checkpoint below left <span id="one-dirty"></span> MiB of dirty (not yet written) data in memory when <code>torch.save</code> returned (<a href="#rd-s5">section 5</a>).</li>
-<li><b>When the kernel writes it is not a promise.</b> The textbook says "within 30 seconds"; here the same 16 MiB stayed dirty anywhere from <span id="one-wbmin"></span> to <span id="one-wbmax"></span> seconds, depending on what else the machine was doing (<a href="#rd-s5">section 5</a>).</li>
-<li><b>The safe checkpoint is five calls:</b> write to <code>ckpt.pt.tmp</code>, <code>fsync</code> it, <code>rename</code> it over <code>ckpt.pt</code>, <code>fsync</code> the directory; and never overwrite the last good checkpoint in place. It cost <span id="one-safe"></span> ms against <span id="one-naive"></span> ms for the plain save (<a href="#rd-s7">section 7</a>, {{Crash lab|#t-crash}}).</li>
-<li><b>Libraries differ.</b> PyTorch's distributed checkpoint fsyncs every file but deletes the old <code>.metadata</code> before renaming the new one in, and never fsyncs the directory: save each step to a new directory (<a href="#rd-s11">section 11</a>).</li>
-<li><b>Sequential beats random,</b> because the kernel reads ahead: 512 small reads of a cold file became <span id="one-ra"></span> device requests (<a href="#rd-s4">section 4</a>). Shards, not millions of small files.</li>
-<li><b>If <code>fsync</code> fails, the data is gone:</b> the kernel may already have dropped the dirty pages. Rewrite the checkpoint from memory; never retry the fsync and carry on (<a href="#rd-s6">section 6</a>).</li>
+<li><b>Returned is not durable.</b> The 256 MiB checkpoint of section 10 left 256 MiB of dirty data in memory when <code>torch.save</code> returned (<a href="#rd-s4">section 4</a>).</li>
+<li><b>When the kernel writes is not a promise.</b> The textbook says "within 30 seconds"; here the same 16 MiB stayed dirty anywhere from 2 to 32 seconds, depending on what else the machine was doing (<a href="#rd-s4">section 4</a>).</li>
+<li><b>The safe checkpoint is five calls:</b> write to <code>ckpt.pt.tmp</code>, <code>fsync</code> it, <code>rename</code> it over <code>ckpt.pt</code>, <code>fsync</code> the directory; and never overwrite the last good checkpoint in place. It cost 365 ms against 263 ms for the plain save (<a href="#rd-s6">section 6</a>).</li>
+<li><b>Libraries differ.</b> PyTorch's distributed checkpoint fsyncs every file but deletes the old <code>.metadata</code> before renaming the new one in, and never fsyncs the directory: save each step to a new directory (<a href="#rd-s10">section 10</a>).</li>
+<li><b>Sequential beats random,</b> because the kernel reads ahead: 512 small reads of a cold file became 20 device requests (<a href="#rd-s3">section 3</a>). Shards, not millions of small files.</li>
+<li><b>If <code>fsync</code> fails, the data is gone:</b> the kernel may already have dropped the dirty pages. Rewrite the checkpoint from memory; never retry the fsync and carry on (<a href="#rd-s5">section 5</a>).</li>
 </ol></div>
-<p class="small mute">How this page was measured: Docker Desktop's Linux VM on an Apple M1 laptop (Linux 5.10.104-linuxkit, arm64, 5 CPUs, about 10 GB), October 2026, image <code>kb-os-lab:1</code> (the root's lab image: fio 3.33, strace 6.1, e2fsprogs 1.47, PyTorch 2.14.1 CPU). Files were written to <code>/data</code>, an anonymous Docker volume: a directory on the VM's ext4 disk (<code>data=ordered</code>, <code>commit=5</code>, delayed allocation), with no overlay file system in between. Containers were not privileged. <b>The disk is virtual:</b> a virtio block device backed by a file on the laptop's SSD, which macOS caches, so device reads and flushes here are faster than on a real NVMe drive and cold reads are inflated; the ratios between methods carry over, the absolute numbers do not. Things that need privileges, a real crash, NVMe hardware, a network file system or a GPU are taught from primary sources and tagged <span class="nrh">not run here</span>. Labels: <span class="meas">measured</span> ran here; <span class="src">source</span> read from kernel source or documentation. Scripts and raw outputs: <code>src/exp/</code> and <code>src/raw/</code> in the repository.</p>
-<details class="xc"><summary>OSTEP chapter map for this page</summary><div>
+<details class="dp"><summary>How this page was measured <span class="mute">(provenance)</span></summary><div class="b">
+<p class="small">Docker Desktop's Linux VM on an Apple M1 laptop (Linux 5.10.104-linuxkit, arm64, 5 CPUs, about 10 GB), October 2026, image <code>kb-os-lab:1</code> (the root's lab image: fio 3.33, strace 6.1, e2fsprogs 1.47, PyTorch 2.14.1 CPU). Files were written to <code>/data</code>, an anonymous Docker volume: a directory on the VM's ext4 disk (<code>data=ordered</code>, <code>commit=5</code>, delayed allocation), with no overlay file system in between. Containers were not privileged. <b>The disk is virtual:</b> a virtio block device backed by a file on the laptop's SSD, which macOS caches, so device reads and flushes here are faster than on a real NVMe drive and cold reads are inflated; the ratios between methods carry over, the absolute numbers do not. Things that need privileges, a real crash, NVMe hardware, a network file system or a GPU are taught from primary sources and tagged <span class="nrh">not run here</span>. Labels: <span class="meas">measured</span> ran here; <span class="src">source</span> read from kernel source or documentation. Kernel source is quoted at v5.10 with line numbers. Scripts and raw outputs: <code>src/exp/</code> and <code>src/raw/</code> in the repository.</p>
+</div></details>
+<details class="dp"><summary>OSTEP chapter map for this page <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table class="tbl-sm"><thead><tr><th>OSTEP chapter</th><th>Here</th><th>What this page adds</th></tr></thead><tbody>
-<tr><td>36 I/O Devices</td><td><a href="#rd-s1">1</a>, <a href="#rd-s2">2</a></td><td>NVMe queues and doorbells, blk-mq, schedulers, queue depth measured</td></tr>
-<tr><td>37 Hard Disk Drives, 44 Flash-based SSDs</td><td><a href="#rd-s1">1</a></td><td>device write caches, FLUSH and FUA, power-loss protection</td></tr>
-<tr><td>39 Files and Directories</td><td><a href="#rd-s3">3</a>, <a href="#rd-s6">6</a>, <a href="#rd-s7">7</a></td><td>the VFS objects, fsync family semantics, rename and directory fsync</td></tr>
-<tr><td>40 File System Implementation</td><td><a href="#rd-s3">3</a>, <a href="#rd-s4">4</a></td><td>a real ext4 inode and extent tree, readahead's window measured</td></tr>
-<tr><td>41 Locality and FFS</td><td><a href="#rd-s3">3</a></td><td>ext4 block groups and extents as FFS's descendants</td></tr>
-<tr><td>42 Crash Consistency: FSCK and Journaling</td><td><a href="#rd-s8">8</a>, {{Crash lab|#t-crash}}</td><td>jbd2, ext4's data modes, delayed allocation, application-level crash states</td></tr>
-<tr><td>43 Log-structured File Systems</td><td><a href="#rd-s8">8</a></td><td>copy-on-write file systems (btrfs, ZFS) in brief</td></tr>
-<tr><td>45 Data Integrity and Protection</td><td><a href="#rd-s6">6</a></td><td>fsync error reporting (errseq_t), fsyncgate</td></tr>
-<tr><td>49 Sun's Network File System</td><td><a href="#rd-s10">10</a></td><td>close-to-open in Linux's NFS client, parallel file systems, object stores, FUSE</td></tr>
+<tr><td>36 I/O Devices; 37 Hard Disk Drives; 44 Flash-based SSDs</td><td><a href="#rd-s1">1</a></td><td>NVMe queues and doorbells, blk-mq, schedulers, queue depth measured; device write caches, FLUSH and FUA</td></tr>
+<tr><td>39 Files and Directories</td><td><a href="#rd-s2">2</a>, <a href="#rd-s5">5</a>, <a href="#rd-s6">6</a></td><td>the VFS objects, fsync family semantics, rename and directory fsync</td></tr>
+<tr><td>40 File System Implementation; 41 Locality and FFS</td><td><a href="#rd-s2">2</a>, <a href="#rd-s3">3</a></td><td>a real ext4 inode and extent tree, block groups, readahead's window measured</td></tr>
+<tr><td>42 Crash Consistency: FSCK and Journaling; 43 Log-structured File Systems</td><td><a href="#rd-s6">6</a>, <a href="#rd-s7">7</a></td><td>jbd2, ext4's data modes, delayed allocation, application-level crash states; copy-on-write file systems in brief</td></tr>
+<tr><td>45 Data Integrity and Protection</td><td><a href="#rd-s5">5</a></td><td>fsync error reporting (errseq_t), fsyncgate</td></tr>
+<tr><td>49 Sun's Network File System</td><td><a href="#rd-s9">9</a></td><td>close-to-open in Linux's NFS client; object stores and FUSE mounts</td></tr>
 </tbody></table></div>
-<p class="small">OSTEP is free at {{pages.cs.wisc.edu/~remzi/OSTEP|https://pages.cs.wisc.edu/~remzi/OSTEP/}}. Read 39, 40 and 42 alongside sections 3, 6 to 8 here.</p>
+<p class="small">OSTEP is free at {{pages.cs.wisc.edu/~remzi/OSTEP|https://pages.cs.wisc.edu/~remzi/OSTEP/}}. Read 39, 40 and 42 alongside sections 2, 5 to 7 here.</p>
 </div></details>
 </section>

@@ -1,0 +1,3927 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Storage and file systems: the page cache, fsync, journaling, and checkpoints Storage and file systems: the page cache, fsync, journaling, and checkpoints What happens between torch.save returning and your checkpoint surviving a crash, and between read() and the bytes arriving: devices, the block layer, the VFS, the page cache, writeback, fsync, journaling, and the storage a cluster gives you.",
+  "label": "core",
+  "key": "Storage and file systems: the page cache, fsync, journaling",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Taught from zero to kernel-source depth and measured on a Linux 5.10 kernel.",
+  "label": "core",
+  "key": "measured on a Linux 5.10",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "A child page of Topic: operating-systems .",
+  "label": "core",
+  "key": "A child page of Topic: operating-systems",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Crash lab Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar of the old page"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "One screen 1 Devices 2 Block layer 3 VFS and inodes 4 Reads, readahead 5 Writeback 6 fsync 7 Atomic replace 8 Journaling 9 Direct I/O 10 Remote storage 11 Checkpoints 12 Data loading Mistakes Interview",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old section nav"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "In one screen When torch.save returns, your checkpoint is in memory , not on the disk.",
+  "label": "core",
+  "key": "returned is not durable",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The kernel keeps file data in a cache (the page cache) and writes it to the device later, in its own order, on its own schedule.",
+  "label": "core",
+  "key": "to the device later, in its own order",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Everything on this page is about that gap: how data moves between your program, the cache and the device, what each system call promises about it, and how to write a checkpoint that a crash can never destroy.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the core sentence carries it"
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The root page, Topic: operating-systems section 7, gave the intuition, animated one write's journey, and traced the running job's checkpoint (its Syscall tracer tab); its OS simulators tab crashes a block-level write with and without a journal.",
+  "label": "core",
+  "key": "Topic: operating-systems section 7",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "This page goes one level down: the kernel's code paths (Linux v5.10, the kernel these runs used, file and line), the exact guarantee of every call, new measurements, and the checkpoint libraries you actually use.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "orientation prose; the page says where it goes in You need"
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Each mechanism follows one pattern: problem, how it works, what it costs here, when it bites in ML, the command that shows it, the fix.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old per-section template description"
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The storage stack, top to bottom.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old stack figure instruction; the hero replaces it"
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Click a layer to jump to its section.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old stack figure instruction"
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Call When it returns, what is guaranteed Cost here measured write() the bytes are in the page cache; other processes can read them; nothing is on the device fsync(fd) the file's data and its metadata (size, block map, times) are on stable storage, device cache flushed fdatasync(fd) the data, plus only the metadata needed to read it back (size, block map); not the times sync_file_range() the pages were sent to the device; no metadata, no device cache flush: not durable rename(tmp, final) atomic for every reader now; durable only after the next journal commit or an fsync of the directory part of the protocol below fsync(dir_fd) the directory's entries (names created, renamed, removed) are durable Six things to remember Returned is not durable.",
+  "label": "core",
+  "key": "Call When it returns, what is guaranteed Cost here",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The 256 MiB checkpoint below left MiB of dirty (not yet written) data in memory when torch.save returned ( section 5 ).",
+  "label": "core",
+  "key": "data in memory when torch.save returned ( section",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "When the kernel writes it is not a promise.",
+  "label": "core",
+  "key": "When the kernel writes",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The textbook says \"within 30 seconds\"; here the same 16 MiB stayed dirty anywhere from to seconds, depending on what else the machine was doing ( section 5 ).",
+  "label": "core",
+  "key": "The textbook says \"within 30 seconds\"; here the same",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The safe checkpoint is five calls: write to ckpt.pt.tmp , fsync it, rename it over ckpt.pt , fsync the directory; and never overwrite the last good checkpoint in place.",
+  "label": "core",
+  "key": "The safe checkpoint is five calls: write to ckpt.pt.tmp",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "It cost ms against ms for the plain save ( section 7 , Crash lab ).",
+  "label": "core",
+  "key": "ms for the plain save ( section",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "PyTorch's distributed checkpoint fsyncs every file but deletes the old .metadata before renaming the new one in, and never fsyncs the directory: save each step to a new directory ( section 11 ).",
+  "label": "core",
+  "key": "PyTorch's distributed checkpoint fsyncs every file but deletes the",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Sequential beats random, because the kernel reads ahead: 512 small reads of a cold file became device requests ( section 4 ).",
+  "label": "core",
+  "key": "Sequential beats random, because the kernel reads ahead: 512",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Shards, not millions of small files.",
+  "label": "core",
+  "key": "Shards, not millions of small files",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "If fsync fails, the data is gone: the kernel may already have dropped the dirty pages.",
+  "label": "core",
+  "key": "If fsync fails, the data is gone: the kernel",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Rewrite the checkpoint from memory; never retry the fsync and carry on ( section 6 ).",
+  "label": "core",
+  "key": "Rewrite the checkpoint from memory; never retry the fsync",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "How this page was measured: Docker Desktop's Linux VM on an Apple M1 laptop (Linux 5.10.104-linuxkit, arm64, 5 CPUs, about 10 GB), October 2026, image kb-os-lab:1 (the root's lab image: fio 3.33, strace 6.1, e2fsprogs 1.47, PyTorch 2.14.1 CPU).",
+  "label": "depth",
+  "key": "Docker Desktop's Linux VM on an Apple M1 laptop",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Files were written to /data , an anonymous Docker volume: a directory on the VM's ext4 disk ( data=ordered , commit=5 , delayed allocation), with no overlay file system in between.",
+  "label": "depth",
+  "key": "Files were written to /data , an anonymous Docker",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Containers were not privileged.",
+  "label": "depth",
+  "key": "Containers were not privileged",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The disk is virtual: a virtio block device backed by a file on the laptop's SSD, which macOS caches, so device reads and flushes here are faster than on a real NVMe drive and cold reads are inflated; the ratios between methods carry over, the absolute numbers do not.",
+  "label": "depth",
+  "key": "The disk is virtual: a virtio block device backed",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Things that need privileges, a real crash, NVMe hardware, a network file system or a GPU are taught from primary sources and tagged not run here .",
+  "label": "depth",
+  "key": "Things that need privileges, a real crash, NVMe hardware",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Labels: measured ran here; source read from kernel source or documentation.",
+  "label": "depth",
+  "key": "Labels: measured ran here; source read from kernel source",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Scripts and raw outputs: src/exp/ and src/raw/ in the repository.",
+  "label": "depth",
+  "key": "Scripts and raw outputs: src/exp/ and src/raw/ in the",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "OSTEP chapter map for this page OSTEP chapter Here What this page adds 36 I/O Devices 1 , 2 NVMe queues and doorbells, blk-mq, schedulers, queue depth measured 37 Hard Disk Drives, 44 Flash-based SSDs 1 device write caches, FLUSH and FUA, power-loss protection 39 Files and Directories 3 , 6 , 7 the VFS objects, fsync family semantics, rename and directory fsync 40 File System Implementation 3 , 4 a real ext4 inode and extent tree, readahead's window measured 41 Locality and FFS 3 ext4 block groups and extents as FFS's descendants 42 Crash Consistency: FSCK and Journaling 8 , Crash lab jbd2, ext4's data modes, delayed allocation, application-level crash states 43 Log-structured File Systems 8 copy-on-write file systems (btrfs, ZFS) in brief 45 Data Integrity and Protection 6 fsync error reporting (errseq_t), fsyncgate 49 Sun's Network File System 10 close-to-open in Linux's NFS client, parallel file systems, object stores, FUSE OSTEP is free at pages.cs.wisc.edu/~remzi/OSTEP .",
+  "label": "depth",
+  "key": "OSTEP chapter Here What this page adds 36 I/O",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Read 39, 40 and 42 alongside sections 3, 6 to 8 here.",
+  "label": "depth",
+  "key": "Read 39, 40 and 42 alongside sections",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "Devices: what is actually at the bottom ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old heading and OSTEP chip"
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "36 I/O Devices, ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "OSTEP chip; chapter map kept in a closed block"
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "37 Hard Disk Drives, ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "OSTEP chip"
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "44 Flash-based SSDs The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "OSTEP chip and \"The problem.\" label"
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "Memory (DRAM) loses its contents without power; a storage device keeps them.",
+  "label": "core",
+  "key": "a storage device keeps",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "But devices are thousands of times slower than memory, they work in blocks, not bytes, and most of them have their own volatile cache.",
+  "label": "core",
+  "key": "thousands of times slower than memory",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "Everything the kernel does above them exists to hide these three facts, and every durability bug comes from forgetting one of them.",
+  "label": "core",
+  "key": "every durability bug forgets one of them",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "Three kinds of device Hard disk (HDD) A spinning platter and a moving arm.",
+  "label": "depth",
+  "key": "A spinning platter and a moving arm",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "A random read waits for the arm to move (seek) and the platter to turn (rotation): several milliseconds, so a few hundred random reads per second; sequential reads are fast because nothing moves.",
+  "label": "depth",
+  "key": "A random read waits for the arm to move",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "37 works the numbers.",
+  "label": "depth",
+  "key": "ch. 37 works the numbers",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "Flash SSD No moving parts.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"no moving parts\" is implied by the FTL description"
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "Flash is read and written in pages (a few KiB) but can be erased only in much larger erase blocks , and a page cannot be rewritten before its block is erased.",
+  "label": "core",
+  "key": "erased only in much larger erase blocks , and",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "A flash translation layer (FTL) inside the drive therefore writes every update to a fresh page and remaps it, and garbage-collects old blocks in the background; the extra internal writes are write amplification .",
+  "label": "core",
+  "key": "flash translation layer (FTL) inside the drive therefore writes",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "44 lists typical times: read about 25 us, program (write) 200 to 300 us, erase 1.5 to 2 ms for SLC flash ( OSTEP ch.",
+  "label": "core",
+  "key": "read about 25 us, program (write) 200 to 300",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "NVMe The interface modern SSDs speak over PCIe.",
+  "label": "core",
+  "key": "the interface modern SSDs speak over PCIe",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "The host and the drive share submission and completion queues in memory: the driver writes a command into a submission queue and rings a doorbell register; the drive fetches it by DMA, does the work, writes a completion entry and raises an interrupt.",
+  "label": "core",
+  "key": "and rings a doorbell register; the drive fetches it",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "The specification allows up to 65,535 I/O queue pairs of up to 65,536 entries each ( NVM Express base specification ), so Linux can give each CPU its own queue and never take a shared lock. not run here TRIM, or discard.",
+  "label": "core",
+  "key": "The specification allows up to 65,535 I/O queue pairs",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "When a file is deleted, the file system knows the blocks are free but the SSD does not, and its garbage collector keeps copying dead data.",
+  "label": "depth",
+  "key": "stops copying dead data",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "A discard (TRIM on SATA, Deallocate on NVMe) tells it. ext4 can send discards at every delete (mount option discard ) or you run fstrim periodically.",
+  "label": "depth",
+  "key": "A discard (TRIM on SATA, Deallocate on NVMe) tells",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "This VM mounts its disk nodiscard and runs a small service that calls /sbin/fstrim /var/lib/docker after deletes (seen in the VM's process list with docker run --pid host ... ps ) measured .",
+  "label": "depth",
+  "key": "This VM mounts its disk nodiscard and runs a",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "The device's own cache, and why fsync must flush it Most drives acknowledge a write as soon as it is in their internal DRAM cache.",
+  "label": "core",
+  "key": "it is in their internal DRAM",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "If power fails before the drive moves it to flash or platter, the write is lost even though the drive said \"done\".",
+  "label": "core",
+  "key": "flash or platter, the write is lost",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "So the kernel has two extra tools ( kernel docs: writeback cache control ): a cache flush (the REQ_PREFLUSH flag: \"flush the volatile cache before this I/O\") and FUA , Force Unit Access (the REQ_FUA flag: \"this write completes only once it is on stable storage\").",
+  "label": "core",
+  "key": "kernel docs: writeback cache control ): a cache",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "A file system's fsync ends with one of them; that, not the write itself, is what makes data survive power loss.",
+  "label": "core",
+  "key": "A file system's fsync ends with one of them",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "You can read what the kernel believes about your disk: This disk reports a write-back cache and no FUA support, so the kernel emulates FUA with a write followed by a full cache flush.",
+  "label": "depth",
+  "key": "This disk reports a write-back cache and no FUA",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "A drive that wrongly reports write through , or firmware that ignores flushes, silently breaks every guarantee on this page; this cannot be tested from software, only with power-cut tests.",
+  "label": "depth",
+  "key": "A drive that wrongly reports write through , or",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "What a device does at different queue depths measured fio, 4 KiB random reads with O_DIRECT (bypassing the page cache, section 9 ) on a 1 GiB file, 5 s per point.",
+  "label": "core",
+  "key": "on a 1 GiB file, 5 s per",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "Queue depth (QD) is how many requests are in flight at once.",
+  "label": "core",
+  "key": "Queue depth (QD) is how many requests are in",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "Why it bites in ML.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading label"
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "A data loader that reads one sample at a time from one thread runs at queue depth 1, the left end of that chart.",
+  "label": "core",
+  "key": "loader that reads one sample at a time from",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "More DataLoader workers, prefetching, or asynchronous I/O raise the queue depth and the throughput, until the device saturates and latency only grows.",
+  "label": "core",
+  "key": "prefetching or asynchronous I/O move it down the chart",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "1. devices: what is actually at the bottom",
+  "text": "Little's law ties the three: requests in flight = throughput x latency.",
+  "label": "core",
+  "key": "requests in flight = throughput x latency",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "The block layer: from a request to the device's queues ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old heading"
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "36 I/O Devices The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "OSTEP chip"
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "Many processes and the file system issue reads and writes of all sizes; the device wants few, large, well-ordered requests spread across its queues.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "motivation restated by the bio and request sentence"
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "The block layer sits between them.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restatement"
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "A file system describes an I/O as a bio : a direction, a starting sector and a list of memory pages ( struct bio , include/linux/blk_types.h).",
+  "label": "core",
+  "key": "A file system describes an I/O as a bio",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "Bios that touch neighbouring sectors are merged into a request .",
+  "label": "core",
+  "key": "Bios that touch neighbouring sectors",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "Since Linux 3.13 the layer is blk-mq , multi-queue: each CPU puts requests in its own software queue, which feeds one of the device's hardware queues, so CPUs do not contend on one lock ( kernel docs: blk-mq ).",
+  "label": "core",
+  "key": "each CPU puts requests in its own software queue",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "A thread may also plug its queue while it submits a batch, so the batch is merged before it is sent.",
+  "label": "depth",
+  "key": "plug its queue while it submits a batch, so",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "An optional I/O scheduler may reorder requests: none , mq-deadline (bounds how long a request waits), kyber (latency targets) or bfq (fair shares between processes).",
+  "label": "depth",
+  "key": "An optional I/O scheduler may reorder requests: none",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "For fast NVMe drives none is the usual choice because reordering costs more than it saves.",
+  "label": "depth",
+  "key": "For fast NVMe drives none is the usual choice",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "This VM's disk: scheduler , hardware queues (one per CPU), up to requests per queue, at most KiB per request, readahead KiB. measured Commands that show it lsblk -o NAME,SIZE,ROTA,SCHED,MOUNTPOINT and cat /sys/block/nvme0n1/queue/{scheduler,nr_requests,max_sectors_kb,read_ahead_kb,write_cache} iostat -x 1 : per device, r/s w/s (requests per second), rkB/s , r_await (average ms per read, queueing included), aqu-sz (average queue depth), %util (time with at least one request in flight; near 100% does not mean saturated on a device that serves many requests in parallel) cat /proc/diskstats : the raw counters behind iostat; in a cgroup v2 container, cat /sys/fs/cgroup/io.stat gives your container's own rbytes wbytes rios wios (used for every device count on this page) cat /sys/fs/cgroup/io.max : a bandwidth or IOPS limit; the root's Debug lab case \"Slow storage: workers sleep in D state on page faults\" ( Debug lab ) throttles reads to 1 MiB/s this way When it bites in ML.",
+  "label": "depth",
+  "key": "Commands that show it lsblk -o NAME,SIZE,ROTA,SCHED,MOUNTPOINT and cat",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "Rarely directly: you seldom tune the block layer, but you read its counters. \"The disk is at 100% util\" on iostat while r/s keeps rising with more workers means the device still has room; a large r_await with a small aqu-sz means each request is slow (a remote or throttled device), not that you are queueing.",
+  "label": "depth",
+  "key": "you seldom tune the block layer, but you read",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "At queue depth 64, fio measured about 54,700 reads per second at a mean latency near 1.15 ms.",
+  "label": "core",
+  "key": "At queue depth 64, fio measured about 54,700 reads",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "What throughput does Little's law predict for 64 requests in flight at 1.15 ms each? about 870 per second about 55,500 per second about 3.5 million per second Throughput = requests in flight / latency = 64 / 0.0011526 s = about 55,500 per second, within 2% of what fio measured: the device was busy all the time, and each extra request in flight only waited longer.",
+  "label": "core",
+  "key": "What throughput does Little's law predict for 64 requests",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "2. the block layer: from a request to the device's queues",
+  "text": "At queue depth 1 the same law gives 1 / 80 us = 12,500 per second; fio saw 10,741 because fio's own per-request work adds to the device's time.",
+  "label": "core",
+  "key": "At queue depth 1 the same law gives 1",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "File systems and the VFS: names, inodes and open files ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old heading"
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "39 Files and Directories, ch.",
+  "label": "depth",
+  "key": "39 Files and Directories",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "40 File System Implementation, ch.",
+  "label": "depth",
+  "key": "40 File System Implementation",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "41 Locality and FFS The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "OSTEP chip"
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "A device is a flat array of blocks.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restatement of \"works in blocks\""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "Programs want named files in directories, permissions, sizes and times, and they want the same open , read , write to work on ext4, XFS, tmpfs, NFS or /proc .",
+  "label": "core",
+  "key": "and times, and they want the same open",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "The kernel solves the second problem with the VFS (virtual file system switch): one set of objects and calls that every file system implements ( kernel docs: VFS ).",
+  "label": "core",
+  "key": "the VFS (virtual file system switch",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "Four objects superblock One per mounted file system: its type, block size, and the operations to read and write inodes ( struct super_block , include/linux/fs.h line 1416, v5.10). inode One per file, whatever its names: type, permissions, owner, size, times, link count, and where its data lives ( struct inode , fs.h line 610).",
+  "label": "core",
+  "key": "One per mounted file system: its type, block size",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "It holds an address_space (line 451): that file's pages in the page cache. dentry One per name in a path, cached: \"the name ckpt.pt in directory X is inode 13\" ( struct dentry , include/linux/dcache.h line 89).",
+  "label": "core",
+  "key": "One per name in a path, cached: \"the name",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "A negative dentry caches \"this name does not exist\". file One per open() : the current offset, the open flags, and a pointer to the dentry and inode ( struct file , fs.h line 916).",
+  "label": "core",
+  "key": "A negative dentry caches \"this name does not exist\"",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "File descriptors are indexes into a per-process table of these; the sibling page Processes and the system-call API section 7 draws the three tables.",
+  "label": "core",
+  "key": "Processes and the system-call API section 7 draws the",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "Path lookup. open(\"/data/out/ckpt.pt\") walks the path one component at a time, looking each name up in the dentry cache and asking the file system only on a miss (fs/namei.c).",
+  "label": "depth",
+  "key": "Path lookup. open(\"/data/out/ckpt.pt\") walks the path one component at",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "The root's Syscall tracer shows import torch making hundreds of newfstatat calls that fail with ENOENT: Python searching its path.",
+  "label": "depth",
+  "key": "The root's Syscall tracer shows import torch making hundreds",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "Each failure leaves a negative dentry, so the second import is cheap.",
+  "label": "depth",
+  "key": "Each failure leaves a negative dentry, so the second",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "Names are not files.",
+  "label": "core",
+  "key": "Names are not files",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "A directory is itself a file whose content is a table of (name, inode number).",
+  "label": "core",
+  "key": "A directory is itself a file whose content is",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "A hard link is a second entry pointing at the same inode; a symbolic link is a small file containing a path.",
+  "label": "core",
+  "key": "a symbolic link is a small file containing a",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "The inode counts its names (its link count) and is freed when that count is zero and no process has it open.",
+  "label": "core",
+  "key": "count is zero and no process has it open",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "So deleting a checkpoint that a running process still holds open frees no space until that process closes it or exits; lsof +L1 lists such deleted-but-open files.",
+  "label": "core",
+  "key": "So deleting a checkpoint that a running process still",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "An ext4 inode, for real Below, mke2fs built a 64 MiB ext4 file system inside an ordinary file and debugfs (which reads and writes the image directly, so no mount and no privileges were needed) copied in a 3,000,000-byte \"checkpoint\" and a small file with two names. measured Read it from the bottom of the stack up.",
+  "label": "core",
+  "key": "Below, mke2fs built a 64 MiB ext4 file system",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "The directory out is a table: ckpt.pt is inode 13, and hello.txt and hardlink.txt are both inode 14 (one file, Links: 2 ).",
+  "label": "core",
+  "key": "hello.txt and hardlink.txt are both inode 14",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "Inode 13's data is one extent : logical blocks 0 to 732 stored in physical blocks 2066 to 2798, contiguous.",
+  "label": "core",
+  "key": "Inode 13's data is one extent : logical blocks",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "That is 733 blocks of 4,096 bytes, the smallest number that holds 3,000,000 bytes (3,000,000 / 4,096 = 732.4), and Blockcount: 5864 counts the same space in 512-byte sectors (733 x 8).",
+  "label": "core",
+  "key": "3,000,000 bytes (3,000,000 / 4,096 = 732.4), and Blockcount",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "Old file systems (ext2, ext3) listed every block number; an extent says \"start, length\" once, which is why a large file costs ext4 almost no metadata. ext4 also groups inodes and their data into block groups so a file's inode sits near its data, the idea OSTEP ch.",
+  "label": "core",
+  "key": "listed every block number; an extent says \"start, length\"",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "41 credits to FFS.",
+  "label": "core",
+  "key": "credits the idea to FFS",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "The journal ( section 8 ) is itself an inode inside the file system, 4 MiB here.",
+  "label": "core",
+  "key": "is itself an inode, 4 MiB here",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "What metadata costs The same 40 MiB written as 10,240 files of 4 KiB or as one file, on ext4: measured Why.",
+  "label": "core",
+  "key": "the same 40 MiB as 10,240 files or one",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "Every small file pays for a path lookup, an inode allocation, a directory entry, a journal transaction share and a separate block allocation; every cold read of one is at least one device request that readahead cannot merge with its neighbours ( section 4 ).",
+  "label": "core",
+  "key": "Every small file pays for a path lookup, an",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "On a network or parallel file system each open and stat is also a round trip to a metadata server ( section 10 ), so the gap grows from tens to thousands of times.",
+  "label": "core",
+  "key": "file system each open and stat is also a",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "3. file systems and the vfs: names, inodes and open files",
+  "text": "Commands that show it stat file (inode number, links, size, blocks, times); ls -li (inode numbers) df -h (space) and df -i (inodes: a file system can run out of inodes with free space left, the small-files failure) filefrag -v file (extents of a file on a mounted ext4 or XFS); debugfs -R \"stat <13>\" image lsof +L1 (deleted files still open, still using space)",
+  "label": "depth",
+  "key": "Commands that show it stat file (inode number, links",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "Reading: the page cache and readahead ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old heading"
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "40 File System Implementation (caching and buffering) The problem.",
+  "label": "depth",
+  "key": "40 File System Implementation",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "A device request has a large fixed cost; a program often reads a file 4 KiB at a time, and often reads the same file again (every epoch).",
+  "label": "core",
+  "key": "A device request has a large fixed cost",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "Two answers: keep what was read in memory, the page cache , and when a program reads sequentially, fetch the next pages before it asks, readahead .",
+  "label": "core",
+  "key": "Two answers: keep what was read in memory, the",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "The sibling page Virtual memory section 6 covers how the page cache competes for memory and is reclaimed; this section is about how data gets into it.",
+  "label": "core",
+  "key": "how the page cache competes for memory and is",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "The read path, in the source source read(fd, buf, 4096) reaches ext4's ext4_file_read_iter , which calls the generic generic_file_buffered_read (mm/filemap.c line 2185, v5.10).",
+  "label": "depth",
+  "key": "source read(fd, buf, 4096) reaches ext4's ext4_file_read_iter , which",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "For each page of the request it looks the page up in the file's address_space .",
+  "label": "depth",
+  "key": "For each page of the request it looks the",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "A hit is a memory copy.",
+  "label": "depth",
+  "key": "A hit is a memory copy",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "A miss calls page_cache_sync_readahead (line 2235), which decides how much to fetch, allocates the pages, builds bios and submits them; the reader then sleeps until its page is unlocked.",
+  "label": "depth",
+  "key": "A miss calls page_cache_sync_readahead (line 2235), which decides how",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "That sleep is the D state with wait channel wait_on_page_bit_common that the root's Debug lab case \"Slow storage: workers sleep in D state on page faults\" caught on a throttled disk.",
+  "label": "depth",
+  "key": "That sleep is the D state with wait channel",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "A page that carries the PG_readahead mark triggers page_cache_async_readahead (line 2247): the next window is fetched while the program is still reading the current one.",
+  "label": "depth",
+  "key": "A page that carries the PG_readahead mark triggers page_cache_async_readahead",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "The readahead window, from the source and on the device source mm/readahead.c (v5.10) sizes the first window with get_init_ra_size (line 311): round the request up to a power of two, then multiply by 4 if it is at most 1/32 of the maximum, by 2 if at most 1/4, else use the maximum.",
+  "label": "core",
+  "key": "get_init_ra_size (line 311): round the request up to a",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "Each later window comes from get_next_ra_size (line 329): 4 times the previous one while it is under 1/16 of the maximum, then 2 times, capped at the maximum.",
+  "label": "core",
+  "key": "under 1/16 of the maximum, then",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "The maximum is read_ahead_kb (128 KiB here, 32 pages); posix_fadvise(POSIX_FADV_SEQUENTIAL) doubles it for that open file (mm/fadvise.c line 92) and POSIX_FADV_RANDOM turns readahead off (line 88). measured A cold 8 MiB file read 4 KiB at a time; after every read() the script looked at the container's io.stat , so each device request and its size is visible.",
+  "label": "core",
+  "key": "The maximum is read_ahead_kb (128 KiB here, 32 pages",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "The animation replays the measured requests; the sizes predicted from the two source rules are drawn as outlines.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "instruction for the old animation"
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "Read the two before/after cases together.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "instruction; the next sentences carry the content"
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "With readahead on, the window grew 4, 8, 16, 32 pages and then stayed at the 32-page maximum, and each window was requested one window ahead of the reader (the marker page), so most reads never waited for the device.",
+  "label": "core",
+  "key": "With readahead on, the window grew 4, 8, 16",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "With readahead off the same reads cost one device request each.",
+  "label": "core",
+  "key": "With readahead off the same reads cost one",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "Random reads get no readahead at all: the kernel only predicts sequential access, and the measured random case fetched exactly one page per read.",
+  "label": "core",
+  "key": "the kernel only predicts sequential access, and the measured",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "Cold and warm, and the honest caveat The root's Debug lab case \"The first epoch is slower than the rest: cold and warm page cache\" measured a 512 MiB shard at 858 MiB/s cold against 3,831 MiB/s warm, and readahead off at 16,384 requests for 64 MiB against 516 with it on.",
+  "label": "core",
+  "key": "Cold and warm, and the honest caveat The root's",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "On this VM, \"cold\" still means \"in macOS's cache of the virtual disk file\": on a real local NVMe drive the cold number would be lower, and on a network file system much lower.",
+  "label": "core",
+  "key": "\"cold\" still means \"in macOS's cache of the virtual",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "Here the cold small-files read of section 3 was times slower than reading the same 40 MiB as one file.",
+  "label": "core",
+  "key": "times slower than reading the same 40 MiB as",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "Commands and knobs Per device: cat /sys/block/DEV/queue/read_ahead_kb , change with blockdev --setra SECTORS /dev/DEV (root; network file systems have their own, e.g.",
+  "label": "depth",
+  "key": "Commands and knobs Per device: cat /sys/block/DEV/queue/read_ahead_kb , change",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "NFS's read_ahead_kb under /sys/class/bdi/ ).",
+  "label": "depth",
+  "key": "NFS's read_ahead_kb under /sys/class/bdi/",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "Per open file: posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL | RANDOM | WILLNEED | DONTNEED) , from Python os.posix_fadvise ( posix_fadvise(2) ); WILLNEED starts reading a range now; DONTNEED drops a file's clean pages (how this page made files cold without root).",
+  "label": "depth",
+  "key": "Per open file: posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL | RANDOM",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "For a mapping: madvise(MADV_SEQUENTIAL | MADV_RANDOM | MADV_WILLNEED) ; the sibling Virtual memory section 5 measured random rows through mmap fetching 13x more than they used, and MADV_RANDOM cutting it to 3.4x.",
+  "label": "depth",
+  "key": "For a mapping: madvise(MADV_SEQUENTIAL | MADV_RANDOM | MADV_WILLNEED",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "How much of a file is cached: fincore file (util-linux); whole system: free -m (buff/cache), grep -E \"^(Cached|Dirty|Writeback):\" /proc/meminfo ; your container: grep -E \"^file \" /sys/fs/cgroup/memory.stat .",
+  "label": "depth",
+  "key": "How much of a file is cached: fincore file",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "A DataLoader reads samples at random offsets from one big uncompressed file of fixed-size records, 4 KiB each, cold.",
+  "label": "core",
+  "key": "A DataLoader reads samples at random offsets from one",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "How many device requests do 1,000 samples cost, roughly? about 31 (32-page windows) about 1,000 about 8 (one per 128 KiB window filled) About one per sample: readahead only triggers on sequential patterns, as the measured random case shows (64 random reads, 64 requests).",
+  "label": "core",
+  "key": "How many device requests do 1,000 samples cost, roughly?",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "4. reading: the page cache and readahead",
+  "text": "Throughput then depends on queue depth, so more workers help; reading in a shuffled order of large shards (shuffle shards, then shuffle within a buffer) turns it back into sequential reads.",
+  "label": "core",
+  "key": "Throughput then depends on queue depth, so more workers",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "Writing: dirty pages, writeback and throttling ch.",
+  "label": "core",
+  "key": "Writing: dirty pages, writeback and throttling",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "39 Files and Directories (fsync), ch.",
+  "label": "depth",
+  "key": "39 Files and Directories",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "40 (write buffering) The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "OSTEP chip"
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "If every write() waited for the device, a program writing a checkpoint in 4 KiB pieces would pay a device round trip for each.",
+  "label": "core",
+  "key": "in 4 KiB pieces would pay a device round",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "So writes go to the page cache and return; the device is updated later, in large batches.",
+  "label": "core",
+  "key": "marks it dirty",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "The cost of that speed is the gap this page is about.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "How it works source write() on ext4 runs generic_perform_write (mm/filemap.c line 3288, v5.10): for each page, ext4_da_write_begin (fs/ext4/inode.c line 2934) finds or creates the page in the cache and reserves space without choosing disk blocks (delayed allocation, section 8 ), the bytes are copied in, the page is marked dirty (changed in memory, not yet on the device), and balance_dirty_pages_ratelimited (line 3365) checks whether this writer has dirtied too much.",
+  "label": "depth",
+  "key": "source write() on ext4 runs generic_perform_write (mm/filemap.c line 3288",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "Nothing has touched the device.",
+  "label": "depth",
+  "key": "Nothing has touched the device",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "Dirty pages are written back by per-device flusher threads (kernel workers named kworker/u*:*-flush-* ) for three reasons ( vm sysctl docs ; mm/page-writeback.c lines 74 to 109): Age: every dirty_writeback_centisecs (500, so 5 s) the flusher wakes and writes data that has been dirty longer than dirty_expire_centisecs (3000, so 30 s).",
+  "label": "core",
+  "key": "three reasons ( vm sysctl docs ; mm/page-writeback.c lines",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "Background threshold: when dirty data passes dirty_background_ratio (10%) of dirtyable memory (free memory plus file pages that could be reclaimed, not total RAM: global_dirtyable_memory , line 362), the flusher starts writing everything, regardless of age.",
+  "label": "core",
+  "key": "Background threshold: when dirty data passes dirty_background_ratio (10%) of",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "Hard threshold: near dirty_ratio (20%) the writing process itself is paused in balance_dirty_pages (line 1555, the pause at line 1795) so it cannot dirty memory faster than the device drains it.",
+  "label": "core",
+  "key": "Hard threshold: near dirty_ratio (20%) the writing process itself",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "This is dirty throttling : write() becomes slow without any error.",
+  "label": "core",
+  "key": "This is dirty throttling : write() becomes slow without",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "On this VM the kernel computed a background threshold of MiB and a hard threshold of MiB VM-wide ( /proc/vmstat ) measured .",
+  "label": "depth",
+  "key": "On this VM the kernel computed a background threshold",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "With cgroup v2 each memory cgroup is also its own writeback domain with thresholds scaled to its memory, so a container with a 1.5 GB limit is throttled long before the machine is ( cgroup v2 docs, Writeback ).",
+  "label": "core",
+  "key": "With cgroup v2 each memory cgroup is also its",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "Watching it happen measured Each run wrote a file into a fresh container (limit 1,500 MB) and sampled its memory.stat (dirty and under-writeback page cache) and io.stat (bytes the device received) every 100 ms.",
+  "label": "core",
+  "key": "wrote a file into a fresh container (limit 1,500",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "Six runs wrote 16 MiB (or 256 MiB) and then waited, with nothing calling fsync.",
+  "label": "core",
+  "key": "Six runs wrote 16 MiB (or 256 MiB) and",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "The textbook rule is \"written back once it is 30 s old\".",
+  "label": "core",
+  "key": "The textbook rule is \"written back once it is",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "How long did the 16 MiB actually stay dirty? always 30 to 35 s always under 1 s anywhere from about 2 to 32 s In a fresh container the data left at the flusher's next 5-second wake-up, long before it was 30 s old.",
+  "label": "core",
+  "key": "How long did the 16 MiB actually stay dirty?",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "Our reading of the source: wb_over_bg_thresh (mm/page-writeback.c line 1960) also compares this writeback domain's dirty pages with its share of the background threshold, a share proportional to how much it recently wrote back.",
+  "label": "core",
+  "key": "Our reading of the source: wb_over_bg_thresh (mm/page-writeback.c line 1960",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "A brand-new container has almost no share, so even 16 MiB counts as \"over its threshold\" and is written in the background.",
+  "label": "core",
+  "key": "A brand-new container has almost no share, so even",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "After the container had just written and synced 1 GiB (the \"primed\" runs), it had a share, and the same 16 MiB waited between 2 and 32 s as that share decayed.",
+  "label": "core",
+  "key": "After the container had just written and synced 1",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "We could not trace the flusher here (that needs privileges), so treat the explanation as the likely one, not a proven one.",
+  "label": "core",
+  "key": "We could not trace the flusher here (that needs",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "The lesson does not depend on it: when dirty data reaches the device is not a promise you can use.",
+  "label": "core",
+  "key": "The lesson does not depend on it: when dirty",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "What it costs, and when it bites in ML A crash in the window loses data that every call said was written.",
+  "label": "core",
+  "key": "A crash in the window loses data that every call said was written",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "The 256 MiB checkpoint of section 11 left MiB dirty when torch.save returned.",
+  "label": "core",
+  "key": "The 256 MiB checkpoint of section",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "(Killing the process does not lose it: the dirty pages belong to the kernel.",
+  "label": "core",
+  "key": "Killing the process does not lose it",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "Only a kernel crash, a power loss or a VM or node being killed does.) Dirty throttling stalls training.",
+  "label": "core",
+  "key": "Only a kernel crash, a power loss or a",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "In the \"1.5 GiB, as fast as possible\" run the writer was caught sleeping in balance_dirty_pages and the container's dirty data hovered at the domain's limits while the device drained it.",
+  "label": "core",
+  "key": "In the \"1.5 GiB, as fast as possible\" run",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "A training loop that saves a large checkpoint synchronously stalls the same way; a background writer thread does not stop the stall from happening, but it moves it off the training thread.",
+  "label": "core",
+  "key": "loop that saves a large checkpoint synchronously stalls the",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "Dirty pages count toward your container's memory and cannot be dropped until they are written, so a memory-limited container that writes faster than its device can be pushed toward the OOM killer by its own page cache ( Virtual memory section 12).",
+  "label": "core",
+  "key": "Dirty pages count toward your container's memory and cannot",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "Commands and fixes See it: grep -E \"^(Dirty|Writeback):\" /proc/meminfo (machine), grep -E \"file_(dirty|writeback)\" /sys/fs/cgroup/memory.stat (container), cat /proc/PID/wchan (a writer in balance_dirty_pages is being throttled), grep -E \"nr_dirty(_background)?_threshold\" /proc/vmstat .",
+  "label": "depth",
+  "key": "Commands and fixes See it: grep -E \"^(Dirty|Writeback):\" /proc/meminfo",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "Tune (hosts you own): vm.dirty_background_bytes and vm.dirty_bytes set absolute limits instead of ratios, which is saner on machines with hundreds of GB of RAM where 20% is far more than a device can drain in seconds.",
+  "label": "depth",
+  "key": "Tune (hosts you own): vm.dirty_background_bytes and vm.dirty_bytes set absolute",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "5. writing: dirty pages, writeback and throttling",
+  "text": "In code: fsync what must survive ( section 6 ); for a long streaming write, start writeback early with sync_file_range(SYNC_FILE_RANGE_WRITE) on each finished chunk and fdatasync once at the end, which keeps dirty data and the final fsync small.",
+  "label": "depth",
+  "key": "for a long streaming write, start writeback early",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "Durability: fsync and its relatives ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old heading"
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "39 Files and Directories, ch.",
+  "label": "depth",
+  "key": "39 Files and Directories",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "45 Data Integrity and Protection The problem.",
+  "label": "depth",
+  "key": "45 Data Integrity and Protection",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "Some data must survive a crash: a checkpoint, a database log, the \"this checkpoint is complete\" marker.",
+  "label": "core",
+  "key": "a checkpoint, a database log",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "The program needs a call that returns only when the data is on stable storage, and it needs to know exactly what that call covers.",
+  "label": "core",
+  "key": "The program needs a call that returns only when",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "The family, and what each one promises Call Covers Source fsync(fd) all of the file's dirty data and all its metadata, then a device cache flush. \"This includes writing through or flushing a disk cache if present.\" Not the directory entry that names the file. fsync(2) fdatasync(fd) the data, plus only the metadata \"needed in order to allow a subsequent data retrieval to be correctly handled\": the size and block map yes, the modification time no fsync(2) open(..., O_DSYNC) / O_SYNC every write() behaves as if followed by fdatasync / fsync open(2) sync_file_range(fd, off, n, flags) starts and/or waits for writeback of a byte range; no metadata, no cache flush.",
+  "label": "core",
+  "key": "data and all its metadata, then a device cache",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "The kernel's own comment: \"there are no guarantees here that the data will be available on disk after a crash\" fs/sync.c lines 351 to 355 (v5.10) syncfs(fd) , sync() everything dirty on one file system, or on all of them; heavy, and in a shared machine you wait for other people's data too sync(2) Inside ext4's fsync source ext4_sync_file (fs/ext4/fsync.c line 129, v5.10) does three things in order.",
+  "label": "core",
+  "key": "The kernel's own comment: \"there are no guarantees here",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "(1) file_write_and_wait_range : write the file's dirty pages and wait for them.",
+  "label": "core",
+  "key": "write the file's dirty pages and wait",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "(2) ext4_fsync_journal (line 104): wait until the journal transaction that last changed this inode has committed; for fdatasync it waits only for the transaction that last changed what data retrieval needs ( i_datasync_tid against i_sync_tid , line 109), and if that already committed there is nothing to wait for.",
+  "label": "depth",
+  "key": "for fdatasync it waits only for the transaction that",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "The wait goes through ext4_fc_commit (line 115), which is a full journal commit unless the newer \"fast commit\" feature was enabled when the file system was created (a feature flag that needs privileges to read on this VM).",
+  "label": "depth",
+  "key": "a full journal commit unless the newer \"fast commit\"",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "(3) If needed, blkdev_issue_flush (line 177): the device cache flush of section 1 .",
+  "label": "core",
+  "key": "the device cache flush",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "The animation runs one 4 KiB overwrite of a preallocated file through three calls, with this VM's measured median times.",
+  "label": "core",
+  "key": "Step through one 4 KiB overwrite under each call",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "What each call costs per 4 KiB record measured 1,000 records each; median and 99th percentile in microseconds. \"Append\" grows the file (size changes every time); \"overwrite\" rewrites a preallocated, already-synced file (only data and times change). tmpfs keeps files only in memory, so it has nothing to flush. ext4 (/data) tmpfs (/dev/shm) On an overwrite, fdatasync cost about a third of fsync here.",
+  "label": "core",
+  "key": "What each call costs per 4 KiB record measured",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "Why, given that both wrote the same 4 KiB? fdatasync skips the device cache flush fsync must also commit the inode's new modification time through the journal; fdatasync does not need to fdatasync writes less data An overwrite changes no size and no block map, only the data and the inode's times. fdatasync's required metadata is unchanged, so it writes the page and flushes; fsync must also log the time change in a journal transaction and wait for its commit, which is a second ordered write and flush.",
+  "label": "core",
+  "key": "Why, given that both wrote the same 4 KiB?",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "On append the size changes, so fdatasync needs the journal too and costs nearly as much as fsync: preallocating a log file ( fallocate ) and overwriting it is how databases make fdatasync cheap.",
+  "label": "core",
+  "key": "On append the size changes, so fdatasync needs the",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "When fsync fails A device error during writeback is reported to the next fsync .",
+  "label": "core",
+  "key": "When fsync fails A device error during writeback is",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "Before Linux 4.13 the error could be reported to one caller only and the failed pages were marked clean, so a second fsync returned success with the data lost: the PostgreSQL \"fsyncgate\" story in the root's section 7.",
+  "label": "core",
+  "key": "one caller only and the failed pages were marked",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "Since 4.13 the kernel records writeback errors in an errseq_t , a counter plus error code that \"allow[s] any number of 'subscribers' to tell whether it has changed since a previous point where it was sampled\" (lib/errseq.c lines 8 to 10, v5.10), so every file descriptor open at the time sees the error once ( LWN, Improved block-layer error handling ).",
+  "label": "core",
+  "key": "Since 4.13 the kernel records writeback errors in an",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "The pages may still be gone.",
+  "label": "core",
+  "key": "The pages may still be gone",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "The rule: a failed fsync means that file's recent writes are lost; rewrite it from memory, or abort.",
+  "label": "core",
+  "key": "The rule: a failed fsync means that file's recent",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "With delayed allocation, running out of space can also surface only at fsync or close rather than at write , so check both: Python's f.close() raises OSError if the underlying close fails.",
+  "label": "core",
+  "key": "With delayed allocation, running out of space can also",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "When it bites in ML, and the fix An fsync per step is about a millisecond per call here and can be tens of milliseconds on cloud block storage not run here : fine once per checkpoint, ruinous once per logged metric line.",
+  "label": "depth",
+  "key": "An fsync per step is about a millisecond per",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "Buffer logs and fsync on a timer.",
+  "label": "depth",
+  "key": "Buffer logs and fsync on a timer",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "Count the calls: strace -f -e trace=fsync,fdatasync,sync_file_range,rename,renameat -p PID , or strace -c for totals.",
+  "label": "depth",
+  "key": "Count the calls: strace -f -e trace=fsync,fdatasync,sync_file_range,rename,renameat -p PID",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "Never retry a failed fsync and continue.",
+  "label": "depth",
+  "key": "Never retry a failed fsync and continue",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "6. durability: fsync and its relatives",
+  "text": "Save the checkpoint again to a new file.",
+  "label": "depth",
+  "key": "Save the checkpoint again to a new file",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "Atomic replace: making a crash see old or new, never half ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old heading"
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "39 Files and Directories (rename), ch.",
+  "label": "depth",
+  "key": "39 Files and Directories",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "42 Crash Consistency The problem. fsync makes data durable, but it does not make an update atomic : a crash in the middle of rewriting ckpt.pt leaves a file that is partly new, partly old or partly missing, and the previous good checkpoint is already destroyed.",
+  "label": "core",
+  "key": "an update atomic : a crash in the middle",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "We need a way to switch from the old version to the new one in a single step.",
+  "label": "core",
+  "key": "switch in one step",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "The tools rename \"If newpath already exists, it will be atomically replaced, so that there is no point at which another process attempting to access newpath will find it missing\" ( rename(2) ).",
+  "label": "core",
+  "key": "\"If newpath already exists, it will be atomically replaced",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "Atomic for readers now; durable only once the directory change is committed. fsync of the directory \"Calling fsync() does not necessarily ensure that the entry in the directory containing the file has also reached disk.",
+  "label": "core",
+  "key": "Atomic for readers now; durable only once the directory",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "For that an explicit fsync() on a file descriptor for the directory is also needed\" ( fsync(2) ).",
+  "label": "core",
+  "key": "For that an explicit fsync() on a file descriptor",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "Open the directory O_RDONLY and fsync that descriptor. renameat2 flags RENAME_NOREPLACE fails instead of overwriting (two writers cannot clobber each other); RENAME_EXCHANGE swaps two names atomically ( rename(2) ).",
+  "label": "depth",
+  "key": "RENAME_NOREPLACE fails instead of overwriting (two writers cannot clobber",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "O_TMPFILE + linkat Create a file with no name at all, write and fsync it, then give it a name with linkat : it can never be seen half-written, and a crash leaves no .tmp litter ( open(2), O_TMPFILE ). linkat will not replace an existing name, so it suits \"write once\" files such as shards.",
+  "label": "depth",
+  "key": "Create a file with no name at all, write",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "The protocol, as the kernel sees it measured The running job's checkpoint written two ways, under strace -f -y , keeping only calls on the checkpoint directory (shown as DIR) between the phase markers, with runs of writes folded into one line: torch.save(obj, \"ckpt.pt\") tmp, fsync, rename, fsync the directory The plain save opens the existing ckpt.pt with O_TRUNC : the old checkpoint's contents are thrown away at the first system call, and the new contents exist only in the page cache until writeback.",
+  "label": "core",
+  "key": "measured The running job's checkpoint written two ways, under",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "The safe version never touches ckpt.pt until a complete, durable new file exists; renameat is the single switch; the directory fsync makes the switch itself durable.",
+  "label": "core",
+  "key": "The safe version never touches ckpt.pt until a complete",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "The Crash lab tab takes these exact call sequences (and two more) and shows, crash point by crash point, what a restarted job could find.",
+  "label": "core",
+  "key": "Crash the machine after any call",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "What ALICE found, and what ext4 does to help Pillai and colleagues recorded the system calls of eleven widely used systems (\"databases, key-value stores, version control systems, distributed systems, and virtualization software\") and computed every state a crash could leave under the guarantees file systems actually give.",
+  "label": "depth",
+  "key": "Pillai and colleagues recorded the system calls of eleven",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "They found \"a total of 60 vulnerabilities, many of which lead to severe consequences\" ( All File Systems Are Not Created Equal, OSDI 2014 ).",
+  "label": "depth",
+  "key": "They found \"a total of 60 vulnerabilities, many of",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "They also showed the answer depends on the file system and its mount options: code that is safe on one can corrupt on another. source ext4 carries a heuristic for the most common unsafe pattern, born from the 2009 zero-length-files story in the root's section 7: with the default auto_da_alloc mount option (this VM has it), renaming a file over an existing one makes ext4 allocate and start writing the source file's delayed data first (fs/ext4/namei.c lines 3782 to 3783, ext4_alloc_da_blocks ), and closing a file that had been truncated to zero does the same (fs/ext4/file.c lines 140 to 143).",
+  "label": "depth",
+  "key": "the answer depends on the file system and its",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "With data=ordered , the commit that records the rename then waits for that data.",
+  "label": "depth",
+  "key": "With data=ordered , the commit that records the rename",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "So on ext4, write-then-rename without fsync usually ends with old or new rather than an empty file; but the rename is still not durable until the next commit, the heuristic exists only on ext4, and the ext4 documentation introduces it as help for \"broken applications\" that replace files without fsync() , providing \"roughly the same level of guarantees as ext3\" ( ext4 docs, auto_da_alloc ).",
+  "label": "depth",
+  "key": "So on ext4, write-then-rename without fsync usually ends with",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "The checkpoint rules Write to a new name ( ckpt.pt.tmp , or a new step_000200/ directory).",
+  "label": "core",
+  "key": "The checkpoint rules Write to a new name",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "Never open the last good checkpoint for writing. flush() Python's buffer, then os.fsync(f.fileno()) every file you wrote. os.replace(tmp, final) (a rename), or for a directory of shards, write a small \"complete\" marker last. os.fsync a descriptor of the directory that holds the name you changed.",
+  "label": "core",
+  "key": "Never open the last good checkpoint for writing. flush",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "Keep the previous checkpoint (two or three) until the new one is durable, and on restart verify before trusting: load the newest, fall back to the previous one if it fails.",
+  "label": "core",
+  "key": "Keep the previous checkpoint (two or three) until the",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "If any fsync, write or close fails, treat that checkpoint as lost and write it again.",
+  "label": "core",
+  "key": "If any fsync, write or close fails, treat that",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "A job runs torch.save(state, \"ckpt.pt.tmp\"); os.replace(\"ckpt.pt.tmp\", \"ckpt.pt\") with no fsync at all, on ext4 with default options.",
+  "label": "core",
+  "key": "A job runs torch.save(state, \"ckpt.pt.tmp\"); os.replace(\"ckpt.pt.tmp\", \"ckpt.pt\") with no",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "The machine loses power 2 seconds later.",
+  "label": "core",
+  "key": "The machine loses power 2 seconds later",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "What can the restarted job find at ckpt.pt ? only the new checkpoint the old checkpoint or the new one; an empty file is unlikely because of auto_da_alloc, but nothing is guaranteed an empty file, always The rename is in a journal transaction that commits every 5 s ( commit=5 ), so after 2 s it may not be on disk yet: the old checkpoint is still there.",
+  "label": "core",
+  "key": "What can the restarted job find at ckpt.pt ?",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "If it did commit, auto_da_alloc made ext4 push the new data out first, so the new file is complete.",
+  "label": "core",
+  "key": "If it did commit, auto_da_alloc made ext4 push the",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "On XFS, btrfs or a network file system, or with noauto_da_alloc , the empty-file outcome is back.",
+  "label": "core",
+  "key": "On XFS, btrfs or a network file system, or",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "7. atomic replace: making a crash see old or new, never half",
+  "text": "The Crash lab shows both models.",
+  "label": "core",
+  "key": "The crash lab above shows both models",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "Journaling in ext4 and XFS, and copy-on-write file systems ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old heading"
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "42 Crash Consistency: FSCK and Journaling, ch.",
+  "label": "depth",
+  "key": "42 Crash Consistency: FSCK and Journaling",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "43 Log-structured File Systems The problem.",
+  "label": "depth",
+  "key": "43 Log-structured File Systems",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "Creating, growing or renaming a file changes several blocks (the inode, a bitmap of free blocks, the directory).",
+  "label": "core",
+  "key": "Creating, growing or renaming a file changes several blocks",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "A crash between them leaves the file system's own structures inconsistent.",
+  "label": "core",
+  "key": "A crash between them leaves the file system's own",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "The root's OS simulators tab (\"crash consistency\") crashes such an update at every block write, with no journal, data journaling and ordered journaling, and repairs it with fsck or a journal replay.",
+  "label": "core",
+  "key": "crashes such an update at every block write",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "Here: how Linux's file systems really do it, and what it means for your files. ext4's journal: jbd2 ext4 hands its journaling to a generic layer, jbd2 .",
+  "label": "core",
+  "key": "hands the fix to a generic journaling layer",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "Every operation that changes metadata opens a handle on the current running transaction ; many operations share one transaction.",
+  "label": "core",
+  "key": "Every operation that changes metadata opens a handle on",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "The transaction is committed (its blocks written to the journal, then a commit block) when it is 5 seconds old ( JBD2_DEFAULT_MAX_COMMIT_AGE , include/linux/jbd2.h line 48, v5.10; the commit=5 mount option), when the journal fills, or when someone's fsync needs it.",
+  "label": "core",
+  "key": "The transaction is committed (its blocks written to the",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "Later the blocks are written to their real places (a checkpoint , in journaling's sense) and that journal space is reused.",
+  "label": "depth",
+  "key": "blocks are written to their real places (a checkpoint",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "After a crash, mount replays committed transactions and discards incomplete ones: seconds, not the full scan of fsck. measured This VM's journal statistics since boot ( /proc/fs/jbd2/vda1-8/info , readable from an unprivileged container; the disk is shared by every container on the VM): Transactions here commit far more often than every 5 s (a transaction ran ms on average) because of the commits were requested, by fsync calls from the containers sharing this disk; each commit logged about journal blocks and took about ms.",
+  "label": "core",
+  "key": "After a crash, mount replays committed transactions and discards",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "Three data modes The journal always covers metadata.",
+  "label": "core",
+  "key": "The journal always covers metadata",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "What happens to file data is the data= mount option ( ext4 docs ): Mode File data After a crash data=journal written to the journal too, then in place \"bringing both data and metadata into a consistent state\"; slowest for most workloads (every byte written twice) data=ordered (default, this VM) \"All data are forced directly out to the main file system prior to its metadata being committed to the journal\" a file's metadata never points at blocks with stale contents; recently written data may be missing, never garbage data=writeback \"Data ordering is not preserved\" \"incorrect data [can] appear in files which were written shortly before the crash\"; the same level as \"XFS and JFS in its default mode - metadata journaling\" Delayed allocation (the delalloc option, on here) interacts with ordered mode in a way that matters for checkpoints. ext4 does not choose disk blocks at write() ; it chooses them at writeback, when it knows how big the file is, which gives large contiguous extents (the single extent of section 3 ).",
+  "label": "core",
+  "key": "data=journal written to the journal too, then in place",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "But until then there are no blocks to order, so the journal can commit a new file's name and size while its data is still only in memory.",
+  "label": "core",
+  "key": "until then there are no blocks to order, so",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "That is the mechanism behind the zero-length files of 2009 and the reason for the auto_da_alloc heuristic of section 7 .",
+  "label": "core",
+  "key": "and the reason for the auto_da_alloc heuristic of section",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "A commit block must not reach the platter before the blocks it commits. jbd2 writes the commit block with a cache flush and FUA ( REQ_PREFLUSH | REQ_FUA , fs/jbd2/commit.c line 157, v5.10; section 1 ) unless mounted barrier=0 (this VM: barrier , the default).",
+  "label": "core",
+  "key": "with a cache flush and FUA ( REQ_PREFLUSH |",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "Turning barriers off on a drive with a volatile cache trades crash safety for speed; never do it for a checkpoint volume.",
+  "label": "core",
+  "key": "Turning barriers off on a drive with a volatile",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "XFS, and file systems that never overwrite XFS , common on large local arrays, journals metadata only, with a design (\"delayed logging\") that batches many changes into each log write ( kernel docs: XFS delayed logging ).",
+  "label": "depth",
+  "key": "XFS , common on large local arrays, journals metadata",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "Do not count on ext4's auto_da_alloc rename rule there or anywhere else: the fsync rules of section 7 are what every file system promises to honour. not run here (the kernel knows XFS, but mounting needs privileges) Copy-on-write file systems (btrfs, ZFS) never overwrite a block in place: a change writes new blocks and new copies of every tree node above them, up to a new root, and the commit is the single write that switches to the new root.",
+  "label": "depth",
+  "key": "Do not count on ext4's auto_da_alloc rename rule there",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "The file system is always consistent with no journal replay, and snapshots cost almost nothing (keep the old root).",
+  "label": "depth",
+  "key": "The file system is always consistent with no journal",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "43 develops the same idea as the log-structured file system.",
+  "label": "depth",
+  "key": "43 develops the same idea as the log-structured file",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "Durability of your file still needs fsync . not run here Commands findmnt -no OPTIONS /path or cat /proc/fs/ext4/DEV/options : data mode, commit interval, barrier, delalloc, auto_da_alloc cat /proc/fs/jbd2/DEV-8/info : commits, average commit time dumpe2fs -h /dev/DEV (features, journal size), xfs_info /mount When it bites in ML.",
+  "label": "depth",
+  "key": "Durability of your file still needs fsync . not",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "Rarely through the journal itself.",
+  "label": "core",
+  "key": "through its defaults",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "8. journaling in ext4 and xfs, and copy-on-write file systems",
+  "text": "It bites through its defaults: a 5-second commit window during which renames and new names are not durable, ordered mode that keeps file systems sane but does not make your file complete, and different file systems on different clusters (ext4 locally, XFS on the big array, something else entirely over the network) making \"it worked on my machine\" checkpoint code unsafe elsewhere.",
+  "label": "core",
+  "key": "and different file systems on different clusters (ext4 locally",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "Direct I/O and asynchronous I/O ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old heading"
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "36 I/O Devices (DMA) The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "OSTEP chip"
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "The page cache is a bargain for data you read twice and for small writes, but a training job also streams data it reads once (a dataset bigger than RAM) and writes data it will not read back (a checkpoint).",
+  "label": "core",
+  "key": "The page cache is a bargain for data you",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "Copying that through the cache costs a memory copy per byte, evicts useful pages, and creates the dirty-page throttling of section 5 .",
+  "label": "core",
+  "key": "Copying that through the cache costs a memory copy",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "O_DIRECT Opening with O_DIRECT asks the kernel to move data by DMA straight between your buffer and the device, skipping the page cache ( open(2), O_DIRECT ).",
+  "label": "core",
+  "key": "O_DIRECT asks the kernel to move data by DMA",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "The price is alignment: the buffer address, the length and the file offset must be multiples of the device's logical block size (512 bytes here), or the call fails. measured tmpfs has no device to DMA to, so on this kernel it refuses O_DIRECT at open .",
+  "label": "core",
+  "key": "The price is alignment: the buffer address, the length",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "Linux 6.1 added STATX_DIOALIGN to statx to ask a file for its exact alignment rules ( statx(2) ) not run here .",
+  "label": "depth",
+  "key": "Linux 6.1 added STATX_DIOALIGN to statx to ask a",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "O_DIRECT is not durable.",
+  "label": "core",
+  "key": "O_DIRECT is not durable",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "It skips the page cache, not the device's cache, and it does not commit metadata such as a new file size; you still need fdatasync .",
+  "label": "core",
+  "key": "It skips the page cache, not the device's cache",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "In the fio runs below, adding fdatasync after each direct 4 KiB write cut the rate from to writes per second.",
+  "label": "core",
+  "key": "In the fio runs below, adding fdatasync after each",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "Buffered and direct, side by side measured Caveat: the direct sequential numbers are far above any single NVMe drive's because macOS serves the VM's disk file from its own cache; read the table for the relations (direct sequential with queue depth 8 beats buffered single-threaded writes; random 4 KiB costs the same either way when nothing is cached), not the absolute values.",
+  "label": "core",
+  "key": "the direct sequential numbers are far above any single",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "When to use it in ML.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading label"
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "Checkpoint writers and data loaders that manage their own buffers use it to keep the page cache for what matters and to make throughput predictable; GPUDirect Storage requires it ( section 10 ).",
+  "label": "core",
+  "key": "Checkpoint writers and data loaders that manage their own",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "Do not use it for small reads you will repeat (you lose caching and readahead), or from Python on unaligned bytes objects (use an aligned buffer, e.g. mmap.mmap(-1, n) , which is page aligned).",
+  "label": "core",
+  "key": "or from Python on unaligned bytes objects (use an",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "Asynchronous I/O: libaio and io_uring A plain read blocks the thread until the data arrives, so a single thread only ever has one request in flight (queue depth 1, section 1 ).",
+  "label": "core",
+  "key": "A plain read blocks the thread",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "Two kernel interfaces let one thread keep many in flight. libaio ( io_submit , io_getevents ) is truly asynchronous only with O_DIRECT . io_uring (Linux 5.1+) shares two ring buffers between the program and the kernel: the program writes submission entries and reads completion entries, often with no system call per I/O ( io_uring(7) ).",
+  "label": "core",
+  "key": "libaio ( io_submit , io_getevents ) is truly asynchronous",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "The sibling page Concurrency covers its design and the event loops built on it. measured On this 5.10 kernel, fio's io_uring engine first failed with Cannot allocate memory : the rings are charged to RLIMIT_MEMLOCK unless the process has CAP_IPC_LOCK (fs/io_uring.c lines 7869, 9273 and 9335, v5.10), and the container's default limit is 64 KiB (the same limit the Virtual memory page met for pinned memory).",
+  "label": "depth",
+  "key": "measured On this 5.10 kernel, fio's io_uring engine first",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "Even root is short of it: on 5.10 that limit is counted per user ID, so every container running as UID 0 shares one 64 KiB budget across the whole VM, and the BPF programs runc attaches are charged to it too ( Containers and isolation measures it).",
+  "label": "depth",
+  "key": "Even root is short of it: on 5.10 that",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "9. direct i/o and asynchronous i/o",
+  "text": "With docker run --ulimit memlock=-1:-1 it ran: .",
+  "label": "depth",
+  "key": "With docker run --ulimit memlock=-1:-1 it ran",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Storage you do not own: NFS, Lustre, object stores, FUSE, GPUDirect ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old heading"
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "48 Distributed Systems, ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "OSTEP chip"
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "49 Sun's Network File System The problem.",
+  "label": "depth",
+  "key": "49 Sun's Network File System",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "On a cluster the dataset and the checkpoint directory are rarely on a local disk.",
+  "label": "core",
+  "key": "On a cluster the dataset and the checkpoint directory",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "They live on a server, a parallel file system or an object store, reached over the network, and each one keeps a different subset of the local guarantees above.",
+  "label": "core",
+  "key": "live on a server, a parallel file system or",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Nothing in this section ran here (no network storage in the VM) not run here ; it is taught from each system's own documentation.",
+  "label": "core",
+  "key": "Nothing in this section ran here (no network storage",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "System How it works What changes for you NFS One server exports a file system; clients cache data and attributes.",
+  "label": "core",
+  "key": "One server exports a file system; clients cache data",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Linux's client gives close-to-open consistency: at open it revalidates with the server, and \"when the application closes the file, the NFS client writes back any pending changes to the file so that the next opener can view the changes.",
+  "label": "core",
+  "key": "Linux's client gives close-to-open consistency: at open it revalidates",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "This also gives the NFS client an opportunity to report write errors to the application via the return code from close(2)\" ( nfs(5) ).",
+  "label": "core",
+  "key": "This also gives the NFS client an opportunity to",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Another node sees your file only after you close it and it opens it.",
+  "label": "core",
+  "key": "only after you close it and it opens it",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Check the return value of close : on NFS that is where write errors appear. fsync asks the server to commit the data to its own stable storage (the COMMIT procedure of RFC 1813 ).",
+  "label": "core",
+  "key": "Check the return value of close : on NFS",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Many small files cost a network round trip each for open and stat .",
+  "label": "core",
+  "key": "Many small files cost a network round trip each",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Lustre (and GPFS, WekaFS, ...) Metadata servers (MDS) \"manage the names and directories\"; file data is split across object storage targets (OSTs): \"the file data is striped across the objects using RAID 0, and each object is stored on a different OST\" ( Lustre manual, ch.",
+  "label": "depth",
+  "key": "Lustre (and GPFS, WekaFS, ...) Metadata servers (MDS) \"manage",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Huge aggregate bandwidth for big files spread over many OSTs (set the stripe count with lfs setstripe -c N dir ); metadata operations go to few servers, so millions of small files, or thousands of ranks all calling stat at start-up, are the classic way to slow a whole cluster.",
+  "label": "depth",
+  "key": "Huge aggregate bandwidth for big files spread over many",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Object stores (S3, GCS, Azure Blob) Objects are written whole (or in multipart uploads) and appear atomically when the upload completes; S3 has given \"strong read-after-write consistency\" for all applications since December 2020 ( AWS, 2020-12 ).",
+  "label": "depth",
+  "key": "Object stores (S3, GCS, Azure Blob) Objects are written",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "There is no rename and no fsync.",
+  "label": "depth",
+  "key": "There is no rename and no fsync",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Since August 2024 a PUT can carry If-None-Match to fail rather than overwrite an existing key ( AWS, 2024-08 ). \"Write then rename\" becomes \"upload under a new key, then write a small pointer or marker object last\".",
+  "label": "depth",
+  "key": "Since August 2024 a PUT can carry If-None-Match to",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "A checkpoint is complete when its marker exists; a conditional write keeps two jobs from overwriting each other's checkpoint.",
+  "label": "depth",
+  "key": "a conditional write keeps two jobs from overwriting each",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "FUSE mounts of object stores (Mountpoint for S3, gcsfuse, s3fs) A user-space process implements the file system calls on top of the object API.",
+  "label": "depth",
+  "key": "FUSE mounts of object stores (Mountpoint for S3, gcsfuse",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Mountpoint, for example, writes \"sequentially from a single client at a time\", uploads asynchronously, and on general-purpose buckets \"does not emulate operations like rename \"; \"if your application needs to guarantee that a new file has been uploaded to S3, it should call fsync on the file before closing it\" ( Mountpoint semantics ).",
+  "label": "depth",
+  "key": "Mountpoint, for example, writes \"sequentially from a single client",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Code that relies on os.replace , on appending, or on rewriting part of a file fails or behaves differently on these mounts.",
+  "label": "core",
+  "key": "Code that relies on os.replace , on appending, or",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Read each mount's semantics page before pointing a checkpoint writer at it.",
+  "label": "core",
+  "key": "Read each mount's semantics page before pointing a checkpoint",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "GPUDirect Storage \"enables a direct data path for direct memory access (DMA) transfers between GPU memory and storage, which avoids a bounce buffer through the CPU\" ( GDS overview ).",
+  "label": "depth",
+  "key": "GPUDirect Storage \"enables a direct data path for direct",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Programs use the cuFile API; its reference guide's examples open the file with O_DIRECT before registering it ( cuFile API reference ).",
+  "label": "depth",
+  "key": "Programs use the cuFile API; its reference guide's examples",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Skips the page cache and pinned host memory entirely ( section 9 's rules apply: alignment, and durability still needs a sync).",
+  "label": "depth",
+  "key": "Skips the page cache and pinned host memory entirely",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Worth it when host memory bandwidth or CPU copies limit checkpoint or data loading speed on GPU servers with supported NVMe or network storage.",
+  "label": "depth",
+  "key": "Worth it when host memory bandwidth or CPU copies",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "A job on 64 nodes writes its checkpoint shards to an NFS mount, each rank calls fsync on its shard, and rank 0 then writes a COMPLETE marker file.",
+  "label": "core",
+  "key": "A job on 64 nodes writes its checkpoint shards",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "A restarted job on another node sees the marker.",
+  "label": "core",
+  "key": "A restarted job on another node sees the marker",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "Is every shard guaranteed to be readable there?",
+  "label": "core",
+  "key": "Is every shard guaranteed to be readable there?",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "No: NFS gives no consistency between nodes Yes, if every rank closed its shard (or fsynced it) before rank 0 wrote the marker, and the reader opens the shards after seeing it Only if the mount uses the sync option Close-to-open: once a writer has closed (or fsynced) a file and a reader opens it afterwards, the reader sees the writes.",
+  "label": "core",
+  "key": "No: NFS gives no consistency between nodes Yes, if",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "10. storage you do not own: nfs, lustre, object stores, fuse, gpudirect",
+  "text": "The ordering that matters is across ranks: rank 0 must write the marker only after every rank reported its shard closed and synced (a barrier), which is exactly what checkpoint libraries do before writing their metadata file.",
+  "label": "core",
+  "key": "The ordering that matters is across ranks: rank 0",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Checkpoints in ML: torch.save, distributed checkpoint, async saves The running example, scaled up.",
+  "label": "core",
+  "key": "torch.save, distributed checkpoint, async saves The running example, scaled",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "The root's job saves a 0.28 MB state.",
+  "label": "core",
+  "key": "The root's job saves a 0.28 MB state",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Here the same three write paths save a 256 MiB state ( ), five times each on ext4, plus PyTorch's distributed checkpoint (DCP) in three settings and its asynchronous save. \"Dirty after\" is how much of the checkpoint was still only in memory when the call returned. measured torch.save torch.save writes a zip archive: a pickle of the object structure plus one record per tensor storage.",
+  "label": "core",
+  "key": "write paths save a 256 MiB state",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Given a path, it opens the file itself ( O_WRONLY|O_CREAT|O_TRUNC in the trace of section 7 ), writes and closes: no fsync, and the old file's contents are discarded at open .",
+  "label": "core",
+  "key": "Given a path, it opens the file itself",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Given a file object, it writes into it and leaves flushing, syncing and renaming to you.",
+  "label": "depth",
+  "key": "writes into it and leaves flushing, syncing and renaming",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Loading needs the zip's central directory, written last ; a file cut short anywhere fails to load, which is the error the root's Debug lab case \"Disk full mid-checkpoint: a cryptic error and a destroyed checkpoint\" shows ( failed finding central directory ). torch.distributed.checkpoint, from the source source PyTorch 2.14.1 (the version in this image, git 5c48869 ), torch/distributed/checkpoint/filesystem.py .",
+  "label": "core",
+  "key": "Loading needs the zip's central directory, written last",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Every rank writes its own files, named __{rank}_{n}.distcp , one per writer thread ( thread_count ); with sync_files=True (the default) each is flushed and fsynced before closing (lines 470 to 474).",
+  "label": "core",
+  "key": "Every rank writes its own files, named __{rank}_{n}.distcp",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Then the coordinator rank, in finish (line 762), writes the global .metadata.tmp , fsyncs it (lines 779 to 783), deletes any existing .metadata (line 796) and renames the temporary file into place (line 798).",
+  "label": "core",
+  "key": "Then the coordinator rank, in finish (line 762), writes",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "It never fsyncs a directory.",
+  "label": "core",
+  "key": "It never fsyncs a directory",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "The traced save, overwriting an existing checkpoint directory: The window this leaves, and the fix Saving again into the same directory truncates the old shards at openat(..., O_TRUNC) , so the old checkpoint is gone at the first call.",
+  "label": "core",
+  "key": "The traced save, overwriting an existing checkpoint directory: The",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Between unlinkat(.metadata) and the moment the rename is durable (the next journal commit, up to 5 s on ext4), a crash leaves a directory with no .metadata , which DCP cannot load: no checkpoint at all.",
+  "label": "core",
+  "key": "Between unlinkat(.metadata) and the moment the rename is durable",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "And because the directory is never fsynced, even after dcp.save has returned a crash can bring back the old .metadata next to the new , fsynced shard: a checkpoint whose metadata and data come from different saves.",
+  "label": "core",
+  "key": "And because the directory is never fsynced, even after",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "With a new directory per step there is nothing to delete or truncate, and a crash can only lose the step being written.",
+  "label": "core",
+  "key": "With a new directory per step there is nothing",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "This is what torchtitan does (\"Standardized checkpoint path, e.g. checkpoints/step-100 \", torchtitan base.py line 379 ).",
+  "label": "core",
+  "key": "This is what torchtitan does (\"Standardized checkpoint path, e.g",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Add an fsync of the parent directory after the save so the new directory's name is durable too, and treat a step directory without .metadata as incomplete.",
+  "label": "core",
+  "key": "Add an fsync of the parent directory after the",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "This is our reading of the source and the trace, shown as states in the Crash lab ; it is not a reported incident.",
+  "label": "core",
+  "key": "This is our reading of the source and the",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Asynchronous saves. dcp.async_save first stages the state (copies tensors to CPU memory), returns a future, and writes in the background, so training continues during the slow part.",
+  "label": "core",
+  "key": "Asynchronous saves. dcp.async_save first stages the state (copies tensors",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Here it blocked training for ms of a ms save.",
+  "label": "core",
+  "key": "66 ms of a 501 ms save",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Two costs remain: a second copy of the state in host memory while it is written, and the writes still compete for the device and for dirty-page budget ( section 5 ), so a step that runs during the background write can be slower.",
+  "label": "core",
+  "key": "Two costs remain: a second copy of the state",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "CheckFreq describes the same split, a quick in-memory \"snapshot\" and a background \"persist\", and chooses how often to checkpoint from measured costs ( CheckFreq, FAST 2021 ).",
+  "label": "depth",
+  "key": "a quick in-memory \"snapshot\" and a background \"persist\", and",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Checkpoint checklist for a real job One directory per step ( step-000200/ ); each rank writes and fsyncs its own shard; barrier; one rank writes the metadata or a COMPLETE marker, fsyncs it, then fsyncs the step directory and its parent.",
+  "label": "core",
+  "key": "Checkpoint checklist for a real job One directory per",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Keep the last two or three; delete older ones only after the new one is complete; on restart choose the newest complete one and fall back if loading fails.",
+  "label": "core",
+  "key": "Keep the last two or three; delete older ones",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Check free space and inodes first ( shutil.disk_usage ); handle OSError from write, fsync and close as \"this checkpoint failed\".",
+  "label": "core",
+  "key": "Check free space and inodes first ( shutil.disk_usage",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "On object stores and FUSE mounts follow section 10 : new keys, marker last.",
+  "label": "core",
+  "key": "On object stores and FUSE mounts follow section",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "11. checkpoints in ml: torch.save, distributed checkpoint, async saves",
+  "text": "Distributed Training covers what to put in a checkpoint, Power, cooling, reliability how often to write one, and Storage and data movement checkpoint I/O at cluster scale; this page covers getting it onto the disk.",
+  "label": "core",
+  "key": "Distributed Training covers what to put in a checkpoint",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "Data loading throughput The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old heading"
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "A GPU that waits for input wastes its time.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "Mohan and colleagues measured nine models on production servers at Microsoft and found that \"in many cases, DNN training time is dominated by data stall time: time spent waiting for data to be fetched and preprocessed\" ( Analyzing and Mitigating Data Stalls in DNN Training, VLDB 2021 ).",
+  "label": "core",
+  "key": "Mohan and colleagues measured nine models on production servers",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "The storage half of that is this page's mechanisms, applied: Few big files, read sequentially.",
+  "label": "core",
+  "key": "The storage half of that is this page's mechanisms",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "Readahead ( section 4 ) and large requests need sequential access; metadata costs per file ( section 3 : x slower cold for small files here; far worse on a network file system).",
+  "label": "core",
+  "key": "x slower cold for small files here; far",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "Hence tar shards (WebDataset), Arrow and Parquet files, and memory-mapped token arrays.",
+  "label": "core",
+  "key": "Arrow and Parquet files, and memory-mapped token arrays",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "Shuffle the order of shards and shuffle within an in-memory buffer instead of reading random records.",
+  "label": "core",
+  "key": "within an in-memory buffer instead of reading random records",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "One reader thread is queue depth 1 ( section 1 ); DataLoader workers, prefetching and asynchronous readers keep many requests in flight.",
+  "label": "core",
+  "key": "One reader thread is queue depth 1 ( section",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "On remote storage, where each request has a long latency, this matters most.",
+  "label": "core",
+  "key": "which matters most on remote storage",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "The page cache is your free dataset cache while the dataset fits in memory: epoch 2 reads RAM.",
+  "label": "core",
+  "key": "free dataset cache while the dataset fits in memory",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "When the dataset is a little larger than memory, an LRU-like cache can evict each page just before it is needed again; the same paper reports this thrashing and proposes a cache that keeps a fixed subset instead.",
+  "label": "core",
+  "key": "When the dataset is a little larger than memory",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "Size node memory with the page cache in mind, and remember it counts toward a container's memory limit ( Virtual memory section 12).",
+  "label": "core",
+  "key": "counts toward a container's memory limit ( Virtual memory",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "Stage to local disk when the shared file system is slow or shared with many jobs: copy shards to local NVMe at start, then read locally.",
+  "label": "core",
+  "key": "Stage to local disk when the shared file system",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "12. data loading throughput",
+  "text": "Look before tuning: workers in state D with wait channel wait_on_page_bit_common or io_schedule wait for storage; high system time with many small read calls is the root's Debug lab case \"High system time: millions of tiny reads\"; iostat -x shows whether the device is busy.",
+  "label": "core",
+  "key": "Look before tuning: workers in state D with wait",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Mistake What happens Fix torch.save(state, \"ckpt.pt\") over the last good checkpoint the old file is truncated at open; a crash or full disk before the end leaves nothing loadable temporary name, fsync, rename, fsync the directory ( 7 ) \"It returned, so it is saved\" the data sits dirty in the page cache for seconds; a node crash loses it fsync before you rely on it ( 5 , 6 ) fsync of the file but not of the directory after a crash the new name may be missing although the data is on disk open the directory and fsync it after the rename Retrying a failed fsync the retry can succeed with the data already dropped treat the file as lost; write it again from memory Ignoring the return of close on NFS and with delayed allocation, write errors and ENOSPC can surface there let f.close() raise; do not swallow OSError DCP saves into the same directory every time old shards truncated first, .metadata deleted before the new one is renamed in one directory per step; fsync the parent ( 11 ) Millions of small files on a shared file system metadata servers saturate; cold reads one request each shards; sequential reads; stage locally ( 3 , 12 ) Benchmarking a loader once, or twice the first run times the disk, the second times RAM say which; evict with posix_fadvise(DONTNEED) or measure both ( 4 ) %util at 100% means the disk is saturated not on devices that serve many requests at once look at throughput and latency against queue depth ( 2 ) Assuming rename works everywhere object stores have none; FUSE mounts may reject it new keys plus a marker written last ( 10 ) Deleting old checkpoints to free space while a process holds them open no space is freed until the process closes them lsof +L1 ; close or restart the holder ( 3 )",
+  "label": "depth",
+  "key": "Mistake What happens Fix torch.save(state, \"ckpt.pt\") over the last",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "Interview questions, with model answers What does write() guarantee when it returns, and what does fsync() add? write guarantees the bytes are in the kernel's page cache: visible to every process on this machine, but only in memory. fsync returns when the file's data and metadata have reached stable storage, including flushing the device's volatile cache.",
+  "label": "depth",
+  "key": "What does write() guarantee when it returns, and what",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "It does not cover the directory entry naming the file; that needs an fsync of the directory.",
+  "label": "depth",
+  "key": "It does not cover the directory entry naming the",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "How do you replace a file atomically and durably on Linux?",
+  "label": "depth",
+  "key": "How do you replace a file atomically and durably",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "Write the new contents to a temporary file in the same directory, fsync it, rename it over the target (atomic for readers: they see old or new), then fsync the directory so the rename survives a crash.",
+  "label": "depth",
+  "key": "Write the new contents to a temporary file in",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "Same directory, because rename is atomic only within one file system.",
+  "label": "depth",
+  "key": "Same directory, because rename is atomic only within one",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "Alternatives: O_TMPFILE plus linkat for new names, renameat2(RENAME_EXCHANGE) to swap. fsync versus fdatasync: when is fdatasync cheaper? fdatasync skips metadata not needed to read the data back, chiefly timestamps.",
+  "label": "depth",
+  "key": "Alternatives: O_TMPFILE plus linkat for new names, renameat2(RENAME_EXCHANGE) to",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "When a write changes only data (an overwrite of allocated blocks), fdatasync needs no journal commit, only the data write and a cache flush; fsync still has to log the new mtime.",
+  "label": "depth",
+  "key": "When a write changes only data (an overwrite of",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "When the write extends the file, the size must be persisted, so both need the journal.",
+  "label": "depth",
+  "key": "When the write extends the file, the size must",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "Measured here on an overwrite: about 0.39 ms against 1.3 ms.",
+  "label": "depth",
+  "key": "Measured here on an overwrite: about 0.39 ms against",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "Explain ext4's data=ordered mode and delayed allocation, and how they interact.",
+  "label": "depth",
+  "key": "Explain ext4's data=ordered mode and delayed allocation, and how",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "Ordered mode journals metadata only but writes a file's data blocks before committing the metadata that points to them, so metadata never points at stale blocks.",
+  "label": "depth",
+  "key": "Ordered mode journals metadata only but writes a file's",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "Delayed allocation picks blocks only at writeback; until then there is nothing to order, so a commit can record a new file's name with no data yet, which after a crash gives an empty file. ext4's auto_da_alloc forces allocation on rename-over-existing and truncate-then-close to cover the common unsafe patterns, but the portable fix is fsync.",
+  "label": "depth",
+  "key": "Delayed allocation picks blocks only at writeback; until then",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "A program writes 10 GB quickly and then its writes become very slow without any errors.",
+  "label": "depth",
+  "key": "A program writes 10 GB quickly and then its",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "Dirty throttling: once dirty page-cache data passes the dirty limits (for the machine, or for the program's cgroup writeback domain), balance_dirty_pages pauses the writer so it cannot outrun the device. /proc/PID/wchan shows balance_dirty_pages ; Dirty and Writeback in /proc/meminfo stay high.",
+  "label": "depth",
+  "key": "Dirty throttling: once dirty page-cache data passes the dirty",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "Fixes: accept device speed, write in a background thread, use dirty_bytes limits, start writeback early with sync_file_range , or O_DIRECT.",
+  "label": "depth",
+  "key": "Fixes: accept device speed, write in a background thread",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "What is readahead and when does it not help?",
+  "label": "depth",
+  "key": "What is readahead and when does it not help?",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "When the kernel sees sequential reads, it fetches the following pages before they are requested, growing the window (4, 8, 16, 32 pages here) up to read_ahead_kb , and triggers the next window asynchronously from a marked page.",
+  "label": "depth",
+  "key": "When the kernel sees sequential reads, it fetches the",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "It does nothing for random access, which is why random small reads cost one device request each and why datasets are stored as sequential shards.",
+  "label": "depth",
+  "key": "It does nothing for random access, which is why",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "Why can O_DIRECT be slower than buffered I/O, and does it make writes durable?",
+  "label": "depth",
+  "key": "Why can O_DIRECT be slower than buffered I/O, and",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "It removes caching and readahead, so small or repeated reads each go to the device, and it imposes alignment.",
+  "label": "depth",
+  "key": "It removes caching and readahead, so small or repeated",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "It does not flush the device cache or commit metadata, so durability still needs fdatasync.",
+  "label": "depth",
+  "key": "It does not flush the device cache or commit",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "It wins for large streaming transfers you will not reuse, and when you manage your own cache.",
+  "label": "depth",
+  "key": "It wins for large streaming transfers you will not",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "How would you checkpoint a 64-rank job to a shared file system so that a crash at any moment leaves a loadable checkpoint?",
+  "label": "depth",
+  "key": "How would you checkpoint a 64-rank job to a",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "New directory per step; each rank writes and fsyncs its shard; barrier; one rank writes the metadata (or a COMPLETE marker) to a temporary name, fsyncs, renames, fsyncs the step directory and the parent; keep the previous complete checkpoint until then; on restart pick the newest directory that has the marker and loads.",
+  "label": "depth",
+  "key": "New directory per step; each rank writes and fsyncs",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "On an object store, the same with new keys and a marker object written last.",
+  "label": "depth",
+  "key": "On an object store, the same with new keys",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "A dataset reads at 3 GB/s in your benchmark but 300 MB/s in the real job.",
+  "label": "depth",
+  "key": "A dataset reads at 3 GB/s in your benchmark",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "What do you check?",
+  "label": "depth",
+  "key": "What do you check?",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-read",
+  "section": "interview questions, with model answers",
+  "text": "Whether the benchmark hit the page cache (it ran twice, or the file was just written); whether the job's access pattern is random (no readahead) or small-file (metadata); the queue depth (worker count); whether the job's container has an io.max limit or a smaller memory limit (less cache); and whether workers sit in state D ( ps -eo stat,wchan ).",
+  "label": "depth",
+  "key": "Whether the benchmark hit the page cache (it ran",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-crash",
+  "section": "crash lab: what a restarted job finds",
+  "text": "Crash lab: what a restarted job finds Pick a way of writing a checkpoint and a moment for the machine to lose power.",
+  "label": "core",
+  "key": "Pick a protocol, then step the crash point",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-crash",
+  "section": "crash lab: what a restarted job finds",
+  "text": "The lab lists every state the restarted job could find, under two models of what reached the disk.",
+  "label": "core",
+  "key": "see what a restarted job finds",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-crash",
+  "section": "crash lab: what a restarted job finds",
+  "text": "The call sequences are the real ones from the strace runs of the Reading tab, sections 7 and 11 (writes folded into one step); the last protocol is our fix, DCP's calls into a new directory plus the two directory fsyncs DCP does not make.",
+  "label": "core",
+  "key": "into a new directory plus the two directory fsyncs",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-crash",
+  "section": "crash lab: what a restarted job finds",
+  "text": "This is a model , not a crash test: no power was cut (a VM cannot be, from inside).",
+  "label": "core",
+  "key": "not a crash test: no power was cut",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-crash",
+  "section": "crash lab: what a restarted job finds",
+  "text": "Its rules come from the man pages and the ext4 source cited below; ALICE ( Pillai et al., OSDI 2014 ) checks real applications the same way.",
+  "label": "core",
+  "key": "ALICE ( Pillai et al., OSDI 2014 ) checks",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-crash",
+  "section": "crash lab: what a restarted job finds",
+  "text": "POSIX only: what every file system promises ext4, data=ordered, delalloc, auto_da_alloc (this VM) Every crash point at once The two models, exactly POSIX only.",
+  "label": "core",
+  "key": "POSIX only: what every file system promises ext4, data=ordered",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-crash",
+  "section": "crash lab: what a restarted job finds",
+  "text": "Durable: a file's data and its own metadata after an fsync of that file returns ( fsync(2) ); a directory's entries (create, rename, unlink, mkdir) after an fsync of that directory.",
+  "label": "depth",
+  "key": "Durable: a file's data and its own metadata after",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-crash",
+  "section": "crash lab: what a restarted job finds",
+  "text": "Everything else may or may not have reached the disk, independently (each name change is atomic in itself, rename(2) ).",
+  "label": "depth",
+  "key": "Everything else may or may not have reached the",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-crash",
+  "section": "crash lab: what a restarted job finds",
+  "text": "File data not yet synced may be absent, cut short, fully there, or (for a file rewritten in place without truncation persisting) a mix of old and new. ext4 as configured here.",
+  "label": "depth",
+  "key": "File data not yet synced may be absent, cut",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-crash",
+  "section": "crash lab: what a restarted job finds",
+  "text": "Name and size changes go through one journal and reach the disk in order, so after a crash some prefix of them is there.",
+  "label": "depth",
+  "key": "Name and size changes go through one journal and",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-crash",
+  "section": "crash lab: what a restarted job finds",
+  "text": "An fsync of anything commits the whole running transaction, so every earlier name change is durable after it (fs/ext4/fsync.c, ext4_fsync_journal ).",
+  "label": "depth",
+  "key": "An fsync of anything commits the whole running transaction",
+  "where": ""
+ },
+ {
+  "id": 381,
+  "tab": "t-crash",
+  "section": "crash lab: what a restarted job finds",
+  "text": "File data is written by writeback or fsync ; with delayed allocation, a file whose data was not yet written has size 0 or a shorter size after a crash, never garbage (data=ordered). auto_da_alloc : renaming over an existing file, or closing a file that was truncated, starts writing its data, and the commit that records a later name change waits for it (fs/ext4/namei.c lines 3782 to 3783, fs/ext4/file.c lines 140 to 143, ext4 docs ).",
+  "label": "depth",
+  "key": "File data is written by writeback or fsync",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-crash",
+  "section": "crash lab: what a restarted job finds",
+  "text": "Simplifications: the crash happens at some moment after the listed step and before the next; device caches honour flushes; one writer; a DCP checkpoint \"loads\" if its .metadata and shard come from the same save.",
+  "label": "depth",
+  "key": "Simplifications: the crash happens at some moment after the",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 5 October 2026.",
+  "label": "core",
+  "key": "Links checked on 5 October 2026",
+  "where": ""
+ },
+ {
+  "id": 384,
+  "tab": "t-more",
+  "section": "",
+  "text": "Times are estimates for the part worth reading.",
+  "label": "core",
+  "key": "Times are estimates for the part worth reading",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-more",
+  "section": "",
+  "text": "Suggested order: this page's Reading tab with OSTEP chapters 39, 40 and 42 beside it; the Crash lab; then the ALICE paper and the ext4 and writeback documentation for whatever you are debugging.",
+  "label": "core",
+  "key": "with OSTEP chapters 39, 40 and 42 beside it",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's other tab Crash lab 10 min Seven checkpoint write protocols, call by call from real traces, crashed at every point under POSIX-only and ext4 guarantees.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading card for the removed Crash lab tab (the lab is now Reading section 6)"
+ },
+ {
+  "id": 387,
+  "tab": "t-more",
+  "section": "",
+  "text": "After sections 6 to 8, and again after section 11.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "reading-order hint for the removed tab"
+ },
+ {
+  "id": 388,
+  "tab": "t-more",
+  "section": "",
+  "text": "The parent page and its tabs Topic: operating-systems 50 min Section 7 is the intuition for this page, with an animation of one write's journey and the 2009 ext4 and 2018 fsyncgate stories; the running job is followed through the whole OS.",
+  "label": "core",
+  "key": "The parent page and its tabs Topic: operating-systems 50",
+  "where": ""
+ },
+ {
+  "id": 389,
+  "tab": "t-more",
+  "section": "",
+  "text": "OS simulators tab 10 min On the root page: crash consistency at the block level (inode, bitmap, data block) with no journal, data journaling and ordered journaling, checked against OSTEP's homework.",
+  "label": "core",
+  "key": "OS simulators tab 10 min On the root page",
+  "where": ""
+ },
+ {
+  "id": 390,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's Crash lab is the same question one level up, at the system calls.",
+  "label": "core",
+  "key": "is the same question one level up, at the",
+  "where": ""
+ },
+ {
+  "id": 391,
+  "tab": "t-more",
+  "section": "",
+  "text": "Syscall tracer tab 10 min On the root page: buffered against unbuffered writes, and the running job's checkpoint write paths in its full trace.",
+  "label": "core",
+  "key": "Syscall tracer tab 10 min On the root page",
+  "where": ""
+ },
+ {
+  "id": 392,
+  "tab": "t-more",
+  "section": "",
+  "text": "Debug lab tab 15 min On the root page, the storage cases: \"Disk full mid-checkpoint: a cryptic error and a destroyed checkpoint\", \"write() returned, but the data is not on disk yet: fsync\", \"The first epoch is slower than the rest: cold and warm page cache\", \"Slow storage: workers sleep in D state on page faults\", \"High system time: millions of tiny reads\".",
+  "label": "core",
+  "key": "Debug lab tab 15 min On the root page",
+  "where": ""
+ },
+ {
+  "id": 393,
+  "tab": "t-more",
+  "section": "",
+  "text": "Sibling pages Processes and the system-call API 46 min File descriptors and their three tables, pipes, O_CLOEXEC, the system call mechanism and its cost.",
+  "label": "core",
+  "key": "Sibling pages Processes and the system-call API 46 min",
+  "where": ""
+ },
+ {
+  "id": 394,
+  "tab": "t-more",
+  "section": "",
+  "text": "Scheduling and CPU time 40 min The context switch measured, CFS read live from /proc, EEVDF as a simulator, affinity, NUMA and cgroup CPU quotas and throttling.",
+  "label": "core",
+  "key": "Scheduling and CPU time 40 min The context switch",
+  "where": ""
+ },
+ {
+  "id": 395,
+  "tab": "t-more",
+  "section": "",
+  "text": "Virtual memory 36 min The page cache from the memory side: reclaim, mmap of datasets and weights (random rows, read amplification, MADV_RANDOM), memory cgroups counting page cache.",
+  "label": "core",
+  "key": "Virtual memory 36 min The page cache from the",
+  "where": ""
+ },
+ {
+  "id": 396,
+  "tab": "t-more",
+  "section": "",
+  "text": "Memory allocators 34 min glibc's malloc in depth, fragmentation measured, jemalloc, tcmalloc and mimalloc on the same job, pymalloc, and PyTorch's CPU and CUDA allocators.",
+  "label": "core",
+  "key": "Memory allocators 34 min glibc's malloc in depth, fragmentation",
+  "where": ""
+ },
+ {
+  "id": 397,
+  "tab": "t-more",
+  "section": "",
+  "text": "Concurrency 37 min Event-driven I/O: epoll, io_uring's rings, and the event loops (asyncio, tokio, libuv) built on them.",
+  "label": "core",
+  "key": "Concurrency 37 min Event-driven I/O: epoll, io_uring's rings, and",
+  "where": ""
+ },
+ {
+  "id": 398,
+  "tab": "t-more",
+  "section": "",
+  "text": "Containers and isolation 45 min cgroups v2 in depth, including the io controller (io.max, io.stat) used for every device count here, and overlayfs.",
+  "label": "core",
+  "key": "Containers and isolation 45 min cgroups v2 in depth",
+  "where": ""
+ },
+ {
+  "id": 399,
+  "tab": "t-more",
+  "section": "",
+  "text": "Virtualization and the GPU driver stack 51 min virtio, the paravirtual disk this page measured, and the path from a CUDA call to the GPU.",
+  "label": "core",
+  "key": "Virtualization and the GPU driver stack 51 min virtio",
+  "where": ""
+ },
+ {
+  "id": 400,
+  "tab": "t-more",
+  "section": "",
+  "text": "Related knowledge base pages Databases topic varies Write-ahead logs: the journal's idea inside a database, and why databases preallocate and use fdatasync or O_DIRECT.",
+  "label": "core",
+  "key": "varies Write-ahead logs: the journal's idea inside a database",
+  "where": ""
+ },
+ {
+  "id": 401,
+  "tab": "t-more",
+  "section": "",
+  "text": "Distributed Training varies What a sharded checkpoint contains and how ranks save it.",
+  "label": "core",
+  "key": "Distributed Training varies What a sharded checkpoint contains and",
+  "where": ""
+ },
+ {
+  "id": 402,
+  "tab": "t-more",
+  "section": "",
+  "text": "Storage and data movement 34 min Parallel file systems, object storage and checkpoint I/O at cluster scale.",
+  "label": "core",
+  "key": "Storage and data movement 34 min Parallel file systems",
+  "where": ""
+ },
+ {
+  "id": 403,
+  "tab": "t-more",
+  "section": "",
+  "text": "Topic: pytorch-ecosystem varies Where torch.distributed.checkpoint and the DataLoader sit in PyTorch.",
+  "label": "core",
+  "key": "Topic: pytorch-ecosystem varies Where torch.distributed.checkpoint and the DataLoader sit",
+  "where": ""
+ },
+ {
+  "id": 404,
+  "tab": "t-more",
+  "section": "",
+  "text": "Python and C++ varies Python's buffered file objects (flush before fsync); C++ Part 2 on mmap and memory.",
+  "label": "core",
+  "key": "Python and C++ varies Python's buffered file objects (flush",
+  "where": ""
+ },
+ {
+  "id": 405,
+  "tab": "t-more",
+  "section": "",
+  "text": "Primary sources and the best explanations OSTEP: Persistence chapters 36 to 45 5 h Devices, disks, files and directories, file system implementation, FFS, journaling, LFS, SSDs, integrity.",
+  "label": "core",
+  "key": "Primary sources and the best explanations OSTEP: Persistence chapters",
+  "where": ""
+ },
+ {
+  "id": 406,
+  "tab": "t-more",
+  "section": "",
+  "text": "Chapter 42 is the core of sections 7 and 8.",
+  "label": "core",
+  "key": "Chapter 42 is the core of sections 7 and",
+  "where": ""
+ },
+ {
+  "id": 407,
+  "tab": "t-more",
+  "section": "",
+  "text": "Pillai et al., All File Systems Are Not Created Equal (OSDI 2014) 60 min The ALICE study: application update protocols, file system persistence properties, 60 vulnerabilities.",
+  "label": "core",
+  "key": "Pillai et al., All File Systems Are Not Created",
+  "where": ""
+ },
+ {
+  "id": 408,
+  "tab": "t-more",
+  "section": "",
+  "text": "The Crash lab is a small version of its method.",
+  "label": "core",
+  "key": "is a small version of its method",
+  "where": ""
+ },
+ {
+  "id": 409,
+  "tab": "t-more",
+  "section": "",
+  "text": "Dan Luu, Files are hard 20 min A readable tour of the research on file consistency and error handling, with the surprising results.",
+  "label": "core",
+  "key": "Dan Luu, Files are hard 20 min A readable",
+  "where": ""
+ },
+ {
+  "id": 410,
+  "tab": "t-more",
+  "section": "",
+  "text": "LWN, PostgreSQL's fsync() surprise (2018) and Improved block-layer error handling (2017) 20 min fsyncgate, and the errseq_t error reporting that changed what a failed fsync means.",
+  "label": "core",
+  "key": "LWN, PostgreSQL's fsync() surprise (2018) and Improved block-layer error",
+  "where": ""
+ },
+ {
+  "id": 411,
+  "tab": "t-more",
+  "section": "",
+  "text": "Kernel docs: ext4 , vm sysctls , writeback cache control , blk-mq , VFS 60 min The data modes and mount options, the dirty-page knobs, FLUSH and FUA, the multi-queue block layer, the VFS objects.",
+  "label": "core",
+  "key": "Kernel docs: ext4 , vm sysctls , writeback cache",
+  "where": ""
+ },
+ {
+  "id": 412,
+  "tab": "t-more",
+  "section": "",
+  "text": "Linux v5.10 source: mm/readahead.c , mm/page-writeback.c , fs/ext4/fsync.c , fs/sync.c 45 min The functions this page cites by line: readahead sizing, the background threshold check, ext4's fsync, sync_file_range's warning.",
+  "label": "core",
+  "key": "Linux v5.10 source: mm/readahead.c , mm/page-writeback.c , fs/ext4/fsync.c",
+  "where": ""
+ },
+ {
+  "id": 413,
+  "tab": "t-more",
+  "section": "",
+  "text": "PyTorch: torch.distributed.checkpoint docs and filesystem.py at v2.14.1 30 min save, async_save, FileSystemWriter options; the finish method read in section 11.",
+  "label": "core",
+  "key": "PyTorch: torch.distributed.checkpoint docs and filesystem.py at v2.14.1 30 min",
+  "where": ""
+ },
+ {
+  "id": 414,
+  "tab": "t-more",
+  "section": "",
+  "text": "CheckFreq (FAST 2021) and Data stalls (VLDB 2021) 60 min Checkpointing often and cheaply with a snapshot and persist split; where training time goes when input is the bottleneck. nfs(5) , Mountpoint for S3 semantics , Lustre manual , GPUDirect Storage overview 45 min The guarantees of the storage a cluster gives you, each from its own documentation. fio documentation 20 min The benchmark tool used here; read \"I/O depth\" and \"direct\" before trusting any storage benchmark.",
+  "label": "core",
+  "key": "CheckFreq (FAST 2021) and Data stalls (VLDB 2021) 60",
+  "where": ""
+ },
+ {
+  "id": 415,
+  "tab": "t-read",
+  "section": "script-rendered: queue-depth chart",
+  "text": "queue-depth bars: reads/s, mean and p99 at QD 1, 4, 16, 64 (fio)",
+  "label": "core",
+  "key": "QD 1 to 64: throughput x5.1, mean latency x14.4",
+  "where": ""
+ },
+ {
+  "id": 416,
+  "tab": "t-read",
+  "section": "script-rendered: metadata bars",
+  "text": "ten bars of small files against one file: create, read warm and cold, delete, stat, ls",
+  "label": "core",
+  "key": "Creating the small files took 7.2x as long",
+  "where": ""
+ },
+ {
+  "id": 417,
+  "tab": "t-read",
+  "section": "script-rendered: durability cost bars",
+  "text": "median and p99 per call, ext4 and tmpfs, append and overwrite",
+  "label": "core",
+  "key": "3.3x less than fsync (393 against 1,305 us)",
+  "where": ""
+ },
+ {
+  "id": 418,
+  "tab": "t-read",
+  "section": "script-rendered: writeback timelines",
+  "text": "eight runs of dirty, under-writeback, device and program MiB every 100 ms",
+  "label": "core",
+  "key": "in the four primed runs 9.7, 31.9, 20.2 and 2.3 s",
+  "where": ""
+ },
+ {
+  "id": 419,
+  "tab": "t-read",
+  "section": "script-rendered: checkpoint bars",
+  "text": "seven save variants with median ms and MiB dirty after",
+  "label": "core",
+  "key": "fsync added 86 ms to a 263 ms save",
+  "where": ""
+ },
+ {
+  "id": 420,
+  "tab": "t-read",
+  "section": "script-rendered: checkpoint bars",
+  "text": "DCP with 4 writer threads 320 ms against 434 ms with one",
+  "label": "core",
+  "key": "Four writer threads made DCP faster than one",
+  "where": ""
+ },
+ {
+  "id": 421,
+  "tab": "t-read",
+  "section": "script-rendered: fio table",
+  "text": "buffered and direct fio workloads",
+  "label": "core",
+  "key": "12,706 to 6,270 writes per second",
+  "where": ""
+ },
+ {
+  "id": 422,
+  "tab": "t-read",
+  "section": "script-rendered: io_uring run",
+  "text": "io_uring against libaio at QD 16",
+  "label": "core",
+  "key": "51,050 reads per second at queue depth 16",
+  "where": ""
+ },
+ {
+  "id": 423,
+  "tab": "t-read",
+  "section": "script-rendered: crash lab summaries",
+  "text": "per-protocol crash counts under both models",
+  "label": "core",
+  "key": "DCP saving into the same directory at 10 of 11",
+  "where": ""
+ },
+ {
+  "id": 424,
+  "tab": "t-read",
+  "section": "script-rendered: readahead counters",
+  "text": "measured request counts per readahead mode",
+  "label": "core",
+  "key": "20 requests (572 pages)",
+  "where": ""
+ },
+ {
+  "id": 425,
+  "tab": "t-read",
+  "section": "added 2026-10-24: hero",
+  "text": "new hero figure",
+  "label": "core",
+  "key": "How far each call pushes one 4 KiB write before it returns",
+  "where": ""
+ },
+ {
+  "id": 426,
+  "tab": "t-read",
+  "section": "added 2026-10-24: blk-mq and NVMe queues",
+  "text": "new static diagram",
+  "label": "core",
+  "key": "Each CPU has its own path to the drive",
+  "where": ""
+ },
+ {
+  "id": 427,
+  "tab": "t-read",
+  "section": "added 2026-10-24: FTL stepper",
+  "text": "new stepper: remapping, garbage collection, write amplification 7 / 5 = 1.4 (illustrative)",
+  "label": "core",
+  "key": "Two erase blocks of four pages each",
+  "where": ""
+ },
+ {
+  "id": 428,
+  "tab": "t-read",
+  "section": "added 2026-10-24: VFS objects",
+  "text": "new static diagram over the real debugfs image",
+  "label": "core",
+  "key": "the inode, not the name, is the file",
+  "where": ""
+ },
+ {
+  "id": 429,
+  "tab": "t-read",
+  "section": "added 2026-10-24: fsync error before/after",
+  "text": "new before/after stepper (pre-4.13 flag against errseq_t)",
+  "label": "core",
+  "key": "The error now reaches everyone, but the data is still lost",
+  "where": ""
+ },
+ {
+  "id": 430,
+  "tab": "t-read",
+  "section": "added 2026-10-24: jbd2 commit stepper",
+  "text": "new stepper across data=ordered, journal, writeback",
+  "label": "core",
+  "key": "in ordered mode the data reaches home before the metadata that points to it is committed",
+  "where": ""
+ },
+ {
+  "id": 431,
+  "tab": "t-read",
+  "section": "added 2026-10-24: data paths",
+  "text": "new static diagram: buffered, O_DIRECT, GPUDirect Storage",
+  "label": "core",
+  "key": "Where the bytes are copied on each path",
+  "where": ""
+ },
+ {
+  "id": 432,
+  "tab": "t-read",
+  "section": "added 2026-10-24: NFS close-to-open",
+  "text": "new sequence diagram",
+  "label": "core",
+  "key": "Another node sees your shard only after you close it and it opens it",
+  "where": ""
+ }
+]

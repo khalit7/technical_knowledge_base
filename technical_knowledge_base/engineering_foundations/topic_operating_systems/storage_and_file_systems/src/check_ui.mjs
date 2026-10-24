@@ -8,7 +8,7 @@ const puppeteer = require('puppeteer');
 const page = path.resolve('technical_knowledge_base/engineering_foundations/topic_operating_systems/storage_and_file_systems/index.html');
 const out = process.argv[2] || '.';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const b = await puppeteer.launch({ headless: 'shell' });
+const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 let bad = 0;
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage();
@@ -43,24 +43,30 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       await check(tab, label + ' ' + segId + '[' + i + ']');
     }
   };
+  // Nothing moves before the reader acts: scroll each animated card into view, wait, and check it is still on step 0
+  const CTL = ['rd-ftl-ctl', 'rd-ra-ctl', 'rd-fs-ctl', 'rd-fe-ctl', 'cr-ctl', 'rd-jb-ctl'];
+  for (const c of CTL) {
+    await p.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await sleep(1600);
+    const v = await p.$eval('#' + c + '-s', e => e.value);
+    if (v !== '0') errs.push(scheme + ': ' + c + ' moved by itself to step ' + v);
+  }
   // Reading
   await check('t-read', scheme + ' read');
+  for (const c of ['rd-ftl-ctl']) await ctl(c);
   await segs('t-read', 'rd-ra-mode', ['rd-ra-ctl'], scheme);
   await segs('t-read', 'rd-wb-mode', [], scheme);
   await segs('t-read', 'rd-fs-mode', ['rd-fs-ctl'], scheme);
   await segs('t-read', 'rd-sc-mode', [], scheme);
+  await segs('t-read', 'rd-fe-mode', ['rd-fe-ctl'], scheme);
+  await segs('t-read', 'rd-jb-mode', ['rd-jb-ctl'], scheme);
+  await segs('t-read', 'cr-proto', ['cr-ctl'], scheme);
+  if (scheme === 'light') { const n = await p.$$eval('#cr-proto button', bs => bs.length);
+    for (let i = 0; i < n; i++) { await p.$$eval('#cr-proto button', (bs, i) => bs[i].click(), i); console.log('  crash lab: ' + await p.$eval('#cr-sum', e => e.textContent)); } }
   const drills = await p.$$eval('#t-read .drill', d => d.length);
   for (let i = 0; i < drills; i++) await p.$$eval('#t-read .drill', (d, i) => d[i].querySelector('.ch button').click(), i);
   await p.$$eval('#t-read details', ds => ds.forEach(d => d.open = true));
   await check('t-read', scheme + ' read after drills');
   await p.screenshot({ path: `${out}/${scheme}_${width}_read.png`, fullPage: true });
-  // Crash lab
-  await p.click('button[data-t=t-crash]'); await sleep(200);
-  await segs('t-crash', 'cr-proto', ['cr-ctl'], scheme);
-  if (scheme === 'light') { const n = await p.$$eval('#cr-proto button', bs => bs.length);
-    for (let i = 0; i < n; i++) { await p.$$eval('#cr-proto button', (bs, i) => bs[i].click(), i); console.log('  crash lab: ' + await p.$eval('#cr-sum', e => e.textContent)); } }
-  await p.$$eval('#t-crash details', ds => ds.forEach(d => d.open = true));
-  await p.screenshot({ path: `${out}/${scheme}_${width}_crash.png`, fullPage: true });
   // Further reading
   await p.click('button[data-t=t-more]'); await sleep(200);
   await check('t-more', scheme + ' more');

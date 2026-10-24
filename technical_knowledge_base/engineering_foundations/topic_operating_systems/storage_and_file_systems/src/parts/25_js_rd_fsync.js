@@ -1,4 +1,4 @@
-// ---- Section 6: one 4 KiB overwrite through fsync, fdatasync and sync_file_range (order from fs/ext4/fsync.c v5.10; totals measured) ----
+// ---- Section 5: one 4 KiB overwrite through fsync, fdatasync and sync_file_range (order from fs/ext4/fsync.c v5.10; totals measured) ----
 (function(){
 const D=window.ST_DATA,$=id=>document.getElementById(id);if(!$('rd-fs-card'))return;
 const med=m=>D.sync.find(r=>r.fs==='ext4'&&r.shape==='overwrite'&&r.mode===m).med;
@@ -26,7 +26,7 @@ let mode='fsync';
 function draw(i){const s=SEQ[mode][i],W=Math.min(860,RD.width($('rd-fs-svg')));
   let h='<div class="stk">';
   LAY.forEach((l,k)=>{const tok=[];if(s.d===k)tok.push('<span class="pill ok">'+P.data+'</span>');if(s.t===k)tok.push('<span class="pill mid">'+P.meta+'</span>');
-    h+='<a href="#rd-s6" style="--sc:'+(k===5?'var(--good)':k===4?'var(--bad)':'var(--line)')+';cursor:default" onclick="return false"><b>'+l+'</b><span>'+(tok.join(' ')||'&nbsp;')+'</span></a>'});
+    h+='<a href="#rd-s5" style="--sc:'+(k===5?'var(--good)':k===4?'var(--bad)':'var(--line)')+';cursor:default" onclick="return false"><b>'+l+'</b><span>'+(tok.join(' ')||'&nbsp;')+'</span></a>'});
   $('rd-fs-svg').innerHTML=h+'</div>';
   $('rd-fs-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+SEQ[mode].length+': '+s.c+'</div><p>'+s.p+'</p>';
   const dur=s.d===5?'yes':'no';
@@ -34,6 +34,6 @@ function draw(i){const s=SEQ[mode][i],W=Math.min(860,RD.width($('rd-fs-svg')));
 }
 const an=RD.anim({card:'rd-fs-card',ctl:'rd-fs-ctl',n:SEQ.fsync.length,draw,ms:1700,label:'Step'});
 const seg=$('rd-fs-mode');seg.innerHTML=Object.keys(NAMES).map((k,i)=>'<button data-m="'+k+'"'+(i===0?' class="on"':'')+'>'+NAMES[k]+'</button>').join('');
-RD.seg(seg,m=>{mode=m;an.reset(SEQ[m].length);an.play()});
+RD.seg(seg,m=>{mode=m;an.reset(SEQ[m].length)});
 an.redraw();RD.onResize(()=>an.redraw());
 })();
