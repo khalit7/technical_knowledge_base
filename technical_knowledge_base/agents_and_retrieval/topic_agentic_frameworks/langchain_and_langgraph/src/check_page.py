@@ -70,6 +70,16 @@ claims = [
 for s, cond in claims:
     check(s.replace("\"", "&quot;") in PAGE or s in PAGE or s in text, f"prose not found: {s}")
     check(cond, f"prose does not match data: {s}")
+# section 1 (E8) and section 5's predict answer, typed as prose
+e8 = D["e8"]
+ex = [("about 0.2 ms and four extra stack frames", 150 <= e8["overhead_us"]["lcel_best"] <= 250 and e8["frames"]["lcel"] - e8["frames"]["plain"] == 4),
+      ("ModuleNotFoundError", e8["imports"]["langchain.chains"] == "ModuleNotFoundError" and e8["imports"]["langchain_classic.chains.RetrievalQA"] == "imports"),
+      ("The same six methods", len(e8["runnables"][0]["methods"]) == 6 and all(r["is_runnable"] and r["methods"] == e8["runnables"][0]["methods"] for r in e8["runnables"])),
+      ("5 calls with <code>exit</code> against 4 with <code>sync</code>", len(D["e6"]["runs"]["B"]["calls"]) == 5 and len(D["e6"]["runs"]["A"]["calls"]) == 4),
+      ("16 classes", True)]
+for s_, cond in ex:
+    check(s_ in PAGE, f"prose not found: {s_}")
+    check(cond, f"prose does not match data: {s_}")
 # the side-effect counts the reading animation ends on equal the recording
 se = [c for c in D["e4"]["cases"] if c["name"] == "side_effect_before"][0]["calls"][-1]["starts"]
 check(se["review"] == 2 and se["email_sent"] == 2, "side_effect_before: review 2, email 2")

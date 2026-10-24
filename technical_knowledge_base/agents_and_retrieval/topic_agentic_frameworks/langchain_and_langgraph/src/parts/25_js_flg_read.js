@@ -1,4 +1,4 @@
-// ---- Reading tab: sections 0 to 8 and 10 ----
+// ---- Reading tab: findings, sections 2, 4 to 8 and 10 (section 3's player is 28_js, section 5's replay 29_js) ----
 (function(){
   const D=window.FLG,esc=RD.esc,$=id=>document.getElementById(id);
   const fmt=n=>Number(n).toLocaleString('en-US');
@@ -24,12 +24,6 @@
   // s2 real graph
   const drawReal=()=>{const el=$('flg-g-real');el.innerHTML=FLGG.svg('real',REAL_EDGES,Math.min(RD.width(el),420),{})};
   RD.onRender(drawReal);RD.onResize(drawReal);drawReal();
-
-  // s3 reducer animation
-  let mode='fan_reducer';
-  const pl=FLGS.mount({card:'flg-r-card',ctl:'flg-r-ctl',svgEl:$('flg-r-svg'),capEl:$('flg-r-cap'),tableEl:$('flg-r-tab'),counterEl:$('flg-r-cnt'),tab:'t-read',getGraph:()=>E1(mode),hidden:()=>false});
-  RD.seg($('flg-r-mode'),m=>{mode=m;pl.reload()});
-  RD.onResize(()=>pl.redraw());
 
   // s4 checkpoint picker
   const lin=E1('linear');
@@ -58,15 +52,6 @@
     D.e2.scenarios.map(s=>{const p=procs(s);const r2=s.processes[1].stdout;
       return '<tr><td>'+(s.kind==='kill'?'SIGKILL, <code>'+s.durability+'</code>':'exception, <code>'+s.durability+'</code>')+'</td><td class="small">'+esc((p[1]||[]).join(', '))+'</td><td class="small">'+s.after_first.checkpoints+' checkpoints, '+s.after_first.writes+' writes</td><td class="small">'+
       (p[2]?esc(p[2].join(', ')):(r2&&!r2.ok?'<span style="color:var(--bad)">'+esc(r2.err)+'</span>':'nothing'))+'</td></tr>'}).join('')+'</tbody>';
-
-  // s5 real lanes, both runs
-  const drawR6=()=>{const el=$('flg-r6-svg');const W=RD.width(el);
-    el.innerHTML='<div class="small"><b>durability="sync"</b></div>'+FLGC.lanes(A,W)+'<div class="small" style="margin-top:6px"><b>durability="exit"</b></div>'+FLGC.lanes(B,W);
-    const a=FLGC.sums(A),b=FLGC.sums(B);
-    $('flg-r6-out').innerHTML=RD.stat('Model calls started',a.calls+' vs '+b.calls,'sync vs exit; '+a.lost+' killed in each')+
-      RD.stat('Calls that returned',a.done+' vs '+b.done,fmt(a.inp+a.out)+' vs '+fmt(b.inp+b.out)+' tokens in + out')+
-      RD.stat('Cost equivalent','$'+a.cost.toFixed(4)+' vs $'+b.cost.toFixed(4),'total_cost_usd of the returned calls; thinking length varies call to call')};
-  RD.onRender(drawR6);RD.onResize(drawR6);drawR6();
 
   // s6 interrupt animation
   const CODE={

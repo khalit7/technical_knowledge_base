@@ -1,4 +1,4 @@
-// ---- Super-step lab (t-steps) ----
+// ---- Reading section 3: the super-step player over seven recorded graphs ----
 (function(){
   const D=window.FLG,esc=RD.esc,$=id=>document.getElementById(id);
   const NAMES={linear:'Linear',fan_reducer:'Fan-out, reducer',fan_no_reducer:'Fan-out, no reducer',uneven_edges:'Uneven, plain edges',uneven_join_all:'Uneven, join',loop:'Loop',send:'Send (map-reduce)'};
@@ -10,15 +10,15 @@
     uneven_join_all:'The same branches with add_edge(["a_read_hits", "b_lint"], "join"): one join: channel that becomes available only when both have written. join runs once.',
     loop:'A conditional edge from test back to fix. The first patch fails, the second passes; each pass is one more super-step against recursion_limit.',
     send:'A conditional edge returns three Send("review", {"file": ...}) packets: three review tasks in one super-step, each with its own input; a reducer gathers the reviews.'};
-  let cur='linear';
+  let cur='fan_reducer';
   const btns=Object.keys(NAMES).map(k=>'<button data-m="'+k+'"'+(k===cur?' class="on"':'')+'>'+NAMES[k]+'</button>').join('');
   $('flg-s-pick').innerHTML=btns;
   const g=()=>D.e1.find(x=>x.name===cur);
   const note=()=>{$('flg-s-note').textContent=TEACH[cur]};
-  const pl=FLGS.mount({card:'flg-s-card',ctl:'flg-s-ctl',svgEl:$('flg-s-svg'),capEl:$('flg-s-cap'),tableEl:$('flg-s-tab'),seenEl:$('flg-s-seen'),counterEl:$('flg-s-cnt'),tab:'t-steps',getGraph:g,hidden:()=>$('flg-s-hid').checked});
+  const pl=FLGS.mount({card:'flg-s-card',ctl:'flg-s-ctl',svgEl:$('flg-s-svg'),capEl:$('flg-s-cap'),tableEl:$('flg-s-tab'),seenEl:$('flg-s-seen'),counterEl:$('flg-s-cnt'),getGraph:g,hidden:()=>$('flg-s-hid').checked});
   RD.seg($('flg-s-pick'),m=>{cur=m;note();pl.reload()});
   $('flg-s-hid').addEventListener('change',()=>pl.redraw());
-  RD.onResize(()=>pl.redraw(),'t-steps');note();
+  RD.onResize(()=>pl.redraw());note();
   // summary table
   const runs=x=>{const c={};x.steps.forEach(s=>s.tasks.forEach(t=>c[t.name]=(c[t.name]||0)+1));return c};
   $('flg-s-sum').innerHTML='<thead><tr><th>Graph</th><th class="num">Super-steps</th><th>Node executions</th><th>Final state or error</th></tr></thead><tbody>'+
