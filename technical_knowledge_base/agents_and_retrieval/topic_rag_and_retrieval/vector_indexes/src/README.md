@@ -47,3 +47,6 @@ None added. This is a mechanism page: the canonical figures (HNSW's layers, Disk
 
 ## Downloads (under the download lock; recorded here because they are this page's own)
 BEIR quora.zip (15.9 MB, sha256 56aacd9d...77531) from the UKP server; Docker images python:3.12-slim and python:3.9-slim; ScaNN 1.4.2 and NumPy wheels into `$RAG_SCRATCH/vix/scann/`.
+
+## Topic close (2026-10-24)
+New closed block at the end of Reading: the root's retired Vector search lab units this page did not carry (ANN recall against relevance at efSearch 8, 82.7% against 84.5%; PQ estimates; engine overhead; provenance). "Its Vector search lab and Tool map tabs" now reads "its Tool map tab". Header unchanged (34 + 15). Every quoted sibling time now matches its header (`html_utils/check_times.py`); the ledger keys that quoted old times or tab names were re-pointed to the current text (problems 0).
