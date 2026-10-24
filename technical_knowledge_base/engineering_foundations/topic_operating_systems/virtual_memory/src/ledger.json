@@ -1,0 +1,3582 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Virtual memory: paging, the TLB, mmap, copy-on-write, huge pages, the OOM killer Virtual memory: paging, the TLB, mmap, copy-on-write, huge pages, the OOM killer How every address a training job uses becomes real memory, what each step costs, and what happens when memory runs out: taught from zero to kernel-source depth, measured on a Linux 5.10 kernel.",
+  "label": "core",
+  "key": "virtual memory: paging, the tlb, mmap, copy-on-write,",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "A child page of Topic: operating-systems .",
+  "label": "core",
+  "key": "a child page of topic: operating-systems .",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Address translator Memory replay Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Tab bar; the Memory replay tab moved into section 12."
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "One screen 1 Address space 2 Page tables 3 TLB 4 Page faults 5 mmap 6 Page cache 7 Copy-on-write 8 Huge pages 9 Pinned memory 10 Overcommit 11 Swap 12 cgroups, OOM 13 RSS, PSS, USS 14 NUMA 15 ML recipes Mistakes Interview",
+  "label": "core",
+  "key": "1 address space 2 page tables 3",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "In one screen Every address your training job touches is a virtual address.",
+  "label": "core",
+  "key": "every address a program uses is virtual",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Hardware translates it, page by page, through a tree of tables the kernel keeps for each process; a small cache (the TLB) makes that free most of the time; and the kernel fills the tables only when a page is first touched (a page fault).",
+  "label": "core",
+  "key": "translates it page by page through a per-process tree",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Everything else on this page, from mmap and copy-on-write to huge pages and the OOM killer, is a way of filling, sharing, enlarging or taking back those pages.",
+  "label": "core",
+  "key": "is a way of filling, sharing, enlarging",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The root page, Topic: operating-systems section 4, gave the intuition and measured the TLB, page faults and copy-on-write on the running job.",
+  "label": "core",
+  "key": "the intuition this page goes under",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "This page goes one level down: the kernel's actual code paths (Linux v5.10, the kernel these runs used, file and line), every knob that matters in ML work, and new measurements.",
+  "label": "depth",
+  "key": "(linux v5.10, the kernel these runs used,",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Each mechanism follows the same pattern: problem, how it works, what it costs here, when it bites in ML, the command that shows it, the fix.",
+  "label": "depth",
+  "key": "costs here, when it bites",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Mechanism What it does Cost measured here measured When it bites in ML Look with Page tables map 4 KiB virtual pages to physical frames, 4 levels 2,052 KiB of tables per GiB touched rarely; huge resident sets on many processes grep VmPTE /proc/PID/status TLB caches translations miss: 7.6 ns vs hit 1.1 ns (root) random gathers over big embeddings, hash tables perf stat -e dTLB-load-misses Page fault fills a table entry on first touch about 1 us per 4 KiB page first epoch, first touch of a huge buffer /usr/bin/time -v , ps -o min_flt,maj_flt mmap maps a file's cached pages into memory, no copy random rows: 13x read amplification datasets, safetensors, torch.load(mmap=True) cat /proc/PID/maps Copy-on-write fork shares pages until written fork of 1 GiB: 19.8 ms; one copy about 3.3 us DataLoader workers growing to the parent's size smaps_rollup Private_Dirty Huge pages one 2 MiB page instead of 512 512x fewer faults; up to 298x more memory allocators, pinned buffers, bloat in sparse arrays grep AnonHugePages /proc/meminfo Pinned memory pages the kernel may not move or swap default limit here 64 KiB pin_memory=True , RDMA, containers ulimit -l , VmLck memory cgroup, OOM caps a container, kills when it cannot reclaim killed at the limit, exit 137 \"Killed\" with no traceback; /dev/shm counted memory.events , memory.stat Five things to remember Allocating is not using.",
+  "label": "depth",
+  "key": "mechanism what it does cost measured here",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "A 64 GiB mmap succeeded here on a 10 GB machine; memory is spent page by page, at first touch.",
+  "label": "core",
+  "key": "one 64 gib mapping on a 10 gb machine succeeded",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Resident is not owned.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Heading of a recap list; each item is taught in its section."
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The job's three processes report 815 MiB of RSS together but own only 104 MiB alone; the rest is shared ( section 13 ).",
+  "label": "core",
+  "key": "815 mib of rss but own 104 mib",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Reading a Python object writes to it (reference counts, the garbage collector), so forked DataLoader workers copy what they read.",
+  "label": "core",
+  "key": "reading a python object increments and decrements its reference count",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "NumPy arrays and gc.freeze() stop it ( section 7 ).",
+  "label": "core",
+  "key": "30 pages copied instead of 16,817",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The page cache counts toward your container's limit but is given back; anonymous memory and /dev/shm are not ( section 12 ).",
+  "label": "core",
+  "key": "anonymous memory and /dev/shm are not",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The OOM killer sends SIGKILL: no exception, no traceback, exit code 137.",
+  "label": "core",
+  "key": "the exit code is 137 (128 + 9)",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "How this page was measured: Docker Desktop's Linux VM on an Apple M1 laptop (Linux 5.10.104-linuxkit, arm64, 4 KiB pages, 5 CPUs, about 10 GB, 1 GiB swap, THP in \"madvise\" mode, overcommit mode 1, one NUMA node, no GPU), image kb-os-vm:1 (the root's lab image plus safetensors), October 2026.",
+  "label": "core",
+  "key": "docker desktop's linux vm on an apple",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Containers were not privileged.",
+  "label": "depth",
+  "key": "containers were not privileged",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Things that need a GPU, a newer kernel, writable sysctls or real NUMA are taught from primary sources and tagged not run here .",
+  "label": "depth",
+  "key": "things that need a gpu, a newer",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Labels: measured ran here; source read from kernel source or documentation.",
+  "label": "depth",
+  "key": "labels: measured ran here; source read from",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Scripts and raw outputs: src/exp/ and src/raw/ in the repository.",
+  "label": "depth",
+  "key": "scripts and raw outputs: src/exp/ and src/raw/",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "OSTEP chapter map for this page ( free online ) OSTEP chapter Sections here 13 The Abstraction: Address Spaces; 14 Memory API 1 15 Address Translation; 16 Segmentation; 17 Free-Space Management 1, 2 (allocators: the sibling page Memory allocators ) 18 Paging: Introduction; 20 Paging: Smaller Tables 2, 8 19 Paging: Faster Translations (TLBs) 3, 8 21 Beyond Physical Memory: Mechanisms; 22 Policies 4, 6, 11 23 Complete Virtual Memory Systems (VAX/VMS, Linux) 4, 5, 7, 8 (this page is chapter 23 extended to Linux 5.10 and to ML)",
+  "label": "depth",
+  "key": "ostep chapter map for this page (",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "The address space: what one process sees ch.",
+  "label": "core",
+  "key": "the address space: what one process sees",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "13 Address Spaces, ch.",
+  "label": "depth",
+  "key": "13 the abstraction: address spaces",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "14 Memory API The problem.",
+  "label": "depth",
+  "key": "address spaces; 14 memory api",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "Many processes run at once, each written as if it owned all of memory from address 0 upward.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Wind-up of the problem; the opening sentence of section 1 carries it."
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "They must not see each other's data, yet they should share what is identical (the code of libtorch_cpu.so , the dataset file), and together they may ask for more than the machine has.",
+  "label": "core",
+  "key": "share what is identical (the code of",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "Give every process its own address space : a private range of numbers (addresses) that the hardware translates to real memory on every access.",
+  "label": "core",
+  "key": "its own address space : a private",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "On 64-bit Linux the user part of that range is 2 48 bytes (256 TiB) on arm64 with 4 KiB pages, and 2 47 bytes (128 TiB) on x86-64 with four-level tables ( arm64 memory layout ; x86-64 memory map ).",
+  "label": "core",
+  "key": "is 2 48 bytes (256 tib) on",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "Almost all of it is empty.",
+  "label": "core",
+  "key": "almost all of it is empty.",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "What exists is a list of mappings (virtual memory areas, VMAs): contiguous ranges with one set of permissions and one source (a file, or anonymous zero-filled memory).",
+  "label": "core",
+  "key": "what exists is a list of mappings",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "In the kernel source : one struct mm_struct per address space holds pgd , the root of its page-table tree, and the set of VMAs ( include/linux/mm_types.h line 388 ; a red-black tree in 5.10, a maple tree since 6.1); each VMA is a struct vm_area_struct with vm_start , vm_end , flags, an optional vm_file and a table of operations vm_ops that says how to fill a page when it is first touched ( line 305 ).",
+  "label": "depth",
+  "key": "source : one struct mm_struct per address",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "Threads of one process share one mm_struct ; that is all \"sharing memory\" means for threads.",
+  "label": "depth",
+  "key": "threads of one process share one mm_struct",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "The running job's address space measured (the root's recording of the main process just after its DataLoader workers were forked).",
+  "label": "core",
+  "key": "root's recording of the main process just",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "Each line of /proc/PID/maps is one VMA: start-end, permissions (r, w, x, and p private or s shared), file offset, device, inode, path.",
+  "label": "depth",
+  "key": "vma: start-end, permissions (r, w, x, and",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "Selected lines of the real /proc/PID/maps Read the bars as reserved address space, not memory used: the 54 anonymous mappings add up to 1.5 GiB mainly because of one 1 GiB reservation by the allocator inside libc10.so (the sibling page Memory allocators owns that story).",
+  "label": "core",
+  "key": "the 54 anonymous mappings add up to",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "Pages are only spent when touched (section 4).",
+  "label": "core",
+  "key": "pages are only spent when touched (section",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "Limits you can hit vm.max_map_count caps the number of VMAs per process (default 65,530 in the kernel docs ; Docker Desktop's VM sets 262,144, read here).",
+  "label": "core",
+  "key": "you can hit vm.max_map_count caps the number",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "The job uses about 456.",
+  "label": "core",
+  "key": "the job uses about 456",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. the address space: what one process sees",
+  "text": "A process that maps thousands of files or shards, or an allocator that splits its arena into many protected pieces, gets ENOMEM from mmap long before memory is short; the error message says nothing about VMAs. cat /proc/PID/maps | wc -l; pmap -x PID | tail -1; cat /proc/sys/vm/max_map_count",
+  "label": "core",
+  "key": "a process that maps thousands of files",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "Page tables: the tree that translates every address ch.",
+  "label": "core",
+  "key": "page tables: the tree that translates every",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "18 Introduction to Paging, ch.",
+  "label": "depth",
+  "key": "18 paging: introduction",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "20 Advanced Page Tables Pages.",
+  "label": "depth",
+  "key": "20 paging: smaller tables",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "Memory is managed in fixed-size pages : 4 KiB on this Linux VM ( getconf PAGESIZE prints 4096).",
+  "label": "core",
+  "key": "memory is managed in fixed-size pages :",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "A virtual address splits into a virtual page number (high bits) and an offset inside the page (low 12 bits, passed through unchanged).",
+  "label": "core",
+  "key": "a virtual address splits into a virtual",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "The page table maps each virtual page to a physical page frame , plus permission bits.",
+  "label": "core",
+  "key": "the page table maps each virtual page",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "One flat table for 2 36 virtual pages at 8 bytes an entry would be 512 GiB per process.",
+  "label": "core",
+  "key": "one flat table for 2 36 virtual",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "Instead the 36 bits are cut into four 9-bit pieces; each piece indexes a 4 KiB table of 512 eight-byte entries, which points to the next table.",
+  "label": "core",
+  "key": "instead the 36 bits are cut into",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "Only the tables on the path to a mapped page exist, so a sparse address space costs almost nothing.",
+  "label": "core",
+  "key": "only the tables on the path to",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "The arm64 kernel computes the number of levels as (VA_BITS - 4) / (PAGE_SHIFT - 3) ( pgtable-hwdef.h line 26 ): (48 - 4) / (12 - 3) = 4 levels for 4 KiB pages.",
+  "label": "core",
+  "key": "the arm64 kernel computes the number of",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "The first byte of the job's memory-mapped dataset, 0xffff81fd2000 (from the maps lines above), cut into its four table indices and offset.",
+  "label": "core",
+  "key": "the first byte of the job's memory-mapped",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "The Address translator tab does this for any address, on arm64 with 4, 16 or 64 KiB pages and on x86-64 with four or five levels. x86-64 arm64 (this VM) Level names, root first PGD, (P4D with 5 levels), PUD, PMD, PTE level 0, 1, 2, 3 (Linux reuses the x86 names) Register holding the root CR3 (one per CPU, reloaded on a process switch) TTBR0_EL1 for user addresses, TTBR1_EL1 for the kernel half Page sizes 4 KiB; 2 MiB and 1 GiB as huge pages granule of 4, 16 or 64 KiB, chosen when the kernel is built; Apple's macOS uses 16 KiB (the M1 host reports bytes, a labelled contrast) Bigger address spaces 5 levels (LA57): 57-bit, 128 PiB ( 5-level paging ) 52-bit with 64 KiB pages (LVA) Key entry bits Present, R/W, U/S, Accessed, Dirty, NX valid, AP (user, read-only), AF (accessed), nG (not global), DBM (dirty), PXN/UXN (no execute) ( lines 135 to 148 ) The bits do work.",
+  "label": "core",
+  "key": "the address translator tab does this for",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "Accessed is set by hardware on use: page reclaim reads and clears it to find cold pages (section 6).",
+  "label": "core",
+  "key": "accessed is set by hardware on use:",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "Dirty says a file page must be written back before reuse.",
+  "label": "core",
+  "key": "dirty says a file page must be",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "Read-only on a writable mapping is how copy-on-write traps the first write (section 7).",
+  "label": "core",
+  "key": "read-only on a writable mapping is how",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "Not present is how swap and lazy allocation trap the first access (section 4).",
+  "label": "core",
+  "key": "not present is how swap and lazy",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "What the tables cost measured One last-level table (4 KiB) maps 512 pages = 2 MiB, so touching 1 GiB needs 512 tables = 2,048 KiB, plus a few upper-level tables.",
+  "label": "core",
+  "key": "what the tables cost measured one last-level",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "Measured: VmPTE grew by KiB after touching 1 GiB.",
+  "label": "core",
+  "key": "measured: vmpte grew by kib after touching",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "That is 0.2% of the memory mapped, per process: 64 workers each touching the same 10 GiB shared dataset carry 64 copies of its tables (1.3 GiB).",
+  "label": "core",
+  "key": "that is 0.2% of the memory mapped,",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "With huge pages the kernel still sets aside one table per 2 MiB (section 8), so the measured VmPTE did not shrink.",
+  "label": "core",
+  "key": "with huge pages the kernel still sets",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "A process maps a 64 GiB file but only ever reads 1 MiB of it at one spot.",
+  "label": "core",
+  "key": "a process maps a 64 gib file",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "Roughly how much page-table memory does that cost? about 128 MiB (64 GiB / 2 MiB x 4 KiB) a few tables: about 16 KiB nothing at all Tables exist only along paths to touched pages.",
+  "label": "core",
+  "key": "roughly how much page-table memory does that",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "1 MiB at one spot needs one last-level table plus one table at each upper level: four 4 KiB tables, 16 KiB.",
+  "label": "core",
+  "key": "1 mib at one spot needs one",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "The 128 MiB answer would hold only if every 2 MiB of the file were touched.",
+  "label": "core",
+  "key": "the 128 mib answer would hold only",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. page tables: the tree that translates every address",
+  "text": "Mapping is free; touching costs tables and frames. grep -E 'VmPTE|VmRSS|VmSize' /proc/PID/status",
+  "label": "core",
+  "key": "mapping is free; touching costs tables and",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "The TLB: why translation is usually free, and when it is not ch.",
+  "label": "core",
+  "key": "the tlb: why translation is usually free,",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "19 Translation Lookaside Buffers The problem.",
+  "label": "depth",
+  "key": "19 paging: faster translations (tlbs)",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "A four-level walk is four extra memory reads for every load and store.",
+  "label": "core",
+  "key": "a four-level walk is four extra memory",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "The CPU keeps recent translations in a translation lookaside buffer (TLB): a small cache from virtual page number to frame and permissions.",
+  "label": "core",
+  "key": "the cpu keeps recent translations in a",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "A hit adds nothing; a miss triggers a hardware page-table walk (the walk's reads are themselves cached in the data caches, so a miss costs nanoseconds, not four trips to DRAM).",
+  "label": "core",
+  "key": "a hit adds nothing; a miss triggers",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "The root page measured it on this machine: one access costs 1.1 ns while the touched pages fit in the TLB and 7.6 ns once they do not, with the knee between 2,048 and 4,096 pages (8 to 16 MiB of TLB reach , entries times page size); with 2 MiB pages the same walk stays at 1.1 ns ( Topic: operating-systems , section 4 and the OS simulators tab, which also replays OSTEP's TLB homework).",
+  "label": "core",
+  "key": "the root page measured it on this",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "After a switch to another process, the old translations are wrong.",
+  "label": "depth",
+  "key": "after a switch to another",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "Flushing the whole TLB on every switch would make every switch expensive, so entries are tagged with an ASID (arm64: 8 or 16 bits, read from the CPU at boot, arch/arm64/mm/context.c line 42 ; x86-64 calls it PCID, 12 bits).",
+  "label": "depth",
+  "key": "flushing the whole tlb on every switch",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "Kernel mappings are marked global and shared by all processes; user mappings are \"not global\" (the nG bit in section 2's table).",
+  "label": "depth",
+  "key": "global and shared by all processes; user",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "TLB shootdowns: the cost of changing a mapping When a process changes or removes a mapping ( munmap , mprotect , madvise(MADV_DONTNEED) , page migration, swapping a page out), every CPU that may have cached the old translation must drop it, or a thread there would keep using a page that is no longer theirs.",
+  "label": "core",
+  "key": "tlb shootdowns: the cost of changing a",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "That is a TLB shootdown .",
+  "label": "core",
+  "key": "that is a tlb shootdown",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "The two architectures do it very differently source : x86-64: interrupt the other CPUs The kernel sends an inter-processor interrupt to each CPU running the address space and waits for all to flush ( arch/x86/mm/tlb.c lines 798 to 825 , smp_call_function_many ); over 33 pages it flushes everything instead ( line 842 ).",
+  "label": "core",
+  "key": "the two architectures do it very differently",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "Cost grows with the number of CPUs the process has run on. arm64: one broadcast instruction The kernel issues TLBI VALE1IS (\"inner shareable\"), which the hardware broadcasts to every CPU, then waits with a barrier ( arch/arm64/include/asm/tlbflush.h lines 255 to 272 ).",
+  "label": "core",
+  "key": "cost grows with the number of cpus",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "No interrupt, no other CPU's code runs.",
+  "label": "core",
+  "key": "no interrupt, no other cpu's code runs.",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "When it bites in ML.",
+  "label": "core",
+  "key": "when it bites in ml. a cpu-heavy process",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "A CPU-heavy process with many threads (PyTorch's intra-op pool, a data loader with threads) whose allocator keeps returning memory to the kernel and asking for it again triggers a shootdown each time; on large x86 servers each costs interrupts on every CPU that ran the process.",
+  "label": "core",
+  "key": "a cpu-heavy process with many threads (pytorch's",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "Symptoms: high system time with no obvious system calls in your code.",
+  "label": "core",
+  "key": "high system time with no obvious system",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. the tlb: why translation is usually free, and when it is not",
+  "text": "Fix: keep memory cached in the allocator instead of returning it (the Memory allocators page covers the knobs), fewer threads, huge pages. perf stat -e dTLB-load-misses,dTLB-loads -p PID # not available in this VM (no hardware counters) grep -E 'TLB' /proc/interrupts # x86: \"TLB shootdowns\" per CPU",
+  "label": "core",
+  "key": "fix: keep memory cached in the allocator",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "Page faults: memory is filled in on first touch ch.",
+  "label": "core",
+  "key": "page faults: memory is filled in on",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "21 Swapping: Mechanisms, ch.",
+  "label": "depth",
+  "key": "21 beyond physical memory: mechanisms",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "23 Complete VM Systems The idea. mmap and malloc only add a VMA; no frame is allocated and no table entry written.",
+  "label": "core",
+  "key": "mmap and malloc only add a vma;",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "The first access finds an invalid (or read-only) entry and the CPU raises an exception: a page fault .",
+  "label": "core",
+  "key": "the first access finds an invalid (or",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "The kernel looks up the VMA, decides what the page should contain, fills the entry and re-runs the instruction.",
+  "label": "core",
+  "key": "the kernel looks up the vma, decides",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "The program never notices, except in time.",
+  "label": "core",
+  "key": "the program never notices, except in time.",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "A minor fault needs no I/O; a major fault waited for a device ( getrusage(2) ; in 5.10 a fault that had to be retried also counts as major, mm/memory.c lines 4548 to 4557 ).",
+  "label": "core",
+  "key": "a minor fault needs no i/o; a",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "One access, followed through the kernel.",
+  "label": "core",
+  "key": "one access followed through the real 5.10 code path",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "Pick a case; the stepper walks the real 5.10 code path on arm64 and shows what this machine measured for it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Instruction to the reader; the stepper title and its case buttons carry it."
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "Three details that matter.",
+  "label": "core",
+  "key": "three details that matter.",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "(1) The zero page: a read of never-written anonymous memory maps one shared, read-only page of zeros ( mm/memory.c lines 3496 to 3500 ): measured, reading 64 MiB took faults and added 0 KiB of RSS; writing it afterwards took the same number of faults again.",
+  "label": "core",
+  "key": "(1) the zero page: a read of",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "So \"I allocated and read it, but RSS did not grow\" is expected.",
+  "label": "core",
+  "key": "so \"i allocated and read it, but",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "(2) Fault-around: a read fault on a cached file page maps up to 16 neighbouring cached pages at once ( fault_around_bytes = 64 KiB, line 3875 ).",
+  "label": "core",
+  "key": "(2) fault-around: a read fault on a",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "The root's warm read of the 2,056-page dataset took exactly 129 minor faults, which is 2,056 / 16 rounded up.",
+  "label": "core",
+  "key": "the root's warm read of the 2,056-page",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "(3) MAP_POPULATE (or madvise(MADV_POPULATE_WRITE) since 5.14) pays all faults inside the mmap call: 64 MiB took ms in the call against ms by touching page by page, because one call avoids 16,384 trips into the kernel.",
+  "label": "core",
+  "key": "(3) map_populate (or madvise(madv_populate_write) since 5.14) pays",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "You np.empty(10**9, dtype=np.uint8) and immediately call .sum() .",
+  "label": "core",
+  "key": "you np.empty(10**9, dtype=np.uint8) and immediately call .sum()",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "Memory use (RSS) afterwards? about 1 GB, and it took 1 GB of zeroing almost nothing: every page maps the shared zero page it crashes: empty memory cannot be read A large np.empty is a fresh anonymous mapping (glibc serves big requests with mmap ).",
+  "label": "core",
+  "key": "memory use (rss) afterwards? about 1 gb,",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "Reading it faults each page onto the shared zero page: 244,141 minor faults, no new frames.",
+  "label": "core",
+  "key": "reading it faults each page onto the",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "The sum is 0.",
+  "label": "core",
+  "key": "the sum is 0. rss grows only when you write",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "RSS grows only when you write.",
+  "label": "core",
+  "key": "rss grows only when you write.",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "(With transparent huge pages enabled for the range, a read fault can instead map a huge zero page; same outcome.) When it bites in ML.",
+  "label": "core",
+  "key": "(with transparent huge pages enabled for the",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "The first epoch is slower than the rest (major faults on the dataset; the root's Debug lab case \"The first epoch is slower than the rest: cold and warm page cache\"); the first iteration of a step that allocates a big new buffer pays one fault per 4 KiB (1 GiB = 262,144 faults, about 0.27 s at the 1 us measured here, per process); a latency-sensitive server sees spikes when pages are first touched.",
+  "label": "core",
+  "key": "epoch is slower than the rest (major",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. page faults: memory is filled in on first touch",
+  "text": "Fixes: pre-touch ( MAP_POPULATE , a warm-up step), huge pages (section 8), keep buffers alive across steps instead of reallocating. ps -o pid,min_flt,maj_flt,rss,cmd -p PID; /usr/bin/time -v python train.py # \"Major/Minor page faults\"",
+  "label": "core",
+  "key": "fixes: pre-touch ( map_populate , a warm-up",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "5. mmap: files and memory as one thing ch.",
+  "label": "core",
+  "key": "5. mmap: files and memory as one",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "23 Complete VM Systems (memory-mapped files); the call itself: mmap(2) The problem. read() copies bytes from the kernel's cache of the file (the page cache, section 6) into your buffer: two copies of the data in memory, a system call per read, and a buffer you must manage.",
+  "label": "core",
+  "key": "read() copies bytes from the kernel's cache",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "The idea. mmap(addr, length, prot, flags, fd, offset) adds a VMA whose pages are the page-cache pages of the file.",
+  "label": "core",
+  "key": "adds a vma whose pages are the",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "The first touch of each page faults (section 4) and maps the cached page directly; nothing is copied.",
+  "label": "core",
+  "key": "the first touch of each page faults",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Two choices make four kinds of mapping.",
+  "label": "core",
+  "key": "two choices make four kinds of",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Every mmap is either file-backed or anonymous ( MAP_ANONYMOUS : zero-filled, no file), and either shared or private: MAP_PRIVATE MAP_SHARED File Reads see the file; a write copies that page into private anonymous memory (copy-on-write), the file never changes.",
+  "label": "core",
+  "key": "map_private map_shared file reads see the file;",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Used by: the loader for code and data of every .so ; np.memmap(mode=\"c\") .",
+  "label": "core",
+  "key": "used by: the loader for code and",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Reads and writes go to the page cache, other mappers see them at once, writeback puts them in the file ( msync to force it).",
+  "label": "core",
+  "key": "reads and writes go to the page",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Used by: np.memmap(mode=\"r+\") , databases, the job's dataset (read-only, r--s in its maps).",
+  "label": "core",
+  "key": "used by: np.memmap(mode=\"r+\") , databases, the job's",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Anonymous Private zero-filled memory.",
+  "label": "core",
+  "key": "private zero-filled memory. after fork , copy-on-write.",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "After fork , copy-on-write.",
+  "label": "core",
+  "key": "private zero-filled memory. after fork , copy-on-write.",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Used by: malloc of large blocks, thread stacks, every allocator's arenas, all your tensors.",
+  "label": "core",
+  "key": "used by: malloc of large blocks, thread",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Memory shared with children after fork (backed by an invisible shmem file).",
+  "label": "core",
+  "key": "memory shared with children after fork (backed",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Used by: multiprocessing shared values.",
+  "label": "core",
+  "key": "used by: multiprocessing shared values.",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Named shared memory is a file in /dev/shm , which is how DataLoader workers pass batches.",
+  "label": "core",
+  "key": "named shared memory is a file in",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "MAP_POPULATE fault everything in now (section 4).",
+  "label": "depth",
+  "key": "map_populate fault everything in now (section 4).",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "MAP_NORESERVE do not count this toward the commit limit (section 10).",
+  "label": "depth",
+  "key": "map_noreserve do not count this toward the",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "MAP_FIXED place exactly here, silently replacing whatever was mapped; use MAP_FIXED_NOREPLACE .",
+  "label": "depth",
+  "key": "map_fixed place exactly here, silently replacing whatever",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "MAP_HUGETLB back with pre-reserved huge pages (section 8).",
+  "label": "depth",
+  "key": "map_hugetlb back with pre-reserved huge pages (section",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "SIGBUS, not an exception If the file shrinks under a mapping (another process truncates or rewrites a dataset shard), touching a page past the new end raises SIGBUS and the process dies ( mmap(2), SIGBUS ).",
+  "label": "core",
+  "key": "sigbus, not an exception if the file",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "So does an I/O error on a network file system while faulting.",
+  "label": "core",
+  "key": "so does an i/o error on a",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Replace shared datasets by writing a new file and renaming it over the old one; mappings of the old file keep working.",
+  "label": "core",
+  "key": "replace shared datasets by writing a new",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Random rows from a dataset: read() against mmap measured 20,000 random rows of 1,028 bytes (the job's row format) from a 256 MiB file, warm (in the page cache) and cold (evicted with posix_fadvise(POSIX_FADV_DONTNEED) , which any process may do for clean pages).",
+  "label": "core",
+  "key": "random rows from a dataset: read() against",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "The rows are 19.6 MiB of useful data. \"Read from storage\" is read_bytes in /proc/self/io .",
+  "label": "core",
+  "key": "the rows are 19.6 mib of useful",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Warm, all three cost about 1 to 2 microseconds a row, dominated by Python.",
+  "label": "core",
+  "key": "warm, all three cost 1 to 2 microseconds a row",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Cold, a fault on a mapping reads around the faulting page (a window of read_ahead_kb , 128 KiB by default), betting on locality: for random rows over a small file it pulled in the whole file (13x the useful bytes) and then served the rest from memory, which made it the fastest here.",
+  "label": "core",
+  "key": "cold, a fault on a mapping reads",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "On a dataset much larger than RAM the same bet reads 32 pages to use one, and fills the page cache with neighbours you will not touch. madvise(MADV_RANDOM) turns read-around off: one page per fault, 3.4x amplification, but one device round trip per row.",
+  "label": "core",
+  "key": "on a dataset much larger than ram",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "The right setting depends on whether neighbours will be used: a shuffled index over a huge file wants MADV_RANDOM or explicit pread ; a sequential pass or a small hot file wants the default (or MADV_SEQUENTIAL , MADV_WILLNEED ).",
+  "label": "core",
+  "key": "a shuffled index over a huge file",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Loading weights: copy or map measured A 256 MiB state dict (eight 32 MiB float32 tensors) saved with torch.save and with safetensors, loaded cold four ways. \"Return\" is the time until the call returns; then every tensor is summed once. torch.load reads every byte into fresh anonymous memory before returning. torch.load(mmap=True) , in its own words, maps the file \"rather than loading all the storages into memory\" (docstring of torch 2.14.1), and safetensors (whose format is \"fast (zero-copy)\", safetensors docs ) returns tensors whose storage is the mapping: the call returns in milliseconds, and the bytes arrive as page faults when first used.",
+  "label": "core",
+  "key": "loading weights: copy or map measured a",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Two consequences: (1) RSS after reading counts those file pages, but they are clean page cache, so the kernel can drop and re-read them, and every process mapping the same file shares one copy (eight inference workers on one host cost one copy of the weights, not eight); (2) the first forward pass is slower, by the fault and I/O cost moved out of the load call. safe_open plus get_tensor reads only the tensors asked for, which is how one rank of a sharded model loads only its shard.",
+  "label": "core",
+  "key": "the kernel can drop and re-read them,",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Eight inference processes on one host each torch.load(path, mmap=True) the same 14 GB checkpoint and run.",
+  "label": "core",
+  "key": "eight inference processes on one host each",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Free memory drops by about how much for the weights?",
+  "label": "core",
+  "key": "free memory drops by about how much",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "8 x 14 = 112 GB about 14 GB: one page-cache copy, shared nothing: mapped memory is not memory All eight map the same page-cache pages of one file, so the weights occupy RAM once (as \"buff/cache\" in free ).",
+  "label": "core",
+  "key": "= 112 gb about 14 gb: one",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "Each process's RSS still shows up to 14 GB, which is why RSS sums mislead (section 13).",
+  "label": "core",
+  "key": "each process's rss still shows up to",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "5. mmap: files and memory as one thing",
+  "text": "The catch: if a process converts or moves the tensors (to another dtype, or to a GPU and then keeps a CPU copy), that copy is private anonymous memory, eight times over. grep -A3 train.bin /proc/PID/smaps # Rss, Pss and Shared_Clean of one mapping",
+  "label": "core",
+  "key": "the catch: if a process converts or",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "The page cache and reclaim: where \"free\" memory went ch.",
+  "label": "core",
+  "key": "the page cache and reclaim: where \"free\"",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "22 Swapping: Policies (LRU and its approximations) The idea.",
+  "label": "depth",
+  "key": "mechanisms; 22 policies",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "Linux keeps file data that was read or written in otherwise unused RAM, the page cache , because RAM that holds nothing is wasted. free shows it as \"buff/cache\"; \"available\" estimates what could be handed to programs if they asked, mostly by dropping clean cache.",
+  "label": "core",
+  "key": "linux keeps file data that was read",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "Writing, flushing and fsync of cached data belong to the sibling page Storage and file systems ; here we care about how memory is taken back.",
+  "label": "core",
+  "key": "writing, flushing and fsync of cached data",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "Each memory zone has three watermarks of free pages.",
+  "label": "core",
+  "key": "each memory zone has three watermarks of",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "Below low , the kernel thread kswapd wakes and reclaims in the background until high ; below min , an allocating process must reclaim by itself before it gets memory ( direct reclaim ), which shows up as stalls in that process.",
+  "label": "core",
+  "key": "below low , the kernel thread kswapd",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "In 5.10, low = min + max(min / 4, managed × watermark_scale_factor / 10,000) and high = min + 2 × that ( mm/page_alloc.c lines 7874 to 7880 ).",
+  "label": "core",
+  "key": "in 5.10, low = min + max(min",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "Here min_free_kbytes is KiB and the scale factor is 10, so low and high sit about 11 MiB and 22 MiB above min (summed over zones).",
+  "label": "core",
+  "key": "here min_free_kbytes is kib and the scale",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "Raising watermark_scale_factor starts background reclaim earlier, a common fix for allocation stalls on big-memory hosts.",
+  "label": "core",
+  "key": "raising watermark_scale_factor starts background reclaim earlier, a",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "Linux 5.10 keeps two lists per type (anonymous and file), active and inactive , an approximation of least-recently-used built on the hardware accessed bit (section 2): pages are scanned from the inactive tail; one that was referenced since gets another chance.",
+  "label": "core",
+  "key": "linux 5.10 keeps two lists per type",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "Clean file pages are cheapest to drop (re-read later); dirty ones must be written first; anonymous pages can only go to swap. vm.swappiness (60 here, the default, mm/vmscan.c line 172 ) weighs anonymous against file reclaim.",
+  "label": "core",
+  "key": "clean file pages are cheapest to drop",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "Linux 6.1 added the multi-generational LRU, which replaces the two lists with several age generations and scans page tables instead of reverse mappings ( multigen_lru docs ) not run here .",
+  "label": "depth",
+  "key": "linux 6.1 added the multi-generational lru, which",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "Inside a container, the same reclaim runs against the cgroup's limit instead of the machine's: reading a 768 MiB file in a 512 MiB container filled the cache up to the limit and recycled it, with thousands of \"max\" events and no OOM kill.",
+  "label": "core",
+  "key": "the same reclaim runs against the cgroup's",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "6. the page cache and reclaim: where \"free\" memory went",
+  "text": "The Memory replay tab replays it sample by sample. free -m; grep -E 'Active|Inactive|Dirty|Writeback' /proc/meminfo; vmstat 1 # si/so swap, bi/bo block I/O",
+  "label": "core",
+  "key": "free -m; grep -e 'active|inactive|dirty|writeback' /proc/meminfo; vmstat",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "Copy-on-write: fork copies tables, writes copy pages ch.",
+  "label": "core",
+  "key": "copy-on-write: fork copies tables, writes copy pages",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "23 Complete VM Systems (copy-on-write); the fork API: the sibling Processes and the system-call API The problem. fork must give the child an exact copy of the parent's memory.",
+  "label": "core",
+  "key": "the sibling processes and the system-call api",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "Copying gigabytes for a DataLoader worker that will read a few batches would take seconds and double memory.",
+  "label": "core",
+  "key": "copying gigabytes for a dataloader worker that",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "How it works source : fork copies the page tables , not the pages, and marks every private writable entry read-only in both parent and child ( copy_present_pte, mm/memory.c lines 878 to 880 ).",
+  "label": "core",
+  "key": "fork copies the page tables , not",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "Both now share each frame.",
+  "label": "core",
+  "key": "parent and child point at the same frames",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "The first write by either side faults on a read-only entry of a writable VMA; do_wp_page sees the frame is shared and wp_page_copy ( line 2817 ) copies that one 4 KiB page and gives the writer its own.",
+  "label": "core",
+  "key": "the first write by either side faults",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "A page with only one user left is simply made writable again.",
+  "label": "depth",
+  "key": "a page with only one user left",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "What this costs measured . fork + exit + wait grows with the parent's resident memory, about 19 microseconds per resident MiB with 4 KiB pages (the tables being copied), and is 30x cheaper at 1 GiB when the memory is in transparent huge pages (one entry per 2 MiB, copy_huge_pmd ).",
+  "label": "core",
+  "key": "what this costs measured . fork +",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "Each later write costs a fault and a copy: ns per 4 KiB page.",
+  "label": "core",
+  "key": "each later write costs a fault and",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "With huge pages the first write does not copy 2 MiB: 5.10 splits the huge entry and falls back to 4 KiB copies ( mm/huge_memory.c lines 1315 to 1317 ); measured, the child's writes took the same 65,538 faults at ns each.",
+  "label": "core",
+  "key": "with huge pages the first write does",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "Python turns reads into writes, twice The root page showed reference counts: reading a Python object increments and decrements its count, which writes the page it sits on, so a forked worker that only reads a list of a million objects copies the pages holding them (PyTorch's \"memory leak\" that is not a leak, torch.utils.data docs ).",
+  "label": "core",
+  "key": "reading a python object increments and decrements",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "The second writer is the cyclic garbage collector : a full collection writes a counter ( gc_refs ) into the header of every container object it tracks, so a gc.collect() in a worker copies every page of tracked objects even if your code never reads them.",
+  "label": "core",
+  "key": "the second writer is the cyclic garbage",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "Measured: a parent builds one million two-element lists, forks, and the child does one thing: Pages the child copied (growth of its Private_Dirty in /proc/self/smaps_rollup ), Python 3.11.2, numpy 2.4.6.",
+  "label": "core",
+  "key": "measured: a parent builds one million two-element",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "Reading every list copied about 61 MiB: the pages that hold the list objects themselves (the integers inside were not touched).",
+  "label": "core",
+  "key": "reading every list copied about 61 mib:",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "The fix the Python docs give for exactly this: \"call gc.disable() early in the parent process, gc.freeze() right before fork() , and gc.enable() early in child processes\" ( gc.freeze, Python 3.7+ ). gc.freeze() moves every tracked object into a permanent generation that collections skip: 30 pages copied instead of 16,817.",
+  "label": "core",
+  "key": "the fix the python docs give for",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "It does not stop reference-count writes; for data you iterate, store it as NumPy arrays, Arrow tables or one big bytes buffer with offsets (63 pages), not as millions of Python objects.",
+  "label": "core",
+  "key": "it does not stop reference-count writes; for",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "Your Dataset holds a list of 50 million file paths (Python strings).",
+  "label": "core",
+  "key": "your dataset holds a list of 50",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "With 8 fork-started workers, what happens to memory over the first epoch? nothing: the list is shared copy-on-write and only read each worker gradually copies the pages it reads, heading towards 8 extra copies the workers crash at once Every access to paths[i] touches the string's reference count, and any garbage collection in a worker touches every tracked container.",
+  "label": "core",
+  "key": "with 8 fork-started workers, what happens to",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "Shared pages turn private one 4 KiB page at a time, so each worker's USS climbs as the epoch reads more of the list.",
+  "label": "core",
+  "key": "shared pages turn private one 4 kib",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "Store the paths as one NumPy byte array plus offsets (or Arrow), and gc.freeze() before the DataLoader forks.",
+  "label": "core",
+  "key": "store the paths as one numpy byte",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "The root's Debug lab case \"Worker memory grows: copy-on-write meets reference counts\" measures it per worker.",
+  "label": "core",
+  "key": "the root's debug lab case \"worker memory",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "Related flags. madvise(MADV_DONTFORK) keeps a range out of the child entirely, \"useful to prevent copy-on-write semantics from changing the physical location of a page if the parent writes to it after a fork\" (DMA buffers, section 9); MADV_WIPEONFORK gives the child zeros instead ( madvise(2) ).",
+  "label": "depth",
+  "key": "madvise(madv_dontfork) keeps a range out of the",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "7. copy-on-write: fork copies tables, writes copy pages",
+  "text": "Forking a process that runs threads has its own trap (a lock held by a thread that does not exist in the child): the root's Debug lab case \"A worker hangs forever: fork while another thread holds a lock\". grep -E 'Private_Dirty|Shared_Dirty' /proc/WORKER_PID/smaps_rollup",
+  "label": "depth",
+  "key": "forking a process that runs threads has",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "Huge pages: one entry for 2 MiB ch.",
+  "label": "core",
+  "key": "huge pages: one entry for 2 mib",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "19 TLBs (larger pages), ch.",
+  "label": "depth",
+  "key": "19 paging: faster translations (tlbs)",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "20 Advanced Page Tables The idea.",
+  "label": "depth",
+  "key": "20 paging: smaller tables",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "A level-2 entry can point straight at a 2 MiB block instead of a table (with 4 KiB base pages; 1 GiB at level 1).",
+  "label": "core",
+  "key": "a level-2 entry can point straight at",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "One TLB entry then covers 512 small pages, a walk is one level shorter, and a fault fills 2 MiB at once.",
+  "label": "core",
+  "key": "one tlb entry then covers 512 small",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "Linux offers two ways: transparent huge pages (THP), used automatically for anonymous memory where possible, and hugetlbfs , a pool of huge pages reserved in advance.",
+  "label": "core",
+  "key": "linux offers two ways: transparent huge pages",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "The same 64 MiB buffer, with 4 KiB pages and with THP measured .",
+  "label": "core",
+  "key": "the same 64 mib buffer: 16,384 faults and translations",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "Toggle the mode; every number is from this machine.",
+  "label": "core",
+  "key": "every number is from this machine.",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "4 KiB pages 2 MiB transparent huge pages The knobs (values read on this VM). /sys/kernel/mm/transparent_hugepage/enabled is always , madvise (only ranges marked madvise(MADV_HUGEPAGE) ) or never ; here madvise . defrag says whether a fault may stall to compact memory into a free 2 MiB block; here madvise (stall only for marked ranges).",
+  "label": "core",
+  "key": "4 kib pages 2 mib transparent huge",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "The background thread khugepaged later collapses 512 small pages into a huge one, scanning pages per pass, and with max_ptes_none = it will collapse a range in which 511 of 512 pages were never touched, filling them with zeros ( transhuge docs ).",
+  "label": "depth",
+  "key": "the background thread khugepaged later collapses 512",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "Watch AnonHugePages in /proc/meminfo or a process's smaps_rollup .",
+  "label": "depth",
+  "key": "watch anonhugepages in /proc/meminfo or a process's",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "The costs (1) Bloat: touching one byte in every 2 MiB of 256 MiB cost KiB with 4 KiB pages and KiB with THP, x more, for sparse structures (hash tables, sparse embedding rows, an arena with holes).",
+  "label": "core",
+  "key": "the costs (1) bloat: touching one byte",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "(2) Latency: the first THP run took ms against ms later, consistent with the kernel having to find or compact free 2 MiB blocks (cause not confirmed here); on a long-running, fragmented host, compaction stalls are the classic THP complaint.",
+  "label": "core",
+  "key": "(2) latency: the first thp run took",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "(3) No page-table saving: for each huge page the kernel deposits a spare 4 KiB table so it can split the page later ( mm/huge_memory.c line 623 ), so VmPTE after touching 1 GiB was KiB either way.",
+  "label": "core",
+  "key": "(3) no page-table saving: for each huge",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "Where huge pages do save: fork. fork copies one table entry per huge page instead of 512.",
+  "label": "core",
+  "key": "where huge pages do save: fork. fork",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "The sibling Processes and the system-call API measured os.fork() from a process holding torch and 1 GiB of NumPy at 5.96 ms with NumPy's huge pages (its default) against 22.5 ms with NUMPY_MADVISE_HUGEPAGE=0 . hugetlbfs not run here .",
+  "label": "core",
+  "key": "the sibling processes and the system-call api",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "An administrator reserves a pool ( vm.nr_hugepages , or per size under /sys/kernel/mm/hugepages/ ); programs get pages from it with mmap(MAP_HUGETLB) or files in a hugetlbfs mount.",
+  "label": "depth",
+  "key": "an administrator reserves a pool ( vm.nr_hugepages",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "Pool pages are never swapped, never split, and never bloat, but are taken from the machine even when unused.",
+  "label": "depth",
+  "key": "pool pages are never swapped, never split,",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "This arm64 kernel offers 64 KiB, 2 MiB, 32 MiB and 1 GiB sizes (its cgroup lists hugetlb.64KB , 2MB , 32MB , 1GB ; 64 KiB and 32 MiB use arm64's contiguous bit, 16 adjacent entries cached as one); the pool here is empty ( HugePages_Total: 0 ) and filling it needs privileges ( hugetlbpage docs ).",
+  "label": "depth",
+  "key": "this arm64 kernel offers 64 kib, 2",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "The root found that this PyTorch wheel's allocator reserves 1 GiB and marks it MADV_HUGEPAGE , so tensor memory gets THP even in madvise mode (Syscall tracer tab of Topic: operating-systems ).",
+  "label": "core",
+  "key": "the root found that this pytorch wheel's",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "Big dense tensors and pinned staging buffers are ideal THP users; sparse, long-lived structures in a always system are where bloat appears.",
+  "label": "core",
+  "key": "big dense tensors and pinned staging buffers",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "8. huge pages: one entry for 2 mib",
+  "text": "Fix for bloat: madvise mode, or MADV_NOHUGEPAGE on the sparse range, or max_ptes_none lower. cat /sys/kernel/mm/transparent_hugepage/{enabled,defrag}; grep -E 'AnonHugePages|HugePages_' /proc/meminfo; grep thp /proc/vmstat",
+  "label": "core",
+  "key": "fix for bloat: madvise mode, or madv_nohugepage",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "Locked and pinned memory: pages that must not move The problem.",
+  "label": "core",
+  "key": "locked and pinned memory, and gpu memory mapping",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "Normally the kernel may move a page (compaction, NUMA migration, THP collapse) or write it to swap, because only the page table knows where it is and the table is updated.",
+  "label": "core",
+  "key": "normally the kernel may move a page",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "A device that copies memory by itself ( DMA : a GPU, a network card doing RDMA) holds a physical address and does not consult the page table.",
+  "label": "core",
+  "key": "a device that copies memory by itself",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "If the page moves mid-copy, the device reads someone else's data.",
+  "label": "core",
+  "key": "if the page moves mid-copy, the device",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "Two mechanisms. mlock(addr, len) faults the range in and keeps it resident: never swapped ( mlock(2) ).",
+  "label": "core",
+  "key": "mlock(addr, len) faults the range in and",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "Pinning is stronger and kernel-internal: a driver calls pin_user_pages (the FOLL_PIN flavour of get_user_pages, pin_user_pages docs ) and the pages may not be moved or freed until it unpins them.",
+  "label": "core",
+  "key": "pinning is stronger and kernel-internal: a driver",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "Both take memory out of what reclaim can use.",
+  "label": "core",
+  "key": "both take memory out of what reclaim",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "The limit measured .",
+  "label": "core",
+  "key": "the limit measured",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "Unprivileged locking is capped by RLIMIT_MEMLOCK , which is 64 KiB in a default Docker container: That ENOMEM (\"Cannot allocate memory\") is the error an RDMA library or a pinned-memory allocator reports inside a container whose limit was never raised, and it does not mention the limit.",
+  "label": "core",
+  "key": "unprivileged locking is capped by rlimit_memlock ,",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "Raise it with docker run --ulimit memlock=-1 , LimitMEMLOCK=infinity in a systemd unit, or /etc/security/limits.conf ; CAP_IPC_LOCK bypasses it.",
+  "label": "core",
+  "key": "raise it with docker run --ulimit memlock=-1",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "Pinned memory for GPU copies not run here cudaHostAlloc / cudaMallocHost \"Allocates size bytes of host memory that is page-locked and accessible to the device\", with the warning that \"allocating excessive amounts of pinned memory may degrade system performance, since it reduces the amount of memory available to the system for paging\"; cudaHostRegister page-locks an existing range ( CUDA runtime API, memory management ).",
+  "label": "core",
+  "key": "pinned memory for gpu copies not run",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "The reason it matters: \"when CUDA sends pageable data from CPU to GPU, it must first create a page-locked copy of that data before making the transfer\" ( PyTorch pinned memory tutorial ), an extra copy through a staging buffer.",
+  "label": "core",
+  "key": "it matters: \"when cuda sends pageable data",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "In PyTorch: DataLoader(pin_memory=True) runs a thread that copies each batch into pinned memory, so x.to(\"cuda\", non_blocking=True) can be an asynchronous DMA that overlaps compute.",
+  "label": "core",
+  "key": "in pytorch: dataloader(pin_memory=true) runs a thread that",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "Calling t.pin_memory() right before one copy is usually slower than copying directly (it pays the staging copy itself); pin once, reuse.",
+  "label": "core",
+  "key": "calling t.pin_memory() right before one copy is",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "The tutorial warns that \"allocating a large number of tensors or sizable tensors in pinned memory can monopolize a substantial portion of RAM\": pinned pages cannot be reclaimed, so the page cache that feeds your data loader shrinks.",
+  "label": "core",
+  "key": "the tutorial warns that \"allocating a large",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "Copies from pinned memory with non_blocking=True are asynchronous: modifying the source tensor before the copy finished corrupts the GPU copy.",
+  "label": "depth",
+  "key": "copies from pinned memory with non_blocking=true are",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "PyTorch's pinned memory comes from its CachingHostAllocator, which rounds each request up to the next power of two by default, so a 600 MB pinned buffer locks 1 GiB of RAM ( Memory allocators reads the source).",
+  "label": "depth",
+  "key": "pytorch's pinned memory comes from its cachinghostallocator,",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "9. locked and pinned memory: pages that must not move",
+  "text": "The GPU driver's own side of this (its kernel module, unified memory, IOMMU mappings) is in the sibling Virtualization and the GPU driver stack . ulimit -l; grep VmLck /proc/PID/status; grep -E 'Mlocked|Unevictable' /proc/meminfo",
+  "label": "core",
+  "key": "the sibling virtualization and the gpu driver",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "10. overcommit: promising more memory than exists",
+  "text": "Overcommit: promising more memory than exists The problem.",
+  "label": "core",
+  "key": "overcommit: promising more memory than exists",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "10. overcommit: promising more memory than exists",
+  "text": "Programs reserve far more than they touch (allocator arenas, thread stacks, sparse arrays, a 1 GiB reservation by PyTorch's allocator).",
+  "label": "core",
+  "key": "programs reserve far more than they touch",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "10. overcommit: promising more memory than exists",
+  "text": "Refusing every reservation that exceeds RAM would waste memory; accepting all means some promise may not be kept.",
+  "label": "core",
+  "key": "refusing every reservation that exceeds ram would",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "10. overcommit: promising more memory than exists",
+  "text": "The kernel's choice is vm.overcommit_memory source ( overcommit-accounting ; mm/util.c lines 860 to 876 ): Mode Rule in 5.10 Consequence 0, heuristic (default) refuse one request larger than RAM + swap; accept the rest wild requests fail, everything else succeeds; the OOM killer settles the bill 1, always (this VM) accept everything sparse arrays work; the 64 GiB request below succeeded 2, never total commitments ( Committed_AS ) may not exceed CommitLimit = RAM × overcommit_ratio % + swap; \"In mode 2 the MAP_NORESERVE flag is ignored\" allocations fail with ENOMEM instead of later OOM kills; programs that reserve big address ranges fail to start Measured on this VM (mode 1, ratio 50).",
+  "label": "core",
+  "key": "the kernel's choice is vm.overcommit_memory source (",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "10. overcommit: promising more memory than exists",
+  "text": "CommitLimit = 10,189,980 × 50% + 1,048,572 = 6,143,562 KiB against KiB reported (the same, to page rounding; vm_commit_limit, mm/util.c line 805 ).",
+  "label": "core",
+  "key": "commitlimit = 10,189,980 × 50% + 1,048,572",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "10. overcommit: promising more memory than exists",
+  "text": "A private writable 64 GiB mapping succeeded and pushed Committed_AS to about 11.6 times CommitLimit ; with MAP_NORESERVE it was not counted at all; malloc(32 GiB) returned a pointer: Under mode 0 the 64 GiB request would have failed (larger than RAM + swap, 10.7 GiB); under mode 2 so would anything that took commitments past 5.9 GiB.",
+  "label": "core",
+  "key": "was not counted at all; malloc(32 gib)",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "10. overcommit: promising more memory than exists",
+  "text": "Containers cannot change this setting: it is one value for the whole kernel.",
+  "label": "core",
+  "key": "containers cannot change this setting: it is",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "10. overcommit: promising more memory than exists",
+  "text": "When it bites: a cluster that sets mode 2 for safety makes large virtual reservations (CUDA's and allocators' address-space reservations, big np.empty scratch buffers) fail at allocation time; read CommitLimit and Committed_AS before blaming the framework. cat /proc/sys/vm/overcommit_memory /proc/sys/vm/overcommit_ratio; grep -i commit /proc/meminfo",
+  "label": "core",
+  "key": "when it bites: a cluster that sets",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "11. swap, zswap and memory pressure",
+  "text": "Swap, zswap and memory pressure ch.",
+  "label": "depth",
+  "key": "zswap, zram and psi",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "11. swap, zswap and memory pressure",
+  "text": "21 Beyond Physical Memory: Mechanisms, ch.",
+  "label": "depth",
+  "key": "21 beyond physical memory: mechanisms",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "11. swap, zswap and memory pressure",
+  "text": "22 Policies How it works.",
+  "label": "depth",
+  "key": "mechanisms; 22 policies",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "11. swap, zswap and memory pressure",
+  "text": "Anonymous pages have no file to be re-read from, so to reclaim one the kernel writes it to a swap device, replaces the table entry with a not-present entry holding the swap location, and frees the frame.",
+  "label": "core",
+  "key": "anonymous pages have no file to be",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "11. swap, zswap and memory pressure",
+  "text": "The next access is a major fault: do_swap_page reads it back ( handle_pte_fault, mm/memory.c line 4377 ), reading 2 page-cluster = 8 neighbouring swap slots at once ( vm.page-cluster = 3 here).",
+  "label": "core",
+  "key": "the next access is a major fault:",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "11. swap, zswap and memory pressure",
+  "text": "What it costs measured .",
+  "label": "core",
+  "key": "what it costs measured . a process that needs 640 mib",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "11. swap, zswap and memory pressure",
+  "text": "A process that needs 640 MiB in a container limited to 512 MiB with 512 MiB of swap allowed did not die; it ran with about 260 MiB in swap and every pass over its memory took 4 to 5 seconds, the same pass that takes milliseconds when it fits ( Memory replay tab, scenario \"Swap allowed\"; the root's Debug lab case \"Not dead, just slow: the working set spills into swap\" has the per-pass numbers).",
+  "label": "core",
+  "key": "a process that needs 640 mib in",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "11. swap, zswap and memory pressure",
+  "text": "For a training job that is usually worse than being killed: it looks alive, holds its GPUs, and makes no progress. zswap and zram not run here (neither is built into this kernel). zswap is a compressed cache in front of a swap device: pages being swapped out are compressed into a RAM pool first and written to disk only when the pool is full ( zswap docs ). zram is a compressed RAM block device used as swap.",
+  "label": "core",
+  "key": "for a training job that is usually",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "11. swap, zswap and memory pressure",
+  "text": "Both trade CPU for fewer disk reads.",
+  "label": "depth",
+  "key": "both trade cpu for fewer disk reads.",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "11. swap, zswap and memory pressure",
+  "text": "Pressure stall information not run here (not enabled in this kernel).",
+  "label": "depth",
+  "key": "psi is not enabled in this kernel",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "11. swap, zswap and memory pressure",
+  "text": "With PSI, /proc/pressure/memory and each cgroup's memory.pressure report the share of time tasks were stalled waiting for memory ( some and full , over 10, 60 and 300 s) ( PSI docs ).",
+  "label": "core",
+  "key": "/proc/pressure/memory and each cgroup's memory.pressure report the",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "11. swap, zswap and memory pressure",
+  "text": "It is the best single \"is this job memory-starved\" signal; systemd-oomd kills on it ( systemd-oomd ). swapon --show; vmstat 1 # si/so columns; grep -E 'pswpin|pswpout' /proc/vmstat",
+  "label": "depth",
+  "key": "it is the best single \"is this",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "Memory cgroups and the OOM killer: what happens at the limit The problem.",
+  "label": "core",
+  "key": "memory cgroups and the oom killer:",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "On a shared host each job (container, pod, Slurm step) needs a memory budget, and when the budget or the machine runs out, someone must lose.",
+  "label": "core",
+  "key": "on a shared host each job (container,",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "A cgroup v2 memory controller charges every page a process in the group allocates to the group, and reclaims within the group when it reaches its limit.",
+  "label": "core",
+  "key": "a cgroup v2 memory controller charges every",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "What is charged: \"userland memory - page cache and anonymous memory\", kernel structures such as dentries and inodes, and TCP socket buffers ( cgroup-v2 docs, Memory ).",
+  "label": "core",
+  "key": "what is charged: \"userland memory - page",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "The files, in each cgroup's directory ( /sys/fs/cgroup/ inside a container): File Meaning memory.current bytes charged now, page cache included memory.max hard limit: reclaim, then the OOM killer inside the group ( docker --memory , a Kubernetes memory limit) memory.high \"Memory usage throttle limit...",
+  "label": "core",
+  "key": "in each cgroup's directory ( /sys/fs/cgroup/ inside",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "Going over the high limit never invokes the OOM killer\": the group's tasks are made to reclaim and are put to sleep, up to 2 s per return to user space in 5.10 ( MEMCG_MAX_HIGH_DELAY_JIFFIES, mm/memcontrol.c line 2466 ) (not run on this page: Docker 20.10 has no flag for it and the container cannot write its own cgroup; Containers and isolation ran it from the host, with and without swap) memory.low , memory.min protection: below these the group's memory is reclaimed only reluctantly, or never memory.swap.max swap allowed ( docker --memory-swap minus --memory ) memory.events counters: high , max (times the limit forced reclaim), oom , oom_kill memory.stat the breakdown: anon , file (page cache, includes shmem ), shmem , file_dirty , sock , ... memory.oom.group if 1, \"all tasks belonging to the cgroup or to its descendants are killed together or not at all\" Four runs at a 512 MiB limit measured , replayed sample by sample in the Memory replay tab: The fourth run is the one to remember for data loading: files in /dev/shm are shared memory charged to the cgroup, they survive the process that wrote them, and no process's RSS shows them.",
+  "label": "depth",
+  "key": "going over the high limit never invokes",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "DataLoader workers hand batches to the main process through such files; the root's Debug lab case \"DataLoader workers run out of /dev/shm\" shows the other way it fails (Docker's default 64 MiB /dev/shm ), and PyTorch's own README says to raise it \"either with --ipc=host or --shm-size \" ( PyTorch README ).",
+  "label": "core",
+  "key": "dataloader workers hand batches to the main",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "Who the OOM killer picks, from the source When reclaim fails, oom_badness scores every candidate process ( mm/oom_kill.c lines 201 to 238 ) and the highest score is sent SIGKILL: points = rss + swap + page_tables / 4 KiB + oom_score_adj × ⌊totalpages / 1000⌋ rss resident pages: anonymous, file-mapped and shmem (in pages) swap pages of this process in swap oom_score_adj -1000 (never kill) to +1000, per process, in /proc/PID/oom_score_adj totalpages machine OOM: RAM + swap. cgroup OOM: memory.max + allowed swap ( mem_cgroup_get_max, line 1690 ) /proc/PID/oom_score shows (1000 + points × 1000 / totalpages) × 2 / 3, always with the machine's RAM + swap ( fs/proc/base.c lines 549 to 566 ).",
+  "label": "core",
+  "key": "who the oom killer picks, from the",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "Four processes in a 1 GiB container, the formula against the kernel's number measured : In a 1 GiB container with no swap, process A holds 450 MiB (adj 0) and process B 250 MiB but set its own oom_score_adj to 500.",
+  "label": "depth",
+  "key": "four processes in a 1 gib container,",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "The group hits its limit.",
+  "label": "core",
+  "key": "the group hits its limit.",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "A, the biggest B both totalpages = 262,144 (1 GiB of 4 KiB pages), so adj 500 adds 500 × 262 = 131,000 points, worth 512 MiB of RSS.",
+  "label": "core",
+  "key": "a, the biggest b both totalpages =",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "A scores about 115,200 + 0; B about 64,000 + 131,000 = 195,000.",
+  "label": "core",
+  "key": "a scores about 115,200 + 0; b",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "The root's Debug lab case \"Which process the OOM killer picks: oom_score and oom_score_adj\" ran exactly this and B was killed.",
+  "label": "core",
+  "key": "the root's debug lab case \"which process",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "Raising your own adj is allowed; lowering it below its current value needs CAP_SYS_RESOURCE , which a default container lacks (measured: refused).",
+  "label": "core",
+  "key": "raising your own adj is allowed; lowering",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "Kubernetes sets the adj for you by quality-of-service class: Guaranteed -997, BestEffort 1000, Burstable min(max(2, 1000 - (1000 × memoryRequestBytes) / machineMemoryCapacityBytes), 999) ( node-pressure eviction docs ).",
+  "label": "core",
+  "key": "kubernetes sets the adj for you by",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "So when the node runs out, a pod with a small request relative to the node is killed first; when a container exceeds its own limit, its cgroup OOM kills inside it regardless.",
+  "label": "core",
+  "key": "so when the node runs out, a",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "What an OOM kill looks like No Python exception, no traceback: SIGKILL cannot be caught.",
+  "label": "core",
+  "key": "what an oom kill looks like no",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "The shell says Killed ; the exit code is 137 (128 + 9); Kubernetes reports OOMKilled ; the kernel log has \"Memory cgroup out of memory: Killed process\" ( dmesg , not readable in an unprivileged container); memory.events counts oom_kill .",
+  "label": "core",
+  "key": "the shell says killed ; the exit",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "12. memory cgroups and the oom killer: what happens at the limit",
+  "text": "A Python MemoryError is a different event: an allocation the kernel refused (mode 2, an rlimit, a 32-bit limit), which the root's Debug lab sets side by side. cat /sys/fs/cgroup/memory.{current,max,events}; grep -E '^(anon|file|shmem) ' /sys/fs/cgroup/memory.stat; cat /proc/PID/oom_score{,_adj}",
+  "label": "core",
+  "key": "a python memoryerror is a different event:",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "13. rss, pss, uss: three answers to \"how much memory does it use?\"",
+  "text": "RSS, PSS, USS: three answers to \"how much memory does it use?\" The problem.",
+  "label": "core",
+  "key": "answers to \"how much memory does it",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "13. rss, pss, uss: three answers to \"how much memory does it use?\"",
+  "text": "Shared pages (libraries, the page cache of a mapped file, copy-on-write pages after fork) are resident for several processes at once.",
+  "label": "core",
+  "key": "shared pages (libraries, the page cache of",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "13. rss, pss, uss: three answers to \"how much memory does it use?\"",
+  "text": "Adding up per-process numbers counts them several times.",
+  "label": "core",
+  "key": "adding up per-process numbers counts them several",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "13. rss, pss, uss: three answers to \"how much memory does it use?\"",
+  "text": "Three measures, all from /proc/PID/smaps_rollup : RSS resident set: every resident page mapped by the process, shared or not.",
+  "label": "core",
+  "key": "rss resident set: every resident page mapped",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "13. rss, pss, uss: three answers to \"how much memory does it use?\"",
+  "text": "PSS proportional set: each page divided by the number of processes mapping it.",
+  "label": "core",
+  "key": "pss proportional set: each page divided by",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "13. rss, pss, uss: three answers to \"how much memory does it use?\"",
+  "text": "USS unique set: Private_Clean + Private_Dirty, what you would get back by killing this one process.",
+  "label": "core",
+  "key": "uss unique set: private_clean + private_dirty, what",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "13. rss, pss, uss: three answers to \"how much memory does it use?\"",
+  "text": "The running job, measured while training (main process and its two fork-started DataLoader workers): The workers' RSS of about 250 MiB each is nearly all Shared_Dirty : the parent's heap and the imported torch, inherited by fork and not yet written.",
+  "label": "core",
+  "key": "the running job, measured while training (main",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "13. rss, pss, uss: three answers to \"how much memory does it use?\"",
+  "text": "Their USS, what each really adds, is under 9 MiB.",
+  "label": "core",
+  "key": "their uss, what each really adds, is",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "13. rss, pss, uss: three answers to \"how much memory does it use?\"",
+  "text": "Over an epoch, copy-on-write (section 7) is what turns Shared_Dirty into Private_Dirty, so watch USS per worker, not RSS.",
+  "label": "core",
+  "key": "turns shared_dirty into private_dirty, so watch uss",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "13. rss, pss, uss: three answers to \"how much memory does it use?\"",
+  "text": "Which number a tool reports: ps and top show RSS; smem shows PSS and USS; container tools and Kubernetes read the cgroup ( memory.current , which also includes page cache), which is a fourth answer. for p in $(pgrep -f train.py); do grep -E '^(Rss|Pss|Private)' /proc/$p/smaps_rollup; done; smem -P train.py",
+  "label": "core",
+  "key": "which number a tool reports: ps and",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "14. numa: when some memory is farther away not run here",
+  "text": "NUMA: when some memory is farther away not run here A server with two CPU sockets has memory attached to each; a CPU reaches its own node's memory faster than the other's (non-uniform memory access).",
+  "label": "depth",
+  "key": "when some memory is farther away not",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "14. numa: when some memory is farther away not run here",
+  "text": "This lab has one node ( numactl --hardware reports none).",
+  "label": "depth",
+  "key": "this lab has one node ( numactl",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "14. numa: when some memory is farther away not run here",
+  "text": "The policies, from set_mempolicy(2) and mbind(2) : Policy Where pages go Use MPOL_DEFAULT (local) the node of the CPU that first touches the page (\"first touch\") the default; why the thread that initialises a buffer decides where it lives MPOL_BIND only the given nodes numactl --membind ; strict, can OOM while another node is free MPOL_PREFERRED the given node if possible soft placement MPOL_INTERLEAVE round-robin over nodes, page by page big shared tables read from all sockets Automatic NUMA balancing ( kernel.numa_balancing ) periodically makes pages inaccessible so the next access faults ( do_numa_page , the pte_protnone branch in handle_pte_fault, line 4380 ), notes which node touched it, and migrates pages or tasks to match; each migration is a TLB shootdown (section 3) ( sysctl kernel docs, numa_balancing ).",
+  "label": "depth",
+  "key": "the policies, from set_mempolicy(2) and mbind(2) :",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "14. numa: when some memory is farther away not run here",
+  "text": "Cgroups restrict nodes with cpuset.mems .",
+  "label": "depth",
+  "key": "cgroups restrict nodes with cpuset.mems .",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "14. numa: when some memory is farther away not run here",
+  "text": "Each GPU hangs off one socket's PCIe; nvidia-smi topo -m prints each GPU's CPU and NUMA affinity.",
+  "label": "depth",
+  "key": "each gpu hangs off one socket's pcie;",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "14. numa: when some memory is farther away not run here",
+  "text": "A data loader and pinned buffers on the other socket send every batch across the inter-socket link.",
+  "label": "depth",
+  "key": "a data loader and pinned buffers on",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "14. numa: when some memory is farther away not run here",
+  "text": "Launch per-GPU processes with matching numactl --cpunodebind=N --membind=N (or the launcher's affinity options).",
+  "label": "depth",
+  "key": "launch per-gpu processes with matching numactl --cpunodebind=n",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "14. numa: when some memory is farther away not run here",
+  "text": "Hardware detail lives in Topic: hardware ; CPU pinning in Scheduling and CPU time . numactl --hardware; numastat -p PID; cat /proc/PID/numa_maps | head",
+  "label": "depth",
+  "key": "; cpu pinning in scheduling and cpu",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "ML recipes: the mechanisms put to work Datasets: map, do not load Store samples in one or a few large files (a NumPy array, Arrow, a packed binary with an index) and np.memmap them, as the running job does.",
+  "label": "core",
+  "key": "one or a few large files (a",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "Workers then share one page-cache copy and pay only faults.",
+  "label": "core",
+  "key": "share one page-cache copy and pay only",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "For shuffled access to a dataset larger than RAM, prefer MADV_RANDOM or pread per sample (section 5); for sequential shards, the default read-around.",
+  "label": "core",
+  "key": "shuffled access to a dataset larger than",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "Never replace a mapped file in place (SIGBUS); write and rename.",
+  "label": "core",
+  "key": "replace mapped files by write and rename (sigbus)",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "Weights: safetensors or mmap=True Loading returns in milliseconds and many processes share one copy; the first forward pass pays the faults.",
+  "label": "core",
+  "key": "the first forward pass pays the",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "Read only your shard with safe_open .",
+  "label": "core",
+  "key": "which is how one rank of a sharded model loads only its shard",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "Converting dtype or moving to GPU creates private copies: drop the CPU tensors afterwards.",
+  "label": "core",
+  "key": "that copy is private anonymous memory, eight times over",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "DataLoader workers: keep the parent lean Fork-started workers share the parent copy-on-write, and Python's reference counts and GC copy whatever they touch.",
+  "label": "core",
+  "key": "dataloader workers: keep the parent lean",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "Hold metadata in NumPy or Arrow, not lists of objects; call gc.freeze() before creating the iterator; watch USS per worker (section 13).",
+  "label": "core",
+  "key": "metadata in numpy or arrow,",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "Spawn or forkserver avoid the sharing altogether at the cost of start-up time (the root measured 0.021 s fork against 0.836 s spawn to the first batch). /dev/shm: size it and count it Batches travel through shared memory: give the container --shm-size (or --ipc=host ) of at least workers × prefetch factor × batch bytes, and remember it is charged to the memory limit and survives a killed process (section 12).",
+  "label": "core",
+  "key": "root measured 0.021 s fork against 0.836",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "Pinned memory: pin once, not too much pin_memory=True plus non_blocking=True overlaps host-to-device copies with compute; raise memlock in containers; budget pinned bytes as unreclaimable (section 9).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Restates section 9: pin once, raise memlock, pinned pages are unreclaimable; all kept there."
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "Limits: know which one kills you Read memory.max , memory.events and memory.stat from inside the job and log them; an exit code 137 with oom_kill incremented is the cgroup, not your code.",
+  "label": "core",
+  "key": "memory.max , memory.events and memory.stat from inside",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "Leave headroom for page cache and /dev/shm.",
+  "label": "core",
+  "key": "leave headroom for page cache and /dev/shm.",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "15. ml recipes: the mechanisms put to work",
+  "text": "If swap is allowed, alert on memory.swap.current : a swapping training job is a stalled one.",
+  "label": "core",
+  "key": "if swap is allowed, alert on memory.swap.current",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes \"RSS says each worker uses 250 MiB, so 8 workers need 2 GB.\" RSS counts shared pages in every process.",
+  "label": "depth",
+  "key": "\"rss says each worker uses 250 mib,",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Measured here: three processes, 815 MiB of RSS, 345 MiB of PSS, 104 MiB of USS.",
+  "label": "depth",
+  "key": "measured here: three processes, 815 mib of",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use PSS for totals and USS for \"what does one more worker cost\". \"The allocation succeeded, so the memory is there.\" With overcommit (modes 0 and 1) an allocation is a promise; memory is taken at first touch, and the OOM killer settles any shortfall later, at a random-looking moment. \"free shows almost no free memory: we have a leak.\" Look at \"available\", not \"free\".",
+  "label": "depth",
+  "key": "use pss for totals and uss for",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The page cache fills idle RAM on purpose and is given back on demand. \"The container's memory is full of page cache, so it is about to be killed.\" Clean page cache is reclaimed at the limit (measured: thousands of \"max\" events, no kill).",
+  "label": "depth",
+  "key": "the page cache fills idle ram on",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "What kills is anonymous memory and shared memory that cannot be reclaimed without swap. \"Our workers only read the dataset, so copy-on-write cannot copy anything.\" In Python, reading an object writes its reference count, and the garbage collector writes every tracked object's header.",
+  "label": "depth",
+  "key": "what kills is anonymous memory and shared",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Measured: 15,732 pages copied by reading a list, 16,817 by one gc.collect() , 30 after gc.freeze() . \"Huge pages always help.\" They cut faults and TLB misses for dense memory, but bloat sparse memory (298x in the measurement here), can stall allocations on compaction, and do not reduce page-table memory in Linux. \"Set oom_score_adj = -1000 on the trainer so it is never killed.\" Inside a default container you cannot lower it (no CAP_SYS_RESOURCE ), and if you could, the kernel would kill something else, perhaps the data loader or the node agent.",
+  "label": "depth",
+  "key": "measured: 15,732 pages copied by reading a",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Size the limit instead. \"pin_memory() before every .to('cuda') makes copies faster.\" Pinning is itself a copy; doing it per transfer is usually slower than letting CUDA stage the copy.",
+  "label": "depth",
+  "key": "size the limit instead. \"pin_memory() before every",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Pin buffers you reuse (the DataLoader's pinning thread does this).",
+  "label": "depth",
+  "key": "pin buffers you reuse (the dataloader's pinning",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Interview questions Walk through what happens on the first write to a freshly malloc'd 1 GiB buffer. glibc serves it with an anonymous private mmap : a new VMA, no frames.",
+  "label": "depth",
+  "key": "walk through what happens on the first",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The first store to each page misses the TLB; the hardware walk finds no valid entry; the CPU raises a fault; the kernel finds the VMA (writable, anonymous), allocates any missing table levels, takes a zeroed frame, writes the entry and resumes the store ( do_anonymous_page ).",
+  "label": "depth",
+  "key": "the first store to each page misses",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "262,144 such faults, about 1 us each here.",
+  "label": "depth",
+  "key": "262,144 such faults, about 1 us each",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "With THP for the range, 512 faults of 2 MiB each.",
+  "label": "depth",
+  "key": "with thp for the range, 512 faults",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "RSS grows as pages are touched, not at malloc.",
+  "label": "depth",
+  "key": "rss grows as pages are touched, not",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why is fork fast even for a process using 50 GB, and when is it not?",
+  "label": "depth",
+  "key": "why is fork fast even for a",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Fork copies page tables and marks private pages read-only; pages are copied lazily on write.",
+  "label": "depth",
+  "key": "fork copies page tables and marks private",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The table copy is still proportional to resident memory: about 19 us per resident MiB measured here with 4 KiB pages (about 1 s for 50 GB), 30x less with huge pages.",
+  "label": "depth",
+  "key": "the table copy is still proportional to",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "After fork, every page either side writes costs a fault and a 4 KiB copy, which is where DataLoader worker memory comes from.",
+  "label": "depth",
+  "key": "after fork, every page either side writes",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What is a TLB shootdown and why can munmap be expensive in a multi-threaded program?",
+  "label": "depth",
+  "key": "what is a tlb shootdown and why",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Removing or changing a mapping requires every CPU that may cache the old translation to drop it. x86 interrupts each such CPU and waits; arm64 broadcasts a TLBI instruction.",
+  "label": "depth",
+  "key": "removing or changing a mapping requires every",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Measured here on arm64, an mprotect that must flush cost about 1.9 us regardless of how many other threads ran, against 0.65 us when nothing was cached.",
+  "label": "depth",
+  "key": "measured here on arm64, an mprotect that",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Explain RSS, PSS and USS, and which one you would alert on for a fleet of identical workers.",
+  "label": "depth",
+  "key": "explain rss, pss and uss, and which",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "RSS counts all resident mapped pages, PSS divides shared pages among sharers, USS counts private pages only.",
+  "label": "depth",
+  "key": "rss counts all resident mapped pages, pss",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Alert on USS growth per worker (copy-on-write and leaks show there) and on the cgroup's memory.current minus reclaimable cache for the pod as a whole.",
+  "label": "depth",
+  "key": "alert on uss growth per worker (copy-on-write",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A training pod dies with exit code 137 and no traceback.",
+  "label": "depth",
+  "key": "a training pod dies with exit code",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How do you confirm the cause and fix it?",
+  "label": "depth",
+  "key": "how do you confirm the cause and",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "137 = 128 + SIGKILL.",
+  "label": "depth",
+  "key": "137 = 128 + sigkill",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Check memory.events (oom_kill), Kubernetes' OOMKilled reason, or the kernel log.",
+  "label": "depth",
+  "key": "check memory.events (oom_kill), kubernetes' oomkilled reason, or",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Then find what grew: memory.stat anon vs file vs shmem (DataLoader shared memory counts), worker USS (copy-on-write), pinned memory.",
+  "label": "depth",
+  "key": "then find what grew: memory.stat anon vs",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Fix the growth or raise the limit; do not rely on swap.",
+  "label": "depth",
+  "key": "fix the growth or raise the limit;",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why does mmap'ing model weights let 8 server processes share memory, and what breaks the sharing?",
+  "label": "depth",
+  "key": "why does mmap'ing model weights let 8",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "All map the same page-cache pages of the file (MAP_SHARED or read-only private), so RAM holds one copy.",
+  "label": "depth",
+  "key": "all map the same page-cache pages of",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Any write to a private mapping, a dtype conversion, or a copy into a new tensor creates private anonymous pages per process.",
+  "label": "depth",
+  "key": "any write to a private mapping, a",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Glossary address space : a process's private range of virtual addresses VMA : one mapping, a line of /proc/PID/maps page / frame : 4 KiB unit of virtual / physical memory page table : the per-process tree from virtual pages to frames TLB : CPU cache of translations; reach = entries x page size ASID / PCID : tag that lets TLB entries of many processes coexist TLB shootdown : invalidating a translation on all CPUs page fault : trap on access to a page with no valid entry; minor / major page cache : file data cached in RAM watermarks , direct reclaim : when the kernel frees memory, and who pays THP / hugetlbfs : automatic / reserved huge pages DMA , pinning : device copies, and pages that may not move swap : disk space for anonymous pages",
+  "label": "core",
+  "key": "address space : a process's private range",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-addr",
+  "section": "",
+  "text": "Type any virtual address, or pick one of the running job's real addresses (from its /proc/PID/maps , recorded by the root page), and see how the hardware cuts it into page-table indices on five real configurations.",
+  "label": "core",
+  "key": "type any virtual address, or pick one",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-addr",
+  "section": "",
+  "text": "Then size the tables and the TLB reach for a given amount of memory.",
+  "label": "core",
+  "key": "then size the tables and the tlb",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-addr",
+  "section": "",
+  "text": "The geometry follows the kernel's own formulas (arm64: (VA_BITS - 4) / (PAGE_SHIFT - 3) levels; x86-64: 4 or 5 levels), quoted in the Reading tab's section 2.",
+  "label": "core",
+  "key": "the geometry follows the kernel's own formulas",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-addr",
+  "section": "1. one address, cut into indices",
+  "text": "One address, cut into indices Configuration Virtual address (hex) Try: the dataset address on arm64 with 4 KiB pages (4 levels, 12 offset bits), then 16 KiB (the top level shrinks to one bit) and 64 KiB (3 levels).",
+  "label": "core",
+  "key": "one address, cut into indices configuration virtual",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-addr",
+  "section": "1. one address, cut into indices",
+  "text": "Then 0x900000000000 on x86-64 with 4 levels: it is above 2 47 , so it is not canonical and the CPU faults before walking anything, while on arm64 the same number is an ordinary user address.",
+  "label": "core",
+  "key": "then 0x900000000000 on x86-64 with 4 levels:",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-addr",
+  "section": "2. what the tables and the tlb cost for a given footprint",
+  "text": "What the tables and the TLB cost for a given footprint Resident memory per process: Processes mapping it: TLB entries (illustrative; real CPUs differ):",
+  "label": "core",
+  "key": "what the tables and the tlb cost",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-cg",
+  "section": "",
+  "text": "Four real runs of a container with a 512 MiB memory limit, sampled every 25 ms from inside the container ( memory.current , memory.stat , memory.swap.current , memory.events ), replayed at their real pace.",
+  "label": "core",
+  "key": "sampled every 25 ms from inside the",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-cg",
+  "section": "",
+  "text": "Each scenario starts from the same empty container; compare what fills the limit and what happens when it is reached.",
+  "label": "core",
+  "key": "each scenario starts from the same empty container",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-cg",
+  "section": "",
+  "text": "Scripts: src/exp/cg_replay.sh , sampler.py ; raw samples: src/raw/cg_*.txt .",
+  "label": "core",
+  "key": "src/exp/cg_replay.sh",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-cg",
+  "section": "1. replay a container reaching its memory limit",
+  "text": "Replay a container reaching its memory limit Try: \"Page cache only\" and \"Grow until killed\" both reach the line, but only one dies: watch the file area shrink to make room for anonymous memory in the second.",
+  "label": "core",
+  "key": "\"page cache only\" and \"grow until killed\"",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-cg",
+  "section": "1. replay a container reaching its memory limit",
+  "text": "Then \"/dev/shm\": after the kill the shmem area stays, because a file in /dev/shm belongs to no process.",
+  "label": "core",
+  "key": "the shmem area outlives the killed process",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-cg",
+  "section": "2. who the oom killer picks: the formula, live",
+  "text": "Who the OOM killer picks: the formula, live Set up to three processes in one cgroup.",
+  "label": "depth",
+  "key": "up to three processes in one cgroup.",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-cg",
+  "section": "2. who the oom killer picks: the formula, live",
+  "text": "The score is Linux 5.10's oom_badness : rss + swap + page tables (pages) + oom_score_adj × ⌊totalpages / 1000⌋, where totalpages is the cgroup's limit plus allowed swap; /proc/PID/oom_score instead uses the whole machine's RAM + swap ( ).",
+  "label": "depth",
+  "key": "the cgroup's limit plus allowed swap; /proc/pid/oom_score",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-cg",
+  "section": "2. who the oom killer picks: the formula, live",
+  "text": "Defaults: the measured run of the Reading tab's section 12, whose oom_score values this formula reproduces exactly.",
+  "label": "depth",
+  "key": "defaults: the measured run above",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-cg",
+  "section": "2. who the oom killer picks: the formula, live",
+  "text": "RSS (MiB) oom_score_adj cgroup memory.max (MiB) swap allowed (MiB)",
+  "label": "depth",
+  "key": "rss (mib) oom_score_adj cgroup memory.max (mib) swap",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 5 October 2026.",
+  "label": "depth",
+  "key": "links checked on 5 october 2026.",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-more",
+  "section": "",
+  "text": "Times are estimates for the part worth reading.",
+  "label": "depth",
+  "key": "times are estimates for the part worth",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-more",
+  "section": "",
+  "text": "Suggested order: this page's Reading tab with OSTEP chapters 18 to 23 beside it; the root's OS simulators for the homework; then Gorman's book or the kernel docs for whichever mechanism you are debugging.",
+  "label": "depth",
+  "key": "suggested order: this page's reading tab with",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's other tabs Address translator 10 min Cut any address into page-table indices on five real configurations; size page tables and TLB reach for a footprint.",
+  "label": "depth",
+  "key": "address translator 10 min cut any address",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-more",
+  "section": "",
+  "text": "After sections 2 and 3.",
+  "label": "depth",
+  "key": "after sections 2 and 3",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-more",
+  "section": "",
+  "text": "Memory replay 10 min Four measured runs of a container at its memory limit (page cache, OOM kill, swap, /dev/shm), and the OOM killer's formula, live.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further-reading entry for the removed Memory replay tab; its content is now Reading section 12."
+ },
+ {
+  "id": 347,
+  "tab": "t-more",
+  "section": "",
+  "text": "After sections 11 and 12.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Part of the removed Memory replay entry."
+ },
+ {
+  "id": 348,
+  "tab": "t-more",
+  "section": "",
+  "text": "The parent page and its tabs Topic: operating-systems 50 min Section 4 is the intuition for this page; the running job is followed through the whole OS.",
+  "label": "depth",
+  "key": "the parent page and its tabs topic:",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-more",
+  "section": "",
+  "text": "OS simulators tab 20 min On the root page: translate an address, the TLB on an array walk (row against column major), page replacement policies, copy-on-write after fork page by page; checked against OSTEP's homework.",
+  "label": "depth",
+  "key": "os simulators tab 20 min on the",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-more",
+  "section": "",
+  "text": "Debug lab tab 15 min On the root page, the memory cases: \"Worker memory grows: copy-on-write meets reference counts\", \"Killed with exit code 137: the cgroup OOM killer\", \"Which process the OOM killer picks: oom_score and oom_score_adj\", \"Not dead, just slow: the working set spills into swap\", \"DataLoader workers run out of /dev/shm\", \"The first epoch is slower than the rest: cold and warm page cache\".",
+  "label": "depth",
+  "key": "debug lab tab 15 min on the",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-more",
+  "section": "",
+  "text": "Syscall tracer tab 10 min On the root page: the job's mmap calls, including the 1 GiB MADV_HUGEPAGE reservation and who makes it.",
+  "label": "depth",
+  "key": "syscall tracer tab 10 min on the",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-more",
+  "section": "",
+  "text": "Sibling pages Processes and the system-call API 46 min fork, exec and the start methods whose memory this page explains.",
+  "label": "depth",
+  "key": "sibling pages processes and the system-call api",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-more",
+  "section": "",
+  "text": "Scheduling and CPU time 40 min Context switches measured (a thread switch was no cheaper than a process switch there), CPU pinning and NUMA scheduling.",
+  "label": "depth",
+  "key": "scheduling and cpu time 40 min context",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-more",
+  "section": "",
+  "text": "Memory allocators 34 min What sits between your tensors and the pages on this page: brk and mmap, glibc arenas, mimalloc, PyTorch's CUDA caching allocator.",
+  "label": "depth",
+  "key": "memory allocators 34 min what sits between",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-more",
+  "section": "",
+  "text": "Concurrency 37 min Threads sharing one address space; futexes live in shared pages.",
+  "label": "depth",
+  "key": "concurrency 37 min threads sharing one address",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-more",
+  "section": "",
+  "text": "Storage and file systems 42 min The page cache from the writing side: writeback, fsync, readahead, checkpoints.",
+  "label": "depth",
+  "key": "storage and file systems 42 min the",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-more",
+  "section": "",
+  "text": "Containers and isolation 45 min cgroups v2 in full, PSI, Kubernetes requests and limits.",
+  "label": "depth",
+  "key": "containers and isolation 45 min cgroups v2",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-more",
+  "section": "",
+  "text": "Virtualization and the GPU driver stack 51 min Nested page tables, the IOMMU, GPU memory and unified memory from the OS side.",
+  "label": "depth",
+  "key": "virtualization and the gpu driver stack 51",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-more",
+  "section": "",
+  "text": "Related knowledge base pages C++ page Part 2: caches, atomics and mmap from C++; Part 3: llama.cpp loading weights with mmap.",
+  "label": "depth",
+  "key": "related knowledge base pages c++ page part",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-more",
+  "section": "",
+  "text": "Python page Reference counting and the garbage collector that section 7 measured.",
+  "label": "depth",
+  "key": "python page reference counting and the garbage",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-more",
+  "section": "",
+  "text": "Topic: pytorch-ecosystem DataLoader, pinned memory and loading checkpoints in context.",
+  "label": "depth",
+  "key": "topic: pytorch-ecosystem dataloader, pinned memory and loading",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-more",
+  "section": "",
+  "text": "Topic: ml-infra-and-orchestration and Distributed Training Where host memory, pinned buffers and OOM kills meet real clusters.",
+  "label": "depth",
+  "key": "topic: ml-infra-and-orchestration and distributed training where host",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-more",
+  "section": "",
+  "text": "Topic: hardware Caches, TLBs, memory channels and NUMA from the hardware side.",
+  "label": "depth",
+  "key": "topic: hardware caches, tlbs, memory channels and",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-more",
+  "section": "",
+  "text": "Books and chapters OSTEP , virtualization of memory free; 20 to 40 min per chapter ch.",
+  "label": "depth",
+  "key": "books and chapters ostep , virtualization of",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-more",
+  "section": "",
+  "text": "13 Address spaces , ch.",
+  "label": "depth",
+  "key": "ch. 13 address spaces",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-more",
+  "section": "",
+  "text": "19 TLBs , ch.",
+  "label": "depth",
+  "key": "ch. 19 tlbs",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 Smaller tables , ch.",
+  "label": "depth",
+  "key": "ch. 20 smaller tables",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-more",
+  "section": "",
+  "text": "22 Policies , ch.",
+  "label": "depth",
+  "key": "ch. 22 policies",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-more",
+  "section": "",
+  "text": "23 Complete VM systems .",
+  "label": "depth",
+  "key": "ch. 23 complete vm systems",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-more",
+  "section": "",
+  "text": "The chapter map is in the Reading tab's first section.",
+  "label": "depth",
+  "key": "the chapter map is in a closed block",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-more",
+  "section": "",
+  "text": "Understanding the Linux Virtual Memory Manager (Mel Gorman) free; 2 to 4 h for the core chapters The classic walk through Linux's VM code.",
+  "label": "depth",
+  "key": "understanding the linux virtual memory manager (mel",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-more",
+  "section": "",
+  "text": "Written for 2.4/2.6, so names changed, but page tables, the page cache, reclaim and swap are explained as nowhere else.",
+  "label": "depth",
+  "key": "written for 2.4/2.6, so names changed, but",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-more",
+  "section": "",
+  "text": "What Every Programmer Should Know About Memory (Ulrich Drepper, 2007) 2 h for sections 3 and 4 Caches and the TLB from the hardware up, with measurements; section 4 is virtual memory.",
+  "label": "depth",
+  "key": "what every programmer should know about memory",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-more",
+  "section": "",
+  "text": "Systems Performance, 2nd ed.",
+  "label": "depth",
+  "key": "systems performance, 2nd ed.",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-more",
+  "section": "",
+  "text": "(Brendan Gregg), chapter 7 Memory 1.5 h How to observe everything on this page in production: tools, methodology, pitfalls.",
+  "label": "depth",
+  "key": "(brendan gregg), chapter 7 memory 1.5 h",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-more",
+  "section": "",
+  "text": "Kernel documentation and articles Linux memory management concepts 20 min The kernel's own overview: pages, huge pages, zones, nodes, page cache, reclaim, compaction, OOM. cgroup v2: Memory 30 min Every memory.* file, what is charged, and the usage guidelines for memory.high against memory.max.",
+  "label": "depth",
+  "key": "kernel documentation and articles linux memory management",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-more",
+  "section": "",
+  "text": "Transparent hugepage support and HugeTLB pages 25 min All THP knobs and counters; how to reserve and use hugetlbfs.",
+  "label": "depth",
+  "key": "transparent hugepage support and hugetlb pages 25",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-more",
+  "section": "",
+  "text": "Overcommit accounting 5 min The three modes and what each kind of mapping costs in commit charge.",
+  "label": "depth",
+  "key": "overcommit accounting 5 min the three modes",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-more",
+  "section": "",
+  "text": "The /proc filesystem 20 min for the memory parts Every field of status, smaps, meminfo and oom_score_adj.",
+  "label": "depth",
+  "key": "the /proc filesystem 20 min for the",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-more",
+  "section": "",
+  "text": "Five-level page tables , Transparent huge pages in 2.6.38 , The multi-generational LRU (LWN) 10 min each Why each mechanism was added, by the people reviewing it.",
+  "label": "depth",
+  "key": "five-level page tables , transparent huge pages",
+  "where": ""
+ },
+ {
+  "id": 381,
+  "tab": "t-more",
+  "section": "",
+  "text": "How much memory is my process using?",
+  "label": "depth",
+  "key": "how much memory is my process using?",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-more",
+  "section": "",
+  "text": "(Julia Evans) 10 min RSS, PSS and shared memory, gently; section 13 measured the same on the job.",
+  "label": "depth",
+  "key": "(julia evans) 10 min rss, pss and",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-more",
+  "section": "",
+  "text": "A guide on good usage of non_blocking and pin_memory() (PyTorch) 30 min Pinned memory and asynchronous copies, measured on GPUs (this page could not run them).",
+  "label": "depth",
+  "key": "a guide on good usage of non_blocking",
+  "where": ""
+ },
+ {
+  "id": 384,
+  "tab": "t-more",
+  "section": "",
+  "text": "Measurements: Docker Desktop's Linux VM on an Apple M1 laptop, Linux 5.10.104-linuxkit, October 2026.",
+  "label": "depth",
+  "key": "measurements: docker desktop's linux vm on an",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-more",
+  "section": "",
+  "text": "Kernel source excerpts: Linux v5.10, stored with line numbers in this page's src/inputs/kernel_v5.10_extract.txt .",
+  "label": "depth",
+  "key": "kernel source excerpts: linux v5.10, stored with",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-read",
+  "section": "added 2026-10-24 (script-rendered or new visual)",
+  "text": "Hero: one process, virtual ranges through the TLB and page tables onto page cache, anonymous frames and the zero page; swap and files below; the cgroup charge around RAM (static diagram, script-drawn).",
+  "label": "core",
+  "key": "virtual ranges point through the tables at frames",
+  "where": ""
+ },
+ {
+  "id": 387,
+  "tab": "t-read",
+  "section": "added 2026-10-24 (script-rendered or new visual)",
+  "text": "Section 2 walk stepper: the dataset address 0xffff81fd2000 walked through four levels (indices 511, 510, 15, 466, offset 0x0), four dependent memory reads, then the TLB caches it; frame numbers illustrative.",
+  "label": "core",
+  "key": "four dependent reads, one per level",
+  "where": ""
+ },
+ {
+  "id": 388,
+  "tab": "t-read",
+  "section": "added 2026-10-24 (script-rendered or new visual)",
+  "text": "Section 4 fault table (script-rendered): measured minor/major faults, ms and us per fault for six cases, 64 MiB first write about 1 us per fault.",
+  "label": "core",
+  "key": "about 1 us per 4 kib page",
+  "where": ""
+ },
+ {
+  "id": 389,
+  "tab": "t-read",
+  "section": "added 2026-10-24 (script-rendered or new visual)",
+  "text": "Section 5 load table (script-rendered): torch.load 194.3 ms and 242.5 MiB at return; torch.load(mmap=True) 4.5 ms and 0 MiB; safetensors load_file 13.1 ms; safe_open one tensor 1.8 ms.",
+  "label": "core",
+  "key": "after 4.5 ms holding none",
+  "where": ""
+ },
+ {
+  "id": 390,
+  "tab": "t-read",
+  "section": "added 2026-10-24 (script-rendered or new visual)",
+  "text": "Section 6 watermark diagram: min 44 MiB measured, low and high about 11 and 22 MiB above it, derived from the 5.10 formula; who reclaims in each band.",
+  "label": "core",
+  "key": "three watermarks decide who reclaims",
+  "where": ""
+ },
+ {
+  "id": 391,
+  "tab": "t-read",
+  "section": "added 2026-10-24 (script-rendered or new visual)",
+  "text": "Section 7 copy-on-write stepper: fork copies tables and write-protects both sides; a write faults and copies one 4 KiB page; the last user is made writable without a copy; gc.collect copies every page of tracked objects.",
+  "label": "core",
+  "key": "each write gives the writer its own copy of one 4 kib page",
+  "where": ""
+ },
+ {
+  "id": 392,
+  "tab": "t-read",
+  "section": "added 2026-10-24 (script-rendered or new visual)",
+  "text": "Section 9 pageable against pinned copy diagram: pageable needs a CPU memcpy into a pinned staging buffer before DMA; pinned is one DMA that can overlap compute.",
+  "label": "core",
+  "key": "pageable memory needs a staging copy before the gpu can dma it",
+  "where": ""
+ },
+ {
+  "id": 393,
+  "tab": "t-read",
+  "section": "added 2026-10-24 (script-rendered or new visual)",
+  "text": "Section 9 unified (managed) memory: one pointer for CPU and GPU, pages migrate on page faults serviced by nvidia-uvm; with HMM or hardware coherence the GPU uses the process page tables; links to the virtualization sibling and the GPU memory hierarchy page.",
+  "label": "core",
+  "key": "page faults that cross to the gpu",
+  "where": ""
+ },
+ {
+  "id": 394,
+  "tab": "t-read",
+  "section": "added 2026-10-24 (script-rendered or new visual)",
+  "text": "Section 1 and 13: VSZ is the total of all VMA sizes (2,126 MiB for the job main process), address space not memory.",
+  "label": "core",
+  "key": "what ps and top report as vsz",
+  "where": ""
+ },
+ {
+  "id": 395,
+  "tab": "t-read",
+  "section": "added 2026-10-24 (script-rendered or new visual)",
+  "text": "Section 12 oom table (script-rendered): four processes in a 1 GiB container, oom_score from the formula equals the kernel value for all four; D was refused -500.",
+  "label": "depth",
+  "key": "the formula against the kernel's number",
+  "where": ""
+ },
+ {
+  "id": 396,
+  "tab": "t-read",
+  "section": "added 2026-10-24 (script-rendered or new visual)",
+  "text": "Section 12 cgroup replay summary table (script-rendered): page cache run 7,406 max events and no kill; grow run killed at exit 137; swap run alive about 260 MiB in swap; /dev/shm run killed with the file outliving it.",
+  "label": "core",
+  "key": "page cache is given back at the line, anonymous memory and /dev/shm are not",
+  "where": ""
+ },
+ {
+  "id": 397,
+  "tab": "t-read",
+  "section": "added 2026-10-24 (script-rendered or new visual)",
+  "text": "Section 10 commit bars: RAM 9.7 GiB, CommitLimit 5.9 GiB, Committed_AS 4.0 GiB before and 68.0 GiB after one mmap(64 GiB), RSS 764 KiB.",
+  "label": "core",
+  "key": "pushed commitments to 11.6 times the commit limit",
+  "where": ""
+ }
+]

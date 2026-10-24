@@ -48,5 +48,5 @@
     const done=j>=last;
     $('vm-flt-cnt').innerHTML=RD.stat('Minor faults',done?c.minor:0,'')+RD.stat('Major faults',done?c.major:0,'')+RD.stat('RSS added',done?c.rss+' KiB':'0 KiB',cur==='file_w'||cur==='file_c'?'fault-around maps 16 pages':'')+RD.stat('Measured cost',c.us?fmt(c.us,c.us<10?2:0)+' us per fault':'n/a',c.src);}
   const an=RD.anim({card:'vm-flt-card',ctl:'vm-flt-ctl',n:STEPS.length,draw,ms:1700,label:'Fault step'});
-  RD.seg($('vm-flt-mode'),m=>{cur=m;an.reset(m==='segv'?4:STEPS.length);an.play()});
+  RD.seg($('vm-flt-mode'),m=>{cur=m;an.reset(m==='segv'?4:STEPS.length)});
 })();

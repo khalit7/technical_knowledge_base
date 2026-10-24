@@ -1,4 +1,4 @@
-// ---- Memory replay tab: four measured cgroup runs, replayed; and the oom_badness calculator ----
+// ---- Reading section 12: four measured cgroup runs, replayed (moved from the old Memory replay tab); and the oom_badness calculator ----
 (function(){
   const $=id=>document.getElementById(id);if(!$('cg-card'))return;
   const D=window.VM_DATA,CG=D.cg,esc=RD.esc;
@@ -30,15 +30,15 @@
     const mi=d.marks.filter(m=>m[0]<=s[0]).length-1;
     $('cg-marks').innerHTML=d.marks.map((m,k)=>'<li class="'+(k===mi?'on':(k<mi?'past':''))+'">'+(m[0]/1000).toFixed(1)+' s: '+esc(m[1])+'</li>').join('');
     const sc=SC.find(x=>x[0]===cur);
-    $('cg-cap').innerHTML='<div class="t">'+sc[1]+' at '+(s[0]/1000).toFixed(2)+' s</div><p>'+sc[2]+(i===S.length-1?' <b>Final:</b> '+d.log.map(esc).join('; ')+'.':'')+'</p>';
+    $('cg-cap').innerHTML='<div class="t">'+sc[1]+' at '+(s[0]/1000).toFixed(2)+' s</div><p>'+sc[2]+(i===S.length-1&&d.log.length?' <b>Final:</b> '+d.log.map(esc).join('; ')+'.':'')+'</p>';
     const k=v=>fmt(v/1024)+' MiB';
     $('cg-cnt').innerHTML=RD.stat('memory.current',k(s[1]),'')+RD.stat('anon',k(s[2]),'')+RD.stat('file (incl. shmem)',k(s[3]),'shmem '+k(s[4]))+RD.stat('swap',k(s[5]),'')+RD.stat('max events',fmt(s[6]),'reclaim forced by the limit')+RD.stat('oom_kill',s[7],s[7]?'a process was SIGKILLed':'');
     $('cg-cmd').textContent=d.cmd;}
   const an=RD.anim({card:'cg-card',ctl:'cg-ctl',n:CG[cur].samples.length,draw,ms:110,label:'Sample'});
-  RD.seg($('cg-mode'),m=>{cur=m;an.reset(CG[cur].samples.length);an.play()});
+  RD.seg($('cg-mode'),m=>{cur=m;an.reset(CG[cur].samples.length)});
   window.VMCG={pick(m){cur=m;$('cg-mode').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));an.reset(CG[cur].samples.length)}};
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-cg']=window.TAB_RENDER['t-cg']||[]).push(()=>{an.redraw();oo()});
-  addEventListener('resize',()=>{if(!$('t-cg').hidden)an.redraw()});
+  RD.onRender(()=>{an.redraw();oo()});
+  RD.onResize(()=>an.redraw());
 
   // oom_badness calculator
   const O=D.oom,TOT=Math.floor(O.memtotal_kb/4)+Math.floor(O.swaptotal_kb/4);

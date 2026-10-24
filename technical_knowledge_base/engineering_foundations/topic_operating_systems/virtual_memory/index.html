@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Virtual memory: paging, the TLB, mmap, copy-on-write, huge pages, the OOM killer</h1>
-<div class="sub">How every address a training job uses becomes real memory, what each step costs, and what happens when memory runs out: taught from zero to kernel-source depth, measured on a Linux 5.10 kernel. A child page of <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Topic: operating-systems</a>. Data as of October 2026.</div>
+<div class="sub">How every address a training job uses becomes real memory, what each step costs, and what happens when memory runs out, measured on a Linux 5.10 kernel. A child page of <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Topic: operating-systems</a>. Data as of October 2026. Reading: 35 min, plus 12 in closed details.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-addr" aria-selected="false">Address translator</button><button role="tab" data-t="t-cg" aria-selected="false">Memory replay</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-addr" aria-selected="false">Address translator</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -194,15 +194,50 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-read canvas{display:block;max-width:100%}
 #t-read .ff2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:6px;margin:8px 0}
 </style>
+<style>
+#t-read .marks{font-size:13px;margin:6px 0;padding-left:20px}#t-read .marks li.on{font-weight:600;color:var(--acc)}#t-read .marks li.past{color:var(--ink)}#t-read .marks li{color:var(--mute)}
+#t-read .pr{display:grid;grid-template-columns:minmax(0,7em) repeat(2,minmax(0,1fr));gap:6px 10px;align-items:center;font-size:13px;margin:6px 0}
+#t-read .pr input[type=number]{width:100%;min-width:0}
+#t-read .core{font-size:17px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:8px 0 12px}
+#t-read .ftitle{font-weight:600;font-size:14px;margin:4px 0 2px}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:6px 12px;font-size:13.5px;color:var(--mute)}
+#t-read details.dp>summary b{color:var(--ink)}
+#t-read details.dp>div{padding:0 12px 8px}
+#t-read .terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:2px 14px;font-size:13.5px;margin:6px 0}
+#t-read .terms div{min-width:0;padding:3px 0;border-bottom:1px solid var(--line)}
+@media (min-width:521px){#t-read .bars .row{grid-template-columns:minmax(0,16em) minmax(0,1fr) 5.6em}}
+</style>
 <nav class="nav" id="rd-nav">
-<a href="#rd-one">One screen</a><a href="#rd-s1">1 Address space</a><a href="#rd-s2">2 Page tables</a><a href="#rd-s3">3 TLB</a><a href="#rd-s4">4 Page faults</a><a href="#rd-s5">5 mmap</a><a href="#rd-s6">6 Page cache</a><a href="#rd-s7">7 Copy-on-write</a><a href="#rd-s8">8 Huge pages</a><a href="#rd-s9">9 Pinned memory</a><a href="#rd-s10">10 Overcommit</a><a href="#rd-s11">11 Swap</a><a href="#rd-s12">12 cgroups, OOM</a><a href="#rd-s13">13 RSS, PSS, USS</a><a href="#rd-s14">14 NUMA</a><a href="#rd-s15">15 ML recipes</a><a href="#rd-mist">Mistakes</a><a href="#rd-iq">Interview</a>
+<a href="#rd-one">The idea</a><a href="#rd-s1">1 Address space</a><a href="#rd-s2">2 Page tables</a><a href="#rd-s3">3 TLB</a><a href="#rd-s4">4 Page faults</a><a href="#rd-s5">5 mmap</a><a href="#rd-s6">6 Page cache</a><a href="#rd-s7">7 Copy-on-write</a><a href="#rd-s8">8 Huge pages</a><a href="#rd-s9">9 Pinned, GPU</a><a href="#rd-s10">10 Overcommit</a><a href="#rd-s11">11 Swap</a><a href="#rd-s12">12 cgroups, OOM</a><a href="#rd-s13">13 VSZ, RSS, PSS</a><a href="#rd-s14">14 In ML</a><a href="#rd-more">More</a>
 </nav>
 <section id="rd-one">
-<h2>In one screen</h2>
-<p class="lead">Every address your training job touches is a <b>virtual</b> address. Hardware translates it, page by page, through a tree of tables the kernel keeps for each process; a small cache (the TLB) makes that free most of the time; and the kernel fills the tables only when a page is first touched (a page fault). Everything else on this page, from <code>mmap</code> and copy-on-write to huge pages and the OOM killer, is a way of filling, sharing, enlarging or taking back those pages.</p>
-<p>The root page, <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Topic: operating-systems</a> section 4, gave the intuition and measured the TLB, page faults and copy-on-write on the running job. This page goes one level down: the kernel's actual code paths (Linux v5.10, the kernel these runs used, file and line), every knob that matters in ML work, and new measurements. Each mechanism follows the same pattern: <b>problem, how it works, what it costs here, when it bites in ML, the command that shows it, the fix.</b></p>
+<h2>The idea</h2>
+<p class="core">Every address a program uses is <b>virtual</b>: the hardware translates it page by page through a per-process tree of tables, and the kernel fills that tree lazily, one page at a time, at first touch. Everything else (mmap, copy-on-write, huge pages, swap, the OOM killer) is a way of <b>filling, sharing, enlarging or taking back pages</b>.</p>
+<div class="card"><p class="ftitle">One process, one picture: virtual ranges point through the tables at frames, and frames come from three places</p>
+<div class="rd-chart" id="vm-hero"></div>
+<p class="small mute">Static diagram. Every load and store goes through the TLB and the tables; the section numbers are where each arrow is taught. The ranges are the kinds of mapping the running job really has (section 1); the dashed box is what its container's <code>memory.max</code> counts (section 12).</p></div>
+<p><b>You need</b>: what a process and <code>fork</code> are, from section 4 of <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Topic: operating-systems</a> (the intuition this page goes under) and <a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes and the system-call API</a>. Everything else is defined here.</p>
+<p class="small"><b>New terms</b> (each defined again where it is taught):</p>
+<div class="terms">
+<div><b>address space</b>: a process's private range of virtual addresses</div>
+<div><b>VMA</b>: one mapping, a line of <code>/proc/PID/maps</code></div>
+<div><b>page / frame</b>: the 4 KiB unit of virtual / physical memory</div>
+<div><b>page table</b>: the per-process tree from virtual pages to frames</div>
+<div><b>TLB</b>: the CPU's cache of translations; <b>reach</b> = entries x page size</div>
+<div><b>ASID / PCID</b>: a tag that lets TLB entries of many processes coexist</div>
+<div><b>TLB shootdown</b>: invalidating a translation on all CPUs</div>
+<div><b>page fault</b>, <b>minor</b> / <b>major</b>: the trap on a page with no valid entry; served from memory / after waiting for a device</div>
+<div><b>page cache</b>: file data kept in RAM</div>
+<div><b>watermarks</b>, <b>direct reclaim</b>: when the kernel frees memory, and who pays</div>
+<div><b>THP</b> / <b>hugetlbfs</b>: automatic / reserved huge pages</div>
+<div><b>DMA</b>, <b>pinning</b>: device copies, and pages that may not move</div>
+<div><b>swap</b>: disk space for anonymous pages</div>
+<div><b>VSZ, RSS, PSS, USS</b>: four answers to "how much memory" (section 13)</div>
+</div>
+<details class="dp"><summary><b>In one screen</b>: what each mechanism costs here, when it bites, how to look at it</summary><div>
 <div class="tw"><table class="tbl-sm">
-<thead><tr><th>Mechanism</th><th>What it does</th><th>Cost measured here <span class="meas">measured</span></th><th>When it bites in ML</th><th>Look with</th></tr></thead>
+<thead><tr><th>Mechanism</th><th>What it does</th><th>Cost measured here</th><th>When it bites in ML</th><th>Look with</th></tr></thead>
 <tbody>
 <tr><td><a href="#rd-s2">Page tables</a></td><td>map 4 KiB virtual pages to physical frames, 4 levels</td><td>2,052 KiB of tables per GiB touched</td><td>rarely; huge resident sets on many processes</td><td><code>grep VmPTE /proc/PID/status</code></td></tr>
 <tr><td><a href="#rd-s3">TLB</a></td><td>caches translations</td><td>miss: 7.6 ns vs hit 1.1 ns (root)</td><td>random gathers over big embeddings, hash tables</td><td><code>perf stat -e dTLB-load-misses</code></td></tr>
@@ -212,16 +247,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td><a href="#rd-s8">Huge pages</a></td><td>one 2 MiB page instead of 512</td><td>512x fewer faults; up to 298x more memory</td><td>allocators, pinned buffers, bloat in sparse arrays</td><td><code>grep AnonHugePages /proc/meminfo</code></td></tr>
 <tr><td><a href="#rd-s9">Pinned memory</a></td><td>pages the kernel may not move or swap</td><td>default limit here 64 KiB</td><td><code>pin_memory=True</code>, RDMA, containers</td><td><code>ulimit -l</code>, VmLck</td></tr>
 <tr><td><a href="#rd-s12">memory cgroup, OOM</a></td><td>caps a container, kills when it cannot reclaim</td><td>killed at the limit, exit 137</td><td>"Killed" with no traceback; /dev/shm counted</td><td><code>memory.events</code>, <code>memory.stat</code></td></tr>
-</tbody></table></div>
-<div class="co key"><div class="t">Five things to remember</div>
-<ol class="tight">
-<li><b>Allocating is not using.</b> A 64 GiB <code>mmap</code> succeeded here on a 10 GB machine; memory is spent page by page, at first touch.</li>
-<li><b>Resident is not owned.</b> The job's three processes report 815 MiB of RSS together but own only 104 MiB alone; the rest is shared (<a href="#rd-s13">section 13</a>).</li>
-<li><b>Reading a Python object writes to it</b> (reference counts, the garbage collector), so forked DataLoader workers copy what they read. NumPy arrays and <code>gc.freeze()</code> stop it (<a href="#rd-s7">section 7</a>).</li>
-<li><b>The page cache counts toward your container's limit</b> but is given back; anonymous memory and /dev/shm are not (<a href="#rd-s12">section 12</a>).</li>
-<li><b>The OOM killer sends SIGKILL:</b> no exception, no traceback, exit code 137.</li>
-</ol></div>
-<p class="small mute">How this page was measured: Docker Desktop's Linux VM on an Apple M1 laptop (Linux 5.10.104-linuxkit, arm64, 4 KiB pages, 5 CPUs, about 10 GB, 1 GiB swap, THP in "madvise" mode, overcommit mode 1, one NUMA node, no GPU), image <code>kb-os-vm:1</code> (the root's lab image plus safetensors), October 2026. Containers were not privileged. Things that need a GPU, a newer kernel, writable sysctls or real NUMA are taught from primary sources and tagged <span class="nrh">not run here</span>. Labels: <span class="meas">measured</span> ran here; <span class="src">source</span> read from kernel source or documentation. Scripts and raw outputs: <code>src/exp/</code> and <code>src/raw/</code> in the repository.</p>
+</tbody></table></div></div></details>
+<details class="dp"><summary><b>How this page was measured</b>, and the OSTEP chapter map</summary><div>
+<p class="small">Docker Desktop's Linux VM on an Apple M1 laptop (Linux 5.10.104-linuxkit, arm64, 4 KiB pages, 5 CPUs, about 10 GB, 1 GiB swap, THP in "madvise" mode, overcommit mode 1, one NUMA node, no GPU), image <code>kb-os-vm:1</code> (the root's lab image plus safetensors), October 2026. Containers were not privileged. Things that need a GPU, a newer kernel, writable sysctls or real NUMA are taught from primary sources and tagged <span class="nrh">not run here</span>. Labels: <span class="meas">measured</span> ran here; <span class="src">source</span> read from kernel source or documentation (Linux v5.10, the kernel these runs used, file and line). Scripts and raw outputs: <code>src/exp/</code> and <code>src/raw/</code> in the repository.</p>
 <div class="tw"><table class="tbl-sm"><caption class="small mute" style="text-align:left">OSTEP chapter map for this page (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/" target="_blank" rel="noopener noreferrer">free online</a>)</caption>
 <thead><tr><th>OSTEP chapter</th><th>Sections here</th></tr></thead><tbody>
 <tr><td>13 The Abstraction: Address Spaces; 14 Memory API</td><td>1</td></tr>
@@ -230,63 +258,64 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>19 Paging: Faster Translations (TLBs)</td><td>3, 8</td></tr>
 <tr><td>21 Beyond Physical Memory: Mechanisms; 22 Policies</td><td>4, 6, 11</td></tr>
 <tr><td>23 Complete Virtual Memory Systems (VAX/VMS, Linux)</td><td>4, 5, 7, 8 (this page is chapter 23 extended to Linux 5.10 and to ML)</td></tr>
-</tbody></table></div>
+</tbody></table></div></div></details>
 </section>
 <section id="rd-s1">
 <h2>1. The address space: what one process sees</h2>
-<p class="ostep">ch. 13 Address Spaces, ch. 14 Memory API</p>
-<p><b>The problem.</b> Many processes run at once, each written as if it owned all of memory from address 0 upward. They must not see each other's data, yet they should share what is identical (the code of <code>libtorch_cpu.so</code>, the dataset file), and together they may ask for more than the machine has.</p>
-<p><b>The idea.</b> Give every process its own <dfn id="g-as">address space</dfn>: a private range of numbers (addresses) that the hardware translates to real memory on every access. On 64-bit Linux the user part of that range is 2<sup>48</sup> bytes (256 TiB) on arm64 with 4 KiB pages, and 2<sup>47</sup> bytes (128 TiB) on x86-64 with four-level tables (<a href="https://docs.kernel.org/arch/arm64/memory.html" target="_blank" rel="noopener noreferrer">arm64 memory layout</a>; <a href="https://docs.kernel.org/arch/x86/x86_64/mm.html" target="_blank" rel="noopener noreferrer">x86-64 memory map</a>). Almost all of it is empty. What exists is a list of <dfn id="g-vma">mappings</dfn> (virtual memory areas, VMAs): contiguous ranges with one set of permissions and one source (a file, or anonymous zero-filled memory).</p>
-<p><b>In the kernel</b> <span class="src">source</span>: one <code>struct mm_struct</code> per address space holds <code>pgd</code>, the root of its page-table tree, and the set of VMAs (<a href="https://github.com/torvalds/linux/blob/v5.10/include/linux/mm_types.h#L388" target="_blank" rel="noopener noreferrer">include/linux/mm_types.h line 388</a>; a red-black tree in 5.10, a maple tree since 6.1); each VMA is a <code>struct vm_area_struct</code> with <code>vm_start</code>, <code>vm_end</code>, flags, an optional <code>vm_file</code> and a table of operations <code>vm_ops</code> that says how to fill a page when it is first touched (<a href="https://github.com/torvalds/linux/blob/v5.10/include/linux/mm_types.h#L305" target="_blank" rel="noopener noreferrer">line 305</a>). Threads of one process share one <code>mm_struct</code>; that is all "sharing memory" means for threads.</p>
-<p><b>The running job's address space</b> <span class="meas">measured</span> (the root's recording of the main process just after its DataLoader workers were forked). Each line of <code>/proc/PID/maps</code> is one VMA: start-end, permissions (r, w, x, and <code>p</code> private or <code>s</code> shared), file offset, device, inode, path.</p>
-<div class="card"><div class="rd-chart" id="vm-as"></div><p class="small mute" id="vm-as-note"></p>
-<details class="xc"><summary>Selected lines of the real <code>/proc/PID/maps</code></summary><div><pre class="cd out" id="vm-maps"></pre></div></details></div>
-<p>Read the bars as reserved address space, not memory used: the 54 anonymous mappings add up to 1.5 GiB mainly because of one 1 GiB reservation by the allocator inside <code>libc10.so</code> (the sibling page <a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a> owns that story). Pages are only spent when touched (section 4).</p>
-<div class="cost"><div class="t">Limits you can hit</div><code>vm.max_map_count</code> caps the number of VMAs per process (default 65,530 in the <a href="https://docs.kernel.org/admin-guide/sysctl/vm.html#max-map-count" target="_blank" rel="noopener noreferrer">kernel docs</a>; Docker Desktop's VM sets 262,144, read here). The job uses about 456. A process that maps thousands of files or shards, or an allocator that splits its arena into many protected pieces, gets <code>ENOMEM</code> from <code>mmap</code> long before memory is short; the error message says nothing about VMAs.</div>
+<p>Every process gets its own <dfn id="g-as">address space</dfn>: a private range of addresses that the hardware translates to real memory on every access, so processes cannot see each other's data yet can share what is identical (the code of <code>libtorch_cpu.so</code>, the dataset file). On 64-bit Linux the user part is 2<sup>48</sup> bytes (256 TiB) on arm64 with 4 KiB pages and 2<sup>47</sup> bytes (128 TiB) on x86-64 with four-level tables (<a href="https://docs.kernel.org/arch/arm64/memory.html" target="_blank" rel="noopener noreferrer">arm64 memory layout</a>; <a href="https://docs.kernel.org/arch/x86/x86_64/mm.html" target="_blank" rel="noopener noreferrer">x86-64 memory map</a>). Almost all of it is empty. What exists is a list of <dfn id="g-vma">mappings</dfn> (virtual memory areas, VMAs): contiguous ranges with one set of permissions and one source, a file or anonymous zero-filled memory. Threads of one process share one address space; that is all "sharing memory" means for threads.</p>
+<div class="card"><p class="ftitle">The running job reserves 2 GiB of addresses; most of it is one allocator reservation, not memory</p><div class="rd-chart" id="vm-as"></div><p class="small mute" id="vm-as-note"></p>
+<p class="small">That total is what <code>ps</code> and <code>top</code> report as <b>VSZ</b> (virtual size): address space, not memory (section 13). <span class="meas">measured</span>: the root's recording of the main process just after its DataLoader workers were forked.</p>
+<details class="xc"><summary>Selected lines of the real <code>/proc/PID/maps</code></summary><div><p class="small">One line per VMA: start-end, permissions (r, w, x, and <code>p</code> private or <code>s</code> shared), file offset, device, inode, path. <span id="vm-as-cnt"></span></p><pre class="cd out" id="vm-maps"></pre></div></details></div>
+<p>The 54 anonymous mappings add up to 1.5 GiB mainly because of one 1 GiB reservation by the allocator inside <code>libc10.so</code> (the sibling <a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a> owns that story). Pages are only spent when touched (section 4).</p>
+<div class="cost"><div class="t">A limit you can hit</div><code>vm.max_map_count</code> caps the number of VMAs per process (default 65,530 in the <a href="https://docs.kernel.org/admin-guide/sysctl/vm.html#max-map-count" target="_blank" rel="noopener noreferrer">kernel docs</a>; Docker Desktop's VM sets 262,144, read here). The job uses about 456. A process that maps thousands of files or shards, or an allocator that splits its arena into many protected pieces, gets <code>ENOMEM</code> from <code>mmap</code> long before memory is short, and the error says nothing about VMAs.</div>
 <p class="cmd">cat /proc/PID/maps | wc -l; pmap -x PID | tail -1; cat /proc/sys/vm/max_map_count</p>
+<details class="dp"><summary><b>In the kernel</b>: mm_struct and vm_area_struct</summary><div><p class="small"><span class="src">source</span>: one <code>struct mm_struct</code> per address space holds <code>pgd</code>, the root of its page-table tree, and the set of VMAs (<a href="https://github.com/torvalds/linux/blob/v5.10/include/linux/mm_types.h#L388" target="_blank" rel="noopener noreferrer">include/linux/mm_types.h line 388</a>; a red-black tree in 5.10, a maple tree since 6.1); each VMA is a <code>struct vm_area_struct</code> with <code>vm_start</code>, <code>vm_end</code>, flags, an optional <code>vm_file</code> and a table of operations <code>vm_ops</code> that says how to fill a page when it is first touched (<a href="https://github.com/torvalds/linux/blob/v5.10/include/linux/mm_types.h#L305" target="_blank" rel="noopener noreferrer">line 305</a>). Threads of one process share one <code>mm_struct</code>.</p></div></details>
 </section>
 
 <section id="rd-s2">
 <h2>2. Page tables: the tree that translates every address</h2>
-<p class="ostep">ch. 18 Introduction to Paging, ch. 20 Advanced Page Tables</p>
-<p><b>Pages.</b> Memory is managed in fixed-size <dfn id="g-page">pages</dfn>: 4 KiB on this Linux VM (<code>getconf PAGESIZE</code> prints 4096). A <dfn id="g-va">virtual address</dfn> splits into a <i>virtual page number</i> (high bits) and an <i>offset</i> inside the page (low 12 bits, passed through unchanged). The <dfn id="g-pt">page table</dfn> maps each virtual page to a physical <dfn id="g-frame">page frame</dfn>, plus permission bits.</p>
-<p><b>Why a tree.</b> One flat table for 2<sup>36</sup> virtual pages at 8 bytes an entry would be 512 GiB per process. Instead the 36 bits are cut into four 9-bit pieces; each piece indexes a 4 KiB table of 512 eight-byte entries, which points to the next table. Only the tables on the path to a mapped page exist, so a sparse address space costs almost nothing. The arm64 kernel computes the number of levels as <code>(VA_BITS - 4) / (PAGE_SHIFT - 3)</code> (<a href="https://github.com/torvalds/linux/blob/v5.10/arch/arm64/include/asm/pgtable-hwdef.h#L26" target="_blank" rel="noopener noreferrer">pgtable-hwdef.h line 26</a>): (48 - 4) / (12 - 3) = 4 levels for 4 KiB pages.</p>
+<p>Memory is managed in fixed-size <dfn id="g-page">pages</dfn>: 4 KiB here (<code>getconf PAGESIZE</code> prints 4096). A <dfn id="g-va">virtual address</dfn> splits into a virtual page number (high bits) and an offset inside the page (low 12 bits, passed through unchanged). The <dfn id="g-pt">page table</dfn> maps each virtual page to a physical <dfn id="g-frame">page frame</dfn>, plus permission bits.</p>
+<p><b>Why a tree.</b> One flat table for 2<sup>36</sup> virtual pages at 8 bytes an entry would be 512 GiB per process. Instead the 36 bits are cut into four 9-bit pieces; each indexes a 4 KiB table of 512 eight-byte entries, which points to the next table. Only the tables on the path to a mapped page exist, so a sparse address space costs almost nothing. The arm64 kernel computes the number of levels as <code>(VA_BITS - 4) / (PAGE_SHIFT - 3)</code> (<a href="https://github.com/torvalds/linux/blob/v5.10/arch/arm64/include/asm/pgtable-hwdef.h#L26" target="_blank" rel="noopener noreferrer">pgtable-hwdef.h line 26</a>): (48 - 4) / (12 - 3) = 4 levels for 4 KiB pages.</p>
 <div class="card"><div class="rd-chart" id="vm-split"></div><p class="small mute">The first byte of the job's memory-mapped dataset, <code>0xffff81fd2000</code> (from the maps lines above), cut into its four table indices and offset. The <a href="#" data-tab="t-addr">Address translator</a> tab does this for any address, on arm64 with 4, 16 or 64 KiB pages and on x86-64 with four or five levels.</p></div>
-<div class="tw"><table class="tbl-sm"><thead><tr><th></th><th>x86-64</th><th>arm64 (this VM)</th></tr></thead><tbody>
-<tr><td>Level names, root first</td><td>PGD, (P4D with 5 levels), PUD, PMD, PTE</td><td>level 0, 1, 2, 3 (Linux reuses the x86 names)</td></tr>
-<tr><td>Register holding the root</td><td>CR3 (one per CPU, reloaded on a process switch)</td><td>TTBR0_EL1 for user addresses, TTBR1_EL1 for the kernel half</td></tr>
-<tr><td>Page sizes</td><td>4 KiB; 2 MiB and 1 GiB as huge pages</td><td>granule of 4, 16 or 64 KiB, chosen when the kernel is built; Apple's macOS uses 16 KiB (the M1 host reports <span id="vm-macpg"></span> bytes, a labelled contrast)</td></tr>
-<tr><td>Bigger address spaces</td><td>5 levels (LA57): 57-bit, 128 PiB (<a href="https://docs.kernel.org/arch/x86/x86_64/5level-paging.html" target="_blank" rel="noopener noreferrer">5-level paging</a>)</td><td>52-bit with 64 KiB pages (LVA)</td></tr>
-<tr><td>Key entry bits</td><td>Present, R/W, U/S, Accessed, Dirty, NX</td><td>valid, AP (user, read-only), AF (accessed), nG (not global), DBM (dirty), PXN/UXN (no execute) (<a href="https://github.com/torvalds/linux/blob/v5.10/arch/arm64/include/asm/pgtable-hwdef.h#L135" target="_blank" rel="noopener noreferrer">lines 135 to 148</a>)</td></tr>
-</tbody></table></div>
+<div class="card" id="vm-walk-card"><p class="ftitle">The walk: four dependent reads, one per level, then the TLB remembers the answer</p>
+<div class="rd-chart" id="vm-walk-svg"></div>
+<div class="an-cap" id="vm-walk-cap"></div>
+<div class="an-ctl" id="vm-walk-ctl"></div>
+<div class="an-cnt" id="vm-walk-cnt"></div>
+<p class="small mute">Stepper on the same dataset address, arm64, 4 KiB pages. Indices are computed from the address; table and frame numbers are <span class="ill">illustrative</span> (reading real frame numbers from <code>/proc/PID/pagemap</code> needs privileges).</p></div>
 <p><b>The bits do work.</b> <i>Accessed</i> is set by hardware on use: page reclaim reads and clears it to find cold pages (section 6). <i>Dirty</i> says a file page must be written back before reuse. <i>Read-only</i> on a writable mapping is how copy-on-write traps the first write (section 7). <i>Not present</i> is how swap and lazy allocation trap the first access (section 4).</p>
 <div class="cost"><div class="t">What the tables cost <span class="meas">measured</span></div>One last-level table (4 KiB) maps 512 pages = 2 MiB, so touching 1 GiB needs 512 tables = 2,048 KiB, plus a few upper-level tables. Measured: <code>VmPTE</code> grew by <b id="vm-pte4k"></b> KiB after touching 1 GiB. That is 0.2% of the memory mapped, per process: 64 workers each touching the same 10 GiB shared dataset carry 64 copies of its tables (1.3 GiB). With huge pages the kernel still sets aside one table per 2 MiB (section 8), so the measured <code>VmPTE</code> did not shrink.</div>
 <div class="drill" data-k="pt"><p class="q">A process maps a 64 GiB file but only ever reads 1 MiB of it at one spot. Roughly how much page-table memory does that cost?</p>
 <div class="ch"><button>about 128 MiB (64 GiB / 2 MiB x 4 KiB)</button><button data-ok="1">a few tables: about 16 KiB</button><button>nothing at all</button></div>
 <div class="ans" hidden>Tables exist only along paths to touched pages. 1 MiB at one spot needs one last-level table plus one table at each upper level: four 4 KiB tables, 16 KiB. The 128 MiB answer would hold only if every 2 MiB of the file were touched. Mapping is free; touching costs tables and frames.</div></div>
 <p class="cmd">grep -E 'VmPTE|VmRSS|VmSize' /proc/PID/status</p>
+<details class="dp"><summary><b>x86-64 against arm64</b>: level names, root registers, page sizes, entry bits</summary><div>
+<div class="tw"><table class="tbl-sm"><thead><tr><th></th><th>x86-64</th><th>arm64 (this VM)</th></tr></thead><tbody>
+<tr><td>Level names, root first</td><td>PGD, (P4D with 5 levels), PUD, PMD, PTE</td><td>level 0, 1, 2, 3 (Linux reuses the x86 names)</td></tr>
+<tr><td>Register holding the root</td><td>CR3 (one per CPU, reloaded on a process switch)</td><td>TTBR0_EL1 for user addresses, TTBR1_EL1 for the kernel half</td></tr>
+<tr><td>Page sizes</td><td>4 KiB; 2 MiB and 1 GiB as huge pages</td><td>granule of 4, 16 or 64 KiB, chosen when the kernel is built; Apple's macOS uses 16 KiB (the M1 host reports <span id="vm-macpg"></span> bytes, a labelled contrast)</td></tr>
+<tr><td>Bigger address spaces</td><td>5 levels (LA57): 57-bit, 128 PiB (<a href="https://docs.kernel.org/arch/x86/x86_64/5level-paging.html" target="_blank" rel="noopener noreferrer">5-level paging</a>)</td><td>52-bit with 64 KiB pages (LVA)</td></tr>
+<tr><td>Key entry bits</td><td>Present, R/W, U/S, Accessed, Dirty, NX</td><td>valid, AP (user, read-only), AF (accessed), nG (not global), DBM (dirty), PXN/UXN (no execute) (<a href="https://github.com/torvalds/linux/blob/v5.10/arch/arm64/include/asm/pgtable-hwdef.h#L135" target="_blank" rel="noopener noreferrer">lines 135 to 148</a>)</td></tr>
+</tbody></table></div></div></details>
 </section>
 <section id="rd-s3">
 <h2>3. The TLB: why translation is usually free, and when it is not</h2>
-<p class="ostep">ch. 19 Translation Lookaside Buffers</p>
-<p><b>The problem.</b> A four-level walk is four extra memory reads for every load and store. <b>How it works.</b> The CPU keeps recent translations in a <dfn id="g-tlb">translation lookaside buffer</dfn> (TLB): a small cache from virtual page number to frame and permissions. A hit adds nothing; a miss triggers a hardware page-table walk (the walk's reads are themselves cached in the data caches, so a miss costs nanoseconds, not four trips to DRAM). The root page measured it on this machine: one access costs 1.1 ns while the touched pages fit in the TLB and 7.6 ns once they do not, with the knee between 2,048 and 4,096 pages (8 to 16 MiB of <dfn id="g-reach">TLB reach</dfn>, entries times page size); with 2 MiB pages the same walk stays at 1.1 ns (<a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Topic: operating-systems</a>, section 4 and the OS simulators tab, which also replays OSTEP's TLB homework).</p>
-<p><b>Address-space identifiers.</b> After a switch to another process, the old translations are wrong. Flushing the whole TLB on every switch would make every switch expensive, so entries are tagged with an <dfn id="g-asid">ASID</dfn> (arm64: 8 or 16 bits, read from the CPU at boot, <a href="https://github.com/torvalds/linux/blob/v5.10/arch/arm64/mm/context.c#L42" target="_blank" rel="noopener noreferrer">arch/arm64/mm/context.c line 42</a>; x86-64 calls it PCID, 12 bits). Kernel mappings are marked global and shared by all processes; user mappings are "not global" (the nG bit in section 2's table).</p>
+<p>A four-level walk is four extra memory reads for every load and store, so the CPU keeps recent translations in a <dfn id="g-tlb">translation lookaside buffer</dfn> (TLB), a small cache from virtual page number to frame and permissions. A hit adds nothing; a miss triggers the hardware walk of section 2 (its reads are themselves cached in the data caches, so a miss costs nanoseconds, not four trips to DRAM). The root page measured it on this machine: one access costs 1.1 ns while the touched pages fit in the TLB and 7.6 ns once they do not, with the knee between 2,048 and 4,096 pages (8 to 16 MiB of <dfn id="g-reach">TLB reach</dfn>, entries times page size); with 2 MiB pages the same walk stays at 1.1 ns (<a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Topic: operating-systems</a>, section 4 and the OS simulators tab, which also replays OSTEP's TLB homework). The <a href="#" data-tab="t-addr">Address translator</a> tab sizes the reach for any footprint.</p>
+<details class="dp"><summary><b>Address-space identifiers</b>: why a process switch does not flush the TLB</summary><div><p class="small">After a switch to another process the old translations are wrong, and flushing the whole TLB on every switch would make switches expensive, so entries are tagged with an <dfn id="g-asid">ASID</dfn> (arm64: 8 or 16 bits, read from the CPU at boot, <a href="https://github.com/torvalds/linux/blob/v5.10/arch/arm64/mm/context.c#L42" target="_blank" rel="noopener noreferrer">arch/arm64/mm/context.c line 42</a>; x86-64 calls it PCID, 12 bits). Kernel mappings are global and shared by all processes; user mappings are "not global" (the nG bit).</p></div></details>
 <h3>TLB shootdowns: the cost of changing a mapping</h3>
-<p>When a process changes or removes a mapping (<code>munmap</code>, <code>mprotect</code>, <code>madvise(MADV_DONTNEED)</code>, page migration, swapping a page out), every CPU that may have cached the old translation must drop it, or a thread there would keep using a page that is no longer theirs. That is a <dfn id="g-shoot">TLB shootdown</dfn>. The two architectures do it very differently <span class="src">source</span>:</p>
+<p>When a process changes or removes a mapping (<code>munmap</code>, <code>mprotect</code>, <code>madvise(MADV_DONTNEED)</code>, page migration, swapping a page out), every CPU that may have cached the old translation must drop it, or a thread there would keep using a page that is no longer its own. That is a <dfn id="g-shoot">TLB shootdown</dfn>, and the two architectures do it very differently <span class="src">source</span>:</p>
 <div class="panes"><div><h5>x86-64: interrupt the other CPUs</h5><p class="small">The kernel sends an inter-processor interrupt to each CPU running the address space and waits for all to flush (<a href="https://github.com/torvalds/linux/blob/v5.10/arch/x86/mm/tlb.c#L798" target="_blank" rel="noopener noreferrer">arch/x86/mm/tlb.c lines 798 to 825</a>, <code>smp_call_function_many</code>); over 33 pages it flushes everything instead (<a href="https://github.com/torvalds/linux/blob/v5.10/arch/x86/mm/tlb.c#L842" target="_blank" rel="noopener noreferrer">line 842</a>). Cost grows with the number of CPUs the process has run on.</p></div>
 <div><h5>arm64: one broadcast instruction</h5><p class="small">The kernel issues <code>TLBI VALE1IS</code> ("inner shareable"), which the hardware broadcasts to every CPU, then waits with a barrier (<a href="https://github.com/torvalds/linux/blob/v5.10/arch/arm64/include/asm/tlbflush.h#L255" target="_blank" rel="noopener noreferrer">arch/arm64/include/asm/tlbflush.h lines 255 to 272</a>). No interrupt, no other CPU's code runs.</p></div></div>
-<div class="card"><div class="rd-chart" id="vm-shoot"></div><p class="small mute" id="vm-shoot-note"></p></div>
-<p><b>When it bites in ML.</b> A CPU-heavy process with many threads (PyTorch's intra-op pool, a data loader with threads) whose allocator keeps returning memory to the kernel and asking for it again triggers a shootdown each time; on large x86 servers each costs interrupts on every CPU that ran the process. Symptoms: high system time with no obvious system calls in your code. Fix: keep memory cached in the allocator instead of returning it (the <a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a> page covers the knobs), fewer threads, huge pages.</p>
+<div class="card"><p class="ftitle">On arm64 a shootdown costs the same with 0 or 3 other threads running</p><div class="rd-chart" id="vm-shoot"></div><p class="small mute" id="vm-shoot-note"></p></div>
+<p><b>When it bites in ML.</b> A CPU-heavy process with many threads (PyTorch's intra-op pool, a data loader with threads) whose allocator keeps returning memory to the kernel and asking for it again triggers a shootdown each time; on large x86 servers each costs interrupts on every CPU that ran the process. Symptom: high system time with no obvious system calls in your code. Fix: keep memory cached in the allocator instead of returning it (the <a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a> page covers the knobs), fewer threads, huge pages.</p>
 <p class="cmd">perf stat -e dTLB-load-misses,dTLB-loads -p PID   # not available in this VM (no hardware counters)</p>
 <p class="cmd">grep -E 'TLB' /proc/interrupts   # x86: "TLB shootdowns" per CPU</p>
 </section>
 
 <section id="rd-s4">
 <h2>4. Page faults: memory is filled in on first touch</h2>
-<p class="ostep">ch. 21 Swapping: Mechanisms, ch. 23 Complete VM Systems</p>
-<p><b>The idea.</b> <code>mmap</code> and <code>malloc</code> only add a VMA; no frame is allocated and no table entry written. The first access finds an invalid (or read-only) entry and the CPU raises an exception: a <dfn id="g-fault">page fault</dfn>. The kernel looks up the VMA, decides what the page should contain, fills the entry and re-runs the instruction. The program never notices, except in time. A <dfn id="g-minor">minor fault</dfn> needs no I/O; a <dfn id="g-major">major fault</dfn> waited for a device (<a href="https://man7.org/linux/man-pages/man2/getrusage.2.html" target="_blank" rel="noopener noreferrer">getrusage(2)</a>; in 5.10 a fault that had to be retried also counts as major, <a href="https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L4548" target="_blank" rel="noopener noreferrer">mm/memory.c lines 4548 to 4557</a>).</p>
-<p><b>One access, followed through the kernel.</b> Pick a case; the stepper walks the real 5.10 code path on arm64 and shows what this machine measured for it.</p>
-<div class="card" id="vm-flt-card">
+<p><code>mmap</code> and <code>malloc</code> only add a VMA; no frame is allocated and no table entry written (<b>demand paging</b>). The first access finds an invalid (or read-only) entry and the CPU raises a <dfn id="g-fault">page fault</dfn>: the kernel looks up the VMA, decides what the page should contain, fills the entry and re-runs the instruction. The program never notices, except in time. A <dfn id="g-minor">minor fault</dfn> needs no I/O; a <dfn id="g-major">major fault</dfn> waited for a device (<a href="https://man7.org/linux/man-pages/man2/getrusage.2.html" target="_blank" rel="noopener noreferrer">getrusage(2)</a>; in 5.10 a fault that had to be retried also counts as major, <a href="https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L4548" target="_blank" rel="noopener noreferrer">mm/memory.c lines 4548 to 4557</a>).</p>
+<div class="card" id="vm-flt-card"><p class="ftitle">One access followed through the real 5.10 code path: the case decides the handler, the handler decides the cost</p>
 <div class="seg" id="vm-flt-mode"></div>
 <div class="rd-chart" id="vm-flt-svg"></div>
 <div class="an-cap" id="vm-flt-cap"></div>
@@ -303,28 +332,27 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 </section>
 <section id="rd-s5">
 <h2>5. mmap: files and memory as one thing</h2>
-<p class="ostep">ch. 23 Complete VM Systems (memory-mapped files); the call itself: <a href="https://man7.org/linux/man-pages/man2/mmap.2.html" target="_blank" rel="noopener noreferrer">mmap(2)</a></p>
-<p><b>The problem.</b> <code>read()</code> copies bytes from the kernel's cache of the file (the page cache, section 6) into your buffer: two copies of the data in memory, a system call per read, and a buffer you must manage. <b>The idea.</b> <code>mmap(addr, length, prot, flags, fd, offset)</code> adds a VMA whose pages <i>are</i> the page-cache pages of the file. The first touch of each page faults (section 4) and maps the cached page directly; nothing is copied.</p>
-<p><b>Two choices make four kinds of mapping.</b> Every <code>mmap</code> is either file-backed or anonymous (<code>MAP_ANONYMOUS</code>: zero-filled, no file), and either shared or private:</p>
+<p><code>read()</code> copies bytes from the kernel's cache of the file (the page cache, section 6) into your buffer: two copies of the data in memory, a system call per read, and a buffer you must manage. <code>mmap(addr, length, prot, flags, fd, offset)</code> instead adds a VMA whose pages <i>are</i> the page-cache pages of the file (<a href="https://man7.org/linux/man-pages/man2/mmap.2.html" target="_blank" rel="noopener noreferrer">mmap(2)</a>). The first touch of each page faults (section 4) and maps the cached page directly; nothing is copied. Two choices make four kinds of mapping:</p>
 <div class="tw"><table class="tbl-sm"><thead><tr><th></th><th>MAP_PRIVATE</th><th>MAP_SHARED</th></tr></thead><tbody>
 <tr><td><b>File</b></td><td>Reads see the file; a write copies that page into private anonymous memory (copy-on-write), the file never changes. <i>Used by:</i> the loader for code and data of every <code>.so</code>; <code>np.memmap(mode="c")</code>.</td><td>Reads and writes go to the page cache, other mappers see them at once, writeback puts them in the file (<code>msync</code> to force it). <i>Used by:</i> <code>np.memmap(mode="r+")</code>, databases, the job's dataset (read-only, <code>r--s</code> in its maps).</td></tr>
 <tr><td><b>Anonymous</b></td><td>Private zero-filled memory. After <code>fork</code>, copy-on-write. <i>Used by:</i> <code>malloc</code> of large blocks, thread stacks, every allocator's arenas, all your tensors.</td><td>Memory shared with children after <code>fork</code> (backed by an invisible shmem file). <i>Used by:</i> <code>multiprocessing</code> shared values. Named shared memory is a file in <code>/dev/shm</code>, which is how DataLoader workers pass batches.</td></tr>
 </tbody></table></div>
+<div class="co warn"><div class="t">SIGBUS, not an exception</div>If the file shrinks under a mapping (another process truncates or rewrites a dataset shard), touching a page past the new end raises <b>SIGBUS</b> and the process dies (<a href="https://man7.org/linux/man-pages/man2/mmap.2.html" target="_blank" rel="noopener noreferrer">mmap(2), SIGBUS</a>). So does an I/O error on a network file system while faulting. Replace shared datasets by writing a new file and renaming it over the old one; mappings of the old file keep working.</div>
+<details class="dp"><summary><b>Four flags worth knowing</b></summary><div>
 <div class="ff2">
 <div class="sp"><div class="n">MAP_POPULATE</div><p>fault everything in now (section 4).</p></div>
 <div class="sp"><div class="n">MAP_NORESERVE</div><p>do not count this toward the commit limit (section 10).</p></div>
 <div class="sp"><div class="n">MAP_FIXED</div><p>place exactly here, silently replacing whatever was mapped; use <code>MAP_FIXED_NOREPLACE</code>.</p></div>
 <div class="sp"><div class="n">MAP_HUGETLB</div><p>back with pre-reserved huge pages (section 8).</p></div>
-</div>
-<div class="co warn"><div class="t">SIGBUS, not an exception</div>If the file shrinks under a mapping (another process truncates or rewrites a dataset shard), touching a page past the new end raises <b>SIGBUS</b> and the process dies (<a href="https://man7.org/linux/man-pages/man2/mmap.2.html" target="_blank" rel="noopener noreferrer">mmap(2), SIGBUS</a>). So does an I/O error on a network file system while faulting. Replace shared datasets by writing a new file and renaming it over the old one; mappings of the old file keep working.</div>
+</div></div></details>
 <h3>Random rows from a dataset: read() against mmap <span class="meas">measured</span></h3>
-<p>20,000 random rows of 1,028 bytes (the job's row format) from a 256 MiB file, warm (in the page cache) and cold (evicted with <code>posix_fadvise(POSIX_FADV_DONTNEED)</code>, which any process may do for clean pages). The rows are 19.6 MiB of useful data. "Read from storage" is <code>read_bytes</code> in <code>/proc/self/io</code>.</p>
-<div class="card"><div class="rd-chart" id="vm-rows"></div><p class="small mute" id="vm-rows-note"></p></div>
-<p><b>What happened.</b> Warm, all three cost about 1 to 2 microseconds a row, dominated by Python. Cold, a fault on a mapping reads around the faulting page (a window of <code>read_ahead_kb</code>, 128 KiB by default), betting on locality: for random rows over a small file it pulled in the whole file (13x the useful bytes) and then served the rest from memory, which made it the fastest here. On a dataset much larger than RAM the same bet reads 32 pages to use one, and fills the page cache with neighbours you will not touch. <code>madvise(MADV_RANDOM)</code> turns read-around off: one page per fault, 3.4x amplification, but one device round trip per row. The right setting depends on whether neighbours will be used: a shuffled index over a huge file wants MADV_RANDOM or explicit <code>pread</code>; a sequential pass or a small hot file wants the default (or <code>MADV_SEQUENTIAL</code>, <code>MADV_WILLNEED</code>).</p>
+<p>20,000 random rows of 1,028 bytes (the job's row format) from a 256 MiB file, warm (in the page cache) and cold (evicted with <code>posix_fadvise(POSIX_FADV_DONTNEED)</code>, which any process may do for clean pages). The rows are 19.6 MiB of useful data; "read from storage" is <code>read_bytes</code> in <code>/proc/self/io</code>.</p>
+<div class="card"><p class="ftitle">Cold, a plain mapping read the whole file to serve 20,000 rows; MADV_RANDOM read a quarter of it but paid a device trip per row</p><div class="rd-chart" id="vm-rows"></div><p class="small mute" id="vm-rows-note"></p></div>
+<p>Warm, all three cost 1 to 2 microseconds a row (Python dominates). Cold, a fault on a mapping reads around the faulting page (<code>read_ahead_kb</code>, 128 KiB by default): on this small file that pulled in the whole file (13x the useful bytes) and then served the rest from memory, the fastest here; on a dataset much larger than RAM the same bet reads 32 pages to use one and fills the cache with neighbours you will not touch. <code>madvise(MADV_RANDOM)</code> turns read-around off: one page per fault, 3.4x amplification, one device round trip per row. So a shuffled index over a huge file wants MADV_RANDOM or explicit <code>pread</code>; a sequential pass or a small hot file wants the default (or <code>MADV_SEQUENTIAL</code>, <code>MADV_WILLNEED</code>).</p>
 <h3>Loading weights: copy or map <span class="meas">measured</span></h3>
 <p>A 256 MiB state dict (eight 32 MiB float32 tensors) saved with <code>torch.save</code> and with safetensors, loaded cold four ways. "Return" is the time until the call returns; then every tensor is summed once.</p>
 <div class="tw"><table class="tbl-sm" id="vm-load"></table></div>
-<p><code>torch.load</code> reads every byte into fresh anonymous memory before returning. <code>torch.load(mmap=True)</code>, in its own words, maps the file "rather than loading all the storages into memory" (docstring of torch 2.14.1), and safetensors (whose format is "fast (zero-copy)", <a href="https://huggingface.co/docs/safetensors/index" target="_blank" rel="noopener noreferrer">safetensors docs</a>) returns tensors whose storage is the mapping: the call returns in milliseconds, and the bytes arrive as page faults when first used. Two consequences: (1) RSS after reading counts those file pages, but they are clean page cache, so the kernel can drop and re-read them, and every process mapping the same file shares one copy (eight inference workers on one host cost one copy of the weights, not eight); (2) the first forward pass is slower, by the fault and I/O cost moved out of the load call. <code>safe_open</code> plus <code>get_tensor</code> reads only the tensors asked for, which is how one rank of a sharded model loads only its shard.</p>
+<p><code>torch.load</code> reads every byte into fresh anonymous memory before returning. <code>torch.load(mmap=True)</code>, in its own words, maps the file "rather than loading all the storages into memory" (docstring of torch 2.14.1), and safetensors (whose format is "fast (zero-copy)", <a href="https://huggingface.co/docs/safetensors/index" target="_blank" rel="noopener noreferrer">safetensors docs</a>) returns tensors whose storage is the mapping: the call returns in milliseconds and the bytes arrive as page faults when first used (measured: <code>torch.load</code> returned after 194 ms holding 243 MiB, <code>torch.load(mmap=True)</code> after 4.5 ms holding none). The pages are clean page cache: the kernel can drop and re-read them, and every process mapping the file shares one copy. The first forward pass pays the faults the load call skipped. <code>safe_open</code> plus <code>get_tensor</code> reads only the tensors asked for, which is how one rank of a sharded model loads only its shard.</p>
 <div class="drill" data-k="mmap"><p class="q">Eight inference processes on one host each <code>torch.load(path, mmap=True)</code> the same 14 GB checkpoint and run. Free memory drops by about how much for the weights?</p>
 <div class="ch"><button>8 x 14 = 112 GB</button><button data-ok="1">about 14 GB: one page-cache copy, shared</button><button>nothing: mapped memory is not memory</button></div>
 <div class="ans" hidden>All eight map the same page-cache pages of one file, so the weights occupy RAM once (as "buff/cache" in <code>free</code>). Each process's RSS still shows up to 14 GB, which is why RSS sums mislead (section 13). The catch: if a process converts or moves the tensors (to another dtype, or to a GPU and then keeps a CPU copy), that copy is private anonymous memory, eight times over.</div></div>
@@ -333,160 +361,180 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 
 <section id="rd-s6">
 <h2>6. The page cache and reclaim: where "free" memory went</h2>
-<p class="ostep">ch. 22 Swapping: Policies (LRU and its approximations)</p>
-<p><b>The idea.</b> Linux keeps file data that was read or written in otherwise unused RAM, the <dfn id="g-pagecache">page cache</dfn>, because RAM that holds nothing is wasted. <code>free</code> shows it as "buff/cache"; "available" estimates what could be handed to programs if they asked, mostly by dropping clean cache. Writing, flushing and <code>fsync</code> of cached data belong to the sibling page <a href="https://app.notion.com/p/3f05c17b0d0d8141be7acc1313570cbf" target="_blank" rel="noopener noreferrer">Storage and file systems</a>; here we care about how memory is taken back.</p>
-<p><b>Reclaim.</b> Each memory zone has three <dfn id="g-wmark">watermarks</dfn> of free pages. Below <i>low</i>, the kernel thread <code>kswapd</code> wakes and reclaims in the background until <i>high</i>; below <i>min</i>, an allocating process must reclaim by itself before it gets memory (<dfn id="g-direct">direct reclaim</dfn>), which shows up as stalls in that process. In 5.10, low = min + max(min / 4, managed &times; <code>watermark_scale_factor</code> / 10,000) and high = min + 2 &times; that (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/page_alloc.c#L7874" target="_blank" rel="noopener noreferrer">mm/page_alloc.c lines 7874 to 7880</a>). Here <code>min_free_kbytes</code> is <span id="vm-minfree"></span> KiB and the scale factor is 10, so low and high sit about 11 MiB and 22 MiB above min (summed over zones). Raising <code>watermark_scale_factor</code> starts background reclaim earlier, a common fix for allocation stalls on big-memory hosts.</p>
-<p><b>Which pages go.</b> Linux 5.10 keeps two lists per type (anonymous and file), <i>active</i> and <i>inactive</i>, an approximation of least-recently-used built on the hardware accessed bit (section 2): pages are scanned from the inactive tail; one that was referenced since gets another chance. Clean file pages are cheapest to drop (re-read later); dirty ones must be written first; anonymous pages can only go to swap. <code>vm.swappiness</code> (60 here, the default, <a href="https://github.com/torvalds/linux/blob/v5.10/mm/vmscan.c#L172" target="_blank" rel="noopener noreferrer">mm/vmscan.c line 172</a>) weighs anonymous against file reclaim. Linux 6.1 added the multi-generational LRU, which replaces the two lists with several age generations and scans page tables instead of reverse mappings (<a href="https://docs.kernel.org/admin-guide/mm/multigen_lru.html" target="_blank" rel="noopener noreferrer">multigen_lru docs</a>) <span class="nrh">not run here</span>.</p>
-<p><b>Inside a container,</b> the same reclaim runs against the cgroup's limit instead of the machine's: reading a 768 MiB file in a 512 MiB container filled the cache up to the limit and recycled it, with thousands of "max" events and no OOM kill. The <a href="#" data-tab="t-cg">Memory replay</a> tab replays it sample by sample.</p>
+<p>Linux keeps file data that was read or written in otherwise unused RAM, the <dfn id="g-pagecache">page cache</dfn>, because RAM that holds nothing is wasted. <code>free</code> shows it as "buff/cache"; "available" estimates what could be handed to programs if they asked, mostly by dropping clean cache. Writing, flushing and <code>fsync</code> of cached data belong to the sibling <a href="https://app.notion.com/p/3f05c17b0d0d8141be7acc1313570cbf" target="_blank" rel="noopener noreferrer">Storage and file systems</a>; here the question is how memory is taken back.</p>
+<div class="card"><p class="ftitle">Three watermarks decide who reclaims: kswapd in the background, or the allocating process itself</p><div class="rd-chart" id="vm-wm"></div>
+<p class="small mute">Free memory on this VM, to scale, summed over zones. min is the measured <code>min_free_kbytes</code>; low and high are derived from the 5.10 formula below.</p></div>
+<p><b>Reclaim.</b> Each memory zone has three <dfn id="g-wmark">watermarks</dfn> of free pages. Below <i>low</i>, the kernel thread <code>kswapd</code> wakes and reclaims in the background until <i>high</i>; below <i>min</i>, an allocating process must reclaim by itself before it gets memory (<dfn id="g-direct">direct reclaim</dfn>), which shows up as stalls in that process. In 5.10, low = min + max(min / 4, managed &times; <code>watermark_scale_factor</code> / 10,000) and high = min + 2 &times; that (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/page_alloc.c#L7874" target="_blank" rel="noopener noreferrer">mm/page_alloc.c lines 7874 to 7880</a>). Here <code>min_free_kbytes</code> is <span id="vm-minfree"></span> KiB and the scale factor is 10, so low and high sit about 11 MiB and 22 MiB above min. Raising <code>watermark_scale_factor</code> starts background reclaim earlier, a common fix for allocation stalls on big-memory hosts.</p>
+<p><b>Which pages go.</b> Linux 5.10 keeps two lists per type (anonymous and file), <i>active</i> and <i>inactive</i>, an approximation of least-recently-used built on the hardware accessed bit (section 2): pages are scanned from the inactive tail, and one referenced since gets another chance. Clean file pages are cheapest to drop (re-read later); dirty ones must be written first; anonymous pages can only go to swap. <code>vm.swappiness</code> (60 here, the default, <a href="https://github.com/torvalds/linux/blob/v5.10/mm/vmscan.c#L172" target="_blank" rel="noopener noreferrer">mm/vmscan.c line 172</a>) weighs anonymous against file reclaim.</p>
+<p><b>Inside a container</b> the same reclaim runs against the cgroup's limit instead of the machine's: reading a 768 MiB file in a 512 MiB container filled the cache up to the limit and recycled it, with thousands of "max" events and no OOM kill (the replay in section 12, scenario "Page cache only").</p>
+<details class="dp"><summary><b>Since 6.1</b>: the multi-generational LRU <span class="nrh">not run here</span></summary><div><p class="small">Linux 6.1 added the multi-generational LRU, which replaces the two lists with several age generations and scans page tables instead of reverse mappings (<a href="https://docs.kernel.org/admin-guide/mm/multigen_lru.html" target="_blank" rel="noopener noreferrer">multigen_lru docs</a>).</p></div></details>
 <p class="cmd">free -m; grep -E 'Active|Inactive|Dirty|Writeback' /proc/meminfo; vmstat 1   # si/so swap, bi/bo block I/O</p>
 </section>
 <section id="rd-s7">
 <h2>7. Copy-on-write: fork copies tables, writes copy pages</h2>
-<p class="ostep">ch. 23 Complete VM Systems (copy-on-write); the fork API: the sibling <a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes and the system-call API</a></p>
-<p><b>The problem.</b> <code>fork</code> must give the child an exact copy of the parent's memory. Copying gigabytes for a DataLoader worker that will read a few batches would take seconds and double memory. <b>How it works</b> <span class="src">source</span>: <code>fork</code> copies the page <i>tables</i>, not the pages, and marks every private writable entry read-only in both parent and child (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L878" target="_blank" rel="noopener noreferrer">copy_present_pte, mm/memory.c lines 878 to 880</a>). Both now share each frame. The first write by either side faults on a read-only entry of a writable VMA; <code>do_wp_page</code> sees the frame is shared and <code>wp_page_copy</code> (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L2817" target="_blank" rel="noopener noreferrer">line 2817</a>) copies that one 4 KiB page and gives the writer its own. A page with only one user left is simply made writable again.</p>
-<div class="card"><div class="rd-chart" id="vm-fork"></div><p class="small mute" id="vm-fork-note"></p></div>
-<p><b>What this costs</b> <span class="meas">measured</span>. <code>fork</code> + exit + wait grows with the parent's resident memory, about 19 microseconds per resident MiB with 4 KiB pages (the tables being copied), and is 30x cheaper at 1 GiB when the memory is in transparent huge pages (one entry per 2 MiB, <a href="https://github.com/torvalds/linux/blob/v5.10/mm/huge_memory.c#L997" target="_blank" rel="noopener noreferrer">copy_huge_pmd</a>). Each later write costs a fault and a copy: <span id="vm-cow4k"></span> ns per 4 KiB page. With huge pages the first write does <i>not</i> copy 2 MiB: 5.10 splits the huge entry and falls back to 4 KiB copies (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/huge_memory.c#L1315" target="_blank" rel="noopener noreferrer">mm/huge_memory.c lines 1315 to 1317</a>); measured, the child's writes took the same 65,538 faults at <span id="vm-cowthp"></span> ns each.</p>
+<p><code>fork</code> must give the child an exact copy of the parent's memory; copying gigabytes for a DataLoader worker that reads a few batches would take seconds and double memory. So <code>fork</code> copies the page <i>tables</i>, not the pages, and marks every private writable entry read-only in both processes; the first write by either side faults and copies just that page. (The fork API itself is the sibling <a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes and the system-call API</a>'s.)</p>
+<div class="card" id="vm-cow-card"><p class="ftitle">Before the first write, parent and child point at the same frames; each write gives the writer its own copy of one 4 KiB page</p>
+<div class="rd-chart" id="vm-cow-svg"></div>
+<div class="an-cap" id="vm-cow-cap"></div>
+<div class="an-ctl" id="vm-cow-ctl"></div>
+<div class="an-cnt" id="vm-cow-cnt"></div>
+<p class="small mute">Stepper, four pages drawn; the costs in the captions are this machine's measurements.</p></div>
+<details class="dp"><summary><b>In the kernel</b>: copy_present_pte, do_wp_page, wp_page_copy</summary><div><p class="small"><span class="src">source</span>: fork's <code>copy_present_pte</code> write-protects each private writable entry in both tables (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L878" target="_blank" rel="noopener noreferrer">mm/memory.c lines 878 to 880</a>). A later write faults on a read-only entry of a writable VMA; <code>do_wp_page</code> sees the frame is shared and <code>wp_page_copy</code> (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L2817" target="_blank" rel="noopener noreferrer">line 2817</a>) copies that one page and gives the writer its own. A page with only one user left is simply made writable again.</p></div></details>
+<div class="card"><p class="ftitle">fork's cost is the table copy: it grows with resident memory, and huge pages cut it 30x</p><div class="rd-chart" id="vm-fork"></div><p class="small mute" id="vm-fork-note"></p></div>
+<p><b>What this costs</b> <span class="meas">measured</span>. <code>fork</code> + exit + wait grows by about 19 microseconds per resident MiB with 4 KiB pages, and is 30x cheaper at 1 GiB when the memory is in transparent huge pages (one entry per 2 MiB, <a href="https://github.com/torvalds/linux/blob/v5.10/mm/huge_memory.c#L997" target="_blank" rel="noopener noreferrer">copy_huge_pmd</a>). Each later write costs a fault and a copy: <span id="vm-cow4k"></span> ns per 4 KiB page. With huge pages the first write does <i>not</i> copy 2 MiB: 5.10 splits the huge entry and falls back to 4 KiB copies (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/huge_memory.c#L1315" target="_blank" rel="noopener noreferrer">mm/huge_memory.c lines 1315 to 1317</a>); measured, the child's writes took the same 65,538 faults at <span id="vm-cowthp"></span> ns each.</p>
 <h3>Python turns reads into writes, twice</h3>
-<p>The root page showed reference counts: reading a Python object increments and decrements its count, which writes the page it sits on, so a forked worker that only <i>reads</i> a list of a million objects copies the pages holding them (PyTorch's "memory leak" that is not a leak, <a href="https://docs.pytorch.org/docs/stable/data.html#multi-process-data-loading" target="_blank" rel="noopener noreferrer">torch.utils.data docs</a>). The second writer is the <b>cyclic garbage collector</b>: a full collection writes a counter (<code>gc_refs</code>) into the header of every container object it tracks, so a <code>gc.collect()</code> in a worker copies every page of tracked objects even if your code never reads them. Measured: a parent builds one million two-element lists, forks, and the child does one thing:</p>
-<div class="card"><div class="rd-chart" id="vm-cowgc"></div><p class="small mute">Pages the child copied (growth of its Private_Dirty in <code>/proc/self/smaps_rollup</code>), Python 3.11.2, numpy 2.4.6. Reading every list copied about 61 MiB: the pages that hold the list objects themselves (the integers inside were not touched).</p></div>
+<p>Reading a Python object increments and decrements its reference count, which writes the page it sits on, so a forked worker that only <i>reads</i> a list of a million objects copies the pages holding them (PyTorch's "memory leak" that is not a leak, <a href="https://docs.pytorch.org/docs/stable/data.html#multi-process-data-loading" target="_blank" rel="noopener noreferrer">torch.utils.data docs</a>). The second writer is the <b>cyclic garbage collector</b>: a full collection writes a counter (<code>gc_refs</code>) into the header of every container object it tracks, so a <code>gc.collect()</code> in a worker copies every page of tracked objects even if your code never reads them. Measured: a parent builds one million two-element lists, forks, and the child does one thing:</p>
+<div class="card"><p class="ftitle">One gc.collect() in the child copied 16,817 pages; gc.freeze() in the parent brought it to 30</p><div class="rd-chart" id="vm-cowgc"></div><p class="small mute">Pages the child copied (growth of its Private_Dirty in <code>/proc/self/smaps_rollup</code>), Python 3.11.2, numpy 2.4.6. Reading every list copied about 61 MiB: the pages that hold the list objects themselves (the integers inside were not touched).</p></div>
 <p>The fix the Python docs give for exactly this: "call <code>gc.disable()</code> early in the parent process, <code>gc.freeze()</code> right before <code>fork()</code>, and <code>gc.enable()</code> early in child processes" (<a href="https://docs.python.org/3/library/gc.html#gc.freeze" target="_blank" rel="noopener noreferrer">gc.freeze, Python 3.7+</a>). <code>gc.freeze()</code> moves every tracked object into a permanent generation that collections skip: 30 pages copied instead of 16,817. It does not stop reference-count writes; for data you iterate, store it as NumPy arrays, Arrow tables or one big bytes buffer with offsets (63 pages), not as millions of Python objects.</p>
 <div class="drill" data-k="cow"><p class="q">Your Dataset holds a list of 50 million file paths (Python strings). With 8 fork-started workers, what happens to memory over the first epoch?</p>
 <div class="ch"><button>nothing: the list is shared copy-on-write and only read</button><button data-ok="1">each worker gradually copies the pages it reads, heading towards 8 extra copies</button><button>the workers crash at once</button></div>
 <div class="ans" hidden>Every access to <code>paths[i]</code> touches the string's reference count, and any garbage collection in a worker touches every tracked container. Shared pages turn private one 4 KiB page at a time, so each worker's USS climbs as the epoch reads more of the list. Store the paths as one NumPy byte array plus offsets (or Arrow), and <code>gc.freeze()</code> before the DataLoader forks. The root's Debug lab case "Worker memory grows: copy-on-write meets reference counts" measures it per worker.</div></div>
-<p><b>Related flags.</b> <code>madvise(MADV_DONTFORK)</code> keeps a range out of the child entirely, "useful to prevent copy-on-write semantics from changing the physical location of a page if the parent writes to it after a fork" (DMA buffers, section 9); <code>MADV_WIPEONFORK</code> gives the child zeros instead (<a href="https://man7.org/linux/man-pages/man2/madvise.2.html" target="_blank" rel="noopener noreferrer">madvise(2)</a>). Forking a process that runs threads has its own trap (a lock held by a thread that does not exist in the child): the root's Debug lab case "A worker hangs forever: fork while another thread holds a lock".</p>
+<details class="dp"><summary><b>Related flags</b>, and the fork-with-threads trap</summary><div><p class="small"><code>madvise(MADV_DONTFORK)</code> keeps a range out of the child entirely, "useful to prevent copy-on-write semantics from changing the physical location of a page if the parent writes to it after a fork" (DMA buffers, section 9); <code>MADV_WIPEONFORK</code> gives the child zeros instead (<a href="https://man7.org/linux/man-pages/man2/madvise.2.html" target="_blank" rel="noopener noreferrer">madvise(2)</a>). Forking a process that runs threads has its own trap (a lock held by a thread that does not exist in the child): the root's Debug lab case "A worker hangs forever: fork while another thread holds a lock".</p></div></details>
 <p class="cmd">grep -E 'Private_Dirty|Shared_Dirty' /proc/WORKER_PID/smaps_rollup</p>
 </section>
 
 <section id="rd-s8">
 <h2>8. Huge pages: one entry for 2 MiB</h2>
-<p class="ostep">ch. 19 TLBs (larger pages), ch. 20 Advanced Page Tables</p>
-<p><b>The idea.</b> A level-2 entry can point straight at a 2 MiB block instead of a table (with 4 KiB base pages; 1 GiB at level 1). One TLB entry then covers 512 small pages, a walk is one level shorter, and a fault fills 2 MiB at once. Linux offers two ways: <dfn id="g-thp">transparent huge pages</dfn> (THP), used automatically for anonymous memory where possible, and <dfn id="g-hugetlb">hugetlbfs</dfn>, a pool of huge pages reserved in advance.</p>
-<p><b>The same 64 MiB buffer, with 4 KiB pages and with THP</b> <span class="meas">measured</span>. Toggle the mode; every number is from this machine.</p>
-<div class="card" id="vm-hp-card">
+<p>A level-2 entry can point straight at a 2 MiB block instead of a table (with 4 KiB base pages; 1 GiB at level 1). One TLB entry then covers 512 small pages, a walk is one level shorter, and a fault fills 2 MiB at once. Linux offers two ways: <dfn id="g-thp">transparent huge pages</dfn> (THP), used automatically for anonymous memory where possible, and <dfn id="g-hugetlb">hugetlbfs</dfn>, a pool of huge pages reserved in advance.</p>
+<div class="card" id="vm-hp-card"><p class="ftitle">The same 64 MiB buffer: 16,384 faults and translations with 4 KiB pages, 32 with THP</p>
 <div class="seg" id="vm-hp-mode"><button data-m="4k" class="on">4 KiB pages</button><button data-m="thp">2 MiB transparent huge pages</button></div>
 <canvas id="vm-hp-cv" height="180" aria-label="64 MiB buffer drawn page by page"></canvas>
 <div class="an-cap" id="vm-hp-cap"></div>
 <div class="an-ctl" id="vm-hp-ctl"></div>
 <div class="an-cnt" id="vm-hp-cnt"></div>
+<p class="small mute">Before/after on one input <span class="meas">measured</span>: toggle the mode, then step; every number is from this machine.</p>
 </div>
-<p><b>The knobs</b> (values read on this VM). <code>/sys/kernel/mm/transparent_hugepage/enabled</code> is <code>always</code>, <code>madvise</code> (only ranges marked <code>madvise(MADV_HUGEPAGE)</code>) or <code>never</code>; here <code>madvise</code>. <code>defrag</code> says whether a fault may stall to compact memory into a free 2 MiB block; here <code>madvise</code> (stall only for marked ranges). The background thread <code>khugepaged</code> later collapses 512 small pages into a huge one, scanning <span id="vm-k1"></span> pages per pass, and with <code>max_ptes_none</code> = <span id="vm-k2"></span> it will collapse a range in which 511 of 512 pages were never touched, filling them with zeros (<a href="https://docs.kernel.org/admin-guide/mm/transhuge.html" target="_blank" rel="noopener noreferrer">transhuge docs</a>). Watch <code>AnonHugePages</code> in <code>/proc/meminfo</code> or a process's <code>smaps_rollup</code>.</p>
 <div class="cost"><div class="t">The costs</div>(1) <b>Bloat:</b> touching one byte in every 2 MiB of 256 MiB cost <span id="vm-bl4"></span> KiB with 4 KiB pages and <span id="vm-blh"></span> KiB with THP, <span id="vm-blr"></span>x more, for sparse structures (hash tables, sparse embedding rows, an arena with holes). (2) <b>Latency:</b> the first THP run took <span id="vm-thp0"></span> ms against <span id="vm-thp2"></span> ms later, consistent with the kernel having to find or compact free 2 MiB blocks (cause not confirmed here); on a long-running, fragmented host, compaction stalls are the classic THP complaint. (3) <b>No page-table saving:</b> for each huge page the kernel deposits a spare 4 KiB table so it can split the page later (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/huge_memory.c#L623" target="_blank" rel="noopener noreferrer">mm/huge_memory.c line 623</a>), so <code>VmPTE</code> after touching 1 GiB was <span id="vm-ptethp"></span> KiB either way.</div>
 <p><b>Where huge pages do save: fork.</b> fork copies one table entry per huge page instead of 512. The sibling <a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes and the system-call API</a> measured <code>os.fork()</code> from a process holding torch and 1 GiB of NumPy at 5.96 ms with NumPy's huge pages (its default) against 22.5 ms with <code>NUMPY_MADVISE_HUGEPAGE=0</code>.</p>
-<p><b>hugetlbfs</b> <span class="nrh">not run here</span>. An administrator reserves a pool (<code>vm.nr_hugepages</code>, or per size under <code>/sys/kernel/mm/hugepages/</code>); programs get pages from it with <code>mmap(MAP_HUGETLB)</code> or files in a hugetlbfs mount. Pool pages are never swapped, never split, and never bloat, but are taken from the machine even when unused. This arm64 kernel offers 64 KiB, 2 MiB, 32 MiB and 1 GiB sizes (its cgroup lists <code>hugetlb.64KB</code>, <code>2MB</code>, <code>32MB</code>, <code>1GB</code>; 64 KiB and 32 MiB use arm64's contiguous bit, 16 adjacent entries cached as one); the pool here is empty (<code>HugePages_Total: 0</code>) and filling it needs privileges (<a href="https://docs.kernel.org/admin-guide/mm/hugetlbpage.html" target="_blank" rel="noopener noreferrer">hugetlbpage docs</a>).</p>
-<p><b>In ML.</b> The root found that this PyTorch wheel's allocator reserves 1 GiB and marks it <code>MADV_HUGEPAGE</code>, so tensor memory gets THP even in <code>madvise</code> mode (Syscall tracer tab of <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Topic: operating-systems</a>). Big dense tensors and pinned staging buffers are ideal THP users; sparse, long-lived structures in a <code>always</code> system are where bloat appears. Fix for bloat: <code>madvise</code> mode, or <code>MADV_NOHUGEPAGE</code> on the sparse range, or <code>max_ptes_none</code> lower.</p>
+<p><b>In ML.</b> The root found that this PyTorch wheel's allocator reserves 1 GiB and marks it <code>MADV_HUGEPAGE</code>, so tensor memory gets THP even in <code>madvise</code> mode (Syscall tracer tab of <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Topic: operating-systems</a>). Big dense tensors and pinned staging buffers are ideal THP users; sparse, long-lived structures on a system in <code>always</code> mode are where bloat appears. Fix for bloat: <code>madvise</code> mode, or <code>MADV_NOHUGEPAGE</code> on the sparse range, or a lower <code>max_ptes_none</code>.</p>
+<details class="dp"><summary><b>The THP knobs</b> as read on this VM</summary><div><p class="small"><code>/sys/kernel/mm/transparent_hugepage/enabled</code> is <code>always</code>, <code>madvise</code> (only ranges marked <code>madvise(MADV_HUGEPAGE)</code>) or <code>never</code>; here <code>madvise</code>. <code>defrag</code> says whether a fault may stall to compact memory into a free 2 MiB block; here <code>madvise</code> (stall only for marked ranges). The background thread <code>khugepaged</code> later collapses 512 small pages into a huge one, scanning <span id="vm-k1"></span> pages per pass, and with <code>max_ptes_none</code> = <span id="vm-k2"></span> it will collapse a range in which 511 of 512 pages were never touched, filling them with zeros (<a href="https://docs.kernel.org/admin-guide/mm/transhuge.html" target="_blank" rel="noopener noreferrer">transhuge docs</a>). Watch <code>AnonHugePages</code> in <code>/proc/meminfo</code> or a process's <code>smaps_rollup</code>.</p></div></details>
+<details class="dp"><summary><b>hugetlbfs</b>: a reserved pool <span class="nrh">not run here</span></summary><div><p class="small">An administrator reserves a pool (<code>vm.nr_hugepages</code>, or per size under <code>/sys/kernel/mm/hugepages/</code>); programs get pages from it with <code>mmap(MAP_HUGETLB)</code> or files in a hugetlbfs mount. Pool pages are never swapped, never split, and never bloat, but are taken from the machine even when unused. This arm64 kernel offers 64 KiB, 2 MiB, 32 MiB and 1 GiB sizes (its cgroup lists <code>hugetlb.64KB</code>, <code>2MB</code>, <code>32MB</code>, <code>1GB</code>; 64 KiB and 32 MiB use arm64's contiguous bit, 16 adjacent entries cached as one); the pool here is empty (<code>HugePages_Total: 0</code>) and filling it needs privileges (<a href="https://docs.kernel.org/admin-guide/mm/hugetlbpage.html" target="_blank" rel="noopener noreferrer">hugetlbpage docs</a>).</p></div></details>
 <p class="cmd">cat /sys/kernel/mm/transparent_hugepage/{enabled,defrag}; grep -E 'AnonHugePages|HugePages_' /proc/meminfo; grep thp /proc/vmstat</p>
 </section>
 <section id="rd-s9">
-<h2>9. Locked and pinned memory: pages that must not move</h2>
-<p><b>The problem.</b> Normally the kernel may move a page (compaction, NUMA migration, THP collapse) or write it to swap, because only the page table knows where it is and the table is updated. A device that copies memory by itself (<dfn id="g-dma">DMA</dfn>: a GPU, a network card doing RDMA) holds a <i>physical</i> address and does not consult the page table. If the page moves mid-copy, the device reads someone else's data.</p>
-<p><b>Two mechanisms.</b> <code>mlock(addr, len)</code> faults the range in and keeps it resident: never swapped (<a href="https://man7.org/linux/man-pages/man2/mlock.2.html" target="_blank" rel="noopener noreferrer">mlock(2)</a>). <dfn id="g-pin">Pinning</dfn> is stronger and kernel-internal: a driver calls <code>pin_user_pages</code> (the <code>FOLL_PIN</code> flavour of get_user_pages, <a href="https://docs.kernel.org/core-api/pin_user_pages.html" target="_blank" rel="noopener noreferrer">pin_user_pages docs</a>) and the pages may not be moved or freed until it unpins them. Both take memory out of what reclaim can use.</p>
-<p><b>The limit</b> <span class="meas">measured</span>. Unprivileged locking is capped by <code>RLIMIT_MEMLOCK</code>, which is 64 KiB in a default Docker container:</p>
-<pre class="cd out" id="vm-mlock"></pre>
-<p>That ENOMEM ("Cannot allocate memory") is the error an RDMA library or a pinned-memory allocator reports inside a container whose limit was never raised, and it does not mention the limit. Raise it with <code>docker run --ulimit memlock=-1</code>, <code>LimitMEMLOCK=infinity</code> in a systemd unit, or <code>/etc/security/limits.conf</code>; <code>CAP_IPC_LOCK</code> bypasses it.</p>
-<h3>Pinned memory for GPU copies <span class="nrh">not run here</span></h3>
-<p><code>cudaHostAlloc</code> / <code>cudaMallocHost</code> "Allocates size bytes of host memory that is page-locked and accessible to the device", with the warning that "allocating excessive amounts of pinned memory may degrade system performance, since it reduces the amount of memory available to the system for paging"; <code>cudaHostRegister</code> page-locks an existing range (<a href="https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__MEMORY.html" target="_blank" rel="noopener noreferrer">CUDA runtime API, memory management</a>). The reason it matters: "when CUDA sends pageable data from CPU to GPU, it must first create a page-locked copy of that data before making the transfer" (<a href="https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html" target="_blank" rel="noopener noreferrer">PyTorch pinned memory tutorial</a>), an extra copy through a staging buffer. In PyTorch:</p>
+<h2>9. Locked and pinned memory, and GPU memory mapping</h2>
+<p>Normally the kernel may move a page (compaction, NUMA migration, THP collapse) or write it to swap, because only the page table knows where it is and the table is updated. A device that copies memory by itself (<dfn id="g-dma">DMA</dfn>: a GPU, a network card doing RDMA) holds a <i>physical</i> address and does not consult the page table; if the page moves mid-copy, the device reads someone else's data. Two mechanisms stop that. <code>mlock(addr, len)</code> faults the range in and keeps it resident, never swapped (<a href="https://man7.org/linux/man-pages/man2/mlock.2.html" target="_blank" rel="noopener noreferrer">mlock(2)</a>). <dfn id="g-pin">Pinning</dfn> is stronger and kernel-internal: a driver calls <code>pin_user_pages</code> (the <code>FOLL_PIN</code> flavour of get_user_pages, <a href="https://docs.kernel.org/core-api/pin_user_pages.html" target="_blank" rel="noopener noreferrer">pin_user_pages docs</a>) and the pages may not be moved or freed until it unpins them. Both take memory out of what reclaim can use.</p>
+<div class="card"><p class="ftitle">Pageable memory needs a staging copy before the GPU can DMA it; pinned memory is copied directly, and asynchronously</p><div class="rd-chart" id="vm-pin"></div>
+<p class="small mute">Static before/after diagram of one host-to-GPU copy, from the CUDA and PyTorch documentation quoted below <span class="nrh">not run here</span> (no GPU in this VM).</p></div>
+<p><b>Pinned memory for GPU copies</b> <span class="nrh">not run here</span>. <code>cudaHostAlloc</code> / <code>cudaMallocHost</code> "Allocates size bytes of host memory that is page-locked and accessible to the device", with the warning that "allocating excessive amounts of pinned memory may degrade system performance, since it reduces the amount of memory available to the system for paging"; <code>cudaHostRegister</code> page-locks an existing range (<a href="https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__MEMORY.html" target="_blank" rel="noopener noreferrer">CUDA runtime API, memory management</a>). Why it matters: "when CUDA sends pageable data from CPU to GPU, it must first create a page-locked copy of that data before making the transfer" (<a href="https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html" target="_blank" rel="noopener noreferrer">PyTorch pinned memory tutorial</a>), an extra copy through a staging buffer. In PyTorch:</p>
 <ul class="tight">
 <li><code>DataLoader(pin_memory=True)</code> runs a thread that copies each batch into pinned memory, so <code>x.to("cuda", non_blocking=True)</code> can be an asynchronous DMA that overlaps compute.</li>
 <li>Calling <code>t.pin_memory()</code> right before one copy is usually slower than copying directly (it pays the staging copy itself); pin once, reuse.</li>
 <li>The tutorial warns that "allocating a large number of tensors or sizable tensors in pinned memory can monopolize a substantial portion of RAM": pinned pages cannot be reclaimed, so the page cache that feeds your data loader shrinks.</li>
+</ul>
+<details class="dp"><summary><b>Two more pinned-memory traps</b>: asynchronous corruption, power-of-two rounding</summary><div><ul class="tight">
 <li>Copies from pinned memory with <code>non_blocking=True</code> are asynchronous: modifying the source tensor before the copy finished corrupts the GPU copy.</li>
 <li>PyTorch's pinned memory comes from its CachingHostAllocator, which rounds each request up to the next power of two by default, so a 600 MB pinned buffer locks 1 GiB of RAM (<a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a> reads the source).</li>
-</ul>
-<p>The GPU driver's own side of this (its kernel module, unified memory, IOMMU mappings) is in the sibling <a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a>.</p>
+</ul></div></details>
+<p><b>The limit</b> <span class="meas">measured</span>. Unprivileged locking is capped by <code>RLIMIT_MEMLOCK</code>, which is 64 KiB in a default Docker container:</p>
+<pre class="cd out" id="vm-mlock"></pre>
+<p>That ENOMEM ("Cannot allocate memory") is the error an RDMA library or a pinned-memory allocator reports inside a container whose limit was never raised, and it does not mention the limit. Raise it with <code>docker run --ulimit memlock=-1</code>, <code>LimitMEMLOCK=infinity</code> in a systemd unit, or <code>/etc/security/limits.conf</code>; <code>CAP_IPC_LOCK</code> bypasses it.</p>
+<p><b>Unified (managed) memory: page faults that cross to the GPU.</b> <code>cudaMallocManaged</code> gives one pointer valid on CPU and GPU; its pages live on one side at a time and migrate on a page fault from the other side, the same demand paging as section 4 with a device on the far end. The fault is serviced by NVIDIA's <code>nvidia-uvm</code> kernel module, and on systems with Linux's HMM or hardware coherence (Grace Hopper) the GPU uses the process's own page tables. The sibling <a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a> (section 11, "GPU memory and the driver, from the operating system's side") follows the driver's side; the CUDA programmer's view of pinned, mapped and managed memory, with prefetching, is <a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a> (section 8).</p>
 <p class="cmd">ulimit -l; grep VmLck /proc/PID/status; grep -E 'Mlocked|Unevictable' /proc/meminfo</p>
 </section>
 
 <section id="rd-s10">
 <h2>10. Overcommit: promising more memory than exists</h2>
-<p><b>The problem.</b> Programs reserve far more than they touch (allocator arenas, thread stacks, sparse arrays, a 1 GiB reservation by PyTorch's allocator). Refusing every reservation that exceeds RAM would waste memory; accepting all means some promise may not be kept. The kernel's choice is <code>vm.overcommit_memory</code> <span class="src">source</span> (<a href="https://docs.kernel.org/mm/overcommit-accounting.html" target="_blank" rel="noopener noreferrer">overcommit-accounting</a>; <a href="https://github.com/torvalds/linux/blob/v5.10/mm/util.c#L860" target="_blank" rel="noopener noreferrer">mm/util.c lines 860 to 876</a>):</p>
+<p>Programs reserve far more than they touch (allocator arenas, thread stacks, sparse arrays, a 1 GiB reservation by PyTorch's allocator). Refusing every reservation that exceeds RAM would waste memory; accepting all means some promise may not be kept. The kernel's choice is <code>vm.overcommit_memory</code> <span class="src">source</span> (<a href="https://docs.kernel.org/mm/overcommit-accounting.html" target="_blank" rel="noopener noreferrer">overcommit-accounting</a>; <a href="https://github.com/torvalds/linux/blob/v5.10/mm/util.c#L860" target="_blank" rel="noopener noreferrer">mm/util.c lines 860 to 876</a>):</p>
 <div class="tw"><table class="tbl-sm"><thead><tr><th>Mode</th><th>Rule in 5.10</th><th>Consequence</th></tr></thead><tbody>
 <tr><td>0, heuristic (default)</td><td>refuse one request larger than RAM + swap; accept the rest</td><td>wild requests fail, everything else succeeds; the OOM killer settles the bill</td></tr>
 <tr><td>1, always (this VM)</td><td>accept everything</td><td>sparse arrays work; the 64 GiB request below succeeded</td></tr>
 <tr><td>2, never</td><td>total commitments (<code>Committed_AS</code>) may not exceed <code>CommitLimit</code> = RAM &times; <code>overcommit_ratio</code>% + swap; "In mode 2 the MAP_NORESERVE flag is ignored"</td><td>allocations fail with ENOMEM instead of later OOM kills; programs that reserve big address ranges fail to start</td></tr>
 </tbody></table></div>
-<p><b>Measured</b> on this VM (mode 1, ratio 50). <code>CommitLimit</code> = 10,189,980 &times; 50% + 1,048,572 = 6,143,562 KiB against <span id="vm-cl"></span> KiB reported (the same, to page rounding; <a href="https://github.com/torvalds/linux/blob/v5.10/mm/util.c#L805" target="_blank" rel="noopener noreferrer">vm_commit_limit, mm/util.c line 805</a>). A private writable 64 GiB mapping succeeded and pushed <code>Committed_AS</code> to about 11.6 times <code>CommitLimit</code>; with <code>MAP_NORESERVE</code> it was not counted at all; <code>malloc(32 GiB)</code> returned a pointer:</p>
+<div class="card"><p class="ftitle">Allocating is not using: one 64 GiB mapping on a 10 GB machine succeeded and pushed commitments to 11.6 times the commit limit</p><div class="rd-chart" id="vm-cmt"></div><p class="small mute">Measured on this VM (mode 1, ratio 50), KiB from <code>/proc/meminfo</code>.</p></div>
+<p><b>Measured.</b> <code>CommitLimit</code> = 10,189,980 &times; 50% + 1,048,572 = 6,143,562 KiB against <span id="vm-cl"></span> KiB reported (the same, to page rounding; <a href="https://github.com/torvalds/linux/blob/v5.10/mm/util.c#L805" target="_blank" rel="noopener noreferrer">vm_commit_limit, mm/util.c line 805</a>). With <code>MAP_NORESERVE</code> the 64 GiB mapping was not counted at all; <code>malloc(32 GiB)</code> returned a pointer:</p>
 <pre class="cd out" id="vm-commit"></pre>
 <p>Under mode 0 the 64 GiB request would have failed (larger than RAM + swap, 10.7 GiB); under mode 2 so would anything that took commitments past 5.9 GiB. Containers cannot change this setting: it is one value for the whole kernel. <b>When it bites:</b> a cluster that sets mode 2 for safety makes large virtual reservations (CUDA's and allocators' address-space reservations, big <code>np.empty</code> scratch buffers) fail at allocation time; read <code>CommitLimit</code> and <code>Committed_AS</code> before blaming the framework.</p>
 <p class="cmd">cat /proc/sys/vm/overcommit_memory /proc/sys/vm/overcommit_ratio; grep -i commit /proc/meminfo</p>
 </section>
 
 <section id="rd-s11">
-<h2>11. Swap, zswap and memory pressure</h2>
-<p class="ostep">ch. 21 Beyond Physical Memory: Mechanisms, ch. 22 Policies</p>
-<p><b>How it works.</b> Anonymous pages have no file to be re-read from, so to reclaim one the kernel writes it to a <dfn id="g-swap">swap</dfn> device, replaces the table entry with a not-present entry holding the swap location, and frees the frame. The next access is a major fault: <code>do_swap_page</code> reads it back (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L4377" target="_blank" rel="noopener noreferrer">handle_pte_fault, mm/memory.c line 4377</a>), reading 2<sup><code>page-cluster</code></sup> = 8 neighbouring swap slots at once (<code>vm.page-cluster</code> = 3 here).</p>
-<p><b>What it costs</b> <span class="meas">measured</span>. A process that needs 640 MiB in a container limited to 512 MiB with 512 MiB of swap allowed did not die; it ran with about 260 MiB in swap and every pass over its memory took 4 to 5 seconds, the same pass that takes milliseconds when it fits (<a href="#" data-tab="t-cg">Memory replay</a> tab, scenario "Swap allowed"; the root's Debug lab case "Not dead, just slow: the working set spills into swap" has the per-pass numbers). For a training job that is usually worse than being killed: it looks alive, holds its GPUs, and makes no progress.</p>
-<p><b>zswap and zram</b> <span class="nrh">not run here</span> (neither is built into this kernel). zswap is a compressed cache in front of a swap device: pages being swapped out are compressed into a RAM pool first and written to disk only when the pool is full (<a href="https://docs.kernel.org/admin-guide/mm/zswap.html" target="_blank" rel="noopener noreferrer">zswap docs</a>). zram is a compressed RAM block device used as swap. Both trade CPU for fewer disk reads.</p>
-<p><b>Pressure stall information</b> <span class="nrh">not run here</span> (not enabled in this kernel). With PSI, <code>/proc/pressure/memory</code> and each cgroup's <code>memory.pressure</code> report the share of time tasks were stalled waiting for memory (<code>some</code> and <code>full</code>, over 10, 60 and 300 s) (<a href="https://docs.kernel.org/accounting/psi.html" target="_blank" rel="noopener noreferrer">PSI docs</a>). It is the best single "is this job memory-starved" signal; systemd-oomd kills on it (<a href="https://www.freedesktop.org/software/systemd/man/latest/systemd-oomd.service.html" target="_blank" rel="noopener noreferrer">systemd-oomd</a>).</p>
+<h2>11. Swap: anonymous pages written to disk</h2>
+<p>Anonymous pages have no file to be re-read from, so to reclaim one the kernel writes it to a <dfn id="g-swap">swap</dfn> device, replaces the table entry with a not-present entry holding the swap location, and frees the frame. The next access is a major fault: <code>do_swap_page</code> reads it back (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L4377" target="_blank" rel="noopener noreferrer">handle_pte_fault, mm/memory.c line 4377</a>), reading 2<sup><code>page-cluster</code></sup> = 8 neighbouring swap slots at once (<code>vm.page-cluster</code> = 3 here).</p>
+<p><b>What it costs</b> <span class="meas">measured</span>. A process that needs 640 MiB in a container limited to 512 MiB with 512 MiB of swap allowed did not die; it ran with about 260 MiB in swap and every pass over its memory took 4 to 5 seconds, the same pass that takes milliseconds when it fits (the replay in section 12, scenario "Swap allowed"; the root's Debug lab case "Not dead, just slow: the working set spills into swap" has the per-pass numbers). For a training job that is usually worse than being killed: it looks alive, holds its GPUs, and makes no progress.</p>
+<p><b>The signal to watch</b> is pressure, not free memory: with pressure stall information (PSI), <code>/proc/pressure/memory</code> and each cgroup's <code>memory.pressure</code> report the share of time tasks were stalled waiting for memory.</p>
+<details class="dp"><summary><b>zswap, zram and PSI</b> in detail <span class="nrh">not run here</span></summary><div><p class="small">Neither zswap nor zram is built into this kernel. zswap is a compressed cache in front of a swap device: pages being swapped out are compressed into a RAM pool first and written to disk only when the pool is full (<a href="https://docs.kernel.org/admin-guide/mm/zswap.html" target="_blank" rel="noopener noreferrer">zswap docs</a>). zram is a compressed RAM block device used as swap. Both trade CPU for fewer disk reads.</p>
+<p class="small">PSI is not enabled in this kernel. Where it is, the files report <code>some</code> and <code>full</code> stall shares over 10, 60 and 300 s (<a href="https://docs.kernel.org/accounting/psi.html" target="_blank" rel="noopener noreferrer">PSI docs</a>). It is the best single "is this job memory-starved" signal; systemd-oomd kills on it (<a href="https://www.freedesktop.org/software/systemd/man/latest/systemd-oomd.service.html" target="_blank" rel="noopener noreferrer">systemd-oomd</a>).</p></div></details>
 <p class="cmd">swapon --show; vmstat 1   # si/so columns; grep -E 'pswpin|pswpout' /proc/vmstat</p>
 </section>
 <section id="rd-s12">
-<h2>12. Memory cgroups and the OOM killer: what happens at the limit</h2>
-<p><b>The problem.</b> On a shared host each job (container, pod, Slurm step) needs a memory budget, and when the budget or the machine runs out, someone must lose. <b>How it works.</b> A cgroup v2 memory controller charges every page a process in the group allocates to the group, and reclaims within the group when it reaches its limit. What is charged: "userland memory - page cache and anonymous memory", kernel structures such as dentries and inodes, and TCP socket buffers (<a href="https://docs.kernel.org/admin-guide/cgroup-v2.html#memory" target="_blank" rel="noopener noreferrer">cgroup-v2 docs, Memory</a>). The files, in each cgroup's directory (<code>/sys/fs/cgroup/</code> inside a container):</p>
+<h2>12. Memory cgroups and the OOM killer: why a container dies</h2>
+<p>On a shared host each job (container, pod, Slurm step) gets a memory budget. A cgroup v2 memory controller charges every page a process in the group allocates to the group, and reclaims within the group when it reaches its limit. What is charged: "userland memory - page cache and anonymous memory", kernel structures such as dentries and inodes, and TCP socket buffers (<a href="https://docs.kernel.org/admin-guide/cgroup-v2.html#memory" target="_blank" rel="noopener noreferrer">cgroup-v2 docs, Memory</a>). Four files carry most of it, in each cgroup's directory (<code>/sys/fs/cgroup/</code> inside a container): <code>memory.current</code> (bytes charged now, page cache included), <code>memory.max</code> (the hard limit: reclaim, then the OOM killer inside the group; <code>docker --memory</code>, a Kubernetes memory limit), <code>memory.events</code> (counters <code>high</code>, <code>max</code>, <code>oom</code>, <code>oom_kill</code>) and <code>memory.stat</code> (the breakdown: <code>anon</code>, <code>file</code>, <code>shmem</code>, ...).</p>
+<div class="card" id="cg-card"><p class="ftitle">Four real runs at a 512 MiB limit: page cache is given back at the line, anonymous memory and /dev/shm are not</p>
+<div class="seg" id="cg-mode"></div>
+<div class="leg" id="cg-leg"></div>
+<div id="cg-svg" style="width:100%;overflow:hidden"></div>
+<div class="an-cap" id="cg-cap"></div>
+<div class="an-ctl" id="cg-ctl"></div>
+<div class="an-cnt" id="cg-cnt"></div>
+<ol class="marks" id="cg-marks"></ol>
+<p class="cmd" id="cg-cmd"></p>
+<p class="small mute"><span class="meas">measured</span>: sampled every 25 ms from inside the container, replayed at the real pace; each scenario starts from the same empty container (<code>src/exp/cg_replay.sh</code>, raw <code>src/raw/cg_*.txt</code>). Predict first: "Page cache only" and "Grow until killed" both reach the line; which one dies? Then play "/dev/shm counts" to the end: the shmem area outlives the killed process.</p></div>
+<div class="tw"><table class="tbl-sm" id="vm-cgsum"></table></div>
+<p>The fourth run is the one to remember for data loading: files in <code>/dev/shm</code> are shared memory charged to the cgroup, they survive the process that wrote them, and no process's RSS shows them. DataLoader workers hand batches to the main process through such files; the root's Debug lab case "DataLoader workers run out of /dev/shm" shows the other way it fails (Docker's default 64 MiB <code>/dev/shm</code>), and PyTorch's own README says to raise it "either with <code>--ipc=host</code> or <code>--shm-size</code>" (<a href="https://github.com/pytorch/pytorch#docker-image" target="_blank" rel="noopener noreferrer">PyTorch README</a>).</p>
+<details class="dp"><summary><b>The other memory files</b>: memory.high, low, min, swap.max, oom.group</summary><div>
 <div class="tw"><table class="tbl-sm"><thead><tr><th>File</th><th>Meaning</th></tr></thead><tbody>
-<tr><td><code>memory.current</code></td><td>bytes charged now, page cache included</td></tr>
-<tr><td><code>memory.max</code></td><td>hard limit: reclaim, then the OOM killer inside the group (<code>docker --memory</code>, a Kubernetes memory limit)</td></tr>
 <tr><td><code>memory.high</code></td><td>"Memory usage throttle limit... Going over the high limit never invokes the OOM killer": the group's tasks are made to reclaim and are put to sleep, up to 2 s per return to user space in 5.10 (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/memcontrol.c#L2466" target="_blank" rel="noopener noreferrer">MEMCG_MAX_HIGH_DELAY_JIFFIES, mm/memcontrol.c line 2466</a>) (not run on this page: Docker 20.10 has no flag for it and the container cannot write its own cgroup; <a href="https://app.notion.com/p/3f05c17b0d0d8156a841e4bf28f11293" target="_blank" rel="noopener noreferrer">Containers and isolation</a> ran it from the host, with and without swap)</td></tr>
 <tr><td><code>memory.low</code>, <code>memory.min</code></td><td>protection: below these the group's memory is reclaimed only reluctantly, or never</td></tr>
 <tr><td><code>memory.swap.max</code></td><td>swap allowed (<code>docker --memory-swap</code> minus <code>--memory</code>)</td></tr>
-<tr><td><code>memory.events</code></td><td>counters: <code>high</code>, <code>max</code> (times the limit forced reclaim), <code>oom</code>, <code>oom_kill</code></td></tr>
-<tr><td><code>memory.stat</code></td><td>the breakdown: <code>anon</code>, <code>file</code> (page cache, includes <code>shmem</code>), <code>shmem</code>, <code>file_dirty</code>, <code>sock</code>, ...</td></tr>
+<tr><td><code>memory.stat</code></td><td>also <code>file</code> includes <code>shmem</code>; <code>file_dirty</code>, <code>sock</code> and more</td></tr>
 <tr><td><code>memory.oom.group</code></td><td>if 1, "all tasks belonging to the cgroup or to its descendants are killed together or not at all"</td></tr>
-</tbody></table></div>
-<p><b>Four runs at a 512 MiB limit</b> <span class="meas">measured</span>, replayed sample by sample in the <a href="#" data-tab="t-cg">Memory replay</a> tab:</p>
-<div class="tw"><table class="tbl-sm" id="vm-cgsum"></table></div>
-<p>The fourth run is the one to remember for data loading: files in <code>/dev/shm</code> are shared memory charged to the cgroup, they survive the process that wrote them, and no process's RSS shows them. DataLoader workers hand batches to the main process through such files; the root's Debug lab case "DataLoader workers run out of /dev/shm" shows the other way it fails (Docker's default 64 MiB <code>/dev/shm</code>), and PyTorch's own README says to raise it "either with <code>--ipc=host</code> or <code>--shm-size</code>" (<a href="https://github.com/pytorch/pytorch#docker-image" target="_blank" rel="noopener noreferrer">PyTorch README</a>).</p>
+</tbody></table></div></div></details>
 <h3>Who the OOM killer picks, from the source</h3>
 <p>When reclaim fails, <code>oom_badness</code> scores every candidate process (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/oom_kill.c#L201" target="_blank" rel="noopener noreferrer">mm/oom_kill.c lines 201 to 238</a>) and the highest score is sent SIGKILL:</p>
 <div class="fm"><div class="eq">points = rss + swap + page_tables / 4 KiB + oom_score_adj &times; &lfloor;totalpages / 1000&rfloor;</div>
 <dl><dt>rss</dt><dd>resident pages: anonymous, file-mapped and shmem (in pages)</dd><dt>swap</dt><dd>pages of this process in swap</dd><dt>oom_score_adj</dt><dd>-1000 (never kill) to +1000, per process, in <code>/proc/PID/oom_score_adj</code></dd><dt>totalpages</dt><dd>machine OOM: RAM + swap. cgroup OOM: <code>memory.max</code> + allowed swap (<a href="https://github.com/torvalds/linux/blob/v5.10/mm/memcontrol.c#L1690" target="_blank" rel="noopener noreferrer">mem_cgroup_get_max, line 1690</a>)</dd></dl></div>
-<p><code>/proc/PID/oom_score</code> shows (1000 + points &times; 1000 / totalpages) &times; 2 / 3, always with the <i>machine's</i> RAM + swap (<a href="https://github.com/torvalds/linux/blob/v5.10/fs/proc/base.c#L549" target="_blank" rel="noopener noreferrer">fs/proc/base.c lines 549 to 566</a>). Four processes in a 1 GiB container, the formula against the kernel's number <span class="meas">measured</span>:</p>
-<div class="tw"><table class="tbl-sm" id="vm-oom"></table></div>
-<p id="vm-oom-note" class="small"></p>
 <div class="drill" data-k="oom"><p class="q">In a 1 GiB container with no swap, process A holds 450 MiB (adj 0) and process B 250 MiB but set its own <code>oom_score_adj</code> to 500. The group hits its limit. Who dies?</p>
 <div class="ch"><button>A, the biggest</button><button data-ok="1">B</button><button>both</button></div>
 <div class="ans" hidden>totalpages = 262,144 (1 GiB of 4 KiB pages), so adj 500 adds 500 &times; 262 = 131,000 points, worth 512 MiB of RSS. A scores about 115,200 + 0; B about 64,000 + 131,000 = 195,000. B dies. The root's Debug lab case "Which process the OOM killer picks: oom_score and oom_score_adj" ran exactly this and B was killed. Raising your own adj is allowed; lowering it below its current value needs <code>CAP_SYS_RESOURCE</code>, which a default container lacks (measured: refused).</div></div>
-<p><b>Kubernetes sets the adj for you</b> by quality-of-service class: Guaranteed -997, BestEffort 1000, Burstable <code>min(max(2, 1000 - (1000 &times; memoryRequestBytes) / machineMemoryCapacityBytes), 999)</code> (<a href="https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/" target="_blank" rel="noopener noreferrer">node-pressure eviction docs</a>). So when the <i>node</i> runs out, a pod with a small request relative to the node is killed first; when a <i>container</i> exceeds its own limit, its cgroup OOM kills inside it regardless.</p>
+<details class="dp"><summary><b>The kernel's own number</b>: oom_score reproduced on four processes, and the formula live</summary><div>
+<p class="small"><code>/proc/PID/oom_score</code> shows (1000 + points &times; 1000 / totalpages) &times; 2 / 3, always with the <i>machine's</i> RAM + swap (<a href="https://github.com/torvalds/linux/blob/v5.10/fs/proc/base.c#L549" target="_blank" rel="noopener noreferrer">fs/proc/base.c lines 549 to 566</a>). Four processes in a 1 GiB container, the formula against the kernel's number <span class="meas">measured</span>:</p>
+<div class="tw"><table class="tbl-sm" id="vm-oom"></table></div>
+<p id="vm-oom-note" class="small"></p>
+<p class="small"><b>Try it</b> with up to three processes in one cgroup.</p>
+<p class="small">totalpages = the cgroup's limit plus allowed swap; <code>/proc/PID/oom_score</code> uses the machine's RAM + swap (<span id="oo-tot"></span>). Defaults: the measured run above.</p>
+<div class="pr" style="font-weight:600"><div></div><div>RSS (MiB)</div><div>oom_score_adj</div></div>
+<div id="oo-rows"></div>
+<div class="ctl"><label>cgroup memory.max (MiB) <input type="number" id="oo-lim" value="1024" min="64" max="1048576" step="64"></label><label>swap allowed (MiB) <input type="number" id="oo-sw" value="0" min="0" max="1048576" step="64"></label></div>
+<div class="tw"><table class="tbl-sm" id="oo-tbl"></table></div>
+<p class="small" id="oo-who"></p></div></details>
+<p><b>Kubernetes sets the adj for you</b> by quality-of-service class: Guaranteed -997, BestEffort 1000, Burstable <code>min(max(2, 1000 - (1000 &times; memoryRequestBytes) / machineMemoryCapacityBytes), 999)</code> (<a href="https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/" target="_blank" rel="noopener noreferrer">node-pressure eviction docs</a>). So when the <i>node</i> runs out, a pod with a small request relative to the node is killed first; when a <i>container</i> exceeds its own limit, its cgroup OOM kills inside it regardless. Requests, limits and the rest of cgroups v2 are the sibling <a href="https://app.notion.com/p/3f05c17b0d0d8156a841e4bf28f11293" target="_blank" rel="noopener noreferrer">Containers and isolation</a>'s.</p>
 <div class="co warn"><div class="t">What an OOM kill looks like</div>No Python exception, no traceback: SIGKILL cannot be caught. The shell says <code>Killed</code>; the exit code is 137 (128 + 9); Kubernetes reports <code>OOMKilled</code>; the kernel log has "Memory cgroup out of memory: Killed process" (<code>dmesg</code>, not readable in an unprivileged container); <code>memory.events</code> counts <code>oom_kill</code>. A Python <code>MemoryError</code> is a different event: an allocation the kernel refused (mode 2, an rlimit, a 32-bit limit), which the root's Debug lab sets side by side.</div>
 <p class="cmd">cat /sys/fs/cgroup/memory.{current,max,events}; grep -E '^(anon|file|shmem) ' /sys/fs/cgroup/memory.stat; cat /proc/PID/oom_score{,_adj}</p>
 </section>
 
 <section id="rd-s13">
-<h2>13. RSS, PSS, USS: three answers to "how much memory does it use?"</h2>
-<p><b>The problem.</b> Shared pages (libraries, the page cache of a mapped file, copy-on-write pages after fork) are resident for several processes at once. Adding up per-process numbers counts them several times. Three measures, all from <code>/proc/PID/smaps_rollup</code>:</p>
-<div class="mech"><div><b>RSS</b>resident set: every resident page mapped by the process, shared or not. Sums overcount.</div><div><b>PSS</b>proportional set: each page divided by the number of processes mapping it. Sums are right.</div><div><b>USS</b>unique set: Private_Clean + Private_Dirty, what you would get back by killing this one process.</div></div>
-<p><b>The running job, measured</b> while training (main process and its two fork-started DataLoader workers):</p>
-<div class="card"><div class="rd-chart" id="vm-pss"></div><p class="small mute" id="vm-pss-note"></p></div>
-<p>The workers' RSS of about 250 MiB each is nearly all <i>Shared_Dirty</i>: the parent's heap and the imported torch, inherited by fork and not yet written. Their USS, what each really adds, is under 9 MiB. Over an epoch, copy-on-write (section 7) is what turns Shared_Dirty into Private_Dirty, so watch USS per worker, not RSS. Which number a tool reports: <code>ps</code> and <code>top</code> show RSS; <code>smem</code> shows PSS and USS; container tools and Kubernetes read the cgroup (<code>memory.current</code>, which also includes page cache), which is a fourth answer.</p>
+<h2>13. VSZ, RSS, PSS, USS: four answers to "how much memory does it use?"</h2>
+<p>Shared pages (libraries, the page cache of a mapped file, copy-on-write pages after fork) are resident for several processes at once, so adding up per-process numbers counts them several times. Four measures, from <code>/proc/PID/status</code> and <code>/proc/PID/smaps_rollup</code>:</p>
+<div class="mech"><div><b>VSZ</b>virtual size: every mapped range, touched or not (section 1). Says nothing about memory.</div><div><b>RSS</b>resident set: every resident page mapped by the process, shared or not. Sums overcount.</div><div><b>PSS</b>proportional set: each page divided by the number of processes mapping it. Sums are right.</div><div><b>USS</b>unique set: Private_Clean + Private_Dirty, what you would get back by killing this one process.</div></div>
+<div class="card"><p class="ftitle">Three processes show 815 MiB of RSS but own 104 MiB: the workers' RSS is almost all inherited Shared_Dirty</p><div class="rd-chart" id="vm-pss"></div><p class="small mute" id="vm-pss-note"></p></div>
+<p>The running job, measured while training (main process and its two fork-started DataLoader workers): the workers' RSS of about 250 MiB each is nearly all <i>Shared_Dirty</i>, the parent's heap and the imported torch, inherited by fork and not yet written. Their USS, what each really adds, is under 9 MiB. Over an epoch, copy-on-write (section 7) turns Shared_Dirty into Private_Dirty, so watch USS per worker, not RSS. Which number a tool reports: <code>ps</code> and <code>top</code> show VSZ and RSS; <code>smem</code> shows PSS and USS; container tools and Kubernetes read the cgroup (<code>memory.current</code>, which also includes page cache), a fifth answer.</p>
 <p class="cmd">for p in $(pgrep -f train.py); do grep -E '^(Rss|Pss|Private)' /proc/$p/smaps_rollup; done; smem -P train.py</p>
 </section>
-
 <section id="rd-s14">
-<h2>14. NUMA: when some memory is farther away <span class="nrh">not run here</span></h2>
-<p>A server with two CPU sockets has memory attached to each; a CPU reaches its own node's memory faster than the other's (non-uniform memory access). This lab has one node (<code>numactl --hardware</code> reports none). The policies, from <a href="https://man7.org/linux/man-pages/man2/set_mempolicy.2.html" target="_blank" rel="noopener noreferrer">set_mempolicy(2)</a> and <a href="https://man7.org/linux/man-pages/man2/mbind.2.html" target="_blank" rel="noopener noreferrer">mbind(2)</a>:</p>
+<h2>14. In ML: the mechanisms put to work</h2>
+<p>Each recipe applies a section above; what is new here is the sizing and the alerting.</p>
+<div class="bets">
+<div class="bet"><h4>Datasets: map, do not load</h4><p class="small">One or a few large files (a NumPy array, Arrow, a packed binary with an index), <code>np.memmap</code>-ed as the running job does: workers share one page-cache copy and pay only faults. Shuffled access to a dataset larger than RAM wants <code>MADV_RANDOM</code> or <code>pread</code> (section 5); replace mapped files by write and rename (SIGBUS).</p></div>
+<div class="bet"><h4>DataLoader workers: keep the parent lean</h4><p class="small">Metadata in NumPy or Arrow, <code>gc.freeze()</code> before the iterator forks, USS per worker on the dashboard (sections 7, 13). Spawn or forkserver avoid the sharing at the cost of start-up: the root measured 0.021 s fork against 0.836 s spawn to the first batch.</p></div>
+<div class="bet"><h4>/dev/shm: size it and count it</h4><p class="small">Give the container <code>--shm-size</code> (or <code>--ipc=host</code>) of at least workers &times; prefetch factor &times; batch bytes, and remember it is charged to the memory limit and survives a killed process (section 12).</p></div>
+<div class="bet"><h4>Limits: log which one kills you</h4><p class="small">Log <code>memory.max</code>, <code>memory.events</code> and <code>memory.stat</code> from inside the job; exit code 137 with <code>oom_kill</code> incremented is the cgroup, not your code. Leave headroom for page cache and /dev/shm. If swap is allowed, alert on <code>memory.swap.current</code>: a swapping training job is a stalled one.</p></div>
+</div>
+<details class="dp"><summary><b>NUMA</b>: when some memory is farther away <span class="nrh">not run here</span></summary><div>
+<p class="small">A server with two CPU sockets has memory attached to each; a CPU reaches its own node's memory faster than the other's (non-uniform memory access). This lab has one node (<code>numactl --hardware</code> reports none). The policies, from <a href="https://man7.org/linux/man-pages/man2/set_mempolicy.2.html" target="_blank" rel="noopener noreferrer">set_mempolicy(2)</a> and <a href="https://man7.org/linux/man-pages/man2/mbind.2.html" target="_blank" rel="noopener noreferrer">mbind(2)</a>:</p>
 <div class="tw"><table class="tbl-sm"><thead><tr><th>Policy</th><th>Where pages go</th><th>Use</th></tr></thead><tbody>
 <tr><td>MPOL_DEFAULT (local)</td><td>the node of the CPU that first touches the page ("first touch")</td><td>the default; why the thread that initialises a buffer decides where it lives</td></tr>
 <tr><td>MPOL_BIND</td><td>only the given nodes</td><td><code>numactl --membind</code>; strict, can OOM while another node is free</td></tr>
 <tr><td>MPOL_PREFERRED</td><td>the given node if possible</td><td>soft placement</td></tr>
 <tr><td>MPOL_INTERLEAVE</td><td>round-robin over nodes, page by page</td><td>big shared tables read from all sockets</td></tr>
 </tbody></table></div>
-<p><b>Automatic NUMA balancing</b> (<code>kernel.numa_balancing</code>) periodically makes pages inaccessible so the next access faults (<code>do_numa_page</code>, the <code>pte_protnone</code> branch in <a href="https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L4380" target="_blank" rel="noopener noreferrer">handle_pte_fault, line 4380</a>), notes which node touched it, and migrates pages or tasks to match; each migration is a TLB shootdown (section 3) (<a href="https://docs.kernel.org/admin-guide/sysctl/kernel.html#numa-balancing" target="_blank" rel="noopener noreferrer">sysctl kernel docs, numa_balancing</a>). Cgroups restrict nodes with <code>cpuset.mems</code>.</p>
-<p><b>In ML.</b> Each GPU hangs off one socket's PCIe; <code>nvidia-smi topo -m</code> prints each GPU's CPU and NUMA affinity. A data loader and pinned buffers on the other socket send every batch across the inter-socket link. Launch per-GPU processes with matching <code>numactl --cpunodebind=N --membind=N</code> (or the launcher's affinity options). Hardware detail lives in <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a>; CPU pinning in <a href="https://app.notion.com/p/3f05c17b0d0d81ed9c18cc47c6bfdf76" target="_blank" rel="noopener noreferrer">Scheduling and CPU time</a>.</p>
-<p class="cmd">numactl --hardware; numastat -p PID; cat /proc/PID/numa_maps | head</p>
+<p class="small"><b>Automatic NUMA balancing</b> (<code>kernel.numa_balancing</code>) periodically makes pages inaccessible so the next access faults (<code>do_numa_page</code>, the <code>pte_protnone</code> branch in <a href="https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L4380" target="_blank" rel="noopener noreferrer">handle_pte_fault, line 4380</a>), notes which node touched it, and migrates pages or tasks to match; each migration is a TLB shootdown (section 3) (<a href="https://docs.kernel.org/admin-guide/sysctl/kernel.html#numa-balancing" target="_blank" rel="noopener noreferrer">sysctl kernel docs, numa_balancing</a>). Cgroups restrict nodes with <code>cpuset.mems</code>.</p>
+<p class="small"><b>In ML.</b> Each GPU hangs off one socket's PCIe; <code>nvidia-smi topo -m</code> prints each GPU's CPU and NUMA affinity. A data loader and pinned buffers on the other socket send every batch across the inter-socket link. Launch per-GPU processes with matching <code>numactl --cpunodebind=N --membind=N</code> (or the launcher's affinity options). Hardware detail lives in <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a> (memory tiers in <a href="https://app.notion.com/p/3f05c17b0d0d818ab063e327e3d7009f" target="_blank" rel="noopener noreferrer">Memory technology</a>); CPU pinning in <a href="https://app.notion.com/p/3f05c17b0d0d81ed9c18cc47c6bfdf76" target="_blank" rel="noopener noreferrer">Scheduling and CPU time</a>.</p>
+<p class="cmd">numactl --hardware; numastat -p PID; cat /proc/PID/numa_maps | head</p></div></details>
 </section>
-<section id="rd-s15">
-<h2>15. ML recipes: the mechanisms put to work</h2>
-<div class="bets">
-<div class="bet"><h4>Datasets: map, do not load</h4><p class="small">Store samples in one or a few large files (a NumPy array, Arrow, a packed binary with an index) and <code>np.memmap</code> them, as the running job does. Workers then share one page-cache copy and pay only faults. For shuffled access to a dataset larger than RAM, prefer <code>MADV_RANDOM</code> or <code>pread</code> per sample (section 5); for sequential shards, the default read-around. Never replace a mapped file in place (SIGBUS); write and rename.</p></div>
-<div class="bet"><h4>Weights: safetensors or mmap=True</h4><p class="small">Loading returns in milliseconds and many processes share one copy; the first forward pass pays the faults. Read only your shard with <code>safe_open</code>. Converting dtype or moving to GPU creates private copies: drop the CPU tensors afterwards.</p></div>
-<div class="bet"><h4>DataLoader workers: keep the parent lean</h4><p class="small">Fork-started workers share the parent copy-on-write, and Python's reference counts and GC copy whatever they touch. Hold metadata in NumPy or Arrow, not lists of objects; call <code>gc.freeze()</code> before creating the iterator; watch USS per worker (section 13). Spawn or forkserver avoid the sharing altogether at the cost of start-up time (the root measured 0.021 s fork against 0.836 s spawn to the first batch).</p></div>
-<div class="bet"><h4>/dev/shm: size it and count it</h4><p class="small">Batches travel through shared memory: give the container <code>--shm-size</code> (or <code>--ipc=host</code>) of at least workers &times; prefetch factor &times; batch bytes, and remember it is charged to the memory limit and survives a killed process (section 12).</p></div>
-<div class="bet"><h4>Pinned memory: pin once, not too much</h4><p class="small"><code>pin_memory=True</code> plus <code>non_blocking=True</code> overlaps host-to-device copies with compute; raise <code>memlock</code> in containers; budget pinned bytes as unreclaimable (section 9).</p></div>
-<div class="bet"><h4>Limits: know which one kills you</h4><p class="small">Read <code>memory.max</code>, <code>memory.events</code> and <code>memory.stat</code> from inside the job and log them; an exit code 137 with <code>oom_kill</code> incremented is the cgroup, not your code. Leave headroom for page cache and /dev/shm. If swap is allowed, alert on <code>memory.swap.current</code>: a swapping training job is a stalled one.</p></div>
-</div>
-</section>
-
-<section id="rd-mist">
-<h2>Common mistakes</h2>
+<section id="rd-more">
+<h2>Mistakes and rehearsal</h2>
+<details class="dp"><summary><b>Common mistakes</b>, each with what was measured</summary><div>
 <details class="mist"><summary>"RSS says each worker uses 250 MiB, so 8 workers need 2 GB."</summary><div class="b">RSS counts shared pages in every process. Measured here: three processes, 815 MiB of RSS, 345 MiB of PSS, 104 MiB of USS. Use PSS for totals and USS for "what does one more worker cost".</div></details>
 <details class="mist"><summary>"The allocation succeeded, so the memory is there."</summary><div class="b">With overcommit (modes 0 and 1) an allocation is a promise; memory is taken at first touch, and the OOM killer settles any shortfall later, at a random-looking moment.</div></details>
 <details class="mist"><summary>"free shows almost no free memory: we have a leak."</summary><div class="b">Look at "available", not "free". The page cache fills idle RAM on purpose and is given back on demand.</div></details>
@@ -495,35 +543,15 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <details class="mist"><summary>"Huge pages always help."</summary><div class="b">They cut faults and TLB misses for dense memory, but bloat sparse memory (298x in the measurement here), can stall allocations on compaction, and do not reduce page-table memory in Linux.</div></details>
 <details class="mist"><summary>"Set oom_score_adj = -1000 on the trainer so it is never killed."</summary><div class="b">Inside a default container you cannot lower it (no <code>CAP_SYS_RESOURCE</code>), and if you could, the kernel would kill something else, perhaps the data loader or the node agent. Size the limit instead.</div></details>
 <details class="mist"><summary>"pin_memory() before every .to('cuda') makes copies faster."</summary><div class="b">Pinning is itself a copy; doing it per transfer is usually slower than letting CUDA stage the copy. Pin buffers you reuse (the DataLoader's pinning thread does this).</div></details>
-</section>
-
-<section id="rd-iq">
-<h2>Interview questions</h2>
+</div></details>
+<details class="dp"><summary><b>Interview rehearsal</b>: six questions with answers</summary><div>
 <details class="qa"><summary>Walk through what happens on the first write to a freshly malloc'd 1 GiB buffer.</summary><div>glibc serves it with an anonymous private <code>mmap</code>: a new VMA, no frames. The first store to each page misses the TLB; the hardware walk finds no valid entry; the CPU raises a fault; the kernel finds the VMA (writable, anonymous), allocates any missing table levels, takes a zeroed frame, writes the entry and resumes the store (<code>do_anonymous_page</code>). 262,144 such faults, about 1 us each here. With THP for the range, 512 faults of 2 MiB each. RSS grows as pages are touched, not at malloc.</div></details>
 <details class="qa"><summary>Why is fork fast even for a process using 50 GB, and when is it not?</summary><div>Fork copies page tables and marks private pages read-only; pages are copied lazily on write. The table copy is still proportional to resident memory: about 19 us per resident MiB measured here with 4 KiB pages (about 1 s for 50 GB), 30x less with huge pages. After fork, every page either side writes costs a fault and a 4 KiB copy, which is where DataLoader worker memory comes from.</div></details>
 <details class="qa"><summary>What is a TLB shootdown and why can munmap be expensive in a multi-threaded program?</summary><div>Removing or changing a mapping requires every CPU that may cache the old translation to drop it. x86 interrupts each such CPU and waits; arm64 broadcasts a TLBI instruction. Measured here on arm64, an mprotect that must flush cost about 1.9 us regardless of how many other threads ran, against 0.65 us when nothing was cached.</div></details>
 <details class="qa"><summary>Explain RSS, PSS and USS, and which one you would alert on for a fleet of identical workers.</summary><div>RSS counts all resident mapped pages, PSS divides shared pages among sharers, USS counts private pages only. Alert on USS growth per worker (copy-on-write and leaks show there) and on the cgroup's <code>memory.current</code> minus reclaimable cache for the pod as a whole.</div></details>
 <details class="qa"><summary>A training pod dies with exit code 137 and no traceback. How do you confirm the cause and fix it?</summary><div>137 = 128 + SIGKILL. Check <code>memory.events</code> (oom_kill), Kubernetes' <code>OOMKilled</code> reason, or the kernel log. Then find what grew: <code>memory.stat</code> anon vs file vs shmem (DataLoader shared memory counts), worker USS (copy-on-write), pinned memory. Fix the growth or raise the limit; do not rely on swap.</div></details>
 <details class="qa"><summary>Why does mmap'ing model weights let 8 server processes share memory, and what breaks the sharing?</summary><div>All map the same page-cache pages of the file (MAP_SHARED or read-only private), so RAM holds one copy. Any write to a private mapping, a dtype conversion, or a copy into a new tensor creates private anonymous pages per process.</div></details>
-</section>
-
-<section id="rd-gl">
-<h2>Glossary</h2>
-<div class="gl">
-<div><b><a href="#g-as">address space</a></b>: a process's private range of virtual addresses</div>
-<div><b><a href="#g-vma">VMA</a></b>: one mapping, a line of /proc/PID/maps</div>
-<div><b><a href="#g-page">page</a></b> / <b><a href="#g-frame">frame</a></b>: 4 KiB unit of virtual / physical memory</div>
-<div><b><a href="#g-pt">page table</a></b>: the per-process tree from virtual pages to frames</div>
-<div><b><a href="#g-tlb">TLB</a></b>: CPU cache of translations; <b><a href="#g-reach">reach</a></b> = entries x page size</div>
-<div><b><a href="#g-asid">ASID / PCID</a></b>: tag that lets TLB entries of many processes coexist</div>
-<div><b><a href="#g-shoot">TLB shootdown</a></b>: invalidating a translation on all CPUs</div>
-<div><b><a href="#g-fault">page fault</a></b>: trap on access to a page with no valid entry; <b><a href="#g-minor">minor</a></b> / <b><a href="#g-major">major</a></b></div>
-<div><b><a href="#g-pagecache">page cache</a></b>: file data cached in RAM</div>
-<div><b><a href="#g-wmark">watermarks</a></b>, <b><a href="#g-direct">direct reclaim</a></b>: when the kernel frees memory, and who pays</div>
-<div><b><a href="#g-thp">THP</a></b> / <b><a href="#g-hugetlb">hugetlbfs</a></b>: automatic / reserved huge pages</div>
-<div><b><a href="#g-dma">DMA</a></b>, <b><a href="#g-pin">pinning</a></b>: device copies, and pages that may not move</div>
-<div><b><a href="#g-swap">swap</a></b>: disk space for anonymous pages</div>
-</div>
+</div></details>
 </section>
 </div>
 <div class="tab" id="t-addr" role="tabpanel" hidden>
@@ -550,52 +578,15 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div class="tw"><table class="tbl-sm" id="ad-reach"></table></div>
 <p class="small mute" id="ad-chk"></p>
 </div>
-<div class="tab" id="t-cg" role="tabpanel" hidden>
-<style>
-#t-cg h2{font-size:18px;margin:18px 0 6px}
-#t-cg .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}#t-cg .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-cg .an-play{min-width:6.4em}
-#t-cg .an-cap{min-height:4.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}#t-cg .an-cap .t{font-weight:600;font-size:14px}#t-cg .an-cap p{margin:2px 0;font-size:13.5px}
-#t-cg .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:6px;margin:6px 0}#t-cg .an-cnt .stat .v{font-size:15px}
-#t-cg .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-cg .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}#t-cg .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
-#t-cg .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}#t-cg .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
-#t-cg .cmd{font:11.5px/1.4 ui-monospace,Menlo,monospace;color:var(--mute);margin:6px 0 0;overflow-wrap:anywhere}
-#t-cg .marks{font-size:13px;margin:6px 0;padding-left:20px}#t-cg .marks li.on{font-weight:600;color:var(--acc)}#t-cg .marks li.past{color:var(--ink)}#t-cg .marks li{color:var(--mute)}
-#t-cg .pr{display:grid;grid-template-columns:minmax(0,7em) repeat(2,minmax(0,1fr));gap:6px 10px;align-items:center;font-size:13px;margin:6px 0}
-#t-cg .pr input[type=number]{width:100%;min-width:0}
-</style>
-<p>Four real runs of a container with a 512 MiB memory limit, sampled every 25 ms from inside the container (<code>memory.current</code>, <code>memory.stat</code>, <code>memory.swap.current</code>, <code>memory.events</code>), replayed at their real pace. Each scenario starts from the same empty container; compare what fills the limit and what happens when it is reached. Scripts: <code>src/exp/cg_replay.sh</code>, <code>sampler.py</code>; raw samples: <code>src/raw/cg_*.txt</code>.</p>
-<h2>1. Replay a container reaching its memory limit</h2>
-<div class="card" id="cg-card">
-<div class="seg" id="cg-mode"></div>
-<div class="leg" id="cg-leg"></div>
-<div id="cg-svg" style="width:100%;overflow:hidden"></div>
-<div class="an-cap" id="cg-cap"></div>
-<div class="an-ctl" id="cg-ctl"></div>
-<div class="an-cnt" id="cg-cnt"></div>
-<ol class="marks" id="cg-marks"></ol>
-<p class="cmd" id="cg-cmd"></p>
-</div>
-<div class="try"><b>Try:</b> "Page cache only" and "Grow until killed" both reach the line, but only one dies: watch the file area shrink to make room for anonymous memory in the second. Then "/dev/shm": after the kill the shmem area stays, because a file in /dev/shm belongs to no process.</div>
-<h2>2. Who the OOM killer picks: the formula, live</h2>
-<p class="small">Set up to three processes in one cgroup. The score is Linux 5.10's <code>oom_badness</code>: rss + swap + page tables (pages) + oom_score_adj &times; &lfloor;totalpages / 1000&rfloor;, where totalpages is the cgroup's limit plus allowed swap; <code>/proc/PID/oom_score</code> instead uses the whole machine's RAM + swap (<span id="oo-tot"></span>). Defaults: the measured run of the Reading tab's section 12, whose oom_score values this formula reproduces exactly.</p>
-<div class="card">
-<div class="pr" style="font-weight:600"><div></div><div>RSS (MiB)</div><div>oom_score_adj</div></div>
-<div id="oo-rows"></div>
-<div class="ctl"><label>cgroup memory.max (MiB) <input type="number" id="oo-lim" value="1024" min="64" max="1048576" step="64"></label><label>swap allowed (MiB) <input type="number" id="oo-sw" value="0" min="0" max="1048576" step="64"></label></div>
-<div class="tw"><table class="tbl-sm" id="oo-tbl"></table></div>
-<p class="small" id="oo-who"></p>
-</div>
-</div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <style>
 #t-more h3{font-size:15px;margin:20px 0 6px}#t-more .sp{margin:0}#t-more .grid{margin:6px 0 4px}
 #t-more .rt{color:var(--mute);font-size:12.5px}#t-more .when{display:block;color:var(--mute);font-size:12.5px;margin-top:3px}
 </style>
 <p class="small mute">Links checked on 5 October 2026. Times are estimates for the part worth reading. Suggested order: this page's Reading tab with OSTEP chapters 18 to 23 beside it; the root's OS simulators for the homework; then Gorman's book or the kernel docs for whichever mechanism you are debugging.</p>
-<h3>This page's other tabs</h3>
+<h3>This page's other tab</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-addr">Address translator</a> <span class="rt">10 min</span></div><p>Cut any address into page-table indices on five real configurations; size page tables and TLB reach for a footprint.<span class="when">After sections 2 and 3.</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-cg">Memory replay</a> <span class="rt">10 min</span></div><p>Four measured runs of a container at its memory limit (page cache, OOM kill, swap, /dev/shm), and the OOM killer's formula, live.<span class="when">After sections 11 and 12.</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-addr">Address translator</a> <span class="rt">10 min</span></div><p>Cut any address into page-table indices on five real configurations; size page tables and TLB reach for a footprint.<span class="when">After sections 2 and 3. (The four cgroup replays and the OOM formula, once a tab here, are now in section 12.)</span></p></div>
 </div>
 <h3>The parent page and its tabs</h3>
 <div class="grid">
@@ -621,10 +612,12 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Topic: pytorch-ecosystem</a></div><p>DataLoader, pinned memory and loading checkpoints in context.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a> and <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a></div><p>Where host memory, pinned buffers and OOM kills meet real clusters.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a></div><p>Caches, TLBs, memory channels and NUMA from the hardware side.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d818ab063e327e3d7009f" target="_blank" rel="noopener noreferrer">Memory technology</a></div><p>DRAM, HBM and the memory tiers underneath the frames on this page.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a></div><p>Section 8: pinned, mapped and managed memory from the CUDA programmer's side, with prefetching.</p></div>
 </div>
 <h3>Books and chapters</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://pages.cs.wisc.edu/~remzi/OSTEP/" target="_blank" rel="noopener noreferrer">OSTEP</a>, virtualization of memory <span class="rt">free; 20 to 40 min per chapter</span></div><p><a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-intro.pdf" target="_blank" rel="noopener noreferrer">ch. 13 Address spaces</a>, <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-tlbs.pdf" target="_blank" rel="noopener noreferrer">ch. 19 TLBs</a>, <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-smalltables.pdf" target="_blank" rel="noopener noreferrer">ch. 20 Smaller tables</a>, <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys-policy.pdf" target="_blank" rel="noopener noreferrer">ch. 22 Policies</a>, <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-complete.pdf" target="_blank" rel="noopener noreferrer">ch. 23 Complete VM systems</a>.<span class="when">The chapter map is in the Reading tab's first section.</span></p></div>
+<div class="sp"><div class="n"><a href="https://pages.cs.wisc.edu/~remzi/OSTEP/" target="_blank" rel="noopener noreferrer">OSTEP</a>, virtualization of memory <span class="rt">free; 20 to 40 min per chapter</span></div><p><a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-intro.pdf" target="_blank" rel="noopener noreferrer">ch. 13 Address spaces</a>, <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-tlbs.pdf" target="_blank" rel="noopener noreferrer">ch. 19 TLBs</a>, <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-smalltables.pdf" target="_blank" rel="noopener noreferrer">ch. 20 Smaller tables</a>, <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys-policy.pdf" target="_blank" rel="noopener noreferrer">ch. 22 Policies</a>, <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-complete.pdf" target="_blank" rel="noopener noreferrer">ch. 23 Complete VM systems</a>.<span class="when">The chapter map is in a closed block at the top of the Reading tab.</span></p></div>
 <div class="sp"><div class="n"><a href="https://www.kernel.org/doc/gorman/html/understand/" target="_blank" rel="noopener noreferrer">Understanding the Linux Virtual Memory Manager</a> (Mel Gorman) <span class="rt">free; 2 to 4 h for the core chapters</span></div><p>The classic walk through Linux's VM code. Written for 2.4/2.6, so names changed, but page tables, the page cache, reclaim and swap are explained as nowhere else.</p></div>
 <div class="sp"><div class="n"><a href="https://people.freebsd.org/~lstewart/articles/cpumemory.pdf" target="_blank" rel="noopener noreferrer">What Every Programmer Should Know About Memory</a> (Ulrich Drepper, 2007) <span class="rt">2 h for sections 3 and 4</span></div><p>Caches and the TLB from the hardware up, with measurements; section 4 is virtual memory.</p></div>
 <div class="sp"><div class="n"><a href="https://www.brendangregg.com/systems-performance-2nd-edition-book.html" target="_blank" rel="noopener noreferrer">Systems Performance, 2nd ed.</a> (Brendan Gregg), chapter 7 Memory <span class="rt">1.5 h</span></div><p>How to observe everything on this page in production: tools, methodology, pitfalls.</p></div>
@@ -645,9 +638,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab: shared helpers, copied from Topic: operating-systems and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -678,7 +671,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -766,7 +759,7 @@ window.VMADDR=(function(){
   const T=D.root_maps.totals,names={anon:'anonymous (allocators, 1 GiB reservation)',anon_res:'anonymous, resident-heavy',torch:'torch libraries (.so)',heap:'[heap] (brk)',numpy:'numpy libraries',clib:'C libraries',dataset:'dataset file (mmap)',exe:'python3.11 executable',pyext:'Python extension modules',file:'other files',stack:'[stack]',shm:'/dev/shm (batches, semaphores)',vdso:'[vdso] [vvar]'};
   const as=Object.keys(T).map(k=>({k,n:names[k]||k,cnt:T[k][0],kb:T[k][1]})).sort((a,b)=>b.kb-a.kb);
   bars('vm-as',as.map((r,i)=>({n:r.n,v:r.kb,c:'var(--c'+(1+i%6)+')',t:(r.kb>=10240?fmt(r.kb/1024)+' MiB':fmt(r.kb)+' KiB')})),{log:true,lo:8,cap:'Address space by kind of mapping (sum of VMA sizes, log scale). Reserved, not necessarily resident.'});
-  set('vm-as-note',D.root_maps.n+' VMAs in the main process; total '+fmt(as.reduce((s,r)=>s+r.kb,0)/1024)+' MiB of address space. Counts per kind: '+as.map(r=>r.k+' '+r.cnt).join(', ')+'.');
+  set('vm-as-note',D.root_maps.n+' VMAs in the main process, '+fmt(as.reduce((s,r)=>s+r.kb,0)/1024)+' MiB of address space in total.');{const e=$('vm-as-cnt');if(e)e.textContent='VMAs per kind: '+as.map(r=>r.k+' '+r.cnt).join(', ')+'.';}
   { const e=$('vm-maps');if(e)e.textContent=D.root_maps.sample.filter((l,i)=>i<10||/stack|vvar/.test(l)).join('\n'); }
 
   // section 2: the bit split of the dataset address, arm64 4 KiB
@@ -823,8 +816,8 @@ window.VMADDR=(function(){
   const CG=D.cg,mib=k=>fmt(k/1024);
   const peak=(s,i)=>Math.max(...CG[s].samples.map(x=>x[i]));
   const sc=[['pagecache','Write then read a 768 MiB file','page cache filled to the limit and was recycled'],['anon_oom','A process grows 32 MiB at a time, no swap','page cache dropped first, then the process was killed'],['swap','A process needs 640 MiB, swap allowed','alive, ~'+mib((a=>a[a.length>>1])(CG.swap.samples.filter(x=>x[2]>300*1024).map(x=>x[5]).sort((p,q)=>p-q)))+' MiB in swap (median while walking), passes of 4 to 5 s'],['shm','320 MiB in /dev/shm, then a 320 MiB process','killed; the /dev/shm file outlived it']];
-  { const e=$('vm-cgsum');if(e)e.innerHTML='<thead><tr><th>Run</th><th class="num">peak anon</th><th class="num">peak file</th><th class="num">max events</th><th class="num">oom_kill</th><th>Outcome</th></tr></thead><tbody>'+sc.map(r=>'<tr><td><a href="#" data-tab="t-cg" data-sc="'+r[0]+'">'+r[1]+'</a></td><td class="num">'+mib(peak(r[0],2))+' MiB</td><td class="num">'+mib(peak(r[0],3))+' MiB</td><td class="num">'+fmt(CG[r[0]].events.max)+'</td><td class="num">'+CG[r[0]].events.oom_kill+'</td><td>'+r[2]+'</td></tr>').join('')+'</tbody>';
-    if(e)e.addEventListener('click',ev=>{const a=ev.target.closest('a[data-sc]');if(!a)return;ev.preventDefault();if(window.VMCG)VMCG.pick(a.dataset.sc);const b=document.querySelector('#tabs button[data-t="t-cg"]');if(b){b.click();$('tabs').scrollIntoView({block:'start'})}}); }
+  { const e=$('vm-cgsum');if(e)e.innerHTML='<thead><tr><th>Run</th><th class="num">peak anon</th><th class="num">peak file</th><th class="num">max events</th><th class="num">oom_kill</th><th>Outcome</th></tr></thead><tbody>'+sc.map(r=>'<tr><td><a href="#cg-card" data-sc="'+r[0]+'">'+r[1]+'</a></td><td class="num">'+mib(peak(r[0],2))+' MiB</td><td class="num">'+mib(peak(r[0],3))+' MiB</td><td class="num">'+fmt(CG[r[0]].events.max)+'</td><td class="num">'+CG[r[0]].events.oom_kill+'</td><td>'+r[2]+'</td></tr>').join('')+'</tbody>';
+    if(e)e.addEventListener('click',ev=>{const a=ev.target.closest('a[data-sc]');if(!a)return;ev.preventDefault();if(window.VMCG)VMCG.pick(a.dataset.sc);const c=$('cg-card');if(c)c.scrollIntoView({block:'start'})}); }
   const O=D.oom,tot=Math.floor(O.memtotal_kb/4)+Math.floor(O.swaptotal_kb/4);
   const memcgTot=262144;
   { const e=$('vm-oom');if(e)e.innerHTML='<thead><tr><th>Process</th><th class="num">rss pages</th><th class="num">page tables</th><th class="num">adj</th><th class="num">formula</th><th class="num">kernel</th><th class="num">points in the 1 GiB cgroup OOM</th></tr></thead><tbody>'+O.procs.map((p,i)=>{
@@ -893,7 +886,7 @@ window.VMADDR=(function(){
     const done=j>=last;
     $('vm-flt-cnt').innerHTML=RD.stat('Minor faults',done?c.minor:0,'')+RD.stat('Major faults',done?c.major:0,'')+RD.stat('RSS added',done?c.rss+' KiB':'0 KiB',cur==='file_w'||cur==='file_c'?'fault-around maps 16 pages':'')+RD.stat('Measured cost',c.us?fmt(c.us,c.us<10?2:0)+' us per fault':'n/a',c.src);}
   const an=RD.anim({card:'vm-flt-card',ctl:'vm-flt-ctl',n:STEPS.length,draw,ms:1700,label:'Fault step'});
-  RD.seg($('vm-flt-mode'),m=>{cur=m;an.reset(m==='segv'?4:STEPS.length);an.play()});
+  RD.seg($('vm-flt-mode'),m=>{cur=m;an.reset(m==='segv'?4:STEPS.length)});
 })();
 </script>
 <script>/* 25_js_rd_huge.js */
@@ -962,6 +955,254 @@ document.querySelectorAll('#t-read .drill').forEach(d=>{
   }));
 });
 </script>
+<script>/* 27_js_rd_cg.js */
+// ---- Reading section 12: four measured cgroup runs, replayed (moved from the old Memory replay tab); and the oom_badness calculator ----
+(function(){
+  const $=id=>document.getElementById(id);if(!$('cg-card'))return;
+  const D=window.VM_DATA,CG=D.cg,esc=RD.esc;
+  const fmt=(x,d)=>Number(x).toLocaleString('en-US',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});
+  const SC=[['pagecache','Page cache only','A 768 MiB file is written, then read twice, in a 512 MiB container without swap.'],
+    ['anon_oom','Grow until killed','A 256 MiB file is cached, then a process allocates 32 MiB every 0.15 s; no swap.'],
+    ['swap','Swap allowed','A process allocates 640 MiB in 64 MiB steps and then walks it 3 times; 512 MiB of swap allowed.'],
+    ['shm','/dev/shm counts','320 MiB is written to /dev/shm (as DataLoader workers do), then a process allocates 320 MiB; no swap.']];
+  let cur='pagecache';
+  $('cg-mode').innerHTML=SC.map(s=>'<button data-m="'+s[0]+'"'+(s[0]===cur?' class="on"':'')+'>'+s[1]+'</button>').join('');
+  const COL={anon:'var(--c3)',file:'var(--c1)',shmem:'var(--c4)',swap:'var(--c5)'};
+  $('cg-leg').innerHTML='<span style="--sw:var(--c3)">anon</span><span style="--sw:var(--c1)">file (page cache)</span><span style="--sw:var(--c4)">shmem (/dev/shm)</span><span style="--sw:var(--c5)">swap (dashed line)</span><span style="--sw:var(--bad)">memory.max</span>';
+  const LIM=512*1024;
+  function chart(i){const d=CG[cur],S=d.samples,W=Math.max(280,Math.min(880,$('cg-svg').clientWidth||600)),Hh=W<500?200:240,pl=40,pr=8,pt=8,pb=24;
+    const tmax=S[S.length-1][0],ymax=Math.max(LIM,...S.map(s=>s[1]),...S.map(s=>s[5]))*1.08;
+    const x=t=>pl+(W-pl-pr)*t/tmax,y=v=>pt+(Hh-pt-pb)*(1-v/ymax);
+    const area=(lo,hi,c)=>{let p='M'+x(S[0][0])+','+y(hi(S[0]));S.forEach(s=>p+='L'+x(s[0]).toFixed(1)+','+y(hi(s)).toFixed(1));for(let k=S.length-1;k>=0;k--)p+='L'+x(S[k][0]).toFixed(1)+','+y(lo(S[k])).toFixed(1);return '<path d="'+p+'Z" fill="'+c+'" opacity=".75"/>'};
+    const A=s=>s[2],Fo=s=>s[2]+s[3]-s[4],Sh=s=>s[2]+s[3];
+    let b='';for(let v=0;v<=ymax;v+=128*1024){b+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(pl-4,y(v)+4,(v/1024)+'',{a:'end',fs:10,fill:'var(--mute)'})}
+    b+=RD.t(4,pt+8,'MiB',{fs:10,fill:'var(--mute)'});
+    for(let t=0;t<=tmax;t+=(tmax>8000?2000:500))b+=RD.t(x(t),Hh-8,(t/1000)+' s',{a:'middle',fs:10,fill:'var(--mute)'});
+    b+=area(()=>0,A,COL.anon)+area(A,Fo,COL.file)+area(Fo,Sh,COL.shmem);
+    b+='<path d="'+S.map((s,k)=>(k?'L':'M')+x(s[0]).toFixed(1)+','+y(s[5]).toFixed(1)).join('')+'" fill="none" stroke="var(--c5)" stroke-width="2" stroke-dasharray="5 3"/>';
+    b+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(LIM)+'" y2="'+y(LIM)+'" stroke="var(--bad)" stroke-width="1.5"/>'+RD.t(W-pr-2,y(LIM)-4,'memory.max 512 MiB',{a:'end',fs:10,fill:'var(--bad)'});
+    d.marks.forEach(m=>{if(m[0]<=tmax)b+='<line x1="'+x(m[0])+'" x2="'+x(m[0])+'" y1="'+pt+'" y2="'+(Hh-pb)+'" stroke="var(--mute)" stroke-dasharray="2 3"/>'});
+    const s=S[i];b+='<line x1="'+x(s[0])+'" x2="'+x(s[0])+'" y1="'+pt+'" y2="'+(Hh-pb)+'" stroke="var(--ink)" stroke-width="1.5"/>';
+    $('cg-svg').innerHTML=RD.svg(W,Hh,b,'memory of the container over time');}
+  function draw(i){const d=CG[cur],S=d.samples;i=Math.min(i,S.length-1);chart(i);const s=S[i];
+    const mi=d.marks.filter(m=>m[0]<=s[0]).length-1;
+    $('cg-marks').innerHTML=d.marks.map((m,k)=>'<li class="'+(k===mi?'on':(k<mi?'past':''))+'">'+(m[0]/1000).toFixed(1)+' s: '+esc(m[1])+'</li>').join('');
+    const sc=SC.find(x=>x[0]===cur);
+    $('cg-cap').innerHTML='<div class="t">'+sc[1]+' at '+(s[0]/1000).toFixed(2)+' s</div><p>'+sc[2]+(i===S.length-1&&d.log.length?' <b>Final:</b> '+d.log.map(esc).join('; ')+'.':'')+'</p>';
+    const k=v=>fmt(v/1024)+' MiB';
+    $('cg-cnt').innerHTML=RD.stat('memory.current',k(s[1]),'')+RD.stat('anon',k(s[2]),'')+RD.stat('file (incl. shmem)',k(s[3]),'shmem '+k(s[4]))+RD.stat('swap',k(s[5]),'')+RD.stat('max events',fmt(s[6]),'reclaim forced by the limit')+RD.stat('oom_kill',s[7],s[7]?'a process was SIGKILLed':'');
+    $('cg-cmd').textContent=d.cmd;}
+  const an=RD.anim({card:'cg-card',ctl:'cg-ctl',n:CG[cur].samples.length,draw,ms:110,label:'Sample'});
+  RD.seg($('cg-mode'),m=>{cur=m;an.reset(CG[cur].samples.length)});
+  window.VMCG={pick(m){cur=m;$('cg-mode').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));an.reset(CG[cur].samples.length)}};
+  RD.onRender(()=>{an.redraw();oo()});
+  RD.onResize(()=>an.redraw());
+
+  // oom_badness calculator
+  const O=D.oom,TOT=Math.floor(O.memtotal_kb/4)+Math.floor(O.swaptotal_kb/4);
+  $('oo-tot').textContent='MemTotal '+fmt(O.memtotal_kb)+' KiB + SwapTotal '+fmt(O.swaptotal_kb)+' KiB = '+fmt(TOT)+' pages';
+  const def=O.procs.slice(0,3).map(p=>({rss:p.rss_pages,pte:p.vmpte_kb,adj:p.oom_score_adj,ker:p.oom_score}));
+  $('oo-rows').innerHTML=def.map((p,i)=>'<div class="pr"><div>'+'ABC'[i]+'</div><input type="number" id="oo-r'+i+'" value="'+(p.rss*4/1024).toFixed(3)+'" min="0" step="any" aria-label="RSS of '+'ABC'[i]+'"><input type="number" id="oo-a'+i+'" value="'+p.adj+'" min="-1000" max="1000" step="100" aria-label="oom_score_adj of '+'ABC'[i]+'"></div>').join('');
+  function oo(){const lim=Math.max(1,+$('oo-lim').value||0),sw=Math.max(0,+$('oo-sw').value||0),tot=Math.floor((lim+Math.min(sw,O.swaptotal_kb/1024))*256);
+    const rows=def.map((p,i)=>{const mibv=+$('oo-r'+i).value||0,rss=Math.round(mibv*256),adj=Math.max(-1000,Math.min(1000,Math.round(+$('oo-a'+i).value||0)));
+      const pt=Math.floor(p.pte*1024/4096),base=rss+pt,unk=adj===-1000;
+      const cg=unk?null:base+adj*Math.floor(tot/1000),mach=unk?0:Math.floor((1000+Math.floor((base+adj*Math.floor(TOT/1000))*1000/TOT))*2/3);
+      const same=Math.abs(rss-p.rss)<=1&&adj===p.adj;
+      return {n:'ABC'[i],rss,pt,adj,cg,mach,ker:same?p.ker:null}});
+    const alive=rows.filter(r=>r.cg!==null&&r.rss>0),win=alive.length?alive.reduce((a,b)=>b.cg>a.cg?b:a):null;
+    $('oo-tbl').innerHTML='<thead><tr><th>Process</th><th class="num">rss pages</th><th class="num">page-table pages</th><th class="num">adj</th><th class="num">points in this cgroup</th><th class="num">/proc oom_score</th><th class="num">kernel said</th></tr></thead><tbody>'+rows.map(r=>'<tr'+(win&&r===win?' style="background:var(--hl)"':'')+'><td>'+r.n+'</td><td class="num">'+fmt(r.rss)+'</td><td class="num">'+r.pt+'</td><td class="num">'+r.adj+'</td><td class="num">'+(r.cg===null?'never killed':fmt(r.cg))+'</td><td class="num">'+r.mach+'</td><td class="num">'+(r.ker===null?'':r.ker+(r.ker===r.mach?' <span class="pill ok">=</span>':' <span class="pill bad">!=</span>'))+'</td></tr>').join('')+'</tbody>';
+    $('oo-who').innerHTML='totalpages in this cgroup = ('+fmt(lim)+' + '+fmt(Math.min(sw,O.swaptotal_kb/1024))+') MiB = '+fmt(tot)+' pages, so each 100 of adj is worth '+fmt(100*Math.floor(tot/1000))+' pages ('+fmt(100*Math.floor(tot/1000)/256)+' MiB). '+(win?'<b>If this cgroup hits its limit, '+win.n+' is killed first.</b>':'Nothing can be killed.')+' Page tables are fixed at the measured values. "kernel said" appears while a row matches the measured run.';}
+  ['oo-lim','oo-sw',0,1,2].forEach(k=>{if(typeof k==='number'){$('oo-r'+k).addEventListener('input',oo);$('oo-a'+k).addEventListener('input',oo)}else $(k).addEventListener('input',oo)});
+  oo();
+})();
+</script>
+<script>/* 28_js_rd_cow.js */
+// ---- Section 7: fork and copy-on-write as a stepper. Four pages; costs in captions are this machine's measurements ----
+(function(){
+  const $=id=>document.getElementById(id),el=$('vm-cow-svg');if(!el)return;
+  const D=window.VM_DATA,fmt=(x,d)=>Number(x).toLocaleString('en-US',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});
+  const fk=(k,m)=>D.fork.find(x=>x.kind===k&&x.mib===m).us,perMiB=(fk('4k',1024)-fk('4k',0))/1024;
+  const G=D.cow_gc;
+  // state per step: parent entries [frame, writable], child entries or null, highlight
+  const P0=[['A',1],['B',1],['C',1],['D',1]];
+  const S=[
+    {t:'Before fork',c:'The parent maps four private pages, each writable, each in its own frame. Frames in use: 4.',p:P0,ch:null,hl:[]},
+    {t:'fork copies the tables',c:'The child gets a copy of the parent\'s page tables, not of the pages: both point at frames A to D, and every entry is now read-only in both processes. Measured cost: about '+fmt(perMiB)+' us per resident MiB with 4 KiB pages, the table copy.',p:[['A',0],['B',0],['C',0],['D',0]],ch:[['A',0],['B',0],['C',0],['D',0]],hl:['p0','p1','p2','p3','c0','c1','c2','c3']},
+    {t:'The child reads page 1',c:'A read through a read-only entry is allowed: no fault, no copy. In C that is the end of it. In Python, reading an object also writes its reference count, so it becomes a write (next step).',p:[['A',0],['B',0],['C',0],['D',0]],ch:[['A',0],['B',0],['C',0],['D',0]],hl:['c1']},
+    {t:'The child writes page 2',c:'The write hits a read-only entry in a writable mapping: a fault. do_wp_page sees frame C is shared, wp_page_copy copies it into a new frame C\' and the child\'s entry becomes writable. Measured: '+fmt(D.cow_write['4k'].ns_per_page)+' ns per page.',p:[['A',0],['B',0],['C',0],['D',0]],ch:[['A',0],['B',0],["C'",1],['D',0]],hl:['c2',"C'"]},
+    {t:'The parent writes page 2',c:'Frame C now has one user left, the parent, so the fault just makes the parent\'s entry writable again: no copy.',p:[['A',0],['B',0],['C',1],['D',0]],ch:[['A',0],['B',0],["C'",1],['D',0]],hl:['p2']},
+    {t:'The child runs gc.collect()',c:'Python\'s collector writes a counter into the header of every tracked object, so every page holding such objects is copied, read or not. Measured on one million lists: '+fmt(G.collect)+' pages copied; with gc.freeze() in the parent before fork, '+fmt(G.collect_frozen)+'.',p:[['A',0],['B',0],['C',1],['D',0]],ch:[["A'",1],["B'",1],["C'",1],["D'",1]],hl:['c0','c1','c3',"A'","B'","D'"]}];
+  const copies=[0,0,0,1,1,4],faults=[0,0,0,1,2,5];
+  function draw(i){const st=S[i],W=Math.min(860,RD.width(el)),nar=W<560,m=2;
+    const cw=nar?(W-2*m)*.29:(W-2*m)*.26,fx1=nar?(W-2*m)*.36:(W-2*m)*.36,fw=nar?(W-2*m)*.13:(W-2*m)*.11,fx2=fx1+fw+(nar?6:12),cx=W-m-cw;
+    const top=26,rh=nar?34:32,H=top+4*rh+14;
+    let b=RD.t(m,14,'parent page table',{fs:11,w:600,fill:'var(--ink)'})+RD.t(m+fx1,14,'frames',{fs:11,w:600,fill:'var(--ink)'})+(st.ch?RD.t(cx,14,'child page table',{fs:11,w:600,fill:'var(--ink)'}):'');
+    const frames=['A','B','C','D'],copiesF=["A'","B'","C'","D'"];
+    const used=new Set();st.p.forEach(e=>used.add(e[0]));(st.ch||[]).forEach(e=>used.add(e[0]));
+    const fy=k=>top+k*rh;
+    const hl=n=>st.hl.indexOf(n)>=0;
+    // frames
+    frames.forEach((f,k)=>{const shared=st.ch&&st.p[k][0]===f&&st.ch[k][0]===f;
+      b+='<rect x="'+(m+fx1).toFixed(1)+'" y="'+fy(k)+'" width="'+fw.toFixed(1)+'" height="'+(rh-8)+'" rx="3" fill="var(--c3)" fill-opacity=".2" stroke="var(--c3)"/>'+RD.t((m+fx1+fw/2).toFixed(1),fy(k)+(rh-8)/2+4,f+(shared?' x2':''),{a:'middle',fs:11,fill:'var(--ink)'})});
+    copiesF.forEach((f,k)=>{if(!used.has(f))return;
+      b+='<rect x="'+(m+fx2).toFixed(1)+'" y="'+fy(k)+'" width="'+fw.toFixed(1)+'" height="'+(rh-8)+'" rx="3" fill="var(--c2)" fill-opacity="'+(hl(f)?.45:.2)+'" stroke="'+(hl(f)?'var(--acc)':'var(--c2)')+'"'+(hl(f)?' stroke-width="2"':'')+'/>'+RD.t((m+fx2+fw/2).toFixed(1),fy(k)+(rh-8)/2+4,f,{a:'middle',fs:11,fill:'var(--ink)'})});
+    const ent=(x,k,e,id,side)=>{const h=hl(id);
+      let s='<rect x="'+x.toFixed(1)+'" y="'+fy(k)+'" width="'+cw.toFixed(1)+'" height="'+(rh-8)+'" rx="3" fill="'+(h?'var(--hl)':'var(--soft)')+'" stroke="'+(h?'var(--acc)':'var(--line)')+'"'+(h?' stroke-width="2"':'')+'/>';
+      s+=RD.t(x+6,fy(k)+(rh-8)/2+4,'page '+k+(nar?' ':'  ')+(e[1]?'rw':'r-'),{fs:11,fill:'var(--ink)'});
+      const isCopy=e[0].indexOf("'")>0,tx=isCopy?m+fx2+(side?fw:0):m+fx1+(side?fw:0);
+      const x1=side?x:x+cw;const ty=fy(k)+(rh-8)/2;
+      s+='<line x1="'+x1.toFixed(1)+'" y1="'+ty+'" x2="'+tx.toFixed(1)+'" y2="'+ty+'" stroke="'+(e[1]?'var(--c3)':'var(--mute)')+'" stroke-width="1.4"'+(e[1]?'':' stroke-dasharray="4 3"')+'/>';
+      return s};
+    st.p.forEach((e,k)=>{b+=ent(m,k,e,'p'+k,0)});
+    if(st.ch)st.ch.forEach((e,k)=>{
+      // child lines to original frames pass the copy column: route them above it
+      b+=ent(cx,k,e,'c'+k,1)});
+    b+=RD.t(m,H-2,'solid line: writable; dashed: read-only (a write faults)',{fs:10.5,fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,H,b,'Parent and child page tables pointing at shared and copied frames');
+    $('vm-cow-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+S.length+': '+st.t+'</div><p>'+st.c+'</p>';
+    $('vm-cow-cnt').innerHTML=RD.stat('Frames in use',String(used.size),'')+RD.stat('Pages copied',String(copies[i]),i===5?'measured: '+fmt(G.collect)+' on a real heap':'')+RD.stat('Copy-on-write faults',String(faults[i]),'');}
+  const an=RD.anim({card:'vm-cow-card',ctl:'vm-cow-ctl',n:S.length,draw,ms:1800,label:'Copy-on-write step'});
+  RD.onResize(()=>an.redraw());
+})();
+</script>
+<script>/* 28_js_rd_hero.js */
+// ---- Top of the Reading tab: the hero figure (static annotated diagram). Virtual ranges -> TLB and page tables -> frames -> disk ----
+(function(){
+  const el=document.getElementById('vm-hero');if(!el)return;
+  const R=(x,y,w,h,o)=>{o=o||{};return '<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+Math.max(1,w).toFixed(1)+'" height="'+h+'" rx="'+(o.rx==null?4:o.rx)+'" fill="'+(o.f||'none')+'"'+(o.op?' fill-opacity="'+o.op+'"':'')+' stroke="'+(o.s||'var(--line)')+'"'+(o.sw?' stroke-width="'+o.sw+'"':'')+(o.d?' stroke-dasharray="'+o.d+'"':'')+'/>'};
+  const T=(x,y,s,o)=>RD.t(x.toFixed(1),y,s,o);
+  const A=(x1,y1,x2,y2,o)=>{o=o||{};return '<line x1="'+x1.toFixed(1)+'" y1="'+y1+'" x2="'+x2.toFixed(1)+'" y2="'+y2+'" stroke="'+(o.s||'var(--mute)')+'" stroke-width="1.4"'+(o.d?' stroke-dasharray="'+o.d+'"':'')+' marker-end="url(#vmh-ar)"/>'};
+  function draw(){
+    const W=Math.min(860,RD.width(el)),nar=W<560,m=2,U=W-2*m,X=f=>m+U*f;
+    const fs=nar?11:12;
+    // virtual ranges: [name short, name long, from, to, kind]  kind: f file, a anonymous, s shared memory, r reserved untouched
+    const V=[['code .so','code (.so files)',0,.12,'f'],['dataset','dataset (mmap)',.15,.28,'f'],['shm','/dev/shm',.31,.42,'s'],['heap','heap (anon)',.45,.58,'a'],['stack','stack',.61,.72,'a'],['reserve','1 GiB reserve (untouched)',.75,1,'r']];
+    const COL={f:'var(--c1)',a:'var(--c3)',s:'var(--c4)',r:'var(--mute)'};
+    const yV=22,hV=30,yP=92,hP=34,yM=192,hM=32,yD=274,hD=28,H=yD+hD+4;
+    let b='<defs><marker id="vmh-ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L8,4L0,8z" fill="var(--mute)"/></marker></defs>';
+    b+=T(m,14,nar?'Virtual address space: mappings (VMAs, §1)':'Virtual address space of one process: its mappings (VMAs, §1), grouped by kind, not to scale',{fs,w:600,fill:'var(--ink)'});
+    V.forEach(v=>{const x=X(v[2]),w=X(v[3])-x;b+=R(x,yV,w,hV,{f:COL[v[4]],op:v[4]==='r'?.05:.22,s:COL[v[4]],d:v[4]==='r'?'4 3':null});
+      b+=T(x+w/2,yV+19,nar||w<110?v[0]:v[1],{a:'middle',fs:nar?10.5:11.5,fill:'var(--ink)'})});
+    // gaps between ranges
+    for(let i=0;i<V.length-1;i++){const x1=X(V[i][3]),x2=X(V[i+1][2]);b+='<line x1="'+(x1+2)+'" y1="'+(yV+hV/2)+'" x2="'+(x2-2)+'" y2="'+(yV+hV/2)+'" stroke="var(--dim)" stroke-dasharray="2 2"/>'}
+    // translation box: TLB then page tables
+    const tl=nar?.22:.16;
+    b+=R(X(0),yP,U,hP,{f:'var(--soft)',s:'var(--line)'})+'<line x1="'+X(tl)+'" y1="'+yP+'" x2="'+X(tl)+'" y2="'+(yP+hP)+'" stroke="var(--line)"/>';
+    b+=T(X(tl/2),yP+21,'TLB §3',{a:'middle',fs,w:600,fill:'var(--acc)'});
+    b+=T(X(tl+(1-tl)/2),yP+21,nar?'page tables, 4 levels §2, huge §8':'page-table tree, 4 levels (§2); a huge page is one entry for 2 MiB (§8)',{a:'middle',fs,fill:'var(--ink)'});
+    // arrows from each range into the translation box
+    V.forEach(v=>{const cx=X((v[2]+v[3])/2);b+=A(cx,yV+hV+2,cx,yP-2,{d:v[4]==='r'?'3 3':null})});
+    // physical memory
+    const M=[['cache','page cache §6','page cache: file and shm pages, one copy for all (§6)',0,.42,'var(--c1)'],['anon','anon §7 §9','anonymous: fork shares §7, pinned §9',.45,.745,'var(--c3)'],['zero','zero','zero page',.775,.87,'var(--mute)'],['free','free','free',.9,1,'var(--dim)']];
+    b+=T(m,yM-8,'Physical RAM: 4 KiB frames',{fs,w:600,fill:'var(--ink)'});
+    M.forEach(r=>{const x=X(r[3]),w=X(r[4])-x;b+=R(x,yM,w,hM,{f:r[5],op:.22,s:r[5]});b+=T(x+w/2,yM+20,nar||w<300?r[1]:r[2],{a:'middle',fs:nar?10.5:11,fill:'var(--ink)'})});
+    // cgroup charge around anon + page cache
+    b+=R(X(0)-1,yM-3,X(.745)-X(0)+2,hM+6,{s:'var(--bad)',d:'5 3',sw:1.3,rx:6});
+    b+=T(X(.775),yM+hM+16,nar?'dashed: cgroup':'dashed: charged to the cgroup',{fs:10.5,fill:'var(--bad)'})+T(X(.775),yM+hM+30,nar?'limit, OOM §12':'memory.max: reclaim, OOM §12',{fs:10.5,fill:'var(--bad)'});
+    // arrows from the tables to frames (first touch), labelled
+    const tx=(i)=>X((V[i][2]+V[i][3])/2);
+    const am=[[0,.08,''],[1,.2,'§5 no copy'],[2,.36,''],[3,.53,'§4 first write'],[4,.67,''],[5,.82,'§4 read']];
+    am.forEach(a=>{b+=A(tx(a[0]),yP+hP+2,X(a[1]),yM-16,{d:a[0]===5?'3 3':null});if(a[2]&&!(nar&&a[0]===5))b+=T((tx(a[0])+X(a[1]))/2+4,(yP+hP+yM-16)/2+4,a[2],{fs:10.5,fill:'var(--mute)'})});
+    // disk
+    b+=R(X(.45),yD,X(.745)-X(.45),hD,{f:'var(--c5)',op:.22,s:'var(--c5)'})+T(X(.5975),yD+18,nar?'swap §11':'swap device (§11)',{a:'middle',fs:nar?10.5:11,fill:'var(--ink)'});
+    b+=R(X(0),yD,X(.42)-X(0),hD,{f:'var(--soft)',s:'var(--line)'})+T(X(.21),yD+18,nar?'files on disk':'files on disk (.so, dataset)',{a:'middle',fs:nar?10.5:11,fill:'var(--ink)'});
+    b+=A(X(.6),yM+hM+4,X(.6),yD-3,{d:'4 3'})+T(X(.6)+5,yM+hM+30,nar?'swap out':'reclaim: swap out',{fs:10.5,fill:'var(--mute)'});
+    b+='<line x1="'+X(.15)+'" y1="'+(yD-3)+'" x2="'+X(.15)+'" y2="'+(yM+hM+4)+'" stroke="var(--mute)" stroke-width="1.4" marker-end="url(#vmh-ar)" marker-start="url(#vmh-ar)"/>'+T(X(.15)+5,yM+hM+30,nar?'read, writeback':'read in, write back (§5, §6)',{fs:10.5,fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,H,b,'One process: virtual mappings, translated by the TLB and page tables, onto anonymous frames, page cache and the zero page, with swap and files on disk below and the cgroup limit around charged memory');
+  }
+  draw();RD.onRender(draw);RD.onResize(draw);
+})();
+</script>
+<script>/* 28_js_rd_misc.js */
+// ---- Static figures: section 6 watermarks (derived from the measured min_free_kbytes), section 9 pageable against pinned copy, section 10 commit bars ----
+(function(){
+  const $=id=>document.getElementById(id),D=window.VM_DATA;
+  const fmt=(x,d)=>Number(x).toLocaleString('en-US',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});
+  const W=el=>Math.min(860,RD.width(el));
+  // section 6: watermarks. 5.10: low = min + max(min/4, managed*scale/10000), high = min + 2*that (summed over zones)
+  function wm(){const el=$('vm-wm');if(!el)return;const w=W(el),nar=w<560,m=4,U=w-2*m;
+    const min=+D.env.min_free_kbytes,step=Math.max(min/4,D.commit.MemTotal_kb*(+D.env.watermark_scale_factor)/10000),low=min+step,high=min+2*step,top=Math.ceil((high+step*1.6)/1024)*1024;
+    const x=v=>m+U*v/top,y0=34,h=30;
+    const Z=[[0,min,'var(--bad)',nar?'direct reclaim':'direct reclaim: the allocating process stalls'],[min,low,'var(--c5)',nar?'kswapd':'kswapd awake'],[low,high,'var(--c1)',nar?'until high':'kswapd until high'],[high,top,'var(--c3)',nar?'asleep':'kswapd asleep']];
+    let b='';Z.forEach(z=>{b+='<rect x="'+x(z[0]).toFixed(1)+'" y="'+y0+'" width="'+(x(z[1])-x(z[0])).toFixed(1)+'" height="'+h+'" fill="'+z[2]+'" fill-opacity=".25" stroke="'+z[2]+'"/>'});
+    Z.forEach((z,k)=>{const cx=(x(z[0])+x(z[1]))/2;b+=RD.t(cx.toFixed(1),y0+h+16+(nar&&k%2?13:0),z[3],{a:'middle',fs:10.5,fill:'var(--ink)'})});
+    [[min,'min '+fmt(min/1024)+' MiB'],[low,(nar?'low ':'low ~')+fmt(low/1024)],[high,(nar?'high ':'high ~')+fmt(high/1024)]].forEach((t,k)=>{b+='<line x1="'+x(t[0]).toFixed(1)+'" x2="'+x(t[0]).toFixed(1)+'" y1="'+(y0-6)+'" y2="'+(y0+h)+'" stroke="var(--ink)" stroke-width="1.5"/>'+RD.t(x(t[0]).toFixed(1),y0-10-(nar&&k===1?12:0),t[1],{a:'middle',fs:10.5,w:600,fill:'var(--ink)'})});
+    b+=RD.t(m,12,'free memory (MiB) →',{fs:10.5,fill:'var(--mute)'});
+    el.innerHTML=RD.svg(w,y0+h+(nar?36:24),b,'Free memory with the min, low and high watermarks');}
+  // section 9: one host-to-GPU copy, pageable against pinned
+  function pin(){const el=$('vm-pin');if(!el)return;const w=W(el),nar=w<560,m=2;
+    let b='<defs><marker id="vmp-ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L8,4L0,8z" fill="var(--mute)"/></marker></defs>';
+    const bw=nar?(w-2*m)*.215:(w-2*m)*.22,gap=((w-2*m)-3*bw)/2,bh=40;
+    const box=(x,y,l1,l2,c,dim)=>'<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+bw.toFixed(1)+'" height="'+bh+'" rx="4" fill="'+c+'" fill-opacity="'+(dim?.06:.22)+'" stroke="'+c+'"'+(dim?' stroke-dasharray="4 3"':'')+'/>'+RD.t((x+bw/2).toFixed(1),y+17,l1,{a:'middle',fs:nar?10.5:11.5,w:600,fill:'var(--ink)'})+RD.t((x+bw/2).toFixed(1),y+32,l2,{a:'middle',fs:10.5,fill:'var(--mute)'});
+    const arr=(x1,x2,y,l)=>'<line x1="'+x1.toFixed(1)+'" y1="'+y+'" x2="'+x2.toFixed(1)+'" y2="'+y+'" stroke="var(--mute)" stroke-width="1.5" marker-end="url(#vmp-ar)"/>'+RD.t(((x1+x2)/2).toFixed(1),y-6,l,{a:'middle',fs:10.5,fill:'var(--ink)'});
+    const X=k=>m+k*(bw+gap);
+    b+=RD.t(m,14,nar?'Pageable (default): two copies':'Pageable tensor (default): two copies, the call waits',{fs:11.5,w:600,fill:'var(--bad)'});
+    b+=box(X(0),22,'tensor',nar?'pageable':'pageable RAM','var(--c3)')+arr(X(0)+bw+2,X(1)-2,42,nar?'memcpy':'CPU memcpy')+box(X(1),22,'staging',nar?'pinned':'pinned, driver-owned','var(--c4)')+arr(X(1)+bw+2,X(2)-2,42,'DMA')+box(X(2),22,'GPU','memory','var(--c1)');
+    const y2=100;
+    b+=RD.t(m,y2-8,nar?'Pinned (pin_memory=True): one copy':'Pinned tensor (pin_memory=True): one DMA, can overlap compute',{fs:11.5,w:600,fill:'var(--good)'});
+    b+=box(X(0),y2,'tensor',nar?'pinned':'pinned RAM','var(--c4)')+arr(X(0)+bw+2,X(2)-2,y2+20,nar?'DMA, async':'DMA, non_blocking=True')+box(X(2),y2,'GPU','memory','var(--c1)');
+    el.innerHTML=RD.svg(w,y2+bh+6,b,'Pageable memory is copied to a pinned staging buffer before DMA; pinned memory is copied by DMA directly');}
+  // section 10: commit accounting bars
+  function cmt(){if(!$('vm-cmt')||!window.VMB)return;const C=D.commit,rss=+((D.commit_txt.match(/VmRSS_kb (\d+)/)||[0,0])[1]);
+    const g=kb=>fmt(kb/1048576,1)+' GiB';
+    VMB('vm-cmt',[{n:'RAM',v:C.MemTotal_kb,c:'var(--c6)',t:g(C.MemTotal_kb)},{n:'CommitLimit',v:C.CommitLimit_kb,c:'var(--bad)',t:g(C.CommitLimit_kb)},{n:'Committed before',v:C.Committed_AS_kb,c:'var(--c1)',t:g(C.Committed_AS_kb)},{n:'Committed after',v:C.after_kb,c:'var(--c1)',t:g(C.after_kb),hl:1},{n:'Process RSS',v:rss,c:'var(--c3)',t:fmt(rss)+' KiB'}],{cap:'RAM is MemTotal; CommitLimit is where mode 2 would refuse; Committed_AS before and after one mmap(64 GiB), '+fmt(C.after_kb/C.CommitLimit_kb,1)+'x the limit; RSS of the process that made it.'});}
+  function all(){wm();pin();cmt()}
+  all();RD.onRender(all);RD.onResize(()=>{wm();pin()});
+})();
+</script>
+<script>/* 28_js_rd_walk.js */
+// ---- Section 2: the four-level walk of one address, as a stepper (arm64, 4 KiB pages). Indices from VMADDR; table and frame numbers illustrative ----
+(function(){
+  const $=id=>document.getElementById(id),el=$('vm-walk-svg');if(!el||!window.VMADDR)return;
+  const HEX='ffff81fd2000',r=VMADDR.decode(HEX,'arm64-4k'),ix=r.idx.map(f=>f.val),off=r.off;
+  // illustrative physical frame numbers of the four tables and of the data page
+  const TBL=['0x4a3f1','0x4a3f2','0x51c07','0x6b2e9'],FRAME='0x8a3c1';
+  const pa='0x'+(parseInt(FRAME,16)*4096+off).toString(16);
+  const LV=['level 0','level 1','level 2','level 3'];
+  const S=[
+    ['The address','0x'+HEX+' splits into four 9-bit indices ('+ix.join(', ')+') and a 12-bit offset (0x'+off.toString(16)+'). Each index picks one of 512 entries in a 4 KiB table.'],
+    ['TLB miss','The CPU looks for virtual page 0x'+HEX.slice(0,-3)+' in the TLB and misses. The walk starts at TTBR0_EL1, the register holding the physical address of this process\'s level 0 table (CR3 on x86-64); a process switch reloads it.'],
+    ['Level 0','Memory read 1: entry '+ix[0]+' of the level 0 table holds the frame of a level 1 table. Each level 0 entry covers 512 GiB of addresses.'],
+    ['Level 1','Memory read 2: entry '+ix[1]+' of the level 1 table points at a level 2 table. A level 1 entry covers 1 GiB; a 1 GiB huge page would end the walk here.'],
+    ['Level 2','Memory read 3: entry '+ix[2]+' points at a level 3 table. A level 2 entry covers 2 MiB; a 2 MiB huge page (section 8) ends the walk here, one level shorter.'],
+    ['Level 3','Memory read 4: entry '+ix[3]+' holds the frame number of the data page and its permission bits. Physical address = frame x 4096 + offset = '+pa+'.'],
+    ['TLB fill','The translation is cached in the TLB: every later access to this 4 KiB page skips all four reads. The root measured 1.1 ns per access while the pages fit in the TLB and 7.6 ns once they do not.']];
+  const COL=['var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
+  function draw(i){
+    const W=Math.min(860,RD.width(el)),nar=W<560,m=2,U=W-2*m;
+    let b='<defs><marker id="vmw-ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L8,4L0,8z" fill="var(--acc)"/></marker></defs>';
+    // bit strip
+    const bits=[9,9,9,9,12],tot=48;let x=m;
+    bits.forEach((w,k)=>{const bw=U*w/tot-2,on=(i===0)||(k<4&&i===k+2)||(k===4&&i>=5);
+      b+='<rect x="'+x.toFixed(1)+'" y="4" width="'+bw.toFixed(1)+'" height="34" rx="3" fill="'+(k<4?COL[k]:'var(--c5)')+'" fill-opacity="'+(on?.35:.1)+'" stroke="'+(on?'var(--acc)':'var(--line)')+'"'+(on?' stroke-width="2"':'')+'/>';
+      b+=RD.t((x+bw/2).toFixed(1),18,k<4?(nar?'L'+k:LV[k]):'offset',{a:'middle',fs:10.5,fill:'var(--mute)'});
+      b+=RD.t((x+bw/2).toFixed(1),32,k<4?String(ix[k]):'0x'+off.toString(16),{a:'middle',fs:12,w:600,fill:'var(--ink)'});x+=U*w/tot});
+    // TLB and register
+    const yT=58;
+    b+='<rect x="'+m+'" y="'+yT+'" width="'+(nar?72:110)+'" height="28" rx="4" fill="'+(i===1?'var(--hl)':(i===6?'var(--acc2)':'var(--soft)'))+'" stroke="'+(i===1||i===6?'var(--acc)':'var(--line)')+'"/>'+RD.t(m+(nar?36:55),yT+18,i>=6?'TLB: hit next time':(i>=1?'TLB: miss':'TLB'),{a:'middle',fs:nar?10.5:11.5,fill:'var(--ink)'});
+    b+=RD.t(m+(nar?80:120),yT+18,(i>=1?'TTBR0_EL1 = table '+TBL[0]:'TTBR0_EL1'),{fs:nar?10.5:11.5,fill:i===1?'var(--acc)':'var(--mute)'});
+    // four tables and the frame
+    const yB=104,hB=78,n=5,gap=nar?8:16,bw=(U-gap*(n-1))/n;
+    for(let k=0;k<5;k++){const bx=m+k*(bw+gap),act=(k<4&&i===k+2)||(k===4&&i>=5),done=(k<4&&i>k+2)||(k===4&&i>=5),vis=(k<4&&i>=k+1)||(k===4&&i>=5)||i===0;
+      const op=vis?1:.35;
+      b+='<g opacity="'+op+'"><rect x="'+bx.toFixed(1)+'" y="'+yB+'" width="'+bw.toFixed(1)+'" height="'+hB+'" rx="4" fill="'+(k<4?COL[k]:'var(--c5)')+'" fill-opacity="'+(act?.28:.08)+'" stroke="'+(act?'var(--acc)':'var(--line)')+'"'+(act?' stroke-width="2"':'')+'/>';
+      b+=RD.t((bx+bw/2).toFixed(1),yB+15,k<4?(nar?'L'+k+' table':LV[k]+' table'):(nar?'data page':'data page (frame)'),{a:'middle',fs:10.5,w:600,fill:'var(--ink)'});
+      b+=RD.t((bx+bw/2).toFixed(1),yB+29,k<4?TBL[k]:FRAME,{a:'middle',fs:10.5,fill:'var(--mute)'});
+      if(k<4){const ey=yB+40;b+='<rect x="'+(bx+4).toFixed(1)+'" y="'+ey+'" width="'+(bw-8).toFixed(1)+'" height="18" rx="2" fill="'+(act||done?'var(--hl)':'var(--bg)')+'" stroke="var(--line)"/>'+RD.t((bx+bw/2).toFixed(1),ey+13,'['+ix[k]+']',{a:'middle',fs:11,w:600,fill:'var(--ink)'});
+        b+=RD.t((bx+bw/2).toFixed(1),yB+72,'512 entries',{a:'middle',fs:10.5,fill:'var(--mute)'})}
+      else{b+=RD.t((bx+bw/2).toFixed(1),yB+52,'+0x'+off.toString(16),{a:'middle',fs:11,w:600,fill:'var(--ink)'});b+=RD.t((bx+bw/2).toFixed(1),yB+70,'4 KiB',{a:'middle',fs:10.5,fill:'var(--mute)'})}
+      b+='</g>';
+      if(k<4&&i>=k+2){const x1=bx+bw-4,x2=bx+bw+gap-1;b+='<line x1="'+x1.toFixed(1)+'" y1="'+(yB+49)+'" x2="'+x2.toFixed(1)+'" y2="'+(yB+49)+'" stroke="var(--acc)" stroke-width="2" marker-end="url(#vmw-ar)"/>'}}
+    if(i>=5)b+=RD.t(W-m,yB+hB+18,'physical address '+pa,{a:'end',fs:11.5,w:600,fill:'var(--acc)'});
+    el.innerHTML=RD.svg(W,yB+hB+26,b,'Page-table walk of one address through four levels');
+    $('vm-walk-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+S.length+': '+S[i][0]+'</div><p>'+S[i][1]+'</p>';
+    const reads=Math.max(0,Math.min(4,i-1));
+    $('vm-walk-cnt').innerHTML=RD.stat('Memory reads for this access',String(i>=6?'0 next time':reads),'one per level')+RD.stat('Tables on the path',i>=1?String(Math.min(4,Math.max(0,i-1))):'0','4 KiB each, only where mapped')+RD.stat('Physical address',i>=5?pa:'(not yet)',i>=5?'frame illustrative':'');
+  }
+  const an=RD.anim({card:'vm-walk-card',ctl:'vm-walk-ctl',n:S.length,draw,ms:1600,label:'Walk step'});
+  RD.onResize(()=>an.redraw());
+})();
+</script>
 <script>/* 31_js_addr.js */
 // ---- Address translator tab ----
 (function(){
@@ -1004,69 +1245,8 @@ document.querySelectorAll('#t-read .drill').forEach(d=>{
   one();cost();
 })();
 </script>
-<script>/* 32_js_cg.js */
-// ---- Memory replay tab: four measured cgroup runs, replayed; and the oom_badness calculator ----
-(function(){
-  const $=id=>document.getElementById(id);if(!$('cg-card'))return;
-  const D=window.VM_DATA,CG=D.cg,esc=RD.esc;
-  const fmt=(x,d)=>Number(x).toLocaleString('en-US',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});
-  const SC=[['pagecache','Page cache only','A 768 MiB file is written, then read twice, in a 512 MiB container without swap.'],
-    ['anon_oom','Grow until killed','A 256 MiB file is cached, then a process allocates 32 MiB every 0.15 s; no swap.'],
-    ['swap','Swap allowed','A process allocates 640 MiB in 64 MiB steps and then walks it 3 times; 512 MiB of swap allowed.'],
-    ['shm','/dev/shm counts','320 MiB is written to /dev/shm (as DataLoader workers do), then a process allocates 320 MiB; no swap.']];
-  let cur='pagecache';
-  $('cg-mode').innerHTML=SC.map(s=>'<button data-m="'+s[0]+'"'+(s[0]===cur?' class="on"':'')+'>'+s[1]+'</button>').join('');
-  const COL={anon:'var(--c3)',file:'var(--c1)',shmem:'var(--c4)',swap:'var(--c5)'};
-  $('cg-leg').innerHTML='<span style="--sw:var(--c3)">anon</span><span style="--sw:var(--c1)">file (page cache)</span><span style="--sw:var(--c4)">shmem (/dev/shm)</span><span style="--sw:var(--c5)">swap (dashed line)</span><span style="--sw:var(--bad)">memory.max</span>';
-  const LIM=512*1024;
-  function chart(i){const d=CG[cur],S=d.samples,W=Math.max(280,Math.min(880,$('cg-svg').clientWidth||600)),Hh=W<500?200:240,pl=40,pr=8,pt=8,pb=24;
-    const tmax=S[S.length-1][0],ymax=Math.max(LIM,...S.map(s=>s[1]),...S.map(s=>s[5]))*1.08;
-    const x=t=>pl+(W-pl-pr)*t/tmax,y=v=>pt+(Hh-pt-pb)*(1-v/ymax);
-    const area=(lo,hi,c)=>{let p='M'+x(S[0][0])+','+y(hi(S[0]));S.forEach(s=>p+='L'+x(s[0]).toFixed(1)+','+y(hi(s)).toFixed(1));for(let k=S.length-1;k>=0;k--)p+='L'+x(S[k][0]).toFixed(1)+','+y(lo(S[k])).toFixed(1);return '<path d="'+p+'Z" fill="'+c+'" opacity=".75"/>'};
-    const A=s=>s[2],Fo=s=>s[2]+s[3]-s[4],Sh=s=>s[2]+s[3];
-    let b='';for(let v=0;v<=ymax;v+=128*1024){b+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(pl-4,y(v)+4,(v/1024)+'',{a:'end',fs:10,fill:'var(--mute)'})}
-    b+=RD.t(4,pt+8,'MiB',{fs:10,fill:'var(--mute)'});
-    for(let t=0;t<=tmax;t+=(tmax>8000?2000:500))b+=RD.t(x(t),Hh-8,(t/1000)+' s',{a:'middle',fs:10,fill:'var(--mute)'});
-    b+=area(()=>0,A,COL.anon)+area(A,Fo,COL.file)+area(Fo,Sh,COL.shmem);
-    b+='<path d="'+S.map((s,k)=>(k?'L':'M')+x(s[0]).toFixed(1)+','+y(s[5]).toFixed(1)).join('')+'" fill="none" stroke="var(--c5)" stroke-width="2" stroke-dasharray="5 3"/>';
-    b+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(LIM)+'" y2="'+y(LIM)+'" stroke="var(--bad)" stroke-width="1.5"/>'+RD.t(W-pr-2,y(LIM)-4,'memory.max 512 MiB',{a:'end',fs:10,fill:'var(--bad)'});
-    d.marks.forEach(m=>{if(m[0]<=tmax)b+='<line x1="'+x(m[0])+'" x2="'+x(m[0])+'" y1="'+pt+'" y2="'+(Hh-pb)+'" stroke="var(--mute)" stroke-dasharray="2 3"/>'});
-    const s=S[i];b+='<line x1="'+x(s[0])+'" x2="'+x(s[0])+'" y1="'+pt+'" y2="'+(Hh-pb)+'" stroke="var(--ink)" stroke-width="1.5"/>';
-    $('cg-svg').innerHTML=RD.svg(W,Hh,b,'memory of the container over time');}
-  function draw(i){const d=CG[cur],S=d.samples;i=Math.min(i,S.length-1);chart(i);const s=S[i];
-    const mi=d.marks.filter(m=>m[0]<=s[0]).length-1;
-    $('cg-marks').innerHTML=d.marks.map((m,k)=>'<li class="'+(k===mi?'on':(k<mi?'past':''))+'">'+(m[0]/1000).toFixed(1)+' s: '+esc(m[1])+'</li>').join('');
-    const sc=SC.find(x=>x[0]===cur);
-    $('cg-cap').innerHTML='<div class="t">'+sc[1]+' at '+(s[0]/1000).toFixed(2)+' s</div><p>'+sc[2]+(i===S.length-1?' <b>Final:</b> '+d.log.map(esc).join('; ')+'.':'')+'</p>';
-    const k=v=>fmt(v/1024)+' MiB';
-    $('cg-cnt').innerHTML=RD.stat('memory.current',k(s[1]),'')+RD.stat('anon',k(s[2]),'')+RD.stat('file (incl. shmem)',k(s[3]),'shmem '+k(s[4]))+RD.stat('swap',k(s[5]),'')+RD.stat('max events',fmt(s[6]),'reclaim forced by the limit')+RD.stat('oom_kill',s[7],s[7]?'a process was SIGKILLed':'');
-    $('cg-cmd').textContent=d.cmd;}
-  const an=RD.anim({card:'cg-card',ctl:'cg-ctl',n:CG[cur].samples.length,draw,ms:110,label:'Sample'});
-  RD.seg($('cg-mode'),m=>{cur=m;an.reset(CG[cur].samples.length);an.play()});
-  window.VMCG={pick(m){cur=m;$('cg-mode').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));an.reset(CG[cur].samples.length)}};
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-cg']=window.TAB_RENDER['t-cg']||[]).push(()=>{an.redraw();oo()});
-  addEventListener('resize',()=>{if(!$('t-cg').hidden)an.redraw()});
-
-  // oom_badness calculator
-  const O=D.oom,TOT=Math.floor(O.memtotal_kb/4)+Math.floor(O.swaptotal_kb/4);
-  $('oo-tot').textContent='MemTotal '+fmt(O.memtotal_kb)+' KiB + SwapTotal '+fmt(O.swaptotal_kb)+' KiB = '+fmt(TOT)+' pages';
-  const def=O.procs.slice(0,3).map(p=>({rss:p.rss_pages,pte:p.vmpte_kb,adj:p.oom_score_adj,ker:p.oom_score}));
-  $('oo-rows').innerHTML=def.map((p,i)=>'<div class="pr"><div>'+'ABC'[i]+'</div><input type="number" id="oo-r'+i+'" value="'+(p.rss*4/1024).toFixed(3)+'" min="0" step="any" aria-label="RSS of '+'ABC'[i]+'"><input type="number" id="oo-a'+i+'" value="'+p.adj+'" min="-1000" max="1000" step="100" aria-label="oom_score_adj of '+'ABC'[i]+'"></div>').join('');
-  function oo(){const lim=Math.max(1,+$('oo-lim').value||0),sw=Math.max(0,+$('oo-sw').value||0),tot=Math.floor((lim+Math.min(sw,O.swaptotal_kb/1024))*256);
-    const rows=def.map((p,i)=>{const mibv=+$('oo-r'+i).value||0,rss=Math.round(mibv*256),adj=Math.max(-1000,Math.min(1000,Math.round(+$('oo-a'+i).value||0)));
-      const pt=Math.floor(p.pte*1024/4096),base=rss+pt,unk=adj===-1000;
-      const cg=unk?null:base+adj*Math.floor(tot/1000),mach=unk?0:Math.floor((1000+Math.floor((base+adj*Math.floor(TOT/1000))*1000/TOT))*2/3);
-      const same=Math.abs(rss-p.rss)<=1&&adj===p.adj;
-      return {n:'ABC'[i],rss,pt,adj,cg,mach,ker:same?p.ker:null}});
-    const alive=rows.filter(r=>r.cg!==null&&r.rss>0),win=alive.length?alive.reduce((a,b)=>b.cg>a.cg?b:a):null;
-    $('oo-tbl').innerHTML='<thead><tr><th>Process</th><th class="num">rss pages</th><th class="num">page-table pages</th><th class="num">adj</th><th class="num">points in this cgroup</th><th class="num">/proc oom_score</th><th class="num">kernel said</th></tr></thead><tbody>'+rows.map(r=>'<tr'+(win&&r===win?' style="background:var(--hl)"':'')+'><td>'+r.n+'</td><td class="num">'+fmt(r.rss)+'</td><td class="num">'+r.pt+'</td><td class="num">'+r.adj+'</td><td class="num">'+(r.cg===null?'never killed':fmt(r.cg))+'</td><td class="num">'+r.mach+'</td><td class="num">'+(r.ker===null?'':r.ker+(r.ker===r.mach?' <span class="pill ok">=</span>':' <span class="pill bad">!=</span>'))+'</td></tr>').join('')+'</tbody>';
-    $('oo-who').innerHTML='totalpages in this cgroup = ('+fmt(lim)+' + '+fmt(Math.min(sw,O.swaptotal_kb/1024))+') MiB = '+fmt(tot)+' pages, so each 100 of adj is worth '+fmt(100*Math.floor(tot/1000))+' pages ('+fmt(100*Math.floor(tot/1000)/256)+' MiB). '+(win?'<b>If this cgroup hits its limit, '+win.n+' is killed first.</b>':'Nothing can be killed.')+' Page tables are fixed at the measured values. "kernel said" appears while a row matches the measured run.';}
-  ['oo-lim','oo-sw',0,1,2].forEach(k=>{if(typeof k==='number'){$('oo-r'+k).addEventListener('input',oo);$('oo-a'+k).addEventListener('input',oo)}else $(k).addEventListener('input',oo)});
-  oo();
-})();
-</script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace os-vm-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1084,6 +1264,8 @@ document.querySelectorAll('#t-read .drill').forEach(d=>{
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('os-vm-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>
