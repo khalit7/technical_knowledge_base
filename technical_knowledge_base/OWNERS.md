@@ -15,7 +15,7 @@ Agreed 2026-10-23 with the teaching contract ([../.claude/skills/explainer-page/
 | Tokenizers, vocabulary size, chat templates and special tokens | `.../topic_llm_architecture/tokenizers` | the alignment page shows a template and links here |
 | Mixture of experts: routing, load balancing (aux loss and bias), capacity and drops, fine-grained and shared experts, expert parallelism as a design, the dense-vs-MoE twin | `.../topic_llm_architecture/mixture_of_experts` | distributed training owns EP in training; serving pages own EP at serve time |
 | Transformer normalisation: pre, post, sandwich and output norm, DeepNorm, mHC, RMSNorm, QK-norm and logit caps, z-loss, residual init, massive activations in the stream, loss spikes | `.../topic_llm_architecture/normalisation_residuals_and_stability` | attention sinks stay with Attention variants |
-| Normalisation and initialisation in general (BatchNorm, LayerNorm maths, init schemes) | `models_and_training/topic_ml_fundamentals/normalisation_and_initialisation` | |
+| Normalisation and initialisation in general (BatchNorm, LayerNorm maths, GroupNorm, weight standardisation, init schemes incl. orthogonal and muP) | `models_and_training/topic_ml_fundamentals/normalisation_and_initialisation` | |
 | SSMs, Mamba, linear attention, RWKV, the delta rule (Gated DeltaNet, KDA), hybrids, the state against KV crossover | `.../topic_llm_architecture/beyond_attention` | architecture root |
 | Model families (decoder-only, encoder, encoder-decoder, prefix LM) and objectives (CLM, MLM, span corruption, UL2), multi-token prediction, diffusion LMs | `.../topic_llm_architecture/families_and_objectives` | |
 | Survey of released architectures: which model made which choice, ratio counts, corrections of the Gallery's figures | `.../topic_llm_architecture/llm_architecture_gallery` | lab pages say what their own models chose |
@@ -31,8 +31,20 @@ Agreed 2026-10-23 with the teaching contract ([../.claude/skills/explainer-page/
 | Reward hacking and over-optimisation | `.../topic_llm_training_and_post_training/reward_hacking` | |
 | Post-training data | `models_and_training/topic_data_curation_and_datasets/post_training_data` | |
 | Dataset formats and loaders | `.../topic_data_curation_and_datasets/storage_and_loading` | |
-| Optimisers and learning-rate schedules | `models_and_training/topic_ml_fundamentals/optimisers_and_learning_rate_schedulers` | |
-| Classical metrics (precision, recall, AUC, calibration) | `.../topic_ml_fundamentals/evaluation_metrics` | measurement pages own LLM evaluation |
+| Optimisers and learning-rate schedules, batch-size and learning-rate scaling rules, the critical batch, Muon's Newton-Schulz | `models_and_training/topic_ml_fundamentals/optimisers_and_learning_rate_schedulers` | pretraining owns the anneal phase in practice |
+| Classical metrics (precision, recall, ROC and PR, calibration), regression metrics, ranked-list metric definitions, text metrics in brief | `.../topic_ml_fundamentals/evaluation_metrics` | measurement pages own LLM evaluation; eval statistics owns error bars |
+| Loss functions: regression losses, cross entropy (likelihood, KL, the gradient on the logits), label smoothing, focal, margins, ranking losses (RankNet, LambdaRank), the GAN loss | `.../topic_ml_fundamentals/loss_functions` | information theory owns CE = H + KL; contrastive owns triplet in depth; alignment owns preference losses |
+| Activation functions: ReLU family, GELU, SiLU, gated units (GLU, SwiGLU, GeGLU), saturation and dead units, softmax as an output | `.../topic_ml_fundamentals/activation_functions` | |
+| Classical ML: linear and logistic regression, naive Bayes, trees, forests, gradient-boosted trees, SVMs, kNN, clustering, anomaly detection, PCA, t-SNE and UMAP, hyperparameter search, when tabular models win | `.../topic_ml_fundamentals/classical_ml` | |
+| Contrastive and self-supervised learning: margin and triplet losses, InfoNCE and its temperature, SimCLR, MoCo, BYOL, SimSiam, DINO, Barlow Twins, VICReg, collapse, MAE and JEPA, CLIP as cross-modal InfoNCE | `.../topic_ml_fundamentals/contrastive_and_self_supervised_learning` | vision encoders own CLIP as an encoder |
+| Sequence models before the transformer: RNNs and BPTT, vanishing gradients through time, LSTM and GRU, seq2seq and Bahdanau attention, dilated convolutions, static word vectors | `.../topic_ml_fundamentals/sequence_models_pre_transformer` | beyond attention owns modern recurrences |
+| The ML fundamentals map: the seven moments of a training step, the four threads | `models_and_training/topic_ml_fundamentals` (root) | |
+| Bandits and exploration: epsilon-greedy, UCB, Thompson, regret, contextual bandits, A/B tests as explore-then-commit | `models_and_training/topic_rl/bandits_and_exploration` | |
+| MDPs, returns, Bellman equations, policy evaluation, policy and value iteration | `.../topic_rl/dynamic_programming` | |
+| Model-free prediction and control: MC and TD, n-step and TD(lambda), SARSA and Q-learning, maximisation bias, importance sampling, the deadly triad | `.../topic_rl/model_free_prediction_and_control` | value-based deep RL keeps soft divergence on Atari |
+| Value-based deep RL: DQN, Double DQN, dueling, prioritised replay, distributional RL, NoisyNet, Rainbow, Atari protocols | `.../topic_rl/value_based_deep_rl` | |
+| Policy gradients and actor-critic: the theorem, REINFORCE and baselines, GAE, A2C/A3C, natural gradient and TRPO, PPO's clip in general, DDPG, TD3, SAC | `.../topic_rl/policy_gradients_and_actor_critic` | RL for LLMs links it for the clip and GAE |
+| Model-based RL and planning: Dyna, MCTS, AlphaZero and MuZero, Dreamer, MPC, world models learned from video | `.../topic_rl/model_based_rl_and_planning` | generative video pages own video generation |
 | VAEs | `models_and_training/topic_generative_and_multimodal/autoencoders_and_vaes` | the math page keeps only the ELBO derivation |
 | Diffusion | `.../topic_generative_and_multimodal/diffusion_from_zero` | |
 
