@@ -138,9 +138,36 @@ def slo_run(slo, rpd, e0, e, d, DAYS=28):
 SLO_CASES = [(0.999, 1e7, 0.0002, 0.1, 5), (0.999, 1e7, 0.0002, 1.0, 30), (0.999, 1e7, 0.0002, 0.05, 180),
              (0.999, 1e7, 0.0002, 0.002, 5760), (0.9999, 1e7, 0.0002, 1.0, 30), (0.99, 1e6, 0.001, 0.1, 360)]
 out['slo'] = [{'in': list(c), 'res': slo_run(*c)} for c in SLO_CASES]
+
+# ---- Reading figures (parts/28_js_rd_figs.js RFIG): jitter before/after and goodput against offered load
+def jitter(mode):
+    r = engine.lcg(2026); N, K, B, CAP, BIN = 20, 4, 100, 2000, 25; times = []
+    for c in range(N):
+        t = 0
+        for k in range(K):
+            w = min(CAP, B * 2 ** k)
+            t += math.floor(r() * w) if mode == 'full' else w
+            times.append(t)
+    nb = math.ceil(1600 / BIN); h = [0] * nb
+    for t in times:
+        h[min(nb - 1, t // BIN)] += 1
+    return {'retries': len(times), 'peak': max(h), 'hist': h}
+
+
+out['jitter'] = {m: jitter(m) for m in ('none', 'full')}
+GP_RATES = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 240, 280, 320]
+out['goodput'] = []
+for q in (0, 8):
+    row = []
+    for rt in GP_RATES:
+        c = dict(PRESETS['m_none']); c.update(rate=rt, Ls=28, dmaxQ=q)
+        r = engine.sim(c)['tot']
+        row.append({'rate': rt, 'good': math.floor(r['good'] / 40 * 10 + 0.5) / 10, 'success': math.floor(r['success'] * 1000 + 0.5) / 1000})
+    out['goodput'].append(row)
 json.dump(out, open('recompute_out.json', 'w'), separators=(',', ':'))
 print('presets', {k: (round(v['tot']['success'], 4), v['tot']['recovery']) for k, v in out['engine'].items()})
 print('nines', out['nines'])
 print('slo', [(x['in'][3], x['in'][4], round(x['res']['incShare'], 4), [a['fire'] for a in x['res']['alerts']]) for x in out['slo']])
 print('rl', out['rl'], 'pm', out['pm'])
+print('jitter', {m: (v['retries'], v['peak']) for m, v in out['jitter'].items()}, 'goodput@200', [r[9] for r in out['goodput']])
 print('budget', out['budget_chat'], 'chain', out['chain'], 'burn', out['burn'], 'exhaust', out['exhaust_h'], 'fanout', out['fanout'])

@@ -1,4 +1,4 @@
-// ---- Error budget and alerts tab. SLOC.run is mirrored in src/recompute.py (slo_run) ----
+// ---- Reading, section 12: error budget and alerts card. SLOC.run is mirrored in src/recompute.py (slo_run) ----
 window.SLOC=(function(){
   const RPD=[1e4,1e5,1e6,3e6,1e7,1e8];
   const ER=[0.001,0.002,0.003,0.005,0.0075,0.01,0.015,0.02,0.03,0.05,0.075,0.1,0.15,0.2,0.3,0.4,0.5,0.6,0.75,0.9,1.0];
@@ -23,7 +23,7 @@ window.SLOC=(function(){
   return {run:run,RPD:RPD,ER:ER,DUR:DUR,AL:AL,START:START};
 })();
 (function(){
-  const root=document.getElementById('t-slo');if(!root)return;const $=id=>document.getElementById(id);
+  const root=document.getElementById('slo-card');if(!root)return;const $=id=>document.getElementById(id);
   const PRE=[['Spike: 10% for 5 min',11,3],['Full outage: 30 min',20,7],['Partial: 5% for 3 h',9,11],['Slow leak: 0.2% for 4 days',1,16]];
   $('slo-pre').innerHTML=PRE.map((p,i)=>'<button data-i="'+i+'">'+p[0]+'</button>').join('');
   const fm=n=>n>=1e6?(n/1e6).toFixed(n>=1e7?0:1)+'M':n>=1e3?Math.round(n/1e3)+'k':String(Math.round(n));
@@ -37,7 +37,7 @@ window.SLOC=(function(){
     $('slo-out').innerHTML=RD.stat('Budget, 28 days',fm(R.budget)+' failed messages','= '+fd(Math.round(R.budgetMin))+' of full outage')+RD.stat('Incident burn rate',R.burn.toFixed(R.burn<10?1:0)+'x','normal traffic burns '+R.burn0.toFixed(2)+'x')+
       RD.stat('Incident spends',(R.incShare*100).toFixed(1)+'% of budget',fm(R.spentInc)+' failed messages')+RD.stat('First page',fd(firstPage),firstPage===null?'no page alert fired':'after the incident began')+RD.stat('Ticket',fd(a[2].fire),'')+RD.stat('Budget left at day 28',R.left>=0?(R.left/R.budget*100).toFixed(0)+'%':'overspent','including normal errors');
     draw()}
-  function draw(){if(!R||root.hidden)return;const p=R.p;const W=Math.max(300,Math.min(860,RD.width($('slo-c1'))));
+  function draw(){if(!R||root.offsetParent===null)return;const p=R.p;const W=Math.max(300,Math.min(860,RD.width($('slo-c1'))));
     // chart 1: error ratio (log) and alert strips
     const span=Math.max(120,Math.min(10080,Math.max(p.d*1.6,...R.alerts.map(a=>(a.reset||a.fire||0)*1.1))));
     const t0=-span*0.08,x0=48,x1=W-6,X=t=>x0+(x1-x0)*(t-t0)/(span-t0);
@@ -61,7 +61,7 @@ window.SLOC=(function(){
   ['slo-slo','slo-rpd','slo-e0','slo-e','slo-d'].forEach(id=>$(id).addEventListener('input',run));
   $('slo-pre').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const p=PRE[+b.dataset.i];$('slo-e').value=p[1];$('slo-d').value=p[2];
     $('slo-pre').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));run()});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-slo']=[draw];
-  let tm=0;addEventListener('resize',()=>{if(!root.hidden){clearTimeout(tm);tm=setTimeout(draw,80)}});
+  RD.onRender(draw);
+  let tm=0;RD.onResize(draw);
   run();
 })();

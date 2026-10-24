@@ -10,7 +10,7 @@ window.RCALC={
   const t=document.getElementById('rd-nines');
   if(t){t.innerHTML='<thead><tr><th>Target</th><th>Nines</th><th class="num">Down per year</th><th class="num">per 30 days</th><th class="num">per week</th></tr></thead><tbody>'+
     RCALC.nines().map((r,i)=>'<tr><td>'+['99','99.5','99.9','99.95','99.99','99.999'][i]+'%</td><td>'+['two','two and a half','three','three and a half','four','five'][i]+'</td><td class="num">'+fmtDur(r.yr_min)+'</td><td class="num">'+fmtDur(r.mo_min)+'</td><td class="num">'+fmtDur(r.wk_min)+'</td></tr>').join('')+'</tbody>'}
-  const c=document.getElementById('rd-chain');if(c)c.textContent=(RCALC.chain()*100).toFixed(2)+'%';
+  const c=document.getElementById('rd-chain-v');if(c)c.textContent=(RCALC.chain()*100).toFixed(2)+'%';
   const f=document.getElementById('rd-fan');if(f)f.textContent=(RCALC.fanout()*100).toFixed(1)+'%';
   const b=document.getElementById('rd-burn');
   if(b){b.innerHTML='<thead><tr><th>Budget spent</th><th>Long window</th><th>Short window</th><th class="num">Burn rate = share &times; 720 h / window</th><th>Action</th><th class="num">Whole budget gone in</th></tr></thead><tbody>'+

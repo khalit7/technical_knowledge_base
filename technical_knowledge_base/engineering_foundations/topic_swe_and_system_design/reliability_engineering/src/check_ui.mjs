@@ -1,4 +1,4 @@
-// Clicks every control on every tab at 390 dark and 920 light; reports errors, NaN/undefined text, sideways scroll; screenshots each visual.
+// Clicks every control on every tab (and checks that nothing in Reading moves before the reader acts) at 390 dark and 920 light; reports errors, NaN/undefined text, sideways scroll; screenshots each visual.
 // Run from the repo root: node technical_knowledge_base/engineering_foundations/topic_swe_and_system_design/reliability_engineering/src/check_ui.mjs <shots dir>
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -22,6 +22,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.goto('file://' + file);
   await sleep(300);
   await p.click('button[data-t=t-read]'); await sleep(200);
+  await p.evaluate(() => document.getElementById('rd-ba-card').scrollIntoView()); await sleep(3200);
+  if (await p.$eval('#rd-ba-ctl-s', e => e.value) !== '0') { problems++; console.log(scheme, width, 'before/after animation moved without the reader') }
   const bad = async label => {
     const r = await p.evaluate(() => {
       const t = document.body.innerText; const m = t.match(/.{0,40}(NaN|undefined|Infinity).{0,40}/);
@@ -67,10 +69,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await shot('#t-lab', 'lab-naive');
   await p.evaluate(() => document.querySelectorAll('#lab-pre button')[7].click()); await sleep(80);
   await shot('#t-lab .card', 'lab-after');
-  // SLO
-  await p.click('button[data-t=t-slo]'); await sleep(200);
+  // SLO card (Reading section 12), jitter toggle, predict-then-reveal
+  await p.click('button[data-t=t-read]'); await sleep(200);
+  for (const m of ['full', 'none']) { await p.evaluate(m => document.querySelector('#rd-jit-seg button[data-m=' + m + ']').click(), m); await sleep(40); await bad('jitter ' + m) }
+  const prn = await p.$$eval('#t-read .pr .opts button', x => x.length);
+  for (let i = 0; i < prn; i++) { await p.evaluate(i => document.querySelectorAll('#t-read .pr .opts button')[i].click(), i); await sleep(30); await bad('predict ' + i) }
   const sp = await p.$$eval('#slo-pre button', x => x.length);
-  for (let i = 0; i < sp; i++) { await p.evaluate(i => document.querySelectorAll('#slo-pre button')[i].click(), i); await sleep(150); await bad('slo preset ' + i); await shot('#t-slo', 'slo-' + i) }
+  for (let i = 0; i < sp; i++) { await p.evaluate(i => document.querySelectorAll('#slo-pre button')[i].click(), i); await sleep(150); await bad('slo preset ' + i); await shot('#slo-card', 'slo-' + i) }
   for (const v of ['0.99', '0.995', '0.9995', '0.9999', '0.999']) { await p.select('#slo-slo', v); await sleep(150); await bad('slo ' + v) }
   for (const id of ['slo-rpd', 'slo-e0', 'slo-e', 'slo-d']) for (const w of ['min', 'max']) {
     await p.evaluate((id, w) => { const e = document.getElementById(id); e.value = e[w]; e.dispatchEvent(new Event('input')) }, id, w); await sleep(150); await bad('slo ' + id + w)

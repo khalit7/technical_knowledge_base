@@ -50,6 +50,6 @@
     cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
   }
   const A=RD.anim({card:'rd-ba-card',ctl:'rd-ba-ctl',n:N,draw:draw,ms:1300,label:'Second'});
-  RD.seg(document.getElementById('rd-ba-seg'),m=>{mode=m;A.reset(N);A.play()});
+  RD.seg(document.getElementById("rd-ba-seg"),m=>{mode=m;A.reset(N)});
   RD.onResize(()=>A.redraw());
 })();
