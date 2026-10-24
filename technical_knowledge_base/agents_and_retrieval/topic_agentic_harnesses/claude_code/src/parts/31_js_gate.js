@@ -1,4 +1,4 @@
-// ---- Permission lab (t-gate): the recorded matrix, the model's score against it, and a rule playground ----
+// ---- Reading section 3 (moved from the old Permission lab tab): the recorded matrix, the model's score against it, and a rule playground ----
 (function(){
   const D=window.HCC,G=window.HCCG,esc=RD.esc;const mxEl=document.getElementById('gt-mx');if(!mxEl||!G)return;
   const MX=D.matrix,ACT=MX.actions;
