@@ -109,19 +109,44 @@ blockquote{margin:8px 0;padding:4px 12px;border-left:3px solid var(--line);color
 @media (max-width:520px){h1{font-size:21px}.an-cap{min-height:9em}}
 </style></head><body><div class="w">
 <h1>System design case studies: worked designs from requirements to bottlenecks</h1>
-<div class="sub">The capstone of the topic and your interview practice: seven complete designs (a URL shortener, a rate limiter, chat, a news feed, an LLM gateway, a RAG service, a job scheduler), each run through the same method from requirements and a computed estimate to the bottlenecks, with what real companies built, cited and dated. Every technique links to the sibling page that teaches it. Child page of <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Topic: swe-and-system-design</a>. Sources linked inline; checked October 2026.</div>
+<div class="sub">Seven whole designs (a URL shortener, a rate limiter, chat, a news feed, an LLM gateway, a RAG service, a job scheduler), each run through one method from requirements and a computed estimate to the bottlenecks, with what real companies built. Each building block links to the sibling that teaches it. Child page of <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Topic: swe-and-system-design</a>. Data as of October 2026. Reading: 32 min, plus 28 in closed details.</div>
 <div class="tabs" role="tablist" id="tabs">
 <button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-drill" aria-selected="false">Design drill</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
-<p class="small mute">About 53 minutes to read in full, but each design stands alone (8 to 10 minutes each): read the first two sections, then any design. Terms are defined at first use (in bold) and collected in the glossary. This page applies the techniques; the sibling pages teach them, and every technique used here links to the exact section that does.</p>
+<style>
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4{margin:0 0 2px;font-size:14.5px}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px}
+#t-read details.dp>.b h4{margin:12px 0 4px;font-size:14px}
+#t-read .vt{font-weight:600;font-size:14px;margin:12px 0 2px}
+</style>
 <nav class="nav" id="rd-nav">
-<a href="#s-one">In one screen</a><a href="#s-method">The method, out loud</a><a href="#s-url">1 URL shortener</a><a href="#s-rl">2 Rate limiter</a><a href="#s-chat">3 Chat</a><a href="#s-feed">4 News feed</a><a href="#s-gw">5 LLM gateway</a><a href="#s-rag">6 RAG service</a><a href="#s-job">7 Job scheduler</a><a href="#s-prac">How to practise</a><a href="#s-gl">Glossary</a>
+<a href="#s-one">The idea</a><a href="#s-method">The method</a><a href="#s-url">1 Shortener</a><a href="#s-rl">2 Rate limiter</a><a href="#s-chat">3 Chat</a><a href="#s-feed">4 Feed</a><a href="#s-gw">5 LLM gateway</a><a href="#s-rag">6 RAG</a><a href="#s-job">7 Scheduler</a><a href="#s-prac">Practise</a>
 </nav>
 
 <section id="s-one">
-<h2>In one screen</h2>
-<p class="lead">A <b>system design</b> question gives you a product ("design a URL shortener") and an hour, and asks for the machines, data and connections that would run it for millions of people. There is no single right answer. What separates a strong answer from a weak one is a <b>method</b>: find out what is really being asked, put numbers on it, and let the numbers tell you which part is hard. The parent topic's Step 6 introduced that method (<a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Topic: swe-and-system-design, Reading, Step 6</a>); this page runs it seven times, end to end, the way a senior engineer would say it out loud.</p>
+<h2>The idea in one screen</h2>
+<p class="core">Every design is the same seven steps; what differs is <span class="hl">which number binds</span>. Requirements give the load, the estimate turns it into per-second rates and bytes, and the one quantity that crosses a single machine's limit (storage, open connections, a shared counter, a burst, or money) is the part you design; everything else stays the simplest thing that works.</p>
+<div class="hero" id="hero-card"><h4>One method, seven designs: the estimate points at the part that is hard</h4>
+<div class="rd-svg" id="hero-svg"></div>
+<p class="small">Top: the seven steps, widths to scale with the minutes the <a href="#" data-tab="t-drill">Design drill</a>'s 45-minute clock gives each (5, 5, 3, 3, 9, 15, 5), after Alex Xu's ranges. Below: the number in each design that crossed a single machine's capacity, grouped by kind of constraint; the deep dives (15 minutes, the widest step) go there. Numbers from this page's estimates (<code>src/recompute.py</code>).</p></div>
+<p><b>You need:</b> the parent root's method and constants (<a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Topic: swe-and-system-design, Step 6 and Numbers to know</a>). Each building block is taught on its owner and only applied here: partitioning, replication, leases (<a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a>); delivery semantics and idempotent consumers (<a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>); retries, breakers, rate-limit algorithms (<a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>); Little's law and caching (<a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>); HTTP, cursors, idempotency keys (<a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a>).</p>
+<dl class="terms">
+<dt>Functional / non-functional</dt><dd>what the system does / how much, how fast, how reliably, how consistently, how cheaply. The second kind decides the architecture.</dd>
+<dt>Back-of-the-envelope estimate</dt><dd>users to requests a second, bytes and machines, one significant figure, each row compared with one machine's capacity.</dd>
+<dt>Bottleneck</dt><dd>the first resource to run out as load grows; in the step diagrams it turns red and the next step fixes it (green).</dd>
+<dt>Fan-out</dt><dd>one event delivered to many recipients (followers, gateways, subscribers); where it happens (on write or on read) is a recurring choice.</dd>
+<dt>Fail open</dt><dd>when a check cannot run, allow the request (a rate limiter); fail closed denies (a permission check).</dd>
+</dl>
 <div class="tw"><table class="onescreen">
 <thead><tr><th>Design</th><th>What the numbers say is hard</th><th>The key move</th><th>Who built it for real</th></tr></thead>
 <tbody>
@@ -133,52 +158,59 @@ blockquote{margin:8px 0;padding:4px 12px;border-left:3px solid var(--line);color
 <tr><td><a href="#s-rag">6. RAG service</a></td><td>215 GB of vectors; permissions; freshness; knowing whether answers are right</td><td>An ingestion pipeline, hybrid retrieval, permission filters, an evaluation set</td><td>Anthropic (2024), LinkedIn (2024), Uber (2025), DoorDash (2024)</td></tr>
 <tr><td><a href="#s-job">7. Job scheduler</a></td><td>125,000 jobs due in the same second at the top of the hour; a crash must not run a job twice</td><td>Separate "decide what is due" from "do the work"; leases, jitter, idempotent jobs</td><td>Google cron (2015), Dropbox ATF (2020), Slack (2020)</td></tr>
 </tbody></table></div>
-<div class="co key"><div class="t">What every design on this page has in common</div>
-<p><b>1. Requirements before boxes.</b> Every design starts with a box of functional and non-functional requirements; the second kind (scale, latency, how wrong you may be) decides the architecture.</p>
-<p><b>2. A computed estimate, live.</b> Each design has a table you can change (try "10&times; the traffic"); rows turn red when they cross a single machine's capacity. That is how a bottleneck is found rather than guessed.</p>
-<p><b>3. A diagram that grows.</b> Each design is animated from its naive version, then each bottleneck is found (red) and fixed (green) in turn, with counters showing the naive design's number beside the current one on the same load.</p>
-<p><b>4. What was rejected, and why.</b> A design is a list of trade-offs. Each section says what it chose, what it turned down, and what real companies did.</p>
-</div>
-<p>Two measurements were run for this page on a laptop with a real PostgreSQL database (<code>src/lab/measure_pg.py</code>, about 2 minutes): the <a href="#s-rl-race">rate limiter race</a> (a check-then-act counter let 17 to 19% too many requests through; the atomic form, exactly 0) and <a href="#s-feed-meas">fan-out on read against on write</a> (reading a precomputed timeline was 34 times faster). To practise, use the <a href="#" data-tab="t-drill">Design drill</a> tab: pick a prompt, run the clock, reveal the method one step at a time and tick a self-check list.</p>
+<p>Each design has a live estimate (try "10&times; the traffic": a row turns red when it crosses one machine's capacity) and a step diagram from the naive version through each bottleneck and fix. Two results were measured for this page on PostgreSQL 16.2 on a laptop (<code>src/lab/measure_pg.py</code>, about 2 minutes): the <a href="#s-rl-race">rate limiter race</a> and <a href="#s-feed-meas">fan-out on read against on write</a>. To practise, the <a href="#" data-tab="t-drill">Design drill</a> tab runs the method on twelve prompts against a clock.</p>
 </section>
 
 <section id="s-method">
 <h2>The method, out loud</h2>
-<p>The parent root lists the steps; here is what each sounds like in the room, and how long it gets in a 45-minute interview (timings from Alex Xu's framework, quoted on the root: scope 3 to 10 minutes, high-level design 10 to 15, deep dive 10 to 25, wrap-up 3 to 5; <a href="https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews" target="_blank" rel="noopener noreferrer">ByteByteGo</a>). In real work the same steps go into a <b>design document</b>, the written proposal a team reviews before building.</p>
+<p>What each step sounds like in a 45-minute interview (Alex Xu's ranges, quoted on the root: scope 3 to 10 minutes, high-level design 10 to 15, deep dive 10 to 25, wrap-up 3 to 5; <a href="https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews" target="_blank" rel="noopener noreferrer">ByteByteGo</a>). At work the same steps become a <b>design document</b>, the written proposal a team reviews before building.</p>
 <div class="tw"><table class="fm2">
 <thead><tr><th>Step</th><th>What you do</th><th>What it sounds like</th></tr></thead>
 <tbody>
-<tr><td>1. Requirements</td><td><b>Functional</b> (what it does) and <b>non-functional</b> (how much, how fast, how reliable, how consistent, how cheap). Agree what is out of scope.</td><td>"Before I draw anything: who uses this, how many, and what happens if a click is lost or counted twice?"</td></tr>
+<tr><td>1. Requirements</td><td>Functional and non-functional; agree what is out of scope.</td><td>"Before I draw anything: who uses this, how many, and what happens if a click is lost or counted twice?"</td></tr>
 <tr><td>2. Estimate</td><td>Users to requests a second, to storage, to machines. Round hard; keep one significant figure.</td><td>"600 million new links a month is about 230 a second, so writes are easy. 6 billion clicks is 2,300 a second; doubled for the peak, under 5,000."</td></tr>
-<tr><td>3. API</td><td>The calls clients make, with method, path, body and errors (the <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a> page teaches this).</td><td>"POST /links returns the code; the redirect is a GET that answers 302."</td></tr>
+<tr><td>3. API</td><td>The calls clients make, with method, path, body and errors (<a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a>).</td><td>"POST /links returns the code; the redirect is a GET that answers 302."</td></tr>
 <tr><td>4. Data model</td><td>Tables or keys, and how each read finds its row (which index, which partition key).</td><td>"One table keyed by code; the redirect is a primary-key lookup."</td></tr>
 <tr><td>5. High-level design</td><td>The boxes and arrows, each justified by a requirement or a number.</td><td>"Stateless app servers behind a load balancer, a cache, one database."</td></tr>
 <tr><td>6. Deep dives</td><td>The two or three parts the estimate flagged. Let the interviewer steer.</td><td>"The interesting parts are ID generation and the cache; which would you like first?"</td></tr>
 <tr><td>7. Bottlenecks and failure</td><td>What breaks at 10&times;, what happens when each box dies, what each choice cost.</td><td>"If the cache dies, 4,600 reads a second land on the database: within one machine's capacity, so we survive degraded."</td></tr>
 </tbody></table></div>
 <h3>The estimating toolkit</h3>
-<p>Every estimate on this page uses the same few constants, taken from the parent root's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Numbers to know</a> tab so the topic stays consistent:</p>
+<p>Every estimate here uses the parent root's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Numbers to know</a> constants, so the topic stays consistent (<code>recompute.py</code> asserts they match):</p>
 <ul>
-<li><b>A day is 86,400 seconds</b> (call it 100,000 for mental arithmetic: a million a day is about 12 a second), and a month is 2.6 million seconds.</li>
-<li><b>Peak over average:</b> traffic is not flat. The root uses 2 as an illustrative planning factor; Twitter's record second in 2013 was 25 times its average (root, <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Case files: Twitter 2013</a>). Say which you assume.</li>
+<li><b>A day is 86,400 seconds</b> (call it 100,000: a million a day is about 12 a second); a month is 2.6 million seconds.</li>
+<li><b>Peak over average:</b> the root uses 2 as an illustrative planning factor; Twitter's record second in 2013 was 25 times its average (root, <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Case files: Twitter 2013</a>). Say which you assume.</li>
 <li><b>One app server</b> (AWS m7i.xlarge, $0.2016 an hour): 500 requests a second, the root's illustrative default.</li>
-<li><b>One PostgreSQL database:</b> about 35,000 read queries a second, 18,000 in a mixed read-write benchmark (PlanetScale, 4 vCPU; root Numbers). We plan at half a benchmark, the root's derating.</li>
-<li><b>One Redis node:</b> 180,180 SETs a second with 50 clients (Redis docs benchmark); planned at half, 90,090. A Redis operation answers in about 0.14 ms locally; a round trip inside one cloud region is about 0.5 ms.</li>
+<li><b>One PostgreSQL database:</b> about 35,000 read queries a second, 18,000 mixed read-write (PlanetScale, 4 vCPU; root Numbers), planned at half a benchmark (the root's derating).</li>
+<li><b>One Redis node:</b> 180,180 SETs a second with 50 clients (Redis docs benchmark), planned at 90,090; about 0.14 ms an operation locally, about 0.5 ms a round trip inside one cloud region.</li>
 <li><b>GPUs:</b> 2,209 output tokens a second per H100 for Llama 3.3 70B in FP8 (TensorRT-LLM, commit 8a9c66c), $3.99 per GPU-hour (Lambda); see <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design, section 1</a>.</li>
-<li><b>Little's law:</b> things in the system = arrival rate &times; time each one stays. It turns "requests a second" into "connections open" or "jobs running" (<a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance, Queueing theory you actually use</a>).</li>
+<li><b>Little's law:</b> things in the system = arrival rate &times; time each stays; it turns requests a second into connections open or jobs running (<a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance, Queueing theory you actually use</a>).</li>
 </ul>
-<div class="co warn"><div class="t">The commonest failure: no numbers, or numbers that change nothing</div><p>An estimate earns its minutes only if it changes a decision. "36 billion links do not fit in 6 base62 characters" changes the code length; "18 TB" changes whether you shard; "333,000 presence heartbeats a second" changes what you optimise first in chat. If a number would not change any box, skip it and say so.</p></div>
+<div class="co warn"><div class="t">An estimate earns its minutes only if it changes a decision</div><p>"36 billion links do not fit in 6 base62 characters" changes the code length; "18 TB" changes whether you shard; "333,000 presence heartbeats a second" changes what you optimise first in chat. If a number would not change any box, skip it and say so.</p></div>
 </section>
 <section id="s-url">
 <h2 class="dhead"><span class="dnum">Design 1</span>URL shortener: IDs, base62, caching, read-heavy scaling</h2>
-<p>The warm-up question, asked because it is small enough to finish and still touches IDs, caching, HTTP and storage. A <b>URL shortener</b> turns a long address into a short one (<code>sho.rt/aZ3kQ9x</code>); visiting the short one <b>redirects</b> the browser, meaning the server answers "go here instead" with the long address, and the browser follows it.</p>
+<p>The warm-up: small enough to finish, and it still touches IDs, caching, HTTP and storage. A <b>URL shortener</b> turns a long address into a short one (<code>sho.rt/aZ3kQ9x</code>); visiting the short one <b>redirects</b>: the server answers "go here instead" and the browser follows.</p>
 <div class="req"><div class="t">Requirements (agreed with the interviewer)</div><div class="cols">
-<div><h5>Functional</h5><ul><li>Create a short link for a long URL; optionally a custom alias.</li><li>Visiting the short link redirects to the long URL.</li><li>Count clicks per link (owners see analytics).</li><li>Out of scope: accounts, editing, link previews.</li></ul></div>
-<div><h5>Non-functional</h5><ul><li>Sized like Bitly in 2014: 600 million new links and 6 billion clicks a month (<a href="http://web.archive.org/web/2015/http://highscalability.com/blog/2014/7/14/bitly-lessons-learned-building-a-distributed-system-that-han.html" target="_blank" rel="noopener noreferrer">High Scalability, 2014</a>, a summary of a Bitly engineer's talk).</li><li>Redirect fast: under 50 ms at the server, p99.</li><li>Links never break, kept 5 years; never give two users the same code.</li><li>Click counts may lag by minutes; a few lost clicks are acceptable.</li></ul></div></div></div>
+<div><h5>Functional</h5><ul><li>Create a short link (optionally a custom alias); visiting it redirects.</li><li>Click counts per link for owners.</li><li>Out of scope: accounts, editing, link previews.</li></ul></div>
+<div><h5>Non-functional</h5><ul><li>Sized like Bitly in 2014: 600 million new links and 6 billion clicks a month (<a href="http://web.archive.org/web/2015/http://highscalability.com/blog/2014/7/14/bitly-lessons-learned-building-a-distributed-system-that-han.html" target="_blank" rel="noopener noreferrer">High Scalability, 2014</a>, a summary of a Bitly engineer's talk).</li><li>Redirect under 50 ms at the server, p99. Links never break, kept 5 years; never give two users the same code.</li><li>Click counts may lag by minutes; a few lost clicks are acceptable.</li></ul></div></div></div>
 <div class="est" id="est-url"></div>
-<p><b>What the numbers say.</b> Writes are 230 a second: one database handles that with ease. Redirects are 10 times more, and under 5,000 a second at peak: still within one database (about 17,500 a second at our half-benchmark planning figure), so the cache is about latency and headroom, not survival. Two numbers do change the design: 36 billion links after five years fill <b>63%</b> of the 6-character code space, so random 6-character codes would collide on most attempts and 7 characters are needed; and 18 TB of rows is more than one comfortable database server, so the storage must be <a href="#d-url-store">split later</a>. The app tier needs about a dozen servers, which matches the order of magnitude Bitly reported: "~30 servers handle all incoming traffic from the outside world including shortens, redirects, api requests, web ui, etc." (same source).</p>
+<p><b>What the numbers say.</b> Writes are 230 a second and redirects under 5,000 a second at peak: both within one database (about 17,500 a second at our half-benchmark planning figure), so the cache is about latency and headroom, not survival. Two numbers do change the design: 36 billion links after five years fill <b>63%</b> of the 6-character code space, so random 6-character codes would collide on most attempts and 7 characters are needed; and 18 TB of rows is more than one comfortable database server, so storage must be <a href="#d-url-store">split later</a>. The app tier needs about a dozen servers, the order Bitly reported: "~30 servers handle all incoming traffic from the outside world including shortens, redirects, api requests, web ui, etc." (same source).</p>
 
-<h3>API</h3>
+<h3>The design, built step by step: three bottlenecks, three fixes</h3>
+<p class="try"><b>Try:</b> step with the arrows or press play. Each red step is a bottleneck the estimate exposed; the next green step fixes it; the counters show the naive design's value struck through beside the current one, for the same traffic.</p>
+<div class="card" id="dia-url"></div>
+
+<h3>The decision that matters: where short codes come from</h3>
+<p><b>Base62</b> writes a number with 62 symbols (0 to 9, a to z, A to Z): 6 characters give 62<sup>6</sup> = 56.8 billion codes, 7 give 3.52 trillion. Three schemes:</p>
+<ul class="rej">
+<li><b>Hash the long URL</b> (the first 7 base62 characters of its SHA-256). Deduplicates for free, but different URLs can collide, so every create must check, and two users shortening one URL share one code and one click count. <i>Rejected as the main scheme.</i></li>
+<li><b>Random codes</b>, made unique by a unique index (the database refuses a duplicate and the server retries). The chance a new code collides is the share already used: about 1% at 7 characters after five years, 63% at 6. <i>Acceptable at 7 characters.</i></li>
+<li><b>A counter turned into base62.</b> Never collides, but a single counter is a coordination point and sequential codes let anyone walk every link (<code>aZ3kQ9x</code>, <code>aZ3kQ9y</code>, ...). <i>Chosen, with both costs removed:</i> each app server leases a block of 10,000 numbers from an <b>ID range service</b> (one row incremented in a database), so a create needs no network call, and a fixed reversible scramble (a permutation of the 7-character space) makes neighbouring numbers give unrelated codes.</li>
+</ul>
+<p>Three smaller decisions finish the design: answer <b>302</b>, not a cacheable 301, so every click still reaches you (analytics, takedowns); put a <b>cache</b> in front and send each click to a <b>queue</b> instead of updating the row, so the redirect writes nothing; and pick the shard key (the code) now but <b>split the database only when storage demands it</b>. Each is argued in the closed block below.</p>
+
+<details class="dp"><summary>API and data model <span class="mute">(the calls and the one table)</span></summary><div class="b">
 <div class="code">POST /v1/links                       <span class="cm">create; Idempotency-Key header makes retries safe</span>
   {"url": "https://example.com/a/very/long/path", "alias": null}
   -> 201 {"code": "aZ3kQ9x", "short_url": "https://sho.rt/aZ3kQ9x"}
@@ -190,40 +222,28 @@ GET /{code}                          <span class="cm">the redirect: the hot path
 
 GET /v1/links/{code}/stats?from=..   <span class="cm">owner analytics, read from the analytics store</span></div>
 <p>Status codes, the <code>Idempotency-Key</code> header (a client-chosen ID that lets the server recognise a retried request and return the first answer instead of creating a second link) and error bodies are taught in <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API, sections 7 and 10</a>.</p>
-
-<h3>Data model</h3>
 <div class="code">links(code TEXT PRIMARY KEY,          <span class="cm">7 base62 characters</span>
       long_url TEXT NOT NULL,
       owner_id BIGINT, created_at TIMESTAMPTZ, status SMALLINT)
 <span class="cm">-- the redirect is one primary-key lookup: no other index is on the hot path</span>
 click_events -> a queue, then an analytics store (counts per link per hour)</div>
+</div></details>
 
-<h3>The design, built step by step</h3>
-<p class="try"><b>Try:</b> play it, or step with the arrows. Each red step is a bottleneck the estimate exposed; the next green step fixes it. The counters show the naive design's value struck through beside the current one, for the same traffic.</p>
-<div class="card" id="dia-url"></div>
+<details class="dp"><summary>Deep dives: 301 or 302, the cache and click counting, when to split <span class="mute">(with sources)</span></summary><div class="b">
+<h4>301 or 302?</h4>
+<p>Both redirect; the difference is caching. RFC 9110 says "A 301 response is heuristically cacheable", meaning a browser or proxy may reuse it without asking again, while 302 "Found" says the target "resides temporarily under a different URI" and is not on the list of heuristically cacheable codes (<a href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2" target="_blank" rel="noopener noreferrer">RFC 9110 §15.4.2, §15.4.3, §15.1</a>). A cached 301 is free for you, but the browser stops coming back, so you lose its later clicks and cannot change or take down the destination for that browser. Choose 302 (or 301 with an explicit short cache lifetime) when analytics or takedowns matter. Bitly answers <code>301</code> with <code>cache-control: private, max-age=90</code> (checked with <code>curl -I</code> on 2026-10-04, <code>src/inputs/bitly_headers.txt</code>): shared caches may not store it and a browser may reuse it for only 90 seconds, so nearly every click still reaches Bitly. Bitly's reason is not published; this is an observation, not their statement.</p>
+<h4>The cache, and counting clicks without slowing redirects</h4>
+<p>The redirect looks up the code in <b>Redis</b> (an in-memory key-value store, about 0.14 ms a lookup); on a miss it reads the database and puts the answer in Redis with a <b>TTL</b> (time to live, after which the entry expires). That is <b>cache-aside</b>, taught with its traps (stampedes when a hot key expires, stale entries after a takedown: delete the key on takedown) in <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance, Caching strategy</a>. Links are written once and almost never change, the easiest possible thing to cache. An <code>UPDATE links SET clicks = clicks + 1</code> on every visit turns each redirect into a write, and a viral link becomes one row that thousands of requests lock in turn; instead the server emits a click event to a queue and answers immediately, and consumers aggregate counts per link per hour. Bitly did exactly this: "Data about the conversion is popped onto a queue for the analytics and other downstream systems" (High Scalability, 2014). Delivery is <b>at-least-once</b> (an event may arrive twice after a crash), which a few duplicate clicks tolerate (<a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>).</p>
+<h4 id="d-url-store">18 TB, and when to split the database</h4>
+<p>The access pattern is a pure key lookup by code, with no joins: the easiest data to <b>partition</b> (split rows across several databases by a key). Hash the code to pick a shard; each shard has a replica for failover. Not on day one: the first year is 3.6 TB and 230 writes a second, which one PostgreSQL primary with a replica handles. Use the shard key now, so moving later is mechanical. A partitioned key-value store (DynamoDB, Cassandra) fits this pattern natively and is an equally good answer; pick what the team can operate. How partitioning and consistent hashing work: <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals, Partitioning</a>.</p>
+</div></details>
 
-<h3>Deep dive: where do short codes come from?</h3>
-<p><b>Base62</b> writes a number with 62 symbols (0 to 9, a to z, A to Z), so each character carries one of 62 values: 6 characters give 62<sup>6</sup> = 56.8 billion codes, 7 give 3.52 trillion. Three ways to fill them, each with a cost:</p>
-<ul class="rej">
-<li><b>Hash the long URL</b> (for example the first 7 base62 characters of its SHA-256). The same URL always gets the same code, which deduplicates for free. But different URLs can produce the same 7 characters, so every create must check and handle a collision, and two users shortening the same URL share one code and one click count, which breaks per-owner analytics. <i>Rejected as the main scheme.</i></li>
-<li><b>Random codes</b>, checked for uniqueness on insert (a unique index makes the database refuse a duplicate, and the server retries). Simple and unguessable; the chance a new code collides is the share of the space already used: about 1% at 7 characters after five years, 63% at 6. <i>Acceptable at 7 characters.</i></li>
-<li><b>A counter turned into base62.</b> No collisions ever, and IDs are short. Its two costs: a single counter is a coordination point every create must reach, and sequential codes let anyone walk through every link (<code>aZ3kQ9x</code>, <code>aZ3kQ9y</code>, ...), which leaks private links. <i>Chosen, with both costs removed:</i> each app server leases a block of, say, 10,000 numbers at a time from an <b>ID range service</b> (one row incremented in a database), so a create needs no network call, and the number is passed through a fixed reversible scramble (a permutation of the 7-character space) before encoding, so neighbouring numbers give unrelated codes.</li>
-</ul>
-<div class="real"><div class="t">What real companies built</div>
+<details class="dp"><summary>What real companies built: Flickr's ticket servers, Twitter Snowflake</summary><div class="b">
 <p><b>Flickr, 2010:</b> "Ticket servers give us globally (Flickr-wide) unique integers to serve as primary keys in our distributed setup": a MySQL table where <code>REPLACE INTO</code> plus <code>LAST_INSERT_ID()</code> hands out the next number, run on two servers, one giving odd and one even numbers, so either can fail (<a href="https://code.flickr.net/2010/02/08/ticket-servers-distributed-unique-primary-keys-on-the-cheap/" target="_blank" rel="noopener noreferrer">Kremerskothen, Flickr, 2010-02-08</a>).</p>
 <p><b>Twitter Snowflake, 2010:</b> a 64-bit ID made of "time - 41 bits (millisecond precision w/ a custom epoch gives us 69 years)", a "configured machine id - 10 bits - gives us up to 1024 machines" and a "sequence number - 12 bits - rolls over every 4096 per machine", so machines "should not have to coordinate with each other" and IDs sort roughly by time (<a href="https://github.com/twitter-archive/snowflake/blob/snowflake-2010/README.mkd" target="_blank" rel="noopener noreferrer">snowflake README, 2010</a>; <a href="http://web.archive.org/web/2011/http://engineering.twitter.com/2010/06/announcing-snowflake.html" target="_blank" rel="noopener noreferrer">announcement, 2010-06-01</a>). Snowflake IDs are too long for a shortener (a 64-bit number needs 11 base62 characters) but are the standard answer for "unique IDs across many machines", and Discord uses them for every message (<a href="#s-chat">design 3</a>). Instagram built the same idea inside PostgreSQL (root <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Case files: Instagram 2012</a>).</p>
-</div>
+</div></details>
 
-<h3>Deep dive: 301 or 302?</h3>
-<p>Both status codes redirect. The difference is caching. RFC 9110 says "A 301 response is heuristically cacheable", meaning a browser or proxy may reuse it without asking again, while 302 "Found" says the target "resides temporarily under a different URI" and is not on the list of heuristically cacheable codes (<a href="https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2" target="_blank" rel="noopener noreferrer">RFC 9110 §15.4.2, §15.4.3, §15.1</a>). A cached 301 is free for you, but the browser stops coming back, so you lose its later clicks and cannot change or take down the destination for that browser. Choose 302 (or 301 with an explicit short cache lifetime) when analytics or takedowns matter. Bitly answers <code>301</code> with <code>cache-control: private, max-age=90</code> (checked with <code>curl -I</code> on 2026-10-04, <code>src/inputs/bitly_headers.txt</code>): shared caches may not store it and a browser may reuse it for only 90 seconds, so nearly every click still reaches Bitly. Bitly's reason is not published; this is an observation, not their statement.</p>
-
-<h3>Deep dive: the cache, and counting clicks without slowing redirects</h3>
-<p>The redirect path is: look up the code in <b>Redis</b> (an in-memory key-value store, about 0.14 ms a lookup); on a miss, read the database and put the answer in Redis with a <b>TTL</b> (time to live, after which the entry expires). That pattern is <b>cache-aside</b>, taught with its traps (stampedes when a hot key expires, stale entries after a takedown: delete the key on takedown) in <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance, Caching strategy</a>. Links are written once and almost never change, the easiest possible thing to cache. Click counting must not sit on the redirect path: an <code>UPDATE links SET clicks = clicks + 1</code> on every visit turns each redirect into a write, and a viral link becomes one row that thousands of requests lock in turn. Instead the server emits a click event to a queue and answers immediately; consumers aggregate counts per link per hour. Bitly did exactly this: "Data about the conversion is popped onto a queue for the analytics and other downstream systems" (High Scalability, 2014). Delivery is <b>at-least-once</b> (an event may arrive twice after a crash), which a few duplicate clicks tolerate; how queues behave is in <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>.</p>
-
-<h3 id="d-url-store">Deep dive: 18 TB, and when to split the database</h3>
-<p>The access pattern is a pure key lookup by code, with no joins: the easiest data to <b>partition</b> (split rows across several databases by a key). Hash the code to pick a shard; each shard has a replica for failover. Do not do this on day one: the first year is 3.6 TB and 230 writes a second, which one PostgreSQL primary with a replica handles. Plan the split (use a shard key now, so moving later is mechanical) and execute it when storage or write rate demands it. A partitioned key-value store (DynamoDB, Cassandra) fits this pattern natively and is an equally good answer; pick what the team can operate. How partitioning and consistent hashing work: <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals, Partitioning</a>.</p>
-
-<h3>Failure modes</h3>
+<details class="dp"><summary>Failure modes, and what interviewers listen for</summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
 <tbody>
@@ -233,7 +253,6 @@ click_events -> a queue, then an analytics store (counts per link per hour)</div
 <tr><td>Abuse: phishing and spam links</td><td>The domain gets blocklisted by browsers</td><td>Scan new URLs asynchronously, rate-limit creates per user (<a href="#s-rl">design 2</a>), answer 410 for removed links</td></tr>
 <tr><td>Enumeration</td><td>Private links discovered by walking codes</td><td>Non-sequential codes (scramble or random), rate limits on 404s</td></tr>
 </tbody></table></div>
-
 <div class="say"><div class="t">What interviewers listen for</div>
 <ul>
 <li>You asked about the read-to-write ratio and computed the code space instead of picking "6 characters" by habit.</li>
@@ -242,17 +261,29 @@ click_events -> a queue, then an analytics store (counts per link per hour)</div
 <li>Click counting is off the hot path, and you said what at-least-once means for counts.</li>
 <li>You did not shard on day one, and you said when you would.</li>
 </ul></div>
+</div></details>
 </section>
 <section id="s-rl">
-<h2 class="dhead"><span class="dnum">Design 2</span>Rate limiter as a service: algorithms, distributed counters, Redis Lua</h2>
-<p>A <b>rate limiter</b> caps how often one client (an API key, a user, an IP address) may call you, and rejects the excess with <code>429 Too Many Requests</code>. The algorithms themselves (fixed window, sliding window, token bucket, leaky bucket) are taught, animated on one burst of traffic, in <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering, Rate limiting: per-client fairness</a>, and what a client sees (the 429, <code>Retry-After</code>, remaining-allowance headers) in <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API, section 12</a>. The design question is different: <b>many servers must enforce one limit together</b>, in well under a millisecond, without becoming the thing that takes the API down.</p>
+<h2 class="dhead"><span class="dnum">Design 2</span>Rate limiter as a service: distributed counters, atomic checks, fail open</h2>
+<p>A <b>rate limiter</b> caps how often one client (an API key, a user, an IP address) may call you and rejects the excess with <code>429 Too Many Requests</code>. The algorithms (fixed window, sliding window, token bucket, leaky bucket) are animated on one burst in <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering, Rate limiting: per-client fairness</a>, and what a client sees (the 429, <code>Retry-After</code>, remaining-allowance headers) in <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API, section 12</a>. The design question is different: <b>many servers must enforce one limit together</b>, in well under a millisecond, without becoming the thing that takes the API down.</p>
 <div class="req"><div class="t">Requirements</div><div class="cols">
-<div><h5>Functional</h5><ul><li>Limits per API key per second and per minute, configurable per plan.</li><li>A check call: "may key K do one more request?" answering allow or deny, plus remaining allowance.</li><li>Rules change without a deploy.</li></ul></div>
-<div><h5>Non-functional</h5><ul><li>50,000 requests a second at peak across 50 gateway servers; 1 million active keys (illustrative).</li><li>Adds under 1 ms at p99.</li><li>Accuracy: a few percent over the limit is fine; 50 times over is not.</li><li>If the limiter breaks, the API must keep working (fail open).</li></ul></div></div></div>
+<div><h5>Functional</h5><ul><li>Limits per API key per second and per minute, configurable per plan; rules change without a deploy.</li><li>A check call: "may key K do one more request?" answering allow or deny, plus remaining allowance.</li></ul></div>
+<div><h5>Non-functional</h5><ul><li>50,000 requests a second at peak across 50 gateway servers; 1 million active keys (illustrative).</li><li>Adds under 1 ms at p99. A few percent over the limit is fine; 50 times over is not.</li><li>If the limiter breaks, the API must keep working (fail open).</li></ul></div></div></div>
 <div class="est" id="est-rl"></div>
-<p><b>What the numbers say.</b> One Redis node, planned at half its benchmark, handles the whole fleet's checks today, and the counters fit in 200 MB, so this is not a big-data problem. Two things are hard. First, the network round trip (about 0.5 ms in a region) is most of the latency budget, so a check must be one round trip, not three. Second, counting only inside each server gives a client up to 50 times its limit if its requests spread over all 50 servers: the row turns red. At 10&times; traffic you need several Redis primaries, which brings sharding and hot keys.</p>
+<p><b>What the numbers say.</b> One Redis node, planned at half its benchmark, handles the whole fleet's checks, and the counters fit in 200 MB: not a big-data problem. Two things are hard. The network round trip (about 0.5 ms in a region) is most of the latency budget, so a check must be one round trip, not three. And counting only inside each server gives a client up to 50 times its limit if its requests spread over all 50 servers: that row turns red. At 10&times; traffic you need several Redis primaries, which brings sharding and hot keys.</p>
 
-<h3>API</h3>
+<h3>The design, built step by step: local counters, a shared counter, then an atomic one</h3>
+<div class="card" id="dia-rl"></div>
+
+<h3 id="s-rl-race">The race, measured</h3>
+<p>The naive shared counter reads the count, compares it with the limit, then writes count + 1. Between the read and the write another server reads the same count, so both admit a request the limit should have refused: a <b>race condition</b> (the result depends on the timing of concurrent operations), the same check-then-act bug that makes a retried payment charge twice.</p>
+<div class="meas"><div class="t">Check-then-act lets 17 to 19% too many through; one atomic statement, none. One key, limit 100, 32 clients at once (PostgreSQL 16.2, laptop, 3 runs)</div>
+<div id="race-out"></div>
+<p class="small">Each of 32 threads sent 25 requests for the same key at the same moment. <b>Check-then-act</b> (<code>SELECT n</code>, then <code>UPDATE n = n + 1</code> if under the limit) admitted <span id="race-n"></span>. <b>Atomic</b> (<code>UPDATE ... SET n = n + 1 WHERE n &lt; 100 RETURNING n</code>, one statement) admitted exactly 100 every time. Measured on PostgreSQL because no Redis was installed on this machine; the race and the fix are the same in Redis, where <code>GET</code> then <code>SET</code> races and a Lua script or <code>INCR</code>-then-compare does not. <code>src/lab/measure_pg.py</code>, 2026-10-04.</p></div>
+<p>Redis gives two atomic forms: <code>INCR</code> increments and returns the new value in one step (<a href="https://redis.io/docs/latest/commands/incr/" target="_blank" rel="noopener noreferrer">Redis INCR docs</a>); for a token bucket (read tokens and a timestamp, compute, write both), send a <b>Lua script</b>: "Redis guarantees the script's atomic execution. While executing the script, all server activities are blocked during its entire runtime" (<a href="https://redis.io/docs/latest/develop/programmability/eval-intro/" target="_blank" rel="noopener noreferrer">Redis scripting docs</a>), so scripts must be short (the script is in the closed block below).</p>
+<p><b>Fail open.</b> When the limiter cannot answer (Redis timeout, script error), allow the request and count the failure; a limiter that fails closed turns a Redis blip into a full API outage (Stripe's rule, below). The Redis call gets a timeout of a few milliseconds and a circuit breaker (<a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering, Circuit breakers</a>).</p>
+
+<details class="dp"><summary>API, data model and the token-bucket Lua script</summary><div class="b">
 <div class="code"><span class="cm">// internal gRPC or HTTP call from each gateway, or a library that talks to Redis directly</span>
 Check(domain="public_api", descriptors=[("key","k_123"),("plan","pro")], cost=1)
   -> {allowed: true, remaining: 41, reset_after_ms: 380}
@@ -260,22 +291,10 @@ Check(domain="public_api", descriptors=[("key","k_123"),("plan","pro")], cost=1)
 HTTP/1.1 429 Too Many Requests
 Retry-After: 1</div>
 <p>The shape mirrors Envoy's open-source limiter, "a Go/gRPC service designed to enable generic rate limit scenarios", where "A descriptor is a list of key/value pairs owned by a domain that the Ratelimit service uses to select the correct rate limit" and counters live in Redis (<a href="https://github.com/envoyproxy/ratelimit/blob/main/README.md" target="_blank" rel="noopener noreferrer">envoyproxy/ratelimit README</a>).</p>
-
-<h3>Data model</h3>
 <div class="code"><span class="cm">-- token bucket per key: two fields, one Redis hash, expiring when idle</span>
 rl:{k_123}  ->  tokens = 41.7, ts = 1759600000123      TTL 2 x (capacity / refill rate)
 <span class="cm">-- rules: a small table or config file, cached in every gateway</span>
 rules(plan, window, limit, burst)</div>
-
-<h3>The design, built step by step</h3>
-<div class="card" id="dia-rl"></div>
-
-<h3 id="s-rl-race">Deep dive: the race, measured</h3>
-<p>The naive shared counter reads the count, compares it with the limit, then writes count + 1. Between the read and the write another server can read the same count, so both admit a request the limit should have refused. This is a <b>race condition</b> (the result depends on the timing of concurrent operations), the same check-then-act bug that makes a retried payment charge twice. It is easy to dismiss as rare; it is not.</p>
-<div class="meas"><div class="t">Measured for this page: one key, limit 100, 32 clients at once (PostgreSQL 16.2, laptop, 3 runs)</div>
-<div id="race-out"></div>
-<p class="small">Each of 32 threads sent 25 requests for the same key at the same moment. <b>Check-then-act</b> (<code>SELECT n</code>, then <code>UPDATE n = n + 1</code> if under the limit) admitted <span id="race-n"></span>. <b>Atomic</b> (<code>UPDATE ... SET n = n + 1 WHERE n &lt; 100 RETURNING n</code>, one statement) admitted exactly 100 every time. Measured on PostgreSQL because no Redis was installed on this machine; the race and the fix are the same in Redis, where <code>GET</code> then <code>SET</code> races and a Lua script or <code>INCR</code>-then-compare does not. <code>src/lab/measure_pg.py</code>, 2026-10-04.</p></div>
-<p>Redis gives two atomic forms. <code>INCR</code> increments and returns the new value in one step; the Redis docs show the classic "Pattern: rate limiter" with <code>INCR</code> and <code>EXPIRE</code>, and warn that "If for some reason the client performs the INCR command but does not perform the EXPIRE the key will be leaked" (<a href="https://redis.io/docs/latest/commands/incr/" target="_blank" rel="noopener noreferrer">Redis INCR docs</a>). For anything more than a counter (a token bucket reads tokens and a timestamp, computes, writes both), send a <b>Lua script</b>: "Redis guarantees the script's atomic execution. While executing the script, all server activities are blocked during its entire runtime" (<a href="https://redis.io/docs/latest/develop/programmability/eval-intro/" target="_blank" rel="noopener noreferrer">Redis scripting docs</a>). The cost is that a slow script blocks every other client of that node, so scripts must be short.</p>
 <div class="code"><span class="cm">-- token bucket in one round trip (KEYS[1] = rl:{key}; ARGV = rate, capacity, now_ms, cost)</span>
 local b = redis.call('HMGET', KEYS[1], 'tokens', 'ts')
 local rate, cap, now, cost = tonumber(ARGV[1]), tonumber(ARGV[2]), tonumber(ARGV[3]), tonumber(ARGV[4])
@@ -287,24 +306,26 @@ if ok then tokens = tokens - cost end
 redis.call('HSET', KEYS[1], 'tokens', tokens, 'ts', now)
 redis.call('PEXPIRE', KEYS[1], math.ceil(cap / rate * 2000))
 return {ok and 1 or 0, tokens}</div>
+<p>The Redis docs' "Pattern: rate limiter" pairs <code>INCR</code> with <code>EXPIRE</code> and warns that "If for some reason the client performs the INCR command but does not perform the EXPIRE the key will be leaked".</p>
 <p class="small mute">Written for this page, following the structure of Stripe's published gist (below); the clock comes from the caller, so gateways need roughly synchronised clocks, or the script can call <code>TIME</code> on the Redis server instead.</p>
+</div></details>
 
-<h3>Deep dive: where the limiter lives, and what happens when it breaks</h3>
+<details class="dp"><summary>Deep dive: where the limiter lives, sharding and hot keys</summary><div class="b">
 <ul class="rej">
-<li><b>In each server's memory only.</b> No network call, zero added latency. Each server enforces limit &divide; servers, which is exact only if the load balancer spreads every client evenly; a client hitting few servers is throttled too hard, and one hitting all of them less. <i>Rejected as the only layer; kept as a coarse local backstop for when Redis is unreachable.</i></li>
+<li><b>In each server's memory only.</b> No network call, zero added latency. Each server enforces limit &divide; servers, exact only if the load balancer spreads every client evenly; a client hitting few servers is throttled too hard, one hitting all of them less. <i>Rejected as the only layer; kept as a coarse local backstop for when Redis is unreachable.</i></li>
 <li><b>A central store (Redis), one atomic call per request.</b> Accurate, one round trip. <i>Chosen.</i></li>
 <li><b>Batching: each server takes a lease of N tokens</b> from the central store and spends them locally. Fewer round trips, slightly over-admits when leases go unused. <i>Kept in reserve for hot keys at 10&times; traffic.</i></li>
 </ul>
-<p><b>Fail open.</b> When the limiter cannot answer (Redis timeout, script error), allow the request and count the failure. A limiter that fails closed turns a Redis blip into a full API outage. Stripe's rule: "Make sure that if there were bugs in the rate limiting code (or if Redis were to go down), requests wouldn't be affected", plus "Dark launch each rate limiter to watch the traffic they would block" (<a href="https://stripe.com/blog/rate-limiters" target="_blank" rel="noopener noreferrer">Tarjan, Stripe, 2017-03-30</a>). The call to Redis needs a short timeout (a few milliseconds) and a circuit breaker, as taught in <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering, Circuit breakers</a>.</p>
 <p><b>Sharding and hot keys.</b> Beyond one node, shard counters by key (hash of the key picks the node), so each key's counter lives on exactly one node and stays atomic. One enormous tenant still lands on one node; give it leased tokens or its own node. Replicas help availability but not accuracy: a replica can serve a stale count, and GitHub hit a subtler bug, below.</p>
+</div></details>
 
-<div class="real"><div class="t">What real companies built</div>
-<p><b>Stripe (2017-03-30):</b> "At Stripe, we operate 4 different types of limiters in production. The first one, the Request Rate Limiter, is by far the most important one", restricting "each user to N requests per second"; then a concurrent-requests limiter ("You can only have 20 API requests in progress at the same time") and two load shedders that reserve capacity for critical traffic. "We use the token bucket algorithm to do rate limiting. ... We implement our rate limiters using Redis" (one quote joined from two sentences; <a href="https://stripe.com/blog/rate-limiters" target="_blank" rel="noopener noreferrer">Stripe blog</a>). The companion gist "relies on the fact that Redis scripts execute atomically. No other operations can run between fetching the count and writing the new count" (<a href="https://gist.github.com/ptarjan/e38f45f2dfe601419ca3af937fff574d" target="_blank" rel="noopener noreferrer">gist</a>).</p>
-<p><b>Cloudflare (2017-06-07):</b> counts in memcache inside each data centre, where "the only operations available were GET, SET and INCR", using the sliding window counter approximation (worked example: "rate = 42 * ((60-15)/60) + 18 = 42 * 0.75 + 18 = 49.5 requests"). Measured on real traffic, "0.003% of requests have been wrongly allowed or rate limited"; increments run asynchronously "without slowing down the requests"; it "handles several billion requests per day" and absorbed "as many as 400,000 requests per second to a single domain" (<a href="https://blog.cloudflare.com/counting-things-a-lot-of-different-things/" target="_blank" rel="noopener noreferrer">Desgats, Cloudflare</a>). Note the trade: Cloudflare counts per data centre, not globally, accepting that an attacker spread across the world is judged locally.</p>
+<details class="dp"><summary>What real companies built: Stripe, Cloudflare, GitHub</summary><div class="b">
+<p><b>Stripe (2017-03-30):</b> "At Stripe, we operate 4 different types of limiters in production. The first one, the Request Rate Limiter, is by far the most important one", restricting "each user to N requests per second"; then a concurrent-requests limiter ("You can only have 20 API requests in progress at the same time") and two load shedders that reserve capacity for critical traffic. "We use the token bucket algorithm to do rate limiting. ... We implement our rate limiters using Redis" (one quote joined from two sentences; <a href="https://stripe.com/blog/rate-limiters" target="_blank" rel="noopener noreferrer">Stripe blog</a>). Its rules for the rollout: "Make sure that if there were bugs in the rate limiting code (or if Redis were to go down), requests wouldn't be affected", and "Dark launch each rate limiter to watch the traffic they would block" (<a href="https://stripe.com/blog/rate-limiters" target="_blank" rel="noopener noreferrer">Tarjan, Stripe, 2017-03-30</a>). The companion gist "relies on the fact that Redis scripts execute atomically. No other operations can run between fetching the count and writing the new count" (<a href="https://gist.github.com/ptarjan/e38f45f2dfe601419ca3af937fff574d" target="_blank" rel="noopener noreferrer">gist</a>).</p>
+<p><b>Cloudflare (2017-06-07):</b> counts in memcache inside each data centre, where "the only operations available were GET, SET and INCR", using the sliding window counter approximation (worked example: "rate = 42 * ((60-15)/60) + 18 = 42 * 0.75 + 18 = 49.5 requests"). Measured on real traffic, "0.003% of requests have been wrongly allowed or rate limited"; increments run asynchronously "without slowing down the requests"; it "handles several billion requests per day" and absorbed "as many as 400,000 requests per second to a single domain" (<a href="https://blog.cloudflare.com/counting-things-a-lot-of-different-things/" target="_blank" rel="noopener noreferrer">Desgats, Cloudflare</a>). The trade: Cloudflare counts per data centre, not globally, accepting that an attacker spread across the world is judged locally.</p>
 <p><b>GitHub (2021-04-05, updated 2023):</b> moved off shared Memcached because "when it filled up, it would sometimes evict rate limiter data, even when it was still active", to "a replicated Redis backend with client-side sharding", with storage logic "in Lua, to guarantee atomicity", rolled out behind a feature flag. The surprise: "replicas don't expire data until they receive instructions to do so from their primaries", so reads from replicas saw expired windows; they stored the reset time explicitly (<a href="https://github.blog/engineering/infrastructure/how-we-scaled-github-api-sharded-replicated-rate-limiter-redis/" target="_blank" rel="noopener noreferrer">Mosolgo, GitHub</a>).</p>
-</div>
+</div></details>
 
-<h3>Failure modes</h3>
+<details class="dp"><summary>Failure modes, and what interviewers listen for</summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
 <tbody>
@@ -322,20 +343,27 @@ return {ok and 1 or 0, tokens}</div>
 <li>You knew per-data-centre counting (Cloudflare) versus global counting is a trade-off, not a mistake.</li>
 <li>You mentioned hot keys and dark launches.</li>
 </ul></div>
+</div></details>
 </section>
 <section id="s-chat">
 <h2 class="dhead"><span class="dnum">Design 3</span>Chat and messaging: WebSockets, fan-out, ordering, presence, storage</h2>
-<p>A chat system delivers a message from one person to the others in a conversation within a second, keeps the history forever, and shows who is online. The new ingredient compared with designs 1 and 2 is that the server must <b>push</b>: a message arrives for you while you are not asking for anything.</p>
+<p>A chat system delivers a message to the others in a conversation within a second, keeps the history forever and shows who is online. The new ingredient after designs 1 and 2: the server must <b>push</b>, sending you a message while you are not asking for anything.</p>
 <div class="req"><div class="t">Requirements</div><div class="cols">
-<div><h5>Functional</h5><ul><li>One-to-one and group conversations (we call both <b>channels</b>), groups up to a few thousand members.</li><li>Real-time delivery to online members; offline members see the messages when they return, and get a push notification.</li><li>Full history, scrollable; presence (online dots); read receipts.</li></ul></div>
-<div><h5>Non-functional</h5><ul><li>50 million daily users, 40 messages each a day, 20% connected at the peak (illustrative).</li><li>Delivery under 500 ms for online members.</li><li>Messages are never lost once acknowledged; order within a channel is the same for everyone.</li><li>History kept forever.</li></ul></div></div></div>
+<div><h5>Functional</h5><ul><li>One-to-one and group conversations (both called <b>channels</b>), groups up to a few thousand members.</li><li>Real-time delivery to online members; offline members catch up on return and get a push notification.</li><li>Full scrollable history; presence (online dots); read receipts.</li></ul></div>
+<div><h5>Non-functional</h5><ul><li>50 million daily users, 40 messages each a day, 20% connected at the peak (illustrative).</li><li>Delivery under 500 ms for online members.</li><li>Never lost once acknowledged; order within a channel the same for everyone; history kept forever.</li></ul></div></div></div>
 <div class="est" id="est-chat"></div>
-<p><b>What the numbers say.</b> The message rate (46,000 a second at peak) is not the hard part. Three numbers are: <b>10 million open connections</b>, which need about 100 servers that do nothing but hold connections; <b>333,000 presence heartbeats a second</b>, seven times the message rate, so presence must be cheap and lossy; and <b>657 TB a year</b> of stored messages with three copies, which no single database holds. If clients instead asked "anything new?" every 5 seconds, that is 2 million mostly empty requests a second, 43 times the real message rate: the row turns red, and that is why chat uses persistent connections.</p>
+<p><b>What the numbers say.</b> The message rate (46,000 a second at peak) is not the hard part. Three numbers are: <b>10 million open connections</b>, about 100 servers that do nothing but hold connections; <b>333,000 presence heartbeats a second</b>, seven times the message rate, so presence must be cheap and lossy; and <b>657 TB a year</b> of stored messages with three copies, which no single database holds. If clients instead asked "anything new?" every 5 seconds, that is 2 million mostly empty requests a second, 43 times the real message rate: the row turns red, and that is why chat uses persistent connections.</p>
 
-<h3>The connection: why WebSockets</h3>
-<p>HTTP is request and response: the client asks, the server answers. To push, the server needs a connection that stays open. A <b>WebSocket</b> is that connection: "The protocol consists of an opening handshake followed by basic message framing, layered over TCP" (<a href="https://www.rfc-editor.org/rfc/rfc6455" target="_blank" rel="noopener noreferrer">RFC 6455</a>), meaning it starts as an HTTP request that asks to "upgrade" and then both sides can send messages at any time for as long as it lasts. Alternatives: <b>long polling</b> (the server holds each request open until there is news, then the client asks again: works everywhere, costs a request per message) and <b>server-sent events</b> (one-way server push over HTTP, what LLM APIs use to stream tokens: <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API, section 14</a>). Chat needs both directions often, so WebSockets, with long polling as a fallback for hostile networks. Connection setup and TLS cost are in <a href="https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02" target="_blank" rel="noopener noreferrer">Topic: protocols</a>.</p>
+<h3>The design, built step by step: from polling to channel servers and partitioned storage</h3>
+<div class="card" id="dia-chat"></div>
 
-<h3>API</h3>
+<h3>The decisions that matter</h3>
+<p><b>The connection.</b> A <b>WebSocket</b> (<a href="https://www.rfc-editor.org/rfc/rfc6455" target="_blank" rel="noopener noreferrer">RFC 6455</a>) starts as an HTTP request that asks to "upgrade", then either side can send at any time over the same TCP connection. <b>Long polling</b> (the server holds each request until there is news) works everywhere but costs a request per message; <b>server-sent events</b> are one-way server push, what LLM APIs use to stream tokens (<a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API, section 14</a>). Chat needs both directions often: WebSockets, with long polling as a fallback for hostile networks. Connection setup and TLS cost: <a href="https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02" target="_blank" rel="noopener noreferrer">Topic: protocols</a>.</p>
+<p><b>Routing to the right connection.</b> The sender is on gateway 17, recipients on 3, 58 and 90. A session registry ("user u is on gateway g") with direct forwarding is simple for one-to-one chat but costs 5,000 lookups per message in a 5,000-member group. <i>Chosen:</i> <b>channel servers</b>: each channel is owned by one server, picked by <b>consistent hashing</b> (adding a server moves only a small share of keys: <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals, Partitioning</a>); gateways subscribe to their users' channels, so fan-out is one message per gateway, not per user.</p>
+<p><b>Ordering, offline, presence.</b> The channel's server assigns increasing message IDs, so order is per channel, decided in one place; order across channels is not promised (nobody can see it), and clients use the last ID to ask for what they missed after a reconnect. A message is stored before it is acknowledged, so pushing to connections is best effort and a missed push is caught up from storage by cursor; recipients with no connection get a mobile push through a queue (<a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>). Presence is a key with a TTL that heartbeats refresh, so a dead phone goes offline when the key expires; changes go only to people who are looking, batched, and may be seconds stale.</p>
+<p><b>Storage.</b> Reads are always "the latest 50 messages in channel c, then the 50 before", which points to a <b>wide-column store</b> (Cassandra, ScyllaDB: partitioned by a key across machines, rows sorted within a partition) keyed by channel and a time bucket, so a busy channel's partition stays bounded. A very busy channel is a <b>hot partition</b> (one key with a large share of traffic): cache recent messages in the channel servers and coalesce identical concurrent reads.</p>
+
+<details class="dp"><summary>API and data model <span class="mute">(frames over the WebSocket, Discord's storage key)</span></summary><div class="b">
 <div class="code"><span class="cm">// over the WebSocket, as small JSON frames</span>
 client -> {"op":"send", "channel":"c_42", "client_msg_id":"7f3a...", "text":"hi"}
 server -> {"op":"ack", "client_msg_id":"7f3a...", "msg_id":"1124203949381050368"}
@@ -344,38 +372,23 @@ server -> {"op":"presence", "user":"u_9", "status":"online"}
 <span class="cm">// over plain HTTP</span>
 GET /v1/channels/c_42/messages?before=1124203949381050368&amp;limit=50     <span class="cm">history, by cursor</span></div>
 <p>The <code>client_msg_id</code> is an idempotency key: if the acknowledgement is lost and the phone resends, the server recognises the ID and does not store the message twice. The server-assigned <code>msg_id</code> is a Snowflake-style ID (time first), so sorting by it sorts by time, and it doubles as the pagination cursor (<a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API, section 8</a>).</p>
-
-<h3>Data model</h3>
 <div class="code">messages  PRIMARY KEY ((channel_id, bucket), message_id)    <span class="cm">-- Discord's key, below</span>
           author_id, content, edited_at, ...
 <span class="cm">-- bucket = time window (Discord: about 10 days), so one channel's history is many bounded partitions</span>
 channel_members(channel_id, user_id, last_read_message_id)  <span class="cm">-- read receipts and unread counts</span>
 sessions (in memory, e.g. Redis): user_id -> set of gateway servers holding that user's connections
 presence (in memory, with TTL):    user_id -> online, expires unless refreshed by a heartbeat</div>
+</div></details>
 
-<h3>The design, built step by step</h3>
-<div class="card" id="dia-chat"></div>
-
-<h3>Deep dive: getting a message to the right connection</h3>
-<p>The sender is connected to gateway server 17; the recipients to servers 3, 58 and 90. Something must know who is where and fan the message out. Two shapes work:</p>
-<ul class="rej">
-<li><b>A session registry plus direct routing:</b> every gateway records "user u is on me" in a shared store; the message service looks up each recipient and forwards to their gateways. Simple for one-to-one chat; for a 5,000-member group it is 5,000 lookups per message.</li>
-<li><b>Channel servers (publish and subscribe):</b> each channel is owned by one server, chosen by <b>consistent hashing</b> (a way to map keys to servers so adding a server moves only a small share of keys: <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals, Partitioning</a>). Gateways subscribe to the channels their users are in; a message goes to the channel's server, which forwards it once to each subscribed gateway, which forwards it to its local connections. <i>Chosen:</i> the fan-out is one message per gateway, not per user, and the channel's server is a natural place to assign order.</li>
-</ul>
-<p><b>Ordering.</b> "Same order for everyone" needs one place that decides the order per channel: the channel's server assigns increasing message IDs as messages arrive. Order across channels is not promised (nobody can see it). Clients sort by ID and use it to detect gaps after a reconnect: "give me everything after the last ID I have".</p>
-<p><b>Offline and reconnect.</b> The message is stored before it is acknowledged, so delivery to connections is best effort: a recipient who misses a push catches up from storage with the cursor. Recipients with no live connection get a mobile push notification through a separate, asynchronous path (a queue, as in <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>).</p>
-<p><b>Presence, cheaply.</b> Each connection sends a heartbeat; presence is a key with a TTL that the heartbeat refreshes, so a dead phone goes offline when the key expires instead of needing a "goodbye" message. To keep 333,000 updates a second from becoming millions of fan-out messages, presence changes go only to people who are looking (open conversations, visible contacts), are batched, and may be seconds stale. Discord's own numbers show why: "When a user comes online, they connect to a guild, and the guild publishes a presence to all other connected sessions", and in servers with "up to 30,000 concurrent users", "publishing an event from a large guild could take anywhere from 900ms to 2.1s" until they batched sends per node (<a href="https://discord.com/blog/how-discord-scaled-elixir-to-5-000-000-concurrent-users" target="_blank" rel="noopener noreferrer">Vishnevskiy, Discord, 2017-07-06</a>).</p>
-
-<h3>Deep dive: storing every message forever</h3>
-<p>Reads are "the latest 50 messages in channel c, then the 50 before that", always within one channel. That access pattern points to a <b>wide-column store</b> (Cassandra, ScyllaDB: tables partitioned by a key across many machines, rows sorted within a partition) keyed by channel. Bucketing by time keeps a busy channel's partition from growing without limit. Writes are spread by channel; a very busy channel is a <b>hot partition</b> (one key getting a large share of traffic). Fixes: cache recent messages in the channel servers, and coalesce identical concurrent reads.</p>
-<div class="real"><div class="t">What real companies built</div>
-<p><b>Discord, 2017:</b> from one MongoDB collection "with a single compound index on channel_id and created_at" to Cassandra, because "our read/write ratio was about 50/50" and "Cassandra was the only database that fulfilled all of our requirements"; "channel_id became the partition key", message IDs are Snowflakes, and "if we stored about 10 days of messages within a bucket that we could comfortably stay under 100MB", giving the key "((channel_id, bucket), message_id)". They ran "a 12 node cluster with a replica factor of 3" at "well past 120 million" messages a day (<a href="https://discord.com/blog/how-discord-stores-billions-of-messages" target="_blank" rel="noopener noreferrer">Vishnevskiy, Discord, 2017-01-13</a>).</p>
+<details class="dp"><summary>What real companies built: Discord, Slack, WhatsApp</summary><div class="b">
+<p><b>Discord presence, 2017:</b> "When a user comes online, they connect to a guild, and the guild publishes a presence to all other connected sessions", and in servers with "up to 30,000 concurrent users", "publishing an event from a large guild could take anywhere from 900ms to 2.1s" until they batched sends per node (<a href="https://discord.com/blog/how-discord-scaled-elixir-to-5-000-000-concurrent-users" target="_blank" rel="noopener noreferrer">Vishnevskiy, Discord, 2017-07-06</a>).</p>
+<p><b>Discord storage, 2017:</b> from one MongoDB collection "with a single compound index on channel_id and created_at" to Cassandra, because "our read/write ratio was about 50/50" and "Cassandra was the only database that fulfilled all of our requirements"; "channel_id became the partition key", message IDs are Snowflakes, and "if we stored about 10 days of messages within a bucket that we could comfortably stay under 100MB", giving the key "((channel_id, bucket), message_id)". They ran "a 12 node cluster with a replica factor of 3" at "well past 120 million" messages a day (<a href="https://discord.com/blog/how-discord-stores-billions-of-messages" target="_blank" rel="noopener noreferrer">Vishnevskiy, Discord, 2017-01-13</a>).</p>
 <p><b>Discord, 2023:</b> "At the beginning of 2022, it had 177 nodes with trillions of messages"; hot partitions led to data services that coalesce reads ("If multiple users are requesting the same row at the same time, we'll only query the database once") and a move to "just 72 ScyllaDB nodes", with history p99 from "between 40-125ms" to 15 ms (<a href="https://discord.com/blog/how-discord-stores-trillions-of-messages" target="_blank" rel="noopener noreferrer">Ingram, Discord, 2023-03-06</a>; root <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Case files: Discord 2023</a>).</p>
 <p><b>Slack, 2023:</b> "Every Slack client has a persistent websocket connection to Slack's servers"; Channel Servers "are stateful and in-memory", mapped to channels "based on consistent hashing"; a message goes from the web app to an Admin Server, which "discovers CS through a consistent hash ring", then to Gateway Servers and clients; "At peak times, about 16 million channels are served per host", messages arrive "across the world in 500ms", and "a new CS is ready to serve traffic in under 20 seconds" (<a href="https://slack.engineering/real-time-messaging/" target="_blank" rel="noopener noreferrer">Thangudu, Slack, 2023-04-11</a>). Slack's January 2021 outage (root <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Case files: Slack 2021</a>) shows the other side: when the network, not the servers, is the bottleneck, autoscaling on CPU misreads it.</p>
 <p><b>WhatsApp, 2012:</b> one tuned Erlang server held "over 2 million tcp connections", "with plenty of CPU and memory to spare" (<a href="https://blog.whatsapp.com/1-million-is-so-2011" target="_blank" rel="noopener noreferrer">WhatsApp blog, 2012-01-06</a>). Our planning figure of 100,000 per server is deliberately 20 times lower: a conservative default you would raise after load testing.</p>
-</div>
+</div></details>
 
-<h3>Failure modes</h3>
+<details class="dp"><summary>Failure modes, and what interviewers listen for</summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
 <tbody>
@@ -393,49 +406,46 @@ presence (in memory, with TTL):    user_id -> online, expires unless refreshed b
 <li>Store before acknowledging; deliver best effort; catch up by cursor.</li>
 <li>The storage key follows the read pattern (channel and time), and you named the hot-partition risk.</li>
 </ul></div>
+</div></details>
 </section>
 <section id="s-feed">
 <h2 class="dhead"><span class="dnum">Design 4</span>News feed and timeline: fan-out on write against on read, and celebrities</h2>
-<p>A <b>news feed</b> (or home timeline) shows each user the recent posts of the accounts they follow, newest first. The classic case is Twitter around 2012, because its engineers published the numbers and because one design decision, when to do the merging work, dominates everything else.</p>
+<p>A <b>news feed</b> (home timeline) shows each user the recent posts of the accounts they follow, newest first. The classic case is Twitter around 2012: its engineers published the numbers, and one decision, when to do the merging work, dominates everything else.</p>
 <div class="req"><div class="t">Requirements</div><div class="cols">
 <div><h5>Functional</h5><ul><li>Post a short message; follow and unfollow.</li><li>Home timeline: newest posts from followed accounts, paginated.</li><li>Out of scope at first: ranking, search, replies.</li></ul></div>
-<div><h5>Non-functional</h5><ul><li>Twitter's published scale (2012): "150M world wide active users, handles 300K QPS to generate timelines"; "5K/sec daily average; 7K/sec daily peak; >12K/sec during large events" for posts; "30b deliveries / day" (<a href="http://highscalability.com/blog/2013/7/8/the-architecture-twitter-uses-to-deal-with-150m-active-users.html" target="_blank" rel="noopener noreferrer">High Scalability, 2013-07-08</a>, notes on Raffi Krikorian's QCon 2012 talk <a href="https://www.infoq.com/presentations/Twitter-Timeline-Scalability/" target="_blank" rel="noopener noreferrer">Timelines at Scale</a>; these are the blogger's notes, not a transcript).</li><li>Timeline reads fast (hundreds of ms end to end); a new post visible to followers within seconds.</li></ul></div></div></div>
+<div><h5>Non-functional</h5><ul><li>Twitter's published scale (2012): "150M world wide active users, handles 300K QPS to generate timelines"; "5K/sec daily average; 7K/sec daily peak; >12K/sec during large events" for posts; "30b deliveries / day" (<a href="http://highscalability.com/blog/2013/7/8/the-architecture-twitter-uses-to-deal-with-150m-active-users.html" target="_blank" rel="noopener noreferrer">High Scalability, 2013-07-08</a>, notes on Raffi Krikorian's QCon 2012 talk <a href="https://www.infoq.com/presentations/Twitter-Timeline-Scalability/" target="_blank" rel="noopener noreferrer">Timelines at Scale</a>; the blogger's notes, not a transcript).</li><li>Timeline reads in hundreds of ms end to end; a new post visible to followers within seconds.</li></ul></div></div></div>
 <div class="est" id="est-feed"></div>
-<p><b>What the numbers say.</b> Reads outnumber posts 60 to 1. If each read assembles the timeline from scratch (<b>fan-out on read</b>: look up everyone you follow, fetch their recent posts, merge), that is about 22 million index lookups a second. If instead each post is copied into every follower's timeline when it is written (<b>fan-out on write</b>), a read is one lookup, and the work moves to 375,000 deliveries a second, about 1.1 million inserts counting three copies. Twitter chose write. The bill: 2.9 TB of RAM to hold 800 entries for every user, and one post by an account with 31 million followers is 93 million inserts.</p>
+<p><b>What the numbers say.</b> Reads outnumber posts 60 to 1. Assembling each timeline when it is read (<b>fan-out on read</b>: look up everyone you follow, fetch their recent posts, merge) is about 22 million index lookups a second. Copying each post into every follower's timeline when it is written (<b>fan-out on write</b>) makes a read one lookup and moves the work to 375,000 deliveries a second, about 1.1 million inserts counting three copies. Twitter chose write. The bill: 2.9 TB of RAM to hold 800 entries for every user, and one post by an account with 31 million followers is 93 million inserts.</p>
 
-<h3>API</h3>
+<h3>The design, built step by step: on read, on write, then the hybrid</h3>
+<div class="card" id="dia-feed"></div>
+
+<h3 id="s-feed-meas">The two strategies, measured</h3>
+<div class="meas"><div class="t">A precomputed timeline reads <span id="feed-speed"></span> times faster; the price is paid when a popular account posts. PostgreSQL 16.2 on a laptop, 10,000 users following 100 accounts each, 100,000 posts</div>
+<div class="rd-svg" id="feed-bars"></div>
+<p class="small">Medians over 500 users. Top pair: reading the 50 newest posts by joining <code>follows</code> to <code>posts</code> at read time, against reading 50 rows from a <code>timelines</code> table capped at 800 entries per user. Bottom pair: inserting one new post into every follower's timeline, for the most-followed account against a median one (<span id="feed-fan"></span> times longer). Each pair has its own scale. Follows are Zipf-skewed (illustrative: synthetic graph); absolute numbers are a laptop's, the ratios are the lesson. <code>src/lab/measure_pg.py</code>, 2026-10-04.</p>
+<details class="mist"><summary>All timings, with p99 and the table's size</summary><div class="b"><div class="tw"><table id="feed-tab"></table></div></div></details></div>
+<p>The gap widens with the number of accounts followed (on-read work grows with it; a precomputed read stays one index range). The price: every post stored once per follower (8 million rows, 766 MB for this toy), and at 31 million followers one post takes minutes to fan out.</p>
+
+<h3>The decision that matters: celebrities, and the hybrid</h3>
+<p>The talk notes: "it can take up to 5 minutes for a tweet to flow from Lady Gaga's fingers to her 31 million followers", and the plan was "Not fanning out the high value users anymore. For people like Taylor Swift don't bother with fanout anymore, instead merge in her timeline at read time. Balances read and write paths" (High Scalability, 2013). This <b>hybrid</b> is the expected answer: accounts under a follower threshold fan out on write; accounts over it are stored once and merged into each reader's timeline at read time (a handful of extra lookups, not hundreds); inactive users get no maintained timeline and have it rebuilt on login, which cuts the 2.9 TB to the active users' share.</p>
+<div class="co"><div class="t">The lesson that generalises: on write or on read is where to spend work</div><p>Spend it when something is produced if reads vastly outnumber writes and the result is reused; spend it when it is consumed if writes fan out enormously, or the result is personal and changes per read. Caches (design 1), materialised views and search indexes are the same decision under other names. Ranking moved Twitter itself back to read time (closed block below).</p></div>
+
+<details class="dp"><summary>API and data model</summary><div class="b">
 <div class="code">POST /v1/posts                       {"text": "..."}  -> 201 {"id": "..."}
 POST /v1/follows                     {"followee": "u_7"}
 GET  /v1/timeline?cursor=...&amp;limit=50 -> {"items": [...], "next_cursor": "..."}</div>
-
-<h3>Data model</h3>
 <div class="code">posts(id BIGINT PRIMARY KEY, author_id, created_at, text)    <span class="cm">-- id is time-ordered (Snowflake)</span>
 follows(follower_id, followee_id)  + an index on followee_id     <span class="cm">-- "who must receive this post?"</span>
 timeline:{user_id} -> list of up to 800 post ids, newest first   <span class="cm">-- in Redis, 3 copies</span></div>
+</div></details>
 
-<h3>The design, built step by step</h3>
-<div class="card" id="dia-feed"></div>
-
-<h3 id="s-feed-meas">Deep dive: the two strategies, measured</h3>
-<div class="meas"><div class="t">Measured for this page: PostgreSQL 16.2 on a laptop, 10,000 users following 100 accounts each, 100,000 posts</div>
-<div class="tw"><table id="feed-tab"></table></div>
-<p class="small">Followed accounts are chosen with a Zipf-like skew (illustrative: a few accounts are followed by almost everyone, like real social graphs, but this graph is synthetic). <b>On read</b> joins <code>follows</code> to <code>posts</code> (indexed by author and id) for the newest 50; <b>precomputed</b> reads 50 rows from a <code>timelines</code> table capped at 800 entries per user. Fan-out cost is the time to insert one new post into every follower's timeline. 500 users, median and p99. <code>src/lab/measure_pg.py</code>, 2026-10-04. Absolute numbers are a laptop's; the ratios are the lesson.</p></div>
-<p>Reading the precomputed timeline was <span id="feed-speed"></span> times faster, and that gap widens with the number of accounts followed, because on-read work grows with it while a precomputed read stays one index range. The price shows in the other two rows: the timelines table holds every post once per follower (8 million rows, 766 MB for this toy), and writing one post by the most-followed account took <span id="feed-fan"></span> times longer than one by a median account. Scale that to 31 million followers and it is minutes.</p>
-
-<h3>Deep dive: celebrities, and the hybrid</h3>
-<p>Fan-out on write is wrong for a handful of accounts. The talk notes: "it can take up to 5 minutes for a tweet to flow from Lady Gaga's fingers to her 31 million followers", and the plan was "Not fanning out the high value users anymore. For people like Taylor Swift don't bother with fanout anymore, instead merge in her timeline at read time. Balances read and write paths" (High Scalability, 2013). This <b>hybrid</b> is the expected interview answer:</p>
-<ul>
-<li>Accounts under a follower threshold: fan out on write.</li>
-<li>Accounts over it: store their posts once; at read time, merge the user's precomputed timeline with the recent posts of the few celebrities they follow (a handful of extra lookups, not hundreds).</li>
-<li>Inactive users: do not maintain their timeline at all; rebuild it on login from the follow graph. This cuts the 2.9 TB of RAM to the active users' share.</li>
-</ul>
-<p>Other considerations to say out loud: deleting a post must remove it from millions of timelines (store ids, not copies of the text, and filter deleted ids at read time); unfollowing leaves old entries (filter at read time or accept it); the fan-out runs on a queue of delivery jobs, so a burst of posts delays delivery rather than failing posts (backpressure: <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work, Backpressure and Little's law</a>).</p>
-
-<h3>Deep dive: ranking changes the question</h3>
+<details class="dp"><summary>Deep dives: deletes and unfollows, and how ranking changes the question</summary><div class="b">
+<p>Deleting a post must remove it from millions of timelines (store ids, not copies of the text, and filter deleted ids at read time); unfollowing leaves old entries (filter at read time or accept it); the fan-out runs on a queue of delivery jobs, so a burst of posts delays delivery rather than failing posts (backpressure: <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work, Backpressure and Little's law</a>).</p>
 <p>A chronological timeline is a merge; a ranked one ("For You") is a search problem. Twitter's 2023 description: the system must "distill the roughly 500 million Tweets posted daily down to a handful", first by candidate sourcing ("we attempt to extract the best 1500 Tweets from a pool of hundreds of millions"), then a "~48M parameter neural network" ranks them; the timeline is "50% In-Network Tweets and 50% Out-of-Network Tweets on average"; the pipeline "runs approximately 5 billion times per day and completes in under 1.5 seconds on average", and "A single pipeline execution requires 220 seconds of CPU time". Most strikingly: "We recently stopped using Fanout Service, a 12-year old service that was previously used to provide In-Network Tweets from a cache of Tweets for each user" (<a href="http://web.archive.org/web/2023/https://blog.x.com/engineering/en_us/topics/open-source/2023/twitter-recommendation-algorithm" target="_blank" rel="noopener noreferrer">Twitter engineering, 2023-03-31, Wayback copy</a>). Once most of a feed comes from accounts you do not follow, precomputing per-follower lists stops paying, and the work moves back to read time, with heavy caching and machine learning. Facebook had made the read-time choice from the start: an aggregator "fanned out the request to all the leaves to fetch data, rank and filter data", where leaves keep recent actions in memory (<a href="https://engineering.fb.com/2015/03/10/production-engineering/serving-facebook-multifeed-efficiency-performance-gains-through-redesign/" target="_blank" rel="noopener noreferrer">Zhu, Facebook Multifeed, 2015-03-10</a>).</p>
-<div class="co"><div class="t">The lesson that generalises</div><p>"On write or on read" is a question about where to spend work: when something is produced, or when it is consumed. Spend it at write time when reads vastly outnumber writes and the result is reused; spend it at read time when writes fan out enormously, or when the result is personal and changes per read. Caches (design 1), materialised views and search indexes are the same decision under other names.</p></div>
+</div></details>
 
-<h3>Failure modes</h3>
+<details class="dp"><summary>Failure modes, and what interviewers listen for</summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
 <tbody>
@@ -451,17 +461,31 @@ timeline:{user_id} -> list of up to 800 post ids, newest first   <span class="cm
 <li>You estimated the timeline cache memory and trimmed it (cap at N entries, active users only).</li>
 <li>Deletes, unfollows and ranking were at least mentioned.</li>
 </ul></div>
+</div></details>
 </section>
 <section id="s-gw">
 <h2 class="dhead"><span class="dnum">Design 5</span>An LLM gateway for a company: routing, quotas, fallbacks, cost</h2>
-<p>Every team in the company now calls large language models (LLMs): a support bot, a code assistant, a document summariser, pipelines that classify tickets. Each team has its own API keys, its own retry code and its own surprise bill. An <b>LLM gateway</b> is one internal service that every model call goes through. The mechanisms (authentication, routing, token-based limits, caching, fallbacks, the degradation ladder) are taught in depth elsewhere: the gateway itself (authentication, routing, token-based limits, budgets, fallbacks) in <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a>, caching and the degradation ladder in <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a> (sections 9 and 11), with a lab that trades cost against quality (its <b>Cost-quality lab</b> tab); this section runs the interview: what to ask, what the numbers say, what to build first.</p>
+<p>Every team now calls large language models (LLMs), each with its own API keys, retry code and surprise bill. An <b>LLM gateway</b> is one internal service every model call goes through. Its mechanisms (authentication, routing, token-based limits, budgets, fallbacks) are taught in <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a>, caching and the degradation ladder in <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a> (sections 9 and 11, and its <b>Cost-quality lab</b> tab); this section runs the interview: what to ask, what the numbers say, what to build first.</p>
 <div class="req"><div class="t">Requirements</div><div class="cols">
-<div><h5>Functional</h5><ul><li>One API for every model, compatible with the OpenAI chat format so existing SDKs work.</li><li>Per-team keys, budgets and rate limits; usage and cost per team.</li><li>Routing to vendors and self-hosted models; automatic fallback when one fails.</li><li>Remove personal data before it leaves the company; audit log of every call.</li></ul></div>
-<div><h5>Non-functional</h5><ul><li>10,000 employees, 40% using AI daily, 30 requests each, plus 400,000 automated requests a day (illustrative).</li><li>Adds under 50 ms before the first token; streams pass through unbuffered.</li><li>Available more than the providers behind it (fallbacks).</li><li>Spend is correct to the cent per team per month.</li></ul></div></div></div>
+<div><h5>Functional</h5><ul><li>One OpenAI-compatible API for every model, so existing SDKs work.</li><li>Per-team keys, budgets, rate limits, usage and cost.</li><li>Routing to vendors and self-hosted models, with automatic fallback.</li><li>Personal data removed before it leaves the company; an audit log of every call.</li></ul></div>
+<div><h5>Non-functional</h5><ul><li>10,000 employees, 40% using AI daily, 30 requests each, plus 400,000 automated requests a day (illustrative).</li><li>Adds under 50 ms before the first token; streams pass through unbuffered.</li><li>More available than the providers behind it; spend correct to the cent per team per month.</li></ul></div></div></div>
 <div class="est" id="est-gw"></div>
-<p><b>What the numbers say.</b> This is the design where the estimate tells you throughput is <i>not</i> the problem: 18 requests a second at peak fits on one small server (the row says one, for throughput alone; run at least two). Uber's gateway, a real one, reported "16 million queries per month, with a peak QPS of 25" for "close to 30 customer teams" (<a href="https://www.uber.com/blog/genai-gateway/" target="_blank" rel="noopener noreferrer">Wang and Bansal, Uber, 2024-07-11</a>), the same order as ours (an independent comparison, not a reproduction). What is big is <b>money</b>: about $4,200 a day, $1.5 million a year at the illustrative Sonnet 5.5 price of $2 and $10 per million input and output tokens (from <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design, section 1</a>), where a 10% routing mistake is a salary. Also: about 180 streams open at once (Little's law with 10-second replies), which matters for connection limits and timeouts, and 5.5 GB of request logs a day containing whatever employees typed, which is a security asset to protect.</p>
+<p><b>What the numbers say.</b> Throughput is <i>not</i> the problem: 18 requests a second at peak fits on one small server (run at least two). Uber's real gateway reported "16 million queries per month, with a peak QPS of 25" for "close to 30 customer teams" (<a href="https://www.uber.com/blog/genai-gateway/" target="_blank" rel="noopener noreferrer">Wang and Bansal, Uber, 2024-07-11</a>), the same order as ours (an independent comparison, not a reproduction). What is big is <b>money</b>: about $4,200 a day, $1.5 million a year at the illustrative Sonnet 5.5 price of $2 and $10 per million input and output tokens (from <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design, section 1</a>), where a 10% routing mistake is a salary. Also about 180 streams open at once (Little's law with 10-second replies), which sets connection limits and timeouts, and 5.5 GB of request logs a day holding whatever employees typed, a security asset to protect.</p>
 
-<h3>API</h3>
+<h3>The design, built step by step: from keys in every service to one front door</h3>
+<div class="card" id="dia-gw"></div>
+
+<h3>The decision that matters: what to build first, in order</h3>
+<ol>
+<li><b>Virtual keys and usage events.</b> The gateway holds the real provider keys; teams get gateway keys; every call emits a usage event to a queue and a warehouse. This alone answers "who spends what" and is the precondition for everything else.</li>
+<li><b>Budgets and limits in tokens.</b> A request's cost is unknown until it finishes, so reserve the worst case (input tokens plus <code>max_tokens</code>) before the call and refund the difference after, with atomic counters as in <a href="#s-rl">design 2</a> (<a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing, sections 5 and 6</a>, including what LiteLLM really does under concurrency).</li>
+<li><b>Fallbacks with one retry layer.</b> An ordered route per alias (vendor A, vendor B, a self-hosted model), a timeout per hop, a cooldown for a failing route. Retry in the gateway only, or retries multiply (the 243&times; case in <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering, Retries</a>); what a fallback costs in time is measured in <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing, sections 3 and 4</a>.</li>
+<li><b>Data protection.</b> Redact personal data before external calls according to each team's policy; route data that may not leave to self-hosted models. Policy beyond redaction belongs to <a href="https://app.notion.com/p/3c65c17b0d0d819bbfa5dffa9246c297" target="_blank" rel="noopener noreferrer">Guardrails</a>.</li>
+<li><b>Cost cuts, only after measuring:</b> prompt (prefix) caching, tier routing of easy requests to a cheaper model, batch APIs for pipelines that can wait (<a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design, sections 4, 7 and 9</a>).</li>
+</ol>
+<p>Model <b>aliases</b> (<code>fast</code>, <code>smart</code>) let the platform team change the model behind them; teams that need stability pin a dated version. Buy or adopt first (LiteLLM, Envoy AI Gateway, Kong, Portkey) unless data rules force you to build.</p>
+
+<details class="dp"><summary>API and data model</summary><div class="b">
 <div class="code">POST /v1/chat/completions             <span class="cm">OpenAI-compatible; the gateway key identifies the team</span>
 Authorization: Bearer gw_team-support_...
 {"model": "fast" | "smart" | "vendor/model-2026-05-01", "messages": [...], "stream": true,
@@ -471,35 +495,26 @@ Authorization: Bearer gw_team-support_...
 -> 503 when every route in the fallback chain failed
 
 GET /v1/usage?team=support&amp;from=2026-10-01   <span class="cm">cost and tokens per team, feature, model</span></div>
-<p>Model <b>aliases</b> (<code>fast</code>, <code>smart</code>) let the platform team change the model behind them; teams that need stability pin a dated version. Uber made the same compatibility choice: "A pivotal design decision was to mirror the HTTP/JSON interface of the OpenAI API".</p>
-
-<h3>Data model</h3>
 <div class="code">teams(id, monthly_budget_usd, tpm_limit, allowed_models, pii_policy)
 keys(hash, team_id, created_at, revoked_at)                 <span class="cm">store a hash, never the key</span>
 routes(alias, ordered list of (provider, model, weight), timeout_ms)
 budget counters (Redis): spend:{team}:{month}, tokens:{team}:{minute}
 usage_events -> queue -> warehouse: (request_id, team, feature, model, tokens_in, tokens_out, cost, latency, status)</div>
+</div></details>
 
-<h3>The design, built step by step</h3>
-<div class="card" id="dia-gw"></div>
+<details class="dp"><summary>What real gateways do: Uber, Wealthsimple, LiteLLM's knobs</summary><div class="b">
+<p><b>Uber (2024):</b> "A pivotal design decision was to mirror the HTTP/JSON interface of the OpenAI API". The gateway generates "audit logs for comprehensive cost attribution", and its "centralized nature ... streamlines the management of usage and budgeting across various teams". A "PII redactor that anonymizes sensitive information within requests before forwarding them to third-party vendors" restores the entities in the response (Wang and Bansal, above).</p>
+<p><b>Wealthsimple:</b> its gateway redacted personal data too, "enhanced by a PII removal model we developed in-house" (<a href="https://engineering.wealthsimple.com/get-to-know-our-llm-gateway-and-how-it-provides-a-secure-and-reliable-space-to-use-generative-ai" target="_blank" rel="noopener noreferrer">Wealthsimple engineering, date unconfirmed (2023 or 2024)</a>).</p>
+<p><b>LiteLLM:</b> the proxy takes per-team <code>tpm_limit</code>, <code>rpm_limit</code>, <code>max_parallel_requests</code> and a <code>max_budget</code> with a <code>budget_duration</code> (<a href="https://docs.litellm.ai/docs/proxy/users" target="_blank" rel="noopener noreferrer">LiteLLM docs</a>), and names the fallback settings <code>fallbacks</code>, <code>num_retries</code>, <code>allowed_fails</code>, <code>cooldown_time</code>, <code>request_timeout</code> (<a href="https://docs.litellm.ai/docs/proxy/reliability" target="_blank" rel="noopener noreferrer">LiteLLM reliability docs</a>).</p>
+</div></details>
 
-<h3>Deep dive: what to build first, in order</h3>
-<ol>
-<li><b>Virtual keys and usage events.</b> The gateway holds the real provider keys; teams get gateway keys. Every call emits a usage event to a queue and on to a warehouse. This alone answers "who spends what", and it is the precondition for everything else. Uber's gateway generates "audit logs for comprehensive cost attribution", and its "centralized nature ... streamlines the management of usage and budgeting across various teams".</li>
-<li><b>Budgets and limits in tokens.</b> A request's cost is unknown until it finishes, so reserve the worst case (input tokens plus <code>max_tokens</code>) before the call and refund the difference after, with atomic counters as in <a href="#s-rl">design 2</a>; the reasoning, and what LiteLLM really does under concurrency, is in <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing, sections 5 and 6</a>. Off-the-shelf gateways expose exactly these knobs: LiteLLM's proxy takes per-team <code>tpm_limit</code>, <code>rpm_limit</code>, <code>max_parallel_requests</code> and a <code>max_budget</code> with a <code>budget_duration</code> (<a href="https://docs.litellm.ai/docs/proxy/users" target="_blank" rel="noopener noreferrer">LiteLLM docs</a>).</li>
-<li><b>Fallbacks with one retry layer.</b> An ordered route per alias (vendor A, then vendor B, then a self-hosted model), a timeout per hop and a cooldown for a failing route. Retry in the gateway only; tell team SDKs not to retry on top, or the retries multiply (the 243&times; case in <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering, Retries</a>). LiteLLM names the same settings <code>fallbacks</code>, <code>num_retries</code>, <code>allowed_fails</code>, <code>cooldown_time</code>, <code>request_timeout</code> (<a href="https://docs.litellm.ai/docs/proxy/reliability" target="_blank" rel="noopener noreferrer">LiteLLM reliability docs</a>); what a fallback really costs in time is measured in <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing, sections 3 and 4</a>.</li>
-<li><b>Data protection.</b> Redact personal data before external calls according to each team's policy, and route data that may not leave to self-hosted models. Uber: a "PII redactor that anonymizes sensitive information within requests before forwarding them to third-party vendors", restoring the entities in the response. Wealthsimple's gateway did the same, "enhanced by a PII removal model we developed in-house" (<a href="https://engineering.wealthsimple.com/get-to-know-our-llm-gateway-and-how-it-provides-a-secure-and-reliable-space-to-use-generative-ai" target="_blank" rel="noopener noreferrer">Wealthsimple engineering, date unconfirmed (2023 or 2024)</a>). Policy enforcement beyond redaction belongs to <a href="https://app.notion.com/p/3c65c17b0d0d819bbfa5dffa9246c297" target="_blank" rel="noopener noreferrer">Guardrails</a>.</li>
-<li><b>Cost cuts.</b> Only after measuring: prompt (prefix) caching, tier routing of easy requests to a cheaper model, batch APIs for pipelines that can wait (<a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design, sections 4, 7 and 9</a>).</li>
-</ol>
-<h3>Trade-offs considered and rejected</h3>
+<details class="dp"><summary>Trade-offs rejected, failure modes, and what interviewers listen for</summary><div class="b">
 <ul class="rej">
 <li><b>A shared client library instead of a service.</b> No extra hop, but every language needs a copy, keys still live in every service, and budgets cannot be enforced across processes. <i>Rejected:</i> the extra few milliseconds are nothing against seconds of generation.</li>
 <li><b>Logging full prompts and responses forever.</b> Useful for evaluation, dangerous for privacy. <i>Chosen instead:</i> metadata always; content sampled, redacted, with a retention limit and access controls.</li>
 <li><b>Exact-match response cache for everything.</b> Cheap, but personal answers can leak between users. <i>Only per team and per opted-in feature</i>; semantic caching only with a measured false-hit rate (<a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design, section 9</a>).</li>
-<li><b>Building it.</b> LiteLLM, Envoy AI Gateway, Kong and Portkey exist. Buy or adopt first unless data rules force you; build when your policy needs outgrow theirs.</li>
+<li><b>Building it.</b> Build when your policy needs outgrow the off-the-shelf gateways.</li>
 </ul>
-
-<h3>Failure modes</h3>
 <div class="tw"><table>
 <thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
 <tbody>
@@ -517,52 +532,49 @@ usage_events -> queue -> warehouse: (request_id, team, feature, model, tokens_in
 <li>Usage events off the request path, attributed per team and feature.</li>
 <li>A clear build order, and a buy-versus-build opinion.</li>
 </ul></div>
+</div></details>
 </section>
 <section id="s-rag">
 <h2 class="dhead"><span class="dnum">Design 6</span>A RAG service over company documents: ingestion, embeddings, vector index, freshness, evaluation</h2>
-<p><b>Retrieval-augmented generation (RAG)</b> answers a question by first finding the relevant passages in your own documents and then asking an LLM to answer from them, citing them (the original paper: <a href="https://app.notion.com/p/3c65c17b0d0d816c889decc342a7ad39" target="_blank" rel="noopener noreferrer">RAG, Lewis et al. 2020</a>). The design question is the system around that idea: getting millions of documents in, keeping them fresh, never showing someone a document they may not open, and knowing whether the answers are right.</p>
+<p><b>Retrieval-augmented generation (RAG)</b> answers a question by first finding the relevant passages in your own documents, then asking an LLM to answer from them, citing them (<a href="https://app.notion.com/p/3c65c17b0d0d816c889decc342a7ad39" target="_blank" rel="noopener noreferrer">RAG, Lewis et al. 2020</a>; retrieval methods on <a href="https://app.notion.com/p/3c65c17b0d0d81b89145c37dfe8a3b0b" target="_blank" rel="noopener noreferrer">Topic: rag-and-retrieval</a>). The design question is the system around it: getting millions of documents in, keeping them fresh, never showing someone a document they may not open, and knowing whether the answers are right.</p>
 <div class="req"><div class="t">Requirements</div><div class="cols">
-<div><h5>Functional</h5><ul><li>Ask a question in a chat box; get an answer with links to the source passages.</li><li>Sources: wiki, shared drives, tickets (5 million documents, illustrative).</li><li>Answers use only documents the asker is allowed to read.</li></ul></div>
-<div><h5>Non-functional</h5><ul><li>An edited document is searchable within 10 minutes.</li><li>First token in under 3 seconds at p95.</li><li>50,000 questions a day.</li><li>Measured answer quality, tracked over time.</li></ul></div></div></div>
+<div><h5>Functional</h5><ul><li>Ask in a chat box; get an answer with links to the source passages.</li><li>Sources: wiki, shared drives, tickets (5 million documents, illustrative).</li><li>Answers use only documents the asker may read.</li></ul></div>
+<div><h5>Non-functional</h5><ul><li>An edited document is searchable within 10 minutes.</li><li>First token in under 3 seconds at p95; 50,000 questions a day.</li><li>Measured answer quality, tracked over time.</li></ul></div></div></div>
 <div class="est" id="est-rag"></div>
-<p><b>What the numbers say.</b> Queries are trivial (under 2 a second at peak). The corpus is not: 35 million chunks of about 500 tokens, whose 1,536-dimension vectors take 215 GB as 4-byte floats, more RAM than a typical database server, before the index's own graph. Options the numbers suggest: half-precision storage (pgvector's <code>halfvec</code>, 2 bytes a dimension, halves it), fewer dimensions, or a sharded vector store. Embedding the whole corpus once costs about $350 at $0.02 per million tokens (<a href="https://developers.openai.com/api/docs/models/text-embedding-3-small" target="_blank" rel="noopener noreferrer">OpenAI, text-embedding-3-small</a>, read 2026-10-04), so re-embedding is cheap in money; in time, keeping up with 2% of documents changing a day is only 8 chunks a second. Answers cost about $650 a day, mostly the input tokens of the retrieved chunks: the number of chunks per prompt is the cost dial.</p>
+<p><b>What the numbers say.</b> Queries are trivial (under 2 a second at peak). The corpus is not: 35 million chunks of about 500 tokens, whose 1,536-dimension vectors take 215 GB as 4-byte floats, more RAM than a typical database server, before the index's own graph. The numbers suggest half-precision storage (pgvector's <code>halfvec</code>, 2 bytes a dimension, halves it), fewer dimensions, or a sharded vector store. Embedding the whole corpus once costs about $350 at $0.02 per million tokens (<a href="https://developers.openai.com/api/docs/models/text-embedding-3-small" target="_blank" rel="noopener noreferrer">OpenAI, text-embedding-3-small</a>, read 2026-10-04), so re-embedding is cheap in money; keeping up with 2% of documents changing a day is only 8 chunks a second. Answers cost about $650 a day, mostly the input tokens of the retrieved chunks: the number of chunks per prompt is the cost dial.</p>
 
-<h3>API</h3>
+<h3>The design, built step by step: from one prompt to an ingestion pipeline, hybrid retrieval and an eval set</h3>
+<div class="card" id="dia-rag"></div>
+
+<h3>The decisions that matter</h3>
+<p><b>Ingestion is an idempotent, versioned pipeline.</b> A <b>connector</b> per source receives change events (or polls), puts "document d changed" on a queue, and workers fetch, extract text, split into <b>chunks</b> (passages small enough to retrieve precisely, overlapping a little so a sentence cut at a boundary survives), compute an <b>embedding</b> for each (a vector from a model, placed so passages with similar meaning are near each other) and upsert. Key every chunk by <code>(doc_id, chunk_no)</code> and write it with the document's version, so a redelivered or reordered event is harmless (the idempotent-consumer pattern of <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work, Idempotent consumers</a>); delete chunks beyond the new count when a document shrinks; and keep the embedding model's name with every vector, because vectors from different models are not comparable (<a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design, section 13</a>).</p>
+<p><b>Hybrid retrieval.</b> Vectors alone miss exact terms (error codes, product names, people), so run keyword search (BM25, ranking by term frequency) alongside vector search, merge, then <b>rerank</b> the top candidates with a slower, more accurate model. Anthropic, on its own benchmark: adding a short generated context to each chunk ("usually 50-100 tokens") and combining contextual embeddings with contextual BM25 "reduced the top-20-chunk retrieval failure rate by 49% (5.7% → 2.9%)", and "when combined with reranking, by 67%", for a one-time "$1.02 per million document tokens" with prompt caching (<a href="https://www.anthropic.com/news/contextual-retrieval" target="_blank" rel="noopener noreferrer">Anthropic, Introducing Contextual Retrieval, 2024-09-19</a>).</p>
+<p><b>Permissions and freshness.</b> Copy each document's access groups onto its chunks and filter at query time by the asker's groups; never rely on the LLM to "not mention" a document it was given. The trap: pgvector warns "With approximate indexes, filtering is applied <i>after</i> the index is scanned", so a filter matching few rows can return fewer results than asked unless iterative index scans are enabled. Revocations flow through the same pipeline as edits, and fast: one that takes a day is a leak for a day. Event-driven connectors plus a short queue meet "searchable in 10 minutes"; a nightly full re-sync catches missed events.</p>
+<p><b>Knowing whether it works.</b> RAG fails in two places: retrieval missed the passage, or generation did not use it faithfully. Measure both on a <b>golden set</b> (real questions with the documents that answer them) before every change of chunking, model or prompt, and on sampled traffic; the metrics are on <a href="https://app.notion.com/p/3ef5c17b0d0d8194a914d1843ee26f13" target="_blank" rel="noopener noreferrer">RAG and retrieval evaluation</a>, gates and shadow tests on <a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a>.</p>
+
+<details class="dp"><summary>API and data model</summary><div class="b">
 <div class="code">POST /v1/ask   {"question": "How do I rotate the staging database password?", "conversation_id": "..."}
   -> SSE stream of the answer, then {"citations": [{"doc_id": "...", "chunk": 3, "url": "...", "title": "..."}]}
 POST /v1/feedback {"answer_id": "...", "rating": "down", "reason": "outdated"}
 <span class="cm">// ingestion is driven by the sources' change events, not by an API users call</span></div>
-
-<h3>Data model</h3>
 <div class="code">documents(doc_id, source, url, title, version, updated_at, acl_groups TEXT[])
 chunks(doc_id, chunk_no, version, text, embedding VECTOR(1536), acl_groups TEXT[],
        PRIMARY KEY (doc_id, chunk_no))
 <span class="cm">-- HNSW index on embedding; GIN index on acl_groups; full-text index on text for keyword search</span>
 eval_set(question, expected_doc_ids, reference_answer)      <span class="cm">-- the golden set</span></div>
+</div></details>
 
-<h3>The design, built step by step</h3>
-<div class="card" id="dia-rag"></div>
+<details class="dp"><summary>Deep dive: the vector index, pgvector or a dedicated store</summary><div class="b">
+<p>A <b>vector index</b> finds the chunks nearest to the question's embedding without comparing against all 35 million. The common choice is <b>HNSW</b> (hierarchical navigable small world), a layered graph searched from coarse to fine, which "allows a logarithmic complexity scaling" (<a href="https://arxiv.org/abs/1603.09320" target="_blank" rel="noopener noreferrer">Malkov and Yashunin, 2016</a>). In PostgreSQL, pgvector offers HNSW, which "has better query performance than IVFFlat (in terms of speed-recall tradeoff), but has slower build times and uses more memory", and IVFFlat, which "has faster build times and uses less memory than HNSW, but has lower query performance"; indexable vectors go up to 2,000 dimensions, and <code>halfvec</code> up to 4,000 (<a href="https://github.com/pgvector/pgvector" target="_blank" rel="noopener noreferrer">pgvector README</a>). Start with pgvector if you already run PostgreSQL and the index fits in memory; move to a dedicated vector store when it does not. Database choices in general: <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a>. Show each citation's last-updated date so users can judge staleness.</p>
+</div></details>
 
-<h3>Deep dive: the ingestion pipeline</h3>
-<p>Ingestion is an asynchronous pipeline: a <b>connector</b> per source receives change events (or polls for changes), puts "document d changed" on a queue, and workers fetch the document, extract text, split it into <b>chunks</b> (passages small enough to retrieve precisely; overlapping a little so a sentence cut at a boundary survives), compute an <b>embedding</b> for each (a vector of numbers from a model, placed so that passages with similar meaning have nearby vectors) and upsert them. Three rules make it reliable. Key every chunk by <code>(doc_id, chunk_no)</code> and write it with the document's version, so a redelivered or reordered event is harmless (an older version never overwrites a newer one): the idempotent-consumer pattern of <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work, Idempotent consumers</a>. Delete chunks beyond the new chunk count when a document shrinks. And keep the embedding model's name with every vector: changing the model means re-embedding everything, because vectors from different models are not comparable (<a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design, section 13</a>).</p>
-
-<h3>Deep dive: retrieval that actually finds the passage</h3>
-<p>A <b>vector index</b> finds the chunks nearest to the question's embedding without comparing against all 35 million. The common choice is <b>HNSW</b> (hierarchical navigable small world), a layered graph searched from coarse to fine, which "allows a logarithmic complexity scaling" (<a href="https://arxiv.org/abs/1603.09320" target="_blank" rel="noopener noreferrer">Malkov and Yashunin, 2016</a>). In PostgreSQL, pgvector offers HNSW, which "has better query performance than IVFFlat (in terms of speed-recall tradeoff), but has slower build times and uses more memory", and IVFFlat, which "has faster build times and uses less memory than HNSW, but has lower query performance"; indexable vectors go up to 2,000 dimensions, and <code>halfvec</code> up to 4,000 (<a href="https://github.com/pgvector/pgvector" target="_blank" rel="noopener noreferrer">pgvector README</a>). Start with pgvector if you already run PostgreSQL and the index fits in memory; move to a dedicated vector store when it does not. Database choices in general: <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a>.</p>
-<p>Vectors alone miss exact terms (error codes, product names, people). The fix is <b>hybrid retrieval</b>: run keyword search (BM25, the classic ranking by term frequency) alongside vector search, merge, then <b>rerank</b> the top candidates with a slower, more accurate model. Anthropic measured the effect on its own benchmark: adding a short generated context to each chunk ("usually 50-100 tokens") and combining contextual embeddings with contextual BM25 "reduced the top-20-chunk retrieval failure rate by 49% (5.7% → 2.9%)", and "when combined with reranking, by 67%"; the one-time cost of generating the context was "$1.02 per million document tokens" with prompt caching (<a href="https://www.anthropic.com/news/contextual-retrieval" target="_blank" rel="noopener noreferrer">Anthropic, Introducing Contextual Retrieval, 2024-09-19</a>).</p>
-
-<h3>Deep dive: permissions and freshness</h3>
-<p><b>Permissions.</b> Copy each document's access groups onto its chunks and filter at query time by the asker's groups. Beware a trap in approximate indexes: pgvector warns "With approximate indexes, filtering is applied <i>after</i> the index is scanned", so a filter matching few rows can return fewer results than asked unless iterative index scans are enabled (pgvector README). Permission changes must flow through the same pipeline as edits, and fast: a revoked permission that takes a day to apply is a data leak for a day. Never rely on the LLM to "not mention" documents it was given.</p>
-<p><b>Freshness.</b> Event-driven connectors plus a short queue meet "searchable in 10 minutes"; a nightly full re-sync catches missed events. Show each citation's last-updated date so users can judge staleness.</p>
-
-<h3>Deep dive: knowing whether it works</h3>
-<p>A RAG system fails in two separate places: retrieval did not find the passage, or generation did not use it faithfully. Measure both, on a <b>golden set</b> of real questions with the documents that answer them, before every change of chunking, model or prompt, and on sampled production traffic. The metrics (recall at k, faithfulness, groundedness), how to build the test set from your own corpus and how LLM judges fail are on <a href="https://app.notion.com/p/3ef5c17b0d0d8194a914d1843ee26f13" target="_blank" rel="noopener noreferrer">RAG and retrieval evaluation</a>; gates and shadow tests on <a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a>.</p>
-<div class="real"><div class="t">What real companies built</div>
+<details class="dp"><summary>What real companies built: LinkedIn, DoorDash, Uber</summary><div class="b">
 <p><b>LinkedIn (2024):</b> customer-service question answering over a knowledge graph built from past tickets, which "outperforms the baseline by 77.6% in MRR" and, deployed, "reduced the median per-issue resolution time by 28.6%" (<a href="https://arxiv.org/abs/2404.17723" target="_blank" rel="noopener noreferrer">Xu et al., arXiv 2404.17723</a>).</p>
 <p><b>DoorDash (2024):</b> a support assistant that "first condenses the entire conversation to pinpoint the core problem" and then searches past resolved cases and articles; an LLM guardrail "reduced overall hallucinations by 90% and cut down potentially severe compliance issues by 99%" (<a href="https://careersatdoordash.com/blog/large-language-modules-based-dasher-support-automation/" target="_blank" rel="noopener noreferrer">DoorDash engineering, repost dated 2024-09-17</a>).</p>
 <p><b>Uber (2025-05-29):</b> moving from plain RAG to an agentic version with "an additional BM25-based retriever alongside traditional vector search" raised acceptable answers "by a relative 27%" and cut incorrect advice "by a relative 60%" (<a href="https://www.uber.com/blog/enhanced-agentic-rag/" target="_blank" rel="noopener noreferrer">Uber, Enhanced Agentic-RAG</a>). All three are vendor-reported results on their own data.</p>
-</div>
+</div></details>
 
-<h3>Failure modes</h3>
+<details class="dp"><summary>Failure modes, and what interviewers listen for</summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
 <tbody>
@@ -580,59 +592,54 @@ eval_set(question, expected_doc_ids, reference_answer)      <span class="cm">-- 
 <li>Hybrid retrieval and reranking, justified by what vectors miss.</li>
 <li>An evaluation plan that separates retrieval from generation.</li>
 </ul></div>
+</div></details>
 </section>
 <section id="s-job">
 <h2 class="dhead"><span class="dnum">Design 7</span>A distributed job scheduler: cron for a whole company</h2>
-<p>The brief offered a notification system or a job scheduler; the scheduler has the better public sources (Google's distributed cron, Dropbox's task framework, Slack's job queue, all with numbers), so it is the worked design here. A notification system reuses most of designs 3 and 7, and is a prompt in the <a href="#" data-tab="t-drill">Design drill</a>, with Netflix's published design as its reference.</p>
-<p>A <b>job scheduler</b> runs work at a given time: "every day at 02:00, rebuild the search index"; "in 30 minutes, send this reminder"; "every 5 minutes, poll this partner". <b>Cron</b> is the classic Unix program that does this on one machine, from a table of schedules written like <code>0 2 * * *</code> (minute, hour, day, month, weekday). The company-wide version must survive machines dying without running jobs twice or skipping them silently.</p>
+<p>A <b>job scheduler</b> runs work at a given time: "every day at 02:00, rebuild the search index"; "in 30 minutes, send this reminder". <b>Cron</b> is the classic Unix program that does this on one machine from schedules like <code>0 2 * * *</code> (minute, hour, day, month, weekday). The company-wide version must survive machines dying without running jobs twice or skipping them silently. (A notification system reuses most of designs 3 and 7 and is a prompt in the <a href="#" data-tab="t-drill">Design drill</a>, with Netflix's published design as its reference; the scheduler is worked here because it has the better public sources, all with numbers.)</p>
 <div class="req"><div class="t">Requirements</div><div class="cols">
-<div><h5>Functional</h5><ul><li>Register recurring (cron syntax) and one-off delayed jobs; cancel; pause.</li><li>Run each due job on a worker; record each run (start, end, result, logs link).</li><li>Retries with backoff for failed runs; alert the owner after N failures.</li></ul></div>
-<div><h5>Non-functional</h5><ul><li>10 million runs a day, 30% of them scheduled at the top of an hour (illustrative).</li><li>Start within a few seconds of the due time (Dropbox's target: 95% within 5 s, below).</li><li>No double runs of non-idempotent jobs; no silent skips.</li><li>Survives the loss of any machine.</li></ul></div></div></div>
+<div><h5>Functional</h5><ul><li>Register recurring (cron syntax) and one-off delayed jobs; cancel; pause.</li><li>Run each due job on a worker and record each run (start, end, result, logs link).</li><li>Retries with backoff; alert the owner after N failures.</li></ul></div>
+<div><h5>Non-functional</h5><ul><li>10 million runs a day, 30% of them scheduled at the top of an hour (illustrative).</li><li>Start within a few seconds of the due time (Dropbox's target: 95% within 5 s, below).</li><li>No double runs of non-idempotent jobs, no silent skips; survives the loss of any machine.</li></ul></div></div></div>
 <div class="est" id="est-job"></div>
 <p><b>What the numbers say.</b> The average is small: 116 runs a second, about 2,300 running at once, 48 worker machines. The danger is the clock: people write <code>0 * * * *</code>, so 30% of the day's runs, 125,000 of them, become due in the same second, which would need 2,500 machines for one second and 48 the rest of the time. Spreading each hourly batch over a minute with <b>jitter</b> (a random delay per job) brings the burst to about 2,100 a second. Run history (5 GB a day) is easy.</p>
 
-<h3>API</h3>
+<h3>The design, built step by step: one crontab, two schedulers, then a queue and jitter</h3>
+<div class="card" id="dia-job"></div>
+
+<h3>The decisions that matter</h3>
+<p><b>Deciding what is due, exactly once.</b> Two machines both reading "what is due?" will both run the same job. One fix is <b>one leader</b>, elected through a consensus system (etcd, ZooKeeper, or Paxos/Raft directly): clean, but failover takes seconds, and a deposed leader that does not yet know it can still launch, hence leases and fencing tokens (<a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals, Leader election, leases and fencing tokens</a>). <i>Chosen at this scale:</i> <b>row claiming</b>: every instance runs <code>SELECT ... FROM jobs WHERE next_run_at &lt;= now() ORDER BY next_run_at LIMIT 100 FOR UPDATE SKIP LOCKED</code>, where <code>SKIP LOCKED</code> makes each skip rows another has locked, and in the same transaction inserts the run row and advances <code>next_run_at</code>: no extra system, the database's transaction is the coordination. Either way the <code>runs</code> primary key <code>(job_id, scheduled_for)</code> makes "the 02:00 run of job 7" a row that can exist only once, so a second scheduler gets a conflict instead of a second run.</p>
+<p><b>The scheduler only enqueues.</b> A slow job must not delay every other launch, so the scheduler writes the run to a queue; workers pull, take a <b>lease</b> (a claim that expires unless renewed by heartbeats) and execute; a dead worker's lease expires and another retries. That is <b>at-least-once</b> execution: a run that did its work but died before recording success runs again, so jobs with side effects use <code>job_id</code> plus <code>scheduled_for</code> as their idempotency key, or check whether their effect already happened (<a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>).</p>
+<div class="co"><div class="t">Skip or double-run? Say which you prefer, and why</div><p>Google's distributed cron (state kept consistent with Paxos across replicas): "In general, we favor skipping launches rather than risking double launches, as much as the infrastructure allows" (<a href="https://sre.google/sre-book/distributed-periodic-scheduling/" target="_blank" rel="noopener noreferrer">Google SRE book, Distributed Periodic Scheduling with Cron</a>; <a href="https://queue.acm.org/detail.cfm?id=2745840" target="_blank" rel="noopener noreferrer">Davidovič and Guliani, ACM Queue, 2015</a>; the reasoning is in the closed block below). A billing job prefers a skip plus an alert; a cache-warming job prefers a double run. Make it a per-job setting.</p></div>
+
+<details class="dp"><summary>API and data model <span class="mute">(overlap and misfire policies)</span></summary><div class="b">
 <div class="code">POST /v1/jobs {"name": "rebuild-index", "schedule": "0 2 * * *", "timezone": "Europe/London",
               "target": {"queue": "search", "payload": {...}}, "max_runtime_s": 3600,
               "overlap": "skip" | "queue" | "allow", "misfire": "run_once" | "skip"}
 POST /v1/jobs/{id}/pause     DELETE /v1/jobs/{id}
 GET  /v1/jobs/{id}/runs?cursor=...</div>
-<p><code>overlap</code> says what happens if the previous run is still going; <code>misfire</code> says what happens to runs missed while the scheduler was down: two decisions every scheduler forces, which the queues sibling discusses under <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work, Scheduling and cron</a>.</p>
-
-<h3>Data model</h3>
+<p><code>overlap</code> says what happens if the previous run is still going; <code>misfire</code> says what happens to runs missed while the scheduler was down: two decisions every scheduler forces, discussed under <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work, Scheduling and cron</a>.</p>
 <div class="code">jobs(id, schedule, timezone, next_run_at TIMESTAMPTZ, target, overlap, misfire, paused)
   INDEX ON (next_run_at) WHERE NOT paused
 runs(job_id, scheduled_for, attempt, state, lease_until, started_at, ended_at, result,
      PRIMARY KEY (job_id, scheduled_for))         <span class="cm">-- one row per intended run: the idempotency key</span></div>
+</div></details>
 
-<h3>The design, built step by step</h3>
-<div class="card" id="dia-job"></div>
-
-<h3>Deep dive: deciding what is due, exactly once</h3>
-<p>Two machines both reading "what is due?" will both run the same job. Two standard fixes:</p>
-<ul class="rej">
-<li><b>One leader.</b> The scheduler replicas elect a leader (with a consensus system such as etcd or ZooKeeper, or Paxos/Raft directly) and only the leader launches. Clean, but failover takes seconds, and a deposed leader that does not yet know it is deposed can still launch, hence leases and fencing tokens (<a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals, Leader election, leases and fencing tokens</a>).</li>
-<li><b>Row claiming in the database.</b> Every scheduler instance runs <code>SELECT ... FROM jobs WHERE next_run_at &lt;= now() ORDER BY next_run_at LIMIT 100 FOR UPDATE SKIP LOCKED</code>; <code>SKIP LOCKED</code> makes each instance skip rows another has locked, so they divide the work without a leader. In the same transaction each inserts the run row and advances <code>next_run_at</code>. <i>Chosen</i> at this scale: no extra system, and the database's transaction is the coordination.</li>
-</ul>
-<p>Either way, the <code>runs</code> primary key <code>(job_id, scheduled_for)</code> makes "the 02:00 run of job 7" one row that can exist only once: a second scheduler that tries to create it gets a conflict instead of a second run. That is idempotency on the launch side.</p>
-
-<h3>Deep dive: the scheduler only enqueues</h3>
-<p>The scheduler must never run jobs itself: a slow job would delay every other launch. It writes the run to a queue; workers pull from the queue, take a <b>lease</b> on the run (a claim that expires unless renewed by heartbeats) and execute. If a worker dies, its lease expires and another worker retries the run. That gives <b>at-least-once</b> execution: a run that finished its work but died before recording success will run again. So jobs with side effects must be idempotent (use <code>job_id</code> plus <code>scheduled_for</code> as the idempotency key for anything they write or send), or they must check whether their effect already happened. Delivery semantics, visibility timeouts and dead-letter queues are taught in <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>.</p>
-<div class="co"><div class="t">Skip or double-run? Say which you prefer, and why</div><p>Google's distributed cron, which keeps its state consistent with Paxos across replicas, chose: "In general, we favor skipping launches rather than risking double launches, as much as the infrastructure allows", because "it is more acceptable to not launch Cron jobs for a while than to mistakenly launch the same Cron job ten times instead of once", and "all operations on external systems, which we may need to continue upon re-election, either have to be idempotent ... or we need to be able to look up their state" (<a href="https://sre.google/sre-book/distributed-periodic-scheduling/" target="_blank" rel="noopener noreferrer">Google SRE book, Distributed Periodic Scheduling with Cron</a>; <a href="https://queue.acm.org/detail.cfm?id=2745840" target="_blank" rel="noopener noreferrer">Davidovič and Guliani, ACM Queue, 2015</a>). A billing job prefers a skip plus an alert; a cache-warming job prefers a double run. Make it a per-job setting.</p></div>
-
-<h3>Deep dive: time is harder than it looks</h3>
+<details class="dp"><summary>Deep dive: time is harder than it looks</summary><div class="b">
 <ul>
 <li><b>Time zones and daylight saving:</b> "02:30 every day" does not exist on the spring-forward day in London and happens twice on the autumn one. Store the job's time zone, compute <code>next_run_at</code> in UTC with a real time-zone library, and decide the rule for missing and repeated local times.</li>
 <li><b>Thundering herd:</b> add deterministic jitter (hash of the job id modulo the spread) to jobs that do not need an exact minute, so the same job runs at the same offset every hour.</li>
 <li><b>Clock skew:</b> scheduler machines disagree by milliseconds; use the database's <code>now()</code> as the one clock for "due".</li>
 </ul>
-<div class="real"><div class="t">What real companies built</div>
+</div></details>
+
+<details class="dp"><summary>What real companies built: Google cron, Dropbox ATF, Slack's job queue, Netflix Maestro</summary><div class="b">
+<p><b>Google cron:</b> skipping is preferred because "it is more acceptable to not launch Cron jobs for a while than to mistakenly launch the same Cron job ten times instead of once", and "all operations on external systems, which we may need to continue upon re-election, either have to be idempotent ... or we need to be able to look up their state" (SRE book, above).</p>
 <p><b>Dropbox ATF (2020-11-11):</b> "currently serving 9,000 async tasks scheduled per second and in use by 28 engineering teams". It guarantees "that a task is executed at least once after being scheduled" and "that at most one instance of a task will be actively executing at any given in point"; "95% of tasks begin execution within five seconds from their scheduled execution time". Its parts match this design: a Store Consumer "periodically polls the task store to find tasks that are ready for execution and pushes them onto the right queues" (Amazon SQS), and executors send heartbeats while they run (<a href="https://dropbox.tech/infrastructure/asynchronous-task-scheduling-at-dropbox" target="_blank" rel="noopener noreferrer">Krishnan, Dropbox</a>).</p>
 <p><b>Slack's job queue:</b> "On our busiest days, the system processes over 1.4 billion jobs at a peak rate of 33,000 per second". When a database slowdown filled Redis to its memory limit, Slack "decided to add Kafka in front of Redis rather than replacing Redis with Kafka outright": a durable log absorbs the burst, and a relay feeds Redis at the rate it can take (<a href="https://slack.engineering/scaling-slacks-job-queue/" target="_blank" rel="noopener noreferrer">Slack engineering, page dated 2017-12-06, updated 2020-06-25</a>).</p>
 <p><b>Netflix Maestro (2024-07-22):</b> a workflow orchestrator that "runs half a million jobs daily on average, and has completed around 2 million jobs on particularly busy days" (<a href="https://netflixtechblog.com/maestro-netflixs-workflow-orchestrator-ee13a06f9c78" target="_blank" rel="noopener noreferrer">Netflix tech blog</a>): when jobs depend on each other, a scheduler grows into a workflow engine (durable workflows are in the queues sibling).</p>
-</div>
+</div></details>
 
-<h3>Failure modes</h3>
+<details class="dp"><summary>Failure modes, and what interviewers listen for</summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
 <tbody>
@@ -650,18 +657,19 @@ runs(job_id, scheduled_for, attempt, state, lease_until, started_at, ended_at, r
 <li>You chose between skipping and double-running per job, citing why.</li>
 <li>Time zones, daylight saving and misfires were mentioned.</li>
 </ul></div>
+</div></details>
 </section>
 <section id="s-prac">
 <h2>How to practise</h2>
-<p>Reading worked designs builds recognition; only producing designs under a clock builds the skill. A routine that works:</p>
+<p>Reading worked designs builds recognition; only producing designs under a clock builds the skill.</p>
 <ol>
-<li><b>Timed drills, out loud.</b> Pick a prompt in the <a href="#" data-tab="t-drill">Design drill</a> tab, start the 45-minute clock, and talk through each step before revealing it. Write the estimate on paper. Then compare with the reveal and tick the self-check list honestly. One drill a day for two weeks beats ten designs read in an evening.</li>
-<li><b>Redo the seven designs from a blank page</b> a week after reading them. If you cannot reproduce an estimate, you understood the answer, not the method.</li>
-<li><b>Change one requirement and redesign.</b> The shortener with editable destinations; chat with end-to-end encryption; the feed ranked instead of chronological; the scheduler with jobs that depend on each other. This is what interviewers do in the last ten minutes.</li>
-<li><b>Read one real write-up a week</b> from the root's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Case files</a> or the sources cited here, and write its design in this page's template: requirements, numbers, boxes, what broke.</li>
-<li><b>Practise with a person</b> once you can finish in time: a mock interviewer interrupts, which is the part solo drills cannot train.</li>
+<li><b>Timed drills, out loud.</b> Pick a prompt in the <a href="#" data-tab="t-drill">Design drill</a> tab, start the 45-minute clock, say each step before revealing it, write the estimate on paper, then tick the self-check list honestly. One drill a day for two weeks beats ten designs read in an evening.</li>
+<li><b>Redo the seven designs from a blank page</b> a week later. If you cannot reproduce an estimate, you understood the answer, not the method.</li>
+<li><b>Change one requirement and redesign</b> (editable destinations; end-to-end encrypted chat; a ranked feed; jobs that depend on each other): what interviewers do in the last ten minutes.</li>
+<li><b>Read one real write-up a week</b> from the root's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Case files</a> or the sources here, and write it in this page's template: requirements, numbers, boxes, what broke.</li>
+<li><b>Practise with a person</b> once you can finish in time: a mock interviewer interrupts, which solo drills cannot train.</li>
 </ol>
-<h3>The common traps</h3>
+<h3>The common traps <span class="small mute">(open any)</span></h3>
 <details class="mist"><summary>Drawing boxes before asking a single question</summary><div class="b">The first five minutes decide the design. "How many users? Read-heavy or write-heavy? What may be stale, lost or duplicated?" Each answer removes a branch of possible designs.</div></details>
 <details class="mist"><summary>Estimates that change nothing</summary><div class="b">Arithmetic is worth time only when its result moves a decision: the code length, whether to shard, whether to push or poll. State the decision the number made.</div></details>
 <details class="mist"><summary>Scaling what does not need it</summary><div class="b">Sharding a database that takes 230 writes a second, or Kafka for 18 requests a second, signals that you add components by habit. Say "one Postgres is enough until X, and here is how I would split it then".</div></details>
@@ -673,8 +681,7 @@ runs(job_id, scheduled_for, attempt, state, lease_until, started_at, ended_at, r
 <details class="mist"><summary>Forgetting observability and rollout</summary><div class="b">How would you know it works in production, and how would you ship a change safely? One sentence each (<a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability</a>; canaries in <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering, Deployment safety</a>).</div></details>
 </section>
 
-<section id="s-gl">
-<h2>Glossary</h2>
+<details class="dp" id="s-gl"><summary>Glossary <span class="mute">(every term this page defines)</span></summary><div class="b">
 <div class="gl">
 <div><b>At-least-once</b>: a delivery or execution guarantee where nothing is lost but something may happen twice; paired with idempotency.</div>
 <div><b>Base62</b>: writing numbers with 62 symbols (0 to 9, a to z, A to Z); 7 characters give 3.52 trillion codes.</div>
@@ -710,7 +717,8 @@ runs(job_id, scheduled_for, attempt, state, lease_until, started_at, ended_at, r
 <div><b>Vector index</b>: a structure that finds the nearest vectors without comparing against all of them.</div>
 <div><b>WebSocket</b>: a long-lived, two-way connection over TCP that starts as an HTTP upgrade.</div>
 </div>
-</section>
+</div></details>
+
 </div>
 <div class="tab" id="t-drill" role="tabpanel" hidden>
 <h2 style="margin-top:14px">Design drill</h2>
@@ -790,29 +798,31 @@ runs(job_id, scheduled_for, attempt, state, lease_until, started_at, ended_at, r
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Shared helpers (same controller as the parent root and the sibling pages): step animation with play, pause, step, scrub, speed ----
-// Animates only while its card is on screen in the visible tab; plays once the first time it scrolls into view;
-// never autoplays under prefers-reduced-motion.
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
+// Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const onRender=(f,tab)=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER[tab||'t-read']=window.TAB_RENDER[tab||'t-read']||[]).push(f)};
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
   function anim(o){
     const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
-    const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
     const pid=o.ctl+'-';
     ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
       '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
       '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
       '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
-      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5&times;</option><option value="1" selected>1&times;</option><option value="2">2&times;</option></select></label>';
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
     const $=s=>document.getElementById(pid+s);
     function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
     const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
     function tick(){st.timer=0;if(!st.play||!live())return;
       if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
-      st.timer=setTimeout(tick,(o.ms||3200)/st.spd)}
-    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||3200)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
     function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
       if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
     $('p').addEventListener('click',()=>setPlay(!st.play));
@@ -821,26 +831,43 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
-    onRender(()=>{show();kick()},o.tab);
+    onRender(()=>{show();kick()});
     show();
-    return {go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},redraw(){o.draw(st.i)},get i(){return st.i}};
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      reset(n){setPlay(false);st.n=n;st.i=0;show()},
+      go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
   }
+  // width available inside an element (falls back when the tab is hidden)
   const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
-  // number formatting: thousands separators; sig: significant handling for small values
-  function fmt(v,dp){if(v===null||v===undefined||!isFinite(v))return 'n/a';
-    if(dp===undefined)dp=Math.abs(v)>=100?0:Math.abs(v)>=10?1:Math.abs(v)>=1?2:3;
-    const s=Number(v).toFixed(dp);const p=s.split('.');p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');return p.join('.')}
-  return {RM,esc,anim,onRender,width,fmt};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
 })();
-RD.onResize=f=>{let t=0;addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(f,80)})};
-RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!el.contains(b))return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
 // section nav highlight
 (function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
   const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
   const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
   Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+</script>
+<script>/* 21_js_rd_fmt.js */
+// ---- Page addition to the skill's RD template: number formatting used by the estimates, diagrams and measured results ----
+// thousands separators; dp defaults by magnitude
+RD.fmt=function(v,dp){if(v===null||v===undefined||!isFinite(v))return 'n/a';
+  if(dp===undefined)dp=Math.abs(v)>=100?0:Math.abs(v)>=10?1:Math.abs(v)>=1?2:3;
+  const s=Number(v).toFixed(dp);const p=s.split('.');p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');return p.join('.')};
 </script>
 <script>/* 22_js_dia.js */
 // ---- Build-up diagram: one design grows step by step, naive design first, then each bottleneck found (red) and fixed (green) ----
@@ -1155,6 +1182,70 @@ window.EST=(function(){
     '<tr><td>Timelines table: rows, size</td><td class="num">'+n0(f.timeline_rows)+'</td><td class="num">'+n0(f.timeline_bytes/1e6)+' MB</td></tr></tbody>';
     document.getElementById('feed-speed').textContent=F(f.read_on_read.median_ms/f.read_precomputed.median_ms,0);
     document.getElementById('feed-fan').textContent=F(f.fanout_ms_top/f.fanout_ms_median,0);}
+  // feed: the two pairs as bars, each pair on its own linear scale (medians from inputs/pg_measured.json)
+  const fb=document.getElementById('feed-bars');
+  if(fb){const pairs=[{t:'Read the 50 newest posts',r:[['fan-out on read (join)',f.read_on_read.median_ms,'var(--bad)'],['precomputed timeline',f.read_precomputed.median_ms,'var(--good)']]},
+      {t:'Write one post into followers\' timelines',r:[['most-followed ('+n0(f.top_followers)+' followers)',f.fanout_ms_top,'var(--bad)'],['median account ('+n0(f.median_followers)+')',f.fanout_ms_median,'var(--good)']]}];
+    function draw(){const W=RD.width(fb),nar=W<520,lw=nar?0:Math.min(230,W*0.36),vw=62,bw=W-lw-vw-8;let y=0,s='';
+      pairs.forEach(pr=>{s+=RD.t(0,y+12,RD.esc(pr.t),{w:700});y+=20;const mx=Math.max(...pr.r.map(r=>r[1]));
+        pr.r.forEach(r=>{if(nar){s+=RD.t(0,y+11,RD.esc(r[0]),{fill:'var(--mute)'});y+=15}else s+=RD.t(0,y+12,RD.esc(r[0]),{fill:'var(--mute)'});
+          const w=Math.max(2,bw*r[1]/mx);s+='<rect x="'+lw+'" y="'+(y+1)+'" width="'+w.toFixed(1)+'" height="14" rx="3" fill="'+r[2]+'"/>';
+          s+=RD.t(lw+w+6,y+12,(r[1]<1?F(r[1],3):F(r[1],1))+' ms');y+=22});y+=8});
+      fb.innerHTML=RD.svg(W,y,s,'Measured medians: fan-out on read against a precomputed timeline, and fan-out cost by account size')}
+    draw();RD.onRender(draw);RD.onResize(draw);}
+})();
+</script>
+<script>/* 27_js_hero.js */
+// ---- Hero: the seven method steps to scale (minutes of the drill's 45-minute clock), and the number that bound in each design ----
+// Static annotated diagram; numbers come from EST_EXPECT (recompute.py), so the hero agrees with every estimate table.
+(function(){
+  const host=document.getElementById('hero-svg');if(!host||!window.EST_EXPECT)return;
+  const E=window.EST_EXPECT,F=RD.fmt;
+  const STEPS=[['Requirements',5],['Estimate',5],['API',3],['Data model',3],['High-level design',9],['Deep dives',15],['Bottlenecks and failure',5]];
+  const KINDS=[
+    {k:'Storage',d:[['URL shortener',F(E.url.tb,0)+' TB of links'],['RAG service',F(E.rag.vgb,0)+' GB of vectors']]},
+    {k:'Open connections',d:[['Chat',F(E.chat.conns)+' sockets'],['Chat',F(E.chat.pres)+' heartbeats/s']]},
+    {k:'Coordination',d:[['Rate limiter','1 counter, 50 gateways'],['Job scheduler','each run exactly once']]},
+    {k:'Bursts and fan-out',d:[['News feed',F(E.feed.celeb_ins/1e6,0)+' M inserts per post'],['Job scheduler',F(E.job.burst)+' due in 1 s']]},
+    {k:'Money and data',d:[['LLM gateway','$'+F(E.gw.cyr/1e6,1)+' M a year'],['LLM gateway','at '+F(E.gw.rpk,0)+' requests/s']]}];
+  const T=(x,y,s,o)=>RD.t(x,y,RD.esc(s),o);
+  function arrow(x1,y1,x2,y2){return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--acc)" stroke-width="1.8" marker-end="url(#hero-ah)"/>'}
+  function draw(){
+    const W=RD.width(host),narrow=W<600;let s='',H;
+    const defs='<defs><marker id="hero-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--acc)"/></marker></defs>';
+    const box=(x,y,w,h,hl)=>'<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+Math.max(1,w).toFixed(1)+'" height="'+h+'" rx="6" fill="'+(hl?'var(--acc2)':'var(--soft)')+'" stroke="'+(hl?'var(--acc)':'var(--line)')+'" stroke-width="'+(hl?2:1)+'"/>';
+    if(!narrow){
+      // steps across, widths to scale
+      const y0=16,h=50,gap=3;let x=0;const pos=[];
+      s+=T(0,11,'The method: width = minutes of a 45-minute interview',{fill:'var(--mute)'});
+      STEPS.forEach((st,i)=>{const w=W*st[1]/45-gap;const hl=i===1||i===5;s+=box(x,y0,w,h,hl);
+        const lab=(i+1)+' '+st[0],words=lab.split(' '),wr=lab.length*6.1>w-6&&words.length>1,cut=Math.ceil(words.length/2);const l1=wr?words.slice(0,cut).join(' '):lab;const l2=wr?words.slice(cut).join(' '):'';
+        s+=T(x+w/2,y0+(l2?16:21),l1,{a:'middle',w:600});if(l2)s+=T(x+w/2,y0+29,l2,{a:'middle',w:600});
+        s+=T(x+w/2,y0+43,st[1]+' min',{a:'middle',fill:'var(--mute)'});pos.push([x,w]);x+=w+gap});
+      // constraint band
+      const by=y0+h+46,bh=84,cw=(W-4*8)/5;
+      s+=T(0,by-8,'What the estimate showed was hard: the number that crossed one machine',{fill:'var(--mute)'});
+      KINDS.forEach((k,i)=>{const cx=i*(cw+8);s+=box(cx,by,cw,bh,true);
+        s+=T(cx+8,by+17,k.k,{w:700,fill:'var(--acc)'});
+        let yy=by+36;k.d.forEach((r,j)=>{if(j===0||r[0]!==k.d[j-1][0]){s+=T(cx+8,yy,r[0],{w:600});yy+=12}s+=T(cx+8,yy,r[1],{fill:'var(--mute)'});yy+=12})});
+      const ex=pos[1][0]+pos[1][1]/2,dx=pos[5][0]+pos[5][1]/2;
+      s+=arrow(ex,y0+h+2,ex,by-20)+T(ex+8,y0+h+22,'the estimate finds it',{fill:'var(--acc)'});
+      s+=arrow(dx,by-20,dx,y0+h+3)+T(dx-8,y0+h+22,'deep dives go there',{a:'end',fill:'var(--acc)'});
+      H=by+bh+4;
+    }else{
+      // steps down, bar length to scale
+      const lw=Math.min(150,W*0.42),bw=W-lw-44,rh=22;let y=16;
+      s+=T(0,11,'The method: bar = minutes of 45',{fill:'var(--mute)'});
+      STEPS.forEach((st,i)=>{const hl=i===1||i===5;s+=T(0,y+15,(i+1)+' '+st[0],{w:hl?700:400,fill:hl?'var(--acc)':undefined});
+        s+=box(lw,y+3,bw*st[1]/15,rh-6,hl)+T(lw+bw*st[1]/15+4,y+15,st[1]+' min',{fill:'var(--mute)'});y+=rh});
+      y+=10;s+=T(0,y+4,'What the estimate showed was hard:',{fill:'var(--mute)'});y+=12;
+      KINDS.forEach(k=>{const bh=16+k.d.length*15;s+=box(0,y,W,bh,true);s+=T(8,y+14,k.k,{w:700,fill:'var(--acc)'});
+        k.d.forEach((r,j)=>{s+=T(8,y+29+j*15,(j>0&&r[0]===k.d[j-1][0]?'':r[0]+': ')+r[1])});y+=bh+5});
+      H=y;
+    }
+    host.innerHTML=RD.svg(W,H,defs+s,'The seven method steps to scale, and the number that bound in each design');
+  }
+  draw();RD.onRender(draw);RD.onResize(draw);
 })();
 </script>
 <script>/* 31_js_drill.js */
@@ -1290,7 +1381,7 @@ window.EST=(function(){
   function score(){const ticks=load(cur.id);const tot=cur.s.reduce((a,s)=>a+s.c.length,0);const got=Object.values(ticks).filter(Boolean).length;
     $('dr-score').textContent=got+' of '+tot;$('dr-score-d').textContent=tot?Math.round(got/tot*100)+'% for '+cur.n:'';$('dr-rev').textContent=rev+' of 7'}
   $('dr-steps').addEventListener('click',e=>{const b=e.target.closest('button[data-rev]');if(b){rev=+b.dataset.rev+1;render();return}
-    const a=e.target.closest('a[data-read]');if(a){e.preventDefault();window.SHOW_TAB&&window.SHOW_TAB('t-read',true);const s=document.getElementById(a.dataset.read);if(s)s.scrollIntoView({block:'start'})}});
+    const a=e.target.closest('a[data-read]');if(a){e.preventDefault();const tb=document.querySelector('#tabs button[data-t="t-read"]');if(tb)tb.click();const s=document.getElementById(a.dataset.read);if(s)s.scrollIntoView({block:'start'})}});
   $('dr-steps').addEventListener('change',e=>{const c=e.target;if(!c.dataset.k)return;const t=load(cur.id);t[c.dataset.k]=c.checked;save(cur.id,t);score()});
   $('dr-clear').addEventListener('click',()=>{save(cur.id,{});render()});
   function fmtT(s){s=Math.floor(s);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
@@ -1303,23 +1394,26 @@ window.EST=(function(){
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace sdcs-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
   function show(id,save){
     btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
     document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
     // charts in a newly shown tab measure their width now
-    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){window.__jsErr&&window.__jsErr(String(e&&e.message||e))}});
-    dispatchEvent(new Event('resize'));
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
     if(save){try{localStorage.setItem('sdcs-tab',id)}catch(e){}}
   }
   btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
   bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
     if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
-  window.SHOW_TAB=show;
   let start='t-read';try{const v=localStorage.getItem('sdcs-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

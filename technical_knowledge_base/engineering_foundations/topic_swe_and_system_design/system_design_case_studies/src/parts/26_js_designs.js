@@ -186,4 +186,15 @@
     '<tr><td>Timelines table: rows, size</td><td class="num">'+n0(f.timeline_rows)+'</td><td class="num">'+n0(f.timeline_bytes/1e6)+' MB</td></tr></tbody>';
     document.getElementById('feed-speed').textContent=F(f.read_on_read.median_ms/f.read_precomputed.median_ms,0);
     document.getElementById('feed-fan').textContent=F(f.fanout_ms_top/f.fanout_ms_median,0);}
+  // feed: the two pairs as bars, each pair on its own linear scale (medians from inputs/pg_measured.json)
+  const fb=document.getElementById('feed-bars');
+  if(fb){const pairs=[{t:'Read the 50 newest posts',r:[['fan-out on read (join)',f.read_on_read.median_ms,'var(--bad)'],['precomputed timeline',f.read_precomputed.median_ms,'var(--good)']]},
+      {t:'Write one post into followers\' timelines',r:[['most-followed ('+n0(f.top_followers)+' followers)',f.fanout_ms_top,'var(--bad)'],['median account ('+n0(f.median_followers)+')',f.fanout_ms_median,'var(--good)']]}];
+    function draw(){const W=RD.width(fb),nar=W<520,lw=nar?0:Math.min(230,W*0.36),vw=62,bw=W-lw-vw-8;let y=0,s='';
+      pairs.forEach(pr=>{s+=RD.t(0,y+12,RD.esc(pr.t),{w:700});y+=20;const mx=Math.max(...pr.r.map(r=>r[1]));
+        pr.r.forEach(r=>{if(nar){s+=RD.t(0,y+11,RD.esc(r[0]),{fill:'var(--mute)'});y+=15}else s+=RD.t(0,y+12,RD.esc(r[0]),{fill:'var(--mute)'});
+          const w=Math.max(2,bw*r[1]/mx);s+='<rect x="'+lw+'" y="'+(y+1)+'" width="'+w.toFixed(1)+'" height="14" rx="3" fill="'+r[2]+'"/>';
+          s+=RD.t(lw+w+6,y+12,(r[1]<1?F(r[1],3):F(r[1],1))+' ms');y+=22});y+=8});
+      fb.innerHTML=RD.svg(W,y,s,'Measured medians: fan-out on read against a precomputed timeline, and fan-out cost by account size')}
+    draw();RD.onRender(draw);RD.onResize(draw);}
 })();

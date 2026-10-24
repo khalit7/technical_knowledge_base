@@ -17,3 +17,12 @@ Central question: given a product, which part is hard, and how do you find it wi
 | 11 | Rate-limiting algorithms animated | n/a | | | | rejected: Reliability engineering already animates five limiters on one burst; linked |
 
 What the methodology lacked for this page: a page that applies other pages has few mechanisms of its own to animate; the useful animation turned out to be the design process itself (naive, bottleneck, fix), and the useful interactive was the estimate, because "which part is hard" is the question a number answers.
+
+## 2026-10-24 rebuild to the teaching contract
+| Idea | Kind | Status |
+|---|---|---|
+| Hero: the seven method steps drawn to scale with the drill clock's minutes (5, 5, 3, 3, 9, 15, 5), and below them the number that crossed one machine in each design, grouped by constraint kind (storage, open connections, coordination, bursts and fan-out, money and data); arrows from Estimate to the band and from the band to Deep dives | static annotated diagram | built (`27_js_hero.js`, numbers from `EST_EXPECT`) |
+| Fan-out measured as bars instead of a table: read on read 2.9 ms against precomputed 0.085 ms; top account's fan-out 25.6 ms against the median's 0.220 ms; each pair on its own linear scale (no log axis) | before/after on the same input | built (in `26_js_designs.js`); the full table with p99 sits in a closed block |
+| Build-up diagrams | stepper | kept; the skill's `RD.anim` template now waits on step 1 until the reader acts (they used to start playing on first scroll) |
+| Jitter slider for the scheduler (spread seconds against starts per second) | slider | rejected: the estimate's inputs already include the spread, and the diagram's last step shows 125,000 against 2,083 |
+| Real images | photo | none: the page is about designs, not physical objects; a diagram is the right tool for every claim |

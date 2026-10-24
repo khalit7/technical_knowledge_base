@@ -130,7 +130,7 @@
   function score(){const ticks=load(cur.id);const tot=cur.s.reduce((a,s)=>a+s.c.length,0);const got=Object.values(ticks).filter(Boolean).length;
     $('dr-score').textContent=got+' of '+tot;$('dr-score-d').textContent=tot?Math.round(got/tot*100)+'% for '+cur.n:'';$('dr-rev').textContent=rev+' of 7'}
   $('dr-steps').addEventListener('click',e=>{const b=e.target.closest('button[data-rev]');if(b){rev=+b.dataset.rev+1;render();return}
-    const a=e.target.closest('a[data-read]');if(a){e.preventDefault();window.SHOW_TAB&&window.SHOW_TAB('t-read',true);const s=document.getElementById(a.dataset.read);if(s)s.scrollIntoView({block:'start'})}});
+    const a=e.target.closest('a[data-read]');if(a){e.preventDefault();const tb=document.querySelector('#tabs button[data-t="t-read"]');if(tb)tb.click();const s=document.getElementById(a.dataset.read);if(s)s.scrollIntoView({block:'start'})}});
   $('dr-steps').addEventListener('change',e=>{const c=e.target;if(!c.dataset.k)return;const t=load(cur.id);t[c.dataset.k]=c.checked;save(cur.id,t);score()});
   $('dr-clear').addEventListener('click',()=>{save(cur.id,{});render()});
   function fmtT(s){s=Math.floor(s);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
