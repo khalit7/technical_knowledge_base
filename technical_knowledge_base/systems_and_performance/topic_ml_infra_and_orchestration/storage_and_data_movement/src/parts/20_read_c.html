@@ -1,6 +1,9 @@
 <section id="rd-s3">
 <h2>3. The other designs: where the metadata lives, and who places the bytes</h2>
-<p>Every parallel file system answers the same two questions differently: <b>who owns the names</b> (a dedicated metadata tier, or every server), and <b>who decides where a byte goes</b> (a layout handed out once, or a placement every server can compute). That choice decides how it behaves under a metadata storm and when a server fails.</p>
+<p>Every parallel file system answers two questions differently: <b>who owns the names</b> (a dedicated metadata tier, or every server), and <b>who decides where a byte goes</b> (a layout handed out once, or a placement every server can compute). That choice decides how it behaves under a metadata storm and when a server fails.</p>
+<div class="rd-card" id="sd-fam-card"><h4>Two families: a separate metadata tier that hands out layouts, or metadata spread over every server</h4>
+<div class="rd-svg" id="sd-fam-svg"></div>
+<p class="small">Left: the client asks the metadata tier once, then reads and writes the storage servers directly; data I/O never touches the metadata tier, but every name does. Right: every server holds data and metadata, so there is no single metadata tier to size, at the price of distributed locking (GPFS's token manager, "one metanode per open file"). Tectonic and 3FS put metadata in a transactional key-value store behind stateless servers, which is how they scale the namespace.</p></div>
 <div class="tw sd-tw"><table class="rd-cmp">
 <thead><tr><th>System</th><th>Metadata</th><th>Data placement</th><th>Published scale</th></tr></thead>
 <tbody>
@@ -12,19 +15,16 @@
 <tr><td>DeepSeek 3FS</td><td data-h="Metadata">"stateless metadata services backed by a transactional key-value store (e.g., FoundationDB)"</td><td data-h="Placement">files split into equal chunks striped over replication chains (CRAQ); the client computes chunk locations from the layout, like Lustre; FUSE client plus a native zero-copy client ({{3FS README and design notes|https://github.com/deepseek-ai/3FS}}, released February 2025)</td><td data-h="Scale">"approximately 6.6 TiB/s" of aggregate reads from 180 storage nodes, each "2×200Gbps InfiniBand NICs and sixteen 14TiB NVMe SSDs" <span class="pub">authors</span>: about 80% of the nodes' 9 TB/s of network line rate <span class="der">derived</span> (180 x 2 x 25 GB/s)</td></tr>
 <tr><td>Meta Tectonic</td><td data-h="Metadata">"stateless metadata services that construct the filesystem logic over the key-value store" (ZippyDB)</td><td data-h="Placement">a flat Chunk Store; append-only files ({{Tectonic, FAST 2021|https://www.usenix.org/conference/fast21/presentation/pan}})</td><td data-h="Scale">Llama 3: "240 PB of storage out of 7,500 servers", "2 TB/s" sustained, "7 TB/s" peak ({{Llama 3, section 3.3.1|https://arxiv.org/html/2407.21783v3}}) <span class="pub">authors</span></td></tr>
 </tbody></table></div>
-<p class="small">Two families. Lustre and 3FS keep a separate metadata tier and hand the client a layout, so data I/O never touches it; GPFS, WEKA and VAST spread metadata over the same servers as data, so there is no single metadata bottleneck to size, at the price of distributed locking. Tectonic and 3FS both put metadata in a transactional key-value store behind stateless servers, which is how they scale the namespace. The 3FS headline matches Fire-Flyer 2's "8 TB/s" quoted on the parent page only loosely (6.6 TiB/s is 7.3 TB/s <span class="der">derived</span>): the paper and the README describe different measurements.</p>
+<p class="small">The 3FS headline matches Fire-Flyer 2's "8 TB/s" quoted on the parent page only loosely (6.6 TiB/s is 7.3 TB/s <span class="der">derived</span>): the paper and the README describe different measurements.</p>
 </section>
 
 <section id="rd-s4">
-<h2>4. Metadata: the small-file and start-up storms</h2>
-<p><b>The problem.</b> Bandwidth scales with storage servers; metadata does not, or not as fast. A Lustre file system with hundreds of OSTs may have one or a handful of MDTs, and every create, open, <code>stat</code> and failed lookup goes to them. Small files make every byte cost a metadata operation; thousands of ranks starting at once make every rank's start-up cost thousands. Amazon sells this capacity separately: an FSx for Lustre file system of 1,200 GiB includes 1,500 metadata IOPS, and each metadata IOPS serves 2 file creates, opens or closes per second, 1 delete, or 0.1 directory creates ({{FSx performance guide|https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html}}) <span class="vend">vendor</span>: 3,000 opens per second for the whole file system <span class="der">derived</span>.</p>
-<h3>Measured: the same four operations on four stores</h3>
-<p>16 processes, each in its own directory, create empty files, <code>stat</code> them, look up names that do not exist, and delete them, in lock step <span class="meas">measured</span> (medians of 3; <code>src/runs/meta_real.py</code>). Operations per second, all processes together:</p>
-<div class="tw sd-tw" id="sd-mreal"></div>
-<p>Three things to read off it. A local file system does hundreds of thousands of operations a second, a network one a few thousand: the gap is the round trip, not the disk. The host folder shared into the VM answers <code>stat</code> of an existing file from its cache, as fast as local disk, but every lookup of a <b>missing</b> name crosses to the host (the "miss" column): network file systems cache what exists far better than what does not. And the object store pays a full HTTP request for everything, even a HEAD.</p>
-<h3>The start-up storm: what <code>import torch</code> asks the file system</h3>
-<p>Python finds a module by trying names on every directory of <code>sys.path</code> in turn, so an import is mostly lookups, many of them of files that do not exist. Counted with <code>strace -f -c -e trace=%file,getdents64</code> in a container with torch 2.14.1+cpu and Python 3.11 <span class="meas">measured</span> (3 runs each, identical counts):</p>
+<h2>4. Metadata: the start-up and small-file storms</h2>
+<p><b>The problem.</b> Bandwidth scales with storage servers; metadata does not, or not as fast. A Lustre file system with hundreds of OSTs may have one or a handful of MDTs, and every create, open, <code>stat</code> and failed lookup goes to them. Amazon sells this capacity separately: an FSx for Lustre file system of 1,200 GiB includes 1,500 metadata IOPS, and each metadata IOPS serves 2 file creates, opens or closes per second, 1 delete, or 0.1 directory creates ({{FSx performance guide|https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html}}) <span class="vend">vendor</span>: 3,000 opens per second for the whole file system <span class="der">derived</span>.</p>
+<h3>What <code>import torch</code> asks the file system</h3>
+<p>Python finds a module by trying names on every directory of <code>sys.path</code> in turn, so an import is mostly lookups, many of files that do not exist. Counted with <code>strace -f -c -e trace=%file,getdents64</code> in a container with torch 2.14.1+cpu and Python 3.11 <span class="meas">measured</span> (3 runs each, identical counts): <code>import torch</code> makes <b>17,983</b> file-system calls, 16,196 of them <code>stat</code>, 1,341 opens, and <b>652</b> fail (almost all ENOENT, no such file: the misses).</p>
 <div class="tw" id="sd-imp"></div>
+<details class="dp"><summary>The strace output, verbatim <span class="mute">(provenance)</span></summary><div class="b">
 <pre class="rd-code">$ strace -f -c -e trace=%file,getdents64 python3 -c 'import torch'
 % time     seconds  usecs/call     calls    errors syscall
 ------ ----------- ----------- --------- --------- ----------------
@@ -37,27 +37,68 @@
   0.00    0.000000           0         5         2 readlinkat
 ------ ----------- ----------- --------- --------- ----------------
 100.00    0.347848          19     17983       652 total</pre>
-<p class="rd-codecap">Run 1 of 3, verbatim. "errors" are failed calls, almost all ENOENT (no such file): the misses.</p>
+<p class="rd-codecap">Run 1 of 3. "errors" are failed calls.</p></div></details>
+
+<div class="rd-card"><h4>The same four operations on three stores: network storage is a hundred times slower per name, and misses are worst</h4>
+<p class="small">Each process works in its own directory: create empty files, <code>stat</code> them, look up names that do not exist ("miss", an S3 HEAD that returns 404), delete them, in lock step <span class="meas">measured</span> (medians of 3; <code>src/runs/meta_real.py</code>). Operations per second, all processes together, log scale.</p>
+<div class="seg" id="sdm-p"><button data-m="1">1 process</button><button data-m="4">4</button><button data-m="16" class="on">16</button></div>
+<div class="sv" id="sdm-real"></div>
+<p class="small">A local file system does hundreds of thousands of operations a second, a network one a few thousand: the gap is the round trip, not the disk. The host folder shared into the VM answers <code>stat</code> of an existing file from its cache, as fast as local disk, but every lookup of a <b>missing</b> name crosses to the host: network file systems cache what exists far better than what does not. The object store pays a full HTTP request for everything, even a HEAD.</p></div>
+<details class="dp"><summary>The same runs as a table, with the toy's one-server rate <span class="mute">(reference)</span></summary><div class="b"><div class="tw sd-tw" id="sd-mreal"></div></div></details>
+
 <div class="pr"><div class="q">Predict. 16,384 ranks (Llama 3 405B's scale) start at the same second and each runs <code>import torch</code> from a Python environment on the shared file system. Suppose only the 652 failed lookups per rank reach the metadata servers (everything else cached). At 3,000 metadata operations per second, how long is the start-up stall?</div>
 <div class="opts"><button data-a="0">Under a second</button><button data-a="0">About a minute</button><button data-a="1">About an hour</button></div>
-<div class="ans" hidden>16,384 x 652 = 10.7 million lookups; at 3,000 a second that is 3,561 s, about an hour <span class="der">derived</span>, before a single step. With all 17,983 calls reaching the server it would be 27 hours. Real metadata servers are faster than this FSx entry size and clients cache more, so the real number depends on the system, but the shape is why large clusters never run Python from the shared file system: the environment lives in the container image on each node's local disk (squashfs images through enroot and pyxis on Slurm, image layers on Kubernetes), or is unpacked to local NVMe at job start. The {{Metadata storm|#t-sdmeta}} tab computes this for any cluster and store.</div></div>
+<div class="ans" hidden>16,384 x 652 = 10.7 million lookups; at 3,000 a second that is 3,561 s, about an hour <span class="der">derived</span>, before a single step. With all 17,983 calls reaching the server it would be 27 hours. Real metadata servers are faster than this FSx entry size and clients cache more, so the real number depends on the system, but the shape is why large clusters never run Python from the shared file system: the environment lives in the container image on each node's local disk (squashfs images through enroot and pyxis on Slurm, image layers on Kubernetes), or is unpacked to local NVMe at job start. Move the inputs below to try your own cluster.</div></div>
+<div class="rd-card" id="sdm-calc"><h4>The start-up storm: stall = ranks x calls per rank / metadata capacity</h4>
+<p class="small">Calls per rank are measured with <code>strace</code>; how many of them a real client sends to the server depends on its caches, so choose the bound.</p>
+<div class="calc">
+<label>Ranks starting together <input type="number" id="sdm-r" min="1" step="1" value="16384"></label>
+<label>What each rank runs <select id="sdm-w"></select></label>
+<label>Calls that reach the server <select id="sdm-b"><option value="err" selected>only failed lookups (best case)</option><option value="open">opens</option><option value="all">all file-system calls (no caching)</option></select></label>
+<label>Metadata server capacity <select id="sdm-m"></select></label>
+<label>Custom capacity, operations per second <input type="number" id="sdm-cm" min="1" step="100" value="50000"></label>
+</div>
+<div class="out" id="sdm-out"></div>
+<p class="small mute" id="sdm-note"></p>
+</div>
+
+<h3>More clients, one metadata server: the rate flattens and every operation waits longer</h3>
+<p>On the toy, 16 client processes each create, <code>stat</code> and delete 300 files of their own through one metadata server held to half a CPU, then through two (the idea of Lustre's <dfn>DNE</dfn>, Distributed Namespace: names hashed over servers).</p>
+<div class="rd-card" id="sdm-anim-card">
+<h4>The same 14,400 operations from 16 clients: a second metadata server gives 1.6 times the rate, not 2</h4>
+<p class="small">16 processes x 300 files x (create, stat, unlink). The bar is completed operations at the measured aggregate rate, on one clock for both modes; each client's dot is busy while it waits for its answer.</p>
+<div class="seg" id="sdm-mode"><button data-m="1" class="on">One metadata server</button><button data-m="2">Two (DNE)</button></div>
+<div class="sv" id="sdm-svg"></div>
+<div class="an-cap" id="sdm-cap"></div>
+<div class="an-cnt" id="sdm-cnt"></div>
+<div class="an-ctl" id="sdm-ctl"></div>
+</div>
+<div class="sv" id="sdm-curve"></div>
+<p class="small">Two metadata servers served 16 clients at 2,635 operations per second against 1,603 for one <span class="meas">measured</span>. The server, not the clients, was the limit: at 16 and 32 clients its container used all of its half CPU while the client container used about a fifth of its two, and 32 clients got fewer operations per second than 16 and waited twice as long for each.</p>
+<details class="dp"><summary>CPU use during the runs, and DNE on real Lustre <span class="mute">(depth)</span></summary><div class="b">
+<div class="tw" id="sdm-cpu"></div>
+<p>One MDS serves a whole Lustre file system until DNE adds more: a directory can live on another MDT (<code>lfs mkdir -i mdt_index</code>), or one huge directory can be spread over several with <code>lfs mkdir -c mdt_count</code>, "indended [sic] for specific applications where many output files are being created in one large directory (over 50k entries)".</p>
+</div></details>
+
 <h3>The fixes, in the order to try them</h3>
 <ul class="tight">
-<li><b>Keep code and environments off shared storage</b>: container images or a packed environment copied to local disk once per node.</li>
+<li><b>Keep code and environments off shared storage</b>: container images or a packed environment copied to local disk once per node. Symptom when you do not: jobs take minutes to reach step 1, get slower as they get bigger, and the metadata server sits at 100% while the OSTs idle.</li>
 <li><b>Pack data into big shards</b> (tens to hundreds of MB): one open per shard instead of per sample. Formats are on {{Storage and loading at scale|n:3f95c17b0d0d81398782efcb29d950d4}}.</li>
 <li><b>One file per rank for checkpoints, not one per tensor</b>: DCP writes one <code>.distcp</code> file per rank plus one <code>.metadata</code> (section 8).</li>
 <li><b>Big output directories</b>: spread over MDTs with a DNE striped directory, or hash into subdirectories; never <code>ls -l</code> or <code>find</code> over millions of entries on a busy file system (each entry is a <code>stat</code>).</li>
 <li><b>Small files that must exist</b>: Data on MDT, so each costs one server.</li>
-<li><b>More metadata servers</b> (DNE on Lustre, more metadata IOPS on FSx) when the workload truly needs them: on the toy, a second metadata server took 16 clients from 1,603 to 2,635 operations per second <span class="meas">measured</span>.</li>
+<li><b>More metadata servers</b> (DNE on Lustre, more metadata IOPS on FSx) when the workload truly needs them.</li>
 </ul>
 <div class="io-moved">
-<h3>Measured: the same bytes as big files and as small ones, and prefetch</h3>
-<p>In the root page's Storage lab <span class="meas">measured</span>: reading training data is the easy pattern: sequential, predictable, and small next to the compute for text (the {{throughput calculator on Storage and loading|n:3f95c17b0d0d81398782efcb29d950d4}} shows Llama 3 405B needed about 11 MB/s of token ids for the whole job). Two things still go wrong, and both are about <b>requests</b>, not bytes. Measured with 64 MiB of the running example's token ids, stored as 16 files of 4 MiB or as 16,384 files of 4 KiB (the same bytes), on a Docker volume and on the S3 store, from one container <span class="io-tag io-measured">measured</span>:</p>
+<h3>Measured: the same bytes as big files and as small ones</h3>
+<p>Reading training data is the easy pattern: sequential, predictable, and small next to the compute for text (the {{throughput calculator on Storage and loading|n:3f95c17b0d0d81398782efcb29d950d4}} shows Llama 3 405B needed about 11 MB/s of token ids for the whole job). What still goes wrong is about <b>requests</b>, not bytes. 64 MiB of the running example's token ids, stored as 16 files of 4 MiB or as 16,384 files of 4 KiB (the same bytes), on a Docker volume and on the S3 store, from one container, in the root page's Storage lab <span class="io-tag io-measured">measured</span>:</p>
 <div class="io-card"><div class="tw"><table class="io-tbl"><thead><tr><th>Same 64 MiB as</th><th>Store</th><th class="num">Write</th><th class="num">Read, 1 at a time</th><th class="num">Read, 16 threads</th></tr></thead><tbody id="io-dr-rows"></tbody></table></div>
 <p class="small" id="io-dr-text"></p></div>
-<p><b>The small-files problem.</b> Each file costs an open, a metadata lookup and a close; each object costs an HTTP request. At 4 KiB per file those fixed costs are the whole bill. On a parallel file system they land on the metadata servers, which are far fewer than the storage servers: FSx for Lustre, for example, includes 1,500 metadata IOPS at 1.2 TiB and serves 2 file create/open/close operations per metadata IOPS <span class="io-tag io-vendor">vendor</span> ({{AWS|https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html}}), so a thousand nodes each opening millions of tiny files saturate it long before the disks are busy. The cure is the one {{Storage and loading|n:3f95c17b0d0d81398782efcb29d950d4}} teaches: pack samples into shards of tens to hundreds of megabytes. Checkpoints obey the same rule: DCP writes one file per rank, not one per tensor.</p>
-<p><b>Prefetch.</b> A loader that fetches the next shard only when it needs it adds the fetch to every step; one that keeps the next shards in flight hides it, as long as fetching is faster than computing. A loop that needs one 4 MiB shard per step and computes for 100 ms (a sleep standing in for the GPU):</p>
-<div class="io-card" id="io-pf-card"><div class="seg" id="io-pf-st"><button data-m="s3" class="on">S3 store</button><button data-m="local">Docker volume</button></div>
-<div id="io-pf-svg" class="io-svg"></div><p class="small" id="io-pf-text"></p></div>
+<p>Each file costs an open, a metadata lookup and a close; each object costs an HTTP request. At 4 KiB per file those fixed costs are the whole bill, and on a parallel file system they land on the metadata servers (FSx's 2 file create/open/close operations per metadata IOPS <span class="io-tag io-vendor">vendor</span>), so a thousand nodes each opening millions of tiny files saturate it long before the disks are busy, and the whole cluster slows, not only your job.</p>
+<details class="dp" id="io-pf-card"><summary>Prefetch hides the fetch only while fetching is faster than computing <span class="mute">(depth; loaders are owned by Storage and loading)</span></summary><div class="b">
+<p>A loader that fetches the next shard only when it needs it adds the fetch to every step; one that keeps the next shards in flight hides it, as long as fetching is faster than computing. A loop that needs one 4 MiB shard per step and computes for 100 ms (a sleep standing in for the GPU) <span class="io-tag io-measured">measured</span>:</p>
+<div class="seg" id="io-pf-st"><button data-m="s3" class="on">S3 store</button><button data-m="local">Docker volume</button></div>
+<div id="io-pf-svg" class="io-svg"></div><p class="small" id="io-pf-text"></p>
+</div></details>
 </div>
 </section>

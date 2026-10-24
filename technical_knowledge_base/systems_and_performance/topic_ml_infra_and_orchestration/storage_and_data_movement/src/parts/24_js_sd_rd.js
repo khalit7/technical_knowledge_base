@@ -133,6 +133,4 @@
 
   // ---- drills and reading time ----
   H.drills($('t-read'));
-  const rt=$('t-read');if(rt){const c=rt.cloneNode(true);c.querySelectorAll('style,nav,.rd-card,details,pre,.pr,table').forEach(x=>x.remove());
-    const words=(c.textContent.match(/\S+/g)||[]).length;window.RD_WORDS=words;const e=$('rd-time');if(e)e.textContent=Math.round(words/200)}
 })();

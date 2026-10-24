@@ -1,7 +1,7 @@
-// ---- Metadata storm tab ----
+// ---- Reading section 4 (moved from the Metadata storm tab, 2026-10-24): one against two metadata servers, the curve, real stores, the start-up storm calculator ----
 (function(){
   const H=SD_H,D=window.SD,$=H.$,f=H.fmt,T=D.tpfs,M=T.meta;
-  const R=H.mk('t-sdmeta');
+  const R=H.mk('t-read');
   // ---- animation: 16 clients, 1 vs 2 metadata servers, one clock ----
   let K=1;const OPS=16*300*3,NF=13;
   const rate=k=>M[k+'_16'].ops_per_s,Tend=Math.ceil(OPS/rate(1));

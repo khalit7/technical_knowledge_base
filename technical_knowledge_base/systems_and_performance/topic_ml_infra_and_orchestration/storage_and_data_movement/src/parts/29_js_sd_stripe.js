@@ -1,7 +1,7 @@
-// ---- Striping lab ----
+// ---- Reading section 2 (moved from the Striping lab tab, 2026-10-24): stripe-count animation, four writers, byte locator ----
 (function(){
   const H=SD_H,D=window.SD,$=H.$,f=H.fmt,esc=H.esc,T=D.tpfs;
-  const R=H.mk('t-sdstripe');
+  const R=H.mk('t-read');
   // ---- animation: one 128 MiB file, stripe count 1 / 2 / 4, on one clock ----
   let C=4;
   const NF=14,Tmax=Math.ceil(T.stripe['1'].write_s*2)/2; // frames every Tmax/(NF-1) seconds of measured time

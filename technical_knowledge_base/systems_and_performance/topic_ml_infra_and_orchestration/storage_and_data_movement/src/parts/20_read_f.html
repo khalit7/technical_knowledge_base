@@ -1,5 +1,5 @@
 <section id="rd-s8">
-<h2>8. Checkpoint formats, seen as files and byte ranges</h2>
+<h2>8. Checkpoints seen as files and byte ranges</h2>
 <div class="io-moved">
 <h3>What is in a checkpoint, measured</h3>
 <p>A <dfn>checkpoint</dfn> is everything needed to continue training as if nothing had happened: the weights, the optimiser's state, the step number, and anything else that carries state (random number generators, the data loader's position, the learning-rate schedule). Leave any of it out and a resumed run differs from an uninterrupted one. The running example needs only three things, because its batches depend only on (seed, step) and it uses no randomness after initialisation; this is why its resume is bit-exact.</p>
@@ -15,6 +15,37 @@
 <thead><tr><th>Model</th><th class="num">Parameters</th><th class="num">Training checkpoint at 14 B</th><th class="num">Per GPU, fully sharded</th><th class="num">Inference weights at 2 B</th></tr></thead>
 <tbody id="io-scale-rows"></tbody></table></div>
 <p class="small mute">All rows <span class="io-tag io-derived">derived</span>: size = parameters x bytes per parameter; per GPU = size / GPUs (64 and 1,024 GPUs for the 8B and 70B rows are illustrative choices), assuming the optimiser state is sharded over every GPU (as with FSDP or ZeRO-3 across all data-parallel ranks). Llama 3 405B trained on up to 16,384 GPUs ({{Llama 3 &sect;3.3|https://arxiv.org/html/2407.21783v3#S3.SS3}}); the paper says its checkpoint writes range "from 1 MB to 4 GB per GPU", and 346 MB per GPU falls inside that range: a consistency check, not a reproduction. DeepSeek-V3 has 671B parameters and trained on 2,048 H800 GPUs ({{DeepSeek-V3 report|https://arxiv.org/abs/2412.19437}}); its real per-GPU layout (expert parallelism, FP8) differs, so its row shows only the arithmetic.</p>
+</div>
+<div class="io-moved">
+<h3>The burst, measured: every rank writes at once</h3>
+<p>Training is synchronous: at the checkpoint step every rank reaches the save at the same moment, and they share whatever aggregate write bandwidth there is. Who writes what decides both the bytes and the time:</p>
+<ul class="tight">
+<li><b>Rank 0 writes everything</b> (train.py's way, fine for DDP, where every rank holds a full copy): one writer, one link.</li>
+<li><b>Every rank writes everything</b>: the forgotten <code>if rank == 0</code>. Same file content, written N times.</li>
+<li><b>Consolidated (gather, then one file)</b>: with a sharded model (FSDP, ZeRO-3), the pieces are first sent to rank 0 over the network, then rank 0 writes one file. Needs the whole state in rank 0's memory.</li>
+<li><b>Sharded (PyTorch Distributed Checkpoint, DCP)</b>: every rank writes its own piece to its own file, in parallel, plus a small <code>.metadata</code> file mapping pieces to tensors. No gather, no single writer.</li>
+</ul>
+<p>Measured with 4 ranks in one container (2 CPUs, gloo) and the 3.2M-parameter GPT (38.6 MB of state), three repetitions each, on the slow shared folder and on a Docker volume <span class="io-tag io-measured">measured</span>:</p>
+<div class="io-card" id="io-lay-card">
+<div class="seg" id="io-lay-tgt"><button data-m="slow_bind" class="on">Slow shared folder</button><button data-m="slow_vol">Docker volume</button></div>
+<div id="io-lay-svg" class="io-svg"></div>
+<div class="io-leg"><span><i style="background:var(--c4)"></i>gathering pieces to rank 0</span><span><i style="background:var(--c1)"></i>writing (and fsync)</span><span><i style="background:var(--soft);border:1px solid var(--line)"></i>waiting for the others</span></div>
+<p class="small" id="io-lay-text"></p>
+</div>
+<p><b>What this shows, and what it cannot.</b> Bytes on a shared pipe cost time: four copies took about three times as long as one. Sharding did <i>not</i> make the write faster here, because all four ranks share one container, one virtual disk and one file-sharing channel. On a cluster every node has its own link to storage (a DGX B200 has two BlueField-3 storage ports at up to 400 Gb/s each, {{NVIDIA|https://docs.nvidia.com/dgx/dgxb200-user-guide/introduction-to-dgxb200.html}}), so N nodes writing their shards use N links at once, while a consolidated write squeezes the whole state through one; the {{Sizing calculator|#t-sdsize}} does that arithmetic. The local run does show the hidden cost of consolidating: on the fast volume, gathering 38.6 MB to rank 0 took longer than writing it. Save sharded during training; consolidate once, offline, when exporting.</p>
+<details class="dp"><summary>Why DCP on a replicated model still writes one copy: the de-duplication code <span class="mute">(source)</span></summary><div class="b">
+<div class="io-src"><div class="f">torch/distributed/checkpoint/_dedup_save_plans.py, lines 20-21 and 43-48, PyTorch v2.14.1</div>
+<pre>    Removes duplicate entries from appearing on multiple SavePlans. For each duplicate across
+    a set of SavePlans, only the smallest SavePlan in terms of planned storage keeps the entry.
+...
+        if save_to_lowest_rank:
+            select_plan_idx = min(plan_indices)
+        else:
+            select_plan_idx = min(
+                plan_indices, key=lambda plan_idx: plan_to_size[plan_idx]
+            )</pre>
+This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes about one copy, spread over all ranks: each tensor that every rank holds is assigned to whichever rank has the least to write so far. The default planner calls it from <code>default_planner.py</code> line 137.</div>
+</div></details>
 </div>
 <p>With the contents known, the question is what the storage sees: how many files or objects, how big, and which byte ranges a reader must fetch. Measured on the Storage lab's 25,319,489-parameter GPT (FSDP2 over 4 ranks, AdamW, three steps; <code>src/runs/ckpt_formats.py</code>, native on the Mac, torch 2.14.1) <span class="meas">measured</span>.</p>
 <h3>PyTorch Distributed Checkpoint (DCP): one file per rank, plus a map</h3>
@@ -33,7 +64,8 @@
 <div class="an-cnt" id="sd-rs-cnt"></div>
 <div class="an-ctl" id="sd-rs-ctl"></div>
 </div>
-<p><b>Why 3 ranks read 1.5 times the checkpoint.</b> A new rank that owns rows 0 to 21 of a tensor saved in chunks of 17 needs part of the second chunk, and DCP's file reader fetches whole stored chunks, then copies the slice it needs:</p>
+<p><b>Why 3 ranks read 1.5 times the checkpoint.</b> A new rank that owns rows 0 to 21 of a tensor saved in chunks of 17 needs part of the second chunk, and DCP's file reader fetches whole stored chunks, then copies the slice it needs. Measured: 4 ranks to 3 read 1.50 times the checkpoint's bytes, 4 to 2 read 1.00 times <span class="meas">measured</span>. A divisor of the old world size reads each byte once; at a non-divisor the overlapping chunks are read by two ranks each: on a parallel file system 50% more restore traffic, on an object store 50% more GET bytes. Plan restore bandwidth for the overlap, or restart at a divisor when you can.</p>
+<details class="dp"><summary>The code that reads whole chunks: DCP's FileSystemReader <span class="mute">(source)</span></summary><div class="b">
 <div class="sd-src"><div class="f">torch/distributed/checkpoint/filesystem.py, lines 869-884, PyTorch v2.14.1</div>
 <pre class="rd-code">    def read_data(self, plan: LoadPlan, planner: LoadPlanner) -&gt; Future[None]:
         # group requests by file
@@ -50,43 +82,19 @@
                 for req in reqs:
                     item_md = self.storage_data[req.storage_index]
                     file_slice = self._slice_file(stream, item_md)</pre>
-<p class="small"><code>item_md</code> is the stored chunk's <code>(relative_path, offset, length)</code>; <code>_slice_file</code> (line 860) views exactly that range, so the whole chunk is read even when the new rank needs a few rows of it. Resharding to a divisor of the old world size (4 to 2) reads each byte once; to a non-divisor (4 to 3) the overlapping chunks are read by two ranks each. On a parallel file system that is 50% more restore traffic; on an object store, 50% more GET bytes.</p></div>
+<p class="small"><code>item_md</code> is the stored chunk's <code>(relative_path, offset, length)</code>; <code>_slice_file</code> (line 860) views exactly that range, so the whole chunk is read even when the new rank needs a few rows of it.</p></div>
+</div></details>
 
-<div class="io-moved">
-<h3>The burst, measured: every rank writes at once</h3>
-<p>Training is synchronous: at the checkpoint step, every rank reaches the save at the same moment, and the storage system sees all of them arrive together. Whatever the aggregate write bandwidth is, they share it. Who writes what then decides both the bytes and the time:</p>
-<ul class="tight">
-<li><b>Rank 0 writes everything</b> (train.py's way, fine for DDP, where every rank holds a full copy): one writer, one link.</li>
-<li><b>Every rank writes everything</b>: the forgotten <code>if rank == 0</code>. Same file content, written N times.</li>
-<li><b>Consolidated (gather, then one file)</b>: with a sharded model (FSDP, ZeRO-3), the pieces are first sent to rank 0 over the network, then rank 0 writes one file. Needs the whole state in rank 0's memory.</li>
-<li><b>Sharded (PyTorch Distributed Checkpoint, DCP)</b>: every rank writes its own piece to its own file, in parallel, plus a small <code>.metadata</code> file mapping pieces to tensors. No gather, no single writer.</li>
-</ul>
-<p>Measured with 4 ranks in one container (2 CPUs, gloo) and the 3.2M-parameter GPT (38.6 MB of state), three repetitions each, on the slow shared folder and on a Docker volume <span class="io-tag io-measured">measured</span>:</p>
-<div class="io-card" id="io-lay-card">
-<div class="seg" id="io-lay-tgt"><button data-m="slow_bind" class="on">Slow shared folder</button><button data-m="slow_vol">Docker volume</button></div>
-<div id="io-lay-svg" class="io-svg"></div>
-<div class="io-leg"><span><i style="background:var(--c4)"></i>gathering pieces to rank 0</span><span><i style="background:var(--c1)"></i>writing (and fsync)</span><span><i style="background:var(--soft);border:1px solid var(--line)"></i>waiting for the others</span></div>
-<p class="small" id="io-lay-text"></p>
-</div>
-<p><b>What this shows, and what it cannot.</b> Bytes on a shared pipe cost time: writing four copies took about three times as long as one. But sharding did <i>not</i> make the write faster here, because all four ranks share one container, one virtual disk and one file-sharing channel: there is only one pipe. On a cluster every node has its own network link to storage (a DGX B200 has two BlueField-3 storage ports at up to 400 Gb/s each, {{NVIDIA|https://docs.nvidia.com/dgx/dgxb200-user-guide/introduction-to-dgxb200.html}}), so N nodes writing their shards use N links at once, while a consolidated write squeezes the whole state through one. The root page's {{Storage lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} calculator and this page's {{Sizing calculator|#t-sdsize}} do that arithmetic. What the local run does show is the hidden cost of consolidating: on the fast volume, gathering 38.6 MB to rank 0 took longer than writing it.</p>
-<div class="io-src"><div class="f">torch/distributed/checkpoint/_dedup_save_plans.py, lines 20-21 and 43-48, PyTorch v2.14.1</div>
-<pre>    Removes duplicate entries from appearing on multiple SavePlans. For each duplicate across
-    a set of SavePlans, only the smallest SavePlan in terms of planned storage keeps the entry.
-...
-        if save_to_lowest_rank:
-            select_plan_idx = min(plan_indices)
-        else:
-            select_plan_idx = min(
-                plan_indices, key=lambda plan_idx: plan_to_size[plan_idx]
-            )</pre>
-This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes about one copy, spread over all ranks: each tensor that every rank holds is assigned to whichever rank has the least to write so far. The default planner calls it from <code>default_planner.py</code> line 137.</div>
-</div>
 <h3>safetensors: a header that maps every tensor to a byte range</h3>
 <p>The format is "8 bytes: N, an unsigned little-endian 64-bit integer, containing the size of the header", then N bytes of JSON giving each tensor's "dtype", "shape" and "data_offsets" relative to the data buffer, then the bytes; the header is capped at 100 MB ({{safetensors README|https://github.com/huggingface/safetensors}}). Our model's weights, saved by rank 0 <span class="meas">measured</span>:</p>
+<details class="dp"><summary>The header of our model's file, as written <span class="mute">(measured)</span></summary><div class="b">
 <pre class="rd-code" id="sd-sthdr"></pre>
+</div></details>
 <p>Because the header gives every tensor's range, a reader can fetch one tensor without the rest. From the object store: three ranged GETs (the 8-byte length, the header, the tensor) moved <span id="sd-rg-b"></span> of a <span id="sd-rg-f"></span> file, in <span id="sd-rg-t"></span> against <span id="sd-rg-ft"></span> for the whole object <span class="meas">measured</span>, medians of 3. That is how inference servers and sharded loaders pull only their slice.</p>
+<details class="dp"><summary>Sharded safetensors and DCP's safetensors writer <span class="mute">(depth)</span></summary><div class="b">
 <p><b>Sharded safetensors</b> (the Hugging Face layout) split the tensors greedily into files under <code>max_shard_size</code> plus a <code>model.safetensors.index.json</code> whose <code>"weight_map"</code> names the file of every tensor. The default changed: "5GB" in transformers v4.57.0, "50GB" from v5.0.0 to v5.20.0 (released 2026-10-15) ({{modeling_utils.py at v5.20.0|https://github.com/huggingface/transformers/blob/v5.20.0/src/transformers/modeling_utils.py}}), so the same model saved by a newer library makes fewer, larger objects. Ours at a 25 MB limit: <span id="sd-shards"></span>.</p>
 <p><b>DCP can write safetensors itself.</b> <code>HuggingFaceStorageWriter(path, save_distributed=True, enable_consolidation=True)</code> wrote one safetensors shard per rank under <code>sharded/</code>, then consolidated them into one full file and an index <span class="meas">measured</span>: <span id="sd-dcphf"></span>. The same code path is how training checkpoints become Hub-style exports without a gather on one rank.</p>
+</div></details>
 <div class="tw sd-tw"><table class="rd-cmp">
 <thead><tr><th>Format</th><th>Objects per checkpoint</th><th>Partial read</th><th>Reshard on load</th><th>Use for</th></tr></thead>
 <tbody>
@@ -94,13 +102,16 @@ This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes
 <tr><td>DCP</td><td data-h="Objects">ranks (times writer threads) + 1</td><td data-h="Partial">yes, per stored chunk</td><td data-h="Reshard">yes, any world size; whole chunks are read</td><td data-h="Use">training checkpoints at scale</td></tr>
 <tr><td>safetensors (sharded)</td><td data-h="Objects">total size / max_shard_size + 1 index</td><td data-h="Partial">yes, per tensor, from one header read</td><td data-h="Reshard">the reader slices tensors itself</td><td data-h="Use">weights for inference and fine-tuning; exports</td></tr>
 </tbody></table></div>
+<details class="dp"><summary>ByteCheckpoint: what it took at 8,960 GPUs <span class="mute">(depth)</span></summary><div class="b">
 <p class="small">Other systems: ByteDance's ByteCheckpoint reports "an average reduction of 54.20x" in checkpoint stalls against DCP and Megatron's distributed checkpoint while training "a 405B LFM on 8,960 GPUs", partly by splitting files into fixed-size sub-files written by many threads, raising single-file HDFS uploads to "3 GB/s" from "under 100 MB/s" per client ({{ByteCheckpoint, NSDI 2025|https://arxiv.org/html/2407.20143}}) <span class="pub">authors</span>.</p>
+</div></details>
 <div class="io-moved">
-<h3>Restoring: when a checkpoint will not load</h3>
+<details class="dp"><summary>Restoring: three real messages from checkpoints that would not load, and resharding checked tensor for tensor <span class="mute">(depth)</span></summary><div class="b">
 <p>A checkpoint is only as good as its restore, and restores fail in a few recognisable ways. Each of these is a real message from the root page's Storage lab (torch 2.14.1):</p>
 <div id="io-errs"></div>
 <p><b>Resharding works.</b> The 4-rank DCP checkpoint loaded into 2 ranks and into 3 ranks, and into a single process with no process group at all, each time tensor for tensor identical to the full state <span class="io-tag io-measured">measured</span>. DCP's <code>.metadata</code> records which byte ranges of which tensor live in which file, so any number of ranks can ask for the pieces they now own. A consolidated <code>torch.save</code> file can also be loaded anywhere, but only by first reading the whole thing into one process.</p>
 <p>Whether a resumed run continues the same trajectory is a restore trap of its own: {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}}, section 6.</p>
+</div></details>
 </div>
 </section>
 

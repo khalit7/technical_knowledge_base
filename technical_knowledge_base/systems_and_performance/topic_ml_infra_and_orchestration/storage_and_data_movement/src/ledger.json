@@ -1,0 +1,4050 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Storage and data movement: parallel file systems, object storage and checkpoint I/O Storage and data movement: parallel file systems, object storage and checkpoint I/O How the storage a training cluster shares actually works: a parallel file system's metadata servers and striped object servers, object storage's semantics and request limits, the caches and staging copies in between, moving datasets and checkpoints between them, sizing all of it for a cluster, and checkpoint formats seen as storage objects; with real runs on a toy parallel file system and on SeaweedFS.",
+  "label": "core",
+  "key": "storage and data movement: parallel file systems, object storage",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "A child of Topic: ml-infra-and-orchestration .",
+  "label": "core",
+  "key": "a child of topic: ml-infra-and-orchestration",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Striping lab Metadata storm Sizing calculator Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old tab bar; two tabs folded into Reading"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 The problem 2 Lustre 3 Other designs 4 Metadata 5 Object storage 6 Caches 7 Moving data 8 Formats 9 Sizing 10 Checking Mistakes Interview Every node of a training cluster reads the same datasets, writes its share of every checkpoint and starts from the same code, so somewhere there is storage that all of them share.",
+  "label": "core",
+  "key": "2 lustre 3 other designs 4 metadata 5 object",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page opens that storage up: how a parallel file system splits names from bytes and spreads each file over many servers, what an object store promises and what it does not, the caches and staging copies in between, how data and checkpoints move from one to another, how to size all of it for a cluster, and what a checkpoint looks like when you see it as files and byte ranges.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old lead paragraph; replaced by the core sentence and the hero"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "Reading time about 34 minutes (words outside widgets, tables and folded answers at 200 a minute; those add about 30, the three tabs more).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old reading-time line; the header states the measured time"
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "It goes deeper than the parent's Storage lab , which measured the running example's checkpoint (1,386,049 bytes, 12.31 bytes per parameter), six storage stand-ins, the checkpoint burst, asynchronous saves, small files and resharding; this page reuses those numbers and does not repeat them.",
+  "label": "core",
+  "key": "1,386,049 bytes, 12.31 bytes per parameter",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "The sibling Cluster anatomy owns the storage tiers at cluster level and NVIDIA's per-SU storage guidance.",
+  "label": "core",
+  "key": "storage tiers at cluster level",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "Formats, shards and loaders for training data are on Storage and loading at scale ; the page cache, fsync and atomic rename on Storage and file systems .",
+  "label": "core",
+  "key": "are on storage and loading at scale ; the",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "In one screen: five kinds of shared storage, compared on what decides a training job Kind Names and metadata Bytes Bandwidth grows with Gives you Use it for NFS server one server the same server nothing: one server's disks and network card POSIX, close-to-open consistency home directories, code, small shared configs Parallel file system (Lustre, GPFS, WEKA, VAST, 3FS) dedicated metadata servers (Lustre, 3FS) or spread over every server (GPFS, WEKA, VAST) each file striped over many storage servers the number of storage servers a file or a job touches POSIX at hundreds of GB/s to TB/s checkpoints, hot datasets, shared scratch Object store (S3, GCS, Azure Blob) a flat key space, partitioned by key prefix whole objects, written once, read by byte range parallel connections and prefixes cheap, durable, effectively unlimited; no rename, no append, 100-200 ms first byte the dataset of record, checkpoints kept for weeks, artifacts Caching layer (FSx linked to S3, JuiceFS, Mountpoint cache, Alluxio) its own metadata, filled from the object store copies on fast media near the GPUs the hit rate a file system in front of an object store data read more than once, by many jobs Local NVMe on each node local local nodes: every node adds its own disks the fastest tier; gone with the node staged data, the first copy of a checkpoint, container images The three mechanisms the page keeps returning to: striping (a file spread over many servers, so one file can go faster than one server: section 2 and the Striping lab ), metadata (names, opens and lookups, served by far fewer machines than the bytes: section 4 and the Metadata storm ), and the burst (every rank writing its checkpoint at once: sized in section 9 and the Sizing calculator ).",
+  "label": "depth",
+  "key": "configs parallel file system (lustre, gpfs, weka, vast, 3fs",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "Numbers are labelled: published an operator or paper describing its own system, vendor a company describing what it sells, independent someone with no stake, derived computed here with the formula shown, measured run here (Apple M1 Pro, Docker Desktop VM, shared machine, 2026-10-16: timings are rough, counts and orders are exact), and unconfirmed when no primary source confirms it.",
+  "label": "core",
+  "key": "with the formula shown, measured run here (apple m1",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "The problem: one server is one pipe Four numbers describe any store.",
+  "label": "core",
+  "key": "the problem: one server is one pipe",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "Bandwidth is bytes per second for large transfers (GB/s).",
+  "label": "core",
+  "key": "bytes per second for large transfers",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "IOPS (I/O operations per second) is how many small reads or writes it serves.",
+  "label": "core",
+  "key": "small operations per second",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "Metadata operations per second counts the operations on names rather than bytes: create, open, stat (ask for a file's size and times), lookup of a name that does not exist, list a directory, delete.",
+  "label": "core",
+  "key": "on names rather than bytes: create, open, stat (ask",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "Latency is how long one operation takes, which caps what one client doing one thing at a time can get.",
+  "label": "core",
+  "key": "how long one operation takes, which caps",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "A store can be fast on one and slow on another, and training jobs hit all four.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "What a training job asks of shared storage, and when.",
+  "label": "core",
+  "key": "what a training job asks of shared storage, and",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "Start-up Every rank imports Python packages and loads the container image: tens of thousands of opens and lookups each, all ranks at the same second (section 4 counts them: 17,983 file-system calls for import torch ).",
+  "label": "core",
+  "key": "container image: tens of thousands of opens and lookups",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "Reading data A steady stream of large sequential reads, small next to compute for text and easy to prefetch (the parent's lab and Storage and loading at scale).",
+  "label": "core",
+  "key": "reading data a steady stream of large sequential reads",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "Checkpointing Every few minutes to hours, every rank writes its piece at the same moment while the GPUs wait unless the save is asynchronous: a burst of terabytes (section 9).",
+  "label": "core",
+  "key": "save is asynchronous: a burst of terabytes (section 9",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "Restart and evaluation Every rank reads the latest checkpoint at once, often into a different number of ranks (section 8); evaluation jobs read many checkpoints.",
+  "label": "core",
+  "key": "often into a different number of ranks (section 8",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "Why one file server is not enough.",
+  "label": "core",
+  "key": "why one file server is not enough",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "An NFS server holds both the names and the bytes, so all of the above goes through one machine's disks and one network card.",
+  "label": "core",
+  "key": "an nfs server holds both the names and the",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "A modern GPU node can pull more than 40 GB/s by itself (NVIDIA's requirement for SuperPOD nodes, on the sibling Cluster anatomy page), which is already more than a good single server delivers.",
+  "label": "core",
+  "key": "already more than a good single server delivers",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "The parent's lab saw the same shape in miniature: the 304 MB checkpoint took 7.31 s through a host folder shared into the Docker VM (one file-sharing channel) against 387 ms on a Docker volume measured .",
+  "label": "core",
+  "key": "lab saw the same shape in miniature: the 304",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "The two ways out , and the rest of the page follows them.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "A parallel file system keeps the POSIX interface (directories, open, seek, rename) but separates the names from the bytes: a few metadata servers answer \"where is this file\", and the bytes go straight to and from many storage servers at once.",
+  "label": "core",
+  "key": "bytes: a few metadata servers answer \"where is this",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "An object store gives up POSIX (no rename, no append, no partial overwrite) in exchange for a design that partitions everything by key, so it scales to any number of clients and costs a fraction as much per byte.",
+  "label": "core",
+  "key": "an object store gives up posix (no rename, no",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. the problem: one server is one pipe",
+  "text": "Large training clusters use both: the object store holds the data and checkpoints of record, a parallel file system or local NVMe holds the working copies.",
+  "label": "core",
+  "key": "clusters use both: the object store holds the data",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "How a parallel file system works: Lustre, piece by piece Lustre is the reference design (open source, on most of the largest supercomputers, and underneath managed services such as Amazon FSx for Lustre), so it is taught in full here; section 3 shows how the others differ.",
+  "label": "core",
+  "key": "how a parallel file system works: lustre, piece by",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "Current release: 2.17.0, tagged 2025-12-30 ( lustre.org ; lustre-release tag 2.17.0 ).",
+  "label": "core",
+  "key": "2.17.0, tagged 2025-12-30 ( lustre.org ; lustre-release tag 2.17.0",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "Quotes are from the Lustre Operations Manual unless marked.",
+  "label": "core",
+  "key": "quotes are from the lustre operations manual unless marked",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "The parts Part What it does (the manual's words where quoted) MGS , management server \"stores configuration information for all the Lustre file systems in a cluster and provides this information to other Lustre components.\" MDS and MDT , metadata server and target The MDS \"manages the names and directories\"; the MDT, its disk, \"stores metadata (such as filenames, directories, permissions and file layout)\".",
+  "label": "core",
+  "key": "part what it does (the manual's words where quoted",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "The manual sizes MDTs at \"1-2% of file system capacity\".",
+  "label": "core",
+  "key": "at \"1-2% of file system capacity\"",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "OSS and OST , object storage server and target \"Typically, an OSS serves between two and eight OSTs\"; \"User file data is stored in one or more objects, each object on a separate OST\".",
+  "label": "core",
+  "key": "oss and ost , object storage server and target",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "Client A kernel module on every compute node, with \"a metadata client (MDC), and multiple object storage clients (OSCs), one corresponding to each OST\"; the LOV (logical object volume) stitches the OSCs into one file.",
+  "label": "core",
+  "key": "client a kernel module on every compute node, with",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "LNet Lustre's own network layer over InfiniBand, RoCE or TCP, carrying both metadata and data.",
+  "label": "core",
+  "key": "lnet lustre's own network layer over infiniband, roce or",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "A file's entry on the MDT holds its layout : a list of objects, each on one OST, plus the stripe size. \"When a client wants to read from or write to a file, it first fetches the layout EA from the MDT object for the file.",
+  "label": "core",
+  "key": "a file's entry on the mdt holds its layout",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "The client then uses this information to perform I/O on the file, directly interacting with the OSS nodes where the objects are stored.\" The metadata server is asked once per open; the bytes never pass through it.",
+  "label": "core",
+  "key": "the client then uses this information to perform i/o",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "The same 8 MiB write, through one NFS server and through Lustre An illustrative sequence built from the manual's description of the I/O path and from nfs(5) 's close-to-open rule; drawn to scale in bytes (each square is 1 MiB), not in time.",
+  "label": "core",
+  "key": "the same 8 mib write, through one nfs server",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "Toggle the system, then step.",
+  "label": "core",
+  "key": "toggle the system, then step",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "One NFS server Lustre, stripe count 4 Striping: which server holds byte X A layout is RAID 0 across its objects: \"If the MDT file points to more than one object, the file data is striped across the objects using RAID 0, and each object is stored on a different OST.\" With stripe size S (bytes written to one object before moving to the next) and stripe count C (how many objects), byte offset X of the file lands in stripe = ⌊(X mod S·C) / S⌋ object offset = ⌊X / (S·C)⌋·S + (X mod S) S stripe size, default 1 MiB (\"the default value for stripe_size is 1MB\"; must be a multiple of 64 KB) C stripe count, default 1 (\"The default value for stripe_count is 1 stripe for file\"); -1 means every OST stripe index into the layout's object list; the MDS chose which OST each object lives on when the file was created lustre/lov/lov_offset.c, lines 273-288, lustre-release tag 2.17.0 /* compute which stripe number \"lov_off\" will be written into */ int lov_stripe_number(struct lov_stripe_md *lsm, int index, u64 lov_off) { unsigned long ssize = lsm->lsm_entries[index]->lsme_stripe_size; u64 stripe_off; u64 swidth; swidth = stripe_width(lsm, index); lov_off = div64_u64_rem(lov_off, swidth, &stripe_off); /* Puts stripe_off/ssize result into stripe_off */ stripe_off = div_u64(stripe_off, ssize); return (int) stripe_off; } stripe_width() (lines 20-30) returns stripe size times stripe count; index picks the layout component (below). lov_stripe_offset() (lines 121-152) computes the object offset, *obdoff = lov_off * ssize + stripe_off .",
+  "label": "core",
+  "key": "a layout is raid 0 across its objects: \"if",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "The Striping lab has a calculator that runs exactly this arithmetic and our toy file system uses it too.",
+  "label": "depth",
+  "key": "runs exactly this arithmetic",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "What it buys. \"Striping can be used to improve performance when the aggregate bandwidth to a single file exceeds the bandwidth of a single OST.\" On our toy parallel file system (four object servers in containers, each held to 25 MB/s by a token bucket standing in for its disks; real code, not Lustre), one client wrote a 128 MiB file at 22.2 MB/s with stripe count 1, 44.8 with 2 and 88.7 with 4 measured , medians of 3: linear, because nothing else was in the way.",
+  "label": "core",
+  "key": "four object servers in containers, each held to 25",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "The Striping lab animates both runs.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab; the animation is now inline"
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "More objects mean \"more locks and extra network operations during common operations such as stat and unlink\", and \"when files are striped across all servers and one of the servers breaks down, a small part of each striped file is lost.\" Small files gain nothing: \"Small files do not benefit from striping\".",
+  "label": "core",
+  "key": "more objects mean \"more locks and extra network operations",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "The manual's rule: \"stripe over as few objects as will meet those needs and no more\", bounded by \"the I/O rate of the clients/jobs divided by the performance per OSS\".",
+  "label": "core",
+  "key": "the manual's rule: \"stripe over as few objects as",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "Four ranks each write their own 64 MiB checkpoint shard to the toy file system, stripe count 1, and the MDS spreads the four files over the four servers.",
+  "label": "core",
+  "key": "four ranks each write their own 64 mib checkpoint",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "Then the same four shards go into one shared file striped over all four servers.",
+  "label": "core",
+  "key": "then the same four shards go into one shared",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "The striped shared file, about 4 times faster About the same: both keep all four servers busy File per rank, about 4 times faster About the same: 88.9 MB/s for four files with one stripe each, 97.8 MB/s for one file striped four ways measured , medians of 3.",
+  "label": "core",
+  "key": "the striped shared file, about 4 times faster about",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "Striping matters when few files must use many servers; when every rank writes its own file and the files are spread, the servers are already all busy.",
+  "label": "core",
+  "key": "striping matters when few files must use many servers",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "What hurts is when they are not spread: the same four files all forced onto OST 0 ( lfs setstripe -i 0 , the mistake) or one shared file with stripe count 1 ran at 25.0 and 24.9 MB/s, a quarter.",
+  "label": "core",
+  "key": "forced onto ost 0 ( lfs setstripe -i 0",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "The manual makes the same argument with 100 clients and 100 servers: one object per file means \"no contention\", while 100 objects per file means \"the clients all compete with one another for the attention of the servers\".",
+  "label": "core",
+  "key": "one object per file means \"no contention\", while 100",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "Locks: why many writers in one stripe are slow Each OST runs its own lock manager (the LDLM) for the byte ranges of its objects, so a client caches data only while it holds the lock. \"When writing to a single file from multiple nodes, having more than one client writing to a stripe can lead to issues with lock exchange, where clients contend over writing to that stripe, even if their I/Os do not overlap.",
+  "label": "core",
+  "key": "locks: why many writers in one stripe are slow",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "This can be avoided if I/O can be stripe aligned so that each stripe is accessed by only one client.\" Our toy has no locks, so this cost is not modelled there; on Lustre it makes an N-to-1 shared checkpoint file with unaligned writes much worse than the toy shows.",
+  "label": "core",
+  "key": "this can be avoided if i/o can be stripe",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "DCP's one file per rank sidesteps it.",
+  "label": "core",
+  "key": "dcp's one file per rank sidesteps it",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "Layouts that adapt: PFL and Data on MDT A Progressive File Layout (PFL, since 2.10) gives one file several components by offset, so small files stay on one OST and big ones spread out without anyone choosing in advance.",
+  "label": "depth",
+  "key": "a progressive file layout (pfl, since 2.10) gives one",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "The manual's example on 8 OSTs: lfs setstripe -E 4M -c 1 -E 64M -c 4 -E -1 -c -1 -i 4 /mnt/testfs/create_comp : \"The first component has 1 stripe and covers [0, 4M), the second component has 4 stripes and covers [4M, 64M), and the last component stripes start at OST4, cross over all available OSTs and covers [64M, EOF).\" Components after the first are created only when a write reaches them.",
+  "label": "depth",
+  "key": "the manual's example on 8 osts: lfs setstripe -e",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "Amazon FSx for Lustre file systems created after August 25, 2023 default to lfs setstripe -E 100M -c 1 -E 10G -c 8 -E 100G -c 16 -E -1 -c 32 ( FSx performance guide ) vendor .",
+  "label": "depth",
+  "key": "fsx for lustre file systems created after august 25",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "Data on MDT (DoM, since 2.11) puts the first part of a file on the metadata server itself, so a small file costs one server instead of two: \"improves small file IO by placing small files directly on the MDT\".",
+  "label": "depth",
+  "key": "data on mdt (dom, since 2.11) puts the first",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "The default maximum is 1 MB ( dom_stripesize ).",
+  "label": "depth",
+  "key": "the default maximum is 1 mb ( dom_stripesize",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "Example: lfs setstripe -E 1M -L mdt -E -1 -S 4M -c -1 /mnt/lustre/domfile .",
+  "label": "depth",
+  "key": "example: lfs setstripe -e 1m -l mdt -e -1",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "More than one metadata server: DNE One MDS serves a whole file system until DNE (Distributed Namespace) adds more: a directory can live on another MDT ( lfs mkdir -i mdt_index ), or one huge directory can be spread over several with lfs mkdir -c mdt_count , \"indended [sic] for specific applications where many output files are being created in one large directory (over 50k entries)\".",
+  "label": "depth",
+  "key": "are being created in one large directory (over 50k",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "On our toy, two metadata servers instead of one served 16 clients at 2,635 operations per second against 1,603 measured : the Metadata storm tab has the full curve.",
+  "label": "core",
+  "key": "served 16 clients at 2,635 operations per second against",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "What you type on a real Lustre client Not run here: Lustre needs its kernel modules on the client, which Docker Desktop's VM does not have.",
+  "label": "depth",
+  "key": "not run here: lustre needs its kernel modules on",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "The output below is copied from the manual (section 19.3.5), not from a run. $ lfs setstripe --stripe-count 1 --index 0 file1 $ lfs getstripe file1 /mnt/testfs/file1 lmm_stripe_count: 1 lmm_stripe_size: 1048576 lmm_pattern: 1 lmm_layout_gen: 0 lmm_stripe_offset: 0 obdidx objid objid group 0 37364 0x91f4 0 Set a directory default so every new checkpoint shard inherits it: lfs setstripe -c 4 -S 4M /lustre/ckpt (the manual's guidance: \"A good stripe size for sequential I/O using high-speed networks is between 1 MB and 4 MB\"); see how full each server is: lfs df -h /lustre .",
+  "label": "depth",
+  "key": "copied from the manual (section 19.3.5), not from a",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. how a parallel file system works: lustre, piece by piece",
+  "text": "A layout is fixed when the file is created; lfs migrate rewrites an existing file.",
+  "label": "depth",
+  "key": "a layout is fixed when the file is created",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "3. the other designs: where the metadata lives, and who places the bytes",
+  "text": "The other designs: where the metadata lives, and who places the bytes Every parallel file system answers the same two questions differently: who owns the names (a dedicated metadata tier, or every server), and who decides where a byte goes (a layout handed out once, or a placement every server can compute).",
+  "label": "core",
+  "key": "the other designs: where the metadata lives, and who",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "3. the other designs: where the metadata lives, and who places the bytes",
+  "text": "That choice decides how it behaves under a metadata storm and when a server fails.",
+  "label": "core",
+  "key": "that choice decides how it behaves under a metadata",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. the other designs: where the metadata lives, and who places the bytes",
+  "text": "System Metadata Data placement Published scale Lustre dedicated MDS/MDT; more with DNE layout (objects on OSTs) chosen at create, RAID 0 by stripe size Argonne Polaris: \"Lustre: 100 PB @ 650GB/s\" ( Argonne at SNIA SDC, 2025-09-17 ) independent IBM Storage Scale (GPFS) no metadata server: metadata on the shared disks; a token manager grants locks and \"There is one metanode per open file\", which alone writes its metadata ( IBM docs 5.2.3 ) \"Files are striped across all disks in the file system\" in round-robin blocks ( GPFS paper, FAST 2002 ); default block size today 4 MiB \"several thousand disks in the largest GPFS installations\" (2002) authors WEKA (WekaFS, now NeuralMesh) spread over every server: \"distributing both data and metadata across the entire system\" ( WEKA docs ) user-space processes on NVMe servers; cold data tiered to an object store \"a single cluster can deliver up to 18,300,000 IOPs\" ( WEKA, 2024-03-18 ) vendor VAST Data stateless protocol servers (CNodes) over shared flash that holds all metadata \"disaggregates (separates) the storage media from the CPUs\" ( VAST glossary ): every CNode reaches every SSD over NVMe-oF no dated primary throughput figure found unconfirmed DAOS user-space object store with POSIX emulation on top storage-class memory and NVMe, \"full OS bypass\" ( DAOS docs ) Aurora: \"DAOS: 220PB @ 30 TB/s\" (Argonne, 2025-09-17, link above) independent DeepSeek 3FS \"stateless metadata services backed by a transactional key-value store (e.g., FoundationDB)\" files split into equal chunks striped over replication chains (CRAQ); the client computes chunk locations from the layout, like Lustre; FUSE client plus a native zero-copy client ( 3FS README and design notes , released February 2025) \"approximately 6.6 TiB/s\" of aggregate reads from 180 storage nodes, each \"2×200Gbps InfiniBand NICs and sixteen 14TiB NVMe SSDs\" authors : about 80% of the nodes' 9 TB/s of network line rate derived (180 x 2 x 25 GB/s) Meta Tectonic \"stateless metadata services that construct the filesystem logic over the key-value store\" (ZippyDB) a flat Chunk Store; append-only files ( Tectonic, FAST 2021 ) Llama 3: \"240 PB of storage out of 7,500 servers\", \"2 TB/s\" sustained, \"7 TB/s\" peak ( Llama 3, section 3.3.1 ) authors Two families.",
+  "label": "core",
+  "key": "layout (objects on osts) chosen at create, raid 0",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. the other designs: where the metadata lives, and who places the bytes",
+  "text": "Lustre and 3FS keep a separate metadata tier and hand the client a layout, so data I/O never touches it; GPFS, WEKA and VAST spread metadata over the same servers as data, so there is no single metadata bottleneck to size, at the price of distributed locking.",
+  "label": "core",
+  "key": "to size, at the price of distributed locking",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. the other designs: where the metadata lives, and who places the bytes",
+  "text": "Tectonic and 3FS both put metadata in a transactional key-value store behind stateless servers, which is how they scale the namespace.",
+  "label": "core",
+  "key": "put metadata in a transactional key-value store behind stateless",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. the other designs: where the metadata lives, and who places the bytes",
+  "text": "The 3FS headline matches Fire-Flyer 2's \"8 TB/s\" quoted on the parent page only loosely (6.6 TiB/s is 7.3 TB/s derived ): the paper and the README describe different measurements.",
+  "label": "core",
+  "key": "the 3fs headline matches fire-flyer 2's \"8 tb/s\" quoted",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Metadata: the small-file and start-up storms The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Bandwidth scales with storage servers; metadata does not, or not as fast.",
+  "label": "core",
+  "key": "bandwidth scales with storage servers; metadata does not, or",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "A Lustre file system with hundreds of OSTs may have one or a handful of MDTs, and every create, open, stat and failed lookup goes to them.",
+  "label": "core",
+  "key": "a lustre file system with hundreds of osts may",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Small files make every byte cost a metadata operation; thousands of ranks starting at once make every rank's start-up cost thousands.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "summary sentence carried by the two storm subsections of section 4"
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Amazon sells this capacity separately: an FSx for Lustre file system of 1,200 GiB includes 1,500 metadata IOPS, and each metadata IOPS serves 2 file creates, opens or closes per second, 1 delete, or 0.1 directory creates ( FSx performance guide ) vendor : 3,000 opens per second for the whole file system derived .",
+  "label": "core",
+  "key": "separately: an fsx for lustre file system of 1,200",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Measured: the same four operations on four stores 16 processes, each in its own directory, create empty files, stat them, look up names that do not exist, and delete them, in lock step measured (medians of 3; src/runs/meta_real.py ).",
+  "label": "core",
+  "key": "delete them, in lock step measured (medians of 3",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Operations per second, all processes together: Three things to read off it.",
+  "label": "core",
+  "key": "operations per second, all processes together",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "A local file system does hundreds of thousands of operations a second, a network one a few thousand: the gap is the round trip, not the disk.",
+  "label": "core",
+  "key": "a local file system does hundreds of thousands of",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "The host folder shared into the VM answers stat of an existing file from its cache, as fast as local disk, but every lookup of a missing name crosses to the host (the \"miss\" column): network file systems cache what exists far better than what does not.",
+  "label": "core",
+  "key": "the host folder shared into the vm answers stat",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "And the object store pays a full HTTP request for everything, even a HEAD.",
+  "label": "core",
+  "key": "the object store pays a full http request for",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "The start-up storm: what import torch asks the file system Python finds a module by trying names on every directory of sys.path in turn, so an import is mostly lookups, many of them of files that do not exist.",
+  "label": "core",
+  "key": "what import torch asks the file system python finds",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Counted with strace -f -c -e trace=%file,getdents64 in a container with torch 2.14.1+cpu and Python 3.11 measured (3 runs each, identical counts): $ strace -f -c -e trace=%file,getdents64 python3 -c 'import torch' % time seconds usecs/call calls errors syscall ------ ----------- ----------- --------- --------- ---------------- 85.07 0.295915 18 16196 583 newfstatat 11.79 0.041013 30 1341 66 openat 2.67 0.009272 29 316 getdents64 0.41 0.001414 11 123 getcwd 0.07 0.000230 230 1 execve 0.00 0.000004 4 1 1 faccessat 0.00 0.000000 0 5 2 readlinkat ------ ----------- ----------- --------- --------- ---------------- 100.00 0.347848 19 17983 652 total Run 1 of 3, verbatim. \"errors\" are failed calls, almost all ENOENT (no such file): the misses.",
+  "label": "core",
+  "key": "counted with strace -f -c -e trace=%file,getdents64 in a",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "16,384 ranks (Llama 3 405B's scale) start at the same second and each runs import torch from a Python environment on the shared file system.",
+  "label": "core",
+  "key": "16,384 ranks (llama 3 405b's scale) start at the",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Suppose only the 652 failed lookups per rank reach the metadata servers (everything else cached).",
+  "label": "core",
+  "key": "suppose only the 652 failed lookups per rank reach",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "At 3,000 metadata operations per second, how long is the start-up stall?",
+  "label": "core",
+  "key": "at 3,000 metadata operations per second, how long is",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Under a second About a minute About an hour 16,384 x 652 = 10.7 million lookups; at 3,000 a second that is 3,561 s, about an hour derived , before a single step.",
+  "label": "core",
+  "key": "a second about a minute about an hour 16,384",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "With all 17,983 calls reaching the server it would be 27 hours.",
+  "label": "core",
+  "key": "with all 17,983 calls reaching the server it would",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Real metadata servers are faster than this FSx entry size and clients cache more, so the real number depends on the system, but the shape is why large clusters never run Python from the shared file system: the environment lives in the container image on each node's local disk (squashfs images through enroot and pyxis on Slurm, image layers on Kubernetes), or is unpacked to local NVMe at job start.",
+  "label": "core",
+  "key": "real metadata servers are faster than this fsx entry",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "The Metadata storm tab computes this for any cluster and store.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab; the calculator is now inline in section 4"
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "The fixes, in the order to try them Keep code and environments off shared storage : container images or a packed environment copied to local disk once per node.",
+  "label": "core",
+  "key": "the fixes, in the order to try them keep",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Pack data into big shards (tens to hundreds of MB): one open per shard instead of per sample.",
+  "label": "core",
+  "key": "pack data into big shards (tens to hundreds of",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Formats are on Storage and loading at scale .",
+  "label": "core",
+  "key": "formats are on storage and loading at scale",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "One file per rank for checkpoints, not one per tensor : DCP writes one .distcp file per rank plus one .metadata (section 8).",
+  "label": "core",
+  "key": "distcp file per rank plus one .metadata (section 8",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Big output directories : spread over MDTs with a DNE striped directory, or hash into subdirectories; never ls -l or find over millions of entries on a busy file system (each entry is a stat ).",
+  "label": "core",
+  "key": "big output directories : spread over mdts with a",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Small files that must exist : Data on MDT, so each costs one server.",
+  "label": "core",
+  "key": "small files that must exist : data on mdt",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "More metadata servers (DNE on Lustre, more metadata IOPS on FSx) when the workload truly needs them: on the toy, a second metadata server took 16 clients from 1,603 to 2,635 operations per second measured .",
+  "label": "core",
+  "key": "more metadata servers (dne on lustre, more metadata iops",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Measured: the same bytes as big files and as small ones, and prefetch In the root page's Storage lab measured : reading training data is the easy pattern: sequential, predictable, and small next to the compute for text (the throughput calculator on Storage and loading shows Llama 3 405B needed about 11 MB/s of token ids for the whole job).",
+  "label": "core",
+  "key": "throughput calculator on storage and loading shows llama 3",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Two things still go wrong, and both are about requests , not bytes.",
+  "label": "core",
+  "key": "about requests , not bytes",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Measured with 64 MiB of the running example's token ids, stored as 16 files of 4 MiB or as 16,384 files of 4 KiB (the same bytes), on a Docker volume and on the S3 store, from one container measured : Same 64 MiB as Store Write Read, 1 at a time Read, 16 threads The small-files problem.",
+  "label": "core",
+  "key": "64 mib of the running example's token ids, stored",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Each file costs an open, a metadata lookup and a close; each object costs an HTTP request.",
+  "label": "core",
+  "key": "each file costs an open, a metadata lookup and",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "At 4 KiB per file those fixed costs are the whole bill.",
+  "label": "core",
+  "key": "at 4 kib per file those fixed costs are",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "On a parallel file system they land on the metadata servers, which are far fewer than the storage servers: FSx for Lustre, for example, includes 1,500 metadata IOPS at 1.2 TiB and serves 2 file create/open/close operations per metadata IOPS vendor ( AWS ), so a thousand nodes each opening millions of tiny files saturate it long before the disks are busy.",
+  "label": "core",
+  "key": "2 file create/open/close operations per metadata iops vendor",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "The cure is the one Storage and loading teaches: pack samples into shards of tens to hundreds of megabytes.",
+  "label": "depth",
+  "key": "shards of tens to hundreds of",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "Checkpoints obey the same rule: DCP writes one file per rank, not one per tensor.",
+  "label": "core",
+  "key": "one file per rank",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "A loader that fetches the next shard only when it needs it adds the fetch to every step; one that keeps the next shards in flight hides it, as long as fetching is faster than computing.",
+  "label": "depth",
+  "key": "a loader that fetches the next shard only when",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. metadata: the small-file and start-up storms",
+  "text": "A loop that needs one 4 MiB shard per step and computes for 100 ms (a sleep standing in for the GPU): S3 store Docker volume",
+  "label": "depth",
+  "key": "a loop that needs one 4 mib shard per",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "Object storage: what it promises, and how fast it goes An object store keeps objects (a key, the bytes, a little metadata) in buckets .",
+  "label": "core",
+  "key": "object storage: what it promises, and how fast it",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "The key ckpt/step_000200/__3_0.distcp looks like a path, but there are no directories: the slashes are characters, and \"listing a directory\" is asking for keys that start with a prefix.",
+  "label": "core",
+  "key": "the key ckpt/step_000200/__3_0.distcp looks like a path, but there",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "The rules below are Amazon S3's, quoted from its documentation (read 2026-10-16); Google Cloud Storage and Azure Blob differ in detail, not in kind.",
+  "label": "core",
+  "key": "the rules below are amazon s3's, quoted from its",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "Every behaviour marked measured was run against SeaweedFS 4.48 (the parent's S3 stand-in, MinIO's images being unavailable), set up as a real distributed store: one master, three volume servers and one filer with its S3 gateway, in capped containers ( src/runs/run_seaweed.sh ).",
+  "label": "core",
+  "key": "one filer with its s3 gateway, in capped containers",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "The semantics, and what each one means for a checkpoint Rule S3's words For a checkpoint writer Here Whole objects, atomically \"Updates to a single key are atomic. ... you will get either the old data or the new data, but never partial or corrupt data.\" No half-written checkpoint is ever visible; an upload in progress is invisible.",
+  "label": "core",
+  "key": "rule s3's words for a checkpoint writer here whole",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "Strong read-after-write \"Any read (GET or LIST request) that is initiated following the receipt of a successful PUT response will return the data written by the PUT request.\" (since 2020-12-01) A restarted job sees the latest pointer as soon as the writer got its 200.",
+  "label": "core",
+  "key": "the data written by the put request.\" (since 2020-12-01",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "Nothing across keys \"There is no way to make atomic updates across keys.\" A checkpoint of many shards is complete only when a marker or metadata object, written last, says so.",
+  "label": "core",
+  "key": "nothing across keys \"there is no way to make",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "DCP's .metadata plays this role Conditional writes If-None-Match (2024-08-20) \"prevents overwrites of existing data\"; If-Match (2024-11-25) checks the ETag first; failure is \"412 Precondition Failed\" Two jobs cannot both claim the same checkpoint directory; a \"latest\" pointer can be updated by compare-and-swap.",
+  "label": "core",
+  "key": "dcp's .metadata plays this role conditional writes if-none-match (2024-08-20",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "No rename (no rename operation; a copy then a delete) \"Write to .tmp, then rename\" becomes \"upload under the final key, marker last\".",
+  "label": "core",
+  "key": "no rename (no rename operation; a copy then a",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "A copy moves every byte again.",
+  "label": "core",
+  "key": "a copy moves every byte again",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "Multipart upload parts of \"5 MiB to 5 GiB\", at most 10,000, objects up to \"48.8 TiB\" (raised from 5 TB on 2025-12-02) ( limits ) Big shards upload as parallel parts; a failed part is retried alone.",
+  "label": "core",
+  "key": "multipart upload parts of \"5 mib to 5 gib\"",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "Uploads never completed stay (and on AWS are billed) until aborted.",
+  "label": "core",
+  "key": "uploads never completed stay (and on aws are billed",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "Listing ListObjectsV2 \"Returns some or all (up to 1,000) of the objects in a bucket with each request.\" Finding the newest of 100,000 shard objects is 100 sequential requests: keep a small index object instead.",
+  "label": "core",
+  "key": "listing listobjectsv2 \"returns some or all (up to 1,000",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "S3 quotes from the consistency model , conditional writes and ListObjectsV2 pages.",
+  "label": "core",
+  "key": "s3 quotes from the consistency model , conditional writes",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "The \"Here\" column is SeaweedFS's real response; S3-compatible stores agree with S3 on these rules but each documents its own exceptions, so check yours.",
+  "label": "core",
+  "key": "the \"here\" column is seaweedfs's real response; s3-compatible stores",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "The throughput model: requests, prefixes and connections Per request.",
+  "label": "core",
+  "key": "the throughput model: requests, prefixes and connections per request",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "S3 quotes \"roughly 100-200 milliseconds\" of latency for small objects and to the first byte of large ones, and \"at least 3,500 PUT/COPY/POST/DELETE or 5,500 GET/HEAD requests per second per partitioned Amazon S3 prefix.",
+  "label": "core",
+  "key": "s3 quotes \"roughly 100-200 milliseconds\" of latency for small",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "There are no limits to the number of prefixes in a bucket.\" Scaling to a higher rate \"happens gradually\", with \"503 (Slow Down)\" errors meanwhile ( S3 performance guide ) vendor .",
+  "label": "core",
+  "key": "scaling to a higher rate \"happens gradually\", with \"503",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "So a checkpoint of 16,384 shards written in one second under one prefix asks for 4.7 times one prefix's write rate derived (16,384 / 3,500): spread keys over prefixes (by rank, for example) and retry with backoff.",
+  "label": "core",
+  "key": "so a checkpoint of 16,384 shards written in one",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "One connection is limited by its latency and the server's per-stream rate, so throughput comes from many at once: \"You can use concurrent connections to Amazon S3 to fetch different byte ranges from within the same object\", with GETs aligned to the upload's part boundaries, up to a single instance's \"100 Gb/s\".",
+  "label": "core",
+  "key": "once: \"you can use concurrent connections to amazon s3",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "Fast clients exist for exactly this: s5cmd's README quotes a user benchmark in which it \"can saturate a 40Gbps link (~4.3 GB/s), whereas s3cmd and aws-cli can only reach 85 MB/s and 375 MB/s\" ( s5cmd ) independent , undated.",
+  "label": "core",
+  "key": "fast clients exist for exactly this: s5cmd's readme quotes",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "Measured on the stand-in , one 256 MiB object, medians of 3 measured : Parallel ranged GETs helped downloads (363 to 477 MB/s); parallel parts barely helped uploads (80 to 112 MB/s) because the store, one filer on one CPU and three volume servers on half a CPU each, was already the bottleneck.",
+  "label": "core",
+  "key": "measured : parallel ranged gets helped downloads (363 to",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "That is the lesson that transfers: concurrency moves the limit from the client's round trips to the servers, and on a laptop the servers are small.",
+  "label": "core",
+  "key": "that is the lesson that transfers: concurrency moves the",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "On S3 the server side is effectively unbounded and the limit becomes the node's network card.",
+  "label": "core",
+  "key": "on s3 the server side is effectively unbounded and",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "Our first attempt at this run failed after 16 uploads of 256 MiB to the same key with InternalError ...",
+  "label": "depth",
+  "key": "our first attempt at this run failed after 16",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "We encountered an internal error, please try again. : overwritten and deleted data kept its space until the master vacuumed the volumes; vacuuming after each upload fixed it (our inference from the fix, not a SeaweedFS diagnosis).",
+  "label": "depth",
+  "key": "we encountered an internal error, please try again",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "What a request costs.",
+  "label": "core",
+  "key": "what a request costs",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "At S3 Standard's $0.005 per 1,000 PUTs and $0.0004 per 1,000 GETs (AWS Price List, published 2026-10-15, us-east-1) published , writing a million 4 KiB files costs $5.00 in requests and their 4.1 GB of storage $0.09 a month derived : small objects are billed by count, not size.",
+  "label": "core",
+  "key": "at s3 standard's $0.005 per 1,000 puts and $0.0004",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. object storage: what it promises, and how fast it goes",
+  "text": "S3 Express One Zone trades durability across zones for \"consistent, single-digit millisecond data access\" in one Availability Zone, up to \"200,000 read TPS\" and \"100,000 write TPS\" per directory bucket ( AWS ) vendor , at $0.11 per GB-month against $0.023: a place for hot data and fast checkpoints, not for the copy of record.",
+  "label": "depth",
+  "key": "s3 express one zone trades durability across zones for",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "Caches and tiers in between The problem.",
+  "label": "core",
+  "key": "caches and tiers in between the problem",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "The object store is cheap and holds everything, but answers in 100-200 ms and has no POSIX; the parallel file system is fast but costs several times as much per byte (FSx for Lustre persistent SSD at 125 MB/s per TiB: $0.145 per GB-month, against S3 Standard's $0.023, AWS us-east-1, read 2026-10-16 published ).",
+  "label": "core",
+  "key": "is cheap and holds everything, but answers in 100-200",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "A cache or tier keeps the working set on fast media near the GPUs and the rest in the object store.",
+  "label": "core",
+  "key": "a cache or tier keeps the working set on",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "Layer How it fills What it is good for Watch out for Page cache (each node's RAM) every read, automatically re-reading within one job gone at restart; owned by Storage and file systems Local NVMe (a DGX H100 has 8 x 3.84 TB in RAID 0 for this, sibling Cluster anatomy ) staged by the job or by a prolog datasets read every epoch, container images, the first copy of a checkpoint dies with the node: never the only copy FSx for Lustre linked to S3 (data repository association) metadata imported up front; \"automatically copies the content of a file from your data repository ... when your application first accesses the file\" ( AWS ) vendor a Lustre view of an S3 dataset; automatic export of checkpoints back to S3 the first epoch runs at S3 speed unless you preload Mountpoint for Amazon S3 with a cache \" --cache <CACHE_DIR> \" on local disk, or \" --cache-xz \" in an Express One Zone bucket shared by many nodes ( Mountpoint config , v1.24.0, 2026-08-24) read-mostly datasets as files writes \"must always start from the beginning of the file and must be made sequentially\"; no rename JuiceFS its own metadata engine; data cut into 64 MB chunks and 4 MB blocks stored as objects ( JuiceFS architecture ) POSIX over any object store, with local caches \"you cannot find the original file directly in the object storage\": the bucket is only readable through JuiceFS Alluxio a distributed cache in front of object stores analytics: the open-source edition \"is purpose-built for analytics workloads\" for AI it points to its Enterprise Edition; the open-source line has had no release since mid-2024, v2.9.x ( Alluxio ) When a cache helps, in one line.",
+  "label": "core",
+  "key": "storage and file systems local nvme (a dgx h100",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "It pays only for bytes read more than once.",
+  "label": "core",
+  "key": "it pays only for bytes read more than once",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "Single-pass pretraining reads each token about once, so a data cache adds nothing but a copy; multi-epoch fine-tuning, many jobs reading the same dataset, evaluation sets, model weights loaded by every serving replica, and container images are where caches earn their space.",
+  "label": "core",
+  "key": "single-pass pretraining reads each token about once, so a",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "The second kind of help is latency: a cache on local NVMe answers in microseconds where the object store answers in a tenth of a second, which matters for small files and for random access.",
+  "label": "core",
+  "key": "the second kind of help is latency: a cache",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "GPUDirect Storage removes a different hop: \"a direct data path for direct memory access (DMA) transfers between GPU memory and storage\" that \"avoids a bounce buffer through the CPU\"; NVIDIA's only number is that such a path \"offers at least twice the peak bandwidth as compared to taking a data path through the CPU\" on suitable PCIe topologies ( GDS overview v1.19.1 ) vendor .",
+  "label": "depth",
+  "key": "cpu\" on suitable pcie topologies ( gds overview v1.19.1",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "It needs supported NVMe or network storage and code written to the cuFile API; not run here.",
+  "label": "depth",
+  "key": "it needs supported nvme or network storage and code",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "Measured: the same checkpoint on six local stand-ins From the root page's Storage lab (Apple M1 Pro, Docker Desktop's Linux VM, shared machine; medians of repeated runs).",
+  "label": "core",
+  "key": "from the root page's storage lab (apple m1 pro",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "Nothing on a laptop behaves like a 2 TB/s file system, but the order of the tiers and the reasons for it reproduce.",
+  "label": "core",
+  "key": "nothing on a laptop behaves like a 2 tb/s",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "The running example's checkpoint, and the same GPT made wider (d 256, 4 layers: 3.2M parameters; d 512, 8 layers: 25.3M), each written with torch.save , flushed to the device with fsync , renamed into place, then read back after dropping it from the page cache: Mac SSD, native : the laptop's own disk (stands for local NVMe). fsync on macOS does not flush the drive's cache; F_FULLFSYNC does, and is used here.",
+  "label": "core",
+  "key": "checkpoint, and the same gpt made wider (d 256",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "Container layer and Docker volume : a file system on the Linux VM's virtual disk (what the Slurm and Ray clusters mount as /shared ).",
+  "label": "depth",
+  "key": "container layer and docker volume : a file system",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "Host folder shared into the VM : every operation crosses from the VM to macOS and back (what the kind cluster mounts as /shared ): a network file system in miniature.",
+  "label": "depth",
+  "key": "host folder shared into the vm : every operation",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "S3 from a container and S3 from the Mac : an S3-compatible store (SeaweedFS 4.48) in one container.",
+  "label": "depth",
+  "key": "s3 from a container and s3 from the mac",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "MinIO was the plan, but its repository is archived and its images could no longer be pulled on 2026-10-16 (Docker Hub: \"pull access denied\", quay.io: \"unauthorized\").",
+  "label": "core",
+  "key": "its images could no longer be pulled on 2026-10-16",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "From the Mac, requests also cross Docker Desktop's port forwarding.",
+  "label": "depth",
+  "key": "from the mac, requests also cross docker desktop's port",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "Write (save + fsync + rename) Read (cold) + load 1.39 MB (running example) 38.6 MB 304 MB Predict: which local target is slowest for the 304 MB checkpoint: the object store or the shared host folder?",
+  "label": "core",
+  "key": "+ fsync + rename) read (cold) + load 1.39",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "6. caches and tiers in between",
+  "text": "The object store: HTTP, multipart uploads, a separate server The shared folder: it looks like a local path",
+  "label": "core",
+  "key": "the object store: http, multipart uploads, a separate server",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "Moving data: staging, checkpoint paths, other regions Staging a dataset is a copy, and a copy's time is its size over the narrowest pipe: t = bytes / min(source read, destination write, the link between) .",
+  "label": "core",
+  "key": "moving data: staging, checkpoint paths, other regions staging a",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "100 TB over one 100 Gb/s (12.5 GB/s) link takes 2.2 hours derived , and many files make it slower, because a single-threaded copy also pays a metadata round trip per file.",
+  "label": "core",
+  "key": "100 tb over one 100 gb/s (12.5 gb/s) link",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "The tools that parallelise both: mpiFileUtils ( dcp , dsync ): MPI-parallel copy and sync for file systems, \"providing speedups of up to 20-30x\"; \"dsync is the recommended way to make a copy a large set of files\" ( mpiFileUtils ) authors . s5cmd or a CRT-based S3 client for object stores: many connections, ranged parts (section 5).",
+  "label": "depth",
+  "key": "for file systems, \"providing speedups of up to 20-30x\"",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "Slurm : sbcast \"is used to transmit a file to all nodes allocated to the currently active Slurm job\" to local disk (good for one binary or one environment tarball; the docs warn \"parallel file systems may provide better performance\"), and burst-buffer plugins ( datawarp , lua ) that run stage-in and stage-out scripts around a job ( burst buffers ).",
+  "label": "depth",
+  "key": "slurm : sbcast \"is used to transmit a file",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "The sibling Slurm page covers job prologs and epilogs.",
+  "label": "depth",
+  "key": "the sibling slurm page covers job prologs and epilogs",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "A checkpoint's path to safety , fastest first.",
+  "label": "core",
+  "key": "a checkpoint's path to safety , fastest first",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "Each hop is asynchronous from the one before, so training stops only for the first: GPU memory to host memory : the copy that asynchronous DCP blocks on (the parent's lab: training stopped 77.9 ms per checkpoint instead of 1.81 s on its slow folder measured ); torchtitan exposes it as async_mode \"disabled\", \"async\" or \"async_with_pinned_mem\" ( torchtitan ).",
+  "label": "core",
+  "key": "dcp blocks on (the parent's lab: training stopped 77.9",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "Host memory to local NVMe or a peer's memory : survives the process, not the node.",
+  "label": "core",
+  "key": "host memory to local nvme or a peer's memory",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "In-memory checkpoints in other nodes' RAM recover far faster than remote storage allows: Gemini reports \"more than 13x\" faster failure recovery and that checkpointing MT-NLG's states takes \"42 minutes\" to remote storage at 20 Gbps ( Gemini, SOSP 2023 ) authors .",
+  "label": "core",
+  "key": "reports \"more than 13x\" faster failure recovery and that",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "The sibling Fault tolerance at scale page compares these designs.",
+  "label": "core",
+  "key": "the sibling fault tolerance at scale page compares these",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "To the parallel file system : survives nodes; this is where the burst lands (section 9).",
+  "label": "core",
+  "key": "nodes; this is where the burst lands (section 9",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "To the object store : survives the cluster; retention lives here. torchtitan keeps the latest 10 by default ( keep_latest_k: int = 10 , interval 500 steps), so capacity is about ten checkpoints, not one.",
+  "label": "core",
+  "key": "cluster; retention lives here. torchtitan keeps the latest 10",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "Megatron Core writes straight to object stores with --save msc://my-profile/checkpoints through NVIDIA's Multi-Storage Client ( Megatron Core MSC ); FSx can export to its linked bucket automatically.",
+  "label": "core",
+  "key": "megatron core writes straight to object stores with --save",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "Other regions and clouds cost money as well as time.",
+  "label": "core",
+  "key": "other regions and clouds cost money as well as",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "AWS charges $0.02 per GB from us-east-1 to us-west-2, $0.01 to us-east-2, and $0.09 per GB for the first 10 TB a month out to the internet; inbound is free (AWS Price List, AWSDataTransfer, published 2026-09-16) published .",
+  "label": "core",
+  "key": "aws charges $0.02 per gb from us-east-1 to us-west-2",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "One 405B checkpoint at MLPerf Storage's 5.29 TB costs about $106 to copy to another US region and about $476 to take out to the internet, and takes 423 s over a dedicated 100 Gb/s link derived .",
+  "label": "core",
+  "key": "one 405b checkpoint at mlperf storage's 5.29 tb costs",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "Keeping ten of them in a second region doubles their storage bill, which is why most labs replicate only selected checkpoints.",
+  "label": "core",
+  "key": "keeping ten of them in a second region doubles",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "Asynchronous checkpointing, measured: stop for the copy, not for the write From the root page's Storage lab (Apple M1 Pro, Docker Desktop VM and native, shared machine).",
+  "label": "core",
+  "key": "from the root page's storage lab (apple m1 pro",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "A synchronous checkpoint stops training for the whole write.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "carried by the section title: training stops for the copy, not for the write"
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "An asynchronous checkpoint splits it in two: first stage the state into host memory (from GPU memory, a PCIe copy of each rank's shard), then let training continue while a background thread writes the staged copy to storage.",
+  "label": "core",
+  "key": "a pcie copy of each rank's shard), then let",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "Training stands still only for the copy.",
+  "label": "core",
+  "key": "training stops for the copy",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "The cost: a second copy of the state in host RAM, and the write must finish before the next checkpoint starts.",
+  "label": "core",
+  "key": "the cost: a second copy of the state in",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "The same 60 training steps of the 3.2M-parameter GPT (4 ranks, a checkpoint every 15 steps, DCP), run three times: without checkpoints, with dcp.save , and with dcp.async_save .",
+  "label": "core",
+  "key": "the same 60 training steps of the 3.2m-parameter gpt",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "Step times are each step's slowest rank measured : Slow shared folder (container) Docker volume (container) Mac SSD (native, 25.3M parameters) training step training stopped for the checkpoint background write (drawn with the synchronous write's measured time) Published, at scale: PyTorch and IBM report that asynchronous DCP cut the time a 7B model's training stood still per checkpoint from 148.8 s to 6.3 s on average, the 6.3 s being the copy to CPU memory published ( PyTorch blog, November 2024 ).",
+  "label": "core",
+  "key": "folder (container) docker volume (container) mac ssd (native, 25.3m",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "Gemini went further and kept redundant copies of model state in other hosts' memory, raising its largest job's goodput from 85% to 97% ( Gemini 1.0 report, section 3 ).",
+  "label": "core",
+  "key": "hosts' memory, raising its largest job's goodput from 85%",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "The async trap we hit: give the background writer its own process group DCP's save runs collectives (it gathers every rank's plan and agrees the file is complete). async_save runs them in a background thread; if that thread uses the same process group as training, two threads issue collectives on one channel at once.",
+  "label": "depth",
+  "key": "the async trap we hit: give the background writer",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "Our first attempt (4 ranks, gloo, native) hung : every rank at 0% CPU after the first checkpoint, nothing printed for over four minutes.",
+  "label": "depth",
+  "key": "our first attempt (4 ranks, gloo, native) hung",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "A rerun crashed 3 s after the checkpoint, two ranks aborting with: gloo::EnforceNotMet: [enforce fail at .../third_party/gloo/gloo/transport/uv/pair.cc:253] op.nread == op.preamble.nbytes The fix is one line, the one the PyTorch blog recommends: create a group once, ck_pg = dist.new_group(backend=\"gloo\") , and pass process_group=ck_pg to async_save .",
+  "label": "depth",
+  "key": "a rerun crashed 3 s after the checkpoint, two",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "7. moving data: staging, checkpoint paths, other regions",
+  "text": "All runs above use it.",
+  "label": "depth",
+  "key": "all runs above use it",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Checkpoint formats, seen as files and byte ranges What is in a checkpoint, measured A checkpoint is everything needed to continue training as if nothing had happened: the weights, the optimiser's state, the step number, and anything else that carries state (random number generators, the data loader's position, the learning-rate schedule).",
+  "label": "core",
+  "key": "seen as files and byte ranges what is in",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Leave any of it out and a resumed run differs from an uninterrupted one.",
+  "label": "core",
+  "key": "leave any of it out and a resumed run",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "The running example needs only three things, because its batches depend only on (seed, step) and it uses no randomness after initialisation; this is why its resume is bit-exact.",
+  "label": "core",
+  "key": "the running example needs only three things, because its",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Here is train.py's own checkpoint opened up ( torch.save writes a zip archive: one entry per tensor, plus a pickle describing the structure): Why optimiser state dominates.",
+  "label": "core",
+  "key": "here is train.py's own checkpoint opened up ( torch.save",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "AdamW keeps two numbers per parameter, a running mean of the gradient and of its square, each in fp32: 8 bytes, on top of the 4-byte fp32 weight.",
+  "label": "core",
+  "key": "the gradient and of its square, each in fp32",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Mixed-precision training adds the bf16 copy the GPU computes with: bytes per parameter = weights + master copy + 2 moments fp32 training (this run) 4 + 0 + 8 = 12, plus the pickle and zip overhead here: 12.31 measured bf16 mixed precision 2 (bf16 weights) + 4 (fp32 master) + 8 = 14 , the common case (the root page's figure; layouts vary: some frameworks save only the fp32 master and rebuild bf16 weights, 12) weights for inference 2 (bf16 only): a \"checkpoint\" exported for serving is 7 times smaller and cannot resume training Model Parameters Training checkpoint at 14 B Per GPU, fully sharded Inference weights at 2 B All rows derived : size = parameters x bytes per parameter; per GPU = size / GPUs (64 and 1,024 GPUs for the 8B and 70B rows are illustrative choices), assuming the optimiser state is sharded over every GPU (as with FSDP or ZeRO-3 across all data-parallel ranks).",
+  "label": "core",
+  "key": "mixed-precision training adds the bf16 copy the gpu computes",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Llama 3 405B trained on up to 16,384 GPUs ( Llama 3 §3.3 ); the paper says its checkpoint writes range \"from 1 MB to 4 GB per GPU\", and 346 MB per GPU falls inside that range: a consistency check, not a reproduction.",
+  "label": "core",
+  "key": "llama 3 405b trained on up to 16,384 gpus",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "DeepSeek-V3 has 671B parameters and trained on 2,048 H800 GPUs ( DeepSeek-V3 report ); its real per-GPU layout (expert parallelism, FP8) differs, so its row shows only the arithmetic.",
+  "label": "core",
+  "key": "deepseek-v3 has 671b parameters and trained on 2,048 h800",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "With the contents known, the question is what the storage sees: how many files or objects, how big, and which byte ranges a reader must fetch.",
+  "label": "core",
+  "key": "with the contents known, the question is what the",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Measured on the Storage lab's 25,319,489-parameter GPT (FSDP2 over 4 ranks, AdamW, three steps; src/runs/ckpt_formats.py , native on the Mac, torch 2.14.1) measured .",
+  "label": "core",
+  "key": "measured on the storage lab's 25,319,489-parameter gpt (fsdp2 over",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "PyTorch Distributed Checkpoint (DCP): one file per rank, plus a map DCP \"produces multiple files per checkpoint, with at least one per rank\" and \"handles load-time resharding which enables saving in one cluster topology and loading into another\" ( DCP docs, 2.14 ).",
+  "label": "core",
+  "key": "topology and loading into another\" ( dcp docs, 2.14",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Our 4-rank save: The .metadata file is the map: for each of the entries (102 weight tensors, 204 Adam moments, 102 step counters), the global shape, and for each of its chunks the offsets in the global tensor and the file, byte offset and length where it lives.",
+  "label": "core",
+  "key": "our 4-rank save: the .metadata file is the map",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "FSDP2 shards every tensor along its first dimension, so tok.weight (65 x 512) is four chunks of 17, 17, 17 and 14 rows: Each chunk is stored as a small torch.save record, so 384 x 512 fp32 values (786,432 bytes) take 788,009 bytes on disk.",
+  "label": "core",
+  "key": "fsdp2 shards every tensor along its first dimension, so",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "File 0 is smaller than the others because DCP's de-duplication gave the replicated entries to the ranks with less to write (the parent's lab quotes the code).",
+  "label": "core",
+  "key": "file 0 is smaller than the others because dcp's",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Resharding is a set of byte-range reads: the same checkpoint loaded by 4, 2 and 3 ranks Every read DCP issued was recorded (a FileSystemReader subclass logging file, offset and length before reading) measured .",
+  "label": "core",
+  "key": "of byte-range reads: the same checkpoint loaded by 4",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Top: the four files on disk, to scale.",
+  "label": "core",
+  "key": "top: the four files on disk, to scale",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Below: the new ranks; each step shows what one rank read from each file.",
+  "label": "core",
+  "key": "below: the new ranks; each step shows what one",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Load into 4 ranks (same layout) Into 2 ranks Into 3 ranks Why 3 ranks read 1.5 times the checkpoint.",
+  "label": "core",
+  "key": "load into 4 ranks (same layout) into 2 ranks",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "A new rank that owns rows 0 to 21 of a tensor saved in chunks of 17 needs part of the second chunk, and DCP's file reader fetches whole stored chunks, then copies the slice it needs: torch/distributed/checkpoint/filesystem.py, lines 869-884, PyTorch v2.14.1 def read_data(self, plan: LoadPlan, planner: LoadPlanner) -> Future[None]: # group requests by file per_file: dict[str, list[ReadItem]] = {} for read_item in plan.items: item_md: _StorageInfo = self.storage_data[read_item.storage_index] path = item_md.relative_path per_file.setdefault(path, []).append(read_item) for relative_path, reqs in per_file.items(): new_path = self.fs.concat_path(self.path, relative_path) with self.fs.create_stream(new_path, \"rb\") as stream: # TODO sort by offset and cache the reading for req in reqs: item_md = self.storage_data[req.storage_index] file_slice = self._slice_file(stream, item_md) item_md is the stored chunk's (relative_path, offset, length) ; _slice_file (line 860) views exactly that range, so the whole chunk is read even when the new rank needs a few rows of it.",
+  "label": "core",
+  "key": "a new rank that owns rows 0 to 21",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Resharding to a divisor of the old world size (4 to 2) reads each byte once; to a non-divisor (4 to 3) the overlapping chunks are read by two ranks each.",
+  "label": "core",
+  "key": "a divisor of the old world size reads each byte once",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "On a parallel file system that is 50% more restore traffic; on an object store, 50% more GET bytes.",
+  "label": "core",
+  "key": "50% more restore traffic",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "The burst, measured: every rank writes at once Training is synchronous: at the checkpoint step, every rank reaches the save at the same moment, and the storage system sees all of them arrive together.",
+  "label": "core",
+  "key": "the burst, measured: every rank writes at once training",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Whatever the aggregate write bandwidth is, they share it.",
+  "label": "core",
+  "key": "share whatever aggregate write bandwidth",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Who writes what then decides both the bytes and the time: Rank 0 writes everything (train.py's way, fine for DDP, where every rank holds a full copy): one writer, one link.",
+  "label": "core",
+  "key": "decides both the bytes and the time: rank 0",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Every rank writes everything : the forgotten if rank == 0 .",
+  "label": "core",
+  "key": "writes everything : the forgotten if rank == 0",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Same file content, written N times.",
+  "label": "core",
+  "key": "same file content, written n times",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Consolidated (gather, then one file) : with a sharded model (FSDP, ZeRO-3), the pieces are first sent to rank 0 over the network, then rank 0 writes one file.",
+  "label": "core",
+  "key": "one file) : with a sharded model (fsdp, zero-3",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Needs the whole state in rank 0's memory.",
+  "label": "core",
+  "key": "needs the whole state in rank 0's memory",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Sharded (PyTorch Distributed Checkpoint, DCP) : every rank writes its own piece to its own file, in parallel, plus a small .metadata file mapping pieces to tensors.",
+  "label": "core",
+  "key": "sharded (pytorch distributed checkpoint, dcp) : every rank writes",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "No gather, no single writer.",
+  "label": "core",
+  "key": "no gather, no single writer",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Measured with 4 ranks in one container (2 CPUs, gloo) and the 3.2M-parameter GPT (38.6 MB of state), three repetitions each, on the slow shared folder and on a Docker volume measured : Slow shared folder Docker volume gathering pieces to rank 0 writing (and fsync) waiting for the others What this shows, and what it cannot.",
+  "label": "core",
+  "key": "measured with 4 ranks in one container (2 cpus",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Bytes on a shared pipe cost time: writing four copies took about three times as long as one.",
+  "label": "core",
+  "key": "four copies took about three times as long as",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "But sharding did not make the write faster here, because all four ranks share one container, one virtual disk and one file-sharing channel: there is only one pipe.",
+  "label": "core",
+  "key": "sharding did not make the write faster here, because",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "On a cluster every node has its own network link to storage (a DGX B200 has two BlueField-3 storage ports at up to 400 Gb/s each, NVIDIA ), so N nodes writing their shards use N links at once, while a consolidated write squeezes the whole state through one.",
+  "label": "core",
+  "key": "link to storage (a dgx b200 has two bluefield-3",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "The root page's Storage lab calculator and this page's Sizing calculator do that arithmetic.",
+  "label": "core",
+  "key": "does that arithmetic",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "What the local run does show is the hidden cost of consolidating: on the fast volume, gathering 38.6 MB to rank 0 took longer than writing it. torch/distributed/checkpoint/_dedup_save_plans.py, lines 20-21 and 43-48, PyTorch v2.14.1 Removes duplicate entries from appearing on multiple SavePlans.",
+  "label": "core",
+  "key": "cost of consolidating: on the fast volume, gathering 38.6",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "For each duplicate across a set of SavePlans, only the smallest SavePlan in terms of planned storage keeps the entry. ... if save_to_lowest_rank: select_plan_idx = min(plan_indices) else: select_plan_idx = min( plan_indices, key=lambda plan_idx: plan_to_size[plan_idx] ) This is why DCP on a replicated DDP model (\"DDP, DCP\" above) still writes about one copy, spread over all ranks: each tensor that every rank holds is assigned to whichever rank has the least to write so far.",
+  "label": "depth",
+  "key": "for each duplicate across a set of saveplans, only",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "The default planner calls it from default_planner.py line 137. safetensors: a header that maps every tensor to a byte range The format is \"8 bytes: N, an unsigned little-endian 64-bit integer, containing the size of the header\", then N bytes of JSON giving each tensor's \"dtype\", \"shape\" and \"data_offsets\" relative to the data buffer, then the bytes; the header is capped at 100 MB ( safetensors README ).",
+  "label": "depth",
+  "key": "the default planner calls it from default_planner.py line 137",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Our model's weights, saved by rank 0 measured : Because the header gives every tensor's range, a reader can fetch one tensor without the rest.",
+  "label": "core",
+  "key": "our model's weights, saved by rank 0 measured",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "From the object store: three ranged GETs (the 8-byte length, the header, the tensor) moved of a file, in against for the whole object measured , medians of 3.",
+  "label": "core",
+  "key": "from the object store: three ranged gets (the 8-byte",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "That is how inference servers and sharded loaders pull only their slice.",
+  "label": "core",
+  "key": "that is how inference servers and sharded loaders pull",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Sharded safetensors (the Hugging Face layout) split the tensors greedily into files under max_shard_size plus a model.safetensors.index.json whose \"weight_map\" names the file of every tensor.",
+  "label": "depth",
+  "key": "sharded safetensors (the hugging face layout) split the tensors",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "The default changed: \"5GB\" in transformers v4.57.0, \"50GB\" from v5.0.0 to v5.20.0 (released 2026-10-15) ( modeling_utils.py at v5.20.0 ), so the same model saved by a newer library makes fewer, larger objects.",
+  "label": "depth",
+  "key": "the default changed: \"5gb\" in transformers v4.57.0, \"50gb\" from",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Ours at a 25 MB limit: .",
+  "label": "depth",
+  "key": "ours at a 25 mb limit",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "DCP can write safetensors itself.",
+  "label": "depth",
+  "key": "dcp can write safetensors itself",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "HuggingFaceStorageWriter(path, save_distributed=True, enable_consolidation=True) wrote one safetensors shard per rank under sharded/ , then consolidated them into one full file and an index measured : .",
+  "label": "depth",
+  "key": "huggingfacestoragewriter(path, save_distributed=true, enable_consolidation=true) wrote one safetensors shard per rank",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "The same code path is how training checkpoints become Hub-style exports without a gather on one rank.",
+  "label": "depth",
+  "key": "the same code path is how training checkpoints become",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Format Objects per checkpoint Partial read Reshard on load Use for torch.save , one file 1 no: the zip's directory is at the end and the pickle needs the whole thing only by loading everything on one process small DDP models (the running example) DCP ranks (times writer threads) + 1 yes, per stored chunk yes, any world size; whole chunks are read training checkpoints at scale safetensors (sharded) total size / max_shard_size + 1 index yes, per tensor, from one header read the reader slices tensors itself weights for inference and fine-tuning; exports Other systems: ByteDance's ByteCheckpoint reports \"an average reduction of 54.20x\" in checkpoint stalls against DCP and Megatron's distributed checkpoint while training \"a 405B LFM on 8,960 GPUs\", partly by splitting files into fixed-size sub-files written by many threads, raising single-file HDFS uploads to \"3 GB/s\" from \"under 100 MB/s\" per client ( ByteCheckpoint, NSDI 2025 ) authors .",
+  "label": "core",
+  "key": "on load use for torch.save , one file 1",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Restoring: when a checkpoint will not load A checkpoint is only as good as its restore, and restores fail in a few recognisable ways.",
+  "label": "depth",
+  "key": "a checkpoint is only as good as its restore",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Each of these is a real message from the root page's Storage lab (torch 2.14.1): Resharding works.",
+  "label": "depth",
+  "key": "message from the root page's storage lab (torch 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "The 4-rank DCP checkpoint loaded into 2 ranks and into 3 ranks, and into a single process with no process group at all, each time tensor for tensor identical to the full state measured .",
+  "label": "depth",
+  "key": "the 4-rank dcp checkpoint loaded into 2 ranks and",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "DCP's .metadata records which byte ranges of which tensor live in which file, so any number of ranks can ask for the pieces they now own.",
+  "label": "depth",
+  "key": "dcp's .metadata records which byte ranges of which tensor",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "A consolidated torch.save file can also be loaded anywhere, but only by first reading the whole thing into one process.",
+  "label": "depth",
+  "key": "a consolidated torch.save file can also be loaded anywhere",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "8. checkpoint formats, seen as files and byte ranges",
+  "text": "Whether a resumed run continues the same trajectory is a restore trap of its own: Fault tolerance at scale , section 6.",
+  "label": "depth",
+  "key": "its own: fault tolerance at scale , section 6",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "Sizing storage for a cluster Four separate questions; the Sizing calculator answers all four for any cluster.",
+  "label": "core",
+  "key": "sizing storage for a cluster four separate questions; the",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "Cluster anatomy covers NVIDIA's per-SU reference numbers; this is the arithmetic behind any such table.",
+  "label": "core",
+  "key": "cluster anatomy covers nvidia's per-su reference numbers; this is",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "Write bandwidth, from the checkpoint.",
+  "label": "core",
+  "key": "write bandwidth, from the checkpoint",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "Size = parameters x bytes per parameter (about 14 for bf16 with fp32 Adam; MLPerf Storage v2.0's own checkpoint table gives 912 GB for 70B and 5.29 TB for 405B, 13.0 and 13.1 bytes per parameter derived , MLPerf Storage rules v2.0 ).",
+  "label": "core",
+  "key": "size = parameters x bytes per parameter (about 14",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "With synchronous saves, bandwidth = size / the stall you accept.",
+  "label": "core",
+  "key": "with synchronous saves, bandwidth = size / the stall",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "With asynchronous saves, the GPUs stop only for the copy to host memory and the storage only has to drain the checkpoint before the next one: bandwidth = size / interval.",
+  "label": "core",
+  "key": "with asynchronous saves, the gpus stop only for the",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "Read bandwidth, from data and from restarts.",
+  "label": "core",
+  "key": "read bandwidth, from data and from restarts",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "Data: tokens per second x bytes per token, small for text.",
+  "label": "core",
+  "key": "data: tokens per second x bytes per token, small",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "Restart: every rank reads the checkpoint at once, size / the restart time you accept, usually the larger number.",
+  "label": "core",
+  "key": "restart: every rank reads the checkpoint at once, size",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "Metadata rate, from start-up and small files.",
+  "label": "core",
+  "key": "metadata rate, from start-up and small files",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "Ranks x the operations each makes at start (section 4), and files per second for data in small files.",
+  "label": "core",
+  "key": "x the operations each makes at start (section 4",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "Capacity = datasets + checkpoints kept x size + scratch, and on a parallel file system bought as servers, capacity often follows from the bandwidth rather than the bytes.",
+  "label": "core",
+  "key": "capacity = datasets + checkpoints kept x size +",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "A 70B model on 1,024 GPUs checkpoints every 30 minutes (0.98 TB at 14 bytes per parameter).",
+  "label": "core",
+  "key": "a 70b model on 1,024 gpus checkpoints every 30",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "How much write bandwidth does storage need, synchronous with a 30 s stall against asynchronous?",
+  "label": "core",
+  "key": "write bandwidth does storage need, synchronous with a 30",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "The same, about 33 GB/s either way About 33 GB/s synchronous, about 0.5 GB/s asynchronous About 0.5 GB/s either way 0.98 TB / 30 s = 32.7 GB/s; 0.98 TB / 1,800 s = 0.54 GB/s derived : sixty times less, because asynchronous saving lets the write take the whole interval.",
+  "label": "core",
+  "key": "the same, about 33 gb/s either way about 33",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "On FSx for Lustre at 125 MB/s per TiB, 32.7 GB/s means buying 261 TiB (about $38,800 a month at $0.145 per GB-month) to store about 10 TB of checkpoints derived .",
+  "label": "core",
+  "key": "on fsx for lustre at 125 mb/s per tib",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "9. sizing storage for a cluster",
+  "text": "Restarts are the catch: reading 0.98 TB back in 60 s still needs 16.3 GB/s, so size reads for recovery and writes for the drain.",
+  "label": "core",
+  "key": "restarts are the catch: reading 0.98 tb back in",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "10. checking a real system",
+  "text": "Checking a real system What is it, and how full? mount | grep -E 'lustre|nfs|fuse' ; on Lustre lfs df -h /mnt lists every MDT and OST with its use (an imbalanced OST is a hot spot).",
+  "label": "core",
+  "key": "checking a real system what is it, and how",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "10. checking a real system",
+  "text": "How is this file laid out? lfs getstripe <file> (count, size, which OSTs); set defaults on the checkpoint directory before the first save with lfs setstripe .",
+  "label": "core",
+  "key": "count, size, which osts); set defaults on the checkpoint",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "10. checking a real system",
+  "text": "How many metadata calls does my start-up make? strace -f -c -e trace=%file python -c 'import yourpkg' , as in section 4, then multiply by ranks.",
+  "label": "core",
+  "key": "python -c 'import yourpkg' , as in section 4",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "10. checking a real system",
+  "text": "What does the store really do?",
+  "label": "core",
+  "key": "what does the store really do?",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "10. checking a real system",
+  "text": "Benchmark with the access pattern of the job: IOR for bandwidth and mdtest for metadata ( hpc/ior ), MLPerf Storage's checkpointing workload, which writes and reads ten checkpoints with fsync and reads them back \"by different hosts than wrote the data\" ( MLPerf Storage v2.0 rules ); for object stores, time a parallel copy of one real shard set.",
+  "label": "core",
+  "key": "hosts than wrote the data\" ( mlperf storage v2.0",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "10. checking a real system",
+  "text": "During a job: checkpoint write time per rank in the training log (the slowest rank is the stall), the store's own per-server metrics (FSx publishes per-MDT and per-OST CloudWatch metrics every minute), and 503 SlowDown counts from S3 clients.",
+  "label": "core",
+  "key": "per-mdt and per-ost cloudwatch metrics every minute), and 503",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes A big shared file with the default stripe count of 1 Every writer and reader of the file lands on one OST.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake that restated a core section"
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "On the toy, four ranks writing one shared file with one stripe got 24.9 MB/s; with four stripes 97.8 measured .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake that restated a core section (its numbers and advice are in sections 2, 4, 6, 7 or 8)"
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Check with lfs getstripe ; set a directory default ( lfs setstripe -c 4 -S 4M dir ) before the files exist: a layout cannot change after creation without lfs migrate .",
+  "label": "depth",
+  "key": "lfs setstripe -c 4 -s 4m",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Pinning every file to one OST lfs setstripe -i 0 copied from an example puts every new file on OST 0: four file-per-rank writers fell from 88.9 to 25.0 MB/s on the toy measured .",
+  "label": "core",
+  "key": "lfs setstripe -i 0 copied from an example",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The manual: the default start index of -1 \"allows the MDS to choose the starting index.",
+  "label": "core",
+  "key": "the manual: the default start index of -1 \"allows",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "This setting is strongly recommended\".",
+  "label": "core",
+  "key": "this setting is strongly recommended\"",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Unaligned writers sharing one stripe Ranks writing interleaved pieces of one file fight over the OST's extent locks (\"lock exchange\") even when their bytes do not overlap.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake that restated a core section (its numbers and advice are in sections 2, 4, 6, 7 or 8)"
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Align each writer to whole stripes, or write one file per rank (DCP does).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake that restated a core section (its numbers and advice are in sections 2, 4, 6, 7 or 8)"
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A Python environment on the shared file system 17,983 file-system calls and 652 failed lookups per rank for import torch measured , times every rank, all at once.",
+  "label": "core",
+  "key": "a python environment on the shared file system",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Symptom: jobs that take minutes to reach step 1 and get slower as they get bigger, and a metadata server at 100% while the OSTs idle.",
+  "label": "core",
+  "key": "get slower as they get bigger, and",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Ship the environment in the container image on local disk.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake that restated a core section (its numbers and advice are in sections 2, 4, 6, 7 or 8)"
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A PFL file that keeps growing by appends Appending to a file with a wide last component instantiates every component, and \"an operation such as reading the file length will send a request in parallel to every OST\" (FSx guide).",
+  "label": "depth",
+  "key": "appending to a file with a wide last component",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "FSx gives files opened in append mode a stripe count of 1 for that reason.",
+  "label": "depth",
+  "key": "opened in append mode a stripe count of 1",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "On Data on MDT layouts without an end-of-file component, \"writes beyond the end of the last existing component will fail with error ENODATA\" (manual).",
+  "label": "depth",
+  "key": "layouts without an end-of-file component, \"writes beyond the end",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Multipart parts below the minimum Every part but the last must be at least 5 MiB.",
+  "label": "depth",
+  "key": "part but the last must be at least 5",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Our store refused two 1 MiB parts at completion: measured .",
+  "label": "depth",
+  "key": "our store refused two 1 mib parts at completion",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The failed upload then stayed open and listed (it was in list_multipart_uploads next to the abandoned one); on AWS its parts are billed until aborted.",
+  "label": "depth",
+  "key": "the failed upload then stayed open and listed (it",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Add a lifecycle rule that aborts incomplete multipart uploads. \"Renaming\" a checkpoint on an object store There is no rename: a copy and a delete move every byte again (here 64 MiB took 0.49 s to \"rename\" against 0.66 s to upload measured ; a server-side copy still rewrites the bytes inside the store).",
+  "label": "depth",
+  "key": "and a delete move every byte again (here 64",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Upload under the final key and write a marker or .metadata last; protect the marker with If-None-Match: * (a second writer got ).",
+  "label": "depth",
+  "key": "upload under the final key and write a marker",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Storage that silently filled up Overwriting the same 256 MiB key over and over on SeaweedFS ended with InternalError ...",
+  "label": "depth",
+  "key": "overwriting the same 256 mib key over and over",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "We encountered an internal error, please try again. after 16 uploads: deleted and overwritten data kept its space until a vacuum (our inference).",
+  "label": "depth",
+  "key": "encountered an internal error, please try again. after 16",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Every store has a version of this (snapshots, object versions, Lustre OSTs that fill unevenly): watch free space per server, not just in total, and keep checkpoint retention (keep the last k) in the training code.",
+  "label": "depth",
+  "key": "every store has a version of this (snapshots, object",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Resharding to a world size that does not divide the old one, and blaming the network 4 ranks to 3 read 1.50 times the checkpoint's bytes, 4 to 2 read 1.00 times measured (section 8).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake that restated a core section (its numbers and advice are in sections 2, 4, 6, 7 or 8)"
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Plan restore bandwidth for the overlap, or restart at a divisor when you can.",
+  "label": "core",
+  "key": "plan restore bandwidth for the overlap, or restart at",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting a cache to speed up the first epoch A lazy-loading cache (FSx linked to S3, Mountpoint's cache) serves the first read at the object store's speed.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake that restated a core section"
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Preload the hot directory before the job, or accept that single-pass pretraining gains nothing from it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake that restated a core section (its numbers and advice are in sections 2, 4, 6, 7 or 8)"
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Writing the checkpoint in place, or renaming without fsync A crash mid-write leaves a half file, and the next start loads it: \"PytorchStreamReader failed reading zip archive: failed finding central directory\" (section 8). train.py writes step_N.pt.tmp , renames it, then updates latest : a reader never sees a partial file.",
+  "label": "depth",
+  "key": "reading zip archive: failed finding central directory\" (section 8",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "But it does not call fsync before the rename, so after a power loss (not a process crash) the renamed file can still be empty on some file systems.",
+  "label": "depth",
+  "key": "but it does not call fsync before the rename",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Write, fsync the file, rename, fsync the directory; on macOS, F_FULLFSYNC .",
+  "label": "depth",
+  "key": "write, fsync the file, rename, fsync the directory; on",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Object stores give atomicity for free: an object appears only when its upload completes.",
+  "label": "depth",
+  "key": "object stores give atomicity for free: an object appears",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Every rank saves the full state The forgotten if rank == 0 in DDP: N copies of the same bytes, at the same moment, on the same storage.",
+  "label": "core",
+  "key": "the forgotten if rank == 0",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Here, 4 times the bytes took 3 times as long on a shared pipe.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake that restated a core section (its numbers and advice are in sections 2, 4, 6, 7 or 8)"
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use rank 0 for small DDP models, DCP for anything sharded.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake that restated a core section (its numbers and advice are in sections 2, 4, 6, 7 or 8)"
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Consolidating a sharded model to one file every time Gathering the full state onto one rank needs that rank to hold all of it in memory and pushes it through one node's link.",
+  "label": "depth",
+  "key": "consolidating a sharded model to one file every time",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Save sharded during training; consolidate once, offline, when exporting.",
+  "label": "core",
+  "key": "save sharded during training; consolidate once, offline, when exporting",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Running async checkpointing on the training process group Two threads issuing collectives on one group: a hang or a crash (\"op.nread == op.preamble.nbytes\" with gloo here).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake that restated a core section (its numbers and advice are in sections 2, 4, 6, 7 or 8)"
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Give async_save its own group.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the async trap block"
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Starting the next async checkpoint before the last one finished If the upload takes longer than the interval, checkpoints pile up in host memory.",
+  "label": "depth",
+  "key": "starting the next async checkpoint before the last one",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Wait on the previous future before staging the next (dist_ckpt.py does), and size the interval so the upload fits.",
+  "label": "depth",
+  "key": "wait on the previous future before staging the next",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Trusting that a path is local On kind, /shared looks like any directory and was 36 times slower than Slurm's volume for the same 1.39 MB file.",
+  "label": "depth",
+  "key": "kind, /shared looks like any directory and was 36",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Measure a mount with the real write (size, fsync, rename) before putting checkpoints on it.",
+  "label": "depth",
+  "key": "measure a mount with the real write (size, fsync",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Millions of small files on a parallel file system Metadata servers, not disks, become the limit; the whole cluster slows down, not only your job.",
+  "label": "core",
+  "key": "the whole cluster slows",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Shard data and keep checkpoint files per rank, not per tensor.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake that restated a core section (its numbers and advice are in sections 2, 4, 6, 7 or 8)"
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Keeping every checkpoint, or only the last one Every checkpoint of a 405B run is 5.7 TB; keeping all of them is expensive.",
+  "label": "depth",
+  "key": "every checkpoint of a 405b run is 5.7 tb",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Keeping only the latest means one corrupted or bad checkpoint (a loss spike saved right before a crash) leaves nothing to fall back on.",
+  "label": "depth",
+  "key": "keeping only the latest means one corrupted or bad",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Keep the last few, plus periodic milestones, and delete the rest automatically.",
+  "label": "depth",
+  "key": "keep the last few, plus periodic milestones, and delete",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Interview questions Why can a parallel file system go faster than any one of its servers, and what stops it?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Metadata and data are split: the client fetches a file's layout from the metadata server once, then reads and writes the objects on many storage servers in parallel (RAID 0 by stripe size).",
+  "label": "core",
+  "key": "once, then reads and writes the",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "It stops at the narrowest of: the stripe count (one file uses only its objects' servers), the client's network card, the servers' disks and networks, the metadata server for small files and start-ups, and lock contention when writers share stripes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "You are writing 1,024 checkpoint shards of 2 GB each to Lustre.",
+  "label": "depth",
+  "key": "you are writing 1,024 checkpoint shards of 2 gb",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "File per rank already spreads the load if the MDS places the files round robin, so stripe count 1 (or a few) and stripe size 1 to 4 MiB; never a fixed start index.",
+  "label": "depth",
+  "key": "places the files round robin, so stripe count 1",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Wide striping helps when few large files must use many OSTs (a consolidated export, a dataset file read by everyone).",
+  "label": "depth",
+  "key": "wide striping helps when few large files must use",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Check the result with lfs df for balance.",
+  "label": "depth",
+  "key": "check the result with lfs df for balance",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What does S3 guarantee about a checkpoint, and what must your code add?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Each object appears atomically and strong read-after-write holds per key.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Nothing is atomic across keys, so a multi-shard checkpoint needs a marker or metadata object written last and a reader that ignores directories without it; conditional writes (If-None-Match, If-Match) stop two writers clobbering each other; abort incomplete multipart uploads; spread keys over prefixes and retry 503 SlowDown with backoff.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Jobs take ten minutes to reach the first step on 2,000 nodes, a minute on 20.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Where do you look?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A metadata storm: Python or shared libraries loaded from the shared file system, every rank doing tens of thousands of lookups at once.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Confirm with strace -c on one rank and the metadata server's load; fix by shipping the environment in the image on local disk, then data in shards.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Synchronous or asynchronous checkpoints: how does the choice change the storage you buy?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Synchronous: bandwidth = checkpoint size / acceptable stall (32.7 GB/s for 0.98 TB in 30 s).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Asynchronous: the GPUs stop only for the host copy, and storage needs size / interval (0.54 GB/s every 30 minutes), plus host RAM for the staged copy and a separate process group for the background collectives.",
+  "label": "core",
+  "key": "0.54 gb/s",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Restores still need size / acceptable restart time.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why might restoring onto 3 nodes take longer than onto 2, from the same 4-rank checkpoint?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "DCP reads whole stored chunks.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "At a divisor each byte is read once; at a non-divisor, chunks straddle new ranks and are read twice (1.50 times the bytes measured here), on top of uneven shard sizes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "When is a cache in front of the object store worth it?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "When bytes are read more than once (multi-epoch, many jobs on one dataset, eval sets, weights for many replicas, images) or when latency matters (small files, random access).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Single-pass pretraining gains almost nothing; the first epoch through a lazy cache runs at object-store speed.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer that restated a core section"
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Design question: the storage for a 1,000-GPU training lab.",
+  "label": "depth",
+  "key": "design question: the storage for a 1,000-gpu training lab",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "An object store (S3 or an on-premises one) as the system of record for datasets, checkpoints kept beyond a few days, and artifacts, with lifecycle rules.",
+  "label": "depth",
+  "key": "an object store (s3 or an on-premises one) as",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A parallel file system (Lustre or FSx for Lustre, WEKA, VAST) as the working tier for checkpoints and hot datasets, linked to the object store for import and export.",
+  "label": "depth",
+  "key": "a parallel file system (lustre or fsx for lustre",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Local NVMe on every node for staged data, images and the first copy of each checkpoint.",
+  "label": "depth",
+  "key": "local nvme on every node for staged data, images",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Home directories and code on a small NFS.",
+  "label": "depth",
+  "key": "home directories and code on a small nfs",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "For a 70B model on 1,024 GPUs: 0.98 TB per checkpoint; asynchronous saves every 30 minutes need about 0.5 GB/s of drain; recovery in 60 s needs about 16 GB/s of read; ten kept checkpoints are about 10 TB; data reads for text are small.",
+  "label": "depth",
+  "key": "for a 70b model on 1,024 gpus: 0.98 tb",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "So size the file system for restore reads and bursts from many jobs at once, and buy metadata capacity (more MDTs or metadata IOPS) for start-ups and small files.",
+  "label": "depth",
+  "key": "so size the file system for restore reads and",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "DCP or equivalent with one file per rank, a marker written last, keep-last-k retention in the trainer; environments in container images; data in shards of tens to hundreds of MB; checkpoint directories with a sane default layout; per-server monitoring (OST balance, MDT load, S3 503s).",
+  "label": "depth",
+  "key": "default layout; per-server monitoring (ost balance, mdt load, s3",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Trade-offs to say out loud: managed (FSx, cost per TiB tied to throughput) against owned (capital, staff), one tier against two, and how much to replicate across regions ($0.02 per GB between AWS US regions).",
+  "label": "depth",
+  "key": "two, and how much to replicate across regions ($0.02",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How big is the checkpoint of a 70B model trained with AdamW in mixed precision, and how long does it take to write?",
+  "label": "depth",
+  "key": "how big is the checkpoint of a 70b model",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "About 14 bytes per parameter (bf16 weights 2, fp32 master 4, two fp32 moments 8): 0.98 TB.",
+  "label": "depth",
+  "key": "about 14 bytes per parameter (bf16 weights 2, fp32",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Time = size / the slowest pipe: at 100 GB/s of aggregate storage bandwidth, about 10 s if sharded across enough nodes that their links are not the limit; through one node's 50 GB/s link (consolidated), about 20 s plus the gather.",
+  "label": "depth",
+  "key": "time = size / the slowest pipe: at 100",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Your 1,024-GPU job spends 8% of its time checkpointing.",
+  "label": "depth",
+  "key": "your 1,024-gpu job spends 8% of its time checkpointing",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What do you do?",
+  "label": "depth",
+  "key": "spends 8% of its time checkpointing",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "First measure where the time goes: gather, serialisation, or storage bandwidth.",
+  "label": "depth",
+  "key": "first measure where the time goes: gather, serialisation, or",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Then: shard (DCP) so every node writes in parallel; go asynchronous so training stops only for the GPU to host copy; check the storage system's aggregate bandwidth against size / target time and buy bandwidth if it is the limit; and choose the interval from the failure rate (the Young/Daly optimum, derived on Power, cooling, reliability ), not by habit.",
+  "label": "depth",
+  "key": "then: shard (dcp) so every node writes in parallel",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why can't you just checkpoint to local NVMe?",
+  "label": "depth",
+  "key": "why can't you just checkpoint to local nvme?",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "You can, and should, as a first stage: it is fast and parallel.",
+  "label": "depth",
+  "key": "you can, and should, as a first stage: it",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "But a checkpoint on a node that dies is gone or unreachable, and the restarted job usually lands on different nodes.",
+  "label": "depth",
+  "key": "but a checkpoint on a node that dies is",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "So copy it onward (to the parallel file system or object storage) in the background, or replicate it to peers' memory or disks as Gemini did.",
+  "label": "depth",
+  "key": "so copy it onward (to the parallel file system",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Lustre or S3 for checkpoints?",
+  "label": "depth",
+  "key": "lustre or s3 for checkpoints?",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A parallel file system gives the highest burst bandwidth and POSIX semantics (rename, partial reads), but it is priced by capacity and its bandwidth comes with capacity.",
+  "label": "depth",
+  "key": "a parallel file system gives the highest burst bandwidth",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Object storage is cheap and scales with parallel requests, with tens of milliseconds per request and whole-object writes.",
+  "label": "depth",
+  "key": "100-200 ms to the first byte of each request",
+  "where": "",
+  "note": "corrected on 2026-10-24: the old answer said \"tens of milliseconds per request\", against S3's own 100-200 ms quoted in section 5"
+ },
+ {
+  "id": 359,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Common answer: write to the parallel file system or local NVMe on the critical path, then copy to object storage for durability and retention.",
+  "label": "depth",
+  "key": "common answer: write to the parallel file system or",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A job resumed from a checkpoint and the loss jumped.",
+  "label": "depth",
+  "key": "a job resumed from a checkpoint and the loss",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What do you check?",
+  "label": "depth",
+  "key": "the loss jumped",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Whether the checkpoint holds everything that carries state: optimiser moments (a fresh AdamW restarts its estimates), the learning-rate schedule's step, data loader position (the data seen again or skipped), and RNG states.",
+  "label": "depth",
+  "key": "whether the checkpoint holds everything that carries state: optimiser",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Then whether the world size or parallel layout changed and the load resharded correctly; then whether you loaded the latest complete checkpoint and not a partial one.",
+  "label": "depth",
+  "key": "then whether the world size or parallel layout changed",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "Striping lab: one file over many servers Every run here used tpfs , a toy parallel file system written for this page ( src/runs/tpfs.py , standard-library Python): one metadata server that hands out layouts, and four object servers that store the bytes, each in its own container (0.5 CPU, 256 MB) and each held to 25 MB/s by a token bucket standing in for its disks.",
+  "label": "depth",
+  "key": "store the bytes, each in its own container (0.5",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "The client gets a file's layout once and then talks to the object servers directly, using Lustre's RAID 0 arithmetic.",
+  "label": "depth",
+  "key": "to the object servers directly, using lustre's raid 0",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "The per-server limit is an input; the scaling, the hot spots and the slowdowns below are what happened measured (Apple M1 Pro, Docker Desktop VM, shared machine, 2026-10-16; medians of 3).",
+  "label": "core",
+  "key": "apple m1 pro, docker desktop vm, shared machine, 2026-10-16",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "Not modelled: locks, caches, failures.",
+  "label": "core",
+  "key": "locks, caches and failures not modelled",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "The same 128 MiB file, written with stripe count 1, 2 and 4 Each square is 1 MiB (one stripe), coloured by the object server that received it, filled at the rate the real run achieved.",
+  "label": "core",
+  "key": "the same 128 mib file, written with stripe count",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "The clock is the same for all three, so the striped runs finish early on screen exactly as they did.",
+  "label": "core",
+  "key": "on one clock for all three",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "Stripe count 1 (the default) Stripe count 2 Stripe count 4 Four writers at once: where the bytes land decides the speed Four processes in one client container each write 64 MiB, in four layouts measured .",
+  "label": "core",
+  "key": "stripe count 1 (the default) stripe count 2 stripe",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "Bars: aggregate MB/s (256 MiB over the time from the first start to the last finish).",
+  "label": "core",
+  "key": "from the first start to the last finish",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "The two slow rows are the same mistake in two forms: all the bytes on one server (every file pinned to OST 0 with -i 0 , or one shared file left at stripe count 1).",
+  "label": "core",
+  "key": "or one shared file left at stripe count 1",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "The two fast rows are equal: when every rank writes its own file and the files are spread, striping each file adds nothing.",
+  "label": "core",
+  "key": "when every rank writes its own file and the",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "On real Lustre the shared-file row also pays for lock exchange between writers in the same stripe, which tpfs does not model, so the shared file would do worse than shown.",
+  "label": "core",
+  "key": "does much worse than the toy shows",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "Smaller stripes cost requests Where does byte X live?",
+  "label": "depth",
+  "key": "where does byte x live",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "Lustre's arithmetic The same computation as lov_stripe_number() and lov_stripe_offset() (lustre/lov/lov_offset.c, tag 2.17.0).",
+  "label": "depth",
+  "key": "runs exactly this arithmetic",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "Pick a plain layout or the manual's PFL example; the strip shows which OST holds each of the first stripe units.",
+  "label": "depth",
+  "key": "the strip shows which ost holds each of the",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "Plain layout PFL: the manual's example on 8 OSTs PFL: FSx default File offset, MiB Stripe size 64 KiB 1 MiB 4 MiB Stripe count Starting OST OSTs in the file system How the toy is built, and how to run it docker network create sd-net for i in 0 1 2 3; do docker run -d --rm --name sd-ost$i --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \\ --memory 256m --cpus 0.5 python:3.12-slim python3 /tpfs.py ost --mbps 25 done docker run -d --rm --name sd-mds0 --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \\ --memory 256m --cpus 0.5 python:3.12-slim \\ python3 /tpfs.py mds --osts sd-ost0:9000,sd-ost1:9000,sd-ost2:9000,sd-ost3:9000 docker run -d --rm --name sd-cli --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \\ --memory 768m --cpus 2 python:3.12-slim sleep 3600 docker exec sd-cli python3 /tpfs.py bench stripe --mds sd-mds0:8000 --mib 128 --counts 1,2,4 The whole run is src/runs/run_tpfs.sh ; one output line (layout shortened): What transfers to a real cluster: the arithmetic (one file's bandwidth is its stripe count times one server's, until the client's network card or the job's other files get in the way), the hot spot when files share a server, and the cost of small stripes.",
+  "label": "depth",
+  "key": "plain layout pfl: the manual's example on 8 osts",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-sdstripe",
+  "section": "striping lab: one file over many servers",
+  "text": "What does not: the absolute numbers (25 MB/s per server is a choice, a real OST does gigabytes), locks, and the client-side caching and RPC pipelining that make Lustre's per-request costs far lower than Python's.",
+  "label": "depth",
+  "key": "what does not: the absolute numbers (25 mb/s per",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-sdmeta",
+  "section": "metadata storm: when names, not bytes, are the bottleneck",
+  "text": "Metadata storm: when names, not bytes, are the bottleneck Two kinds of run.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old tab heading"
+ },
+ {
+  "id": 381,
+  "tab": "t-sdmeta",
+  "section": "metadata storm: when names, not bytes, are the bottleneck",
+  "text": "On tpfs , the toy parallel file system of the Striping lab , every client process creates, stats and deletes 300 files of its own through one metadata server held to half a CPU, then through two (the DNE idea: entries hashed over servers by name).",
+  "label": "core",
+  "key": "own through one metadata server held to half a",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-sdmeta",
+  "section": "metadata storm: when names, not bytes, are the bottleneck",
+  "text": "On real stores , the same operations run on a Docker volume, a host folder shared into the VM and SeaweedFS's S3 gateway measured (Apple M1 Pro, Docker Desktop VM, shared machine, 2026-10-16; medians of 3).",
+  "label": "core",
+  "key": "apple m1 pro, docker desktop vm, shared machine, 2026-10-16",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-sdmeta",
+  "section": "metadata storm: when names, not bytes, are the bottleneck",
+  "text": "The same 14,400 operations from 16 clients, one metadata server against two 16 processes x 300 files x (create, stat, unlink).",
+  "label": "core",
+  "key": "16 processes x 300 files x (create, stat, unlink",
+  "where": ""
+ },
+ {
+  "id": 384,
+  "tab": "t-sdmeta",
+  "section": "metadata storm: when names, not bytes, are the bottleneck",
+  "text": "The bar is completed operations at the measured aggregate rate, on one clock for both modes; each client's dot is busy while it waits for its answer.",
+  "label": "core",
+  "key": "the bar is completed operations at the measured aggregate",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-sdmeta",
+  "section": "metadata storm: when names, not bytes, are the bottleneck",
+  "text": "One metadata server Two (DNE) More clients, same server: throughput flattens, every operation waits longer The evidence that the server, not the clients, is the limit: at 16 and 32 clients the metadata server's container used all of its half CPU while the client container used about a fifth of its two.",
+  "label": "core",
+  "key": "container used all of its half cpu while the",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-sdmeta",
+  "section": "metadata storm: when names, not bytes, are the bottleneck",
+  "text": "Past that point more clients only queue: 32 clients got fewer operations per second than 16 and waited twice as long for each.",
+  "label": "core",
+  "key": "32 clients got fewer operations per second than 16",
+  "where": ""
+ },
+ {
+  "id": 387,
+  "tab": "t-sdmeta",
+  "section": "metadata storm: when names, not bytes, are the bottleneck",
+  "text": "Real stores: operations per second by kind 1 process 4 16 Log scale. \"miss\" is a stat of a name that does not exist (an S3 HEAD that returns 404), what Python's import does on every sys.path entry.",
+  "label": "core",
+  "key": "an s3 head that returns 404",
+  "where": ""
+ },
+ {
+  "id": 388,
+  "tab": "t-sdmeta",
+  "section": "metadata storm: when names, not bytes, are the bottleneck",
+  "text": "The shared folder caches existing files' attributes (its stat is as fast as local) but not absence, so its misses cost a round trip to the host each.",
+  "label": "core",
+  "key": "as fast as local",
+  "where": ""
+ },
+ {
+  "id": 389,
+  "tab": "t-sdmeta",
+  "section": "metadata storm: when names, not bytes, are the bottleneck",
+  "text": "The start-up storm calculator How long do ranks wait at start-up if their imports go to the metadata servers?",
+  "label": "core",
+  "key": "the start-up storm calculator",
+  "where": ""
+ },
+ {
+  "id": 390,
+  "tab": "t-sdmeta",
+  "section": "metadata storm: when names, not bytes, are the bottleneck",
+  "text": "Calls per rank are measured here with strace ; how many of them a real client sends to the server depends on its caches, so choose the bound.",
+  "label": "core",
+  "key": "with strace ; how many of them a real",
+  "where": ""
+ },
+ {
+  "id": 391,
+  "tab": "t-sdmeta",
+  "section": "metadata storm: when names, not bytes, are the bottleneck",
+  "text": "Ranks starting together What each rank runs Calls that reach the server only failed lookups (best case) opens all file-system calls (no caching) Metadata server capacity Custom capacity, operations per second",
+  "label": "core",
+  "key": "ranks starting together what each rank runs calls that",
+  "where": ""
+ },
+ {
+  "id": 392,
+  "tab": "t-sdsize",
+  "section": "sizing calculator: what shared storage a training cluster needs",
+  "text": "Sizing calculator: what shared storage a training cluster needs The four questions of the Reading tab's section 9 (write bandwidth, read bandwidth, metadata rate, capacity), answered from the job instead of from a vendor table.",
+  "label": "core",
+  "key": "the four questions of the reading tab's section 9",
+  "where": ""
+ },
+ {
+  "id": 393,
+  "tab": "t-sdsize",
+  "section": "sizing calculator: what shared storage a training cluster needs",
+  "text": "Every output is derived from the inputs with the formulas below; inputs marked illustrative are choices, not facts.",
+  "label": "core",
+  "key": "every output is derived from the inputs with the",
+  "where": ""
+ },
+ {
+  "id": 394,
+  "tab": "t-sdsize",
+  "section": "sizing calculator: what shared storage a training cluster needs",
+  "text": "The parent's Storage lab has the opposite calculator: given a store, how long a checkpoint takes.",
+  "label": "core",
+  "key": "the parent's storage lab has the opposite calculator: given",
+  "where": ""
+ },
+ {
+  "id": 395,
+  "tab": "t-sdsize",
+  "section": "sizing calculator: what shared storage a training cluster needs",
+  "text": "Running example 8B, 64 GPUs 70B, 1,024 GPUs 405B, 16,384 GPUs The job Parameters, billions Bytes per parameter in a checkpoint 12.31: fp32 + AdamW (running example, measured) 13.1: MLPerf Storage's 405B checkpoint (5.29 TB) 14: bf16 + fp32 master + AdamW 2: bf16 weights only (no resume) GPUs GPUs per node Checkpoints Saving asynchronous (stop for the host copy) synchronous (stop for the write) Stall you accept for a synchronous save, s Interval, minutes Restore time you accept, s Checkpoints kept on the fast tier Store's aggregate write, GB/s (to see the stall) Data and start-up illustrative Training tokens, trillions Training days Bytes per token on disk Datasets kept on the fast tier, TB Metadata calls per rank at start 652: failed lookups of import torch (measured) 1,341: its opens (measured) 17,983: all its file-system calls (measured) 0: environment on local disk Start-up you accept, s Answer S = P · b W = S / (sync ? stall : interval) R = S / restore M = ranks · calls / start-up S checkpoint size: parameters x bytes per parameter W aggregate write bandwidth needed; per node W / nodes must fit the node's storage link (one 400 Gb/s port is 50 GB/s) R aggregate read bandwidth for a restart, every rank reading at once M metadata operations per second at start-up FSx capacity bought = max(bytes, bandwidth / throughput per TiB); price $0.145 per GB-month for the 125 MB/s per TiB tier (AWS, us-east-1, read 2026-10-16), the only tier priced in the snapshot",
+  "label": "core",
+  "key": "running example 8b, 64 gpus 70b, 1,024 gpus 405b",
+  "where": ""
+ },
+ {
+  "id": 396,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading This page's tabs Striping lab One file over one, two and four servers, four writers in four layouts, and Lustre's offset arithmetic.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old tab cards in Further reading; replaced by the fold note"
+ },
+ {
+  "id": 397,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min Metadata storm One metadata server against two, real stores by operation, the start-up storm calculator.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old tab card"
+ },
+ {
+  "id": 398,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min Sizing calculator Write, restore, data and metadata rates, capacity and FSx cost for a job.",
+  "label": "core",
+  "key": "sizing calculator write, restore, data and metadata rates, capacity",
+  "where": ""
+ },
+ {
+  "id": 399,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "5 min Parent, siblings and neighbouring pages Topic: ml-infra-and-orchestration The parent.",
+  "label": "core",
+  "key": "parent, siblings and neighbouring pages topic: ml-infra-and-orchestration the parent",
+  "where": ""
+ },
+ {
+  "id": 400,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Its Storage lab compares the tiers, summarises the measured runs in one table and keeps the checkpoint-time calculator; the runs themselves (six tiers, the burst, async DCP, small files, restore errors) are drawn in this page's Reading tab since 2026-10-19.",
+  "label": "core",
+  "key": "are drawn in this page's reading tab since 2026-10-19",
+  "where": ""
+ },
+ {
+  "id": 401,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Its Cost lab holds the price list.",
+  "label": "core",
+  "key": "its cost lab holds the price list",
+  "where": ""
+ },
+ {
+  "id": 402,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "28 min, labs 15 min each Cluster anatomy (sibling) Storage tiers at cluster level, NVIDIA's per-SU storage guidance, the storage network.",
+  "label": "core",
+  "key": "28 min, labs 15 min each cluster anatomy (sibling",
+  "where": ""
+ },
+ {
+  "id": 403,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "22 min Fault tolerance at scale (sibling) How often to checkpoint, in-memory and peer checkpoints, recovery designs.",
+  "label": "core",
+  "key": "22 min fault tolerance at scale (sibling) how often",
+  "where": ""
+ },
+ {
+  "id": 404,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Slurm from zero (sibling) Prologs, epilogs and burst-buffer hooks for staging.",
+  "label": "core",
+  "key": "40 min slurm from zero (sibling) prologs, epilogs and",
+  "where": ""
+ },
+ {
+  "id": 405,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "37 min Kubernetes for ML (sibling) PersistentVolumes, CSI drivers and where pods get their storage.",
+  "label": "core",
+  "key": "37 min kubernetes for ml (sibling) persistentvolumes, csi drivers",
+  "where": ""
+ },
+ {
+  "id": 406,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "41 min Storage and loading at scale Formats, shards, streaming from object storage and data loaders: the data side this page leaves out.",
+  "label": "core",
+  "key": "min storage and loading at scale formats, shards, streaming",
+  "where": ""
+ },
+ {
+  "id": 407,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Storage and file systems The kernel side: page cache, fsync, journaling, atomic replace, NFS and FUSE semantics, DCP's files traced.",
+  "label": "core",
+  "key": "45 min storage and file systems the kernel side",
+  "where": ""
+ },
+ {
+  "id": 408,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "42 min Interconnects and scaling InfiniBand, RoCE and the links the storage traffic rides on.",
+  "label": "core",
+  "key": "42 min interconnects and scaling infiniband, roce and the",
+  "where": ""
+ },
+ {
+  "id": 409,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "31 min Distributed systems fundamentals Replication, partitioning and consistency: the theory under object stores and CRAQ.",
+  "label": "core",
+  "key": "31 min distributed systems fundamentals replication, partitioning and consistency",
+  "where": ""
+ },
+ {
+  "id": 410,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "48 min Caching Eviction and invalidation at every layer.",
+  "label": "core",
+  "key": "48 min caching eviction and invalidation at every layer",
+  "where": ""
+ },
+ {
+  "id": 411,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "43 min Primary sources Lustre Operations Manual Chapters 1 (architecture), 19 (striping, PFL), 20 (Data on MDT), 13 (DNE).",
+  "label": "core",
+  "key": "43 min primary sources lustre operations manual chapters 1",
+  "where": ""
+ },
+ {
+  "id": 412,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2 h for those chapters lustre-release, lov_offset.c at 2.17.0 The offset-to-stripe arithmetic.",
+  "label": "core",
+  "key": "2 h for those chapters lustre-release, lov_offset.c at 2.17.0",
+  "where": ""
+ },
+ {
+  "id": 413,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min FSx for Lustre performance guide Metadata IOPS, per-client limits, default PFL layouts.",
+  "label": "core",
+  "key": "10 min fsx for lustre performance guide metadata iops",
+  "where": ""
+ },
+ {
+  "id": 414,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min GPFS: A Shared-Disk File System (FAST 2002) Wide striping and distributed locking, the other design family.",
+  "label": "core",
+  "key": "15 min gpfs: a shared-disk file system (fast 2002",
+  "where": ""
+ },
+ {
+  "id": 415,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Facebook's Tectonic Filesystem (FAST 2021) Metadata in a sharded key-value store; what Llama 3 trained on.",
+  "label": "core",
+  "key": "45 min facebook's tectonic filesystem (fast 2021) metadata in",
+  "where": ""
+ },
+ {
+  "id": 416,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min DeepSeek 3FS and its design notes CRAQ chains, FoundationDB metadata, FUSE against a native client.",
+  "label": "core",
+  "key": "45 min deepseek 3fs and its design notes craq",
+  "where": ""
+ },
+ {
+  "id": 417,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Amazon S3 performance guidelines Prefixes, parallel connections, byte ranges, retries.",
+  "label": "core",
+  "key": "30 min amazon s3 performance guidelines prefixes, parallel connections",
+  "where": ""
+ },
+ {
+  "id": 418,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min S3 consistency model and conditional writes What an object store promises a checkpoint writer.",
+  "label": "core",
+  "key": "20 min s3 consistency model and conditional writes what",
+  "where": ""
+ },
+ {
+  "id": 419,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min PyTorch Distributed Checkpoint docs Save, load, resharding, async, the storage writers.",
+  "label": "core",
+  "key": "15 min pytorch distributed checkpoint docs save, load, resharding",
+  "where": ""
+ },
+ {
+  "id": 420,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min safetensors The format in one screen, and its notes on zero-copy.",
+  "label": "core",
+  "key": "30 min safetensors the format in one screen, and",
+  "where": ""
+ },
+ {
+  "id": 421,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min MLPerf Storage v2.0 rules and v3.0 results How storage is benchmarked for training data and checkpoints.",
+  "label": "core",
+  "key": "10 min mlperf storage v2.0 rules and v3.0 results",
+  "where": ""
+ },
+ {
+  "id": 422,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min ByteCheckpoint (NSDI 2025) Checkpointing at 8,960 GPUs, and the storage tricks it needed.",
+  "label": "core",
+  "key": "30 min bytecheckpoint (nsdi 2025) checkpointing at 8,960 gpus",
+  "where": ""
+ },
+ {
+  "id": 423,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "60 min Gemini: in-memory checkpoints (SOSP 2023) Why remote storage bandwidth caps checkpoint frequency.",
+  "label": "core",
+  "key": "60 min gemini: in-memory checkpoints (sosp 2023) why remote",
+  "where": ""
+ },
+ {
+  "id": 424,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "60 min mpiFileUtils Parallel copy and sync for staging.",
+  "label": "core",
+  "key": "60 min mpifileutils parallel copy and sync for staging",
+  "where": ""
+ },
+ {
+  "id": 425,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min How this page was made Measured on an Apple M1 Pro with Docker Desktop's Linux VM, on a shared machine, 2026-10-16: the toy parallel file system ( src/runs/tpfs.py ), SeaweedFS 4.48 (image chrislusf/seaweedfs pinned by digest sha256:4e61d15f... ), strace in a torch 2.14.1 container, and DCP and safetensors natively with torch 2.14.1 and safetensors 0.8.0.",
+  "label": "core",
+  "key": "10 min how this page was made measured on",
+  "where": ""
+ },
+ {
+  "id": 426,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Scripts, raw records and notes are in the page's src/ folder.",
+  "label": "core",
+  "key": "scripts, raw records and notes are in the page's",
+  "where": ""
+ },
+ {
+  "id": 427,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Nothing here ran on Lustre, GPFS, WEKA, VAST, 3FS or S3 itself: their behaviour is quoted from their documentation, labelled.",
+  "label": "core",
+  "key": "nothing here ran on lustre, gpfs, weka, vast, 3fs",
+  "where": ""
+ },
+ {
+  "id": 428,
+  "tab": "t-read",
+  "section": "hero",
+  "text": "The storage ladder (hero): GPU and host memory, local NVMe, the parallel file system, the object store, with the checkpoint path down and data and restarts up, and the three bottlenecks marked.",
+  "label": "core",
+  "key": "a checkpoint walks down it",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 429,
+  "tab": "t-read",
+  "section": "hero",
+  "text": "Core idea in one sentence: three bottlenecks, bytes over servers, names over few metadata servers, checkpoints from every rank at once.",
+  "label": "core",
+  "key": "nearly every storage problem in training is one of three",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 430,
+  "tab": "t-read",
+  "section": "3",
+  "text": "Two families diagram: separate metadata tier handing out layouts against metadata spread over every server with distributed locking.",
+  "label": "core",
+  "key": "two families: a separate metadata tier",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 431,
+  "tab": "t-read",
+  "section": "2",
+  "text": "Photo: a storage enclosure drawer, what sits behind an OSS.",
+  "label": "core",
+  "key": "what sits behind an oss",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 432,
+  "tab": "t-read",
+  "section": "6",
+  "text": "Photo: a U.2 NVMe drive, the local tier.",
+  "label": "core",
+  "key": "the local tier is a handful of drives like these",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 433,
+  "tab": "t-read",
+  "section": "4",
+  "text": "Real stores table and bars (script-rendered from meta_real.json): Docker volume, shared host folder and SeaweedFS S3 at 1, 4 and 16 processes for create, stat, miss, unlink.",
+  "label": "core",
+  "key": "a local file system does hundreds of thousands of operations a second",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 434,
+  "tab": "t-read",
+  "section": "4",
+  "text": "import table (script-rendered): pass, numpy, torch, torch plus DCP, calls, stat, opens, failed, wall time.",
+  "label": "core",
+  "key": "17,983",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 435,
+  "tab": "t-read",
+  "section": "2",
+  "text": "Four writers bars (script-rendered): four layouts and their aggregate MB/s.",
+  "label": "core",
+  "key": "88.9 mb/s for four files",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 436,
+  "tab": "t-read",
+  "section": "8",
+  "text": "DCP files and chunks tables (script-rendered): four .distcp files plus .metadata, tok.weight chunk offsets.",
+  "label": "core",
+  "key": "the .metadata file is the map",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 437,
+  "tab": "t-read",
+  "section": "8",
+  "text": "Resharding stepper (script-rendered): bytes each new rank read from each file, 4, 2 and 3 ranks.",
+  "label": "core",
+  "key": "1.5 times the checkpoint",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 438,
+  "tab": "t-read",
+  "section": "6",
+  "text": "Six stand-ins chart (script-rendered): write and read times for three checkpoint sizes on six local targets.",
+  "label": "core",
+  "key": "six local stand-ins",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 439,
+  "tab": "t-read",
+  "section": "7",
+  "text": "Async timeline (script-rendered): 60 steps without, with sync and with async DCP on three targets.",
+  "label": "core",
+  "key": "the same 60 training steps",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 440,
+  "tab": "t-read",
+  "section": "8",
+  "text": "Write layouts timeline (script-rendered): five layouts, gather, write and wait per rank.",
+  "label": "core",
+  "key": "who writes what decides both the bytes and the time",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 441,
+  "tab": "t-read",
+  "section": "8",
+  "text": "Checkpoint anatomy bar (script-rendered): weights, AdamW moments, pickle, zip overhead.",
+  "label": "core",
+  "key": "12.31 measured",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 442,
+  "tab": "t-read",
+  "section": "4",
+  "text": "Metadata curve and CPU table (script-rendered): ops per second and latency against 1 to 32 clients, MDS CPU saturated.",
+  "label": "core",
+  "key": "used all of its half cpu",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ },
+ {
+  "id": 443,
+  "tab": "t-read",
+  "section": "4",
+  "text": "Prefetch chart (script-rendered): per-step wait with and without prefetch on S3 and the Docker volume.",
+  "label": "depth",
+  "key": "keeps the next shards in flight",
+  "where": "",
+  "note": "added by hand for a visual or script-rendered table"
+ }
+]

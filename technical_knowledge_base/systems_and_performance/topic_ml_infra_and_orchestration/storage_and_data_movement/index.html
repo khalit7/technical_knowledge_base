@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Storage and data movement: parallel file systems, object storage and checkpoint I/O</h1>
-<div class="sub">How the storage a training cluster shares actually works: a parallel file system's metadata servers and striped object servers, object storage's semantics and request limits, the caches and staging copies in between, moving datasets and checkpoints between them, sizing all of it for a cluster, and checkpoint formats seen as storage objects; with real runs on a toy parallel file system and on SeaweedFS. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a>. Data as of October 2026.</div>
+<div class="sub">The storage a training cluster shares, from local NVMe to a parallel file system to the object store: striping, metadata storms, object-store semantics and request limits, caches, moving data and checkpoints between tiers and regions, checkpoints seen as byte ranges, and sizing it all; with real runs on a toy parallel file system and on SeaweedFS. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a>. Data as of October 2026. Reading: 42 min, plus 18 in closed details.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-sdstripe" aria-selected="false">Striping lab</button><button role="tab" data-t="t-sdmeta" aria-selected="false">Metadata storm</button><button role="tab" data-t="t-sdsize" aria-selected="false">Sizing calculator</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-sdsize" aria-selected="false">Sizing calculator</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -227,15 +227,54 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-read .sd-bars .row .nm{white-space:normal;line-height:1.2}
 @media (max-width:520px){#t-read .sd-bars .row{grid-template-columns:minmax(0,8.5em) minmax(0,1fr) 5.4em}#t-read .sd-ladder>div{grid-template-columns:minmax(0,1fr)}}
 </style>
+<style>
+/* 2026-10-24 rebuild: top of page, closed depth blocks, figures, and the blocks moved in from the Striping lab and Metadata storm tabs */
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;min-width:0}
+#t-read .hero h4{margin:0 0 4px;font-size:14.5px}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px;min-width:0}
+#t-read figure.ph{margin:12px 0;border:1px solid var(--line);border-radius:10px;padding:8px;min-width:0}
+#t-read figure.ph img{display:block;width:100%;max-width:640px;height:auto;border-radius:6px;margin:0 auto}
+#t-read figure.ph figcaption{font-size:13px;margin-top:6px}
+#t-read figure.ph .cr{display:block;font-size:11.5px;color:var(--mute);margin-top:2px}
+#t-read .sv{width:100%;overflow:hidden;margin:6px 0}
+#t-read .sd-play{min-width:6.4em}
+#t-read .calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:6px 14px;font-size:13px;margin:6px 0}
+#t-read .calc label{display:flex;flex-direction:column;gap:2px;min-width:0}
+#t-read .calc select{width:100%}
+#t-read .sds-bars .row{grid-template-columns:minmax(0,15em) minmax(0,1fr) 6em}
+#t-read .sds-bars .row .nm{white-space:normal;line-height:1.2}
+#t-read pre.sd-pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.45;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:8px 10px;overflow-x:auto;white-space:pre;max-width:100%}
+@media (max-width:520px){#t-read .sds-bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 5.2em;font-size:12px}}
+</style>
 <nav class="nav" id="rd-nav">
-<a href="#rd-s0">0 One screen</a><a href="#rd-s1">1 The problem</a><a href="#rd-s2">2 Lustre</a><a href="#rd-s3">3 Other designs</a><a href="#rd-s4">4 Metadata</a><a href="#rd-s5">5 Object storage</a><a href="#rd-s6">6 Caches</a><a href="#rd-s7">7 Moving data</a><a href="#rd-s8">8 Formats</a><a href="#rd-s9">9 Sizing</a><a href="#rd-s10">10 Checking</a><a href="#rd-mis">Mistakes</a><a href="#rd-iq">Interview</a>
+<a href="#rd-s0">0 The idea</a><a href="#rd-s1">1 One pipe</a><a href="#rd-s2">2 Lustre</a><a href="#rd-s3">3 Other designs</a><a href="#rd-s4">4 Metadata</a><a href="#rd-s5">5 Object storage</a><a href="#rd-s6">6 Caches</a><a href="#rd-s7">7 Moving data</a><a href="#rd-s8">8 Checkpoints as bytes</a><a href="#rd-s9">9 Sizing</a><a href="#rd-s10">10 Checking</a><a href="#rd-deep">Depth</a>
 </nav>
 <section id="rd-s0">
-<p class="lead">Every node of a training cluster reads the same datasets, writes its share of every checkpoint and starts from the same code, so somewhere there is storage that all of them share. This page opens that storage up: how a <dfn>parallel file system</dfn> splits names from bytes and spreads each file over many servers, what an <dfn>object store</dfn> promises and what it does not, the caches and staging copies in between, how data and checkpoints move from one to another, how to size all of it for a cluster, and what a checkpoint looks like when you see it as files and byte ranges. Reading time about <span id="rd-time">34</span> minutes (words outside widgets, tables and folded answers at 200 a minute; those add about 30, the three tabs more).</p>
-<p>It goes deeper than the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Storage lab</a>, which measured the running example's checkpoint (1,386,049 bytes, 12.31 bytes per parameter), six storage stand-ins, the checkpoint burst, asynchronous saves, small files and resharding; this page reuses those numbers and does not repeat them. The sibling <a href="https://app.notion.com/p/3fc5c17b0d0d816a871df56477fc83b2" target="_blank" rel="noopener noreferrer">Cluster anatomy</a> owns the storage tiers at cluster level and NVIDIA's per-SU storage guidance. Formats, shards and loaders for training data are on <a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">Storage and loading at scale</a>; the page cache, <code>fsync</code> and atomic rename on <a href="https://app.notion.com/p/3f05c17b0d0d8141be7acc1313570cbf" target="_blank" rel="noopener noreferrer">Storage and file systems</a>.</p>
-
-<div class="rd-card">
-<h4>In one screen: five kinds of shared storage, compared on what decides a training job</h4>
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">A training cluster's storage is a ladder of tiers, from each node's memory and NVMe to a shared parallel file system to the object store, each slower and more durable than the one above; and nearly every storage problem in training is one of three: <span class="hl">bytes</span> go only as fast as the servers a file is spread over, <span class="hl">names</span> go only as fast as the few metadata servers, and <span class="hl">checkpoints</span> arrive from every rank at the same second.</p>
+<div class="hero" id="sd-hero-card"><h4>The storage ladder: a checkpoint walks down it, data and restarts climb back up</h4>
+<div class="rd-svg" id="sd-hero-svg"></div>
+<p class="small">Each rung is a real tier with a sourced number: a SuperPOD node must read more than 40 GB/s by itself (NVIDIA, on <a href="https://app.notion.com/p/3fc5c17b0d0d816a871df56477fc83b2" target="_blank" rel="noopener noreferrer">Cluster anatomy</a>); a DGX H100 keeps 8 x 3.84 TB of NVMe in RAID 0 for staging; Argonne's Polaris runs "Lustre: 100 PB @ 650GB/s"; S3 answers in "roughly 100-200 milliseconds" and costs $0.023 per GB-month against $0.145 for FSx for Lustre (AWS, us-east-1, read 2026-10-16). The three <span class="hl">highlighted</span> marks are the three bottlenecks: <b>striping</b> (section 2), <b>metadata</b> (section 4) and <b>the burst</b> (sections 8 and 9). Each hop down is asynchronous from the one before (section 7), so with asynchronous saves training stops only for the first.</p></div>
+<p><b>You need:</b> the topic's running example (the root, <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a>: a tiny GPT, 112,577 parameters, whose checkpoint is 1,386,049 bytes, 12.31 bytes per parameter); the page cache, <code>fsync</code> and atomic rename, which are the kernel's side of storage (<a href="https://app.notion.com/p/3f05c17b0d0d8141be7acc1313570cbf" target="_blank" rel="noopener noreferrer">Storage and file systems</a>). Dataset formats, shards and loaders are on <a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">Storage and loading at scale</a>; the cluster's tiers in context and NVIDIA's per-SU storage guidance on <a href="https://app.notion.com/p/3fc5c17b0d0d816a871df56477fc83b2" target="_blank" rel="noopener noreferrer">Cluster anatomy</a>.</p>
+<dl class="terms">
+<dt>Bandwidth, IOPS, latency</dt><dd>bytes per second for large transfers; small operations per second; how long one operation takes, which caps a client doing one thing at a time.</dd>
+<dt>Metadata operation</dt><dd>an operation on names rather than bytes: create, open, <code>stat</code> (ask a file's size and times), lookup of a missing name, list, delete.</dd>
+<dt>Parallel file system</dt><dd>POSIX storage that keeps names on a few metadata servers and spreads each file's bytes over many storage servers.</dd>
+<dt>Stripe size, stripe count</dt><dd>bytes written to one server before moving to the next; how many servers one file is spread over.</dd>
+<dt>Object store</dt><dd>a flat space of keys, each an immutable object written whole and read by byte range (S3, GCS, Azure Blob).</dd>
+<dt>Prefix</dt><dd>the leading characters of a key; S3 partitions request capacity by prefix.</dd>
+<dt>DCP</dt><dd>PyTorch Distributed Checkpoint: one file per rank plus a <code>.metadata</code> map, loadable into any number of ranks.</dd>
+<dt>The burst</dt><dd>every rank writing its share of a checkpoint at the same moment.</dd>
+</dl>
+<details class="dp"><summary>Five kinds of shared storage, compared on what decides a training job <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw sd-tw"><table class="rd-cmp">
 <thead><tr><th>Kind</th><th>Names and metadata</th><th>Bytes</th><th>Bandwidth grows with</th><th>Gives you</th><th>Use it for</th></tr></thead>
 <tbody>
@@ -244,55 +283,76 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>Object store (S3, GCS, Azure Blob)</td><td data-h="Names">a flat key space, partitioned by key prefix</td><td data-h="Bytes">whole objects, written once, read by byte range</td><td data-h="Grows with">parallel connections and prefixes</td><td data-h="Gives">cheap, durable, effectively unlimited; no rename, no append, 100-200 ms first byte</td><td data-h="Use">the dataset of record, checkpoints kept for weeks, artifacts</td></tr>
 <tr><td>Caching layer (FSx linked to S3, JuiceFS, Mountpoint cache, Alluxio)</td><td data-h="Names">its own metadata, filled from the object store</td><td data-h="Bytes">copies on fast media near the GPUs</td><td data-h="Grows with">the hit rate</td><td data-h="Gives">a file system in front of an object store</td><td data-h="Use">data read more than once, by many jobs</td></tr>
 <tr><td>Local NVMe on each node</td><td data-h="Names">local</td><td data-h="Bytes">local</td><td data-h="Grows with">nodes: every node adds its own disks</td><td data-h="Gives">the fastest tier; gone with the node</td><td data-h="Use">staged data, the first copy of a checkpoint, container images</td></tr>
-</tbody></table></div>
-<p class="small">The three mechanisms the page keeps returning to: <b>striping</b> (a file spread over many servers, so one file can go faster than one server: section 2 and the <a href="#" data-tab="t-sdstripe">Striping lab</a>), <b>metadata</b> (names, opens and lookups, served by far fewer machines than the bytes: section 4 and the <a href="#" data-tab="t-sdmeta">Metadata storm</a>), and <b>the burst</b> (every rank writing its checkpoint at once: sized in section 9 and the <a href="#" data-tab="t-sdsize">Sizing calculator</a>).</p>
-</div>
-
-<p>Numbers are labelled: <span class="pub">published</span> an operator or paper describing its own system, <span class="vend">vendor</span> a company describing what it sells, <span class="indep">independent</span> someone with no stake, <span class="der">derived</span> computed here with the formula shown, <span class="meas">measured</span> run here (Apple M1 Pro, Docker Desktop VM, shared machine, 2026-10-16: timings are rough, counts and orders are exact), and <span class="unc">unconfirmed</span> when no primary source confirms it.</p>
+</tbody></table></div></div></details>
+<p class="small">Labels on numbers: <span class="pub">published</span> an operator or paper describing its own system, <span class="vend">vendor</span> a company describing what it sells, <span class="indep">independent</span> someone with no stake, <span class="der">derived</span> computed here with the formula shown, <span class="meas">measured</span> run here (Apple M1 Pro, Docker Desktop VM, shared machine, 2026-10-16: timings are rough, counts and orders are exact), <span class="unc">unconfirmed</span> when no primary source confirms it.</p>
 </section>
 
 <section id="rd-s1">
 <h2>1. The problem: one server is one pipe</h2>
-<p><b>Four numbers describe any store.</b> <dfn>Bandwidth</dfn> is bytes per second for large transfers (GB/s). <dfn>IOPS</dfn> (I/O operations per second) is how many small reads or writes it serves. <dfn>Metadata operations per second</dfn> counts the operations on names rather than bytes: create, open, <code>stat</code> (ask for a file's size and times), lookup of a name that does not exist, list a directory, delete. <dfn>Latency</dfn> is how long one operation takes, which caps what one client doing one thing at a time can get. A store can be fast on one and slow on another, and training jobs hit all four.</p>
-<p><b>What a training job asks of shared storage, and when.</b></p>
+<p><b>What a training job asks of shared storage, and when.</b> All four patterns hit every rank at the same moment, which is what makes training storage different from a file server's usual load.</p>
 <div class="sd-ladder">
-<div style="--tc:var(--c1)"><b>Start-up</b><span>Every rank imports Python packages and loads the container image: tens of thousands of opens and lookups each, all ranks at the same second (section 4 counts them: 17,983 file-system calls for <code>import torch</code>).</span></div>
-<div style="--tc:var(--c3)"><b>Reading data</b><span>A steady stream of large sequential reads, small next to compute for text and easy to prefetch (the parent's lab and Storage and loading at scale).</span></div>
-<div style="--tc:var(--c2)"><b>Checkpointing</b><span>Every few minutes to hours, every rank writes its piece at the same moment while the GPUs wait unless the save is asynchronous: a burst of terabytes (section 9).</span></div>
+<div style="--tc:var(--c1)"><b>Start-up</b><span>Every rank imports Python packages and loads its container image: tens of thousands of opens and lookups each, all ranks in the same second (17,983 file-system calls for <code>import torch</code>, section 4).</span></div>
+<div style="--tc:var(--c3)"><b>Reading data</b><span>A steady stream of large sequential reads, small next to compute for text and easy to prefetch.</span></div>
+<div style="--tc:var(--c2)"><b>Checkpointing</b><span>Every few minutes to hours, every rank writes its piece at once while the GPUs wait, unless the save is asynchronous: a burst of terabytes (section 9).</span></div>
 <div style="--tc:var(--c4)"><b>Restart and evaluation</b><span>Every rank reads the latest checkpoint at once, often into a different number of ranks (section 8); evaluation jobs read many checkpoints.</span></div>
 </div>
-<p><b>Why one file server is not enough.</b> An NFS server holds both the names and the bytes, so all of the above goes through one machine's disks and one network card. A modern GPU node can pull more than 40 GB/s by itself (NVIDIA's requirement for SuperPOD nodes, on the sibling <a href="https://app.notion.com/p/3fc5c17b0d0d816a871df56477fc83b2" target="_blank" rel="noopener noreferrer">Cluster anatomy</a> page), which is already more than a good single server delivers. The parent's lab saw the same shape in miniature: the 304 MB checkpoint took 7.31 s through a host folder shared into the Docker VM (one file-sharing channel) against 387 ms on a Docker volume <span class="meas">measured</span>.</p>
-<p><b>The two ways out</b>, and the rest of the page follows them. A <b>parallel file system</b> keeps the POSIX interface (directories, open, seek, rename) but separates the names from the bytes: a few metadata servers answer "where is this file", and the bytes go straight to and from many storage servers at once. An <b>object store</b> gives up POSIX (no rename, no append, no partial overwrite) in exchange for a design that partitions everything by key, so it scales to any number of clients and costs a fraction as much per byte. Large training clusters use both: the object store holds the data and checkpoints of record, a parallel file system or local NVMe holds the working copies.</p>
+<p><b>Why one file server is not enough.</b> An NFS server holds both the names and the bytes, so all of the above goes through one machine's disks and one network card, while a SuperPOD node alone must pull more than 40 GB/s, already more than a good single server delivers. The parent's lab saw the same shape in miniature: the 304 MB checkpoint took 7.31 s through a host folder shared into the Docker VM (one file-sharing channel) against 387 ms on a Docker volume <span class="meas">measured</span>.</p>
+<p><b>The two ways out.</b> A <b>parallel file system</b> keeps POSIX (directories, open, seek, rename) but separates names from bytes: a few metadata servers answer "where is this file", and the bytes go straight to and from many storage servers at once. An <b>object store</b> gives up POSIX (no rename, no append, no partial overwrite) for a design partitioned by key, which scales to any number of clients at a fraction of the price per byte. Large clusters use both: the object store holds the data and checkpoints of record, a parallel file system or local NVMe the working copies.</p>
 </section>
 <section id="rd-s2">
 <h2>2. How a parallel file system works: Lustre, piece by piece</h2>
-<p>Lustre is the reference design (open source, on most of the largest supercomputers, and underneath managed services such as Amazon FSx for Lustre), so it is taught in full here; section 3 shows how the others differ. Current release: 2.17.0, tagged 2025-12-30 (<a href="https://www.lustre.org/" target="_blank" rel="noopener noreferrer">lustre.org</a>; <a href="https://github.com/lustre/lustre-release/tree/2.17.0" target="_blank" rel="noopener noreferrer">lustre-release tag 2.17.0</a>). Quotes are from the <a href="https://doc.lustre.org/lustre_manual.xhtml" target="_blank" rel="noopener noreferrer">Lustre Operations Manual</a> unless marked.</p>
-<h3>The parts</h3>
+<p>Lustre is the reference design (open source, on most of the largest supercomputers, and underneath managed services such as Amazon FSx for Lustre), so it is taught in full; section 3 shows how the others differ. Current release 2.17.0, tagged 2025-12-30 (<a href="https://www.lustre.org/" target="_blank" rel="noopener noreferrer">lustre.org</a>; <a href="https://github.com/lustre/lustre-release/tree/2.17.0" target="_blank" rel="noopener noreferrer">lustre-release tag 2.17.0</a>). Quotes are from the <a href="https://doc.lustre.org/lustre_manual.xhtml" target="_blank" rel="noopener noreferrer">Lustre Operations Manual</a> unless marked.</p>
 <div class="tw sd-tw"><table>
 <thead><tr><th>Part</th><th>What it does (the manual's words where quoted)</th></tr></thead>
 <tbody>
 <tr><td><b>MGS</b>, management server</td><td>"stores configuration information for all the Lustre file systems in a cluster and provides this information to other Lustre components."</td></tr>
-<tr><td><b>MDS</b> and <b>MDT</b>, metadata server and target</td><td>The MDS "manages the names and directories"; the MDT, its disk, "stores metadata (such as filenames, directories, permissions and file layout)". The manual sizes MDTs at "1-2% of file system capacity".</td></tr>
+<tr><td><b>MDS</b> and <b>MDT</b>, metadata server and target</td><td>The MDS "manages the names and directories"; the MDT, its disk, "stores metadata (such as filenames, directories, permissions and file layout)", sized at "1-2% of file system capacity".</td></tr>
 <tr><td><b>OSS</b> and <b>OST</b>, object storage server and target</td><td>"Typically, an OSS serves between two and eight OSTs"; "User file data is stored in one or more objects, each object on a separate OST".</td></tr>
 <tr><td><b>Client</b></td><td>A kernel module on every compute node, with "a metadata client (MDC), and multiple object storage clients (OSCs), one corresponding to each OST"; the LOV (logical object volume) stitches the OSCs into one file.</td></tr>
 <tr><td><b>LNet</b></td><td>Lustre's own network layer over InfiniBand, RoCE or TCP, carrying both metadata and data.</td></tr>
 </tbody></table></div>
+<figure class="ph"><img src="img/storage_enclosure_e5700.webp" alt="A rack-mount storage enclosure with one drawer pulled out, showing rows of drive carriers inside" loading="lazy" width="800" height="450">
+<figcaption>What sits behind an OSS: a box of drives, here one drawer of a NetApp E5700 enclosure pulled out at a trade show. The server exports its drives as a few targets (OSTs); a file system is dozens to hundreds of such boxes, and striping is what lets one file use many of them.<span class="cr">Photo: KorP, <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>, <a href="https://commons.wikimedia.org/wiki/File:NetApp_E5700.jpg" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a>.</span></figcaption></figure>
 <p><b>The one idea.</b> A file's entry on the MDT holds its <dfn>layout</dfn>: a list of objects, each on one OST, plus the stripe size. "When a client wants to read from or write to a file, it first fetches the layout EA from the MDT object for the file. The client then uses this information to perform I/O on the file, directly interacting with the OSS nodes where the objects are stored." The metadata server is asked once per open; the bytes never pass through it.</p>
 
 <div class="rd-card" id="sd-life-card">
-<h4>The same 8 MiB write, through one NFS server and through Lustre</h4>
-<p class="small">An illustrative sequence built from the manual's description of the I/O path and from <code>nfs(5)</code>'s close-to-open rule; drawn to scale in bytes (each square is 1 MiB), not in time. Toggle the system, then step.</p>
+<h4>The same 8 MiB write, through one NFS server and through Lustre: the bytes stop passing through the server that holds the names</h4>
+<p class="small">Illustrative, built from the manual's I/O path and from <code>nfs(5)</code>'s close-to-open rule; drawn to scale in bytes (each square is 1 MiB), not in time. Toggle the system, then step. Predict first: how many requests does the Lustre metadata server see for this write?</p>
 <div class="seg" id="sd-life-mode"><button data-m="nfs">One NFS server</button><button data-m="lus" class="on">Lustre, stripe count 4</button></div>
 <div class="rd-svg" id="sd-life-svg"></div>
 <div class="an-cap" id="sd-life-cap"></div>
 <div class="an-cnt" id="sd-life-cnt"></div>
 <div class="an-ctl" id="sd-life-ctl"></div>
+<p class="small mute">Lustre: two metadata requests in all (create and close), for any file size; NFS: one server takes the name and every byte, and close() flushes and reports write errors.</p>
 </div>
 
 <h3>Striping: which server holds byte X</h3>
-<p>A layout is <dfn>RAID 0</dfn> across its objects: "If the MDT file points to more than one object, the file data is striped across the objects using RAID 0, and each object is stored on a different OST." With <dfn>stripe size</dfn> S (bytes written to one object before moving to the next) and <dfn>stripe count</dfn> C (how many objects), byte offset X of the file lands in</p>
+<p><b>A concrete case first.</b> A file with 1 MiB stripes over 4 objects: MiB 0 goes to object 0, MiB 1 to object 1, ..., MiB 4 back to object 0. So the byte at 5 MiB lands in object 1, at offset 1 MiB inside it <span class="der">derived</span>. A layout is <dfn>RAID 0</dfn> across its objects: "If the MDT file points to more than one object, the file data is striped across the objects using RAID 0, and each object is stored on a different OST."</p>
+<div class="rd-card" id="sds-anim-card">
+<h4>The same 128 MiB file, written with stripe count 1, 2 and 4: each server added is another 25 MB/s</h4>
+<p class="small">Run on <b>tpfs</b>, a toy parallel file system built for this page: one metadata server, four object servers in containers, each held to 25 MB/s by a token bucket standing in for its disks (real code, not Lustre; locks, caches and failures not modelled). Each square is 1 MiB, coloured by the server that received it, filled at the rate the real run achieved, on one clock for all three. Predict the stripe-count-4 rate before you press play.</p>
+<div class="seg" id="sds-mode"><button data-m="1">Stripe count 1 (the default)</button><button data-m="2">Stripe count 2</button><button data-m="4" class="on">Stripe count 4</button></div>
+<div class="sv" id="sds-svg"></div>
+<div class="an-cap" id="sds-cap"></div>
+<div class="an-cnt" id="sds-cnt"></div>
+<div class="an-ctl" id="sds-ctl"></div>
+<p class="small">One client wrote the file at 22.2 MB/s with stripe count 1, 44.8 with 2 and 88.7 with 4 <span class="meas">measured</span>, medians of 3: linear, because nothing else was in the way. The manual: "Striping can be used to improve performance when the aggregate bandwidth to a single file exceeds the bandwidth of a single OST."</p>
+</div>
+<p>With stripe size S (bytes to one object before moving on) and stripe count C (how many objects), byte X of the file lands in</p>
 <div class="fm"><div class="eq">stripe = &lfloor;(X mod S&middot;C) / S&rfloor; &nbsp;&nbsp; object offset = &lfloor;X / (S&middot;C)&rfloor;&middot;S + (X mod S)</div>
-<dl><dt>S</dt><dd>stripe size, default 1 MiB ("the default value for stripe_size is 1MB"; must be a multiple of 64 KB)</dd><dt>C</dt><dd>stripe count, default 1 ("The default value for stripe_count is 1 stripe for file"); -1 means every OST</dd><dt>stripe</dt><dd>index into the layout's object list; the MDS chose which OST each object lives on when the file was created</dd></dl></div>
+<dl><dt>S</dt><dd>stripe size, default 1 MiB ("the default value for stripe_size is 1MB"; a multiple of 64 KB)</dd><dt>C</dt><dd>stripe count, default 1 ("The default value for stripe_count is 1 stripe for file"); -1 means every OST</dd><dt>stripe</dt><dd>index into the layout's object list; the MDS chose each object's OST when the file was created</dd></dl></div>
+<p><b>What striping costs.</b> More objects mean "more locks and extra network operations during common operations such as stat and unlink", and "when files are striped across all servers and one of the servers breaks down, a small part of each striped file is lost." "Small files do not benefit from striping." The manual's rule: "stripe over as few objects as will meet those needs and no more", bounded by "the I/O rate of the clients/jobs divided by the performance per OSS".</p>
+
+<div class="pr"><div class="q">Predict. Four ranks each write their own 64 MiB checkpoint shard to the toy, stripe count 1, and the MDS spreads the four files over the four servers. Then the same four shards go into one shared file striped over all four servers. Which is faster?</div>
+<div class="opts"><button data-a="0">The striped shared file, about 4 times faster</button><button data-a="1">About the same: both keep all four servers busy</button><button data-a="0">File per rank, about 4 times faster</button></div>
+<div class="ans" hidden>About the same: 88.9 MB/s for four files with one stripe each, 97.8 MB/s for one file striped four ways <span class="meas">measured</span>, medians of 3. Striping matters when few files must use many servers; when every rank writes its own file and the files are spread, the servers are already all busy. What hurts is when they are not spread: the same four files forced onto OST 0 (<code>lfs setstripe -i 0</code> copied from an example) or one shared file left at stripe count 1 ran at 25.0 and 24.9 MB/s, a quarter. The manual: the default start index of -1 "allows the MDS to choose the starting index. This setting is strongly recommended"; and with 100 clients and 100 servers, one object per file means "no contention", while 100 objects per file means "the clients all compete with one another for the attention of the servers".
+<div class="bars sds-bars" id="sds-np"></div>
+<p class="small">Aggregate MB/s for 256 MiB from four writers in one client container, from the first start to the last finish <span class="meas">measured</span>.</p></div></div>
+
+<h3>Locks: why many writers in one stripe are slow</h3>
+<p>Each OST runs its own lock manager (the LDLM) for the byte ranges of its objects, and a client caches data only while it holds the lock. "When writing to a single file from multiple nodes, having more than one client writing to a stripe can lead to issues with lock exchange, where clients contend over writing to that stripe, even if their I/Os do not overlap. This can be avoided if I/O can be stripe aligned so that each stripe is accessed by only one client." The toy has no locks, so on real Lustre an N-to-1 shared checkpoint with unaligned writes does much worse than the toy shows. DCP's one file per rank sidesteps it.</p>
+
+<details class="dp" id="sds-calc"><summary>Where does byte X live: Lustre's own code, and a calculator over plain and PFL layouts <span class="mute">(depth)</span></summary><div class="b">
 <div class="sd-src"><div class="f">lustre/lov/lov_offset.c, lines 273-288, lustre-release tag 2.17.0</div>
 <pre class="rd-code">/* compute which stripe number "lov_off" will be written into */
 int lov_stripe_number(struct lov_stripe_md *lsm, int index, u64 lov_off)
@@ -310,25 +370,25 @@ int lov_stripe_number(struct lov_stripe_md *lsm, int index, u64 lov_off)
 
 	return (int) stripe_off;
 }</pre>
-<p class="small"><code>stripe_width()</code> (lines 20-30) returns stripe size times stripe count; <code>index</code> picks the layout component (below). <code>lov_stripe_offset()</code> (lines 121-152) computes the object offset, <code>*obdoff = lov_off * ssize + stripe_off</code>. The <a href="#" data-tab="t-sdstripe">Striping lab</a> has a calculator that runs exactly this arithmetic and our toy file system uses it too.</p></div>
-<p><b>What it buys.</b> "Striping can be used to improve performance when the aggregate bandwidth to a single file exceeds the bandwidth of a single OST." On our toy parallel file system (four object servers in containers, each held to 25 MB/s by a token bucket standing in for its disks; real code, not Lustre), one client wrote a 128 MiB file at 22.2 MB/s with stripe count 1, 44.8 with 2 and 88.7 with 4 <span class="meas">measured</span>, medians of 3: linear, because nothing else was in the way. The <a href="#" data-tab="t-sdstripe">Striping lab</a> animates both runs.</p>
-<p><b>What it costs.</b> More objects mean "more locks and extra network operations during common operations such as stat and unlink", and "when files are striped across all servers and one of the servers breaks down, a small part of each striped file is lost." Small files gain nothing: "Small files do not benefit from striping". The manual's rule: "stripe over as few objects as will meet those needs and no more", bounded by "the I/O rate of the clients/jobs divided by the performance per OSS".</p>
+<p class="small"><code>stripe_width()</code> (lines 20-30) returns stripe size times stripe count; <code>index</code> picks the layout component. <code>lov_stripe_offset()</code> (lines 121-152) computes the object offset, <code>*obdoff = lov_off * ssize + stripe_off</code>. The calculator below runs exactly this arithmetic, and so does the toy file system.</p></div>
+<p class="small">Pick a plain layout or a PFL layout; the strip shows which OST holds each of the first stripe units.</p>
+<div class="seg" id="sds-lay"><button data-m="plain" class="on">Plain layout</button><button data-m="pfl">PFL: the manual's example on 8 OSTs</button><button data-m="fsx">PFL: FSx default</button></div>
+<div class="calc">
+<label>File offset, MiB <input type="number" id="sds-off" min="0" step="1" value="5"></label>
+<label id="sds-l-s">Stripe size <select id="sds-s"><option value="64">64 KiB</option><option value="1024" selected>1 MiB</option><option value="4096">4 MiB</option></select></label>
+<label id="sds-l-c">Stripe count <input type="number" id="sds-c" min="1" max="64" step="1" value="4"></label>
+<label id="sds-l-i">Starting OST <input type="number" id="sds-i" min="0" max="63" step="1" value="0"></label>
+<label>OSTs in the file system <input type="number" id="sds-n" min="1" max="64" step="1" value="8"></label>
+</div>
+<div class="out" id="sds-out"></div>
+<div class="sv" id="sds-map"></div>
+<p class="small mute" id="sds-lnote"></p>
+</div></details>
 
-<div class="pr"><div class="q">Predict. Four ranks each write their own 64 MiB checkpoint shard to the toy file system, stripe count 1, and the MDS spreads the four files over the four servers. Then the same four shards go into one shared file striped over all four servers. Which is faster?</div>
-<div class="opts"><button data-a="0">The striped shared file, about 4 times faster</button><button data-a="1">About the same: both keep all four servers busy</button><button data-a="0">File per rank, about 4 times faster</button></div>
-<div class="ans" hidden>About the same: 88.9 MB/s for four files with one stripe each, 97.8 MB/s for one file striped four ways <span class="meas">measured</span>, medians of 3. Striping matters when few files must use many servers; when every rank writes its own file and the files are spread, the servers are already all busy. What hurts is when they are not spread: the same four files all forced onto OST 0 (<code>lfs setstripe -i 0</code>, the mistake) or one shared file with stripe count 1 ran at 25.0 and 24.9 MB/s, a quarter. The manual makes the same argument with 100 clients and 100 servers: one object per file means "no contention", while 100 objects per file means "the clients all compete with one another for the attention of the servers".</div></div>
-
-<h3>Locks: why many writers in one stripe are slow</h3>
-<p>Each OST runs its own lock manager (the LDLM) for the byte ranges of its objects, so a client caches data only while it holds the lock. "When writing to a single file from multiple nodes, having more than one client writing to a stripe can lead to issues with lock exchange, where clients contend over writing to that stripe, even if their I/Os do not overlap. This can be avoided if I/O can be stripe aligned so that each stripe is accessed by only one client." Our toy has no locks, so this cost is <b>not modelled</b> there; on Lustre it makes an N-to-1 shared checkpoint file with unaligned writes much worse than the toy shows. DCP's one file per rank sidesteps it.</p>
-
-<h3>Layouts that adapt: PFL and Data on MDT</h3>
-<p>A <dfn>Progressive File Layout</dfn> (PFL, since 2.10) gives one file several components by offset, so small files stay on one OST and big ones spread out without anyone choosing in advance. The manual's example on 8 OSTs: <code>lfs setstripe -E 4M -c 1 -E 64M -c 4 -E -1 -c -1 -i 4 /mnt/testfs/create_comp</code>: "The first component has 1 stripe and covers [0, 4M), the second component has 4 stripes and covers [4M, 64M), and the last component stripes start at OST4, cross over all available OSTs and covers [64M, EOF)." Components after the first are created only when a write reaches them. Amazon FSx for Lustre file systems created after August 25, 2023 default to <code>lfs setstripe -E 100M -c 1 -E 10G -c 8 -E 100G -c 16 -E -1 -c 32</code> (<a href="https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html" target="_blank" rel="noopener noreferrer">FSx performance guide</a>) <span class="vend">vendor</span>.</p>
-<p><dfn>Data on MDT</dfn> (DoM, since 2.11) puts the first part of a file on the metadata server itself, so a small file costs one server instead of two: "improves small file IO by placing small files directly on the MDT". The default maximum is 1 MB (<code>dom_stripesize</code>). Example: <code>lfs setstripe -E 1M -L mdt -E -1 -S 4M -c -1 /mnt/lustre/domfile</code>.</p>
-<h3>More than one metadata server: DNE</h3>
-<p>One MDS serves a whole file system until <dfn>DNE</dfn> (Distributed Namespace) adds more: a directory can live on another MDT (<code>lfs mkdir -i mdt_index</code>), or one huge directory can be spread over several with <code>lfs mkdir -c mdt_count</code>, "indended [sic] for specific applications where many output files are being created in one large directory (over 50k entries)". On our toy, two metadata servers instead of one served 16 clients at 2,635 operations per second against 1,603 <span class="meas">measured</span>: the <a href="#" data-tab="t-sdmeta">Metadata storm</a> tab has the full curve.</p>
-
-<h3>What you type on a real Lustre client</h3>
-<p class="small">Not run here: Lustre needs its kernel modules on the client, which Docker Desktop's VM does not have. The output below is copied from the manual (section 19.3.5), not from a run.</p>
+<details class="dp"><summary>Layouts that adapt (PFL, Data on MDT) and what you type on a real client <span class="mute">(depth)</span></summary><div class="b">
+<p>A <dfn>Progressive File Layout</dfn> (PFL, since 2.10) gives one file several components by offset, so small files stay on one OST and big ones spread out without anyone choosing in advance. The manual's example on 8 OSTs: <code>lfs setstripe -E 4M -c 1 -E 64M -c 4 -E -1 -c -1 -i 4 /mnt/testfs/create_comp</code>: "The first component has 1 stripe and covers [0, 4M), the second component has 4 stripes and covers [4M, 64M), and the last component stripes start at OST4, cross over all available OSTs and covers [64M, EOF)." Components after the first are created only when a write reaches them. Amazon FSx for Lustre file systems created after August 25, 2023 default to <code>lfs setstripe -E 100M -c 1 -E 10G -c 8 -E 100G -c 16 -E -1 -c 32</code> (<a href="https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html" target="_blank" rel="noopener noreferrer">FSx performance guide</a>) <span class="vend">vendor</span>. The trap: appending to a file with a wide last component instantiates every component, and "an operation such as reading the file length will send a request in parallel to every OST" (FSx guide), so FSx gives files opened in append mode a stripe count of 1.</p>
+<p><dfn>Data on MDT</dfn> (DoM, since 2.11) puts the first part of a file on the metadata server itself, so a small file costs one server instead of two: "improves small file IO by placing small files directly on the MDT". The default maximum is 1 MB (<code>dom_stripesize</code>). Example: <code>lfs setstripe -E 1M -L mdt -E -1 -S 4M -c -1 /mnt/lustre/domfile</code>. On DoM layouts without an end-of-file component, "writes beyond the end of the last existing component will fail with error ENODATA".</p>
+<p class="small">Not run here: Lustre needs its kernel modules on the client, which Docker Desktop's VM does not have. Output copied from the manual (section 19.3.5), not from a run.</p>
 <pre class="rd-code">$ lfs setstripe --stripe-count 1 --index 0 file1
 $ lfs getstripe file1
 /mnt/testfs/file1
@@ -339,11 +399,35 @@ lmm_layout_gen:    0
 lmm_stripe_offset: 0
 	obdidx		 objid		 objid		 group
 	     0	         37364	       0x91f4	             0</pre>
-<p class="small">Set a directory default so every new checkpoint shard inherits it: <code>lfs setstripe -c 4 -S 4M /lustre/ckpt</code> (the manual's guidance: "A good stripe size for sequential I/O using high-speed networks is between 1 MB and 4 MB"); see how full each server is: <code>lfs df -h /lustre</code>. A layout is fixed when the file is created; <code>lfs migrate</code> rewrites an existing file.</p>
+<p class="small">Set a directory default so every new checkpoint shard inherits it: <code>lfs setstripe -c 4 -S 4M /lustre/ckpt</code> ("A good stripe size for sequential I/O using high-speed networks is between 1 MB and 4 MB"); see how full each server is: <code>lfs df -h /lustre</code>. A layout is fixed when the file is created; <code>lfs migrate</code> rewrites an existing file.</p>
+</div></details>
+
+<details class="dp"><summary>The toy file system: how it is built, smaller stripes, and what transfers to a real cluster <span class="mute">(provenance)</span></summary><div class="b">
+<p class="small"><code>src/runs/tpfs.py</code>, standard-library Python: one metadata server that hands out layouts and four object servers that store the bytes, each in its own container (0.5 CPU, 256 MB), each held to 25 MB/s by a token bucket. The client gets a file's layout once and then talks to the object servers directly, using Lustre's RAID 0 arithmetic. The per-server limit is an input; the scaling, the hot spots and the slowdowns are what happened (Apple M1 Pro, Docker Desktop VM, shared machine, 2026-10-16; medians of 3).</p>
+<p class="small" id="sds-note"></p>
+<p class="small" id="sds-64"></p>
+<pre class="sd-pre" id="sds-code">docker network create sd-net
+for i in 0 1 2 3; do
+  docker run -d --rm --name sd-ost$i --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \
+    --memory 256m --cpus 0.5 python:3.12-slim python3 /tpfs.py ost --mbps 25
+done
+docker run -d --rm --name sd-mds0 --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \
+  --memory 256m --cpus 0.5 python:3.12-slim \
+  python3 /tpfs.py mds --osts sd-ost0:9000,sd-ost1:9000,sd-ost2:9000,sd-ost3:9000
+docker run -d --rm --name sd-cli --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \
+  --memory 768m --cpus 2 python:3.12-slim sleep 3600
+docker exec sd-cli python3 /tpfs.py bench stripe --mds sd-mds0:8000 --mib 128 --counts 1,2,4</pre>
+<p class="small">The whole run is <code>src/runs/run_tpfs.sh</code>; one output line (layout shortened):</p>
+<pre class="sd-pre" id="sds-out1"></pre>
+<p class="small">What transfers to a real cluster: the arithmetic (one file's bandwidth is its stripe count times one server's, until the client's network card or the job's other files get in the way), the hot spot when files share a server, and the cost of small stripes. What does not: the absolute numbers (25 MB/s per server is a choice, a real OST does gigabytes), locks, and the client-side caching and RPC pipelining that make Lustre's per-request costs far lower than Python's.</p>
+</div></details>
 </section>
 <section id="rd-s3">
 <h2>3. The other designs: where the metadata lives, and who places the bytes</h2>
-<p>Every parallel file system answers the same two questions differently: <b>who owns the names</b> (a dedicated metadata tier, or every server), and <b>who decides where a byte goes</b> (a layout handed out once, or a placement every server can compute). That choice decides how it behaves under a metadata storm and when a server fails.</p>
+<p>Every parallel file system answers two questions differently: <b>who owns the names</b> (a dedicated metadata tier, or every server), and <b>who decides where a byte goes</b> (a layout handed out once, or a placement every server can compute). That choice decides how it behaves under a metadata storm and when a server fails.</p>
+<div class="rd-card" id="sd-fam-card"><h4>Two families: a separate metadata tier that hands out layouts, or metadata spread over every server</h4>
+<div class="rd-svg" id="sd-fam-svg"></div>
+<p class="small">Left: the client asks the metadata tier once, then reads and writes the storage servers directly; data I/O never touches the metadata tier, but every name does. Right: every server holds data and metadata, so there is no single metadata tier to size, at the price of distributed locking (GPFS's token manager, "one metanode per open file"). Tectonic and 3FS put metadata in a transactional key-value store behind stateless servers, which is how they scale the namespace.</p></div>
 <div class="tw sd-tw"><table class="rd-cmp">
 <thead><tr><th>System</th><th>Metadata</th><th>Data placement</th><th>Published scale</th></tr></thead>
 <tbody>
@@ -355,19 +439,16 @@ lmm_stripe_offset: 0
 <tr><td>DeepSeek 3FS</td><td data-h="Metadata">"stateless metadata services backed by a transactional key-value store (e.g., FoundationDB)"</td><td data-h="Placement">files split into equal chunks striped over replication chains (CRAQ); the client computes chunk locations from the layout, like Lustre; FUSE client plus a native zero-copy client (<a href="https://github.com/deepseek-ai/3FS" target="_blank" rel="noopener noreferrer">3FS README and design notes</a>, released February 2025)</td><td data-h="Scale">"approximately 6.6 TiB/s" of aggregate reads from 180 storage nodes, each "2×200Gbps InfiniBand NICs and sixteen 14TiB NVMe SSDs" <span class="pub">authors</span>: about 80% of the nodes' 9 TB/s of network line rate <span class="der">derived</span> (180 x 2 x 25 GB/s)</td></tr>
 <tr><td>Meta Tectonic</td><td data-h="Metadata">"stateless metadata services that construct the filesystem logic over the key-value store" (ZippyDB)</td><td data-h="Placement">a flat Chunk Store; append-only files (<a href="https://www.usenix.org/conference/fast21/presentation/pan" target="_blank" rel="noopener noreferrer">Tectonic, FAST 2021</a>)</td><td data-h="Scale">Llama 3: "240 PB of storage out of 7,500 servers", "2 TB/s" sustained, "7 TB/s" peak (<a href="https://arxiv.org/html/2407.21783v3" target="_blank" rel="noopener noreferrer">Llama 3, section 3.3.1</a>) <span class="pub">authors</span></td></tr>
 </tbody></table></div>
-<p class="small">Two families. Lustre and 3FS keep a separate metadata tier and hand the client a layout, so data I/O never touches it; GPFS, WEKA and VAST spread metadata over the same servers as data, so there is no single metadata bottleneck to size, at the price of distributed locking. Tectonic and 3FS both put metadata in a transactional key-value store behind stateless servers, which is how they scale the namespace. The 3FS headline matches Fire-Flyer 2's "8 TB/s" quoted on the parent page only loosely (6.6 TiB/s is 7.3 TB/s <span class="der">derived</span>): the paper and the README describe different measurements.</p>
+<p class="small">The 3FS headline matches Fire-Flyer 2's "8 TB/s" quoted on the parent page only loosely (6.6 TiB/s is 7.3 TB/s <span class="der">derived</span>): the paper and the README describe different measurements.</p>
 </section>
 
 <section id="rd-s4">
-<h2>4. Metadata: the small-file and start-up storms</h2>
-<p><b>The problem.</b> Bandwidth scales with storage servers; metadata does not, or not as fast. A Lustre file system with hundreds of OSTs may have one or a handful of MDTs, and every create, open, <code>stat</code> and failed lookup goes to them. Small files make every byte cost a metadata operation; thousands of ranks starting at once make every rank's start-up cost thousands. Amazon sells this capacity separately: an FSx for Lustre file system of 1,200 GiB includes 1,500 metadata IOPS, and each metadata IOPS serves 2 file creates, opens or closes per second, 1 delete, or 0.1 directory creates (<a href="https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html" target="_blank" rel="noopener noreferrer">FSx performance guide</a>) <span class="vend">vendor</span>: 3,000 opens per second for the whole file system <span class="der">derived</span>.</p>
-<h3>Measured: the same four operations on four stores</h3>
-<p>16 processes, each in its own directory, create empty files, <code>stat</code> them, look up names that do not exist, and delete them, in lock step <span class="meas">measured</span> (medians of 3; <code>src/runs/meta_real.py</code>). Operations per second, all processes together:</p>
-<div class="tw sd-tw" id="sd-mreal"></div>
-<p>Three things to read off it. A local file system does hundreds of thousands of operations a second, a network one a few thousand: the gap is the round trip, not the disk. The host folder shared into the VM answers <code>stat</code> of an existing file from its cache, as fast as local disk, but every lookup of a <b>missing</b> name crosses to the host (the "miss" column): network file systems cache what exists far better than what does not. And the object store pays a full HTTP request for everything, even a HEAD.</p>
-<h3>The start-up storm: what <code>import torch</code> asks the file system</h3>
-<p>Python finds a module by trying names on every directory of <code>sys.path</code> in turn, so an import is mostly lookups, many of them of files that do not exist. Counted with <code>strace -f -c -e trace=%file,getdents64</code> in a container with torch 2.14.1+cpu and Python 3.11 <span class="meas">measured</span> (3 runs each, identical counts):</p>
+<h2>4. Metadata: the start-up and small-file storms</h2>
+<p><b>The problem.</b> Bandwidth scales with storage servers; metadata does not, or not as fast. A Lustre file system with hundreds of OSTs may have one or a handful of MDTs, and every create, open, <code>stat</code> and failed lookup goes to them. Amazon sells this capacity separately: an FSx for Lustre file system of 1,200 GiB includes 1,500 metadata IOPS, and each metadata IOPS serves 2 file creates, opens or closes per second, 1 delete, or 0.1 directory creates (<a href="https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html" target="_blank" rel="noopener noreferrer">FSx performance guide</a>) <span class="vend">vendor</span>: 3,000 opens per second for the whole file system <span class="der">derived</span>.</p>
+<h3>What <code>import torch</code> asks the file system</h3>
+<p>Python finds a module by trying names on every directory of <code>sys.path</code> in turn, so an import is mostly lookups, many of files that do not exist. Counted with <code>strace -f -c -e trace=%file,getdents64</code> in a container with torch 2.14.1+cpu and Python 3.11 <span class="meas">measured</span> (3 runs each, identical counts): <code>import torch</code> makes <b>17,983</b> file-system calls, 16,196 of them <code>stat</code>, 1,341 opens, and <b>652</b> fail (almost all ENOENT, no such file: the misses).</p>
 <div class="tw" id="sd-imp"></div>
+<details class="dp"><summary>The strace output, verbatim <span class="mute">(provenance)</span></summary><div class="b">
 <pre class="rd-code">$ strace -f -c -e trace=%file,getdents64 python3 -c 'import torch'
 % time     seconds  usecs/call     calls    errors syscall
 ------ ----------- ----------- --------- --------- ----------------
@@ -380,34 +461,75 @@ lmm_stripe_offset: 0
   0.00    0.000000           0         5         2 readlinkat
 ------ ----------- ----------- --------- --------- ----------------
 100.00    0.347848          19     17983       652 total</pre>
-<p class="rd-codecap">Run 1 of 3, verbatim. "errors" are failed calls, almost all ENOENT (no such file): the misses.</p>
+<p class="rd-codecap">Run 1 of 3. "errors" are failed calls.</p></div></details>
+
+<div class="rd-card"><h4>The same four operations on three stores: network storage is a hundred times slower per name, and misses are worst</h4>
+<p class="small">Each process works in its own directory: create empty files, <code>stat</code> them, look up names that do not exist ("miss", an S3 HEAD that returns 404), delete them, in lock step <span class="meas">measured</span> (medians of 3; <code>src/runs/meta_real.py</code>). Operations per second, all processes together, log scale.</p>
+<div class="seg" id="sdm-p"><button data-m="1">1 process</button><button data-m="4">4</button><button data-m="16" class="on">16</button></div>
+<div class="sv" id="sdm-real"></div>
+<p class="small">A local file system does hundreds of thousands of operations a second, a network one a few thousand: the gap is the round trip, not the disk. The host folder shared into the VM answers <code>stat</code> of an existing file from its cache, as fast as local disk, but every lookup of a <b>missing</b> name crosses to the host: network file systems cache what exists far better than what does not. The object store pays a full HTTP request for everything, even a HEAD.</p></div>
+<details class="dp"><summary>The same runs as a table, with the toy's one-server rate <span class="mute">(reference)</span></summary><div class="b"><div class="tw sd-tw" id="sd-mreal"></div></div></details>
+
 <div class="pr"><div class="q">Predict. 16,384 ranks (Llama 3 405B's scale) start at the same second and each runs <code>import torch</code> from a Python environment on the shared file system. Suppose only the 652 failed lookups per rank reach the metadata servers (everything else cached). At 3,000 metadata operations per second, how long is the start-up stall?</div>
 <div class="opts"><button data-a="0">Under a second</button><button data-a="0">About a minute</button><button data-a="1">About an hour</button></div>
-<div class="ans" hidden>16,384 x 652 = 10.7 million lookups; at 3,000 a second that is 3,561 s, about an hour <span class="der">derived</span>, before a single step. With all 17,983 calls reaching the server it would be 27 hours. Real metadata servers are faster than this FSx entry size and clients cache more, so the real number depends on the system, but the shape is why large clusters never run Python from the shared file system: the environment lives in the container image on each node's local disk (squashfs images through enroot and pyxis on Slurm, image layers on Kubernetes), or is unpacked to local NVMe at job start. The <a href="#" data-tab="t-sdmeta">Metadata storm</a> tab computes this for any cluster and store.</div></div>
+<div class="ans" hidden>16,384 x 652 = 10.7 million lookups; at 3,000 a second that is 3,561 s, about an hour <span class="der">derived</span>, before a single step. With all 17,983 calls reaching the server it would be 27 hours. Real metadata servers are faster than this FSx entry size and clients cache more, so the real number depends on the system, but the shape is why large clusters never run Python from the shared file system: the environment lives in the container image on each node's local disk (squashfs images through enroot and pyxis on Slurm, image layers on Kubernetes), or is unpacked to local NVMe at job start. Move the inputs below to try your own cluster.</div></div>
+<div class="rd-card" id="sdm-calc"><h4>The start-up storm: stall = ranks x calls per rank / metadata capacity</h4>
+<p class="small">Calls per rank are measured with <code>strace</code>; how many of them a real client sends to the server depends on its caches, so choose the bound.</p>
+<div class="calc">
+<label>Ranks starting together <input type="number" id="sdm-r" min="1" step="1" value="16384"></label>
+<label>What each rank runs <select id="sdm-w"></select></label>
+<label>Calls that reach the server <select id="sdm-b"><option value="err" selected>only failed lookups (best case)</option><option value="open">opens</option><option value="all">all file-system calls (no caching)</option></select></label>
+<label>Metadata server capacity <select id="sdm-m"></select></label>
+<label>Custom capacity, operations per second <input type="number" id="sdm-cm" min="1" step="100" value="50000"></label>
+</div>
+<div class="out" id="sdm-out"></div>
+<p class="small mute" id="sdm-note"></p>
+</div>
+
+<h3>More clients, one metadata server: the rate flattens and every operation waits longer</h3>
+<p>On the toy, 16 client processes each create, <code>stat</code> and delete 300 files of their own through one metadata server held to half a CPU, then through two (the idea of Lustre's <dfn>DNE</dfn>, Distributed Namespace: names hashed over servers).</p>
+<div class="rd-card" id="sdm-anim-card">
+<h4>The same 14,400 operations from 16 clients: a second metadata server gives 1.6 times the rate, not 2</h4>
+<p class="small">16 processes x 300 files x (create, stat, unlink). The bar is completed operations at the measured aggregate rate, on one clock for both modes; each client's dot is busy while it waits for its answer.</p>
+<div class="seg" id="sdm-mode"><button data-m="1" class="on">One metadata server</button><button data-m="2">Two (DNE)</button></div>
+<div class="sv" id="sdm-svg"></div>
+<div class="an-cap" id="sdm-cap"></div>
+<div class="an-cnt" id="sdm-cnt"></div>
+<div class="an-ctl" id="sdm-ctl"></div>
+</div>
+<div class="sv" id="sdm-curve"></div>
+<p class="small">Two metadata servers served 16 clients at 2,635 operations per second against 1,603 for one <span class="meas">measured</span>. The server, not the clients, was the limit: at 16 and 32 clients its container used all of its half CPU while the client container used about a fifth of its two, and 32 clients got fewer operations per second than 16 and waited twice as long for each.</p>
+<details class="dp"><summary>CPU use during the runs, and DNE on real Lustre <span class="mute">(depth)</span></summary><div class="b">
+<div class="tw" id="sdm-cpu"></div>
+<p>One MDS serves a whole Lustre file system until DNE adds more: a directory can live on another MDT (<code>lfs mkdir -i mdt_index</code>), or one huge directory can be spread over several with <code>lfs mkdir -c mdt_count</code>, "indended [sic] for specific applications where many output files are being created in one large directory (over 50k entries)".</p>
+</div></details>
+
 <h3>The fixes, in the order to try them</h3>
 <ul class="tight">
-<li><b>Keep code and environments off shared storage</b>: container images or a packed environment copied to local disk once per node.</li>
+<li><b>Keep code and environments off shared storage</b>: container images or a packed environment copied to local disk once per node. Symptom when you do not: jobs take minutes to reach step 1, get slower as they get bigger, and the metadata server sits at 100% while the OSTs idle.</li>
 <li><b>Pack data into big shards</b> (tens to hundreds of MB): one open per shard instead of per sample. Formats are on <a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">Storage and loading at scale</a>.</li>
 <li><b>One file per rank for checkpoints, not one per tensor</b>: DCP writes one <code>.distcp</code> file per rank plus one <code>.metadata</code> (section 8).</li>
 <li><b>Big output directories</b>: spread over MDTs with a DNE striped directory, or hash into subdirectories; never <code>ls -l</code> or <code>find</code> over millions of entries on a busy file system (each entry is a <code>stat</code>).</li>
 <li><b>Small files that must exist</b>: Data on MDT, so each costs one server.</li>
-<li><b>More metadata servers</b> (DNE on Lustre, more metadata IOPS on FSx) when the workload truly needs them: on the toy, a second metadata server took 16 clients from 1,603 to 2,635 operations per second <span class="meas">measured</span>.</li>
+<li><b>More metadata servers</b> (DNE on Lustre, more metadata IOPS on FSx) when the workload truly needs them.</li>
 </ul>
 <div class="io-moved">
-<h3>Measured: the same bytes as big files and as small ones, and prefetch</h3>
-<p>In the root page's Storage lab <span class="meas">measured</span>: reading training data is the easy pattern: sequential, predictable, and small next to the compute for text (the <a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">throughput calculator on Storage and loading</a> shows Llama 3 405B needed about 11 MB/s of token ids for the whole job). Two things still go wrong, and both are about <b>requests</b>, not bytes. Measured with 64 MiB of the running example's token ids, stored as 16 files of 4 MiB or as 16,384 files of 4 KiB (the same bytes), on a Docker volume and on the S3 store, from one container <span class="io-tag io-measured">measured</span>:</p>
+<h3>Measured: the same bytes as big files and as small ones</h3>
+<p>Reading training data is the easy pattern: sequential, predictable, and small next to the compute for text (the <a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">throughput calculator on Storage and loading</a> shows Llama 3 405B needed about 11 MB/s of token ids for the whole job). What still goes wrong is about <b>requests</b>, not bytes. 64 MiB of the running example's token ids, stored as 16 files of 4 MiB or as 16,384 files of 4 KiB (the same bytes), on a Docker volume and on the S3 store, from one container, in the root page's Storage lab <span class="io-tag io-measured">measured</span>:</p>
 <div class="io-card"><div class="tw"><table class="io-tbl"><thead><tr><th>Same 64 MiB as</th><th>Store</th><th class="num">Write</th><th class="num">Read, 1 at a time</th><th class="num">Read, 16 threads</th></tr></thead><tbody id="io-dr-rows"></tbody></table></div>
 <p class="small" id="io-dr-text"></p></div>
-<p><b>The small-files problem.</b> Each file costs an open, a metadata lookup and a close; each object costs an HTTP request. At 4 KiB per file those fixed costs are the whole bill. On a parallel file system they land on the metadata servers, which are far fewer than the storage servers: FSx for Lustre, for example, includes 1,500 metadata IOPS at 1.2 TiB and serves 2 file create/open/close operations per metadata IOPS <span class="io-tag io-vendor">vendor</span> (<a href="https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html" target="_blank" rel="noopener noreferrer">AWS</a>), so a thousand nodes each opening millions of tiny files saturate it long before the disks are busy. The cure is the one <a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">Storage and loading</a> teaches: pack samples into shards of tens to hundreds of megabytes. Checkpoints obey the same rule: DCP writes one file per rank, not one per tensor.</p>
-<p><b>Prefetch.</b> A loader that fetches the next shard only when it needs it adds the fetch to every step; one that keeps the next shards in flight hides it, as long as fetching is faster than computing. A loop that needs one 4 MiB shard per step and computes for 100 ms (a sleep standing in for the GPU):</p>
-<div class="io-card" id="io-pf-card"><div class="seg" id="io-pf-st"><button data-m="s3" class="on">S3 store</button><button data-m="local">Docker volume</button></div>
-<div id="io-pf-svg" class="io-svg"></div><p class="small" id="io-pf-text"></p></div>
+<p>Each file costs an open, a metadata lookup and a close; each object costs an HTTP request. At 4 KiB per file those fixed costs are the whole bill, and on a parallel file system they land on the metadata servers (FSx's 2 file create/open/close operations per metadata IOPS <span class="io-tag io-vendor">vendor</span>), so a thousand nodes each opening millions of tiny files saturate it long before the disks are busy, and the whole cluster slows, not only your job.</p>
+<details class="dp" id="io-pf-card"><summary>Prefetch hides the fetch only while fetching is faster than computing <span class="mute">(depth; loaders are owned by Storage and loading)</span></summary><div class="b">
+<p>A loader that fetches the next shard only when it needs it adds the fetch to every step; one that keeps the next shards in flight hides it, as long as fetching is faster than computing. A loop that needs one 4 MiB shard per step and computes for 100 ms (a sleep standing in for the GPU) <span class="io-tag io-measured">measured</span>:</p>
+<div class="seg" id="io-pf-st"><button data-m="s3" class="on">S3 store</button><button data-m="local">Docker volume</button></div>
+<div id="io-pf-svg" class="io-svg"></div><p class="small" id="io-pf-text"></p>
+</div></details>
 </div>
 </section>
 <section id="rd-s5">
 <h2>5. Object storage: what it promises, and how fast it goes</h2>
-<p>An <dfn>object store</dfn> keeps <dfn>objects</dfn> (a key, the bytes, a little metadata) in <dfn>buckets</dfn>. The key <code>ckpt/step_000200/__3_0.distcp</code> looks like a path, but there are no directories: the slashes are characters, and "listing a directory" is asking for keys that start with a prefix. The rules below are Amazon S3's, quoted from its documentation (read 2026-10-16); Google Cloud Storage and Azure Blob differ in detail, not in kind. Every behaviour marked <span class="meas">measured</span> was run against <b>SeaweedFS 4.48</b> (the parent's S3 stand-in, MinIO's images being unavailable), set up as a real distributed store: one master, three volume servers and one filer with its S3 gateway, in capped containers (<code>src/runs/run_seaweed.sh</code>).</p>
-<h3>The semantics, and what each one means for a checkpoint</h3>
+<p>An object store keeps <dfn>objects</dfn> (a key, the bytes, a little metadata) in <dfn>buckets</dfn>. The key <code>ckpt/step_000200/__3_0.distcp</code> looks like a path, but there are no directories: the slashes are characters, and "listing a directory" is asking for keys that start with a prefix. The rules below are Amazon S3's, quoted from its documentation (read 2026-10-16); Google Cloud Storage and Azure Blob differ in detail, not in kind. Every behaviour marked <span class="meas">measured</span> ran against <b>SeaweedFS 4.48</b> set up as a real distributed store (one master, three volume servers, one filer with its S3 gateway, in capped containers; <code>src/runs/run_seaweed.sh</code>); MinIO was the plan, but its images could no longer be pulled on 2026-10-16.</p>
+<h3>The semantics, and what each one means for a checkpoint writer</h3>
 <div class="tw sd-tw"><table class="rd-cmp">
 <thead><tr><th>Rule</th><th>S3's words</th><th>For a checkpoint writer</th><th>Here</th></tr></thead>
 <tbody>
@@ -424,10 +546,14 @@ lmm_stripe_offset: 0
 <h3>The throughput model: requests, prefixes and connections</h3>
 <p><b>Per request.</b> S3 quotes "roughly 100-200 milliseconds" of latency for small objects and to the first byte of large ones, and "at least 3,500 PUT/COPY/POST/DELETE or 5,500 GET/HEAD requests per second per partitioned Amazon S3 prefix. There are no limits to the number of prefixes in a bucket." Scaling to a higher rate "happens gradually", with "503 (Slow Down)" errors meanwhile (<a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance.html" target="_blank" rel="noopener noreferrer">S3 performance guide</a>) <span class="vend">vendor</span>. So a checkpoint of 16,384 shards written in one second under one prefix asks for 4.7 times one prefix's write rate <span class="der">derived</span> (16,384 / 3,500): spread keys over prefixes (by rank, for example) and retry with backoff.</p>
 <p><b>Per connection.</b> One connection is limited by its latency and the server's per-stream rate, so throughput comes from many at once: "You can use concurrent connections to Amazon S3 to fetch different byte ranges from within the same object", with GETs aligned to the upload's part boundaries, up to a single instance's "100 Gb/s". Fast clients exist for exactly this: s5cmd's README quotes a user benchmark in which it "can saturate a 40Gbps link (~4.3 GB/s), whereas s3cmd and aws-cli can only reach 85 MB/s and 375 MB/s" (<a href="https://github.com/peak/s5cmd" target="_blank" rel="noopener noreferrer">s5cmd</a>) <span class="indep">independent</span>, undated.</p>
-<p><b>Measured on the stand-in</b>, one 256 MiB object, medians of 3 <span class="meas">measured</span>:</p>
+<p><b>Measured on the stand-in: eight ranged GETs at once beat one; eight parallel parts barely beat one</b> (one 256 MiB object, medians of 3) <span class="meas">measured</span>:</p>
 <div class="bars sd-bars" id="sd-s3bars"></div>
-<p class="small">Parallel ranged GETs helped downloads (363 to 477 MB/s); parallel parts barely helped uploads (80 to 112 MB/s) because the store, one filer on one CPU and three volume servers on half a CPU each, was already the bottleneck. That is the lesson that transfers: concurrency moves the limit from the client's round trips to the servers, and on a laptop the servers are small. On S3 the server side is effectively unbounded and the limit becomes the node's network card. Our first attempt at this run failed after 16 uploads of 256 MiB to the same key with <code>InternalError ... We encountered an internal error, please try again.</code>: overwritten and deleted data kept its space until the master vacuumed the volumes; vacuuming after each upload fixed it (our inference from the fix, not a SeaweedFS diagnosis).</p>
-<p><b>What a request costs.</b> At S3 Standard's $0.005 per 1,000 PUTs and $0.0004 per 1,000 GETs (AWS Price List, published 2026-10-15, us-east-1) <span class="pub">published</span>, writing a million 4 KiB files costs $5.00 in requests and their 4.1 GB of storage $0.09 a month <span class="der">derived</span>: small objects are billed by count, not size. <dfn>S3 Express One Zone</dfn> trades durability across zones for "consistent, single-digit millisecond data access" in one Availability Zone, up to "200,000 read TPS" and "100,000 write TPS" per directory bucket (<a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-bucket-high-performance.html" target="_blank" rel="noopener noreferrer">AWS</a>) <span class="vend">vendor</span>, at $0.11 per GB-month against $0.023: a place for hot data and fast checkpoints, not for the copy of record.</p>
+<p class="small">Parallel ranged GETs helped downloads (363 to 477 MB/s); parallel parts barely helped uploads (80 to 112 MB/s) because the store, one filer on one CPU and three volume servers on half a CPU each, was already the bottleneck. That is the lesson that transfers: concurrency moves the limit from the client's round trips to the servers, and on a laptop the servers are small. On S3 the server side is effectively unbounded and the limit becomes the node's network card.</p>
+<p><b>What a request costs.</b> At S3 Standard's $0.005 per 1,000 PUTs and $0.0004 per 1,000 GETs (AWS Price List, published 2026-10-15, us-east-1) <span class="pub">published</span>, writing a million 4 KiB files costs $5.00 in requests and their 4.1 GB of storage $0.09 a month <span class="der">derived</span>: small objects are billed by count, not size.</p>
+<details class="dp"><summary>S3 Express One Zone, and the run that filled the store <span class="mute">(depth)</span></summary><div class="b">
+<p><dfn>S3 Express One Zone</dfn> trades durability across zones for "consistent, single-digit millisecond data access" in one Availability Zone, up to "200,000 read TPS" and "100,000 write TPS" per directory bucket (<a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-bucket-high-performance.html" target="_blank" rel="noopener noreferrer">AWS</a>) <span class="vend">vendor</span>, at $0.11 per GB-month against $0.023: a place for hot data and fast checkpoints, not for the copy of record.</p>
+<p>Our first attempt at this run failed after 16 uploads of 256 MiB to the same key with <code>InternalError ... We encountered an internal error, please try again.</code>: overwritten and deleted data kept its space until the master vacuumed the volumes; vacuuming after each upload fixed it (our inference from the fix, not a SeaweedFS diagnosis).</p>
+</div></details>
 </section>
 <section id="rd-s6">
 <h2>6. Caches and tiers in between</h2>
@@ -442,18 +568,26 @@ lmm_stripe_offset: 0
 <tr><td>JuiceFS</td><td data-h="Fills">its own metadata engine; data cut into 64 MB chunks and 4 MB blocks stored as objects (<a href="https://juicefs.com/docs/community/architecture/" target="_blank" rel="noopener noreferrer">JuiceFS architecture</a>)</td><td data-h="Good for">POSIX over any object store, with local caches</td><td data-h="Watch">"you cannot find the original file directly in the object storage": the bucket is only readable through JuiceFS</td></tr>
 <tr><td>Alluxio</td><td data-h="Fills">a distributed cache in front of object stores</td><td data-h="Good for">analytics: the open-source edition "is purpose-built for analytics workloads"</td><td data-h="Watch">for AI it points to its Enterprise Edition; the open-source line has had no release since mid-2024, v2.9.x (<a href="https://github.com/Alluxio/alluxio" target="_blank" rel="noopener noreferrer">Alluxio</a>)</td></tr>
 </tbody></table></div>
+<figure class="ph"><img src="img/nvme_u2_drive.webp" alt="Two 2.5-inch U.2 NVMe solid-state drives, one showing its SFF-8639 connector edge, the other its label" loading="lazy" width="640" height="367">
+<figcaption>The local tier is a handful of drives like these inside each node: U.2 NVMe, 2.5 inches, on PCIe (this one 800 GB). A DGX H100 has eight 3.84 TB drives for staging and first checkpoint copies; they die with the node, so they are never the only copy.<span class="cr">Photo: Dmitry Nosachev, <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>, <a href="https://commons.wikimedia.org/wiki/File:OCZ_Z6300_NVMe_flash_SSD,_U.2_(SFF-8639)_form-factor.jpg" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a>.</span></figcaption></figure>
 <p><b>When a cache helps, in one line.</b> It pays only for bytes read more than once. Single-pass pretraining reads each token about once, so a data cache adds nothing but a copy; multi-epoch fine-tuning, many jobs reading the same dataset, evaluation sets, model weights loaded by every serving replica, and container images are where caches earn their space. The second kind of help is latency: a cache on local NVMe answers in microseconds where the object store answers in a tenth of a second, which matters for small files and for random access.</p>
+<details class="dp"><summary>GPUDirect Storage: removing the CPU bounce buffer <span class="mute">(depth)</span></summary><div class="b">
 <p><b>GPUDirect Storage</b> removes a different hop: "a direct data path for direct memory access (DMA) transfers between GPU memory and storage" that "avoids a bounce buffer through the CPU"; NVIDIA's only number is that such a path "offers at least twice the peak bandwidth as compared to taking a data path through the CPU" on suitable PCIe topologies (<a href="https://docs.nvidia.com/gpudirect-storage/overview-guide/index.html" target="_blank" rel="noopener noreferrer">GDS overview v1.19.1</a>) <span class="vend">vendor</span>. It needs supported NVMe or network storage and code written to the cuFile API; not run here.</p>
+</div></details>
 <div class="io-moved">
-<h4>Measured: the same checkpoint on six local stand-ins</h4>
-<p class="small mute">From the root page's Storage lab (Apple M1 Pro, Docker Desktop's Linux VM, shared machine; medians of repeated runs).</p>
-<p>Nothing on a laptop behaves like a 2 TB/s file system, but the <i>order</i> of the tiers and the reasons for it reproduce. The running example's checkpoint, and the same GPT made wider (d 256, 4 layers: 3.2M parameters; d 512, 8 layers: 25.3M), each written with <code>torch.save</code>, flushed to the device with <code>fsync</code>, renamed into place, then read back after dropping it from the page cache:</p>
+<h4>Measured: the same checkpoint on six local stand-ins; the path that looks local is the slowest</h4>
+<p>From the root page's Storage lab (Apple M1 Pro, Docker Desktop's Linux VM, shared machine; medians of repeated runs). Nothing on a laptop behaves like a 2 TB/s file system, but the <i>order</i> of the tiers and the reasons for it reproduce. The running example's checkpoint, and the same GPT made wider (d 256, 4 layers: 3.2M parameters; d 512, 8 layers: 25.3M), each written with <code>torch.save</code>, flushed to the device with <code>fsync</code>, renamed into place, then read back after dropping it from the page cache:</p>
+<details class="dp"><summary>The six stand-ins, and what each one stands for <span class="mute">(provenance)</span></summary><div class="b">
 <ul class="tight small">
 <li><b>Mac SSD, native</b>: the laptop's own disk (stands for local NVMe). <code>fsync</code> on macOS does not flush the drive's cache; <code>F_FULLFSYNC</code> does, and is used here.</li>
 <li><b>Container layer</b> and <b>Docker volume</b>: a file system on the Linux VM's virtual disk (what the Slurm and Ray clusters mount as <code>/shared</code>).</li>
 <li><b>Host folder shared into the VM</b>: every operation crosses from the VM to macOS and back (what the kind cluster mounts as <code>/shared</code>): a network file system in miniature.</li>
 <li><b>S3 from a container</b> and <b>S3 from the Mac</b>: an S3-compatible store (SeaweedFS 4.48) in one container. MinIO was the plan, but its repository is archived and its images could no longer be pulled on 2026-10-16 (Docker Hub: "pull access denied", quay.io: "unauthorized"). From the Mac, requests also cross Docker Desktop's port forwarding.</li>
 </ul>
+</div></details>
+<div class="io-pr"><div class="q">Predict: which local target is slowest for the 304 MB checkpoint: the object store or the shared host folder?</div>
+<div class="opts"><button data-a="0">The object store: HTTP, multipart uploads, a separate server</button><button data-a="1">The shared folder: it looks like a local path</button></div>
+<div class="ans" hidden id="io-pr1-ans"></div></div>
 <div class="io-card" id="io-tiers-card">
 <div class="seg" id="io-tiers-op"><button data-m="write" class="on">Write (save + fsync + rename)</button><button data-m="read">Read (cold) + load</button></div>
 <div class="seg" id="io-tiers-sz"><button data-m="ex">1.39 MB (running example)</button><button data-m="m">38.6 MB</button><button data-m="l" class="on">304 MB</button></div>
@@ -461,33 +595,29 @@ lmm_stripe_offset: 0
 <p class="small mute" id="io-tiers-note"></p>
 </div>
 <p id="io-tiers-text"></p>
-<div class="io-pr"><div class="q">Predict: which local target is slowest for the 304 MB checkpoint: the object store or the shared host folder?</div>
-<div class="opts"><button data-a="0">The object store: HTTP, multipart uploads, a separate server</button><button data-a="1">The shared folder: it looks like a local path</button></div>
-<div class="ans" hidden id="io-pr1-ans"></div></div>
 </div>
 </section>
 
 <section id="rd-s7">
 <h2>7. Moving data: staging, checkpoint paths, other regions</h2>
-<p><b>Staging a dataset</b> is a copy, and a copy's time is its size over the narrowest pipe: <code>t = bytes / min(source read, destination write, the link between)</code>. 100 TB over one 100 Gb/s (12.5 GB/s) link takes 2.2 hours <span class="der">derived</span>, and many files make it slower, because a single-threaded copy also pays a metadata round trip per file. The tools that parallelise both:</p>
+<p><b>Staging a dataset</b> is a copy, and a copy's time is its size over the narrowest pipe: <code>t = bytes / min(source read, destination write, the link between)</code>. 100 TB over one 100 Gb/s (12.5 GB/s) link takes 2.2 hours <span class="der">derived</span>, and many files make it slower, because a single-threaded copy also pays a metadata round trip per file; the fix is a copy tool that parallelises both.</p>
+<details class="dp"><summary>The tools that parallelise a copy: mpiFileUtils, s5cmd, Slurm's sbcast and burst buffers <span class="mute">(depth)</span></summary><div class="b">
 <ul class="tight">
 <li><b>mpiFileUtils</b> (<code>dcp</code>, <code>dsync</code>): MPI-parallel copy and sync for file systems, "providing speedups of up to 20-30x"; "dsync is the recommended way to make a copy a large set of files" (<a href="https://github.com/hpc/mpifileutils" target="_blank" rel="noopener noreferrer">mpiFileUtils</a>) <span class="pub">authors</span>.</li>
 <li><b>s5cmd</b> or a CRT-based S3 client for object stores: many connections, ranged parts (section 5).</li>
 <li><b>Slurm</b>: <code>sbcast</code> "is used to transmit a file to all nodes allocated to the currently active Slurm job" to local disk (good for one binary or one environment tarball; the docs warn "parallel file systems may provide better performance"), and burst-buffer plugins (<code>datawarp</code>, <code>lua</code>) that run stage-in and stage-out scripts around a job (<a href="https://slurm.schedmd.com/burst_buffer.html" target="_blank" rel="noopener noreferrer">burst buffers</a>). The sibling <a href="https://app.notion.com/p/3c65c17b0d0d81889c32cd050bbbadd3" target="_blank" rel="noopener noreferrer">Slurm</a> page covers job prologs and epilogs.</li>
 </ul>
+</div></details>
 <p><b>A checkpoint's path to safety</b>, fastest first. Each hop is asynchronous from the one before, so training stops only for the first:</p>
 <ol class="sd-steps">
 <li><b>GPU memory to host memory</b>: the copy that asynchronous DCP blocks on (the parent's lab: training stopped 77.9 ms per checkpoint instead of 1.81 s on its slow folder <span class="meas">measured</span>); torchtitan exposes it as <code>async_mode</code> "disabled", "async" or "async_with_pinned_mem" (<a href="https://github.com/pytorch/torchtitan" target="_blank" rel="noopener noreferrer">torchtitan</a>).</li>
-<li><b>Host memory to local NVMe or a peer's memory</b>: survives the process, not the node. In-memory checkpoints in other nodes' RAM recover far faster than remote storage allows: Gemini reports "more than 13x" faster failure recovery and that checkpointing MT-NLG's states takes "42 minutes" to remote storage at 20 Gbps (<a href="https://cdn.amazon.science/29/31/6523473f48e4af52252bac56ef51/gemini-fast-failure-recovery-in-distributed-training-with-in-memory-checkpoints.pdf" target="_blank" rel="noopener noreferrer">Gemini, SOSP 2023</a>) <span class="pub">authors</span>. The sibling <a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a> page compares these designs.</li>
+<li><b>Host memory to local NVMe or a peer's memory</b>: survives the process, not the node. In-memory checkpoints in other nodes' RAM recover far faster than remote storage allows: Gemini (an Amazon system, SOSP 2023, not Google's model) reports "more than 13x" faster failure recovery and that checkpointing MT-NLG's states takes "42 minutes" to remote storage at 20 Gbps (<a href="https://cdn.amazon.science/29/31/6523473f48e4af52252bac56ef51/gemini-fast-failure-recovery-in-distributed-training-with-in-memory-checkpoints.pdf" target="_blank" rel="noopener noreferrer">Gemini, SOSP 2023</a>) <span class="pub">authors</span>. The sibling <a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a> page compares these designs.</li>
 <li><b>To the parallel file system</b>: survives nodes; this is where the burst lands (section 9).</li>
 <li><b>To the object store</b>: survives the cluster; retention lives here. torchtitan keeps the latest 10 by default (<code>keep_latest_k: int = 10</code>, interval 500 steps), so capacity is about ten checkpoints, not one. Megatron Core writes straight to object stores with <code>--save msc://my-profile/checkpoints</code> through NVIDIA's Multi-Storage Client (<a href="https://docs.nvidia.com/megatron-core/developer-guide/latest/user-guide/msc_integration.html" target="_blank" rel="noopener noreferrer">Megatron Core MSC</a>); FSx can export to its linked bucket automatically.</li>
 </ol>
-<p><b>Other regions and clouds</b> cost money as well as time. AWS charges $0.02 per GB from us-east-1 to us-west-2, $0.01 to us-east-2, and $0.09 per GB for the first 10 TB a month out to the internet; inbound is free (AWS Price List, AWSDataTransfer, published 2026-09-16) <span class="pub">published</span>. One 405B checkpoint at MLPerf Storage's 5.29 TB costs about $106 to copy to another US region and about $476 to take out to the internet, and takes 423 s over a dedicated 100 Gb/s link <span class="der">derived</span>. Keeping ten of them in a second region doubles their storage bill, which is why most labs replicate only selected checkpoints.</p>
 <div class="io-moved">
-<h3>Asynchronous checkpointing, measured: stop for the copy, not for the write</h3>
-<p class="small mute">From the root page's Storage lab (Apple M1 Pro, Docker Desktop VM and native, shared machine).</p>
-<p>A synchronous checkpoint stops training for the whole write. An <dfn>asynchronous checkpoint</dfn> splits it in two: first <b>stage</b> the state into host memory (from GPU memory, a PCIe copy of each rank's shard), then let training continue while a background thread writes the staged copy to storage. Training stands still only for the copy. The cost: a second copy of the state in host RAM, and the write must finish before the next checkpoint starts.</p>
-<p>The same 60 training steps of the 3.2M-parameter GPT (4 ranks, a checkpoint every 15 steps, DCP), run three times: without checkpoints, with <code>dcp.save</code>, and with <code>dcp.async_save</code>. Step times are each step's slowest rank <span class="io-tag io-measured">measured</span>:</p>
+<h3>Asynchronous checkpointing, measured: training stops for the copy, not for the write</h3>
+<p>An <dfn>asynchronous checkpoint</dfn> splits the save in two: <b>stage</b> the state into host memory (a PCIe copy of each rank's shard), then let training continue while a background thread writes the staged copy. The cost: a second copy of the state in host RAM, and the write must finish before the next checkpoint starts. The same 60 training steps of the 3.2M-parameter GPT (4 ranks, DCP, a checkpoint every 15 steps) without checkpoints, with <code>dcp.save</code> and with <code>dcp.async_save</code>; step times are each step's slowest rank, from the root page's Storage lab (Apple M1 Pro, Docker Desktop VM and native, shared machine) <span class="io-tag io-measured">measured</span>:</p>
 <div class="io-card" id="io-as-card">
 <div class="seg" id="io-as-tgt"><button data-m="slow_bind" class="on">Slow shared folder (container)</button><button data-m="slow_vol">Docker volume (container)</button><button data-m="native">Mac SSD (native, 25.3M parameters)</button></div>
 <div id="io-as-svg" class="io-svg"></div>
@@ -497,15 +627,16 @@ lmm_stripe_offset: 0
 <div class="io-out" id="io-as-out"></div>
 </div>
 <p id="io-as-text"></p>
-<p><b>Published, at scale:</b> PyTorch and IBM report that asynchronous DCP cut the time a 7B model's training stood still per checkpoint from 148.8 s to 6.3 s on average, the 6.3 s being the copy to CPU memory <span class="io-tag io-published">published</span> (<a href="https://pytorch.org/blog/reducing-checkpointing-times/" target="_blank" rel="noopener noreferrer">PyTorch blog, November 2024</a>). Gemini went further and kept redundant copies of model state in other hosts' memory, raising its largest job's goodput from 85% to 97% (<a href="https://arxiv.org/abs/2312.11805" target="_blank" rel="noopener noreferrer">Gemini 1.0 report, section 3</a>).</p>
-<div class="co warn"><div class="t">The async trap we hit: give the background writer its own process group</div>
+<p><b>Published, at scale:</b> PyTorch and IBM report that asynchronous DCP cut the time a 7B model's training stood still per checkpoint from 148.8 s to 6.3 s on average, the 6.3 s being the copy to CPU memory <span class="io-tag io-published">published</span> (<a href="https://pytorch.org/blog/reducing-checkpointing-times/" target="_blank" rel="noopener noreferrer">PyTorch blog, November 2024</a>). Google's Gemini 1.0 report describes keeping redundant copies of model state in other hosts' memory, raising its largest job's goodput from 85% to 97% (<a href="https://arxiv.org/abs/2312.11805" target="_blank" rel="noopener noreferrer">Gemini 1.0 report, section 3</a>).</p>
+<details class="dp"><summary>The async trap we hit: give the background writer its own process group <span class="mute">(a real hang and crash)</span></summary><div class="b">
 <p class="small">DCP's save runs collectives (it gathers every rank's plan and agrees the file is complete). <code>async_save</code> runs them in a background thread; if that thread uses the same process group as training, two threads issue collectives on one channel at once. Our first attempt (4 ranks, gloo, native) <b>hung</b>: every rank at 0% CPU after the first checkpoint, nothing printed for over four minutes. A rerun <b>crashed</b> 3 s after the checkpoint, two ranks aborting with:</p>
 <div class="io-err">gloo::EnforceNotMet: [enforce fail at .../third_party/gloo/gloo/transport/uv/pair.cc:253] op.nread == op.preamble.nbytes</div>
-<p class="small">The fix is one line, the one the PyTorch blog recommends: create a group once, <code>ck_pg = dist.new_group(backend="gloo")</code>, and pass <code>process_group=ck_pg</code> to <code>async_save</code>. All runs above use it.</p></div>
+<p class="small">The fix is one line, the one the PyTorch blog recommends: create a group once, <code>ck_pg = dist.new_group(backend="gloo")</code>, and pass <code>process_group=ck_pg</code> to <code>async_save</code>. All runs above use it.</p></div></details>
 </div>
+<p><b>Other regions and clouds</b> cost money as well as time. AWS charges $0.02 per GB from us-east-1 to us-west-2, $0.01 to us-east-2, and $0.09 per GB for the first 10 TB a month out to the internet; inbound is free (AWS Price List, AWSDataTransfer, published 2026-09-16) <span class="pub">published</span>. One 405B checkpoint at MLPerf Storage's 5.29 TB costs about $106 to copy to another US region and about $476 to take out to the internet, and takes 423 s over a dedicated 100 Gb/s link <span class="der">derived</span>. Keeping ten of them in a second region doubles their storage bill, which is why most labs replicate only selected checkpoints.</p>
 </section>
 <section id="rd-s8">
-<h2>8. Checkpoint formats, seen as files and byte ranges</h2>
+<h2>8. Checkpoints seen as files and byte ranges</h2>
 <div class="io-moved">
 <h3>What is in a checkpoint, measured</h3>
 <p>A <dfn>checkpoint</dfn> is everything needed to continue training as if nothing had happened: the weights, the optimiser's state, the step number, and anything else that carries state (random number generators, the data loader's position, the learning-rate schedule). Leave any of it out and a resumed run differs from an uninterrupted one. The running example needs only three things, because its batches depend only on (seed, step) and it uses no randomness after initialisation; this is why its resume is bit-exact.</p>
@@ -521,6 +652,37 @@ lmm_stripe_offset: 0
 <thead><tr><th>Model</th><th class="num">Parameters</th><th class="num">Training checkpoint at 14 B</th><th class="num">Per GPU, fully sharded</th><th class="num">Inference weights at 2 B</th></tr></thead>
 <tbody id="io-scale-rows"></tbody></table></div>
 <p class="small mute">All rows <span class="io-tag io-derived">derived</span>: size = parameters x bytes per parameter; per GPU = size / GPUs (64 and 1,024 GPUs for the 8B and 70B rows are illustrative choices), assuming the optimiser state is sharded over every GPU (as with FSDP or ZeRO-3 across all data-parallel ranks). Llama 3 405B trained on up to 16,384 GPUs (<a href="https://arxiv.org/html/2407.21783v3#S3.SS3" target="_blank" rel="noopener noreferrer">Llama 3 &sect;3.3</a>); the paper says its checkpoint writes range "from 1 MB to 4 GB per GPU", and 346 MB per GPU falls inside that range: a consistency check, not a reproduction. DeepSeek-V3 has 671B parameters and trained on 2,048 H800 GPUs (<a href="https://arxiv.org/abs/2412.19437" target="_blank" rel="noopener noreferrer">DeepSeek-V3 report</a>); its real per-GPU layout (expert parallelism, FP8) differs, so its row shows only the arithmetic.</p>
+</div>
+<div class="io-moved">
+<h3>The burst, measured: every rank writes at once</h3>
+<p>Training is synchronous: at the checkpoint step every rank reaches the save at the same moment, and they share whatever aggregate write bandwidth there is. Who writes what decides both the bytes and the time:</p>
+<ul class="tight">
+<li><b>Rank 0 writes everything</b> (train.py's way, fine for DDP, where every rank holds a full copy): one writer, one link.</li>
+<li><b>Every rank writes everything</b>: the forgotten <code>if rank == 0</code>. Same file content, written N times.</li>
+<li><b>Consolidated (gather, then one file)</b>: with a sharded model (FSDP, ZeRO-3), the pieces are first sent to rank 0 over the network, then rank 0 writes one file. Needs the whole state in rank 0's memory.</li>
+<li><b>Sharded (PyTorch Distributed Checkpoint, DCP)</b>: every rank writes its own piece to its own file, in parallel, plus a small <code>.metadata</code> file mapping pieces to tensors. No gather, no single writer.</li>
+</ul>
+<p>Measured with 4 ranks in one container (2 CPUs, gloo) and the 3.2M-parameter GPT (38.6 MB of state), three repetitions each, on the slow shared folder and on a Docker volume <span class="io-tag io-measured">measured</span>:</p>
+<div class="io-card" id="io-lay-card">
+<div class="seg" id="io-lay-tgt"><button data-m="slow_bind" class="on">Slow shared folder</button><button data-m="slow_vol">Docker volume</button></div>
+<div id="io-lay-svg" class="io-svg"></div>
+<div class="io-leg"><span><i style="background:var(--c4)"></i>gathering pieces to rank 0</span><span><i style="background:var(--c1)"></i>writing (and fsync)</span><span><i style="background:var(--soft);border:1px solid var(--line)"></i>waiting for the others</span></div>
+<p class="small" id="io-lay-text"></p>
+</div>
+<p><b>What this shows, and what it cannot.</b> Bytes on a shared pipe cost time: four copies took about three times as long as one. Sharding did <i>not</i> make the write faster here, because all four ranks share one container, one virtual disk and one file-sharing channel. On a cluster every node has its own link to storage (a DGX B200 has two BlueField-3 storage ports at up to 400 Gb/s each, <a href="https://docs.nvidia.com/dgx/dgxb200-user-guide/introduction-to-dgxb200.html" target="_blank" rel="noopener noreferrer">NVIDIA</a>), so N nodes writing their shards use N links at once, while a consolidated write squeezes the whole state through one; the <a href="#" data-tab="t-sdsize">Sizing calculator</a> does that arithmetic. The local run does show the hidden cost of consolidating: on the fast volume, gathering 38.6 MB to rank 0 took longer than writing it. Save sharded during training; consolidate once, offline, when exporting.</p>
+<details class="dp"><summary>Why DCP on a replicated model still writes one copy: the de-duplication code <span class="mute">(source)</span></summary><div class="b">
+<div class="io-src"><div class="f">torch/distributed/checkpoint/_dedup_save_plans.py, lines 20-21 and 43-48, PyTorch v2.14.1</div>
+<pre>    Removes duplicate entries from appearing on multiple SavePlans. For each duplicate across
+    a set of SavePlans, only the smallest SavePlan in terms of planned storage keeps the entry.
+...
+        if save_to_lowest_rank:
+            select_plan_idx = min(plan_indices)
+        else:
+            select_plan_idx = min(
+                plan_indices, key=lambda plan_idx: plan_to_size[plan_idx]
+            )</pre>
+This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes about one copy, spread over all ranks: each tensor that every rank holds is assigned to whichever rank has the least to write so far. The default planner calls it from <code>default_planner.py</code> line 137.</div>
+</div></details>
 </div>
 <p>With the contents known, the question is what the storage sees: how many files or objects, how big, and which byte ranges a reader must fetch. Measured on the Storage lab's 25,319,489-parameter GPT (FSDP2 over 4 ranks, AdamW, three steps; <code>src/runs/ckpt_formats.py</code>, native on the Mac, torch 2.14.1) <span class="meas">measured</span>.</p>
 <h3>PyTorch Distributed Checkpoint (DCP): one file per rank, plus a map</h3>
@@ -539,7 +701,8 @@ lmm_stripe_offset: 0
 <div class="an-cnt" id="sd-rs-cnt"></div>
 <div class="an-ctl" id="sd-rs-ctl"></div>
 </div>
-<p><b>Why 3 ranks read 1.5 times the checkpoint.</b> A new rank that owns rows 0 to 21 of a tensor saved in chunks of 17 needs part of the second chunk, and DCP's file reader fetches whole stored chunks, then copies the slice it needs:</p>
+<p><b>Why 3 ranks read 1.5 times the checkpoint.</b> A new rank that owns rows 0 to 21 of a tensor saved in chunks of 17 needs part of the second chunk, and DCP's file reader fetches whole stored chunks, then copies the slice it needs. Measured: 4 ranks to 3 read 1.50 times the checkpoint's bytes, 4 to 2 read 1.00 times <span class="meas">measured</span>. A divisor of the old world size reads each byte once; at a non-divisor the overlapping chunks are read by two ranks each: on a parallel file system 50% more restore traffic, on an object store 50% more GET bytes. Plan restore bandwidth for the overlap, or restart at a divisor when you can.</p>
+<details class="dp"><summary>The code that reads whole chunks: DCP's FileSystemReader <span class="mute">(source)</span></summary><div class="b">
 <div class="sd-src"><div class="f">torch/distributed/checkpoint/filesystem.py, lines 869-884, PyTorch v2.14.1</div>
 <pre class="rd-code">    def read_data(self, plan: LoadPlan, planner: LoadPlanner) -&gt; Future[None]:
         # group requests by file
@@ -556,43 +719,19 @@ lmm_stripe_offset: 0
                 for req in reqs:
                     item_md = self.storage_data[req.storage_index]
                     file_slice = self._slice_file(stream, item_md)</pre>
-<p class="small"><code>item_md</code> is the stored chunk's <code>(relative_path, offset, length)</code>; <code>_slice_file</code> (line 860) views exactly that range, so the whole chunk is read even when the new rank needs a few rows of it. Resharding to a divisor of the old world size (4 to 2) reads each byte once; to a non-divisor (4 to 3) the overlapping chunks are read by two ranks each. On a parallel file system that is 50% more restore traffic; on an object store, 50% more GET bytes.</p></div>
+<p class="small"><code>item_md</code> is the stored chunk's <code>(relative_path, offset, length)</code>; <code>_slice_file</code> (line 860) views exactly that range, so the whole chunk is read even when the new rank needs a few rows of it.</p></div>
+</div></details>
 
-<div class="io-moved">
-<h3>The burst, measured: every rank writes at once</h3>
-<p>Training is synchronous: at the checkpoint step, every rank reaches the save at the same moment, and the storage system sees all of them arrive together. Whatever the aggregate write bandwidth is, they share it. Who writes what then decides both the bytes and the time:</p>
-<ul class="tight">
-<li><b>Rank 0 writes everything</b> (train.py's way, fine for DDP, where every rank holds a full copy): one writer, one link.</li>
-<li><b>Every rank writes everything</b>: the forgotten <code>if rank == 0</code>. Same file content, written N times.</li>
-<li><b>Consolidated (gather, then one file)</b>: with a sharded model (FSDP, ZeRO-3), the pieces are first sent to rank 0 over the network, then rank 0 writes one file. Needs the whole state in rank 0's memory.</li>
-<li><b>Sharded (PyTorch Distributed Checkpoint, DCP)</b>: every rank writes its own piece to its own file, in parallel, plus a small <code>.metadata</code> file mapping pieces to tensors. No gather, no single writer.</li>
-</ul>
-<p>Measured with 4 ranks in one container (2 CPUs, gloo) and the 3.2M-parameter GPT (38.6 MB of state), three repetitions each, on the slow shared folder and on a Docker volume <span class="io-tag io-measured">measured</span>:</p>
-<div class="io-card" id="io-lay-card">
-<div class="seg" id="io-lay-tgt"><button data-m="slow_bind" class="on">Slow shared folder</button><button data-m="slow_vol">Docker volume</button></div>
-<div id="io-lay-svg" class="io-svg"></div>
-<div class="io-leg"><span><i style="background:var(--c4)"></i>gathering pieces to rank 0</span><span><i style="background:var(--c1)"></i>writing (and fsync)</span><span><i style="background:var(--soft);border:1px solid var(--line)"></i>waiting for the others</span></div>
-<p class="small" id="io-lay-text"></p>
-</div>
-<p><b>What this shows, and what it cannot.</b> Bytes on a shared pipe cost time: writing four copies took about three times as long as one. But sharding did <i>not</i> make the write faster here, because all four ranks share one container, one virtual disk and one file-sharing channel: there is only one pipe. On a cluster every node has its own network link to storage (a DGX B200 has two BlueField-3 storage ports at up to 400 Gb/s each, <a href="https://docs.nvidia.com/dgx/dgxb200-user-guide/introduction-to-dgxb200.html" target="_blank" rel="noopener noreferrer">NVIDIA</a>), so N nodes writing their shards use N links at once, while a consolidated write squeezes the whole state through one. The root page's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Storage lab</a> calculator and this page's <a href="#" data-tab="t-sdsize">Sizing calculator</a> do that arithmetic. What the local run does show is the hidden cost of consolidating: on the fast volume, gathering 38.6 MB to rank 0 took longer than writing it.</p>
-<div class="io-src"><div class="f">torch/distributed/checkpoint/_dedup_save_plans.py, lines 20-21 and 43-48, PyTorch v2.14.1</div>
-<pre>    Removes duplicate entries from appearing on multiple SavePlans. For each duplicate across
-    a set of SavePlans, only the smallest SavePlan in terms of planned storage keeps the entry.
-...
-        if save_to_lowest_rank:
-            select_plan_idx = min(plan_indices)
-        else:
-            select_plan_idx = min(
-                plan_indices, key=lambda plan_idx: plan_to_size[plan_idx]
-            )</pre>
-This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes about one copy, spread over all ranks: each tensor that every rank holds is assigned to whichever rank has the least to write so far. The default planner calls it from <code>default_planner.py</code> line 137.</div>
-</div>
 <h3>safetensors: a header that maps every tensor to a byte range</h3>
 <p>The format is "8 bytes: N, an unsigned little-endian 64-bit integer, containing the size of the header", then N bytes of JSON giving each tensor's "dtype", "shape" and "data_offsets" relative to the data buffer, then the bytes; the header is capped at 100 MB (<a href="https://github.com/huggingface/safetensors" target="_blank" rel="noopener noreferrer">safetensors README</a>). Our model's weights, saved by rank 0 <span class="meas">measured</span>:</p>
+<details class="dp"><summary>The header of our model's file, as written <span class="mute">(measured)</span></summary><div class="b">
 <pre class="rd-code" id="sd-sthdr"></pre>
+</div></details>
 <p>Because the header gives every tensor's range, a reader can fetch one tensor without the rest. From the object store: three ranged GETs (the 8-byte length, the header, the tensor) moved <span id="sd-rg-b"></span> of a <span id="sd-rg-f"></span> file, in <span id="sd-rg-t"></span> against <span id="sd-rg-ft"></span> for the whole object <span class="meas">measured</span>, medians of 3. That is how inference servers and sharded loaders pull only their slice.</p>
+<details class="dp"><summary>Sharded safetensors and DCP's safetensors writer <span class="mute">(depth)</span></summary><div class="b">
 <p><b>Sharded safetensors</b> (the Hugging Face layout) split the tensors greedily into files under <code>max_shard_size</code> plus a <code>model.safetensors.index.json</code> whose <code>"weight_map"</code> names the file of every tensor. The default changed: "5GB" in transformers v4.57.0, "50GB" from v5.0.0 to v5.20.0 (released 2026-10-15) (<a href="https://github.com/huggingface/transformers/blob/v5.20.0/src/transformers/modeling_utils.py" target="_blank" rel="noopener noreferrer">modeling_utils.py at v5.20.0</a>), so the same model saved by a newer library makes fewer, larger objects. Ours at a 25 MB limit: <span id="sd-shards"></span>.</p>
 <p><b>DCP can write safetensors itself.</b> <code>HuggingFaceStorageWriter(path, save_distributed=True, enable_consolidation=True)</code> wrote one safetensors shard per rank under <code>sharded/</code>, then consolidated them into one full file and an index <span class="meas">measured</span>: <span id="sd-dcphf"></span>. The same code path is how training checkpoints become Hub-style exports without a gather on one rank.</p>
+</div></details>
 <div class="tw sd-tw"><table class="rd-cmp">
 <thead><tr><th>Format</th><th>Objects per checkpoint</th><th>Partial read</th><th>Reshard on load</th><th>Use for</th></tr></thead>
 <tbody>
@@ -600,13 +739,16 @@ This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes
 <tr><td>DCP</td><td data-h="Objects">ranks (times writer threads) + 1</td><td data-h="Partial">yes, per stored chunk</td><td data-h="Reshard">yes, any world size; whole chunks are read</td><td data-h="Use">training checkpoints at scale</td></tr>
 <tr><td>safetensors (sharded)</td><td data-h="Objects">total size / max_shard_size + 1 index</td><td data-h="Partial">yes, per tensor, from one header read</td><td data-h="Reshard">the reader slices tensors itself</td><td data-h="Use">weights for inference and fine-tuning; exports</td></tr>
 </tbody></table></div>
+<details class="dp"><summary>ByteCheckpoint: what it took at 8,960 GPUs <span class="mute">(depth)</span></summary><div class="b">
 <p class="small">Other systems: ByteDance's ByteCheckpoint reports "an average reduction of 54.20x" in checkpoint stalls against DCP and Megatron's distributed checkpoint while training "a 405B LFM on 8,960 GPUs", partly by splitting files into fixed-size sub-files written by many threads, raising single-file HDFS uploads to "3 GB/s" from "under 100 MB/s" per client (<a href="https://arxiv.org/html/2407.20143" target="_blank" rel="noopener noreferrer">ByteCheckpoint, NSDI 2025</a>) <span class="pub">authors</span>.</p>
+</div></details>
 <div class="io-moved">
-<h3>Restoring: when a checkpoint will not load</h3>
+<details class="dp"><summary>Restoring: three real messages from checkpoints that would not load, and resharding checked tensor for tensor <span class="mute">(depth)</span></summary><div class="b">
 <p>A checkpoint is only as good as its restore, and restores fail in a few recognisable ways. Each of these is a real message from the root page's Storage lab (torch 2.14.1):</p>
 <div id="io-errs"></div>
 <p><b>Resharding works.</b> The 4-rank DCP checkpoint loaded into 2 ranks and into 3 ranks, and into a single process with no process group at all, each time tensor for tensor identical to the full state <span class="io-tag io-measured">measured</span>. DCP's <code>.metadata</code> records which byte ranges of which tensor live in which file, so any number of ranks can ask for the pieces they now own. A consolidated <code>torch.save</code> file can also be loaded anywhere, but only by first reading the whole thing into one process.</p>
 <p>Whether a resumed run continues the same trajectory is a restore trap of its own: <a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a>, section 6.</p>
+</div></details>
 </div>
 </section>
 
@@ -634,185 +776,29 @@ This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes
 <li><b>During a job:</b> checkpoint write time per rank in the training log (the slowest rank is the stall), the store's own per-server metrics (FSx publishes per-MDT and per-OST CloudWatch metrics every minute), and 503 SlowDown counts from S3 clients.</li>
 </ul>
 </section>
-<section id="rd-mis">
-<h2>Common mistakes</h2>
-<details class="mist"><summary>A big shared file with the default stripe count of 1</summary><div class="b">Every writer and reader of the file lands on one OST. On the toy, four ranks writing one shared file with one stripe got 24.9 MB/s; with four stripes 97.8 <span class="meas">measured</span>. Check with <code>lfs getstripe</code>; set a directory default (<code>lfs setstripe -c 4 -S 4M dir</code>) before the files exist: a layout cannot change after creation without <code>lfs migrate</code>.</div></details>
-<details class="mist"><summary>Pinning every file to one OST</summary><div class="b"><code>lfs setstripe -i 0</code> copied from an example puts every new file on OST 0: four file-per-rank writers fell from 88.9 to 25.0 MB/s on the toy <span class="meas">measured</span>. The manual: the default start index of -1 "allows the MDS to choose the starting index. This setting is strongly recommended".</div></details>
-<details class="mist"><summary>Unaligned writers sharing one stripe</summary><div class="b">Ranks writing interleaved pieces of one file fight over the OST's extent locks ("lock exchange") even when their bytes do not overlap. Align each writer to whole stripes, or write one file per rank (DCP does).</div></details>
-<details class="mist"><summary>A Python environment on the shared file system</summary><div class="b">17,983 file-system calls and 652 failed lookups per rank for <code>import torch</code> <span class="meas">measured</span>, times every rank, all at once. Symptom: jobs that take minutes to reach step 1 and get slower as they get bigger, and a metadata server at 100% while the OSTs idle. Ship the environment in the container image on local disk.</div></details>
-<details class="mist"><summary>A PFL file that keeps growing by appends</summary><div class="b">Appending to a file with a wide last component instantiates every component, and "an operation such as reading the file length will send a request in parallel to every OST" (FSx guide). FSx gives files opened in append mode a stripe count of 1 for that reason. On Data on MDT layouts without an end-of-file component, "writes beyond the end of the last existing component will fail with error ENODATA" (manual).</div></details>
-<details class="mist"><summary>Multipart parts below the minimum</summary><div class="b">Every part but the last must be at least 5 MiB. Our store refused two 1 MiB parts at completion: <span class="sd-err" id="sd-err-small"></span> <span class="meas">measured</span>. The failed upload then stayed open and listed (it was in <code>list_multipart_uploads</code> next to the abandoned one); on AWS its parts are billed until aborted. Add a lifecycle rule that aborts incomplete multipart uploads.</div></details>
-<details class="mist"><summary>"Renaming" a checkpoint on an object store</summary><div class="b">There is no rename: a copy and a delete move every byte again (here 64 MiB took 0.49 s to "rename" against 0.66 s to upload <span class="meas">measured</span>; a server-side copy still rewrites the bytes inside the store). Upload under the final key and write a marker or <code>.metadata</code> last; protect the marker with <code>If-None-Match: *</code> (a second writer got <span class="sd-err" id="sd-err-inm"></span>).</div></details>
-<details class="mist"><summary>Storage that silently filled up</summary><div class="b">Overwriting the same 256 MiB key over and over on SeaweedFS ended with <span class="sd-err">InternalError ... We encountered an internal error, please try again.</span> after 16 uploads: deleted and overwritten data kept its space until a vacuum (our inference). Every store has a version of this (snapshots, object versions, Lustre OSTs that fill unevenly): watch free space per server, not just in total, and keep checkpoint retention (keep the last k) in the training code.</div></details>
-<details class="mist"><summary>Resharding to a world size that does not divide the old one, and blaming the network</summary><div class="b">4 ranks to 3 read 1.50 times the checkpoint's bytes, 4 to 2 read 1.00 times <span class="meas">measured</span> (section 8). Plan restore bandwidth for the overlap, or restart at a divisor when you can.</div></details>
-<details class="mist"><summary>Expecting a cache to speed up the first epoch</summary><div class="b">A lazy-loading cache (FSx linked to S3, Mountpoint's cache) serves the first read at the object store's speed. Preload the hot directory before the job, or accept that single-pass pretraining gains nothing from it.</div></details>
-<details class="mist"><summary>Writing the checkpoint in place, or renaming without fsync</summary><div>A crash mid-write leaves a half file, and the next start loads it: "PytorchStreamReader failed reading zip archive: failed finding central directory" (section 8). train.py writes <code>step_N.pt.tmp</code>, renames it, then updates <code>latest</code>: a reader never sees a partial file. But it does not call <code>fsync</code> before the rename, so after a power loss (not a process crash) the renamed file can still be empty on some file systems. Write, fsync the file, rename, fsync the directory; on macOS, <code>F_FULLFSYNC</code>. Object stores give atomicity for free: an object appears only when its upload completes.</div></details>
-<details class="mist"><summary>Every rank saves the full state</summary><div>The forgotten <code>if rank == 0</code> in DDP: N copies of the same bytes, at the same moment, on the same storage. Here, 4 times the bytes took 3 times as long on a shared pipe. Use rank 0 for small DDP models, DCP for anything sharded.</div></details>
-<details class="mist"><summary>Consolidating a sharded model to one file every time</summary><div>Gathering the full state onto one rank needs that rank to hold all of it in memory and pushes it through one node's link. Save sharded during training; consolidate once, offline, when exporting.</div></details>
-<details class="mist"><summary>Running async checkpointing on the training process group</summary><div>Two threads issuing collectives on one group: a hang or a crash ("op.nread == op.preamble.nbytes" with gloo here). Give <code>async_save</code> its own group.</div></details>
-<details class="mist"><summary>Starting the next async checkpoint before the last one finished</summary><div>If the upload takes longer than the interval, checkpoints pile up in host memory. Wait on the previous future before staging the next (dist_ckpt.py does), and size the interval so the upload fits.</div></details>
-<details class="mist"><summary>Trusting that a path is local</summary><div>On kind, <code>/shared</code> looks like any directory and was 36 times slower than Slurm's volume for the same 1.39 MB file. Measure a mount with the real write (size, fsync, rename) before putting checkpoints on it.</div></details>
-<details class="mist"><summary>Millions of small files on a parallel file system</summary><div>Metadata servers, not disks, become the limit; the whole cluster slows down, not only your job. Shard data and keep checkpoint files per rank, not per tensor.</div></details>
-<details class="mist"><summary>Keeping every checkpoint, or only the last one</summary><div>Every checkpoint of a 405B run is 5.7 TB; keeping all of them is expensive. Keeping only the latest means one corrupted or bad checkpoint (a loss spike saved right before a crash) leaves nothing to fall back on. Keep the last few, plus periodic milestones, and delete the rest automatically.</div></details>
+<section id="rd-deep">
+<h2>Depth: mistakes the sections do not already show, and interview rehearsal</h2>
+<details class="dp"><summary>Eight mistakes, with the real errors where we hit them <span class="mute">(depth)</span></summary><div class="b">
+<ul class="tight">
+<li><b>Multipart parts below the minimum.</b> Every part but the last must be at least 5 MiB. Our store refused two 1 MiB parts at completion: <span class="sd-err" id="sd-err-small"></span> <span class="meas">measured</span>. The failed upload then stayed open and listed (it was in <code>list_multipart_uploads</code> next to the abandoned one); on AWS its parts are billed until aborted. Add a lifecycle rule that aborts incomplete multipart uploads.</li>
+<li><b>"Renaming" a checkpoint on an object store.</b> There is no rename: a copy and a delete move every byte again (here 64 MiB took 0.49 s to "rename" against 0.66 s to upload <span class="meas">measured</span>; a server-side copy still rewrites the bytes inside the store). Upload under the final key and write a marker or <code>.metadata</code> last; protect the marker with <code>If-None-Match: *</code> (a second writer got <span class="sd-err" id="sd-err-inm"></span>).</li>
+<li><b>Storage that silently filled up.</b> Overwriting the same 256 MiB key over and over on SeaweedFS ended with <span class="sd-err">InternalError ... We encountered an internal error, please try again.</span> after 16 uploads: deleted and overwritten data kept its space until a vacuum (our inference). Every store has a version of this (snapshots, object versions, Lustre OSTs that fill unevenly): watch free space per server, not just in total, and keep checkpoint retention (keep the last k) in the training code.</li>
+<li><b>Writing the checkpoint in place, or renaming without fsync.</b> A crash mid-write leaves a half file, and the next start loads it: "PytorchStreamReader failed reading zip archive: failed finding central directory" (section 8). train.py writes <code>step_N.pt.tmp</code>, renames it, then updates <code>latest</code>: a reader never sees a partial file. But it does not call <code>fsync</code> before the rename, so after a power loss (not a process crash) the renamed file can still be empty on some file systems. Write, fsync the file, rename, fsync the directory; on macOS, <code>F_FULLFSYNC</code>. Object stores give atomicity for free: an object appears only when its upload completes.</li>
+<li><b>Consolidating a sharded model to one file every time.</b> Gathering the full state onto one rank needs that rank to hold all of it in memory and pushes it through one node's link. Save sharded during training; consolidate once, offline, when exporting.</li>
+<li><b>Starting the next async checkpoint before the last one finished.</b> If the upload takes longer than the interval, checkpoints pile up in host memory. Wait on the previous future before staging the next (dist_ckpt.py does), and size the interval so the upload fits.</li>
+<li><b>Trusting that a path is local.</b> On kind, <code>/shared</code> looks like any directory and was 36 times slower than Slurm's volume for the same 1.39 MB file. Measure a mount with the real write (size, fsync, rename) before putting checkpoints on it.</li>
+<li><b>Keeping every checkpoint, or only the last one.</b> Every checkpoint of a 405B run is 5.7 TB; keeping all of them is expensive. Keeping only the latest means one corrupted or bad checkpoint (a loss spike saved right before a crash) leaves nothing to fall back on. Keep the last few, plus periodic milestones, and delete the rest automatically.</li>
+</ul></div></details>
+<details class="dp"><summary>Interview rehearsal: seven design questions <span class="mute">(optional)</span></summary><div class="b">
+<p><b>You are writing 1,024 checkpoint shards of 2 GB each to Lustre. What stripe settings?</b></p><p>File per rank already spreads the load if the MDS places the files round robin, so stripe count 1 (or a few) and stripe size 1 to 4 MiB; never a fixed start index. Wide striping helps when few large files must use many OSTs (a consolidated export, a dataset file read by everyone). Check the result with <code>lfs df</code> for balance.</p>
+<p><b>Design question: the storage for a 1,000-GPU training lab.</b></p><p><b>Tiers.</b> An object store (S3 or an on-premises one) as the system of record for datasets, checkpoints kept beyond a few days, and artifacts, with lifecycle rules. A parallel file system (Lustre or FSx for Lustre, WEKA, VAST) as the working tier for checkpoints and hot datasets, linked to the object store for import and export. Local NVMe on every node for staged data, images and the first copy of each checkpoint. Home directories and code on a small NFS.</p><p><b>Numbers.</b> For a 70B model on 1,024 GPUs: 0.98 TB per checkpoint; asynchronous saves every 30 minutes need about 0.5 GB/s of drain; recovery in 60 s needs about 16 GB/s of read; ten kept checkpoints are about 10 TB; data reads for text are small. So size the file system for restore reads and bursts from many jobs at once, and buy metadata capacity (more MDTs or metadata IOPS) for start-ups and small files.</p><p><b>Rules.</b> DCP or equivalent with one file per rank, a marker written last, keep-last-k retention in the trainer; environments in container images; data in shards of tens to hundreds of MB; checkpoint directories with a sane default layout; per-server monitoring (OST balance, MDT load, S3 503s). Trade-offs to say out loud: managed (FSx, cost per TiB tied to throughput) against owned (capital, staff), one tier against two, and how much to replicate across regions ($0.02 per GB between AWS US regions).</p>
+<p><b>How big is the checkpoint of a 70B model trained with AdamW in mixed precision, and how long does it take to write?</b></p><p>About 14 bytes per parameter (bf16 weights 2, fp32 master 4, two fp32 moments 8): 0.98 TB. Time = size / the slowest pipe: at 100 GB/s of aggregate storage bandwidth, about 10 s if sharded across enough nodes that their links are not the limit; through one node's 50 GB/s link (consolidated), about 20 s plus the gather.</p>
+<p><b>Your 1,024-GPU job spends 8% of its time checkpointing. What do you do?</b></p><p>First measure where the time goes: gather, serialisation, or storage bandwidth. Then: shard (DCP) so every node writes in parallel; go asynchronous so training stops only for the GPU to host copy; check the storage system's aggregate bandwidth against size / target time and buy bandwidth if it is the limit; and choose the interval from the failure rate (the Young/Daly optimum, derived on <a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">Power, cooling, reliability</a>), not by habit.</p>
+<p><b>Why can't you just checkpoint to local NVMe?</b></p><p>You can, and should, as a first stage: it is fast and parallel. But a checkpoint on a node that dies is gone or unreachable, and the restarted job usually lands on different nodes. So copy it onward (to the parallel file system or object storage) in the background, or replicate it to peers' memory or disks as Gemini did.</p>
+<p><b>Lustre or S3 for checkpoints?</b></p><p>A parallel file system gives the highest burst bandwidth and POSIX semantics (rename, partial reads), but it is priced by capacity and its bandwidth comes with capacity. Object storage is cheap and scales with parallel requests, with 100-200 ms to the first byte of each request and whole-object writes. Common answer: write to the parallel file system or local NVMe on the critical path, then copy to object storage for durability and retention.</p>
+<p><b>A job resumed from a checkpoint and the loss jumped. What do you check?</b></p><p>Whether the checkpoint holds everything that carries state: optimiser moments (a fresh AdamW restarts its estimates), the learning-rate schedule's step, data loader position (the data seen again or skipped), and RNG states. Then whether the world size or parallel layout changed and the load resharded correctly; then whether you loaded the latest complete checkpoint and not a partial one.</p>
+</div></details>
 </section>
-
-<section id="rd-iq">
-<h2>Interview questions</h2>
-<details class="qa"><summary>Why can a parallel file system go faster than any one of its servers, and what stops it?</summary><div>Metadata and data are split: the client fetches a file's layout from the metadata server once, then reads and writes the objects on many storage servers in parallel (RAID 0 by stripe size). It stops at the narrowest of: the stripe count (one file uses only its objects' servers), the client's network card, the servers' disks and networks, the metadata server for small files and start-ups, and lock contention when writers share stripes.</div></details>
-<details class="qa"><summary>You are writing 1,024 checkpoint shards of 2 GB each to Lustre. What stripe settings?</summary><div>File per rank already spreads the load if the MDS places the files round robin, so stripe count 1 (or a few) and stripe size 1 to 4 MiB; never a fixed start index. Wide striping helps when few large files must use many OSTs (a consolidated export, a dataset file read by everyone). Check the result with <code>lfs df</code> for balance.</div></details>
-<details class="qa"><summary>What does S3 guarantee about a checkpoint, and what must your code add?</summary><div>Each object appears atomically and strong read-after-write holds per key. Nothing is atomic across keys, so a multi-shard checkpoint needs a marker or metadata object written last and a reader that ignores directories without it; conditional writes (If-None-Match, If-Match) stop two writers clobbering each other; abort incomplete multipart uploads; spread keys over prefixes and retry 503 SlowDown with backoff.</div></details>
-<details class="qa"><summary>Jobs take ten minutes to reach the first step on 2,000 nodes, a minute on 20. Where do you look?</summary><div>A metadata storm: Python or shared libraries loaded from the shared file system, every rank doing tens of thousands of lookups at once. Confirm with <code>strace -c</code> on one rank and the metadata server's load; fix by shipping the environment in the image on local disk, then data in shards.</div></details>
-<details class="qa"><summary>Synchronous or asynchronous checkpoints: how does the choice change the storage you buy?</summary><div>Synchronous: bandwidth = checkpoint size / acceptable stall (32.7 GB/s for 0.98 TB in 30 s). Asynchronous: the GPUs stop only for the host copy, and storage needs size / interval (0.54 GB/s every 30 minutes), plus host RAM for the staged copy and a separate process group for the background collectives. Restores still need size / acceptable restart time.</div></details>
-<details class="qa"><summary>Why might restoring onto 3 nodes take longer than onto 2, from the same 4-rank checkpoint?</summary><div>DCP reads whole stored chunks. At a divisor each byte is read once; at a non-divisor, chunks straddle new ranks and are read twice (1.50 times the bytes measured here), on top of uneven shard sizes.</div></details>
-<details class="qa"><summary>When is a cache in front of the object store worth it?</summary><div>When bytes are read more than once (multi-epoch, many jobs on one dataset, eval sets, weights for many replicas, images) or when latency matters (small files, random access). Single-pass pretraining gains almost nothing; the first epoch through a lazy cache runs at object-store speed.</div></details>
-<details class="qa"><summary>Design question: the storage for a 1,000-GPU training lab.</summary><div><p><b>Tiers.</b> An object store (S3 or an on-premises one) as the system of record for datasets, checkpoints kept beyond a few days, and artifacts, with lifecycle rules. A parallel file system (Lustre or FSx for Lustre, WEKA, VAST) as the working tier for checkpoints and hot datasets, linked to the object store for import and export. Local NVMe on every node for staged data, images and the first copy of each checkpoint. Home directories and code on a small NFS.</p><p><b>Numbers.</b> For a 70B model on 1,024 GPUs: 0.98 TB per checkpoint; asynchronous saves every 30 minutes need about 0.5 GB/s of drain; recovery in 60 s needs about 16 GB/s of read; ten kept checkpoints are about 10 TB; data reads for text are small. So size the file system for restore reads and bursts from many jobs at once, and buy metadata capacity (more MDTs or metadata IOPS) for start-ups and small files.</p><p><b>Rules.</b> DCP or equivalent with one file per rank, a marker written last, keep-last-k retention in the trainer; environments in container images; data in shards of tens to hundreds of MB; checkpoint directories with a sane default layout; per-server monitoring (OST balance, MDT load, S3 503s). Trade-offs to say out loud: managed (FSx, cost per TiB tied to throughput) against owned (capital, staff), one tier against two, and how much to replicate across regions ($0.02 per GB between AWS US regions).</p></div></details>
-<details class="mist"><summary>How big is the checkpoint of a 70B model trained with AdamW in mixed precision, and how long does it take to write?</summary><div>About 14 bytes per parameter (bf16 weights 2, fp32 master 4, two fp32 moments 8): 0.98 TB. Time = size / the slowest pipe: at 100 GB/s of aggregate storage bandwidth, about 10 s if sharded across enough nodes that their links are not the limit; through one node's 50 GB/s link (consolidated), about 20 s plus the gather.</div></details>
-<details class="mist"><summary>Your 1,024-GPU job spends 8% of its time checkpointing. What do you do?</summary><div>First measure where the time goes: gather, serialisation, or storage bandwidth. Then: shard (DCP) so every node writes in parallel; go asynchronous so training stops only for the GPU to host copy; check the storage system's aggregate bandwidth against size / target time and buy bandwidth if it is the limit; and choose the interval from the failure rate (the Young/Daly optimum, derived on <a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">Power, cooling, reliability</a>), not by habit.</div></details>
-<details class="mist"><summary>Why can't you just checkpoint to local NVMe?</summary><div>You can, and should, as a first stage: it is fast and parallel. But a checkpoint on a node that dies is gone or unreachable, and the restarted job usually lands on different nodes. So copy it onward (to the parallel file system or object storage) in the background, or replicate it to peers' memory or disks as Gemini did.</div></details>
-<details class="mist"><summary>Lustre or S3 for checkpoints?</summary><div>A parallel file system gives the highest burst bandwidth and POSIX semantics (rename, partial reads), but it is priced by capacity and its bandwidth comes with capacity. Object storage is cheap and scales with parallel requests, with tens of milliseconds per request and whole-object writes. Common answer: write to the parallel file system or local NVMe on the critical path, then copy to object storage for durability and retention.</div></details>
-<details class="mist"><summary>A job resumed from a checkpoint and the loss jumped. What do you check?</summary><div>Whether the checkpoint holds everything that carries state: optimiser moments (a fresh AdamW restarts its estimates), the learning-rate schedule's step, data loader position (the data seen again or skipped), and RNG states. Then whether the world size or parallel layout changed and the load resharded correctly; then whether you loaded the latest complete checkpoint and not a partial one.</div></details>
-</section>
-</div>
-<div class="tab" id="t-sdstripe" role="tabpanel" hidden>
-<style>
-#t-sdstripe .card{min-width:0}
-#t-sdstripe .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-sdstripe .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
-#t-sdstripe .sd-play{min-width:6.4em}
-#t-sdstripe .an-cap{min-height:4.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px}
-#t-sdstripe .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:6px;margin:6px 0}
-#t-sdstripe .an-cnt .stat .v{font-size:15px}
-#t-sdstripe .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}
-#t-sdstripe .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
-#t-sdstripe .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
-#t-sdstripe .meas{font-size:11.5px;color:var(--good);font-weight:600}#t-sdstripe .der{font-size:11.5px;color:var(--c5);font-weight:600}#t-sdstripe .unc{font-size:11.5px;color:var(--bad);font-weight:600}
-#t-sdstripe .sv{width:100%;overflow:hidden;margin:6px 0}
-#t-sdstripe .bars .row{grid-template-columns:minmax(0,15em) minmax(0,1fr) 6em}
-#t-sdstripe .bars .row .nm{white-space:normal;line-height:1.2}
-#t-sdstripe .calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:6px 14px;font-size:13px;margin:6px 0}
-#t-sdstripe .calc label{display:flex;flex-direction:column;gap:2px;min-width:0}
-#t-sdstripe pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.45;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:8px 10px;overflow-x:auto;white-space:pre;max-width:100%}
-@media (max-width:520px){#t-sdstripe .bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 5.2em;font-size:12px}}
-</style>
-<h2>Striping lab: one file over many servers</h2>
-<p>Every run here used <b>tpfs</b>, a toy parallel file system written for this page (<code>src/runs/tpfs.py</code>, standard-library Python): one metadata server that hands out layouts, and four object servers that store the bytes, each in its own container (0.5 CPU, 256 MB) and each held to <b>25 MB/s by a token bucket</b> standing in for its disks. The client gets a file's layout once and then talks to the object servers directly, using Lustre's RAID 0 arithmetic. The per-server limit is an input; the scaling, the hot spots and the slowdowns below are what happened <span class="meas">measured</span> (Apple M1 Pro, Docker Desktop VM, shared machine, 2026-10-16; medians of 3). Not modelled: locks, caches, failures.</p>
-
-<div class="card" id="sds-anim-card">
-<h3 style="margin-top:0">The same 128 MiB file, written with stripe count 1, 2 and 4</h3>
-<p class="small">Each square is 1 MiB (one stripe), coloured by the object server that received it, filled at the rate the real run achieved. The clock is the same for all three, so the striped runs finish early on screen exactly as they did.</p>
-<div class="seg" id="sds-mode"><button data-m="1">Stripe count 1 (the default)</button><button data-m="2">Stripe count 2</button><button data-m="4" class="on">Stripe count 4</button></div>
-<div class="sv" id="sds-svg"></div>
-<div class="an-cap" id="sds-cap"></div>
-<div class="an-cnt" id="sds-cnt"></div>
-<div class="an-ctl" id="sds-ctl"></div>
-<p class="small mute" id="sds-note"></p>
-</div>
-
-<div class="card">
-<h3 style="margin-top:0">Four writers at once: where the bytes land decides the speed</h3>
-<p class="small">Four processes in one client container each write 64 MiB, in four layouts <span class="meas">measured</span>. Bars: aggregate MB/s (256 MiB over the time from the first start to the last finish).</p>
-<div class="bars" id="sds-np"></div>
-<p class="small">The two slow rows are the same mistake in two forms: all the bytes on one server (every file pinned to OST 0 with <code>-i 0</code>, or one shared file left at stripe count 1). The two fast rows are equal: when every rank writes its own file and the files are spread, striping each file adds nothing. On real Lustre the shared-file row also pays for lock exchange between writers in the same stripe, which tpfs does not model, so the shared file would do worse than shown.</p>
-</div>
-
-<div class="card">
-<h3 style="margin-top:0">Smaller stripes cost requests</h3>
-<p class="small" id="sds-64"></p>
-</div>
-
-<div class="card" id="sds-calc">
-<h3 style="margin-top:0">Where does byte X live? Lustre's arithmetic</h3>
-<p class="small">The same computation as <code>lov_stripe_number()</code> and <code>lov_stripe_offset()</code> (lustre/lov/lov_offset.c, tag 2.17.0). Pick a plain layout or the manual's PFL example; the strip shows which OST holds each of the first stripe units.</p>
-<div class="seg" id="sds-lay"><button data-m="plain" class="on">Plain layout</button><button data-m="pfl">PFL: the manual's example on 8 OSTs</button><button data-m="fsx">PFL: FSx default</button></div>
-<div class="calc">
-<label>File offset, MiB <input type="number" id="sds-off" min="0" step="1" value="5"></label>
-<label id="sds-l-s">Stripe size <select id="sds-s"><option value="64">64 KiB</option><option value="1024" selected>1 MiB</option><option value="4096">4 MiB</option></select></label>
-<label id="sds-l-c">Stripe count <input type="number" id="sds-c" min="1" max="64" step="1" value="4"></label>
-<label id="sds-l-i">Starting OST <input type="number" id="sds-i" min="0" max="63" step="1" value="0"></label>
-<label>OSTs in the file system <input type="number" id="sds-n" min="1" max="64" step="1" value="8"></label>
-</div>
-<div class="out" id="sds-out"></div>
-<div class="sv" id="sds-map"></div>
-<p class="small mute" id="sds-lnote"></p>
-</div>
-
-<div class="card">
-<h3 style="margin-top:0">How the toy is built, and how to run it</h3>
-<pre id="sds-code">docker network create sd-net
-for i in 0 1 2 3; do
-  docker run -d --rm --name sd-ost$i --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \
-    --memory 256m --cpus 0.5 python:3.12-slim python3 /tpfs.py ost --mbps 25
-done
-docker run -d --rm --name sd-mds0 --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \
-  --memory 256m --cpus 0.5 python:3.12-slim \
-  python3 /tpfs.py mds --osts sd-ost0:9000,sd-ost1:9000,sd-ost2:9000,sd-ost3:9000
-docker run -d --rm --name sd-cli --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \
-  --memory 768m --cpus 2 python:3.12-slim sleep 3600
-docker exec sd-cli python3 /tpfs.py bench stripe --mds sd-mds0:8000 --mib 128 --counts 1,2,4</pre>
-<p class="small">The whole run is <code>src/runs/run_tpfs.sh</code>; one output line (layout shortened):</p>
-<pre id="sds-out1"></pre>
-<p class="small">What transfers to a real cluster: the arithmetic (one file's bandwidth is its stripe count times one server's, until the client's network card or the job's other files get in the way), the hot spot when files share a server, and the cost of small stripes. What does not: the absolute numbers (25 MB/s per server is a choice, a real OST does gigabytes), locks, and the client-side caching and RPC pipelining that make Lustre's per-request costs far lower than Python's.</p>
-</div>
-</div>
-<div class="tab" id="t-sdmeta" role="tabpanel" hidden>
-<style>
-#t-sdmeta .card{min-width:0}
-#t-sdmeta .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-sdmeta .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
-#t-sdmeta .sd-play{min-width:6.4em}
-#t-sdmeta .an-cap{min-height:4.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px}
-#t-sdmeta .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:6px;margin:6px 0}
-#t-sdmeta .an-cnt .stat .v{font-size:15px}
-#t-sdmeta .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}
-#t-sdmeta .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
-#t-sdmeta .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
-#t-sdmeta .meas{font-size:11.5px;color:var(--good);font-weight:600}#t-sdmeta .der{font-size:11.5px;color:var(--c5);font-weight:600}#t-sdmeta .vend{font-size:11.5px;color:var(--c4);font-weight:600}
-#t-sdmeta .sv{width:100%;overflow:hidden;margin:6px 0}
-#t-sdmeta .calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:6px 14px;font-size:13px;margin:6px 0}
-#t-sdmeta .calc label{display:flex;flex-direction:column;gap:2px;min-width:0}
-#t-sdmeta .calc select{width:100%}
-#t-sdmeta .tw table{min-width:520px}
-</style>
-<h2>Metadata storm: when names, not bytes, are the bottleneck</h2>
-<p>Two kinds of run. On <b>tpfs</b>, the toy parallel file system of the <a href="#" data-tab="t-sdstripe">Striping lab</a>, every client process creates, stats and deletes 300 files of its own through one metadata server held to half a CPU, then through two (the DNE idea: entries hashed over servers by name). On <b>real stores</b>, the same operations run on a Docker volume, a host folder shared into the VM and SeaweedFS's S3 gateway <span class="meas">measured</span> (Apple M1 Pro, Docker Desktop VM, shared machine, 2026-10-16; medians of 3).</p>
-
-<div class="card" id="sdm-anim-card">
-<h3 style="margin-top:0">The same 14,400 operations from 16 clients, one metadata server against two</h3>
-<p class="small">16 processes x 300 files x (create, stat, unlink). The bar is completed operations at the measured aggregate rate, on one clock for both modes; each client's dot is busy while it waits for its answer.</p>
-<div class="seg" id="sdm-mode"><button data-m="1" class="on">One metadata server</button><button data-m="2">Two (DNE)</button></div>
-<div class="sv" id="sdm-svg"></div>
-<div class="an-cap" id="sdm-cap"></div>
-<div class="an-cnt" id="sdm-cnt"></div>
-<div class="an-ctl" id="sdm-ctl"></div>
-</div>
-
-<div class="card">
-<h3 style="margin-top:0">More clients, same server: throughput flattens, every operation waits longer</h3>
-<div class="sv" id="sdm-curve"></div>
-<div class="tw" id="sdm-cpu"></div>
-<p class="small">The evidence that the server, not the clients, is the limit: at 16 and 32 clients the metadata server's container used all of its half CPU while the client container used about a fifth of its two. Past that point more clients only queue: 32 clients got fewer operations per second than 16 and waited twice as long for each.</p>
-</div>
-
-<div class="card">
-<h3 style="margin-top:0">Real stores: operations per second by kind</h3>
-<div class="seg" id="sdm-p"><button data-m="1">1 process</button><button data-m="4">4</button><button data-m="16" class="on">16</button></div>
-<div class="sv" id="sdm-real"></div>
-<p class="small">Log scale. "miss" is a <code>stat</code> of a name that does not exist (an S3 HEAD that returns 404), what Python's import does on every <code>sys.path</code> entry. The shared folder caches existing files' attributes (its stat is as fast as local) but not absence, so its misses cost a round trip to the host each.</p>
-</div>
-
-<div class="card" id="sdm-calc">
-<h3 style="margin-top:0">The start-up storm calculator</h3>
-<p class="small">How long do ranks wait at start-up if their imports go to the metadata servers? Calls per rank are measured here with <code>strace</code>; how many of them a real client sends to the server depends on its caches, so choose the bound.</p>
-<div class="calc">
-<label>Ranks starting together <input type="number" id="sdm-r" min="1" step="1" value="16384"></label>
-<label>What each rank runs <select id="sdm-w"></select></label>
-<label>Calls that reach the server <select id="sdm-b"><option value="err" selected>only failed lookups (best case)</option><option value="open">opens</option><option value="all">all file-system calls (no caching)</option></select></label>
-<label>Metadata server capacity <select id="sdm-m"></select></label>
-<label>Custom capacity, operations per second <input type="number" id="sdm-cm" min="1" step="100" value="50000"></label>
-</div>
-<div class="out" id="sdm-out"></div>
-<p class="small mute" id="sdm-note"></p>
-</div>
 </div>
 <div class="tab" id="t-sdsize" role="tabpanel" hidden>
 <style>
@@ -867,17 +853,16 @@ docker exec sd-cli python3 /tpfs.py bench stripe --mds sd-mds0:8000 --mib 128 --
 <h2>Further reading</h2>
 <h3>This page's tabs</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-sdstripe">Striping lab</a></div><p>One file over one, two and four servers, four writers in four layouts, and Lustre's offset arithmetic. <span class="rt">10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-sdmeta">Metadata storm</a></div><p>One metadata server against two, real stores by operation, the start-up storm calculator. <span class="rt">10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-sdsize">Sizing calculator</a></div><p>Write, restore, data and metadata rates, capacity and FSx cost for a job. <span class="rt">5 min</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-sdsize">Sizing calculator</a></div><p>Write, restore, data and metadata rates, capacity and FSx cost for a job: the four questions of section 9 for any cluster. <span class="rt">5 min</span></p></div>
 </div>
+<p class="small">The Striping lab and Metadata storm tabs were folded into the Reading tab on 2026-10-24: the stripe-count animation, the four writers and the byte locator are in section 2; one against two metadata servers, real stores by operation and the start-up storm calculator in section 4.</p>
 <h3>Parent, siblings and neighbouring pages</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a></div><p>The parent. Its Storage lab compares the tiers, summarises the measured runs in one table and keeps the checkpoint-time calculator; the runs themselves (six tiers, the burst, async DCP, small files, restore errors) are drawn in this page's Reading tab since 2026-10-19. Its Cost lab holds the price list. <span class="rt">28 min, labs 15 min each</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3fc5c17b0d0d816a871df56477fc83b2" target="_blank" rel="noopener noreferrer">Cluster anatomy</a> (sibling)</div><p>Storage tiers at cluster level, NVIDIA's per-SU storage guidance, the storage network. <span class="rt">22 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a> (sibling)</div><p>How often to checkpoint, in-memory and peer checkpoints, recovery designs. <span class="rt">40 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81889c32cd050bbbadd3" target="_blank" rel="noopener noreferrer">Slurm from zero</a> (sibling)</div><p>Prologs, epilogs and burst-buffer hooks for staging. <span class="rt">37 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81cf9417de52108cfbce" target="_blank" rel="noopener noreferrer">Kubernetes for ML</a> (sibling)</div><p>PersistentVolumes, CSI drivers and where pods get their storage. <span class="rt">41 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81cf9417de52108cfbce" target="_blank" rel="noopener noreferrer">Kubernetes for ML</a> (sibling)</div><p>PersistentVolumes, CSI drivers and where pods get their storage. <span class="rt">32 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">Storage and loading at scale</a></div><p>Formats, shards, streaming from object storage and data loaders: the data side this page leaves out. <span class="rt">45 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d8141be7acc1313570cbf" target="_blank" rel="noopener noreferrer">Storage and file systems</a></div><p>The kernel side: page cache, fsync, journaling, atomic replace, NFS and FUSE semantics, DCP's files traced. <span class="rt">42 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a></div><p>InfiniBand, RoCE and the links the storage traffic rides on. <span class="rt">31 min</span></p></div>
@@ -908,9 +893,9 @@ docker exec sd-cli python3 /tpfs.py bench stripe --mds sd-mds0:8000 --mib 128 --
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab (Topic: evaluation-and-llm-judges): shared helpers, copied from Topic: benchmarks and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -941,7 +926,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -983,8 +968,8 @@ window.IO_D={"anatomy":{"params":112577,"file_bytes":1386049,"zip_entries":126,"
 <script>/* 23_js_sd_core.js */
 // ---- Storage and data movement: shared helpers for every tab (adapted from the root Storage lab's IO_H) ----
 // SD_H.mk(tabId) gives helpers bound to one tab: renders run when that tab opens and on resize while it is visible;
-// animations run only while their card is on screen in the visible tab, play once on first view, never autoplay
-// under prefers-reduced-motion.
+// animations never autoplay: they wait on step 0 until the reader presses play or steps (2026-10-24), and run only while
+// their card is on screen in the visible tab.
 window.SD_H=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -1029,7 +1014,7 @@ window.SD_H=(function(){
       g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
       g('v').addEventListener('change',e=>{st.spd=+e.target.value});
       if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-        if(st.vis&&!st.started&&tabVisible()){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+        kick()},{threshold:.2}).observe(card)}else st.vis=true;
       document.addEventListener('visibilitychange',kick);
       onRender(()=>{show();kick()});
       show();
@@ -1039,6 +1024,92 @@ window.SD_H=(function(){
     return {onRender,anim,tabVisible};
   }
   return {RM,esc,$,width,svg,t,rect,line,seg,fmt,OST,drills,mk};
+})();
+</script>
+<script>/* 24_js_sd_hero.js */
+// ---- Reading tab: the hero (the storage ladder) and section 3's two families; static diagrams drawn at the measured width ----
+(function(){
+  const H=SD_H,$=H.$;if(!$('sd-hero-svg'))return;
+  const R=H.mk('t-read');
+  // closed <details> blocks have no width while closed: redraw everything on the tab when one opens
+  document.addEventListener('toggle',e=>{if(e.target&&e.target.tagName==='DETAILS'&&e.target.open)dispatchEvent(new Event('resize'))},true);
+  const box=(x,y,w,h,o)=>H.rect(x,y,w,h,o&&o.fill||'var(--bg)',{stroke:o&&o.stroke||'var(--line)',sw:o&&o.sw||1,rx:7});
+  const arrow=(x1,y1,x2,y2,c,o)=>{o=o||{};const a=Math.atan2(y2-y1,x2-x1),L=7;
+    return H.line(x1,y1,x2,y2,c,{sw:o.sw||1.6,dash:o.dash})+'<path d="M'+x2.toFixed(1)+','+y2.toFixed(1)+' L'+(x2-L*Math.cos(a-0.45)).toFixed(1)+','+(y2-L*Math.sin(a-0.45)).toFixed(1)+' L'+(x2-L*Math.cos(a+0.45)).toFixed(1)+','+(y2-L*Math.sin(a+0.45)).toFixed(1)+' Z" fill="'+c+'"/>'};
+
+  function hero(){
+    const el=$('sd-hero-svg'),W=Math.min(780,H.width(el)),nr=W<560;
+    const lane=nr?70:180,bw=W-lane-6,x0=0;let b='',y=2;
+    const T=(x,yy,s,o)=>H.t(x,yy,s,o);
+    const rows=[
+      {t:'GPU and host memory',s:'each node',l:[nr?'HBM to host RAM: a PCIe copy':'HBM to pinned host RAM: a PCIe copy per rank',nr?'async saves stall only for this':'asynchronous saves stop training only for this copy'],h:56},
+      {t:'Local NVMe',s:'each node',l:[nr?'8 x 3.84 TB on a DGX H100':'8 x 3.84 TB in RAID 0 on a DGX H100',nr?'fast; dies with the node':'fast and parallel; dies with the node'],h:56},
+      {band:true,h:30},
+      {t:'Parallel file system',s:'shared',pfs:true,l:[nr?'Polaris Lustre: 650 GB/s':'Argonne Polaris, Lustre: 100 PB at 650 GB/s',nr?'FSx: $0.145 per GB-month':'FSx for Lustre: $0.145 per GB-month'],h:nr?140:128},
+      {t:'Object store',s:'shared, regional',l:[nr?'flat keys; 100-200 ms first byte':'flat keys by prefix; 100-200 ms to the first byte',nr?'3,500 writes/s per prefix':'3,500 writes/s per prefix; $0.023 per GB-month'].concat(nr?['$0.023 per GB-month']:[]),h:nr?70:56}];
+    const ys=[];
+    rows.forEach(r=>{ys.push(y);
+      if(r.band){b+=H.rect(x0,y+3,bw,r.h-6,'var(--soft)',{rx:5,stroke:'var(--acc)',sw:1.2});
+        b+=T(x0+8,y+r.h/2+4,(nr?'③ the burst: all ranks at once':'③ the burst: every rank\'s shard arrives in the same second'),{fs:11.5,w:600,fill:'var(--acc)'});y+=r.h;return}
+      b+=box(x0,y,bw,r.h);
+      b+=T(x0+9,y+17,r.t,{fs:12.5,w:600})+T(x0+9+r.t.length*6.7+6,y+17,'('+r.s+')',{fs:11,fill:'var(--mute)'});
+      if(r.pfs){
+        const iy=y+26,mw=nr?Math.min(118,bw*0.42):150;
+        b+=H.rect(x0+9,iy,mw,24,'var(--soft)',{stroke:'var(--acc)',sw:1.5,rx:4})+T(x0+15,iy+16,'metadata servers',{fs:11});
+        b+=T(x0+mw+16,iy+16,nr?'② names: few':'② names: a few servers for every open',{fs:11,w:600,fill:'var(--acc)'});
+        const oy=iy+32,n=nr?5:8,ow=Math.min(44,((nr?bw-18:bw*0.6)-(n-1)*4)/n);
+        for(let k=0;k<n;k++){const ox=x0+9+k*(ow+4);b+=H.rect(ox,oy,ow,20,'var(--soft)',{stroke:'var(--line)',rx:3})+(ow>=30?T(ox+ow/2,oy+14,'OST',{a:'middle',fs:10,fill:'var(--mute)'}):'')}
+        const ex=x0+9+n*(ow+4);
+        if(nr)b+=T(x0+9,oy+34,'① bytes: striped over many',{fs:11,w:600,fill:'var(--acc)'});
+        else b+=T(ex+4,oy+14,'① bytes: one file striped over many',{fs:11,w:600,fill:'var(--acc)'});
+        const ly=nr?oy+50:oy+38;
+        r.l.forEach((s,i)=>b+=T(x0+9,ly+i*14,s,{fs:11,fill:'var(--mute)'}));
+      }else r.l.forEach((s,i)=>b+=T(x0+9,y+33+i*14,s,{fs:11,fill:'var(--mute)'}));
+      y+=r.h+8});
+    const Hh=y;
+    // lane: checkpoint down, data and restarts up
+    const lx=bw+6,dx=lx+lane*(nr?0.3:0.27),ux=lx+lane*(nr?0.72:0.74),top=ys[0]+24,bot=ys[4]+28;
+    b+=T(dx,ys[0]+12,nr?'save':'checkpoint',{a:'middle',fs:11,w:600,fill:'var(--c2)'});
+    b+=T(ux,ys[0]+12,nr?'load':'data, restart',{a:'middle',fs:11,w:600,fill:'var(--c1)'});
+    b+=arrow(dx,top,dx,bot,'var(--c2)',{sw:2});
+    b+=arrow(ux,bot,ux,top,'var(--c1)',{sw:2});
+    [0,1,3,4].forEach((k,i)=>{const yy=ys[k]+(k===3?40:30);b+=H.rect(dx-8,yy-9,16,16,'var(--bg)',{stroke:'var(--c2)',rx:8})+T(dx,yy+3,String(i+1),{a:'middle',fs:10.5,w:600,fill:'var(--c2)'})});
+    el.innerHTML=H.svg(W,Hh,b,'The storage ladder: GPU and host memory, local NVMe, the parallel file system and the object store, with the checkpoint path down and the data path up');
+  }
+  R.onRender(hero);hero();
+
+  function fam(){
+    const el=$('sd-fam-svg');if(!el)return;const W=Math.min(780,H.width(el)),nr=W<560;
+    const pw=nr?W:(W-14)/2,ph=176;let b='';
+    const panel=(px,py,kind)=>{let s='';
+      s+=H.t(px,py+13,kind?'Metadata on every server':'A separate metadata tier',{fs:12.5,w:600});
+      s+=H.t(px,py+28,kind?'GPFS, WEKA, VAST':'Lustre, 3FS',{fs:11,fill:'var(--mute)'});
+      const cy=py+40,cw=Math.min(96,pw*0.3);
+      s+=box(px,cy,cw,26)+H.t(px+cw/2,cy+17,'client',{a:'middle',fs:11});
+      const n=4,sy=py+124,sw=(pw-3*6)/n;
+      if(!kind){
+        const mx=px+pw-Math.min(130,pw*0.42),mw=px+pw-mx;
+        s+=H.rect(mx,cy,mw,26,'var(--soft)',{stroke:'var(--acc)',sw:1.5,rx:5})+H.t(mx+mw/2,cy+17,'metadata',{a:'middle',fs:11});
+        s+=arrow(px+cw,cy+10,mx-2,cy+10,'var(--acc)',{dash:'4 3'});
+        s+=H.t((px+cw+mx)/2,cy+4,'1 layout',{a:'middle',fs:10.5,fill:'var(--acc)'});
+        for(let k=0;k<n;k++){const x=px+k*(sw+6);s+=box(x,sy,sw,30)+H.t(x+sw/2,sy+19,'data',{a:'middle',fs:11});
+          s+=arrow(px+cw/2,cy+26,x+sw/2,sy-2,'var(--c3)',{sw:1.3})}
+        s+=H.t(px+pw/2,sy+48,'2 bytes go straight to the data servers',{a:'middle',fs:10.5,fill:'var(--c3)'});
+      }else{
+        for(let k=0;k<n;k++){const x=px+k*(sw+6);s+=box(x,sy,sw,30);
+          s+=H.rect(x+3,sy+3,sw-6,10,'var(--soft)',{stroke:'var(--acc)',sw:1,rx:2})+H.t(x+sw/2,sy+11.5,'meta',{a:'middle',fs:9.5,fill:'var(--acc)'});
+          s+=H.t(x+sw/2,sy+25,'data',{a:'middle',fs:10.5});
+          s+=arrow(px+cw/2,cy+26,x+sw/2,sy-2,'var(--c3)',{sw:1.3})}
+        s+=H.line(px+sw/2,sy+40,px+3*(sw+6)+sw/2,sy+40,'var(--acc)',{dash:'3 3'});
+        s+=H.t(px+pw/2,sy+52,'locks and tokens between servers',{a:'middle',fs:10.5,fill:'var(--acc)'});
+        s+=H.t(px+cw+8,cy+17,nr?'any server':'any server, names and bytes',{fs:10.5,fill:'var(--c3)'});
+      }
+      return s};
+    b+=panel(0,0,0);
+    if(nr)b+=panel(0,ph+8,1);else b+=panel(pw+14,0,1);
+    el.innerHTML=H.svg(W,nr?2*ph+8:ph,b,'Two families of parallel file systems: a separate metadata tier, or metadata spread over every server');
+  }
+  R.onRender(fam);fam();
 })();
 </script>
 <script>/* 24_js_sd_rd.js */
@@ -1177,15 +1248,13 @@ window.SD_H=(function(){
 
   // ---- drills and reading time ----
   H.drills($('t-read'));
-  const rt=$('t-read');if(rt){const c=rt.cloneNode(true);c.querySelectorAll('style,nav,.rd-card,details,pre,.pr,table').forEach(x=>x.remove());
-    const words=(c.textContent.match(/\S+/g)||[]).length;window.RD_WORDS=words;const e=$('rd-time');if(e)e.textContent=Math.round(words/200)}
 })();
 </script>
 <script>/* 25_js_sd_ioh.js */
 // ---- Charts moved from the root's Storage lab (2026-10-19): its helpers, bound to the tab each chart lives in ----
 // IOH(tabId) returns the root lab's helper set for one tab (step-animation controller, SVG helpers, render registration,
-// predict-then-reveal for .io-pr blocks). Animations run only while their card is on screen in the visible tab, play once
-// the first time they scroll into view, and never autoplay under prefers-reduced-motion.
+// predict-then-reveal for .io-pr blocks). Animations never autoplay (2026-10-24): they wait on step 0 until the reader
+// presses play or steps, and run only while their card is on screen in the visible tab.
 window.IOH=function(TAB){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -1224,7 +1293,7 @@ window.IOH=function(TAB){
     g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     g('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&tabVisible()){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+      kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -1402,85 +1471,11 @@ window.IOH=function(TAB){
   window.IO_RS=RS;
 })();
 </script>
-<script>/* 30_js_sd_stripe.js */
-// ---- Striping lab ----
-(function(){
-  const H=SD_H,D=window.SD,$=H.$,f=H.fmt,esc=H.esc,T=D.tpfs;
-  const R=H.mk('t-sdstripe');
-  // ---- animation: one 128 MiB file, stripe count 1 / 2 / 4, on one clock ----
-  let C=4;
-  const NF=14,Tmax=Math.ceil(T.stripe['1'].write_s*2)/2; // frames every Tmax/(NF-1) seconds of measured time
-  function draw(i){
-    const S=T.stripe[String(C)],lay=S.layouts[0],tot=S.bytes/1048576,t=Tmax*i/(NF-1);
-    const done=Math.min(tot,Math.floor(tot*Math.min(1,t/S.write_s)));
-    const el=$('sds-svg'),W=Math.min(780,H.width(el));
-    const cols=W<480?16:32,cell=Math.floor((W-4)/cols)-1,rows=Math.ceil(tot/cols);
-    let b='';
-    for(let k=0;k<tot;k++){const x=(k%cols)*(cell+1),y=Math.floor(k/cols)*(cell+1);
-      b+=H.rect(x,y,cell,cell,k<done?H.OST[lay[k%lay.length]]:'var(--soft)',{rx:1})}
-    const gy=rows*(cell+1)+14,lw=(W-3*8)/4;
-    for(let o=0;o<4;o++){const held=Array.from({length:done},(_,k)=>lay[k%lay.length]).filter(x=>x===o).length;
-      const x=o*(lw+8);b+=H.rect(x,gy,lw,18,'var(--soft)',{stroke:'var(--line)'})+H.rect(x,gy,lw*held/tot,18,H.OST[o])+
-        H.t(x+4,gy+32,'OST '+o+': '+held+' MiB',{fs:10.5})}
-    el.innerHTML=H.svg(W,gy+40,b,'Stripe count '+C+' at '+t.toFixed(1)+' s');
-    const fin=t>=S.write_s;
-    $('sds-cap').innerHTML='<b>'+f(t,1)+' s.</b> '+(i===0?'The client has the layout from the metadata server: '+lay.length+' object'+(lay.length>1?'s':'')+' on OST '+lay.join(', ')+', 1 MiB stripes.':
-      fin?'Done: '+f(tot,0)+' MiB in '+f(S.write_s,2)+' s, '+f(S.write_MBps,1)+' MB/s, '+(C===1?'one server doing all the work while three idle.':'each of '+C+' servers taking 1/'+C+' of the file.'):
-      (C===1?'Every stripe goes to the same server, at that one server\'s rate.':'Stripe k goes to object k mod '+C+'; the client writes to all '+C+' servers at once.'));
-    const cnt=[['Measured time',f(Math.min(t,S.write_s),2)+' s'],['Written',f(done,0)+' of '+f(tot,0)+' MiB'],['Servers in use',String(lay.length)],['Write rate (median)',f(S.write_MBps,1)+' MB/s'],['Read rate (median)',f(S.read_MBps,1)+' MB/s']];
-    $('sds-cnt').innerHTML=cnt.map(x=>RD.stat(x[0],x[1])).join('');
-  }
-  const A=R.anim({card:'sds-anim-card',ctl:'sds-ctl',n:NF,draw,ms:700,label:'Time step'});
-  H.seg($('sds-mode'),m=>{C=+m;A.reset(NF)});
-  $('sds-note').textContent='Runs: '+['1','2','4'].map(c=>'count '+c+' write '+T.stripe[c].write_all.map(x=>f(x,2)).join(', ')+' s').join('; ')+'. 25 MB/s per server is the token bucket\'s 25,000,000 bytes per second; one server delivered '+f(T.stripe['1'].write_MBps,1)+' MB/s, the gap being request overhead.';
-
-  // ---- four writers ----
-  (function(){
-    const N=T.nproc,rows=[['fpp_balanced','File per process, 1 stripe each, spread by the MDS'],['shared_c4','One shared file, 4 stripes, each writer its own quarter'],['fpp_ost0','File per process, all pinned to OST 0 (-i 0)'],['shared_c1','One shared file, 1 stripe']];
-    const mx=Math.max(...rows.map(r=>N[r[0]].MBps));
-    $('sds-np').innerHTML=rows.map(r=>{const e=N[r[0]];return '<div class="row"><span class="nm">'+r[1]+' <span class="mute">(OSTs '+e.osts_used[0].join(',')+')</span></span><span class="track"><span class="fill" style="width:'+(100*e.MBps/mx).toFixed(1)+'%;background:'+(e.MBps>50?'var(--c3)':'var(--bad)')+'"></span></span><span class="val">'+f(e.MBps,1)+' MB/s</span></div>'}).join('');
-    const a=T.stripe['4'],b=T.stripe64k;
-    $('sds-64').innerHTML='The same 128 MiB file, stripe count 4, with 64 KiB stripes instead of 1 MiB: '+f(b.write_MBps,1)+' MB/s write and '+f(b.read_MBps,1)+' MB/s read against '+f(a.write_MBps,1)+' and '+f(a.read_MBps,1)+' <span class="meas">measured</span>: sixteen times the requests for the same bytes. The Lustre manual\'s floor: "The smallest recommended stripe size is 512 KB", and stripes "between 1 MB and 4 MB" for sequential I/O.';
-  })();
-
-  // ---- byte locator ----
-  (function(){
-    let lay='plain';
-    const MiB=1048576;
-    const PFL={pfl:{n:8,comps:[[4*MiB,1,null],[64*MiB,4,null],[Infinity,-1,4]],text:'lfs setstripe -E 4M -c 1 -E 64M -c 4 -E -1 -c -1 -i 4 (manual, 19.5.1.1; stripe size 1 MiB)'},
-               fsx:{n:null,comps:[[100*MiB,1,null],[10240*MiB,8,null],[102400*MiB,16,null],[Infinity,32,null]],text:'lfs setstripe -E 100M -c 1 -E 10G -c 8 -E 100G -c 16 -E -1 -c 32 (FSx default since 2023-08-25; stripe size 1 MiB)'}};
-    function comps(){const n=Math.max(1,+$('sds-n').value||1);
-      if(lay==='plain'){const S=(+$('sds-s').value)*1024,c=Math.max(1,Math.min(n,+$('sds-c').value||1)),i0=Math.max(0,Math.min(n-1,+$('sds-i').value||0));return {n,list:[{start:0,end:Infinity,S,c,i0}]}}
-      const P=PFL[lay];let start=0,next=0;const list=[];
-      P.comps.forEach(([end,c,i])=>{const cc=c<0?n:Math.min(c,n);const i0=i==null?next%n:i%n;next=(i0+cc)%n;list.push({start,end,S:MiB,c:cc,i0});start=end});
-      return {n,list}}
-    function locate(L,X){const k=L.list.findIndex(c=>X>=c.start&&X<c.end),c=L.list[k];const sw=c.S*c.c;
-      const stripe=Math.floor((X%sw)/c.S),obj=Math.floor(X/sw)*c.S+(X%c.S);return {k,c,stripe,ost:(c.i0+stripe)%L.n,obj}}
-    function upd(){
-      ['sds-l-s','sds-l-c','sds-l-i'].forEach(id=>$(id).style.opacity=lay==='plain'?1:.4);
-      const L=comps(),X=Math.max(0,+$('sds-off').value||0)*MiB,r=locate(L,X);
-      $('sds-out').innerHTML=[['Layout component',lay==='plain'?'one (plain)':String(r.k+1)+' of '+L.list.length],['Component stripe count',String(r.c.c)],['Stripe index',String(r.stripe)],['OST',String(r.ost)],['Offset inside that object',f(r.obj/MiB,2)+' MiB']].map(x=>RD.stat(x[0],x[1])).join('');
-      const el=$('sds-map'),W=Math.min(780,H.width(el)),units=64,u=Math.max(4,Math.floor((W-2)/32)-1);let b='';
-      const unit=lay==='plain'?L.list[0].S:MiB,first=lay==='plain'?0:Math.max(0,Math.floor(X/unit)-units/2);
-      for(let j=0;j<units;j++){const off=(first+j)*unit,q=locate(L,off),x=(j%32)*(u+1),y=Math.floor(j/32)*(u+15);
-        b+=H.rect(x,y,u,u,H.OST[q.ost%8],{op:q.k%2?0.7:1,stroke:Math.floor(X/unit)===first+j?'var(--ink)':null,sw:2});
-        if(u>=14)b+=H.t(x+u/2,y+u+11,String(q.ost),{a:'middle',fs:9,fill:'var(--mute)'})}
-      el.innerHTML=H.svg(W,2*(u+15),b,'Stripe units and their OSTs');
-      $('sds-lnote').textContent=(lay==='plain'?'Stripe units '+first+' to '+(first+units-1)+' of size '+(unit>=MiB?unit/MiB+' MiB':unit/1024+' KiB'):'1 MiB units '+first+' to '+(first+units-1)+'; components alternate in shade. '+PFL[lay].text)+'; the outlined square holds the offset. Colours repeat after 8 OSTs. Which OSTs a component uses is the MDS\'s choice at creation (shown here round robin from the starting OST); the arithmetic from offset to stripe is the source\'s.';
-    }
-    H.seg($('sds-lay'),m=>{lay=m;if(m==='pfl')$('sds-n').value=8;upd()});
-    ['sds-off','sds-s','sds-c','sds-i','sds-n'].forEach(id=>$(id).addEventListener('input',upd));
-    R.onRender(upd);upd();
-  })();
-  // ---- one raw line ----
-  (function(){const s=T.stripe['4'];$('sds-out1').textContent=JSON.stringify({exp:'stripe',count:4,rep:0,bytes:s.bytes,stripe_kib:1024,write_s:s.write_all[0],read_s:s.read_all[0],layout:{count:4,size:1048576,objects:s.layouts[0].map(o=>({ost:o,oid:'...'}))}})})();
-})();
-</script>
-<script>/* 31_js_sd_meta.js */
-// ---- Metadata storm tab ----
+<script>/* 29_js_sd_meta.js */
+// ---- Reading section 4 (moved from the Metadata storm tab, 2026-10-24): one against two metadata servers, the curve, real stores, the start-up storm calculator ----
 (function(){
   const H=SD_H,D=window.SD,$=H.$,f=H.fmt,T=D.tpfs,M=T.meta;
-  const R=H.mk('t-sdmeta');
+  const R=H.mk('t-read');
   // ---- animation: 16 clients, 1 vs 2 metadata servers, one clock ----
   let K=1;const OPS=16*300*3,NF=13;
   const rate=k=>M[k+'_16'].ops_per_s,Tend=Math.ceil(OPS/rate(1));
@@ -1565,6 +1560,80 @@ window.IOH=function(TAB){
   })();
 })();
 </script>
+<script>/* 29_js_sd_stripe.js */
+// ---- Reading section 2 (moved from the Striping lab tab, 2026-10-24): stripe-count animation, four writers, byte locator ----
+(function(){
+  const H=SD_H,D=window.SD,$=H.$,f=H.fmt,esc=H.esc,T=D.tpfs;
+  const R=H.mk('t-read');
+  // ---- animation: one 128 MiB file, stripe count 1 / 2 / 4, on one clock ----
+  let C=4;
+  const NF=14,Tmax=Math.ceil(T.stripe['1'].write_s*2)/2; // frames every Tmax/(NF-1) seconds of measured time
+  function draw(i){
+    const S=T.stripe[String(C)],lay=S.layouts[0],tot=S.bytes/1048576,t=Tmax*i/(NF-1);
+    const done=Math.min(tot,Math.floor(tot*Math.min(1,t/S.write_s)));
+    const el=$('sds-svg'),W=Math.min(780,H.width(el));
+    const cols=W<480?16:32,cell=Math.floor((W-4)/cols)-1,rows=Math.ceil(tot/cols);
+    let b='';
+    for(let k=0;k<tot;k++){const x=(k%cols)*(cell+1),y=Math.floor(k/cols)*(cell+1);
+      b+=H.rect(x,y,cell,cell,k<done?H.OST[lay[k%lay.length]]:'var(--soft)',{rx:1})}
+    const gy=rows*(cell+1)+14,lw=(W-3*8)/4;
+    for(let o=0;o<4;o++){const held=Array.from({length:done},(_,k)=>lay[k%lay.length]).filter(x=>x===o).length;
+      const x=o*(lw+8);b+=H.rect(x,gy,lw,18,'var(--soft)',{stroke:'var(--line)'})+H.rect(x,gy,lw*held/tot,18,H.OST[o])+
+        H.t(x+4,gy+32,'OST '+o+': '+held+' MiB',{fs:10.5})}
+    el.innerHTML=H.svg(W,gy+40,b,'Stripe count '+C+' at '+t.toFixed(1)+' s');
+    const fin=t>=S.write_s;
+    $('sds-cap').innerHTML='<b>'+f(t,1)+' s.</b> '+(i===0?'The client has the layout from the metadata server: '+lay.length+' object'+(lay.length>1?'s':'')+' on OST '+lay.join(', ')+', 1 MiB stripes.':
+      fin?'Done: '+f(tot,0)+' MiB in '+f(S.write_s,2)+' s, '+f(S.write_MBps,1)+' MB/s, '+(C===1?'one server doing all the work while three idle.':'each of '+C+' servers taking 1/'+C+' of the file.'):
+      (C===1?'Every stripe goes to the same server, at that one server\'s rate.':'Stripe k goes to object k mod '+C+'; the client writes to all '+C+' servers at once.'));
+    const cnt=[['Measured time',f(Math.min(t,S.write_s),2)+' s'],['Written',f(done,0)+' of '+f(tot,0)+' MiB'],['Servers in use',String(lay.length)],['Write rate (median)',f(S.write_MBps,1)+' MB/s'],['Read rate (median)',f(S.read_MBps,1)+' MB/s']];
+    $('sds-cnt').innerHTML=cnt.map(x=>RD.stat(x[0],x[1])).join('');
+  }
+  const A=R.anim({card:'sds-anim-card',ctl:'sds-ctl',n:NF,draw,ms:700,label:'Time step'});
+  H.seg($('sds-mode'),m=>{C=+m;A.reset(NF)});
+  $('sds-note').textContent='Runs: '+['1','2','4'].map(c=>'count '+c+' write '+T.stripe[c].write_all.map(x=>f(x,2)).join(', ')+' s').join('; ')+'. 25 MB/s per server is the token bucket\'s 25,000,000 bytes per second; one server delivered '+f(T.stripe['1'].write_MBps,1)+' MB/s, the gap being request overhead.';
+
+  // ---- four writers ----
+  (function(){
+    const N=T.nproc,rows=[['fpp_balanced','File per process, 1 stripe each, spread by the MDS'],['shared_c4','One shared file, 4 stripes, each writer its own quarter'],['fpp_ost0','File per process, all pinned to OST 0 (-i 0)'],['shared_c1','One shared file, 1 stripe']];
+    const mx=Math.max(...rows.map(r=>N[r[0]].MBps));
+    $('sds-np').innerHTML=rows.map(r=>{const e=N[r[0]];return '<div class="row"><span class="nm">'+r[1]+' <span class="mute">(OSTs '+e.osts_used[0].join(',')+')</span></span><span class="track"><span class="fill" style="width:'+(100*e.MBps/mx).toFixed(1)+'%;background:'+(e.MBps>50?'var(--c3)':'var(--bad)')+'"></span></span><span class="val">'+f(e.MBps,1)+' MB/s</span></div>'}).join('');
+    const a=T.stripe['4'],b=T.stripe64k;
+    $('sds-64').innerHTML='The same 128 MiB file, stripe count 4, with 64 KiB stripes instead of 1 MiB: '+f(b.write_MBps,1)+' MB/s write and '+f(b.read_MBps,1)+' MB/s read against '+f(a.write_MBps,1)+' and '+f(a.read_MBps,1)+' <span class="meas">measured</span>: sixteen times the requests for the same bytes. The Lustre manual\'s floor: "The smallest recommended stripe size is 512 KB", and stripes "between 1 MB and 4 MB" for sequential I/O.';
+  })();
+
+  // ---- byte locator ----
+  (function(){
+    let lay='plain';
+    const MiB=1048576;
+    const PFL={pfl:{n:8,comps:[[4*MiB,1,null],[64*MiB,4,null],[Infinity,-1,4]],text:'lfs setstripe -E 4M -c 1 -E 64M -c 4 -E -1 -c -1 -i 4 (manual, 19.5.1.1; stripe size 1 MiB)'},
+               fsx:{n:null,comps:[[100*MiB,1,null],[10240*MiB,8,null],[102400*MiB,16,null],[Infinity,32,null]],text:'lfs setstripe -E 100M -c 1 -E 10G -c 8 -E 100G -c 16 -E -1 -c 32 (FSx default since 2023-08-25; stripe size 1 MiB)'}};
+    function comps(){const n=Math.max(1,+$('sds-n').value||1);
+      if(lay==='plain'){const S=(+$('sds-s').value)*1024,c=Math.max(1,Math.min(n,+$('sds-c').value||1)),i0=Math.max(0,Math.min(n-1,+$('sds-i').value||0));return {n,list:[{start:0,end:Infinity,S,c,i0}]}}
+      const P=PFL[lay];let start=0,next=0;const list=[];
+      P.comps.forEach(([end,c,i])=>{const cc=c<0?n:Math.min(c,n);const i0=i==null?next%n:i%n;next=(i0+cc)%n;list.push({start,end,S:MiB,c:cc,i0});start=end});
+      return {n,list}}
+    function locate(L,X){const k=L.list.findIndex(c=>X>=c.start&&X<c.end),c=L.list[k];const sw=c.S*c.c;
+      const stripe=Math.floor((X%sw)/c.S),obj=Math.floor(X/sw)*c.S+(X%c.S);return {k,c,stripe,ost:(c.i0+stripe)%L.n,obj}}
+    function upd(){
+      ['sds-l-s','sds-l-c','sds-l-i'].forEach(id=>$(id).style.opacity=lay==='plain'?1:.4);
+      const L=comps(),X=Math.max(0,+$('sds-off').value||0)*MiB,r=locate(L,X);
+      $('sds-out').innerHTML=[['Layout component',lay==='plain'?'one (plain)':String(r.k+1)+' of '+L.list.length],['Component stripe count',String(r.c.c)],['Stripe index',String(r.stripe)],['OST',String(r.ost)],['Offset inside that object',f(r.obj/MiB,2)+' MiB']].map(x=>RD.stat(x[0],x[1])).join('');
+      const el=$('sds-map'),W=Math.min(780,H.width(el)),units=64,u=Math.max(4,Math.floor((W-2)/32)-1);let b='';
+      const unit=lay==='plain'?L.list[0].S:MiB,first=lay==='plain'?0:Math.max(0,Math.floor(X/unit)-units/2);
+      for(let j=0;j<units;j++){const off=(first+j)*unit,q=locate(L,off),x=(j%32)*(u+1),y=Math.floor(j/32)*(u+15);
+        b+=H.rect(x,y,u,u,H.OST[q.ost%8],{op:q.k%2?0.7:1,stroke:Math.floor(X/unit)===first+j?'var(--ink)':null,sw:2});
+        if(u>=14)b+=H.t(x+u/2,y+u+11,String(q.ost),{a:'middle',fs:9,fill:'var(--mute)'})}
+      el.innerHTML=H.svg(W,2*(u+15),b,'Stripe units and their OSTs');
+      $('sds-lnote').textContent=(lay==='plain'?'Stripe units '+first+' to '+(first+units-1)+' of size '+(unit>=MiB?unit/MiB+' MiB':unit/1024+' KiB'):'1 MiB units '+first+' to '+(first+units-1)+'; components alternate in shade. '+PFL[lay].text)+'; the outlined square holds the offset. Colours repeat after 8 OSTs. Which OSTs a component uses is the MDS\'s choice at creation (shown here round robin from the starting OST); the arithmetic from offset to stripe is the source\'s.';
+    }
+    H.seg($('sds-lay'),m=>{lay=m;if(m==='pfl')$('sds-n').value=8;upd()});
+    ['sds-off','sds-s','sds-c','sds-i','sds-n'].forEach(id=>$(id).addEventListener('input',upd));
+    R.onRender(upd);upd();
+  })();
+  // ---- one raw line ----
+  (function(){const s=T.stripe['4'];$('sds-out1').textContent=JSON.stringify({exp:'stripe',count:4,rep:0,bytes:s.bytes,stripe_kib:1024,write_s:s.write_all[0],read_s:s.read_all[0],layout:{count:4,size:1048576,objects:s.layouts[0].map(o=>({ost:o,oid:'...'}))}})})();
+})();
+</script>
 <script>/* 32_js_sd_size.js */
 // ---- Sizing calculator (the same formulas as src/recompute.py size()) ----
 window.SD_SIZE=function(x){
@@ -1607,7 +1676,7 @@ window.SD_SIZE=function(x){
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (storage key sd-tab: each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1625,6 +1694,8 @@ window.SD_SIZE=function(x){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('sd-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

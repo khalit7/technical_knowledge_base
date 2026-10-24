@@ -1,7 +1,7 @@
 // ---- Charts moved from the root's Storage lab (2026-10-19): its helpers, bound to the tab each chart lives in ----
 // IOH(tabId) returns the root lab's helper set for one tab (step-animation controller, SVG helpers, render registration,
-// predict-then-reveal for .io-pr blocks). Animations run only while their card is on screen in the visible tab, play once
-// the first time they scroll into view, and never autoplay under prefers-reduced-motion.
+// predict-then-reveal for .io-pr blocks). Animations never autoplay (2026-10-24): they wait on step 0 until the reader
+// presses play or steps, and run only while their card is on screen in the visible tab.
 window.IOH=function(TAB){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -40,7 +40,7 @@ window.IOH=function(TAB){
     g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     g('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&tabVisible()){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+      kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();

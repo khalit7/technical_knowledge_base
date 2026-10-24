@@ -1,7 +1,7 @@
 // ---- Storage and data movement: shared helpers for every tab (adapted from the root Storage lab's IO_H) ----
 // SD_H.mk(tabId) gives helpers bound to one tab: renders run when that tab opens and on resize while it is visible;
-// animations run only while their card is on screen in the visible tab, play once on first view, never autoplay
-// under prefers-reduced-motion.
+// animations never autoplay: they wait on step 0 until the reader presses play or steps (2026-10-24), and run only while
+// their card is on screen in the visible tab.
 window.SD_H=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -46,7 +46,7 @@ window.SD_H=(function(){
       g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
       g('v').addEventListener('change',e=>{st.spd=+e.target.value});
       if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-        if(st.vis&&!st.started&&tabVisible()){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+        kick()},{threshold:.2}).observe(card)}else st.vis=true;
       document.addEventListener('visibilitychange',kick);
       onRender(()=>{show();kick()});
       show();
