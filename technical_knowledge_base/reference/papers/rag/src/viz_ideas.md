@@ -30,6 +30,8 @@ Scored on the Methodology's questions (`.claude/skills/explainer-page/visuals/ch
 | P-rag.15 | Shipping the closed-book generator to the browser | 50 KB for a model that scores 0.4% on held-out questions; its numbers are in the results table. |
 | P-rag.16 | A real RAG checkpoint in the browser | 626M parameters and a 36 to 100 GB index; impossible in a sandboxed page. |
 | P-rag.17 | Index memory calculator | The paper gives 100 GB and 36 GB but not the FAISS settings; only the raw vector size (64.5 GB at fp32) is derivable, which one sentence says. |
+| P-rag.18 | Figure 1 moved to the top as the hero (2026-10-24) | The paper, top | moved | built: the paper's key idea; the Idea section points up to it |
+| P-rag.19 | Table 4 as two stacked bars, with the 7% of specificity the table omits drawn dashed (2026-10-24) | The paper, Results | static chart from `PAPER.tables.t4` (`12_js_fig.js`) | built: the human-evaluation claim had no visual |
 
 ## What the methodology lacked for this page
 

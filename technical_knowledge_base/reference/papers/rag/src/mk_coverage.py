@@ -11,7 +11,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, N = 'The paper tab', 'Ask a trained toy RAG tab', "The paper's tables tab", 'Then and now tab'
 C = [
  # header
- ('Reading time line "9 min read, +~3h 10m resources"', 'dropped: replaced by the build-computed reading time and resources total (more resources now)', ['min to read', 'of resources']),
+ ('Reading time line "9 min read, +~3h 10m resources"', 'dropped: replaced by the build-computed reading time and resources total (more resources now)', ['Reading: ', 'of resources']),
  ('Authors: Lewis, Perez, Piktus, Petroni, Karpukhin, Goyal, Kuttler, Lewis, Yih, Rocktaschel, Riedel, Kiela', R + ', headline card', ['Patrick Lewis', 'Ethan Perez', 'Aleksandra Piktus', 'Fabio Petroni', 'Vladimir Karpukhin', 'Naman Goyal', 'Heinrich Küttler', 'Mike Lewis', 'Wen-tau Yih', 'Tim Rocktäschel', 'Sebastian Riedel', 'Douwe Kiela']),
  ('Affiliations: Facebook AI Research; UCL; NYU', R + ', headline card', ['Facebook AI Research; University College London; New York University']),
  ('Date: May 2020 (arXiv v1; NeurIPS 2020)', R + ', headline card', ['May 2020 (arXiv v1, 22 May 2020)', 'NeurIPS 2020']),
