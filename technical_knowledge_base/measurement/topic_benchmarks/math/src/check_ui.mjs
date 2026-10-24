@@ -15,6 +15,10 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.setViewport({ width, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto(file);
   await p.click('button[data-t=t-read]'); await new Promise(r => setTimeout(r, 200));
+  { const start = {}; for (const c of ['ck-ctl', 'gs-ctl', 'ai-ctl', 'fm-ctl']) { await p.$eval('#' + c, e => e.scrollIntoView()); start[c] = await p.$eval('#' + c + '-s', e => e.value) }
+    await new Promise(r => setTimeout(r, 4500));
+    for (const c of Object.keys(start)) { const v = await p.$eval('#' + c + '-s', e => e.value); if (v !== start[c]) problems.push('autoplay: ' + c + ' moved from ' + start[c] + ' to ' + v) }
+    await p.evaluate(() => scrollTo(0, 0)) }
   let actions = 0;
   const bad = async (where) => { const t = await p.evaluate(() => document.body.innerText); if (/NaN|undefined|\bnull\b|Infinity/.test(t)) problems.push(where + ': NaN/undefined/null in text: ' + (t.match(/.{30}(NaN|undefined|\bnull\b|Infinity).{30}/) || [''])[0]);
     const sw = await p.evaluate(() => document.documentElement.scrollWidth > innerWidth); if (sw) problems.push(where + ': sideways scroll') };
@@ -31,7 +35,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     if (Math.abs(pt[0] - 0.5) > 1e-9 || Math.abs(pt[1] - 2 / 64) > 1e-9) problems.push('permTest ' + pt);
   }
   // Reading animations: step through every step of each, in every mode
-  for (const [ctl, modes] of [['gs-ctl', null], ['ai-ctl', 'ai-mode'], ['fm-ctl', null]]) {
+  for (const [ctl, modes] of [['ck-ctl', null], ['gs-ctl', null], ['ai-ctl', 'ai-mode'], ['fm-ctl', null]]) {
     const n = await p.$eval('#' + ctl + '-s', e => +e.max + 1);
     const ms = modes ? await p.$$eval('#' + modes + ' button', bs => bs.length) : 1;
     for (let m = 0; m < ms; m++) {
@@ -43,15 +47,18 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const models = await p.$$eval('#gs-model option', o => o.map(x => x.value));
   for (const v of models) { await p.select('#gs-model', v); actions++ } await bad('gs models');
   for (let k = 1; k <= 4; k++) { await p.click('#fm-lad button.rung:nth-child(' + k + ')'); actions++ }
-  for (const k of [1, 2]) { await p.click('#eb-mode button:nth-child(' + k + ')'); actions++ } await bad('eb');
-  for (const c of ['gs-ctl', 'ai-ctl', 'fm-ctl']) { for (let i = 0; i < 30; i++) await p.click('#' + c + '-f') }
+  for (const v of ['50', '80', '99', '100']) { await p.$eval('#eb-p', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); actions++ } await bad('eb');
+  const eb30 = await p.$eval('#eb-svg', e => e.textContent); if (!/±0\.0/.test(eb30)) problems.push('eb at 100%: expected ±0.0');
+  await p.$eval('#eb-p', e => { e.value = '80'; e.dispatchEvent(new Event('input')) });
+  if (!/±14\.3/.test(await p.$eval('#eb-svg', e => e.textContent))) problems.push('eb at 80%: AIME should be ±14.3');
+  for (const c of ['ck-ctl', 'gs-ctl', 'ai-ctl', 'fm-ctl']) { for (let i = 0; i < 30; i++) await p.click('#' + c + '-f') }
   await p.click('#ai-mode button:nth-child(2)');
   // screenshots of the cards at their last step
-  for (const id of ['gs-card', 'ai-card', 'fm-card', 'eb-card']) { const el = await p.$('#' + id); await el.screenshot({ path: path.join(SHOTS, 'math-' + id + '-' + scheme + '-' + width + '.png') }) }
+  for (const id of ['ck-card', 'gs-card', 'ai-card', 'fm-card', 'eb-card']) { const el = await p.$('#' + id); await el.screenshot({ path: path.join(SHOTS, 'math-' + id + '-' + scheme + '-' + width + '.png') }) }
   for (const c of ['gs-ctl', 'ai-ctl', 'fm-ctl']) { for (let i = 0; i < 30; i++) await p.click('#' + c + '-f') }
   await p.click('#ai-mode button:nth-child(2)');
   // play buttons
-  for (const c of ['gs-ctl', 'ai-ctl', 'fm-ctl']) { await p.click('#' + c + '-p'); await new Promise(r => setTimeout(r, 400)); await p.click('#' + c + '-p'); actions++ }
+  for (const c of ['ck-ctl', 'gs-ctl', 'ai-ctl', 'fm-ctl']) { await p.click('#' + c + '-p'); await new Promise(r => setTimeout(r, 400)); await p.click('#' + c + '-p'); actions++ }
   // Sample lab
   await p.click('button[data-t=t-lab]'); await new Promise(r => setTimeout(r, 300));
   const comps = await p.$$eval('#lb-comp button', bs => bs.length);
