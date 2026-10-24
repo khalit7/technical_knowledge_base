@@ -49,3 +49,6 @@ Why about 41 minutes is right: the page owns two stacks (virtualization: VMs and
 
 ## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 460 units: core 312, depth 132, fat 12, volatile 4. 443 were drafted from the old page by `ledger.py init` and keyed by a script that found each unit's longest distinctive phrase in the rebuilt page (core if it appears outside closed blocks); 17 were added by hand for the new figures and for script-rendered steppers, lab and checker (their keys are in static captions). Fat units carry a note (wind-ups, the old caption and tab pointers, the "six things" restatement). Volatile: the dated version facts (minimum drivers, CUDA 13.4 with branch 615, cuda-compat-13-4 targets, the toolkit no longer bundling the driver), kept here in one compact dated table as the brief asks.
+
+## Topic close (2026-10-24)
+Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.
