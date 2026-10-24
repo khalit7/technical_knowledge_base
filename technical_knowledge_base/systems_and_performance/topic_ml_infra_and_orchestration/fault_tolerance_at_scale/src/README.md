@@ -64,3 +64,5 @@ Why 35 minutes is right: the page teaches nine linked subjects (failure rates, f
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 493 units: core 282, depth 185, fat 25, owned 1 (the interval calculator's simulation check, carried by the reliability page's Monte Carlo). 486 were drafted by `ledger.py init`; keys were matched to the rebuilt page by a phrase search and every unmatched or short key reviewed by hand; 7 units were added by hand for script-rendered tables and for the new checkpoint-strategy section. Fat units carry a `note` (navigation, pointers to removed tabs, wind-ups, restatements).
+
+2026-10-24 topic close: section 5's managed-versions block links ML platforms and workflows section 10 (SageMaker against HyperPod); section 9 points to Observability and cost section 5 for the fleet goodput values (Meta's ETTR, Google's scheduling goodput, the value of one point), which stay there as metering; Further reading names Ray's Ray Train section, not the removed Train failure replay tab.
