@@ -22,3 +22,11 @@ Findings from configs (new, sourced): Large 3 is DeepSeek-V3's skeleton (7168 wi
 Contradictory primary sources shown side by side: Small 4 active 6B / 8B (blog) vs 6.5B (card); Shieldstral 3.8B (docs) vs 3B (post, repo); Medium 3.5 weights 28-29 Apr vs announcement 22 May.
 
 What the methodology lacked here: a rule for "parameter counts that differ by counting convention across one vendor's own models" (Devstral 2 excludes the input embedding, Medium 3.5 of the same shape includes it); and a rule for API retirement vs weights availability, since several "current" open models are retired from the API but still downloadable.
+
+## 2026-10-24 rebuild to the teaching contract
+- **Built: hero** (`16_js_hero.js`), a static annotated diagram: one row per model (7B, Mixtral, Large 3, Small 4, Medium 3.5, Large 4), its attention choice, its feed-forward layout as squares (dense, 2 of 8, 4 of 128 plus shared), licence rung and sparsity ratio. Structure, so static.
+- **Added: real image**, Mixtral paper Figure 8 (CC BY 4.0), beside the claim that routing follows syntax, not topic. The paper's own figure is the reference people cite.
+- **Moved: Lineage timeline** from its own tab into the Reading tab's Lineage section (the order explains the consolidation); its per-release cards are a closed Release notes block a dot opens.
+- **Removed: Artificial Analysis scatter** of every open-weight model: cross-provider comparison belongs to the landscape root, which carries the v4.3 picture. Mistral's own scores, the leader's 46.3 and Small 4's cost per task moved into the dated lineup table.
+- **Kept**: the rolling-buffer before/after (Mistral's own implementation choice, its numbers), the Mixtral/7B/Small 4 layer animation (the lab's own sequence of shapes, to scale), the routing-repetition chart (Mixtral Table 5), the memory/compute bars, the Magistral reward group and the licence chooser, each with a prediction prompt. None autoplays.
+- **Rejected**: a stacked-window reach stepper (Attention variants owns it), a whole-model cache chart (Long context's calculator owns it).

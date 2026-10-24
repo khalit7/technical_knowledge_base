@@ -1,4 +1,4 @@
-// ---- Lineage tab: one lane per job, dots coloured by licence, the 2026 consolidation drawn as arrows ----
+// ---- Reading tab, Lineage section: one lane per job, dots coloured by licence, the 2026 consolidation drawn as arrows ----
 (function(){
   if(!$('lnSvg'))return;
   const L={g:'General',c:'Code, agents',r:'Reasoning',v:'Vision, OCR',s:'Speech',e:'Edge',x:'Other'};
@@ -64,12 +64,12 @@
       const ring=e.l==='p'||e.l==='u';
       s+='<g class="lnd" data-id="'+e.id+'" style="cursor:pointer"><circle cx="'+xx.toFixed(1)+'" cy="'+y+'" r="5.5" fill="'+(ring?'var(--bg)':LCOL[e.l])+'" stroke="'+LCOL[e.l]+'" stroke-width="'+(ring?2.2:1)+'"/><text x="'+(xx+(end?-3:3)).toFixed(1)+'" y="'+ty+'" font-size="10.5"'+(end?' text-anchor="end"':'')+'>'+lab+'</text><title>'+dlab(e)+': '+e.n+' ('+LIC[e.l]+')</title></g>'});
     $('lnSvg').innerHTML='<div class="tw">'+svgEl(W,H,s,'Mistral releases by job and licence on a time axis').replace('<svg ','<svg style="min-width:'+(narrow?560:600)+'px" ')+'</div>';
-    $('lnSvg').querySelectorAll('.lnd').forEach(g=>g.addEventListener('click',()=>{const c=$(g.dataset.id);if(!c)return;document.querySelectorAll('.tl-item').forEach(q=>q.classList.toggle('sel',q===c));c.scrollIntoView({block:'center',behavior:'smooth'})}));
+    $('lnSvg').querySelectorAll('.lnd').forEach(g=>g.addEventListener('click',()=>{const c=$(g.dataset.id);if(!c)return;const nt=$('lnNotes');if(nt)nt.open=true;document.querySelectorAll('.tl-item').forEach(q=>q.classList.toggle('sel',q===c));c.scrollIntoView({block:'center',behavior:'smooth'})}));
     $('lnCards').innerHTML=ev.map(e=>'<div class="tl-item" style="border-left:4px solid '+LCOL[e.l]+'" id="'+e.id+'"><h3>'+e.n+'</h3><div class="dt">'+dlab(e)+' · '+L[e.k]+' · '+LIC[e.l]+' · '+e.src+'</div><p style="margin:4px 0 0;font-size:14px">'+e.t+'</p></div>').join('');
     $('lnLeg').innerHTML=Object.keys(LIC).map(k=>'<span><svg width="14" height="14" style="display:inline-block;vertical-align:middle;margin-right:4px"><circle cx="7" cy="7" r="5" fill="'+(k==='p'||k==='u'?'var(--bg)':LCOL[k])+'" stroke="'+LCOL[k]+'" stroke-width="2"/></svg>'+LIC[k]+'</span>').join('')+'<span><svg width="22" height="10" style="display:inline-block;vertical-align:middle;margin-right:4px"><line x1="0" y1="5" x2="22" y2="5" stroke="var(--c5)" stroke-width="1.6" stroke-dasharray="4 3"/></svg>folded into a generalist</span>';
   }
   segBind('lnR',m=>{range=m;draw()});
   const F=$('lnF');F.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{F.querySelectorAll('button').forEach(q=>q.classList.toggle('on',q===b));filt=b.dataset.m;draw()}));
-  onTab('t-line',draw);
-  let rw=0;addEventListener('resize',()=>{if(!$('t-line').hidden){const w=$('lnSvg').clientWidth<560;if(w!==rw){rw=w;draw()}}});
+  onTab('t-read',draw);
+  let rw=0;addEventListener('resize',()=>{if(!$('t-read').hidden){const w=$('lnSvg').clientWidth<560;if(w!==rw){rw=w;draw()}}});
 })();
