@@ -1,4 +1,4 @@
-// ---- The paper tab: in-context against fine-tuning (animated), data mix, compute, predict reveals, tokens per parameter ----
+// ---- The paper tab: the hero (Figure 1.3 recomputed), in-context against fine-tuning (stepped, never autoplays), data mix, compute, predict reveals, tokens per parameter ----
 (function(){
   // Figure 2.1's prompt in GPT-3 tokens (r50k_base, src/count_tokens.py)
   const P=[{t:'Translate English to French:',n:7,k:'ins'},{t:'sea otter => loutre de mer',n:10,k:'ex'},{t:'peppermint => menthe poivrée',n:11,k:'ex'},{t:'plush girafe => girafe peluche',n:11,k:'ex'},{t:'cheese =>',n:3,k:'q'}],ANS={t:' fromage',n:2};
@@ -60,8 +60,14 @@
     $('cmpSvg').innerHTML=svgW(W,H,s,'training compute in petaflop/s-days')});
 
   // Predict reveals
-  PRED_REVEAL.pGap=()=>{const A=RC.agg;fit($('gapSvg'),W=>{$('gapSvg').innerHTML=sizeChart(W,{title:'Average of the 41 accuracy rows of Table H.1',ylab:'mean accuracy (%)',dom:[15,62],series:[{y:A.f,c:SETC.f,n:'few-shot'},{y:A.o,c:SETC.o,n:'one-shot'},{y:A.z,c:SETC.z,n:'zero-shot'}]})});
-    $('gapNote').innerHTML='Few minus zero: '+RC.agg_gap.map((g,i)=>SZ[i]+' '+g.toFixed(1)).join(', ')+' points. The gap grows from Small to 175B on '+RC.gap_grows.n+' of the '+RC.gap_grows.of+' tasks, and from 13B to 175B on '+RC.gap_175_gt_13+'. This is the paper\'s Figure 1.3 recomputed from its own appendix table (independently; the figure has no printed values, and adding SQuAD 2.0 exact match as a 42nd row moves the 175B few-shot mean from '+RC.agg.f[7].toFixed(1)+' to '+RC.agg42.f[7].toFixed(1)+').'};
+  // Hero: Figure 1.3 recomputed from Table H.1 (mean of the 41 accuracy rows), with the few-minus-zero gap marked at both ends
+  fit($('heroSvg'),W=>{const A=RC.agg;let svg=sizeChart(W,{ylab:'mean accuracy (%)',dom:[15,62],series:[{y:A.f,c:SETC.f,n:'few-shot'},{y:A.o,c:SETC.o,n:'one-shot'},{y:A.z,c:SETC.z,n:'zero-shot'}]});
+    // the gap brackets: same scale as sizeChart (pl 40, pt 10, pb 34, H 250 or 280)
+    const narrow=W<520,pl=40,pr=narrow?58:88,pt=10,pb=34,H=narrow?250:280,x0=LX[0]-.08,x1=LX[7]+.08,X=v=>pl+(W-pl-pr)*(v-x0)/(x1-x0),Y=v=>pt+(H-pt-pb)*(1-(v-15)/(62-15));
+    const halo=t=>t.replace('<text','<text stroke="var(--bg)" stroke-width="4" paint-order="stroke"');
+    const br=(i,dx,lab,anc,ly)=>{const x=X(LX[i])+dx,ya=Y(A.f[i]),yb=Y(A.z[i]);return ln2(x,ya,x,yb,'var(--ink)',{sw:1.4})+ln2(x-3,ya,x+3,ya,'var(--ink)',{sw:1.4})+ln2(x-3,yb,x+3,yb,'var(--ink)',{sw:1.4})+halo(tx(x+(anc==='end'?-4:8),ly(ya,yb),lab,{fs:11,a:anc,w:600}))};
+    const add=br(0,-10,'gap '+RC.agg_gap[0].toFixed(1),'start',(ya,yb)=>yb+17)+br(7,-12,'gap '+RC.agg_gap[7].toFixed(1)+' points','end',(ya,yb)=>ya-6);
+    $('heroSvg').innerHTML=svg.replace('</svg>',add+'</svg>')});
   function arith(m){const T=RC.tasks.filter(t=>t.cat.startsWith('Arithmetic'));const cs=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--ink)','var(--mute)','var(--bad)','var(--good)'];
     fit($('arSvg'),W=>{$('arSvg').innerHTML=sizeChart(W,{title:'Arithmetic, '+SETN[m]+' (Table H.1)',ylab:'exact-match accuracy (%)',dom:[0,100],series:T.map((t,i)=>({y:t[m],c:cs[i],n:t.name,sw:1.6}))})})}
   PRED_REVEAL.pAr=()=>{arith('f');const t=RC.tasks.find(x=>x.name==='3D+');$('arNote').innerHTML='3-digit addition few-shot: '+t.f.map((v,i)=>SZ[i]+' '+v).join(', ')+'. Everything below 13B is near zero; the jump comes in the last step (Figure 3.10). Exact match is all or nothing: an answer with one wrong digit scores 0, which is why '+A('https://arxiv.org/abs/2304.15004','Schaeffer et al. (2023)')+' argue such jumps partly reflect the metric. A straight line through the seven smaller models in log(parameters) predicts '+(()=>{const F=linfit(LX.slice(0,7),t.f.slice(0,7));return (F.a+F.b*LX[7]).toFixed(1)})()+'% for 175B (<a href="#" data-tab="t-run">refit it</a>).';

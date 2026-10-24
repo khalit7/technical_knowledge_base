@@ -31,6 +31,8 @@ Existing visuals on the old page: none. Outbound links: arXiv, the OpenAI API po
 | P-gpt_3.16 | Multiple-choice scoring demo (per-token against unconditional normalisation) with invented log-probabilities | No released log-probabilities; any numbers would be invented |
 | P-gpt_3.17 | Then and now tab | The recipe's fate (Chinchilla, RLHF, closed weights) fits in Why it matters with one chart; a morph of an unchanged decoder shows little |
 | P-gpt_3.18 | Training-bill or cost tab | A pattern Khalid removed; the paper gives no cost |
+| P-gpt_3.19 | Hero (2026-10-24): Figure 1.3 recomputed from Table H.1, three lines with the few-minus-zero gap bracketed at 125M and 175B | Built: it was the reveal of the few-minus-zero predict question; promoted to the top, the question removed |
+| P-gpt_3.20 | The paper's own Figure 1.3 or 2.1 as an image | Rejected: arXiv non-exclusive licence, not CC BY; redrawn instead |
 
 ## Inspiration
 

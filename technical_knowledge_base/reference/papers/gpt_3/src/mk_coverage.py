@@ -11,7 +11,7 @@ R = 'The paper tab'
 TT = "The paper's tables tab"
 C = [
  # header
- ('Reading time line "10 min read, +~4h 40m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "10 min read, +~4h 40m resources"', 'dropped: replaced by the measured reading time in the header (2026-10-24 light pass)', ['Reading: ', 'in closed details']),
  ('Authors: Brown, Mann, Ryder, Subbiah, Kaplan and 26 others (OpenAI)', R + ', headline card (all 31 named)', ['Tom B. Brown', 'Benjamin Mann', 'Nick Ryder', 'Melanie Subbiah', 'Jared Kaplan', '(31 authors)', 'OpenAI']),
  ('Date: May 2020 (arXiv v1); NeurIPS 2020 best paper', R + ', headline card (the award is listed as Outstanding Paper on the NeurIPS awards page)', ['May 2020', 'arXiv v1 28 May 2020', 'NeurIPS 2020 (Outstanding Paper award)']),
  ('Link arXiv:2005.14165 (~3h, very long paper)', 'card and Further reading', ['https://arxiv.org/abs/2005.14165', '(3h)', 'very long']),
@@ -78,7 +78,7 @@ C = [
  ('Text synthesis repeats, loses coherence, contradicts itself', R + ', Limitations', ['still sometimes repeat themselves semantically', 'contradict themselves']),
  ('Comparison tasks weak plausibly because unidirectional decoder cannot look back and compare', R + ', Limitations', ['looking back and comparing two pieces of content']),
  ('Objective weights every token equally; predicts text rather than acting toward goals', R + ', Limitations', ['weights every token equally', 'goal-directed actions']),
- ('Pretraining wildly sample-inefficient vs a human lifetime', R + ', Limitations', ['Sample efficiency', 'lifetime']),
+ ('Pretraining wildly sample-inefficient vs a human lifetime', R + ', Limitations', ['sample efficiency', 'lifetime']),
  ('Ambiguous whether few-shot learns from scratch or recognises tasks learned in pretraining', R + ', Limitations; Idea; Why it matters', ['Learning or recognising?', 'from scratch']),
  ('175B expensive and awkward to serve; distillation at this scale untried', R + ', Limitations', ['expensive and inconvenient to perform inference on', 'distillation at this scale is untried']),
  ('Standard caveats: poor interpretability, imperfect calibration, inherited data biases', R + ', Limitations; Broader impacts', ['hard to interpret', 'not well calibrated', 'inherits the biases of its data']),

@@ -19,6 +19,13 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto(file);
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
+  // never autoplay (2026-10-24): with the card on screen for 1.5 s and nothing pressed, no frame may be drawn
+  await p.$eval('#tabs button[data-t=t-read]', b => b.click()); await p.$eval('#ft', e => e.scrollIntoView());
+  await new Promise(r => setTimeout(r, 1500));
+  if (await p.$eval('#ft', e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ft autoplayed`);
+  await p.$eval('#ftM button[data-m=ft]', b => b.click()); await new Promise(r => setTimeout(r, 1000));
+  if (await p.$eval('#ft', e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ft played on a mode switch`);
+  await p.$eval('#ftM button[data-m=icl]', b => b.click());
   const audit = async (where) => {
     const r = await p.evaluate(() => {
       const small = [];
