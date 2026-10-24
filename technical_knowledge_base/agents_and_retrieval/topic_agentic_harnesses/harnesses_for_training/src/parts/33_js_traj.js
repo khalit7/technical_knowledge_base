@@ -1,4 +1,4 @@
-// ---- Rollout to dataset tab: redaction counts, format conversion, SFT filter funnel, group advantages ----
+// ---- Reading sections 4 and 6 (was the Rollout to dataset tab): redaction counts, format conversion, SFT filter funnel, group advantages ----
 (function(){
   const HT=window.HT,esc=RD.esc,$=id=>document.getElementById(id);
   const HN=HT.harness,MN={local:'Qwen3-4B (local)',haiku:'Claude Haiku 4.5'};

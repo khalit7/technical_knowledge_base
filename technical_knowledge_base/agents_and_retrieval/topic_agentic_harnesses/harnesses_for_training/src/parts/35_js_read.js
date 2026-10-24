@@ -72,7 +72,8 @@
     const G=HT.groups;const sel=$('ht-advsel');
     const score=g=>{const b=g.bin;const s=b.reduce((x,y)=>x+y,0);return s>0&&s<b.length?0:1};
     const order=G.map((g,i)=>i).sort((a,b)=>score(G[a])-score(G[b]));
-    sel.innerHTML=order.map(i=>{const g=G[i];return '<option value="'+i+'">'+(g.m==='local'?'4B':'Haiku')+', '+esc(HN[g.h])+', '+g.t+': '+g.bin.join(' ')+'</option>'}).join('');
+    const HS={bash:'bash',tools:'tools',plain:'plain',ccfull:'ClaudeCode'};
+    sel.innerHTML=order.map(i=>{const g=G[i];return '<option value="'+i+'">'+(g.m==='local'?'4B':'Haiku')+'/'+HS[g.h]+'/'+g.t+':'+g.bin.join('')+'</option>'}).join('');
     const tok=id=>{const m=HT.mask.find(x=>x.id===id);if(m&&m.counts)return m.counts.gen;const r=HT.runs.find(x=>x.id===id);return r&&r.out||0};
     function adv(rs,norm){const n=rs.length,mu=rs.reduce((a,b)=>a+b,0)/n,sd=Math.sqrt(rs.reduce((a,b)=>a+(b-mu)*(b-mu),0)/n);
       return {mu,sd,a:rs.map((x,i)=>norm==='grpo'?(sd>0?(x-mu)/sd:0):norm==='dr'?x-mu:(n>1?x-(rs.reduce((a,b)=>a+b,0)-x)/(n-1):0))}}
@@ -112,6 +113,8 @@
     const sel=$('ht-masksel');if(!sel)return;
     const M=HT.mask.filter(m=>m.runs);if(!M.length){$('ht-maskcard').innerHTML+='<p class="mu">No token view embedded.</p>';return}
     sel.innerHTML=M.map((m,i)=>'<option value="'+i+'">'+esc(m.id)+' (reward '+m.reward+')</option>').join('');
+    // open on the rollout whose sampled share is closest to the share over all local rollouts
+    {const tg=parseFloat(HT.f.gen_share)/100;let bi=0,bd=9;M.forEach((m,i)=>{const d=Math.abs((m.counts.gen||0)/m.total-tg);if(d<bd){bd=d;bi=i}});sel.value=bi}
     const NAME={sys:'system prompt and tool schemas',user:'task',gen:'sampled by the model',obs:'tool output',tmpl:'template markers',ins:'inserted by the template, never sampled'};
     const COL={sys:'var(--c4)',user:'var(--c6)',gen:'var(--c3)',obs:'var(--c2)',tmpl:'var(--dim)',ins:'var(--ink)'};
     function draw(){
@@ -121,17 +124,24 @@
       const tot=m.total;let h='';
       Object.keys(NAME).forEach(k=>{const n=m.counts[k]||0;h+='<div class="row"><div class="nm">'+NAME[k]+'</div><div class="track"><span style="width:'+(100*n/tot)+'%;background:'+COL[k]+';opacity:'+(trained(k)?1:0.35)+'"></span></div><div class="val">'+n.toLocaleString()+'</div></div>'});
       $('ht-maskbars').innerHTML=h;
-      $('ht-masktok').innerHTML=m.runs.map(([s,c])=>'<span class="k-'+c+'" style="'+(trained(c)?'':'opacity:.45')+'">'+esc(s)+'</span>').join('');
+      const seg=([s,c])=>'<span class="k-'+c+'" style="'+(trained(c)?'':'opacity:.45')+'">'+esc(s)+'</span>';
+      // inline: the end of the rollout (last observation, the final reply and the template's insertion); the whole rollout sits in a closed block
+      let st=m.runs.length-1;for(let j=m.runs.length-1;j>=0;j--){if(m.runs[j][1]==='obs'){st=j;break}}
+      let ex=m.runs.slice(st);const txt=ex.map(x=>x[0]).join('');
+      if(txt.length>600){ex=[[ '... '+txt.slice(0,160).replace(/\s+$/,'')+' ... ','obs']].concat(m.runs.slice(st+1))}
+      $('ht-masktok').innerHTML=ex.map(seg).join('');
+      const all=$('ht-maskall');if(all.open)$('ht-masktokall').innerHTML=m.runs.map(seg).join('');else $('ht-masktokall').innerHTML='';
+      HTX.maskDraw=draw;
       const tr=Object.keys(m.counts).filter(trained).reduce((a,k)=>a+m.counts[k],0);
       $('ht-maskcap').textContent=(mode==='naive'?'Loss on everything: ':'Loss only on sampled tokens: ')+tr.toLocaleString()+' of '+tot.toLocaleString()+' tokens get a gradient. Checks against the server: '+m.checks.filter(c=>c.rendered_prompt===c.server_prompt).length+' of '+m.checks.length+' prompts and '+m.checks.filter(c=>c.gen_tokens===c.server_reply).length+' of '+m.checks.length+' replies have exactly the token counts mlx_lm.server reported.';
     }
-    sel.addEventListener('change',draw);RD.seg($('ht-maskmode'),v=>{HTX.maskMode=v;draw()});draw();
+    sel.addEventListener('change',draw);RD.seg($('ht-maskmode'),v=>{HTX.maskMode=v;draw()});$('ht-maskall').addEventListener('toggle',draw);draw();
   })();
   // 7. papers (compact) and frameworks
   (function(){
     const link=(id,t)=>'<a href="https://app.notion.com/p/'+id+'" target="_blank" rel="noopener noreferrer">'+esc(t)+'</a>';
-    const el=$('ht-paptab');if(el)el.innerHTML='<div class="tw"><table class="ht-t"><thead><tr><th>Paper</th><th>What changes</th><th>Score the loop optimises</th><th>Held out</th></tr></thead><tbody>'+
-      HT.papers.papers.map(p=>'<tr><td>'+link(p.notion,p.name)+'<div class="mu small">'+esc(p.date)+'</div></td><td class="small">'+esc(p.changes)+'</td><td class="small">'+esc(p.signal)+'</td><td class="small">'+esc(p.heldout)+'</td></tr>').join('')+'</tbody></table></div>';
+    const el=$('ht-paptab');if(el)el.innerHTML='<div class="tw"><table class="ht-t"><thead><tr><th>Paper</th><th>What changes</th><th>Held out</th></tr></thead><tbody>'+
+      HT.papers.papers.map(p=>'<tr><td>'+link(p.notion,p.name)+'<div class="mu small">'+esc(p.date)+'</div></td><td class="small">'+esc(p.changes)+'</td><td class="small">'+esc(p.heldout)+'</td></tr>').join('')+'</tbody></table></div>';
     const fw=$('ht-fwtab');if(fw)fw.innerHTML='<div class="tw"><table class="ht-t"><thead><tr><th>Project</th><th>What it says it is</th><th>Its abstraction</th></tr></thead><tbody>'+
       HT.frameworks.map(f=>'<tr><td><a href="'+f.url+'" target="_blank" rel="noopener noreferrer">'+esc(f.name)+'</a><div class="mu small">'+esc(f.ver)+', '+esc(f.lic)+'</div></td><td class="small">'+esc(f.def)+'</td><td class="small">'+esc(f.abs)+'</td></tr>').join('')+'</tbody></table></div>';
   })();

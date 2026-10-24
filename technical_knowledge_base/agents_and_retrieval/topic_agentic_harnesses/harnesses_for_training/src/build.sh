@@ -20,6 +20,10 @@ s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a hre
 python3 - <<'PY'
 s = open("../index.html.tmp", encoding="utf-8").read()
 d = open("parts/30_js_data.js", encoding="utf-8").read()
+import html, json, re
+f = json.JSONDecoder().raw_decode(d, d.index("window.HT=") + len("window.HT="))[0]["f"]
+# bound numbers are written into the static text too (the script fills the same values), so they read without JS and the ledger can find them
+s = re.sub(r'<span data-ht="([a-z0-9_]+)"></span>', lambda m: '<span data-ht="%s">%s</span>' % (m.group(1), html.escape(str(f.get(m.group(1), "?")))), s)
 open("../index.html", "w", encoding="utf-8").write(s.replace("@@HTDATA@@", d, 1))
 PY
 rm -f ../index.html.tmp
