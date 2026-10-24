@@ -29,7 +29,7 @@
   }
   const A=RD.anim({card:'sp-card',ctl:'sp-ctl',n:S.length,draw,ms:700,label:'Training snapshot'});
   $('sp-seg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.l=b.dataset.k;
-    [...$('sp-seg').querySelectorAll('button')].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});A.reset(S.length);A.play()});
+    [...$('sp-seg').querySelectorAll('button')].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});A.reset(S.length)});
   $('sp-leg').innerHTML=[...Array(10).keys()].map(c=>'<span><i style="background:'+hue(c)+'"></i>'+c+'</span>').join('');
   addEventListener('resize',()=>{if(card.offsetParent)A.redraw()});
 })();

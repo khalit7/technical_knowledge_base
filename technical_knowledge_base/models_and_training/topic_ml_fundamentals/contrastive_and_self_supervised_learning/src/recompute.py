@@ -56,6 +56,22 @@ chk('mean cosine random, BERT 0.62', round(mods['bert:first_last_avg']['mean_cos
 chk('mean cosine random, SimCSE 0.32', round(mods['simcse:cls']['mean_cos_random'], 2), 0.32, 0)
 chk('alignment BERT 0.17', round(mods['bert:first_last_avg']['align'], 2), 0.17, 0)
 chk('alignment SimCSE 0.25', round(mods['simcse:cls']['align'], 2), 0.25, 0)
+# hero: mean positive and negative cosine over the 48-pair batch (page's rounded values)
+for m, pos, neg in (('bert', 0.92, 0.60), ('simcse', 0.91, 0.31)):
+    A = Mr[m]; n = len(A)
+    chk(f'hero mean positive cosine {m}', round(float(np.trace(A)) / n, 2), pos, 0)
+    chk(f'hero mean negative cosine {m}', round(float(A.sum() - np.trace(A)) / (n * n - n), 2), neg, 0)
+# triplet lab: squared distances 2 - 2 cos, active triplets (hard plus semi-hard) at FaceNet's margin 0.2 and at 0.8
+for m, a, want in (('bert', 0.2, 21), ('simcse', 0.2, 1), ('bert', 0.8, 1825), ('simcse', 0.8, 153)):
+    Dd = 2 - 2 * Mr[m]; n = len(Dd); act = 0
+    for i in range(n):
+        for j in range(n):
+            if i != j and Dd[i, j] < Dd[i, i] + a: act += 1
+    chk(f'active triplets {m} alpha={a}', act, want, 0)
+Dd = 2 - 2 * Mr['bert']
+chk('BERT alpha 0.2: 1 hard', int(sum(Dd[i, j] < Dd[i, i] for i in range(48) for j in range(48) if i != j)), 1, 0)
+chk('SimCSE alpha 0.2: the active triplet is anchor 31 against candidate 42', bool((2 - 2 * Mr['simcse'])[30, 41] < (2 - 2 * Mr['simcse'])[30, 30]), True, 0)
+chk('1/47 about 2%', round(100 / 47), 2, 0)
 # derived constants
 chk('ln 4096', math.log(4096), 8.318, 5e-4)
 chk('uniform circle log(e^-4 I0(4))', math.log(math.exp(-4) * i0(4)), -1.575, 5e-4)

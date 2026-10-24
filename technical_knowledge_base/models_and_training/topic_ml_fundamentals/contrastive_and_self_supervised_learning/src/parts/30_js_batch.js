@@ -19,7 +19,7 @@ window.CSI=(function(){
 (function(){
   const card=document.getElementById('rb-card');if(!card||!window.CSD)return;
   const D=CSD.rb,N0=D.s1.length,$=id=>document.getElementById(id);
-  const st={m:'bert',tau:0.05,n:16,sym:false,a:0};
+  const st={m:'bert',tau:0.05,n:16,sym:false,a:30};
   const tauOf=v=>Math.pow(10,-2+2*v/100);
   const fmt=x=>x.toFixed(3);
   function stats(){
@@ -90,6 +90,6 @@ window.CSI=(function(){
   $('rb-sym').addEventListener('change',e=>{st.sym=e.target.checked;draw()});
   st.tau=tauOf(+$('rb-t').value);st.n=+$('rb-n').value;
   table();
-  RD.onRender(draw,'t-batch');
+  RD.onRender(draw);
   addEventListener('resize',()=>{if(card.offsetParent)draw()});
 })();
