@@ -12,7 +12,7 @@
   const per=(m,n)=>m==='tr'?48*KVQ*n:(n>0?23*MS:0)+6*KVN*n;
   const free=(m,g)=>g*80e9-M[m].w;
   const fits=(m,n,g)=>{const f=free(m,g),p=per(m,n);return p>0?Math.max(0,Math.floor(f/p)):0};
-  const st={m:'tr',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',g:1};
+  const st={m:'tr',k:0,t:RM?1:0,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',g:1};
   const cl=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v);
   const nAt=(k,u)=>{const a=k?NS[k-1]:0,b=NS[k];if(u>=1)return b;if(a<1)return u>.02?Math.max(1,Math.round(b*u)):0;return Math.round(Math.exp(Math.log(a)+(Math.log(b)-Math.log(a))*u))};
   const B=fmtBytes,X=v=>(v>=10?Math.round(v):v.toFixed(1))+'×';
@@ -79,7 +79,7 @@
   $('hySpd').addEventListener('change',e=>{st.spd=+e.target.value});
   $('hyG').addEventListener('change',e=>{st.g=+e.target.value;st.lk=-1;draw()});
   const seg=$('hyM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM)st.play=true;draw();kick()}));
+    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;st.play=false;draw();kick()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});
