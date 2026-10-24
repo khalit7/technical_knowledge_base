@@ -38,7 +38,7 @@
       mask:{n:9,key:c=>'mask_frames__8_c'+c,calls:i=>i,fl:i=>i*N.d.mask_pass_flops,off:1,
         cap:i=>i===0?'All 64 positions start masked.':i<8?'Round '+i+' of 8: the model predicts every masked position at once, keeps the most confident, re-masks the rest (cosine schedule). One full pass over all 65 positions per round.':'Round 8 fills the last positions: 8 sequential calls, each a full pass.'},
       ddim:{n:21,key:c=>'ddim20_c'+c,calls:i=>i,fl:i=>i*N.tok.flops_unet_fwd_1,
-        cap:i=>i===0?'Pure Gaussian noise at 32 x 32 pixels (the Diffusion lab\'s DDIM, 20 steps).':i<20?'Step '+i+' of 20: the U-Net predicts the noise over every pixel and the sampler removes a slice of it.':'Step 20: the image. 20 sequential calls, each over the whole image.'}};
+        cap:i=>i===0?'Pure Gaussian noise at 32 x 32 pixels (the topic\'s recorded DDIM run, 20 steps).':i<20?'Step '+i+' of 20: the U-Net predicts the noise over every pixel and the sampler removes a slice of it.':'Step 20: the image. 20 sequential calls, each over the whole image.'}};
     let mode='ar',cls=3,img=new Image();
     const can=$('nm-3w-can'),cx=can.getContext('2d');
     let bgi=new Image();

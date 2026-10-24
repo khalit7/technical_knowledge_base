@@ -7,7 +7,7 @@
   const near=(a,b)=>Math.abs(a-b)<1e-9;
   function find(list,o){return (list||[]).find(r=>Object.keys(o).every(k=>near(+r[k],o[k])))}
   const ref=N.ref;
-  function refLine(){return 'For comparison (same scoring, N = 1,000, recorded by the root labs): DDPM 1,000 steps FD '+f2(ref.ddpm1000.fd)+
+  function refLine(){return 'For comparison (same scoring, N = 1,000, recorded by the topic\'s diffusion and flow runs): DDPM 1,000 steps FD '+f2(ref.ddpm1000.fd)+
     ', DDIM 50 steps with guidance s = 2 FD '+f2((ref.df_cfg.find(c=>c.scale===2)||{}).fd)+', flow Euler 50 steps FD '+f2((ref.fw_euler.find(e=>e.steps===50)||{}).fd)+
     ', with s = 1.5 FD '+f2((ref.fw_cfg.find(c=>near(c.scale,1.5))||{}).fd)+'. The tokenizer\'s own reconstructions of 1,000 real images: FD '+f2(N.tok.fsq1000.recon_val1000_fd)+'.'}
   // ---- 1. sampler grid
