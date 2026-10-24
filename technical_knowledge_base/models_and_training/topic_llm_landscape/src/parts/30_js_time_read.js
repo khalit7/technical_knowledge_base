@@ -49,9 +49,8 @@
   $('hhBack').addEventListener('click',()=>{setPlay(false);st.q=Math.max(0,st.q-1);draw()});
   $('hhScrub').addEventListener('input',e=>{setPlay(false);st.q=+e.target.value;draw()});
   $('hhSpd').addEventListener('change',e=>{st.spd=+e.target.value});
-  // plays once the first time it scrolls into view (never under reduced motion), and only while on screen in the visible tab
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-    if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.q=0;draw();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+  // never autoplays: it waits on the last quarter until the reader presses play or steps; it animates only while on screen in the visible tab
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.2}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(()=>{draw();kick()});
   draw();

@@ -90,9 +90,8 @@
   $('spSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   const seg=$('spM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.m;draw()}));
   $('spClosed').addEventListener('change',e=>{st.closed=e.target.checked;draw()});
-  // the time-lapse starts the first time the chart scrolls into view (the tab is long), never under reduced motion
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-    if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.v=0;setPlay(true)}}kick()},{threshold:.15}).observe(card)}else st.vis=true;
+  // never autoplays: the time-lapse waits on the full chart until the reader presses play, steps or scrubs; it animates only while on screen
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   RH.onOpen(()=>{draw();kick()});RH.onFilter(draw);
   window.__sp={st,draw,setPlay};

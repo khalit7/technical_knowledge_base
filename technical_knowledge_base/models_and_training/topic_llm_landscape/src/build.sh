@@ -1,12 +1,12 @@
 #!/bin/sh
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/.
-# HTML: 01_head, 10_header (title and tab bar), 20_read (Reading tab), then 3x_tab_*.html (one per tab, in file-name order).
+# HTML: 01_head, 10_header (title and tab bar), 20_read*.html (Reading tab, in file-name order), then 3x_tab_*.html (one per tab, in file-name order).
 # A part may carry its own <style> (deep tabs keep their CSS scoped under their tab id).
 # JS: every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js (the tab wiring) last.
 # Links may be written {{text|url}} (url may be n:<notion id>, or #t-<tab> for a link to a tab); plain <a> tags pass through.
 cd "$(dirname "$0")"
-{ cat parts/01_head.html parts/10_header.html parts/20_read.html
+{ cat parts/01_head.html parts/10_header.html parts/20_read*.html
   for f in parts/3*_tab_*.html; do cat "$f"; done
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html
