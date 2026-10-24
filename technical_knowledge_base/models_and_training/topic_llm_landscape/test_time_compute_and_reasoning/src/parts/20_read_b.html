@@ -1,0 +1,57 @@
+<section id="tc-s0">
+<div class="core"><b class="k">The idea in one sentence</b>A model that writes before it answers gets one more forward pass for every token it writes, so <span class="hot">test-time compute</span> buys serial depth and the chance to revise (one longer chain) or breadth (many chains and a selector), and what it returns is capped by what the chain can correct and what the selector can recognise; reasoning models learn to spend it because reinforcement learning on checkable answers rewards them for it.</div>
+<div class="fig"><h4>One question, three places to spend the budget</h4>
+<div class="rd-svg" id="ttcHero"></div>
+<p class="cap">Serial: one chain written longer, which can re-read and revise its own working (section 1, 2). Parallel: several independent chains and a selector, a checker, a vote or a reward model, that picks one answer (sections 3 to 5). Latent: the same layers looped inside the network, depth that never becomes text (section 9). Underneath: how long to think (section 6), what the tokens cost (section 7), and how a model learns to use any of it (section 8).</p></div>
+<p class="small"><b>You need</b>: what one forward pass computes and why decoding keeps a KV cache ({{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}, sections 3 and 9); sampling at a temperature above zero ({{Sampling and Decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}); for section 8, what a policy-gradient update is ({{RL for LLMs: RLHF, GRPO, RLVR|n:3c65c17b0d0d818c9bcff7177325fe56}}). Which lab ships which control, and how the labs compare: the root's {{Topic: llm-landscape|n:3c65c17b0d0d812d9e00f6ec89965286}} section 2.</p>
+<div class="terms">
+<div><dfn>Test-time compute</dfn>: computation spent at inference, deliberating before answering; a <dfn>reasoning model</dfn> is trained to use it well.</div>
+<div><dfn>Chain of thought (CoT)</dfn>: the tokens a model generates before its final answer, holding intermediate steps. In reasoning models it usually sits in a separate thinking block that the product may hide, summarise or show.</div>
+<div><dfn>Verifier</dfn>: a program that checks an answer: exact or numeric match against a reference, a unit-test suite, a proof checker. Correct by construction on the property it checks.</div>
+<div><dfn>Reward model</dfn>: a learned network that scores an answer. It generalises to tasks with no checker, and it has errors that optimisation can find. An <dfn>outcome</dfn> reward model scores the finished answer, a <dfn>process</dfn> reward model (PRM) every step.</div>
+<div><dfn>pass@k</dfn>: the probability that at least one of k independent samples is correct: what best-of-k with a perfect verifier achieves.</div>
+<div><dfn>Self-consistency (majority voting)</dfn>: sample several answers and return the most common final answer. Written cons@k or maj@k for k samples. <dfn>Best-of-n</dfn>: sample n answers and return the one a scorer (verifier or reward model) rates highest.</div>
+<div><dfn>RLVR</dfn>: reinforcement learning with verifiable rewards: the model's own attempts are scored by a program, not a learned model.</div>
+</div>
+<nav class="nav" id="rd-nav">
+<a href="#tc-s1">1 Why writing adds compute</a><a href="#tc-s2">2 Long chain or many</a><a href="#tc-s3">3 The selector</a><a href="#tc-s4">4 Process reward models</a><a href="#tc-s5">5 Compute-optimal</a><a href="#tc-s6">6 How long to think</a><a href="#tc-s7">7 What it costs</a><a href="#tc-s8">8 How it is learned</a><a href="#tc-s9">9 Recurrent depth</a>
+</nav>
+</section>
+
+<section id="tc-s1">
+<h2>1. Why a chain of thought adds computation</h2>
+<p>The intuition is scratch paper. A model that must answer in its first token gets one forward pass of computation, however hard the question. A model allowed to write its working first gets one forward pass per token written, can look back at what it wrote, and can cross it out. A transformer forward pass has fixed depth, so the serial computation available to produce one next-token distribution is bounded by the layer count; a chain of thought removes that bound, and the context window acts as an external working memory persisting across the steps.</p>
+<div class="fig"><h4>Every token written is another full pass through the layers</h4>
+<div class="fm">
+<math display="block"><msub><mi>D</mi><mtext>serial</mtext></msub><mo>=</mo><mi>L</mi><mo>×</mo><mi>T</mi></math>
+<dl><dt>D<sub>serial</sub></dt><dd>the number of layer applications that can happen one after another before the answer is committed</dd>
+<dt>L</dt><dd>the number of layers in the model</dd>
+<dt>T</dt><dd>the number of tokens generated before the answer (at least 1)</dd></dl>
+</div>
+<label class="small">T, tokens written before the answer: <b id="ttcKvTv"></b><input type="range" id="ttcKvT" min="0" max="5.5" step="any" value="4.51545" aria-label="Tokens written before the answer"></label>
+<div class="out" id="ttcKvOut"></div>
+<p class="cap">Predict first: what does dragging T to 1 cost, and what does it save? An illustrative 60-layer model with 8 KV heads of dimension 128 in BF16, decoding at 50 tokens a second. Answering directly in one token allows 60 × 1 = 60 serial layer applications; thinking for 10,000 tokens first allows 60 × 10,000 = 600,000, four orders of magnitude more from the same weights. One token costs 2 × 60 × 8 × 128 × 2 = 245,760 bytes (240 KiB) of cache, so the default 32,768-token trace costs 7.5 GiB for a single request (defaults reproduce these by construction). <span class="der">derived</span></p></div>
+<p>Three capabilities follow. <b>Decomposition</b>: a problem needing more serial steps than the model has layers becomes reachable. <b>Externalised state</b>: intermediate results are written down instead of held in activations discarded at every token. <b>Revision</b>: the model can read what it wrote, notice a contradiction and start again, which no single forward pass can do. A reasoning model is trained, typically by large-scale reinforcement learning on tasks whose answers can be checked mechanically (mathematics with a reference answer, code with unit tests), to plan, verify, backtrack and self-correct in that working rather than to emit a plausible-looking derivation (section 8).</p>
+<p>The working memory is not free: every generated token leaves keys and values in the KV cache for every later token to attend to. The formula (2 × layers × key-value heads × head dimension × bytes per number, per token) and a calculator for 45 real models are on {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}} (its KV-cache calculator), with T counting the prompt as well as the thinking; the serving techniques that make long traces affordable (paged attention, cache quantisation, multi-query and latent attention) are on {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}.</p>
+<p><b>What test-time compute does not buy.</b> It adds no knowledge that is not in the weights or retrievable by a tool. It does not make a problem solvable if the model cannot make any correct partial progress on it, since there is nothing for later steps to build on. And the returns are shaped badly for economics (sections 3 and 7).</p>
+<details class="dp"><summary>The theory: a change in kind, not only in amount</summary><div>
+<p>Transformer decoders allowed a number of decoding steps logarithmic in the input length gain "only slightly" over a single pass, while a linear number of steps lets them recognise all regular languages and a polynomial number lets them recognise exactly the problems solvable in polynomial time, under standard complexity conjectures and a mild generalisation of pre-norm in the normalisation layers (<a href="https://arxiv.org/abs/2310.07923" target="_blank" rel="noopener noreferrer">Merrill and Sabharwal, 2023</a>). That is the whole mechanism: each emitted token is another full forward pass conditioned on everything written so far, so serial steps become unbounded.</p>
+</div></details>
+</section>
+
+<section id="tc-s2">
+<h2>2. One long chain or many: the same budget, to scale</h2>
+<p>Sequential and parallel share one budget in different shapes. <b>Sequential</b> costs irreducible latency (10,000 thinking tokens at an illustrative 50 a second is 200 seconds before the answer starts), a KV cache growing linearly with the trajectory, and attention over an ever-longer scratchpad getting more expensive per token. <b>Parallel</b> need not add wall-clock time given the hardware, but total tokens scale with the sample count and it lives or dies on the selector. Predict before you step: which of the three spends less wall-clock time, and which one can fix its own mistake?</p>
+<div class="card" id="ttcSp">
+<h4 style="margin:0 0 4px;font-size:14.5px">The same 10,000 tokens take 200 seconds as one chain and 40 as five</h4>
+<div class="an-top"><div class="seg" id="ttcSpM" role="group" aria-label="How the budget is spent"><button class="on" data-m="ser" aria-pressed="true">One long chain</button><button data-m="vote" aria-pressed="false">Five chains, vote</button><button data-m="ver" aria-pressed="false">Five chains, verifier</button></div></div>
+<div id="ttcSpSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="ttcSpBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="ttcSpPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="ttcSpFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="ttcSpScrub" min="0" max="500" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="ttcSpSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="ttcSpStep"></div><p id="ttcSpCap"></p></div>
+<div class="an-cnt" id="ttcSpCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Illustrative throughout: the problem, the traces and the answers are invented to show the mechanism; the model is section 1's illustrative 60 layers with 240 KiB of KV cache a token, decoding at 50 tokens a second. The vote and verifier probabilities are computed from section 3's formulas at p = 0.6 per chain: a five-vote is right 0.683 of the time if the wrong answers all agree and 0.835 if they scatter over four values; a verifier needs one right chain, pass@5 = 0.990. The animation waits for you: press play or step.</p>
+</div>
+<p><b>What it shows.</b> The same 10,000 tokens and the same total KV memory take 200 seconds as one chain and 40 seconds as five. The single chain can notice its own error and repair it; the five chains cannot see each other, so an error in one is never corrected, only outvoted or rejected, and the result is only as good as the selector. They compose: "heavy" tiers sample several long sequential traces in parallel and aggregate them, which the root compares lab by lab ({{Topic: llm-landscape|n:3c65c17b0d0d812d9e00f6ec89965286}} section 2).</p>
+</section>
