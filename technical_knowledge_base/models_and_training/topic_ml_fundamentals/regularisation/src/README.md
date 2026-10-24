@@ -39,3 +39,5 @@ Why about 24 minutes is right: the Reading tab now carries the page's strongest 
 
 ## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 251 units: core 193, depth 37, fat 21. 232 drafted from the old page by `ledger.py init` (keys proposed by the longest phrase still on the page, then reviewed); 19 added by hand for script-drawn text (hero numbers, held-out gains, the Monte Carlo result, the effects-chart values, Efron's reproduction, the double-descent peak), for the absorbed weight-decay animation and for two new sourced facts (stochastic depth's CutMix number, DropBlock's reason). Fat units carry a `note`: wind-ups, pointers to the removed Dropout tab, a restatement, and eleven citation fragments split off the sentence that carries the citation.
+
+- 2026-10-24, topic close: Further reading times set to headers (root 23 min, plus 1; siblings, Pretraining); ledger keys 223 to 229 without the old times.
