@@ -58,3 +58,10 @@ Why 26 minutes is right: the page teaches nine mechanisms (connectors, tiling ag
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 322 units: core 189, depth 70, fat 57, owned 6 (whole-model KV-cache sizing, on Long context). 250 were drafted by `ledger.py init`; 67 were added by hand for the paragraphs that used to be script-rendered (section "script prose before 2026-10-24"); 5 are the 2026-10-23 pilot's owned units. Fat units carry a `note`.
+
+## 2026-10-24, topic close
+The root's VLM lab was slimmed to SmolVLM measurements this page does not carry; this page owns connectors, native resolution, training stages and hallucination.
+- Links to the root's `#t-vlm` removed: the top now says this page runs Qwen3.5-0.8B besides SmolVLM (no "the root's VLM lab walks one image" pointer); the tiling table's source reads "SmolVLM processor, measured (root VLM lab recordings)"; Flamingo's quote "checked word for word".
+- Added one line under the Flamingo connector: the cross-attention and projector attention masks, beside eight other designs, are in section 6 of Native multimodal and any-to-any models.
+- Further reading: root entry rewritten (VLM lab keeps the SmolVLM measurements not repeated here; Model map), no time quoted; sibling and other times corrected to their headers (Vision encoders 28, Autoencoders 35, Positional Encodings 33, Batching 34, Topic: inference-and-serving 28, Alibaba: Qwen 32). Ledger units 11 and 239 (descriptions of the old root lab) are now fat with notes.
+- Checks: `check_data.py` 83 passed, `check_rules.mjs` 91 of 91, `check_page.mjs` all OK. Reading time unchanged: 26 min, plus 11 (6,074 and 2,543 words).
