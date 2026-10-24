@@ -1,12 +1,13 @@
 #!/bin/sh
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/.
-# HTML: 01_head, 02_css, 10_header (title and tab bar), 20_read_*.html (Reading tab, a to d), then 3x_tab_*.html (one per tab, in file-name order).
+# HTML: 01_head, 02_css, 10_header (title, reading time and tab bar), 20_read_*.html (Reading tab, a to e), then 3x_tab_*.html (one per tab, in file-name order).
 # JS: every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js (the tab wiring) last.
-# Generated parts: 31_js_race_lr.js (checks/tune.mjs), 41_js_mem_data.js (recompute.py).
+# Generated parts: 31_js_race_lr.js (checks/tune.mjs), 41_js_mem_data.js (recompute.py), 45_js_ns_0data.js (ns_data.py).
+# The header's reading time is measured after the build with html_utils/audit_pages.mjs and written into 10_header.html by hand.
 # Links may be written {{text|url}} (url may be n:<notion id>, or #t-<tab> for a link to a tab); plain <a> tags pass through.
 cd "$(dirname "$0")"
-{ cat parts/01_head.html parts/02_css.html parts/10_header.html parts/20_read_a.html parts/20_read_b.html parts/20_read_c.html parts/20_read_d.html
+{ cat parts/01_head.html parts/02_css.html parts/10_header.html parts/20_read_*.html
   for f in parts/3*_tab_*.html; do cat "$f"; done
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html
@@ -17,20 +18,4 @@ s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a hre
 ' > ../index.html
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
 ED=$(printf '\342\200\224'); if grep -q "$ED" ../index.html; then echo "EM DASH FOUND"; fi
-# Reading time (230 words per minute over the Reading tab's visible text) and the resources total
-python3 - <<'PY'
-import re
-s=open('../index.html').read()
-a=s.index('id="t-read"');b=s.index('id="t-race"')
-t=re.sub(r'<script.*?</script>|<style.*?</style>','',s[a:b],flags=re.S);t=re.sub(r'<[^>]+>',' ',t)
-w=len(t.split());m=round(w/230)
-fr=s[s.index('<h3>Best resources</h3>'):]
-tot=0
-for x in re.findall(r'class="rt">\(([^)]*)\)',fr):
-    tot+=sum(int(h)*60 for h in re.findall(r'(\d+)h',x))+sum(int(n) for n in re.findall(r'(\d+) ?min',x))
-res='%dh %02dm'%(tot//60,tot%60)
-s=s.replace('RT_MIN',str(m)).replace('RES_TIME',res)
-open('../index.html','w').write(s)
-print('reading words',w,'minutes',m,'resources',res)
-PY
 wc -c ../index.html

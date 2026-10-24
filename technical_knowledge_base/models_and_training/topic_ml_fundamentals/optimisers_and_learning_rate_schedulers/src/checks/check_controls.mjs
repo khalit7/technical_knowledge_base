@@ -16,6 +16,16 @@ for(const [scheme,w] of [['dark',390],['light',920]]){
     const m=t.match(/NaN(?!, plateaus)|undefined|Infinity/g);if(m){bad++;console.log('BAD TEXT',where,m.slice(0,3))}};
   const clickAll=async(sel,where,after)=>{const n=await p.$$eval(sel,e=>e.length);for(let i=0;i<n;i++){await p.evaluate((s,i)=>document.querySelectorAll(s)[i].click(),sel,i);await sleep(60);if(after)await after();await scan(where+' '+i)}};
   // Reading
+  // nothing may move before the reader acts: scroll through, wait, every step slider must still be at 0
+  await p.evaluate(async()=>{for(let y=0;y<document.body.scrollHeight;y+=600){scrollTo(0,y);await new Promise(r=>setTimeout(r,80))}});await sleep(1500);
+  const moved=await p.$$eval('.an-ctl input[type=range]',rs=>rs.filter(r=>r.closest('.tab:not([hidden])')&&+r.value!==0).map(r=>r.id));
+  if(moved.length){bad++;console.log('AUTOPLAY',moved)}
+  const toEnd=async ids=>{for(const id of ids)await p.evaluate(id=>{const s=document.getElementById(id);s.value=s.max;s.dispatchEvent(new Event('input'))},id)};
+  for(const m of ['m1','m2','m3']){const segs=await p.$$eval('#'+m+'-mode button',e=>e.length);
+    for(let i=0;i<Math.max(1,segs);i++){if(segs)await p.evaluate((m,i)=>document.querySelectorAll('#'+m+'-mode button')[i].click(),m,i);
+      await toEnd([m+'-ctl-s']);await sleep(40);await p.evaluate(m=>{const s=document.getElementById(m+'-ctl-s');s.value=0;s.dispatchEvent(new Event('input'))},m);await scan(m+' '+i)}}
+  await toEnd(['ns-ctl-s']);await scan('ns');
+  for(const v of ['-4','0','4']){await p.evaluate(v=>{const r=document.getElementById('bt-r');r.value=v;r.dispatchEvent(new Event('input'))},v);await scan('batch '+v)}
   await clickAll('#bc-mode button','bias mode',async()=>{await clickAll('#bc-b2 button','b2');await p.evaluate(()=>{const s=document.getElementById('bc-ctl-s');for(const v of [0,11,39]){s.value=v;s.dispatchEvent(new Event('input'))}})});
   await clickAll('#mem-model button','mem');
   await clickAll('#en-mode button','end',async()=>{await p.evaluate(()=>{const s=document.getElementById('en-ctl-s');s.value=59;s.dispatchEvent(new Event('input'))})});

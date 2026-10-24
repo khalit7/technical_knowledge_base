@@ -57,7 +57,7 @@
     pick.querySelectorAll('input').forEach(c=>c.addEventListener('change',()=>{c.checked?sel.add(c.dataset.k):sel.delete(c.dataset.k);c.parentNode.classList.toggle('on',c.checked);restart()}))}
   const mr=document.getElementById('rc-mul'),mo=document.getElementById('rc-mulv'),sd=document.getElementById('rc-seed'),sdl=document.getElementById('rc-seedl');
   let an;
-  function restart(){compute();note.innerHTML=TRY[sk];sdl.style.display=E.S[sk].noise?'':'none';an.reset(F);an.go(F-1);an.play()}
+  function restart(){compute();note.innerHTML=TRY[sk];sdl.style.display=E.S[sk].noise?'':'none';an.reset(F);an.go(F-1)}
   sseg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{sk=b.dataset.v;sel=new Set(DEF[sk]);sseg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));drawPick();restart()}));
   document.querySelectorAll('#rc-sch button').forEach(b=>b.addEventListener('click',()=>{sch=b.dataset.v;document.querySelectorAll('#rc-sch button').forEach(x=>x.classList.toggle('on',x===b));restart()}));
   mr.addEventListener('input',()=>{mul=Math.pow(10,+mr.value/8);mo.textContent='× '+(mul>=1?mul.toPrecision(3):mul.toPrecision(2));restart()});

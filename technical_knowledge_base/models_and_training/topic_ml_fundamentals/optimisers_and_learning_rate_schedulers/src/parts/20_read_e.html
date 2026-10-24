@@ -1,0 +1,63 @@
+<section id="s-depth">
+<h2>9 &middot; Depth: reference tables, the annealing vocabulary, common mistakes</h2>
+<details class="dp"><summary>Eight more schedule shapes, with PyTorch's names <span class="mute">(reference)</span></summary><div class="b">
+<div class="tw"><table>
+<thead><tr><th>Scheduler</th><th class="sk">shape</th><th>Rule</th><th>Needs T?</th><th>Where it lives</th></tr></thead>
+<tbody>
+<tr><td>StepLR, MultiStepLR</td><td class="sk"><svg class="spark" data-s="step"></svg></td><td>multiply by &gamma; (often 0.1) at fixed milestones</td><td>yes (milestones)</td><td>the ResNet and ImageNet era; still fine for small supervised jobs</td></tr>
+<tr><td>ExponentialLR</td><td class="sk"><svg class="spark" data-s="exp"></svg></td><td>&eta;<sub>t</sub> = &eta;<sub>0</sub>&gamma;<sup>t</sup></td><td>no</td><td>convex and fiddly to tune; rarely competitive</td></tr>
+<tr><td>CosineAnnealingLR</td><td class="sk"><svg class="spark" data-s="cosine"></svg></td><td>&eta;<sub>min</sub> + (&eta;<sub>max</sub> &minus; &eta;<sub>min</sub>)(1 + cos(&pi;t/T))/2, no warmup</td><td>yes</td><td>the PyTorch building block of warmup + cosine</td></tr>
+<tr><td>CosineAnnealingWarmRestarts ({{SGDR|https://arxiv.org/html/1608.03983}})</td><td class="sk"><svg class="spark" data-s="sgdr"></svg></td><td>cosine cycles, each restarting at &eta;<sub>max</sub></td><td>per cycle only</td><td>snapshot ensembles ({{Huang et al. 2017|https://arxiv.org/html/1704.00109}}: one model saved at the end of each cycle) and vision; essentially absent from LLM pretraining</td></tr>
+<tr><td>OneCycleLR ({{super-convergence|https://arxiv.org/html/1708.07120}})</td><td class="sk"><svg class="spark" data-s="onecycle"></svg></td><td>ramp to a peak well above the usual rate, then anneal far below the starting rate</td><td>yes</td><td>short fine-tuning runs, the fastai lineage</td></tr>
+<tr><td>ReduceLROnPlateau</td><td class="sk"><svg class="spark" data-s="plateau"></svg></td><td>cut the rate by a factor when a monitored metric stops improving (sparkline illustrative)</td><td>no</td><td>reactive: good for small supervised runs; bad for LLM runs (feedback from noisy evaluations, and a schedule nobody can reproduce)</td></tr>
+<tr><td>Schedule-free ({{Defazio et al.|https://arxiv.org/html/2405.15682}})</td><td class="sk"><svg class="spark" data-s="sf"></svg></td><td>constant rate plus principled iterate averaging instead of a decay curve</td><td>no</td><td>open-ended runs; NeurIPS 2024 oral (section 8)</td></tr>
+<tr><td>WSM ({{Tian et al. 2025|https://arxiv.org/abs/2507.17634}})</td><td class="sk"><svg class="spark" data-s="wsm"></svg></td><td>constant rate forever; the decay is emulated afterwards by merging saved checkpoints</td><td>no</td><td>2025, Ant Group's Ling team (section 8)</td></tr>
+</tbody></table></div>
+<p class="small mute">PyTorch settings of the sparklines: MultiStepLR milestones 50 and 75; ExponentialLR &gamma; = 0.97; SGDR T<sub>0</sub> = 25; OneCycleLR defaults.</p></div></details>
+
+<details class="dp"><summary>What real runs used: eight landmark schedules <span class="mute">(reference)</span></summary><div class="b">
+<div class="tw"><table>
+<thead><tr><th>Run</th><th>Optimiser</th><th>Schedule</th><th class="num">final rate / peak</th></tr></thead>
+<tbody>
+<tr><td>Transformer (2017)</td><td>Adam (0.9, 0.98), &epsilon; 10<sup>&minus;9</sup></td><td>4,000 warmup steps, then inverse square root ({{section 5.3|https://arxiv.org/html/1706.03762#S5.SS3}})</td><td class="num">no end</td></tr>
+<tr><td>Llama 2 (2023)</td><td>AdamW</td><td>2,000 warmup steps, cosine "down to 10% of the peak" ({{section 2.2|https://arxiv.org/html/2307.09288#S2.SS2}})</td><td class="num">10%</td></tr>
+<tr><td>Llama 3 405B (2024)</td><td>AdamW, peak 8 &times; 10<sup>&minus;5</sup></td><td>8,000 warmup steps, cosine to 8 &times; 10<sup>&minus;7</sup> over 1.2M steps ({{section 3.4.1|https://arxiv.org/html/2407.21783#S3.SS4.SSS1}})</td><td class="num">1%</td></tr>
+<tr><td>DeepSeek-V3 (2024)</td><td>AdamW (0.9, 0.95), decay 0.1</td><td>2K warmup steps to 2.2 &times; 10<sup>&minus;4</sup>, constant until 10T tokens, cosine to 2.2 &times; 10<sup>&minus;5</sup> over 4.3T, then 2.2 &times; 10<sup>&minus;5</sup> for 333B and 7.3 &times; 10<sup>&minus;6</sup> for the last 167B ({{section 4.2|https://arxiv.org/html/2412.19437#S4.SS2}})</td><td class="num">3.3%</td></tr>
+<tr><td>Kimi K2 (2025)</td><td>MuonClip</td><td>WSD: 500 warmup steps, 2 &times; 10<sup>&minus;4</sup> constant for 10T tokens, cosine to 2 &times; 10<sup>&minus;5</sup> over 5.5T, then an anneal to 7 &times; 10<sup>&minus;6</sup> over 400B + 60B ({{section 2.5|https://arxiv.org/html/2507.20534#S2.SS5}})</td><td class="num">3.5%</td></tr>
+<tr><td>SmolLM3 (2025)</td><td>AdamW (0.9, 0.95), decay 0.1</td><td>WSD: 2,000 warmup steps, linear decay to 0 over the final 10% ({{blog|https://huggingface.co/blog/smollm3}})</td><td class="num">0</td></tr>
+<tr><td>GLM-4.5 (2025)</td><td>Muon (+ AdamW for embeddings, biases, norms)</td><td>warmup to 2.5 &times; 10<sup>&minus;4</sup>, cosine to 2.5 &times; 10<sup>&minus;5</sup>; chose cosine over WSD ({{section 2.4|https://arxiv.org/html/2508.06471#S2.SS4}})</td><td class="num">10%</td></tr>
+<tr><td>ERNIE 4.5 (2025)</td><td>not stated here</td><td>"All models use the Warmup-Stable-Decay learning rate schedule" ({{report, section 3.3|https://ernie.baidu.com/blog/publication/ERNIE_Technical_Report.pdf}})</td><td class="num">not stated</td></tr>
+</tbody></table></div>
+<p class="small mute">Final rate / peak derived from the quoted values. Every other landmark model's settings are on the parent page's Defaults across models tab.</p></div></details>
+
+<details class="dp"><summary>"Annealing" and "learning-rate decay": three meanings <span class="mute">(vocabulary)</span></summary><div class="b">
+<div class="tw"><table>
+<thead><tr><th>Sense</th><th>What it means</th><th>Where you meet it</th></tr></thead>
+<tbody>
+<tr><td>1. Classical, optimisation</td><td>Lowering the learning rate, full stop. Borrowed from simulated annealing, where a temperature is reduced so the search settles. Here annealing and decay are exact synonyms.</td><td>"cosine annealing", <code>CosineAnnealingLR</code>, <code>eta_min</code>; anything before 2023</td></tr>
+<tr><td>2. Modern LLM pretraining</td><td>A training <i>phase</i> (the final 10 to 30% of tokens or so) defined by two simultaneous changes: the rate decays towards zero <i>and</i> the data mixture switches to curated high-quality tokens (mathematics, code, instruction-like, reasoning).</td><td>Llama 3's annealing, OLMo 2's Dolmino mid-training mix, MiniCPM's WSD decay phase; "the annealed model"</td></tr>
+<tr><td>3. Annealing as an experiment</td><td>A cheap evaluation protocol: take a fixed mid-run checkpoint, anneal it on a candidate dataset, compare scores. Used to price a dataset, not to train a final model.</td><td>Llama 3 and OLMo both evaluate candidate corpora this way</td></tr>
+</tbody></table></div>
+<ul>
+<li><b>The two levers are separable, and papers usually pull both at once.</b> WSD lets you decay the rate with no data change; you can also switch to a high-quality mixture while the rate stays flat (WSM switches the data at its T<sub>switch</sub> with the rate held constant). Any claim that "annealing gave +X" is a compound of two effects unless the ablation separated them; {{Pretraining|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}} separates them on OLMo 2's numbers and on a toy.</li>
+<li><b>They work for different reasons that reinforce each other.</b> A low rate means the model descends into a basin and stops moving much; low gradient noise near the end is also when scarce high-quality tokens stick best rather than being diluted across a 10T-token stream. That is why the data switch is scheduled to coincide with the decay, not because one requires the other.</li>
+<li><b>Reading papers:</b> "decay phase" or "cooldown" means the schedule alone; "anneal" or "annealed checkpoint" almost always implies the data switch too. WSM removes sense 1 entirely (constant rate forever) while keeping sense 2 (the curated-data switch), and recovers the decay's benefit by merging.</li>
+<li><b>Unrelated homonyms:</b> simulated annealing proper (a combinatorial optimisation algorithm) and sampling temperature at inference ({{Sampling and Decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}) share the metaphor and nothing else.</li>
+</ul></div></details>
+
+<details class="dp"><summary>Common mistakes, in one list <span class="mute">(each is taught above; here as a checklist)</span></summary><div class="b"><ul>
+<li><b>Copying a learning rate between momentum conventions, or between optimisers.</b> The averaged momentum form needs a rate 10 times larger at &beta; = 0.9; Adam's step is about &eta; per parameter whatever the gradient's size, SGD's is &eta; times the gradient, so their rates are unrelated; Lion wants a rate 3 to 10 times smaller than AdamW's, schedule-free SGD 10 to 50 times larger than SGD's.</li>
+<li><b>Using L2 regularisation with Adam and calling it weight decay</b> (<code>torch.optim.Adam(weight_decay=...)</code>); they are the same only for plain SGD.</li>
+<li><b>Removing warmup because Adam already corrects its bias:</b> correction fixes the bias, not the variance.</li>
+<li><b>Reading an intermediate cosine checkpoint as "the model at that size of run"</b> (Kaplan's mistake, corrected by Chinchilla).</li>
+<li><b>Evaluating a schedule-free model at the training weights</b> y instead of the average x: call <code>optimizer.eval()</code> first.</li>
+<li><b>Applying Muon to every parameter:</b> embeddings, the output head, norms and biases go to AdamW.</li>
+<li><b>Believing a new optimiser's speed-up before the baseline is tuned</b> and fully decayed.</li>
+<li><b>Crediting "annealing" for a gain that came from the data switch</b> (or the reverse).</li>
+<li><b>Assuming a diagonal adaptive method handles bad conditioning:</b> the rotated ravine.</li>
+<li><b>Scaling the batch without the rate and betas:</b> linear for SGD, square root and &beta;&prime; = 1 &minus; &kappa;(1 &minus; &beta;) for Adam.</li>
+</ul>
+<p class="small mute">Learning-rate failure modes in training curves (oscillation, NaN, plateaus, spikes) are diagnosed on the parent page's When training goes wrong tab.</p></div></details>
+</section>
+<div class="foot">Sources: linked inline; verbatim extracts in <code>src/inputs/extracts.txt</code>. Every optimiser rule is checked against PyTorch (<code>src/checks/torch_ref.py</code>), every schedule against <code>torch.optim.lr_scheduler</code>, every derived number in <code>src/recompute.py</code> and <code>src/ns_data.py</code>. Data as of October 2026.</div>
+</div>
