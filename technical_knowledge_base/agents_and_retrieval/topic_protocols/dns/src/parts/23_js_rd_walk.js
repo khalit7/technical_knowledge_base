@@ -47,6 +47,6 @@
       RD.stat('Whole lookup (lab, dig)',(mode===2?W.runs[0].warm_ms:W.runs[mode].cold_ms)+' ms');
   }
   const A=RD.anim({card:'wk-card',ctl:'wk-ctl',n:S.length,draw:draw,ms:1500,label:'Lookup step'});
-  RD.seg(document.getElementById('wk-mode'),m=>{mode=+m;S=steps(mode);A.reset(S.length);A.play()});
+  RD.seg(document.getElementById('wk-mode'),m=>{mode=+m;S=steps(mode);A.reset(S.length)});
   RD.onResize(()=>A.redraw());
 })();

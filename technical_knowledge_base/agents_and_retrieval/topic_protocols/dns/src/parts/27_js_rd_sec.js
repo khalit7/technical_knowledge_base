@@ -75,6 +75,6 @@ window.keyTag=function(flags,proto,alg,b64){const k=atob(b64.replace(/\s+/g,''))
     document.getElementById('rb-cap').innerHTML='<div class="t">Step '+(k+1)+' of '+n+'</div><p>'+S[Math.min(k,n-1)].c+'</p>';
   }
   const A=RD.anim({card:'rb-card',ctl:'rb-ctl',n:S.length,draw:draw,ms:1600,label:'Rebinding step'});
-  RD.seg(document.getElementById('rb-mode'),x=>{m=x;S=steps(m);A.reset(S.length);A.play()});
+  RD.seg(document.getElementById('rb-mode'),x=>{m=x;S=steps(m);A.reset(S.length)});
   RD.onResize(()=>A.redraw());
 })();

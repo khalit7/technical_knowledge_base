@@ -1,6 +1,6 @@
-// ---- Cache timeline tab: the same change without and with lowering the TTL first, animated over time ----
+// ---- Reading section 5: the same change without and with lowering the TTL first, over time (moved from its own tab on 2026-10-24) ----
 (function(){
-  const tab=document.getElementById('t-cache');if(!tab)return;
+  const tab=document.getElementById('cc-card');if(!tab)return;
   const OLD=[60,300,900,3600,14400,86400],NEW=[30,60,120,300,600],LEAD=[0,60,300,900,1800,3600,7200,43200,86400];
   const $=id=>document.getElementById(id);$('cc-lead').value=5;
   const dur=s=>s>=86400&&s%3600===0?(s/86400)+(s===86400?' day':' days'):s>=3600&&s%60===0?(s/3600).toFixed(s%3600?1:0)+' h':s>=120?(s/60).toFixed(s%60?1:0)+' min':s+' s';
@@ -24,7 +24,7 @@
     const ch=DNSD.cache.change,ev=ch.find(r=>r.event),R=ch.filter(r=>r.s==='10.53.0.53');const flip=R.find(r=>r.v==='10.53.0.82');
     if(flip&&flip.t-ev.t<H){const tf=flip.t-ev.t;b+='<path d="M'+x(0)+' '+y(1)+'L'+x(tf)+' '+y(1)+'L'+x(tf)+' '+y(0)+'" fill="none" stroke="#c2703a" stroke-width="1.5" stroke-dasharray="4 3"/>'}
     const tc=H*k/(STEPS-1);b+='<line x1="'+x(tc)+'" x2="'+x(tc)+'" y1="'+top+'" y2="'+base+'" stroke="var(--ink)" stroke-width="1"/>';
-    for(let i=0;i<=4;i++){const t=H*i/4;b+=RD.t(x(t),base+16,dur(Math.round(t)),{a:'middle',fs:10})}
+    for(let i=0;i<=4;i++){const t=H*i/4;b+=RD.t(x(t),base+16,dur(Math.round(t)),{a:i===4?'end':(i?'middle':'start'),fs:10.5})}
     b+=RD.t(40,h-6,'time since the change; share of clients still on the old address',{fs:10,fill:'var(--mute)'});
     el.innerHTML=RD.svg(w,h,b,'Share of clients on the old address over time');
     cells('cc-ca',ma,tc);cells('cc-cb',mb,tc);
@@ -34,10 +34,9 @@
       (P.lead&&P.lead<P.oldTTL?' The lead is shorter than the old TTL, so caches that fetched just before the lowering still hold the old TTL.':'');
   }
   compute();
-  const A=RD.anim({card:'cc-chart',ctl:'cc-ctl',n:STEPS,draw:chart,ms:220,label:'Time'});
+  const A=RD.anim({card:'cc-card',ctl:'cc-ctl',n:STEPS,draw:chart,ms:220,label:'Time'});
   ['cc-old','cc-new','cc-lead','cc-jvm','cc-pin'].forEach(id=>$(id).addEventListener('input',()=>{compute();A.redraw()}));
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-cache']=[()=>A.redraw()];
-  addEventListener('resize',()=>{if(!tab.hidden)A.redraw()});
+  RD.onResize(()=>A.redraw());
   function calcs(){
     const a=+$('nc-ttl').value,b=+$('nc-min').value;$('nc-out').innerHTML='A "no" is cached for min('+a+', '+b+') = <b>'+dur(Math.min(a,b))+'</b> (RFC 2308).';
     const i=+$('fo-int').value,f=+$('fo-thr').value,t=+$('fo-ttl').value;$('fo-out').innerHTML='Detection about '+i+' &times; '+f+' = '+dur(i*f)+', then caches expire within '+dur(t)+': clients can keep the dead address for up to about <b>'+dur(i*f+t)+'</b> (derived; checkers\' timing varies).';
