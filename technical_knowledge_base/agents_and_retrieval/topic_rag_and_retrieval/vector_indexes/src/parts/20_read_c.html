@@ -1,6 +1,6 @@
 <section id="vix-s4">
 <h2>4. Quantization: storing each vector in fewer bytes</h2>
-<p>IVF reduces how many vectors a query touches; <dfn>quantization</dfn> reduces how many bytes each one takes, so more of them fit in memory and each comparison reads less. A 1,024-dimension float32 vector is 4,096 bytes; at 100 million vectors that is 410 GB before any index. Six ways to store fewer bytes, from gentle to aggressive:</p>
+<p>IVF reduces how many vectors a query touches; <dfn>quantization</dfn> reduces how many bytes each one takes, so more fit in memory and each comparison reads less. A 1,024-dimension float32 vector is 4,096 bytes; at 100 million vectors that is 410 GB before any index. Six ways to store fewer bytes, from gentle to aggressive:</p>
 <div class="tw"><table><tr><th>Family</th><th>What is stored per vector</th><th class="num">bytes (d = 1,024)</th><th>How distance is computed</th></tr>
 <tr><td>float16</td><td>each number in 16 bits</td><td class="num">2,048</td><td>as float32, after conversion</td></tr>
 <tr><td>Scalar int8 (SQ8)</td><td>each number mapped to 0..255 within its learned range</td><td class="num">1,024</td><td>on decoded values</td></tr>
@@ -8,9 +8,12 @@
 <tr><td>Binary</td><td>the sign of each number, 1 bit</td><td class="num">128</td><td>Hamming distance (count differing bits)</td></tr>
 <tr><td>RaBitQ</td><td>1 bit per dimension after a random rotation, plus a few floats</td><td class="num">136</td><td>an unbiased estimator with an error bound</td></tr>
 <tr><td>Product quantization (PQ), m sub-vectors</td><td>m one-byte ids of learned sub-vector centroids</td><td class="num">m (8 to 256)</td><td>m table look-ups and additions</td></tr></table></div>
-<h3>Product quantization, step by step</h3>
-<p><dfn>Product quantization</dfn> (J&eacute;gou, Douze and Schmid, <a href="https://inria.hal.science/inria-00514462/document" target="_blank" rel="noopener noreferrer">TPAMI 2011</a>) cuts each vector into m <dfn>sub-vectors</dfn> of d/m numbers. For each of the m positions it learns, with k-means, a <dfn>codebook</dfn> of 256 centroids (8 bits). A vector is stored as m bytes: for each sub-vector, the id of its nearest centroid. The codebooks (256 &times; d floats in total, 1 MB for d = 1,024) are shared by the whole collection.</p>
-<p>At query time the query is <i>not</i> quantized. For each position m the query's sub-vector is compared with all 256 centroids once, giving an m &times; 256 <dfn>distance table</dfn>; the approximate score of any stored vector is then the sum of m table entries picked by its code. The paper calls this <dfn>asymmetric distance computation</dfn> (ADC) and shows it beats quantizing the query too ("SDC"): "For m=8 we obtain the same accuracy for ADC and k*=64 as for SDC and k*=256" (Section V, <span class="pub">published, authors' runs</span>). FAISS's table construction is one loop over positions:</p>
+<p><b>Product quantization</b> (J&eacute;gou, Douze and Schmid, <a href="https://inria.hal.science/inria-00514462/document" target="_blank" rel="noopener noreferrer">TPAMI 2011</a>), concretely: cut each 1,024-number vector into m = 16 <dfn>sub-vectors</dfn> of 64 numbers; for each of the 16 positions learn, with k-means, a <dfn>codebook</dfn> of 256 centroids (8 bits); store the vector as 16 bytes, the id of the nearest centroid at each position. The codebooks (256 &times; d floats in total, 1 MB for d = 1,024) are shared by the whole collection. At query time the query is <i>not</i> quantized: each of its 16 sub-vectors is compared with that position's 256 centroids once, giving a 16 &times; 256 <dfn>distance table</dfn>, and any stored vector's approximate score is the sum of the 16 entries its code picks. Per candidate the work drops from d multiply-adds over 4d bytes to m additions over m bytes. The stepper in section 5 shows the table and one candidate's 16 bytes on a real index.</p>
+<div class="fm"><div class="eq">score(q, x) &asymp; &sum;<sub>j=1..m</sub> T<sub>j</sub>[ code<sub>j</sub>(x) ], &nbsp; T<sub>j</sub>[c] = q<sub>j</sub> &middot; centroid<sub>j,c</sub></div>
+<dl><dt>m</dt><dd>sub-vectors per vector, one byte each</dd><dt>T<sub>j</sub></dt><dd>row j of the m &times; 256 table, built once per query</dd></dl></div>
+<p>Leaving the query unquantized is <dfn>asymmetric distance computation</dfn> (ADC), which the paper shows beats quantizing the query too.</p>
+<details class="dp"><summary>ADC against SDC, and FAISS's distance table <span class="mute">(code and depth)</span></summary><div class="b">
+<p>"For m=8 we obtain the same accuracy for ADC and k*=64 as for SDC and k*=256" (Section V, <span class="pub">published, authors' runs</span>).</p>
 <div class="srch">faiss/impl/ProductQuantizer.cpp at v1.15.1, lines 443 to 456 (L2 version; compute_inner_prod_table at line 472 is the same with dot products)</div>
 <div class="src">void ProductQuantizer::compute_distance_table(const float* x, float* dis_table) const {
     ...
@@ -20,24 +23,50 @@
                         x + m * dsub,             <span class="c">// the query's m-th sub-vector</span>
                         get_centroids(m, 0),      <span class="c">// the 256 centroids of position m</span>
                         dsub, ksub);
-            }</div>
-<p>So per candidate the work drops from d multiply-adds over 4d bytes to m additions over m bytes. The {{IVF-PQ lab|#t-vixpq}} animates this on a real index: the table as a heat map, one candidate's 16 bytes, its score against the exact one.</p>
-<h3>Measured: what each byte budget keeps</h3>
-<p>SciFact with Qwen3-Embedding (and the four corpora stacked) <span class="meas">measured here</span>; "rescore" means: take the index's best 10 &times; r by approximate score, re-rank them with the float32 vectors, keep 10.</p>
-<div class="card" id="vix-r4-card"><div class="seg" id="vix-r4-set"><button data-m="scifact" class="on">SciFact (5,183)</button><button data-m="all4">Four corpora (25,039)</button></div><div class="seg" id="vix-r4-rs"><button data-m="0" class="on">alone</button><button data-m="1">with rescoring (best of each)</button></div><div id="vix-r4"></div><p class="small mute" id="vix-r4-cap"></p></div>
+            }</div></div></details>
+<p><b>What each byte budget keeps</b>, SciFact with Qwen3-Embedding and the four corpora stacked <span class="meas">measured here</span>; "rescore" means: take the best 10 &times; r by approximate score, re-rank them with the float32 vectors, keep 10.</p>
+<div class="card" id="vix-r4-card"><h4 style="margin:0;font-size:14px">int8 is almost free; PQ and binary need rescoring, and with it recover</h4><div class="seg" id="vix-r4-set"><button data-m="scifact" class="on">SciFact (5,183)</button><button data-m="all4">Four corpora (25,039)</button></div><div class="seg" id="vix-r4-rs"><button data-m="0" class="on">alone</button><button data-m="1">with rescoring (best of each)</button></div><div id="vix-r4"></div><p class="small mute" id="vix-r4-cap"></p></div>
 <ul class="tight">
-<li><b>int8 is almost free:</b> recall @@sq8_rec@@ at a quarter of the bytes; int4 @@sq4_rec@@.</li>
-<li><b>PQ alone is lossy, PQ with rescoring is not.</b> 16-byte codes (m = 16) alone find @@pq16_rec@@ of the true top 10; rescoring the best 100 finds @@pq16_rs_rec@@, the best 400, @@pq16_rs40_rec@@. The reconstruction error falls from @@pq8_mse@@ (m = 8) to @@pq256_mse@@ (m = 256), in squared distance on unit vectors.</li>
-<li><b>OPQ helps PQ at equal bytes.</b> <dfn>Optimized product quantization</dfn> (Ge et al., <a href="https://openaccess.thecvf.com/content_cvpr_2013/papers/Ge_Optimized_Product_Quantization_2013_CVPR_paper.pdf" target="_blank" rel="noopener noreferrer">CVPR 2013</a>) first learns a rotation so that each sub-vector carries a balanced share of the information; here it lifts m = 16 from @@pq16_rec@@ to @@opq16_rec@@ and m = 64 from @@pq64_rec@@ to @@opq64_rec@@, for the cost of one d &times; d matrix multiply per query.</li>
-<li><b>Binary needs rescoring; RaBitQ needs less of it.</b> Sign bits alone: @@bin_rec@@; with 100 candidates rescored: @@bin100_rec@@. RaBitQ (Gao and Long, <a href="https://arxiv.org/abs/2405.12497" target="_blank" rel="noopener noreferrer">SIGMOD 2024</a>; in FAISS by 1.11.0, 2025-04-24, per its CHANGELOG) stores about the same 136 bytes but estimates distances better: @@rabitq_rec@@ alone, @@rabitq_rs_rec@@ with 100 candidates rescored. Its paper proves an error bound of O(1/&radic;d) and reports beating PQ "by a clear margin" (<span class="pub">published, authors' runs</span>).</li>
+<li><b>int8:</b> recall @@sq8_rec@@ at a quarter of the bytes; int4 @@sq4_rec@@.</li>
+<li><b>PQ alone is lossy, PQ with rescoring is not.</b> 16-byte codes alone find @@pq16_rec@@ of the true top 10; rescoring the best 100 finds @@pq16_rs_rec@@, the best 400, @@pq16_rs40_rec@@. The reconstruction error falls from @@pq8_mse@@ (m = 8) to @@pq256_mse@@ (m = 256), in squared distance on unit vectors.</li>
+<li><b>OPQ helps PQ at equal bytes</b> by learning a rotation first: m = 16 from @@pq16_rec@@ to @@opq16_rec@@ (details below).</li>
+<li><b>Binary needs rescoring; RaBitQ needs less.</b> Sign bits alone: @@bin_rec@@; with 100 candidates rescored: @@bin100_rec@@. RaBitQ (Gao and Long, <a href="https://arxiv.org/abs/2405.12497" target="_blank" rel="noopener noreferrer">SIGMOD 2024</a>) stores about the same 136 bytes but estimates distances better: @@rabitq_rec@@ alone, @@rabitq_rs_rec@@ with 100 rescored. Its paper proves an error bound of O(1/&radic;d) and reports beating PQ "by a clear margin" (<span class="pub">published, authors' runs</span>).</li>
 </ul>
-<div class="co warn"><div class="t">Rescoring is not free</div>It needs the full vectors somewhere: in RAM (then compression saved nothing on memory, only on scan bandwidth), or on SSD, read for the shortlist only (DiskANN's design, section 7), or in object storage. Count it in the memory budget (section 11).</div>
-<p class="small mute">Published on larger models: Hugging Face's measurements kept about 96% of retrieval quality with binary codes plus rescoring (32 times less memory) and about 99% with int8 ({{blog, 2024-03-22|https://huggingface.co/blog/embedding-quantization}}) <span class="pub">published</span>; the share kept depends strongly on the model, as the 384-dimension Quora run on the {{Search and vector databases|n:3ef5c17b0d0d815eb4caef9b4cd4d732}} page shows (pgvector's halfvec and binary_quantize measured there). Which model tolerates quantization, and Matryoshka truncation of dimensions, belong to {{Embedding models|n:3c65c17b0d0d81508f99e1fa78c2bb41}}.</p>
+<div class="co warn"><div class="t">Rescoring is not free</div>It needs the full vectors somewhere: in RAM (then compression saved scan bandwidth, not memory), on SSD, read for the shortlist only (DiskANN's design, section 7), or in object storage. Count it in the memory budget (section 11).</div>
+<p class="small">Which model tolerates quantization, and Matryoshka truncation, belong to {{Embedding models|n:3c65c17b0d0d81508f99e1fa78c2bb41}}.</p>
+<details class="dp"><summary>OPQ, and what larger models keep under quantization <span class="mute">(depth)</span></summary><div class="b">
+<p><dfn>Optimized product quantization</dfn> (Ge et al., <a href="https://openaccess.thecvf.com/content_cvpr_2013/papers/Ge_Optimized_Product_Quantization_2013_CVPR_paper.pdf" target="_blank" rel="noopener noreferrer">CVPR 2013</a>) first learns a rotation so each sub-vector carries a balanced share of the information: m = 64 from @@pq64_rec@@ to @@opq64_rec@@ here, for one d &times; d multiply per query.</p>
+<p>Published on larger models: Hugging Face kept about 96% of retrieval quality with binary codes plus rescoring (32 times less memory) and about 99% with int8 ({{blog, 2024-03-22|https://huggingface.co/blog/embedding-quantization}}) <span class="pub">published</span>; the share kept depends strongly on the model, as the 384-dimension Quora run on {{Search and vector databases|n:3ef5c17b0d0d815eb4caef9b4cd4d732}} shows (pgvector's halfvec and binary_quantize).</p></div></details>
 </section>
 
 <section id="vix-s5">
 <h2>5. IVF-PQ, residuals and rescoring</h2>
-<p>The classic billion-scale recipe combines both ideas: IVF picks the cells, PQ compresses what is inside them (J&eacute;gou et al. call it IVFADC). One refinement: PQ encodes the <dfn>residual</dfn>, the vector minus its cell's centroid, which is smaller and so quantizes with less error. For inner product the score splits into a coarse term and a table term, and FAISS's comment spells out the bookkeeping (for L2 it adds a third term it can precompute):</p>
+<p>The classic billion-scale recipe combines both ideas: IVF picks the cells, PQ compresses what is inside them (J&eacute;gou et al. call it IVFADC). One refinement: PQ encodes the <dfn>residual</dfn>, the vector minus its cell's centroid, which is smaller and so quantizes with less error; for inner product the score is then the query&middot;centroid term plus the table sum. Step one real claim through it, then switch the method to run the same claim and cells through IVF-Flat or with rescoring:</p>
+<div class="lab" id="vix-plab">
+<style>
+#vix-plab .cap{font-size:13.5px;min-height:4.6em;border-left:3px solid var(--acc);padding:4px 10px;background:var(--soft);border-radius:0 6px 6px 0}
+#vix-plab canvas{display:block;max-width:100%;border:1px solid var(--line);border-radius:4px}
+#vix-plab .code{font:12.5px ui-monospace,Menlo,monospace;display:flex;flex-wrap:wrap;gap:3px;margin:6px 0}
+#vix-plab .code span{border:1px solid var(--line);border-radius:4px;padding:1px 5px;background:var(--bg)}#vix-plab .code span.on{border-color:var(--acc);background:var(--acc2)}
+#vix-plab .res td{padding:3px 5px;font-size:12.5px}#vix-plab .ok{color:var(--good);font-weight:600}#vix-plab .no{color:var(--bad);font-weight:600}
+</style>
+<h4>One claim through IVF-Flat, IVF-PQ and IVF-PQ with rescoring</h4>
+<p class="small">A real FAISS 1.15.1 index over the 5,183 SciFact abstracts: <b>72 cells</b>, each abstract also stored as a <b>16-byte PQ code</b> (16 sub-vectors of 64 dimensions). Six steps: coarse step, probe, score, one candidate, rank, result. Predict first: with 16-byte codes and no rescoring, how many of the exact top 10 will survive?</p>
+<div class="ctl"><label>Claim <select id="vix-p-q"></select></label></div>
+<div class="seg" id="vix-p-np"><button data-m="1" class="on">nprobe 1</button><button data-m="2">2</button><button data-m="4">4</button><button data-m="8">8</button></div>
+<div class="seg" id="vix-p-meth"><button data-m="flat" class="on">IVF-Flat</button><button data-m="pq">IVF-PQ</button><button data-m="rs">IVF-PQ + rescore</button></div>
+<div class="card" id="vix-p-card">
+<div class="an-ctl" id="vix-p-ctl"></div>
+<div id="vix-p-fig"></div>
+<div class="cap" id="vix-p-cap"></div>
+<div class="out" id="vix-p-stats"></div>
+<div id="vix-p-res"></div>
+</div>
+<details class="dp"><summary>All four claims, every setting, and how the page recomputes FAISS's scores <span class="mute">(table)</span></summary><div class="b"><div class="tw" id="vix-p-all"></div>
+<p class="small mute">Measured on Apple M1 Pro (CPU), deterministic. The page scores candidates with the same arithmetic as FAISS's IndexIVFPQ for inner product with residuals (score = query &middot; centroid + the sum of 16 table entries); the generating script checks this against FAISS's own scores (largest difference <span id="vix-p-err"></span>) and stores tables and exact similarities rounded to 1/30,000.</p></div></details>
+</div>
+<p>Over all 300 claims, IVF72 with 32-byte PQ codes: recall alone stops rising at about @@ivfpq32_plateau@@ however many cells are probed (the PQ error, not the cell boundary, is the limit); rescoring the best 100 lifts it to @@ivfpq32_rs32@@ at nprobe 32 <span class="meas">measured here</span>. The parent's Tool map found the same in LanceDB, whose default index is IVF-PQ: 0.59 at defaults, 0.97 with refine_factor 10 (rescoring) on SciFact with bge-small.</p>
+<details class="dp"><summary>FAISS source: the residual score decomposition <span class="mute">(code)</span></summary><div class="b">
 <div class="srch">faiss/IndexIVFPQ.cpp at v1.15.1, lines 379 to 390 (comment above the precomputed tables); by_residual = true by default (line 64)</div>
 <div class="src"> * During IVFPQ search with by_residual, we compute
  *
@@ -49,6 +78,6 @@
  *    d = || x - y_C ||^2 + || y_R ||^2 + 2 * (y_C|y_R) - 2 * (x|y_R)
  *        ---------------   ---------------------------       -------
  *             term 1                 term 2                   term 3</div>
-<p>Measured on SciFact, IVF72 with 32-byte PQ codes: recall alone stops rising at about @@ivfpq32_plateau@@ however many cells are probed (the PQ error, not the cell boundary, is the limit); with rescoring of the best 100 it climbs to @@ivfpq32_rs32@@ at nprobe 32 <span class="meas">measured here</span>. That is the same story the parent's Tool map found in LanceDB, whose default index is IVF-PQ: 0.59 at defaults, 0.97 with refine_factor 10 (rescoring) on SciFact with bge-small.</p>
-<div class="co key"><div class="t">The general shape: candidates cheap, final ranking exact</div>Every compressed index ends the same way: a cheap, approximate stage generates candidates, and an exact stage re-ranks a short list. ScaNN calls it "reorder", LanceDB "refine_factor", FAISS "IndexRefine", Qdrant "rescore", DiskANN reads the full vector from SSD during the walk. It is the same pattern as a cross-encoder reranker after a retriever, one level down ({{Rerankers and late interaction|n:3f85c17b0d0d813fba53fc883f8a2c8f}}).</div>
+<p>For inner product the score splits into the coarse term and the table term; for L2 FAISS adds the third term it can precompute.</p></div></details>
+<div class="co key"><div class="t">The general shape: candidates cheap, final ranking exact</div>Every compressed index ends the same way: a cheap approximate stage generates candidates and an exact stage re-ranks a short list. ScaNN calls it "reorder", LanceDB "refine_factor", FAISS "IndexRefine", Qdrant "rescore"; DiskANN reads the full vector from SSD during the walk. It is the cross-encoder-after-retriever pattern one level down ({{Rerankers and late interaction|n:3f85c17b0d0d813fba53fc883f8a2c8f}}).</div>
 </section>
