@@ -36,3 +36,5 @@ Why about 27 minutes is right: the core grew by 2.5 minutes overall while the pa
 
 ## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 256 units: core 184, depth 35, fat 37. 205 drafted from the old page by `ledger.py init`; 51 added by hand (the three tables split into rows, the script-rendered Loss-shapes tables, and the new content: hero, cross-entropy gradient, ranking, logit level). Fat units carry a `note`.
+
+- 2026-10-24, topic close: the triplet block in the ranking section shrunk to one sentence (PyTorch default kept) and a link to Contrastive's "Pairs and triplets: the margin losses", which owns FaceNet's margin, semi-hard mining and collapse (ledger unit 254 now owned there; one unit added).
