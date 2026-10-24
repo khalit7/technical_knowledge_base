@@ -35,9 +35,5 @@
     'Call 2. Left: one action, then an invented exchange and a second copy of the action; two blocks, so the parser refuses the reply. Right: the same kind of reply, cut after the first block, so it runs.'];
   RD.anim({card:'rd-ab-card',ctl:'rd-ab-ctl',n:N,ms:3200,label:'Model call',draw:i=>{
     side(L,i,'rd-ab-l','rd-ab-lr','rd-ab-lc');side(Rr,i,'rd-ab-r','rd-ab-rr','rd-ab-rc');
-    $('rd-ab-cap').innerHTML='<div class="t">Model call '+(i+1)+' of '+N+'</div><p>'+(caps[i]||(i>=Rr.calls.length?'The cut run has already submitted (no file changed). The uncut run keeps going: every multi-block reply is refused, and it ends only when a reply holds the submit command alone.':'Both keep going. Watch the orange stretches: the model is writing the harness\'s side of the conversation.'))+'</p>'}});
-  $('rd-ab-maxb').textContent=Math.max(...L.calls.map(c=>nb(c.full_text||c.text)));
-  $('rd-ab-fe').textContent=fe(L);$('rd-ab-fc').textContent=L.calls.length;
-  $('rd-ab-out').textContent=fmt(Rr.totals.out);$('rd-ab-nc').textContent=Rr.calls.length;
-  if(A)$('rd-ab-aider').textContent=A.totals.calls+' model calls ('+A.totals.model_seconds+' s of model time)';
+    $('rd-ab-cap').innerHTML='<div class="t">Model call '+(i+1)+' of '+N+'</div><p>'+(caps[i]||(i>=Rr.calls.length?'The cut run has already submitted (no file changed). The uncut run keeps going: every multi-block reply is refused, and it ends only when a reply holds the submit command alone.':'Both keep going. Watch the highlighted stretches: the model is writing the harness\'s side of the conversation.'))+'</p>'}});
 })();

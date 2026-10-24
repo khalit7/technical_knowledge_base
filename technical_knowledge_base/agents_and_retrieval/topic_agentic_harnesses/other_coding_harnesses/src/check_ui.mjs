@@ -18,6 +18,7 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await page.evaluate(() => { try { localStorage.clear() } catch (e) {} });
   await page.reload();
   const counts = {};
+  await sleep(1500); counts.still = await page.evaluate(() => [document.getElementById('rd-ab-ctl-s').value, document.getElementById('hm-anim-s').value].join(','));
   const shot = async (sel, name) => { const el = await page.$(sel); if (el) { await el.scrollIntoView(); await sleep(150); await el.screenshot({ path: `${OUT}/${name}-${scheme}-${w}.png` }) } };
   // Reading: boundary animation, every step
   counts.ab = await page.evaluate(() => { const f = document.getElementById('rd-ab-ctl-f'); let n = 0; for (let i = 0; i < 12; i++) { f.click(); n++ } document.getElementById('rd-ab-ctl-b').click(); const s = document.getElementById('rd-ab-ctl-s'); s.value = 1; s.dispatchEvent(new Event('input')); return n });
@@ -25,26 +26,23 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await page.evaluate(() => { const s = document.getElementById('rd-ab-ctl-s'); s.value = 3; s.dispatchEvent(new Event('input')) });
   await shot('#rd-ab-card', 'boundary');
   counts.details = await page.evaluate(() => { const d = document.querySelectorAll('#t-read details'); d.forEach(x => x.open = true); return d.length });
-  await shot('#rd-runs', 'runbars');
+  for (const id of ['rd-hero','rd-ends','rd-ladder','rd-anat','rd-compact','rd-box','rd-where','rd-runs-fig']) await shot('#' + id, id);
   await shot('#rd-0 .tw', 'onescreen');
+  // repository map (Reading section 5)
+  counts.map = await page.evaluate(() => { let n = 0; const f = document.getElementById('hm-anim-f'); for (let k = 0; k < 3; k++) { for (const v of ['256', '512', '1024', '2048']) { const s = document.getElementById('hm-bud'); s.value = v; s.dispatchEvent(new Event('change')); n++ } f.click() } document.getElementById('hm-all').click(); document.getElementById('hm-all').click(); document.getElementById('hm-anim-b').click(); return n });
+  await shot('#hm-card', 'repomap');
   // runs tab via a bar in the Reading tab
-  await page.evaluate(() => document.querySelector('#rd-runbars .row').click());
+  await page.evaluate(() => document.querySelector('#rd-runbars g[data-id]').dispatchEvent(new MouseEvent('click', { bubbles: true })));
   await sleep(200);
   counts.board = await page.evaluate(() => { const rows = document.querySelectorAll('#hr-board tbody tr'); let n = 0;
     for (let i = 0; i < rows.length; i++) { document.querySelectorAll('#hr-board tbody tr')[i].click(); const bs = document.querySelectorAll('#hr-strip button'); bs.forEach((b, j) => { document.querySelectorAll('#hr-strip button')[j].click(); n++ }); document.getElementById('hr-prev').click(); document.getElementById('hr-next').click() } return n });
-  counts.anat = await page.evaluate(() => { const r = document.querySelectorAll('#hr-anat .row'); r.forEach((x, i) => document.querySelectorAll('#hr-anat .row')[i].click()); return r.length });
+  counts.anat = await page.evaluate(() => { const r = document.querySelectorAll('#hr-anat button'); r.forEach((x, i) => document.querySelectorAll('#hr-anat button')[i].click()); return r.length });
   await page.evaluate(() => document.querySelectorAll('#hr-board tbody tr')[0].click());
   await shot('#hr-card', 'runcard');
-  await shot('#hr-anat', 'anatomy');
-  // repo map tab
-  await page.click('#tabs button[data-t="t-map"]');
-  counts.map = await page.evaluate(() => { let n = 0; for (const b of document.querySelectorAll('#hm-seg button')) { b.click(); for (const v of ['256', '512', '1024', '2048']) { const s = document.getElementById('hm-bud'); s.value = v; s.dispatchEvent(new Event('change')); n++ } } document.getElementById('hm-all').click(); document.getElementById('hm-all').click(); const f = document.getElementById('hm-anim-f'); f.click(); f.click(); document.getElementById('hm-anim-b').click(); return n });
-  await page.click('#hm-anim-p'); await sleep(600); await page.click('#hm-anim-p');
-  await shot('#hm-card', 'repomap');
   await page.click('#tabs button[data-t="t-more"]');
   const r = await page.evaluate((w) => {
     const bad = [], wide = [];
-    for (const id of ['t-read', 't-runs', 't-map', 't-more']) {
+    for (const id of ['t-read', 't-runs', 't-more']) {
       const t = document.getElementById(id); t.hidden = false;
       bad.push(...((t.innerText.match(/\bNaN\b|\bundefined\b|Infinity/g) || []).map(x => id + ':' + x)));
       t.querySelectorAll('*').forEach(e => { const b = e.getBoundingClientRect(); if (b.right > w + 1 && b.width > 0 && !e.closest('.tw,pre,.nav,.strip,.hmwrap')) wide.push(id + ' ' + e.tagName + '#' + e.id + '.' + e.className + ' ' + Math.round(b.right)) });

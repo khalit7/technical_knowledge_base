@@ -11,6 +11,15 @@ Scores out of 14 as in the methodology (teaches the mechanism, real data, intera
 4. **First-request anatomy (same tab)** (11). System prompt, tool definitions and user content in characters as sent on the wire, per harness, with the tool table and the prompt text readable. Answers "what does a harness cost before the model does anything".
 5. **Repo map lab (tab)** (12). Aider 0.86.2's own RepoMap on mini-SWE-agent v2.4.6's source: PageRank bars for three situations (nothing in chat, a file in chat, file plus message) animated as a before/after sequence, four token budgets with the real map text and which files made the cut.
 
+## Added in the 2026-10-24 rebuild
+6. **Hero: one loop, five choices, beside the shared-task outcome** (static SVG): the whiteboard picture of the page.
+7. **How each run ended** (strips of classified calls from `derive_ends.py`): stop rules and loop guards on real data.
+8. **Matcher ladders** (static): from nine fallbacks to none, and what the model is told on failure.
+9. **Compaction: what survives** (static, to scale for Gemini CLI and opencode only).
+10. **Containment grid** (static): isolation default against approval default, with headless moves.
+11. **Where the loop runs** (static): terminal, cloud agent, hosted loop.
+Moved inline: first-request anatomy and the repository map (now SVG); the run bars redrawn as SVG.
+
 ## Rejected
 - **A 9-axis comparison matrix**: the parent topic's Harness atlas owns it; this page links it and goes deeper per harness.
 - **"One fix, six edit formats" again**: the atlas has it; this page shows real edits from the recordings instead (SEARCH/REPLACE verbatim, Codex patch to the grammar).

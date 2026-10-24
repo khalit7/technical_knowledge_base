@@ -33,16 +33,14 @@
     $('hr-prev').onclick=()=>{ci=Math.max(0,ci-1);run()};$('hr-next').onclick=()=>{ci=Math.min(r.calls.length-1,ci+1);run()};
   }
   function anat(){
-    const L=R.filter(r=>r.first);const mx=Math.max(...L.map(r=>r.first.system_chars+r.first.tools_chars+r.first.user_chars));
-    $('hr-anat').innerHTML=L.map(r=>{const f=r.first,t=f.system_chars+f.tools_chars+f.user_chars,i=R.indexOf(r);
-      const seg=(v,c)=>'<span style="width:'+(100*v/mx).toFixed(2)+'%;background:'+c+'" title="'+fmt(v)+' chars"></span>';
-      return '<div class="row'+(i===ai?' sel':'')+'" data-i="'+i+'"><span class="nm">'+esc(r.harness)+' <span class="mute">'+esc(r.label||'')+(/Claude Haiku/.test(r.model)?', Haiku':'')+'</span></span><span class="sb">'+seg(f.system_chars,'var(--c1)')+seg(f.tools_chars,'var(--c2)')+seg(f.user_chars,'var(--c3)')+'</span><span class="val">'+fmt(t)+'</span></div>'}).join('');
+    const L=R.filter(r=>r.first);
+    $('hr-anat').innerHTML=L.map(r=>{const i=R.indexOf(r);return '<button class="'+(i===ai?'on':'')+'" data-i="'+i+'">'+esc(r.harness)+(r.label&&/^(Aider|mini)/.test(r.harness)?' ('+esc(r.label)+')':'')+(/Claude Haiku/.test(r.model)?', Haiku':'')+'</button>'}).join('');
     const r=R[ai],f=r.first;if(!f){$('hr-first').innerHTML='';return}
     $('hr-first').innerHTML='<div class="lbl">'+esc(r.harness)+', first request: '+fmt(f.system_chars)+' chars of system prompt, '+f.tools.length+' tools in '+fmt(f.tools_chars)+' chars, '+fmt(f.user_chars)+' chars of user content, '+fmt(f.in)+' prompt tokens</div>'+
       (f.tools.length?'<div class="tw"><table><thead><tr><th>Tool</th><th class="num">Description</th><th class="num">Schema</th><th>Description starts</th></tr></thead><tbody>'+f.tools.map(t=>'<tr><td><code>'+esc(t.name)+'</code></td><td class="num">'+fmt(t.desc_chars)+'</td><td class="num">'+fmt(t.schema_chars)+'</td><td class="small">'+esc(t.desc)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small">No tool definitions: this harness asks for actions as text.</p>')+
       '<div class="lbl">System prompt as sent (first 6,000 characters)</div><pre class="wire">'+esc(f.system||'(none)')+'</pre><div class="lbl">User content</div><pre class="wire">'+esc(f.user)+'</pre>';
   }
-  $('hr-anat').addEventListener('click',e=>{const row=e.target.closest('.row[data-i]');if(!row)return;ai=+row.dataset.i;anat()});
+  $('hr-anat').addEventListener('click',e=>{const row=e.target.closest('button[data-i]');if(!row)return;ai=+row.dataset.i;anat()});
   board();run();anat();
   window.HR_SELECT=id=>{const i=R.findIndex(r=>r.id===id);if(i>=0){cur=i;ci=0;board();run()}};
 })();
