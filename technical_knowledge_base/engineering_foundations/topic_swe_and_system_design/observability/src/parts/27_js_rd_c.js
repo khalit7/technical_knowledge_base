@@ -1,4 +1,4 @@
-// ---- Reading: dashboard panels, telemetry sizing table, glossary ----
+// ---- Reading: dashboard panels, telemetry sizing table ----
 (function(){
   const D=window.DEMO,$=id=>document.getElementById(id);
   const fmt=(v,d)=>v.toLocaleString('en-US',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});

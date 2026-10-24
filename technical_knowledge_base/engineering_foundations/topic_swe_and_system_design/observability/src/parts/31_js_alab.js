@@ -1,4 +1,4 @@
-// ---- Alert lab: the SRE workbook's six SLO alerting approaches on one timeline (twin of src/alertlab.py) ----
+// ---- Alert lab (Reading section 15, moved from its own tab 2026-10-24): the SRE workbook's six SLO alerting approaches on one timeline (twin of src/alertlab.py) ----
 window.ALAB=(function(){
   const STEP=10,M=60,H=3600,DAY=86400,PERIOD=30*DAY,LEAD=3*DAY,HORIZON=7*DAY,N=HORIZON/STEP;
   const SCEN={
@@ -120,6 +120,5 @@ window.ALAB=(function(){
     $('al-repro').innerHTML='<b>Defaults reproduce the workbook</b> (by construction: same rules, same arithmetic) at 99.9%: rule 2 pages a total outage after '+dur(o.A2.page.detect_s)+' (workbook: "2 minutes and 10 seconds"); rule 4 after '+dur(o.A4.page.detect_s)+' and resets '+dur(o.A4.page.reset_s)+' after the outage ends (workbook: "58 minutes"); rule 5 after '+dur(o.A5.page.detect_s)+' (formula: 51.8 s); rule 1\'s workbook figure of 0.6 s shows here as '+dur(o.A1.page.detect_s)+' because the lab steps in 10 seconds. Flapping spends '+fmt(100*f.budget_spent,1)+'% and rule 3 '+(f.alerts.A3.page.fires?'pages':'never pages')+' (workbook: "35%", never); the 35x burn spends '+fmt(100*s.budget_spent)+'% in 20 h and rule 4 '+(s.alerts.A4.page.fires?'pages':'never pages')+' (workbook: all of it "in 20.5 hours", never alerts).';
   }
   function draw(){drawChart();drawTable();drawMx();drawRule()}
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-alab']=[()=>{draw();repro()}];
-  addEventListener('resize',()=>{const t=$('t-alab');if(t&&!t.hidden)drawChart()});
+  RD.onRender(()=>{draw();repro()});RD.onResize(drawChart);
 })();

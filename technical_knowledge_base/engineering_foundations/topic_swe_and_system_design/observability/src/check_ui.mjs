@@ -36,11 +36,14 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const clickAll = async (sel, label, after) => { const n = await p.$$eval(sel, x => x.length); for (let i = 0; i < n; i++) { await p.evaluate((s, i) => document.querySelectorAll(s)[i].click(), sel, i); await sleep(40); await bad(label + ' ' + i); if (after) await after(i) } return n };
   const setRange = async (id, v) => p.evaluate((id, v) => { const e = document.getElementById(id); e.value = v === 'min' ? e.min : v === 'max' ? e.max : v; e.dispatchEvent(new Event('input')) }, id, v);
   // ---- Reading ----
-  await shot('#s-one', 'onescreen');
+  await shot('#hd-card', 'hero');
+  // nothing may move before the reader acts: the incident animation must still be on step 0 after a wait
+  await p.evaluate(() => document.getElementById('ix-card').scrollIntoView()); await sleep(2500);
+  if (await p.$eval('#ix-ctl-s', x => x.value) !== '0') { problems++; console.log('ix autoplayed') }
   await shot('#s-logs', 'logs');
   await clickAll('#pc-seg button', 'pc', async i => { if (i === 1) await shot('#pc-card', 'pc-incident') });
   for (const v of ['min', 'max', 900, 990]) { await setRange('hq-p', v); await sleep(30); await bad('hq ' + v) }
-  await shot('#hq-card', 'hq');
+  await shot('#hq-card', 'hq'); await shot('#ap-card', 'avgp99');
   await shot('#pq-table', 'pq');
   for (const id of ['cd-r', 'cd-s', 'cd-i', 'cd-b']) for (const v of ['min', 'max']) { await setRange(id, v); await bad('cd ' + id + v) }
   await clickAll('#cd-seg button', 'cd');
@@ -52,7 +55,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     await p.evaluate(v => { const e = document.getElementById('tp-in'); e.value = v; e.dispatchEvent(new Event('input')) }, v); await bad('tp ' + v)
   }
   await shot('#tp-card', 'tp');
-  await shot('#sp-bars', 'samp'); await shot('#pf-flame', 'flame'); await shot('#pf-bench', 'bench');
+  await shot('#sp-bars', 'samp'); await shot('#ot-card', 'otel'); await shot('#pf-flame', 'flame'); await shot('#pf-bench', 'bench');
   for (const m of ['a', 'b']) {
     await p.evaluate(m => document.querySelector('#ix-seg button[data-m=' + m + ']').click(), m); await sleep(50);
     const n = await p.$eval('#ix-ctl input[type=range]', x => +x.max + 1);
@@ -62,11 +65,10 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   }
   await shot('#db-grid', 'dash');
   await shot('#tc-table', 'cost');
-  await p.evaluate(() => document.querySelectorAll('#s-mist details').forEach(d => d.open = true));
-  await shot('#s-mist', 'mist'); await shot('#s-gl', 'gloss');
+  await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true));
+  await shot('#s-mist', 'mist'); await shot('#s-oc', 'oncall');
   await bad('read');
-  // ---- Alert lab ----
-  await p.click('button[data-t=t-alab]'); await sleep(300);
+  // ---- Alert lab (Reading section 15) ----
   // engine check against Python
   const mism = await p.evaluate(ref => {
     const bad = [];

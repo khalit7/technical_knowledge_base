@@ -12,7 +12,15 @@ Method: `.claude/skills/explainer-page/visuals/choosing.md`. Scores are teaching
 7. Why the workbook's sixth alerting rule beats the first five (precision, recall, detection, reset).
 8. What telemetry costs a service (CPU) and a budget (money).
 
-## Built
+## 2026-10-24 rebuild to the teaching contract
+- **Hero (new, static)**: one real slow request (trace abb78623..., 1,497 ms) as a count in the incident minute's histogram with its exemplar, as a four-span mini waterfall, and as its JSON log line, joined by the trace ID; the alert on burn rate named under it (`22_js_rd_hero.js`).
+- **Averaged percentiles lie (new, static)**: the three retrieval replicas' real p99s, their mean (527.2 ms) and the pooled p99's bound (at least 909.7 ms), from `src/avgpct.py`. A time-window version (mean of nine 10-second p99s against the phase p99) was computed and rejected: 1,364 against 1,325 ms teaches little.
+- **OpenTelemetry path (new, static annotated diagram)** drawn from the validated `demo/otelcol.yaml`; two layouts (wide and phone).
+- **Real image**: a Pyrra-generated Grafana SLO dashboard from Wikimedia Commons (CC BY-SA 4.0) beside the burn-rate formula.
+- **Alert lab moved inline** to Reading section 15 (it explains one mechanism); its matrix and PromQL sit in a closed block.
+- **Incident animation** no longer plays on scroll or on a mode switch.
+
+## Built (2026-10-04)
 | # | Idea | T | R | I | Placement | Data and formula |
 |---|------|---|---|---|-----------|------------------|
 | 1 | **One incident, debugged two ways** (before/after animation, 6 steps each, toggle): average-latency line plus log stream and error search, against p50/p99 lines, an exemplar dot, the slow trace's waterfall, the error trace (retrieval still working after the 1 s timeout) and the group-by-replica table | 5 | 5 | 5 | Reading, section 8 | Prometheus range queries over the real run; real traces, logs; replica stats from all 1,564 retrieval spans. Captions are the page's reasoning; numbers come from DEMO. |
