@@ -134,6 +134,9 @@ w = 0.0
 for _ in range(60): w -= g1(w) / h1(w)
 put('od_wstar', w, 3); put('od_fstar', f1(w), 4); put('od_hstar', h1(w), 4)
 put('od_gd_rate', 1 - h1(w) / Lb, 3)
+# hero figure: the two local models at w0 = 1.5 (gradient descent at eta = 1/beta, Newton with the true curvature)
+w0 = 1.5; put('hero_f', f1(w0), 3); put('hero_g', g1(w0), 3); put('hero_h', h1(w0), 3)
+put('hero_gd', w0 - g1(w0) / Lb, 3); put('hero_nt', w0 - g1(w0) / h1(w0), 3)
 
 # 2D slice for the lab (mean radius, mean texture; no intercept)
 X2 = np.array(D1['X2'])

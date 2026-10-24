@@ -13,6 +13,12 @@ Central question: "what does the local Taylor model of the loss say, and how far
 | C6 | Minibatch-gradient noise against batch size (measured vs sigma^2/B with finite-population factor) and SGD floors (constant 2, 0.5, 0.1, decaying) | Reading s16 | Turns Bottou-Curtis-Nocedal Theorems 4.6/4.7 into measurements | lr_real.py |
 | C7 | Secant to tangent; directional derivative dial; Taylor orders on e^x; Hessian gallery; chord/Jensen; Lagrange circle; XGBoost leaf calculator | Reading s1, s3, s4, s6, s13, s14, s12 | Each is the picture for one definition at the moment it is introduced; defaults reproduce the old page's worked numbers | recompute.py |
 
+| C8 (2026-10-24) | Hero: the real one-weight logistic loss at w0 = 1.5 with the tangent, the gradient-descent step-penalty parabola and the true-curvature parabola, and both landing points | Reading top | The whiteboard picture of the page's core sentence, on real data; static | recompute.py hero_*; check_page.mjs |
+| C9 (2026-10-24) | Gradient in the logit against z for cross-entropy and squared error on a sigmoid, true label 1 | Reading section 2 | The section had no visual; the 203x gap at z = -6 is seen | formula; values match recompute.py bce_m6_g, mse_sig_g |
+
+## Moved (2026-10-24)
+- C7's secant figure is inside the closed refresher block of section 1 (known ground for the reader).
+
 ## Rejected
 - Momentum vs GD animation on diag(1, 10): already the root's Gradient lab panel 3 and the Optimiser race; linked instead.
 - A backprop animation: owned by matrix_calculus_and_backprop.

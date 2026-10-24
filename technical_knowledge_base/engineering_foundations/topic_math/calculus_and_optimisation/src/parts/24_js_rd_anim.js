@@ -44,7 +44,7 @@
     $('rd-nw-cnt').innerHTML=RD.stat('iterations',String(kk),mode==='gd'?'of '+(S.length-1)+' shown':'of '+(S.length-1)+' shown')+RD.stat('weight w','<span id="rd-nw-w">'+(isFinite(cur)?M(cur.toFixed(3)):'diverged')+'</span>','optimum '+wstar.toFixed(3))+RD.stat('loss','<span id="rd-nw-f">'+(isFinite(cur)?F.f(cur).toFixed(4):'')+'</span>','optimum '+fstar.toFixed(4))+RD.stat('curvature at w',isFinite(cur)?F.h(cur).toFixed(4):'','at the optimum '+F.h(wstar).toFixed(4));
   }
   const A=RD.anim({card:'rd-nw-card',ctl:'rd-nw-ctl',n:2*(S.length-1),ms:1500,draw,label:'Optimiser step'});
-  RD.seg($('rd-nw-seg'),m=>{mode=m;S=seq();A.reset(2*(S.length-1));A.play()});
-  RD.seg($('rd-nw-start'),m=>{start=+m;S=seq();A.reset(2*(S.length-1));A.play()});
+  RD.seg($('rd-nw-seg'),m=>{mode=m;S=seq();A.reset(2*(S.length-1))});
+  RD.seg($('rd-nw-start'),m=>{start=+m;S=seq();A.reset(2*(S.length-1))});
   RD.onResize(()=>A.redraw());
 })();

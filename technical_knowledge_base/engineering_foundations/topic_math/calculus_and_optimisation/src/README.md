@@ -5,7 +5,7 @@
 ## Tabs
 | Tab | id | Parts |
 |---|---|---|
-| Reading | `t-read` | `20_read_a` (styles, nav, one screen) to `20_read_j`, `20_read_z` closes; JS `21_js_rd_common.js` (the root's animation controller), `22_js_rd_core.js` (shared maths, contours, charts), `23_js_rd_figs.js` (small figures), `24_js_rd_anim.js` (GD against Newton), `25_js_rd_real.js` (real runs) |
+| Reading | `t-read` | `20_read_a` (styles, nav, the idea in one screen: core sentence, hero, you need, new terms, closed summary table) to `20_read_k` (which method, common mistakes), `20_read_z` closes; JS `21_js_rd_common.js` (the skill template, never autoplays), `22_js_rd_core.js` (shared maths, contours, charts), `23_js_rd_figs.js` (small figures), `24_js_rd_anim.js` (GD against Newton), `25_js_rd_real.js` (real runs), `26_js_rd_new.js` (hero, loss-gradient chart, redraw when a closed block opens) |
 | Optimisation lab | `t-lab` | `30_tab_lab.html`, `31_js_lab.js` |
 | Further reading | `t-more` | `39_tab_more.html` |
 
@@ -15,10 +15,35 @@
 - `recompute.py` (`uv run --no-project --with numpy --with sympy python recompute.py`) recomputes every hand-worked number and summarises the real runs into `numbers.json` and `recompute.out`.
 - `inputs/lr_real.py` (numpy, scipy, scikit-learn; seconds): logistic regression race, gradient noise, SGD, the 1D and 2D slices. Outputs `lr_out.json`, `lr_data.json`.
 - `inputs/eos.py`, `inputs/eos_extra.py` (torch 2.14.1, float64, 2 threads; about 1 min each): the edge-of-stability runs and the Lanczos cross-check. Outputs `eos_out.json` (450 KB, per-step losses), `eos_extra.json`; logs beside them.
-- `check_page.mjs` (from the repo root) clicks every control at 390 dark and 920 light with reduced motion, compares the page with `numbers.json` (380 checks) and writes screenshots to `../.shots/check/`.
+- `check_page.mjs` (from the repo root) opens every closed block, clicks every control at 390 dark and 920 light with reduced motion, compares the page with `numbers.json` (389 checks, including the hero's four numbers `hero_*`), confirms the Newton animation does not autoplay under normal motion, and writes screenshots to `../.shots/check/`.
 
 ## Coverage
-`live.md` is the old page (copy of the root's saved fetch); `coverage.json` (made by `mk_coverage.py`) maps its 95 facts (14 owned by matrix_calculus_and_backprop, written out in `handoff_matrix_calculus_and_backprop.md`; 5 corrected).
+The knowledge ledger `ledger.json` is the current record (see below). `live.md` is the old page (copy of the root's saved fetch); `coverage.json` (made by `mk_coverage.py`) maps its 95 facts (14 owned by matrix_calculus_and_backprop, written out in `handoff_matrix_calculus_and_backprop.md`; 5 corrected); its section ids are those of the 2026-10-05 build.
+
+## The 2026-10-24 rebuild to the teaching contract
+- **Top**: the core sentence; a new static hero (`26_js_rd_new.js`): the real one-weight logistic loss at \(w_0 = 1.5\) with the tangent, the gradient-descent step-penalty parabola and the true-curvature parabola, and where each method lands (1.920, 2.518; optimum 3.551; recomputed in `recompute.py` as `hero_*`); "You need" (eigenvalues, positive definite) and where matrix calculus, optimisers in practice and numerics live; eight new terms; the old one-screen table is a closed reference block.
+- **Nineteen sections became twelve**, in the subject's order: local models (old 1 to 4), loss gradients, Hessian, gradient descent with its step limit, rate and momentum (old 7 to 9), Newton, quasi-Newton, XGBoost, convexity, constraints (old 14 and 15), stochastic gradients, deep landscapes, which method plus common mistakes.
+- **Known ground skipped for an MSc reader** (expertise reversal): the limit definition, secant figure and six rules are one closed refresher; the core keeps the reading that matters, the derivative as the best linear approximation with its \(h^2\) remainder.
+- **Derivations into closed blocks**: each loss's derivation and worked numbers, the descent lemma, momentum's settings and Nesterov's form, the Newton approximations, the BFGS update, the XGBoost derivation, softmax as maximum entropy, TRPO's step, duality, the sharpness measurement and other second-order quantities.
+- **New visual**: section 2's gradient in the logit under cross-entropy and squared error on a sigmoid (the 203x gap at \(z = -6\) drawn, not only stated). Prediction prompts added before the rate slider, the Newton animation (start at \(w = 8\)) and the edge-of-stability picker.
+- **No autoplay**: `21_js_rd_common.js` and `99_js_tabs.js` are the skill templates (storage key `co-tab`); the Newton animation's mode buttons now reset to step 0 without playing.
+- **The Optimisation lab stays a tab**: it is a tool used by sections 4, 5 and 11 (eight methods on four landscapes), not the explanation of one mechanism.
+- **No real image**: the page is about mechanisms; the one canonical figure (Cohen et al.'s edge of stability) is reproduced from this page's own run rather than embedded.
+- **Deleted as fat** (48 ledger units, each with a note): the "The question" wind-ups, the old nav and stale reading-time line, colour legends and notation remarks, one mistake that restated section 6.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After (2026-10-24) |
+|---|---|---|
+| Reading, core (230 words a minute, `html_utils/audit_pages.mjs`) | 75.7 min | 44.0 min |
+| Reading, closed details | 2.8 min | 22.2 min |
+| Optimisation lab | 1.0 + 0.8 closed | unchanged |
+| Further reading | 3.6 min | 3.6 min |
+| Visuals drawn in Reading | 14 | 16 (hero and loss-gradient chart added; the secant figure moved into the closed refresher) |
+
+The audit counts every MathML token and the hidden TeX annotation as words: of the 10,122 core words, 3,887 are inside formulas, so the prose is about 27 minutes and the rest is formula reading. Why 44 measured minutes is right: the page owns twelve foundations that four other pages lean on (the step limit, Newton, convexity, KKT, minibatch noise, sharpness), each now with its picture, its numbers and one formula; every core ledger unit is needed for one of them. What made the old page long (a rebuild from the limit definition, every derivation inline, nineteen question wind-ups) is now closed or deleted.
+
+## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
+529 units drafted by `ledger.py init` from the 2026-10-05 page (sentence level): core 354, depth 127, fat 48, owned 0, volatile 0. Keys are verbatim phrases of the new page (unique in its text), chosen by a script and checked by hand for the 58 units that were rewritten. No unit is labelled owned: the Loss functions page (which OWNERS.md gives "the gradient on the logits") does not yet carry this page's derivations or the 203x number, so they stay here.
 
 ## Departures from the child method
-No "in production now" section: the production content is the real runs (logistic regression as scikit-learn solves it, a real network's curvature) and the links to the Optimisers page, which owns practice. Reading is about 45 minutes because the page rebuilds calculus from the limit definition for a rusty reader. Page size about 450 KB, over the 300 KB guide of the time (retired 2026-10-17; now about 1 MB for a child page): about 60 KB is real data (the run curves and the two data slices) and most of the rest is MathML for about 810 formulas.
+No "in production now" section: the production content is the real runs (logistic regression as scikit-learn solves it, a real network's curvature) and the links to the Optimisers page, which owns practice. Page size about 410 KB, over the 300 KB guide of the time (retired 2026-10-17; now about 1 MB for a child page): about 60 KB is real data (the run curves and the two data slices) and most of the rest is MathML for about 810 formulas.

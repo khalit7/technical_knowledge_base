@@ -22,6 +22,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
   await p.setViewport({ width, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
   await p.goto(url); await p.evaluate(() => { try { localStorage.clear() } catch (e) {} }); await p.reload(); await sleep(400);
+  // closed details hold depth (derivations, the refresher figure): open them all so their text and controls are checked too
+  await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => { d.open = true })); await sleep(300);
   const tag = scheme + width;
   const shot = async (sel, name) => { const el = await p.$(sel); if (el) { try { await el.scrollIntoView(); await sleep(120); await el.screenshot({ path: path.join(shots, tag + '-' + name + '.png') }) } catch (e) { ok(false, tag + ' screenshot ' + name + ': ' + e.message) } } else ok(false, 'missing ' + sel) };
   const clk = sel => p.$eval(sel, b => b.click());
@@ -33,6 +35,10 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const rt = await p.$eval('#t-read', e => e.innerText);
   for (const s of ['11.213', '0.974', '10.02', '1,790', '2,411', '0.519', '34.4', '0.493', '0.857', '1001.313', '6.0025', '1.768', '0.283', '0.471', '85.9', '1,855', '3.551', '2.539'])
     ok(rt.includes(s), tag + ' reading text has ' + s);
+  // hero: the two local models at w0 = 1.5
+  near(await txt('#rd-hero-g'), N.hero_g, 1e-3, 'hero slope'); near(await txt('#rd-hero-h'), N.hero_h, 1e-3, 'hero curvature');
+  near(await txt('#rd-hero-gd'), N.hero_gd, 1e-3, 'hero gd lands'); near(await txt('#rd-hero-nt'), N.hero_nt, 1e-3, 'hero newton lands');
+  await shot('#rd-hero-card', 'hero'); await shot('#rd-lg-card', 'lossgrad');
   // secant
   const H = [1, 0.1, 0.01, 0.001];
   for (let i = 0; i < 4; i++) { await setRange('#rd-sec-h', i); near(await txt('#rd-sec-slope'), N['sec_' + H[i]], 1e-6, 'secant ' + H[i]); near(await txt('#rd-sec-err'), N['linerr_' + H[i]], 1e-9, 'line error ' + H[i]) }
@@ -106,5 +112,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   ok(await p.$eval('#jsErr', e => e.hidden), tag + ' error box hidden');
   await p.close();
 }
+// normal motion: nothing may move before the reader acts
+{ const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(url); await sleep(300);
+  await p.$eval('#rd-nw-card', e => e.scrollIntoView()); await sleep(3000);
+  ok((await p.$eval('#rd-nw-ctl-s', e => e.value)) === '0', 'Newton animation does not autoplay'); await p.close(); }
 await browser.close();
 console.log('checks', checks, 'fails', fails);
