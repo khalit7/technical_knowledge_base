@@ -19,6 +19,17 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto(file);
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
+  // never autoplay (2026-10-25): each animation card on screen for 1.5 s with nothing pressed, then after a mode switch, must draw no frame
+  for (const [tab, id] of [['t-read', 'spx'], ['t-then', 'inf']]) {
+    await p.$eval(`#tabs button[data-t=${tab}]`, b => b.click()); await p.$eval('#' + id, e => e.scrollIntoView());
+    await new Promise(r => setTimeout(r, 1500));
+    if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} autoplayed`);
+    const ms = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m));
+    if (ms.length > 1) { await p.$eval(`#${id}M button[data-m=${ms[1]}]`, b => b.click()); await new Promise(r => setTimeout(r, 1000));
+      if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} played on a mode switch`);
+      await p.$eval(`#${id}M button[data-m=${ms[0]}]`, b => b.click()) }
+  }
+  await p.$eval('#tabs button[data-t=t-read]', b => b.click());
   const audit = async (where) => {
     const r = await p.evaluate(() => {
       const small = [];

@@ -20,6 +20,8 @@ Scored 1 to 5 on: teaches more than text (T), faithful to a source (F), cost (C,
 | P-chinchilla.12 | **Tables 3 and A3 checked against 6ND** in one table (finds the 175B exponent misprint) and **Table A9 recounted** (13 L d² style count matches all 50 rows within 0.8%) | 3 | 5 | 5 | Tables tab | `recompute.py` |
 | P-chinchilla.13 | Three predict-then-reveal questions: 10× compute (3.2× model), runs needed for the published interval (600,000), Llama 3 8B's tokens per parameter (1,875) | 4 | 5 | 5 | The paper tab | Table 2; Besiroglu §3.2; Llama 3 §3 |
 | P-chinchilla.14 | **Exponent replication table** (Kaplan, A1 to A3, C4, GitHub, Besiroglu, this page twice, DeepSeek LLM on three datasets, Llama 3, Porian), linking into this page's own refits | 3 | 5 | 5 | Then and now tab | each source's table |
+| P-chinchilla.15 | **Hero (2026-10-25): Table 1's models in (N, D) space** | The five 2021 giants and Chinchilla on log axes against 20 tokens per parameter (Table 3) and Gopher's IsoFLOP line 6ND = 5.76e23; an arrow from Gopher to Chinchilla; static, hover for numbers | 0+1×2+2×2+2+2+2+1+2−0 = 15 | Reading, top | Table 1, Table 3, §4 |
+| P-chinchilla.16 | The paper's own Figure 1 or 3 as an image | rejected: arXiv non-exclusive licence, not CC BY; Figure 3 is already rebuilt from data and the hero is redrawn | | | |
 
 ## Rejected
 

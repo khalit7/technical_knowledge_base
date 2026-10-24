@@ -12,7 +12,7 @@ def rows(tid):
         out.append(cells)
     return out
 def clean(c):
-    c = c.replace('\\times', '×').replace('\\rightarrow', '→').replace('\;', ' ').replace('{', '').replace('}', '').replace('\\%', '%')
+    c = c.replace('\\times', '×').replace('\\rightarrow', '→').replace('\\;', ' ').replace('{', '').replace('}', '').replace('\\%', '%')
     c = re.sub(r'\\[a-z]+', '', c)
     return re.sub(r'\s+', ' ', c).strip()
 T = {}

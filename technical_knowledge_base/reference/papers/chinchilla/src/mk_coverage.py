@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header and properties
- ('Reading time line "9 min read, +~3h resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "9 min read, +~3h resources"', 'dropped: replaced by the measured reading time in the header (2026-10-25 light pass)', ['Reading: ', 'in closed details']),
  ('Authors: Hoffmann, Borgeaud, Mensch, Buchatskaya, Cai, Rutherford, de Las Casas, Hendricks, Welbl, Clark, ... Rae, Vinyals, Sifre', R + ', headline card (now the full author list)', ['Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch', 'Jack W. Rae, Oriol Vinyals, Laurent Sifre']),
  ('Lab: DeepMind', R + ', headline card', ['DeepMind']),
  ('Date: March 2022 (NeurIPS 2022)', R + ', headline card', ['March 2022', 'NeurIPS 2022']),
@@ -33,7 +33,7 @@ C = [
  ('Approach 1: per N, 4 runs with cosine horizons spanning 16x; interpolate smoothed loss curves; lower envelope of loss vs FLOPs; power laws: 0.50 / 0.50', R + ', Approach 1', ['train 4 runs whose cosine horizons span 16×', 'lower envelope of all the curves', 'N opt ∝ C 0.50 and D opt ∝ C 0.50']),
  ('Approach 2: 9 budgets 6e18 to 3e21, vary size, parabola per budget, valley minimum, power laws through minima: 0.49 / 0.51', R + ', Approach 2 (Figure 3 rebuilt from extracted points, which give 0.51)', ['Fix 9 budgets from 6 × 10 18 to 3 × 10 21 FLOPs', 'Fit a parabola to each valley', 'a = 0.49, b = 0.51']),
  ('Approach 3: L(N, D) = E + A/N^alpha + B/D^beta on all final losses; E text entropy, N term finite capacity, D term finite data/steps', R + ', Approach 3', ['L̂ ( N , D ) = E + A / N α + B / D β', 'the entropy of natural text', 'what a finite number of single-epoch optimisation steps loses']),
- ('Approach 3 fitting: Huber (delta 1e-3) on log-loss with L-BFGS', R + ', Approach 3; Refit tab', ['Huber loss (δ = 10 −3 , robust to outliers)', 'by L-BFGS from a grid of 4,500 starts']),
+ ('Approach 3 fitting: Huber (delta 1e-3) on log-loss with L-BFGS', R + ', Approach 3 (δ in its closed block); Refit tab', ['Huber loss uses δ = 10 −3 (robust to outliers)', 'by L-BFGS from a grid of 4,500 starts']),
  ('Fitted values E 1.69, A 406.4, B 410.7, alpha 0.34, beta 0.28', R + ', Approach 3 (Eq. 10); Refit tab', ['1.69 + 406.4/ N 0.34 + 410.7/ D 0.28']),
  ('Minimising under 6ND = C: a = alpha/(alpha+beta), b = beta/(alpha+beta), giving 0.46 / 0.54', R + ', Approach 3. Corrected: Eq. 4 has a = beta/(alpha+beta) and b = alpha/(alpha+beta) (the model exponent comes from the data exponent); 0.46 comes from the unrounded constants, the rounded ones give 0.452', ['a = β/(α+β)', 'b = α/(α+β)', 'So the model exponent comes from the data exponent', 'give 0.452 and 0.548']),
  ('All three agree: scale parameters and tokens equally, against Kaplan 0.73 / 0.27', R + ', The answer', ['All three approaches say parameters and tokens should grow in equal proportion with compute', 'against Kaplan\'s 0.73/0.27']),

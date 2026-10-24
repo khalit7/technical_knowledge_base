@@ -29,6 +29,28 @@ function approach2(drop){const iso=[];BUDGETS.forEach(C=>{const P=PAPER.pts.filt
   return {iso,a:l[1],k:l[0],b:ld[1],kd:ld[0],N:C=>Math.pow(10,l[0]+l[1]*lg10(C)),D:C=>Math.pow(10,ld[0]+ld[1]*lg10(C))}}
 window.A2=approach2(false);
 
+// ---- Hero: Table 1's models in (parameters, tokens) space against 20 tokens per parameter and Gopher's IsoFLOP line ----
+(function(){const host=$('heroSvg');if(!host)return;
+  const P=PAPER.tables.t1.rows.map(r=>({nm:r[0].replace(/ \(.*\)/,'').replace(' 530B',''),N:parseFloat(r[1])*(/Trillion/.test(r[1])?1e12:1e9),D:parseFloat(r[2])*(/Trillion/.test(r[2])?1e12:1e9)}));
+  const X=[4e10,1e12],Y=[1e11,4e12];
+  function draw(w){const sm=w<520,H=sm?300:340;
+    const F=logFrame({W:w,H,pl:46,pr:12,pt:10,pb:38,x:X,y:Y,xt:[[5e10,'50B'],[1e11,'100B'],[2e11,'200B'],[5e11,'500B'],[1e12,'1T']],yt:[[1e11,'100B'],[3e11,'300B'],[1e12,'1T'],[3e12,'3T']],xl:'parameters N',yl:'training tokens D'});
+    let s=F.s;
+    // 20 tokens per parameter (Table 3) and the IsoFLOP line 6ND = 5.76e23 (Gopher's budget)
+    const r20=[[X[0],20*X[0]],[Y[1]/20,Y[1]]];s+=pth('M'+F.lx(r20[0][0]).toFixed(1)+','+F.ly(r20[0][1]).toFixed(1)+'L'+F.lx(r20[1][0]).toFixed(1)+','+F.ly(r20[1][1]).toFixed(1),'var(--c3)',{sw:2.4});
+    s+=tx(F.lx(1.2e11)+10,F.ly(2.4e12)+14,'20 tokens per parameter',{fs:11,c:'var(--c3)',w:600});
+    const iso=geo(X[0],X[1],40).map(N=>[F.lx(N),F.ly(CG/6/N)]).filter(p=>p[1]>=F.ly(Y[1])-1&&p[1]<=F.ly(Y[0])+1);
+    s+=pth(pathOf(iso),'var(--mute)',{sw:1.6,da:'6 4'});
+    s+=tx(F.lx(7e11),F.ly(CG/6/7e11)+18,sm?'Gopher’s budget':'same compute as Gopher, 5.76 × 10²³ FLOPs',{fs:11,c:'var(--mute)',a:'end'});
+    const g=P.find(p=>/Gopher/.test(p.nm)),c=P.find(p=>/Chinchilla/.test(p.nm));
+    s+='<defs><marker id="hrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--c1)"/></marker></defs>';
+    s+='<line x1="'+F.lx(g.N).toFixed(1)+'" y1="'+(F.ly(g.D)-6).toFixed(1)+'" x2="'+(F.lx(c.N)+8).toFixed(1)+'" y2="'+(F.ly(c.D)+8).toFixed(1)+'" stroke="var(--c1)" stroke-width="1.8" marker-end="url(#hrA)"/>';
+    const lab={LaMDA:[0,16,'middle'],'GPT-3':[-6,-9,'end'],Jurassic:[6,-9,'start'],Gopher:[0,17,'middle'],'MT-NLG':[0,17,'middle'],Chinchilla:[8,4,'start']};
+    P.forEach(p=>{const x=F.lx(p.N),y=F.ly(p.D),ch=/Chinchilla/.test(p.nm);s+=dot(x,y,ch?6:4.5,ch?'var(--c1)':'var(--c2)',{t:p.nm+': '+hum(p.N)+' parameters, '+hum(p.D)+' tokens'});
+      const L=lab[p.nm.split(' ')[0]]||[6,-8,'start'];s+=tx(x+L[0],y+L[1],p.nm.split(' ')[0],{fs:11,a:L[2],c:ch?'var(--c1)':'var(--ink)',w:ch?600:400})});
+    host.innerHTML=svgW(w,H,s,'Five large models of 2021 and Chinchilla plotted by parameters and training tokens, with the 20 tokens per parameter line and Gopher’s equal-compute line')}
+  onTab('t-read',()=>fit(host,draw));fit(host,draw)})();
+
 (function(){const T=PAPER.tables,F=PAPER.fit.fits;
   tbl('rdT1',['Model','Parameters','Training tokens','Tokens per parameter'],T.t1.rows.map(r=>{const n=parseFloat(r[1])*(/Trillion/.test(r[1])?1e12:1e9),d=parseFloat(r[2])*(/Trillion/.test(r[2])?1e12:1e9);return [r[0].replace(/ \(.*\)/,''),r[1].replace(' Billion','B'),r[2].replace(' Billion','B').replace(' Trillion','T'),(d/n).toFixed(1)]}),r=>/Chinchilla/.test(r[0])?'hl':'');
   tbl('rdT2',['Approach','a (N<sub>opt</sub> ∝ C<sup>a</sup>)','b (D<sub>opt</sub> ∝ C<sup>b</sup>)'],T.t2.rows.map(r=>[r[0],r[1],r[2]]));
