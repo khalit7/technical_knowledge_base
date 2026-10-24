@@ -26,7 +26,7 @@
       else{s+=T(lw-4,y+12,(i+1)+'. '+r[0],{a:'end',fs:12,w:600,fill:c})+T(lw-4,y+25,r[1],{a:'end',fs:11,fill:'var(--mute)'});
         s+=rect(x0,y+3,bw*r[4],18,c,{op:.28})+rect(x0,y+3,bw*r[4],18,'none',{stroke:c});
         s+=T(x0+bw+8,y+16,r[2],{fs:11.5})}});
-    el.innerHTML=RD.svg(W,rungs.length*rh+6,s,'One GPU-hour read by seven meters, each an upper bound on the next')});
+    el.innerHTML=RD.svg(W,rungs.length*rh+6,s,'One GPU-hour read by seven meters, each usually at most the one above it')});
 
   // ---- goodput: allocated seconds split by what became of them ----
   reg(function(){const el=$('oc-gp-svg');if(!el)return;const W=RD.width(el),nar=W<560,G=D.gp;
