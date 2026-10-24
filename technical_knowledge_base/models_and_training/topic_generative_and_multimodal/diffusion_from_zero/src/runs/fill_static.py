@@ -3,7 +3,7 @@
 <span data-dz="k"></span>   <- out/page_data.json f[k]          (this page's runs, via make_data.py)
 <span data-lab="k"></span>  <- out/page_data_more.json lab[k]   (the root Diffusion lab's recordings)
 <tag id="X"></tag>          <- txt[X] from page_data_more.json, else from page_data.json (sentences written from the data)
-the distillation table's rows <- page_data.json dist
+the distillation table's rows <- page_data.json dist (none since 2026-10-24: the table is on latent diffusion, section 10)
 Static text is what readers without script, the reading-time audit and the knowledge-ledger check all see.
 Usage: python3 fill_static.py <index.html>
 """
@@ -43,7 +43,7 @@ head = re.sub(r'<(p|span|div)([^>]*?) id="(dz-[\w-]+)"([^>]*)></\1>', put_txt, h
 rows = "".join('<tr><td data-h="Method">%s</td><td data-h="Idea">%s</td><td data-h="Steps">%s</td><td data-h="Result">%s</td></tr>' % tuple(r)
                for r in dz["dist"])
 head, k = re.subn(r'(<table class="rd-cmp" id="dz-dist-tab">.*?<tbody>)(</tbody>)', lambda m: m.group(1) + rows + m.group(2), head, flags=re.S)
-if k != 1:
+if k > 1:   # 0 since 2026-10-24: the table moved to latent diffusion section 10
     missing.append("dist table")
 if missing:
     sys.exit("fill_static: missing keys " + ", ".join(missing))
