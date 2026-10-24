@@ -32,3 +32,12 @@ The question the paper keeps returning to: **how do you split one transformer la
 
 - A figure missing from the arXiv HTML (Figure 5) can still be exact: the PDF's text layer holds its bar labels. Worth a line in the method: check the PDF text before calling a figure image-only.
 - For a systems paper the "does not reproduce" box is the most useful output of the cost model: a simple, sourced model that explains part of the measured loss, with the rest attributed to the paper's own stated causes, teaches more than a fitted model that matches.
+
+## 2026-10-24 light pass (teaching contract)
+
+| # | Idea | What it shows | Placement | Decision |
+|---|---|---|---|---|
+| P-megatron_lm.H | Hero: one transformer layer on 2 GPUs (static annotated diagram, redrawn from Figures 3 and 4) | Which work is local (blue), which values are partial sums (orange, dashed), and the only communication: g forward and f backward, 4 all-reduces per layer; 8.3B scaling shapes (H = 3,072, 32 heads) | top of Reading, after the card | built (`12_js_hero.js`); structure, so static; the paper's own figure is not CC BY (arXiv non-exclusive licence), so it is redrawn |
+| P-megatron_lm.1 (moved) | The layer step-through, Megatron against Option 1 | unchanged; now inline in "Method: the f and g operators" with a prediction prompt (3.75 times the bytes) | Reading | moved from the removed "Split a layer across GPUs" tab: it proves the section's claim, so it sits beside it |
+| (moved) | Communication-only scaling model against Figure 5 and Table 8 | unchanged | Reading, Results: scaling, closed block | moved from the same tab; optional depth, so closed |
+| (rejected) | A photo of a DGX-2 server or an NVSwitch | where the 8-way group physically sits | none | rejected: a mechanism page; the GPU-group picker already shows the 16-GPU server and the hero the split |

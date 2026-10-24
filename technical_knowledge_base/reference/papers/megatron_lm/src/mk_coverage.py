@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "10 min read, +~3h 20m resources"', 'dropped: replaced by the build-computed reading time and resources total (4h 00m now, two follow-up papers added)', ['min to read', 'of resources']),
+ ('Reading time line "10 min read, +~3h 20m resources"', 'dropped: replaced by the build-computed reading time and resources total (4h 00m now, two follow-up papers added)', ['in closed details', 'Reading time of the resources below']),
  ('Authors: Shoeybi, Patwary, Puri, LeGresley, Casper, Catanzaro (NVIDIA)', R + ', headline card', ['Mohammad Shoeybi', 'Mostofa Patwary', 'Raul Puri', 'Patrick LeGresley', 'Jared Casper', 'Bryan Catanzaro', 'NVIDIA']),
  ('Date: September 2019 (arXiv v1; v4 March 2020)', R + ', headline card', ['September 2019', 'v4 13 March 2020']),
  ('Link arXiv 1909.08053 (~45 min)', 'card and Further reading, The paper', ['https://arxiv.org/abs/1909.08053', '(45 min)']),
@@ -21,8 +21,8 @@ C = [
  ('Megatron-LM repo as a resource: the living codebase (now Megatron-Core), reference implementation', 'Further reading, The paper (code entry); Why it matters', ['now as Megatron-Core, and the reference implementation of everything in the paper']),
  # problem
  ('2019 frontier: BERT-large 336M, GPT-2 1.5B, hit single-accelerator memory wall', R + ', Problem', ['BERT-large at 336M parameters, GPT-2 at 1.5B', 'had reached the memory of a single accelerator']),
- ('Weights + Adam state + activations no longer fit on a 32GB V100 even with activation checkpointing', R + ', Problem, plus the memory calculator', ['a 32 GB V100 was running out even with activation checkpointing', 'Adam optimizer']),
- ('Pipeline parallelism: bubble overhead and optimizer complications (GPipe, PipeDream)', R + ', Problem', ['pipeline bubbles that reduce efficiency', 'changes to the optimizer that affect accuracy', 'PipeDream']),
+ ('Weights + Adam state + activations no longer fit on a 32GB V100 even with activation checkpointing', R + ', Problem, plus the memory calculator', ['a 32 GB V100 was running out even with activation checkpointing', 'Adam optimiser']),
+ ('Pipeline parallelism: bubble overhead and optimizer complications (GPipe, PipeDream)', R + ', Problem', ['pipeline bubbles that reduce efficiency', 'optimiser changes that affect accuracy', 'PipeDream']),
  ('General distributed tensor frameworks needing a custom compiler (Mesh-TensorFlow, FlexFlow)', R + ', Problem', ['FlexFlow and Mesh-TensorFlow are frameworks with their own language and compiler']),
  ('The gap: split a layer itself, native PyTorch, handful of comm ops, no new compiler or framework', R + ', Problem (The gap)', ['a way to split a transformer layer itself across GPUs that is simple enough to write in native PyTorch with a handful of communication calls: no new compiler, no new framework']),
  # method
@@ -60,7 +60,7 @@ C = [
  ('BERT 3.9B: RACE test 90.9% vs prior 89.4%', R + ', Results: BERT (made precise: 90.9 is the 5-way ensemble against ALBERT ensemble 89.4; single model 89.5 against 86.5)', ['90.9%', '89.4%', 'the 90.9% the abstract quotes is the ensemble']),
  ('Dev-set SOTA on MNLI, QQP, SQuAD 1.1/2.0 among BERT-style models', R + ', Results: BERT; Tables tab Table 5', ['best development-set results among BERT-style models on MNLI']),
  ('Without the rearrangement, models above 336M destabilise or underperform', R + ', Results: BERT', ['its loss jumps and does not recover']),
- ('Headline meaning: 5x larger than GPT-2 trainable at good efficiency with few primitives in vanilla PyTorch; scale translated into accuracy', R + ', Results: BERT (closing paragraph; "about 5.5 times", 8.3 / 1.5)', ['about 5.5 times GPT-2', 'the extra scale turned straight into accuracy']),
+ ('Headline meaning: 5x larger than GPT-2 trainable at good efficiency with few primitives in vanilla PyTorch; scale translated into accuracy', R + ', headline card ("about 5.5 times", 8.3 / 1.5), the core sentence ("plain PyTorch") and Results (accuracy rising with size); the closing recap was cut as fat on 2026-10-24', ['about 5.5 times GPT-2', 'written in plain PyTorch']),
  # why it matters
  ('TP became a standard axis; DP/TP/PP/EP and the 3D framing trace TP to this paper', R + ', Why it matters', ['Tensor parallelism became a standard axis', '"3D parallelism" framing']),
  ('Column-then-row with conjugate f/g still canonical; standard at inference (tensor_parallel_size in vLLM, TensorRT-LLM, SGLang)', R + ', Why it matters (SGLang names it tp_size, checked in its server_args.py)', ['still the canonical formulation', 'tensor_parallel_size', 'tp_size']),
