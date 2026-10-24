@@ -143,19 +143,53 @@ td.sk{width:104px;padding:3px 4px}
 .evb .one{position:absolute;top:-2px;bottom:-2px;width:1px;background:var(--mute)}
 .evb .lb{position:absolute;top:0;font-size:10.5px;line-height:14px;padding-left:3px}
 @media (max-width:520px){.lane{grid-template-columns:minmax(0,5.6em) repeat(4,minmax(0,1fr))}td.sk{width:76px}.spark{width:70px}}
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4,#t-read .card h4{margin:0 0 4px;font-size:14.5px}
+#t-read .rd-svg{width:100%;overflow:hidden;margin:6px 0}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px}
+#t-read .der{font-size:11.5px;color:var(--c5);font-weight:600}
+#t-read .ill2{font-size:11.5px;color:var(--bad);font-weight:600}
+#t-read .tw table{min-width:520px}#t-read .tw table.nar{min-width:0}
+#t-read td,#t-read .an-cap p{overflow-wrap:anywhere}
+.mini .cv canvas{max-width:100%}
+.bt-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
 </style>
 </head><body><div class="w">
 <h1>Optimisers and learning-rate schedulers</h1>
-<div class="sub">How a gradient becomes a weight change (momentum, per-parameter scaling, preconditioning, orthogonalised and sign updates) and how the step size moves over a run (warmup, decay shapes, cooldowns, schedule-free training and checkpoint merging), with the evidence for each. Every optimiser on this page is computed with its exact published update rule, checked against PyTorch. Part of <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a>; sources linked inline; as of 3 October 2026. <span class="rt">35 min read · +11h 35m resources</span></div>
+<div class="sub">How a gradient becomes a weight change (momentum, per-parameter scaling, preconditioning, orthogonalised and sign updates), how the batch size and the step size are set, and how the step size moves over a run (warmup, decay shapes, cooldowns, schedule-free training and checkpoint merging), with the evidence for each. Every optimiser here runs its exact published update rule, checked against PyTorch. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a>. Data as of October 2026. <span id="rd-time">Reading: 29 min, plus 14 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
 <button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-race" aria-selected="false">Optimiser race</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
-<nav class="nav" aria-label="Sections"><a href="#s-one">In one screen</a><a href="#s-land">Landscape</a><a href="#s-mom">Momentum</a><a href="#s-adapt">Per-parameter steps</a><a href="#s-pre">Preconditioning</a><a href="#s-muon">Muon and Lion</a><a href="#s-evid">The evidence</a><a href="#s-sched">Schedules</a><a href="#s-ann">"Annealing"</a><a href="#s-free">Decay-free</a><a href="#s-mist">Mistakes</a></nav>
+<nav class="nav" id="rd-nav" aria-label="Sections"><a href="#s-one">The idea</a><a href="#s-mom">Momentum</a><a href="#s-adapt">Adam, AdamW</a><a href="#s-pre">Preconditioning</a><a href="#s-muon">Muon, Lion</a><a href="#s-evid">Evidence</a><a href="#s-batch">Batch size</a><a href="#s-sched">Schedules</a><a href="#s-free">Decay-free</a><a href="#s-depth">Depth</a></nav>
 
 <section id="s-one">
-<h2>In one screen</h2>
-<p class="lead">An optimiser turns the gradient of the loss into a change of the weights. Three choices are made together: how the gradient is smoothed over steps (momentum), how each parameter's step is scaled (adaptive methods and preconditioners), and how the base learning rate &eta; moves over the run (the schedule). Adaptive methods only rescale relative to &eta;, so an optimiser and a schedule are always chosen as a pair.</p>
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">An optimiser turns each gradient into a step in two moves: it <span class="hl">smooths the gradient over time</span> (momentum) and it <span class="hl">reshapes it</span> (per coordinate in Adam, per matrix in Shampoo and Muon, to a sign in Lion); the <span class="hl">schedule</span> then multiplies the step by a base rate &eta;<sub>t</sub> that warms up, holds and decays. The two are always chosen as a pair, because adaptive methods only rescale relative to &eta;.</p>
+<div class="hero" id="hero-card"><h4>Every optimiser on this page is one path through the same three boxes</h4>
+<div class="rd-svg" id="hero-svg"></div>
+<p class="small">Read left to right (top to bottom on a phone): the gradient g<sub>t</sub> is smoothed, reshaped, scaled by the schedule and applied with decoupled weight decay. The number under each box is the <b>state it keeps per parameter</b>, which is what an optimiser costs in memory (section 3). The schedule's shape is illustrative.</p></div>
+<p><b>You need:</b> what one training step does with a gradient (the parent <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a>, Reading section 5) and why a badly conditioned valley is slow (the Hessian and the stable-rate bound 2/&lambda;<sub>max</sub> are on <a href="https://app.notion.com/p/3c65c17b0d0d81eb8b49ed6a0f897f3b" target="_blank" rel="noopener noreferrer">Calculus and optimisation for ML</a>). How the schedule's anneal phase is combined with a data switch in real pretraining runs is on <a href="https://app.notion.com/p/3c65c17b0d0d814f82cffd0d5c0dd5ba" target="_blank" rel="noopener noreferrer">Pretraining</a>.</p>
+<dl class="terms">
+<dt>Momentum</dt><dd>a running sum or average of past gradients; steps along directions where gradients agree grow.</dd>
+<dt>Preconditioner</dt><dd>whatever divides or transforms the gradient before the step: Adam's &radic;v per coordinate, Shampoo's matrix roots.</dd>
+<dt>Bias correction</dt><dd>Adam's division by 1 &minus; &beta;<sup>t</sup>, which undoes averages that started at zero.</dd>
+<dt>Decoupled decay</dt><dd>AdamW's &theta; &larr; &theta; &minus; &eta;&lambda;&theta;, applied outside the adaptive division.</dd>
+<dt>Orthogonalise</dt><dd>replace a matrix by the nearest one whose singular values are all 1 (Muon, by Newton-Schulz iterations).</dd>
+<dt>Warmup, cooldown</dt><dd>a ramp of &eta; from near 0 at the start; a decay towards 0 at the end.</dd>
+<dt>WSD</dt><dd>warmup, stable, decay: a constant rate with a short cooldown, so the run's length can be chosen late.</dd>
+<dt>Critical batch</dt><dd>the batch size beyond which more examples per step stop saving steps (section 6).</dd>
+</dl>
+<div class="co key"><div class="t">The takeaway, as of October 2026</div>AdamW with warmup and a decaying schedule (cosine, or WSD when the run's length may change) is still the safe default. Muon on hidden matrices, with AdamW for everything else, is the challenger with frontier-scale evidence: it trained the 1T-parameter Kimi K2 and the GLM-4.5 family (section 4). But every independent re-tuning finds the challengers' speed-ups smaller than their papers report, and shrinking with model size: about 1.1&times; at 1.2B parameters against a well-tuned AdamW (<a href="https://arxiv.org/html/2509.02046" target="_blank" rel="noopener noreferrer">Wen et al. 2025</a>; section 5).</div>
+<details class="dp"><summary>Every optimiser in one table <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>Optimiser</th><th>Update, in one line</th><th class="num">state per parameter</th><th>What it fixed</th><th>Its catch</th></tr></thead>
 <tbody>
@@ -171,20 +205,35 @@ td.sk{width:104px;padding:3px 4px}
 <tr><td>Shampoo, SOAP</td><td>precondition rows and columns with L<sup>&minus;1/4</sup>, R<sup>&minus;1/4</sup>; SOAP runs Adam in their eigenbasis</td><td class="num">2 + factors</td><td>directions that are not coordinates</td><td>memory and matrix roots; one more knob</td></tr>
 <tr><td>Muon</td><td>orthogonalise the momentum of each hidden matrix (5 Newton-Schulz steps)</td><td class="num">1</td><td>updates dominated by a few directions</td><td>matrices only; the rest stays on AdamW</td></tr>
 <tr><td>Schedule-free</td><td>constant rate; gradient at an interpolation; iterates averaged</td><td class="num">1 or 2</td><td>knowing the run's length</td><td>evaluate at the average, not at the training point</td></tr>
-</tbody></table></div>
-<div class="co key"><div class="t">The takeaway, as of October 2026</div>AdamW with warmup and a decaying schedule (cosine, or WSD when the run's length may change) is still the safe default. Muon on hidden matrices, with AdamW for everything else, is the challenger with frontier-scale evidence: it trained the 1T-parameter Kimi K2 and the GLM-4.5 family (<a href="#s-muon">below</a>). But every independent re-tuning finds the challengers' speed-ups smaller than their papers report, and shrinking with model size: about 1.1&times; at 1.2B parameters against a well-tuned AdamW (<a href="https://arxiv.org/html/2509.02046" target="_blank" rel="noopener noreferrer">Wen et al. 2025</a>; <a href="#s-evid">The evidence</a>).</div>
-<div class="deepnote"><b>Already on the parent page, not repeated here:</b> <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a> has, on its <b>Reading</b> tab (section 5, Update), one real gradient turned into an update by SGD, Adam and Muon's Newton-Schulz iterations, and the schedule chart with a movable end (step, inverse square root, cosine, WSD); in thread 4, Adam with L2 against AdamW on the same noise. Its <b>Training lab</b> trains five of these optimisers live on a small network, and <b>Defaults across models</b> lists what 21 landmark models actually used. This page owns the details: every rule, the evidence, and the schedule family.</div>
+</tbody></table></div></div></details>
+<p class="small mute">On the parent page, not repeated here: its <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Training lab</a> trains SGD, momentum, Adam, AdamW and Muon live on a small network with step, cosine or WSD schedules, and its Defaults across models tab lists the optimiser, betas, epsilon, rate, warmup, schedule, final rate, decay and clipping of 21 landmark models. This page owns the rules, the evidence and the schedule family.</p>
 </section>
 
-<section id="s-land">
-<h2>1 &middot; The landscape the optimiser walks</h2>
+<section id="s-mom">
+<h2>1 &middot; Momentum: smooth the gradient over steps</h2>
+<p>The problem every method below answers is <b>conditioning</b>. When the loss curves 100 times more sharply across a valley than along it (condition number 100), the largest stable step for the steep direction is tiny for the shallow one, and gradient descent crawls along the floor while zig-zagging across it. Momentum adds up the gradients of successive steps: the components along the floor agree and grow, the ones across it flip sign and cancel.</p>
+<div class="card mini" id="m1-card">
+<h4>On the same valley, momentum reaches the floor that plain SGD never does</h4>
+<p class="try"><b>Predict</b> how many of 150 steps plain SGD needs to reach a loss of 10<sup>&minus;3</sup> at its best rate, then step through.</p>
+<div class="cv"><canvas id="m1-cv" aria-label="Paths of SGD, momentum and Nesterov on a ravine"></canvas></div>
+<div class="an-ctl" id="m1-ctl"></div>
+<div class="an-cap" id="m1-cap"></div>
+<div class="tw" id="m1-leg"></div>
+<p class="small mute">The race's axis-aligned ravine, f = ((x &minus; 1)&sup2; + 100(y &minus; 0.6)&sup2;)/2, from the ring to the triangle. Each optimiser at its own best constant rate (a log grid, <code>checks/tune.mjs</code>), the exact <code>torch.optim.SGD</code> rule in float64. Result: plain SGD has not reached 10<sup>&minus;3</sup> after 150 steps, momentum 0.9 gets there at step 89 and Nesterov at step 24 (<code>checks/race_facts.json</code>). All 13 rules on five surfaces are in the <a href="#" data-tab="t-race">Optimiser race</a>.</p>
+</div>
+<div class="fm"><div class="eq">v<sub>t</sub> = &beta; v<sub>t&minus;1</sub> + g<sub>t</sub>, &nbsp; &theta;<sub>t</sub> = &theta;<sub>t&minus;1</sub> &minus; &eta; v<sub>t</sub></div>
+<dl><dt>g<sub>t</sub></dt><dd>the gradient of the loss at &theta;<sub>t&minus;1</sub> on the current mini-batch</dd><dt>v<sub>t</sub></dt><dd>the velocity: past gradients, each older one weighted by a further factor &beta; (usually 0.9)</dd><dt>&eta;</dt><dd>the learning rate</dd></dl></div>
+<ul>
+<li><b>Heavy ball</b> (<a href="https://doi.org/10.1016/0041-5553(64)90137-5" target="_blank" rel="noopener noreferrer">Polyak 1964</a>). Along a consistent direction the step grows up to 1/(1 &minus; &beta;) = 10 times at &beta; = 0.9. On a quadratic with condition number R, tuned momentum needs about &radic;R times fewer iterations than steepest descent (<a href="http://proceedings.mlr.press/v28/sutskever13.pdf" target="_blank" rel="noopener noreferrer">Sutskever et al. 2013, section 2</a>). Momentum 0.9 is not the optimum for this valley; the &radic;R speed-up needs momentum tuned to the curvature, which nobody knows for a network, so 0.9 is the habit.</li>
+<li><b>Nesterov (NAG)</b> (<a href="http://proceedings.mlr.press/v28/sutskever13.pdf" target="_blank" rel="noopener noreferrer">Nesterov 1983</a>, in Sutskever et al.'s form): take the gradient at the look-ahead point &theta; &minus; &eta;&beta;v<sub>t&minus;1</sub>, where momentum is about to carry you, so the step is corrected before it is taken. PyTorch implements the equivalent rewrite &theta; &larr; &theta; &minus; &eta;(g<sub>t</sub> + &beta;v<sub>t</sub>), which needs no second gradient evaluation.</li>
+<li><b>Two conventions, one trap.</b> The formula above is PyTorch's (<a href="https://docs.pytorch.org/docs/stable/generated/torch.optim.SGD.html" target="_blank" rel="noopener noreferrer">torch.optim.SGD</a>, dampening 0): a sum. Many papers write v<sub>t</sub> = &beta;v<sub>t&minus;1</sub> + (1 &minus; &beta;)g<sub>t</sub>, an average; it traces the same path only with a learning rate 1/(1 &minus; &beta;) = 10 times larger, so a rate never transfers between the two without that factor.</li>
+</ul>
+<details class="dp"><summary>The landscape vocabulary: optima, saddles, simultaneous updates, batch, stochastic and mini-batch <span class="mute">(basics)</span></summary><div class="b">
 <ul>
 <li><b>Local optimum:</b> the gradient is zero and moving in <i>any</i> direction increases the loss.</li>
-<li><b>Saddle point:</b> the gradient is zero, but the loss decreases along some directions and increases along others (a horse saddle); the second derivative says it is neither a maximum nor a minimum. Saddles are frequent in high dimensions but are not a big problem in practice: the descending direction is there to be found, and momentum, mini-batch noise and even floating-point rounding push the optimiser off. Try the <a href="#" data-tab="t-race">Saddle</a> in the race: starting 0.001 off the ridge, plain SGD needs 15 steps to leave, while Adam, AdaGrad and RMSProp leave on the first step, because they divide the tiny gradient by its own size.</li>
+<li><b>Saddle point:</b> the gradient is zero, but the loss decreases along some directions and increases along others (a horse saddle); the second derivative says it is neither a maximum nor a minimum. Saddles are frequent in high dimensions but are not a big problem in practice: the descending direction is there to be found, and momentum, mini-batch noise and even floating-point rounding push the optimiser off. In the race's <a href="#" data-tab="t-race">Saddle</a>, starting 0.001 off the ridge, plain SGD needs 15 steps to leave, while Adam, AdaGrad and RMSProp leave on the first step, because they divide the tiny gradient by its own size.</li>
 <li><b>All parameters update simultaneously.</b> J(&theta;<sub>0</sub>, &theta;<sub>1</sub>) is always evaluated at the previous parameters: compute every gradient first, then update every weight. Updating &theta;<sub>0</sub> and then using the new &theta;<sub>0</sub> to compute &theta;<sub>1</sub>'s gradient is a different (coordinate-descent) algorithm.</li>
-<li><b>Conditioning sets the pace.</b> When the loss curves 100 times more sharply across a valley than along it (condition number 100), the largest stable step for the steep direction is tiny for the shallow one, and gradient descent crawls. The mathematics (Hessian, eigenvalues, the stable-rate bound 2/&lambda;<sub>max</sub>) is on <a href="https://app.notion.com/p/3c65c17b0d0d81eb8b49ed6a0f897f3b" target="_blank" rel="noopener noreferrer">Calculus and optimisation for ML</a>; every method below is a different answer to it.</li>
 </ul>
-<h3>How much data per gradient</h3>
 <div class="tw"><table>
 <thead><tr><th>Variant</th><th>Gradient computed on</th><th>Trade-off</th></tr></thead>
 <tbody>
@@ -192,113 +241,138 @@ td.sk{width:104px;padding:3px 4px}
 <tr><td>Stochastic gradient descent (SGD)</td><td>one random example</td><td>cheap and fast, but noisy; may never settle at the minimum</td></tr>
 <tr><td>Mini-batch gradient descent</td><td>a small batch</td><td>standard in practice: efficient, less noisy than one example, hardware-friendly. "SGD" in code (<code>torch.optim.SGD</code>) almost always means this</td></tr>
 </tbody></table></div>
-<p>The noise matters for the schedule: with a noisy gradient a constant rate cannot converge, only hover in a region whose size grows with the rate (<a href="#s-sched">section 7</a>).</p>
-</section>
-
-<section id="s-mom">
-<h2>2 &middot; Momentum: smooth the gradient over steps</h2>
-<div class="fm"><div class="eq">v<sub>t</sub> = &beta; v<sub>t&minus;1</sub> + g<sub>t</sub>, &nbsp; &theta;<sub>t</sub> = &theta;<sub>t&minus;1</sub> &minus; &eta; v<sub>t</sub></div>
-<dl><dt>g<sub>t</sub></dt><dd>the gradient of the loss at &theta;<sub>t&minus;1</sub> (on the current mini-batch)</dd><dt>v<sub>t</sub></dt><dd>the velocity: a running sum of past gradients, each older one weighted by a further factor &beta; (usually 0.9)</dd><dt>&eta;</dt><dd>the learning rate</dd></dl></div>
-<ul>
-<li><b>Heavy ball</b> (<a href="https://doi.org/10.1016/0041-5553(64)90137-5" target="_blank" rel="noopener noreferrer">Polyak 1964</a>). Gradients that agree from step to step add up, so the step grows along a consistent direction (up to 1/(1 &minus; &beta;) = 10 times at &beta; = 0.9); gradients that flip sign, as they do across a ravine, cancel. On a quadratic with condition number R, tuned momentum needs about &radic;R times fewer iterations than steepest descent (<a href="http://proceedings.mlr.press/v28/sutskever13.pdf" target="_blank" rel="noopener noreferrer">Sutskever et al. 2013, section 2</a>).</li>
-<li><b>The formula above is PyTorch's</b> (<a href="https://docs.pytorch.org/docs/stable/generated/torch.optim.SGD.html" target="_blank" rel="noopener noreferrer">torch.optim.SGD</a>, dampening 0). Many papers write v<sub>t</sub> = &beta;v<sub>t&minus;1</sub> + (1 &minus; &beta;)g<sub>t</sub> instead, an average rather than a sum; it traces the same path only with a learning rate 1/(1 &minus; &beta;) = 10 times larger, so a learning rate never transfers between the two conventions without that factor.</li>
-<li><b>Nesterov (NAG)</b> (<a href="http://proceedings.mlr.press/v28/sutskever13.pdf" target="_blank" rel="noopener noreferrer">Nesterov 1983</a>, in Sutskever et al.'s form): take the gradient at the look-ahead point &theta; &minus; &eta;&beta;v<sub>t&minus;1</sub>, where momentum is about to carry you, so the step is corrected before it is taken. PyTorch implements the equivalent rewrite &theta; &larr; &theta; &minus; &eta;(g<sub>t</sub> + &beta;v<sub>t</sub>), which needs no second gradient evaluation.</li>
-</ul>
-<p class="try"><b>Try</b> the <a href="#" data-tab="t-race">Ravine, axis-aligned</a> in the Optimiser race: at their best rates, plain SGD is still above 10<sup>&minus;3</sup> after 150 steps, momentum 0.9 gets below it at step 89 and Nesterov at step 24. Momentum 0.9 is not the optimum for this valley; the &radic;R speed-up needs momentum tuned to the curvature, which nobody knows for a network, so 0.9 is the habit.</p>
+<p>The noise matters for the schedule: with a noisy gradient a constant rate cannot converge, only hover in a region whose size grows with the rate (section 7).</p>
+</div></details>
 </section>
 <section id="s-adapt">
-<h2>3 &middot; Per-parameter step sizes: AdaGrad to AdamW</h2>
-<p>The intuition: scale each parameter's step by its own gradient history, so parameters whose gradients are small and consistent take larger steps and parameters whose gradients are large or volatile take smaller ones. All of these divide by a square root of accumulated squared gradients, coordinate by coordinate (a <i>diagonal</i> preconditioner).</p>
-<div class="tw"><table>
-<thead><tr><th>Optimiser</th><th>Idea</th><th>Strength and weakness</th></tr></thead>
-<tbody>
-<tr><td>AdaGrad (<a href="https://jmlr.org/papers/v12/duchi11a.html" target="_blank" rel="noopener noreferrer">Duchi, Hazan and Singer 2011</a>)</td><td>&theta; &larr; &theta; &minus; &eta; g / (&radic;(&Sigma; g&sup2;) + &epsilon;), the sum over every past step</td><td>Good for sparse features (a rarely seen feature keeps a large step). But the denominator only grows, so the rate decays towards nothing.</td></tr>
-<tr><td>RMSProp (<a href="https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf" target="_blank" rel="noopener noreferrer">Hinton, lecture 6e, 2012</a>)</td><td>replace the sum with an exponentially decaying average: v &larr; &rho;v + (1 &minus; &rho;)g&sup2; (0.9 in the lecture, 0.99 in PyTorch)</td><td>Fixes AdaGrad's dying rate; good for online and non-stationary problems. Never published as a paper: the citation is a slide.</td></tr>
-<tr><td>AdaDelta (<a href="https://arxiv.org/html/1212.5701" target="_blank" rel="noopener noreferrer">Zeiler 2012</a>)</td><td>no global learning rate at all: the step is scaled by a running average of past <i>updates</i> divided by one of past gradients, so its units match &theta;'s</td><td>Removes the choice of &eta;; rarely used now.</td></tr>
-<tr><td>Adam (<a href="https://arxiv.org/abs/1412.6980" target="_blank" rel="noopener noreferrer">Kingma and Ba 2014</a>)</td><td>RMSProp plus momentum plus bias correction (below)</td><td>A robust default; bias correction matters in the first steps, when the averages hold few samples.</td></tr>
-<tr><td>AdamW (<a href="https://arxiv.org/html/1711.05101" target="_blank" rel="noopener noreferrer">Loshchilov and Hutter 2017</a>)</td><td>Adam with weight decay applied in the update rule (&minus;&eta;&lambda;&theta;), not added to the loss</td><td>If L2 sits in the loss, it is divided by &radic;v&#770; like every other gradient component, so weights with large gradients are barely decayed. Decoupling fixes this. The LLM default.</td></tr>
-</tbody></table></div>
-
-<h3>Adam, exactly</h3>
+<h2>2 &middot; Per-parameter steps: Adam and AdamW</h2>
+<p>Scale each parameter's step by its own gradient history: divide by the square root of an average of its squared gradients, coordinate by coordinate (a <i>diagonal</i> preconditioner). AdaGrad sums every past g&sup2;, so its rate only falls; RMSProp replaces the sum with a decaying average; Adam adds momentum and a bias correction; AdamW moves weight decay out of the division.</p>
 <div class="fm"><div class="eq">m<sub>t</sub> = &beta;<sub>1</sub>m<sub>t&minus;1</sub> + (1&minus;&beta;<sub>1</sub>)g<sub>t</sub>, &nbsp; v<sub>t</sub> = &beta;<sub>2</sub>v<sub>t&minus;1</sub> + (1&minus;&beta;<sub>2</sub>)g<sub>t</sub>&sup2;</div>
 <div class="eq">m&#770;<sub>t</sub> = m<sub>t</sub>/(1&minus;&beta;<sub>1</sub><sup>t</sup>), &nbsp; v&#770;<sub>t</sub> = v<sub>t</sub>/(1&minus;&beta;<sub>2</sub><sup>t</sup>), &nbsp; &theta;<sub>t</sub> = &theta;<sub>t&minus;1</sub> &minus; &eta; m&#770;<sub>t</sub>/(&radic;v&#770;<sub>t</sub> + &epsilon;)</div>
-<dl><dt>m, v</dt><dd>running averages of the gradient and of its square, per parameter, both started at zero</dd><dt>&beta;<sub>1</sub>, &beta;<sub>2</sub></dt><dd>their decay rates; the paper's defaults are 0.9 and 0.999, with &eta; = 0.001 and &epsilon; = 10<sup>&minus;8</sup> (<a href="https://arxiv.org/abs/1412.6980" target="_blank" rel="noopener noreferrer">Algorithm 1</a>)</dd><dt>1 &minus; &beta;<sup>t</sup></dt><dd>the bias correction: the share of the average that is real data rather than the zero it started from</dd></dl></div>
-<p>The step m&#770;/&radic;v&#770; is roughly the sign of the gradient, scaled by how consistent it has been: about 1 when every recent gradient agrees, smaller when they disagree. So Adam's step is bounded by about &eta; per parameter, whatever the size of the gradient, which is why it barely needs the gradient's scale and why one learning rate works across very different layers.</p>
+<dl><dt>m, v</dt><dd>running averages of the gradient and of its square, per parameter, both started at zero</dd><dt>&beta;<sub>1</sub>, &beta;<sub>2</sub></dt><dd>their decay rates; the paper's defaults are 0.9 and 0.999, with &eta; = 0.001 and &epsilon; = 10<sup>&minus;8</sup> (<a href="https://arxiv.org/abs/1412.6980" target="_blank" rel="noopener noreferrer">Kingma and Ba 2014, Algorithm 1</a>)</dd><dt>1 &minus; &beta;<sup>t</sup></dt><dd>the bias correction: the share of the average that is real data rather than the zero it started from</dd></dl></div>
+<p>The step m&#770;/&radic;v&#770; is roughly the sign of the gradient, scaled by how consistent it has been: about 1 when every recent gradient agrees, smaller when they disagree. So Adam's step is bounded by about &eta; per parameter, whatever the size of the gradient, which is why one learning rate works across very different layers.</p>
 
 <div class="card" id="bc-card">
-<h3 style="margin-top:0">Adam's first 40 steps, with and without bias correction</h3>
-<p class="try"><b>Try:</b> three parameters receive three kinds of gradient: a steady tiny one, pure noise, and a sparse one that fires every tenth step. Play Adam as published, then switch to <b>uncorrected</b> and play the same 40 steps again (dashed lines show the other mode). Then set &beta;<sub>2</sub> to 0.95, the value most LLM runs use.</p>
+<h4>Without bias correction, a steady gradient's step overshoots 6.57 times at step 12</h4>
+<p class="try"><b>Try:</b> three parameters receive three kinds of gradient: a steady tiny one, pure noise, and a sparse one that fires every tenth step. Step through Adam as published, then switch to <b>uncorrected</b> and step the same 40 steps again (dashed lines show the other mode). Then set &beta;<sub>2</sub> to 0.95, the value most LLM runs use.</p>
 <div class="row2"><span class="seg" id="bc-mode"><button data-v="1" class="on">bias-corrected (Adam)</button><button data-v="0">uncorrected</button></span><span class="seg" id="bc-b2"><button data-v="0.999" class="on">&beta;<sub>2</sub> = 0.999</button><button data-v="0.95">&beta;<sub>2</sub> = 0.95</button></span></div>
 <div class="an-ctl" id="bc-ctl"></div>
 <div class="an-cap" id="bc-cap"></div>
 <div class="an-cnt" id="bc-cnt"></div>
 <div class="lanes" id="bc-lanes"></div>
 <div class="plot"><svg id="bc-plot" role="img" aria-label="Step size divided by learning rate against step"></svg></div>
-<p class="small mute">Bars are to scale within each column across all 40 steps and both modes; the step column runs from &minus;7 to 7 times the learning rate. Chart: |step| &divide; lr per parameter, solid for the mode shown, dashed for the other. &beta;<sub>1</sub> = 0.9, &epsilon; = 10<sup>&minus;8</sup>; the gradient streams are illustrative (the noisy one is seeded). The corrected rule is <code>torch.optim.Adam</code>'s, checked on the race surfaces.</p>
+<p class="small mute">Bars are to scale within each column across all 40 steps and both modes; the step column runs from &minus;7 to 7 times the learning rate. Chart: |step| &divide; lr per parameter, solid for the mode shown, dashed for the other. &beta;<sub>1</sub> = 0.9, &epsilon; = 10<sup>&minus;8</sup>; the gradient streams are illustrative (the noisy one is seeded). The corrected rule is <code>torch.optim.Adam</code>'s.</p>
 </div>
-<p>What the animation shows, in numbers (<code>recompute.py</code>): without correction, a steady gradient gives a step of (1 &minus; 0.9<sup>t</sup>)/&radic;(1 &minus; &beta;<sub>2</sub><sup>t</sup>) times &eta;. With &beta;<sub>2</sub> = 0.999 that is 3.16&eta; on step 1, a peak of 6.57&eta; at step 12, still 3.24&eta; at step 100 and 1.26&eta; at step 1,000. This is the paper's own warning: "values &beta;<sub>2</sub> close to 1 indeed lead to instabilities in training when no bias correction term was present, especially at first few epochs" (<a href="https://arxiv.org/abs/1412.6980" target="_blank" rel="noopener noreferrer">Kingma and Ba, section 6.4</a>). With &beta;<sub>2</sub> = 0.95 the uncorrected step starts too small (0.45&eta;), peaks 10% too large around step 20 and stays within 10% of correct from step 6 on, which is one reason the correction matters less for LLM runs, which mostly use 0.95 (GPT-3, Llama, DeepSeek-V3: see <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Defaults across models</a> on the parent page).</p>
+<p>The overshoot is the paper's own warning: "values &beta;<sub>2</sub> close to 1 indeed lead to instabilities in training when no bias correction term was present, especially at first few epochs" (<a href="https://arxiv.org/abs/1412.6980" target="_blank" rel="noopener noreferrer">Kingma and Ba, section 6.4</a>). With &beta;<sub>2</sub> = 0.95, the value most LLM runs use, the uncorrected step is within 10% of correct from step 6 on (numbers below).</p>
+<details class="dp"><summary>The uncorrected step in numbers <span class="mute">(depth)</span></summary><div class="b"><p>In numbers (<code>recompute.py</code>): without correction a steady gradient gives a step of (1 &minus; 0.9<sup>t</sup>)/&radic;(1 &minus; &beta;<sub>2</sub><sup>t</sup>) times &eta;. With &beta;<sub>2</sub> = 0.999 that is 3.16&eta; on step 1, a peak of 6.57&eta; at step 12, still 3.24&eta; at step 100 and 1.26&eta; at step 1,000. With &beta;<sub>2</sub> = 0.95 the uncorrected step starts too small (0.45&eta;), peaks 10% too large around step 20 and stays within 10% of correct from step 6 on, one reason the correction matters less for LLM runs, which mostly use 0.95.</p></div></details>
 
 <h3>Why warmup</h3>
-<p>Bias correction removes the bias of v&#770;, not its noise. On step 1, m&#770;/&radic;v&#770; = g/|g|: every parameter moves by exactly &eta;, whatever its gradient, and for the next few steps v&#770; is an average of a handful of squares, so the per-parameter step sizes are large and erratic. <a href="https://arxiv.org/html/1908.03265" target="_blank" rel="noopener noreferrer">Liu et al. 2019 (RAdam)</a> name this: the variance of the adaptive learning rate "is problematically large in the early stage", and warmup works as variance reduction. Warmup ramps &eta; from near zero over the first steps until the statistics can be trusted; RAdam instead switches the adaptive term on only once enough steps have accumulated. A post-norm transformer is especially sensitive (the original Transformer warmed up for 4,000 steps). Warmup length is optimiser-dependent and worth tuning rather than copying (<a href="https://arxiv.org/html/2509.01440" target="_blank" rel="noopener noreferrer">Semenov et al. 2025, takeaway 5</a>).</p>
+<p>Bias correction removes the bias of v&#770;, not its noise. On step 1, m&#770;/&radic;v&#770; = g/|g|: every parameter moves by exactly &eta;, whatever its gradient, and for the next few steps v&#770; is an average of a handful of squares, so per-parameter steps are large and erratic. <a href="https://arxiv.org/html/1908.03265" target="_blank" rel="noopener noreferrer">Liu et al. 2019 (RAdam)</a> name this: the variance of the adaptive learning rate "is problematically large in the early stage", and warmup works as variance reduction. Warmup ramps &eta; from near zero until the statistics can be trusted; RAdam instead switches the adaptive term on only once enough steps have accumulated. A post-norm transformer is especially sensitive (the original Transformer warmed up for 4,000 steps). Warmup length is optimiser-dependent and worth tuning rather than copying (<a href="https://arxiv.org/html/2509.01440" target="_blank" rel="noopener noreferrer">Semenov et al. 2025, takeaway 5</a>).</p>
 
-<h3>&beta;<sub>2</sub>, &epsilon; and weight decay in practice</h3>
+<h3>AdamW: why weight decay must leave the division</h3>
+<p>Put L2 in the loss and its gradient &lambda;&theta; goes through Adam's division by &radic;v&#770; like everything else: a weight whose gradient is large and noisy is barely decayed, and a weight whose gradient is tiny is pulled towards zero at up to the full step &eta;. AdamW applies &theta; &larr; &theta; &minus; &eta;&lambda;&theta; outside the division, so every weight decays alike (<a href="https://arxiv.org/html/1711.05101" target="_blank" rel="noopener noreferrer">Loshchilov and Hutter 2017</a>).</p>
+<div class="card" id="wd-card">
+<h4>L2 inside Adam decays quiet weights 10 times too hard and noisy ones 10 times too little</h4>
+<div class="rd-svg" id="wd-svg"></div>
+<p class="small mute"><span class="der">derived</span>: one weight &theta; = 1 with &lambda; = 0.1 and &eta; = 10<sup>&minus;3</sup>, at steady state, its gradient noise of mean 0 and RMS &sigma;. L2 in Adam: m&#770; &asymp; &lambda;&theta; and &radic;v&#770; &asymp; &radic;(&sigma;&sup2; + &lambda;&sup2;&theta;&sup2;), so the shrink per step is &eta;&lambda;&theta;/&radic;(&sigma;&sup2; + &lambda;&sup2;&theta;&sup2;). AdamW: &eta;&lambda;&theta; = 10<sup>&minus;4</sup> for every weight. The ratio runs from 10 at &sigma; = 0.001 to 0.1 at &sigma; = 10 (<code>ns_data.py</code>). The step-by-step animation of both on the same noise, and the regularisation side, are on <a href="https://app.notion.com/p/3c65c17b0d0d81e988b5c3cb5e197f98" target="_blank" rel="noopener noreferrer">Regularisation</a>, section 3.</p>
+</div>
+<p>For plain SGD the two are the same up to a rescaling of &lambda; by the learning rate (<a href="https://arxiv.org/html/1711.05101" target="_blank" rel="noopener noreferrer">Loshchilov and Hutter, abstract</a>). Because AdamW's decay per step is &eta;&lambda;, it shrinks with the schedule. In code, <code>torch.optim.Adam(weight_decay=...)</code> is the L2 version; <code>AdamW</code> is the decoupled one.</p>
+
+<h3>The limit no diagonal method escapes</h3>
+<p>AdaGrad, RMSProp and Adam rescale each <i>coordinate</i>. That helps exactly when the directions of very different curvature are the coordinates. In a network, the weight-space directions of high curvature are rarely single weights.</p>
+<div class="card mini" id="m2-card">
+<h4>Turn the valley 45&deg; and the per-coordinate methods lose their advantage; Shampoo does not</h4>
+<p class="try"><b>Predict</b> which of these five changes when the same valley is rotated, then switch and step through.</p>
+<div class="seg" id="m2-mode"></div>
+<div class="cv"><canvas id="m2-cv" aria-label="Paths on the axis-aligned and the rotated ravine"></canvas></div>
+<div class="an-ctl" id="m2-ctl"></div>
+<div class="an-cap" id="m2-cap"></div>
+<div class="tw" id="m2-leg"></div>
+<p class="small mute">Same valley, same start relative to the minimum, each optimiser at its best rate for each surface (<code>checks/race_facts.json</code>). AdaGrad and RMSProp reach 10<sup>&minus;3</sup> in 15 steps when the valley's axes are the coordinates and no longer reach it in 150 once it is rotated; Nesterov is unchanged (24 steps both ways, its update is rotation-invariant); Shampoo, the one rotation-invariant preconditioner here, lands in 24 steps on both.</p>
+</div>
+<details class="dp"><summary>The lineage: AdaGrad, RMSProp, AdaDelta; &beta;<sub>2</sub> and &epsilon; in practice <span class="mute">(depth)</span></summary><div class="b">
+<div class="tw"><table>
+<thead><tr><th>Optimiser</th><th>Idea</th><th>Strength and weakness</th></tr></thead>
+<tbody>
+<tr><td>AdaGrad (<a href="https://jmlr.org/papers/v12/duchi11a.html" target="_blank" rel="noopener noreferrer">Duchi, Hazan and Singer 2011</a>)</td><td>&theta; &larr; &theta; &minus; &eta; g / (&radic;(&Sigma; g&sup2;) + &epsilon;), the sum over every past step</td><td>Good for sparse features (a rarely seen feature keeps a large step). But the denominator only grows, so the rate decays towards nothing.</td></tr>
+<tr><td>RMSProp (<a href="https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf" target="_blank" rel="noopener noreferrer">Hinton, lecture 6e, 2012</a>)</td><td>v &larr; &rho;v + (1 &minus; &rho;)g&sup2; (0.9 in the lecture, 0.99 in PyTorch)</td><td>Fixes AdaGrad's dying rate; good for online and non-stationary problems. Never published as a paper: the citation is a slide.</td></tr>
+<tr><td>AdaDelta (<a href="https://arxiv.org/html/1212.5701" target="_blank" rel="noopener noreferrer">Zeiler 2012</a>)</td><td>no global learning rate at all: the step is scaled by a running average of past <i>updates</i> divided by one of past gradients, so its units match &theta;'s</td><td>Removes the choice of &eta;; rarely used now.</td></tr>
+</tbody></table></div>
 <ul>
-<li><b>&beta;<sub>2</sub>:</b> 0.999 is the paper's default for sparse and vision problems; 0.98 in the original Transformer (<a href="https://arxiv.org/html/1706.03762#S5.SS3" target="_blank" rel="noopener noreferrer">section 5.3</a>); 0.95 in most LLM pretraining (DeepSeek-V3: &beta; = (0.9, 0.95), weight decay 0.1, <a href="https://arxiv.org/html/2412.19437#S4.SS2" target="_blank" rel="noopener noreferrer">section 4.2</a>; SmolLM3 the same, <a href="https://huggingface.co/blog/smollm3" target="_blank" rel="noopener noreferrer">blog</a>). A shorter memory reacts faster when gradient statistics shift, at the price of noisier v.</li>
+<li><b>&beta;<sub>2</sub>:</b> 0.999 is the paper's default for sparse and vision problems; 0.98 in the original Transformer (<a href="https://arxiv.org/html/1706.03762#S5.SS3" target="_blank" rel="noopener noreferrer">section 5.3</a>); 0.95 in most LLM pretraining (GPT-3, Llama; DeepSeek-V3: &beta; = (0.9, 0.95), weight decay 0.1, <a href="https://arxiv.org/html/2412.19437#S4.SS2" target="_blank" rel="noopener noreferrer">section 4.2</a>; SmolLM3 the same, <a href="https://huggingface.co/blog/smollm3" target="_blank" rel="noopener noreferrer">blog</a>; others on the parent's Defaults across models tab). A shorter memory reacts faster when gradient statistics shift, at the price of a noisier v.</li>
 <li><b>&epsilon;:</b> 10<sup>&minus;8</sup> by default and 10<sup>&minus;9</sup> in the Transformer; it only matters where &radic;v&#770; is tiny, but there it caps the step, so a parameter with near-zero gradients moves at most &eta;&middot;m&#770;/&epsilon;.</li>
-<li><b>Weight decay:</b> with L2 in the loss, the penalty's gradient &lambda;&theta; goes through Adam's division by &radic;v&#770;, so weights with large, noisy gradients are under-decayed and weights with tiny gradients are pulled to zero at full speed; AdamW's decoupled &theta; &larr; &theta; &minus; &eta;&lambda;&theta; decays every weight alike. For plain SGD the two are the same up to a rescaling of &lambda; by the learning rate (<a href="https://arxiv.org/html/1711.05101" target="_blank" rel="noopener noreferrer">Loshchilov and Hutter, abstract</a>). The parent page animates both on the same noise (thread 4); the regularisation side is on <a href="https://app.notion.com/p/3c65c17b0d0d81e988b5c3cb5e197f98" target="_blank" rel="noopener noreferrer">Regularisation</a>. Because the decay per step is &eta;&lambda;, it shrinks with the schedule.</li>
-</ul>
-<div class="co"><div class="t">A limit no diagonal method escapes</div>AdaGrad, RMSProp and Adam rescale each <i>coordinate</i>. That helps exactly when the directions of very different curvature are the coordinates. Turn the same ravine 45&deg; in the <a href="#" data-tab="t-race">Optimiser race</a>: AdaGrad and RMSProp, which reached a loss of 10<sup>&minus;3</sup> in 15 steps on the axis-aligned ravine, no longer reach it in 150, while momentum, Nesterov and plain SGD behave exactly as before. In a network, weight-space directions of high curvature are rarely single weights. That is the case for the next section.</div>
+<li><b>Sparse gradients</b> need a long memory in v (&beta;<sub>2</sub> near 1), which the Adam paper names as exactly the case where an uncorrected v starts far too small: in the animation, the sparse parameter's corrected step on step 11 is 0.46&eta; against 1&eta; on step 1 (&beta;<sub>2</sub> = 0.999), because its m and v still remember the earlier spikes.</li>
+</ul></div></details>
 </section>
 <section id="s-pre">
-<h2>4 &middot; Preconditioning beyond the diagonal</h2>
+<h2>3 &middot; Beyond the diagonal: Shampoo, SOAP, Adafactor, and what the state costs</h2>
+<p>A weight is a matrix W (m &times; n), and its gradient's high-curvature directions mix rows and columns. Matrix-aware preconditioners act on both sides of it.</p>
 <ul>
-<li><b>Newton's method</b> uses the Hessian H, the matrix of second derivatives: &theta; &larr; &theta; &minus; H<sup>&minus;1</sup>&nabla;J. It undoes the curvature in every direction at once and converges in far fewer steps, but H has n&sup2; entries (O(n&sup2;) memory) and inverting it costs O(n&sup3;): for a network with 10<sup>9</sup> weights, impossible. Quasi-Newton methods (L-BFGS) build a low-rank approximation from recent gradient differences and Hessian-free methods use Hessian-vector products; both work for small, full-batch problems and break down with mini-batch noise. The practical descendants are the structured preconditioners below.</li>
-<li><b>Full-matrix AdaGrad</b> (<a href="https://jmlr.org/papers/v12/duchi11a.html" target="_blank" rel="noopener noreferrer">Duchi et al. 2011</a>) divides by the square root of the whole matrix &Sigma; g g<sup>&#8868;</sup> instead of its diagonal: rotation-invariant, but n&sup2; again.</li>
-<li><b>Shampoo</b> (<a href="https://arxiv.org/html/1802.09568" target="_blank" rel="noopener noreferrer">Gupta, Koren and Singer 2018</a>) exploits the fact that a weight is a matrix W (m &times; n). It keeps one m &times; m factor for the rows and one n &times; n factor for the columns, L &larr; L + G G<sup>&#8868;</sup> and R &larr; R + G<sup>&#8868;</sup>G, and steps W &larr; W &minus; &eta; L<sup>&minus;1/4</sup> G R<sup>&minus;1/4</sup>: a Kronecker-factored approximation of full-matrix AdaGrad at m&sup2; + n&sup2; memory instead of (mn)&sup2;. For a tensor of order k each factor gets the exponent &minus;1/(2k); for a vector (k = 1) that is &minus;1/2, which is full-matrix AdaGrad (derived from the paper's section 4.2). The matrix roots are expensive, so practical versions recompute them only every few steps.</li>
-<li><b>SOAP</b> (<a href="https://arxiv.org/html/2409.11321" target="_blank" rel="noopener noreferrer">Vyas et al. 2024</a>) starts from the observation that Shampoo (with the 1/2 power) is Adafactor run in the eigenbasis of Shampoo's preconditioner, and replaces Adafactor with Adam: rotate the gradient into the eigenbases of L and R, run Adam there, rotate back. Its one hyperparameter beyond Adam's is how often the eigenbasis is refreshed. Reported: on 360M and 660M language models with 2M-token batches, at least 40% fewer iterations and at least 35% less wall-clock time than AdamW, and about 20% better than Shampoo on both.</li>
-<li><b>Adafactor</b> (<a href="https://arxiv.org/html/1804.04235" target="_blank" rel="noopener noreferrer">Shazeer and Stern 2018</a>) goes the other way, towards less memory: it keeps only the row and column sums of the squared gradients of each matrix and rebuilds a rank-1 estimate of v from them, "from O(nm) to O(n+m)". It was the optimiser of <a href="https://arxiv.org/abs/1910.10683" target="_blank" rel="noopener noreferrer">T5</a>.</li>
+<li><b>Shampoo</b> (<a href="https://arxiv.org/html/1802.09568" target="_blank" rel="noopener noreferrer">Gupta, Koren and Singer 2018</a>) keeps one m &times; m factor for the rows and one n &times; n factor for the columns, L &larr; L + G G<sup>&#8868;</sup> and R &larr; R + G<sup>&#8868;</sup>G, and steps W &larr; W &minus; &eta; L<sup>&minus;1/4</sup> G R<sup>&minus;1/4</sup>: a Kronecker-factored approximation of full-matrix AdaGrad at m&sup2; + n&sup2; memory instead of (mn)&sup2;. The matrix roots are expensive, so practical versions recompute them only every few steps.</li>
+<li><b>SOAP</b> (<a href="https://arxiv.org/html/2409.11321" target="_blank" rel="noopener noreferrer">Vyas et al. 2024</a>) starts from the observation that Shampoo (with the 1/2 power) is Adafactor run in the eigenbasis of Shampoo's preconditioner, and replaces Adafactor with Adam: rotate the gradient into the eigenbases of L and R, run Adam there, rotate back. Its one hyperparameter beyond Adam's is how often the eigenbasis is refreshed.</li>
+<li><b>Adafactor</b> (<a href="https://arxiv.org/html/1804.04235" target="_blank" rel="noopener noreferrer">Shazeer and Stern 2018</a>) goes the other way, towards less memory: it keeps only the row and column sums of each matrix's squared gradients and rebuilds a rank-1 estimate of v from them, "from O(nm) to O(n+m)". It was the optimiser of <a href="https://arxiv.org/abs/1910.10683" target="_blank" rel="noopener noreferrer">T5</a>.</li>
 </ul>
-<p>The rotated ravine in the <a href="#" data-tab="t-race">Optimiser race</a> shows the point in two dimensions: Shampoo reaches 10<sup>&minus;3</sup> in 24 steps on both the axis-aligned and the rotated valley, where AdaGrad and RMSProp only manage it on the first.</p>
+<details class="dp"><summary>Newton, quasi-Newton, full-matrix AdaGrad and Shampoo's exponent; SOAP's reported gains <span class="mute">(depth)</span></summary><div class="b"><ul>
+<li><b>Newton's method</b> uses the Hessian H, the matrix of second derivatives: &theta; &larr; &theta; &minus; H<sup>&minus;1</sup>&nabla;J. It undoes the curvature in every direction at once and converges in far fewer steps, but H has n&sup2; entries (O(n&sup2;) memory) and inverting it costs O(n&sup3;): for a network with 10<sup>9</sup> weights, impossible. Quasi-Newton methods (L-BFGS) build a low-rank approximation from recent gradient differences and Hessian-free methods use Hessian-vector products; both work for small, full-batch problems and break down with mini-batch noise. The practical descendants are the structured preconditioners above.</li>
+<li><b>Full-matrix AdaGrad</b> (<a href="https://jmlr.org/papers/v12/duchi11a.html" target="_blank" rel="noopener noreferrer">Duchi et al. 2011</a>) divides by the square root of the whole matrix &Sigma; g g<sup>&#8868;</sup> instead of its diagonal: rotation-invariant, but n&sup2; again.</li>
+<li><b>Shampoo's exponent:</b> for a tensor of order k each factor gets &minus;1/(2k); for a vector (k = 1) that is &minus;1/2, which is full-matrix AdaGrad (derived from <a href="https://arxiv.org/html/1802.09568#S4.SS2" target="_blank" rel="noopener noreferrer">Gupta et al. 2018, section 4.2</a>). That is what the race's 2-D Shampoo runs.</li>
+<li><b>SOAP's reported gains:</b> on 360M and 660M language models with 2M-token batches, at least 40% fewer iterations and at least 35% less wall-clock time than AdamW, and about 20% better than Shampoo on both (Vyas et al.).</li>
+</ul></div></details>
 
 <h3>What the optimiser state costs</h3>
-<p>Optimiser state is often the largest item in training memory. In mixed precision with Adam, each parameter needs 2 bytes for the bf16 weight, 2 for its gradient, 4 for an fp32 master copy and 4 each for m and v: 16 bytes (<a href="https://app.notion.com/p/3c65c17b0d0d81879a7ed90bca007699" target="_blank" rel="noopener noreferrer">ZeRO</a>; 2 + 2 + 4 + 4 &times; 2 = 16, reproduced by construction). Optimiser states "use 33&ndash;75% of the total memory footprint during training" (<a href="https://arxiv.org/html/2110.02861#S1" target="_blank" rel="noopener noreferrer">Dettmers et al. 2021</a>). The table recounts each optimiser's state for four real models from their config.json files.</p>
+<p>In mixed precision with Adam, each parameter needs 2 bytes for the bf16 weight, 2 for its gradient, 4 for an fp32 master copy and 4 each for m and v: 16 bytes (<a href="https://app.notion.com/p/3c65c17b0d0d81879a7ed90bca007699" target="_blank" rel="noopener noreferrer">ZeRO</a>; 2 + 2 + 4 + 4 &times; 2 = 16, reproduced by construction). Optimiser states "use 33&ndash;75% of the total memory footprint during training" (<a href="https://arxiv.org/html/2110.02861#S1" target="_blank" rel="noopener noreferrer">Dettmers et al. 2021</a>). Where that state lives across GPUs (ZeRO stages, FSDP) is on <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a>.</p>
 <div class="card" id="mem-card">
-<p class="try"><b>Try:</b> switch models. Muon's state is close to half of AdamW's, a little more on small models whose embedding is a bigger share (89% of OLMo 2 7B sits in hidden matrices, 99.8% of Kimi K2). SOAP's state on Kimi K2 is about nine times its parameter count: each of its 69,300 expert matrices (7,168 &times; 2,048) carries a 7,168 &times; 7,168 factor and a 2,048 &times; 2,048 one, each with its eigenbasis.</p>
+<h4>Muon keeps about half of AdamW's state; SOAP on Kimi K2 keeps about nine times the parameter count</h4>
+<p class="try"><b>Try:</b> switch models. Muon's state is a little more than half on small models, whose embedding is a bigger share (89% of OLMo 2 7B sits in hidden matrices, 99.8% of Kimi K2). SOAP's state on Kimi K2: each of its 69,300 expert matrices (7,168 &times; 2,048) carries a 7,168 &times; 7,168 factor and a 2,048 &times; 2,048 one, each with its eigenbasis.</p>
 <div class="seg" id="mem-model"></div>
 <div id="mem-out"></div>
-<p class="small mute">State values per parameter are counted per matrix: Adam 2mn, Muon mn on hidden matrices and 2mn on the embedding, output head and every 1-D parameter (norms, router biases), Adafactor m + n, SOAP 2mn plus, for each side d &le; 10,000, a d &times; d factor and its d &times; d eigenbasis (<code>max_precond_dim = 10000</code> and <code>precondition_1d = False</code> are soap.py's defaults; larger sides, such as a vocabulary, get no factor). Bytes: 4 per state value, 1 for 8-bit Adam. Training bytes per parameter = 2 (bf16 weight) + 2 (bf16 gradient) + 4 (fp32 master) + state bytes, before activations and before any ZeRO sharding. Parameter recounts: SmolLM3 3.08B, OLMo 2 7.30B, Llama 3.1 405.85B, Kimi K2 1,026.41B (within 3,416 parameters of Hugging Face's count; the K2 report's 1.04T is discussed on <a href="https://app.notion.com/p/3c65c17b0d0d81f5abf5dbdbac821a12" target="_blank" rel="noopener noreferrer">Moonshot AI: Kimi</a>). Shampoo is not listed because its memory depends on the blocking an implementation chooses.</p>
+<p class="small mute">Counted per matrix from each model's <code>config.json</code>, 4 bytes per state value (1 for 8-bit Adam), before activations and ZeRO sharding; the counting rules are in the closed block below.</p>
 </div>
+<details class="dp"><summary>How the state is counted <span class="mute">(provenance)</span></summary><div class="b"><p >State values per parameter are counted per matrix: Adam 2mn, Muon mn on hidden matrices and 2mn on the embedding, output head and every 1-D parameter (norms, router biases), Adafactor m + n, SOAP 2mn plus, for each side d &le; 10,000, a d &times; d factor and its d &times; d eigenbasis (<code>max_precond_dim = 10000</code> and <code>precondition_1d = False</code> are soap.py's defaults; larger sides, such as a vocabulary, get no factor). Bytes: 4 per state value, 1 for 8-bit Adam. Training bytes per parameter = 2 (bf16 weight) + 2 (bf16 gradient) + 4 (fp32 master) + state bytes, before activations and before any ZeRO sharding. Parameter recounts: SmolLM3 3.08B, OLMo 2 7.30B, Llama 3.1 405.85B, Kimi K2 1,026.41B (within 3,416 parameters of Hugging Face's count; the K2 report's 1.04T is discussed on <a href="https://app.notion.com/p/3c65c17b0d0d81f5abf5dbdbac821a12" target="_blank" rel="noopener noreferrer">Moonshot AI: Kimi</a>). Shampoo is not listed because its memory depends on the blocking an implementation chooses.</p></div></details>
 </section>
 
 <section id="s-muon">
-<h2>5 &middot; Orthogonal and sign updates: Muon and Lion</h2>
+<h2>4 &middot; Orthogonal and sign updates: Muon and Lion</h2>
 <h3>Muon</h3>
-<p><a href="https://kellerjordan.github.io/posts/muon/" target="_blank" rel="noopener noreferrer">Muon</a> (Keller Jordan, 2024; "MomentUm Orthogonalized by Newton-Schulz") treats each hidden weight matrix as a matrix. For one m &times; n weight with gradient G:</p>
+<p>A gradient matrix is usually dominated by a few singular directions, so an SGD or Adam step moves mostly along them. <a href="https://kellerjordan.github.io/posts/muon/" target="_blank" rel="noopener noreferrer">Muon</a> (Keller Jordan, 2024; "MomentUm Orthogonalized by Newton-Schulz") replaces each hidden matrix's momentum by the nearest semi-orthogonal matrix, so every direction the gradient spans gets a comparable step and rare directions are not drowned out. <a href="https://jeremybernste.in/writing/deriving-muon" target="_blank" rel="noopener noreferrer">Bernstein</a> derives it as steepest descent under the spectral norm.</p>
+<div class="card" id="ns-card">
+<h4>Five Newton-Schulz iterations squeeze a 7.3 : 1 spread of singular values to 1.66 : 1</h4>
+<p class="try"><b>Predict</b> whether five iterations land every singular value exactly on 1, then step through.</p>
+<div class="an-ctl" id="ns-ctl"></div>
+<div class="an-cap" id="ns-cap"></div>
+<div class="rd-svg" id="ns-svg"></div>
+<p class="small mute">The 32 nonzero singular values of one real gradient (the parent page's toy, layer 8's first feed-forward matrix, 64 &times; 176, batch 32; <code>inputs/root_gradient_sv.json</code>), normalised to Frobenius norm 1. Each iteration X &larr; aX + (bXX<sup>&#8868;</sup> + c(XX<sup>&#8868;</sup>)&sup2;)X maps every singular value &sigma; to a&sigma; + b&sigma;<sup>3</sup> + c&sigma;<sup>5</sup> and keeps the singular vectors, so the five scalar maps here are exact (<code>ns_data.py</code>). Range: 0.04 to 0.32 before, 0.15 to 0.95 after one iteration, 0.50 to 1.20 after two, 0.68 to 1.13 after five.</p>
+</div>
+<p>For one m &times; n hidden weight with gradient G (the defaults of the <a href="https://github.com/KellerJordan/Muon" target="_blank" rel="noopener noreferrer">reference code</a> and of <code>torch.optim.Muon</code>):</p>
 <ol>
-<li>Update a momentum buffer B &larr; &mu;B + (1 &minus; &mu;)G with &mu; = 0.95, and form the Nesterov-style update U = (1 &minus; &mu;)G + &mu;B (the defaults of the <a href="https://github.com/KellerJordan/Muon" target="_blank" rel="noopener noreferrer">reference code</a> and of <code>torch.optim.Muon</code>).</li>
-<li>Normalise U to unit Frobenius norm, then apply five iterations of X &larr; aX + (bXX<sup>&#8868;</sup> + c(XX<sup>&#8868;</sup>)&sup2;)X with (a, b, c) = (3.4445, &minus;4.7750, 2.0315). This pushes every singular value of U towards 1 without computing an SVD: the result is approximately UV<sup>&#8868;</sup> from U's singular value decomposition, the nearest semi-orthogonal matrix. The coefficients were tuned to push small singular values up as fast as possible, so the output's singular values land roughly between 0.5 and 1.5 rather than exactly at 1, which the authors found does not hurt.</li>
+<li>Momentum B &larr; &mu;B + (1 &minus; &mu;)G with &mu; = 0.95, and the Nesterov-style update U = (1 &minus; &mu;)G + &mu;B.</li>
+<li>Normalise U to unit Frobenius norm, then five iterations with (a, b, c) = (3.4445, &minus;4.7750, 2.0315): approximately UV<sup>&#8868;</sup> from U's singular value decomposition, without computing one. The coefficients were tuned to lift small singular values as fast as possible, so the output's singular values land roughly between 0.5 and 1.5 rather than exactly at 1, which the authors found does not hurt (the figure ends at 0.68 to 1.13).</li>
 <li>Step W &larr; W &minus; &eta;&middot;s&middot;X, where s rescales for the matrix's shape: &radic;max(1, m/n) in Jordan's version; Moonshot's 0.2&middot;&radic;max(m, n), which matches the update's size to AdamW's typical RMS of 0.2 to 0.4 so AdamW's learning rate and decay can be reused (<a href="https://arxiv.org/html/2502.16982#S2.SS2" target="_blank" rel="noopener noreferrer">Liu et al. 2025, section 2.2</a>). PyTorch offers both as <code>adjust_lr_fn</code> options.</li>
 </ol>
 <ul>
-<li><b>Why:</b> a gradient matrix is usually dominated by a few singular directions; orthogonalising gives every direction the gradient spans a comparable step, so rare directions are not drowned out. <a href="https://jeremybernste.in/writing/deriving-muon" target="_blank" rel="noopener noreferrer">Bernstein</a> derives it as steepest descent under the spectral norm. The parent page draws the singular values flattening over the five iterations on one real gradient.</li>
-<li><b>Which parameters:</b> only 2-D hidden matrices. Embeddings, the output head, norms and biases stay on AdamW; Jordan found using AdamW for the embedding and head important even though they are 2-D. GLM-4.5 runs Muon on "all parameters except word embedding, bias, and weights for RMSNorm" with 5 Newton-Schulz steps, momentum 0.95 and update RMS 0.2 (<a href="https://arxiv.org/html/2508.06471#S2.SS4" target="_blank" rel="noopener noreferrer">GLM-4.5, section 2.4</a>).</li>
+<li><b>Which parameters:</b> only 2-D hidden matrices; a 1-D parameter has nothing to orthogonalise. Embeddings, the output head, norms and biases stay on AdamW; Jordan found using AdamW for the embedding and head important even though they are 2-D. GLM-4.5 runs Muon on "all parameters except word embedding, bias, and weights for RMSNorm" with 5 Newton-Schulz steps, momentum 0.95 and update RMS 0.2 (<a href="https://arxiv.org/html/2508.06471#S2.SS4" target="_blank" rel="noopener noreferrer">GLM-4.5, section 2.4</a>).</li>
 <li><b>Cost:</b> one state buffer instead of AdamW's two (the memory table above), and a FLOP overhead of at most T&middot;m/B for T iterations, model width m and batch B tokens: 5 &times; 768 / 524,288 = 0.7% for the speedrun and 5 &times; 16,384 / 16M = 0.5% for a Llama 405B-sized run (Jordan's arithmetic, reproduced). The real catch is that orthogonalisation needs the whole matrix while large runs shard it, which is why Moonshot published a distributed version built on ZeRO-1 (<a href="https://arxiv.org/html/2502.16982#S1" target="_blank" rel="noopener noreferrer">Liu et al. 2025</a>).</li>
-<li><b>History:</b> it set a NanoGPT speedrun record on 15 October 2024 (training 35% faster) and the CIFAR-10 record (94% in 2.6 A100-seconds, from 3.3); the speedrun record by record is on <a href="https://app.notion.com/p/3c65c17b0d0d814f82cffd0d5c0dd5ba" target="_blank" rel="noopener noreferrer">Pretraining</a>. Moonshot added weight decay and the shape scaling, reporting "~2x computational efficiency compared to AdamW with compute optimal training" (52% of the FLOPs) with the 16B Moonlight model; then MuonClip (Muon plus QK-Clip, which rescales a head's query and key projections whenever its largest attention logit exceeds &tau; = 100) trained the 1T-parameter Kimi K2 on 15.5T tokens "with zero loss spike" (<a href="https://arxiv.org/html/2507.20534" target="_blank" rel="noopener noreferrer">Kimi K2 report</a>; mechanism on <a href="https://app.notion.com/p/3c65c17b0d0d81f5abf5dbdbac821a12" target="_blank" rel="noopener noreferrer">Moonshot AI: Kimi</a>).</li>
-<li><b>Availability:</b> <code>torch.optim.Muon</code> (<a href="https://docs.pytorch.org/docs/stable/generated/torch.optim.Muon.html" target="_blank" rel="noopener noreferrer">docs</a>; first in the PyTorch 2.9 documentation, inferred from the versioned docs) and <code>optax.contrib.muon</code> in JAX (<a href="https://optax.readthedocs.io/en/latest/api/contrib.html" target="_blank" rel="noopener noreferrer">docs</a>). Note that PyTorch runs the Newton-Schulz iterations in bfloat16 and defaults to weight decay 0.1.</li>
+<li><b>Scale:</b> Moonshot added weight decay and the shape scaling and reported "~2x computational efficiency compared to AdamW with compute optimal training" (52% of the FLOPs) with the 16B Moonlight model; MuonClip (Muon plus QK-Clip, which rescales a head's query and key projections whenever its largest attention logit exceeds &tau; = 100) then trained the 1T-parameter Kimi K2 on 15.5T tokens "with zero loss spike" (<a href="https://arxiv.org/html/2507.20534" target="_blank" rel="noopener noreferrer">Kimi K2 report</a>; mechanism on <a href="https://app.notion.com/p/3c65c17b0d0d81f5abf5dbdbac821a12" target="_blank" rel="noopener noreferrer">Moonshot AI: Kimi</a>).</li>
 </ul>
+<details class="dp"><summary>Muon's records and where it is implemented <span class="mute">(provenance)</span></summary><div class="b"><ul>
+<li>It set a NanoGPT speedrun record on 15 October 2024 (training 35% faster) and the CIFAR-10 record (94% in 2.6 A100-seconds, from 3.3); the speedrun record by record is on <a href="https://app.notion.com/p/3c65c17b0d0d814f82cffd0d5c0dd5ba" target="_blank" rel="noopener noreferrer">Pretraining</a>.</li>
+<li><code>torch.optim.Muon</code> (<a href="https://docs.pytorch.org/docs/stable/generated/torch.optim.Muon.html" target="_blank" rel="noopener noreferrer">docs</a>; first in the PyTorch 2.9 documentation, inferred from the versioned docs) and <code>optax.contrib.muon</code> in JAX (<a href="https://optax.readthedocs.io/en/latest/api/contrib.html" target="_blank" rel="noopener noreferrer">docs</a>). PyTorch runs the Newton-Schulz iterations in bfloat16 and defaults to weight decay 0.1.</li>
+</ul></div></details>
+
 <h3>Lion</h3>
 <p><a href="https://arxiv.org/html/2302.06675" target="_blank" rel="noopener noreferrer">Lion</a> ("EvoLved Sign Momentum", Chen et al. 2023) was found by a program search over update rules. Its step is the sign of an interpolation between the momentum and the current gradient, and the momentum is updated afterwards with a different rate:</p>
 <div class="fm"><div class="eq">&theta; &larr; &theta; &minus; &eta;&middot;(sign(&beta;<sub>1</sub>m + (1&minus;&beta;<sub>1</sub>)g) + &lambda;&theta;), &nbsp; m &larr; &beta;<sub>2</sub>m + (1&minus;&beta;<sub>2</sub>)g</div><dl><dt>&beta;<sub>1</sub>, &beta;<sub>2</sub></dt><dd>0.9 and 0.99 by default</dd></dl></div>
 <ul>
-<li>One buffer of state, and every parameter moves by exactly &plusmn;&eta; per step, so the update's size is larger than Adam's: the paper recommends a learning rate 3 to 10 times smaller than AdamW's and a weight decay &lambda; 3 to 10 times larger, to keep &eta;&lambda; similar.</li>
-<li>Reported gains: up to 2% ImageNet accuracy for ViT, up to 5&times; less pretraining compute on JFT, 2.3&times; less for diffusion; "similar or better" than Adam on language modelling. Its own limitations section: similar to AdamW on the large-scale language model and on C4 masked language modelling, gains shrink with strong augmentation, and "likely" no better than AdamW below batch size 64.</li>
+<li>One buffer of state, and every parameter moves by exactly &plusmn;&eta; per step, larger than Adam's typical step: the paper recommends a learning rate 3 to 10 times smaller than AdamW's and a weight decay &lambda; 3 to 10 times larger, to keep &eta;&lambda; similar.</li>
+
 <li>In the race, Lion's fixed-size steps zig-zag across the ravine and stall at a distance set by &eta; unless the schedule decays: a constant-step method needs its schedule more than Adam does.</li>
 </ul>
+<details class="dp"><summary>Lion's reported gains and its own limitations <span class="mute">(provenance)</span></summary><div class="b"><ul><li>Reported gains: up to 2% ImageNet accuracy for ViT, up to 5&times; less pretraining compute on JFT, 2.3&times; less for diffusion; "similar or better" than Adam on language modelling. Its own limitations section: similar to AdamW on the large-scale language model and on C4 masked language modelling, gains shrink with strong augmentation, and "likely" no better than AdamW below batch size 64.</li></ul></div></details>
 </section>
 
 <section id="s-evid">
-<h2>6 &middot; The evidence: what the challengers deliver when the baseline is tuned</h2>
-<p>A new optimiser's paper compares against a baseline its authors tuned. Independent benchmarks that tune every method the same way keep finding smaller gains. The table puts each headline claim next to the independent measurements; speed-ups are "how many times fewer steps or FLOPs to reach the same loss".</p>
+<h2>5 &middot; The evidence: what the challengers deliver when the baseline is tuned</h2>
+<p>A new optimiser's paper compares against a baseline its authors tuned. Independent benchmarks that tune every method the same way keep finding smaller gains. Speed-ups are "how many times fewer steps or FLOPs to reach the same loss".</p>
 <div class="tw"><table class="ev">
 <thead><tr><th>Optimiser</th><th>Claimed by its authors</th><th class="bar">claim, as a speed-up</th><th>Independent evidence</th></tr></thead>
 <tbody>
@@ -312,35 +386,129 @@ td.sk{width:104px;padding:3px 4px}
 <p class="small mute">Bars: claimed speed-up on a scale from 0 to 3&times;, the thin line at 1&times; (AdamW). Derived: 1/0.52 = 1.92; 1/(1 &minus; 0.40) = 1.67 (a lower bound, iterations only). Independent figures are quoted, not converted.</p>
 <div class="co key"><div class="t">What to conclude</div>
 <ul class="tight">
-<li><b>Most of a published speed-up can be the baseline.</b> Wen et al. find that tuning a single hyperparameter (the learning rate) in the GPT-3 recipe gives up to 2&times; on a 100M model: the size of many published gains. Kaddour et al. find that a baseline whose learning rate is fully decayed erases the gains of Lion and Sophia.</li>
+<li><b>Most of a published speed-up can be the baseline.</b> Wen et al. find that tuning a single hyperparameter (the learning rate) in the GPT-3 recipe gives up to 2&times; on a 100M model: the size of many published gains. Kaddour et al. find that a baseline whose learning rate is fully decayed erases the gains of Lion and Sophia. Compare against a tuned, fully decayed AdamW at the same batch size, at more than one scale.</li>
 <li><b>Matrix-aware methods (Muon, SOAP, Shampoo) are the ones that survive tuning</b>, at about 1.3&times; for small models and shrinking with scale in Wen et al.'s runs, and with a measured end-to-end win for Shampoo in AlgoPerf.</li>
-<li><b>Muon's scale evidence is real but not controlled:</b> Kimi K2 and GLM-4.5 trained with it, and Moonlight's scaling study is Moonshot's own, and neither the K2 nor the GLM-4.5 report includes a matched AdamW run at full scale. The two studies disagree mainly on batch size: Semenov et al. tune most at 0.1M and 0.02M-token batches, Wen et al. at 0.4M or more (as Wen et al. note).</li>
+<li><b>Muon's scale evidence is real but not controlled:</b> Kimi K2 and GLM-4.5 trained with it, Moonlight's scaling study is Moonshot's own, and neither the K2 nor the GLM-4.5 report includes a matched AdamW run at full scale. The two independent studies disagree mainly on batch size: Semenov et al. tune most at 0.1M and 0.02M-token batches, Wen et al. at 0.4M or more (as Wen et al. note).</li>
 </ul></div>
 </section>
+<section id="s-batch">
+<h2>6 &middot; Batch size and the learning rate</h2>
+<p>A larger batch averages more examples per gradient, so the gradient is less noisy and a larger step is safe. Up to a point that buys fewer steps for the same data; beyond it, extra examples per step are wasted. <a href="https://arxiv.org/abs/1812.06162" target="_blank" rel="noopener noreferrer">McCandlish et al. 2018</a> fit this trade-off with one relation, (S/S<sub>min</sub> &minus; 1)(E/E<sub>min</sub> &minus; 1) = 1 (their equation 2.11), where S and E are the steps and training examples needed to reach a given loss, and define the <b>critical batch</b> B<sub>crit</sub> = E<sub>min</sub>/S<sub>min</sub> (equation 2.12). Solving with E = BS gives S = S<sub>min</sub>(1 + B<sub>crit</sub>/B) and E = E<sub>min</sub>(1 + B/B<sub>crit</sub>).</p>
+<div class="card" id="bt-card">
+<h4>At the critical batch you pay twice the minimum steps and twice the minimum data</h4>
+<p class="try"><b>Predict</b> what an 8 times larger batch than B<sub>crit</sub> saves in steps, then drag.</p>
+<label class="small">Batch size B relative to B<sub>crit</sub>: <b id="bt-v">1</b><input type="range" id="bt-r" min="-4" max="4" step="1" value="0" aria-label="Batch size relative to the critical batch"></label>
+<div class="rd-svg" id="bt-svg"></div>
+<div class="bt-out" id="bt-out"></div>
+<p class="small mute"><span class="der">derived</span> from McCandlish et al.'s equations 2.11 and 2.12; the default (B = B<sub>crit</sub>) lands on their statement that training then "takes twice as many passes through the training data as an optimally data-efficient (small-batch) run would take, and twice as many optimization steps as an optimally time-efficient (large-batch) run would take", by construction of the formula. At 8 B<sub>crit</sub>: 1.12 times the minimum steps for 9 times the minimum data. Their critical batch grows during a run ("the noise scale increases as the loss decreases") and is predicted, at the order-of-magnitude level, by the gradient noise scale. The rate rules below are relative to a batch you have tuned, scaled by &kappa;.</p>
+</div>
+<ul>
+<li><b>SGD: the linear scaling rule.</b> "When the minibatch size is multiplied by k, multiply the learning rate by k", all other hyperparameters unchanged, with a gradual warmup that reaches k&eta; after 5 epochs: ResNet-50 at a batch of 8,192 on 256 GPUs in one hour, matching small-batch accuracy (<a href="https://arxiv.org/abs/1706.02677" target="_blank" rel="noopener noreferrer">Goyal et al. 2017, sections 2.1 and 2.2</a>). The rule fails at the start of training (hence the warmup) and at very large batches.</li>
+<li><b>Adam and RMSProp: the square-root rule.</b> For batch &kappa;B use &eta;&radic;&kappa;, &beta;<sub>1</sub>&prime; = 1 &minus; &kappa;(1 &minus; &beta;<sub>1</sub>), &beta;<sub>2</sub>&prime; = 1 &minus; &kappa;(1 &minus; &beta;<sub>2</sub>) and &epsilon;/&radic;&kappa; (<a href="https://arxiv.org/abs/2205.10287" target="_blank" rel="noopener noreferrer">Malladi et al. 2022, Definition 5.2</a>), derived from an SDE approximation of Adam. The &beta; rule is the part usually forgotten, and it runs out: with &beta;<sub>2</sub> = 0.95, &kappa;(1 &minus; &beta;<sub>2</sub>) reaches 1 at &kappa; = 20.</li>
+<li><b>Past the critical batch</b> no rule helps: steps barely fall. Muon is reported to keep its data efficiency at batch sizes far beyond AdamW's critical batch (Essential AI 2025, linked below), and for LLMs the peak rate is usually found by sweeps at small scale and transferred by fitted scaling rules or by parametrisations such as &mu;P, designed to keep the optimum fixed as width grows; Essential AI report &mu;P transfer with Muon up to 3.7B parameters (<a href="https://arxiv.org/html/2505.02222" target="_blank" rel="noopener noreferrer">2025</a>).</li>
+</ul>
+</section>
+
 <section id="s-sched">
 <h2>7 &middot; Schedules: how the base rate moves over the run</h2>
-<p>A schedule sets &eta; over time; adaptive optimisers only rescale relative to it, so both are always used together. The logic: a high rate early to travel quickly towards some basin, a low rate late to settle at its bottom. With noisy gradients there is a second reason: at a constant rate the iterate never converges but hovers in a region whose size grows with &eta;, so the final loss is set by how low the rate gets at the end (the <a href="#" data-tab="t-race">Noisy ravine</a> in the race shows the floor, and the decay going below it). Two questions separate every family: <b>does the schedule need the total number of steps T in advance</b>, and <b>what shape is the decay</b>.</p>
+<p>A high rate early travels quickly towards a basin; a low rate late settles at its bottom. With noisy gradients there is a second reason: at a constant rate the iterate never converges but hovers in a region whose size grows with &eta;, so the final loss is set by how low the rate gets at the end.</p>
+<div class="card mini" id="m3-card">
+<h4>With noisy gradients, a constant rate stalls at a floor that only a decay goes below</h4>
+<p class="try"><b>Predict</b> where Adam's loss ends at a constant rate against a cosine decay of the same peak, then switch and step through.</p>
+<div class="seg" id="m3-mode"></div>
+<div class="cv"><canvas id="m3-cv" aria-label="Paths on the noisy ravine under three schedules"></canvas></div>
+<div class="an-ctl" id="m3-ctl"></div>
+<div class="an-cap" id="m3-cap"></div>
+<div class="tw" id="m3-leg"></div>
+<p class="small mute">The race's noisy ravine (the axis-aligned valley plus Gaussian noise of standard deviation 1.5 on every gradient component, seed 1), 300 steps, the same peak rate under each schedule. Over seeds 1 to 20, Adam's loss over its last 60 steps averages 0.031 at its tuned constant rate and cosine brings its final loss to 0.011; plain SGD's floor is 0.103 and cosine ends at 0.062 (<code>checks/race_facts.mjs</code>).</p>
+</div>
+<p>Two questions separate every schedule family: <b>does it need the total number of steps T in advance</b>, and <b>what shape is the decay</b>.</p>
 <div class="tw"><table>
 <thead><tr><th>Scheduler</th><th class="sk">shape</th><th>Rule</th><th>Needs T?</th><th>Where it lives</th></tr></thead>
 <tbody>
-<tr><td>Constant (after warmup)</td><td class="sk"><svg class="spark" data-s="constant"></svg></td><td>flat at &eta;<sub>peak</sub></td><td>no</td><td>the base case of every decay-free method; on its own it ends visibly above an annealed run</td></tr>
+<tr><td>Warmup + cosine</td><td class="sk"><svg class="spark" data-s="warmcos"></svg></td><td>a linear ramp from about 0, then &eta;<sub>min</sub> + (&eta;<sub>max</sub> &minus; &eta;<sub>min</sub>)(1 + cos(&pi;t/T))/2 (here to 10% of the peak)</td><td>yes</td><td>classic LLM pretraining (Kaplan, Chinchilla, Llama); still the single most common recipe</td></tr>
+<tr><td>WSD, trapezoid (<a href="https://arxiv.org/html/2404.06395" target="_blank" rel="noopener noreferrer">MiniCPM</a>)</td><td class="sk"><svg class="spark" data-s="wsd"></svg></td><td>warmup, a long constant plateau, a short cooldown over the last 10 to 20%</td><td>no: the decay start is chosen later</td><td>MiniCPM, DeepSeek-V3, Kimi K2, ERNIE 4.5, SmolLM3</td></tr>
+<tr><td>Linear decay to zero</td><td class="sk"><svg class="spark" data-s="linear"></svg></td><td>a straight line from the peak to 0</td><td>yes</td><td>the fine-tuning default: the Hugging Face Trainer's <code>lr_scheduler_type</code> defaults to "linear", with 0 warmup steps unless set (<a href="https://huggingface.co/docs/transformers/main_classes/trainer" target="_blank" rel="noopener noreferrer">docs</a>)</td></tr>
+<tr><td>Inverse square root (Noam)</td><td class="sk"><svg class="spark" data-s="invsqrt"></svg></td><td>&eta; &prop; 1/&radic;t after a linear warmup</td><td>no</td><td>the original Transformer: d<sup>&minus;0.5</sup>&middot;min(t<sup>&minus;0.5</sup>, t&middot;w<sup>&minus;1.5</sup>) with w = 4,000 (<a href="https://arxiv.org/html/1706.03762#S5.SS3" target="_blank" rel="noopener noreferrer">Equation 3</a>), a peak of 512<sup>&minus;0.5</sup>&middot;4,000<sup>&minus;0.5</sup> = 6.99 &times; 10<sup>&minus;4</sup> (derived); degrades gracefully if the run is extended</td></tr>
+<tr><td>Constant (after warmup)</td><td class="sk"><svg class="spark" data-s="constant"></svg></td><td>flat at &eta;<sub>peak</sub></td><td>no</td><td>the base case of every decay-free method (section 8); on its own it ends visibly above an annealed run</td></tr>
+</tbody></table></div>
+<p class="small mute">Sparklines: 100 steps, rate as a share of its own peak; equal to <code>torch.optim.lr_scheduler</code> to 10<sup>&minus;15</sup> where PyTorch has the shape (<code>checks/sched_check.py</code>); warmup lengths are illustrative. Eight more shapes (step, exponential, warm restarts, one-cycle, plateau, schedule-free, WSM) are in the closed reference table in Depth.</p>
+
+<div class="card" id="en-card">
+<h4>Three endpoints cost 1,750 steps with cosine, 1,150 with WSD and 1,000 schedule-free</h4>
+<p class="try"><b>Try:</b> you want a model at 250, 500 and 1,000 steps (to fit a scaling law, or because you do not yet know how long you can train). Step through each method and watch the step counter: cosine needs one run per length; WSD branches cooldowns off one shared run; schedule-free reads all three off one run.</p>
+<div class="seg" id="en-mode"><button data-v="cos" class="on">cosine</button><button data-v="wsd">WSD</button><button data-v="sf">schedule-free</button></div>
+<div class="an-ctl" id="en-ctl"></div>
+<div class="an-cap" id="en-cap"></div>
+<div class="an-cnt" id="en-cnt"></div>
+<div class="plot"><svg id="en-plot" role="img" aria-label="Expected loss against step for each schedule"></svg></div>
+<div class="tw" id="en-tab"></div>
+<p class="small mute"><span class="ill2">illustrative</span> toy: plain SGD on the noisy quadratic model of <a href="https://arxiv.org/abs/1907.04164" target="_blank" rel="noopener noreferrer">Zhang et al. 2019</a>, exact expected losses; grey line: the best constant rate, never decayed. How it was built and what it cannot show is in the closed block below.</p>
+</div>
+
+<details class="dp"><summary>How the three-endpoints toy works, and what it does not show <span class="mute">(depth)</span></summary><div class="b"><p>The model: 10 coordinates with curvatures from 1 down to 0.01 (condition number 100), start at 1, gradient noise with covariance 0.09&middot;H, plain SGD. The losses are exact expected values computed by recursion (no sampling); <code>checks/nqm_check.py</code> matches them with 4,000 seeded PyTorch runs (<code>torch.optim.SGD</code> and <code>schedulefree.SGDScheduleFree</code>), largest deviation 2.1 standard errors. Learning rates: the best of a log grid (10<sup>k/8</sup>), cosine re-tuned per length, the others tuned once for 1,000 steps. Grey line: the same SGD at its best constant rate, never decayed. Re-tuned for each length, cosine reaches the lowest loss at every endpoint here, by 1.3 to 2.2 times; schedule-free and WSD, tuned once, come within 26% and 54% at 1,000 steps and are further behind at 250, where their single rate is too low; all three end 2.9 to 4.4 times below the never-decayed rate. A quadratic favours schedules that decay throughout; in LLM pretraining tuned constant-plus-cooldown runs match cosine (below), and schedule-free gives "strong (but not optimal)" results there (H&auml;gele et al., section 4.2). What the toy shows exactly is the cost structure.</p></div></details>
+<h3>How the schedules compare</h3>
+<ul>
+<li><b>At a fixed, known budget, final quality is a near-tie.</b> "The constant learning rate with a short cooldown (&lt; 20% of total training steps) can achieve the same final loss as cosine, and only outperforms for a longer fraction of cooldown steps", and it "scales predictably and reliably similar to cosine" (<a href="https://arxiv.org/html/2405.18392" target="_blank" rel="noopener noreferrer">H&auml;gele et al. 2024</a>), which is why WSD spread so fast. Not everyone agrees: GLM-4.5 chose cosine because WSD runs "perform worse on general benchmarks (SimpleQA, MMLU)" (<a href="https://arxiv.org/html/2508.06471#S2.SS4" target="_blank" rel="noopener noreferrer">section 2.4</a>).</li>
+<li><b>Cosine's real cost is optionality, not loss.</b> Every checkpoint before the end of a cosine run sits at a rate that is still high, so it is worse than a run planned to stop there: you cannot stop early, extend the run, or reuse it at another length. Kaplan et al.'s scaling laws read such intermediate checkpoints, and Chinchilla corrected it with one schedule per training length: "overestimating the number of training steps beyond 25% leads to clear drops in performance" (<a href="https://arxiv.org/html/2203.15556#A2" target="_blank" rel="noopener noreferrer">Chinchilla, Appendix B</a>). WSD branches or a WSM merge give honest intermediate models.</li>
+<li><b>Cooldown shape, length and end:</b> roughly the last 10 to 20% of steps, to well below 10% of the peak (evidence below); and 1&minus;sqrt "consistently performs better than linear decay" (H&auml;gele et al., takeaway 2), and both beat convex shapes (exponential, EMA-like), which linger at a high rate and then collapse too fast.</li>
+<li><b>The cooldown is also a data lever:</b> labs up-weight curated mathematics, code and instruction-like data while the rate falls, so in practice the schedule and the data anneal are one decision; how that is done and how to separate the two effects is on <a href="https://app.notion.com/p/3c65c17b0d0d814f82cffd0d5c0dd5ba" target="_blank" rel="noopener noreferrer">Pretraining</a> (what goes into the mixture: <a href="https://app.notion.com/p/3c65c17b0d0d819ea5d6c59471e66875" target="_blank" rel="noopener noreferrer">Data mixing</a>).</li>
+</ul>
+<details class="dp"><summary>Cooldown length, the final rate, and weight averaging: the evidence <span class="mute">(depth)</span></summary><div class="b"><ul>
+<li><b>A dissent on shape:</b>: Semenov et al. find that for most optimisers "the cosine scheduler dominates".</li><li><b>Cooldown length:</b> roughly 10 to 20% of the steps, with diminishing returns beyond. MiniCPM found "a decay of 10% of the total tokens is sufficient to achieve the best results, while a decay of 2.5% of total tokens falls short" (<a href="https://arxiv.org/html/2404.06395#S4.SS3" target="_blank" rel="noopener noreferrer">section 4.3</a>); for long runs a shorter fraction can suffice if it is long enough in absolute steps (H&auml;gele et al.).</li>
+<li><b>The final rate matters, and 10% of the peak is a habit, not an optimum.</b> Chinchilla decayed by 10&times; and found it "slightly more performant" than decaying to 0 (Appendix B); Llama 2 used 10%, Llama 3 405B 1%. <a href="https://arxiv.org/html/2502.15938" target="_blank" rel="noopener noreferrer">Bergsma et al. 2025</a> find that linear decay to zero beats 10&times; decay at compute-optimal dataset sizes and beyond, and that the gap grows with tokens per parameter (a 610M model at 80 tokens per parameter with decay to zero beat the same model at 200 with 10&times; decay: about 60% less compute); <a href="https://arxiv.org/html/2509.01440" target="_blank" rel="noopener noreferrer">Semenov et al. 2025</a> find decaying below 10% "significantly improves the results" but that the best final rate differs by schedule (in their runs a final rate of 1% of the peak beat decaying all the way to 0).</li>
+<li><b>Weight averaging substitutes for part of the decay.</b> Averaging along the trajectory (SWA, EMA) improves checkpoints at no training cost: "While it does not match the cooldown, it reduces the gap without the need for a separate decay phase" (H&auml;gele et al., takeaway 5). WSM turns this into a full replacement (section 8).</li>
+</ul></div></details>
+<div class="co corr"><div class="t">Correction</div>The old version of this page said that decaying nearer to zero "improves loss but can hurt some downstream benchmarks". No source for the downstream part was found, and the evidence points the other way: Bergsma et al. report that trends in validation loss also hold for downstream evaluations. The nearest benchmark finding, GLM-4.5's, is about the schedule's shape (WSD against cosine), not the final rate.</div>
+<h3>Finding the peak, and choosing a schedule</h3>
+<p>The schedule's shape is less sensitive than its peak. The <b>learning-rate range test</b> (<a href="https://arxiv.org/html/1506.01186#S3.SS3" target="_blank" rel="noopener noreferrer">Smith 2015, section 3.3</a>): train for a few epochs "while letting the learning rate increase linearly between low and high LR values", and read off where the loss starts to fall and where it turns noisy or rises: one run gives both a good rate and a good range, in Smith's words. For LLMs, sweeps at small scale and transfer (section 6).</p>
+<ul>
+<li>LLM pretraining whose length may change or be extended: <b>WSD</b>, 1&minus;sqrt cooldown over the last 10 to 20%.</li>
+<li>LLM pretraining at a fixed, final budget: <b>warmup then cosine</b>, to well below 10% of the peak (or <b>linear to zero</b>, Bergsma et al.).</li>
+<li>Supervised fine-tuning: <b>linear or cosine to zero</b>, 3 to 5% warmup (a convention; the Trainer's default warmup is 0).</li>
+<li>A small supervised model with a cheap, steady validation metric: <b>ReduceLROnPlateau</b> or <b>MultiStep</b>.</li>
+<li>No schedule at all: <b>schedule-free</b>, or <b>WSM</b> (next section).</li>
+</ul>
+</section>
+
+<section id="s-free">
+<h2>8 &middot; Decay-free: schedule-free optimisation and WSM</h2>
+<p>WSD removed the need to know T, but not the decay: you still choose when to start it, over how many tokens and with which curve, and extending training after the decay has begun means rolling back to the pre-decay checkpoint. Two methods remove the decay itself.</p>
+<h3>Schedule-free (Defazio et al. 2024)</h3>
+<div class="fm"><div class="eq">y<sub>t</sub> = (1&minus;&beta;)z<sub>t</sub> + &beta;x<sub>t</sub>, &nbsp; z<sub>t+1</sub> = z<sub>t</sub> &minus; &gamma;&nabla;f(y<sub>t</sub>), &nbsp; x<sub>t+1</sub> = (1&minus;c<sub>t+1</sub>)x<sub>t</sub> + c<sub>t+1</sub>z<sub>t+1</sub></div>
+<dl><dt>z</dt><dd>the plain SGD (or Adam) sequence, at a constant rate &gamma;</dd><dt>x</dt><dd>a running average of z, with c<sub>t+1</sub> = 1/(t+1) at a constant rate (weighted by &gamma;<sub>t</sub>&sup2; with warmup); this is the model you evaluate</dd><dt>y</dt><dd>the point where the gradient is taken, between the two; &beta; &asymp; 0.9 plays the role of momentum</dd></dl></div>
+<ul>
+<li>Averaging iterates is old; the trick is taking the gradient at the interpolation y, which makes the average converge as fast as a well-tuned decay without knowing T (<a href="https://arxiv.org/html/2405.15682#S2" target="_blank" rel="noopener noreferrer">The Road Less Scheduled, section 2</a>; <a href="https://neurips.cc/virtual/2024/oral/98003" target="_blank" rel="noopener noreferrer">NeurIPS 2024 oral</a>). It won AlgoPerf's 2024 self-tuning track (section 5). In the three-endpoints figure it reads all three endpoints off one run.</li>
+<li>In code, call <code>optimizer.eval()</code> before evaluating or saving: the weights held during training are y, not the average x (practice notes below).</li>
+<li>Both variants are in the <a href="#" data-tab="t-race">Optimiser race</a>, checked against the <code>schedulefree</code> package; on the noisy ravine they go below the constant-rate floor with no schedule.</li>
+</ul>
+<details class="dp"><summary>Schedule-free in practice <span class="mute">(depth)</span></summary><div class="b"><ul><li>In practice (<a href="https://github.com/facebookresearch/schedule_free" target="_blank" rel="noopener noreferrer">repository README</a>): call <code>optimizer.train()</code> and <code>optimizer.eval()</code> wherever you call them on the model, and keep the optimiser in eval mode when saving checkpoints, because the weights held during training are y, not the average x you should evaluate; warmup is still recommended; &beta; = 0.9 by default, and 0.95 or 0.98 may be needed for very long runs; rates 10 to 50 times larger than classical ones for SGD, 1 to 10 times for AdamW.</li></ul></div></details>
+<h3>WSM: Warmup-Stable and Merge (Tian et al. 2025)</h3>
+<p>The rate warms up, then stays constant forever; checkpoints are saved periodically, and a weighted merge of the last n of them stands in for the annealed model. The link to decay is exact: merging checkpoints with weights c<sub>j</sub> is algebraically the same as applying per-step weights w<sub>i</sub> = &Sigma;<sub>j&ge;i</sub> c<sub>j</sub> to the updates after the base checkpoint, so any monotone decay curve can be inverted into merge weights (c<sub>k</sub> = w<sub>k</sub>, c<sub>j</sub> = w<sub>j</sub> &minus; w<sub>j+1</sub>, c<sub>0</sub> = 1 &minus; w<sub>1</sub>). Mean averaging corresponds to linear decay, EMA to a convex decay, and cosine or 1&minus;sqrt can be built directly. The framework is optimiser-agnostic and needs no change to the training loop. Details, a live toy and the equivalence test are on the <a href="https://app.notion.com/p/3c75c17b0d0d8105b452d2c1bc1d087a" target="_blank" rel="noopener noreferrer">WSM paper page</a>.</p>
+<details class="dp"><summary>WSM's results and practical read <span class="mute">(depth)</span></summary><div class="b"><ul>
+<li><b>Results</b> (a 16.3B-parameter MoE with 1.4B active, 400B tokens branched off a 10.2T-token constant-rate checkpoint, with a switch to the high-quality annealing set): merge duration mattered far more than the checkpoint interval or the number of checkpoints merged, and EMA merging was the weakest, mirroring the convex-is-worse order above.</li>
+<li><b>Practical read:</b> the storage cost (one checkpoint per interval) is small next to a pretraining budget, and a merge is a cheap, repeatable proxy for "how good would this model be if I annealed now", with no throwaway decay runs to gauge progress.</li>
+</ul></div></details>
+<div class="co corr"><div class="t">Correction</div>The old page said WSM "beat a matched WSD decay by ~1.3 points on average". The paper's +1.28 points (62.67 to 63.95, average of 41 benchmarks) compares the best checkpoint of each run; when both stop at WSD's 400B tokens the gain is +1.18 (derived from Figure 3); each comparison is a single run, and the checkpoint was picked on the test benchmarks.</div>
+</section>
+<section id="s-depth">
+<h2>9 &middot; Depth: reference tables, the annealing vocabulary, common mistakes</h2>
+<details class="dp"><summary>Eight more schedule shapes, with PyTorch's names <span class="mute">(reference)</span></summary><div class="b">
+<div class="tw"><table>
+<thead><tr><th>Scheduler</th><th class="sk">shape</th><th>Rule</th><th>Needs T?</th><th>Where it lives</th></tr></thead>
+<tbody>
 <tr><td>StepLR, MultiStepLR</td><td class="sk"><svg class="spark" data-s="step"></svg></td><td>multiply by &gamma; (often 0.1) at fixed milestones</td><td>yes (milestones)</td><td>the ResNet and ImageNet era; still fine for small supervised jobs</td></tr>
 <tr><td>ExponentialLR</td><td class="sk"><svg class="spark" data-s="exp"></svg></td><td>&eta;<sub>t</sub> = &eta;<sub>0</sub>&gamma;<sup>t</sup></td><td>no</td><td>convex and fiddly to tune; rarely competitive</td></tr>
-<tr><td>Inverse square root (Noam)</td><td class="sk"><svg class="spark" data-s="invsqrt"></svg></td><td>&eta; &prop; 1/&radic;t after a linear warmup</td><td>no</td><td>the original Transformer: d<sup>&minus;0.5</sup>&middot;min(t<sup>&minus;0.5</sup>, t&middot;w<sup>&minus;1.5</sup>) with w = 4,000 (<a href="https://arxiv.org/html/1706.03762#S5.SS3" target="_blank" rel="noopener noreferrer">Equation 3</a>), a peak of 512<sup>&minus;0.5</sup>&middot;4,000<sup>&minus;0.5</sup> = 6.99 &times; 10<sup>&minus;4</sup> (derived); degrades gracefully if the run is extended</td></tr>
-<tr><td>Linear decay to zero</td><td class="sk"><svg class="spark" data-s="linear"></svg></td><td>a straight line from the peak to 0</td><td>yes</td><td>the fine-tuning default: the Hugging Face Trainer's <code>lr_scheduler_type</code> defaults to "linear", with 0 warmup steps unless set (<a href="https://huggingface.co/docs/transformers/main_classes/trainer" target="_blank" rel="noopener noreferrer">docs</a>)</td></tr>
-<tr><td>CosineAnnealingLR</td><td class="sk"><svg class="spark" data-s="cosine"></svg></td><td>&eta;<sub>min</sub> + (&eta;<sub>max</sub> &minus; &eta;<sub>min</sub>)(1 + cos(&pi;t/T))/2</td><td>yes</td><td>classic LLM pretraining: Kaplan, Chinchilla, Llama</td></tr>
-<tr><td>Warmup + cosine</td><td class="sk"><svg class="spark" data-s="warmcos"></svg></td><td>a linear ramp from about 0, then cosine (here to 10% of the peak)</td><td>yes</td><td>still the single most common recipe</td></tr>
+<tr><td>CosineAnnealingLR</td><td class="sk"><svg class="spark" data-s="cosine"></svg></td><td>&eta;<sub>min</sub> + (&eta;<sub>max</sub> &minus; &eta;<sub>min</sub>)(1 + cos(&pi;t/T))/2, no warmup</td><td>yes</td><td>the PyTorch building block of warmup + cosine</td></tr>
 <tr><td>CosineAnnealingWarmRestarts (<a href="https://arxiv.org/html/1608.03983" target="_blank" rel="noopener noreferrer">SGDR</a>)</td><td class="sk"><svg class="spark" data-s="sgdr"></svg></td><td>cosine cycles, each restarting at &eta;<sub>max</sub></td><td>per cycle only</td><td>snapshot ensembles (<a href="https://arxiv.org/html/1704.00109" target="_blank" rel="noopener noreferrer">Huang et al. 2017</a>: one model saved at the end of each cycle) and vision; essentially absent from LLM pretraining</td></tr>
 <tr><td>OneCycleLR (<a href="https://arxiv.org/html/1708.07120" target="_blank" rel="noopener noreferrer">super-convergence</a>)</td><td class="sk"><svg class="spark" data-s="onecycle"></svg></td><td>ramp to a peak well above the usual rate, then anneal far below the starting rate</td><td>yes</td><td>short fine-tuning runs, the fastai lineage</td></tr>
 <tr><td>ReduceLROnPlateau</td><td class="sk"><svg class="spark" data-s="plateau"></svg></td><td>cut the rate by a factor when a monitored metric stops improving (sparkline illustrative)</td><td>no</td><td>reactive: good for small supervised runs; bad for LLM runs (feedback from noisy evaluations, and a schedule nobody can reproduce)</td></tr>
-<tr><td>WSD, trapezoid (<a href="https://arxiv.org/html/2404.06395" target="_blank" rel="noopener noreferrer">MiniCPM</a>)</td><td class="sk"><svg class="spark" data-s="wsd"></svg></td><td>warmup, a long constant plateau, a short cooldown over the last 10 to 20%</td><td>no: the decay start is chosen later</td><td>MiniCPM, DeepSeek-V3, Kimi K2, ERNIE 4.5, SmolLM3 (table below)</td></tr>
-<tr><td>Schedule-free (<a href="https://arxiv.org/html/2405.15682" target="_blank" rel="noopener noreferrer">Defazio et al.</a>)</td><td class="sk"><svg class="spark" data-s="sf"></svg></td><td>constant rate plus principled iterate averaging instead of a decay curve</td><td>no</td><td>open-ended runs; NeurIPS 2024 oral (section 9)</td></tr>
-<tr><td>WSM (<a href="https://arxiv.org/abs/2507.17634" target="_blank" rel="noopener noreferrer">Tian et al. 2025</a>)</td><td class="sk"><svg class="spark" data-s="wsm"></svg></td><td>constant rate forever; the decay is emulated afterwards by merging saved checkpoints</td><td>no</td><td>2025, Ant Group's Ling team (section 9)</td></tr>
+<tr><td>Schedule-free (<a href="https://arxiv.org/html/2405.15682" target="_blank" rel="noopener noreferrer">Defazio et al.</a>)</td><td class="sk"><svg class="spark" data-s="sf"></svg></td><td>constant rate plus principled iterate averaging instead of a decay curve</td><td>no</td><td>open-ended runs; NeurIPS 2024 oral (section 8)</td></tr>
+<tr><td>WSM (<a href="https://arxiv.org/abs/2507.17634" target="_blank" rel="noopener noreferrer">Tian et al. 2025</a>)</td><td class="sk"><svg class="spark" data-s="wsm"></svg></td><td>constant rate forever; the decay is emulated afterwards by merging saved checkpoints</td><td>no</td><td>2025, Ant Group's Ling team (section 8)</td></tr>
 </tbody></table></div>
-<p class="small mute">Sparklines: 100 steps, rate as a share of its own peak. Step, exponential, linear, cosine, warm-restart and one-cycle curves are <code>torch.optim.lr_scheduler</code>'s (MultiStepLR milestones 50 and 75; ExponentialLR &gamma; = 0.97; SGDR T<sub>0</sub> = 25; OneCycleLR defaults), equal to PyTorch to 10<sup>&minus;15</sup> (<code>checks/sched_check.py</code>); warmup lengths are illustrative.</p>
-<p><b>Why warmup comes first</b> is in <a href="#s-adapt">section 3</a>: the adaptive statistics rest on a handful of gradients at the start.</p>
+<p class="small mute">PyTorch settings of the sparklines: MultiStepLR milestones 50 and 75; ExponentialLR &gamma; = 0.97; SGDR T<sub>0</sub> = 25; OneCycleLR defaults.</p></div></details>
 
-<h3>What real runs used</h3>
+<details class="dp"><summary>What real runs used: eight landmark schedules <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>Run</th><th>Optimiser</th><th>Schedule</th><th class="num">final rate / peak</th></tr></thead>
 <tbody>
@@ -350,52 +518,12 @@ td.sk{width:104px;padding:3px 4px}
 <tr><td>DeepSeek-V3 (2024)</td><td>AdamW (0.9, 0.95), decay 0.1</td><td>2K warmup steps to 2.2 &times; 10<sup>&minus;4</sup>, constant until 10T tokens, cosine to 2.2 &times; 10<sup>&minus;5</sup> over 4.3T, then 2.2 &times; 10<sup>&minus;5</sup> for 333B and 7.3 &times; 10<sup>&minus;6</sup> for the last 167B (<a href="https://arxiv.org/html/2412.19437#S4.SS2" target="_blank" rel="noopener noreferrer">section 4.2</a>)</td><td class="num">3.3%</td></tr>
 <tr><td>Kimi K2 (2025)</td><td>MuonClip</td><td>WSD: 500 warmup steps, 2 &times; 10<sup>&minus;4</sup> constant for 10T tokens, cosine to 2 &times; 10<sup>&minus;5</sup> over 5.5T, then an anneal to 7 &times; 10<sup>&minus;6</sup> over 400B + 60B (<a href="https://arxiv.org/html/2507.20534#S2.SS5" target="_blank" rel="noopener noreferrer">section 2.5</a>)</td><td class="num">3.5%</td></tr>
 <tr><td>SmolLM3 (2025)</td><td>AdamW (0.9, 0.95), decay 0.1</td><td>WSD: 2,000 warmup steps, linear decay to 0 over the final 10% (<a href="https://huggingface.co/blog/smollm3" target="_blank" rel="noopener noreferrer">blog</a>)</td><td class="num">0</td></tr>
-<tr><td>GLM-4.5 (2025)</td><td>Muon (+ AdamW for embeddings, biases, norms)</td><td>warmup to 2.5 &times; 10<sup>&minus;4</sup>, cosine to 2.5 &times; 10<sup>&minus;5</sup>; chose cosine over WSD because WSD runs "perform worse on general benchmarks (SimpleQA, MMLU)" (<a href="https://arxiv.org/html/2508.06471#S2.SS4" target="_blank" rel="noopener noreferrer">section 2.4</a>)</td><td class="num">10%</td></tr>
+<tr><td>GLM-4.5 (2025)</td><td>Muon (+ AdamW for embeddings, biases, norms)</td><td>warmup to 2.5 &times; 10<sup>&minus;4</sup>, cosine to 2.5 &times; 10<sup>&minus;5</sup>; chose cosine over WSD (<a href="https://arxiv.org/html/2508.06471#S2.SS4" target="_blank" rel="noopener noreferrer">section 2.4</a>)</td><td class="num">10%</td></tr>
 <tr><td>ERNIE 4.5 (2025)</td><td>not stated here</td><td>"All models use the Warmup-Stable-Decay learning rate schedule" (<a href="https://ernie.baidu.com/blog/publication/ERNIE_Technical_Report.pdf" target="_blank" rel="noopener noreferrer">report, section 3.3</a>)</td><td class="num">not stated</td></tr>
 </tbody></table></div>
-<p class="small mute">Final rate / peak derived from the quoted values. Every other landmark model's settings are in <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Defaults across models</a> on the parent page.</p>
+<p class="small mute">Final rate / peak derived from the quoted values. Every other landmark model's settings are on the parent page's Defaults across models tab.</p></div></details>
 
-<div class="card" id="en-card">
-<h3 style="margin-top:0">Three endpoints, three ways</h3>
-<p class="try"><b>Try:</b> you want a model at 250, 500 and 1,000 steps (say, to fit a scaling law, or because you do not yet know how long you can train). Play each method and watch the step counter: cosine needs one run per length; WSD branches cooldowns off one shared run; schedule-free reads all three off one run.</p>
-<div class="seg" id="en-mode"><button data-v="cos" class="on">cosine</button><button data-v="wsd">WSD</button><button data-v="sf">schedule-free</button></div>
-<div class="an-ctl" id="en-ctl"></div>
-<div class="an-cap" id="en-cap"></div>
-<div class="an-cnt" id="en-cnt"></div>
-<div class="plot"><svg id="en-plot" role="img" aria-label="Expected loss against step for each schedule"></svg></div>
-<div class="tw" id="en-tab"></div>
-<p class="small mute">Toy (illustrative): the noisy quadratic model of <a href="https://arxiv.org/abs/1907.04164" target="_blank" rel="noopener noreferrer">Zhang et al. 2019</a>, 10 coordinates with curvatures from 1 down to 0.01 (condition number 100), start at 1, gradient noise with covariance 0.09&middot;H, plain SGD. The losses are exact expected values computed by recursion (no sampling); <code>checks/nqm_check.py</code> matches them with 4,000 seeded PyTorch runs (<code>torch.optim.SGD</code> and <code>schedulefree.SGDScheduleFree</code>), largest deviation 2.1 standard errors. Learning rates: the best of a log grid (10<sup>k/8</sup>), cosine re-tuned per length, the others tuned once for 1,000 steps. Grey line: the same SGD at its best constant rate, never decayed.</p>
-</div>
-<p>What the toy says, and what it does not. Re-tuned for each length, cosine reaches the lowest loss at every endpoint here, by 1.3 to 2.2 times; schedule-free and WSD, tuned once, come within 26% and 54% at 1,000 steps and are further behind at 250, where their single rate is too low; all three end 2.9 to 4.4 times below the never-decayed rate. A quadratic favours schedules that decay throughout. In LLM pretraining the evidence is different, and that is what this toy cannot show: tuned constant-plus-cooldown runs match cosine (next paragraph), and schedule-free gives "strong (but not optimal)" results there (H&auml;gele et al., section 4.2). What the toy does show exactly is the cost structure: 1,750, 1,150 and 1,000 optimiser steps for the same three endpoints.</p>
-
-<h3>How the schedules compare</h3>
-<ul>
-<li><b>At a fixed, known budget, final quality is a near-tie.</b> Cosine, WSD and 1&minus;sqrt cooldowns land within noise of each other once T is known and each is tuned. "The constant learning rate with a short cooldown (&lt; 20% of total training steps) can achieve the same final loss as cosine, and only outperforms for a longer fraction of cooldown steps", and it "scales predictably and reliably similar to cosine" (<a href="https://arxiv.org/html/2405.18392" target="_blank" rel="noopener noreferrer">H&auml;gele et al. 2024</a>), which is why WSD spread so fast. Not everyone agrees: GLM-4.5 chose cosine after WSD underfitted on benchmarks, and Semenov et al. find that for most optimisers "the cosine scheduler dominates".</li>
-<li><b>Cosine's real cost is optionality, not loss.</b> Every checkpoint before the end of a cosine run sits at a rate that is still high, so you cannot stop early, extend the run, or reuse it at another length. Kaplan et al.'s scaling laws read such intermediate checkpoints, and Chinchilla corrected it with one schedule per training length: "overestimating the number of training steps beyond 25% leads to clear drops in performance" (<a href="https://arxiv.org/html/2203.15556#A2" target="_blank" rel="noopener noreferrer">Chinchilla, Appendix B</a>). The parent page's schedule chart lets you move the end of the run.</li>
-<li><b>Cooldown shape has a stable order:</b> 1&minus;sqrt "consistently performs better than linear decay" (H&auml;gele et al., takeaway 2), and both beat convex shapes (exponential, EMA-like), which linger at a high rate and then collapse too fast.</li>
-<li><b>Cooldown length:</b> roughly 10 to 20% of the steps, with diminishing returns beyond. MiniCPM found "a decay of 10% of the total tokens is sufficient to achieve the best results, while a decay of 2.5% of total tokens falls short" (<a href="https://arxiv.org/html/2404.06395#S4.SS3" target="_blank" rel="noopener noreferrer">section 4.3</a>); for long runs a shorter fraction can suffice if it is long enough in absolute steps (H&auml;gele et al.).</li>
-<li><b>The final rate matters, and 10% of the peak is a habit, not an optimum.</b> Chinchilla decayed by 10&times; and found it "slightly more performant" than decaying to 0 (<a href="https://arxiv.org/html/2203.15556#A2" target="_blank" rel="noopener noreferrer">Appendix B</a>); Llama 2 used 10%, Llama 3 405B 1%. <a href="https://arxiv.org/html/2502.15938" target="_blank" rel="noopener noreferrer">Bergsma et al. 2025</a> find that linear decay to zero beats 10&times; decay at compute-optimal dataset sizes and beyond, and that the gap grows with tokens per parameter (a 610M model at 80 tokens per parameter with decay to zero beat the same model at 200 with 10&times; decay: about 60% less compute); <a href="https://arxiv.org/html/2509.01440" target="_blank" rel="noopener noreferrer">Semenov et al. 2025</a> find decaying below 10% "significantly improves the results" but that the best final rate differs by schedule (in their runs a final rate of 1% of the peak beat decaying all the way to 0).</li>
-<li><b>The cooldown is also a data lever:</b> labs up-weight curated mathematics, code and instruction-like data while the rate falls, so the schedule and the data anneal are one decision (<a href="https://app.notion.com/p/3c65c17b0d0d814f82cffd0d5c0dd5ba" target="_blank" rel="noopener noreferrer">Pretraining</a>; <a href="https://app.notion.com/p/3c65c17b0d0d819ea5d6c59471e66875" target="_blank" rel="noopener noreferrer">Data mixing</a>).</li>
-<li><b>Weight averaging substitutes for part of the decay.</b> Averaging along the trajectory (SWA, EMA) improves checkpoints at no training cost: "While it does not match the cooldown, it reduces the gap without the need for a separate decay phase" (H&auml;gele et al., takeaway 5). WSM turns this into a full replacement (section 9).</li>
-</ul>
-<div class="co corr"><div class="t">Correction</div>The old version of this page said that decaying nearer to zero "improves loss but can hurt some downstream benchmarks". No source for the downstream part was found, and the evidence points the other way: Bergsma et al. report that trends in validation loss also hold for downstream evaluations. The nearest benchmark finding, GLM-4.5's, is about the schedule's shape (WSD against cosine), not the final rate.</div>
-
-<h3>Finding the peak rate</h3>
-<p>The schedule's shape is less sensitive than its peak. The <b>learning-rate range test</b> (<a href="https://arxiv.org/html/1506.01186#S3.SS3" target="_blank" rel="noopener noreferrer">Smith 2015, section 3.3</a>): train for a few epochs "while letting the learning rate increase linearly between low and high LR values", and read off where the loss starts to fall and where it turns noisy or rises: one run gives both a good rate and a good range, in Smith's words. For LLMs the peak is usually found by sweeps at small scale and transferred, either by fitted scaling rules or by parametrisations such as &mu;P designed to keep the optimum fixed as width grows; Essential AI report &mu;P transfer with Muon up to 3.7B parameters (<a href="https://arxiv.org/html/2505.02222" target="_blank" rel="noopener noreferrer">2025</a>).</p>
-
-<h3>Choosing one</h3>
-<ul>
-<li>LLM pretraining whose length may change or be extended: <b>WSD</b>, 1&minus;sqrt cooldown over the last 10 to 20%.</li>
-<li>LLM pretraining at a fixed, final budget: <b>warmup then cosine</b>, to well below 10% of the peak (or <b>linear to zero</b>, Bergsma et al.).</li>
-<li>Supervised fine-tuning: <b>linear or cosine to zero</b>, 3 to 5% warmup (a convention; the Trainer's default warmup is 0).</li>
-<li>A small supervised model with a cheap, steady validation metric: <b>ReduceLROnPlateau</b> or <b>MultiStep</b>.</li>
-<li>No schedule at all: <b>schedule-free</b>, or <b>WSM</b>.</li>
-</ul>
-</section>
-
-<section id="s-ann">
-<h2>8 &middot; "Annealing" and "learning-rate decay": three meanings</h2>
-<p>"Annealing" is used in three different ways in this literature, and they are not interchangeable.</p>
+<details class="dp"><summary>"Annealing" and "learning-rate decay": three meanings <span class="mute">(vocabulary)</span></summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>Sense</th><th>What it means</th><th>Where you meet it</th></tr></thead>
 <tbody>
@@ -404,52 +532,32 @@ td.sk{width:104px;padding:3px 4px}
 <tr><td>3. Annealing as an experiment</td><td>A cheap evaluation protocol: take a fixed mid-run checkpoint, anneal it on a candidate dataset, compare scores. Used to price a dataset, not to train a final model.</td><td>Llama 3 and OLMo both evaluate candidate corpora this way</td></tr>
 </tbody></table></div>
 <ul>
-<li><b>The two levers are separable, and papers usually pull both at once.</b> WSD lets you decay the rate with no data change; you can also switch to a high-quality mixture while the rate stays flat (WSM switches the data at its T<sub>switch</sub> with the rate held constant). Any claim that "annealing gave +X" is a compound of two effects unless the ablation separated them. The <a href="https://app.notion.com/p/3c65c17b0d0d814f82cffd0d5c0dd5ba" target="_blank" rel="noopener noreferrer">Pretraining</a> page separates them on OLMo 2's numbers and on a toy.</li>
+<li><b>The two levers are separable, and papers usually pull both at once.</b> WSD lets you decay the rate with no data change; you can also switch to a high-quality mixture while the rate stays flat (WSM switches the data at its T<sub>switch</sub> with the rate held constant). Any claim that "annealing gave +X" is a compound of two effects unless the ablation separated them; <a href="https://app.notion.com/p/3c65c17b0d0d814f82cffd0d5c0dd5ba" target="_blank" rel="noopener noreferrer">Pretraining</a> separates them on OLMo 2's numbers and on a toy.</li>
 <li><b>They work for different reasons that reinforce each other.</b> A low rate means the model descends into a basin and stops moving much; low gradient noise near the end is also when scarce high-quality tokens stick best rather than being diluted across a 10T-token stream. That is why the data switch is scheduled to coincide with the decay, not because one requires the other.</li>
-<li><b>Reading papers:</b> "decay phase" or "cooldown" means the schedule alone; "anneal" or "annealed checkpoint" almost always implies the data switch too. WSM is a clean example of why the split matters: it removes sense 1 entirely (constant rate forever) while keeping sense 2 (the curated-data switch), and recovers the decay's benefit by merging.</li>
-<li><b>Unrelated homonyms:</b> simulated annealing proper (a combinatorial optimisation algorithm) and sampling temperature at inference (<a href="https://app.notion.com/p/3c65c17b0d0d8115bafcda29a2c7086e" target="_blank" rel="noopener noreferrer">Sampling and Decoding</a>) share the metaphor and nothing else. What goes into the anneal mixture: <a href="https://app.notion.com/p/3c65c17b0d0d819ea5d6c59471e66875" target="_blank" rel="noopener noreferrer">Data mixing</a>.</li>
-</ul>
-</section>
+<li><b>Reading papers:</b> "decay phase" or "cooldown" means the schedule alone; "anneal" or "annealed checkpoint" almost always implies the data switch too. WSM removes sense 1 entirely (constant rate forever) while keeping sense 2 (the curated-data switch), and recovers the decay's benefit by merging.</li>
+<li><b>Unrelated homonyms:</b> simulated annealing proper (a combinatorial optimisation algorithm) and sampling temperature at inference (<a href="https://app.notion.com/p/3c65c17b0d0d8115bafcda29a2c7086e" target="_blank" rel="noopener noreferrer">Sampling and Decoding</a>) share the metaphor and nothing else.</li>
+</ul></div></details>
 
-<section id="s-free">
-<h2>9 &middot; Decay-free: schedule-free optimisation and WSM</h2>
-<p>WSD removed the need to know T, but not the decay: you still choose when to start it, over how many tokens and with which curve, and extending training after the decay has begun means rolling back to the pre-decay checkpoint. Two methods remove the decay itself.</p>
-<h3>Schedule-free (Defazio et al. 2024)</h3>
-<div class="fm"><div class="eq">y<sub>t</sub> = (1&minus;&beta;)z<sub>t</sub> + &beta;x<sub>t</sub>, &nbsp; z<sub>t+1</sub> = z<sub>t</sub> &minus; &gamma;&nabla;f(y<sub>t</sub>), &nbsp; x<sub>t+1</sub> = (1&minus;c<sub>t+1</sub>)x<sub>t</sub> + c<sub>t+1</sub>z<sub>t+1</sub></div>
-<dl><dt>z</dt><dd>the plain SGD (or Adam) sequence, at a constant rate &gamma;</dd><dt>x</dt><dd>a running average of z, with c<sub>t+1</sub> = 1/(t+1) at a constant rate (weighted by &gamma;<sub>t</sub>&sup2; with warmup); this is the model you evaluate</dd><dt>y</dt><dd>the point where the gradient is taken, between the two; &beta; &asymp; 0.9 plays the role of momentum</dd></dl></div>
-<ul>
-<li>Averaging iterates is old; the trick is taking the gradient at the interpolation y, which makes the average converge as fast as a well-tuned decay without knowing T (<a href="https://arxiv.org/html/2405.15682#S2" target="_blank" rel="noopener noreferrer">The Road Less Scheduled, section 2</a>; <a href="https://neurips.cc/virtual/2024/oral/98003" target="_blank" rel="noopener noreferrer">NeurIPS 2024 oral</a>). It won AlgoPerf's 2024 self-tuning track (<a href="#s-evid">section 6</a>).</li>
-<li>In practice (<a href="https://github.com/facebookresearch/schedule_free" target="_blank" rel="noopener noreferrer">repository README</a>): call <code>optimizer.train()</code> and <code>optimizer.eval()</code> wherever you call them on the model, and keep the optimiser in eval mode when saving checkpoints, because the weights stored during training are y, not x; warmup is still recommended; &beta; = 0.9 by default, and 0.95 or 0.98 may be needed for very long runs; rates 10 to 50 times larger than classical ones for SGD, 1 to 10 times for AdamW.</li>
-<li>Both variants are in the <a href="#" data-tab="t-race">Optimiser race</a>, checked against the <code>schedulefree</code> package; on the noisy ravine they go below the constant-rate floor with no schedule.</li>
+<details class="dp"><summary>Common mistakes, in one list <span class="mute">(each is taught above; here as a checklist)</span></summary><div class="b"><ul>
+<li><b>Copying a learning rate between momentum conventions, or between optimisers.</b> The averaged momentum form needs a rate 10 times larger at &beta; = 0.9; Adam's step is about &eta; per parameter whatever the gradient's size, SGD's is &eta; times the gradient, so their rates are unrelated; Lion wants a rate 3 to 10 times smaller than AdamW's, schedule-free SGD 10 to 50 times larger than SGD's.</li>
+<li><b>Using L2 regularisation with Adam and calling it weight decay</b> (<code>torch.optim.Adam(weight_decay=...)</code>); they are the same only for plain SGD.</li>
+<li><b>Removing warmup because Adam already corrects its bias:</b> correction fixes the bias, not the variance.</li>
+<li><b>Reading an intermediate cosine checkpoint as "the model at that size of run"</b> (Kaplan's mistake, corrected by Chinchilla).</li>
+<li><b>Evaluating a schedule-free model at the training weights</b> y instead of the average x: call <code>optimizer.eval()</code> first.</li>
+<li><b>Applying Muon to every parameter:</b> embeddings, the output head, norms and biases go to AdamW.</li>
+<li><b>Believing a new optimiser's speed-up before the baseline is tuned</b> and fully decayed.</li>
+<li><b>Crediting "annealing" for a gain that came from the data switch</b> (or the reverse).</li>
+<li><b>Assuming a diagonal adaptive method handles bad conditioning:</b> the rotated ravine.</li>
+<li><b>Scaling the batch without the rate and betas:</b> linear for SGD, square root and &beta;&prime; = 1 &minus; &kappa;(1 &minus; &beta;) for Adam.</li>
 </ul>
-<h3>WSM: Warmup-Stable and Merge (Tian et al. 2025)</h3>
-<p>The rate warms up, then stays constant forever; checkpoints are saved periodically, and a weighted merge of the last n of them stands in for the annealed model. The link to decay is exact, not heuristic: merging checkpoints with weights c<sub>j</sub> is algebraically the same as applying per-step weights w<sub>i</sub> = &Sigma;<sub>j&ge;i</sub> c<sub>j</sub> to the updates after the base checkpoint, so any monotone decay curve can be inverted into merge weights (c<sub>k</sub> = w<sub>k</sub>, c<sub>j</sub> = w<sub>j</sub> &minus; w<sub>j+1</sub>, c<sub>0</sub> = 1 &minus; w<sub>1</sub>). Mean averaging corresponds to linear decay, EMA to a convex decay, and cosine or 1&minus;sqrt can be built directly. The framework is optimiser-agnostic and needs no change to the training loop.</p>
-<ul>
-<li><b>Results</b> (a 16.3B-parameter MoE with 1.4B active, 400B tokens branched off a 10.2T-token constant-rate checkpoint, with a switch to the high-quality annealing set): merge duration mattered far more than the checkpoint interval or the number of checkpoints merged, and EMA merging was the weakest, mirroring the convex-is-worse order above.</li>
-<li><b>Practical read:</b> the storage cost (one checkpoint per interval) is small next to a pretraining budget, and a merge is a cheap, repeatable proxy for "how good would this model be if I annealed now", with no throwaway decay runs to gauge progress.</li>
-</ul>
-<div class="co corr"><div class="t">Correction</div>The old page said WSM "beat a matched WSD decay by ~1.3 points on average". The paper's +1.28 points (62.67 to 63.95, average of 41 benchmarks) compares the best checkpoint of each run; when both stop at WSD's 400B tokens the gain is +1.18 (derived from Figure 3); each comparison is a single run, and the checkpoint was picked on the test benchmarks. Details, a live toy and the equivalence test are on the <a href="https://app.notion.com/p/3c75c17b0d0d8105b452d2c1bc1d087a" target="_blank" rel="noopener noreferrer">WSM paper page</a>.</div>
+<p class="small mute">Learning-rate failure modes in training curves (oscillation, NaN, plateaus, spikes) are diagnosed on the parent page's When training goes wrong tab.</p></div></details>
 </section>
-
-<section id="s-mist">
-<h2>10 &middot; Common mistakes</h2>
-<details class="mist"><summary>Copying a learning rate between momentum conventions, or between Adam and SGD</summary><div class="b">PyTorch's momentum sums gradients (v = &beta;v + g); the averaged form (v = &beta;v + (1 &minus; &beta;)g) needs a rate 10 times larger at &beta; = 0.9 for the same path. Adam's step is about &eta; per parameter whatever the gradient's size, SGD's is &eta; times the gradient, so their rates are unrelated. Lion wants a rate 3 to 10 times smaller than AdamW's, schedule-free SGD 10 to 50 times larger than SGD's.</div></details>
-<details class="mist"><summary>Using L2 regularisation with Adam and calling it weight decay</summary><div class="b"><code>torch.optim.Adam(weight_decay=...)</code> adds &lambda;&theta; to the gradient, so it is divided by &radic;v&#770; with everything else; <code>AdamW</code> decays every weight alike. They are the same only for plain SGD.</div></details>
-<details class="mist"><summary>Removing warmup because Adam already corrects its bias</summary><div class="b">Bias correction fixes the bias of the moment estimates, not their variance: the first step moves every parameter by exactly &eta;, and the next ones rest on a handful of samples. Warmup (or RAdam's rectification) handles the variance.</div></details>
-<details class="mist"><summary>Reading an intermediate cosine checkpoint as "the model at that size of run"</summary><div class="b">Before the end of a cosine schedule the rate is still high, so the checkpoint is worse than a run planned to stop there. Kaplan's scaling laws did this; Chinchilla corrected it. WSD branches or a WSM merge give honest intermediate models.</div></details>
-<details class="mist"><summary>Evaluating a schedule-free model at the training weights</summary><div class="b">The weights held during training are the interpolation y; the model to evaluate and to save is the average x. Call <code>optimizer.eval()</code> first.</div></details>
-<details class="mist"><summary>Applying Muon to every parameter</summary><div class="b">Muon is for 2-D hidden matrices. Embeddings, the output head, norms and biases go to AdamW (GLM-4.5 and Jordan both do this); a 1-D parameter has nothing to orthogonalise.</div></details>
-<details class="mist"><summary>Believing a new optimiser's speed-up before the baseline is tuned</summary><div class="b">Tuning AdamW's learning rate alone can give up to 2&times; on a 100M model, and fully decaying the baseline's rate erased Lion's and Sophia's gains in re-evaluations. Compare against a tuned, fully decayed AdamW at the same batch size, at more than one scale (<a href="#s-evid">section 6</a>).</div></details>
-<details class="mist"><summary>Crediting "annealing" for a gain that came from the data switch (or the reverse)</summary><div class="b">The modern anneal lowers the rate and changes the data at once; unless an ablation separates the two, "+X from annealing" is a compound (<a href="#s-ann">section 8</a>).</div></details>
-<details class="mist"><summary>Assuming a diagonal adaptive method handles bad conditioning</summary><div class="b">AdaGrad, RMSProp and Adam rescale coordinates; when the steep directions are mixtures of coordinates they cannot help (the rotated ravine in the race). That is the case for Shampoo, SOAP and Muon.</div></details>
-<p class="small mute">Learning-rate failure modes in training curves (oscillation, NaN, plateaus, spikes) are diagnosed on the parent page's <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">When training goes wrong</a> tab.</p>
-</section>
-<div class="foot">Sources: linked inline; verbatim extracts in <code>src/inputs/extracts.txt</code>. Every optimiser rule is checked against PyTorch (<code>src/checks/torch_ref.py</code>), every schedule against <code>torch.optim.lr_scheduler</code>, every derived number in <code>src/recompute.py</code>. Data as of 3 October 2026.</div>
+<div class="foot">Sources: linked inline; verbatim extracts in <code>src/inputs/extracts.txt</code>. Every optimiser rule is checked against PyTorch (<code>src/checks/torch_ref.py</code>), every schedule against <code>torch.optim.lr_scheduler</code>, every derived number in <code>src/recompute.py</code> and <code>src/ns_data.py</code>. Data as of October 2026.</div>
 </div>
 <div class="tab" id="t-race" role="tabpanel" hidden>
 <h2>Optimiser race: thirteen update rules on five surfaces</h2>
 <p>Each optimiser starts from the same point on the same two-parameter loss surface and takes the steps its published update rule prescribes. Nothing is simulated loosely: every rule is the line-by-line update of the implementation named under it, run in double precision, and <code>checks/torch_ref.py</code> reruns all 350 combinations (13 optimisers, 5 surfaces, 3 schedules, 2 learning rates) in PyTorch: they agree to 10<sup>&minus;13</sup>, or, where a run is chaotic (Rosenbrock at large rates), to within what PyTorch itself moves when its start is nudged by 10<sup>&minus;12</sup>.</p>
-<p>The surfaces are toys with two parameters, chosen because each isolates one difficulty: a badly conditioned valley, the same valley rotated, a curved valley, a saddle, and noise. They teach the geometry of each rule; they do not rank optimisers for networks with billions of parameters (that evidence is in the Reading tab's <a href="#" data-tab="t-read">The evidence</a> section).</p>
+<p>The surfaces are toys with two parameters, chosen because each isolates one difficulty: a badly conditioned valley, the same valley rotated, a curved valley, a saddle, and noise. They teach the geometry of each rule; they do not rank optimisers for networks with billions of parameters (that evidence is in the Reading tab's section 5, <a href="#" data-tab="t-read">The evidence</a>).</p>
 <div class="co"><div class="t">How each starting rate was chosen</div>Every optimiser starts at its own best rate for that surface: the best of a log grid (10<sup>k/4</sup>, from 10<sup>&minus;4</sup> to 10) by the average of log<sub>10</sub>(loss) over the run, among rates whose path never leaves the picture, with a constant schedule (the noisy surface averages seeds 1 to 5). Computed by <code>checks/tune.mjs</code>. The slider multiplies every optimiser's rate by the same factor, so you can see how sensitive each one is.</div>
 <div class="card" id="rc-card">
 <div class="seg" id="rc-surf"></div>
@@ -475,24 +583,24 @@ td.sk{width:104px;padding:3px 4px}
 <li><b>Saddle</b>. The gradient across the ridge starts at about 0.001; anything that divides by the gradient's own scale leaves at once.</li>
 <li><b>Noisy ravine</b>. With noise, a constant rate does not converge: the iterate wanders in a region whose size grows with the rate. Over seeds 1 to 20, plain SGD's loss over its last 60 steps averages 0.103 at its tuned constant rate, and cosine decay of the same peak rate ends at 0.062 on average; Adam's floor is 0.031 and cosine brings it to 0.011 (<code>checks/race_facts.mjs</code>). That is the reason schedules decay.</li>
 </ul>
-<div class="co warn"><div class="t">What two dimensions cannot show</div>Muon is defined for weight matrices: it replaces the momentum matrix with the nearest semi-orthogonal one. A 1 &times; 2 matrix has one singular value, so here Muon reduces to normalised Nesterov momentum (a fixed-length step in the momentum's direction), which is why it hovers at a distance set by its rate unless the schedule decays. Its real effect, flattening the singular values of a 64 &times; 176 gradient, is drawn on <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals, Reading tab, section 5 (Update)</a>. Similarly, SOAP and Shampoo here precondition a 2-vector with a 2 &times; 2 matrix; for a vector, Shampoo's exponent &minus;1/(2k) with k = 1 gives &minus;1/2, which is full-matrix AdaGrad (derived from <a href="https://arxiv.org/html/1802.09568#S4.SS2" target="_blank" rel="noopener noreferrer">Gupta et al. 2018, section 4.2</a>). And SOAP skips its first step by design (its code builds the eigenbasis before using it).</div>
+<div class="co warn"><div class="t">What two dimensions cannot show</div>Muon is defined for weight matrices: it replaces the momentum matrix with the nearest semi-orthogonal one. A 1 &times; 2 matrix has one singular value, so here Muon reduces to normalised Nesterov momentum (a fixed-length step in the momentum's direction), which is why it hovers at a distance set by its rate unless the schedule decays. Its real effect, flattening the singular values of a 64 &times; 176 gradient, is drawn in the <a href="#" data-tab="t-read">Reading tab, section 4</a>. Similarly, SOAP and Shampoo here precondition a 2-vector with a 2 &times; 2 matrix; for a vector, Shampoo's exponent &minus;1/(2k) with k = 1 gives &minus;1/2, which is full-matrix AdaGrad (derived from <a href="https://arxiv.org/html/1802.09568#S4.SS2" target="_blank" rel="noopener noreferrer">Gupta et al. 2018, section 4.2</a>). And SOAP skips its first step by design (its code builds the eigenbasis before using it).</div>
 </div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <section id="s-more">
 <h2>Further reading</h2>
 <h3>On this page</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-race">Optimiser race</a></div><p>Thirteen optimisers, exact update rules checked against PyTorch, on five 2-D surfaces; rates, schedules and noise seeds to change. <span class="rt">(10 min)</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-race">Optimiser race</a></div><p>Thirteen optimisers, exact update rules checked against PyTorch, on five 2-D surfaces; rates, schedules and noise seeds to change. <span class="rt">(4 min)</span></p></div>
 </div>
 <h3>The parent page and its tabs</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a></div><p><b>Reading</b>, section 5 (Update): the comparison of optimisers and schedules at the level of one training step, the real 64 &times; 176 gradient turned into an update by SGD, Adam and Muon's Newton-Schulz iterations, and the schedule chart with a movable end. Thread 4: Adam with L2 against AdamW on the same noise. <b>Training lab</b>: SGD, momentum, Adam, AdamW and Muon with step, cosine or WSD schedules, trained live. <b>Defaults across models</b>: optimiser, betas, epsilon, learning rate, warmup, schedule, final rate, weight decay and clipping for 21 models. <b>When training goes wrong</b>: learning-rate failure modes (oscillation, NaN, plateaus, spikes), which used to live on the "Debugging training" page. <span class="rt">(about 35 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a></div><p><b>Reading</b>, section 5 (Update): the comparison of optimisers and schedules at the level of one training step, the real 64 &times; 176 gradient turned into an update by SGD, Adam and Muon's Newton-Schulz iterations, and the schedule chart with a movable end. <b>Training lab</b>: SGD, momentum, Adam, AdamW and Muon with step, cosine or WSD schedules, trained live. <b>Defaults across models</b>: optimiser, betas, epsilon, learning rate, warmup, schedule, final rate, weight decay and clipping for 21 models. <b>When training goes wrong</b>: learning-rate failure modes (oscillation, NaN, plateaus, spikes), which used to live on the "Debugging training" page. <span class="rt">(about 35 min)</span></p></div>
 </div>
 <h3>Neighbouring pages</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d814f82cffd0d5c0dd5ba" target="_blank" rel="noopener noreferrer">Pretraining</a></div><p>The NanoGPT speedrun record by record (where Muon was born), the anneal as a data lever, and a toy that separates the learning-rate decay from the data switch. <span class="rt">(16 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81f5abf5dbdbac821a12" target="_blank" rel="noopener noreferrer">Moonshot AI: Kimi</a></div><p>MuonClip and QK-Clip at trillion scale: why Muon let attention logits grow and how K2 capped them. <span class="rt">(35 min)</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81e988b5c3cb5e197f98" target="_blank" rel="noopener noreferrer">Regularisation</a></div><p>Weight decay from the regularisation side. <span class="rt">(22 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81e988b5c3cb5e197f98" target="_blank" rel="noopener noreferrer">Regularisation</a></div><p>Weight decay from the regularisation side, and Adam with L2 against AdamW animated on the same noise (section 3). <span class="rt">(24 min, plus 7)</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d819ea5d6c59471e66875" target="_blank" rel="noopener noreferrer">Data mixing: domain weights, curricula, and continued-pretraining ratios</a></div><p>What goes into the anneal mixture while the rate falls. <span class="rt">(35 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81eb8b49ed6a0f897f3b" target="_blank" rel="noopener noreferrer">Calculus and optimisation for ML</a></div><p>Hessians, Newton's method and conditioning as mathematics. <span class="rt">(45 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a></div><p>Where the optimiser state lives across GPUs (ZeRO stages, FSDP). <span class="rt">(22 min)</span></p></div>
@@ -522,6 +630,9 @@ td.sk{width:104px;padding:3px 4px}
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/2405.15682" target="_blank" rel="noopener noreferrer">The Road Less Scheduled (Defazio et al. 2024)</a></div><p>Schedule-free optimisation. <span class="rt">(45 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/2409.11321" target="_blank" rel="noopener noreferrer">SOAP (Vyas et al. 2024)</a></div><p>Adam in Shampoo's eigenbasis. <span class="rt">(45 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/2502.15938" target="_blank" rel="noopener noreferrer">Straight to Zero (Bergsma et al. 2025)</a></div><p>Why linear decay to zero beats 10&times; decay at compute-optimal sizes. <span class="rt">(45 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/1812.06162" target="_blank" rel="noopener noreferrer">An Empirical Model of Large-Batch Training (McCandlish et al. 2018)</a></div><p>The critical batch and the gradient noise scale behind section 6. <span class="rt">(45 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/1706.02677" target="_blank" rel="noopener noreferrer">Accurate, Large Minibatch SGD (Goyal et al. 2017)</a></div><p>The linear scaling rule and gradual warmup. <span class="rt">(30 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2205.10287" target="_blank" rel="noopener noreferrer">On the SDEs and Scaling Rules for Adaptive Gradient Algorithms (Malladi et al. 2022)</a></div><p>The square-root rule for Adam, with its betas and epsilon. <span class="rt">(45 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/1608.03983" target="_blank" rel="noopener noreferrer">SGDR: warm restarts (Loshchilov and Hutter)</a></div><p>Cosine cycles with restarts. <span class="rt">(45 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/1708.07120" target="_blank" rel="noopener noreferrer">Super-convergence (Smith and Topin)</a></div><p>The one-cycle policy. <span class="rt">(45 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/2404.06395" target="_blank" rel="noopener noreferrer">MiniCPM (Hu et al. 2024)</a></div><p>Where WSD was named. <span class="rt">(90 min)</span></p></div>
@@ -531,10 +642,10 @@ td.sk{width:104px;padding:3px 4px}
 </div>
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
-<script>/* 21_js_common.js */
-// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed) ----
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -565,7 +676,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -579,11 +690,58 @@ window.RD=(function(){
     };
   }
   // width available inside an element (falls back when the tab is hidden)
-  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.min(860,(document.documentElement.clientWidth||900)-60)};
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
   // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
   function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
     const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
   return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+</script>
+<script>/* 22_js_rd_hero.js */
+// ---- Reading, hero: the three boxes every optimiser passes through (static annotated diagram, drawn at the measured width) ----
+(function(){
+  const host=document.getElementById('hero-svg');if(!host)return;
+  const B=[
+    {t:'gradient gₜ',l:['from backprop,','one mini-batch'],s:'',a:false},
+    {t:'1  smooth over time',l:['momentum m ← βm + g','SGD+mom, Adam, Lion, Muon'],s:'+1 value',a:true},
+    {t:'2  reshape',l:['÷ √v per coordinate: Adam (+1)','L^(−1/4) G R^(−1/4): Shampoo, SOAP','orthogonalise: Muon','sign: Lion'],s:'0 to 1 value, or factors',a:true},
+    {t:'3  × ηₜ, the schedule',l:['warmup, hold, decay'],s:'none',a:true,spark:true},
+    {t:'apply',l:['θ ← θ − step','− ηₜλθ (decoupled decay)'],s:'',a:false}];
+  function draw(){
+    const W=RD.width(host),wide=W>=760;let s='';
+    const lh=14,pad=8,tf=12;
+    const hOf=b=>pad*2+16+b.l.length*lh+(b.spark?30:0)+(b.s?lh:0);
+    if(wide){
+      const n=B.length,gap=16,wt=[0.12,0.21,0.28,0.17,0.22],avail=W-gap*(n-1),H=Math.max(...B.map(hOf))+4;let x=0;
+      B.forEach((b,i)=>{const bw=avail*wt[i];s+=box(b,x,2,bw,H-4);
+        if(i<n-1)s+=arrow(x+bw+2,H/2,x+bw+gap-2,H/2);x+=bw+gap});
+      host.innerHTML=RD.svg(W,H,s,'Gradient, smooth, reshape, schedule, apply');
+    }else{
+      const gap=14;let y=2;const bw=W-4;
+      B.forEach((b,i)=>{const h=hOf(b);s+=box(b,2,y,bw,h);y+=h;if(i<B.length-1){s+=arrow(W/2,y+1,W/2,y+gap-1);y+=gap}});
+      host.innerHTML=RD.svg(W,y+2,s,'Gradient, smooth, reshape, schedule, apply');
+    }
+    function box(b,x,y,w,h){let r='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="'+(b.a?'var(--acc2)':'var(--soft)')+'" stroke="'+(b.a?'var(--acc)':'var(--line)')+'"/>';
+      let yy=y+pad+12;r+=RD.t(x+pad,yy,b.t,{fs:tf,w:600});yy+=4;
+      b.l.forEach(q=>{yy+=lh;r+=RD.t(x+pad,yy,q,{fs:11})});
+      if(b.spark){const x0=x+pad,x1=x+w-pad,y0=yy+26,y1=yy+8;let d='';for(let k=0;k<=60;k++){const t=k/60;const v=t<0.1?t/0.1:t<0.8?1:1-Math.sqrt((t-0.8)/0.2);d+=(k?'L':'M')+(x0+t*(x1-x0)).toFixed(1)+','+(y0-v*(y0-y1)).toFixed(1)}
+        r+='<line x1="'+x0+'" x2="'+x1+'" y1="'+y0+'" y2="'+y0+'" stroke="var(--line)"/><path d="'+d+'" fill="none" stroke="var(--acc)" stroke-width="2"/>';yy+=30}
+      if(b.s){yy+=lh;r+=RD.t(x+pad,yy,'state: '+b.s,{fs:11,fill:'var(--mute)'})}
+      return r}
+    function arrow(x1,y1,x2,y2){const ang=Math.atan2(y2-y1,x2-x1),a=6;
+      return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--mute)" stroke-width="1.5"/><path d="M'+x2+','+y2+'L'+(x2-a*Math.cos(ang-0.5))+','+(y2-a*Math.sin(ang-0.5))+'L'+(x2-a*Math.cos(ang+0.5))+','+(y2-a*Math.sin(ang+0.5))+'Z" fill="var(--mute)"/>'}
+  }
+  draw();RD.onRender(draw);RD.onResize(draw);
 })();
 </script>
 <script>/* 30_js_engine.js */
@@ -913,9 +1071,149 @@ window.MEM_MODELS=[{"name": "SmolLM3 3B", "url": "https://huggingface.co/Hugging
     '<tr><td>Schedule-free SGD (momentum 0.9), one run</td>'+TS.map(T=>'<td class="num">'+fmt(sfL[T])+'</td>').join('')+'<td class="num">1,000</td></tr>'+
     '<tr><td class="mute">Constant rate, no decay (grey line)</td>'+TS.map(T=>'<td class="num mute">'+fmt(conL[T])+'</td>').join('')+'<td class="num mute">1,000</td></tr></tbody></table>';
   const an=RD.anim({card:'en-card',ctl:'en-ctl',n:F,ms:120,draw,label:'Steps spent'});
-  document.querySelectorAll('#en-mode button').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.v;document.querySelectorAll('#en-mode button').forEach(x=>x.classList.toggle('on',x===b));an.reset(F);an.play()}));
+  document.querySelectorAll('#en-mode button').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.v;document.querySelectorAll('#en-mode button').forEach(x=>x.classList.toggle('on',x===b));an.reset(F)}));
   addEventListener('resize',()=>an.redraw());
 })(typeof window!=='undefined'?window:globalThis);
+</script>
+<script>/* 45_js_ns_0data.js */
+// generated by ns_data.py from inputs/root_gradient_sv.json: 32 singular values of one real gradient (root toy, 64 x 176), Frobenius norm 1
+window.NS_SV=[0.318122, 0.313812, 0.288429, 0.270366, 0.249371, 0.241246, 0.235534, 0.223462, 0.214701, 0.19622, 0.188065, 0.179761, 0.173211, 0.163276, 0.154545, 0.153403, 0.150037, 0.145004, 0.129745, 0.126032, 0.120042, 0.111248, 0.103413, 0.095158, 0.089268, 0.082029, 0.077564, 0.07287, 0.070456, 0.059696, 0.051301, 0.043602];
+</script>
+<script>/* 46_js_ns.js */
+// ---- Reading, section 4: Muon's five Newton-Schulz iterations on the singular values of one real gradient (stepper) ----
+(function(){
+  const host=document.getElementById('ns-svg');if(!host||!window.NS_SV)return;
+  const a=3.4445,b=-4.775,c=2.0315;const IT=[NS_SV.slice()];
+  for(let k=0;k<5;k++)IT.push(IT[k].map(s=>a*s+b*s*s*s+c*s*s*s*s*s));
+  const cap=document.getElementById('ns-cap');const n=NS_SV.length,YM=1.3;
+  function draw(i){const v=IT[i],W=RD.width(host),H=Math.round(Math.min(230,Math.max(170,W*0.32))),ml=30,mr=8,mt=22,mb=26;
+    const x=k=>ml+(W-ml-mr)*(k+0.5)/n,bw=Math.max(2,(W-ml-mr)/n*0.7),y=q=>mt+(H-mt-mb)*(1-Math.min(q,YM)/YM);
+    let s='';[0,0.5,1].forEach(q=>{s+='<line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+y(q)+'" y2="'+y(q)+'" stroke="'+(q===1?'var(--mute)':'var(--line)')+'"'+(q===1?' stroke-dasharray="4 3"':'')+'/>'+RD.t(ml-4,y(q)+4,q,{a:'end',fs:11,fill:'var(--mute)'})});
+    s+=RD.t(W-mr,13,'dashed: orthogonal, every value 1',{a:'end',fs:11,fill:'var(--mute)'});
+    if(i>0)IT[0].forEach((q,k)=>{s+='<rect x="'+(x(k)-bw/2)+'" y="'+y(q)+'" width="'+bw+'" height="'+(y(0)-y(q))+'" fill="var(--dim)"/>'});
+    v.forEach((q,k)=>{const w=i>0?bw*0.55:bw;s+='<rect x="'+(x(k)-w/2)+'" y="'+y(q)+'" width="'+w+'" height="'+(y(0)-y(q))+'" fill="var(--acc)"/>'});
+    s+=RD.t(ml,H-6,'32 directions of the gradient, strongest first',{fs:11,fill:'var(--mute)'});
+    host.innerHTML=RD.svg(W,H,s,'Singular values of the update after each Newton-Schulz iteration');
+    const lo=Math.min(...v),hi=Math.max(...v),f=q=>q.toFixed(2);
+    const t=i===0?'The gradient as SGD would step along it':'Newton-Schulz iteration '+i+' of 5';
+    const p=i===0?'Singular values from '+f(lo)+' to '+f(hi)+': the strongest direction is '+(hi/lo).toFixed(1)+' times the weakest, so a plain step moves mostly along the first few.'
+      :'Each value σ becomes aσ + bσ³ + cσ⁵: small ones are lifted fast, large ones capped. Range now '+f(lo)+' to '+f(hi)+', a spread of '+(hi/lo).toFixed(2)+' : 1 (grey: the gradient).'+(i===5?' Not exactly 1: the coefficients trade precision for speed on the smallest values, which the authors found does not hurt.':'');
+    cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>'}
+  const an=RD.anim({card:'ns-card',ctl:'ns-ctl',n:6,ms:1300,draw,label:'Newton-Schulz iteration'});
+  RD.onResize(()=>an.redraw());
+})();
+</script>
+<script>/* 47_js_mini.js */
+// ---- Reading: three small races inline, each beside the claim it proves (the Optimiser race's engine, rates and surfaces) ----
+// m1: SGD, momentum, Nesterov on the ravine. m2: the same five optimisers on the axis-aligned and the rotated ravine (before/after).
+// m3: Adam and Nesterov on the noisy ravine under constant, cosine and WSD (before/after). Never plays by itself.
+(function(){
+  if(!window.OPTE||!window.RACE_LR)return;
+  const E=OPTE,LR=RACE_LR;
+  const COL={gd:'#8a8a8a',mom:'#3f7f56',nes:'#2aa198',adagrad:'#b8983a',rmsprop:'#d4801f',adam:'#2f6fb5',shampoo:'#8a5cb8'};
+  const MINS={ravine:[[1,0.6]],rotated:[[1,0.6]],noisy:[[1,0.6]]};
+  const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#888';
+  const hex=c=>{c=c.replace('#','');if(c.length===3)c=c.split('').map(x=>x+x).join('');return[parseInt(c.slice(0,2),16),parseInt(c.slice(2,4),16),parseInt(c.slice(4,6),16)]};
+  function mount(id,modes,F){
+    const card=document.getElementById(id+'-card');if(!card)return;
+    const cv=document.getElementById(id+'-cv'),cap=document.getElementById(id+'-cap'),leg=document.getElementById(id+'-leg'),seg=document.getElementById(id+'-mode');
+    let mi=0,runs={},bg=null,bgKey='';
+    function compute(){const m=modes[mi];runs={};m.opts.forEach(ok=>{runs[ok]=E.run(m.surf,ok,LR[m.surf][ok],{sched:m.sched||'const',seed:1})})}
+    function geom(){const b=E.S[modes[mi].surf].box,ar=(b[3]-b[2])/(b[1]-b[0]);let W=RD.width(cv.parentNode),H=W*ar;if(H>300){H=300;W=H/ar}return{W:Math.round(W),H:Math.round(H),b}}
+    function background(g){const sk=modes[mi].surf,key=sk+g.W+'x'+g.H+matchMedia('(prefers-color-scheme: dark)').matches;if(key===bgKey)return bg;
+      const f=E.S[sk].f,b=g.b,c0=hex(css('--bg')),c1=hex(css('--acc2')),c2=hex(css('--dim'));const img=new ImageData(g.W,g.H),val=new Float32Array(g.W*g.H);let lo=Infinity,hi=-Infinity;
+      for(let j=0;j<g.H;j++)for(let i=0;i<g.W;i++){const x=b[0]+(i+0.5)/g.W*(b[1]-b[0]),y=b[3]-(j+0.5)/g.H*(b[3]-b[2]);const v=Math.log10(Math.max(f(x,y),1e-6));val[j*g.W+i]=v;lo=Math.min(lo,v);hi=Math.max(hi,v)}
+      for(let k=0;k<val.length;k++){const t=Math.min(1,(val[k]-lo)/(hi-lo)*0.85+(Math.floor(val[k]*2)%2===0?0:0.09));for(let q=0;q<3;q++)img.data[4*k+q]=Math.round(c0[q]+(c1[q]-c0[q])*t);img.data[4*k+3]=255}
+      for(let j=1;j<g.H;j++)for(let i=1;i<g.W;i++){const k=j*g.W+i,a=Math.floor(val[k]*2);if(a!==Math.floor(val[k-1]*2)||a!==Math.floor(val[k-g.W]*2))for(let q=0;q<3;q++)img.data[4*k+q]=c2[q]}
+      bg=img;bgKey=key;return img}
+    function draw(i){const m=modes[mi],sf=E.S[m.surf],g=geom();if(cv.width!==g.W||cv.height!==g.H){cv.width=g.W;cv.height=g.H}cv.style.width=g.W+'px';cv.style.height=g.H+'px';
+      const ctx=cv.getContext('2d');ctx.putImageData(background(g),0,0);const b=g.b,X=x=>(x-b[0])/(b[1]-b[0])*g.W,Y=y=>(b[3]-y)/(b[3]-b[2])*g.H;
+      const T=sf.steps,t=Math.round(T*i/(F-1));
+      ctx.fillStyle=css('--ink');MINS[m.surf].forEach(q=>{ctx.beginPath();ctx.moveTo(X(q[0]),Y(q[1])-6);ctx.lineTo(X(q[0])+5,Y(q[1])+4);ctx.lineTo(X(q[0])-5,Y(q[1])+4);ctx.closePath();ctx.fill()});
+      ctx.beginPath();ctx.arc(X(sf.start[0]),Y(sf.start[1]),4,0,7);ctx.strokeStyle=css('--ink');ctx.lineWidth=1.5;ctx.stroke();
+      m.opts.forEach(ok=>{const r=runs[ok];ctx.strokeStyle=COL[ok];ctx.lineWidth=2;ctx.beginPath();let last=null;
+        for(let s=0;s<=t;s++){const x=r.xs[s],y=r.ys[s];if(!isFinite(x))break;const px=Math.max(-50,Math.min(g.W+50,X(x))),py=Math.max(-50,Math.min(g.H+50,Y(y)));s?ctx.lineTo(px,py):ctx.moveTo(px,py);last=[px,py]}
+        ctx.stroke();if(last){ctx.fillStyle=COL[ok];ctx.beginPath();ctx.arc(last[0],last[1],4.5,0,7);ctx.fill()}});
+      let h='<table class="nar"><thead><tr><th>Optimiser</th><th class="num">rate</th><th class="num">loss now</th><th class="num">first step below 10⁻³</th></tr></thead><tbody>';
+      m.opts.forEach(ok=>{const r=runs[ok];let fst=null;for(let s=0;s<=r.T;s++)if(r.ls[s]<1e-3){fst=s;break}const v=r.ls[t];
+        h+='<tr><td><i style="display:inline-block;width:12px;height:3px;background:'+COL[ok]+';vertical-align:middle;margin-right:5px"></i>'+E.O[ok].name+'</td><td class="num">'+LR[m.surf][ok]+'</td><td class="num">'+(isFinite(v)?v.toExponential(2):'diverged')+'</td><td class="num">'+(fst!==null&&fst<=t?fst:(t>=r.T?'not reached':'not yet'))+'</td></tr>'});
+      leg.innerHTML=h+'</tbody></table>';
+      cap.innerHTML='<div class="t">'+m.label+': step '+t+' of '+T+'</div><p>'+(t>=T?m.end:m.cap)+'</p>'}
+    compute();
+    const an=RD.anim({card:id+'-card',ctl:id+'-ctl',n:F,ms:110,draw,label:'Step'});
+    if(seg){seg.innerHTML=modes.map((m,k)=>'<button data-v="'+k+'"'+(k?'':' class="on"')+'>'+m.label+'</button>').join('');
+      seg.querySelectorAll('button').forEach(bt=>bt.addEventListener('click',()=>{mi=+bt.dataset.v;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===bt));bgKey='';compute();an.reset(F)}))}
+    RD.onRender(()=>{bgKey='';an.redraw()});RD.onResize(()=>{bgKey='';an.redraw()});
+  }
+  const five=['nes','adagrad','rmsprop','adam','shampoo'];
+  mount('m1',[{label:'Ravine, axis-aligned',surf:'ravine',opts:['gd','mom','nes'],
+    cap:'Plain SGD (grey) zig-zags across the valley at a rate small enough for the steep direction and creeps along the floor; momentum and Nesterov build speed along it because their along-floor components agree from step to step.',
+    end:'After 150 steps plain SGD has still not reached 10⁻³; momentum 0.9 got there at step 89, Nesterov at step 24, at their own best rates.'}],60);
+  mount('m2',[{label:'axis-aligned',surf:'ravine',opts:five,
+    cap:'The steep direction is the y coordinate, so a per-coordinate scale (AdaGrad, RMSProp, Adam) fixes the conditioning directly.',
+    end:'AdaGrad and RMSProp reach 10⁻³ at step 15, Nesterov and Shampoo at step 24, Adam at 46. Now switch to rotated.'},
+    {label:'rotated 45°',surf:'rotated',opts:five,
+    cap:'The same valley turned about its minimum: the steep direction now mixes x and y, so no per-coordinate scale can fix it.',
+    end:'AdaGrad and RMSProp no longer reach 10⁻³ in 150 steps; Adam needs 50; Nesterov (24) and Shampoo (24) are exactly as before.'}],60);
+  mount('m3',[{label:'constant',surf:'noisy',opts:['nes','adam'],sched:'const',
+    cap:'At a constant rate each step adds fresh noise as fast as the pull of the valley removes it, so the loss stops falling and hovers.',
+    end:'Seed 1: Adam ends at 3.4e-2 and Nesterov at 3.5e-2, hovering at the noise floor. Switch to cosine.'},
+    {label:'cosine',surf:'noisy',opts:['nes','adam'],sched:'cosine',
+    cap:'The same peak rate, decayed to zero along a cosine: early steps are as fast as before, late steps are small enough to average the noise out.',
+    end:'Seed 1: Adam ends at 2.8e-4 and Nesterov at 1.1e-4, about a hundred times below the constant-rate floor.'},
+    {label:'WSD',surf:'noisy',opts:['nes','adam'],sched:'wsd',
+    cap:'Constant for 80% of the run, then a 1−sqrt cooldown over the last 20%: the loss hovers at the floor until the cooldown starts.',
+    end:'Seed 1: Adam ends at 9.6e-3 and Nesterov at 1.0e-2: below the floor, though here above cosine, whose decay is longer.'}],60);
+})();
+</script>
+<script>/* 48_js_wd.js */
+// ---- Reading, section 2: shrink per step of one weight under L2-in-Adam against AdamW, by gradient noise (static, derived) ----
+(function(){
+  const host=document.getElementById('wd-svg');if(!host)return;
+  const eta=1e-3,lam=0.1,lo=-3,hi=1;// sigma from 1e-3 to 10
+  const l2=s=>eta*lam/Math.sqrt(s*s+lam*lam),aw=eta*lam;
+  function draw(){const W=RD.width(host),H=210,ml=48,mr=12,mt=12,mb=34,ylo=-5.3,yhi=-2.7;
+    const x=e=>ml+(e-lo)/(hi-lo)*(W-ml-mr),y=v=>mt+(yhi-Math.log10(v))/(yhi-ylo)*(H-mt-mb);let s='';
+    [-5,-4,-3].forEach(e=>{s+='<line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+y(Math.pow(10,e))+'" y2="'+y(Math.pow(10,e))+'" stroke="var(--line)"/>'+RD.t(ml-4,y(Math.pow(10,e))+4,'1e'+e,{a:'end',fs:11,fill:'var(--mute)'})});
+    for(let e=lo;e<=hi;e++)s+=RD.t(x(e),H-18,e===0?'1':e<0?'1e'+e:'10',{a:'middle',fs:11,fill:'var(--mute)'});
+    s+=RD.t(W-mr,H-4,'gradient noise RMS σ of this weight',{a:'end',fs:11,fill:'var(--mute)'});
+    s+=RD.t(ml+2,mt+2,'shrink per step',{fs:11,fill:'var(--mute)'});
+    let d='';for(let k=0;k<=80;k++){const e=lo+(hi-lo)*k/80;d+=(k?'L':'M')+x(e).toFixed(1)+','+y(l2(Math.pow(10,e))).toFixed(1)}
+    s+='<path d="'+d+'" fill="none" stroke="var(--bad)" stroke-width="2.2"/>';
+    s+='<line x1="'+x(lo)+'" x2="'+x(hi)+'" y1="'+y(aw)+'" y2="'+y(aw)+'" stroke="var(--acc)" stroke-width="2.2"/>';
+    const narrow=W<520;
+    s+=RD.t(x(lo)+4,y(l2(1e-3))+14,narrow?'L2 in Adam':'L2 in Adam: ηλθ/√(σ² + λ²θ²)',{fs:11,fill:'var(--bad)',w:600});
+    s+=RD.t(x(lo)+4,y(aw)-6,narrow?'AdamW: 1e-4':'AdamW: ηλθ = 1e-4 for every weight',{fs:11,fill:'var(--acc)',w:600});
+    [[1e-3,'10×'],[10,'0.1×']].forEach(([sg,lab])=>{const px=x(Math.log10(sg)),py=y(l2(sg));s+='<circle cx="'+px+'" cy="'+py+'" r="3.5" fill="var(--bad)"/>'+RD.t(px+(sg>1?-6:6),py+(sg>1?-8:-8),lab,{fs:11,a:sg>1?'end':'start',fill:'var(--bad)'})});
+    host.innerHTML=RD.svg(W,H,s,'Shrink per step against gradient noise under L2 in Adam and under AdamW')}
+  draw();RD.onRender(draw);RD.onResize(draw);
+})();
+</script>
+<script>/* 49_js_batch.js */
+// ---- Reading, section 6: the steps against data trade-off of McCandlish et al. 2018 (eq. 2.11, 2.12), one slider ----
+// S = Smin (1 + Bcrit/B), E = Emin (1 + B/Bcrit). Rate rules for kappa = B / Bcrit relative to a run tuned at Bcrit.
+(function(){
+  const host=document.getElementById('bt-svg'),r=document.getElementById('bt-r');if(!host||!r)return;
+  const out=document.getElementById('bt-out'),lab=document.getElementById('bt-v');
+  const S=k=>1+1/k,Ex=k=>1+k;
+  function draw(){const e=+r.value,k=Math.pow(2,e);lab.textContent=k>=1?k+'×':'1/'+(1/k);
+    const W=RD.width(host),H=Math.round(Math.min(240,Math.max(180,W*0.34))),ml=42,mr=14,mt=12,mb=34,lo=0,hi=Math.log10(20);
+    const x=v=>ml+(Math.log10(v)-lo)/(hi-lo)*(W-ml-mr),y=v=>mt+(hi-Math.log10(v))/(hi-lo)*(H-mt-mb);let s='';
+    [1,2,5,10,20].forEach(v=>{s+='<line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(ml-4,y(v)+4,v+'×',{a:'end',fs:11,fill:'var(--mute)'});
+      s+=RD.t(x(v),H-18,v+'×',{a:'middle',fs:11,fill:'var(--mute)'})});
+    s+=RD.t(W-mr,H-4,'training examples E / Emin',{a:'end',fs:11,fill:'var(--mute)'});
+    s+=RD.t(ml+2,mt+2,'steps S / Smin',{fs:11,fill:'var(--mute)'});
+    let d='';for(let q=-5;q<=5;q+=0.05){const kk=Math.pow(2,q);if(Ex(kk)>20||S(kk)>20)continue;d+=(d?'L':'M')+x(Ex(kk)).toFixed(1)+','+y(S(kk)).toFixed(1)}
+    s+='<path d="'+d+'" fill="none" stroke="var(--acc)" stroke-width="2"/>';
+    s+='<circle cx="'+x(2)+'" cy="'+y(2)+'" r="3" fill="none" stroke="var(--mute)"/>'+RD.t(x(2)+6,y(2)-6,'B = Bcrit',{fs:11,fill:'var(--mute)'});
+    s+='<circle cx="'+x(Ex(k))+'" cy="'+y(S(k))+'" r="5.5" fill="var(--acc)"/>';
+    host.innerHTML=RD.svg(W,H,s,'Steps against training examples as the batch size changes');
+    const b2=1-k*(1-0.95);
+    out.innerHTML=RD.stat('steps needed',S(k).toFixed(2)+'× Smin','fewer as B grows, never below 1×')+RD.stat('examples needed',Ex(k).toFixed(2)+'× Emin','more as B grows')+
+      RD.stat('SGD rate, from a run tuned at Bcrit','× '+(k>=1?k:k.toPrecision(3)),'linear rule, κ = '+(k>=1?k:'1/'+(1/k)))+
+      RD.stat('Adam rate and β₂ (from 0.95)','× '+Math.sqrt(k).toPrecision(3)+', β₂ '+(b2>0?b2.toPrecision(3):'outside the rule'),b2>0?'square-root rule':'κ(1 − β₂) ≥ 1: the rule has run out')}
+  r.addEventListener('input',draw);draw();RD.onRender(draw);RD.onResize(draw);
+})();
 </script>
 <script>/* 50_js_race.js */
 // ---- Optimiser race tab: exact update rules on five 2-D surfaces, animated ----
@@ -977,7 +1275,7 @@ window.MEM_MODELS=[{"name": "SmolLM3 3B", "url": "https://huggingface.co/Hugging
     pick.querySelectorAll('input').forEach(c=>c.addEventListener('change',()=>{c.checked?sel.add(c.dataset.k):sel.delete(c.dataset.k);c.parentNode.classList.toggle('on',c.checked);restart()}))}
   const mr=document.getElementById('rc-mul'),mo=document.getElementById('rc-mulv'),sd=document.getElementById('rc-seed'),sdl=document.getElementById('rc-seedl');
   let an;
-  function restart(){compute();note.innerHTML=TRY[sk];sdl.style.display=E.S[sk].noise?'':'none';an.reset(F);an.go(F-1);an.play()}
+  function restart(){compute();note.innerHTML=TRY[sk];sdl.style.display=E.S[sk].noise?'':'none';an.reset(F);an.go(F-1)}
   sseg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{sk=b.dataset.v;sel=new Set(DEF[sk]);sseg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));drawPick();restart()}));
   document.querySelectorAll('#rc-sch button').forEach(b=>b.addEventListener('click',()=>{sch=b.dataset.v;document.querySelectorAll('#rc-sch button').forEach(x=>x.classList.toggle('on',x===b));restart()}));
   mr.addEventListener('input',()=>{mul=Math.pow(10,+mr.value/8);mo.textContent='× '+(mul>=1?mul.toPrecision(3):mul.toPrecision(2));restart()});
@@ -989,21 +1287,26 @@ window.MEM_MODELS=[{"name": "SmolLM3 3B", "url": "https://huggingface.co/Hugging
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace optim-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
   function show(id,save){
     btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
     document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
-    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){window.__jsErr&&window.__jsErr(String(e))}});
-    dispatchEvent(new Event('resize'));
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
     if(save){try{localStorage.setItem('optim-tab',id)}catch(e){}}
   }
   btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
   bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
     if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('optim-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

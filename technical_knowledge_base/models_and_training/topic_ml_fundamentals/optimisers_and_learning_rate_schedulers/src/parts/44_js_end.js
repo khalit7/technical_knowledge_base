@@ -52,6 +52,6 @@
     '<tr><td>Schedule-free SGD (momentum 0.9), one run</td>'+TS.map(T=>'<td class="num">'+fmt(sfL[T])+'</td>').join('')+'<td class="num">1,000</td></tr>'+
     '<tr><td class="mute">Constant rate, no decay (grey line)</td>'+TS.map(T=>'<td class="num mute">'+fmt(conL[T])+'</td>').join('')+'<td class="num mute">1,000</td></tr></tbody></table>';
   const an=RD.anim({card:'en-card',ctl:'en-ctl',n:F,ms:120,draw,label:'Steps spent'});
-  document.querySelectorAll('#en-mode button').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.v;document.querySelectorAll('#en-mode button').forEach(x=>x.classList.toggle('on',x===b));an.reset(F);an.play()}));
+  document.querySelectorAll('#en-mode button').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.v;document.querySelectorAll('#en-mode button').forEach(x=>x.classList.toggle('on',x===b));an.reset(F)}));
   addEventListener('resize',()=>an.redraw());
 })(typeof window!=='undefined'?window:globalThis);

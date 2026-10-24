@@ -39,3 +39,15 @@ Distill's "Why Momentum Really Works" (quadratic playground); the DeepSeek MLA e
 
 ## What the methodology lacked for this page
 Checking an implementation against a reference on a chaotic surface: a fixed tolerance fails for reasons that are not errors. Rule used: compare to the reference's own divergence when its start is nudged by 1e-12, and report the steps that agree to 1e-9. Second: choosing a toy's default hyperparameters should follow a stated rule (best of a grid with a stated criterion and constraint), never hand-picking, because the defaults decide what the race "shows".
+
+## 2026-10-24 rebuild: visuals added inline
+| Idea | Kind | Decision |
+|---|---|---|
+| Hero: gradient, smooth, reshape, schedule, apply, with state per box | static annotated diagram | built (`22_js_rd_hero.js`) |
+| Momentum on the ravine (SGD, momentum, Nesterov) | stepped race, one input | built (`47_js_mini.js`, m1) |
+| Axis-aligned against rotated ravine (five optimisers) | before/after on the same surface | built (m2) |
+| Noisy ravine under constant, cosine, WSD (Adam, Nesterov) | before/after | built (m3) |
+| Muon's Newton-Schulz on a real gradient's singular values | stepper | built (`46_js_ns.js`); this page owns Muon, the parent should link here |
+| L2 in Adam against AdamW: shrink per step against gradient noise | static derived chart | built (`48_js_wd.js`); the animation is Regularisation's (section 3), linked |
+| Critical batch: steps against data, one slider | parameter slider, defaults on McCandlish et al.'s "twice" | built (`49_js_batch.js`) |
+| Real photo | | rejected: no physical object on a mechanism page |
