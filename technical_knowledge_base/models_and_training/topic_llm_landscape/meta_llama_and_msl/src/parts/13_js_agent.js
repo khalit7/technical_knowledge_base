@@ -3,7 +3,7 @@
   const card=$('ag');if(!card)return;
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const STEPS=7,DUR=3600,MOVE=0.7;
-  const st={m:'muse',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
+  const st={m:'muse',k:0,t:RM?1:0,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
   const cl=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v),lerp=(a,b,u)=>a+(b-a)*u;
   const LW={W:700,H:290,app:[8,36,128,64],vm:[156,14,382,262],cell:[168,44,196,200],agent:[180,70,172,72],brow:[180,160,172,66],authd:[378,44,148,46],priv:[378,98,148,38],safe:[378,144,148,38],sent:[378,192,148,62],hotel:[562,40,130,72],att:[562,190,130,64],cap:[168,262,358,90]};
   const LN={W:360,H:420,app:[8,8,344,50],vm:[8,74,344,240],cell:[16,100,168,200],agent:[24,124,152,72],brow:[24,212,152,72],authd:[192,100,152,44],priv:[192,150,152,36],safe:[192,192,152,36],sent:[192,236,152,64],hotel:[8,336,168,64],att:[184,336,168,64],cap:[16,312,328,96]};
@@ -77,7 +77,7 @@
   $('agScrub').addEventListener('input',e=>{pause();const v=+e.target.value;st.k=Math.min(STEPS-1,Math.floor(v/100));st.t=cl(v/100-st.k);draw()});
   $('agSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   const seg=$('agM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;st.lk=-1;if(!RM)st.play=true;draw();kick()}));
+    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;st.lk=-1;pause();draw()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});

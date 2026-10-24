@@ -38,3 +38,9 @@ Sardana et al. Figure 1 (compute ratio against demand); Raschka's architecture g
 
 ## What the methodology lacked
 A rule for security architectures: there is no number to reproduce, so the before/after animation must carry an explicit "illustrative scenario, Meta's components" label and avoid implying behaviour the source does not state (surrogate swap for foreign destinations left unconfirmed). Also: check a paper's own tables for internal arithmetic (Table 5 percentage) before using them.
+
+## 2026-10-24 rebuild
+- Built: LLaMA paper Figure 1 as a real image (CC BY 4.0; the paper's own evidence for the overtraining bet). Layer-pattern figure (one unit of four layers in Llama 3, Llama 4, Glimmer; static, structure). Hero: the lineage timeline moved inline with era bands.
+- Moved inline: Overtraining explorer (it proves one claim of the overtraining section); lineage chart (the hero).
+- Removed: 405B mesh widget and Table 5 interruption bars (owned and drawn by the Llama 3 Herd paper page); Artificial Analysis index-against-cost scatter (cross-provider comparison, owned by the landscape root).
+- Rejected: a photo of Meta's Prometheus data centre (decorative here; no licensed image found worth the space); Llama 3 paper figures (arXiv non-exclusive licence, no reuse).

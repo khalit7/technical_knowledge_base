@@ -1,6 +1,6 @@
 // ---- Overtraining explorer: minimise 6ND + 2NT on a curve of equal loss (Sardana et al.) ----
 (function(){
-  if(!$('t-exp'))return;
+  if(!$('exSvg'))return;
   const FITS={sard:[1.69,406.4,410.7,0.336,0.283,'Hoffmann (Sardana)'],hr:[1.69,406.4,410.7,0.34,0.28,'Hoffmann rounded'],hp:[1.6934,406.4,410.7,0.3392,0.2849,'Hoffmann precise'],ep:[1.8172,482.01,2085.43,0.3478,0.3658,'Epoch refit']};
   const FC={sard:'var(--c1)',hr:'var(--c6)',hp:'var(--c4)',ep:'var(--c2)'};
   const PRE={s4:{loss:1.96,T:5e12,n:'loss 1.96'},l8:{N:8e9,D:15e12,T:15e12,n:'Llama 3 8B'},l70:{N:70e9,D:15e12,T:15e12,n:'Llama 3 70B'},l1:{N:7e9,D:1e12,T:1e12,n:'Llama 1 7B'},l405:{N:405e9,D:15.6e12,T:15e12,n:'Llama 3.1 405B'}};
@@ -49,5 +49,5 @@
     $('exLeg2').innerHTML=Object.keys(FITS).map(q=>'<span><i style="background:'+FC[q]+';height:'+(q===fk?4:2)+'px"></i>'+FITS[q][5]+'</span>').join('')+(meta?'<span><i style="background:var(--mus)"></i>'+pr.n+' (dashed)</span>':'');
   }
   $('exQ').addEventListener('change',()=>{$('exT').value=Math.log10(PRE[$('exQ').value].T).toFixed(4);draw()});$('exF').addEventListener('change',draw);$('exT').addEventListener('input',draw);
-  onTab('t-exp',draw);
+  onTab('t-read',draw);draw();let rw=$('exSvg').clientWidth<560;addEventListener('resize',()=>{const w=$('exSvg').clientWidth<560;if(w!==rw){rw=w;draw()}});
 })();
