@@ -1,4 +1,4 @@
-// ---- Quantizer playground: the 2-D geometry toy (illustrative, computed in the page) ----
+// ---- Reading sections 8 and 9: the 2-D quantizer toy (illustrative, computed in the page); moved from the old Quantizer playground tab ----
 // 600 fixed "encoder outputs" in 2-D (a seeded mixture of 7 Gaussians, frozen), and four ways to quantize them:
 // VQ with 16 codes initialised uniformly in +-1/16 (diffusers' default init) and trained by moving each code to the
 // mean of the points assigned to it (what the codebook loss does in the limit of a large step; k-means), with or
@@ -67,8 +67,8 @@
     const K2=f.C.length;
     cnt.innerHTML=RD.stat('Codes in the codebook',K2)+RD.stat('Codes used',f.used+' of '+K2)+RD.stat('Mean squared quantization error',f.err.toFixed(3),'distance from each point to its code, squared');
   }
-  const an=RD.anim({card:'avq-toy',ctl:'avq-toy-ctl',n:STEPS+1,draw,ms:900,label:'Training step',tab:'t-avq'});
-  RD.seg(document.getElementById('avq-toy-mode'),v=>{mode=v;an.reset(runs[v].length);an.play()});
-  RD.onResize(()=>an.redraw(),'t-avq');
+  const an=RD.anim({card:'avq-toy',ctl:'avq-toy-ctl',n:STEPS+1,draw,ms:900,label:'Training step'});
+  RD.seg(document.getElementById('avq-toy-mode'),v=>{mode=v;an.reset(runs[v].length)});
+  RD.onResize(()=>an.redraw());
   window.AVQ_TOY=runs;
 })();

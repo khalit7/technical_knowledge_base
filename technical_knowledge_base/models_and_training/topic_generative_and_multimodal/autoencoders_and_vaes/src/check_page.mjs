@@ -1,5 +1,5 @@
 // Check every tab: every button clicked, every range moved, every select changed, at 390 px dark and 920 px light;
-// no page errors, no NaN, undefined or unfilled "?" numbers, no broken images, no sideways scroll. Reading time measured.
+// no page errors, no NaN, undefined or unfilled "?" numbers, no broken images, no sideways scroll; nothing playing on load.
 // Usage: node check_page.mjs <shots dir>
 import {createRequire} from 'module';
 import path from 'path';
@@ -10,7 +10,7 @@ const require=createRequire(path.resolve(here,'../../../../../html_utils/package
 const puppeteer=require('puppeteer');
 const page_=path.resolve(here,'../index.html');
 const shots=process.argv[2]||path.resolve(here,'..','.shots_av');fs.mkdirSync(shots,{recursive:true});
-const TABS=['t-read','t-avtok','t-avq','t-avpc','t-more'];
+const TABS=['t-read','t-avtok','t-more'];
 const b=await puppeteer.launch({headless:'shell'});
 let bad=0;
 try{
@@ -21,6 +21,11 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   await p.emulateMediaFeatures([{name:'prefers-color-scheme',value:scheme}]);
   await p.goto('file://'+page_);
   await p.evaluate(()=>{try{localStorage.clear()}catch(e){}});
+  for(let y=0;y<30000;y+=700){await p.evaluate(y=>scrollTo(0,y),y);await new Promise(r=>setTimeout(r,30))}
+  await new Promise(r=>setTimeout(r,1500));
+  const playing=await p.evaluate(()=>[...document.querySelectorAll('.an-play')].filter(b=>/Pause/.test(b.textContent)).length);
+  console.log(w,scheme,'animations playing after scrolling, before any click:',playing);if(playing)bad++;
+  await p.evaluate(()=>scrollTo(0,0));
   for(const tab of TABS){
     await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);
     await new Promise(r=>setTimeout(r,300));
@@ -45,10 +50,7 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
     for(const id of secs){await p.evaluate(id=>document.getElementById(id).scrollIntoView(),id);await new Promise(r=>setTimeout(r,120));
       await p.screenshot({path:path.join(shots,`${w}_${scheme}_${tab}_${id}.png`)})}
   }
-  if(w===920){const words=await p.evaluate(()=>{const T=document.getElementById('t-read').cloneNode(true);
-      T.querySelectorAll('details.qa,table,pre,.an-cnt,.an-cap,.av-strip,svg,.av-note,nav,style').forEach(e=>e.remove());
-      const all=T.innerText.split(/\s+/).length;const qa=[...document.querySelectorAll('#t-read details.qa')].map(d=>d.innerText).join(' ').split(/\s+/).length;return [all,qa]});
-    console.log('reading words',words[0],'about',Math.round(words[0]/200),'min; folded answers',words[1],'about',Math.round(words[1]/200),'min')}
+  // reading time: html_utils/audit_pages.mjs (230 words a minute, closed details apart) is the measure of record
   console.log('errors',errs.length);errs.slice(0,8).forEach(e=>console.log('  ',e));if(errs.length)bad++;
   await p.close();
 }
