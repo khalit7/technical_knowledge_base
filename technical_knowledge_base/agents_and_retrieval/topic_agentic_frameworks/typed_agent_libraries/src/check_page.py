@@ -57,6 +57,34 @@ for s in ["Fix the errors and try again.", "transfer_to_", "final_result", "set_
           "DEFAULT_MAX_TURNS" if False else "10 turns", "50 requests", "20 steps", "500 model calls"]:
     ok(s in PAGE, f"prose mentions {s!r}")
 
+
+# 2b. numbers written statically in the Reading prose (rebuilt 2026-10-24) against the data
+import html as _h
+TXT = re.sub(r"\s+", " ", _h.unescape(re.sub(r"<[^>]+>", " ", re.sub(r"<script.*?</script>|<style.*?</style>", " ", PAGE, flags=re.S))))
+V = lambda a: sum(x["valid"] for x in a)
+C = lambda a: sum(x["valid"] and x["category_ok"] for x in a)
+pt, pp = route("pai_tool"), route("pai_prompted")
+ok(f"{V(nat)} of {len(nat)} runs returned a result" in TXT and V(nat) == 0 and len(nat) == 60, "native routes 0 of 60")
+ok(f"Pydantic AI {V(route('pai_native'))} of 20, Agents SDK {V(route('oai'))} of 20, ADK {V(route('adk'))} of 20" in TXT, "native per library")
+ok(f"{V(cons)} of {len(cons)} replies parse, yet only {C(cons)} named the right bug category" in TXT, "constrained valid and category")
+ok(f"{V(pt)} of {len(pt)} valid, got {C(pt)}" in TXT, "tool route valid and category")
+ok(f"(prompted, {V(pp)} of {len(pp)}) or into a tool ({V(pt)} of {len(pt)})" in TXT, "prompted and tool validity")
+ok(f"right in {C(pp)} of {V(pp)} prompted runs, {C(cons)} of {V(cons)} constrained, but only {C(pt)} of {V(pt)} tool-output" in TXT, "category among valid")
+objs = [x for x in so if x["valid"] and x.get("conf") is not None]
+ok(f"{sum(x['conf'] == 5 for x in objs)} of {len(objs)} valid results" in TXT, "confidence 5 count")
+hp, sp = route("claude_haiku_prompt"), route("claude_sonnet_prompt")
+ok(f"wrapped {sum(x['fenced'] for x in hp)} of {len(hp)} replies" in TXT and f"recovers {sum(x['lenient'] for x in hp)}" in TXT and f"bare JSON {V(sp)} of {len(sp)}" in TXT, "Claude prompted routes")
+val = FT["val"]
+nret = sum(len(x["retries"]) for x in val); withr = sum(1 for x in val if x["retries"])
+ok(f"{len(val)} runs, {V(val)} returned a valid result" in TXT and f"{nret} retry prompts went back in {withr} runs" in TXT, "validator runs and retries")
+M = FT["mech"]
+gp, gs = M["oai_guard_par_greedy"]["cases"][0]["requests"], M["oai_guard_seq_greedy"]["cases"][0]["requests"]
+ok(f"tripped after {gp} model requests; blocking: tripped after {gs}" in TXT, "guardrail request counts")
+ok(f"all {M['oai_handoff_greedy']['wire'][1]['msgs']} messages so far" in TXT, "handoff message count")
+at = [k for k in M if k.startswith("adk_task")]
+ok(f"tests passed after {sum(M[k]['tests']['pass'] for k in at)} of {len(at)} runs" in TXT and ", ".join(str(len(M[k]['wire'])) for k in sorted(at)) in TXT.replace(" and ", ", "), "ADK seventh way")
+ok(f"{len(FT['card']['/.well-known/agent-card.json']['body']['skills'])} skills" in TXT, "agent card skills")
+
 # 3. em-dashes and private strings
 ok(chr(0x2014) not in PAGE, "no em-dash in index.html")
 bad = re.compile("/" + "Users" + "/|" + "Users" + "-|gl" + "pat|sk" + "-ant|" + re.escape(getpass.getuser()), re.I)

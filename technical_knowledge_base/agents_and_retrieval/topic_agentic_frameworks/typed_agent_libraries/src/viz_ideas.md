@@ -25,3 +25,18 @@ Inspiration: the DeepSeek MLA explainer (one input, a toggle for the method it r
 
 ## What the methodology lacked
 A rule for **"the server is part of the experiment"**: the biggest effect measured here (native output failing on every case) is a property of the inference server, not of the library or the model. Worth adding: when a feature is negotiated between client and server (response formats, tool choice, stop sequences), record which fields the server actually reads before comparing clients.
+
+## 2026-10-24 rebuild to the teaching contract
+Nine SVG figures added inline in Reading (`src/parts/24_js_rd_figs.js`, all drawn at the measured width, static, nothing moves):
+| Figure | Kind | Section | Data |
+|---|---|---|---|
+| Hero: your types to request (three routes) to server to validation and retry | static annotated diagram | top | structure from the source reads |
+| Schema matrix: four libraries by four parameters (required, default, nullable, no description) | drawn from data | 1 | `FT.schemas` |
+| Validity and right category per route, grouped by where the schema travelled | bar chart | 2 | `FT.so` |
+| Pydantic AI retry loop | static annotated diagram | 3 | source (`messages.py`, `agent/__init__.py`) |
+| Four loops, four stopping rules, default caps | static annotated diagram | 4 | source reads |
+| Handoff and ADK transfer on the wire (speaker, tools, one square per message) | drawn from recorded requests, toggle | 5 | `FT.mech` |
+| Guardrail parallel against blocking (before/after, bars to scale of prompt tokens) | before/after from recorded requests | 6 (moved from the Mechanisms tab) | `FT.mech` |
+| ADK state scopes and an event's state_delta | static annotated diagram | 6 | ADK state docs |
+| Choosing ladder | static decision diagram | 8 | the page's judgement plus the parent's measured outcomes |
+The route stepper (built 1) no longer starts playing on a route switch. Rejected: a real image (the page is about libraries, no physical object; a vendor trace-dashboard screenshot has no clear licence).

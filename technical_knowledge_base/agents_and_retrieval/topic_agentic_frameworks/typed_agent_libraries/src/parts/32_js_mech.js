@@ -27,11 +27,6 @@ function draw(i){const d=M[sel.value]||{wire:[]},w=d.wire||[];
   const el=document.getElementById('ftyped-x-r'+i);if(el&&el.scrollIntoView&&box.contains(el)){const b=box.getBoundingClientRect(),r=el.getBoundingClientRect();if(r.top<b.top||r.bottom>b.bottom)box.scrollTop+=r.top-b.top-20}}
 const an=RD.anim({card:'ftyped-x-card',ctl:'ftyped-x-ctl',n:1,draw,ms:1800,label:'Request',tab:'t-mech'});
 sel.addEventListener('change',render);render();
-// guard before/after
-(function(){const g=document.getElementById('ftyped-x-guard');
-  g.innerHTML=['oai_guard_par_greedy','oai_guard_seq_greedy'].map(k=>{const d=M[k];if(!d)return '<div class="sp"><p>not recorded</p></div>';const c=(d.cases||[])[0]||{};
-    const w=(d.wire||[]).slice(0,c.requests||0);
-    return '<div class="sp"><div class="n">'+(k.includes('par')?'parallel (default)':'blocking')+'</div><p>'+(c.tripped?'<span class="pill bad">tripwire</span>':'<span class="pill ok">passed</span>')+' after <b>'+c.requests+'</b> model request'+(c.requests===1?'':'s')+':</p><ol class="tight">'+w.map(x=>'<li>'+E(who(x.sys))+' ('+(x.pt||'?')+' prompt tokens): '+E(x.reply.slice(0,90))+'</li>').join('')+'</ol></div>'}).join('');})();
 // session
 (function(){const s=M.oai_session_greedy,el=document.getElementById('ftyped-x-sess');if(!s){el.innerHTML='<p class="small mute">not recorded</p>';return}
   el.innerHTML='<p class="small">SQLite tables and columns: '+Object.entries(s.tables||{}).map(([t,c])=>'<code>'+E(t)+'</code> ('+c.map(E).join(', ')+'; '+(s.rows||{})[t]+' rows)').join('; ')+'.</p><div class="tw"><table><thead><tr><th>#</th><th>stored item</th></tr></thead><tbody>'+(s.stored_items||[]).map((it,i)=>'<tr><td>'+(i+1)+'</td><td><code>'+E(JSON.stringify(it).slice(0,220))+'</code></td></tr>').join('')+'</tbody></table></div><p class="small">Answers: '+(s.answers||[]).map(a=>'"'+E(String(a).slice(0,80))+'"').join(', then ')+'.</p>'})();
