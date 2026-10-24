@@ -18,3 +18,17 @@ Central question: what does delegating a job to someone else's agent look like o
 | A12 | Adoption chart of agent protocols | none | no primary adoption figures | rejected |
 
 What the methodology lacked: as on the MCP page, the measurable object is a message sequence; the replacement was "record it, replay it, count it", plus a fair-comparison rule (count the same thing on both sides: discovery text and every result the caller's model reads).
+
+## 2026-10-24 rebuild
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| B1 | Hero: who talks to whom, orange approval gates | Reading top | built (static diagram, two layouts) |
+| B2 | What contains what: context, task, status, history, artifacts, parts | Reading s3 | built (static) |
+| B3 | Task states as a clickable state diagram in bands (replaces A2's chips) | Reading s4 | built |
+| B4 | A1 split into three inline stepper instances (s5, s8, s10); no playback on mode switch | Reading | moved from tab |
+| B5 | A6 and A7 (UCP labs) | Reading s12 | moved from tab |
+| B6 | UCP checkout statuses as a clickable state diagram | Reading s12 | built |
+| B7 | AP2 human present against not present | Reading s13 | built (toggle-compare) |
+| B8 | x402 sequence: 402, signed retry, verify, settle, receipt | Reading s13 | built (static) |
+| B9 | Real photo of a lab instrument for MHS | none | rejected: the page is about protocols; a photo would not teach the device layer, and the contract keeps diagrams for mechanisms |
+| B10 | Live x402 run on a testnet | none | rejected: needs a funded wallet and a facilitator; the spec's own example is shown |

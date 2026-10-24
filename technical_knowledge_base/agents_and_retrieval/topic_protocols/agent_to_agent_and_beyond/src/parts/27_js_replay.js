@@ -1,9 +1,9 @@
-// ---- Tab "One job, recorded": six recordings replayed step by step as a sequence diagram ----
+// ---- Reading: the recordings replayed step by step as a sequence diagram (a stepper; nothing moves until the reader acts). Three instances: s5 delivery modes, s8 in-task auth, s10 MCP against A2A ----
 (function(){
   const D=window.A2AD,esc=RD.esc,$=id=>document.getElementById(id);
-  const ORDER=['mcp','main','resub','push','auth','cancel'];
-  const LBL={mcp:'Before: MCP, Team A drives the tools',main:'After: A2A, Team A delegates',resub:'A2A: stream dropped',push:'A2A: push to a webhook',auth:'A2A: in-task auth',cancel:'A2A: cancel'};
-  let mode='mcp';
+  const LBL={mcp:'Before: MCP, Team A drives the tools',main:'After: A2A, Team A delegates',resub:'Stream dropped',push:'Push to a webhook',auth:'In-task auth',cancel:'Cancel'};
+  function make(P,ORDER,lbl){
+  let mode=ORDER[0];
   function caption(k,s,i,n){
     const T=s.title;
     if(s.dir==='hook')return ['Team B POSTs an update to Team A\'s webhook','The same StreamResponse object a stream would carry, with the per-task token and Team A\'s registered credentials in the headers. Team A answers 204.'];
@@ -38,10 +38,10 @@
     return RD.stat('Recorded time',st[st.length-1].t.toLocaleString('en-US')+' ms','from the first request')+RD.stat('HTTP requests by Team A',req,'')+
       RD.stat('Bytes up / down',up.toLocaleString('en-US')+' / '+down.toLocaleString('en-US'),'through the tap')+
       (k==='mcp'||k==='main'?RD.stat('Text Team A\'s model must read',ctx.toLocaleString('en-US')+' chars','schemas, results, messages, artifacts'):k==='push'?RD.stat('Webhook POSTs',hooks,'received by Team A'):RD.stat('Task state',(st.filter(s=>s.state).pop()||{state:'none yet'}).state.replace('TASK_STATE_','').toLowerCase(),''))}
-  function draw(i){const sc=D.scen[mode],S=sc.steps,s=S[i],el=$('rn-svg'),W=RD.width(el);
+  function draw(i){const sc=D.scen[mode],S=sc.steps,s=S[i],el=$(P+'-svg'),W=RD.width(el);
     const lx=W*0.12,rx=W*0.88,rh=24,H=S.length*rh+10;let b='';
     b+='<line x1="'+lx+'" y1="0" x2="'+lx+'" y2="'+H+'" stroke="var(--line)" stroke-width="2"/><line x1="'+rx+'" y1="0" x2="'+rx+'" y2="'+H+'" stroke="var(--line)" stroke-width="2"/>';
-    const fs=W<480?9.5:11,maxc=Math.floor((rx-lx-20)/(fs*0.56));
+    const fs=11,maxc=Math.floor((rx-lx-12)/(fs*0.56));
     S.forEach((q,j)=>{if(j>i)return;const y=j*rh+16,cur=j===i,col=q.dir==='up'?'var(--c1)':q.dir==='hook'?'var(--c4)':'var(--c3)';
       const x1=q.dir==='up'?lx:rx,x2=q.dir==='up'?rx-6:lx+6;
       b+='<line x1="'+x1+'" y1="'+y+'" x2="'+x2+'" y2="'+y+'" stroke="'+col+'" stroke-width="'+(cur?2.6:1.3)+'"'+(q.dir==='hook'?' stroke-dasharray="5 3"':'')+' opacity="'+(cur?1:.55)+'"/>';
@@ -49,15 +49,19 @@
       let lab=q.title.replace('SSE event  ','').replace('  (text/event-stream: the stream stays open)',' (stream opens)').replace('TASK_STATE_','');
       if(lab.length>maxc)lab=lab.slice(0,maxc-1)+'…';
       b+=RD.t((lx+rx)/2,y-4,esc(lab),{a:'middle',fs:fs,w:cur?600:400,fill:cur?undefined:'var(--mute)'});
-      b+=RD.t(2,y+4,(q.t>=1000?(q.t/1000).toFixed(2)+'s':Math.round(q.t)+''),{fs:9,fill:'var(--mute)'});});
+      b+=RD.t(2,y+4,(q.t>=1000?(q.t/1000).toFixed(2)+'s':Math.round(q.t)+''),{fs:11,fill:'var(--mute)'});});
     el.innerHTML=RD.svg(W,H,b,'Sequence of recorded messages');
     const c=caption(mode,s,i,S.length);
-    $('rn-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+S.length+': '+esc(c[0])+'</div><p>'+esc(c[1])+'</p>';
-    $('rn-cnt').innerHTML=counters(mode,i);
-    $('rn-hdr').textContent=(s.dir==='up'?'Team A to Team B':s.dir==='hook'?'Team B to Team A\'s webhook':'Team B to Team A')+', '+s.bytes.toLocaleString('en-US')+' bytes, at '+s.t+' ms';
-    $('rn-raw').textContent=s.raw}
-  const A=RD.anim({card:'rn-card',ctl:'rn-ctl',n:D.scen[mode].steps.length,draw,ms:1500,label:'Step',tab:'t-run'});
-  $('rn-seg').innerHTML=ORDER.map(k=>'<button data-m="'+k+'"'+(k===mode?' class="on"':'')+'>'+esc(LBL[k])+'</button>').join('');
-  RD.seg($('rn-seg'),m=>{mode=m;A.reset(D.scen[m].steps.length);A.play()});
-  addEventListener('resize',()=>{const t=$('t-run');if(t&&!t.hidden)A.redraw()});
+    $(P+'-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+S.length+': '+esc(c[0])+'</div><p>'+esc(c[1])+'</p>';
+    $(P+'-cnt').innerHTML=counters(mode,i);
+    $(P+'-hdr').textContent=(s.dir==='up'?'Team A to Team B':s.dir==='hook'?'Team B to Team A\'s webhook':'Team B to Team A')+', '+s.bytes.toLocaleString('en-US')+' bytes, at '+s.t+' ms';
+    $(P+'-raw').textContent=s.raw}
+  const A=RD.anim({card:P+'-card',ctl:P+'-ctl',n:D.scen[mode].steps.length,draw,ms:1500,label:'Step'});
+  $(P+'-seg').innerHTML=ORDER.map(k=>'<button data-m="'+k+'"'+(k===mode?' class="on"':'')+'>'+esc((lbl||LBL)[k])+'</button>').join('');
+  RD.seg($(P+'-seg'),m=>{mode=m;A.reset(D.scen[m].steps.length)});
+  RD.onResize(()=>A.redraw());
+  }
+  make('rpd',['main','resub','push','cancel'],{main:'Stream (the running example)',resub:'Stream dropped',push:'Push to a webhook',cancel:'Cancel'});
+  make('rpa',['auth'],{auth:'In-task auth (auth-required)'});
+  make('rpm',['mcp','main']);
 })();
