@@ -9,7 +9,7 @@
 | The paper | `t-read` | Headline card with the verdict; Problem, Idea, Data (WIT), Objective (predict question with the toy Figure 2 runs, the write-the-caption against pick-the-pair animation, Figure 3 transcribed and linked to a live eight-pair batch with a temperature slider), Encoders and training, Zero-shot (supervised head against zero-shot classifier animation, Table 1), Prompts (with the toy's honest result), How good (Figure 5 recomputed, predict question on Figure 7, Figures 8 and 9), Linear probes, Robustness (predict question on Figure 13, the toy robustness test), Humans, overlap and bias (details), Limitations, Why it matters, Connections, How much of this to believe, What it takes to use this. |
 | Run a tiny CLIP | `t-run` | The trained toy CLIP in the browser: classify any image against any classes written in words (seven class sets, four prompt modes, a word-shuffle test), a fresh-image test, text search, the few-shot probe chart, every run's curves, the honesty notes. |
 | The paper's tables, rebuilt | `t-tables` | Table 1; any two of Tables 10 and 11's 75 rows dataset by dataset; Figure 8 recomputed per CLIP model; Figure 10's averages; Table 16 with the ObjectNet reconciliation; Tables 2, 8, 12, 13, 14, 17; Tables 18 to 20 with the text-encoder recount; a "does not reproduce or does not agree" box. |
-| Then and now | `t-then` | The recipe card changed one paper at a time (ALIGN, LiT, CoCa, OpenCLIP, SigLIP, DataComp, MetaCLIP, DFN, SigLIP 2) with each reported zero-shot ImageNet number, and softmax against sigmoid on one toy batch. |
+| Then and now | `t-then` | The recipe card changed one paper at a time (ALIGN, LiT, CoCa, OpenCLIP, SigLIP, DataComp, MetaCLIP, DFN, SigLIP 2) with each reported zero-shot ImageNet number, and SigLIP's sigmoid loss in one paragraph (its animation moved to its owner, Vision encoders, on 2026-10-25). |
 | Further reading | `t-more` | Generated from `paper.json`. |
 
 ## Departures from papers.md, and why
@@ -50,3 +50,32 @@ Zero-shot with "a photo of a {class}", float weights (the shipped 6-bit model: 8
 ## Checks (2 October 2026)
 
 See the agent's report; `sh html_utils/checkpage.sh <folder>` and `node .../src/check_page.mjs` are the two checks, `check_forward.py` the model check, `mk_coverage.py` the coverage check (88 of 88 items verified).
+
+## The 2026-10-25 light pass (teaching contract)
+
+What changed and why:
+- **Top**: the core sentence and a hero: the paper's Figure 1 redrawn as two static panels (training: a 4 × 4 grid of image-caption similarities with the true pairs on the diagonal; test: class names written as sentences, compared with a new image), `14_js_hero.js`. The paper is under arXiv's non-exclusive licence, not CC BY, so it is redrawn, not embedded; the bar lengths are labelled illustrative. Then "You need" (ViT, softmax cross-entropy; the owners of InfoNCE and of CLIP-style encoders today) and the new terms.
+- **Visuals inline**: Figure 7 (examples per class), Figure 13 (ResNet-101 against zero-shot CLIP under shift) and the toy's Figure 2 curves left their predict reveals; each sits in a card right after its question ("answer the question above before you look"). The Run a tiny CLIP tab stays a tab: a lab used by the Objective, Prompts, How good and Robustness sections.
+- **No autoplay**: `11_js_ui.js` replaced by the patched copy (as on DDPM and LoRA), so the objective, zero-shot and Then and now animations wait on their first step; `90_js_tabs.js` replaced by the template `99_js_tabs.js` (storage key `clip-tab`). `check_page.mjs` now fails if `ob`, `zs` or `tn` moves before a click, and opens every closed block.
+- **Owned elsewhere, linked with a sentence kept**: InfoNCE and its temperature (Contrastive and self-supervised learning); batch size and temperature in CLIP-style training, zero-shot classification with today's encoders, data curation (LAION, DataComp, MetaCLIP, DFN), minimal-pair failures and the softmax-against-sigmoid comparison (Vision encoders). **Removed**: the Then and now softmax-against-sigmoid animation, which drew SigLIP's loss (not this paper's) and duplicated the owner's visual; its numbers (t = 10, b = −10, single pass, saturating at about 32k) stay in a paragraph that links the owner.
+- **Closed**: earlier work on learning from text; the paper's naming of the family; WIT's query construction; the encoders in detail with the text-encoder recount and the scaling rule; zero-shot as the paper defines it; prompts in full (the core keeps +1.3%, +3.5%, almost 5 points); why linear probes and the protocol; all 27 datasets with Figures 11 and 12; the seven shifts and relative robustness; the successors' sources; the paper's small inconsistencies.
+- **Volatile**: the old page's unconfirmed usage claims (frontier lineage, "default open vision tower", vector databases) moved into one dated closed block.
+- Header: "Reading: 25 min, plus 12 in closed details.", read by `build.sh` from `reading.json`.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After |
+|---|---|---|
+| The paper, core | 25.3 min (5,819 words) | 24.5 min (5,636) |
+| The paper, closed | 7.0 min (1,621) | 12.0 min (2,759) |
+| Run a tiny CLIP | 4.5 min | unchanged |
+| The paper's tables, rebuilt | 8.1 min | unchanged |
+| Then and now | 2.3 min | 1.9 min |
+| Visuals drawn in Reading (audit) | 5 | 9 |
+
+Why about 25 minutes is right: the audit counts the pseudocode and every predict reveal as core, so the prose itself is nearer 21 minutes. The added top (core sentence, hero, terms, about 1.5 minutes) was paid for by closing about 5 minutes of provenance and detail. What stays open is the paper's argument in its order, and each section carries a result with its number: the objective and its efficiency claim, zero-shot transfer and Table 1, prompts, Figures 5 to 9, linear probes, robustness, limitations, and the evidence section, which this page owns. The paper is 48 pages; cutting further would drop results, not repetition.
+
+## Knowledge ledger (`ledger.json`, labelled by `label_ledger.py`)
+320 units: core 210, depth 96, owned 7, volatile 2, fat 5. 310 drafted by `ledger.py init`; 10 added (core sentence, hero, new terms, six owner links, the script-drawn tables). `ledger.py check`: problems 0.
+
+## Checks (25 October 2026)
+`checkpage.sh`: tabs 5, 299 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 778 actions, 0 problems (including no movement before a click and every closed block opened). `mk_coverage.py`: 88 of 88 (the reading-time and Problem keys updated). The model and its JS are unchanged, so `check_forward.py` was not rerun.

@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "11 min read, +~4h 10m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "11 min read, +~4h 10m resources"', 'replaced by the measured subtitle (src/reading.json, 2026-10-25)', ['Reading: ', 'in closed details']),
  ('Authors (12) and lab OpenAI', R + ', headline card', ['Alec Radford', 'Jong Wook Kim', 'Chris Hallacy', 'Aditya Ramesh', 'Gabriel Goh', 'Sandhini Agarwal', 'Girish Sastry', 'Amanda Askell', 'Pamela Mishkin', 'Jack Clark', 'Gretchen Krueger', 'Ilya Sutskever', 'OpenAI']),
  ('Date: February 2021 (ICML 2021)', R + ', headline card', ['February 2021', 'ICML 2021']),
  ('Link arXiv (~2h, long paper)', 'card and Further reading', ['https://arxiv.org/abs/2103.00020', '(2h)']),
@@ -24,7 +24,7 @@ C = [
  # problem
  ('Vision trained on fixed predetermined categories (1000 ImageNet, 18k weakly supervised)', R + ', Problem', ['the 1,000 ImageNet classes, or 18,291 for the largest weakly supervised work']),
  ('Any new concept needs new labelled data and a new head', R + ', Problem', ['needs new labelled data and a new output head']),
- ('NLP escaped via task-agnostic web-text pretraining and zero-shot transfer (GPT-2/3)', R + ', Problem; Zero-shot (GPT-1 and GPT-2)', ['Task-agnostic pre-training on raw web text', 'let GPT-3 transfer zero-shot', "GPT-1 and GPT-2's zero-shot task learning"]),
+ ('NLP escaped via task-agnostic web-text pretraining and zero-shot transfer (GPT-2/3)', R + ', Problem; Zero-shot (GPT-1 and GPT-2)', ['task-agnostic pre-training on raw web text', 'let GPT-3 transfer zero-shot', "GPT-1 and GPT-2's zero-shot task learning"]),
  ('Vision relied on crowd-labelled datasets', R + ', Problem', ['Vision still pre-trained on crowd-labelled ImageNet']),
  ('Earlier image-from-text attempts (VirTex, ICMLM, ConVIRT, Visual N-Grams) proofs of concept at small scale', R + ', Problem', ['VirTex, ICMLM and ConVIRT in 2020', 'proofs of concept', 'Visual N-Grams']),
  ('Visual N-Grams 11.5% zero-shot ImageNet', R + ', Problem; Table 1', ['Visual N-Grams, reached 11.5% on ImageNet']),

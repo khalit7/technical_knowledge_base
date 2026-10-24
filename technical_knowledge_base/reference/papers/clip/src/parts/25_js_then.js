@@ -37,25 +37,5 @@ function tnDraw(m,k,e,w){const f=card(k),ch=ST[k].ch;let s='';const lw=Math.min(
   return svgW(w,T+H,s,'recipe and zero-shot ImageNet over time')}
 function tnCnt(m,k){const S=ST[k];return stat('Changed',S.ch.length?S.ch.map(c=>FIELDS.find(f=>f[0]===c)[1].toLowerCase()).join(', '):'the starting recipe','')+stat('Zero-shot ImageNet',S.zs!=null?S.zs+'%':'not reported as one number','')+stat('Source','<a href="'+S.src[1]+'" target="_blank" rel="noopener noreferrer">'+S.src[0]+'</a>','')}
 makeAnim({id:'tn',modes:{x:ST.map(s=>({t:s.t,c:s.c}))},mode:'x',draw:tnDraw,counters:tnCnt,dur:3200});
-// ---------- softmax against sigmoid ----------
-const SP=[...Array(8)].map((_,i)=>pair(SEED_PAGE+40+i)),n=8;
-const COS=SP.map(a=>SP.map(b=>CLIP.dot(CLIP.image(a.img,'s'+a.seed).e,CLIP.text(b.cap).e)));
-const lsig=z=>z>=0?-Math.log1p(Math.exp(-z)):z-Math.log1p(Math.exp(z));
-function sgVals(m){if(m==='soft'){const L=COS.map(r=>r.map(v=>v*CLIP.scale)),Pr=L.map(r=>CLIP.softmax(r)),Pc=L.map((r,i)=>CLIP.softmax(L.map(q=>q[i])));
-    const lse=v=>{const mx=Math.max(...v);return mx+Math.log(v.reduce((s,x)=>s+Math.exp(x-mx),0))};let li=0,lt=0;for(let i=0;i<n;i++){li+=lse(L[i])-L[i][i];lt+=lse(L.map(r=>r[i]))-L[i][i]}
-    return {L,P:Pr,Pc,loss:(li+lt)/(2*n)}}
-  const L=COS.map(r=>r.map(v=>10*v-10)),P=L.map(r=>r.map(z=>1/(1+Math.exp(-z))));let l=0;for(let i=0;i<n;i++)for(let j=0;j<n;j++)l-=lsig((i===j?1:-1)*L[i][j]);return {L,P,loss:l/n}}
-function sgDraw(m,k,e,w){const v=sgVals(m),cs=Math.min(34,(w-50)/n),x0=cs+8;let s='';
-  for(let j=0;j<n;j++)s+=tx(x0+j*cs+cs/2,12,'T'+(j+1),{a:'middle',fs:11,w:600});
-  for(let i=0;i<n;i++){s+=svgImg(SP[i].img,0,18+i*cs+1,cs-2);for(let j=0;j<n;j++){const x=x0+j*cs,y=18+i*cs;let val,lab;
-    if(k===0){const lo=Math.min(...v.L.flat()),hi=Math.max(...v.L.flat());val=(v.L[i][j]-lo)/(hi-lo);lab=v.L[i][j].toFixed(0)}
-    else if(m==='soft'){val=k===1?v.P[i][j]:v.Pc[j][i];lab=Math.round(100*val)}else{val=v.P[i][j];lab=Math.round(100*val)}
-    const focus=k===1&&m==='soft'&&i===Math.min(n-1,Math.floor(e*n));
-    s+=heatCell(x+1,y+1,cs-2,cs-2,val,{s:i===j?'var(--good)':focus?'var(--c2)':null,sw:2})+tx(x+cs/2,y+cs/2+4,lab,{a:'middle',fs:11,c:val>.55?'#fff':'var(--ink)'})}}
-  const H=18+n*cs+20;s+=tx(0,H-4,k===0?'cells: logits':m==='soft'?(k===1?'cells: % of each row (rows sum to 100)':'cells: % of each column (columns sum to 100)'):'cells: σ(logit), % chance this pair is a match',{fs:11,c:'var(--mute)'});
-  return svgW(w,H,s,m==='soft'?'softmax loss on a batch':'sigmoid loss on a batch')}
-function sgCnt(m,k){const v=sgVals(m);return stat('Each cell\'s loss needs',m==='soft'?'its whole row and column':'only itself','')+stat('Loss',k>=2?v.loss.toFixed(3):'',m==='soft'?'chance: ln 8 = 2.079':'sum over 64 cells, divided by 8')+stat('Logits',m==='soft'?'scale '+CLIP.scale.toFixed(1)+' × cos':'10 × cos − 10','')}
-const SGM={soft:[{t:'Logits: the learned scale times cosine',c:'The toy CLIP\'s own similarity matrix for eight pairs; the true pairs are on the diagonal.'},{t:'Softmax across each row',c:'Each image\'s scores are normalised against the other seven captions: one cell\'s probability depends on the whole row. At scale, the row is 32,768 long and spread over many devices.'},{t:'Softmax down each column, then average',c:'The same for each caption over the images; the loss is the mean of both cross-entropies, Figure 3\'s symmetric loss.'}],
-  sig:[{t:'Logits: t · cos + b',c:'The same cosines with SigLIP\'s starting values t = 10 and b = −10: every pair begins as a probable "no".'},{t:'A sigmoid on each cell, independently',c:'Each cell is a binary question, "are these two a pair?", answered without looking at the rest of the batch.'},{t:'Sum the 64 binary losses',c:'Label +1 on the diagonal, −1 elsewhere; −Σ log σ(label · logit) / n. No normalisation across the batch, so no all-gather of the whole matrix is needed.'}]};
-makeAnim({id:'sg',modes:SGM,mode:'sig',draw:sgDraw,counters:sgCnt,dur:2600});
+// (the softmax-against-sigmoid animation moved to its owner, the Vision encoders page, on 2026-10-24)
 })();

@@ -42,6 +42,14 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
+    // nothing may move before the reader acts (2026-10-24): scroll each animation into view and wait
+    for (const id of ['ob', 'zs', 'tn']) {
+      if (!(await p.$(`#${t} #${id}`))) continue;
+      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(900);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`);
+    }
+    // closed details hold controls and outputs too: open them all
+    await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(200); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }
@@ -94,7 +102,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       await p.$eval('#rn', e => e.scrollIntoView()); const el = await p.$('#rn'); await el.screenshot({ path: `${shots}/x-run-${scheme}-${width}.png` });
     }
     // step the animations through every step and screenshot the middle
-    for (const id of ['ob', 'zs', 'tn', 'sg']) {
+    for (const id of ['ob', 'zs', 'tn']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {

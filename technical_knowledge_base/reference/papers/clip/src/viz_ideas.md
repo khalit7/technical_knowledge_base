@@ -31,3 +31,10 @@ Scores: reproduces or is computable (double), parameter to move, shows what a se
 - A rule for figures that print a few labels on otherwise unreadable plots: Figure 2's arrows join labelled x-axis ticks, so the 3× and 4× can be recomputed from the ticks without reading a curve. Worth adding: "arrows and annotations that join printed ticks may be recomputed from the ticks".
 - Anchors that the arXiv HTML numbers out of step with the paper (S7.T4 is Table 3, A1.F22 is Table 11): `mk_paper.py` now takes an override map; the shared copy could too.
 - Reading time: a long paper owns many details; this page counts closed `<details>` blocks separately in the header.
+
+## 2026-10-25 light pass
+| # | Idea | Placement | Status | Notes |
+|---|---|---|---|---|
+| P-clip.18 | **Hero: Figure 1 redrawn** (N × N pair grid; class names as sentences against a new image) | Reading, top | built | static, schematic; arXiv non-exclusive licence, so redrawn |
+| P-clip.19 | Figures 7 and 13 and the toy Figure 2 curves out of the predict reveals | Reading | moved | each in a card after its question |
+| P-clip.20 | Softmax against sigmoid on one toy batch (Then and now; P-clip.12) | none | removed | SigLIP's loss, owned and drawn by Vision encoders; linked instead |
