@@ -17,13 +17,3 @@ ST.ddPlot=function(el,kind,lam,o){
   el.innerHTML=RD.svg(W,H,s,'Double descent: test error, bias squared and variance against the number of features')+
     '<div class="leg"><span style="--sw:var(--c1)">test error (mean of '+D.T.toLocaleString('en')+' training sets)</span><span style="--sw:var(--c3)">bias² (dashed)</span><span style="--sw:var(--c2)">variance (dotted)</span>'+(lam===0?'<span style="--sw:transparent">\u25cb Theorem 1, exact (circles)</span>':'')+'</div>';
 };
-(function(){
-  const card=document.getElementById('rd-dd-card');if(!card)return;let lam=0;
-  function draw(){const el=document.getElementById('rd-dd-svg');ST.ddPlot(el,'even',lam,{});
-    const r=SD.dd.betas.even[String(lam)],P=SD.dd.p,at=(a,p)=>a[P.indexOf(p)];
-    const f=v=>v>=1000?Math.round(v).toLocaleString('en'):v.toFixed(3);
-    document.getElementById('rd-dd-cnt').innerHTML=RD.stat('error at p = 10',f(at(r.mean,10)),'below the threshold')+RD.stat('error at p = 40',f(at(r.mean,40)),lam===0?'Theorem 1: infinite':'ridge tames the peak')+RD.stat('error at p = 100',f(at(r.mean,100)),'past the threshold')+RD.stat('variance at p = 40',f(at(r.var,40)),'bias² '+f(at(r.bias2,40)));
-  }
-  RD.seg(document.getElementById('rd-dd-seg'),m=>{lam=+m;draw()});
-  RD.onRender(draw);RD.onResize(draw);draw();
-})();

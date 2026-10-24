@@ -178,4 +178,40 @@ put("bf_ev1", ev1, 4); put("bf_ev0", ev0, 5); put("bf10", ev1 / ev0, 2); put("bf
 put("overlap_sep", 2 * z975, 2); put("overlap_needed", z975 * math.sqrt(2), 2)
 put("overlap_p", 2 * (1 - Phi(2 * z975 / math.sqrt(2))), 4)
 
+# ---- 2026-10-24 rebuild: maximum likelihood, A/B sample size, regression as statistics, conjugate priors ----
+# MLE of the tiny model's word probabilities from the n = 30 bootstrap sample's counts (22 cat, 5 dog, 3 sat)
+cnt = np.array(S["boot"]["tiny30"]["counts"], float); nn = cnt.sum(); ph = cnt / nn
+E["mle_counts"] = [int(v) for v in cnt]; E["mle_phat"] = [round(float(v), 3) for v in ph]
+put("mle_se_cat", math.sqrt(ph[0] * (1 - ph[0]) / nn), 4)
+put("mle_H_plugin", float(-(ph[ph > 0] * np.log(ph[ph > 0])).sum()), 3)
+# coin: 9 heads of 10; curvature of the log-likelihood at the MLE is n / (q (1 - q)); SE = 1 / sqrt(curvature)
+for k_, n_ in ((9, 10), (90, 100), (900, 1000)):
+    q = k_ / n_; put("mle_coin_info_%d" % n_, n_ / (q * (1 - q)), 1); put("mle_coin_se_%d" % n_, math.sqrt(q * (1 - q) / n_), 4)
+put("mle_wald_lo_10", 0.9 - z975 * math.sqrt(0.09 / 10), 3); put("mle_wald_hi_10", 0.9 + z975 * math.sqrt(0.09 / 10), 3)
+# A/B test, two proportions: baseline 10%, detect +1 point, alpha 0.05 two-sided, power 0.8
+p1, p2 = 0.10, 0.11
+put("ab_n_per_arm", (z975 + zb) ** 2 * (p1 * (1 - p1) + p2 * (1 - p2)) / (p2 - p1) ** 2, 0)
+put("ab_n_per_arm_half", (z975 + zb) ** 2 * (p1 * (1 - p1) + 0.105 * (1 - 0.105)) / 0.005 ** 2, 0)
+put("ab_n_per_arm_raw", (z975 + zb) ** 2 * (p1 * (1 - p1) + p2 * (1 - p2)) / (p2 - p1) ** 2, 3)
+put("ab_n_per_arm_half_raw", (z975 + zb) ** 2 * (p1 * (1 - p1) + 0.105 * (1 - 0.105)) / 0.005 ** 2, 3)
+put("ab_zsum2", (z975 + zb) ** 2, 3)
+put("power_n32_d05", Phi(0.5 * math.sqrt(32) - z975) + Phi(-0.5 * math.sqrt(32) - z975), 3)
+put("power_n10_d05", Phi(0.5 * math.sqrt(10) - z975) + Phi(-0.5 * math.sqrt(10) - z975), 3)
+put("power_n100_d05", Phi(0.5 * math.sqrt(100) - z975) + Phi(-0.5 * math.sqrt(100) - z975), 3)
+# regression as statistics: y = the eight numbers of section 3 against x = 1..8 (illustrative)
+xr = np.arange(1, 9, dtype=float); yr = x.copy()
+Sxx = float(((xr - xr.mean()) ** 2).sum()); Sxy = float(((xr - xr.mean()) * (yr - yr.mean())).sum())
+b1 = Sxy / Sxx; b0 = yr.mean() - b1 * xr.mean(); rss = float(((yr - b0 - b1 * xr) ** 2).sum()); s2r = rss / 6
+put("reg_Sxx", Sxx, 1); put("reg_Sxy", Sxy, 1); put("reg_b1", b1, 4); put("reg_b0", b0, 3); put("reg_rss", rss, 3)
+put("reg_s", math.sqrt(s2r), 3); put("reg_se_b1", math.sqrt(s2r / Sxx), 4); put("t6", stats.t.ppf(0.975, 6), 3)
+put("reg_t", b1 / math.sqrt(s2r / Sxx), 2); put("reg_p", 2 * stats.t.sf(b1 / math.sqrt(s2r / Sxx), 6), 4)
+put("reg_ci_lo", b1 - stats.t.ppf(0.975, 6) * math.sqrt(s2r / Sxx), 3); put("reg_ci_hi", b1 + stats.t.ppf(0.975, 6) * math.sqrt(s2r / Sxx), 3)
+for lam_ in (1, 10, 42):
+    put("reg_ridge_b1_%d" % lam_, Sxy / (Sxx + lam_), 4); put("reg_ridge_tau_%d" % lam_, math.sqrt(s2r / lam_), 3)
+# conjugate Beta priors for the coin (9 heads in 10)
+for nm, (a, b_) in (("unif", (1, 1)), ("scep", (5, 5)), ("jeff", (0.5, 0.5))):
+    A_, B_ = a + 9, b_ + 1
+    put("conj_%s_mean" % nm, A_ / (A_ + B_), 3); put("conj_%s_lo" % nm, stats.beta.ppf(0.025, A_, B_), 3)
+    put("conj_%s_hi" % nm, stats.beta.ppf(0.975, A_, B_), 3); put("conj_%s_pgt" % nm, stats.beta.sf(0.5, A_, B_), 3)
+
 json.dump(E, open(os.path.join(HERE, "expected.json"), "w"), indent=1)

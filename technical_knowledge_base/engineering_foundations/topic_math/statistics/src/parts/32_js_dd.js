@@ -1,4 +1,4 @@
-// ---- Double descent lab (data: SD.dd from sims.py) ----
+// ---- Reading s13: double descent, every signal and ridge strength, with the singular values (data: SD.dd from sims.py) ----
 (function(){
   const card=document.getElementById('dd-card');if(!card)return;const D=SD.dd,P=D.p;let kind='even',lam=0;const sl=document.getElementById('dd-p');
   function draw(){
@@ -21,6 +21,5 @@
   RD.seg(document.getElementById('dd-beta'),m=>{kind=m;draw()});
   RD.seg(document.getElementById('dd-lam'),m=>{lam=+m;draw()});
   sl.addEventListener('input',draw);
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-dd']=window.TAB_RENDER['t-dd']||[]).push(draw);
-  addEventListener('resize',()=>{if(!document.getElementById('t-dd').hidden)draw()});
+  RD.onRender(draw);RD.onResize(draw);draw();
 })();

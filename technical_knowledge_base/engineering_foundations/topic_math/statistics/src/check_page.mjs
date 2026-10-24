@@ -38,7 +38,12 @@ const must = [
   f(E.overlap_sep, 2), f(E.overlap_needed, 2), f(E.overlap_p, 4),
   f(E.grid_normal_30_t * 100, 1), f(E.grid_tiny_30_t * 100, 1), f(E.grid_lognormal_5_t * 100, 1), f(E.grid_lognormal_30_t * 100, 1), f(E.grid_lognormal_30_pct * 100, 1), f(E.grid_lognormal_30_bca * 100, 1),
   f(E.grid_t3_10_bca * 100, 1), f(E.grid_t3_10_t * 100, 1), String(E.anim.normal30.cov_t), String(E.anim.tiny30.cov_t), String(E.anim.lognormal5.cov_t), String(E.anim.lognormal5.cov_z),
-  f(E.peek['10'] * 100, 1), f(E.peek['100'] * 100, 1)];
+  f(E.peek['10'] * 100, 1), f(E.peek['100'] * 100, 1),
+  f(E.mle_se_cat, 4), f(E.mle_H_plugin, 3), f(E.mle_coin_info_10, 1), f(E.mle_coin_se_10, 4), f(E.mle_coin_se_100, 3), f(E.mle_coin_se_1000, 4), f(E.mle_wald_lo_10, 3), f(E.mle_wald_hi_10, 3),
+  f(E.power_n32_d05 * 100, 1), f(E.power_n10_d05 * 100, 1), f(E.ab_zsum2, 3), Math.ceil(E.ab_n_per_arm_raw).toLocaleString('en'), Math.ceil(E.ab_n_per_arm_half_raw).toLocaleString('en'),
+  f(E.reg_b1, 4), f(E.reg_b0, 3), f(E.reg_rss, 3), f(E.reg_s, 3), f(E.reg_se_b1, 4), f(E.t6, 3), f(E.reg_t, 2), f(E.reg_p, 4), f(E.reg_ci_lo, 3), f(E.reg_ci_hi, 3),
+  f(E.reg_ridge_b1_1, 4), f(E.reg_ridge_b1_10, 4), f(E.reg_ridge_b1_42, 4), f(E.reg_ridge_tau_1, 3), f(E.reg_ridge_tau_10, 3), f(E.reg_ridge_tau_42, 3),
+  f(E.conj_scep_mean, 3), f(E.conj_scep_lo, 3), f(E.conj_scep_hi, 3), f(E.conj_scep_pgt, 3), f(E.conj_jeff_mean, 3), f(E.conj_jeff_lo, 3), f(E.conj_jeff_hi, 3)];
 for (const s of must) ok(both.includes(s), 'text number ' + s);
 // the entropy table
 for (const n of ['5', '10', '30']) for (const k of ['plugin', 'mm']) ok(text.includes(f(E['ent_' + k + '_' + n].mean, 3)), 'entropy table mean ' + k + ' ' + n);
@@ -90,10 +95,6 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (let i = 0; i <= 16; i++) { await scrub('rd-conc-n', i); await noBad('#rd-conc-cnt', 'conc ' + i) }
   await scrub('rd-conc-n', 10); { const t = await txt('#rd-conc-cnt'); ok(t.includes(E.exact500.toPrecision(3).replace(/0+$/, '')) && t.includes(E.hoeff500.toPrecision(3)) && t.includes(E.clt500.toPrecision(3)), 'conc at 500: ' + t) }
   await shot('#rd-conc-card', 'conc');
-  // double descent inline
-  for (const m of ['0.1', '0']) { await click('#rd-dd-seg button[data-m="' + m + '"]'); await noBad('#rd-dd-cnt', 'dd inline ' + m) }
-  { const t = await txt('#rd-dd-cnt'); ok(t.includes(E.dd_even_sim_p10.toFixed(3)) && t.includes(E.dd_even_sim_p100.toFixed(3)), 'dd inline numbers: ' + t) }
-  await shot('#rd-dd-card', 'dd-inline');
   // peek table
   { const t = await txt('#rd-peek-tab'); ok(t.includes((100 * E.peek['10']).toFixed(1) + '%'), 'peek table') }
 
@@ -108,8 +109,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (const m of ['z', 'pct']) await p.$eval('#lab-meth input[value="' + m + '"]', e => { e.click() });
   await noBad('#lab-tab', 'lab after unchecking'); await shot('#lab-card', 'lab');
   for (const m of ['z', 'pct']) await p.$eval('#lab-meth input[value="' + m + '"]', e => { e.click() });
-  // Double descent lab
-  await click('#tabs button[data-t="t-dd"]');
+  // Double descent (Reading section 13; formerly its own tab)
+  await click('#tabs button[data-t="t-read"]');
   for (const k of ['even', 'decay05', 'decay1']) {
     await click('#dd-beta button[data-m="' + k + '"]');
     for (const l of ['0', '0.01', '0.1', '1']) {
@@ -120,6 +121,15 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     const t = await txt('#dd-cnt'); ok(t.includes(E['dd_' + k + '_theory_p10'].toFixed(3)) && t.includes(E['dd_' + k + '_sim_p10'].toFixed(3)), 'dd lab p10 ' + k + ': ' + t);
   }
   await scrub('dd-p', 40); await shot('#dd-card', 'ddlab');
+  await click('#tabs button[data-t="t-read"]');
+  // new Reading figures (2026-10-24): every control, no NaN, numbers equal recompute.py
+  for (const m of ['10', '100', '1000']) { await click('#rd-ll-seg button[data-m="' + m + '"]'); const t = await txt('#rd-ll-cnt'); ok(!/NaN|undefined|Infinity/.test(t) && t.includes(E['mle_coin_se_' + m].toFixed(4)), 'll ' + m + ': ' + t) }
+  { await click('#rd-ll-seg button[data-m="10"]'); const t = await txt('#rd-ll-cnt'); ok(t.includes(E.mle_wald_lo_10.toFixed(3)) && t.includes(E.mle_wald_hi_10.toFixed(3)), 'll wald') }
+  for (const n of [4, 10, 30, 32, 100]) { await scrub('rd-pow-n', n); const t = await txt('#rd-pow-cnt'); ok(!/NaN|undefined/.test(t), 'pow ' + n); const want = { 10: E.power_n10_d05, 30: E.power_n30_d05, 32: E.power_n32_d05, 100: E.power_n100_d05 }[n]; if (want != null) ok(t.includes((100 * want).toFixed(1) + '%'), 'power at ' + n + ': ' + t) }
+  for (const m of ['unif', 'scep', 'jeff']) { await click('#rd-post-seg button[data-m="' + m + '"]'); const t = await txt('#rd-post-cnt'); ok(t.includes(E['conj_' + m + '_mean'].toFixed(3)) && t.includes(E['conj_' + m + '_lo'].toFixed(3)) && t.includes(E['conj_' + m + '_pgt'].toFixed(3)), 'posterior ' + m + ': ' + t) }
+  for (const l of [0, 1, 10, 42, 100]) { await scrub('rd-reg-l', l); const t = await txt('#rd-reg-cnt'); ok(!/NaN|undefined/.test(t), 'reg ' + l); if (l === 0) ok(t.includes(E.reg_b1.toFixed(4)), 'reg ols'); if ([1, 10, 42].includes(l)) ok(t.includes(E['reg_ridge_b1_' + l].toFixed(4)) && t.includes(E['reg_ridge_tau_' + l].toFixed(3)), 'ridge ' + l + ': ' + t) }
+  { const t = await p.$eval('#rd-perm-svg', e => e.textContent); ok(t.includes(E.perm_count + ' of 256'), 'perm count: ' + t.slice(0, 60)) }
+  for (const id of ['rd-hero-svg', 'rd-est-svg', 'rd-ss-svg', 'rd-null-svg', 'rd-bh-svg', 'rd-fold-svg']) ok(await p.$eval('#' + id, e => !!e.querySelector('svg')), 'figure drawn ' + id);
   await click('#tabs button[data-t="t-more"]'); await click('#tabs button[data-t="t-read"]');
   const box = await p.$eval('#jsErr', e => e.hidden); ok(box, 'error box hidden ' + tag);
   ok(errs.length === 0, 'console errors ' + tag + ': ' + errs.join(' | '));
