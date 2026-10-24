@@ -36,5 +36,5 @@
     $('sl-f-scale').innerHTML=RD.stat('Text as JSONL',tb(sz('jsonl')),'uncompressed')+RD.stat('JSONL + zstd 3',tb(sz('jsonl.zst')),'')+RD.stat('Parquet + zstd 3',tb(sz('parquet.zstd3')),'')+
       RD.stat('Token file, 4 bytes',tb(sz('bin')),'Qwen3-size vocabulary')+RD.stat('Token file, 2 bytes',tb(2*Tq),'vocabulary under 65,536')}
   $('sl-f-t').addEventListener('input',scale);scale();
-  RD.onRender(draw,'t-fmt');draw();
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-fmt']=window.TAB_RENDER['t-fmt']||[]).push(draw);draw();
 })();

@@ -36,27 +36,32 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
     ok(!side,scheme+' '+width+' '+t+': no sideways scroll');
   }
   ok(errs.length===0&&!(await p.evaluate(()=>!document.getElementById('jsErr').hidden)),scheme+' '+width+': no JS errors ('+clicks+' controls exercised)'+(errs.length?' '+errs.slice(0,3).join(' | '):''));
-  // element screenshots in a fresh state
-  await p.reload({waitUntil:'load'});
+  // element screenshots in a fresh state; first check that no animation has moved on its own
+  await p.reload({waitUntil:'load'});await p.click('#tabs button[data-t="t-read"]');
+  for(const id of ['sl-meg-ctl','sl-p-ctl','sl-s-ctl']){await p.evaluate(id=>document.getElementById(id).scrollIntoView(),id);await new Promise(r=>setTimeout(r,1500));
+    const st=await p.evaluate(id=>[document.getElementById(id+'-s').value,document.getElementById(id+'-p').textContent],id);
+    ok(!/Pause/.test(st[1]),scheme+' '+width+' '+id+' does not autoplay (step '+st[0]+')')}
   for(const [t,sel,prep] of [['t-read','#sl-meg',async()=>{await p.evaluate(()=>{const s=document.getElementById('sl-meg-ctl-s');s.value=8;s.dispatchEvent(new Event('input'))})}],
       ['t-read','#sl-meg',async()=>{await p.evaluate(()=>{document.querySelector('#sl-meg-seg button[data-m=nano]').click();const s=document.getElementById('sl-meg-ctl-s');s.value=s.max;s.dispatchEvent(new Event('input'))})}],
       ['t-read','#sl-fwpq',null],['t-read','#sl-cmp',null],['t-read','#sl-wrap',null],['t-read','#sl-shsum',null],
-      ['t-pack','#sl-p-card',async()=>{await p.evaluate(()=>{document.querySelector('#sl-p-s button[data-m=bfd]').click();const s=document.getElementById('sl-p-ctl-s');s.value=s.max;s.dispatchEvent(new Event('input'))})}],
-      ['t-shuf','#sl-s-card',null],['t-shuf','#sl-r-card',async()=>{await p.evaluate(()=>document.querySelector('#sl-r-m button[data-m=buffer]').click())}],
-      ['t-calc','#t-calc',null],['t-fmt','#sl-f-bars',null]]){
+      ['t-read','#sl-p-card',async()=>{await p.evaluate(()=>{document.querySelector('#sl-p-s button[data-m=bfd]').click();const s=document.getElementById('sl-p-ctl-s');s.value=s.max;s.dispatchEvent(new Event('input'))})}],
+      ['t-read','#sl-s-card',null],['t-read','#sl-r-card',async()=>{await p.evaluate(()=>document.querySelector('#sl-r-m button[data-m=buffer]').click())}],
+      ['t-read','#sl-c-card',null],['t-read','#sl-hero-card',null],['t-read','#sl-shd',null],['t-read','#sl-shard',null],
+      ['t-read','#sl-pf-card',null],['t-read','#sl-pf-card',async()=>{await p.evaluate(()=>{document.querySelector('#sl-pf-st button[data-m=model]').click();const s=document.getElementById('sl-pf-f');s.value=180;s.dispatchEvent(new Event('input'))})}],
+      ['t-fmt','#sl-f-bars',null]]){
     await p.click('#tabs button[data-t="'+t+'"]');if(prep)await prep();const el=await p.$(sel);
-    if(el)await el.screenshot({path:path.join(shots,'el-'+scheme+'-'+sel.slice(1)+(prep&&sel==='#sl-meg'?(await p.evaluate(()=>document.querySelector('#sl-meg-seg .on').dataset.m)):'')+'.png')})}
+    if(el)await el.screenshot({path:path.join(shots,'el-'+scheme+'-'+sel.slice(1)+(prep&&sel==='#sl-meg'?(await p.evaluate(()=>document.querySelector('#sl-meg-seg .on').dataset.m)):prep&&sel==='#sl-pf-card'?'-model':'')+'.png')})}
   if(scheme==='light'){
     const emb=await p.evaluate(()=>JSON.stringify(window.SL));ok(emb===JSON.stringify(D),'page embeds exactly data/sl_data.json');
     // packing: browser code against packing.py at every L
-    await p.click('#tabs button[data-t="t-pack"]');
+    await p.click('#tabs button[data-t="t-read"]');
     for(const L of ['1024','2048','4096','8192']){await p.click('#sl-p-l button[data-m="'+L+'"]');const tx=await p.$eval('#sl-p-chk',e=>e.textContent);ok(/identical for all four/.test(tx),'packing JS = packing.py at L='+L)}
-    await p.click('#tabs button[data-t="t-shuf"]');
+    await p.evaluate(()=>document.querySelector('#sl-s-src button[data-m=rec]').click());
     const keys=Object.keys(D.shuf.orders);let allm=true;
     for(const k of keys){await p.select('#sl-s-rec',k);const tx=await p.$eval('#sl-s-out',e=>e.textContent);if(!/matches Python/.test(tx)){allm=false;console.log('  mismatch',k)}}
     ok(allm,'shuffle metrics recomputed in the browser match shuffle.py for all '+keys.length+' recorded schemes');
     // prose numbers against data
-    await p.click('#tabs button[data-t="t-read"]');const txt=await p.$eval('#t-read',e=>e.textContent.replace(/\s+/g,' '));
+    const txt=await p.$eval('#t-read',e=>e.textContent.replace(/\s+/g,' '));
     const f2=D.fmt2k,sz=k=>f2.sizes.find(s=>s.fmt===k).bytes,P2=D.pack.k2['2048'],M=k=>D.shuf.m[k],R=D.resume,mb=b=>(b/1e6).toFixed(2)+' MB';
     const claims=[[mb(sz('jsonl')),'JSONL size'],[mb(sz('jsonl.zst')),'zstd JSONL'],[mb(sz('parquet.zstd3')),'Parquet zstd 3'],[mb(sz('parquet.zstd')),'Parquet default'],
       [(100*P2.pad.pad_frac).toFixed(1)+'%','padding 2048'],[String(P2.concat.docs_cut)+' of the 2,000','docs cut'],[String(P2.bfd.docs_cut),'bfd cut'],[Math.round(100*P2.concat.cross_pair_frac)+'%','cross 2048'],
@@ -64,8 +69,8 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
       [f2.tokens.qwen3.ids_ge_65536.toLocaleString('en-US'),'ids >= 65536'],[f2.tokens.qwen3.docs_with_id_ge_65536.toLocaleString('en-US'),'docs wrapped'],
       [M('none').batch_distinct_mean.toFixed(1)+' bucket','none distinct'],['gives '+M('hf_buf1000_mbis1').batch_distinct_mean.toFixed(1),'buf1000'],[M('global').batch_distinct_mean.toFixed(1),'global'],
       [M('hf_buf100_mbis1').batch_distinct_mean.toFixed(1)+' buckets','buf100'],[M('dl4_hf_buf1000_mbis1').batch_distinct_mean.toFixed(1)+' buckets','dl4'],
-      [String(R.hf_buffer1000.never_seen),'hf lost'],[String(R.new_seed_restart.never_seen)+' never seen','new seed'],
-      [(D.llama.tokens_per_s/1e6).toFixed(1)+' million tokens','llama tps'],[D.llama.step_s.toFixed(1)+' s','llama step'],[Math.round(D.llama.mb_per_s_uint32)+' MB/s','llama MB/s'],
+      [String(R.hf_buffer1000.never_seen),'hf lost'],[String(R.new_seed_restart.never_seen)+' never','new seed'],
+      [(D.llama.tokens_per_s/1e6).toFixed(1)+' million tokens','llama tps'],[D.prefetch['s3|none'].total_s.toFixed(2),'prefetch none'],[D.llama.step_s.toFixed(1)+' s','llama step'],[Math.round(D.llama.mb_per_s_uint32)+' MB/s','llama MB/s'],
       [(D.xcheck.nemotron_bpt).toFixed(2)+' bytes per token','nemotron bpt'],[(D.xcheck.fineweb_bpt).toFixed(2)+' bytes per token','fineweb bpt'],['our '+(D.xcheck.ours_snappy_gpt2_bpt).toFixed(2),'ours snappy'],
       [(D.fw.footer_bytes/1e6).toFixed(1)+' MB','footer'],[String(D.fw.row_groups),'row groups'],[(D.fw.file_bytes/1e9).toFixed(2)+' GB','fw file'],
       [(100*D.meg.nanogpt_big.unseen_frac).toFixed(1)+'%','nanogpt unseen'],[(D.tok.chars_per_token).toFixed(2)+' characters','chars per token'],

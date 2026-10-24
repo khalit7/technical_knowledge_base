@@ -65,7 +65,7 @@ window.SLU=(function(){
   if(ss){const order=['none','hf_buf1_mbis1','hf_buf100_mbis1','hf_buf1000_mbis1','dl4_hf_buf1000_mbis1','hf_buf1000','mds_py1e_blk200','mds_py1e_blk262144','global'];
     ss.innerHTML='<div class="tw"><table><tr><th>Scheme</th><th class="num">Buckets per batch of 32</th><th class="num">Largest bucket share</th><th class="num">Distance from the true mix</th></tr>'+
       order.map(k=>{const m=sh.m[k];return '<tr><td>'+SHN[k]+'</td><td class="num">'+m.batch_distinct_mean.toFixed(1)+'</td><td class="num">'+U.pc(m.batch_top_mean,0)+'</td><td class="num">'+m.batch_tv_mean.toFixed(2)+'</td></tr>'}).join('')+'</table></div>'+
-      '<p class="small mute">11 buckets in equal amounts, so a perfect batch would hold all 11 at 9% each; a random batch of 32 from 11 equal buckets holds about 10.5. "Distance" is the total variation distance between a batch\'s bucket shares and the true 1/11 each, averaged over batches (0 = perfect, 0.91 = a single bucket). MosaicML orders are the library\'s global sample order for one canonical node, before it is divided among workers.</p>'}
+      '<p class="small mute">A random batch of 32 from 11 equal buckets holds about 10.5. Distance: total variation from 1/11 each, averaged over batches (0 = perfect, 0.91 = one bucket). MosaicML orders are the global order for one canonical node, before division among workers.</p>'}
   // worker trap output and resume table
   const R=S.resume,to=$('sl-trap-out');
   if(to)to.textContent='Naive '+R.worker_trap_naive.samples+' '+R.worker_trap_naive.distinct+'\nSharded '+R.worker_trap_sharded.samples+' '+R.worker_trap_sharded.distinct;
