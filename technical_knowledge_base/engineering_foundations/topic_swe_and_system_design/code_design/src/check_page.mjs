@@ -11,10 +11,10 @@ const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox
 const problems = []; let actions = 0;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const eq = (a, b, l) => { if (JSON.stringify(a) !== JSON.stringify(b)) problems.push(l + ': page ' + JSON.stringify(a) + ' vs recompute ' + JSON.stringify(b)) };
-for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
+for (const [w, scheme, motion] of [[390, 'dark', 'reduce'], [920, 'light', 'no-preference']]) {
   const p = await browser.newPage();
   await p.setViewport({ width: w, height: 900 });
-  await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
+  await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: motion }]);
   p.on('pageerror', e => problems.push(w + ' pageerror ' + e.message));
   p.on('console', m => { if (m.type() === 'error') problems.push(w + ' console ' + m.text()) });
   await p.goto('file://' + path.join(base, 'index.html'));
@@ -36,6 +36,21 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const shot = async (sel, name) => { const el = await p.$(sel); if (el) { await el.scrollIntoView(); await sleep(100); await el.screenshot({ path: path.join(shots, 'el-' + name + '-' + w + '.png') }) } };
   const clickAll = async sel => { const n = await p.$$eval(sel, a => a.length); for (let i = 0; i < n; i++) { await p.evaluate((s, i) => document.querySelectorAll(s)[i].click(), sel, i); await sleep(30); await check(sel + ' ' + i) } };
   await tab('t-read'); await check('load');
+  // nothing moves before the reader acts: scroll each animation into view, wait, and expect step 0
+  for (const id of ['rf-ctl', 'wa-ctl']) { await p.$eval('#' + id, e => e.scrollIntoView()); await sleep(4200); const v = await p.$eval('#' + id + '-s', e => +e.value); if (v !== 0) problems.push(w + ' ' + id + ' autoplayed to ' + v) }
+  // hero numbers and static captions against recompute.py
+  const heroTxt = await p.$eval('#cd-hero', e => e.textContent);
+  for (const [k, v] of Object.entries(ref.hidden)) if (!heroTxt.includes(v + (v === 1 ? ' line' : ' lines'))) problems.push(w + ' hero lacks ' + k + ' ' + v + ' lines');
+  const readTxt = await p.$eval('#t-read', e => e.textContent);
+  if (!readTxt.includes('split into ' + ref.idem_runs_before + ' separate runs')) problems.push(w + ' hero caption idem runs');
+  if (!readTxt.includes('claim_key hides ' + ref.claim_key[1] + ' lines behind ' + ref.claim_key[0] + ' parameters')) problems.push(w + ' depth caption claim_key');
+  await shot('#cd-hero', 'hero'); await shot('#lay', 'layers'); await shot('#ag-svg', 'agent'); await shot('#debt-svg', 'debt'); await shot('#dep-tl', 'deptl');
+  // composition toggle
+  for (const k of ['1', '2', '3']) { await p.click('#ci-seg button[data-m="' + k + '"]'); await sleep(40); await check('ci ' + k);
+    const t = await p.$eval('#ci-title', e => e.textContent); const [a, c] = ref.composition[k]; if (!t.includes(a + ' classes') || !t.includes('needs ' + c)) problems.push(w + ' composition ' + k + ': ' + t) }
+  await shot('#ci-card', 'composition');
+  // wrong-abstraction stepper
+  for (let i = 0; i < 5; i++) { if (i) await p.evaluate(() => document.getElementById('wa-ctl-f').click()); await check('wa ' + i); if (i === 3) await shot('#wa-card', 'wrongabs') }
   eq(await p.$eval('[data-v="calc.pdRatio"]', e => e.textContent), ref.pdRatio, 'pydantic/dataclass ratio');
   // concerns toggle
   await clickAll('#cnc-seg button'); await p.click('#cnc-seg button[data-m="0"]'); await shot('#cnc-card', 'concerns');
@@ -45,7 +60,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await p.click('#llm-seg button[data-m="2"]'); await shot('#llm-card', 'llm');
   await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true)); await check('details open');
   await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = false));
-  await shot('#dep-card', 'depth'); await shot('#bench-bars', 'bench'); await shot('#lay', 'layers');
+  await shot('#dep-card', 'depth'); await shot('#bench-bars', 'bench');
   // refactor animation: step through every step in both modes and compare counters
   const counters = async () => p.$$eval('#rf-cnt .stat .v', a => a.map(x => x.textContent));
   await p.evaluate(() => document.querySelector('#rf-seg button[data-m="steps"]').click()); await sleep(50);
@@ -63,8 +78,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await shot('#rf-card', 'refactor-bang');
   for (const id of ['rf-ctl-b', 'rf-ctl-p', 'rf-ctl-p']) { await p.evaluate(i => document.getElementById(i).click(), id); await sleep(40); await check(id) }
   await p.select('#rf-ctl-v', '2'); await check('speed');
-  // glossary links and nav
-  const gl = await p.$$eval('#gloss div', a => a.filter(d => d.textContent.trim().endsWith(':')).length); if (gl) problems.push(w + ' ' + gl + ' glossary terms without definition');
+  // nav
   await clickAll('#rd-nav a');
   // Review lab
   await tab('t-review'); await check('review');

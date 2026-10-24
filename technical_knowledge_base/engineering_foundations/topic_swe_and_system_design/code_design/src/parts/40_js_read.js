@@ -28,6 +28,7 @@
     ['store','Database','--c3',/DB\.|save_reply|chat_exists|msg_id|credits|\bout = |chat_id, owner|Chat not found/],
     ['model','Model call and stream','--c2',/sleep|reply|fake_stream|StreamingResponse|body\.stream|Cache-Control/]];
   function concernOf(l){for(const c of CON)if(c[3].test(l))return c;return null}
+  RD.CON=CON;RD.concernOf=concernOf;
   function drawConcern(stepIdx){
     const st=CD.steps.find(s=>String(s.step)===String(stepIdx));const lines=st.handler.split('\n');
     const el=document.getElementById('cnc-code');
@@ -37,12 +38,6 @@
   }
   document.getElementById('cnc-leg').innerHTML=CON.map(c=>'<span style="--sw:var('+c[2]+')">'+c[1]+'</span>').join('');
   RD.seg(document.getElementById('cnc-seg'),m=>drawConcern(m));drawConcern(0);
-
-  // ---- layers (section 3) ----
-  const LAY=[['main.py','composition root: builds adapters, wires the app','--c5'],['api/','HTTP in, HTTP out (FastAPI routers)','--c1'],['services/','use cases: send_message, summarize_chat','--c4'],['domain/ + ports.py','pure rules and the Protocols the services need','--c3']];
-  document.getElementById('lay').innerHTML='<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.8fr);gap:8px;align-items:center">'+
-    '<div>'+LAY.map((l,i)=>'<div style="border:1px solid var(--line);border-left:5px solid var('+l[2]+');border-radius:8px;padding:6px 10px;background:var(--bg)"><b class="mono">'+l[0]+'</b><div class="small mute">'+l[1]+'</div></div>'+(i<LAY.length-1?'<div class="small mute" style="text-align:center;line-height:1.4">&#8595; imports</div>':'')).join('')+'</div>'+
-    '<div style="border:1px dashed var(--mute);border-radius:8px;padding:8px 10px;background:var(--soft)"><b class="mono">adapters/</b><div class="small mute">Postgres store, SQLite store, HTTP model client, Redis limiter, test fakes. Each implements a port; only <code>main.py</code> imports them.</div><div class="small" style="margin-top:6px">&#8592; built by main.py<br>&#8599; implements ports</div></div></div>';
 
   // ---- the LLM call, before and after (section 4) ----
   const S=CD.llm.scen;let si=2;
@@ -81,11 +76,10 @@
       const top=y+30;rowH=Math.max(rowH,h+34);
       body+='<rect x="'+cx+'" y="'+top+'" width="'+w+'" height="'+h+'" fill="var(--acc2)" stroke="var(--acc)"/>'+
         '<line x1="'+cx+'" y1="'+top+'" x2="'+(cx+w)+'" y2="'+top+'" stroke="var(--bad)" stroke-width="3"/>'+
-        RD.t(cx,top-16,esc(d.name),{fs:11,w:600})+RD.t(cx,top-4,d.params+' param'+(d.params>1?'s':'')+', '+d.body+' lines',{fs:10,fill:'var(--mute)'});
+        RD.t(cx,top-16,esc(d.name),{fs:11,w:600})+RD.t(cx,top-4,d.params+' param'+(d.params>1?'s':'')+', '+d.body+' lines',{fs:11,fill:'var(--mute)'});
       i++});
     const H=y+rowH+6;
     el.innerHTML=RD.svg(W,H,body,'Module depth of the helpers in the refactored service');
-    document.getElementById('dep-note').innerHTML='Sorted deepest first (lines hidden per parameter). <b>claim_key</b> hides '+(CD.depth.find(d=>d.name==='claim_key')||{}).body+' lines behind 3 parameters; <b>chat_exists</b> and <b>request_fingerprint</b> hide one line each and still earn their place, because their names say what a query or a hash is <i>for</i>. A shallow helper is fine when its name carries meaning; a shallow <i>layer</i> of them is classitis.';
   }
   drawDepth();RD.onResize(drawDepth);RD.onRender(drawDepth);
 
@@ -100,13 +94,4 @@
   document.getElementById('tools-ruff').innerHTML=CD.llm.static.before.ruff.map(v=>'<span class="l">before.py:'+v.line+'  <b>'+esc(v.code)+'</b>  '+esc(v.msg)+'</span>').join('');
   const fc=document.getElementById('fcis-src');fc.innerHTML='({{Functional Core, Imperative Shell|https://www.destroyallsoftware.com/screencasts/catalog/functional-core-imperative-shell}} screencast, 2012-07-12: "This functional core is surrounded by a shell of imperative code: it manipulates stdin, stdout, the database, and the network, all based on values produced by the functional core"; see also his talk {{Boundaries|https://www.destroyallsoftware.com/talks/boundaries}}, SCNA 2012)';
 
-  // ---- glossary ----
-  const G={complexity:'Whatever in a system\'s structure makes it hard to understand and change (Ousterhout).',module:'Any unit with an inside and an outside: function, class, file, package, service.',interface:'What a caller must know to use a module: names, parameters, results, errors, side effects.',impl:'Everything in a module the caller need not know.',
-    hex:'Ports and adapters: product rules in the middle, technology at the edges behind interfaces.',port:'An interface the core defines for something it needs (a store, a model).',adapter:'Code that implements a port for one technology.',io:'Anything that leaves the process: network, disk, database, clock, environment.',
-    pure:'A function whose result depends only on its arguments and which changes nothing outside.',fcis:'Decisions in pure functions (core), I/O in a thin outer layer (shell).',abstraction:'A simplified view that omits unimportant details.',shallow:'A module whose interface is nearly as complex as what it hides.',entry:'Packaging metadata through which an installed package advertises plugins.',
-    hint:'An annotation of the expected type, read by tools, ignored at run time.',checker:'A tool (mypy, pyright) that verifies type hints without running the code.',protocol:'A typing interface satisfied by any class with matching methods (PEP 544).',dataclass:'A standard-library class generator for plain records; no validation.',
-    exc:'An object raised to signal failure; travels up until caught.',eafp:'Try it and catch the failure, rather than checking first.',di:'Passing a function its collaborators instead of letting it create them.',fake:'A small working implementation used in tests.',mock:'A test object that records calls and returns canned values.',
-    wheel:'A built, installable Python package archive (.whl).',refactoring:'A change of structure that keeps observable behaviour.',char:'A test that records what code does today, to detect any change.',review:'A second engineer reading a change before it merges.'};
-  const terms=[...document.querySelectorAll('#t-read dfn[id]')].map(d=>({id:d.id,t:d.textContent,k:d.id.slice(2)})).sort((a,b)=>a.t.localeCompare(b.t));
-  document.getElementById('gloss').innerHTML=terms.map(x=>'<div><b><a href="#'+x.id+'">'+esc(x.t)+'</a></b>: '+esc(G[x.k]||'')+'</div>').join('');
 })();

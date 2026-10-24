@@ -15,7 +15,7 @@
       b+='<rect x="'+(x+bw*0.18)+'" y="'+yL(p.handler_lines)+'" width="'+(bw*0.64)+'" height="'+(H-bot-yL(p.handler_lines))+'" fill="var('+(bang?'--bad':'--acc2')+')" stroke="'+(on?'var(--ink)':'none')+'" stroke-width="2" opacity="'+op+'"/>';
       b+='<circle cx="'+(x+bw/2)+'" cy="'+yC(p.cc_handler)+'" r="'+(on?5:3.5)+'" fill="var(--c4)" opacity="'+op+'"/>';
       if(p.passed<p.total)b+=RD.t(x+bw/2,H-bot+24,'&#10007;',{a:'middle',fs:11,fill:'var(--bad)'});
-      b+=RD.t(x+bw/2,H-bot+12,bang?'R':String(p.step),{a:'middle',fs:10,fill:on?'var(--ink)':'var(--mute)',w:on?700:400});
+      b+=RD.t(x+bw/2,H-bot+12,bang?'R':String(p.step),{a:"middle",fs:11,fill:on?'var(--ink)':'var(--mute)',w:on?700:400});
     });
     el.innerHTML=RD.svg(W,H,b,'Handler length and complexity per step');
   }
@@ -35,6 +35,6 @@
     chart(s);
   }
   const A=RD.anim({card:'rf-card',ctl:'rf-ctl',n:seq.length,draw,ms:3000,label:'Refactoring step'});
-  RD.seg($('rf-seg'),m=>{mode=m;seq=m==='bang'?[STEPS[0],BANG]:STEPS;A.reset(seq.length);A.play()});
+  RD.seg($('rf-seg'),m=>{mode=m;seq=m==='bang'?[STEPS[0],BANG]:STEPS;A.reset(seq.length)});
   RD.onResize(()=>A.redraw());
 })();

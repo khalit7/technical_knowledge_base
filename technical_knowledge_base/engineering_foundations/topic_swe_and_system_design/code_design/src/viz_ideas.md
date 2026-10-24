@@ -23,3 +23,7 @@ The page's question: *what makes Python code cheap to read and safe to change, a
 
 ## What the methodology lacked here
 Code design has few published numbers to reproduce. The substitute was real artefacts: every metric, test result and failure on the page comes from running the scripts in `src/`, and `recompute.py` and `check_page.mjs` agree on every derived value.
+
+## 2026-10-24 rebuild (teaching contract)
+Built: hero (handler lines coloured by concern, before and after, plus helper boxes as Ousterhout modules; from the real step files), layers SVG (replaced the HTML boxes), wrong-abstraction stepper (illustrative code, Metz's sequence), composition toggle (m x 2^k against m + k, derived), agent loop (static), debt quadrant (static, Fowler 2009, cells paraphrased), deprecation timeline (static).
+Rejected: a coupling matrix of the service's modules (the hero and layers already show it; a matrix of 12 helpers says little more); Fowler's quadrant image itself (not openly licensed; redrawn with paraphrased cells); photos of any kind (nothing physical to show).
