@@ -16,7 +16,7 @@
   function counters(){const r=model[st.m][st.s][st.n];const lab=S.find(s=>s.key===st.s);
     document.getElementById('dz-sw-cnt').innerHTML=RD.stat('FD',DZC.f(r.fd,1),'real images '+D.f.floor)+RD.stat('Class accuracy',DZC.pct(r.acc,1),'real '+D.f.real_acc)+
       RD.stat('Diversity',DZC.f(r.div,2),'real '+D.f.real_div)+RD.stat('Network calls',DZC.f(r.nfe),r.sec!=null?DZC.f(r.sec,1)+' s for 1,000 images':'')+
-      RD.stat('Source',r.src==='lab'?'Diffusion lab':'this page','sample_tiny.py / dz_sample.py');
+      RD.stat('Source',r.src==='lab'?'root lab recording':'this page','sample_tiny.py / dz_sample.py');
     document.getElementById('dz-sw-note').textContent=lab.note||''}
   function chart(){const m=st.metric,ser=S.filter(s=>model[st.m][s.key]).map(s=>({name:s.label,color:s.color,dash:s.dash,
       pts:Object.entries(model[st.m][s.key]).map(([n,r])=>[r.nfe,m==='acc'?100*r.acc:r[m]]).sort((a,b)=>a[0]-b[0])}));

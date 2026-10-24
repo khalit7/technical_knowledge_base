@@ -9,7 +9,7 @@ Tabs (since 2026-10-24): Reading and Further reading.
 | `20_read_b.html` | 1 forward process (slider), 2 schedules (the schedule designer, the brightness leak, offset noise, zero terminal SNR, resolution) |
 | `20_read_c.html` | 3 the denoiser, targets, the training step, error by timestep, one step epsilon against v, loss weighting, training details |
 | `20_read_d.html` | 4 three views and the exact-score toy; 5 samplers (trajectory stepper, sampler table, eta, DPM-Solver++, spacing, the workbench, why the stochastic sampler won) |
-| `20_read_e.html` | 6 guidance (CFG from zero, the tiny-model strips, the fixes, SD 1.5 sets, accuracy against FD); 7 distillation and LCM-LoRA |
+| `20_read_e.html` | 6 guidance (CFG from zero, the tiny-model strips, the fixes, SD 1.5 sets, accuracy against FD); 7 one orienting sentence on distillation (owned by latent diffusion, section 10) and the measured LCM-LoRA run |
 | `20_read_f.html` | 8 when it goes wrong (bug strips, closed causes, the symptom table) |
 | `20_read_y.html`, `20_read_z.html` | closed interview rehearsal; closed runs and sources; footer |
 | `39_tab_more.html` | Further reading |
@@ -64,3 +64,10 @@ Why 36 minutes is right: the page now carries the whole subject from an empty st
 - **No tabs besides Further reading.** The three old tabs each explained one mechanism; the contract puts such visuals beside the claim.
 - **Two data parts.** `make_data.py` needs scratch files that no longer exist, so the root lab's recordings come in through a second, plain-Python script (`make_data_more.py`) rather than a regenerated `window.DZ`.
 - **No real photographs.** A mechanism page; the SD 1.5 outputs are its real images, and the canonical DDPM figures are not openly licensed.
+
+## 2026-10-24, topic close
+- **Section 7 cut to one orienting sentence** linking Latent diffusion and diffusion transformers, section 10, which now owns few-step distillation (the seven-method table, the families, the costs), and Flow matching sections 8 and 9 for flow shortcuts. The measured LCM-LoRA run stays here; latent diffusion quotes and links it. Ledger: units 163, 164, 165 are `owned:.../latent_diffusion_and_dits`, unit 166 (the reflow FD 159.8) `owned:.../flow_matching`. `fill_static.py` no longer requires the distillation table (it fills it if present).
+- **Root labs retired**: the Further reading card no longer sends the reader to the root's Flow and Diffusion lab tabs; the flow result moved to the flow-matching card. "(root lab)" provenance now reads "(root lab recordings)", and the running example names the topic's diffusion runs (root `src/diff`) instead of the lab. The workbench's source label reads "root lab recording".
+- **Times quoted for siblings** updated to their headers: flow matching 36, latent diffusion 32 (33 after this pass), autoencoders 35.
+- **Header**: 36 min core (8,316 words), closed details 16 to 14 min (the distillation table left). Checks: checkpage fail=0, ledger problems 0, `check_data.py` 209 checks 0 failures, `check_toy.mjs` and `check_page.mjs` OK.
+- Root fat audit (2026-10-24): the diffusers tip (scheduler_config.json, swap samplers with from_config) restored inside the schedule-mismatch block of section 8 (ledger unit 309). Reading time unchanged.

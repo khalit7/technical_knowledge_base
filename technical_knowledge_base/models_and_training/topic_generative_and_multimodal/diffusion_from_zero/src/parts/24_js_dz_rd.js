@@ -98,7 +98,7 @@
   RD.onRender(render,'t-read');RD.onResize(render);
 })();
 
-// ---- section 8: the bugs card (sentences and the distillation table are static, runs/fill_static.py) ----
+// ---- section 8: the bugs card (sentences are static, runs/fill_static.py) ----
 (function(){
   const D=window.DZ;if(!D)return;const $=id=>document.getElementById(id);
   // bugs card
