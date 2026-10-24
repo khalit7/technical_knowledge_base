@@ -83,7 +83,7 @@
   function n(){if(!S)prep();return steps.length}
   A=RD.anim({card:'ge-card',ctl:'ge-ctl',n:n(),draw,ms:1800,label:'Step through the penalty'});
   function seg(id,key){$(id).addEventListener('click',e=>{const bt=e.target.closest('button');if(!bt)return;
-    [...e.currentTarget.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===bt));st[key]=bt.dataset.v;if(key==='pair')prep();A.reset(steps.length);A.play()})}
+    [...e.currentTarget.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===bt));st[key]=bt.dataset.v;if(key==='pair')prep();A.reset(steps.length)})}
   seg('ge-m','m');seg('ge-p','pair');
   addEventListener('resize',()=>{if(card.offsetParent)A.redraw()});
 })();

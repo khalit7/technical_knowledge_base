@@ -1,4 +1,4 @@
-// ---- Dropout tab: thinned networks one by one on a real digit; Monte Carlo averaging against weight scaling; training curves ----
+// ---- Reading, section 4 (moved from the old Dropout tab on 2026-10-24): thinned networks one by one on a real digit; Monte Carlo averaging against weight scaling; training curves ----
 (function(){
   const card=document.getElementById('dr-card');if(!card)return;
   const $=id=>document.getElementById(id);
@@ -7,7 +7,7 @@
   const pct=v=>(100*v).toFixed(2).replace(/0$/,'')+'%';
   const mean=a=>a.reduce((s,v)=>s+v,0)/a.length;
   const sd=M.seeds;
-  $('dr-intro').innerHTML='Test error over five training seeds: <b>'+sd.dropout.test_err.map(pct).join(', ')+'</b> with dropout (mean '+pct(mean(sd.dropout.test_err))+'), '+sd.none.test_err.map(pct).join(', ')+' without (mean '+pct(mean(sd.none.test_err))+'). Each test digit is 0.28% of the 360. The network shown is seed 0 with dropout.';
+  if($('dr-intro'))$('dr-intro').innerHTML='Test error over five training seeds: <b>'+sd.dropout.test_err.map(pct).join(', ')+'</b> with dropout (mean '+pct(mean(sd.dropout.test_err))+'), '+sd.none.test_err.map(pct).join(', ')+' without (mean '+pct(mean(sd.none.test_err))+'). Each test digit is 0.28% of the 360. The network shown is seed 0 with dropout.';
   const K=30,st={d:M.ambiguous[0],k:0};let runs=[];
   function sample(d){const r=RG.rng(1000+d),x=pix(d),out=[];const ws=RG.fwd(L,x,[1,1,1]);
     for(let k=0;k<K;k++){const masks=[];const o=RG.fwd(L,x,KEEP,r,masks);out.push({p:o.p,masks})}return {ws:ws.p,out}}
@@ -32,7 +32,7 @@
       amb?'The thinned networks disagree on this digit: the votes are split, and MC dropout would report it as uncertain (Gal and Ghahramani 2016). The average sits close to the weight-scaled ticks.':'They agree: almost every subnetwork gives the same answer, and the average and the weight-scaled network coincide.')}
   const A=RD.anim({card:'dr-card',ctl:'dr-ctl',n:K,draw,ms:800,label:'Thinned network'});
   $('dr-pick').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===b));
-    st.d=b.dataset.d==='rand'?Math.floor(Math.random()*NT):+b.dataset.d;runs=sample(st.d);A.reset(K);A.play()});
+    st.d=b.dataset.d==='rand'?Math.floor(Math.random()*NT):+b.dataset.d;runs=sample(st.d);A.reset(K)});
   // ---- Monte Carlo curve ----
   let live=null;
   function drawMC(){const el=$('mc-plot'),mc=M.mc,x=mc.k.map(Math.log10);
@@ -49,13 +49,8 @@
         if(ks.includes(k)){let e=0;for(let d=0;d<NT;d++){const a=acc[d];if(a.indexOf(Math.max(...a))!==lab(d))e++}live.push([k,e/NT]);drawMC()}}
       $('mc-st').textContent=k<50?'k = '+k+' of 50 …':'done: seed '+seed+', k = 50 gives '+pct(live[live.length-1][1]);
       if(k<50)setTimeout(step,0);else $('mc-run').disabled=false})()});
-  // ---- training curves ----
-  function drawTC(){const el=$('tc-plot'),a=M.seeds.dropout.curve_seed0,b=M.seeds.none.curve_seed0;
-    PL.chart({el,id:'tc',x:[0,300],y:[0,0.6],lines:[{xs:a.map(q=>q[0]),ys:a.map(q=>q[1]),c:'var(--c1)'},{xs:a.map(q=>q[0]),ys:a.map(q=>q[2]),c:'var(--c1)',o:.5,dash:'5 3'},{xs:b.map(q=>q[0]),ys:b.map(q=>q[1]),c:'var(--c2)'},{xs:b.map(q=>q[0]),ys:b.map(q=>q[2]),c:'var(--c2)',o:.5,dash:'5 3'}],
-      xl:'epoch',yl:'cross-entropy loss',label:'Training curves with and without dropout'});
-    const la=a[a.length-1],lb=b[b.length-1];
-    $('tc-note').innerHTML='Seed 0 after 300 epochs: without dropout the training loss reaches '+lb[1]+' while the test loss is '+lb[2]+' and still rising; with dropout, training '+la[1]+' and test '+la[2]+'. The gap closes because the network can no longer memorise each image with one fragile combination of units. Measured every 10 epochs.'}
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-drop']=[()=>A.redraw(),drawMC,drawTC];
-  addEventListener('resize',()=>{if(card.offsetParent){A.redraw();drawMC();drawTC()}});
+  RD.onRender(()=>{A.redraw();drawMC()});
+  const dp=$('mc-dp');if(dp)dp.addEventListener('toggle',()=>{if(dp.open)drawMC()});
+  addEventListener('resize',()=>{if(card.offsetParent)A.redraw();if($('mc-card').offsetParent)drawMC()});
   window.DROP_TEST={go:i=>A.go(i),pick:d=>{st.d=d;runs=sample(d);A.reset(K)}};
 })();

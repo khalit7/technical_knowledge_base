@@ -20,6 +20,16 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       const n = await p.$eval('#' + ctl + '-s', e => +e.max + 1);
       for (let k = 0; k < n; k++) { await slide('#' + ctl + '-s', k); await scan('#' + card, card + ' ' + JSON.stringify(c) + ' s' + k) } }
   };
+  // nothing may move before the reader acts: every step slider still at 0 after load
+  const moved = await p.$$eval('.an-ctl input[type=range]', es => es.filter(e => +e.value !== 0).map(e => e.id)); if (moved.length) { bad++; console.log('BAD autoplay', moved) }
+  // hero: both runs
+  for (const v of ['none', 'drop']) { await p.click('#hr-m button[data-v="' + v + '"]'); await scan('#hr-card', 'hero ' + v); await shot('#hr-card', 'hr-' + v) }
+  // held-out error (moved from the Coefficient paths tab)
+  for (const v of [20, 40, 100, 400]) { await slide('#ho-m', v); await wait(400); await scan('#ho-card', 'ho ' + v) }
+  await slide('#ho-m', 40); await wait(400); await shot('#ho-card', 'ho-40');
+  // weight decay: both optimisers, every step
+  await stepAll('wd-card', 'wd-c', ['#wd-m']);
+  for (const [m, k] of [['l2', 20], ['adamw', 30]]) { await p.click('#wd-m button[data-v="' + m + '"]'); await slide('#wd-c-s', k); await shot('#wd-card', 'wd-' + m) }
   // geometry animation: every method x pair x step
   await stepAll('ge-card', 'ge-ctl', ['#ge-p', '#ge-m']);
   for (const [pr, m, k] of [['bp', 'lasso', 5], ['bp', 'ridge', 5], ['s12', 'lasso', 3], ['s12', 'gd', 4], ['bp', 'gd', 6], ['bp', 'enet', 6]]) {
@@ -37,19 +47,23 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await slide('#pa-r', 0.2); await scan('#pa-card', 'path rho');
   await p.click('#pa-m button[data-v="lasso"]'); await p.click('#pa-x button[data-v="t"]'); await slide('#pa-l', 560); await shot('#pa-card', 'pa-lasso-t');
   await p.click('#pa-m button[data-v="ridge"]'); await p.click('#pa-x button[data-v="lam"]'); await shot('#pa-card', 'pa-ridge');
-  for (const v of [20, 40, 100, 400]) { await slide('#ho-m', v); await wait(500); await scan('#ho-card', 'ho ' + v) }
-  await slide('#ho-m', 40); await wait(500); await shot('#ho-card', 'ho-40');
-  // dropout tab
-  await p.click('button[data-t="t-drop"]'); await wait(300);
+  // dropout ensemble (moved from the Dropout tab into Reading, section 4)
+  await p.click('button[data-t="t-read"]'); await wait(300);
   const picks = await p.$$('#dr-pick button');
   for (let i = 0; i < picks.length; i++) { await picks[i].click(); await wait(30); for (const k of [0, 4, 15, 29]) { await slide('#dr-ctl-s', k); await scan('#dr-card', 'drop pick ' + i + ' s' + k) } }
   await (await p.$$('#dr-pick button'))[0].click(); await slide('#dr-ctl-s', 29); await shot('#dr-card', 'dr-amb');
-  await scan('#mc-card', 'mc'); await shot('#mc-card', 'mc'); await scan('#tc-card', 'tc'); await shot('#tc-card', 'tc');
+  await p.$eval('#mc-dp', d => { d.open = true }); await wait(300); await scan('#mc-card', 'mc'); await shot('#mc-card', 'mc');
   if (scheme === 'light') { await p.click('#mc-run'); await wait(9000); await scan('#mc-card', 'mc live'); await shot('#mc-card', 'mc-live'); console.log('live run:', await p.$eval('#mc-st', e => e.textContent)) }
   await p.click('button[data-t="t-more"]'); await wait(200); await scan('#t-more', 'more');
   const errbox = await p.$eval('#jsErr', e => e.hidden ? '' : e.textContent); if (errbox) { errs.push('errbox: ' + errbox) }
   await p.close();
 }
+// normal motion: scroll every animation card into view and wait; nothing may start by itself
+{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + page); await wait(300);
+  for (const id of ['ge-card', 'wd-card', 'dr-card', 'da-card']) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1800) }
+  const moved = await p.$$eval('.an-ctl input[type=range]', es => es.filter(e => +e.value !== 0).map(e => e.id));
+  if (moved.length) { bad++; console.log('BAD autoplay (normal motion)', moved) } else console.log('normal motion: nothing autoplays');
+  await p.close() }
 await b.close();
 console.log('scans', scans, 'bad', bad, 'errors', JSON.stringify(errs));
 process.exit(bad || errs.length ? 1 : 0);
