@@ -44,3 +44,6 @@ The whole core read fell from about 45 minutes (Reading plus the three labs it s
 
 ## Ledger
 `src/ledger.json`: 332 units (322 from the page as built on 2026-10-14, 10 added by hand for script-rendered tables and new content): core 264, depth 26, volatile 2, fat 40, problems 0 (`python3 html_utils/ledger.py check`).
+
+## Topic close (2026-10-24)
+Further reading: the root's Pipeline lab tab reference and quoted times updated. Header unchanged (26 + 8). Every quoted sibling time now matches its header (`html_utils/check_times.py`); the ledger keys that quoted old times or tab names were re-pointed to the current text (problems 0).
