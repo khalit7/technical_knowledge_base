@@ -49,3 +49,9 @@ Google ML Crash Course threshold widgets (confusion matrix with a slider); sciki
 ## What the methodology lacked for this page
 
 The scoring assumes published figures to reproduce; for metrics the "figure" is the reference implementation, so reproduction means porting the library code and checking against it on chosen and random inputs. That should be a named rule: when a page explains an algorithm with a canonical library, port it and fuzz-test it against the library.
+
+## 2026-10-24 rebuild to the teaching contract
+- Built: hero = the Threshold lab inline (threshold slider, one point on ROC and PR, real SST-2 scores), as the brief suggested; ROC and PR overlay, all against rare positives (section 2, before/after on one classifier); regression with one slider on real diabetes CV predictions (section 5); ranked list with a k slider (section 6, illustrative grades, checked against scikit-learn).
+- Moved: the Text lab's editor inline in section 7, its presets table and the bootstrap widget into closed blocks.
+- Removed: the Threshold lab's reliability panel (section 3's stepper draws reliability for all three models).
+- Rejected: a real-data nDCG example (RAG and retrieval evaluation already runs BEIR; linked instead); a photo or paper figure (no physical object; the reliability diagram and ROC are redrawn on real data).
