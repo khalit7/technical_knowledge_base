@@ -48,3 +48,7 @@ Why 35 minutes is right: the page owns fourteen mechanisms (address spaces, the 
 
 ## Departures from the child-page method
 No `live.md` or `coverage.json`: the page is new, there was no old text. Measurements replace the "real data" of the training pages (real runs of the mechanisms on a real kernel). Things that need privileges, a GPU, a newer kernel or NUMA (memory.high throttling, hugetlbfs pools, PSI, zswap, MGLRU, cudaHostAlloc, x86 IPIs) are taught from sources and tagged "not run here".
+
+## Topic close (2026-10-24)
+Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.
+Section 7 gained a closed block with the root's list-of-ints fork run (31,520 kB, 7,880 pages against 7,814 modelled; NumPy 38 to 67 pages), its model and the PyTorch quote with issue 13246, which the root's OS simulators used to carry; closed details are now 12.7 min (header: plus 13).
