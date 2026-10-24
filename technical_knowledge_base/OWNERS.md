@@ -27,7 +27,6 @@ Agreed 2026-10-23 with the teaching contract ([../.claude/skills/explainer-page/
 | The stage comparison, open recipes, price list, one-run compute calculator, the "running the job" stack | `models_and_training/topic_llm_training_and_post_training` (root) | |
 | LoRA, QLoRA and other PEFT, and the fine-tuning memory calculator (full, LoRA, QLoRA) | `.../topic_llm_training_and_post_training/peft` | vLLM owns its multi-LoRA serving knobs |
 | The post-training pipeline, SFT, DPO family, RLVR as a stage, how recipes combine the stages (section 8), the loss-mask widget | `.../topic_llm_training_and_post_training/alignment_sft_rlhf_dpo_rlvr` | post-training data links the loss mask |
-| RL algorithms for LLMs: PPO, GRPO and variants, their maths | `models_and_training/topic_rl/rl_for_llms` | the alignment page links for the algorithm |
 | Reward hacking and over-optimisation | `.../topic_llm_training_and_post_training/reward_hacking` | |
 | Post-training data | `models_and_training/topic_data_curation_and_datasets/post_training_data` | |
 | Dataset formats and loaders | `.../topic_data_curation_and_datasets/storage_and_loading` | |
@@ -45,6 +44,9 @@ Agreed 2026-10-23 with the teaching contract ([../.claude/skills/explainer-page/
 | Value-based deep RL: DQN, Double DQN, dueling, prioritised replay, distributional RL, NoisyNet, Rainbow, Atari protocols | `.../topic_rl/value_based_deep_rl` | |
 | Policy gradients and actor-critic: the theorem, REINFORCE and baselines, GAE, A2C/A3C, natural gradient and TRPO, PPO's clip in general, DDPG, TD3, SAC | `.../topic_rl/policy_gradients_and_actor_critic` | RL for LLMs links it for the clip and GAE |
 | Model-based RL and planning: Dyna, MCTS, AlphaZero and MuZero, Dreamer, MPC, world models learned from video | `.../topic_rl/model_based_rl_and_planning` | generative video pages own video generation |
+| Offline RL and imitation: behaviour cloning and compounding error, DAgger, inverse RL and GAIL, extrapolation error, CQL, IQL, TD3+BC, Decision Transformer, D4RL | `.../topic_rl/offline_rl_and_imitation` | alignment owns RLHF from preferences |
+| RL algorithms for LLMs: PPO for RLHF, GRPO, RLOO, Dr. GRPO, DAPO, GSPO, CISPO, verifiable rewards and verifier failures, entropy collapse, engine/trainer mismatch (TIS, MIS, low-precision rollouts), pass@1 against pass@k, RL infrastructure | `.../topic_rl/rl_for_llms` | policy gradients owns the general clip and GAE |
+| The RL map: vocabulary, the estimator table and one-episode animation, the cross-page comparison, Taxonomy, Method atlas, Milestones | `models_and_training/topic_rl` (root) | |
 | VAEs | `models_and_training/topic_generative_and_multimodal/autoencoders_and_vaes` | the math page keeps only the ELBO derivation |
 | Diffusion | `.../topic_generative_and_multimodal/diffusion_from_zero` | |
 
