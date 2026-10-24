@@ -61,13 +61,13 @@
     svg+='<text x="0" y="'+(y+11)+'" font-size="11" fill="var(--mute)">input</text>';
     for(let k=0;k<T;k++){const x=ml+k*cw,cur=k===t,sym=S[R.seq[k]];
       svg+='<rect x="'+(x+.5)+'" y="'+y+'" width="'+Math.max(1,cw-1)+'" height="16" rx="2" fill="'+(k===0?'var(--c5)':k===T-1?'var(--c4)':'var(--soft)')+'" opacity="'+(k<=t?1:.35)+'" stroke="'+(cur?'var(--ink)':'none')+'"/>';
-      if(cw>=9)svg+='<text x="'+(x+cw/2)+'" y="'+(y+12)+'" font-size="'+Math.min(11,cw-1)+'" text-anchor="middle" fill="'+(k===0||k===T-1?'var(--bg)':'var(--mute)')+'">'+sym+'</text>'}
+      if(cw>=12)svg+='<text x="'+(x+cw/2)+'" y="'+(y+12)+'" font-size="11" text-anchor="middle" fill="'+(k===0||k===T-1?'var(--bg)':'var(--mute)')+'">'+sym+'</text>'}
     y+=22;
     // state heatmap over time
     svg+='<text x="0" y="'+(y+rh*H/2+4)+'" font-size="11" fill="var(--mute)">'+(md==='lstm'?'cell state C':'state h')+'</text>';
     for(let k=0;k<=t;k++){const v=R.tr[k][hm];for(let u=0;u<H;u++)svg+='<rect x="'+(ml+k*cw)+'" y="'+(y+u*rh)+'" width="'+(cw+.3)+'" height="'+(rh+.3)+'" fill="'+cs(md==='lstm'?v[u]/2:v[u])+'"/>'}
     svg+='<rect x="'+ml+'" y="'+(y+mem*rh)+'" width="'+(W-ml-mr)+'" height="'+rh+'" fill="none" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3 2"/>';
-    svg+='<text x="'+(ml-4)+'" y="'+(y+mem*rh+rh-1)+'" font-size="9.5" text-anchor="end" fill="var(--ink)">unit '+(mem+1)+'</text>';
+    svg+='<text x="'+(ml-4)+'" y="'+(y+mem*rh+rh-1)+'" font-size="11" text-anchor="end" fill="var(--ink)">unit '+(mem+1)+'</text>';
     svg+='<line x1="'+(ml+(t+.5)*cw)+'" x2="'+(ml+(t+.5)*cw)+'" y1="'+(top)+'" y2="'+(y+H*rh+2)+'" stroke="var(--ink)" stroke-width="1" opacity=".5"/>';
     y+=H*rh+12;
     // gates at step t
@@ -76,13 +76,13 @@
       svg+='<text x="0" y="'+(y+sq/2+4)+'" font-size="11" fill="'+(on?'var(--ink)':'var(--mute)')+'" font-weight="'+(on?600:400)+'">'+label+'</text>';
       for(let u=0;u<H;u++){const x=ml+u*sq,val=v[u],fill=kind===0?cg(val):cs(kind===2?val/2:val);
         svg+='<rect x="'+(x+1)+'" y="'+y+'" width="'+(sq-2)+'" height="'+(sq*0.62)+'" rx="3" fill="'+fill+'" stroke="'+(on?'var(--ink)':u===mem?'var(--mute)':'var(--line)')+'" stroke-width="'+(on?1.5:1)+'"/>';
-        if(sq>=24)svg+='<text x="'+(x+sq/2)+'" y="'+(y+sq*.62/2+3.5)+'" font-size="'+(sq>=34?10:8.5)+'" text-anchor="middle">'+F(val,2)+'</text>'}
+        if(sq>=34)svg+='<text x="'+(x+sq/2)+'" y="'+(y+sq*.62/2+3.5)+'" font-size="11" text-anchor="middle">'+F(val,2)+'</text>'}
       y+=sq*.62+5});
-    svg+='<text x="'+ml+'" y="'+(y+9)+'" font-size="10" fill="var(--mute)">'+(W<560?'units 1 to '+H+', step '+(t+1):'units 1 to '+H+' at step '+(t+1)+'; dashed: unit '+(mem+1)+', which carries the key')+'</text>';y+=18;
+    svg+='<text x="'+ml+'" y="'+(y+9)+'" font-size="11" fill="var(--mute)">'+(W<560?'units 1 to '+H+', step '+(t+1):'units 1 to '+H+' at step '+(t+1)+'; dashed: unit '+(mem+1)+', which carries the key')+'</text>';y+=18;
     // answer-if-asked-now line
     const ph=56;svg+='<text x="0" y="'+(y+ph/2)+'" font-size="11" fill="var(--mute)">P(key) if</text><text x="0" y="'+(y+ph/2+13)+'" font-size="11" fill="var(--mute)">asked now</text>';
     svg+='<line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+(y+ph)+'" y2="'+(y+ph)+'" stroke="var(--line)"/><line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+(y+ph*.75)+'" y2="'+(y+ph*.75)+'" stroke="var(--line)" stroke-dasharray="2 3"/>';
-    svg+='<text x="'+(W-mr)+'" y="'+(y+ph*.75-2)+'" font-size="9" text-anchor="end" fill="var(--mute)">chance 0.25</text><text x="'+(ml-3)+'" y="'+(y+6)+'" font-size="9" text-anchor="end" fill="var(--mute)">1</text>';
+    svg+='<text x="'+(W-mr)+'" y="'+(y+ph*.75-2)+'" font-size="11" text-anchor="end" fill="var(--mute)">chance 0.25</text><text x="'+(ml-3)+'" y="'+(y+6)+'" font-size="11" text-anchor="end" fill="var(--mute)">1</text>';
     let d='';for(let k=0;k<=t;k++)d+=(k?'L':'M')+(ml+(k+.5)*cw).toFixed(1)+' '+(y+ph*(1-R.p[k][st.key])).toFixed(1);
     svg+='<path d="'+d+'" fill="none" stroke="'+({lstm:'var(--c3)',gru:'var(--c4)',rnn:'var(--c2)',rnn_short:'var(--c5)'}[st.mode])+'" stroke-width="2"/>';
     y+=ph+6;
@@ -94,7 +94,7 @@
   }
   function reset(){build();if(anim)anim.reset(steps.length)}
   // controls
-  $('mm-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.mode=b.dataset.m;[...$('mm-mode').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});reset();anim.play()});
+  $('mm-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.mode=b.dataset.m;[...$('mm-mode').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});reset()});
   $('mm-key').addEventListener('change',e=>{st.key=+e.target.value;reset()});
   $('mm-T').addEventListener('input',e=>{st.T=+e.target.value;$('mm-Tv').textContent=st.T;reset()});
   $('mm-new').addEventListener('click',()=>{st.seed=(st.seed*48271)%2147483647;reset()});

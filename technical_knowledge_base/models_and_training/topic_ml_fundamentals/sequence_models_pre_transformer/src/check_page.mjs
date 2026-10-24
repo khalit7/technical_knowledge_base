@@ -26,7 +26,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const scrub = async (ctl, card, what) => { const n = await p.$eval(`#${ctl}-s`, e => +e.max); for (const i of [0, 1, 2, 3, 4, 5, 6, Math.floor(n / 2), n - 6, n - 4, n - 3, n - 2, n - 1, n]) { if (i < 0 || i > n) continue; await setv(`#${ctl}-s`, i); await scan('#' + card, what + ' step ' + i) } };
   const shot = async (sel, name) => { const el = await p.$(sel); await el.scrollIntoView(); await el.screenshot({ path: path.join(out, `x-${name}-${scheme}.png`) }) };
   await clk('button[data-t=t-read]');
-  await scan('#rd-over', 'overview');
+  await scan('#rd-top', 'top');
   // the memory animation: every mode, keys, lengths
   for (const m of ['lstm', 'gru', 'rnn', 'rnn_short']) {
     await clk(`#mm-mode button[data-m=${m}]`);
@@ -42,9 +42,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     const o = []; for (const m of ['lstm', 'gru', 'rnn', 'rnn_short']) for (const [k, T, s] of [[0, 8, 7], [1, 40, 7], [2, 120, 99], [3, 50, 1234]]) {
       const seq = CELL.sequence(k, T, s), r = CELL.run(CELL.models[m], seq); o.push({ m, seq, p: r.p, h: r.tr[T - 1].h }) } return o });
   // results charts
-  for (const v of ['acc', 'grad']) { await clk(`#mr-view button[data-v=${v}]`); for (const t of ['10', '20', '50', '100']) { if (v === 'acc') await clk(`#mr-tm button[data-v="${t}"]`); await scan('#mr', `memres ${v} ${t}`) } }
-  await clk('#mr-view button[data-v=acc]'); await clk('#mr-tm button[data-v="10"]'); await shot('#mr', 'memres-acc10');
-  await clk('#mr-view button[data-v=grad]'); await shot('#mr', 'memres-grad');
+  for (const t of ['10', '20', '50', '100']) { await clk(`#mr-tm button[data-v="${t}"]`); await scan('#mr', `memres ${t}`) }
+  await clk('#mr-tm button[data-v="10"]'); await shot('#mr', 'memres-acc10');
+  // hero and the gradient-through-time animation (every mode, every step)
+  await scan('#hr', 'hero'); await shot('#hr', 'hero');
+  for (const m of ['rnn', 'lstm', 'all']) { await clk(`#gt-mode button[data-m=${m}]`); await scrub('gt-ctl', 'gt', `grad ${m}`) }
+  await setv('#gt-ctl-s', 10); await shot('#gt', 'grad');
   // seq2seq animation
   for (const m of ['fixed', 'attention']) {
     await clk(`#sa-mode button[data-m=${m}]`);
