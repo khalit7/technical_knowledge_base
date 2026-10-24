@@ -53,7 +53,7 @@ py-spy record --gil --idle -o p.svg --pid 12345  <span class="cm"># only threads
 </div></details>
 
 <h3 id="s-gil">Async I/O, threads and processes in Python, and the GIL</h3>
-<p>Standard CPython has a <dfn id="g-gil">global interpreter lock (GIL)</dfn>: only one thread runs Python code at a time in a process; a thread waiting on the network or a disk releases it. So the GIL is a capacity question: how many cores can one process use?</p>
+<p>Standard CPython has a <dfn id="g-gil">global interpreter lock (GIL)</dfn>: only one thread runs Python code at a time in a process; a thread waiting on the network or a disk releases it. So the GIL is a capacity question: how many cores can one process use? (How one FastAPI service waits, with 50 requests measured in four handler styles, is {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}, section 6.)</p>
 <ul>
 <li><b>Waiting on I/O</b> (database, Redis, the model API: almost everything our chat API does): <b>asyncio</b> (one thread, thousands of waits interleaved; FastAPI's <code>async def</code> endpoints) or <b>threads</b>. FastAPI runs plain <code>def</code> endpoints in AnyIO worker threads, and "The default AnyIO worker thread limiter has a value of 40" ({{AnyIO docs|https://anyio.readthedocs.io/en/stable/threads.html}}): a hidden concurrency cap, so by Little's law a sync endpoint holding a thread for a 10-second model call serves at most 4 requests a second per process.</li>
 <li><b>CPU work in Python</b> (tokenising, large JSON, image resizing): threads do not help under the GIL; use <b>processes</b> (several Uvicorn or Gunicorn workers, roughly one per core, or a <code>ProcessPoolExecutor</code>), or native code that releases the GIL (NumPy, tokenizers written in Rust or C).</li>
