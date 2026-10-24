@@ -1,6 +1,6 @@
 // ---- Step-by-step animation player (pattern of the DeepSeek MLA explainer) ----
 // makeAnim({id, modes:[{m,label,steps:[[title,caption],...],draw(k,e,ph,narrow)->{W,H,s,label},cnt(k,e)->html}], dur})
-// Animates only while on screen and in the visible tab; starts paused, step by step, under reduced motion.
+// Animates only while on screen and in the visible tab; never plays by itself; under reduced motion, steps without tweening.
 const RMOT=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
 const cl01=v=>v<0?0:v>1?1:v,ease2=v=>v<.5?2*v*v:1-2*(1-v)*(1-v),lerp=(a,b,u)=>a+(b-a)*u;
 const sq=(x,y,cols,n,fill,op,P,C)=>{P=P||7;C=C||6;let d='';for(let i=0;i<n;i++)d+='M'+(x+(i%cols)*P)+' '+(y+Math.floor(i/cols)*P)+'h'+C+'v'+C+'h-'+C+'z';return n>0?'<path d="'+d+'" fill="'+fill+'"'+(op!=null?' fill-opacity="'+op+'"':'')+'/>':''};
@@ -18,7 +18,7 @@ function makeAnim(o){
     '<div class="mlx-ctl"><button id="'+id+'Back" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="'+id+'Play" class="mlx-play" aria-label="Play">&#9654; Play</button><button id="'+id+'Fwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
     '<input type="range" id="'+id+'Scrub" min="0" max="700" value="0" aria-label="Scrub through the steps"><label class="small">Speed <select id="'+id+'Spd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>'+
     '<div class="mlx-cap" aria-live="polite"><div class="t" id="'+id+'Step"></div><p id="'+id+'Cap"></p></div><div class="mlx-cnt" id="'+id+'Cnt"></div>'+(o.foot?'<p class="small mute">'+o.foot+'</p>':'');
-  const st={mi:0,k:0,t:RMOT?1:0,play:!RMOT,spd:1,vis:false,raf:0,last:0,lk:-1,lm:-1};
+  const st={mi:0,k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:-1}; // never autoplays: waits on step 1 until the reader presses play or steps (2026-10-23)
   const M=()=>o.modes[st.mi];
   function draw(){
     const m=M(),k=st.k,e=RMOT?1:ease2(cl01(st.t/MOVE)),ph=RMOT?-1:(st.t*2.2)%1,nar=card.clientWidth<560;
@@ -41,7 +41,7 @@ function makeAnim(o){
   $(id+'Scrub').addEventListener('input',ev=>{pause();const n=M().steps.length,v=+ev.target.value;st.k=Math.min(n-1,Math.floor(v/100));st.t=cl01(v/100-st.k);draw()});
   $(id+'Spd').addEventListener('change',ev=>{st.spd=+ev.target.value});
   const seg=$(id+'M');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.mi=+b.dataset.i;st.k=0;st.t=RMOT?1:0;if(!RMOT)st.play=true;draw();kick()}));
+    pause();st.mi=+b.dataset.i;st.k=0;st.t=1;draw()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});
