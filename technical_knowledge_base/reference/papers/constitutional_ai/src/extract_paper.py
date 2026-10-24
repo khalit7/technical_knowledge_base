@@ -13,5 +13,5 @@ def txt(x):
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
 a = s.index('<article'); b = s.index('</article>')
 os.makedirs('inputs', exist_ok=True)
-open('inputs/paper_v1.txt', 'w').write('Source: https://arxiv.org/html/2212.08073v1 (extracted by extract_paper.py)\n\n' + txt(s[a:b]))
+open('inputs/paper_v1.txt', 'w').write('Source: https://arxiv.org/html/2212.08073v1 (extracted by extract_paper.py)\n\n' + txt(s[a:b]).replace('\u2014', '--'))
 print('ok')

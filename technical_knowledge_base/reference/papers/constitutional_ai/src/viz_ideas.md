@@ -23,6 +23,12 @@ Methodology: `.claude/skills/explainer-page/visuals/choosing.md`. Scores are tea
 | P-constitutional_ai.7 | **How much each revision rewrites**: new-word share per revision over the 66 chains, with mean lengths; the first rewrites about half, later ones still a third to two fifths | 15 (4, 4, 5, 2) | Reading, Stage 1 predict-then-reveal | LCS over words, `mk_data.py` |
 | P-constitutional_ai.8 | **The constitution, verbatim**: both lists of 16 with draw counts from the released chains (χ² against uniform) and the anti-preachy RL principles outlined; a recomputed counts table; one real HHH evaluation item | 15 (3, 5, 5, 2) | Own tab (The constitution and the numbers), replacing the papers.md "tables" tab | repository JSON; `recompute.py` |
 
+## Light pass, 2026-10-25
+
+- **P-constitutional_ai.9, hero: the paper's own Figure 1** (CC BY 4.0, `img/cai_fig1_overview.webp`) at the top, captioned with what to notice (no person in the harmlessness path). Chosen over a redraw because the licence allows it and it is the figure people cite; the stepper below (P-constitutional_ai.1, the pipeline animation) carries the step-by-step version.
+- **P-constitutional_ai.10, Figure 2 as the paper's image** (`img/cai_fig2_frontier.webp`) beside the frontier claim in Results. Shown, not rebuilt: values are still not read off the plot, and the caption says the arcs are the authors' drawing.
+- **Moved inline**: the revision-churn chart, the label-type demo and the refusal bars left their predict reveals; each now sits in a card after its question.
+
 ## Rejected
 
 - **Rebuilding Figures 2 to 10.** The paper prints no Elo values or scores in text and no tables; the method forbids reading curves. Said on the page.

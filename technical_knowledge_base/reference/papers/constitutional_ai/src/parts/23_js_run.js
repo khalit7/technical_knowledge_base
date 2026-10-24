@@ -31,7 +31,7 @@ function models(i){const P=X.median[i];const names=CAI.s.models;let h='';
   $('rpM').innerHTML=h;
   const hh=X.feats['HH RLHF'];let n=0;for(let j=0;j<17;j++)if(hh.f[i*17+j]==='1'&&hh.w[i*17+j]<=25)n++;
   $('rpMn').innerHTML='On this prompt, '+n+' of HH RLHF\'s 17 samples are canned refusals (every one is in the Count the refusals tab). The order and the median come from the pm_score stored in the files; the repository does not say which PM computed it.'}
-sel.addEventListener('change',()=>{cur=+sel.value;o.modes.x=build(cur);anim.st.k=0;anim.st.t=RM?1:0;anim.st.lk=-1;anim.draw();models(cur);$('crxHead').textContent=headTxt()});
+sel.addEventListener('change',()=>{cur=+sel.value;o.modes.x=build(cur);anim.st.k=0;anim.st.t=1;anim.st.play=false;anim.st.lk=-1;anim.draw();models(cur);$('crxHead').textContent=headTxt()});
 const headTxt=()=>'Chain for prompt '+(X.pick.indexOf(cur)+1)+' of '+X.pick.length+': 1 answer, 4 critiques, 4 revisions.';
 $('crxHead').textContent=headTxt();models(cur);
 onTab('t-run',()=>{refit($('crxSvg'))});

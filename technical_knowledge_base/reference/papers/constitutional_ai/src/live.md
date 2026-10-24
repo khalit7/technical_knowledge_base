@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Constitutional AI: Harmlessness from AI Feedback","Takeaway":"Trains a harmless, non-evasive assistant with zero human harmlessness labels: critique-and-revise SFT against a written constitution, then RLAIF with AI preference labels distilled into a preference model, Pareto-dominating RLHF.","Topics":["llm-training-and-post-training","rl","evaluation-and-llm-judges"],"Year":"2022","url":"https://app.notion.com/p/3c65c17b0d0d815a9b31e9443961c700"}
+{"Paper":"Constitutional AI: Harmlessness from AI Feedback","Takeaway":"Trains a harmless, non-evasive assistant with zero human harmlessness labels: critique-and-revise SFT against a written constitution, then RLAIF with AI preference labels distilled into a preference model, landing on a better harmlessness-helpfulness frontier than RLHF in the paper's own comparison (which it calls "a rough outline of a pareto frontier").","Topics":["llm-training-and-post-training","rl","evaluation-and-llm-judges"],"Year":"2022","url":"https://app.notion.com/p/3c65c17b0d0d815a9b31e9443961c700"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>
