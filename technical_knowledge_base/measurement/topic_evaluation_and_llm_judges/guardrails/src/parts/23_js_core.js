@@ -1,4 +1,4 @@
-// ---- Shared model of a guarded pipeline over the 450 XSTest conversations (used by the Reading animation and the Pipeline lab) ----
+// ---- Shared model of a guarded pipeline over the 450 XSTest conversations (used by every Reading visual built on those runs) ----
 // Row fields (mk_data.py): 0 id, 1 type, 2 unsafe prompt (1/0), 3 prompt, 4 Mistral-Instruct human label (1 comply, 2 refuse, 3 partial),
 // 5 excerpt, 6 same with guardrail system prompt, 7 its excerpt, 8 Qwen3Guard prompt label (S/U/C), 9 P(Unsafe), 10 P(Controversial),
 // 11 response label, 12 P(Unsafe), 13 P(Controversial), 14 refusal flag, 15 P(injection) from Protect AI's DeBERTa,

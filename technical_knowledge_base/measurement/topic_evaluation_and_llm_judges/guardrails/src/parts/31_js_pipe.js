@@ -1,7 +1,9 @@
-// ---- Pipeline lab tab: configure stages, trade-off curves, conformal threshold, injection set, refusal flag, every conversation ----
+// ---- Reading visuals on the 450 XSTest conversations: the trade-off curve (section 1), the injection set (section 2), the pipeline
+// configurator and every conversation (section 5), the conformal threshold and the refusal-flag cross-tab (section 9). Until 2026-10-24
+// these were the Pipeline lab tab; each card now sits beside the claim it proves. ----
 (function(){
-  const X=GR.X,DP=GR.DP,esc=RD.esc,TAB='t-pipe';
-  const st={sys:false,pi:'off',piT:0.5,inp:'loose',inpT:0.5,out:'off',outT:0.5,cv:'inp',flt:'all',alpha:0.05,seed:1,dpT:0.5};
+  const X=GR.X,DP=GR.DP,esc=RD.esc,TAB='t-read';
+  const st={sys:false,pi:'off',piT:0.5,inp:'loose',inpT:0.5,out:'off',outT:0.5,cv:'inp',cvT:0.5,flt:'all',alpha:0.05,seed:1,dpT:0.5};
   const cfgOf=()=>({sys:st.sys,pi:st.pi==='on'?st.piT:false,inp:st.inp==='off'?false:st.inp==='thr'?st.inpT:st.inp,out:st.out==='off'?false:st.out==='thr'?st.outT:st.out});
   const sel=(id,label,opts,val)=>'<label>'+label+'<br><select id="'+id+'">'+opts.map(([k,n])=>'<option value="'+k+'"'+(k===val?' selected':'')+'>'+n+'</option>').join('')+'</select></label>';
   const rng=(id,label,v)=>'<label>'+label+': <b id="'+id+'v"></b><input type="range" id="'+id+'" min="0.01" max="0.99" step="0.01" value="'+v+'"></label>';
@@ -34,13 +36,18 @@
   const cvSeg=document.getElementById('pl-cv-mode');
   cvSeg.innerHTML='<button data-m="inp">Input rail</button><button data-m="out">Output rail</button>';
   cvSeg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.cv=b.dataset.m;curve()});
+  const cvSl=document.getElementById('pl-cv-sl');
+  cvSl.innerHTML='<label>Threshold on the guard\'s score: <b id="pl-cvTv"></b><input type="range" id="pl-cvT" min="0.01" max="0.99" step="0.01" value="0.5"></label>';
+  document.getElementById('pl-cvT').addEventListener('input',e=>{st.cvT=+e.target.value;curve()});
   const TH=[];for(let t=0.01;t<0.995;t+=0.01)TH.push(+t.toFixed(2));
   function curve(){
     cvSeg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===st.cv));
     const el=document.getElementById('pl-cv'),w=RD.width(el),h=Math.min(300,Math.max(220,w*0.5)),L=44,B=36,T=10,R=12;
     const mk=m=>st.cv==='inp'?{inp:m}:{out:m};
     const pts=TH.map(t=>{const c=GR.tally(mk(t));return [c.okBlocked/250,c.harm,t]});
-    const lo=GR.tally(mk('loose')),hi=GR.tally(mk('strict')),cur=GR.tally(mk(st.cv==='inp'?st.inpT:st.outT));
+    const lo=GR.tally(mk('loose')),hi=GR.tally(mk('strict')),cur=GR.tally(mk(st.cvT));
+    document.getElementById('pl-cvTv').textContent=st.cvT.toFixed(2);
+    document.getElementById('pl-cv-out').innerHTML=RD.stat('Safe prompts blocked',cur.okBlocked+' of 250',(100*cur.okBlocked/250).toFixed(1)+'% over-block')+RD.stat('Harmful answers delivered',cur.harm+' of 128','misses at this threshold')+RD.stat('The guard\'s own labels','loose '+lo.okBlocked+' / '+lo.harm,'strict '+hi.okBlocked+' / '+hi.harm+' (safe blocked / harmful delivered)');
     const xm=Math.max(0.3,...pts.map(p=>p[0]))*1.05,ym=Math.max(8,Math.ceil(Math.max(...pts.map(p=>p[1]),lo.harm,hi.harm)*1.15/4)*4);
     const sx=x=>L+x/xm*(w-L-R),sy=y=>T+(1-y/ym)*(h-T-B);
     let b='';
@@ -94,7 +101,9 @@
       RD.stat('DeBERTa: benign flagged',fp+' of '+ben.length,'deepset benign items')+
       RD.stat('DeBERTa: XSTest prompts flagged',xf+' of 450','same threshold')+
       RD.stat('Qwen3Guard: injections flagged',qu+' loose / '+qs+' strict','of '+inj.length+'; benign '+qub+' / '+qsb+' of '+ben.length+'; Jailbreak category on '+jb);
-    document.getElementById('pl-dp-list').innerHTML=DP.map(d=>'<div class="xs-row"><span class="xs-dots">'+(d.inj?'<span class="pill no">injection</span>':'<span class="pill ok">benign</span>')+' <span class="pill'+(d.pi>=t?' no':'')+'">DeBERTa '+d.pi.toFixed(3)+'</span> <span class="pill'+(d.q!=='S'?' no':'')+'">Qwen '+d.q+'</span></span><span>'+esc(d.text)+'</span></div>').join('');
+    // the item list is a data view: written only while its closed block is open
+    const dl=document.getElementById('pl-dp-list');if(!dl.closest('details').open){dl.innerHTML='';return}
+    dl.innerHTML=DP.map(d=>'<div class="xs-row"><span class="xs-dots">'+(d.inj?'<span class="pill no">injection</span>':'<span class="pill ok">benign</span>')+' <span class="pill'+(d.pi>=t?' no':'')+'">DeBERTa '+d.pi.toFixed(3)+'</span> <span class="pill'+(d.q!=='S'?' no':'')+'">Qwen '+d.q+'</span></span><span>'+esc(d.text)+'</span></div>').join('');
   }
   // refusal flag against human labels
   function refusal(){
@@ -112,6 +121,8 @@
   fl.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.flt=b.dataset.f;list()});
   const HL={1:'complied',2:'refused',3:'partly refused'};
   function list(){
+    // a data view of 450 rows: written only while its closed block is open
+    if(!document.getElementById('pl-list').closest('details').open){document.getElementById('pl-list').innerHTML='';return}
     fl.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.f===st.flt));
     const cfg=cfgOf();
     const rows=X.map(x=>[x,GR.outcome(x,cfg)]).filter(([x,o])=>st.flt==='all'||(st.flt==='safe'&&!x.unsafe)||(st.flt==='unsafe'&&x.unsafe)||
@@ -124,5 +135,7 @@
   }
   function all(){outcome();curve();list()}
   syncCtl();all();crc();inj();refusal();
+  document.getElementById('pl-list').closest('details').addEventListener('toggle',list);
+  document.getElementById('pl-dp-list').closest('details').addEventListener('toggle',inj);
   RD.onRender(()=>{curve()},TAB);RD.onResize(curve,TAB);
 })();

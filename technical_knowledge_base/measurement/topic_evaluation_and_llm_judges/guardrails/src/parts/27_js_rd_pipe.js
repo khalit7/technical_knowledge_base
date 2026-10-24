@@ -59,6 +59,6 @@
   }
   document.getElementById('rd-pa-leg').innerHTML=[['answer','answered (safe prompt)'],['harm','harmful answer'],['partial','partial refusal'],['refused','refused by the model'],['in','blocked before the call'],['out','blocked after the call']].map(([k,n])=>'<span><i style="background:'+COL[k]+'"></i>'+n+'</span>').join('')+'<span><i style="background:none;border:1.6px solid var(--bad)"></i>a safe prompt not answered</span>';
   const A=RD.anim({card:'rd-pa',ctl:'rd-pa-ctl',n:MODES.out.steps.length,draw,ms:2600,label:'Pipeline step'});
-  seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.mode=b.dataset.m;A.reset(MODES[st.mode].steps.length);A.play()});
+  seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.mode=b.dataset.m;A.reset(MODES[st.mode].steps.length)});
   RD.onResize(()=>{build();A.redraw()});
 })();

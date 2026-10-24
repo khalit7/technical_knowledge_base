@@ -31,6 +31,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
   for (const t of tabs) {
     await p.click(`#tabs button[data-t="${t}"]`); await wait(150); await bad('open ' + t);
+    // open every closed block, so lazily written lists are exercised too
+    await p.evaluate(t => document.querySelectorAll(`#${t} details`).forEach(d => { d.open = true; d.dispatchEvent(new Event('toggle')) }), t); await wait(150); await bad('details open ' + t);
     // every button inside the visible tab
     const n = await p.$$eval(`#${t} button`, bs => bs.length);
     for (let i = 0; i < n; i++) {
@@ -67,7 +69,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     await p.goto(page); await wait(300);
   }
   // element screenshots
-  for (const [t, ids] of [['t-read', ['rd-onetab', 'rd-br', 'rd-qp', 'rd-pii', 'rd-st', 'rd-qr', 'rd-pa', 'rd-lc', 'rd-gm']], ['t-pipe', ['pl-ctl', 'pl-cv', 'pl-crc', 'pl-ref', 'pl-list']], ['t-card', ['sc-chart', 'sc-spread', 'sc-mtab']]]) {
+  for (const [t, ids] of [['t-read', ['rd-hero-card', 'pl-cvcard', 'rd-br', 'pl-dpcard', 'rd-qp', 'rd-pii', 'rd-adcard', 'rd-st', 'rd-qr', 'rd-pa', 'pl-cfg', 'rd-ros', 'rd-spread', 'rd-lc', 'pl-ref', 'pl-crc']], ['t-card', ['sc-chart', 'sc-spread', 'sc-mtab']]]) {
     await p.click(`#tabs button[data-t="${t}"]`); await wait(200);
     for (const id of ids) {
       const el = await p.$('#' + id); if (!el) { problems.push('missing #' + id); continue }

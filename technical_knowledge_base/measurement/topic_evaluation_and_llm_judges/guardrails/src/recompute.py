@@ -43,7 +43,7 @@ def tally(sys=False, inp=False, out=False, pi=False):
             c[{'answer': 'okAns', 'partial': 'okPartial', 'blocked': 'okBlocked', 'refused': 'okRefused'}[res]] += 1
     return c
 
-print('--- pipeline tallies (Reading animation, Pipeline lab) ---')
+print('--- pipeline tallies (Reading animation and configurator) ---')
 for k, kw in [('none', {}), ('sys', dict(sys=True)), ('inLoose', dict(inp='loose')), ('outLoose', dict(out='loose')), ('bothLoose', dict(inp='loose', out='loose')),
               ('inStrict', dict(inp='strict')), ('outStrict', dict(out='strict')), ('bothStrict', dict(inp='strict', out='strict')), ('in05', dict(inp=0.5)), ('pi05', dict(pi=0.5))]:
     check('tally ' + k, tally(**kw), JS['tally'][k])

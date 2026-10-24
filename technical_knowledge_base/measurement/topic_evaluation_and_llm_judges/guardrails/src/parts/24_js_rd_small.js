@@ -22,7 +22,7 @@
     '<tr><td>Strict</td><td>'+(cu.U+cu.C)+' of 200 ('+pct(cu.U+cu.C,200)+')</td><td>'+(cs.U+cs.C)+' of 250 ('+pct(cs.U+cs.C,250)+')</td></tr></tbody></table></div>';
   const byType={};safeP.forEach(x=>{if(x.qp!=='S'){byType[x.type]=(byType[x.type]||0)+1}});
   const top=Object.entries(byType).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>k.replace(/_/g,' ')+' ('+v+')').join(', ');
-  document.getElementById('rd-qp-note').innerHTML='The safe prompts it flagged (Unsafe or Controversial) come mostly from these XSTest types: '+esc(top)+'. Qwen\'s own report gives the 0.6B model a prompt-classification F1 of 88.1 averaged over seven English sets, taking the better of strict and loose per set (Qwen-run); XSTest prompts are not among those seven. One greedy run, this machine; per-prompt verdicts are in the <a href="#" data-tab="t-pipe">Pipeline lab</a>.';
+  document.getElementById('rd-qp-note').innerHTML='The safe prompts it flagged (Unsafe or Controversial) come mostly from these XSTest types: '+esc(top)+'. Qwen\'s own report gives the 0.6B model a prompt-classification F1 of 88.1 averaged over seven English sets, taking the better of strict and loose per set (Qwen-run); XSTest prompts are not among those seven. One greedy run, this machine; per-prompt verdicts are in the <a href="#pl-cfg">conversation list of section 5</a>.';
 
   // response-mode split (Reading, output rails)
   const harmA=X.filter(x=>x.unsafe&&x.mi===1),okA=X.filter(x=>!x.unsafe&&x.mi===1);
