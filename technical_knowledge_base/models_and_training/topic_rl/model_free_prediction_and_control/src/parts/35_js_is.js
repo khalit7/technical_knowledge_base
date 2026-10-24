@@ -59,6 +59,6 @@ function init(){if(inited)return;inited=true;initTruth();initAnim();sums();
   $('is-runs').onchange=e=>{S.runs=+e.target.value;run()};$('is-seed').onchange=e=>{S.seed=+e.target.value;S.F=M.bjTrace(S.seed,TE);A.show();run()};
   $('is-ivn').onchange=e=>{V.n=+e.target.value;run2()};$('is-ivs').onchange=e=>{V.seed=+e.target.value;run2()};
   U.watch(sec,()=>{if(!S.res[key()]&&!job)run()});U.watch(sec2,()=>{if(!V.res[key2()]&&!job2)run2()})}
-U.onRender('t-is',()=>{init();A.show();plot();plot2()});
+U.onRender('t-read',()=>{init();A.show();plot();plot2()});
 window.LB_TEST=Object.assign(window.LB_TEST||{},{is:()=>({A,S,V,busy:()=>!!job||!!job2})});
 })();

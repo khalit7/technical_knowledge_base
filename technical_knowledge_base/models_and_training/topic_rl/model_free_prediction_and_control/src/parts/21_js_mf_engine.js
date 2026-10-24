@@ -128,7 +128,20 @@ function* ivJob(cfg){const N=cfg.episodes,P=logPoints(N,cfg.per||20),runs=[];
     runs.push({vo,vw})}
   return{P,runs}}
 
+// ---------- Baird's counterexample (Sutton and Barto, Figures 11.1 and 11.2): expected, DP-style semi-gradient updates, one leg of the deadly triad switched off at a time.
+// fa: 'linear' (Baird's features, 8 weights) or 'table' (one weight per state, the same starting values); tg: 'td' (bootstrap from gamma v(7): the target policy always goes to state 7)
+// or 'mc' (the true return, 0, since every reward is 0); dist: 'off' (uniform over the 7 states, as the behaviour policy visits them) or 'on' (state 7 only, as the target policy does).
+function bairdX(s){const x=[0,0,0,0,0,0,0,0];if(s<6){x[s]=2;x[7]=1}else{x[6]=1;x[7]=2}return x}
+function triadRun(o){const g=o.g==null?0.99:o.g,al=o.alpha==null?0.01:o.alpha,N=o.sweeps||1000,lin=o.fa!=='table';
+  const X=[0,1,2,3,4,5,6].map(s=>{if(lin)return bairdX(s);const x=[0,0,0,0,0,0,0];x[s]=1;return x});
+  let w=lin?[1,1,1,1,1,1,10,1]:[3,3,3,3,3,3,12];const S=o.dist==='on'?[6]:[0,1,2,3,4,5,6],wt=1/S.length;
+  const val=()=>X.map(x=>{let s=0;for(let i=0;i<x.length;i++)s+=x[i]*w[i];return s});
+  let v=val();const out={w:[w.slice()],vmax:[Math.max(...v.map(Math.abs))]};
+  for(let k=0;k<N;k++){const dw=new Array(w.length).fill(0);for(const s of S){const d=(o.tg==='mc'?0:g*v[6])-v[s];for(let i=0;i<w.length;i++)dw[i]+=wt*d*X[s][i]}
+    for(let i=0;i<w.length;i++)w[i]+=al*dw[i];v=val();out.w.push(w.slice());out.vmax.push(Math.max(...v.map(Math.abs)))}
+  out.v=v;return out}
+
 const E={rng,hs,gauss,MR,MC,MS,MG,GA,AN,mCliff,mStep,mEps,mMax,mExp,mPrior,mEpisode,fourLearners,mDefault,lamWeights,nReturns,lamReturn,twoTargets,cliffFall,
-  argmaxR,epsPick,mxRun,mxJob,Phi,emax,card,dealer,bjEpisode,bjTrace,dealerDist,bjExact,bjJob,ivEpisode,logPoints,ivJob};
+  argmaxR,epsPick,mxRun,mxJob,Phi,emax,card,dealer,bjEpisode,bjTrace,dealerDist,bjExact,bjJob,ivEpisode,logPoints,ivJob,bairdX,triadRun};
 root.MFE=E;if(typeof module!=='undefined'&&module.exports)module.exports=E;
 })(typeof window!=='undefined'?window:globalThis);

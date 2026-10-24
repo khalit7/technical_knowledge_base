@@ -17,4 +17,5 @@ out.bjSmall=run(E.bjJob({seed:7,runs:5,episodes:500,truth:out.bjExact}));
 out.bjFull=run(E.bjJob({seed:1,runs:100,episodes:10000,truth:out.bjExact}));
 out.ivSmall=run(E.ivJob({seed:7,runs:3,episodes:20000,per:20}));
 out.ivFull=run(E.ivJob({seed:1,runs:10,episodes:1000000,per:20}));
+out.triad={};for(const fa of ['linear','table'])for(const tg of ['td','mc'])for(const dist of ['off','on']){const r=E.triadRun({fa,tg,dist,sweeps:1000});out.triad[fa+'|'+tg+'|'+dist]={w:r.w[1000],vmax:r.vmax.filter((v,i)=>i%50===0)}}
 fs.writeFileSync(path.join(here,'mf_dump.json'),JSON.stringify(out));console.log('wrote mf_dump.json');

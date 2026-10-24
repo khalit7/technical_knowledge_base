@@ -1,4 +1,4 @@
-// ---- Tabs ----
+// ---- Tabs ---- (from the explainer-page skill template; storage key mfpc-tab; a link with data-sec also scrolls to that section)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -14,8 +14,9 @@
   bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
     if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
   // links inside the reading tab that point at other tabs
-  // links that point at another tab, optionally at a section in it (data-sec)
-  document.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();show(a.dataset.tab,true);const s=a.dataset.sec&&document.getElementById(a.dataset.sec);if(s)s.scrollIntoView({block:'start'});else bar.scrollIntoView({block:'start'})});
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);const sec=a.dataset.sec&&document.getElementById(a.dataset.sec);(sec||bar).scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('mfpc-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();

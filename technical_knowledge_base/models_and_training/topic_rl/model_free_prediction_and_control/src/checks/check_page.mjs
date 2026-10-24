@@ -35,31 +35,37 @@ for(const [scheme,width] of (quick?[['dark',390]]:[['dark',390],['light',920]]))
   await pick('rd-ttap','right');await probe('tt right');await pick('rd-ttap','down');await shot('#rd-tt','tt');
   for(const [id,vs] of [['rd-falle',[0,0.5,0.1]],['rd-fallm',[2,8,4]],['rd-fallk',[1,20,10]]])for(const v of vs){await slide(id,v);await probe(id+' '+v)}
   await shot('#rd-fall','fall');
-  // decision tree: walk every path
-  for(const seq of [['p','td'],['p','p2','td2'],['p','p2','mc'],['c','sarsa'],['c','c2','ql'],['c','c2','ql2']]){for(const s of seq){await click('#rd-tree button[data-n="'+s+'"]')}await probe('tree '+seq.join('>'));await click('#rd-tree button[data-back]');await click('#rd-tree button[data-reset]')}
-  await shot('#rd-tree','tree');
-  await p.$$eval('#rd-quizL details',ds=>ds.forEach(d=>d.open=true));await probe('quiz open');
+  await shot('#rd-heroC','hero');
+  // the deadly triad: every combination of the three switches
+  for(const f of ['linear','table'])for(const t of ['td','mc'])for(const d of ['off','on']){await click('#rd-triF button[data-m="'+f+'"]');await click('#rd-triT button[data-m="'+t+'"]');await click('#rd-triD button[data-m="'+d+'"]');await probe('triad '+f+' '+t+' '+d)}
+  await click('#rd-triF button[data-m="linear"]');await click('#rd-triT button[data-m="td"]');await click('#rd-triD button[data-m="off"]');await shot('#rd-triad','triad');
+  await click('#rd-triT button[data-m="mc"]');await shot('#rd-triad','triad-mc');await click('#rd-triT button[data-m="td"]');
+  // nothing plays by itself: every transport is paused after scrolling through the page
+  await p.$$eval('#t-read details',ds=>ds.forEach(d=>d.open=true));await probe('details open');
+  const playing=await p.evaluate(async()=>{for(const id of ['lb-rw','lb-nl','lb-cl','mx-run','is-bj','rd-four']){document.getElementById(id).scrollIntoView();await new Promise(r=>setTimeout(r,400))}
+    return [...document.querySelectorAll('.lb-pl')].filter(b=>b.getAttribute('aria-pressed')==='true').map(b=>b.id).concat([...document.querySelectorAll('#t-read .an-play')].filter(b=>/Pause/.test(b.textContent)).map(b=>b.id))});
+  if(playing.length){fails++;say('FAIL autoplay',scheme,width,playing)}
   await p.$eval('#rd-spine tr[data-go="rd-off"]',e=>e.click());await sleep(200);await probe('spine click');
   await shot('#rd-spine','spine');
-  // ---------------- TD or Monte Carlo ----------------
-  await tab('t-rw');await p.$eval('#lb-rw',e=>e.scrollIntoView());await sleep(400);await idle();await probe('rw open');
+  // ---------------- TD or Monte Carlo (section 1) ----------------
+  await p.$eval('#lb-rw',e=>e.scrollIntoView());await sleep(400);await idle();await probe('rw open');
   if(!quick){for(const e of ['0','1','10','100']){await click('#lb-rw .lb-jb button[data-e="'+e+'"]');await probe('rw jump '+e)}
     for(const v of await opts('lb-rw-at')){await pick('lb-rw-at',v);await probe('rw at '+v)}for(const v of await opts('lb-rw-am')){await pick('lb-rw-am',v);await probe('rw am '+v)}
     for(const m of ['batch','on']){await click('#lb-rw-mode button[data-m="'+m+'"]');await idle();await probe('rw mode '+m)}}
   await click('#lb-rw .lb-jb button[data-e="10"]');await shot('#lb-rw','rw');
   // ---------------- n-step and TD(lambda) ----------------
-  await tab('t-nl');await p.$eval('#lb-nl',e=>e.scrollIntoView());await sleep(400);await idle();await probe('nl open');
+  await p.$eval('#lb-nl',e=>e.scrollIntoView());await sleep(400);await idle();await probe('nl open');
   if(!quick){for(const id of ['lb-nl-n','lb-nl-l','lb-nl-ep'])for(const v of await opts(id)){await pick(id,v);await click('#lb-nl-fwd');await probe(id+'='+v)}
     for(const f of ['lret','tdl','nstep']){await click('#lb-nl-fam button[data-f="'+f+'"]');await idle();await probe('nl fam '+f)}}
   await shot('#lb-nl','nl');
   // ---------------- Cliff ----------------
-  await tab('t-cl');await p.$eval('#lb-cl',e=>e.scrollIntoView());await sleep(400);await idle();await probe('cl open');
+  await p.$eval('#lb-cl',e=>e.scrollIntoView());await sleep(400);await idle();await probe('cl open');
   if(!quick){for(const v of [0,1,250,500]){await slide('lb-cl-scr',v);await click('#lb-cl-fwd');await probe('cl scrub '+v)}
     for(const w of ['a','b'])for(const v of await opts('lb-cl-m'+w)){await pick('lb-cl-m'+w,v);await idle();await probe('cl m'+w+'='+v)}
     await pick('lb-cl-ma','sarsa');await pick('lb-cl-mb','q');await idle()}
   await slide('lb-cl-scr',300);await shot('#lb-cl','cl');
   // ---------------- Maximisation bias ----------------
-  await tab('t-mx');await p.$eval('#mx-run',e=>e.scrollIntoView());await sleep(400);await idle();await probe('mx open');
+  await p.$eval('#mx-run',e=>e.scrollIntoView());await sleep(400);await idle();await probe('mx open');
   for(const [id,vs] of [['mx-emN',[1,3,30,10]],['mx-emS',[0,30,10]]])for(const v of vs){await slide(id,v);await probe(id+' '+v)}
   for(const v of [0,1,5,50,300]){await slide('mx-scr',v);await probe('mx scrub '+v)}
   await click('#mx-play');await sleep(800);await click('#mx-play');await click('#mx-fwd');await click('#mx-back');await probe('mx transport');
@@ -67,7 +73,7 @@ for(const [scheme,width] of (quick?[['dark',390]]:[['dark',390],['light',920]]))
     for(const v of ['1000','10000']){await pick('mx-runs',v);await idle();await probe('mx runs '+v)}await pick('mx-seed','2');await idle();await probe('mx seed 2');await pick('mx-seed','1');await idle()}
   await slide('mx-scr',25);await shot('#mx-run','mx');await shot('#mx-one','mxem');
   // ---------------- Importance sampling ----------------
-  await tab('t-is');await p.$eval('#is-bj',e=>e.scrollIntoView());await sleep(400);await p.$eval('#is-iv',e=>e.scrollIntoView());await sleep(400);await idle();await probe('is open');
+  await p.$eval('#is-bj',e=>e.scrollIntoView());await sleep(400);await p.$eval('#is-iv',e=>e.scrollIntoView());await sleep(400);await idle();await probe('is open');
   for(const v of [0,1,2,3,10,200]){await slide('is-scr',v);await probe('is scrub '+v)}
   await click('#is-play');await sleep(800);await click('#is-play');await probe('is play');
   if(!quick){for(const v of ['20','500','100']){await pick('is-runs',v);await idle();await probe('is runs '+v)}await pick('is-seed','2');await idle();await probe('is seed 2');await pick('is-seed','1');await idle();
@@ -77,7 +83,7 @@ for(const [scheme,width] of (quick?[['dark',390]]:[['dark',390],['light',920]]))
   for(const id of ['mx-lg','is-lg','is-ivlg']){await click('#'+id+' button');await probe('legend '+id);await click('#'+id+' button')}
   // ---------------- Further reading and tab links ----------------
   await tab('t-more');await probe('more');
-  await tab('t-read');await p.$eval('a[data-tab="t-mx"]',e=>e.click());await sleep(300);cur='t-mx';await probe('link to mx');
+  await p.$eval('#t-more a[data-sec="mx-run"]',e=>e.click());await sleep(300);cur='t-read';await probe('link to mx section');
   await p.setViewport({width:width===390?360:1100,height:900});await sleep(400);await probe('resize');
   say(scheme,width,'done');await p.close()}
 await b.close();say(fails?'check_page: '+fails+' failures of '+probes+' probes':'check_page: pass ('+probes+' probes)');process.exit(fails?1:0);

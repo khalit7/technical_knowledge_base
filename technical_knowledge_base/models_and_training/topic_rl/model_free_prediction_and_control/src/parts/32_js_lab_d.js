@@ -78,6 +78,6 @@ function checks(){const r=S.res[key()];if(!r)return;const R=[],late=r.mean.map(m
   R.push([null,'With ε shrinking toward 0 both methods would converge to the optimal path, as the book notes; try ε = 0.05 to see the gap narrow.']);
   U.checks($('lb-cl-chk'),R)}
 let inited=false;
-U.onRender('t-cl',()=>{if(!inited){inited=true;init()}A.show();plot()});
+U.onRender('t-read',()=>{if(!inited){inited=true;init()}A.show();plot()});
 window.LB_TEST=Object.assign(window.LB_TEST||{},{cl:()=>({A,S,P,busy:()=>!!job})});
 })();
