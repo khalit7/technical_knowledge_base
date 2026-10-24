@@ -1,25 +1,76 @@
-<section id="rd-s0">
-<p class="lead">A <dfn>generative model</dfn> learns what its training data looks like well enough to produce new examples of it: new images, video, sound or text that could plausibly have come from the same source. A <dfn>multimodal model</dfn> takes in or produces more than one kind of data (images and text, video and audio). This topic covers both, taught from zero: how images are compressed into <dfn>latents</dfn>, how diffusion and flow models turn random noise into an image, how a model "sees" an image as a sequence of patches, and how a language model is taught to read those patches. Reading time about <span id="rd-time">30</span> minutes (measured from the words outside widgets at 200 a minute; the folded answers add about <span id="rd-time-qa">10</span>).</p>
+<section id="rd-top">
+<p class="core"><b>The idea.</b> Making images and reading them are two pipelines built from the same few parts: a <dfn>generator</dfn> turns random noise into a small <dfn>latent</dfn> through tens of denoising passes and decodes it to pixels once; a <dfn>reader</dfn> cuts an image into patch tokens that a language model attends to like words; a <dfn>native multimodal</dfn> model runs both inside one transformer.</p>
 
-<div class="rd-card">
-<h4>The whole subject on one screen: five ways to generate, three ways to understand</h4>
+<div class="hero" id="rd-hero">
+<h4>Two pipelines from shared parts: every box is a child page</h4>
+<div class="lane"><div class="lh">Generate<br>noise to pixels</div><div class="row">
+<a class="box" style="--sc:var(--c2)" href="https://app.notion.com/p/3fc5c17b0d0d814fbcb5e0c8df5289f3" target="_blank" rel="noopener noreferrer"><b>Text encoder</b>prompt to vectors, once<i>CLIP, T5 or an LLM; Latent diffusion section 3</i></a><span>&#9654;</span>
+<a class="box" style="--sc:var(--acc)" href="https://app.notion.com/p/3c65c17b0d0d81cf9bf0d94e57ce9164" target="_blank" rel="noopener noreferrer"><b>Denoiser, 1 to 100 passes</b>noise to latent, a little per step<i>Diffusion from zero; Flow matching</i></a><span>&#9654;</span>
+<a class="box" style="--sc:var(--c4)" href="https://app.notion.com/p/3c65c17b0d0d814da93bdb159b7c1e11" target="_blank" rel="noopener noreferrer"><b>VAE decoder</b>latent to pixels, once<i>Autoencoders and VAEs</i></a>
+</div></div>
+<div class="lane"><div class="lh">The same with time and sound</div><div class="row">
+<a class="box wide" style="--sc:var(--c5)" href="https://app.notion.com/p/3c65c17b0d0d8198bd7be111a3dc4c3a" target="_blank" rel="noopener noreferrer"><b>Video and audio generation</b>a latent with a time axis; codec tokens or spectrograms for sound</a>
+</div></div>
+<div class="lane"><div class="lh">Both in one model</div><div class="row">
+<a class="box wide" style="--sc:var(--c6)" href="https://app.notion.com/p/3c65c17b0d0d8139bd6cd4137dd2a4d8" target="_blank" rel="noopener noreferrer"><b>Native multimodal</b>text and image tokens in one transformer that reads and writes both</a>
+</div></div>
+<div class="lane"><div class="lh">Understand<br>pixels to text</div><div class="row">
+<a class="box" style="--sc:var(--c3)" href="https://app.notion.com/p/3c65c17b0d0d81c99f60ceb2f02cf5ea" target="_blank" rel="noopener noreferrer"><b>Vision encoder</b>patches to vectors<i>ViT, CLIP, SigLIP</i></a><span>&#9654;</span>
+<a class="box" style="--sc:var(--c1)" href="https://app.notion.com/p/3fc5c17b0d0d81adbb7be5bc41c4d9d0" target="_blank" rel="noopener noreferrer"><b>Connector and language model</b>vectors become image tokens in the prompt; text out<i>Vision-language models</i></a>
+</div></div>
+<div class="lane"><div class="lh">Measuring all of it</div><div class="row">
+<a class="box wide" style="--sc:var(--mute)" href="https://app.notion.com/p/3fc5c17b0d0d81c890f4f62543312faa" target="_blank" rel="noopener noreferrer"><b>Evaluating generative models</b>distances between feature distributions, prompt checks, preference votes, benchmarks with answer keys</a>
+</div></div>
+<p class="note">Shared parts tie the lanes together: CLIP&#8217;s text tower is Stable Diffusion 1.5&#8217;s text encoder and its image tower was the first open VLMs&#8217; encoder; the autoencoder that compresses for a generator also tokenises images for a native model; the transformer of the bottom lane became the denoiser of the top one (DiT).</p>
+</div>
+
+<p class="small"><b>You need</b> the transformer (attention, a block, a language model&#8217;s next-token loss): {{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}} if it is rusty. The derivations behind the losses (ELBO, scores, guidance, flow matching) are on {{Variational inference and generative-model maths|n:3f05c17b0d0d81aa9857eb5fa1bac530}}; nothing here needs them.</p>
+<div class="small"><b>New terms on this page</b> (each defined again where it is used):</div>
+<dl class="terms">
+<dt>multimodal</dt><dd>takes in or produces more than one kind of data (images and text, video and audio)</dd>
+<dt>latent</dt><dd>a compressed version of the image (Stable Diffusion: 64 &times; 64 &times; 4 numbers for 512 &times; 512 pixels) that the generator works on</dd>
+<dt>denoiser, pass</dt><dd>the network that removes a little noise; one run of it is a pass, and an image costs tens of them</dd>
+<dt>guidance (CFG)</dt><dd>running the denoiser with and without the prompt and pushing past the difference; two passes per step</dd>
+<dt>patch token</dt><dd>one square of pixels turned into one vector by a vision transformer</dd>
+<dt>connector</dt><dd>the small network that maps encoder vectors to a language model&#8217;s width</dd>
+<dt>early fusion</dt><dd>images enter one transformer as tokens beside text, from the first layer</dd>
+<dt>FID</dt><dd>a distance between the features of real and generated images; lower is better</dd>
+</dl>
+<p class="small"><b>The running example.</b> Every small model in the topic trains on <b>Fashion-MNIST</b>: 70,000 grey 28 &times; 28 images of clothing in 10 classes (MIT licence, Zalando), padded to 32 &times; 32; clothing shows blur, dropped modes and class confusions by eye, and a 1M-parameter U-Net learns it in minutes on a laptop GPU. Sixteen fixed test images are used for every before/after. The pretrained models, pinned to exact revisions, are <b>Stable Diffusion v1.5</b> (CreativeML OpenRAIL-M), <b>CLIP ViT-B/32</b>, <b>SigLIP 2 base</b> and the VLM <b>SmolVLM-500M-Instruct</b> (both Apache 2.0), run on sixteen colour test images with known answers (photographs in the public domain or CC0, synthetic scenes, Stable Diffusion outputs). Details and licences: the root&#8217;s <code>src/data/README.md</code>.</p>
+<p class="small">Labels: <span class="meas">measured</span> means produced for this topic in October 2026 on an Apple M1 Pro (GPU through PyTorch&#8217;s MPS backend, or CPU); <span class="vend">vendor</span>, a lab&#8217;s figure about its own model; <span class="indep">third-party</span>, someone without a stake; <span class="der">derived</span>, computed with the formula shown; <span class="unc">unconfirmed</span>, no primary source. Counts (steps, passes, tokens) transfer to a datacenter GPU; laptop seconds do not.</p>
+</section>
+
+<section id="rd-s1">
+<h2>1. Five ways to generate, three ways to understand</h2>
+<p>An image of 28 &times; 28 grey pixels is a point in a 784-dimensional space; almost every point is static, and the images that look like clothing fill a tiny, oddly shaped region of it. We never get a formula for that region (the <dfn>data distribution</dfn> <i>p</i>(<i>x</i>)), only examples. A generative model is a recipe for drawing new points from it; a <dfn>conditional</dfn> one draws from <i>p</i>(<i>x</i> | <i>c</i>), with <i>c</i> a class or a prompt. The five families differ mostly in <b>network calls per sample</b> and <b>training signal</b>:</p>
 <div class="tw"><table class="rd-cmp">
 <thead><tr><th>Family</th><th>How it makes one sample</th><th>Network calls per sample</th><th>Gives the probability of an image?</th><th>Typical failure</th><th>Where it is in 2026</th></tr></thead>
 <tbody>
 <tr><td><a href="#rd-s2">VAE</a></td><td>Draw a random code, decode it once</td><td>1</td><td>A lower bound (the ELBO)</td><td>Blurry samples</td><td>The compressor in front of almost every image and video generator</td></tr>
-<tr><td><a href="#rd-s1">GAN</a></td><td>A generator maps noise to an image; trained against a judge network</td><td>1</td><td>No</td><td>Mode collapse (a few kinds of output only), unstable training</td><td>Rarely alone; its adversarial loss sharpens VAE decoders and few-step distilled samplers</td></tr>
-<tr><td><a href="#rd-s1">Autoregressive</a></td><td>Cut the image into discrete tokens, predict one token at a time</td><td>One per token (1,024 for one 512 &times; 512 image in Chameleon)</td><td>Yes, exactly</td><td>Slow; detail limited by the tokenizer</td><td>Audio, unified text-and-image models</td></tr>
+<tr><td>GAN</td><td>A generator maps noise to an image; trained against a judge network</td><td>1</td><td>No</td><td>Mode collapse (a few kinds of output only), unstable training</td><td>Rarely alone; its adversarial loss sharpens VAE decoders and few-step distilled samplers</td></tr>
+<tr><td><a href="#rd-s7">Autoregressive</a></td><td>Cut the image into discrete tokens, predict one token at a time</td><td>One per token (1,024 for one 512 &times; 512 image in Chameleon)</td><td>Yes, exactly</td><td>Slow; detail limited by the tokenizer</td><td>Audio, unified text-and-image models</td></tr>
 <tr><td><a href="#rd-s3">Diffusion</a></td><td>Start from pure noise, remove a little noise per step</td><td>Tens of steps, twice that with guidance</td><td>A bound, or exactly through an ODE</td><td>Slow sampling; over-saturated images at high guidance</td><td>Most image and video generators up to 2024</td></tr>
 <tr><td><a href="#rd-s3">Flow matching</a></td><td>Follow a learned velocity from noise to data along near-straight paths</td><td>Fewer steps; 1 to 4 when distilled</td><td>Exactly through an ODE</td><td>As diffusion (it is the same family)</td><td>Stable Diffusion 3, FLUX.1, Movie Gen</td></tr>
 </tbody></table></div>
-<div class="rd-two">
-<div><p class="small"><b>Understanding, not generating.</b> A <a href="#rd-s5">vision encoder</a> turns an image into vectors (ViT, CLIP, SigLIP). A <a href="#rd-s6">vision-language model</a> (VLM) feeds those vectors to a language model, which answers in text. A <a href="#rd-s7">native multimodal model</a> puts text and image tokens into one transformer, which can read and write both.</p></div>
-<div><p class="small"><b>What ties them together.</b> Modern generators work in a compressed latent (section 2), read images as patches with a transformer (sections 4, 5), and get text through an encoder trained on image-caption pairs (section 5).</p></div>
+<p class="small"><b>Autoregressive</b>: <i>p</i>(<i>x</i>) = &prod; <i>p</i>(<i>x<sub>i</sub></i> | <i>x</i><sub>&lt;<i>i</i></sub>), a language model&#8217;s chain rule; on raw pixels the samples were poor (Gated PixelCNN: FID 65.93 on CIFAR-10, {{DDPM Table 1|https://arxiv.org/html/2006.11239v2#S4.T1}}), on learned image tokens far better (Parti treats text-to-image &#8220;as a sequence-to-sequence modeling problem&#8221; at 20B parameters, {{Yu et al. 2022|https://arxiv.org/abs/2206.10789}}). <b>VAE</b> ({{Kingma and Welling, Dec 2013|https://arxiv.org/abs/1312.6114}}): section 2. <b>GAN</b> ({{Goodfellow et al., June 2014|https://arxiv.org/abs/1406.2661}}): a generator and a discriminator, &#8220;the training procedure for G is to maximize the probability of D making a mistake&#8221;; sharp in one call, no likelihood, and <dfn>mode collapse</dfn> (a few outputs that fool the judge); no child page teaches GANs, because in 2026 they survive only as a loss inside other models. <b>Diffusion</b> ({{Ho et al., June 2020|https://arxiv.org/abs/2006.11239}}) reached FID 3.17 on CIFAR-10, the best unconditional score in its table ({{DDPM page|n:3c65c17b0d0d811481e4e36333454f7a}}). <b>Flow matching</b>: {{Lipman et al. 2022|https://arxiv.org/abs/2210.02747}}; rectified flow, {{Liu et al. 2022|https://arxiv.org/abs/2209.03003}}. Section 3 compares the last two.</p>
+<p class="small"><b>Understanding, not generating.</b> A <a href="#rd-s5">vision encoder</a> turns an image into vectors (ViT, CLIP, SigLIP). A <a href="#rd-s6">vision-language model</a> (VLM) feeds those vectors to a language model, which answers in text. A <a href="#rd-s7">native multimodal model</a> puts text and image tokens into one transformer, which can read and write both.</p>
+
+<div class="rd-card" id="rd-gen-card">
+<h4>Three families make the same pullover: count the network calls</h4>
+<p class="small">An autoregressive model reveals 49 tokens, one call each; a diffusion sampler takes 50 steps; a flow sampler takes 8 Euler steps. Each frame is the exact path a sampler follows when its model already knows the answer, not a trained model&#8217;s guess (trained models: {{Diffusion from zero|n:3c65c17b0d0d81cf9bf0d94e57ce9164}} section 5, {{Flow matching|n:3fc5c17b0d0d8136a1efc73aaa446ceb}} section 10). The chart plots image share against noise share: diffusion curves, flow goes straight.</p>
+<div class="seg" id="rd-gen-cfg"><button data-m="0" class="on">No guidance</button><button data-m="1">With classifier-free guidance (2 calls per step)</button></div>
+<div class="rd-gens">
+<div class="rd-gen" id="rd-gen-ar"><div class="h">Autoregressive</div><canvas width="28" height="28" aria-label="autoregressive frame"></canvas><div class="c"></div></div>
+<div class="rd-gen" id="rd-gen-df"><div class="h">Diffusion (DDIM, 50 steps)</div><canvas width="28" height="28" aria-label="diffusion frame"></canvas><div class="c"></div></div>
+<div class="rd-gen" id="rd-gen-fl"><div class="h">Flow (Euler, 8 steps)</div><canvas width="28" height="28" aria-label="flow frame"></canvas><div class="c"></div></div>
+<div class="rd-gen wide"><div class="h">Image vs noise in each frame</div><div class="rd-svg" id="rd-gen-path"></div></div>
 </div>
-<p class="small mute">Sources for each cell are in the section the family name links to.</p>
+<div class="an-ctl" id="rd-gen-ctl"></div>
+<div class="an-cap" id="rd-gen-cap"></div>
 </div>
 
-<p><b>The running example.</b> <!--CODE:example--><span data-rd="example" class="rd-todo">TODO (setup): the running example as defined in src/data/README.md.</span><!--/CODE:example--></p>
-<p>Labels: <span class="meas">measured</span> means produced for this page in October 2026 on an Apple M1 Pro (GPU through PyTorch's MPS backend, or CPU); <span class="vend">vendor</span>, a lab's figure about its own model; <span class="indep">third-party</span>, someone without a stake; <span class="der">derived</span>, computed with the formula shown; <span class="unc">unconfirmed</span>, no primary source. Counts (steps, passes, tokens) transfer to a datacenter GPU; laptop seconds do not.</p>
-<p>The page serves four goals: build with these models, understand what each component computes, judge and debug them, and explain a design in an interview. Each section ends with its lab tab, its child page and the existing pages that already derive the maths: {{Variational inference and generative-model maths|n:3f05c17b0d0d81aa9857eb5fa1bac530}} (ELBO, VAEs, diffusion, scores, guidance, flow matching) and the paper pages for {{DDPM|n:3c65c17b0d0d811481e4e36333454f7a}}, {{latent diffusion|n:3c65c17b0d0d81bb98adc0daf8462cb6}}, {{ViT|n:3c65c17b0d0d811fa231cfcde6c1954d}} and {{CLIP|n:3c65c17b0d0d8194a85dfc5f3bf3f799}}. This page links them rather than repeating them.</p>
+<div class="pr"><div class="q">Predict, then press play above: a 512 &times; 512 image as Chameleon tokens (1,024 per image) or as 30 steps of a diffusion sampler with guidance. Which needs more sequential network calls?</div>
+<div class="opts"><button data-r="1">The autoregressive one, by about 17 times</button><button>About the same</button><button>The diffusion one</button></div>
+<div class="ans" hidden><span class="der">derived</span> Autoregressive: 1,024 calls, one per token, each waiting for the last (Chameleon encodes &#8220;a 512&times;512 image into 1024 discrete tokens from a codebook of size 8192&#8221;, {{Chameleon Team 2024|https://arxiv.org/html/2405.09818v1}}). Diffusion: 30 steps &times; 2 (conditional and unconditional pass) = 60 calls, and diffusers runs the two passes of a step as one batch of 2 (<code>torch.cat([latents] * 2)</code>, {{pipeline_stable_diffusion.py line 1037, v0.41.0|https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion.py#L1037}}), so 30 sequential rounds; 1,024 / 60 &asymp; 17. But each autoregressive call reuses a cache and processes one new token, while each diffusion call processes the whole image: counting calls alone is not counting compute (section 10).</div></div>
+<p class="deepnote">Every named model on a timeline by family: {{Model map|#t-map}}. Why each family&#8217;s loss is what it is: {{Variational inference and generative-model maths|n:3f05c17b0d0d81aa9857eb5fa1bac530}}, sections 1 to 18.</p>
 </section>

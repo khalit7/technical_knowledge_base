@@ -1,36 +1,43 @@
-<section id="rd-s1">
-<h2>1. What a generative model is, and the five families</h2>
-<p><b>The problem.</b> A 28 &times; 28 greyscale image is a list of 784 numbers, a point in a 784-dimensional space. Almost every point in that space is static; the images that look like clothing occupy a tiny, oddly shaped region of it. We never get a formula for that region, only examples from it (the training set). We call the unknown rule that produced the examples the <dfn>data distribution</dfn>, written <i>p</i>(<i>x</i>). A generative model is a recipe for drawing new points from (an approximation of) that region. Some families can also <i>score</i> a given image, reporting how probable the model finds it (its <dfn>likelihood</dfn>); others can only sample. A <dfn>conditional</dfn> model draws from <i>p</i>(<i>x</i> | <i>c</i>), where the condition <i>c</i> is a class label or a text prompt.</p>
-<p>Every pixel depends on many others (a sleeve on the left implies one on the right); the five families are five ways to capture that, and differ mostly in <b>network calls per sample</b> and <b>training signal</b>.</p>
+<section id="rd-s2">
+<h2>2. Latents: generate something smaller than the image</h2>
+<p>A 512 &times; 512 colour image is 786,432 numbers; Stable Diffusion v1 generates a 64 &times; 64 &times; 4 latent instead, 16,384 numbers, <b>48 times fewer</b> <span class="der">derived</span>, and the denoiser pays for every number at every step. An <dfn>autoencoder</dfn> makes the latent: an encoder squeezes the image, a decoder rebuilds it, trained on the difference. Three kinds matter, and they differ in what you can do with the code:</p>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Kind</th><th>The code</th><th>Can you sample a new image from it?</th><th>Used by</th></tr></thead>
+<tbody>
+<tr><td>Plain autoencoder</td><td>Any vector the training put there</td><td>No: a random code falls in a gap and decodes to nonsense</td><td>Compression only</td></tr>
+<tr><td>VAE</td><td>A distribution pulled towards a standard Gaussian by a KL penalty</td><td>Yes, but blurry: the decoder averages what the code cannot pin down</td><td>The compressor of latent diffusion (with the KL weight near zero)</td></tr>
+<tr><td>VQ-VAE and its successors</td><td>The nearest entries of a learned codebook: a grid of integers</td><td>Yes, with a second model that predicts the integers like words</td><td>Autoregressive and native multimodal models</td></tr>
+</tbody></table></div>
+<p>The autoencoder of a latent diffusion model is a compressor, not a generator: Stable Diffusion&#8217;s weights its KL term at about 10<sup>&minus;6</sup> and adds perceptual and adversarial losses for sharp texture, and its latents are rescaled by a <dfn>scaling factor</dfn> (0.18215 for Stable Diffusion v1, 0.3611 for FLUX&#8217;s 16 channels) so the denoiser sees unit-scale numbers.</p>
+<p class="deepnote">Go deeper: {{Autoencoders and VAEs|n:3c65c17b0d0d814da93bdb159b7c1e11}} trains all three on the running example (random codes, &beta;, posterior collapse, codebook collapse, FSQ and LFQ, sections 1 to 10) and measures the Stable Diffusion autoencoder and every scaling factor (section 11).</p>
+</section>
 
-<div class="rd-two">
-<div>
-<p><b>Autoregressive.</b> Write the image as a sequence and predict each element from the ones before: <i>p</i>(<i>x</i>) = &prod; <i>p</i>(<i>x<sub>i</sub></i> | <i>x</i><sub>&lt;<i>i</i></sub>), a language model's chain rule and cross-entropy loss, with exact likelihood. Raw pixels gave poor samples (Gated PixelCNN: FID 65.93 on CIFAR-10, {{DDPM Table 1|https://arxiv.org/html/2006.11239v2#S4.T1}}); learned <dfn>image tokens</dfn> (section 2) worked better: Parti treats text-to-image "as a sequence-to-sequence modeling problem" at 20B parameters ({{Yu et al. 2022|https://arxiv.org/abs/2206.10789}}). Cost: one call per token, in order.</p>
-<p><b>VAE</b> (variational autoencoder, {{Kingma and Welling, Dec 2013|https://arxiv.org/abs/1312.6114}}). Encode an image to a short code kept close to a standard Gaussian, decode it back; a random Gaussian code then decodes to something sensible. One call per sample, but blurry (section 2).</p>
-</div>
-<div>
-<p><b>GAN</b> (generative adversarial network, {{Goodfellow et al., June 2014|https://arxiv.org/abs/1406.2661}}). A generator turns noise into an image; a discriminator tries to tell its images from real ones; "the training procedure for G is to maximize the probability of D making a mistake". Sharp images in one call, but no likelihood, notoriously unstable training, and <dfn>mode collapse</dfn>: the generator finds a few outputs that fool the judge and stops covering the rest of the data.</p>
-<p><b>Diffusion</b> ({{Ho et al., June 2020|https://arxiv.org/abs/2006.11239}}). Destroy training images by adding Gaussian noise in many small steps, and train a network to undo one step. To generate, start from pure noise and apply the network again and again. DDPM reached FID 3.17 on CIFAR-10, the best unconditional score in its table ({{DDPM page|n:3c65c17b0d0d811481e4e36333454f7a}}).</p>
-<p><b>Flow matching</b> ({{Lipman et al. 2022|https://arxiv.org/abs/2210.02747}}; rectified flow, {{Liu et al. 2022|https://arxiv.org/abs/2209.03003}}). Learn a velocity field that carries noise to data along nearly straight paths; generate by following it. Straighter paths need fewer steps.</p>
-</div>
-</div>
+<section id="rd-s3">
+<h2>3. Diffusion and flow matching, side by side</h2>
+<p><b>Diffusion.</b> Mix an image with Gaussian noise in closed form, x<sub>t</sub> = &radic;&#257;<sub>t</sub> x<sub>0</sub> + &radic;(1 &minus; &#257;<sub>t</sub>) &epsilon;, train a <dfn>denoiser</dfn> to predict the noise from x<sub>t</sub> with a squared error, and generate by starting from pure noise and removing the predicted noise a little per step; the rule per step is the <dfn>sampler</dfn>. <b>Flow matching.</b> Draw the straight line from an image to a noise sample, x<sub>t</sub> = (1 &minus; t) x<sub>0</sub> + t &epsilon;, train the network to predict its direction &epsilon; &minus; x<sub>0</sub> (the <dfn>velocity</dfn>), and generate by stepping against the predicted velocity with an ODE solver. <b>Classifier-free guidance</b> works the same in both: run the network with and without the prompt and push past the difference, &epsilon; = &epsilon;<sub>uncond</sub> + <i>w</i> (&epsilon;<sub>cond</sub> &minus; &epsilon;<sub>uncond</sub>), which doubles the passes per step.</p>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th></th><th>Diffusion (DDPM-style)</th><th>Flow matching (rectified flow)</th></tr></thead>
+<tbody>
+<tr><td>Path from data to noise</td><td>Variance-preserving curve set by the schedule</td><td>Straight line</td></tr>
+<tr><td>Network predicts</td><td>Noise (or clean image, or v)</td><td>Velocity &epsilon; &minus; x<sub>0</sub></td></tr>
+<tr><td>Sampling</td><td>DDPM (stochastic, many steps), DDIM or solvers (10 to 50)</td><td>ODE solver, usually Euler; few steps; 1 to 4 when distilled</td></tr>
+<tr><td>Guidance</td><td>CFG</td><td>CFG, or guidance distilled into the model</td></tr>
+<tr><td>Used by</td><td>DDPM, Stable Diffusion 1 and 2, SDXL, Imagen</td><td>Stable Diffusion 3, FLUX.1, Movie Gen</td></tr>
+<tr><td>Owner</td><td>{{Diffusion from zero|n:3c65c17b0d0d81cf9bf0d94e57ce9164}}</td><td>{{Flow matching|n:3fc5c17b0d0d8136a1efc73aaa446ceb}}</td></tr>
+</tbody></table></div>
+<p><b>They are one family.</b> Flow matching &#8220;is compatible with a general family of Gaussian probability paths&#8221;, &#8220;which subsumes existing diffusion paths as specific instances&#8221; ({{Lipman et al. 2022|https://arxiv.org/abs/2210.02747}}), and a trained diffusion model also defines an ODE, the probability-flow ODE that DDIM and the solvers integrate ({{Song et al. 2021|https://arxiv.org/abs/2011.13456}}). So the choice is the path, the prediction target and how training weights the noise levels; straighter paths survive larger steps. On the topic&#8217;s tiny model, same network, data and training steps, flow with Euler scored FD 158.3 at 4 steps against DDIM&#8217;s 478.9 and beat every diffusion sampler from 1 to 50 steps, yet DDPM at 1,000 steps (34.9) still beat any unguided flow sampler <span class="meas">measured</span>: fewer steps, not a better end point. Cutting to 1 to 4 steps is <dfn>distillation</dfn>, owned by {{Latent diffusion and DiTs|n:3fc5c17b0d0d814fbcb5e0c8df5289f3}} section 10 (reflow and one-step distillation of a flow: {{Flow matching|n:3fc5c17b0d0d8136a1efc73aaa446ceb}} sections 8 and 9).</p>
+<p class="deepnote">Go deeper: {{Diffusion from zero|n:3c65c17b0d0d81cf9bf0d94e57ce9164}} (forward process and schedules, targets and loss weighting, samplers, guidance and its fixes: sections 1 to 6); {{Flow matching|n:3fc5c17b0d0d8136a1efc73aaa446ceb}} (the marginal field, solvers at equal cost, paths, couplings, reflow, flow against diffusion at equal cost: sections 1 to 10); the derivations on {{Variational inference and generative-model maths|n:3f05c17b0d0d81aa9857eb5fa1bac530}}, sections 12 to 18.</p>
+</section>
 
-<div class="rd-card" id="rd-gen-card">
-<h4>One image, made three ways: count the network calls</h4>
-<p class="small">One Fashion-MNIST pullover made by an autoregressive model (49 tokens, one call each), a diffusion sampler (50 steps) and a flow sampler (8 Euler steps). Each frame is the exact path a sampler follows when its model already knows the answer, not a trained model's guess (those are in the {{Diffusion lab|#t-diff}} and {{Flow lab|#t-flow}}). The chart shows image against noise share: diffusion curves, flow goes straight.</p>
-<div class="seg" id="rd-gen-cfg"><button data-m="0" class="on">No guidance</button><button data-m="1">With classifier-free guidance (2 calls per step)</button></div>
-<div class="rd-gens">
-<div class="rd-gen" id="rd-gen-ar"><div class="h">Autoregressive</div><canvas width="28" height="28" aria-label="autoregressive frame"></canvas><div class="c"></div></div>
-<div class="rd-gen" id="rd-gen-df"><div class="h">Diffusion (DDIM, 50 steps)</div><canvas width="28" height="28" aria-label="diffusion frame"></canvas><div class="c"></div></div>
-<div class="rd-gen" id="rd-gen-fl"><div class="h">Flow (Euler, 8 steps)</div><canvas width="28" height="28" aria-label="flow frame"></canvas><div class="c"></div></div>
-<div class="rd-gen wide"><div class="h">Image vs noise in each frame</div><div class="rd-svg" id="rd-gen-path"></div></div>
+<section id="rd-s4">
+<h2>4. A text-to-image system: three networks in a row</h2>
+<div class="rd-pipe">
+<div style="--sc:var(--c2)"><b>Text encoder</b>Prompt to 77 token vectors<i>frozen CLIP ViT-L/14 text tower, 123,060,480 parameters</i></div><span>&#9654;</span>
+<div style="--sc:var(--acc)"><b>Denoiser</b>Runs once per step on the 64 &times; 64 &times; 4 latent, reading the text through cross-attention<i>U-Net, 859,520,964 parameters</i></div><span>&#9654;</span>
+<div style="--sc:var(--c4)"><b>VAE decoder</b>Latent to 512 &times; 512 pixels, once<i>f = 8, 4 channels, scale 0.18215; 83,653,863 parameters</i></div>
 </div>
-<div class="an-ctl" id="rd-gen-ctl"></div>
-<div class="an-cap" id="rd-gen-cap"></div>
-</div>
-
-<div class="pr"><div class="q">Predict: a 512 &times; 512 image as Chameleon tokens (1,024 per image) or as 30 steps of a diffusion sampler with guidance. Which needs more sequential network calls?</div>
-<div class="opts"><button data-r="1">The autoregressive one, by about 17 times</button><button>About the same</button><button>The diffusion one</button></div>
-<div class="ans" hidden><span class="der">derived</span> Autoregressive: 1,024 calls, one per token, each waiting for the last (Chameleon encodes "a 512&times;512 image into 1024 discrete tokens from a codebook of size 8192", {{Chameleon Team 2024|https://arxiv.org/html/2405.09818v1}}). Diffusion: 30 steps &times; 2 (conditional and unconditional pass) = 60 calls, and diffusers runs the two passes of a step as one batch of 2 (<code>torch.cat([latents] * 2)</code>, {{pipeline_stable_diffusion.py line 1037, v0.41.0|https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion.py#L1037}}), so 30 sequential rounds; 1,024 / 60 &asymp; 17. But each autoregressive call reuses a cache and processes one new token, while each diffusion call processes the whole image: counting calls alone is not counting compute (section 10).</div></div>
-<p class="deepnote">Go deeper (optional): why each family's loss is what it is (the ELBO, the diffusion bound, scores) is derived on {{Variational inference and generative-model maths|n:3f05c17b0d0d81aa9857eb5fa1bac530}}, sections 1 to 18. The {{Model map|#t-map}} places every named model on a timeline by family.</p>
+<p class="small mute">Stable Diffusion v1.5, the cleanest example. Parameters counted from the pinned weights <span class="meas">measured</span>, matching the {{CompVis README|https://github.com/CompVis/stable-diffusion}}&#8217;s &#8220;860M UNet and 123M text encoder&#8221;; 77 tokens is the context length of CLIP&#8217;s tokenizer.</p>
+<p><b>What one image costs.</b> Text encoder once (twice with guidance, for the empty prompt), denoiser once per step and twice with guidance, decoder once. With 50 steps and guidance that is 100 denoiser passes against one decode, so the denoiser is almost the whole bill and steps &times; (1 or 2) is the number to cut. Measured: Stable Diffusion v1.5, 512 &times; 512, 25 guided DPM-Solver steps, fp16 with attention slicing: 15.75 s warm, 0.610 s per guided step against 0.319 s for one pass, decode 0.488 s, text encoder 0.025 s, peak 4,452 MiB <span class="meas">measured</span> on Apple M1 Pro. A datacenter GPU is many times faster per pass; the pass count is the same.</p>
+<p><b>Since 2022</b> the denoiser became a transformer over latent patches (DiT: more compute per step &#8220;consistently&#8221; lowered FID, to 2.27 on ImageNet 256 &times; 256, {{Peebles and Xie, Dec 2022|https://arxiv.org/abs/2212.09748}}), text and image tokens moved into one attention (MMDiT in Stable Diffusion 3, {{Esser et al. 2024|https://arxiv.org/abs/2403.03206}}; double and single stream blocks in FLUX.1, &#8220;a 12 billion parameter rectified flow transformer&#8221;, {{model card|https://huggingface.co/black-forest-labs/FLUX.1-schnell}}), and the text encoder grew from CLIP to T5 and to whole language models, because a larger text encoder &#8220;boosts both sample fidelity and image-text alignment&#8221; more than a larger denoiser ({{Imagen, Saharia et al. 2022|https://arxiv.org/abs/2205.11487}}).</p>
+<p class="deepnote">Go deeper: {{Latent diffusion and DiTs|n:3fc5c17b0d0d814fbcb5e0c8df5289f3}} (why latents in FLOPs, the U-Net from its config, text encoders and cross-attention, DiT and adaLN-Zero, MMDiT, double and single stream, positions, resolution, cost and distillation, with eleven real denoisers counted); the LDM paper on the {{LDM page|n:3c65c17b0d0d81bb98adc0daf8462cb6}}; every generator with its size and licence in the {{Model map|#t-map}}.</p>
 </section>

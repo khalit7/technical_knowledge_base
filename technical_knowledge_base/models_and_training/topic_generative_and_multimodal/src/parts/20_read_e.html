@@ -1,48 +1,44 @@
-<section id="rd-s9">
-<h2>9. Evaluation: what the numbers measure and how they mislead</h2>
-<p><b>FID</b> (Fr&eacute;chet Inception Distance, {{Heusel et al. 2017|https://arxiv.org/abs/1706.08500}}) is the standard score for generated images. Pass a set of real images and a set of generated ones through Inception-v3, an ImageNet classifier, and keep one 2,048-number feature vector per image; fit a Gaussian (mean and covariance) to each set; report the distance between the two Gaussians, &#8214;&mu;<sub>r</sub> &minus; &mu;<sub>g</sub>&#8214;<sup>2</sup> + Tr(&Sigma;<sub>r</sub> + &Sigma;<sub>g</sub> &minus; 2(&Sigma;<sub>r</sub>&Sigma;<sub>g</sub>)<sup>1/2</sup>). Lower is better, and it penalises both bad images and too little variety. Its pitfalls are well documented:</p>
+<section id="rd-depth">
+<h2>Depth: mistakes that cross pages, facts kept from the labs, two design questions</h2>
+<details class="mist"><summary><b>Mistakes that cross pages (one line each, with the page that shows it)</b></summary><div class="b">
 <ul>
-<li><b>Sample count.</b> The estimate is biased upwards at small counts ("inconsistent results when varying the sample size", {{Jayasumana et al.|https://arxiv.org/abs/2401.09603}}), so compare only at equal counts (50,000 by convention). <span data-rd="fid_n">FID of real images against real images at several sample counts is measured in the setup (<code>fid_floor.json</code>).</span> The child page {{Evaluating generative models|n:3fc5c17b0d0d81c890f4f62543312faa}} repeats this for every metric at six sample counts (its own draws, real against real: FID 2.538 at 10,000; 15.9, 27.8 and 44.9 at 1,000, 500 and 250 <span class="meas">measured</span>).</li>
-<li><b>Preprocessing.</b> Resizing and JPEG compression "can induce large variations"; aliased resizing corrupts the features, and "FID can actually improve if the generated images are also subsequently compressed" ({{Parmar, Zhang and Zhu 2021|https://arxiv.org/abs/2104.11222}}, the clean-fid paper).</li>
-<li><b>ImageNet leakage.</b> Inception's features are so tied to ImageNet classes that matching the class histogram of the real set lowers FID "without any real gain in image quality" ({{Kynk&auml;&auml;nniemi et al. 2022|https://arxiv.org/abs/2203.06026}}).</li>
-<li><b>Wrong features for modern content.</b> For text-to-image models FID "contradicts human raters"; CMMD, a kernel distance on CLIP embeddings, is one proposed fix ({{Jayasumana et al.|https://arxiv.org/abs/2401.09603}}).</li>
-<li><b>One number for two things.</b> Precision (are samples realistic?) and recall (is the data's variety covered?) separate fidelity from diversity ({{Kynk&auml;&auml;nniemi et al. 2019|https://arxiv.org/abs/1904.06991}}). Papers rarely give FID error bars; differences under about 0.5 between single runs are not evidence ({{LDM page|n:3c65c17b0d0d81bb98adc0daf8462cb6}}).</li>
-</ul>
-<p><b>Prompt alignment.</b> <dfn>CLIPScore</dfn> is the CLIP similarity between an image and its prompt ({{Hessel et al. 2021|https://arxiv.org/abs/2104.08718}}); it inherits CLIP's blindness to counts and relations (section 5). GenEval instead runs an object detector to check "object co-occurrence, position, count, and color" against the prompt ({{Ghosh et al. 2023|https://arxiv.org/abs/2310.11513}}). The kind of failure it catches: Stable Diffusion v1.5 asked for "an astronaut riding a horse on the moon" drew the astronaut on the moon and no horse <span class="meas">measured</span> (setup smoke test, seed 5), an image a global similarity score can still rate as close to its prompt. <b>Human preference</b> remains the final judge: pairwise votes on text-to-image and vision arenas, with the same caveats as text arenas (style, self-selected prompts, vendors testing private variants), are covered on {{Human preference and arenas|n:3ef5c17b0d0d814db49ff3b5c9fc3034}}.</p>
-<p><b>VLMs</b> are scored on question-answering benchmarks (MMMU, MathVista, ChartQA, DocVQA and others, on {{Long-context and multimodal benchmarks|n:3ef5c17b0d0d810bb4dfc98919c9be8a}}). Many questions can be answered without the image ({{Chen et al. 2024|https://arxiv.org/abs/2403.20330}}), so report a text-only baseline beside every score, and probe absent objects directly (section 6).</p>
-<div class="pr"><div class="q">Predict: two teams report FID 9.1 and 8.4 for their models. What do you need to know before believing the second is better?</div>
-<div class="opts"><button>Nothing: lower FID is better</button><button data-r="1">Same reference set, sample count, resizing and FID code; ideally several seeds</button><button>Only the resolution</button></div>
-<div class="ans" hidden>All of them. Sample count biases the score, resizing and compression "can induce large variations" (clean-fid), the reference set (training or held-out images, how many) changes it, and two implementations differ (the LDM paper reports 7.76 against 7.77 for the same samples). A 0.7 gap between single runs computed differently says nothing; recompute both with one tool on the same reference set, and look at precision and recall and at images.</div></div>
-<p class="deepnote">Go deeper (optional): child page {{Evaluating generative models|n:3fc5c17b0d0d81c890f4f62543312faa}}; measuring a VLM on {{Topic: evaluation-and-llm-judges|n:3c65c17b0d0d8181b351e1b8fc6a1546}} (statistics, judges, human evaluation).</p>
-</section>
+<li><b>Counting steps instead of passes.</b> Guidance doubles the passes per step and some solvers make two per step (Heun&#8217;s method, as in {{EDM|https://arxiv.org/abs/2206.00364}}): compare samplers and models by passes and by time on the same hardware, not by the step count in a config (section 10).</li>
+<li><b>Decoding with the wrong latent scale.</b> Every autoencoder has its own scaling factor and the pinned Stable Diffusion v1.5 <code>vae/config.json</code> has no <code>scaling_factor</code> entry, so diffusers falls back to its class default: {{Autoencoders and VAEs|n:3c65c17b0d0d814da93bdb159b7c1e11}} section 11.</li>
+<li><b>Mixing up the two guidance-scale conventions</b>, and a scheduler that does not match how the model was trained (prediction target, direction of time, schedule): {{Diffusion from zero|n:3c65c17b0d0d81cf9bf0d94e57ce9164}} sections 5, 6 and 8; for flows, {{Flow matching|n:3fc5c17b0d0d8136a1efc73aaa446ceb}} section 14.</li>
+<li><b>Comparing FIDs computed at different sample counts or with different code</b>, and reading CLIPScore as image quality: {{Evaluating generative models|n:3fc5c17b0d0d81c890f4f62543312faa}} sections 3, 5 and 6.</li>
+<li><b>Judging a VLM by its captions</b>, and shrinking the image until its text is unreadable: {{Vision-language models|n:3fc5c17b0d0d81adbb7be5bc41c4d9d0}} sections 3 and 7.</li>
+</ul></div></details>
+<details class="mist"><summary><b>Kept from the retired labs: facts no child page carries yet</b></summary><div class="b">
+<p class="small mute">The Latent, Diffusion, Flow and Vision labs were retired on 2026-10-24 because their children now teach the same mechanisms; these few facts are not yet on the owning child and stay here until it absorbs them.</p>
+<ul>
+<li><b>Vision encoders.</b> A convolutional network (CNN) slides small filters (3 &times; 3 pixels, say) over the image, so each layer only mixes neighbours and the same filter is used everywhere: that inductive bias makes it learn from little data and limits what one layer sees; a stack of <i>L</i> such layers (stride 1) sees a window of only 2<i>L</i> + 1 pixels <span class="der">derived</span>. From scratch, a CNN&#8217;s inductive bias wins on small data; in practice you start from a pretrained encoder. Raw cosines do not compare across models: CLIP&#8217;s matching pairs sit around 0.3 and SigLIP 2&#8217;s around 0.1 to 0.2, so thresholds for retrieval or filtering must be calibrated per model. The CAT sticker raises CLIP&#8217;s cat score (0.2926 against 0.2846 plain) <span class="meas">measured</span>. Temperature: too high (small scale) leaves the loss near ln N with weak gradients, too low lets only the hardest negatives matter and destabilises training (CLIP clipped its scale at 100).</li>
+<li><b>Vision-language models.</b> Flamingo&#8217;s largest model builds on the 70B Chinchilla language model and is called Flamingo-80B; DeepMind&#8217;s announcement calls it &#8220;an 80B parameter VLM&#8221;.</li>
+<li><b>Flow matching.</b> Training the topic&#8217;s flow model took 893.3 s (4.48 steps/s) against the DDPM&#8217;s 906.7 s <span class="meas">measured</span>: the objective costs nothing extra. diffusers implements the resolution shift as <code>sigmas = self.shift * sigmas / (1 + (self.shift - 1) * sigmas)</code> (FlowMatchEulerDiscreteScheduler, v0.41.0, line 351).</li>
+<li><b>Diffusion from zero.</b> DPM-Solver++ (2M) is the diffusers default for Stable Diffusion 1.5 (scheduler line 227, v0.41.0); it reuses the previous step&#8217;s prediction to take second-order steps at no extra network cost.</li>
+<li><b>Autoencoders and VAEs.</b> On the 128-code VQ-VAE&#8217;s token map a test image takes 28 to 43 distinct codes for its 64 positions, and the same blank corner gets the same few codes across images (117, 72, 26 recur) <span class="meas">measured</span>.</li>
+<li><b>Evaluating generative models.</b> FID is biased upwards at small counts even with nothing wrong. Two samples drawn from the <i>same</i> distribution still get a positive FID, and it shrinks as the count grows: <pre class="rd-code">import numpy as np
+from scipy import linalg
 
-<section id="rd-s10">
-<h2>10. Choosing, and what an image costs</h2>
-<div class="tw"><table class="rd-cmp">
-<thead><tr><th>Job</th><th>Default choice in 2026</th><th>Why, and the trade</th></tr></thead>
-<tbody>
-<tr><td>Text-to-image, best quality</td><td>Latent flow or diffusion transformer, 20 to 50 steps with guidance</td><td>Best published quality; the bill is steps &times; 2 denoiser calls</td></tr>
-<tr><td>Text-to-image, interactive (under 1 s)</td><td>The same model distilled to 1 to 4 steps</td><td>10 to 50 times fewer calls; some loss of variety and detail</td></tr>
-<tr><td>Generate and edit images inside a chat</td><td>Native multimodal model, or an LLM driving a generator</td><td>One context for text and image; native designs are mostly closed or young</td></tr>
-<tr><td>Answer questions about images or documents</td><td>VLM: SigLIP-class encoder, projector, LLM, tiling for high resolution</td><td>Accuracy grows with image tokens; so do latency and context</td></tr>
-<tr><td>Classify or search images with text</td><td>CLIP or SigLIP embeddings, zero-shot</td><td>No training; weak on counts, relations and fine detail</td></tr>
-<tr><td>Speech, music, sound</td><td>Codec tokens with a language model, or latent diffusion</td><td>Tokens suit long structure and streaming; diffusion suits fixed-length clips</td></tr>
-<tr><td>A probability for each sample (compression, anomaly scores)</td><td>Autoregressive model or VAE</td><td>Exact likelihood or a bound; diffusion needs an ODE solve for it</td></tr>
-</tbody></table></div>
-<p class="small mute">Defaults follow from sections 1 to 8 and their sources; which named model fits each job, with its licence, is in the {{Model map|#t-map}}.</p>
+def fid(a, b):  # the Frechet distance FID uses, on any features
+    m1, m2 = a.mean(0), b.mean(0)
+    s1, s2 = np.cov(a, rowvar=False), np.cov(b, rowvar=False)
+    covmean = linalg.sqrtm(s1 @ s2).real
+    return float(((m1 - m2) ** 2).sum() + np.trace(s1 + s2 - 2 * covmean))
 
-<div class="rd-card" id="rd-cost-card">
-<h4>What one text-to-image sample costs, counted</h4>
-<p class="small">Counts follow from the pipeline of section 4; only the seconds need a measurement. The denoiser runs on the latent: a U-Net on its grid, a DiT on its patches.</p>
-<div class="rd-calc">
-<label>Image side (pixels)<select id="rd-c-res"><option>256</option><option selected>512</option><option>768</option><option>1024</option></select></label>
-<label>Latent channels<select id="rd-c-ch"><option value="4" selected>4 (SD 1, SDXL)</option><option value="16">16 (SD3, FLUX.1)</option></select></label>
-<label>Steps<select id="rd-c-steps"><option>1</option><option>4</option><option>8</option><option>20</option><option>30</option><option selected>50</option></select></label>
-<label>Guidance<select id="rd-c-cfg"><option value="1" selected>CFG on (2 passes per step)</option><option value="0">off, or distilled into the model</option></select></label>
-<label>Seconds per denoiser pass (your measurement)<input type="number" id="rd-c-sec" min="0" step="0.001" placeholder="e.g. from the Diffusion lab"></label>
-</div>
-<div class="an-cnt" id="rd-c-out"></div>
-<p class="small" id="rd-c-note"></p>
-</div>
-<p class="deepnote">Go deeper (optional): the trade-offs per child page are listed at the end of this tab; serving costs in general (batching, quantisation, GPUs) are on {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}.</p>
+d = 64                                   # Inception features have 2,048 dimensions; 64 keeps this fast
+rng = np.random.default_rng(0)
+A = rng.normal(size=(d, d)) / np.sqrt(d)
+cov = A @ A.T + 0.1 * np.eye(d)          # one fixed "true" feature distribution
+L = np.linalg.cholesky(cov)
+draw = lambda n: rng.normal(size=(n, d)) @ L.T
+
+for n in [500, 2000, 10000, 50000]:
+    scores = [fid(draw(n), draw(n)) for _ in range(3)]
+    print(f"n = {n:&gt;6}: FID between two samples of the SAME distribution = {np.mean(scores):.4f} (3 draws: {', '.join(f'{s:.4f}' for s in scores)})")</pre><pre class="rd-code rd-out">n =    500: FID between two samples of the SAME distribution = 3.3324 (3 draws: 3.3952, 3.3297, 3.2723)
+n =   2000: FID between two samples of the SAME distribution = 0.8557 (3 draws: 0.8410, 0.8715, 0.8546)
+n =  10000: FID between two samples of the SAME distribution = 0.1669 (3 draws: 0.1666, 0.1617, 0.1726)
+n =  50000: FID between two samples of the SAME distribution = 0.0331 (3 draws: 0.0338, 0.0334, 0.0322)</pre><span class="rd-codecap" style="display:block"><span class="meas">measured</span> on Apple M1 Pro CPU (numpy 2.5.4, scipy 1.18.1; <code>src/read/fid_bias.py</code>). The true distance is 0; the estimate falls roughly as 1 / n, and with 2,048 Inception dimensions instead of 64 the bias is far larger. So "FID 3.3" at 500 samples and "FID 0.03" at 50,000 can be the same model: compare only at equal n, and prefer 50,000.</span></li>
+</ul></div></details>
+<details class="qa"><summary>Design: a text-to-image system that returns an image in under 1 second.</summary><div>Budget the passes: time one denoiser pass at the target resolution on the target GPU and multiply. 50 steps with guidance is 100 passes, so unless a pass takes under 10 ms it cannot meet 1 s, before the text encoder and decoder. Use a model distilled to 1 to 4 steps with guidance folded in (adversarial or consistency distillation), bf16 or fp8 weights, a compiled graph, the text encoder output cached for repeated prompts, and a fast decoder (or a tiny distilled decoder for previews). Generate at 512 to 768 and upscale if needed; batch requests per GPU; keep a few-step preview then refine path for quality. Measure the latency distribution, and check quality against the slow model with preference tests, because distillation loses variety.</div></details>
+<details class="qa"><summary>Design: a multimodal LLM should also generate images. Autoregressive tokens or diffusion?</summary><div>Discrete tokens reuse the language-model stack, loss and serving (Chameleon, and, per its system card, GPT-4o image generation), but cost one pass per token and lose detail in the tokenizer. Diffusion or flow on continuous latents gives better images per FLOP and runs in tens of passes, but needs a second objective and sampler (Transfusion puts both in one transformer; others attach a separate diffusion decoder). Choose by what you must share (one context, editing in conversation), the latency budget and the quality bar.</div></details>
 </section>

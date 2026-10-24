@@ -1,4 +1,4 @@
-// Check the Vision lab tab: every control clicked at 390 px dark and 920 px light, no page errors,
+// Check the Zero-shot lab tab (t-vision, the Vision lab until 2026-10-24): every control clicked at 390 px dark and 920 px light, no page errors,
 // no NaN or undefined, no sideways scroll; reading time measured (220 words per minute); screenshots to argv[2].
 // Usage: node check_vs.mjs <shots dir>
 import {createRequire} from 'module';
@@ -35,19 +35,20 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
     for(const s of T.querySelectorAll('select')){for(const o of s.options){s.value=o.value;s.dispatchEvent(new Event('change'));k++;await sleep(3)}}
     for(const r of T.querySelectorAll('input[type=range]')){for(const v of [r.min,r.max,(+r.min+ +r.max)/2]){r.value=v;r.dispatchEvent(new Event('input'));k++}}
     // every step of both animations, for both models and all images
-    for(const m of document.querySelectorAll('#vs-pa-m button')){m.click();for(const o of document.getElementById('vs-pa-img').options){const s=document.getElementById('vs-pa-img');s.value=o.value;s.dispatchEvent(new Event('change'));
+    if(document.getElementById('vs-pa'))for(const m of document.querySelectorAll('#vs-pa-m button')){m.click();for(const o of document.getElementById('vs-pa-img').options){const s=document.getElementById('vs-pa-img');s.value=o.value;s.dispatchEvent(new Event('change'));
       const sc=document.getElementById('vs-pa-ctl-s');for(let i=0;i<8;i++){sc.value=i;sc.dispatchEvent(new Event('input'));k++}}}
-    const c=document.getElementById('vs-pa-c'),r=c.getBoundingClientRect();
-    for(const [x,y] of [[10,10],[r.width*0.3,r.width*0.3],[20,r.height-10]]){c.dispatchEvent(new MouseEvent('click',{clientX:r.left+x,clientY:r.top+y,bubbles:true}));k++}
-    const ts=document.getElementById('vs-ty-ctl-s');for(let i=0;i<7;i++){ts.value=i;ts.dispatchEvent(new Event('input'));k++}
+    const c=document.getElementById('vs-pa-c');if(c){const r=c.getBoundingClientRect();
+    for(const [x,y] of [[10,10],[r.width*0.3,r.width*0.3],[20,r.height-10]]){c.dispatchEvent(new MouseEvent('click',{clientX:r.left+x,clientY:r.top+y,bubbles:true}));k++}}
+    const ts=document.getElementById('vs-ty-ctl-s');if(ts)for(let i=0;i<7;i++){ts.value=i;ts.dispatchEvent(new Event('input'));k++}
     for(const q of document.querySelectorAll('#vs-zq-g button')){q.click();k++}
     for(const cell of [...document.querySelectorAll('#vs-sm-g button')].slice(0,40)){cell.click();k++}
     return k});
   await p.evaluate(()=>document.querySelectorAll('#t-vision details').forEach(d=>d.open=true));
+  const el=await p.$('#vs-pa');if(el){  // the patch card moved to Vision encoders on 2026-10-24
   await p.evaluate(()=>{const s=document.getElementById('vs-pa-ctl-s');s.value=4;s.dispatchEvent(new Event('input'))});
-  const el=await p.$('#vs-pa');await el.scrollIntoView();await wait(100);await el.screenshot({path:path.join(shots,'vs-pa-step5_'+w+'.png')});
+  await el.scrollIntoView();await wait(100);await el.screenshot({path:path.join(shots,'vs-pa-step5_'+w+'.png')});
   await p.evaluate(()=>{const s=document.getElementById('vs-pa-ctl-s');s.value=7;s.dispatchEvent(new Event('input'))});
-  await el.screenshot({path:path.join(shots,'vs-pa-step8_'+w+'.png')});
+  await el.screenshot({path:path.join(shots,'vs-pa-step8_'+w+'.png')});}
   const r=await p.evaluate(()=>{const t=document.getElementById('t-vision').innerText;
     return {nan:/\bNaN\b|undefined|Infinity/.test(t),side:document.documentElement.scrollWidth>document.documentElement.clientWidth+1,
       wide:[...document.querySelectorAll('#t-vision *')].filter(e=>!e.closest('.tw')&&e.getBoundingClientRect().right>document.documentElement.clientWidth+1).slice(0,5).map(e=>e.tagName+'#'+e.id+'.'+e.className+' '+Math.round(e.getBoundingClientRect().right)),

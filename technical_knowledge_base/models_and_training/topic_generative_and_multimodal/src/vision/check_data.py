@@ -4,6 +4,9 @@ Usage: python3 check_data.py   (plain Python, no dependencies)
 import json, os, re, html as H
 HERE = os.path.dirname(os.path.abspath(__file__))
 page = open(os.path.join(HERE, "..", "..", "index.html"), encoding="utf-8").read()
+# Since 2026-10-24 the patch, loss and probe prose lives on Vision encoders (the root keeps the zero-shot study);
+# prose numbers are looked for on both pages, the data on the root.
+prose_pages = page + open(os.path.join(HERE, "..", "..", "vision_encoders", "index.html"), encoding="utf-8").read()
 m = re.search(r"window\.VS_DATA=(\{.*?\});\n", page, re.S)
 D = json.loads(m.group(1))
 O = lambda n: json.load(open(os.path.join(HERE, "out", n)))
@@ -31,7 +34,7 @@ for w in A:
     eq(w + " ips", m_["fmnist_ips"], E[w]["images_per_second"])
 eq("captions", D["captions"], A["clip"]["captions"])
 # prose: every (text, value) pair below must appear in the tab and agree with the data
-txt = H.unescape(re.sub(r"<[^>]+>", "", page[page.index('id="t-vision"'):page.index('id="t-vlm"')]))
+txt = H.unescape(re.sub(r"<[^>]+>", "", re.sub(r"<script.*?</script>|<style.*?</style>", " ", prose_pages, flags=re.S)))
 pc = lambda x, d=1: f"{x * 100:.{d}f}%"
 a, z = A, Z
 cases = [
@@ -59,7 +62,7 @@ cases = [
 ]
 import statistics
 S = A["clip"]["sim16"]; d = [S[i][i] for i in range(16)]; off = (sum(map(sum, S)) - sum(d)) / 240
-cases += [(f"average {sum(d)/16:.3f} and its other pairs {off:.3f}", "clip diag")]
+cases += [(f"average a cosine of {sum(d)/16:.3f} and the other pairs {off:.3f}", "clip diag")]  # wording on Vision encoders since 2026-10-24
 S = A["siglip"]["sim16"]; d = [S[i][i] for i in range(16)]; off = (sum(map(sum, S)) - sum(d)) / 240
 cases += [(f"{sum(d)/16:.3f} and {off:.3f}".replace("-", "−"), "siglip diag")]
 for s, name in cases:
