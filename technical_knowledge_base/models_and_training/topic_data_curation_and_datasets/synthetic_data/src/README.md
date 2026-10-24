@@ -51,3 +51,6 @@ Why about 37 minutes is right: the page owns five subjects (generation from seed
 
 ## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 426 units: core 314, depth 84, fat 28. 415 drafted by `ledger.py init`; 11 added by hand for the hero, script-rendered tables and new material (section "added 2026-10-24"). Fat units carry a `note` (recaps, headings, pointers to removed tabs, interview answers that restated sections).
+
+## Topic close (2026-10-24)
+The root was rebuilt as a map; this page's Further reading now quotes the root as "31 min, plus 7" and siblings as their headers, and its ledger keys that quoted old times were re-keyed.
