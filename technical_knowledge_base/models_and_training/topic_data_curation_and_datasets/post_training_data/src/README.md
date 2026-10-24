@@ -92,3 +92,6 @@ with the rebuilt siblings (28 to 40 minutes).
 350 units: core 222, depth 89, fat 39. 343 drafted by `ledger.py init` from the old page, 7 added by hand (the two new
 published facts and the script-drawn visuals). No unit is `owned:` elsewhere: Synthetic data does not carry Self-Instruct,
 Evol-Instruct or Magpie, so they stay here.
+
+## Topic close (2026-10-24)
+The root was rebuilt as a map; this page's Further reading now quotes the root as "31 min, plus 7" and siblings as their headers, and its ledger keys that quoted old times were re-keyed. The root card names its Post-training data lab (20 min).
