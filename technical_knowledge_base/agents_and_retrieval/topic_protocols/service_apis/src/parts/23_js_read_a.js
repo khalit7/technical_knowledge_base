@@ -1,16 +1,10 @@
-// ---- Reading, part A: recorded numbers into the prose, the request path, protobuf widgets, the recorded gRPC call ----
+// ---- Reading, part A: recorded numbers into the prose, protobuf widgets, REST against gRPC bytes ----
 (function(){
   const S=window.SA,esc=RD.esc;
   const get=p=>p.split('.').reduce((o,k)=>o==null?o:o[k],S);
   const fmt=v=>typeof v==='number'?(Math.abs(v)>=10000?v.toLocaleString('en-GB'):String(v)):String(v);
   // every [data-sa] element shows one recorded value, so prose and recordings cannot drift apart
   document.querySelectorAll('[data-sa]').forEach(e=>{const v=get(e.dataset.sa);e.textContent=v==null?'(missing)':fmt(v)});
-
-  // ---- the request path behind the front door ----
-  const P=[['Your app','REST + SSE over HTTPS','c1'],['API front door','auth, rate limits; translates','c2'],['Router','gRPC, picks a replica (L7)','c4'],['Inference server','gRPC server streaming','c3'],['Telemetry collector','OTLP over gRPC, port 4317','c6']];
-  const pb=document.getElementById('rd-pathbox');
-  if(pb){pb.innerHTML='<style>#rd-pathbox{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:6px 0}#rd-pathbox .nd{flex:1 1 130px;min-width:0;border:1px solid var(--line);border-top:4px solid var(--k);border-radius:8px;padding:6px 8px;background:var(--bg)}#rd-pathbox .nd b{display:block;font-size:13px}#rd-pathbox .nd span{font-size:12px;color:var(--mute)}</style>'+
-    P.map(p=>'<div class="nd" style="--k:var(--'+p[2]+')"><b>'+p[0]+'</b><span>'+p[1]+'</span></div>').join('')}
 
   // ---- varint encoder, checked against the library's bytes ----
   function varint(n){const out=[];n=BigInt(n);do{let b=Number(n&127n);n>>=7n;if(n>0n)b|=128;out.push(b)}while(n>0n);return out}
@@ -55,16 +49,6 @@
   const tt=document.querySelector('#rd-tensor tbody');
   if(tt)tt.innerHTML=S.pb.tensor.rows.map(r=>'<tr><td>'+esc(r.fmt)+'</td><td class="num">'+r.bytes.toLocaleString('en-GB')+'</td><td class="num">'+r.enc_ms+'</td><td class="num">'+r.dec_ms+'</td></tr>').join('');
 
-  // ---- the recorded server-streaming call, compact ----
-  const W=document.getElementById('rd-grpcwire');
-  if(W){const c=S.frames.conns[0];let i0=0;
-    const line=f=>{let d='';
-      if(f.type==='HEADERS')d=f.headers.map(h=>'<code>'+esc(h[0])+(h[1]!==''?': '+esc(h[1]):': (empty)')+'</code>').join('<br>');
-      else if(f.type==='DATA'){const b=f.hex.split(' ');d='<code>'+b.slice(0,5).join(' ')+'</code> + '+(b.length-5)+' bytes of protobuf'+(f.dir==='s>c'?' (token)':' (the request)');}
-      return '<tr><td class="num">'+f.ms.toFixed(1)+'</td><td>'+(f.dir==='c>s'?'C&rarr;S':'S&rarr;C')+'</td><td><b>'+f.type+'</b>'+(f.flags&&f.flags.length?' <span class="small mute">'+f.flags.join(', ')+'</span>':'')+'</td><td style="overflow-wrap:anywhere">'+d+'</td></tr>'};
-    const keep=c.filter(f=>f.type==='HEADERS'||f.type==='DATA');
-    W.innerHTML='<div class="tw"><table class="small"><thead><tr><th class="num">ms</th><th>Dir.</th><th>Frame</th><th>Content</th></tr></thead><tbody>'+keep.map(line).join('')+'</tbody></table></div><p class="small mute">'+'C&rarr;S is client to server. '+keep.length+' of the connection\'s '+c.filter(f=>f.stream!==undefined).length+' frames (HEADERS and DATA only; SETTINGS, WINDOW_UPDATE and PING are in the TABLINK tab). <span class="meas">measured</span> grpcio '+S.meta.grpcio+', '+S.meta.recorded+'.</p>';
-    W.innerHTML=W.innerHTML.replace('TABLINK','<a href="#" data-tab="t-call">One gRPC call</a>');RD.tabLinks(W)}
   // ---- REST + SSE against gRPC ----
   const vr=document.querySelector('#rd-vsrest tbody');
   if(vr){const c=S.frames.conns[0];const fh=c.filter(f=>f.type==='HEADERS');const dt=c.filter(f=>f.type==='DATA');

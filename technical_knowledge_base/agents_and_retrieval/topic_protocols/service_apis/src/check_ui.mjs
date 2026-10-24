@@ -44,32 +44,37 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     const el = await p.$('#' + id);
     if (el) { await el.scrollIntoView(); await el.screenshot({ path: `${out}/${name}-${scheme}-${w}.png` }); }
   };
-  // Reading
+  // Reading (every visual is inline since 2026-10-24)
   await p.click('#tabs button[data-t="t-read"]');
+  // nothing may move before the reader acts: every step counter must still be at 0 after a wait
+  await sleep(2500);
+  const moved = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.filter(r => +r.value !== 0).map(r => r.id));
+  if (moved.length) { bad++; console.log('AUTOPLAY', scheme, w, moved); }
   for (const m of ['0', '1', '2', '3']) {
     await p.evaluate(m => document.querySelector('#rd-dlseg [data-m="' + m + '"]').click(), m);
     await scrub('#rd-dlctl'); await check('deadline ' + m);
     if (m === '3') await shot('rd-dl', 'rd-dl-D');
   }
-  for (const sel of ['#rd-pbstrip span', '#t-read .an-ctl button', '#t-read .drill .opts button', '#t-read details summary', '#rd-dlseg button']) await clickAll(sel);
+  for (const [seg, ctl, card, modes] of [['#rd-pgseg', '#rd-pgctl', 'rd-pg', ['0', '1']], ['#rd-idemseg', '#rd-idemctl', 'rd-idem', ['0', '1']], [null, '#rd-hookctl', 'rd-hook', [null]], ['#cl-seg', '#cl-ctl', 'rd-call', ['0', '1', '2']]]) {
+    for (const m of modes) {
+      if (seg) await p.evaluate((s, m) => document.querySelector(s + ' [data-m="' + m + '"]').click(), seg, m);
+      await scrub(ctl); await check(card + ' ' + m);
+      await shot(card, card + '-' + (m || 'x'));
+      // a mid-sequence frame too
+      await p.evaluate(c => { const r = document.querySelector(c + ' input[type=range]'); r.value = Math.floor(+r.max / 2); r.dispatchEvent(new Event('input')); }, ctl);
+      await shot(card, card + '-' + (m || 'x') + '-mid');
+    }
+  }
+  await clickAll('#cl-list .fr'); await check('call frames');
+  await scrub('#lb-ctl'); await check('lb'); await shot('rd-lb', 'rd-lb');
+  for (const m of ['cc', 're', 'me']) { await p.evaluate(m => document.querySelector('#rd-llmseg [data-m="' + m + '"]').click(), m); await check('llm ' + m); await shot('rd-llm', 'rd-llm-' + m); }
+  for (const sel of ['#rd-pbstrip span', '#rd-anat span[data-p]', '#t-read .an-ctl button', '#t-read details summary', '#t-read .drill .opts button', '#rd-dlseg button']) await clickAll(sel);
   for (const v of ['0', '1', '127', '128', '300', '4294967295', '-5', '']) {
     await p.evaluate(v => { const e = document.getElementById('rd-vval'); e.value = v; e.dispatchEvent(new Event('input')); }, v);
     await check('varint ' + v);
   }
   await check('reading');
-  for (const id of ['rd-path', 'rd-vcard', 'rd-pbcard', 'rd-evo', 'rd-tensor', 'rd-grpcwire', 'rd-vsrest', 'rd-fails', 'rd-pings', 'rd-lbcounts', 'rd-lbscale', 'rd-n1', 'rd-fan', 'rd-partial', 'rd-gl']) await shot(id, id);
-  // One gRPC call
-  await p.click('#tabs button[data-t="t-call"]'); await sleep(100);
-  for (const m of ['0', '1', '2']) {
-    await p.evaluate(m => document.querySelector('#cl-seg [data-m="' + m + '"]').click(), m);
-    await scrub('#cl-ctl'); await clickAll('#cl-list .fr'); await check('call ' + m);
-    await shot('cl-det', 'cl-det-' + m);
-  }
-  await clickAll('#cl-ctl button');
-  // Balancer lab
-  await p.click('#tabs button[data-t="t-lb"]'); await sleep(100);
-  await scrub('#lb-ctl'); await clickAll('#lb-ctl button'); await check('lb');
-  await shot('lb-panels', 'lb-panels');
+  for (const id of ['rd-hero', 'rd-anat', 'rd-schema', 'rd-rl', 'rd-codes', 'rd-lbd', 'rd-vcard', 'rd-pbcard', 'rd-evo', 'rd-tensor', 'rd-vsrest', 'rd-fails', 'rd-pings', 'rd-lbcounts', 'rd-lbscale', 'rd-n1', 'rd-fan', 'rd-partial']) await shot(id, id);
   // Further reading and tab links
   await p.click('#tabs button[data-t="t-more"]'); await sleep(50); await check('more');
   await clickAll('#t-more a[data-tab]'); await check('more links');

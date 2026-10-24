@@ -1,6 +1,6 @@
-// ---- Tab "Balancer lab": four recorded 7-second runs animated together on one time axis ----
+// ---- Reading section 13, the balancer runs (moved from the Balancer lab tab on 2026-10-24): four recorded 7-second runs animated together on one time axis ----
 (function(){
-  const S=window.SA,esc=RD.esc;if(!document.getElementById('t-lb'))return;
+  const S=window.SA,esc=RD.esc;if(!document.getElementById('rd-lb'))return;
   const TL=S.lb.timelines,B=['backend-1','backend-2','backend-3'],COL={'backend-1':'var(--c1)','backend-2':'var(--c4)','backend-3':'var(--c3)'};
   const TMAX=7,STEP=0.1,N=Math.round(TMAX/STEP)+1,pct=x=>(100*x/TMAX).toFixed(2)+'%';
   document.getElementById('lb-ver').textContent=S.meta.grpcio;
@@ -20,6 +20,5 @@
     else if(t<4.5)cap=['Waiting for a reconnect','With MAX_CONNECTION_AGE the servers keep closing connections with GOAWAY; each reconnect is a new choice by the L4 balancer. Plain L4 and the fixed client list never change.'];
     else cap=['After 7 seconds','Read the counters: the plain L4 run never left backend-1; L4 + age reached backend-3 only after reconnects; L7 spread evenly once the replica existed; the fixed list never knew it existed.'];
     document.getElementById('lb-cap').innerHTML='<div class="t">t = '+t.toFixed(1)+' s: '+cap[0]+'</div><p>'+cap[1]+'</p>'}
-  RD.anim({card:'lb-panels',ctl:'lb-ctl',n:N,ms:140,draw,label:'Time',tab:'t-lb'});
-  document.querySelector('#lb-counts tbody').innerHTML=S.lb.counts.map(c=>'<tr><td>'+esc(c.setup)+'</td>'+B.map(b=>'<td class="num">'+(c.answers[b]||0)+'</td>').join('')+'</tr>').join('');
+  RD.anim({card:'lb-panels',ctl:'lb-ctl',n:N,ms:140,draw,label:'Time'});
 })();
