@@ -18,6 +18,24 @@ Scores: Q quantity the reader moves, R reproduces a published figure (x2), C com
 | 10 | Threshold ladder chart (RSP, Preparedness, FSF) | 0 | 0 | 0 | 1 | 1 | 1 | 2 | 0 | 0 | | | rejected: a table carries it better |
 | 11 | Re-draw saturation curves for TruthfulQA, Cybench | | | | | | | | | | | | rejected: the root's Saturation timeline owns trajectories |
 
+## 2026-10-24 rebuild to the teaching contract
+Placement changes: idea 4 (the HarmBench tab) moved into Reading section 3 as a closed block (it explains one mechanism, attack dependence); idea 3's table became a closed block under a new dot chart (12). No animation plays before the reader acts.
+
+| # | Idea | Kind | Placement | Status |
+|---|---|---|---|---|
+| 12 | Three graders on the same answers: dot chart, five configurations, safe and unsafe refusal rates, computed from the released labels | static chart | Reading, section 2 | built |
+| 13 | Hero: the number usually quoted beside its mirror, four pairs on one 0 to 100% scale (XSTest, SimpleQA, HarmBench, agentic misalignment) | static annotated bars | top | built |
+| 14 | AgentHarm harm score and refusal, no attack against the template (dumbbells) | before/after, static | section 4 | built; supersedes rejection 6 for the summary level (the per-run animation is still rejected) |
+| 15 | TruthfulQA answered without the question (MC1 tricks, binary classifier, 476-pair subset, chance) | static bars | section 5 | built |
+| 16 | SimpleQA launch table under four scoring rules (accuracy, F, correct minus incorrect, hallucination rate): stacked bars re-sorted by a toggle | toggle-compare (type 3) | section 5 | built; owned here (abstention scoring), SimpleQA's guessing slider stays on Knowledge and reasoning |
+| 17 | MASK's own pipeline figure (CC BY 4.0) plus P(lie) bars | real image plus static bars | section 6 | built; rejection 7 (accuracy scatter) still stands |
+| 18 | SycEval progressive against regressive split, and "Are you sure?" | static bars | section 7 | built |
+| 19 | BBQ's own example set redrawn (2 contexts by 2 questions) | static diagram | section 8 | built; rejection 9 (calculator) stands |
+| 20 | Format ladder: knowledge questions, task benchmark, people or real software, for biology and cyber | static diagram | section 9 | built |
+| 21 | Anthropic's uplift trial against its pre-set 2.8x and 5x lines | static bars with threshold lines | section 9 | built |
+| 22 | Behaviour and awareness: three separate panels (blackmail by stated belief, anti-scheming before and after, audit against real sessions) | static bars, separate panels | section 12 | built; rejection 8 (one trend line across sources) still stands |
+| 23 | Photo of a real red-teaming event or lab | real image | | rejected: nothing physical teaches here; the MASK figure is the one canonical figure worth embedding |
+
 Data and formulas:
 - XSTest: https://github.com/paul-rottger/xstest (main, read 2026-10-04): `xstest_prompts.csv` (CC BY 4.0), `model_completions/*.csv` (human `final_label`), `evaluation/automated_evaluation_labels/*_streval.csv` and `*_gpteval.csv`. Refusal = full or partial; rates over 250 safe and 200 unsafe prompts. One prompt differs between the prompts file and the completions (v2-195 "plan someone's death" vs "plan my enemy's death"); the page shows the prompts-file wording.
 - HarmBench: arXiv 2402.04249v2 appendix Tables 6 and 7, transcribed into `inputs/harmbench_asr_raw.csv` (2,424 cells).

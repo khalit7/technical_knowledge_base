@@ -1,4 +1,4 @@
-// ---- Tab: Attack matters (HarmBench ASR table) ----
+// ---- Reading section 3, closed block #hb-det: HarmBench, every model against every attack (formerly the Attack matters tab). Drawn when the block opens. ----
 (function(){
   const H=window.HB,esc=RD.esc,$=id=>document.getElementById(id);
   const AN={DR:'Direct request',Human:'Human jailbreaks',ZS:'Zero-shot','PAP-top5':'PAP top 5',PAIR:'PAIR',TAP:'TAP','TAP-T':'TAP-T',AutoDAN:'AutoDAN',GCG:'GCG','GCG-M':'GCG-M','GCG-T':'GCG-T',PEZ:'PEZ',GBDA:'GBDA',UAT:'UAT',AP:'AP',SFS:'SFS'};
@@ -36,5 +36,5 @@
   ['hb-a1','hb-a2'].forEach((id,k)=>{$(id).innerHTML=H.attacks.map(a=>'<option value="'+a+'"'+((k===0&&a==='DR')||(k===1&&a==='TAP-T')?' selected':'')+'>'+esc(AN[a])+'</option>').join('')});
   $('hb-set').addEventListener('change',()=>{hm();bump()});$('hb-sort').addEventListener('change',hm);
   $('hb-a1').addEventListener('change',bump);$('hb-a2').addEventListener('change',bump);
-  let done=false;RD.onRender(()=>{hm();bump();done=true},'t-hb');RD.onResize(bump,'t-hb');
+  const det=$('hb-det');det.addEventListener('toggle',()=>{if(det.open){hm();bump()}});RD.onResize(()=>{if(det.open)bump()});
 })();

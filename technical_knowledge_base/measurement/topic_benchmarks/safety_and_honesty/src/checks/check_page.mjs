@@ -34,16 +34,26 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const tab = async t => { await p.evaluate(t => document.querySelector(`#tabs button[data-t="${t}"]`).click(), t); actions++; await wait(150); await bad('tab ' + t) };
   // Reading: the XSTest animation in every mode, every step; squares tapped
   await bad('read load');
+  // nothing plays before the reader acts: scroll the animation into view and wait
+  await p.evaluate(() => document.getElementById('xa-card').scrollIntoView()); await wait(3000);
+  const playing = await p.$eval('#xa-ctl-p', e => e.getAttribute('aria-label')); if (playing !== 'Play') problems.push(`${scheme}${width}: XSTest animation started by itself`);
+  if (await p.$eval('#xa-ctl-s', e => e.value) !== '0') problems.push(`${scheme}${width}: XSTest animation moved by itself`);
   for (const m of ['llama2orig', 'mistralinstruct', 'gpt4']) {
     await p.evaluate(m => document.querySelector(`#xa-mode button[data-m="${m}"]`).click(), m); actions++;
     await setRange('#xa-ctl-s', 'xa ' + m);
     if (scheme === 'dark') out['xa_' + m] = await p.$eval('#xa-cnt', e => e.innerText);
     for (const k of [0, 120, 300, 449]) { await fire('#xa-svg rect[data-i]', k); actions++; await bad('xa square ' + k) }
   }
-  await p.click('#xa-ctl-p'); await wait(400); await p.click('#xa-ctl-p'); await p.click('#xa-ctl-b'); await p.click('#xa-ctl-f'); actions += 4;
+  for (const id of ['#xa-ctl-p']) { await fire(id, 0); await wait(400); await fire(id, 0) } await fire('#xa-ctl-b', 0); await fire('#xa-ctl-f', 0); actions += 4;
   await p.select('#xa-ctl-v', '2'); actions++;
+  await p.evaluate(() => { document.getElementById('gr-tab').closest('details').open = true });
   if (scheme === 'dark') { out.gr_tab = await p.$eval('#gr-tab', e => e.innerText); out.gr_note = await p.$eval('#gr-note', e => e.innerText); }
-  await clickAll('#rd-check input', 'checklist');
+  // the abstention scoring toggle
+  for (const m of ['c', 'f', 'ci', 'h']) { await p.evaluate(m => document.querySelector(`#sh-abs-mode button[data-m="${m}"]`).click(), m); actions++; await wait(30); await bad('abs ' + m);
+    if (scheme === 'dark') out['abs_' + m] = await p.$eval('#sh-abs', e => [...e.querySelectorAll('svg text')].map(t => t.textContent).join('|')); }
+  // every closed block opens cleanly
+  await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => { d.open = true; d.dispatchEvent(new Event('toggle')) })); actions++; await wait(200); await bad('details open');
+  await fire('a[href="#rd-dated"]', 0); actions++;
   await clickAll('#t-read a[data-tab]', 'tab links'); await tab('t-read');
   // XSTest tab
   await tab('t-xs');
@@ -56,8 +66,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await clickAll('#xs-hm td.v', 'xs cells', 7);
   await clickAll('#xs-pre button', 'xs presets');
   if (scheme === 'dark') out.strmatch = await p.evaluate(() => ['I cannot help', ' Sorry, no', 'No. Never', 'Here is how', 'As an AI I think', "It's not ethical"].map(s => window.XS_STRMATCH(s)[0]));
-  // HarmBench tab
-  await tab('t-hb');
+  // HarmBench explorer, now a closed block in Reading section 3
+  await tab('t-read');
+  await p.evaluate(() => { const d = document.getElementById('hb-det'); d.open = true; d.dispatchEvent(new Event('toggle')) }); await wait(100);
   await setSel('#hb-set', 'hb set', async () => { await setSel('#hb-sort', 'hb sort') });
   await p.select('#hb-set', 'test_standard');
   await setSel('#hb-a1', 'hb a1'); await p.select('#hb-a1', 'DR');
