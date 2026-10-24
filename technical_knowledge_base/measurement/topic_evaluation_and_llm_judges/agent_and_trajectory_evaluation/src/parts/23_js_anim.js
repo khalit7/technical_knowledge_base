@@ -38,7 +38,7 @@ function render(){
     if(lens==='msg'&&s.k==='call')cls+=' hid';
     if(lens==='state'&&(s.k==='msg'||!s.w))cls+=' hid';
     if(lens==='steps'&&s.k==='msg')cls+=' hid';
-    if(s.k==='msg')return '<div class="'+cls+'" data-j="'+j+'"><div class="ic">'+(s.r==='user'?'U':'A')+'</div><div class="bd"><span class="who">'+(s.r==='user'?'simulated user':'agent')+'</span> '+esc(clip(s.t,lens==='msg'?600:260))+'</div></div>';
+    if(s.k==='msg')return '<div class="'+cls+'" data-j="'+j+'"><div class="ic">'+(s.r==='user'?'U':'A')+'</div><div class="bd"><span class="who">'+(s.r==='user'?'simulated user':'agent')+'</span> '+esc(clip(s.t,lens==='msg'?600:180))+'</div></div>';
     const ic=s.st==='gold'?'<span class="ok">&#10003;</span>':s.st==='name'?'<span class="no">&#8776;</span>':'<span class="na">+</span>';
     return '<div class="'+cls+(s.w?' w':'')+'" data-j="'+j+'"><div class="ic">'+ic+'</div><div class="bd"><span class="who">'+(s.w?'write':'read')+' call</span> <code>'+esc(s.n)+'</code> <code>'+esc(clip(J(s.a),lens==='steps'||s.w?420:140))+'</code></div></div>';
   }).join('');

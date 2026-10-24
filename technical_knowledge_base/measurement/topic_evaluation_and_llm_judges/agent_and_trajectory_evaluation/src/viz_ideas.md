@@ -22,3 +22,19 @@ Scores: Q quantity the reader moves, R reproduces a published figure (x2), C com
 Data and formulas: `inputs/tau2_airline_trials.json` (400 rows, from the released files, MIT), `inputs/tau2_cases.json` (five trials with steps, gold, judge verdicts and the DB diff). pass^k = mean C(c,k)/C(n,k). Do-nothing agent: messages truncated after the first user turn, `evaluate_simulation(..., EvaluationType.ALL)` at tau2 commit 5bfa7e3. agentevals port: `match_port.py`.
 
 What the methodology lacked: a rule for graders that are themselves recorded data (the judge verdicts stored in a trajectory file): treat them as a dated reading of that judge, not re-run, and say so.
+
+## 2026-10-24 rebuild to the teaching contract
+Built (all SVG at the measured width, `parts/25_js_viz.js`, inline beside the claim):
+| # | Visual | Kind (contract) | Where |
+|---|---|---|---|
+| ATJ13 | Hero: the default trial in three layers (said, did, changed), each with its grader's verdict | static annotated diagram | top |
+| ATJ2 | Do-nothing bars, redrawn as SVG | bars | rd-outcome |
+| ATJ14 | Transcript judge against database, 2x2 (308 / 18 / 31 / 43) | static | rd-actions |
+| ATJ15 | Path-matcher ladder: agreement with the final state, 38 to 198 of 200 (GPT-5.2) | bars; ATJ4's grid moved from its tab into a closed block beside it | rd-steps |
+| ATJ16 | Three judge designs and the same judge without and with tools (DevAI, AJ-Bench) | static + dumbbell | rd-judges |
+| ATJ7b | pass^k curves k = 1 to 4 for both agents | line chart | rd-rel (this page now owns pass^k; ATJ7's rejection reversed) |
+| ATJ17 | Failure taxonomy: 66 failed trials by write symptom | stacked bars | rd-fail (new section) |
+| ATJ18 | Evaluation environment: sandbox against the verifier out of reach | static annotated diagram (stacks at phone width) | rd-env |
+| ATJ6 | Cost bars, redrawn as SVG | bars | rd-cost |
+
+Rejected in this pass: a real image (nothing physical to show; a paper figure would be a weaker copy of the diagrams), an animation of the environment (a structure, not a change), a per-category stepper for the taxonomy (a sentence and the bars say it).

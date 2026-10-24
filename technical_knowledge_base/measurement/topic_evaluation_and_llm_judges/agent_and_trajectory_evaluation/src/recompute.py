@@ -63,6 +63,17 @@ out['impossible_abort_gpt5'] = [54, 9]
 out['metr_rebench_hcast_ratio_note'] = '43x more common on RE-Bench than HCAST (METR, 5 Jun 2025)'
 out['statem_after_flags'] = [round(100 * 420 / 445, 2), round(100 * 415 / 445, 2), round(100 * 411 / 445, 2)]
 
+# failure taxonomy (symptoms read from the writes, by code): every failed trial in exactly one category, checked in this order
+FAIL_CATS = ['acted', 'nowrite', 'wrongwrite', 'missing', 'extra', 'info']
+def fail_cat(r):
+    if r['gold_w'] == 0 and r['w_extra'] > 0: return 'acted'          # wrote on a task whose right answer is no change
+    if r['gold_w'] > 0 and r['agent_w'] == 0: return 'nowrite'        # made no write when one was needed
+    if r['w_matched'] < r['gold_w'] and r['w_extra'] > 0: return 'wrongwrite'  # a gold write missing and another made instead
+    if r['w_matched'] < r['gold_w']: return 'missing'                 # some gold writes missing, nothing extra
+    if r['w_extra'] > 0: return 'extra'                               # every gold write plus extra writes
+    return 'info'                                                     # writes exactly right: failed on required information or a non-write field
+out['fail_tax'] = {m: [sum(1 for r in R if r['model'] == m and r['reward'] == 0 and fail_cat(r) == c) for c in FAIL_CATS] for m in ['gpt52', 'opus45']}
+
 # agentevals port on the five stepped-through cases (compared with window.ATJ_MATCH5)
 from match_port import verdict, MODES, ARGS
 CS = json.load(open(os.path.join(H, 'inputs', 'tau2_cases.json')))
