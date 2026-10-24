@@ -61,7 +61,7 @@
   load();
   const an=RD.anim({card:'rd-mc',ctl:'rd-mcC',n:frames.length,draw,ms:900,label:'Step of the search'});
   document.getElementById('rd-mcM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
-    document.querySelectorAll('#rd-mcM button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;load();an.reset(frames.length);an.play()});
+    document.querySelectorAll('#rd-mcM button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;load();an.reset(frames.length)});
   RD.onResize(()=>an.redraw());
   // reproduction line
   const pu=MB.puct(net('60'),SHOW,SIMS),p0=MB.puct(net('0'),SHOW,SIMS),uc=MB.uct(SHOW,SIMS,MB.rng(4242));

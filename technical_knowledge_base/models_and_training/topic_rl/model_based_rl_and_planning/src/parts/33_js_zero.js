@@ -1,9 +1,7 @@
-// ---- Self-play lab tab ----
+// ---- Reading sections 5 and 7: the self-play replication on tic-tac-toe (was the Self-play lab tab) ----
 (function(){
-  const tab=document.getElementById('t-zero');if(!tab)return;
+  if(!document.getElementById('zl-a'))return;
   const $=id=>document.getElementById(id),Z=MB_DATA.ttt,KS=Object.keys(Z.ckpts).map(Number).sort((a,b)=>a-b).map(String);
-  const reg=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-zero']=window.TAB_RENDER['t-zero']||[]).push(f)};
-  const visible=()=>!tab.hidden&&tab.offsetParent!==null;
   const nets={};const net=k=>nets[k]||(nets[k]=MB.Net(Z.ckpts[k]));
   MB.solve([0,0,0,0,0,0,0,0,0]);
   // ---- 1. training curves ----
@@ -54,7 +52,9 @@
     const se=[{xs:S,ys:rel.uct,col:'var(--c2)',w:2,lab:'UCT, random playouts (40 seeds)',dots:true},{xs:S,ys:rel['0'],col:'var(--c4)',w:1.6,lab:'PUCT, untrained network',dots:true,dash:'4 3'},{xs:S,ys:rel['1'],col:'var(--c3)',w:1.6,lab:'PUCT, after iteration 1',dots:true,dash:'2 2'},{xs:S,ys:rel['60'],col:'var(--c1)',w:2,lab:'PUCT, after iteration 60',dots:true}];
     RD.chart($('zl-dP'),se,{x0:4,x1:1024,logx:true,y0:0,y1:1.05,H:220,xt:S.map(s=>[s,String(s)]),yt:[[0,'0%'],[0.5,'50%'],[1,'100%']],xlab:'simulations (log scale)',ylab:'chooses the block',label:'Share choosing the block by simulations'});
     RD.legend($('zl-dL'),se)}
-  let started=false;
-  reg(()=>{drawA();drawB();if(!started){started=true;setTimeout(()=>{drawC();drawD()},20)}else drawD()});
-  addEventListener('resize',()=>{if(visible()){drawA();drawB();if(rel)drawD()}});
+  // a and b draw with the Reading tab; d (40 seeds of UCT at up to 1,024 simulations) waits until its card is near; c lives in a closed block
+  let cDone=false;
+  RD.onRender(()=>{drawA();drawB();if(rel)drawD()});RD.lazy($('zl-d'),()=>setTimeout(drawD,20));
+  RD.onOpen($('zl-cD'),()=>{if(!cDone){cDone=true;drawC()}});
+  RD.onResize(()=>{drawA();drawB();if(rel)drawD()});
 })();
