@@ -1,6 +1,6 @@
-// ---- Tab: pass^k on real tau2-bench trials ----
+// ---- Reading section 2: rank change with k (inline) and the closed explorer (every run, two runs task by task, plug-in curve, non-reproducing files) ----
 (function(){
-  const root=document.getElementById('t-pk');if(!root)return;
+  if(!document.getElementById('pk-card'))return;const root=document.getElementById('t-read');
   const E=RD.esc,OK=PK.ok(),DOMS=[...new Set(OK.map(s=>s.dom))];
   const domSel=document.getElementById('pk-dom'),kIn=document.getElementById('pk-k'),aSel=document.getElementById('pk-a'),bSel=document.getElementById('pk-b');
   DOMS.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=OK.find(s=>s.dom===d).domn;domSel.appendChild(o)});
@@ -62,5 +62,5 @@
     root.querySelector('#pk-bad').innerHTML=t+'</tbody>'}
   const all=()=>{bars();cmp();plug()};
   domSel.addEventListener('change',()=>{fillAB();all()});kIn.addEventListener('input',bars);aSel.addEventListener('change',cmp);bSel.addEventListener('change',cmp);
-  fillAB();bad();RD.onRender(all,"t-pk");RD.onResize(all,"t-pk");
+  fillAB();bad();RD.onRender(all);RD.onResize(all);
 })();

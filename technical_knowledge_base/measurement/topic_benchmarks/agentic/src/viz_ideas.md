@@ -23,3 +23,13 @@ Scores: Q quantity the reader moves, R reproduces a published figure (x2), C com
 Data and formulas: tau2 submissions and S3 trajectory files (`inputs/tau2_trials_2026-10-04.json`), pass^k = mean C(c,k)/C(n,k), pass@k = mean 1 - C(n-c,k)/C(n,k) (Yao et al. 2024). METR `runs.jsonl` aggregated per agent and task (`inputs/metr_runs_agg_1_1.json`), sklearn `LogisticRegression(C=1e5)` as in METR's `utils/logistic.py`. Terminal-Bench task files at tags (surveys in `inputs/`). Board JSON from tbench.ai page data.
 
 What the methodology lacked: a rule for leaderboard files that do not reproduce their own published numbers (here: keep them out of charts, list them with both values); and a rule that solver tolerance, not the method, explains sub-0.1% differences when refitting a published model (checked by refitting with a tight tolerance).
+
+## 2026-10-24 rebuild to the teaching contract
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| 14 | **Hero: one agentic run with the four places the score moves** (harness, tries counted, checker isolation, version and metric), each with a real number from this page | Reading, top | built (static SVG, legend in HTML) |
+| 15 | **Same model, many agents** on the Terminal-Bench 2.0 board: four models, every listed agent, provider and neutral agents marked | Reading, section 3 | built (absorbs "about 18 points across nine agents") |
+| 16 | **Family map**: every benchmark by what the agent acts on, bordered by state | Reading, section 4 | built (HTML chips, wraps at phone width) |
+| 17 | **OSWorld Figure 2** (CC BY 4.0): a task config whose expected file is a public URL | Reading, Computer use | built (real image) |
+| 3, 4, 5 | pass^k, Time horizon and Grade a real task tabs | moved into Reading (inline charts beside their claims; explorers in closed blocks) | moved |
+| 5b | exploit matrix | removed: it repeated the three-run animation | removed |

@@ -48,5 +48,5 @@
   }
   const A=RD.anim({card:'an1',ctl:'an1-ctl',n:honest.length,draw,ms:2400,label:'Step of the run'});
   document.querySelectorAll('#an1-mode button').forEach(b=>b.addEventListener('click',()=>{
-    document.querySelectorAll('#an1-mode button').forEach(x=>x.classList.toggle('on',x===b));mode=+b.dataset.m;A.reset(MODES[mode].length);A.play()}));
+    document.querySelectorAll('#an1-mode button').forEach(x=>x.classList.toggle('on',x===b));mode=+b.dataset.m;A.reset(MODES[mode].length)}));
 })();

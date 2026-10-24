@@ -32,28 +32,25 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const setRange = async (sel, where) => { const [lo, hi] = await p.$eval(sel, e => [+e.min, +e.max]); for (let v = lo; v <= hi; v++) { await p.evaluate((s, v) => { const e = document.querySelector(s); e.value = v; e.dispatchEvent(new Event('input')) }, sel, v); actions++; await wait(20); await bad(where + ' ' + sel + '=' + v) } };
   // Reading
   await bad('read load');
-  for (const m of [0, 1, 2]) { await p.evaluate(m => document.querySelector(`#an1-mode button[data-m="${m}"]`).click(), m); for (let i = 0; i < 7; i++) { await p.click('#an1-ctl-f'); actions++ } await bad('an1 mode ' + m); for (let i = 0; i < 7; i++) { await p.click('#an1-ctl-b'); actions++ } }
+  for (const m of [0, 1, 2]) { await p.evaluate(m => document.querySelector(`#an1-mode button[data-m="${m}"]`).click(), m); for (let i = 0; i < 7; i++) { await p.evaluate(s => document.querySelector(s).click(), '#an1-ctl-f'); actions++ } await bad('an1 mode ' + m); for (let i = 0; i < 7; i++) { await p.evaluate(s => document.querySelector(s).click(), '#an1-ctl-b'); actions++ } }
   await setRange('#an1-ctl-s', 'an1 scrub');
   for (const m of ['hat', 'at']) { await p.evaluate(m => document.querySelector(`#an2-mode button[data-m="${m}"]`).click(), m); await setSel('#an2-set', 'an2 ' + m); await setRange('#an2-ctl-s', 'an2 scrub ' + m) }
-  await p.click('#an2-ctl-p'); await wait(500); await p.click('#an2-ctl-p'); actions += 2;
+  await p.evaluate(s => document.querySelector(s).click(), '#an2-ctl-p'); await wait(500); await p.evaluate(s => document.querySelector(s).click(), '#an2-ctl-p'); actions += 2;
   await p.select('#an2-ctl-v', '2'); actions++;
   await clickAll('#tbb-y button', 'tbb'); await clickAll('#tbb-fig circle[data-i]', 'tbb points');
   await clickAll('#tbl-fig g[data-i]', 'tbl');
-  await clickAll('.mist summary', 'mistakes'); await clickAll('#rd-check input', 'checklist');
+  await clickAll('#t-read details > summary', 'closed blocks'); await clickAll('#hs-fig circle[data-m]', 'harness strip');
   await clickAll('#rd-nav a', 'nav');
-  // pass^k tab
-  await p.click('button[data-t="t-pk"]'); await wait(200); await bad('pk load');
+  // pass^k explorer (inline and closed block)
   const doms = await p.$$eval('#pk-dom option', o => o.map(x => x.value));
   for (const d of doms) { await p.evaluate(d => { const e = document.getElementById('pk-dom'); e.value = d; e.dispatchEvent(new Event('change')) }, d); actions++; await setRange('#pk-k', 'pk ' + d); await setSel('#pk-a', 'pk a ' + d); await setSel('#pk-b', 'pk b ' + d) }
-  // horizon tab
-  await p.click('button[data-t="t-th"]'); await wait(200); await bad('th load');
+  // horizon fit
   await setSel('#th-m', 'th'); await clickAll('#th-bins', 'th bins'); await clickAll('#th-bins', 'th bins'); await setRange('#th-y', 'th year'); await clickAll('#th-ex', 'th ex'); await setRange('#th-y', 'th year ex'); await clickAll('#th-ex', 'th ex');
-  // task tab
-  await p.click('button[data-t="t-task"]'); await wait(200); await bad('task load');
+  // regex grader (closed block)
+  await p.evaluate(() => { document.getElementById('tk-card').open = true });
   await clickAll('#tk-presets button', 'presets');
-  await p.evaluate(() => { const t = document.getElementById('tk-rx'); t.disabled = false; t.value = '(?P<d>\\d{4}-\\d{2}-\\d{2})'; t.dispatchEvent(new Event('input')) }); await p.click('#tk-run'); actions++; await bad('task custom named group');
-  await p.evaluate(() => { const t = document.getElementById('tk-rx'); t.value = '(['; t.dispatchEvent(new Event('input')) }); await p.click('#tk-run'); actions++; await bad('task invalid regex');
-  await setSel('#tk-ag', 'task agent'); await setSel('#tk-lay', 'task layout');
+  await p.evaluate(() => { const t = document.getElementById('tk-rx'); t.disabled = false; t.value = '(?P<d>\\d{4}-\\d{2}-\\d{2})'; t.dispatchEvent(new Event('input')) }); await p.evaluate(s => document.querySelector(s).click(), '#tk-run'); actions++; await bad('task custom named group');
+  await p.evaluate(() => { const t = document.getElementById('tk-rx'); t.value = '(['; t.dispatchEvent(new Event('input')) }); await p.evaluate(s => document.querySelector(s).click(), '#tk-run'); actions++; await bad('task invalid regex');
   // further reading
   await p.click('button[data-t="t-more"]'); await wait(150); await bad('more');
   const links = await p.$$eval('a[href^="http"]', a => a.filter(x => x.target !== '_blank' || x.rel !== 'noopener noreferrer').map(x => x.href));
