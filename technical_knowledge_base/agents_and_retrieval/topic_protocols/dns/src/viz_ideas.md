@@ -30,3 +30,8 @@ Scored 1 to 5 on teaches-more-than-text (T), uses real data (D), cost (C, 5 = ch
 ## What the methodology lacked
 
 A rule for a lab that replaces an unreachable public system: say why the public path could not be observed, record the substitute with real software at real versions, and keep a few real public readings (here over DoT, certificate checked) so the lab is anchored to the world. Also: when a recording contradicts the old page (bare short names with ndots:1, "pooled" clients against a closing server), the recording wins and the correction is shown.
+
+## 2026-10-24 rebuild
+- Added: hero (static, process / resolver cache / authoritative servers with the failure causes), zone tree (lab and real, static), lost-packet bars (from the pod recordings, replaces the timing table), split horizon (static, illustrative, documentation addresses).
+- Moved inline: Pod resolver lab (section 7), Cache timeline (section 5). Placements in the tables above that say "own tab" are now Reading.
+- Rejected: a real image (nothing physical teaches DNS); a second walk animation for the hero (the walk stepper already exists, the hero is the static whiteboard picture).

@@ -1,4 +1,4 @@
-// ---- Shared pod helpers (Reading sections 6 and 7, Pod resolver lab tab) and the Reading tables built from the recordings ----
+// ---- Shared pod helpers (Reading sections 6 and 7, the resolver lab) and the Reading tables built from the recordings ----
 window.PODX=(function(){
   const P=DNSD.pod;const by={};P.sc.forEach(s=>by[s.label]=s);
   // packets belonging to each getaddrinfo call: those inside [t0, t0 + ms] (times from the pod's own clock)
@@ -14,12 +14,6 @@ window.PODX=(function(){
 (function(){
   const X=PODX,by=X.by,esc=RD.esc,fmt=X.fmt;const set=(id,h)=>{const e=document.getElementById(id);if(e)e.innerHTML=h};
   const ms=l=>by[l].calls[0].ms;
-  set('st-drop',[
-    ['glibc_drop_aaaa','glibc, defaults (timeout:5 attempts:2)','The A answer came at once; glibc waited its full 5 s timeout for the AAAA answer, then resent both questions.'],
-    ['glibc_drop_aaaa_t1','glibc, <code>options timeout:1 attempts:2</code>','The same loss costs the shorter timeout. A cheap mitigation where loss is real; too short and a slow resolver looks dead.'],
-    ['glibc_drop_aaaa_sr','glibc, <code>options single-request-reopen</code>','Still 5 s: this option helps when the loss is caused by the two questions sharing a socket (the conntrack races, section 7), not against any loss.'],
-    ['musl_drop_aaaa','musl, defaults','musl resends to all servers every timeout / attempts = 2.5 s, so one loss costs 2.5 s.'],
-  ].map(r=>'<tr><td>'+r[1]+'</td><td><b>'+fmt(ms(r[0]))+'</b></td><td>'+r[2]+'</td></tr>').join(''));
   const e1=by.glibc_errors.calls,e2=by.musl_errors.calls;
   set('st-dead',[
     ['First of two servers silent, second fine',fmt(ms('glibc_dead_first')),fmt(ms('musl_dead_first'))],
