@@ -38,15 +38,14 @@
     const done=rows.filter(r=>t>=r.ttft).map(r=>r.nm);cap.textContent='t = '+t.toFixed(1)+' s. '+(done.length?'First token reached: '+done.join(', ')+'.':'All three are still reading their prompt (prefill).')+(i===STEPS-1?' The uncached window pays for every corpus token on every query; the cached one pays once, then only for the question.':'')}});
   ['lc-N','lc-k','lc-c','lc-q','lc-a','lc-d'].forEach(id=>$(id).addEventListener('input',table));[ps,$('lc-model')].forEach(e=>e.addEventListener('change',table));
   // validation scatter: recorded prompt ms against the model
-  function val(){const el=$('lc-val'),W=RD.width(el),H=Math.min(300,Math.max(220,W*.5)),m=40,P=L.pts;
+  function val(){const el=$('ar-val');if(!el)return;const W=RD.width(el),H=Math.min(300,Math.max(220,W*.5)),m=40,P=L.pts;
     const lo=Math.log10(10),hi=Math.log10(25000),X=v=>m+(W-m-10)*(Math.log10(Math.max(10,v))-lo)/(hi-lo),Y=v=>10+(H-m-10)*(1-(Math.log10(Math.max(10,v))-lo)/(hi-lo));
     let g='<line x1="'+X(10)+'" y1="'+Y(10)+'" x2="'+X(25000)+'" y2="'+Y(25000)+'" stroke="var(--dim)" stroke-dasharray="4 3"/>';
     [10,100,1000,10000].forEach(t=>{g+=RD.t(X(t),H-m+14,t>=1000?(t/1000)+'k':t,{a:'middle',fill:'var(--mute)'})+RD.t(m-4,Y(t)+4,t>=1000?(t/1000)+'k':t,{a:'end',fill:'var(--mute)'})});
     P.forEach(p=>{g+='<circle cx="'+X(pre(p[0],p[1])).toFixed(1)+'" cy="'+Y(p[2]).toFixed(1)+'" r="2.5" fill="var(--acc)" opacity=".7"/>'});
     (L.ext_pts||[]).forEach(p=>{g+='<circle cx="'+X(pre(p[0],p[1])).toFixed(1)+'" cy="'+Y(p[2]).toFixed(1)+'" r="3" fill="var(--c2)" opacity=".8"/>'});
     g+=RD.t((W+m)/2,H-6,'predicted prefill ms (log)',{a:'middle',fill:'var(--mute)'})+RD.t(m+4,18,'recorded ms',{fill:'var(--mute)'});
-    el.innerHTML=RD.svg(W,H,g,'predicted against recorded prefill time')+'<p class="small mute">Blue: held-out calls within the fitted range (mean absolute error '+(100*L.mape_test).toFixed(1)+'%). Orange: '+(L.ext_pts||[]).length+' calls beyond it (9k to 15k tokens) from this page\'s lost-in-the-middle run. Points on the dashed line are predicted exactly. Measured on Apple M1 Pro (Metal), root Agentic lab runs (2026-10-14) and this page\'s runs (2026-10-15).</p>'}
-  function acc(){const el=$('lc-acc'),AC=L.acc;ARL.bars(el,['single_k2','single_k5','single_k10','longctx','longctx_tokens8000'].map(s=>({nm:ARL.NAMES[s]+' ('+fi(AC[s].tok)+' tok)',v:AC[s].f1,max:.35,txt:ARL.f3(AC[s].f1),col:s.indexOf('long')===0?'var(--c4)':'var(--acc)'})))}
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-arlong']=[table,val,acc];
-  addEventListener('resize',()=>{const t=$('t-arlong');if(t&&!t.hidden){val()}});
+    el.innerHTML=RD.svg(W,H,g,'predicted against recorded prefill time')}
+  (window.TAB_RENDER=window.TAB_RENDER||{})['t-arlong']=[table];
+  RD.onRender(val);RD.onResize(val);
 })();

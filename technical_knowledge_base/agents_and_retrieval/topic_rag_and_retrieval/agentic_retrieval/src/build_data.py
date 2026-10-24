@@ -30,7 +30,8 @@ A_ = hops["all"]
 fx("h_need", hops["need_second"]); fx("h_first", hops["first_found_h1"])
 for v in ("same", "sent", "q_sent", "title", "agent", "decomp"):
     fx("h_%s_top3" % v, A_[v]["top3"]); fx("h_%s_n" % v, A_[v]["n"]); fx("h_%s_med" % v, int(A_[v]["median_rank"]))
-fx("h_agent_title", hops["agent_has_title"]); fx("h_agent_n", hops["agent_n"]); fx("h_agent_found", hops["agent_found_h2_need"])
+fx("h_agent_title", hops["agent_has_title"]); fx("h_agent_n", hops["agent_n"]); fx("h_agent_n2", A_["agent"]["n"]);  # h_agent_n2: second queries whose first search had not already found hop 2
+fx("h_agent_found", hops["agent_found_h2_need"])
 fx("h_r2_med", int(hops["r2_q_median"]))
 # strategies (identical to the root's strategies.json)
 R = out["res"]
@@ -187,7 +188,8 @@ AR = {
     "tax": T, "beh": B, "cur": C,
     "comp": {"q": out["q"][:NCOMP], "gold": out["gold"][:NCOMP], "type": out["type"][:NCOMP], "rows": tr["comp"][:NCOMP]},
     "lc": {k: lc.get(k) for k in ("coef", "pts", "ext_pts", "cfg", "acc", "decode_coef", "mape_test", "max_ctx")},
-    "tool": {k: tool[k] for k in ("schema", "formats", "by_n")},
+    "tool": {k: tool[k] for k in ("schema", "formats", "by_n", "s_mean", "r_mean")},
+    "f4": {s_: v["f1"] for s_, v in SJ.get("4b", {}).items()},  # root's 4B runs, for the methods figure
     "pend": pend,
 }
 # titles: only those the comparer's 60 questions reference, re-indexed

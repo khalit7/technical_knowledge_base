@@ -4,12 +4,6 @@
   // predict-then-reveal blocks
   document.querySelectorAll('#t-read .ar-q').forEach(q=>q.querySelectorAll('.chips button').forEach(b=>b.addEventListener('click',()=>{
     q.classList.add('done');q.querySelectorAll('.chips button').forEach(x=>x.classList.add(x.dataset.ok?'ok':'no'))})));
-  // result formats (section 1)
-  const F=A.tool.formats, fm=document.getElementById('ar-fmt');
-  if(fm)ARL.bars(fm,[['full paragraphs with titles (root)','full'],['as JSON objects','json'],['title + first sentence','first'],['titles only','titles']].map(([nm,k])=>({nm,v:F[k],max:F.json,txt:Math.round(F[k])+' tok',col:k==='full'?'var(--acc)':'var(--c6)',hl:k==='full'})));
-  // second-hop bars (section 2)
-  const H=A.hops.all, hb=document.getElementById('ar-hopbars');
-  if(hb)ARL.bars(hb,[['same question again','same'],['the 1.7B agent\'s 2nd query','agent'],['decomposition, 2nd sub-question','decomp'],['hop-1 sentence (IRCoT oracle)','sent'],['question + hop-1 sentence','q_sent'],['bridge entity\'s exact name','title']].map(([nm,k])=>({nm,v:H[k].top3/H[k].n,max:1,txt:H[k].top3+' / '+H[k].n,col:(k==='agent'||k==='decomp')?'var(--c2)':k==='same'?'var(--mute)':'var(--c3)'})));
   // second-hop animation
   const EX=A.hops.examples, T=A.hops.titles;
   const chipsEl=document.getElementById('ar-hopq');let cur=0;
@@ -46,10 +40,6 @@
   const tan=RD.anim({card:'ar-taxcard',ctl:'ar-taxctl',n:MODES[mode].length,ms:1800,label:'Strategy',draw:i=>{const L=MODES[mode];
     taxEl.innerHTML=L.map((s,j)=>bar(s,j<=i)).join('');taxCap.innerHTML=capOf(L[i])}});
   RD.seg(document.getElementById('ar-taxseg'),m=>{mode=m;tan.reset(MODES[m].length)});
-  // accuracy against tokens read (section 8)
-  const AC=A.lc.acc, la=document.getElementById('ar-lcacc');
-  if(la)ARL.bars(la,['single_k2','single_k5','single_k10','longctx','longctx_tokens8000'].map(s=>({nm:NM[s],v:AC[s].f1,max:.35,txt:f3(AC[s].f1),col:s.indexOf('long')===0?'var(--c4)':'var(--acc)'})).concat([]));
-  if(la)la.insertAdjacentHTML('beforeend','<p class="small mute">F1 (bar) measured; tokens per question: '+['single_k2','single_k5','single_k10','longctx','longctx_tokens8000'].map(s=>esc(NM[s])+' '+ARL.fmtInt(AC[s].tok)+' ('+AC[s].both+' with both gold)').join('; ')+'.</p>');
   // root's position run (20 paragraphs), when it exists
   const pb=document.getElementById('ar-posbox'),RP=A.pend.root_position;
   if(pb){if(RP&&RP['1.7b']){const slots=['0','4','9','14','18'],ms=['1.7b','4b'].filter(m=>RP[m]);
