@@ -64,6 +64,6 @@
     cnt.innerHTML=RD.stat('Orders saved',st.o.length)+RD.stat('Events in broker',st.b.length,st.b.length>1?'one is a duplicate':'')+
       RD.stat('Lost events',lost,lost?'order with no event':'')+RD.stat('Phantom events',ph,ph?'event with no order':'')+RD.stat('Receipts sent',st.m.length)}
   const A=RD.anim({card:'rd-ob-card',ctl:'rd-ob-ctl',n:S.naive.length,draw:draw,ms:2600,label:'Dual write step'});
-  RD.seg(document.getElementById('rd-ob-seg'),m=>{mode=m;A.reset(S[m].length);A.play()});
+  RD.seg(document.getElementById('rd-ob-seg'),m=>{mode=m;A.reset(S[m].length)});
   RD.onResize(()=>A.redraw());
 })();

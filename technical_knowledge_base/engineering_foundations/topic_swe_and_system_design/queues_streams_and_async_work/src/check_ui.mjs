@@ -31,6 +31,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     if (r.m || r.side || r.box) { problems++; console.log(scheme, width, label, JSON.stringify(r)) }
   };
   const shot = async (sel, name) => { const el = await p.$(sel); if (el) { await el.scrollIntoView(); await sleep(150); await el.screenshot({ path: path.join(out, `${name}-${scheme}-${width}.png`) }) } };
+  // nothing moves before the reader acts: scroll both step animations into view, wait, and confirm they are still on step 1
+  for (const id of ['rd-ob', 'rd-bj']) {
+    await p.evaluate(id => document.getElementById(id + '-card').scrollIntoView(), id); await sleep(3500);
+    const v = await p.$eval('#' + id + '-ctl-s', x => +x.value); if (v !== 0) { problems++; console.log(scheme, width, id, 'moved by itself to step', v) }
+  }
   // Reading: outbox animation, every mode, every step
   for (const m of ['naive', 'first', 'outbox']) {
     await p.evaluate(m => document.querySelector('#rd-ob-seg button[data-m=' + m + ']').click(), m);
@@ -44,11 +49,20 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     await p.evaluate((pp, cc) => { const a = document.getElementById('rd-pt-p'), c = document.getElementById('rd-pt-c'); a.value = pp; a.dispatchEvent(new Event('input')); c.value = cc; c.dispatchEvent(new Event('input')) }, pp, cc);
     await sleep(40); await bad('pt ' + pp + 'x' + cc); if (pp === 3 || pp === 8 && cc === 8 || pp === 1) await shot('#rd-pt-card', `pt-${pp}-${cc}`);
   }
+  // batch-job stepper: every step
+  { const n = await p.$eval('#rd-bj-ctl-s', x => +x.max + 1);
+    for (let i = 0; i < n; i++) { await bad('bj ' + i); if (i === 2 || i === n - 1) await shot('#rd-bj-card', 'bj-' + i); await p.evaluate(() => document.getElementById('rd-bj-ctl-f').click()) } }
+  // visibility-timeout toggle
+  for (const m of ['short', 'hb', 'long']) { await p.evaluate(m => document.querySelector('#rd-vt-seg button[data-m=' + m + ']').click(), m); await sleep(30); await bad('vt ' + m); await shot('#rd-vt-card', 'vt-' + m) }
+  // drain slider: ends and default
+  for (const k of ['1.05', '4', '2']) { await p.evaluate(k => { const e = document.getElementById('rd-dr-k'); e.value = k; e.dispatchEvent(new Event('input')) }, k); await sleep(30); await bad('drain ' + k) }
+  { const t = await p.$eval('#rd-dr-out', x => x.innerText); if (!/60 min/.test(t)) { problems++; console.log(scheme, width, 'drain default should read 60 min:', t) } }
+  for (const s of ['rd-hero-card', 'rd-ql-card', 'rd-eos-card', 'rd-dr-card']) await shot('#' + s, s.replace('-card', ''));
   // saga toggle
   for (const m of ['ok', 'fail', 'tpc']) { await p.evaluate(m => document.querySelector('#rd-sg-seg button[data-m=' + m + ']').click(), m); await sleep(30); await bad('saga ' + m); await shot('#rd-sg-card', 'saga-' + m) }
   await shot('#rd-ms-card', 'meas'); await shot('#rd-sk-svg', 'skip'); await shot('#rd-ob-tbl', 'obtbl');
   // mistakes open
-  await p.evaluate(() => document.querySelectorAll('details.mist').forEach(d => d.open = true)); await bad('mistakes');
+  await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true)); await bad('details open');
   await bad('read');
   // Lab
   await p.click('button[data-t=t-lab]'); await sleep(200);

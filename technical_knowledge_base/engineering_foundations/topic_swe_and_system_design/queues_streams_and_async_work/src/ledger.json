@@ -1,0 +1,4744 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Queues, streams and async work: delivery semantics, Kafka, the outbox pattern Queues, streams and async work: delivery semantics, Kafka, the outbox pattern How work leaves the request path and still gets done exactly as often as it should, taught from zero: queues and logs, Kafka's partitions, offsets and consumer groups, at-most-once, at-least-once and what \"exactly-once\" really means, idempotent consumers, visibility timeouts, dead-letter queues, backpressure, the dual-write problem and the transactional outbox, sagas, events, Python job queues and durable workflows, cron, and async work around LLMs.",
+  "label": "core",
+  "key": "queues, streams and async work: delivery semantics,",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Child page of Topic: swe-and-system-design .",
+  "label": "core",
+  "key": "child page of topic: swe-and-system-design .",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Includes three experiments run on a real local PostgreSQL.",
+  "label": "core",
+  "key": "on a real local postgresql.",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Sources linked inline; checked October 2026.",
+  "label": "core",
+  "key": "data as of october 2026",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Queue lab Further reading",
+  "label": "core",
+  "key": "reading queue lab further reading",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "About 50 minutes to read.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old hand-written reading time; replaced by the measured subtitle"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "Every section can be read alone; terms are defined at first use (in bold) and collected in the glossary at the end.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "reading instructions; the glossary is now a closed block"
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page owns the depth on queues, streams and background work; the parent root's Step 3 (\"Slow work leaves the request path\") gives the five-minute version.",
+  "label": "core",
+  "key": "slow work leaves the request path",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "In one screen Why async Queues and logs Kafka Delivery semantics Measured Exactly-once Idempotent consumers Visibility timeouts Dead letters Backpressure Dual write and outbox Sagas Events Python job queues Cron LLM async In production Mistakes Glossary",
+  "label": "core",
+  "key": "why async queues and logs kafka delivery",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "In one screen Our running example is the parent topic's chat assistant.",
+  "label": "core",
+  "key": "goes async on the chat assistant",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "When a user sends a message, the reply has to come back now; but a lot of other work hangs off that message and can happen a few seconds later: give the conversation a title, embed an uploaded PDF so it can be searched, count the tokens for billing, send a receipt when someone buys a subscription, tell the analytics system.",
+  "label": "core",
+  "key": "generating a conversation title",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "This page is about that second kind of work: how it is handed off ( queues and logs ), how often it runs when machines crash ( delivery semantics ), and how to keep a database and a message system in agreement ( the outbox ).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "page outline; the hero figure and core sentence carry it"
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Problem Tool What it costs When not to use it Slow work holds the user's request A queue and background workers ; reply 202 Accepted The result arrives later; one more system to run The answer the user is waiting to read Many services need the same events, or a replay A log (Kafka, Kinesis, Redpanda) instead of a queue Partitions to plan, offsets to manage, a cluster to run A simple job queue with one kind of worker A worker crashes halfway through a job At-least-once delivery : acknowledge after the work Duplicates: a job can run twice Never acknowledge first unless losing work is acceptable Duplicates do damage (two e-mails, two charges) Idempotent consumer : a unique key on the message id A table of processed ids, and an expiry policy When the effect is already naturally idempotent \"Exactly once\" is promised Kafka transactions , or at-least-once plus deduplication Latency and complexity; covers Kafka-to-Kafka only When the side effect is outside Kafka (then deduplicate) A job is slower than the timeout and runs twice Visibility timeout set above the slowest job, extended by a heartbeat Slower recovery after a real crash Never set it below normal processing time One bad message fails forever Dead-letter queue after N tries, with an alert and a replay path Someone must look at it Strictly ordered streams, where skipping breaks order Work arrives faster than it is done Backpressure , bounded queues, Little's law to size workers Some producers are told \"not now\" Never let a queue grow without bound instead Save a row and publish an event, atomically Transactional outbox (polling relay or Debezium) A relay to run; events arrive at least once When the database itself is the queue (enqueue in the same transaction) One business action spans several services Saga with compensating steps (not two-phase commit) No isolation between steps; compensations to write When one database transaction can do it Multi-step jobs that must survive crashes for hours Durable workflows (Temporal, DBOS, Restate) A new programming model; deterministic code Single-step jobs a plain queue handles Three ideas carry most of this page 1.",
+  "label": "depth",
+  "key": "ckground workers ; reply 202 accepted the result arri",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "A network cannot give you \"exactly once\"; you build it.",
+  "label": "core",
+  "key": "never exactly once",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "When a crash or a lost reply leaves the sender unsure whether a message arrived, it must either send again (and risk a duplicate) or not (and risk a loss).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by the Kafka producer quote and Gray's proof in s-sem"
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Real systems choose \"send again\" and make the receiver ignore repeats.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by 'at-least-once delivery plus deduplication' in s-sem"
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Measured below on a real Postgres: 1,000 jobs with a 5% crash chance were done 1,046 to 1,053 times; with a unique key on the message id, exactly 1,000.",
+  "label": "core",
+  "key": "1,000 jobs with a 5% crash chance",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Two writes to two systems are never atomic.",
+  "label": "core",
+  "key": "two writes to two systems",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Saving an order and then publishing its event loses the event whenever the process dies in between (measured: 19 to 28 lost per 500 orders at a 5% crash chance).",
+  "label": "core",
+  "key": "19 to 28",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The outbox turns the two writes into one database transaction, then publishes later, at least once.",
+  "label": "core",
+  "key": "the outbox turns them into one",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "A queue hides overload instead of removing it.",
+  "label": "core",
+  "key": "a queue hides overload instead of removing",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "If work arrives faster than workers finish it, nothing errors: the queue just grows, and every job waits longer.",
+  "label": "core",
+  "key": "nothing errors: the backlog just grows",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Watch the age of the oldest message, size workers with Little's law, and push back on producers.",
+  "label": "core",
+  "key": "watch the age of the oldest",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "Why async: taking slow work off the request path A request path is everything that happens between a client sending a request and receiving the response.",
+  "label": "core",
+  "key": "everything between a request arriving and its response",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "On the chat assistant, the path for \"send message\" is: check the user, save the message, call the model, stream the reply.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "step list of the example's request path; not needed"
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "Anything else done on that path makes every user wait for it, and holds one of the server's limited request slots while they wait.",
+  "label": "core",
+  "key": "and holds one of the server's limited",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "The parent root shows the effect with PDF uploads: 5 uploads among 30 chat messages made chat messages wait up to 3 seconds that should have waited none (the root's Step 3 animation, Topic: swe-and-system-design ).",
+  "label": "core",
+  "key": "chat messages wait up to 3 seconds that should have",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "The fix is to separate accepting work from doing it.",
+  "label": "core",
+  "key": "separates accepting work from doing it",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "The request handler writes a description of the job somewhere durable and answers at once; other processes do the job later.",
+  "label": "core",
+  "key": "somewhere durable and answers at",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "That \"somewhere\" is a message queue or a log (both explained in the next section).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "forward pointer"
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "Vocabulary used for the rest of the page: A message (or event, or job) is one unit of handed-off work or information: a small record such as {\"type\": \"embed_document\", \"doc_id\": 981} .",
+  "label": "core",
+  "key": "embed_document",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "The producer writes messages; the consumer (or worker ) reads and handles them; the broker is the system in between that stores them (SQS, RabbitMQ, Kafka, or a table in Postgres).",
+  "label": "core",
+  "key": "the broker stores them in between",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "To acknowledge (ack) a message is to tell the broker \"done, you may forget it\" (a queue deletes it; a log records how far you got).",
+  "label": "core",
+  "key": "is to tell the broker",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "The HTTP side of the hand-off is 202 Accepted , which RFC 9110 defines as \"the request has been accepted for processing, but the processing has not been completed\" ( RFC 9110 §15.3.3 ).",
+  "label": "core",
+  "key": "the request has been accepted for processing, but the processing has not been completed",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "The response usually carries a job id and a URL the client can poll, or the client is told later through a webhook or a server-sent event.",
+  "label": "core",
+  "key": "with a job id to poll or a later webhook",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "How to design those endpoints is on Building a backend API .",
+  "label": "core",
+  "key": "is on building a backend api",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "Goes async on the chat assistant Embedding an uploaded document (tens of seconds) Generating a conversation title after the first reply Usage metering and billing events Receipts, e-mails, outgoing webhooks to customers Nightly evaluation runs, re-embedding the corpus (batch APIs, below ) Long agent tasks that run for minutes Stays on the request path The reply the user is reading (stream it instead: below ) Anything the next screen needs to show correctly Checks that must reject the request (auth, rate limits, validation) Writes the user must see confirmed (saving the message itself) What async costs The result is late, so the product must show progress and handle \"not ready yet\".",
+  "label": "core",
+  "key": "not ready yet",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "Failures happen where no user sees them, so they need their own alerts.",
+  "label": "core",
+  "key": "failures happen where no user sees them,",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "Jobs can run twice (the rest of this page).",
+  "label": "core",
+  "key": "jobs can run twice",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "And the broker is one more system to run, monitor and pay for.",
+  "label": "core",
+  "key": "and the broker is one more system",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "why async: taking slow work off the request path",
+  "text": "A rule of thumb (opinion, not a sourced rule): make work async when it is slow, can fail and be retried independently, or fans out to several consumers; keep it synchronous when the caller needs the result to continue.",
+  "label": "core",
+  "key": "a rule of thumb (opinion, not a",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "Two shapes: queues and logs Brokers come in two shapes, and most confusion about \"queues versus Kafka\" is confusion between them.",
+  "label": "core",
+  "key": "queues versus kafka",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "A queue: a to-do list Each message is meant for one worker.",
+  "label": "core",
+  "key": "each message goes to one of them",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "A worker takes a message, does it, acknowledges, and the broker deletes it.",
+  "label": "core",
+  "key": "deleted on ack",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "Several workers on one queue share the work (they are called competing consumers ).",
+  "label": "core",
+  "key": "competing consumers",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "Progress is tracked per message.",
+  "label": "core",
+  "key": "progress is tracked per message",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "Examples: Amazon SQS, RabbitMQ queues, a jobs table in Postgres, Redis lists behind Celery or RQ.",
+  "label": "core",
+  "key": "redis lists behind celery or",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "A log (a stream): an append-only record Messages are appended in order and kept for a retention period whether or not anyone has read them.",
+  "label": "core",
+  "key": "for a retention period whether",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "Each reader remembers its own position, a number called the offset .",
+  "label": "core",
+  "key": "each reader remembers its position, the offset",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "Many independent readers can read the same messages, and a reader can rewind and replay.",
+  "label": "core",
+  "key": "a new one can replay from the start",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "Examples: Apache Kafka, Amazon Kinesis Data Streams, Redpanda, Apache Pulsar, Redis Streams, RabbitMQ Streams.",
+  "label": "core",
+  "key": "kinesis data streams, redpanda, pulsar, redis streams",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "Kafka's own introduction states the difference: \"events are not deleted after consumption.",
+  "label": "core",
+  "key": "\"events are not deleted after consumption.",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "Instead, you define for how long Kafka should retain your events through a per-topic configuration setting\" ( Kafka 4.3 introduction ); the default retention is 7 days ( retention.ms , topic configs ).",
+  "label": "core",
+  "key": "uration setting\" ( kafka 4.3 introduction ); the defa",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "RabbitMQ added a log type for the same reason: \"Streams model an append-only log of messages that can be repeatedly read until they expire\" ( RabbitMQ Streams ).",
+  "label": "core",
+  "key": "streams model an append-only log of messages that can be repeatedly read until they expire",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "Which to use follows from who reads the messages: A queue when each message is a job for one kind of worker: \"embed document 981\", \"send receipt for order 42\".",
+  "label": "core",
+  "key": "embed document 981",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "You want per-message acknowledgement, per-message retries and dead-lettering, and you never want the job again once done.",
+  "label": "core",
+  "key": "per-message acks, retries and dead-lettering",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "A log when the message is a fact several systems care about: \"order 42 was placed\" read by the e-mail service, the warehouse and analytics, each at its own pace; or when you may need to replay history (rebuild a search index, backfill a new service).",
+  "label": "core",
+  "key": "order 42 was placed",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "You pay with partitions to plan, offsets to manage and usually a cluster to run.",
+  "label": "core",
+  "key": "pay with partitions to plan, offsets to",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "System Shape Delivery and acks Limits and defaults worth knowing Amazon SQS standard Queue (managed) \"at-least-once message delivery, but due to the highly distributed architecture, more than one copy of a message might be delivered, and messages may occasionally arrive out of order\" ( SQS standard queues ) Visibility timeout default 30 s, max 12 h; retention default 4 days, max 14; message up to 1 MiB ( SQS quotas ; raised from 256 KiB on 2025-08-04 ) Amazon SQS FIFO Queue, ordered per message group Ordered within a message group; deduplicates sends with the same id within 5 minutes ( FIFO exactly-once processing ) 300 transactions per second per API action per partition, 3,000 messages per second with batching, more in high-throughput mode ( SQS quotas ) RabbitMQ (quorum queues) Queue (self-run or hosted) Manual acks; in automatic mode \"a message is considered to be successfully delivered immediately after it is sent\" ( RabbitMQ confirms ) Prefetch ( basic.qos ) caps unacknowledged messages per channel; \"Starting with RabbitMQ 4.0, the delivery limit for quorum queues defaults to 20\" ( quorum queues ) Postgres table + SKIP LOCKED Queue inside your database Whatever your transaction does: the job and your data can commit together Measured below: one laptop drained 960 jobs a second with 8 workers; libraries: River, Oban, Solid Queue, graphile-worker, Procrastinate, pgmq Apache Kafka Log (self-run or hosted) At-least-once by default; idempotent producer and transactions for Kafka-to-Kafka exactly-once ( below ) Retention 7 days by default; benchmark: 605 MB/s peak on 3 brokers, p99 5 ms at 200 MB/s ( Confluent, 2020 , vendor-run, fsync off by default) Amazon Kinesis Data Streams Log (managed) At-least-once to readers; shards instead of partitions Per shard: writes up to 1,000 records or 1 MB per second, reads 2 MB per second ( Kinesis concepts ); retention 24 h by default, up to 365 days ( retention ) Redpanda Log, Kafka API \"Producers and consumers interact with Redpanda using the Kafka API\" ( Redpanda architecture ) C++, single binary; Jepsen's 2022 test of 21.10.1 found \"three liveness and seven safety issues\" in that version ( Jepsen ) The same 2020 Confluent benchmark measured mirrored RabbitMQ at 38 MB/s peak, with p99 latency of about 1 ms only at a reduced 30 MB/s load.",
+  "label": "depth",
+  "key": "a message is considered to be successfully delivered immediately after it is sent",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "Numbers from a vendor comparing itself to rivals; read them as orders of magnitude.",
+  "label": "depth",
+  "key": "numbers from a vendor comparing itself to",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "two shapes: queues and logs",
+  "text": "The parent root's Numbers to know tab carries the same Kafka figures.",
+  "label": "depth",
+  "key": "the parent root's numbers to know tab",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Kafka from zero: topics, partitions, offsets, consumer groups Kafka is the log most teams meet first, and its vocabulary is used by Redpanda, Kinesis (with different names) and most stream processors.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "A topic is a named log, such as orders or chat_messages .",
+  "label": "core",
+  "key": "chat_messages",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "A topic is split into partitions : several independent logs, each stored and replicated on brokers.",
+  "label": "depth",
+  "key": "a topic is split into",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Partitions are how Kafka scales: different partitions live on different machines and are read in parallel.",
+  "label": "core",
+  "key": "independent logs on different brokers, read in parallel",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "(How each partition is replicated, with a leader, followers and a Raft-based controller since Kafka 4.0, is on Distributed systems fundamentals .) Each message in a partition gets an increasing number, its offset .",
+  "label": "depth",
+  "key": "d controller since kafka 4.0, is on distributed system",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "A consumer's progress is \"the next offset I will read\" for each partition.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the offset definition"
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "A message can carry a key .",
+  "label": "core",
+  "key": "key is hashed to pick its partition",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Kafka hashes the key to choose the partition, so \"if the key chosen was a user id then all data for a given user would be sent to the same partition\" ( Kafka design ).",
+  "label": "core",
+  "key": "partition, so \"if the key chosen was",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Ordering is per partition only. \"Events with the same event key (e.g., a customer or vehicle ID) are written to the same partition, and Kafka guarantees that any consumer of a given topic-partition will always read that partition's events in exactly the same order as they were written\" ( Kafka introduction ).",
+  "label": "core",
+  "key": "guarantees that any consumer of a given",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Two messages in different partitions have no order between them.",
+  "label": "core",
+  "key": "across partitions there is no order",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "So choose the key by what must stay in order: a user's messages, an order's state changes.",
+  "label": "core",
+  "key": "key by what must stay in order:",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Consumer groups share the work.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading phrase"
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Consumers that share a group id form a consumer group ; each partition \"is consumed by exactly one consumer within each subscribing consumer group at any given time\" ( Kafka design ).",
+  "label": "core",
+  "key": "each partition \"is consumed by exactly one",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Two consequences: a group can never use more consumers than there are partitions (the extras sit idle), and a different group (analytics, say) gets every message again.",
+  "label": "core",
+  "key": "a group never uses more consumers than partitions",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "When consumers join or leave, the group rebalances , moving partitions between members; Kafka 4.0 made a new protocol (KIP-848) generally available that \"says goodbye to 'stop-the-world' rebalances\" ( Kafka 4.0 release ), but clients still default to the classic one ( group.protocol \"The default value is classic\", consumer configs, 4.3 ).",
+  "label": "depth",
+  "key": "says goodbye to 'stop-the-world' rebalances",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Try it: keys to partitions, partitions to consumers Twelve chat messages from four users (user-1, user-4, user-6, user-8), keyed by user id.",
+  "label": "core",
+  "key": "twelve chat messages from four users",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "The partition is computed with Kafka's real default partitioner for keyed records, murmur2(key bytes) mod partitions (a port of Kafka's Utils.murmur2 that reproduces the six test vectors in Kafka's UtilsTest ).",
+  "label": "core",
+  "key": "ioner for keyed records, murmur2(key bytes) mod partitions (a",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Partitions are dealt to consumers round-robin for the picture; the real assignor may pair them differently.",
+  "label": "core",
+  "key": "partitions are dealt to consumers round-robin for",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Message order illustrative Partitions: 3 Consumers in the group: 2 Try: set consumers above partitions and watch consumers go idle; change the partition count and see users move to new partitions (which is why adding partitions to a keyed topic breaks per-key ordering for messages already written).",
+  "label": "core",
+  "key": "partitions: 3 consumers in the group: 2",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "A consumer saves its position by committing offsets, which Kafka stores in an internal topic, __consumer_offsets ( Kafka implementation ).",
+  "label": "depth",
+  "key": "__consumer_offsets",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "By default the client does it for you: enable.auto.commit is true and commits \"periodically ... in the background\", every 5 seconds ( consumer configs ).",
+  "label": "core",
+  "key": "by default the client does it",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "When to commit relative to the work decides your delivery semantics, which is the next section.",
+  "label": "core",
+  "key": "commit relative to the work",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Two timers decide when a consumer is declared dead and its partitions handed to someone else: session.timeout.ms (45 s without heartbeats) and max.poll.interval.ms (5 minutes between calls to poll() ; slower than that and \"the consumer is considered failed and the group will rebalance\").",
+  "label": "core",
+  "key": "the consumer is considered failed and the group will rebalance",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "That second timer is Kafka's version of a visibility timeout: a job slower than it gets its partition taken away mid-work.",
+  "label": "core",
+  "key": "visibility timeout: a job slower than it",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Lag is how far a group is behind: the partition's latest offset minus the group's committed offset.",
+  "label": "core",
+  "key": "the partition's latest offset minus the group's",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Kafka ships \"a tool that will show the position of all consumers in a consumer group as well as how far behind the end of the log they are\" ( kafka-consumer-groups.sh --describe , Kafka operations ).",
+  "label": "core",
+  "key": "how far behind the end of the",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Lag in messages is the log's queue depth; divide by the consume rate to get it in seconds, the number users feel.",
+  "label": "core",
+  "key": "divide by the consume rate to get",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Kafka as a queue, now.",
+  "label": "core",
+  "key": "kafka as a queue, now.",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Because a partition goes to one consumer, Kafka was a poor job queue: one slow message holds up its whole partition, and parallelism is capped by the partition count.",
+  "label": "core",
+  "key": "one slow message holds up its",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Kafka 4.2 (February 2026) made share groups (\"Queues for Kafka\", KIP-932) production-ready ( Kafka 4.2 release ): in a share group \"partitions may be assigned to multiple consumers\", \"The number of consumers in a share group can exceed the number of partitions\", \"Records are acknowledged individually\", and \"Delivery attempts to consumers in a share group are counted\" ( Kafka design, The Share Consumer ).",
+  "label": "depth",
+  "key": "queues for kafka",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "A delivered record is locked for 30 seconds by default and can be acknowledged, released, rejected or renewed: the SQS model, inside Kafka.",
+  "label": "core",
+  "key": "locked for 30 seconds by default",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "It was early access in 4.0 and a preview in 4.1.",
+  "label": "depth",
+  "key": "in 4.0 and a preview in 4.1.",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Kafka's design document is unusually readable: Kafka 4.3 design (about 1 h).",
+  "label": "depth",
+  "key": "nusually readable: kafka 4.3 design (about 1 h).",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "kafka from zero: topics, partitions, offsets, consumer groups",
+  "text": "Replication, ISR and KRaft: Distributed systems fundamentals .",
+  "label": "depth",
+  "key": "raft-based controller since kafka 4.0",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Delivery semantics: at-most-once, at-least-once, \"exactly-once\" Every consumer does two things with a message: the work (send the e-mail, write the embedding) and the acknowledgement (delete it from the queue, or commit the offset).",
+  "label": "core",
+  "key": "consumer does two things with",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "A crash can land between them.",
+  "label": "core",
+  "key": "a crash can land between",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Which one you do first decides what a crash costs you, and that choice has three names.",
+  "label": "core",
+  "key": "the order you chose decides what that crash costs",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Kafka's documentation defines them: \"At most once: Messages may be lost but are never redelivered.",
+  "label": "core",
+  "key": "\"at most once: messages may be lost",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "At least once: Messages are never lost but may be redelivered.",
+  "label": "core",
+  "key": "at least once: messages are never lost",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Exactly once: Each message is processed once and only once\" ( Kafka design, Message Delivery Semantics ).",
+  "label": "core",
+  "key": "exactly once: each message is processed once",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "At-most-once : acknowledge, then work msg = queue.receive() queue.delete(msg) # ack first send_receipt(msg.order) # crash here: receipt never sent A crash after the ack loses the job.",
+  "label": "core",
+  "key": "send_receipt",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Kafka: the consumer \"crashes after saving its position but before saving the output ...",
+  "label": "core",
+  "key": "kafka: the consumer \"crashes after saving its",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "This corresponds to 'at-most-once' semantics\".",
+  "label": "core",
+  "key": "this corresponds to 'at-most-once' semantics\".",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Fine for metrics samples or a \"typing...\" indicator; wrong for anything a user paid for.",
+  "label": "core",
+  "key": "fine for metrics samples or a \"typing...\"",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "At-least-once : work, then acknowledge msg = queue.receive() send_receipt(msg.order) # crash after this line... queue.delete(msg) # ...and msg comes back: sent twice A crash after the work but before the ack redelivers the job, which then runs again.",
+  "label": "core",
+  "key": "send_receipt",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Kafka: \"the first few messages it receives will already have been processed.",
+  "label": "core",
+  "key": "kafka: \"the first few messages it receives",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "This corresponds to the 'at-least-once' semantics\".",
+  "label": "core",
+  "key": "this corresponds to the 'at-least-once' semantics\".",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "This is the default almost everywhere, because a duplicate can be detected and a loss cannot.",
+  "label": "core",
+  "key": "the default almost everywhere, because a duplicate",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Why not just \"exactly once\"?",
+  "label": "core",
+  "key": "why there is no exactly-once delivery",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Because the sender cannot know what the receiver did.",
+  "label": "core",
+  "key": "the sender cannot know what the receiver",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Kafka's docs give the producer's version: \"If a producer attempts to publish a message and experiences a network error, it cannot be sure if this error happened before or after the message was committed.\" The consumer's version is the crash above.",
+  "label": "core",
+  "key": "\"if a producer attempts to publish a",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "The general result is old.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Jim Gray's 1978 notes prove that two parties who can only talk through messengers that may be lost cannot be certain they agree: \"Let P be the shortest such protocol.",
+  "label": "depth",
+  "key": "through messengers that may be lost cannot",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Suppose the last messenger in P gets lost.",
+  "label": "depth",
+  "key": "suppose the last messenger in p gets",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Then either this messenger is useless or one of the generals doesn't get a needed message\" ( Gray, Notes on Data Base Operating Systems, §5.8.3.3.1 ; the \"two generals\" problem).",
+  "label": "depth",
+  "key": "then either this messenger is useless or",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "So no protocol can make the delivery happen exactly once over a network that can lose messages.",
+  "label": "depth",
+  "key": "the delivery happen exactly once over a",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "What systems offer instead is an effect that happens once: at-least-once delivery plus deduplication , sometimes called effectively-once or exactly-once processing.",
+  "label": "core",
+  "key": "what systems offer instead is an effect",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Read the fine print on \"exactly-once\" Kafka's own docs: \"Many systems claim to provide 'exactly-once' delivery semantics, but it is important to read the fine print, because sometimes these claims are misleading (i.e. they don't translate to the case where consumers or producers can fail, cases where there are multiple consumer processes, or cases where data written to disk can be lost).\" Two current examples: SQS FIFO's \"exactly-once processing\" means the queue drops a re-sent message with the same deduplication id \"within the 5-minute deduplication interval\" ( SQS FIFO ); a consumer that crashes before deleting still gets the message again.",
+  "label": "core",
+  "key": "means the queue drops a re-sent message with the same deduplication id",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "And an acknowledgement is only as good as the disk behind it: Jepsen found that NATS JetStream \"calls fsync to flush data to disk only once every two minutes, but acknowledges messages immediately\", and simulated power failures lost \"roughly thirty seconds of writes\" ( Jepsen, NATS 2.12.1, 2025-12-08 ).",
+  "label": "depth",
+  "key": ", and simulated power failures lost",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "Where to say it in an interview: \"at-least-once delivery, with idempotent consumers, so the effect happens once\", then name the deduplication key.",
+  "label": "core",
+  "key": "at-least-once delivery, with idempotent consumers, so the effect happens once",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "delivery semantics: at-most-once, at-least-once, \"exactly-once\"",
+  "text": "That shows you know delivery and effect are different things (advice kept from the old page).",
+  "label": "core",
+  "key": "(advice kept from the old page).",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "Measured: crashes, redelivery and duplicates on a real Postgres To see these semantics rather than take them on trust, this page ran three small experiments on a laptop (Apple M1 Pro, PostgreSQL 16 from the pgserver wheel, 2026-10-04; script src/lab/pg_lab.py , about 3 minutes in all).",
+  "label": "depth",
+  "key": "apple m1 pro, postgresql 16 from the pgserver wheel,",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "Everything is real: separate OS processes, real transactions, real row locks, real redelivery by timeout.",
+  "label": "depth",
+  "key": "everything is real: separate os processes, real",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "The only artificial part is the crash, injected with os._exit() at a chosen line, which kills the process with no clean-up, as a kill signal or a power cut would.",
+  "label": "depth",
+  "key": "os._exit",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "A jobs table used the way SQS works.",
+  "label": "core",
+  "key": "a jobs table used the way sqs",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "A worker claims the oldest visible job and hides it for a visibility timeout (2 s here), all in one statement: UPDATE jobs SET visible_at = now() + interval '2 seconds', receives = receives + 1 WHERE id = (SELECT id FROM jobs WHERE visible_at <= now() ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING id, order_id, receives; It then \"sends a receipt\" by inserting a row into a second database (standing in for an e-mail provider: outside the queue's transaction, as a real one would be) and finally deletes the job.",
+  "label": "depth",
+  "key": "sends a receipt",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "Four worker processes, 1,000 jobs, a 5% chance of crashing per job; a supervisor restarts crashed workers, as systemd or Kubernetes would.",
+  "label": "core",
+  "key": "four worker processes, 1,000 jobs, a 5% chance of cra",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "Three runs per mode.",
+  "label": "core",
+  "key": "three runs per mode.",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "What 1,000 jobs became, three runs per mode At-most-once (delete, then send): 52, 44 and 53 receipts lost, exactly one per crash.",
+  "label": "core",
+  "key": "52, 44 and 53 receipts",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "At-least-once (send, then delete): every order got its receipt, and 52, 46 and 53 customers got two.",
+  "label": "core",
+  "key": "receipt, and 52, 46 and 53 customers got two.",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "Again one per crash: the redelivered job runs in full.",
+  "label": "core",
+  "key": "one lost or one duplicated receipt per crash",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "At-least-once with an idempotent receiver : the receipts table has a primary key on the job id, so the second insert does nothing ( ON CONFLICT DO NOTHING ).",
+  "label": "core",
+  "key": "on conflict do nothing",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "Exactly 1,000 receipts in all three runs; the 52, 46 and 53 repeats were caught and counted.",
+  "label": "core",
+  "key": "exactly 1,000 receipts in all three ru",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "No crashes at all, but a visibility timeout of 0.3 s with job times averaging 0.1 s (exponential, so about 5% of jobs take longer than 0.3 s): 20, 24 and 23 duplicates per 600 jobs.",
+  "label": "core",
+  "key": "but a visibility timeout of 0.3 s",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "A slow job is indistinguishable from a dead worker; the queue hands it to a second worker while the first is still busy ( visibility timeouts , below).",
+  "label": "core",
+  "key": "a slow job looks like a dead worker",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "The expected count is simple: if each delivery crashes after the side effect with probability p, a job is delivered on average 1/(1 − p) times, so 1,000 jobs at p = 0.05 give about 1,000 × 0.05 / 0.95 = 52.6 duplicates; the three runs gave 50.3 on average.",
+  "label": "core",
+  "key": "is delivered on average 1/(1 − p) times, so 1,000 job",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "The Queue lab tab simulates the same queue with any settings; its model of these two runs, averaged over 20 seeds, gives 53.0 duplicates (range 38 to 76) for the crash run and 21.5 (range 15 to 28) for the 0.3 s timeout run, against 50.3 and 22.3 measured.",
+  "label": "core",
+  "key": "two runs, averaged over 20 seeds, gives 53.0 duplic",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "measured: crashes, redelivery and duplicates on a real postgres",
+  "text": "The defaults of its two \"Lab run\" presets reproduce the measurement independently: the model shares the settings and was not fitted to the results (checked in src/recompute.py ).",
+  "label": "core",
+  "key": "the defaults of its two \"lab run\"",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "What Kafka's \"exactly-once\" really guarantees Kafka is the system that most often advertises exactly-once (EOS, exactly-once semantics), so it is worth knowing precisely what it does.",
+  "label": "core",
+  "key": "kafka is the system that most often",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "Two mechanisms, added in Kafka 0.11 (2017) by KIP-98 : 1.",
+  "label": "core",
+  "key": "kip-98",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "The idempotent producer removes duplicates caused by producer retries. \"The broker assigns each producer an ID and deduplicates messages using a sequence number that is sent by the producer along with every message\" ( Kafka design ).",
+  "label": "core",
+  "key": "\"the broker assigns each producer an id",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "If a send times out and is retried, the broker sees the same (producer id, sequence) and does not append it twice.",
+  "label": "core",
+  "key": "a retried send is not appended twice",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "It has been on by default since Kafka 3.0, together with acks=all (wait for all in-sync replicas), though \"In 3.0.0 and 3.1.0, a bug prevented the idempotence default from being applied\" until 3.0.1, 3.1.1 and 3.2.0 ( Kafka 3.0 upgrade notes ).",
+  "label": "depth",
+  "key": "in 3.0.0 and 3.1.0, a bug prevented the idempotence default from being applied",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "It covers one producer session writing to one partition; it says nothing about consumers.",
+  "label": "depth",
+  "key": "covers one producer session writing to one",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "Transactions make read-process-write atomic.",
+  "label": "core",
+  "key": "read-process-write step",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "A stream processor reads from topic A, computes, and writes to topic B.",
+  "label": "core",
+  "key": "its new input offsets",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "Exactly-once there means: the output and the \"I have consumed up to offset N\" record become visible together or not at all.",
+  "label": "core",
+  "key": "commits them together",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "The steps, in brief: The producer is configured with a transactional.id , a stable name that survives restarts.",
+  "label": "depth",
+  "key": "the producer is configured with a transactional.id",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "A broker acting as transaction coordinator keeps the state of its transactions in an internal, replicated transaction log.",
+  "label": "depth",
+  "key": "a broker acting as transaction coordinator keeps",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "On start, the producer registers its transactional.id ; the coordinator bumps an epoch number, so \"any previous zombie instance of the producer is fenced off\" (KIP-98).",
+  "label": "depth",
+  "key": "any previous zombie instance of the producer is fenced off",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "A zombie is an old instance that was presumed dead but is still running; fencing means its writes are rejected.",
+  "label": "depth",
+  "key": "a zombie is an old instance that",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "Within a transaction the producer writes output records to any partitions, and also the consumer's new offsets ( sendOffsetsToTransaction ). \"The consumer's position is stored as a message in an internal topic, so we can write the offset to Kafka in the same transaction as the output topics\" ( Kafka design ).",
+  "label": "depth",
+  "key": "within a transaction the producer writes output",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "On commit, the coordinator writes COMMIT markers into every partition involved.",
+  "label": "depth",
+  "key": "on commit, the coordinator writes commit markers",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "Downstream consumers with isolation.level=read_committed only see records of committed transactions.",
+  "label": "core",
+  "key": "read_committed",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "The default is read_uncommitted , which shows aborted records too ( consumer configs ).",
+  "label": "core",
+  "key": "read_uncommitted",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "The scope is Kafka to Kafka.",
+  "label": "core",
+  "key": "the scope is kafka to kafka.",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "The docs: the transactional producer and read-committed consumer \"can be used generally to provide exactly-once delivery when reading, processing and writing data on Kafka topics.",
+  "label": "core",
+  "key": "exactly-once delivery when reading, processing and writing",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "Exactly-once delivery for other destination systems generally requires cooperation with such systems ...",
+  "label": "core",
+  "key": "exactly-once delivery for other destination systems generally",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "Otherwise, Kafka guarantees at-least-once delivery by default.\" If the consumer's work is \"send an e-mail\" or \"write to Postgres\", Kafka's transaction cannot include it; you are back to at-least-once plus deduplication, or to storing the offset in the same database transaction as the output, which the docs recommend: \"letting the consumer store its offset in the same place as its output\".",
+  "label": "core",
+  "key": "write to postgres",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "Correction to the old page The old \"Distributed Systems Basics\" page listed \"Kafka transactional producer + idempotent consumer offsets\" as a way to get exactly-once processing. \"Idempotent consumer offsets\" is loose: what Kafka does is commit the consumer's offsets inside the producer's transaction, and that gives exactly-once only when input and output are both Kafka topics.",
+  "label": "core",
+  "key": "distributed systems basics",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "Any external effect still needs its own deduplication.",
+  "label": "core",
+  "key": "any external effect still needs its own",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "What it costs, and how solid it is.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading phrase"
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "Confluent's 2017 measurement: with 1 KB messages and 100 ms transactions, producer throughput fell 3% against an at-least-once, in-order producer, and 20% against the then-default acks=1 ( Narkhede, Confluent, 2017 ); with Kafka Streams and a 100 ms commit interval the loss was 15 to 30%.",
+  "label": "depth",
+  "key": "confluent's 2017 measurement: with 1 kb m",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "The docs add that \"using a replication factor lower than 3 effectively voids EOS\" (recommend 3 with min.insync.replicas=2 , Kafka Streams docs ).",
+  "label": "depth",
+  "key": "using a replication factor lower than 3 effectively voids eos",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "And the protocol had real bugs: in 2024 Jepsen found that \"There is no concept of a transaction number.",
+  "label": "depth",
+  "key": "in 2024 jepsen found that \"there is",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "When a server receives a commit (or abort) message, it has no way to know what transaction the client intended to commit\", reproduced aborted reads and torn transactions in Kafka itself (KAFKA-17754), and Kafka's engineers expected KIP-890 to fix it ( Jepsen, Bufstream 0.1.0, 2024-11-12 ).",
+  "label": "depth",
+  "key": "sactions in kafka itself (kafka-17754), and kafka's engineers ex",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "KIP-890 bumps the epoch \"after every commit/abort marker\" so each transaction is identified by (producer id, epoch) ( KIP-890 ); its second phase shipped in Kafka 4.0, where it \"reduces the chances of 'zombie transactions'\" ( Kafka 4.0 release ).",
+  "label": "depth",
+  "key": "after every commit/abort marker",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "Whether KAFKA-17754 is fully closed was not checked for this page.",
+  "label": "depth",
+  "key": "whether kafka-17754 is fully closed was not",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "what kafka's \"exactly-once\" really guarantees",
+  "text": "When not to use Kafka transactions: when the output is not a Kafka topic (they cannot cover it), and when a duplicate is cheap to absorb downstream (an idempotent consumer is simpler and faster).",
+  "label": "core",
+  "key": "when not to use kafka transactions: when",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Idempotent consumers and deduplication At-least-once delivery is safe only if running a job twice does no harm.",
+  "label": "core",
+  "key": "making the second delivery harmless",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "An operation is idempotent when doing it twice has the same effect as doing it once.",
+  "label": "core",
+  "key": "an operation is idempotent when doing it",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "There are four ways to get there, from cheapest to most general.",
+  "label": "core",
+  "key": "four ways to get there,",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Make the work naturally idempotent.",
+  "label": "core",
+  "key": "write absolute values, not increments",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Write absolute values, not increments: \"set document 981's embeddings to X\" instead of \"append embeddings\"; UPDATE ...",
+  "label": "core",
+  "key": "set document 981's embeddings to x",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "SET status = 'paid' instead of balance = balance + 10 ; write a file to a path derived from its input and overwrite.",
+  "label": "core",
+  "key": "set status = 'paid' instead of balance",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Kafka's docs note the common case: \"In many cases messages have a primary key and so the updates are idempotent (receiving the same message twice just overwrites a record with another copy of itself)\".",
+  "label": "core",
+  "key": "\"in many cases messages have a primary",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Costs nothing; not always possible (an e-mail cannot be \"set\").",
+  "label": "core",
+  "key": "but an e-mail cannot be",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Record what you processed, in the same transaction as the effect.",
+  "label": "core",
+  "key": "in the same transaction as the",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "This is the idempotent consumer pattern: \"the message handler inserts the message's ID into the PROCESSED_MESSAGE table.",
+  "label": "core",
+  "key": "processed_message",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Since the (subscriberId, messageID) is the PROCESSED_MESSAGE table's primary key the INSERT will fail if the message has been already processed successfully\" ( microservices.io, Idempotent Consumer ).",
+  "label": "core",
+  "key": "processed_message",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "The id must come from the producer (an event id, an order id), never be generated by the consumer.",
+  "label": "core",
+  "key": "must come from the producer (an event",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Works whenever the effect lives in your own database.",
+  "label": "core",
+  "key": "works whenever the effect lives in your",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Pass an idempotency key to the system that does the effect.",
+  "label": "core",
+  "key": "pass an idempotency key to the system",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "When the effect is in someone else's system (a payment, an e-mail provider, a model provider), send a key derived from the message ( Idempotency-Key: order-42-receipt ) and let them deduplicate.",
+  "label": "core",
+  "key": "(a payment, an e-mail provider, a model",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Stripe-style idempotency keys, and how a server should implement them, are on Building a backend API .",
+  "label": "core",
+  "key": "on building a backend api",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "The client half (when to retry) is on Reliability engineering .",
+  "label": "core",
+  "key": "is on reliability engineering .",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Version or sequence checks for state updates that can arrive out of order: keep a version per entity and ignore a message whose version is not newer ( UPDATE orders SET ..., version = 7 WHERE id = 42 AND version < 7 ).",
+  "label": "core",
+  "key": "rders set ..., version = 7 where id = 42 and versio",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Deduplicates and reorders at once.",
+  "label": "core",
+  "key": "deduplicating and reordering at once",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "The code for way 2, in Python with psycopg (the same shape the measured lab used, with the effect in the consumer's own database): def handle(msg): # called for every delivery, including redeliveries with conn.transaction(): cur = conn.execute( \"INSERT INTO processed_events (event_id) VALUES (%s) ON CONFLICT DO NOTHING\", (msg[\"event_id\"],)) if cur.rowcount == 0: return # seen before: do nothing, but still ack conn.execute(\"INSERT INTO receipts (order_id, ...) VALUES (%s, ...)\", (msg[\"order_id\"],)) queue.ack(msg) # a crash before this line is now harmless What it costs A row per processed message, so the table needs an expiry: keep ids for longer than the longest possible redelivery window (the broker's retention or maximum retry period), then delete them.",
+  "label": "core",
+  "key": "insert into processed_events (event_id) values (%s) on conflict do nothing",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "A dedup window shorter than the redelivery window lets duplicates through: SQS FIFO's 5-minute window means a re-send after 6 minutes is a new message.",
+  "label": "core",
+  "key": "ates through: sqs fifo's 5-minute window means a re-send a",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Some producers send two different ids for one change: Stripe warns that \"two separate Event objects are generated and sent\" in some cases and says to deduplicate by \"the ID of the object in data.object along with the event.type\" ( Stripe webhooks ).",
+  "label": "core",
+  "key": "two separate event objects are generated and sent",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "idempotent consumers and deduplication",
+  "text": "Choose the key by what must happen once, not by what the transport calls a message.",
+  "label": "core",
+  "key": "by what must happen once, not by",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "Visibility timeouts, leases and redelivery How does a queue know a worker died?",
+  "label": "core",
+  "key": "a queue cannot see a worker die",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "It cannot see the process; it can only see that no acknowledgement came.",
+  "label": "core",
+  "key": "it only sees that no ack came",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "So it lends each message out for a fixed time.",
+  "label": "core",
+  "key": "so it lends each message out for",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "SQS calls it the visibility timeout : \"The visibility timeout starts as soon as a message is delivered to you.",
+  "label": "core",
+  "key": "if you don't delete it before the timeout expires",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "During this period, you're expected to process and delete the message.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "middle of the SQS quote; the operative sentence is kept"
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "If you don't delete it before the timeout expires, the message becomes visible again\" ( SQS visibility timeout ); default 30 s, maximum 12 h.",
+  "label": "core",
+  "key": "ility timeout ); default 30 s, maximum 12 h.",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "The general name for a time-limited claim is a lease .",
+  "label": "core",
+  "key": "the general name for a time-limited claim",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "Every system has one under some name: Kafka's max.poll.interval.ms (5 minutes), Kafka share groups' record lock (30 s), Celery on Redis's visibility_timeout (1 hour), RabbitMQ's redelivery when a consumer's channel closes.",
+  "label": "core",
+  "key": "hare groups' record lock (30 s), celery on redis's vi",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "The timeout trades two failures against each other: Too short: a slow job looks dead and is handed to a second worker while the first is still working: duplicates without any crash (measured above: 20 to 24 per 600 jobs at a 0.3 s timeout).",
+  "label": "core",
+  "key": "the timeout trades duplicates against delay",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "Even a correct setting is not a hard guarantee: SQS says \"there's no absolute guarantee that a message won't be delivered more than once during the visibility timeout period\".",
+  "label": "core",
+  "key": "even a correct setting is not a",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "Too long: after a real crash the job waits the whole timeout before anyone retries it; with a 12-hour timeout, a crashed job is 12 hours late.",
+  "label": "core",
+  "key": "a crashed job is 12 hours late",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "The production answer is a timeout comfortably above the normal job time plus a heartbeat : a long job periodically extends its own lease.",
+  "label": "core",
+  "key": "the production answer is a timeout comfortably",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "SQS: \"use the ChangeMessageVisibility action to extend the visibility timeout while processing the message\", within the 12-hour limit from first receipt; Kafka share groups added a RENEW acknowledgement in 4.2 \"for extended processing times\".",
+  "label": "core",
+  "key": "for extended processing times",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "To give a message back early (you cannot handle it now), set its timeout to 0.",
+  "label": "core",
+  "key": "set its timeout to 0.",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "A real trap: Celery's defaults Celery acknowledges before running a task by default: \"the default behavior is to acknowledge the message in advance, just before it's executed, so that a task invocation that already started is never executed again\" ( Celery 5.6.3 tasks guide ).",
+  "label": "core",
+  "key": "\"the default behavior is to acknowledge the",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "That is at-most-once: a worker killed mid-task loses the task. task_acks_late = True makes it at-least-once, but \"Even if task_acks_late is enabled, the worker will acknowledge tasks when the worker process executing them abruptly exits or is signaled\" unless task_reject_on_worker_lost = True , which the docs warn \"can cause message loops\" ( Celery configuration ).",
+  "label": "core",
+  "key": "unless task_reject_on_worker_lost = true , which the docs warn",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "visibility timeouts, leases and redelivery",
+  "text": "On Redis, a task not acknowledged within the 1-hour visibility timeout \"will be redelivered to another worker and executed\", which breaks ETA and countdown tasks scheduled further out than that: \"it will be executed again, and again in a loop\" ( Celery Redis broker ).",
+  "label": "core",
+  "key": "will be redelivered to another worker and executed",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "Dead-letter queues and poison messages A poison message is one that fails every time: malformed data, a bug triggered by one input, a document too large to embed.",
+  "label": "core",
+  "key": "dead-letter queues and poison messages a poison",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "Under at-least-once delivery it comes back forever, wasting a worker each time, and in an ordered stream it blocks everything behind it.",
+  "label": "core",
+  "key": "under at-least-once delivery it comes back forever,",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "The fix is a dead-letter queue (DLQ): after N failed attempts the message is moved aside to a separate queue for a human or a repair job.",
+  "label": "core",
+  "key": "moves it aside after n attempts",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "SQS: \"The maxReceiveCount is the number of times a consumer can receive a message from a source queue before it is moved to a dead-letter queue\" ( SQS DLQs ).",
+  "label": "core",
+  "key": "sqs: \"the maxreceivecount is the number of",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "RabbitMQ quorum queues count deliveries and default to a limit of 20 since 4.0; without a dead-letter exchange configured, a message over the limit is dropped ( quorum queues ).",
+  "label": "depth",
+  "key": "nd default to a limit of 20 since 4.0; without a dea",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "Dramatiq moves a message to its dead letter queue after its retries (20 by default) \"where it's kept for up to 7 days and then automatically dropped\" ( Dramatiq 2.2.1 guide ).",
+  "label": "depth",
+  "key": "where it's kept for up to 7 days and then automatically dropped",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "Kafka consumer groups have no built-in DLQ: the application (or Kafka Connect's error handling) writes failures to a separate topic; share groups count delivery attempts and let a consumer reject a record.",
+  "label": "depth",
+  "key": "kafka consumer groups have no built-in dlq:",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "Three rules, all about what happens after: Alert on DLQ depth.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "list intro"
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "A DLQ nobody watches is a slower way of losing data.",
+  "label": "core",
+  "key": "is a slower way of losing",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "Any message in it means a customer's job did not happen.",
+  "label": "core",
+  "key": "is a customer's job that did not happen",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "Design the replay path before you need it.",
+  "label": "core",
+  "key": "build the replay path first",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "SQS has a \"dead-letter queue redrive\" that moves messages back to the source queue once the bug is fixed; elsewhere you write a script.",
+  "label": "core",
+  "key": "dead-letter queue redrive",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "Because replayed messages run again, the consumer must be idempotent (previous section).",
+  "label": "core",
+  "key": "the consumer must be idempotent",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "Keep DLQ retention longer than the source queue's: AWS calls it \"a best practice to always set the retention period of a dead-letter queue to be longer than the retention period of the original queue.\" Mind ordering.",
+  "label": "core",
+  "key": "\"a best practice to always set the",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "Moving a message aside lets later ones overtake it: \"Don't use a dead-letter queue with a FIFO queue if you don't want to break the exact order of messages or operations\" (AWS).",
+  "label": "core",
+  "key": "moving a message aside lets later ones",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "For ordered streams, either stop and page someone, or park every later message for the same key too.",
+  "label": "core",
+  "key": "stop and page someone, or park every",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "dead-letter queues and poison messages",
+  "text": "How often to retry before dead-lettering, and with what backoff and jitter, is retry policy: owned by Reliability engineering , whose measured retry storm shows why retries without a budget make outages worse.",
+  "label": "core",
+  "key": "owned by reliability engineering , whose measured",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Backpressure and Little's law on a queue A queue absorbs bursts: if uploads arrive at 3 times the usual rate for a minute, the queue grows and then drains.",
+  "label": "core",
+  "key": "a queue absorbs bursts",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "But it absorbs everything , including overload that never ends, and it does so silently.",
+  "label": "core",
+  "key": "absorbs overload that never ends just as quietly",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "David Yanacek of Amazon describes the two modes: \"When there is no backlog in the queue, the system's latency is low, and the system is in fast mode.",
+  "label": "depth",
+  "key": "\"when there is no backlog in the",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "But if a failure or unexpected load pattern causes the arrival rate to exceed the processing rate, it quickly flips into a more sinister operating mode.",
+  "label": "core",
+  "key": "if a failure or unexpected load pattern",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "In this mode, the end-to-end latency grows higher and higher\" ( Yanacek, Avoiding insurmountable queue backlogs, Amazon Builders' Library ; quotes checked against the 2024 archived copy).",
+  "label": "core",
+  "key": "otes checked against the 2024 archived copy).",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Call the arrival rate λ (messages per second), the time one worker needs per message S, and the number of workers C.",
+  "label": "core",
+  "key": "s seconds of work per message",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "The workers can finish at most C / S messages per second, so the utilisation is ρ = λS / C.",
+  "label": "core",
+  "key": "utilisation is ρ = λs / c.",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "If ρ < 1 the queue stays short on average, but waiting time rises steeply as ρ approaches 1 (with random arrivals, a queue at 90% utilisation waits several times longer than at 50%; the shape and the formulas are on Capacity planning and performance ).",
+  "label": "core",
+  "key": "1 the queue stays short on average,",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "If ρ > 1 the backlog grows by λ − C/S messages every second, forever.",
+  "label": "core",
+  "key": "1 the backlog grows by λ −",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Adding queue space does not help; only more workers, less work per message, or fewer messages do.",
+  "label": "core",
+  "key": "only more workers, less work per",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Worse, a backlog can keep itself alive after the cause is gone: old messages time out at their callers, who retry and add more.",
+  "label": "depth",
+  "key": "a backlog can keep itself alive after",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Bronson et al. call this a metastable failure , \"a bad state that persists even when the trigger is removed\" ( Metastable Failures in Distributed Systems, HotOS 2021 ).",
+  "label": "depth",
+  "key": "a bad state that persists even when the trigger is removed",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Hence the old page's rule: bound the queue, and prefer rejecting at admission over timing out deep in the stack.",
+  "label": "depth",
+  "key": "hence the old page's rule: bound the",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Draining a backlog of B messages takes B / (C/S − λ): only the spare capacity drains it.",
+  "label": "core",
+  "key": "only the spare capacity drains",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Yanacek: after an hour-long outage, \"recovering from the outage requires double the system's capacity for another hour after the recovery\", and a backlog \"10x the capacity that the consumer side was scaled to\" took \"300 minutes\" to work through.",
+  "label": "core",
+  "key": "\"recovering from the outage requires double the",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Little's law ties the averages together: \"the average number of items in a queuing system, denoted L, equals the average arrival rate of items to the system, λ, multiplied by the average waiting time of an item in the system, W.",
+  "label": "core",
+  "key": "little's law ties the averages together: \"the",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Thus, L = λW\" ( Little, Operations Research 59(3), 2011 ).",
+  "label": "core",
+  "key": "thus, l = λw\" ( little, operations",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "It holds for long-run averages of a stable system, whatever the distributions; a backlog that keeps growing has no stable average, so the law does not describe it.",
+  "label": "core",
+  "key": "long-run averages of a stable system, whatever",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Two uses: size workers (embedding 5 documents a second at 20 s each keeps 5 × 20 = 100 jobs in progress, so at least 100 worker slots: the parent root's example), and turn a backlog into a wait (500 messages in the queue at 50 per second means about 10 s of waiting).",
+  "label": "core",
+  "key": "size workers (embedding 5 documents a second at 20",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Yanacek uses it to show how latency spikes eat thread pools: 100 messages a second at 100 ms is 10 busy threads; at 10 s it is 1,000.",
+  "label": "core",
+  "key": "100 messages a second at 100 ms is 10 busy threads; a",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "The Queue lab checks L against λW on every run.",
+  "label": "core",
+  "key": "the queue lab checks l against λw",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Backpressure is how \"we cannot keep up\" travels back to whoever produces the work, so the system degrades at the edge instead of everywhere: Bound the queue and reject at admission: when the queue is over its limit, the API answers 429 Too Many Requests (RFC 6585 says it \"MAY include a Retry-After header\", RFC 6585 §4 ) or 503 , and the client backs off.",
+  "label": "core",
+  "key": "we cannot keep up",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Fail fast at the door rather than time out deep inside.",
+  "label": "core",
+  "key": "fail fast at the door rather than",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Block the producer: Kafka's producer buffers up to buffer.memory and then blocks send() for up to max.block.ms ( producer configs ); a bounded asyncio.Queue(maxsize=...) makes await q.put() wait.",
+  "label": "core",
+  "key": "then blocks send() for up to max.block.ms",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Limit what each consumer holds: RabbitMQ's prefetch \"defines the max number of unacknowledged deliveries that are permitted on a channel\" ( RabbitMQ confirms ); Celery prefetches 4 messages per process by default ( worker_prefetch_multiplier ), which is why long tasks are usually run with 1.",
+  "label": "core",
+  "key": "defines the max number of unacknowledged deliveries that are permitted on a channel",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Credit-based flow control in protocols: HTTP/2 and gRPC use per-stream windows (WINDOW_UPDATE, RFC 9113 §5.2 ); depth on Topic: protocols .",
+  "label": "depth",
+  "key": "dows (window_update, rfc 9113 §5.2 ); depth on topic:",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Shed or sideline old work: when a backlog has formed, the newest work is often the most valuable.",
+  "label": "core",
+  "key": "the newest work is often the most",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Yanacek: real-time systems \"often are implemented with FIFO-ish queues, but prefer LIFO-ish behavior\"; Amazon moves messages older than a threshold \"into a backlog queue that we work through only after we're caught up on the live queue\", drops messages a periodic full sync will redo anyway, and isolates noisy customers by hashing each to a few of many queues (shuffle sharding).",
+  "label": "core",
+  "key": "often are implemented with fifo-ish queues, but prefer lifo-ish behavior",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Load shedding by priority is on Reliability engineering .",
+  "label": "depth",
+  "key": "load shedding by priority is on reliability",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "What to watch: the age of the oldest message , not just the queue length.",
+  "label": "core",
+  "key": "what to watch: the age of the",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "Yanacek: \"we focus more on measuring the age of messages that are in the queue.",
+  "label": "core",
+  "key": "\"we focus more on measuring the age",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "This quickly catches cases where the systems are behind, or are frequently erroring out and causing retries.\" In SQS that is ApproximateAgeOfOldestMessage ; in Kafka, lag converted to time.",
+  "label": "core",
+  "key": "this quickly catches cases where the systems",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "backpressure and little's law on a queue",
+  "text": "The parent root's Case files hold a real example of a backlog that never drained (\"EC2 could not hand out servers: a queue that never drained\", the root's Case files tab).",
+  "label": "core",
+  "key": "ec2 could not hand out servers: a queue that never drained",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "The dual-write problem and the transactional outbox When an order is placed, the order service must save the order in its database and publish \"order placed\" for the e-mail service, the warehouse and analytics.",
+  "label": "core",
+  "key": "order placed",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "That is a dual write : two writes to two systems that share no transaction.",
+  "label": "core",
+  "key": "two writes to two systems that share",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Gunnar Morling, then Debezium's lead: \"we cannot have one shared transaction that would span the service's database as well as Apache Kafka, as the latter doesn't support to be enlisted in distributed (XA) transactions\" ( Debezium blog, 2019-02-19 ).",
+  "label": "core",
+  "key": "ctions\" ( debezium blog, 2019-02-19 ).",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Whichever write goes first, a crash between them leaves the two systems disagreeing.",
+  "label": "core",
+  "key": "whichever write goes first, a crash between",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Watch the same order go through three designs: Animation: order 42, with a naive dual write and with the outbox Before: commit, then publish Before: publish, then commit After: transactional outbox Crash points are the ones the measured lab injects; counts in the captions are from that lab (500 orders, 5% crash chance, three runs).",
+  "label": "core",
+  "key": "ptions are from that lab (500 orders, 5% crash chance,",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "The transactional outbox (Chris Richardson's name for it): \"the service that sends the message to first store the message in the database as part of the transaction that updates the business entities.",
+  "label": "core",
+  "key": "\"the service that sends the message to",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "A separate process then sends the messages to the message broker\" ( microservices.io, Transactional outbox ).",
+  "label": "core",
+  "key": "a separate process then sends the messages",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Its cost is stated on the same page: the relay \"might, for example, crash after publishing a message but before recording the fact that it has done so.",
+  "label": "core",
+  "key": "the relay \"might, for example, crash after",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "When it restarts, it will then publish the message again.",
+  "label": "core",
+  "key": "when it restarts, it will then publish",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "As a result, a message consumer must be idempotent\".",
+  "label": "core",
+  "key": "as a result, a message consumer must",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "So the outbox converts \"sometimes lost\" into \"sometimes duplicated\", and the idempotent consumer converts that into \"once\".",
+  "label": "core",
+  "key": "sometimes lost",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Measured on the same laptop Postgres (the \"broker\" is a second database, so there is genuinely no shared transaction; 500 orders, 5% crash chance at the dangerous line, three runs): With a batch of 10 events per relay transaction, a crash mid-batch rolls back every \"sent\" mark in the batch, so all of them are published again: about 4 to 5 duplicates per crash.",
+  "label": "core",
+  "key": "y no shared transaction; 500 orders, 5% crash chance",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "With one event per transaction, duplicates equal crashes.",
+  "label": "core",
+  "key": "with one event per transaction, duplicates equal",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Batching is faster; it multiplies duplicates.",
+  "label": "core",
+  "key": "batching is faster; it multiplies duplicates.",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Two ways to run the relay Polling publisher: \"Publish messages by polling the database's outbox table\" ( microservices.io ).",
+  "label": "depth",
+  "key": "publish messages by polling the database's outbox table",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "A loop runs SELECT ...",
+  "label": "core",
+  "key": "where sent_at is null",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "WHERE sent_at IS NULL ORDER BY seq LIMIT 100 FOR UPDATE SKIP LOCKED , publishes, marks sent.",
+  "label": "core",
+  "key": "null order by seq limit 100 for update skip locked ,",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Simple, works on any database, adds polling load and a little latency; several relays can run thanks to SKIP LOCKED , but then strict ordering across them is lost.",
+  "label": "core",
+  "key": "latency; several relays can run thanks to",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Transaction log tailing, or change data capture (CDC): \"Tail the database transaction log and publish each message/event inserted into the outbox to the message broker\" ( microservices.io ).",
+  "label": "depth",
+  "key": "\"tail the database transaction log and publish",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "In Postgres this uses logical decoding , \"the process of extracting all persistent changes to a database's tables into a coherent, easy to understand format\" ( PostgreSQL docs ), which reads the write-ahead log (WAL).",
+  "label": "core",
+  "key": ", \"the process of extracting all persistent",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Debezium is the standard tool: its Postgres connector reads the WAL, and its Outbox Event Router expects an outbox table with columns id , aggregatetype , aggregateid , type and payload , routing each row by default to a topic named outbox.event.<aggregatetype> with aggregateid as the message key ( Debezium outbox event router ).",
+  "label": "depth",
+  "key": "outbox event router expects an outbox table",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "No polling, ordered by commit; costs a Kafka Connect deployment and a replication slot to monitor (an abandoned slot makes Postgres keep WAL forever).",
+  "label": "core",
+  "key": "a kafka connect deployment and a replication",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Delivery is still at-least-once: \"while it is recovering from the fault, it's possible that the connector might emit some duplicate change events\" ( Debezium Postgres connector ).",
+  "label": "core",
+  "key": "is still at-least-once: \"while it is recovering",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "The receiving side has a mirror pattern, the inbox : store each incoming message's id (and often the message) in the consumer's database in the same transaction as its effects, which is the idempotent consumer by another name.",
+  "label": "core",
+  "key": "its effects, which is the idempotent consumer",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "MassTransit: \"The inbox is used to keep track of received messages to guarantee exactly-once consumer behavior\" ( MassTransit ); NServiceBus \"uses the message identity (MessageId) to deduplicate messages\" ( NServiceBus outbox ).",
+  "label": "depth",
+  "key": "( masstransit ); nservicebus",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "When you do not need an outbox: when the queue lives in the same database.",
+  "label": "core",
+  "key": "when you do not need an outbox:",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Postgres-backed job queues let you enqueue in the same transaction as your data: River \"encourages the use of the same database for application data and job queue.",
+  "label": "core",
+  "key": "river \"encourages the use of the same",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "By enqueueing jobs transactionally along with other database changes, whole classes of distributed systems problems are avoided\" ( River docs ); Oban lists \"Transactional Control: Enqueue a job along with other database changes, ensuring that everything is committed or rolled back atomically\" ( Oban ).",
+  "label": "core",
+  "key": "by enqueueing jobs transactionally along with other",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "The outbox is such a queue, with a relay that forwards to Kafka for the consumers that live elsewhere.",
+  "label": "core",
+  "key": "the outbox is such a queue, with",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Webhooks are the same problem facing outwards.",
+  "label": "core",
+  "key": "webhooks are the same problem facing outwards",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Sending a webhook to a customer after a database change is a dual write to their server.",
+  "label": "core",
+  "key": "after a database change is a dual",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "The sending side uses an outbox (write \"deliver event X to customer Y\" in the transaction, deliver from a worker with retries); the receiving side answers 2xx at once and queues the work.",
+  "label": "depth",
+  "key": "deliver event x to customer y",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Stripe: \"Your endpoint must quickly return a successful status code (2xx) before any complex logic that could cause a timeout\", and it retries \"for up to three days with an exponential back off in live mode\" ( Stripe webhooks ).",
+  "label": "depth",
+  "key": ", and it retries",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "GitHub expects a 2XX \"within 10 seconds\" and \"does not automatically redeliver failed deliveries\" ( GitHub best practices , failed deliveries ), so a receiver that is down simply misses them.",
+  "label": "depth",
+  "key": "within 10 seconds",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "Webhook API design (signatures, payloads) is on Building a backend API .",
+  "label": "core",
+  "key": "is on building a backend api",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "What the outbox costs A table that grows (delete or partition sent rows), a relay process or a CDC pipeline to run and monitor, events that arrive a little later than the commit, and duplicates every consumer must absorb.",
+  "label": "core",
+  "key": "a table that grows (delete or partition",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "the dual-write problem and the transactional outbox",
+  "text": "When not to use it: when the event is not critical (a lost analytics ping is fine), or when the consumers can read your database's job queue directly.",
+  "label": "core",
+  "key": "when not to use it: when the",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "Sagas versus two-phase commit The outbox makes one service's write and event atomic.",
+  "label": "core",
+  "key": "two-phase commit the outbox makes one service's",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "A business action often spans several services, each with its own database: the chat product's \"upgrade to Pro\" must charge the card (payments service), raise the user's token quota (quota service) and send a receipt (e-mail).",
+  "label": "core",
+  "key": "upgrade to pro",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "If the quota update fails after the charge, the user has paid for nothing.",
+  "label": "core",
+  "key": "if the quota update fails after the",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "Two families of answer: Two-phase commit (2PC) makes several databases commit together.",
+  "label": "core",
+  "key": "asks every participant to prepare",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "A coordinator asks every participant to prepare (do the work, hold the locks, promise to commit if told); if all say yes it tells all to commit , otherwise all abort .",
+  "label": "core",
+  "key": "asks every participant to prepare (do the",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "Its weakness was stated by Jim Gray and Leslie Lamport: \"The classic Two-Phase Commit protocol blocks if the coordinator fails\" ( Gray and Lamport, Consensus on Transaction Commit ): prepared participants hold their locks and cannot decide alone.",
+  "label": "core",
+  "key": "the classic two-phase commit protocol blocks if the coordinator fails",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "Postgres supports the prepare step but warns \"PREPARE TRANSACTION is not intended for use in applications ...",
+  "label": "core",
+  "key": "postgres supports the prepare step but warns",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "Unless you're writing a transaction manager, you probably shouldn't be using PREPARE TRANSACTION\" ( PostgreSQL docs ).",
+  "label": "core",
+  "key": "unless you're writing a transaction manager, you",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "And most systems a service talks to (Kafka, SaaS APIs, a payment provider) cannot take part at all.",
+  "label": "core",
+  "key": "systems a service talks to (kafka, saas",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "2PC lives on inside distributed databases (Spanner, CockroachDB), run over consensus so the coordinator cannot simply vanish; the theory is on Distributed systems fundamentals .",
+  "label": "depth",
+  "key": "2pc lives on inside distribu",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "A saga gives up atomicity and adds undo.",
+  "label": "core",
+  "key": "a saga gives up atomicity and adds",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "The idea is from Garcia-Molina and Salem (1987): a long transaction \"is a saga if it can be written as a sequence of transactions that can be interleaved with other transactions\", and the system \"guarantees that either all the transactions in a saga are successfully completed or compensating transactions are run to amend a partial execution\" ( Sagas, SIGMOD 1987 ).",
+  "label": "core",
+  "key": ", and the system",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "In services: \"A saga is a sequence of local transactions.",
+  "label": "core",
+  "key": "\"a saga is a sequence of local",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "Each local transaction updates the database and publishes a message or event to trigger the next local transaction in the saga.",
+  "label": "core",
+  "key": "each local transaction updates the database and",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "If a local transaction fails because it violates a business rule then the saga executes a series of compensating transactions\" ( microservices.io, Saga ).",
+  "label": "core",
+  "key": "if a local transaction fails because it",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "The same upgrade, three ways Saga: all steps succeed Saga: quota step fails Two-phase commit Choreography or orchestration.",
+  "label": "core",
+  "key": "saga: all steps succeed saga: quota step",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "In choreography \"each local transaction publishes domain events that trigger local transactions in other services\"; in orchestration \"an orchestrator (object) tells the participants what local transactions to execute\" (microservices.io).",
+  "label": "core",
+  "key": "; in orchestration",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "Choreography has no central piece but the flow is spread across services and hard to see; orchestration puts the flow in one place, which is what durable workflow engines ( below ) are built for.",
+  "label": "depth",
+  "key": "but the flow is spread across services",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "Compensations are business actions, not rollbacks. \"Refund the charge\" is not \"the charge never happened\": the customer may have seen it, a receipt may be out.",
+  "label": "core",
+  "key": "the charge never happened",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "Some steps cannot be compensated (an e-mail sent); put them last.",
+  "label": "core",
+  "key": "some steps cannot be compensated",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "Between steps, others see the half-done state.",
+  "label": "core",
+  "key": "others see the half-done state between steps",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "The 1987 paper: \"other transactions might see the effects of a partial saga execution\"; microservices.io lists \"Lack of isolation\" as the main drawback.",
+  "label": "depth",
+  "key": "other transactions might see the effects of a partial saga execution",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "Defences: a status field ( PENDING ) that other code respects, re-reading values before acting, ordering steps so the riskiest comes first.",
+  "label": "core",
+  "key": "status other code respects",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "Every step and every compensation runs at least once, because it is driven by messages: each must be idempotent.",
+  "label": "core",
+  "key": "every step and compensation runs at least once",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "When not to use either: if all the data can live in one database, use one transaction.",
+  "label": "core",
+  "key": "when not to use either: if all",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "sagas versus two-phase commit",
+  "text": "Splitting data across services is what creates the need for sagas; do it for a reason.",
+  "label": "core",
+  "key": "splitting data across services is what creates",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "Event-driven architecture, event sourcing and CQRS, in brief In an event-driven architecture , services announce facts (\"order 42 placed\") on a log instead of calling each other (\"e-mail service, send a receipt\").",
+  "label": "depth",
+  "key": "order 42 placed",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "The old page listed the trade, and it holds: the benefits are temporal decoupling (the e-mail service can be down and catch up later), fan-out (any number of consumers per event, added without touching the producer), a natural audit trail, and replay (rebuild a projection by re-reading the log); the costs are eventual consistency between views, harder end-to-end tracing (use trace ids propagated in message headers: Observability ), and schema discipline.",
+  "label": "depth",
+  "key": "temporal decoupling (the e-mail service can be",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "Two distinctions that prevent most design mistakes: Events versus commands.",
+  "label": "depth",
+  "key": "a request to one recipient that may refuse",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "An event is a fact in the past tense, owned by its producer, with any number of readers.",
+  "label": "depth",
+  "key": "an event is a fact in the",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "A command (\"send receipt\") is a request to one recipient that may refuse.",
+  "label": "depth",
+  "key": "send receipt",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "Putting commands on a shared log hides who is responsible.",
+  "label": "depth",
+  "key": "putting commands on a shared log hides",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "Thin versus fat events.",
+  "label": "depth",
+  "key": "a thin event carries ids",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "A thin event carries ids (\"order 42 changed\"), and the consumer fetches current data; a fat event carries the data.",
+  "label": "depth",
+  "key": "and the consumer fetches current data; a",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "Thin events are always current and leak less; fat events let consumers work while the producer is down.",
+  "label": "depth",
+  "key": "consumers work while the producer is down.",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "Schema changes must be backward compatible (add optional fields, never rename or remove), usually enforced by a schema registry (old page, kept as practice).",
+  "label": "depth",
+  "key": "schema changes must be backward compatible (add",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "Event sourcing goes further: the events are the source of truth.",
+  "label": "depth",
+  "key": "the events are the source of",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "Martin Fowler: \"every change to the state of an application is captured in an event object, and that these event objects are themselves stored in the sequence they were applied for the same lifetime as the application state itself\" ( Fowler, Event Sourcing, 2005 ); current state is computed by replaying them.",
+  "label": "depth",
+  "key": "\"every change to the state of an",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "CQRS (command query responsibility segregation) uses \"a different model to update information than the model you use to read information\" ( Fowler, CQRS, 2011 ); event sourcing usually needs it, and a Kafka-to-ClickHouse analytics pipeline is a mild form of it.",
+  "label": "depth",
+  "key": "a different model to update information than the model you use to read information",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "When not to Fowler on CQRS: \"beware that for most systems CQRS adds risky complexity.\" Microsoft's architecture guide on event sourcing (2026): \"It's costly to migrate to or from an event sourcing solution ...",
+  "label": "depth",
+  "key": "beware that for most systems cqrs adds risky complexity.",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "For most systems and most parts of a system, traditional data management is sufficient\", and it is not suitable when systems \"have straightforward CRUD operations that don't require auditability, replay, or historical reconstruction of state\" ( Azure Architecture Center, Event Sourcing ).",
+  "label": "depth",
+  "key": "for most systems and most parts of",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "The same page corrects a common belief: \"Message brokers such as Apache Kafka typically lack per-entity stream queries and optimistic concurrency.",
+  "label": "depth",
+  "key": "\"message brokers such as apache kafka typically",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "They work well as a distribution layer ... but they aren't a substitute for an event store.\" The old page's verdict, \"rarely worth it outside ledgers\", is an opinion, but it matches both sources.",
+  "label": "depth",
+  "key": "the old page's verdict,",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "event-driven architecture, event sourcing and cqrs, in brief",
+  "text": "For an ML platform the useful part is the log, not event sourcing: usage events, feedback events and pipeline triggers fanned out from one stream (on AWS: EventBridge or SNS into SQS into Lambda, each with a DLQ and idempotent handlers).",
+  "label": "depth",
+  "key": "for an ml platform the useful part",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Job queues for Python, and durable workflows Most Python services do not talk to SQS or Kafka by hand; they use a task queue library : you decorate a function, call .delay() or enqueue() in the request handler, and worker processes run it.",
+  "label": "core",
+  "key": "decorate a function, call .delay() or enqueue()",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "The libraries differ mainly in the broker they use and in their delivery defaults, which is what this page has been about.",
+  "label": "core",
+  "key": "what separates them is the broker",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Library Broker Default delivery Worth knowing Celery 5.6 RabbitMQ, Redis, SQS At-most-once per started task: acks \"just before it's executed\" Set task_acks_late , task_reject_on_worker_lost , worker_prefetch_multiplier = 1 for long tasks; Redis visibility timeout 1 h; run exactly one beat scheduler ( Celery docs, v5.6.3 ) RQ (2.x) Redis Failed jobs go to a FailedJobRegistry ; retries opt-in queue.enqueue(f, retry=Retry(max=3, interval=[10, 30, 60])) ( RQ docs ); simplest to start with Arq (0.28) Redis, asyncio \"Jobs may be called more than once!\" A job id \"cannot be enqueued again until its execution has finished and its result has cleared\": built-in enqueue deduplication ( Arq docs ); fits async FastAPI services Dramatiq (2.2) RabbitMQ, Redis At-least-once : \"tasks are only ever acked when they're done processing\" Retries with backoff (20 by default), then a dead letter queue kept 7 days ( Dramatiq 2.2.1 ) Procrastinate PostgreSQL Jobs are rows; enqueue in your own transaction \"leveraging PostgreSQL 13+ to store task definitions, manage locks and dispatch tasks\" ( Procrastinate ); no extra infrastructure, no outbox needed Versions are the latest at fetch time (2026-10-04); RQ, Arq and Procrastinate quotes read from their main branches.",
+  "label": "core",
+  "key": "just before it's executed",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "In other languages the Postgres-backed equivalents are River (Go), Oban (Elixir), Solid Queue (Rails 8's default, which \"leverages the FOR UPDATE SKIP LOCKED clause\", Solid Queue ), graphile-worker (Node: \"each job will execute at least once.",
+  "label": "depth",
+  "key": "leverages the for update skip locked clause",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Most jobs will execute exactly once\", graphile-worker ) and pgmq (an SQS-like extension).",
+  "label": "depth",
+  "key": "sqs-like",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Measured: why SKIP LOCKED is the whole trick A Postgres queue works only if workers do not wait for each other.",
+  "label": "core",
+  "key": "a postgres queue scales only because workers skip each other's rows",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Postgres: \"With SKIP LOCKED, any selected rows that cannot be immediately locked are skipped.",
+  "label": "core",
+  "key": "with skip locked each takes a different row",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Skipping locked rows provides an inconsistent view of the data, so this is not suitable for general purpose work, but can be used to avoid lock contention with multiple consumers accessing a queue-like table\" ( SELECT docs ).",
+  "label": "core",
+  "key": "skipping locked rows provides an inconsistent view",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "On the laptop, 400 jobs of 5 ms each, the worker holding the row lock while it works: With plain FOR UPDATE every worker queues on the same first row, so 8 workers are no faster than 1 (about 123 jobs a second).",
+  "label": "core",
+  "key": "n the same first row, so 8 workers are no faster th",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "With SKIP LOCKED each takes a different row: 960 jobs a second with 8 workers, against an ideal of 1,600 (8 / 5 ms; the gap is Postgres round trips and the timer granularity of time.sleep ).",
+  "label": "core",
+  "key": "h takes a different row: 960 jobs a second with 8 wor",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Same script, src/lab/pg_lab.py .",
+  "label": "core",
+  "key": "pg_lab.py",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Durable workflows are for jobs with many steps that must survive crashes for minutes to weeks: an agent run, a saga, onboarding with waits.",
+  "label": "core",
+  "key": "durable workflows are for jobs with many",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Instead of chaining queue messages by hand, you write the steps as ordinary code and the engine records each completed step, so after a crash it resumes from the last one.",
+  "label": "core",
+  "key": "you write the steps as ordinary code",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Temporal calls this durable execution: a workflow keeps its state and progress through failures, crashes and server outages ( Temporal docs ).",
+  "label": "core",
+  "key": "temporal calls this durable execution: a workflow",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Two rules come with it.",
+  "label": "core",
+  "key": "two rules come with it",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Workflow code must be deterministic: run again on the same input it must make \"the same Workflow API calls in the same sequence\" ( workflow definition ), because the engine rebuilds state by replaying the recorded history; so no clocks, random numbers or network calls in the workflow itself.",
+  "label": "core",
+  "key": "the same workflow api calls in the same sequence",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Side effects go in activities , which are retried by default (1 s initial interval, backoff 2.0, up to 100 s, unlimited attempts, retry policies ), so \"Temporal recommends that Activities be idempotent\" ( activity definition ).",
+  "label": "core",
+  "key": "temporal recommends that activities be idempotent",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Lighter alternatives keep the state in your own Postgres (DBOS: \"Add a few annotations to your application to durably execute it\", DBOS ) or in a log (Restate); Cloudflare Workflows \"persist state for minutes, hours, or even weeks\" ( Cloudflare ).",
+  "label": "depth",
+  "key": "add a few annotations to your application to durably execute it",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "When not to: a single-step job is a plain queue's work; a workflow engine is a new system and a new programming model (the determinism rule bites people).",
+  "label": "core",
+  "key": "when not to: a single-step job is",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-read",
+  "section": "job queues for python, and durable workflows",
+  "text": "Reach for one when you find yourself writing a state machine over queue messages with timeouts and compensations.",
+  "label": "core",
+  "key": "when you find yourself writing a state",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "Scheduling and cron Scheduled work (nightly evaluation, hourly usage roll-ups, cleanup of old outbox rows) looks simple and fails in its own ways.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 363,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "Classic cron runs a command on one machine at set times, so it inherits that machine's fate: if the machine is down at 02:00, the job does not run; if two machines both have the crontab, it runs twice.",
+  "label": "core",
+  "key": "classic cron runs a command on one",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "Distributed schedulers make the same trade explicit.",
+  "label": "core",
+  "key": "distributed schedulers state the same trade",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "Kubernetes: \"A CronJob creates a Job object approximately once per execution time of its schedule.",
+  "label": "core",
+  "key": "kubernetes: \"a cronjob creates a job object",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "The scheduling is approximate because there are certain circumstances where two Jobs might be created, or no Job might be created ...",
+  "label": "core",
+  "key": "the scheduling is approximate because there are",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "Therefore, the Jobs that you define should be idempotent\" ( Kubernetes CronJob ).",
+  "label": "core",
+  "key": "therefore, the jobs that you define should",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "Celery: \"You have to ensure only a single scheduler is running for a schedule at a time, otherwise you'd end up with duplicate tasks\" ( Celery periodic tasks ).",
+  "label": "core",
+  "key": "celery: \"you have to ensure only a",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "Key each run by its scheduled time, not by \"now\": the 02:00 roll-up for 2026-10-03 writes to a partition named for that date and overwrites it.",
+  "label": "core",
+  "key": "not by \"now\": the 02:00 roll-up for",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "A rerun, a duplicate or a backfill then produces the same result.",
+  "label": "core",
+  "key": "a rerun, a duplicate or a backfill",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "Airflow's best practices say the same of pipeline tasks: \"Airflow can retry a task if it fails.",
+  "label": "core",
+  "key": "the tasks should produce the same outcome on every re-run",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "Thus, the tasks should produce the same outcome on every re-run\" ( Airflow best practices ): write outputs to deterministic locations and overwrite, never append.",
+  "label": "core",
+  "key": "the tasks should produce the same outcome",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "Decide what overlap means.",
+  "label": "core",
+  "key": "decide what overlap and a missed run mean",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "Kubernetes' concurrencyPolicy is Allow by default (runs may overlap); Forbid skips a run while the previous one is still going; Replace kills the old one.",
+  "label": "core",
+  "key": "kubernetes' concurrencypolicy is allow by default (runs",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "Decide what a missed run means. startingDeadlineSeconds skips a run that could not start in time; without it, Kubernetes will not start a job that has missed more than 100 schedules.",
+  "label": "core",
+  "key": "hat has missed more than 100 schedules.",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "Let the scheduler only enqueue.",
+  "label": "core",
+  "key": "let the scheduler only enqueue.",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-read",
+  "section": "scheduling and cron",
+  "text": "The scheduler puts a message on the queue; ordinary workers, with their retries, DLQ and idempotency, do the work.",
+  "label": "core",
+  "key": "puts a message on the queue; ordinary",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Async work around LLMs LLM products stretch every idea on this page, because one unit of work can take a second (a chat reply), minutes (a deep-research answer, an agent run) or hours (a batch over a million documents), and costs real money each time it runs.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the worked example shows the range of job lengths"
+ },
+ {
+  "id": 379,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Stream to the user while the work continues The chat reply stays on the request path but is streamed : the server sends tokens as they are generated over server-sent events (SSE), one long HTTP response with one event per chunk.",
+  "label": "core",
+  "key": "reply stays on the request path",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Anthropic: set \"stream\": true \"to incrementally stream the response using server-sent events (SSE)\" ( Anthropic streaming ).",
+  "label": "depth",
+  "key": "to incrementally stream the response using server-sent events (sse)",
+  "where": ""
+ },
+ {
+  "id": 381,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "The design question is what happens when the connection drops halfway.",
+  "label": "core",
+  "key": "generation should not be tied to the http connection",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "If generation is tied to the HTTP connection, a closed tab or a phone switching networks kills a paid-for answer.",
+  "label": "depth",
+  "key": "if generation is tied to the http",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "The better shape separates the two: the generation runs as a background job writing chunks somewhere durable, and the HTTP stream is just a reader that can reconnect.",
+  "label": "core",
+  "key": "as a background job writing chunks somewhere",
+  "where": ""
+ },
+ {
+  "id": 384,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Vercel's AI SDK: \"In a resumable stream setup, client-side aborts are treated as disconnects.",
+  "label": "depth",
+  "key": "vercel's ai sdk: \"in a resumable stream",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Closing a tab, refreshing the page, or calling stop() only closes the current HTTP connection and should not cancel the underlying generation\" ( AI SDK resumable streams ).",
+  "label": "depth",
+  "key": "closing a tab, refreshing the page, or",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "OpenAI's background mode does it on the provider side: create a response with background and stream both true and \"keep track of a 'cursor' corresponding to the sequence_number you receive in each streaming event\", then resume with starting_after ( OpenAI background mode ).",
+  "label": "depth",
+  "key": "sequence_number",
+  "where": ""
+ },
+ {
+  "id": 387,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Note its retention: \"Response data is temporarily stored to disk for roughly 10 minutes to enable asynchronous execution and polling\".",
+  "label": "depth",
+  "key": "ored to disk for roughly 10 minutes to enable asynch",
+  "where": ""
+ },
+ {
+  "id": 388,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Server-sent events in API design: Building a backend API .",
+  "label": "depth",
+  "key": "server-sent events in api design: building a",
+  "where": ""
+ },
+ {
+  "id": 389,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Long-running agent jobs An agent run is a saga of model calls and tool calls, some with side effects (open a pull request, send an e-mail, charge a card).",
+  "label": "core",
+  "key": "agent run is a saga of model",
+  "where": ""
+ },
+ {
+  "id": 390,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Treat it as a durable workflow: return 202 with a run id, execute the steps in a worker or workflow engine that records each completed step, and push progress to the client (SSE or WebSocket) or let it poll.",
+  "label": "core",
+  "key": "the steps in a worker or workflow",
+  "where": ""
+ },
+ {
+  "id": 391,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Three rules from the sections above, applied: Every tool call with a side effect carries an idempotency key derived from the run id and step number, because a crashed run will be resumed and a timed-out call retried ( idempotent consumers ).",
+  "label": "core",
+  "key": "from the run id and step number,",
+  "where": ""
+ },
+ {
+  "id": 392,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Record model outputs as completed steps, so a resumed run does not pay for the same tokens again; that is the point of durable execution for agents.",
+  "label": "core",
+  "key": "so a resumed run does not pay",
+  "where": ""
+ },
+ {
+  "id": 393,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Temporal's announcement of its OpenAI Agents SDK integration (public preview, July 2025): \"Temporal keeps track of application progress and stores all Activity results\" ( Temporal blog , vendor post).",
+  "label": "depth",
+  "key": "temporal keeps track of application progress and stores all activity results",
+  "where": ""
+ },
+ {
+  "id": 394,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "An OpenAI infrastructure VP is quoted in Temporal's September 2026 funding post as saying OpenAI built \"a durable orchestration framework powered by Temporal\" ( Temporal, 2026-09-14 ; a vendor post, not an OpenAI source).",
+  "label": "depth",
+  "key": "a durable orchestration framework powered by temporal",
+  "where": ""
+ },
+ {
+  "id": 395,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Leases must outlast the slowest step or be renewed: a 20-minute agent step on a queue with a 5-minute visibility timeout runs four times in parallel ( visibility timeouts ).",
+  "label": "core",
+  "key": "t step on a queue with a 5-minute visibility timeout runs",
+  "where": ""
+ },
+ {
+  "id": 396,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Batch APIs: a queue the provider runs for you For work that can wait hours (evaluations, re-embedding a corpus, classifying a backlog), providers sell a queue with a discount: OpenAI's Batch API offers \"50% lower costs, a separate pool of significantly higher rate limits, and a clear 24-hour turnaround time\" ( OpenAI Batch ); Anthropic's Message Batches have \"most batches finishing in less than 1 hour while reducing costs by 50%\", up to 100,000 requests or 256 MB per batch ( Anthropic batch processing ).",
+  "label": "core",
+  "key": "( openai batch ); anthropic's message batches have",
+  "where": ""
+ },
+ {
+  "id": 397,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Your side is still a job: submit, store the batch id, poll or get notified, fetch results, and handle the requests that expired or failed (resubmit them, idempotently, keyed by your own request ids).",
+  "label": "core",
+  "key": "your side is still a",
+  "where": ""
+ },
+ {
+  "id": 398,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "When to batch and what it saves is on ML system design .",
+  "label": "core",
+  "key": "when to batch and what it saves",
+  "where": ""
+ },
+ {
+  "id": 399,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "A queue in front of the GPUs Inference servers queue requests internally and batch them on the GPU (the parent root's Step 5).",
+  "label": "core",
+  "key": "(the parent root's step 5).",
+  "where": ""
+ },
+ {
+  "id": 400,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Two lessons from this page carry over: a queue in front of a GPU pool must be bounded and shed load early, because an unbounded one turns a traffic spike into minutes of latency for everyone (the degradation ladder and priorities are on ML system design ); and autoscaling should follow queue depth or the age of the oldest request, not CPU.",
+  "label": "core",
+  "key": "must be bounded and shed load early,",
+  "where": ""
+ },
+ {
+  "id": 401,
+  "tab": "t-read",
+  "section": "async work around llms",
+  "text": "Serving engines themselves are Topic: inference-and-serving .",
+  "label": "core",
+  "key": "serving engines' internal queues",
+  "where": ""
+ },
+ {
+  "id": 402,
+  "tab": "t-read",
+  "section": "what pros do in production",
+  "text": "What pros do in production Practices below are sourced where a source states them; the rest are common practice (marked).",
+  "label": "depth",
+  "key": "what pros do in production",
+  "where": ""
+ },
+ {
+  "id": 403,
+  "tab": "t-read",
+  "section": "what pros do in production",
+  "text": "Decision Typical choice Why First queue for a new service A Postgres-backed queue (Procrastinate, River, Solid Queue) or SQS No new infrastructure; enqueue in the same transaction as the data (common practice; River and Oban docs) When to add Kafka Several consumers of the same events, replay, or high event volume A log's strengths; operational cost is real (common practice) Kafka producer acks=all , idempotence on (defaults since 3.0), replication factor 3, min.insync.replicas=2 No loss if one broker fails; Kafka docs recommend RF 3 with min ISR 2 for EOS Kafka consumer Commit offsets after processing (manual commit) or process idempotently; read_committed if upstream uses transactions At-least-once on purpose, not by accident of the auto-commit timer Message ids A producer-assigned unique id (UUID, or entity id plus version) in every message Deduplication needs a key the producer controls Visibility timeout Several times the p99 job time, with a heartbeat for long jobs SQS docs: extend with ChangeMessageVisibility DLQ After 3 to 5 receives; alarm on any message; tested redrive SQS redrive policy; the numbers are common practice Monitoring Age of oldest message (or lag in seconds), DLQ depth, consumer error rate, redelivery rate Yanacek: age catches both slowness and retry loops Events to other services Outbox, relayed by polling or by Debezium Removes the dual write Multi-step, long-running work A durable workflow engine (Temporal, DBOS, Restate, Cloudflare Workflows) Resumes after crashes without hand-written state machines",
+  "label": "depth",
+  "key": "tence on (defaults since 3.0), replication factor 3, mi",
+  "where": ""
+ },
+ {
+  "id": 404,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Assuming the queue gives exactly-once Every common broker delivers at least once in practice.",
+  "label": "depth",
+  "key": "every common broker delivers at least once",
+  "where": ""
+ },
+ {
+  "id": 405,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Design every consumer to receive a message twice; test it by delivering twice.",
+  "label": "depth",
+  "key": "test every consumer by delivering twice",
+  "where": ""
+ },
+ {
+  "id": 406,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Generating the dedup id in the consumer A random id made on receipt is new on every redelivery, so nothing is ever deduplicated.",
+  "label": "depth",
+  "key": "generating the dedup id in the consumer",
+  "where": ""
+ },
+ {
+  "id": 407,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The id must come from the producer, or be derived from the content (order id plus event type).",
+  "label": "core",
+  "key": "the key must come from the producer",
+  "where": ""
+ },
+ {
+  "id": 408,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Running Celery with default acks for important work The default acknowledges before running, so a killed worker loses the task.",
+  "label": "depth",
+  "key": "celery with default acks for important work",
+  "where": ""
+ },
+ {
+  "id": 409,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use acks_late plus reject_on_worker_lost , and idempotent tasks.",
+  "label": "core",
+  "key": "reject_on_worker_lost",
+  "where": ""
+ },
+ {
+  "id": 410,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A visibility timeout shorter than the slowest job Slow jobs run on two workers at once (measured above).",
+  "label": "depth",
+  "key": "a visibility timeout shorter than the slowest",
+  "where": ""
+ },
+ {
+  "id": 411,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Set it above p99, or heartbeat.",
+  "label": "depth",
+  "key": "set it above p99, or heartbeat.",
+  "where": ""
+ },
+ {
+  "id": 412,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Publishing an event right after a commit, \"it is usually fine\" It is fine until a deploy or crash lands between the two lines; then events are lost silently (measured: one per crash).",
+  "label": "depth",
+  "key": "it is usually fine",
+  "where": ""
+ },
+ {
+  "id": 413,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use an outbox, or enqueue in the database.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the outbox section"
+ },
+ {
+  "id": 414,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Watching queue length instead of message age A queue of 10,000 may be healthy (fast consumers) and a queue of 50 may be stuck (one poison message retried forever).",
+  "label": "depth",
+  "key": "watching queue length instead of message age",
+  "where": ""
+ },
+ {
+  "id": 415,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Age tells you which.",
+  "label": "core",
+  "key": "age tells which",
+  "where": ""
+ },
+ {
+  "id": 416,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "No DLQ, or a DLQ nobody watches Without one, a poison message burns a worker forever (try it in the Queue lab); with an unwatched one, failed jobs vanish quietly.",
+  "label": "depth",
+  "key": "no dlq, or a dlq nobody watches",
+  "where": ""
+ },
+ {
+  "id": 417,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "More consumers than partitions In a Kafka consumer group the extra consumers sit idle.",
+  "label": "depth",
+  "key": "more consumers than partitions in a kafka",
+  "where": ""
+ },
+ {
+  "id": 418,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Plan partition counts for peak parallelism, or use share groups (Kafka 4.2+).",
+  "label": "depth",
+  "key": "use share groups (kafka 4.2+).",
+  "where": ""
+ },
+ {
+  "id": 419,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Changing the partition count of a keyed topic Keys move to new partitions, so per-key ordering breaks across the change (try it in the Kafka widget above).",
+  "label": "depth",
+  "key": "changing the partition count of a keyed",
+  "where": ""
+ },
+ {
+  "id": 420,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Doing slow work inside the database transaction that holds the job lock Fine for milliseconds (the throughput experiment did it), harmful for minutes: long transactions hold locks and stop Postgres from cleaning up old row versions.",
+  "label": "core",
+  "key": "harmful for minutes: long transactions hold locks",
+  "where": ""
+ },
+ {
+  "id": 421,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "For long jobs use a lease (a visible_at column) and commit the claim at once.",
+  "label": "core",
+  "key": "visible_at",
+  "where": ""
+ },
+ {
+  "id": 422,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Unbounded queues in front of expensive resources Bound them, reject early with 429, and scale on queue age.",
+  "label": "depth",
+  "key": "unbounded queues in front of expensive resources",
+  "where": ""
+ },
+ {
+  "id": 423,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "An unbounded queue in front of a GPU pool turns a spike into minutes of latency for everyone.",
+  "label": "core",
+  "key": "spike into minutes of latency for",
+  "where": ""
+ },
+ {
+  "id": 424,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Glossary Request path : everything between a request arriving and its response.",
+  "label": "depth",
+  "key": "request path : everything between a request",
+  "where": ""
+ },
+ {
+  "id": 425,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Message queue : a broker that deletes each message once a worker acknowledges it.",
+  "label": "depth",
+  "key": "message queue : a broker that deletes",
+  "where": ""
+ },
+ {
+  "id": 426,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Log (stream) : an append-only, retained sequence of messages read by position.",
+  "label": "depth",
+  "key": "log (stream) : an append-only, retained sequence",
+  "where": ""
+ },
+ {
+  "id": 427,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Message : one unit of handed-off work or information (job, event).",
+  "label": "depth",
+  "key": "message : one unit of handed-off work",
+  "where": ""
+ },
+ {
+  "id": 428,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Producer : writes messages.",
+  "label": "depth",
+  "key": "producer : writes messages.",
+  "where": ""
+ },
+ {
+  "id": 429,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Consumer , worker : reads and handles messages.",
+  "label": "depth",
+  "key": "consumer , worker : reads and handles",
+  "where": ""
+ },
+ {
+  "id": 430,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Broker : the system that stores messages between them.",
+  "label": "depth",
+  "key": "broker : the system that stores messages",
+  "where": ""
+ },
+ {
+  "id": 431,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Acknowledge (ack) : tell the broker a message is done.",
+  "label": "depth",
+  "key": "acknowledge (ack) : tell the broker a",
+  "where": ""
+ },
+ {
+  "id": 432,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Competing consumers : several workers sharing one queue.",
+  "label": "depth",
+  "key": "competing consumers : several workers sharing one",
+  "where": ""
+ },
+ {
+  "id": 433,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Offset : a message's position in a log partition; a reader's progress.",
+  "label": "depth",
+  "key": "offset : a message's position in a",
+  "where": ""
+ },
+ {
+  "id": 434,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Topic : a named log in Kafka.",
+  "label": "depth",
+  "key": "topic : a named log in kafka.",
+  "where": ""
+ },
+ {
+  "id": 435,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Partition : one of the ordered sub-logs a topic is split into.",
+  "label": "depth",
+  "key": "partition : one of the ordered sub-logs",
+  "where": ""
+ },
+ {
+  "id": 436,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Key : the value hashed to choose a message's partition.",
+  "label": "depth",
+  "key": "key : the value hashed to choose",
+  "where": ""
+ },
+ {
+  "id": 437,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Consumer group : consumers sharing a topic's partitions, one consumer per partition.",
+  "label": "depth",
+  "key": "consumer group : consumers sharing a topic's",
+  "where": ""
+ },
+ {
+  "id": 438,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Rebalance : reassigning partitions when group members change.",
+  "label": "depth",
+  "key": "rebalance : reassigning partitions when group members",
+  "where": ""
+ },
+ {
+  "id": 439,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Commit (offsets) : saving a consumer's position.",
+  "label": "depth",
+  "key": "commit (offsets) : saving a consumer's position.",
+  "where": ""
+ },
+ {
+  "id": 440,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Share group : Kafka's queue mode (4.2+): many consumers per partition, per-record acks.",
+  "label": "depth",
+  "key": "oup : kafka's queue mode (4.2+): many consumers per parti",
+  "where": ""
+ },
+ {
+  "id": 441,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "At-most-once : ack before work; may lose, never repeats.",
+  "label": "depth",
+  "key": "at-most-once : ack before work; may lose,",
+  "where": ""
+ },
+ {
+  "id": 442,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "At-least-once : ack after work; never loses, may repeat.",
+  "label": "depth",
+  "key": "at-least-once : ack after work; never loses,",
+  "where": ""
+ },
+ {
+  "id": 443,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Effectively-once : at-least-once delivery plus deduplication, so the effect happens once.",
+  "label": "depth",
+  "key": "effectively-once : at-least-once delivery plus deduplication, so",
+  "where": ""
+ },
+ {
+  "id": 444,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Idempotent producer : Kafka broker drops retried sends by producer id and sequence.",
+  "label": "depth",
+  "key": "idempotent producer : kafka broker drops retried",
+  "where": ""
+ },
+ {
+  "id": 445,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Zombie : an old instance presumed dead but still running; fenced by epochs.",
+  "label": "depth",
+  "key": "zombie : an old instance presumed dead",
+  "where": ""
+ },
+ {
+  "id": 446,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Idempotent : doing it twice has the same effect as once.",
+  "label": "depth",
+  "key": "idempotent : doing it twice has the",
+  "where": ""
+ },
+ {
+  "id": 447,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Idempotent consumer : records processed message ids with its effects, skipping repeats.",
+  "label": "depth",
+  "key": "idempotent consumer : records processed message ids",
+  "where": ""
+ },
+ {
+  "id": 448,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Visibility timeout : how long a claimed message stays hidden before redelivery.",
+  "label": "depth",
+  "key": "visibility timeout : how long a claimed",
+  "where": ""
+ },
+ {
+  "id": 449,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Lease : any time-limited claim on work.",
+  "label": "depth",
+  "key": "lease : any time-limited claim on work.",
+  "where": ""
+ },
+ {
+  "id": 450,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Heartbeat : periodically extending a lease while still working.",
+  "label": "depth",
+  "key": "heartbeat : periodically extending a lease while",
+  "where": ""
+ },
+ {
+  "id": 451,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Poison message : a message that fails every time.",
+  "label": "depth",
+  "key": "poison message : a message that fails",
+  "where": ""
+ },
+ {
+  "id": 452,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Dead-letter queue : where messages go after too many failed attempts.",
+  "label": "depth",
+  "key": "dead-letter queue : where messages go after",
+  "where": ""
+ },
+ {
+  "id": 453,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Utilisation : ρ = λS / C, the share of worker capacity in use.",
+  "label": "depth",
+  "key": "utilisation : ρ = λs / c,",
+  "where": ""
+ },
+ {
+  "id": 454,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Little's law : L = λW for a stable system's averages.",
+  "label": "depth",
+  "key": "little's law : l = λw for",
+  "where": ""
+ },
+ {
+  "id": 455,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Backpressure : telling producers to slow down when consumers cannot keep up.",
+  "label": "depth",
+  "key": "backpressure : telling producers to slow down",
+  "where": ""
+ },
+ {
+  "id": 456,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Dual write : writing to two systems with no shared transaction.",
+  "label": "depth",
+  "key": "dual write : writing to two systems",
+  "where": ""
+ },
+ {
+  "id": 457,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Transactional outbox : write the event to a table in the same transaction; relay it later.",
+  "label": "depth",
+  "key": "transactional outbox : write the event to",
+  "where": ""
+ },
+ {
+  "id": 458,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Change data capture : reading a database's changes from its log (Debezium).",
+  "label": "depth",
+  "key": "change data capture : reading a database's",
+  "where": ""
+ },
+ {
+  "id": 459,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Inbox : the receiving side's table of handled message ids.",
+  "label": "depth",
+  "key": "inbox : the receiving side's table of",
+  "where": ""
+ },
+ {
+  "id": 460,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Two-phase commit : prepare everywhere, then commit everywhere; blocks if the coordinator fails.",
+  "label": "depth",
+  "key": "two-phase commit : prepare everywhere, then commit",
+  "where": ""
+ },
+ {
+  "id": 461,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Saga : a sequence of local transactions with compensations for failure.",
+  "label": "depth",
+  "key": "saga : a sequence of local transactions",
+  "where": ""
+ },
+ {
+  "id": 462,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Event-driven architecture : services announce facts on a log instead of calling each other.",
+  "label": "depth",
+  "key": "event-driven architecture : services announce facts on",
+  "where": ""
+ },
+ {
+  "id": 463,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Event sourcing : the event log is the source of truth; state is replayed from it.",
+  "label": "depth",
+  "key": "event sourcing : the event log is",
+  "where": ""
+ },
+ {
+  "id": 464,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "CQRS : separate models for writing and reading.",
+  "label": "depth",
+  "key": "cqrs : separate models for writing and",
+  "where": ""
+ },
+ {
+  "id": 465,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Task queue library : Celery, RQ, Arq, Dramatiq, Procrastinate.",
+  "label": "depth",
+  "key": "task queue library : celery, rq, arq,",
+  "where": ""
+ },
+ {
+  "id": 466,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Activity : a durable workflow's side-effecting step, retried by the engine.",
+  "label": "depth",
+  "key": "activity : a durable workflow's side-effecting step,",
+  "where": ""
+ },
+ {
+  "id": 467,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Cron : running jobs at set times.",
+  "label": "depth",
+  "key": "cron : running jobs at set times.",
+  "where": ""
+ },
+ {
+  "id": 468,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "Queue lab A simulated queue with the semantics of SQS (and of the measured Postgres queue): messages arrive, wait, are claimed by workers, hidden for a visibility timeout, and deleted when a worker acknowledges them after doing the side effect.",
+  "label": "core",
+  "key": "queue lab a simulated queue with the",
+  "where": ""
+ },
+ {
+  "id": 469,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "You choose the traffic, the workers, the timeout and how often workers crash, and watch the backlog, the age of the oldest message, redeliveries and duplicates.",
+  "label": "core",
+  "key": "you choose the traffic, the workers, the",
+  "where": ""
+ },
+ {
+  "id": 470,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "Everything runs in your browser, deterministic for a given seed; the same model in Python is qsim in src/recompute.py .",
+  "label": "core",
+  "key": "everything runs in your browser, deterministic for",
+  "where": ""
+ },
+ {
+  "id": 471,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "Try: start with \"Healthy\" and raise the arrival rate until utilisation passes 100%: the backlog stops draining and the age of the oldest message climbs without limit.",
+  "label": "core",
+  "key": "until utilisation passes 100%: the backlog stops draini",
+  "where": ""
+ },
+ {
+  "id": 472,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "Load \"Crashes, naive\", then tick the idempotent consumer: redeliveries stay, duplicates vanish.",
+  "label": "core",
+  "key": "crashes, naive",
+  "where": ""
+ },
+ {
+  "id": 473,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "Load \"Poison, no DLQ\" and set max receives to 5.",
+  "label": "core",
+  "key": "poison, no dlq",
+  "where": ""
+ },
+ {
+  "id": 474,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "Load the two \"Lab run\" presets to compare the model with the real Postgres runs.",
+  "label": "core",
+  "key": "load the two \"lab run\" presets to",
+  "where": ""
+ },
+ {
+  "id": 475,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "The model, exactly Arrivals: Poisson at rate λ for T seconds (optionally 3 times λ from T/4 to T/2), or a backlog of N messages at time 0.",
+  "label": "depth",
+  "key": "or t seconds (optionally 3 times λ from t/4 to t/2)",
+  "where": ""
+ },
+ {
+  "id": 476,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "The run lasts 1.5 T (steady) or T (backlog), so a steady run shows the drain after arrivals stop.",
+  "label": "depth",
+  "key": "the run lasts 1.5 t (steady) or t (backlog",
+  "where": ""
+ },
+ {
+  "id": 477,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "Waiting messages are claimed oldest first (a redelivered message goes to the front, as ORDER BY id did in the measured lab).",
+  "label": "depth",
+  "key": "waiting messages are claimed oldest first (a",
+  "where": ""
+ },
+ {
+  "id": 478,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "A claim hides the message for the visibility timeout V.",
+  "label": "depth",
+  "key": "a claim hides the message for the",
+  "where": ""
+ },
+ {
+  "id": 479,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "Service time: exponential with mean S, or fixed S.",
+  "label": "depth",
+  "key": "service time: exponential with mean s, or",
+  "where": ""
+ },
+ {
+  "id": 480,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "At the end of service: the side effect, then the acknowledgement (delete).",
+  "label": "depth",
+  "key": "at the end of service: the side",
+  "where": ""
+ },
+ {
+  "id": 481,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "Crash: with probability p per delivery, after the side effect and before the acknowledgement (the dangerous spot).",
+  "label": "depth",
+  "key": "crash: with probability p per delivery, after",
+  "where": ""
+ },
+ {
+  "id": 482,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "The worker is down for the restart time, then takes new work.",
+  "label": "depth",
+  "key": "the worker is down for the restart",
+  "where": ""
+ },
+ {
+  "id": 483,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "The message reappears when its timeout expires.",
+  "label": "depth",
+  "key": "the message reappears when its timeout expires.",
+  "where": ""
+ },
+ {
+  "id": 484,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "If a message's timeout expires while its first worker is still busy, another worker may take it; both do the side effect (a duplicate) and the second acknowledgement finds it already deleted.",
+  "label": "depth",
+  "key": "if a message's timeout expires while its",
+  "where": ""
+ },
+ {
+  "id": 485,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "Idempotent consumer: a repeated side effect is detected and skipped (counted as \"caught\").",
+  "label": "depth",
+  "key": "idempotent consumer: a repeated side effect is",
+  "where": ""
+ },
+ {
+  "id": 486,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "Poison messages (a fraction of arrivals) fail every time: no effect, no acknowledgement.",
+  "label": "depth",
+  "key": "poison messages (a fraction of arrivals) fail",
+  "where": ""
+ },
+ {
+  "id": 487,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "With max receives M > 0, a message already received M times goes to the dead-letter queue when it is next claimed (the SQS maxReceiveCount rule).",
+  "label": "depth",
+  "key": "with max receives m > 0, a message already receiv",
+  "where": ""
+ },
+ {
+  "id": 488,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "Queue bound B: an arrival finding B messages in the system is rejected (the producer would get 429).",
+  "label": "depth",
+  "key": "(the producer would get 429).",
+  "where": ""
+ },
+ {
+  "id": 489,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "Little's law check: L is the time-average number of messages in the system over the run; X is completions per second; W the mean time from arrival to acknowledgement.",
+  "label": "depth",
+  "key": "little's law check: l is the time-average",
+  "where": ""
+ },
+ {
+  "id": 490,
+  "tab": "t-lab",
+  "section": "queue lab",
+  "text": "L = XW when the queue ends empty.",
+  "label": "depth",
+  "key": "l = xw when the queue ends",
+  "where": ""
+ },
+ {
+  "id": 491,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading On this page Queue lab Arrival rate, workers, visibility timeout, crashes, poison messages, DLQ and a queue bound: backlog, age, redeliveries and duplicates.",
+  "label": "core",
+  "key": "further reading on this page queue lab",
+  "where": ""
+ },
+ {
+  "id": 492,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 to 20 min.",
+  "label": "core",
+  "key": "10 to 20 min.",
+  "where": ""
+ },
+ {
+  "id": 493,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The parent topic and its siblings Topic: swe-and-system-design The root: one request to a chat product from 1 user to 10M users.",
+  "label": "core",
+  "key": "t to a chat product from 1 user to 10m users.",
+  "where": ""
+ },
+ {
+  "id": 494,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Step 3 is the short version of this page; its Scale simulator turns a queue on and off, Numbers to know carries queue throughput figures, and Case files holds \"EC2 could not hand out servers: a queue that never drained\".",
+  "label": "core",
+  "key": "ec2 could not hand out servers: a queue that never drained",
+  "where": ""
+ },
+ {
+  "id": 495,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Reliability engineering Timeouts, retries with backoff, jitter and retry budgets (with a measured retry storm), circuit breakers, load shedding, SLOs.",
+  "label": "core",
+  "key": "reliability engineering timeouts, retries with backoff, jitter",
+  "where": ""
+ },
+ {
+  "id": 496,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Building a backend API 202 Accepted, idempotency keys on the server, webhooks as an API, server-sent events.",
+  "label": "core",
+  "key": "background tasks inside one service and what they lose on a crash",
+  "where": ""
+ },
+ {
+  "id": 497,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Distributed systems fundamentals Replication (including Kafka partitions), consensus, why a dual write is a distributed-systems problem, 2PC over consensus.",
+  "label": "core",
+  "key": "ributed-systems problem, 2pc over consensus.",
+  "where": ""
+ },
+ {
+  "id": 498,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "ML system design Batch versus realtime inference, batch API pricing, the degradation ladder, queues in front of GPUs.",
+  "label": "core",
+  "key": "ml system design batch versus realtime inference,",
+  "where": ""
+ },
+ {
+  "id": 499,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Capacity planning and performance Queueing theory in depth: why waiting explodes near 100% utilisation, load testing.",
+  "label": "core",
+  "key": "hy waiting explodes near 100% utilisation, load testin",
+  "where": ""
+ },
+ {
+  "id": 500,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Observability Tracing a request across a queue, lag and age metrics, alerting.",
+  "label": "core",
+  "key": "observability tracing a request across a queue,",
+  "where": ""
+ },
+ {
+  "id": 501,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "System design case studies Worked designs that use these pieces end to end.",
+  "label": "core",
+  "key": "system design case studies worked designs that",
+  "where": ""
+ },
+ {
+  "id": 502,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Testing and quality Unit, property-based, data and model tests, and CI, with real pytest code.",
+  "label": "core",
+  "key": "testing and quality unit, property-based, data and",
+  "where": ""
+ },
+ {
+  "id": 503,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Code design Readable code, abstractions, refactoring in small tested steps, code review, library design.",
+  "label": "core",
+  "key": "code design readable code, abstractions, refactoring in",
+  "where": ""
+ },
+ {
+  "id": 504,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Related topics Topic: ml-infra-and-orchestration Pipelines and job orchestration (Airflow, Dagster) where idempotent tasks and backfills live.",
+  "label": "core",
+  "key": "pipelines and job orchestration (airflow, dagster)",
+  "where": ""
+ },
+ {
+  "id": 505,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Topic: databases Transactions, isolation, locks and the WAL behind SKIP LOCKED and change data capture.",
+  "label": "core",
+  "key": "topic: databases transactions, isolation, locks and the",
+  "where": ""
+ },
+ {
+  "id": 506,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Topic: protocols HTTP/2 flow control, SSE and WebSockets for streaming results.",
+  "label": "core",
+  "key": "topic: protocols http/2 flow control, sse and we",
+  "where": ""
+ },
+ {
+  "id": 507,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Topic: inference-and-serving Request queues and batching inside inference servers.",
+  "label": "core",
+  "key": "topic: inference-and-serving request queues and batching inside",
+  "where": ""
+ },
+ {
+  "id": 508,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Topic: agentic-harnesses The agent loops whose long runs this page makes durable.",
+  "label": "core",
+  "key": "topic: agentic-harnesses the agent loops whose long",
+  "where": ""
+ },
+ {
+  "id": 509,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Best resources Kafka 4.3 design document Delivery semantics, transactions and share groups from the source; clearer than most books.",
+  "label": "core",
+  "key": "best resources kafka 4.3 design document delivery",
+  "where": ""
+ },
+ {
+  "id": 510,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Yanacek, Avoiding insurmountable queue backlogs Amazon's playbook for backlogs: age metrics, LIFO, sidelining, shuffle sharding.",
+  "label": "core",
+  "key": "yanacek, avoiding insurmountable queue backlogs amazon's playbook",
+  "where": ""
+ },
+ {
+  "id": 511,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Morling, Reliable microservices data exchange with the outbox pattern The outbox with Debezium, by its lead.",
+  "label": "core",
+  "key": "morling, reliable microservices data exchange with the",
+  "where": ""
+ },
+ {
+  "id": 512,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "About 25 min. microservices.io patterns: outbox, idempotent consumer, saga Short canonical pattern pages by Chris Richardson.",
+  "label": "core",
+  "key": "about 25 min. microservices.io pa",
+  "where": ""
+ },
+ {
+  "id": 513,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "About 30 min for the set.",
+  "label": "core",
+  "key": "about 30 min for the set.",
+  "where": ""
+ },
+ {
+  "id": 514,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Jepsen, Bufstream 0.1.0 How Kafka-compatible transactions fail in practice; read the Kafka sections.",
+  "label": "core",
+  "key": "jepsen, bufstream 0.1.0 how kafka-compatible tra",
+  "where": ""
+ },
+ {
+  "id": 515,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Garcia-Molina and Salem, Sagas (1987) The original saga paper, short and readable.",
+  "label": "core",
+  "key": "-molina and salem, sagas (1987) the original saga paper,",
+  "where": ""
+ },
+ {
+  "id": 516,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Designing Data-Intensive Applications, 2nd ed.",
+  "label": "core",
+  "key": "-intensive applications, 2nd ed.",
+  "where": ""
+ },
+ {
+  "id": 517,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Kleppmann and Riccomini, O'Reilly, 2026: the chapters on stream processing and on transactions.",
+  "label": "core",
+  "key": "and riccomini, o'reilly, 2026: the chapters on stream p",
+  "where": ""
+ },
+ {
+  "id": 518,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "About 3 h for those chapters.",
+  "label": "core",
+  "key": "about 3 h for those chapters.",
+  "where": ""
+ },
+ {
+  "id": 519,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Celery: tasks guide (v5.6.3) Read the sections on acks, retries and idempotence before running Celery in production.",
+  "label": "core",
+  "key": "celery: tasks guide (v5.6.3) read the sections on ack",
+  "where": ""
+ },
+ {
+  "id": 520,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Temporal: understanding durable execution Workflows, activities, determinism and replay.",
+  "label": "core",
+  "key": "temporal: understanding durable execution workflows, activities, determinism",
+  "where": ""
+ },
+ {
+  "id": 521,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "Outbox table (script-rendered): commit-then-publish lost 19, 28 and 27 events per 500 orders; publish-then-commit gave 19, 28, 27 phantom events.",
+  "label": "depth",
+  "key": "lost 19, 28 and 27 events",
+  "where": ""
+ },
+ {
+  "id": 522,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "Outbox table: outbox, relay batches of 10: 0 lost, 159, 185, 147 duplicates (relay crashes 36, 42, 32); one event per transaction: 25, 32, 24 duplicates; exact 500 orders, 500 events after dedup.",
+  "label": "depth",
+  "key": "147 to 185 duplicate events",
+  "where": ""
+ },
+ {
+  "id": 523,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "Outbox table: after deduplication, exactly 500 orders and 500 events in every outbox run.",
+  "label": "depth",
+  "key": "exactly 500 orders and 500 events",
+  "where": ""
+ },
+ {
+  "id": 524,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "SKIP LOCKED chart (script-rendered): 1 worker 126.6 jobs/s, 2: 257.9, 4: 509.3, 8: 960.3; FOR UPDATE flat at about 123 (122.8 with 8).",
+  "label": "core",
+  "key": "about 123 jobs a second",
+  "where": ""
+ },
+ {
+  "id": 525,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "Redelivery chart note (script-rendered): bars are means of 3 runs, 1,000 jobs unless noted, 4 worker processes, machine, PostgreSQL version and date.",
+  "label": "core",
+  "key": "four worker processes, 1,000 jobs",
+  "where": ""
+ }
+]
