@@ -46,6 +46,6 @@
   const T=FD.scifact&&FD.scifact.ftr;
   if(T){const names=['bm25 only','dense only','rrf k60','z-score a0.6','weighted rrf'];
     $('rp-ftr').innerHTML='<table class="rp-t"><thead><tr><th>first stage (SciFact, Qwen3-Embedding + BM25)</th><th class="num">before reranking</th><th class="num">rerank top 10</th><th class="num">top 20</th><th class="num">top 30</th></tr></thead><tbody>'+
-      names.map(n=>'<tr><td>'+n+'</td><td class="num">'+f3(T[n+'|10'].before.ndcg10)+'</td>'+[10,20,30].map(K=>'<td class="num">'+f3(T[n+'|'+K].after.ndcg10)+'</td>').join('')+'</tr>').join('')+'</tbody></table><p class="small mute">nDCG@10, 300 test claims; Qwen3-Reranker-0.6B scores recorded by the setup and the root lab (no unscored pairs). <span class="meas">measured</span></p>'}
+      names.map(n=>'<tr><td>'+n+'</td><td class="num">'+f3(T[n+'|10'].before.ndcg10)+'</td>'+[10,20,30].map(K=>'<td class="num">'+f3(T[n+'|'+K].after.ndcg10)+'</td>').join('')+'</tr>').join('')+'</tbody></table><p class="small mute">nDCG@10, 300 test claims; Qwen3-Reranker-0.6B scores recorded by the setup and the root\'s runs (no unscored pairs). <span class="meas">measured</span></p>'}
   RD.onRender(()=>{margin()});RD.onResize(()=>{margin()});
 })();

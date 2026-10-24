@@ -1,4 +1,4 @@
-// ---- Reading section 9: 188 SciFact claims as squares, coloured by the stage that lost the evidence (root lab's e2e run, window.RPE)
+// ---- Reading section 9: 188 SciFact claims as squares, coloured by the stage that lost the evidence (root's e2e run, window.RPE)
 (function(){
   const $=id=>document.getElementById(id);const R=window.RPE;if(!$('rp-e2e-w')||!R)return;
   const st={K:'rr30',k:'3'};

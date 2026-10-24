@@ -53,7 +53,7 @@
       {c:['strictly right'].concat(ks.map(k=>b[k].strict+' <span class="mute">('+pct(b[k].strict/b[k].n,0)+')</span>'))},
       {c:['right label (lenient)'].concat(ks.map(k=>b[k].lenient))},
       {c:['answered NOT ENOUGH INFO'].concat(ks.map(k=>b[k].answered_nei))},
-      {c:['prompt tokens, mean'].concat(ks.map(k=>RP.fmt(b[k].prompt_tokens_mean)))}])+'<p class="small mute">k = 1, 3, 5 are the root lab\'s answers, reused from its cache; k = 10 run here. <span class="meas">measured</span></p>';
+      {c:['prompt tokens, mean'].concat(ks.map(k=>RP.fmt(b[k].prompt_tokens_mean)))}])+'<p class="small mute">k = 1, 3, 5 are the root\'s answers, reused from its cache; k = 10 run here. <span class="meas">measured</span></p>';
     const c=PA.cite||{};const cv=['number','doc-id','number+quote'].filter(k=>c[k]);
     $('rp-pa-cite').innerHTML=tbl(['format (real top 5, 188 claims)'].concat(cv),[
       {c:['citation parsed and resolved to an abstract in the prompt'].concat(cv.map(k=>c[k].citation_resolved))},
