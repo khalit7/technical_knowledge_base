@@ -33,5 +33,6 @@
   }
   function show(){const r=runs[cur];stats(r);FMLanes.svg(document.getElementById('fma-lanes'),r,{});extra(r);matrix()}
   chips.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;cur=+b.dataset.i;chips.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));show()});
-  RD.onRenderTab('t-audit',show);RD.onResize(()=>FMLanes.svg(document.getElementById('fma-lanes'),runs[cur],{}),'t-audit');
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-audit']=window.TAB_RENDER['t-audit']||[]).push(show);
+  {let tm=0;addEventListener('resize',()=>{const t=document.getElementById('t-audit');if(!t||t.hidden)return;clearTimeout(tm);tm=setTimeout(()=>FMLanes.svg(document.getElementById('fma-lanes'),runs[cur],{}),60)})}
 })();
