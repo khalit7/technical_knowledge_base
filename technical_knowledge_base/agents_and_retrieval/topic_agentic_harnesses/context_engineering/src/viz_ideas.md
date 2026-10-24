@@ -2,7 +2,14 @@
 
 What the text needs to be understood: what fills one request and in what order; why order decides the cache bill; how big tool outputs become small; what compaction does to a session and what it loses; what a skill costs against a memory file; what a subagent keeps out of the parent; how recall changes with length.
 
-## Built (score out of 10 for teaching value, real data, interactivity)
+## Rebuild of 24 October 2026
+- **Hero** (new, static annotated diagram): one request in assembly order with the cached-prefix bracket and the section number of each lever on the block it acts on; the stores outside the window to the side. The whiteboard picture the rest of the page elaborates.
+- **Memory stepper** (new, section 8): one changing fact through four stores, session by session, real stored text from the recordings, then the question and each store's answer; dashed outlines show the end state so step 0 already shows the whole picture. Chosen over the absorbed page's three separate animations (Mem0 before/after, Graphiti edge timeline, Letta stepper) because one shared input compares the four write policies directly.
+- **Moved inline:** the cache simulator, the compaction session viewer, summaries and answers (closed), the needle grid (now SVG).
+- **Converted to SVG:** every HTML bar chart.
+- **Not carried:** the LOCOMO dispute dot-plot animation (a static table with runner and date says the same, and the dispute is not this page's subject) and the Memory lab's per-answer matrix (interface over data kept in `memory_layers/recordings/`).
+
+## Built before the rebuild (score out of 10 for teaching value, real data, interactivity)
 1. **Compaction call by call, before/after (Reading s4, Compaction lab)**: 9. One column per real model call, to scale, play/pause/step/scrub/speed, captions from the recording (user message, tools, compaction event); toggle between a compacted session and the uncompacted control of the same task, and the automatic big-history pair. The mechanism replaced (unbounded growth) against the one that replaced it (summary and restart) on the same task, which is the DeepSeek MLA before/after pattern this knowledge base asks for. Starts at the last call under reduced motion.
 2. **Cache simulator (Cache lab)**: 9. The documented rules (order, breakpoints, 20-position lookback, minimum length, lifetimes, prices) applied block by block to a session you configure; animated call by call with the request drawn as blocks coloured read, written or fresh; cumulative cost with and without caching. Checked against the eleven recorded one-call runs: the read boundary reproduces by construction for the static run and independently for the three others.
 3. **Recorded cache placement (Reading s2)**: 8. Eleven real calls as stacked bars with their input-side cost: the clearest single picture of "volatile last".
