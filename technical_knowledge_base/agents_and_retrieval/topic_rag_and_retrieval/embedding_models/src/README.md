@@ -51,3 +51,6 @@ None. `scripts/run_pending.sh` records the sequence used.
 
 ## Inputs read from other agents' scratch outputs
 - `$RAG_SCRATCH/pipe/scifact_orig/` (the original SciFact release extracted by the parent's Pipeline lab): evidence sentence positions and claim kinds.
+
+## Topic close (2026-10-24)
+New closed block at the end of Reading ("Measured on the topic's shared runs"): the root's retired Vector search lab units this page did not carry (cosine ranges per model, the 2-D map's limits, cost per document, HotpotQA order, provenance). References to the root's Vector search lab and Pipeline lab now name its shared runs (`src/vec`, `src/pipe`). Header remeasured: 27 min, plus 12 in closed details. Every quoted sibling time now matches its header (`html_utils/check_times.py`); the ledger keys that quoted old times or tab names were re-pointed to the current text (problems 0).
