@@ -18,6 +18,8 @@ document.querySelectorAll('#t-read .prd').forEach(p=>p.querySelectorAll('.opts b
     const h=s=>s<1?fmt(s*1000,0)+' ms':s<120?fmt(s,s<10?1:0)+' s':s<7200?fmt(s/60,1)+' min':fmt(s/3600,1)+' h';
     $('prd-fr-out').innerHTML=RD.stat('Detect (half the interval)',h(det),'')+RD.stat('Wait behind the queue',h(queue),q.toLocaleString('en-US')+' docs &divide; '+r+' docs/s')+
       RD.stat('Embed this document',h(emb),'')+RD.stat('Expected lag',h(tot),'sum of the stages');
+    const parts=[['detect',det,'--c1'],['queue',queue,'--c2'],['embed',emb,'--c4'],['visible',v,'--c3']];
+    $('prd-fr-bar').innerHTML=tot>0?parts.filter(x=>x[1]>0).map(x=>{const w=100*x[1]/tot;return '<span style="width:'+w+'%;background:var('+x[2]+')" title="'+x[0]+' '+h(x[1])+'">'+(w>14?x[0]+' '+h(x[1]):'')+'</span>'}).join(''):'';
   }
   ['prd-fr-p','prd-fr-q','prd-fr-m','prd-fr-v'].forEach(id=>$(id).addEventListener('input',draw));
   ['prd-fr-m','prd-fr-v'].forEach(id=>$(id).addEventListener('change',draw));draw();
@@ -65,7 +67,7 @@ document.querySelectorAll('#t-read .prd').forEach(p=>p.querySelectorAll('.opts b
     }
   }
   const a=RD.anim({card:'prd-bf-card',ctl:'prd-bf-ctl',n:rows.length,draw,ms:1300,label:'Backfill step'});
-  RD.seg(document.getElementById('prd-bf-mode'),m=>{mode=m;a.reset(rows.length);a.play()});
+  RD.seg(document.getElementById('prd-bf-mode'),m=>{mode=m;a.reset(rows.length)});
   RD.onResize(()=>a.redraw());
 })();
 
@@ -138,6 +140,17 @@ function power(){
   host.innerHTML=RD.svg(W,H,g,'Power of a paired test by golden-set size');
   document.getElementById('prd-power-leg').innerHTML=leg+'<span>baseline nDCG@10 '+M.baseline_ndcg.toFixed(3)+'</span>';
 }
-const all=()=>{scHist();drift();power()};
+// section 9: the worked example's cost per query, split by stage (cost_model.py's formulas at its defaults)
+function costBar(){
+  const el=document.getElementById('prd-cost-bar');if(!el||!P.costdef)return;const d=P.costdef;
+  const embed=d.q_tok*d.p_embed/1e6,rer=(d.q_tok*d.K+d.K*d.chunk_tok)*d.p_rerank/1e6;
+  const sc=d.sys_cached?d.sys_tok:0,gen=((d.sys_tok-sc+d.k*d.chunk_tok+d.q_tok)*d.p_in+sc*d.p_cached+d.out_tok*d.p_out)/1e6;
+  const month=(d.n_chunks*d.chunk_tok*d.churn*d.p_embed/1e6+d.n_chunks*d.dims*4/1e9*d.p_gb_month)/d.queries_month;
+  const tot=embed+rer+gen+month,parts=[['generate',gen,'--c2'],['rerank',rer,'--c4'],['storage and re-embedding',month,'--c5'],['embed query',embed,'--c1']];
+  const u=x=>'$'+(x>=0.0001?x.toFixed(5):x.toFixed(7).replace(/0+$/,''));
+  el.innerHTML=parts.map(x=>{const w=100*x[1]/tot;return '<span style="width:'+w+'%;background:var('+x[2]+')">'+(w>20?x[0]+' '+Math.round(w)+'%':'')+'</span>'}).join('');
+  document.getElementById('prd-cost-leg').innerHTML=parts.map(x=>'<span><svg width="10" height="10"><rect width="10" height="10" fill="'+css(x[2])+'"/></svg>'+x[0]+' '+u(x[1])+' ('+(100*x[1]/tot).toFixed(1)+'%)</span>').join('');
+}
+const all=()=>{scHist();drift();power();costBar()};
 RD.onRender(all);RD.onResize(all);all();
 })();

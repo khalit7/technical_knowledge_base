@@ -9,7 +9,7 @@ const puppeteer = require('puppeteer');
 const [file, shots] = process.argv.slice(2); fs.mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell' });
 let bad = 0;
-const TABS = ['t-read', 't-prdlat', 't-prdcost', 't-prdacl', 't-prdcache', 't-more'];
+const TABS = ['t-read', 't-prdcost', 't-more'];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
@@ -37,6 +37,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       for (const c of root.querySelectorAll('.chips')) for (const btn of c.querySelectorAll('button')) { btn.click(); out.clicks++; await sleep(25); scan('chip ' + btn.textContent); side('chip ' + btn.textContent) }
       for (const c of root.querySelectorAll('input[type=checkbox]')) { c.click(); out.clicks++; await sleep(30); scan('checkbox ' + c.id); side('checkbox'); c.click(); await sleep(10) }
       for (const sel of root.querySelectorAll('select')) { if (sel.id.endsWith('-v')) continue; for (const o of sel.options) { sel.value = o.value; sel.dispatchEvent(new Event('change')); out.clicks++; await sleep(25); scan('select ' + sel.id + '=' + o.value); side(sel.id) } sel.selectedIndex = 0; sel.dispatchEvent(new Event('change')) }
+      for (const r of root.querySelectorAll('input[type=range]')) { if (r.id.endsWith('-s')) continue; const v0 = r.value; for (const v of [r.min, (+r.min + +r.max) / 2, r.max]) { r.value = v; r.dispatchEvent(new Event('input')); r.dispatchEvent(new Event('change')); out.clicks++; await sleep(20); scan('range ' + r.id + '=' + v); side(r.id) } r.value = v0; r.dispatchEvent(new Event('input')) }
       for (const pb of root.querySelectorAll('.prd button')) { pb.click(); out.clicks++; await sleep(20) }
       for (const a of root.querySelectorAll('.prd .ans')) if (a.hidden) out.issues.push('answer not revealed');
       for (const d of root.querySelectorAll('details')) d.open = true;
@@ -51,6 +52,15 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   }
   if (errs.length) { console.log('ERRORS', errs.slice(0, 8)); bad = 1 }
   const links = await p.$$eval('#t-more a', as => as.length); console.log('further reading links', links);
+  await p.close();
+}
+// never autoplay: under normal and reduced motion, every step animation is still on step 0 after 4 s on screen
+for (const rm of ['no-preference', 'reduce']) {
+  const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
+  await p.goto('file://' + path.resolve(file));
+  const ids = await p.$$eval('[id$="-ctl-s"]', es => es.map(e => e.id));
+  for (const id of ids) { await p.$eval('#' + id, e => e.closest('.card').scrollIntoView()); await new Promise(r => setTimeout(r, 4000));
+    const v = await p.$eval('#' + id, e => e.value); console.log('autoplay check', rm, id, 'step', v); if (v !== '0') bad = 1 }
   await p.close();
 }
 await b.close();

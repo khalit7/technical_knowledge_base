@@ -1,5 +1,6 @@
-// ---- Cache lab (t-prdcache): semantic cache replay over SciFact claims ----
+// ---- Semantic cache replay (Reading, section 8): semantic cache replay over SciFact claims ----
 (function(){
+if(!document.getElementById('prc-card'))return;
 const P=window.PRD,C=P.cache,esc=RD.esc,$=id=>document.getElementById(id);
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#888';
 const KINDS=[['same','same verdict (right)','--c3'],['nei_same_doc','no verdict, same abstract','--c6'],['opposite','opposite verdict (wrong)','--c2'],['unrelated','unrelated (wrong)','--c4']];
@@ -33,6 +34,5 @@ function draw(){
   $('prc-ex').innerHTML=C.models[m].examples.map(e=>'<div class="prc-ex"><div><span class="v '+vc(e.cached_v)+'">cached, '+esc(e.cached_v.toLowerCase())+':</span> '+esc(e.cached)+'</div><div><span class="v '+vc(e.new_v)+'">new, '+esc(e.new_v.toLowerCase())+':</span> '+esc(e.new)+'</div><div class="small mute">cosine '+e.sim.toFixed(3)+(e.sim>=t?': served from cache at this threshold, with the wrong verdict':': below this threshold')+'</div></div>').join('');
 }
 $('prc-m').addEventListener('change',draw);$('prc-t').addEventListener('input',draw);
-(window.TAB_RENDER=window.TAB_RENDER||{})['t-prdcache']=[draw];
-addEventListener('resize',()=>{if(!$('t-prdcache').hidden)draw()});
+RD.onRender(draw);RD.onResize(draw);draw();
 })();
