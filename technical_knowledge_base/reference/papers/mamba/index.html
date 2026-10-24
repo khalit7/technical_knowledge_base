@@ -197,9 +197,12 @@ table.t3 tr.basec td{font-weight:600;background:var(--soft)}
 .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:16px;text-align:center;padding:6px 8px;margin:8px 0;background:var(--soft);border-radius:6px;overflow-wrap:anywhere;line-height:1.6}
 @media (max-width:520px){.eq{font-size:14px}}
 .lst li{margin:4px 0}.rv{font-variant-numeric:tabular-nums}.mono{font-family:ui-monospace,Menlo,monospace;font-size:.92em}
+.core1{font-size:16px;line-height:1.55;margin:14px 0 8px;padding:10px 12px;border-left:3px solid var(--acc);background:var(--soft);border-radius:0 6px 6px 0}
+figure.hfig{margin:10px 0 12px}figure.hfig img{display:block;width:100%;height:auto;background:#fff;border-radius:8px;border:1px solid var(--line);padding:6px;box-sizing:border-box}figure.hfig figcaption{font-size:13px;margin-top:6px;line-height:1.5}
+.terms{margin:6px 0 0;padding-left:1.2em;font-size:14px}.terms li{margin:2px 0}
 </style>
 </head><body><div class="w">
-<div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81549dbedb27e8f2a26f" target="_blank" rel="noopener noreferrer">Papers</a> · 2023 · <span id="rt">⏱ About 20 min to read The paper tab · +6h 30m of resources.</span></div>
+<div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81549dbedb27e8f2a26f" target="_blank" rel="noopener noreferrer">Papers</a> · 2023 · <span id="rt">Reading: 20 min, plus 2 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
 <button role="tab" data-t="t-read" aria-selected="true">The paper</button><button role="tab" data-t="t-run" aria-selected="false">Run a toy Mamba</button><button role="tab" data-t="t-tables" aria-selected="false">The paper's tables, rebuilt</button><button role="tab" data-t="t-then" aria-selected="false">Then and now</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
@@ -219,6 +222,17 @@ table.t3 tr.basec td{font-weight:600;background:var(--soft)}
 <div class="hero-l"><a href="https://arxiv.org/html/2312.00752v2" target="_blank" rel="noopener noreferrer">read it (arXiv HTML)</a> · <a href="https://arxiv.org/pdf/2312.00752v2" target="_blank" rel="noopener noreferrer">PDF</a> · <a href="https://github.com/state-spaces/mamba" target="_blank" rel="noopener noreferrer">code (state-spaces/mamba)</a> · <a href="#" data-tab="t-run">run five trained toy Mambas</a></div>
 </div>
 
+<p class="core1"><b>The idea in one sentence:</b> let the state space model's step size Δ and its input and output maps <b>B</b> and <b>C</b> depend on the current token, so a fixed-size recurrent state can choose what to keep and what to skip; that kills the fast convolution, so a fused, hardware-aware scan computes the recurrence in GPU SRAM instead, and the result trains in linear time, generates without a KV cache, and matches Transformers on language up to 3B parameters.</p>
+<figure class="hfig"><img src="img/fig1_selective_ssm.webp" alt="The paper's Figure 1: a recurrent state h, drawn as stacked orange channels, passes from step t minus 1 to step t through a fixed matrix A; the input x_t is projected into B_t, C_t and the step size Delta_t (the selection mechanism, in blue); Delta_t discretises A and B; C_t reads y_t out of the state. A small pyramid marks GPU SRAM above GPU HBM." loading="lazy">
+<figcaption><b>Everything blue is new: B<sub><i>t</i></sub>, C<sub><i>t</i></sub> and Δ<sub><i>t</i></sub> are projected from the token x<sub><i>t</i></sub>, so the update of the wide state h (orange, D channels × N) differs at every step; the state lives only in fast SRAM.</b> Figure 1 of the paper, credit Albert Gu and Tri Dao, CC BY 4.0, <a href="https://arxiv.org/html/2312.00752v2#S1.F1" target="_blank" rel="noopener noreferrer">arXiv 2312.00752</a>.</figcaption></figure>
+<p class="small"><b>You need:</b> a linear recurrence with a fixed state and how S4 turns it into a convolution; both are taught on <a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a>, which also owns Mamba-2 and the hybrids. The KV cache it is compared with is sized on <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a>.</p>
+<p class="small" style="margin-bottom:2px"><b>New terms</b></p>
+<ul class="terms">
+<li><b>LTI</b> (linear time-invariant): the same Δ, <b>A</b>, <b>B</b>, <b>C</b> at every step, so the layer is a convolution.</li>
+<li><b>Selection</b>, <b>S6</b>: Δ, <b>B</b>, <b>C</b> computed from the token; S4 plus selection, computed with a scan.</li>
+<li><b>Δ</b>: the discretisation step; large means "take this token in", near zero means "skip it".</li>
+<li><b>Hardware-aware scan</b>: the recurrence fused into one GPU kernel, run in SRAM, states recomputed in the backward pass.</li>
+</ul>
 <nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-ssm">State spaces</a><a href="#s-sel">Selection</a><a href="#s-gate">Δ as a gate</a><a href="#s-scan">The scan</a><a href="#s-block">The block</a><a href="#s-res">Results</a><a href="#s-believe">Believe?</a><a href="#s-use">Use it?</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
 
 <section id="s-prob"><h2>Problem</h2>
@@ -243,8 +257,10 @@ table.t3 tr.basec td{font-weight:600;background:var(--soft)}
 <a class="where" href="https://arxiv.org/html/2312.00752v2#S2" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§2 State Space Models, Eqs. 1 to 4</a>
 <p>A structured SSM (S4) maps each channel of the input through an <i>N</i>-dimensional latent state, defined in continuous time and then discretised with a step size Δ (<a href="https://arxiv.org/html/2312.00752v2#S2.E1" target="_blank" rel="noopener noreferrer">Eqs. 1 to 3</a>):</p>
 <div class="eq"><i>h</i>′(<i>t</i>) = <b>A</b><i>h</i>(<i>t</i>) + <b>B</b><i>x</i>(<i>t</i>), &nbsp;<i>y</i>(<i>t</i>) = <b>C</b><i>h</i>(<i>t</i>) &nbsp; ⟶ &nbsp; <i>h<sub>t</sub></i> = <span style="text-decoration:overline">A</span><i>h</i><sub><i>t</i>−1</sub> + <span style="text-decoration:overline">B</span><i>x<sub>t</sub></i>, &nbsp;<i>y<sub>t</sub></i> = <b>C</b><i>h<sub>t</sub></i></div>
+<p>That is the S4 family the paper starts from, taught on <a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a>. What matters here: being LTI is what let it run as one global convolution, and its state is <i>D</i> × <i>N</i> per sequence (<b>A</b> diagonal), which over a batch costs O(<i>BLDN</i>) to materialise, the bottleneck §3.3 attacks.</p>
+<details class="mist"><summary>Discretisation, the convolution form, and the LTI baselines (§2)</summary><div class="b">
 <p>The usual rule is the zero-order hold, <span class="m"><span style="text-decoration:overline">A</span> = exp(Δ<b>A</b>)</span>, <span class="m"><span style="text-decoration:overline">B</span> = (Δ<b>A</b>)<sup>−1</sup>(exp(Δ<b>A</b>) − <b>I</b>) · Δ<b>B</b></span> (<a href="https://arxiv.org/html/2312.00752v2#S2.E4" target="_blank" rel="noopener noreferrer">Eq. 4</a>). Because (Δ, <b>A</b>, <b>B</b>, <b>C</b>) are the same at every step, the output is one convolution, <span class="m"><i>y</i> = <i>x</i> ∗ <span style="text-decoration:overline">K</span></span>, <span class="m"><span style="text-decoration:overline">K</span> = (<b>C</b><span style="text-decoration:overline">B</span>, <b>C</b><span style="text-decoration:overline">AB</span>, …)</span> (<a href="https://arxiv.org/html/2312.00752v2#S2.E3" target="_blank" rel="noopener noreferrer">Eq. 3</a>): S4 trains in parallel by FFT and generates recurrently in constant time per step. <b>A</b> is diagonal, so each matrix is <i>N</i> numbers per channel; with <i>D</i> channels the state is <i>D</i> × <i>N</i> per sequence, and materialising it over a batch costs O(<i>BLDN</i>), the bottleneck §3.3 attacks. The convolution is what let LTI SSMs expand the state by <i>N</i> ≈ 10 to 100 over a classic RNN for free (<a href="https://arxiv.org/html/2312.00752v2#S3.SS3.SSS1" target="_blank" rel="noopener noreferrer">§3.3.1</a>).</p>
-<p>The baselines all live in this family and are all LTI (<a href="https://arxiv.org/html/2312.00752v2#S2" target="_blank" rel="noopener noreferrer">§2</a>): linear attention is a degenerate linear SSM, H3 wraps S4 in two gates, Hyena swaps in an MLP-parameterised convolution, RetNet uses state size 1, RWKV a ratio of two SSMs.</p>
+<p>The baselines all live in this family and are all LTI (<a href="https://arxiv.org/html/2312.00752v2#S2" target="_blank" rel="noopener noreferrer">§2</a>): linear attention is a degenerate linear SSM, H3 wraps S4 in two gates, Hyena swaps in an MLP-parameterised convolution, RetNet uses state size 1, RWKV a ratio of two SSMs.</p></div></details>
 </section>
 
 <section id="s-sel"><h2>Selection: the one change</h2>
@@ -278,7 +294,8 @@ table.t3 tr.basec td{font-weight:600;background:var(--soft)}
 <a class="where" href="https://arxiv.org/html/2312.00752v2#Thmtheorem1" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">Theorem 1, §3.5.1, Appendix C</a>
 <p>The most important connection, the paper says, is that classical RNN gating is a special case of selection (<a href="https://arxiv.org/html/2312.00752v2#S3.SS5.SSS1" target="_blank" rel="noopener noreferrer">§3.5.1</a>). <a href="https://arxiv.org/html/2312.00752v2#Thmtheorem1" target="_blank" rel="noopener noreferrer">Theorem 1</a>: with <i>N</i> = 1, <b>A</b> = −1, <b>B</b> = 1, <span class="m"><i>s</i><sub>Δ</sub> = Linear(<i>x</i>)</span> and τ<sub>Δ</sub> = softplus, the selective recurrence is exactly the gated RNN</p>
 <div class="eq"><i>g<sub>t</sub></i> = σ(Linear(<i>x<sub>t</sub></i>)), &nbsp;&nbsp; <i>h<sub>t</sub></i> = (1 − <i>g<sub>t</sub></i>) <i>h</i><sub><i>t</i>−1</sub> + <i>g<sub>t</sub></i> <i>x<sub>t</sub></i></div>
-<p>The proof (<a href="https://arxiv.org/html/2312.00752v2#A3" target="_blank" rel="noopener noreferrer">Appendix C</a>) is two lines of zero-order hold: exp(−softplus(<i>z</i>)) = 1/(1 + e<sup><i>z</i></sup>) = 1 − σ(<i>z</i>), and <span class="m"><span style="text-decoration:overline">B</span> = 1 − <span style="text-decoration:overline">A</span></span>. This is why Δ is projected from the input to one dimension and broadcast: if a token should be ignored, all channels should ignore it. In the experiments Δ's bias is initialised to τ<sub>Δ</sub><sup>−1</sup>(Uniform[0.001, 0.1]), and the projection is widened from 1 to a small rank <i>R</i> (<a href="https://arxiv.org/html/2312.00752v2#S3.SS6" target="_blank" rel="noopener noreferrer">§3.6</a>); the released code uses <i>R</i> = ⌈<i>D</i>/16⌉, 160 for Mamba-2.8B.</p>
+<p>This is why Δ is projected from the input to one dimension and broadcast: if a token should be ignored, all channels should ignore it.</p>
+<details class="mist"><summary>The two-line proof, and how Δ is initialised and projected</summary><div class="b"><p>The proof (<a href="https://arxiv.org/html/2312.00752v2#A3" target="_blank" rel="noopener noreferrer">Appendix C</a>) is two lines of zero-order hold: exp(−softplus(<i>z</i>)) = 1/(1 + e<sup><i>z</i></sup>) = 1 − σ(<i>z</i>), and <span class="m"><span style="text-decoration:overline">B</span> = 1 − <span style="text-decoration:overline">A</span></span>. In the experiments Δ's bias is initialised to τ<sub>Δ</sub><sup>−1</sup>(Uniform[0.001, 0.1]), and the projection is widened from 1 to a small rank <i>R</i> (<a href="https://arxiv.org/html/2312.00752v2#S3.SS6" target="_blank" rel="noopener noreferrer">§3.6</a>); the released code uses <i>R</i> = ⌈<i>D</i>/16⌉, 160 for Mamba-2.8B.</p></div></details>
 <div class="card" id="gate">
 <div class="ctl"><label>pre-activation <i>z</i> = Linear(<i>x<sub>t</sub></i>) = <b id="gateZv">0</b><input type="range" id="gateZ" min="-6" max="6" step="0.05" value="0"></label></div>
 <div id="gateSvg"></div>
@@ -319,7 +336,7 @@ table.t3 tr.basec td{font-weight:600;background:var(--soft)}
 <div id="blkSvg"></div><div class="out" id="blkOut"></div>
 <p class="small mute" style="margin:4px 0 0">Redrawn from Figure 3; parameters from the released code's shapes (<a href="https://github.com/state-spaces/mamba/blob/main/mamba_ssm/modules/mamba_simple.py" target="_blank" rel="noopener noreferrer">mamba_simple.py</a>) at <i>D</i> = 2,560. Projections are 3<i>ED</i><sup>2</sup> = 6<i>D</i><sup>2</sup>; the SSM's own parameters add 4.7%, so two blocks are 1.05 × 12<i>D</i><sup>2</sup>, one attention plus MLP pair: Mamba-2.8B has 64 blocks where a 2.8B Transformer has 32 layers.</p>
 </div>
-<p>Two further choices (<a href="https://arxiv.org/html/2312.00752v2#S3.SS6" target="_blank" rel="noopener noreferrer">§3.6</a>): states are real, not complex, by default (complex helps on continuous signals such as audio, the one experiment that switches it), and <b>A</b> is initialised S4D-Real, <span class="m"><b>A</b><sub><i>n</i></sub> = −(<i>n</i> + 1)</span>, with the expectation that many initialisations work at scale.</p>
+<details class="mist"><summary>Real states and the S4D-Real initialisation (§3.6)</summary><div class="b"><p>Two further choices (<a href="https://arxiv.org/html/2312.00752v2#S3.SS6" target="_blank" rel="noopener noreferrer">§3.6</a>): states are real, not complex, by default (complex helps on continuous signals such as audio, the one experiment that switches it), and <b>A</b> is initialised S4D-Real, <span class="m"><b>A</b><sub><i>n</i></sub> = −(<i>n</i> + 1)</span>, with the expectation that many initialisations work at scale.</p></div></details>
 </section>
 
 <section id="s-res"><h2>Results</h2>
@@ -333,7 +350,8 @@ table.t3 tr.basec td{font-weight:600;background:var(--soft)}
 <div class="card" id="zs"><div id="zsSvg"></div>
 <p class="small mute" style="margin:4px 0 0">Average zero-shot accuracy against parameters, from <a href="https://arxiv.org/html/2312.00752v2#S4.T1" target="_blank" rel="noopener noreferrer">Table 3</a> (log scale). Mamba, Pythia and RWKV share the Pile, the GPT-NeoX tokenizer and 300B tokens; the other baselines (GPT-Neo, OPT, Hybrid H3) differ in data or tokenizer. The paper's averages recompute exactly from its six columns.</p></div>
 <p><b>DNA</b> (<a href="https://arxiv.org/html/2312.00752v2#S4.SS3" target="_blank" rel="noopener noreferrer">§4.3</a>). On one human genome (HG38, about 4.5 billion base pairs) Mamba matches Transformer++ and HyenaDNA with about 3 to 4 times fewer parameters at the largest size, about 40M (<a href="https://arxiv.org/html/2312.00752v2#S4.F7" target="_blank" rel="noopener noreferrer">Figure 5</a>, a figure with no table); at fixed size (about 1.4M) its perplexity keeps improving out to 1M-token context while HyenaDNA's gets worse. On five great apes sharing 99% of their DNA, a 7M Mamba fine-tuned at 1M context reaches 81.3% against HyenaDNA's 54.9% (chance 20%; <a href="https://arxiv.org/html/2312.00752v2#A5.T5" target="_blank" rel="noopener noreferrer">Table 13</a>).</p>
-<p><b>Audio</b> (<a href="https://arxiv.org/html/2312.00752v2#S4.SS4" target="_blank" rel="noopener noreferrer">§4.4</a>). Swapping SaShiMi's S4 + MLP blocks for Mamba blocks: on YouTubeMix piano both improve with context and Mamba more, up to near-minute sequences at fixed compute (the one experiment with complex states). On SC09 spoken digits a 6.1M Mamba beats the larger GAN and diffusion models, FID 0.94 against 1.42 for the 23M DiffWave + SaShiMi, and a 24.3M one gets 0.67 (<a href="https://arxiv.org/html/2312.00752v2#S4.F11" target="_blank" rel="noopener noreferrer">Table 4</a>); Mamba blocks beat S4 + MLP in the outer U-Net stages, and in the center Mamba beats S4 + MLP, which beats attention (<a href="https://arxiv.org/html/2312.00752v2#S4.F11" target="_blank" rel="noopener noreferrer">Table 5</a>).</p>
+<p><b>Audio</b> (<a href="https://arxiv.org/html/2312.00752v2#S4.SS4" target="_blank" rel="noopener noreferrer">§4.4</a>): Mamba blocks in place of SaShiMi's S4 + MLP improve long-context piano modelling and SC09 speech generation (FID 0.94 for a 6.1M Mamba against 1.42 for the 23M DiffWave + SaShiMi).</p>
+<details class="mist"><summary>Audio in detail (YouTubeMix, SC09, the U-Net ablation)</summary><div class="b"><p>Swapping SaShiMi's S4 + MLP blocks for Mamba blocks: on YouTubeMix piano both improve with context and Mamba more, up to near-minute sequences at fixed compute (the one experiment with complex states). On SC09 spoken digits a 6.1M Mamba beats the larger GAN and diffusion models, FID 0.94 against 1.42 for the 23M DiffWave + SaShiMi, and a 24.3M one gets 0.67 (<a href="https://arxiv.org/html/2312.00752v2#S4.F11" target="_blank" rel="noopener noreferrer">Table 4</a>); Mamba blocks beat S4 + MLP in the outer U-Net stages, and in the center Mamba beats S4 + MLP, which beats attention (<a href="https://arxiv.org/html/2312.00752v2#S4.F11" target="_blank" rel="noopener noreferrer">Table 5</a>).</p></div></details>
 <p><b>Speed and memory</b> (<a href="https://arxiv.org/html/2312.00752v2#S4.SS5" target="_blank" rel="noopener noreferrer">§4.5</a>, <a href="https://arxiv.org/html/2312.00752v2#S4.F12" target="_blank" rel="noopener noreferrer">Figure 8</a>). With <i>N</i> = 16 the fused scan beats FlashAttention-2 beyond length 2K and a PyTorch scan by 20 to 40 times; generation throughput is 4 to 5 times a same-size Transformer's because, with no KV cache, Mamba runs far larger batches (even an untrained Mamba-6.9B out-generates a Transformer five times smaller). Training memory at 125M is "comparable" to the best Transformer: in <a href="https://arxiv.org/html/2312.00752v2#A5.T7" target="_blank" rel="noopener noreferrer">Table 15</a> Mamba needs 4% to 12% more.</p>
 <div class="card" id="mem">
 <div class="ctl"><label>tokens per sequence (prompt + generated) = <b id="memTv"></b><input type="range" id="memT" min="6" max="17" step="1" value="11"></label><label>GPU memory <b id="memGv">80 GB</b><select id="memG"><option value="24">24 GB</option><option value="40">40 GB</option><option value="80" selected>80 GB</option></select></label></div>
@@ -373,8 +391,9 @@ table.t3 tr.basec td{font-weight:600;background:var(--soft)}
 
 <section id="s-why"><h2>Why it matters <span class="mute small">(beyond the paper)</span></h2>
 <p>Mamba ended the era in which subquadratic meant worse: a recurrent model with input-dependent dynamics matched Transformer perplexity and common benchmarks while training in linear time and generating with constant state. The compression framing stuck (attention is the no-compression extreme, a classic RNN the full-compression one, selectivity the knob between), and with FlashAttention, by the same author, it cemented the pattern that architecture design and GPU memory-hierarchy design are one discipline.</p>
-<p>The authors followed up twice. Mamba-2 (<a href="https://arxiv.org/abs/2405.21060" target="_blank" rel="noopener noreferrer">Dao and Gu, 2024</a>) introduced state space duality: selective SSMs and masked attention are both structured semiseparable matrices; a scalar <b>A</b> per head turns the scan into matrix multiplications, simpler and 2 to 8 times faster, with much larger states (released default <i>N</i> = 128) and a clean bridge to attention theory. Mamba-3 (<a href="https://arxiv.org/abs/2603.15569" target="_blank" rel="noopener noreferrer">Lahoti et al., 2026</a>) went "inference-first" (a more expressive discretisation, complex-valued state for state tracking, multi-input multi-output) and reports Mamba-2's perplexity at half the state size.</p>
-<p>In production the winner is the hybrid: a few full-attention layers for exact recall, SSM or linear-attention layers for cheap length (each drawn from its config in <a href="#" data-tab="t-then">Then and now</a>). AI21's <a href="https://arxiv.org/abs/2403.19887" target="_blank" rel="noopener noreferrer">Jamba</a> (1 attention layer in 8, plus MoE); NVIDIA's <a href="https://arxiv.org/abs/2504.03624" target="_blank" rel="noopener noreferrer">Nemotron-H</a> (Mamba-2 plus attention, up to 3× faster than similar Transformers at similar accuracy), the architecture its <a href="https://arxiv.org/abs/2508.14444" target="_blank" rel="noopener noreferrer">Nemotron Nano 2</a> reasoning models build on, and Nemotron 3 Nano; IBM's Granite 4.0-H; TII's <a href="https://arxiv.org/abs/2507.22448" target="_blank" rel="noopener noreferrer">Falcon-H1</a> (attention and Mamba-2 side by side in every layer). Frontier labs ship the same idea with linear or sliding-window hybrid layers to cut long-context prefill and KV-cache cost (for example <a href="https://app.notion.com/p/3c65c17b0d0d813ba1c0cb4ba00659b8" target="_blank" rel="noopener noreferrer">MiniMax</a>'s lightning attention). Pure SSMs stay rarer because exact long-range retrieval still favours some attention, but the selective recurrence is now standard infrastructure for long context, edge inference and non-text sequences (DNA, audio, time series, vision backbones).</p>
+<p>The authors followed up twice; both are taught on <a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a> and summarised here. Mamba-2 (<a href="https://arxiv.org/abs/2405.21060" target="_blank" rel="noopener noreferrer">Dao and Gu, 2024</a>) introduced state space duality: selective SSMs and masked attention are both structured semiseparable matrices; a scalar <b>A</b> per head turns the scan into matrix multiplications, simpler and 2 to 8 times faster, with much larger states (released default <i>N</i> = 128) and a clean bridge to attention theory. Mamba-3 (<a href="https://arxiv.org/abs/2603.15569" target="_blank" rel="noopener noreferrer">Lahoti et al., 2026</a>) went "inference-first" (a more expressive discretisation, complex-valued state for state tracking, multi-input multi-output) and reports Mamba-2's perplexity at half the state size.</p>
+<p>In production the winner is the hybrid: a few full-attention layers for exact recall, SSM or linear-attention layers for cheap length (each drawn from its config in <a href="#" data-tab="t-then">Then and now</a>; the design space is on <a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a>). Pure SSMs stay rarer because exact long-range retrieval still favours some attention, but the selective recurrence is now standard infrastructure for long context, edge inference and non-text sequences (DNA, audio, time series, vision backbones).</p>
+<details class="mist"><summary>Who ships hybrids, as of 25 October 2026</summary><div class="b"><p>AI21's <a href="https://arxiv.org/abs/2403.19887" target="_blank" rel="noopener noreferrer">Jamba</a> (1 attention layer in 8, plus MoE); NVIDIA's <a href="https://arxiv.org/abs/2504.03624" target="_blank" rel="noopener noreferrer">Nemotron-H</a> (Mamba-2 plus attention, up to 3× faster than similar Transformers at similar accuracy), the architecture its <a href="https://arxiv.org/abs/2508.14444" target="_blank" rel="noopener noreferrer">Nemotron Nano 2</a> reasoning models build on, and Nemotron 3 Nano; IBM's Granite 4.0-H; TII's <a href="https://arxiv.org/abs/2507.22448" target="_blank" rel="noopener noreferrer">Falcon-H1</a> (attention and Mamba-2 side by side in every layer). Frontier labs ship the same idea with linear or sliding-window hybrid layers to cut long-context prefill and KV-cache cost (for example <a href="https://app.notion.com/p/3c65c17b0d0d813ba1c0cb4ba00659b8" target="_blank" rel="noopener noreferrer">MiniMax</a>'s lightning attention).</p></div></details>
 </section>
 
 <section id="s-conn"><h2>Connections</h2>
@@ -424,7 +443,7 @@ table.t3 tr.basec td{font-weight:600;background:var(--soft)}
 </section>
 <section class="tab" id="t-tables" role="tabpanel" hidden>
 <h2>The paper's tables, rebuilt</h2>
-<p class="lead">Every table that carries the argument, transcribed from the arXiv HTML (v2) with the printed precision, plus the checks this page ran on them. Numbering follows the PDF; arXiv's HTML renders Tables 1, 2, 4, 5 and 7 to 10 as figures with other numbers, so each link goes to the HTML anchor. Version 1 and version 2 print the same numbers in every table (compared word by word).</p>
+<p class="lead">Every table that carries the argument (Tables 1 and 3 open, the rest in closed blocks), transcribed from the arXiv HTML (v2) with the printed precision, plus the checks this page ran on them. Numbering follows the PDF; arXiv's HTML renders Tables 1, 2, 4, 5 and 7 to 10 as figures with other numbers, so each link goes to the HTML anchor. Version 1 and version 2 print the same numbers in every table (compared word by word).</p>
 <nav class="nav"><a href="#tb1">Selective Copying</a><a href="#tb11">Induction Heads</a><a href="#tb3">Zero-shot</a><a href="#tb-abl">Ablations</a><a href="#tb-dna">DNA</a><a href="#tb-aud">Audio</a><a href="#tb15">Memory</a><a href="#tb-par">Parameters</a><a href="#tb-chk">Checks</a></nav>
 
 <section id="tb1"><h3>Table 1: Selective Copying accuracy</h3>
@@ -433,10 +452,10 @@ table.t3 tr.basec td{font-weight:600;background:var(--soft)}
 <p class="small">Defaults reproduce the direction <b>independently</b>: the toy's selective and LTI layers land at <span class="rv" data-k="sc_s6.tok"></span> and <span class="rv" data-k="sc_s4.tok"></span>, the paper's at 99.8% and 56.4%.</p>
 </section>
 
-<section id="tb11"><h3>Table 11 (and Table 2): Induction Heads extrapolation</h3>
+<section id="tb11"><details class="mist"><summary><b>Table 11 (and Table 2): Induction Heads extrapolation</b></summary><div class="b">
 <p class="small">Test accuracy (%) by test length; models trained at 2<sup>8</sup> = 256 (bold column). ✓ is perfect generalisation, × out of memory (<a href="https://arxiv.org/html/2312.00752v2#A5.T3" target="_blank" rel="noopener noreferrer">Table 11</a>). The toy rows were trained at 64, so their columns are shifted to line up the same multiples of the training length.</p>
 <div class="tw" id="t11Tbl"></div>
-</section>
+</div></details></section>
 
 <section id="tb3"><h3>Table 3: zero-shot evaluations</h3>
 <div class="seg" id="t3M" role="group" aria-label="View"><button class="on" data-m="raw">as printed</button><button data-m="d">minus Pythia of the same size</button></div>
@@ -447,38 +466,38 @@ table.t3 tr.basec td{font-weight:600;background:var(--soft)}
 <p class="small mute">Standard error of a difference of two accuracies, √(p₁(1 − p₁)/n + p₂(1 − p₂)/n), with <i>n</i> the size of the split lm-evaluation-harness scores (<a href="https://huggingface.co/datasets/EleutherAI/lambada_openai" target="_blank" rel="noopener noreferrer">LAMBADA</a> test, <a href="https://huggingface.co/datasets/Rowan/hellaswag" target="_blank" rel="noopener noreferrer">HellaSwag</a> validation, <a href="https://huggingface.co/datasets/baber/piqa" target="_blank" rel="noopener noreferrer">PIQA</a> validation, <a href="https://huggingface.co/datasets/allenai/ai2_arc" target="_blank" rel="noopener noreferrer">ARC</a> test, <a href="https://huggingface.co/datasets/allenai/winogrande" target="_blank" rel="noopener noreferrer">WinoGrande</a> validation). It treats the two models as independent samples; they answer the same questions, so the true (paired) error is smaller and these z values are conservative. It says nothing about training-run noise, which one run per model cannot measure.</p></div>
 </section>
 
-<section id="tb-abl"><h3>Tables 6 to 10: ablations (about 350M parameters, perplexity, lower is better)</h3>
+<section id="tb-abl"><details class="mist"><summary><b>Tables 6 to 10: ablations (about 350M parameters, perplexity, lower is better)</b></summary><div class="b">
 <div class="grid"><div><b class="small">Table 6: block and inner layer</b> <a href="https://arxiv.org/html/2312.00752v2#S4.T2" target="_blank" rel="noopener noreferrer">(link)</a><div id="t6Bars" class="bars"></div></div>
 <div><b class="small">Table 7: which parameters are selective</b> <a href="https://arxiv.org/html/2312.00752v2#S4.F14" target="_blank" rel="noopener noreferrer">(link)</a><div id="t7Bars" class="bars"></div></div>
 <div><b class="small">Table 8: initialisation of A</b> <a href="https://arxiv.org/html/2312.00752v2#S4.F14" target="_blank" rel="noopener noreferrer">(link)</a><div id="t8Bars" class="bars"></div></div>
 <div><b class="small">Table 9: rank of the Δ projection (parameters in M)</b> <a href="https://arxiv.org/html/2312.00752v2#S4.F16" target="_blank" rel="noopener noreferrer">(link)</a><div id="t9Bars" class="bars"></div></div></div>
 <p class="small">Table 10 (state size) is the chart behind the third predict question on The paper tab: constant <b>B</b>, <b>C</b> gain 0.07 from <i>N</i> = 1 to 16, selective 1.02, for +1.2% parameters (<a href="https://arxiv.org/html/2312.00752v2#S4.F16" target="_blank" rel="noopener noreferrer">Table 10</a>). All single runs; the smallest gaps here (8.97 against 8.97, 8.71 against 8.71, 8.83 against 8.84) are ties, not rankings.</p>
-</section>
+</div></details></section>
 
-<section id="tb-dna"><h3>Table 13: Great Apes DNA classification</h3>
+<section id="tb-dna"><details class="mist"><summary><b>Table 13: Great Apes DNA classification</b></summary><div class="b">
 <div class="tw" id="t13Tbl"></div>
 <p class="small mute">Accuracy (%) after fine-tuning at each length with a model pretrained at that length; chance is 20% (<a href="https://arxiv.org/html/2312.00752v2#A5.T5" target="_blank" rel="noopener noreferrer">Table 13</a>). The last row is this page's subtraction: the sign changes three times, and the 2<sup>20</sup> column is a single run.</p>
-</section>
+</div></details></section>
 
-<section id="tb-aud"><h3>Tables 4 and 5: SC09 speech generation</h3>
+<section id="tb-aud"><details class="mist"><summary><b>Tables 4 and 5: SC09 speech generation</b></summary><div class="b">
 <div class="tw" id="t4Tbl"></div><div class="tw" id="t5Tbl"></div>
 <p class="small mute">NLL, FID and AM lower is better; IS and mIS higher (<a href="https://arxiv.org/html/2312.00752v2#S4.F11" target="_blank" rel="noopener noreferrer">Tables 4 and 5</a>). Best per column outlined, excluding the train and test data rows. Table 5 ablates 6M-parameter U-Nets by the block used in the outer stages and in the center.</p>
-</section>
+</div></details></section>
 
-<section id="tb15"><h3>Table 15: training memory, 125M models</h3>
+<section id="tb15"><details class="mist"><summary><b>Table 15: training memory, 125M models</b></summary><div class="b">
 <div class="tw" id="t15Tbl"></div>
 <p class="small mute">One A100 80GB, length 2,048, against a Transformer with FlashAttention-2 and torch.compile kernel fusion (<a href="https://arxiv.org/html/2312.00752v2#A5.T7" target="_blank" rel="noopener noreferrer">Table 15</a>). The caption says "comparable"; the last column is this page's ratio.</p>
-</section>
+</div></details></section>
 
-<section id="tb-par"><h3>Parameters: the released checkpoints, recounted</h3>
+<section id="tb-par"><details class="mist"><summary><b>Parameters: the released checkpoints, recounted</b></summary><div class="b">
 <div class="tw" id="parTbl"></div>
 <p class="small mute">From each checkpoint's config.json (<a href="https://huggingface.co/state-spaces/mamba-130m/blob/main/config.json" target="_blank" rel="noopener noreferrer">mamba-130m</a> and its siblings) and the shapes in mamba_simple.py: per block in_proj <i>D</i> × 4<i>D</i>, conv 2<i>D</i> × 4 + 2<i>D</i>, x_proj 2<i>D</i> × (<i>R</i> + 32), dt_proj <i>R</i> × 2<i>D</i> + 2<i>D</i>, A_log 2<i>D</i> × 16, skip 2<i>D</i>, out_proj 2<i>D</i> × <i>D</i>, norm <i>D</i>, with <i>R</i> = ⌈<i>D</i>/16⌉; plus one tied embedding of the vocabulary 50,277 padded to 50,280. Every name reproduces <b>independently</b>. The scaling-law runs use the GPT-3 shapes of <a href="https://arxiv.org/html/2312.00752v2#A5.T4" target="_blank" rel="noopener noreferrer">Table 12</a>, below, with Mamba at twice the layers.</p>
 <div class="tw" id="t12Tbl"></div>
-</section>
+</div></details></section>
 
-<section id="tb-chk"><h3>Every number in the text, checked</h3>
+<section id="tb-chk"><details class="mist"><summary><b>Every number in the text, checked</b></summary><div class="b">
 <div class="tw" id="chkTbl"></div>
-</section>
+</div></details></section>
 </section>
 <section class="tab" id="t-then" role="tabpanel" hidden>
 <h2>Then and now: from all-Mamba to hybrids</h2>
@@ -584,11 +603,11 @@ const ln2=(x1,y1,x2,y2,c,o)=>{o=o||{};return '<line x1="'+(+x1).toFixed(1)+'" y1
 const G=(op,s)=>op<=0?'':op>=1?s:'<g opacity="'+op.toFixed(3)+'">'+s+'</g>';
 const cl01=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v);
 
-// makeAnim: one input animated step by step, with modes (old method and new) sharing one scale.
+// makeAnim (never autoplays since 2026-10-25: it waits on step 1 until the reader presses play or steps): one input animated step by step, with modes (old method and new) sharing one scale.
 // o = {id, modes:{m:[{t,c}...]}, mode, draw(svgHost, mode, k, e, width), counters(mode,k,e) -> html, dur}
 // Expects #<id>Svg, #<id>Play, #<id>Back, #<id>Fwd, #<id>Scrub, #<id>Spd, #<id>Step, #<id>Cap, #<id>Cnt and a .seg #<id>M.
 function makeAnim(o){const id=o.id,card=$(id);if(!card)return null;const DUR=o.dur||3000,MOVE=.65;
-  const st={m:o.mode,k:0,t:RM?1:0,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',w:0};
+  const st={m:o.mode,k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',w:0};
   const steps=()=>o.modes[st.m];
   function draw(){const host=$(id+'Svg'),w=host.clientWidth;if(!w)return;st.w=w;const e=RM?1:ease(cl01(st.t/MOVE));
     host.innerHTML=o.draw(st.m,st.k,e,w);
@@ -608,8 +627,8 @@ function makeAnim(o){const id=o.id,card=$(id);if(!card)return null;const DUR=o.d
   $(id+'Scrub').addEventListener('input',e=>{pause();const n=steps().length,v=+e.target.value;st.k=Math.min(n-1,Math.floor(v/100));st.t=cl01(v/100-st.k);if(st.k===n-1&&v>=n*100)st.t=1;draw()});
   $(id+'Spd').addEventListener('change',e=>{st.spd=+e.target.value});
   const seg=$(id+'M');if(seg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM)st.play=true;draw();kick()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;if(st.vis&&!st.started&&!RM){st.started=true;st.play=true}kick()},{threshold:.15}).observe(card)}else st.vis=true;
+    st.m=b.dataset.m;st.k=0;st.t=1;pause();draw()}));
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   fit($(id+'Svg'),()=>draw());
   return {draw,st,kick}}
@@ -793,7 +812,7 @@ document.querySelectorAll('.rv').forEach(e=>{const [v,k]=e.dataset.k.split('.');
     counters(m,k){const R=runs['sc_'+m],st=stops(),t=st[k];const ok=k>=7?R.pred.filter((p,i)=>p===inp.y[i]).length:0;
       let dd=0,dn=0,nd=0,nn=0;for(let i=0;i<Math.min(t,48);i++){const d=R.o.steps[i][0].mean;if(inp.x[i]){dd+=d;nd++}else{dn+=d;nn++}}
       return stat('position',fmt(Math.min(t,54))+' of 54')+stat('mean Δ, data / noise',nd&&nn?(dd/nd).toFixed(3)+' / '+(dn/nn).toFixed(3):'not yet')+stat('answers right',k>=7?ok+' of 6':'not yet')+stat('state size','2 × 64 × 16','fixed, any length')}});
-  $('selNew').addEventListener('click',()=>{seed=(seed*7919+13)%100003;make();fillCaps();if(A){A.st.k=0;A.st.t=RM?1:0;A.st.lk=-1;A.draw()}});
+  $('selNew').addEventListener('click',()=>{seed=(seed*7919+13)%100003;make();fillCaps();if(A){A.st.k=0;A.st.t=1;A.st.lk=-1;A.draw()}});
 })();
 
 // ---------- 3. Delta as a gate (Theorem 1) ----------
@@ -1116,20 +1135,28 @@ PRED_REVEAL['pr-n']=()=>fit($('prN'),W=>{const t=TBX.t10,H=170,pl=36,pt=12,pb=30
 })();
 
 </script>
-<script>/* 90_js_tabs.js */
-// ---- Tabs: Reading opens by default; charts in a tab draw when it is shown ----
+<script>/* 99_js_tabs.js */
+// ---- Tabs ---- (the explainer-page template; storage key mb-tab; a data-to link opens the closed block that holds its target)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
-  function show(id){
+  const shown={};
+  function show(id,save){
     btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
     document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
-    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){console.error(e)}});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('mb-tab',id)}catch(e){}}
   }
-  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t)));
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
   bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
-    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t)}});
-  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab);const to=a.dataset.to&&document.getElementById(a.dataset.to);(to||bar).scrollIntoView({block:'start'})}));
-  show('t-read');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);const to=a.dataset.to&&document.getElementById(a.dataset.to);if(to){const d=to.closest('details')||to.querySelector(':scope > details');if(d)d.open=true}(to||bar).scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('mb-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
+  show(start,false);
 })();
 
 </script>

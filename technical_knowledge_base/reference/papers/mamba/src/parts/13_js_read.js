@@ -76,7 +76,7 @@ document.querySelectorAll('.rv').forEach(e=>{const [v,k]=e.dataset.k.split('.');
     counters(m,k){const R=runs['sc_'+m],st=stops(),t=st[k];const ok=k>=7?R.pred.filter((p,i)=>p===inp.y[i]).length:0;
       let dd=0,dn=0,nd=0,nn=0;for(let i=0;i<Math.min(t,48);i++){const d=R.o.steps[i][0].mean;if(inp.x[i]){dd+=d;nd++}else{dn+=d;nn++}}
       return stat('position',fmt(Math.min(t,54))+' of 54')+stat('mean Δ, data / noise',nd&&nn?(dd/nd).toFixed(3)+' / '+(dn/nn).toFixed(3):'not yet')+stat('answers right',k>=7?ok+' of 6':'not yet')+stat('state size','2 × 64 × 16','fixed, any length')}});
-  $('selNew').addEventListener('click',()=>{seed=(seed*7919+13)%100003;make();fillCaps();if(A){A.st.k=0;A.st.t=RM?1:0;A.st.lk=-1;A.draw()}});
+  $('selNew').addEventListener('click',()=>{seed=(seed*7919+13)%100003;make();fillCaps();if(A){A.st.k=0;A.st.t=1;A.st.lk=-1;A.draw()}});
 })();
 
 // ---------- 3. Delta as a gate (Theorem 1) ----------

@@ -20,7 +20,7 @@ BUCKET = [130, 130, 130, 370, 370, 370, 1000, 1000, 1400, 1400, 1400, 1400, 1400
 t3 = []
 for i, r in enumerate(rows):
     t3.append({'model': r[0][0], 'tok': r[1][0], 'bucket': BUCKET[i],
-               'v': [None if c[0] in ('—', '–', '-') else c[0] for c in r[2:]], 'bold': [c[1] for c in r[2:]]})
+               'v': [None if c[0] in ('\u2014', '--', '–', '-') else c[0] for c in r[2:]], 'bold': [c[1] for c in r[2:]]})
 assert len(t3) == 24, len(t3)
 T = {
  '_doc': 'The paper\'s tables, transcribed by mk_tables.py. pdf = the PDF table number; at = the arXiv HTML v2 anchor.',

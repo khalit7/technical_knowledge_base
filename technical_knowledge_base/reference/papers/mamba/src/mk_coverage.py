@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "10 min read, +~5h 40m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "10 min read, +~5h 40m resources"', 'dropped: replaced by the measured reading time in the header (2026-10-25)', ['Reading:', 'in closed details']),
  ('Authors: Albert Gu (CMU) and Tri Dao (Princeton)', R + ', headline card', ['Albert Gu, Tri Dao', 'Carnegie Mellon University (Gu), Princeton University (Dao)']),
  ('Date: December 2023 (arXiv v1; v2 May 2024); COLM 2024', R + ', headline card (exact dates added)', ['December 2023', 'v2 31 May 2024', 'COLM 2024']),
  ('Link arXiv:2312.00752 (~1h)', 'card and Further reading', ['https://arxiv.org/abs/2312.00752', '(1h)']),

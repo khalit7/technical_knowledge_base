@@ -35,3 +35,9 @@ Scores: quantity the reader moves (0 to 2), reproduces a published figure (0 to 
 
 - A rule for **interpreting a toy's internals**: the textbook reading of Δ (large on data, near zero on noise) was not what the trained toy learned. The page now measures it (probe.py: mean Δ by token kind, correlation with position, accuracy with Δ, B or C frozen) before captioning, instead of narrating the paper's intuition over real weights.
 - A rule for **toy extrapolation claims**: at-length accuracy saturates long before extrapolation does; report the curve, not the in-distribution number.
+
+Added in the light pass:
+
+| # | Idea | Placement | Status | Notes |
+|---|---|---|---|---|
+| P-mamba.18 | **Hero: the paper's Figure 1** (selective SSM, selection mechanism, SRAM/HBM), embedded under CC BY 4.0 | Reading, top | built 2026-10-25 | img/fig1_selective_ssm.webp, credited in img/CREDITS.md |
