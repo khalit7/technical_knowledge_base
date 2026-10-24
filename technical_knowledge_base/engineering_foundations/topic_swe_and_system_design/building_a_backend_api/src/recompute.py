@@ -12,9 +12,10 @@ def fmt(x):  # the page's thousands format for whole milliseconds
     return f"{round(x):,}"
 
 
-# section 5, derived: Little's law at the root's busy hour, and N+1 round trips
-RATE, BORROW_S, BORROWS = 1157, 0.001, 2
-hold = {'held_10s': RATE * 10, 'released': round(RATE * BORROW_S * BORROWS, 1)}
+# section 5, derived: Little's law at the root's busy hour (231.5 model calls a second: only the message request calls the model;
+# Capacity planning's correction of 2026-10-24 replaced 1,157 x 10 = 11,570 with 2,315), and N+1 round trips
+RATE, BORROW_S, BORROWS = 231.5, 0.001, 2
+hold = {'held_10s': round(RATE * 10), 'released': round(RATE * BORROW_S * BORROWS, 1)}
 n1 = {str(r): {'many': round(21 * r, 3), 'one': r} for r in [0.056, 0.5, 2, 8]}
 
 # section 6, measured

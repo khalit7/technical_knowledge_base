@@ -291,13 +291,13 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <p>A Postgres connection is a whole operating-system process on the server, and opening one costs a process start plus authentication; <a href="https://app.notion.com/p/3ef5c17b0d0d8149a0c9d3e2083ed0de" target="_blank" rel="noopener noreferrer">Running Postgres in production</a> measures both (section 8). So each service process keeps a <dfn>pool</dfn>: a handful of open connections lent to a request and taken back. Then do the arithmetic nobody does: SQLAlchemy's default pool is 5 connections plus up to 10 overflow, so twenty pods open up to 20 x 15 = 300 connections, a deploy briefly runs old and new pods together (600), and Postgres's <code>max_connections</code> defaults to 100. The usual answer is small per-process pools behind a pooler such as PgBouncer in transaction mode, not a bigger <code>max_connections</code> (sizing with Little's law is on <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>).</p>
 
 <h3>Never hold a connection across the model call</h3>
-<p>An LLM handler reads the chat, waits seconds for the model, then saves the reply. If it borrows one connection at the start and returns it at the end, the connection sits idle through the whole model call, and the pool needs one connection per request in flight. Little's law (in-flight = arrival rate x time held) makes the cost exact. <b>Predict</b>: at the root's busy hour of 1,157 requests a second and a 10 s model call, how many connections does holding need, and how many does borrowing twice for 1 ms each need? Then move the slider.</p>
+<p>An LLM handler reads the chat, waits seconds for the model, then saves the reply. If it borrows one connection at the start and returns it at the end, the connection sits idle through the whole model call, and the pool needs one connection per request in flight. Little's law (in-flight = arrival rate x time held) makes the cost exact. <b>Predict</b>: at the root's busy hour of 231.5 model calls a second (only the message request calls the model) and a 10 s model call, how many connections does holding need, and how many does borrowing twice for 1 ms each need? Then move the slider.</p>
 <div class="card" id="rd-hold-card">
 <b>Before and after: the same request holding one connection, or borrowing twice</b> <span class="ill">derived</span>
 <div class="an-ctl"><label class="small" for="rd-hold-s">Model call duration</label><input type="range" id="rd-hold-s" min="0.5" max="30" step="0.5" value="10"><span class="small" id="rd-hold-v"></span></div>
 <div class="vis" id="rd-hold-svg"></div>
 <div class="an-cnt" id="rd-hold-cnt"></div>
-<p class="small mute">Derived: connections busy = 1,157 requests/s x seconds held. Before holds for the model call (10 s at the default: 11,570, the figure <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a> works, reproduced by construction); after holds two 1 ms borrows (read the history, save the reply): 2.3. The rate is the root's busy-hour figure; the 1 ms per borrow is that page's assumption, not a measurement.</p>
+<p class="small mute">Derived: connections busy = 231.5 model calls/s x seconds held. Before holds for the model call (10 s at the default: 2,315, the root's figure for streams open at once and <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>'s corrected one, "correction (2026-10-24)": its earlier 11,570 counted all five requests per message as model calls); after holds two 1 ms borrows (read the history, save the reply): 0.5. The rate is the root's busy-hour estimate; the 1 ms per borrow is Capacity planning's assumption, not a measurement.</p>
 </div>
 <p>The same rule covers transactions: a transaction left open across the model call holds its locks and its snapshot for seconds. Read what you need, commit or release, call the model, then open a short transaction to save the result.</p>
 
@@ -530,28 +530,28 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 
 <h3>The parent topic</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Topic: swe-and-system-design</a></div><p>The root: one request to an LLM chat product followed from 1 user to 10 million. Step 1 (the front door) and Step 4 (the double charge) lead into this page; its Numbers to know tab holds the round-trip times used in section 5. <span class="rt">About 35 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Topic: swe-and-system-design</a></div><p>The root: one request to an LLM chat product followed from 1 user to 10 million. Step 1 (the front door) and Step 4 (the double charge) lead into this page; its Numbers to know tab holds the round-trip times used in section 5. <span class="rt">About 21 min.</span></p></div>
 </div>
 
 <h3>The contract, the protocol and the credentials (moved from this page)</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81cb88a3f1f63e85f27b" target="_blank" rel="noopener noreferrer">Service APIs</a></div><p>REST done properly, error formats, pagination (the Postgres measurement), idempotency keys, rate limits, webhooks, versioning, OpenAPI, gRPC and GraphQL. <span class="rt">About 46 min.</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d811bb035fa3f158b0889" target="_blank" rel="noopener noreferrer">HTTP</a></div><p>The message, methods and status codes, caching, CORS and cookies, HTTP/1.1 to 3, proxies and timeouts. <span class="rt">About 41 min.</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817692dcc8ebd59b5c2b" target="_blank" rel="noopener noreferrer">Auth</a></div><p>API keys, sessions against tokens, OAuth 2.1 with PKCE, OIDC, JWT verification, mTLS. <span class="rt">About 40 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817692dcc8ebd59b5c2b" target="_blank" rel="noopener noreferrer">Auth</a></div><p>API keys, sessions against tokens, OAuth 2.1 with PKCE, OIDC, JWT verification, mTLS. <span class="rt">About 39 min.</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d812daa9fdb38719fc82b" target="_blank" rel="noopener noreferrer">Streaming and real-time</a></div><p>SSE byte by byte, LLM token streams, cutting and resuming streams, WebSockets, webhooks from the receiver's side. <span class="rt">About 35 min.</span></p></div>
 </div>
 
 <h3>Sibling pages and neighbours</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a></div><p>Little's law, pool sizing, the GIL and threads against processes measured, load testing. <span class="rt">About 55 min.</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a></div><p>Timeouts, retries with backoff and jitter, circuit breakers, health probes, SLOs. <span class="rt">About 46 min.</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a></div><p>202 Accepted and job resources, at-least-once delivery, deduplication, the outbox pattern. <span class="rt">About 51 min.</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability</a></div><p>Request IDs, logs, metrics and traces for a service like this one. <span class="rt">About 45 min.</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d817b99a0ff9701ff30cd" target="_blank" rel="noopener noreferrer">Code design</a></div><p>The demo's message handler refactored step by step, including the stuck-key fix. <span class="rt">About 49 min.</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81548848e2ebdd2f63ee" target="_blank" rel="noopener noreferrer">Testing and quality</a></div><p>Testing endpoints and contracts in CI. <span class="rt">About 53 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a></div><p>Little's law, pool sizing, the GIL and threads against processes measured, load testing. <span class="rt">About 38 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a></div><p>Timeouts, retries with backoff and jitter, circuit breakers, health probes, SLOs. <span class="rt">About 33 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a></div><p>202 Accepted and job resources, at-least-once delivery, deduplication, the outbox pattern. <span class="rt">About 33 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability</a></div><p>Request IDs, logs, metrics and traces for a service like this one. <span class="rt">About 35 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d817b99a0ff9701ff30cd" target="_blank" rel="noopener noreferrer">Code design</a></div><p>The demo's message handler refactored step by step, including the stuck-key fix. <span class="rt">About 37 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81548848e2ebdd2f63ee" target="_blank" rel="noopener noreferrer">Testing and quality</a></div><p>Testing endpoints and contracts in CI. <span class="rt">About 40 min.</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d817f9e15f445b079e9c8" target="_blank" rel="noopener noreferrer">Query planning and performance</a></div><p>The N+1 measurement of section 5, EXPLAIN, indexes and batching. <span class="rt">About 44 min.</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d8149a0c9d3e2083ed0de" target="_blank" rel="noopener noreferrer">Running Postgres in production</a></div><p>What a connection costs, max_connections, PgBouncer, backups and failover. <span class="rt">About 54 min.</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d8155aa64ddeb09da144e" target="_blank" rel="noopener noreferrer">Transactions and concurrency</a></div><p>ACID, MVCC, isolation anomalies and locks behind the handler's transaction. <span class="rt">About 47 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d8155aa64ddeb09da144e" target="_blank" rel="noopener noreferrer">Transactions and concurrency</a></div><p>ACID, MVCC, isolation anomalies and locks behind the handler's transaction. <span class="rt">About 40 min.</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3cd5c17b0d0d81b28acdea39e7a4d998" target="_blank" rel="noopener noreferrer">Python</a></div><p>asyncio from the event loop up, threads and the GIL, the 2026 toolchain. <span class="rt">Several parts; start with "Start here".</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a></div><p>The LLM gateway, routing and caching in front of APIs like this one.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a></div><p>What happens behind <code>POST /messages</code> when a model answers.</p></div>
@@ -798,7 +798,7 @@ SVCF.auto('rd-hero-svg',[]);
 </script>
 <script>/* 43_js_data_layer.js */
 // ---- Reading, section 5: holding a connection across the model call (Little's law) and N+1 round trips. Derived; checked by recompute.py ----
-window.DL={RATE:1157,BORROW_S:0.001,BORROWS:2,MAXCONN:100,RTT:[[0.056,'local, measured'],[0.5,'same data centre'],[2,'zone to zone'],[8,'nearby regions']],N:20};
+window.DL={RATE:231.5,BORROW_S:0.001,BORROWS:2,MAXCONN:100,RTT:[[0.056,'local, measured'],[0.5,'same data centre'],[2,'zone to zone'],[8,'nearby regions']],N:20};
 DL.held=s=>DL.RATE*s;DL.released=()=>DL.RATE*DL.BORROW_S*DL.BORROWS;
 DL.n1=rtt=>({many:(DL.N+1)*rtt,one:rtt});
 (function(){
@@ -820,7 +820,7 @@ DL.n1=rtt=>({many:(DL.N+1)*rtt,one:rtt});
     b+=row(lab?6:20,'Before: hold',"held");b+=row(lab?62:96,'After: borrow twice','rel');
     const H=lab?108:144;el.innerHTML=RD.svg(W,H,b,'Timeline of one request: before, the connection is held through the model call; after, it is borrowed twice briefly');
     const h=DL.held(s),r=DL.released();
-    cnt.innerHTML=RD.stat('Before: connections busy',f0(h),'1,157/s x '+s+' s')+RD.stat('After: connections busy',f0(r),'1,157/s x 2 ms')+RD.stat('Ratio',Math.round(h/r).toLocaleString('en-US')+'x','')+RD.stat('Postgres max_connections','100','the default')}
+    cnt.innerHTML=RD.stat('Before: connections busy',f0(h),'231.5/s x '+s+' s')+RD.stat('After: connections busy',f0(r),'231.5/s x 2 ms')+RD.stat('Ratio',Math.round(h/r).toLocaleString('en-US')+'x','')+RD.stat('Postgres max_connections','100','the default')}
   sl.addEventListener('input',draw);draw();RD.onRender(draw);RD.onResize(draw);
 })();
 (function(){

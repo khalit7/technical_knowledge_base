@@ -1,5 +1,5 @@
 // ---- Reading, section 5: holding a connection across the model call (Little's law) and N+1 round trips. Derived; checked by recompute.py ----
-window.DL={RATE:1157,BORROW_S:0.001,BORROWS:2,MAXCONN:100,RTT:[[0.056,'local, measured'],[0.5,'same data centre'],[2,'zone to zone'],[8,'nearby regions']],N:20};
+window.DL={RATE:231.5,BORROW_S:0.001,BORROWS:2,MAXCONN:100,RTT:[[0.056,'local, measured'],[0.5,'same data centre'],[2,'zone to zone'],[8,'nearby regions']],N:20};
 DL.held=s=>DL.RATE*s;DL.released=()=>DL.RATE*DL.BORROW_S*DL.BORROWS;
 DL.n1=rtt=>({many:(DL.N+1)*rtt,one:rtt});
 (function(){
@@ -21,7 +21,7 @@ DL.n1=rtt=>({many:(DL.N+1)*rtt,one:rtt});
     b+=row(lab?6:20,'Before: hold',"held");b+=row(lab?62:96,'After: borrow twice','rel');
     const H=lab?108:144;el.innerHTML=RD.svg(W,H,b,'Timeline of one request: before, the connection is held through the model call; after, it is borrowed twice briefly');
     const h=DL.held(s),r=DL.released();
-    cnt.innerHTML=RD.stat('Before: connections busy',f0(h),'1,157/s x '+s+' s')+RD.stat('After: connections busy',f0(r),'1,157/s x 2 ms')+RD.stat('Ratio',Math.round(h/r).toLocaleString('en-US')+'x','')+RD.stat('Postgres max_connections','100','the default')}
+    cnt.innerHTML=RD.stat('Before: connections busy',f0(h),'231.5/s x '+s+' s')+RD.stat('After: connections busy',f0(r),'231.5/s x 2 ms')+RD.stat('Ratio',Math.round(h/r).toLocaleString('en-US')+'x','')+RD.stat('Postgres max_connections','100','the default')}
   sl.addEventListener('input',draw);draw();RD.onRender(draw);RD.onResize(draw);
 })();
 (function(){
