@@ -1,4 +1,4 @@
-// ---- Lineage tab: every release on one axis, by lane, with the bet it made ----
+// ---- Lineage (Reading, How the design got here): every release on one axis, by lane, with the bet it made; cards in a closed details block ----
 (function(){
   const LANES=[['b','GPT base and omni'],['o','Reasoning (o-series)'],['u','GPT-5.x and GPT-6'],['w','Open weights'],['p','Products and harness'],['x','Prices and safety']];
   const E=[
@@ -23,12 +23,12 @@
     ['2026-04-23','u','GPT-5.5','From here the mainline models ship directly in Codex.','not disclosed','{{timeline|@hk}}'],
     ['2026-07-09','u','GPT-5.6 Sol, Terra, Luna','Three named tiers, 1.05M window; $5/$30, $2.50/$15, $1/$6.','not disclosed','{{Simon Willison|@will}}'],
     ['2026-07-30','x','5.6 price cut','Luna −80% to $0.20/$1.20, Terra −20% to $2/$12, Sol unchanged.','','{{Eden AI|@eden}}'],
-    ['2026-09-03','u','GPT-6 Astra','Flagship, $10/$50; Critical cyber grade; reported recurrent depth; pretrained on more than 100,000 GPUs at Stargate, Texas. OpenAI\'s launch table (as copied by {{CellCog|@cellcog}}; OpenAI\'s own runs and settings): Agents\' Last Exam 59.3% (GPT-5.6 Sol 53.6%, Claude Opus 5 55.5%); OSWorld 2.0 offline set 72.6% (Sol 65.7%; about 40 minutes a task, roughly 47% less time than Sol); ScreenSpot-Pro without tools 92.7% (76.9%); Terminal-Bench 4.0 57.9% (37.3%; Claude Fable 5.1 55.8%); Terminal-Bench-Science 0.1 64.6% (Fable 5.1 52.6%); AutomationBench 41.4% (18.1%; Fable 5.1 31.4%); BenchCAD with tools 95.9% (83.3%; Fable 5.1 84.3%); GPQA Diamond 96.0% (94.6%); ExploitBench without safeguards 100% (78.5%). A 98% on FrontierMath Tier 4 quoted at launch could not be traced to a primary source (unconfirmed).','not disclosed','{{model docs|@astra}}, {{Wikipedia|@wiki}}'],
+    ['2026-09-03','u','GPT-6 Astra','Flagship, $10/$50; Critical cyber grade; reported recurrent depth; pretrained on more than 100,000 GPUs at Stargate, Texas. The full launch table is in the 2026 release notes below.','not disclosed','{{model docs|@astra}}, {{Wikipedia|@wiki}}'],
     ['2026-09-03','p','ARC-AGI-3: 62.7% or 99.9%','Same weights, standard harness against Provider Adapter.','','{{ARC Prize|@arc}}'],
     ['2026-09-10','p','GPT-Live-1, Agents API','Full-duplex voice at $0.05 a minute; the Codex harness as a managed service.','','{{forum|@live}}'],
     ['2026-09-10','x','Pro $200 sign-ups paused','No reason given.','','{{CellCog|@cellcog}}'],
-    ['2026-09-17','p','Astra for Law','Astra plus a 230M-URL legal index with case law from the Free Law Project\'s CourtListener (the claim that it covers more than 99.9% of published US precedential case law is not in the source read: unconfirmed): 54% against 38.7% on Legal Research Bench. Available to selected firms through Trusted Access in ChatGPT and Codex; zero data retention on the API; Latham &amp; Watkins is working with OpenAI on governance for information permissions and ethical walls.','','{{SiliconANGLE|@law}}'],
-    ['2026-09-22','u','GPT-6 Sol, GPT-6 Luna','Half the GPT-5.6 prices: $2/$10 and $0.10/$0.50. OpenAI\'s figures for Sol: 68.8% on DeepSWE v1.1 at max effort; 33.2% on AutomationBench 1.0.6 at xhigh for $0.27 a task (Claude Opus 5 26.9% at max, 11.1 times the cost per task); 60.5% on OSWorld 2.0 at xhigh; 56.4% on Agents\' Last Exam; about half as many mistakes as GPT-5.6 Sol on an internal factuality evaluation. Luna: 66.6% on DeepSWE v1.1, at a task cost 93% below the compared Opus 5 configuration and 96% below Fable 5.','not disclosed','{{VentureBeat|@vb6}}'],
+    ['2026-09-17','p','Astra for Law','Astra plus a 230M-URL legal index with case law from the Free Law Project\'s CourtListener: 54% against 38.7% on Legal Research Bench; selected firms through Trusted Access.','','{{SiliconANGLE|@law}}'],
+    ['2026-09-22','u','GPT-6 Sol, GPT-6 Luna','Half the GPT-5.6 prices: $2/$10 and $0.10/$0.50; OpenAI\'s benchmark figures are in the 2026 release notes below.','not disclosed','{{VentureBeat|@vb6}}'],
     ['2026-09-26','x','Training and tool use paused','After an agent escaped through DNS and another leaked a GitHub token.','','{{The Decoder|@decoder}}'],
     ['2026-09-28','x','GPT-6.1 Astra withheld; AISI report','Scope and honesty regressions; Astra ran more unsanctioned attacks than GPT-5.6 Sol in simulation.','','{{The Hacker News|@thn}}'],
     ['2026-09-29','u','GPT-6.1 Sol','Near Astra on DeepSWE and OSWorld at a fifth of the price, at $2/$10 with cached input $0.10; Ultrafast launched for Astra.','not disclosed','{{VentureBeat|@vb61}}'],
@@ -59,8 +59,8 @@
     pos.forEach(({e,xx,r,end})=>{const L=ly[e.k],yy=L.y0+8,ty=yy+14+r*15;
       s+='<g class="lnd" data-id="'+e.id+'" style="cursor:pointer"><circle cx="'+xx+'" cy="'+yy+'" r="5" fill="'+C[e.k]+'"/>'+(r?'<line x1="'+xx+'" x2="'+xx+'" y1="'+yy+'" y2="'+(ty-9)+'" stroke="'+C[e.k]+'" stroke-opacity=".4"/>':'')+'<text x="'+(xx+(end?-3:3))+'" y="'+ty+'" font-size="10.5"'+(end?' text-anchor="end"':'')+'>'+sn(e)+'</text><title>'+dl(e)+': '+e.n+'</title></g>'});
     $('lnSvg').innerHTML=svgEl(W,H,s,'OpenAI releases and events on one time axis, by lane');
-    $('lnSvg').querySelectorAll('.lnd').forEach(g=>g.addEventListener('click',()=>{const c=$(g.dataset.id);document.querySelectorAll('.tl-item').forEach(q=>q.classList.toggle('sel',q===c));c.scrollIntoView({block:'center',behavior:'smooth'})}));
+    $('lnSvg').querySelectorAll('.lnd').forEach(g=>g.addEventListener('click',()=>{const c=$(g.dataset.id);document.querySelectorAll('.tl-item').forEach(q=>q.classList.toggle('sel',q===c));const det=$('lnDet');if(det)det.open=true;c.scrollIntoView({block:'center'})}));
     $('lnCards').innerHTML=ev.map(e=>'<div class="tl-item" style="border-left:4px solid '+C[e.k]+'" id="'+e.id+'"><h3>'+e.n+'</h3><div class="dt">'+dl(e)+' · '+LANES.find(l=>l[0]===e.k)[1]+(e.sz?' · size: '+e.sz:'')+' · '+e.src+'</div><p style="margin:4px 0 0;font-size:14px">'+e.t+'</p></div>').join('');
   }
-  segBind('lnR',m=>{range=m;draw()});onTab('t-line',draw);
+  segBind('lnR',m=>{range=m;draw()});onTab('t-read',draw);
 })();

@@ -1,15 +1,4 @@
-// ---- gpt-oss in Reading: attention sinks, and one token through an MoE block against a dense one ----
-(function(){ // attention sinks
-  const Z={flat:[-1.0,-0.6,-1.2,-0.8,-0.9],one:[3.0,-0.6,-1.2,-0.8,-0.9]},names=['the','cat','sat','on','mat'];let p='flat',v=20;
-  function draw(){
-    const off=v<0,b=(v-20)/4,z=Z[p],ez=z.map(Math.exp),sink=off?0:Math.exp(b),den=sink+ez.reduce((a,c)=>a+c,0);
-    $('skBv').textContent=off?'off (no sink)':b.toFixed(2);
-    const rows=[['no token (sink)',sink/den,'var(--dim)']].concat(z.map((s,i)=>['"'+names[i]+'", score '+s.toFixed(1),ez[i]/den,'var(--acc)']));
-    $('skBars').innerHTML=rows.map(([n,a,c])=>'<div class="row"><span class="nm">'+n+'</span><span class="track"><span class="fill" style="width:'+(100*a)+'%;background:'+c+'"></span></span><span class="val">'+(100*a).toFixed(1)+'%</span></div>').join('')+
-      '<p class="small" style="margin:6px 0 0">Weight spread over real tokens: <b>'+(100*(1-sink/den)).toFixed(1)+'%</b>'+(off?'. Without a sink it is always 100%, whatever the scores.':'.')+'</p>';
-  }
-  $('skB').addEventListener('input',e=>{v=+e.target.value;draw()});segBind('skP',m=>{p=m;draw()});onTab('t-read',draw);
-})();
+// ---- gpt-oss in Reading: one token through an MoE block against a dense one (the sink widget lives on Attention variants) ----
 (function(){ // MoE token animation, gpt-oss-120b against a dense block of the same size
   const EXP=2880*5760+5760+2880*2880+2880,K=4,NE=128,LAY=36,MOEB=K*EXP*4.25/8,DENB=NE*EXP*2;
   const rnd=mulberry32(11),SC=Array.from({length:NE},()=>{let u=0;for(let i=0;i<4;i++)u+=rnd();return (u-2)*1.6});

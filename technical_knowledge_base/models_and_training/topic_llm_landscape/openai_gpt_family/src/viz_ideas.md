@@ -1,3 +1,24 @@
+# 2026-10-24 rebuild to the teaching contract: visuals built, moved, removed
+
+| Visual | Kind (contract) | Decision |
+|---|---|---|
+| Hero: six bets, who pays (OpenAI in training against the caller per request), what OpenAI disclosed, gpt-oss as the one window | static annotated diagram (structure) | **built**, top of Reading; two layouts (columns at 760 px and wider, rows below), drawn at the measured width |
+| Deliberative alignment before/after (same request through a reflex refusal and through reasoning over the written spec) | before/after, static | **built** in Training; example request labelled illustrative |
+| Harmony format, real prompt and reply (model card Figures 17 and 18, CC BY 4.0) | real image (a real log) | **added** beside the gpt-oss choices; shows effort as a system-prompt line and the analysis channel |
+| Lineage timeline | one axis for the subject | **moved** from its tab into Reading ("How the design got here"); dated cards in a closed block, opened by a dot click |
+| Request cost calculator and 272K step | parameter, calculator | kept inline; the predict prompt no longer gives the answer away |
+| Prompt caching break-even | parameter | kept inline (reproduces OpenAI's 1.35× and 2.15× independently) |
+| Harness animation (standard against Provider Adapter) | before/after, stepped | kept inline; **autoplay removed** (the page's own controller now waits on step 1 and a mode switch pauses) |
+| ARC-AGI-3 score against cost | data chart | kept inline; drawn at 640 px in a scroll box so labels stay at their size on a phone |
+| MoE token animation (gpt-oss-120b against a same-size dense block) | before/after, stepped | kept inline (OpenAI's choice: MoE plus MXFP4, about 120 times fewer bytes); autoplay removed; the routing mechanism links Mixture of experts |
+| Attention-sink slider | parameter | **removed**: Attention variants owns sinks and draws "one head, before and after its learned sink" |
+| Index against cost scatter (Cost per task tab) | cross-lab chart | **removed**: the landscape root owns it (Capability vs price tab) |
+| Per token against per task table, one task taken apart | calculator | **moved** from the Cost per task tab into a closed block under "Price per token is not cost per task"; the tab is gone |
+| Four index rulers | small multiples | kept, inside the closed "Reading the Artificial Analysis numbers" block (volatile) |
+| gpt-oss on one GPU tab (parameter table, memory budget, KV curve, MXFP4 block) | calculator used across the gpt-oss section | **kept as a tab**; links Long context (KV sizing) and Quantization and Precision (MXFP4), which links here for the gpt-oss block |
+| Considered: a deployment-access ladder for the Preparedness rules | structure | rejected: two sentences say it completely |
+| Considered: gpt-oss Figure 3 (accuracy against CoT length at three efforts) | real figure | not available as an image in the arXiv HTML (drawn in the paper's source); not read by eye |
+
 # OpenAI: GPT family, visualisation ideas (v3)
 
 Page: https://app.notion.com/p/3c65c17b0d0d814abf90d5b9e567d72f (child of Topic: llm-landscape). Read 1 October 2026. Every default below is recomputed in `recompute.py` (run it from this folder).
