@@ -1,14 +1,14 @@
-// ---- Iceberg, step by step tab: real files written by pyiceberg and deltalake (D.ice, D.delta) ----
+// ---- Reading section 9 (moved from the Iceberg, step by step tab, 2026-10-24): real files written by pyiceberg and deltalake (D.ice, D.delta) ----
 (function(){
   const $=id=>document.getElementById(id),I=D.ice,DL=D.delta;
-  const st={fmt:'ice',k:I.steps.length-1,sel:null};
+  const st={fmt:'ice',k:0,sel:null};
   const base=p=>p.split('/').pop();
   const short=(p,n)=>{p=base(p);return p.length>n?p.slice(0,8)+'…'+p.slice(-(n-9)):p};
   function steps(){const S=st.fmt==='ice'?I.steps:DL.steps;
     if(st.k>=S.length)st.k=S.length-1;
     $('iceSteps').innerHTML=S.map((s,i)=>'<button data-i="'+i+'"'+(i===st.k?' class="on"':'')+'>'+(i+1)+'. '+RD.esc(s.step)+'</button>').join('');}
   $('iceSteps').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.k=+b.dataset.i;st.sel=null;draw()});
-  RD.seg($('iceFmt'),v=>{st.fmt=v;st.k=(v==='ice'?I.steps:DL.steps).length-1;st.sel=null;draw()});
+  RD.seg($('iceFmt'),v=>{st.fmt=v;st.k=0;st.sel=null;draw()});
   function iceState(){
     const files=[];I.steps.slice(0,st.k+1).forEach((s,i)=>s.files.forEach(f=>files.push(Object.assign({step:i},f))));
     const mjs=files.filter(f=>f.kind==='metadata.json'),cur=mjs[mjs.length-1];
@@ -37,7 +37,7 @@
       b+=RD.t(x,y+12,ln[0]+' ('+fs.length+')',{fs:11.5,w:600});y+=18;
       fs.forEach(f=>{const isNew=f.step===st.k,isLive=state.live.has(f.path),on=st.sel===f.path;
         b+='<g data-p="'+RD.esc(f.path)+'" style="cursor:pointer"><rect x="'+(x+1)+'" y="'+y+'" width="'+(laneW-2)+'" height="'+bh+'" rx="4" fill="'+(on?'var(--acc2)':'var(--bg)')+'" stroke="'+(isNew?'var(--c2)':'var(--line)')+'" stroke-width="'+(isNew?2.5:1)+'" opacity="'+(isLive?1:0.4)+'"/>'+
-          RD.t(x+6,y+14,RD.esc(short(f.path,Math.max(14,Math.floor(laneW/6.6)))),{fs:10.5})+RD.t(x+6,y+28,FMT.mb(f.bytes)+(isLive?'':' (not in current snapshot)')+(isNew?' new':''),{fs:9.5,fill:'var(--mute)'})+'</g>';
+          RD.t(x+6,y+14,RD.esc(short(f.path,Math.max(14,Math.floor(laneW/6.6)))),{fs:11})+RD.t(x+6,y+28,FMT.mb(f.bytes)+(isLive?'':' (not in current snapshot)')+(isNew?' new':''),{fs:11,fill:'var(--mute)'})+'</g>';
         y+=bh+gap});
       maxY=Math.max(maxY,y);if(narrow)y0=y+8;});
     el.innerHTML=RD.svg(W,Math.max(60,narrow?y0:maxY),b,'Files of the table');
@@ -62,7 +62,6 @@
     if(st.fmt==='ice')return '<p class="small"><b>Time travel, run:</b> reading snapshot '+I.tt.snapshot_id+' (step 2) returned '+I.tt.rows.toLocaleString()+' rows and columns '+I.tt.columns.join(', ')+'; the current snapshot has '+I.tt.now_rows.toLocaleString()+' rows and adds <code>lang</code>. A scan filtered on 2026-03-02 planned '+I.plan.length+' data file: '+RD.esc(base(I.plan[0]))+'.</p>';
     return '<p class="small"><b>Time travel, run:</b> reading version 0 returned '+DL.tt.rows.toLocaleString()+' rows and columns '+DL.tt.columns.join(', ')+'.</p>';
   }
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-ice']=window.TAB_RENDER['t-ice']||[]).push(draw);
-  addEventListener('resize',()=>{const t=$('t-ice');if(t&&!t.hidden)draw()});
+  RD.onRender(draw);RD.onResize(draw);
   draw();
 })();

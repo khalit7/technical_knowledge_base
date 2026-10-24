@@ -23,9 +23,9 @@
     const x0=0,x1=Math.max(...xs)*1.05,ly0=Math.log10(Math.min(...ys)/1.5),ly1=Math.log10(Math.max(...ys)*1.5);
     const X=v=>m.l+(v-x0)/(x1-x0)*(W-m.l-m.r),Y=v=>H-m.b-(Math.log10(v)-ly0)/(ly1-ly0)*(H-m.t-m.b);
     let b='';
-    for(let e=Math.floor(ly0);e<=Math.ceil(ly1);e++)for(const mm of [1,2,5]){const v=mm*Math.pow(10,e),lv=Math.log10(v);if(lv<ly0||lv>ly1)continue;const y=Y(v);b+='<line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/>'+RD.t(m.l-4,y+4,mb(v),{a:'end',fs:10,fill:'var(--mute)'})}
-    [0,250e6,500e6,750e6,1000e6].forEach(v=>{if(v>x1)return;const x=X(v);b+='<line x1="'+x+'" x2="'+x+'" y1="'+m.t+'" y2="'+(H-m.b)+'" stroke="var(--line)"/>'+RD.t(x,H-m.b+14,v?(v/1e6)+' MB':'0',{a:'middle',fs:10,fill:'var(--mute)'})});
-    b+=RD.t((W+m.l)/2,H-4,'file size',{a:'middle',fs:10.5,fill:'var(--mute)'});
+    for(let e=Math.floor(ly0);e<=Math.ceil(ly1);e++)for(const mm of [1,2,5]){const v=mm*Math.pow(10,e),lv=Math.log10(v);if(lv<ly0||lv>ly1)continue;const y=Y(v);b+='<line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/>'+RD.t(m.l-4,y+4,mb(v),{a:'end',fs:11,fill:'var(--mute)'})}
+    [0,250e6,500e6,750e6,1000e6].forEach(v=>{if(v>x1)return;const x=X(v);b+='<line x1="'+x+'" x2="'+x+'" y1="'+m.t+'" y2="'+(H-m.b)+'" stroke="var(--line)"/>'+RD.t(x,H-m.b+14,v?(v/1e6)+' MB':'0',{a:'middle',fs:11,fill:'var(--mute)'})});
+    b+=RD.t((W+m.l)/2,H-4,'file size',{a:'middle',fs:11,fill:'var(--mute)'});
     const cur=find();
     L.files.forEach(f=>{const x=X(f.bytes),y=Y(f.q[st.q].read_bytes),r=f.rg===10000?3:f.rg===100000?4.5:6;
       b+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+r+'" fill="'+SC[f.sort]+'" fill-opacity="0.75"><title>'+f.sort+', '+f.rg+' rows, '+f.comp+': '+mb(f.bytes)+' file, '+mb(f.q[st.q].read_bytes)+' read</title></circle>'});

@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Analytics and the lakehouse</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Analytics: columnar engines, DuckDB and the lakehouse</title>
 <style>
 :root{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--soft:#f7f6f3;--acc:#2f6fb5;--acc2:#dbe7f5;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8}
 @media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--soft:#222;--acc:#6ea8e6;--acc2:#233a52;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;color-scheme:dark}}
@@ -103,19 +103,68 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Analytics: columnar engines, DuckDB and the lakehouse</h1>
-<div class="sub">How the chat product answers "how many tokens did each model produce this month?" without hurting the app: column stores from the bytes up, the Parquet file, DuckDB, ClickHouse, the cloud warehouses and the lakehouse table formats, taught from zero and measured on the same 10 million messages as the parent page. A child page of <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a>. Sources are linked inline; data and prices as of October 2026.</div>
+<div class="sub">How the chat product answers "how many tokens did each model produce this month?" without hurting the app: column storage from the bytes up, the Parquet file, DuckDB, ClickHouse, cloud warehouses and the lakehouse table formats, measured on the same 10 million messages as the parent page. A child page of <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a>. Data and prices as of October 2026. <span id="rd-time">Reading: 43 min, plus 8 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-lab" aria-selected="false">Parquet lab</button><button role="tab" data-t="t-bytes" aria-selected="false">Inside a Parquet file</button><button role="tab" data-t="t-ice" aria-selected="false">Iceberg, step by step</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-lab" aria-selected="false">Parquet lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 
 <div class="tab" id="t-read" role="tabpanel">
+<style>
+#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
+#t-read .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px}
+#t-read .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-read .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-read .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-read .rd-svg{width:100%;overflow:hidden;margin:6px 0}
+#t-read .meas{font-size:11.5px;color:var(--good);font-weight:600}
+#t-read .der{font-size:11.5px;color:var(--c5);font-weight:600}
+#t-read .vend{font-size:11.5px;color:var(--c4);font-weight:600}
+#t-read .hl{color:var(--c2);font-weight:600}
+#t-read .core{font-size:16px;line-height:1.55}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4,#t-read .card h4.vt{margin:0 0 4px;font-size:14.5px}
+#t-read .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-read dl.terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read dl.terms dt{font-weight:600}#t-read dl.terms dd{margin:0}
+@media (max-width:520px){#t-read dl.terms{grid-template-columns:minmax(0,1fr)}#t-read dl.terms dd{margin:0 0 4px 10px}}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px;font-size:14px}
+#t-read figure{margin:12px 0;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+#t-read figure img{display:block;width:100%;height:auto;background:#fff;border-radius:6px}
+#t-read figcaption{font-size:13px;margin-top:6px}#t-read figcaption .cr{display:block;color:var(--mute);font-size:12px}
+#t-read .tw table{min-width:520px}#t-read .tw table.nar{min-width:0}
+#t-read td{overflow-wrap:anywhere}
+</style>
 <nav class="nav" id="rd-nav" aria-label="Sections">
-<a href="#s-one">In one screen</a><a href="#s-olap">1. Two kinds of work</a><a href="#s-col">2. Column chunks</a><a href="#s-skip">3. Skipping</a><a href="#s-exec">4. Executing</a><a href="#s-pq">5. Parquet</a><a href="#s-duck">6. DuckDB</a><a href="#s-ch">7. ClickHouse</a><a href="#s-wh">8. Warehouses</a><a href="#s-lake">9. Lakehouse</a><a href="#s-elt">10. Pipelines</a><a href="#s-ml">11. ML</a><a href="#s-pro">12. Pros and mistakes</a>
+<a href="#s-one">The idea</a><a href="#s-olap">1. OLTP and OLAP</a><a href="#s-col">2. Columns</a><a href="#s-skip">3. Skipping</a><a href="#s-exec">4. Executing</a><a href="#s-pq">5. Parquet</a><a href="#s-duck">6. DuckDB</a><a href="#s-ch">7. ClickHouse</a><a href="#s-wh">8. Warehouses</a><a href="#s-lake">9. Lakehouse</a><a href="#s-elt">10. Pipelines</a><a href="#s-ml">11. ML</a><a href="#s-pro">12. Dated facts</a>
 </nav>
-<p class="small mute">Reading time about 42 minutes (9,684 words). Each numbered section can be read on its own; terms are defined where they first appear and again in the glossary at the end.</p>
 <section id="s-one">
-<h2>In one screen</h2>
-<p class="lead">The chat product's Postgres is built for the app: fetch one chat, save one message, in milliseconds. Analytics asks the opposite kind of question ("tokens per model this month") that touches a few columns of every row. This page is about the systems built for that second kind of question, all measured on the same 10 million messages as the parent page.</p>
+<h2>The idea in one screen</h2>
+<p class="core"><b>An analytic query is cheap when it touches few bytes and spends little CPU per value: store each column apart, encode it small, keep the <span class="hl">min and max of every block</span> so blocks that cannot match are skipped, and process values in batches.</b> Parquet, DuckDB, ClickHouse, the cloud warehouses and the lakehouse formats are different ways of arranging data so those four tricks apply, and the order the rows were written in decides how well they work.</p>
+<div class="hero" id="heroCard"><h4>One day out of 10 million messages: the reader touches 1.2 MB of a 534 MB file</h4>
+<div class="rd-svg" id="heroSvg"></div>
+<div class="leg"><span style="--sw:var(--dim)">columns the query does not name: never read</span><span style="--sw:var(--acc2)">created_at and tokens in row groups ruled out by min/max: skipped</span><span style="--sw:var(--c2)">the 2 chunks actually read</span></div>
+<p class="small mute">The real Parquet file of the parent page's 10 million chat messages, written by DuckDB 1.5.6: 82 row groups (columns of the drawing, 122,880 rows each), each holding one column chunk per column (bands, heights to scale from row group 0's footer: <code>content</code> is 4.79 of its 6.53 MB). Area is bytes. For <code>SELECT count(*), sum(tokens) WHERE created_at</code> on 2026-03-01, the reader first reads the 76,648-byte footer at the end of the file (the orange line, drawn wider than its bytes so it can be seen), compares each row group's min and max of <code>created_at</code> with the day, and reads two chunks of the one row group that can match: 1,197,073 bytes <span class="meas">measured</span>, 446 times less than the file <span class="der">derived</span>. Reading the two columns in every row group would be 76 MB; reading rows would be all 534 MB.</p></div>
+<p><b>You need:</b> the root <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a>, Reading sections 1 to 5 (tables, SQL, why a disk read is slow, rows against columns in one picture). Pages, B-trees and LSM-trees are on <a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a>; the SQL used here (joins, GROUP BY, window functions) is <a href="https://app.notion.com/p/3ef5c17b0d0d813980dcd474e19f6c3f" target="_blank" rel="noopener noreferrer">SQL and data modelling</a>; EXPLAIN on the row-store side is <a href="https://app.notion.com/p/3ef5c17b0d0d817f9e15f445b079e9c8" target="_blank" rel="noopener noreferrer">Query planning and performance</a>.</p>
+<dl class="terms">
+<dt>OLTP / OLAP</dt><dd>many small reads and writes of whole rows (the app) / few large reads of a few columns of many rows (analytics).</dd>
+<dt>Row group, column chunk, page</dt><dd>a block of rows; one column's values inside it, stored contiguously; the unit inside a chunk that is encoded and compressed.</dd>
+<dt>Encoding / codec</dt><dd>type-aware compact representation (dictionary, run-length, delta) / generic byte compression (Snappy, zstd).</dd>
+<dt>Zone map</dt><dd>min/max statistics: the smallest and largest value per block, used to skip blocks that cannot match.</dd>
+<dt>Vectorised execution</dt><dd>operators process batches (vectors) of a few thousand values per call instead of one row per call.</dd>
+<dt>Late materialisation</dt><dd>evaluate filters on a few columns first; fetch the other columns only for rows that survive.</dd>
+<dt>Part, merge, granule</dt><dd>(ClickHouse) an immutable sorted chunk written per insert / the background job that combines parts / a block of 8,192 rows that the sparse index points to.</dd>
+<dt>Table format</dt><dd>metadata files (Iceberg, Delta, Hudi) that turn data files into a table with atomic commits, snapshots and schema history.</dd>
+<dt>Snapshot, time travel</dt><dd>the table's full state after one commit / reading an older snapshot.</dd>
+<dt>Catalog</dt><dd>the service that holds each table's current metadata pointer and swaps it atomically.</dd>
+<dt>Compaction</dt><dd>rewriting many small files into fewer large ones.</dd>
+<dt>ETL / ELT / CDC</dt><dd>transform before loading / load raw then transform in place / streaming every row change from the database's log.</dd>
+<dt>Point-in-time join</dt><dd>joining each example to feature values as of its own timestamp (an ASOF join).</dd>
+</dl>
 <div class="tw"><table>
 <thead><tr><th>Idea</th><th>What it buys, measured here</th><th>Section</th></tr></thead>
 <tbody>
@@ -130,63 +179,55 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>Lakehouse table formats (Iceberg, Delta, Hudi)</td><td>Atomic commits, schema changes and time travel on Parquet files</td><td>9</td></tr>
 <tr><td>Pipelines and ML: ELT, dbt, point-in-time joins</td><td>The naive join leaked a future plan into 96,929 training examples</td><td>10, 11</td></tr>
 </tbody></table></div>
-<p><b>The one-paragraph version.</b> Keep the app on Postgres. Copy the data out (nightly, or as a stream of changes) into Parquet files, sorted by time, and query them with DuckDB until one machine is not enough; then ClickHouse for fresh, fast dashboards, or a cloud warehouse or lakehouse when many teams and engines share terabytes. Whatever the engine, the same few mechanisms decide speed and cost: read only the needed columns, encode them small, skip blocks using statistics (which only works if the data was written sorted), and execute in batches.</p>
-<div class="deepnote"><b>Where this sits.</b> The parent page <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a> teaches rows against columns in its Reading section 5 and measures the 10-million-row aggregate in its Query plans tab (case 6: 1.47 GB read by Postgres against 17.3 MB of two Parquet columns, about 50 times faster); its Database atlas tab lists every analytics system with versions and licences. Pages and B-trees are on <a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a>; EXPLAIN on <a href="https://app.notion.com/p/3ef5c17b0d0d817f9e15f445b079e9c8" target="_blank" rel="noopener noreferrer">Query planning and performance</a>.</div>
+<p><b>Which system, when.</b> Keep the app on Postgres, and start analytics there too, on a read replica with a few summary tables refreshed by a job: under a few million rows of events, that is enough. When analytic queries take seconds and hurt the app, copy the data out (nightly, or as a stream of changes) into Parquet files sorted by time and query them with DuckDB; one machine handles hundreds of gigabytes. When dashboards need sub-second answers over billions of fresh events, run ClickHouse fed by batched inserts. When many teams, many engines or tens of terabytes share the data, use a lakehouse (Iceberg plus a catalog) or a cloud warehouse, with dbt for transformations and budget alerts from day one. Each step adds a system to run and a copy to keep correct, so take the next one only when the current one measurably fails.</p>
 </section>
 
 <section id="s-olap">
 <h2>1. Two kinds of work: OLTP and OLAP</h2>
 <p><b>OLTP</b> (online transaction processing) is what the app does: many small requests, each reading or writing a few whole rows (open chat 424242, save one message), each expected in milliseconds, with transactions keeping concurrent writers correct. <b>OLAP</b> (online analytical processing) is what analysts, dashboards, billing and ML pipelines do: few, large queries that read a few columns of millions or billions of rows and aggregate them, where seconds are fine and rows are rarely changed after they are written.</p>
-<p>The chat product's analytics questions look like this, and they are the five queries measured on this page:</p>
-<ul>
-<li>Tokens per model (the parent page's case 6), and messages per day in March.</li>
-<li>Tokens by country and plan: a join of all three tables (messages, chats, users).</li>
-<li>The top 10 users by tokens in the last 30 days, and distinct active chats per model per month.</li>
-</ul>
-<p><b>Measured: the same five questions on three engines.</b> Same rows in each (100,000 users, 1M chats, 10M messages, from the root's generator), every answer checked identical across engines. PostgreSQL 16.2 with its two base indexes and 7 GB of shared buffers warmed so the tables sat in memory; SQLite 3.47.1 with a 2.5 GB page cache; DuckDB 1.5.6 in its own file. Default parallelism (Postgres 2 workers per query, DuckDB 10 threads), and one thread each. Median of 3 warm runs (SQLite 2), on a shared laptop (<code>src/measure/engines.py</code>, 2026-10-04).</p>
-<div class="card" id="engCard">
+<p>The chat product's analytics questions are the five queries measured below: tokens per model (the parent page's case 6), messages per day in March, tokens by country and plan (a join of messages, chats and users), the top 10 users by tokens in the last 30 days, and distinct active chats per model per month.</p>
+<div class="card" id="engCard"><h4 class="vt">The column engine answers in milliseconds what the row engines answer in seconds, and the gap survives taking parallelism away</h4>
 <div class="seg" id="engMode"><button data-m="def" class="on">Default parallelism</button><button data-m="one">One thread each</button></div>
 <div id="engBars"></div>
 <div class="small mute" id="engNote"></div>
+<p class="small mute">Same rows in each engine, every answer checked identical; median of warm runs on one laptop. DuckDB was 45 to 339 times faster than PostgreSQL at default parallelism, 28 to 148 times with one thread each <span class="meas">measured</span>.</p>
 </div>
-<p>Three engines, one machine, same data: the column engine answers in milliseconds what the row engines answer in seconds, and the gap survives taking parallelism away. Sections 2 to 4 explain where each factor comes from. None of this says Postgres or SQLite are slow databases: ask each to fetch one chat's messages by key and the ranking reverses, which is why the app stays on Postgres.</p>
-<div class="co"><div class="t">Why not just run analytics on the app's Postgres?</div>Up to a few million rows, do: a read replica, a few summary tables refreshed by a job, maybe a BRIN index on time (see <a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a>). Past that, every analytic query reads every page of the table, competes with the app for disk, memory and CPU, and holds back vacuum while it runs (<a href="https://app.notion.com/p/3ef5c17b0d0d8149a0c9d3e2083ed0de" target="_blank" rel="noopener noreferrer">Running Postgres in production</a>). That is the moment to make a second copy in a column format.</div>
+<details class="dp"><summary>How the engines were measured <span class="mute">(depth)</span></summary><div class="b"><p>Same rows in each engine (100,000 users, 1M chats, 10M messages, from the root's generator), every answer checked identical. PostgreSQL 16.2 with its two base indexes and 7 GB of shared buffers warmed so the tables sat in memory; SQLite 3.47.1 with a 2.5 GB page cache; DuckDB 1.5.6 in its own file. Default parallelism (Postgres 2 workers per query, DuckDB 10 threads), and one thread each. Median of 3 warm runs (SQLite 2), on a shared laptop (<code>src/measure/engines.py</code>, 2026-10-04).</p></div></details>
+<p>Sections 2 to 4 explain where each factor comes from. None of this says Postgres or SQLite are slow databases: ask each to fetch one chat's messages by key and the ranking reverses, which is why the app stays on Postgres.</p>
+<div class="co"><div class="t">Why not just run analytics on the app's Postgres?</div>Up to a few million rows, do: a read replica, a few summary tables refreshed by a job, maybe a BRIN index on time (see <a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a>). Past that, every analytic query reads every page of the table (each of the queries above kept Postgres busy for 0.5 to 10 seconds), competes with the app for disk, memory and CPU, and holds back vacuum while it runs (<a href="https://app.notion.com/p/3ef5c17b0d0d8149a0c9d3e2083ed0de" target="_blank" rel="noopener noreferrer">Running Postgres in production</a>). That is the moment to make a second copy in a column format.</div>
 </section>
 
 <section id="s-col">
 <h2>2. Inside a column store: chunks, encodings, compression</h2>
 <p><b>The problem.</b> A table of 10 million messages is about 1.5 GB in Postgres. An analytics question usually needs two or three of its seven columns, and it needs every row of them. A layout that keeps each row's values together forces the reader through all seven columns to get two.</p>
-<p><b>The idea.</b> Cut the table into blocks of rows (a <b>row group</b>: in DuckDB's own storage and in the Parquet files it writes, 122,880 rows by default (<a href="https://duckdb.org/docs/stable/data/parquet/overview" target="_blank" rel="noopener noreferrer">DuckDB Parquet docs</a>)). Inside each block, store each column on its own, one after another: a <b>column chunk</b>. A query that names <code>model</code> and <code>tokens</code> reads those two chunks from every block and never touches <code>content</code>. That is the whole trick behind the root page's 87 times fewer bytes at 10 million rows (<a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Query plans</a> tab, case 6).</p>
-<p>The second win comes free: one column's values are all the same type and usually look alike (two roles, four model names, timestamps three seconds apart), so they can be stored in far fewer bits than their plain form. That is done in two layers, and it helps to keep them apart:</p>
-<ul>
-<li><b>Encoding</b> rewrites values into a smaller representation that the engine can still read directly, often without decoding everything first. It knows the type (integers, strings).</li>
-<li><b>Compression</b> (a <b>codec</b> such as Snappy, LZ4 or Zstandard) then squeezes the encoded bytes as an opaque blob, the way a zip file does. It must be undone before the bytes are used.</li>
-</ul>
-
-<h3>The encodings, one problem each</h3>
-<div class="grid">
-<div class="sp"><div class="n">Dictionary</div><p><b>Problem:</b> the same few strings repeated millions of times (<code>model</code> has four values). <b>How:</b> store each distinct value once in a <i>dictionary page</i>, then store small integer codes (0 to 3) instead of the strings. <b>Cost:</b> useless when nearly every value is distinct (an id): writers fall back to plain when the dictionary grows too big (pyarrow's default limit is 1 MB per column chunk, <a href="https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetWriter.html" target="_blank" rel="noopener noreferrer">pyarrow docs</a>).</p></div>
-<div class="sp"><div class="n">Bit-packing</div><p><b>Problem:</b> codes 0 to 3 need 2 bits, not 32. <b>How:</b> pack each value into exactly as many bits as the largest one needs, eight values at a time. <b>Cost:</b> one big value raises the width for its whole run.</p></div>
-<div class="sp"><div class="n">Run-length (RLE)</div><p><b>Problem:</b> long runs of the same value (a column sorted by <code>model</code>). <b>How:</b> write "value 2, repeated 2,500,000 times" as two numbers. <b>Cost:</b> nothing gained when values alternate; Parquet mixes RLE runs and bit-packed runs in one stream, the <i>RLE/bit-packing hybrid</i> (<a href="https://parquet.apache.org/docs/file-format/data-pages/encodings/" target="_blank" rel="noopener noreferrer">Parquet encodings</a>).</p></div>
-<div class="sp"><div class="n">Delta</div><p><b>Problem:</b> sorted or slowly growing numbers (ids, timestamps): 10 million eight-byte values that differ by 1 or by 3 seconds. <b>How:</b> store the first value, then the differences, bit-packed in blocks (DELTA_BINARY_PACKED). <b>Cost:</b> differences of a random column are as big as the values.</p></div>
-<div class="sp"><div class="n">Byte stream split</div><p><b>Problem:</b> numbers whose bytes are noisy at the bottom but similar at the top (floats, measurements). <b>How:</b> write all first bytes, then all second bytes, and so on, so the codec sees long similar streams. <b>Cost:</b> no saving on its own; it only helps the codec that follows.</p></div>
-<div class="sp"><div class="n">Codecs</div><p><b>Snappy</b> and <b>LZ4</b> are fast and modest; <b>Zstandard (zstd)</b> compresses harder for a little more CPU, with levels; gzip and Brotli are slower still. Parquet lists UNCOMPRESSED, SNAPPY, GZIP, LZO, BROTLI, LZ4 (framing deprecated), ZSTD and LZ4_RAW (<a href="https://github.com/apache/parquet-format/blob/master/Compression.md" target="_blank" rel="noopener noreferrer">parquet-format</a>).</p></div>
+<p><b>The idea.</b> Cut the table into blocks of rows (a <b>row group</b>: in DuckDB's own storage and in the Parquet files it writes, 122,880 rows by default (<a href="https://duckdb.org/docs/stable/data/parquet/overview" target="_blank" rel="noopener noreferrer">DuckDB Parquet docs</a>)). Inside each block, store each column on its own, one after another: a <b>column chunk</b> (the bands of the hero figure). A query that names <code>model</code> and <code>tokens</code> reads those two chunks from every block and never touches <code>content</code>: that is the root page's 87 times fewer bytes at 10 million rows (<a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Query plans</a> tab, case 6).</p>
+<p>The second win comes free: one column's values are all the same type and usually look alike (two roles, four model names, timestamps three seconds apart), so they fit in far fewer bits. Two layers do it, and they are worth keeping apart. <b>Encoding</b> rewrites values into a smaller form the engine can still read directly, often without decoding everything first; it knows the type. <b>Compression</b> (a <b>codec</b> such as Snappy, LZ4 or Zstandard) then squeezes the encoded bytes as an opaque blob, the way a zip file does, and must be undone before the bytes are used.</p>
+<div class="card" id="encDiagCard"><h4 class="vt">Each encoding removes one kind of redundancy; the codec only squeezes what is left</h4>
+<div class="rd-svg" id="encDiag"></div>
+<ol class="small" style="margin:4px 0 0">
+<li><b>Dictionary, then bit-packing</b> (<code>role</code>, real bytes from the 23,047-byte file of section 5): each distinct string once in a <i>dictionary page</i>, then a code per row, packed into as few bits as the largest code needs: <code>user, assistant</code> repeated is the byte <code>aa</code> (binary 10101010, read from the lowest bit up). Useless when nearly every value is distinct (an id): writers fall back to plain when the dictionary grows too big (pyarrow's default limit is 1 MB per column chunk, <a href="https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetWriter.html" target="_blank" rel="noopener noreferrer">pyarrow docs</a>).</li>
+<li><b>Run-length (RLE)</b> (<code>model</code>, table sorted by model): long runs of one value become (value, repeat count) pairs, a handful per page. Nothing is gained when values alternate; Parquet mixes RLE runs and bit-packed runs in one stream, the <i>RLE/bit-packing hybrid</i> (<a href="https://parquet.apache.org/docs/file-format/data-pages/encodings/" target="_blank" rel="noopener noreferrer">Parquet encodings</a>).</li>
+<li><b>Delta</b> (<code>id</code>): the first value, then the differences minus each block's smallest difference, bit-packed (DELTA_BINARY_PACKED): ids that grow by exactly 1 need 0 bits each, 500 ids in 80 bytes, page header included. Differences of a random column are as big as the values.</li>
+<li><b>Codec only</b> (<code>content</code>): free text has no structure an encoding can use, so only the codec helps.</li>
+</ol>
 </div>
-
+<details class="dp"><summary>Byte stream split, and the codecs Parquet allows <span class="mute">(depth)</span></summary><div class="b">
+<p><b>Byte stream split</b> targets numbers whose bytes are noisy at the bottom but similar at the top (floats, measurements): write all first bytes, then all second bytes, and so on, so the codec sees long similar streams. It saves nothing on its own; it only helps the codec that follows.</p>
+<p><b>Codecs:</b> Snappy and LZ4 are fast and modest; Zstandard (zstd) compresses harder for a little more CPU, with levels; gzip and Brotli are slower still. Parquet lists UNCOMPRESSED, SNAPPY, GZIP, LZO, BROTLI, LZ4 (framing deprecated), ZSTD and LZ4_RAW (<a href="https://github.com/apache/parquet-format/blob/master/Compression.md" target="_blank" rel="noopener noreferrer">parquet-format</a>).</p>
+</div></details>
 <h3>Measured on the chat data</h3>
-<p>Every column of the 10 million messages, written on its own by pyarrow 25.0.1 with each encoding and each codec; the bar is the column chunk's size from the file's footer (<code>src/measure/encodings.py</code>, run 2026-10-04). Pick a column; for <code>role</code> and <code>model</code> try the table sorted by those columns.</p>
-<div class="card" id="encCard">
+<p>Every column of the 10 million messages, written on its own by pyarrow 25.0.1 with each encoding and each codec; the bar is the column chunk's size from the file's footer (<code>src/measure/encodings.py</code>, run 2026-10-04). Predict before you click <code>role</code>: will sorting the table shrink it by 2 times, 10 times or 70 times?</p>
+<div class="card" id="encCard"><h4 class="vt">The right encoding shrinks a column hundreds of times; the sort order decides how far</h4>
 <div class="chips" id="encCols"></div>
 <div class="seg" id="encOrder"><button data-m="time" class="on">Stored in time order</button><button data-m="sorted">Table sorted by model, role</button></div>
 <div id="encBars" class="bars"></div>
 <div id="encNote" class="small mute"></div>
 </div>
-<p>What the numbers say:</p>
 <ul>
-<li><b><code>id</code> and <code>created_at</code>:</b> 80 MB plain, about 0.2 to 0.3 MB with delta encoding (367 and 236 times smaller), before any codec. Consecutive ids differ by 1 and timestamps by 3 seconds, so every delta fits in a couple of bits. Dictionary is the wrong tool here: it gave up and stored 82.7 MB.</li>
-<li><b><code>role</code>:</b> 105 MB of plain strings; a dictionary of two words plus 1 bit per row is 1.29 MB (10 million bits is 1.25 MB). Roles alternate user, assistant, so runs never form. Sort the table by role and the same dictionary encoding gives 17.5 KB: the bits become a handful of RLE runs.</li>
+<li><b><code>id</code> and <code>created_at</code>:</b> 80 MB plain, 0.22 and 0.34 MB with delta encoding (367 and 236 times smaller), before any codec. Consecutive ids differ by 1 and timestamps by 3 seconds, so every delta fits in a couple of bits. Dictionary is the wrong tool here: it gave up and stored 82.7 MB.</li>
+<li><b><code>role</code>:</b> 105 MB of plain strings; a dictionary of two words plus 1 bit per row is 1.29 MB (10 million bits is 1.25 MB). Roles alternate user, assistant, so runs never form. Sort the table by role and the same dictionary encoding gives 17.5 KB, about 73 times smaller: the bits become a handful of RLE runs.</li>
 <li><b><code>model</code>:</b> four values, so 2 bits each: 2.54 MB with a dictionary, and Snappy or zstd on top gain nothing, because bit-packed random codes look like noise to a codec.</li>
-<li><b><code>content</code>:</b> nothing but the codec helps. 835 MB plain, 389 MB with Snappy, 223 MB with zstd. <span class="ill">Caveat:</span> the generator's text is a repeated hexadecimal hash, which compresses unusually well; real chat text should be measured on your own data.</li>
+<li><b><code>content</code>:</b> 835 MB plain, 389 MB with Snappy, 223 MB with zstd. <span class="ill">Caveat:</span> the generator's text is a repeated hexadecimal hash, which compresses unusually well; real chat text should be measured on your own data.</li>
 </ul>
 <div class="co key"><div class="t">The rule that falls out</div>Let the writer pick encodings (every mainstream writer tries dictionary first and falls back), choose the codec on purpose (Snappy is the default in DuckDB and in <a href="https://spark.apache.org/docs/latest/sql-data-sources-parquet.html" target="_blank" rel="noopener noreferrer">Spark</a>, zstd is the usual choice for data kept a long time), and control the one thing that changes the numbers most: <b>sort order</b>. The same 10 million roles are 1.29 MB or 17.5 KB depending only on how rows were ordered when written.</div>
 <p><b>What it costs.</b> Encoded, compressed columns are cheap to scan and expensive to change: updating one message means decoding and rewriting whole chunks, which is why column stores append in bulk, mark deletions on the side, and merge later (sections 7 and 9). Rebuilding a whole row touches one chunk per column. And CPU is spent on every read to undo the codec; with fast disks and a heavy codec, scans can become CPU-bound.</p>
@@ -195,19 +236,24 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <section id="s-skip">
 <h2>3. Skipping data: min/max statistics and sort order</h2>
 <p><b>The problem.</b> Reading only two columns is good; reading only the part of those columns that can matter is better. "Messages on 1 March 2026" needs 28,800 of 10 million rows. A column store has no B-tree to find them (an index per column would cost as much to maintain as the data), so it needs a cheaper trick.</p>
-<p><b>The idea: a zone map.</b> When a block of rows is written, record the smallest and largest value of each column in it (its <b>min/max statistics</b>, also called a <b>zone map</b>). At query time, compare the filter with each block's range: if 1 March lies outside [min, max], no row in the block can match, and the block is skipped without being read. Postgres has the same idea as the BRIN index; Parquet keeps the statistics per row group in its footer; Snowflake keeps them per micro-partition; ClickHouse per granule of 8,192 rows (section 7).</p>
-<p>The animation runs one query on the real 534 MB Parquet file of 10 million messages written by DuckDB (82 row groups of 122,880 rows; each bar is one row group, its height the real compressed bytes of the two columns the query needs). Toggle between a reader that ignores the statistics and one that uses them.</p>
-<div class="card" id="prCard">
+<p><b>The idea: a zone map.</b> When a block of rows is written, record the smallest and largest value of each column in it (its <b>min/max statistics</b>). At query time, compare the filter with each block's range: if 1 March lies outside [min, max], no row in the block can match, and the block is skipped without being read. Postgres has the same idea as the BRIN index; Parquet keeps the statistics per row group in its footer; Snowflake keeps them per micro-partition; ClickHouse per granule of 8,192 rows (section 7).</p>
+<div class="card" id="prCard"><h4 class="vt">The same query with and without the statistics: 82 row groups read, or 1</h4>
 <div class="seg" id="prMode"><button data-m="off">Without statistics</button><button data-m="on" class="on">With min/max pruning</button></div>
 <div class="seg" id="prQ"><button data-m="day" class="on">One day</button><button data-m="chat">One chat</button></div>
 <div class="small mute" id="prLeg"></div><div id="prSvg" class="plot"></div>
-<div class="an" id="prCtl" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0"></div>
-<div id="prCap" class="small" style="min-height:3.2em"></div>
+<div class="an-ctl" id="prCtl"></div>
+<div id="prCap" class="an-cap"></div>
 <div class="out" id="prStats"></div>
+<p class="small mute">The real 534 MB file (82 row groups of 122,880 rows; each bar one row group, its height the compressed bytes of the two columns the query needs). Step through it. Bytes with pruning are computed from the footer and reproduce DuckDB's measured 1,197,073 bytes for the day query exactly, independently; for the chat query the footer gives 708,747 against 741,532 measured (DuckDB read slightly more than the two chunks; the extra was not broken down). Without statistics the reader needs 76 MB for the day.</p>
 </div>
-<p><b>The catch: skipping only works on sorted data.</b> The file above was written in time order (message ids grow with time), so each row group covers about four consecutive days and a date filter lands in one or two of them. A chat's messages are spread over about 20,000 consecutive rows (the generator interleaves chats that are active at the same time), so a chat filter also lands in one or two row groups, by luck of how the app writes. Shuffle the rows and every row group spans every date and every chat: nothing can be skipped. The <a href="#" data-tab="t-lab">Parquet lab</a> tab measures this on 36 files; with row groups of 100,000 rows, one chat costs 0.46 to 0.69 MB read from a file sorted by time or by chat, and 34 to 86 MB from a shuffled one (any row-group size).</p>
+<p><b>The catch: skipping only works on sorted data.</b> The file above was written in time order (message ids grow with time), so each row group covers about four consecutive days and a date filter lands in one or two of them. A chat's messages sit within about 20,000 consecutive rows (the generator interleaves chats active at the same time), so a chat filter also lands in one or two row groups, by luck of how the app writes. Shuffle the rows and every row group spans every date and every chat: nothing can be skipped. Predict what one chat costs in a shuffled file before choosing it below.</p>
+<div class="card" id="sortCard"><h4 class="vt">Sort order decides what can be skipped, and it is chosen when the file is written</h4>
+<div class="seg" id="sortQ"><button data-m="chat" class="on">One chat</button><button data-m="day">One day</button><button data-m="model">One model</button><button data-m="all">Tokens per model</button></div>
+<div id="sortBars" class="bars"></div><div class="small mute" id="sortNote"></div>
+<p class="small mute">The same 10 million messages written four ways, 100 row groups of 100,352 rows, Snappy, bytes DuckDB really read <span class="meas">measured</span>. One chat costs 0.46 to 0.69 MB from a file sorted by time or by chat, and 34 to 86 MB from a shuffled one (any row-group size). The <a href="#" data-tab="t-lab">Parquet lab</a> tab has all 36 files (sort order, row-group size, codec).</p>
+</div>
 <ul>
-<li><b>What it costs:</b> almost nothing to keep (82 pairs of values per column here, inside a 76,648-byte footer), but it constrains how you write: data has to be sorted, or at least clustered, on the column people filter by. You can only pick one primary order, so pick the filter that matters most (usually time), and accept that other filters scan.</li>
+<li><b>What it costs:</b> almost nothing to keep (82 pairs of values per column here, inside a 76,648-byte footer), but it constrains how you write: data has to be sorted, or at least clustered, on the column people filter by. You can only pick one primary order, so pick the filter that matters most (usually time, because new data arrives in time order and most questions name a time range), and accept that other filters scan.</li>
 <li><b>When it does not help:</b> filters on columns with no order (a model name in a time-sorted file: all 82 row groups contain all four models), and filters that match a few rows spread through the whole file (the 6,950 messages over 1,495 tokens: their row groups' maxima all exceed 1,495, so none is skipped).</li>
 <li><b>What pros add:</b> sort within each file by a second key (Snowflake's clustering keys, Delta's liquid clustering, ClickHouse's ORDER BY tuple, Iceberg sort orders), bloom filters for equality on unsorted columns (section 5), and partitioning by time so whole files are skipped before any footer is read (section 9).</li>
 </ul>
@@ -216,61 +262,57 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <section id="s-exec">
 <h2>4. Executing fast: vectorised execution and late materialisation</h2>
 <p>Reading fewer bytes is half the story. Once the bytes are in memory, the engine still has to add up 10 million numbers, and how it loops over them matters as much as the disk.</p>
-<h3>Row at a time</h3>
-<p>Classic engines, Postgres and SQLite included, execute a plan as a tree of operators that pass <b>one row at a time</b>: the aggregate asks the scan for the next row, the scan decodes one row from a page, hands it up, and the aggregate adds one number. This is the <i>iterator</i> or <i>Volcano</i> model. It is flexible and fine for OLTP, where a request touches a few rows. For 10 million rows it means 10 million rounds of function calls, type checks and branches per operator, and the CPU spends most of its time on that overhead rather than on the additions.</p>
-<h3>A vector at a time</h3>
-<p><b>Vectorised execution</b> passes a batch of values, a <b>vector</b>, between operators: in DuckDB 2,048 values of one column per call (<a href="https://duckdb.org/docs/stable/internals/vector" target="_blank" rel="noopener noreferrer">DuckDB execution format</a>). The per-call overhead is paid once per 2,048 values, and the inner loop is a tight loop over an array of one type, which the compiler turns into SIMD instructions and the CPU's caches and branch predictor love. The idea comes from MonetDB/X100 (<a href="https://www.cidrdb.org/cidr2005/papers/P19.pdf" target="_blank" rel="noopener noreferrer">Boncz, Zukowski and Nes, CIDR 2005</a>); DuckDB, ClickHouse, Snowflake, Databricks Photon and Velox all execute this way. (The other modern route attacks the same overhead by compiling to machine code: Postgres's JIT compiles expressions, and engines such as HyPer compile whole queries.)</p>
+<p><b>Row at a time.</b> Classic engines, Postgres and SQLite included, execute a plan as a tree of operators that pass <b>one row at a time</b>: the aggregate asks the scan for the next row, the scan decodes one row from a page and hands it up, the aggregate adds one number. This is the <i>iterator</i> or <i>Volcano</i> model. Fine for OLTP; for 10 million rows the CPU spends most of its time on per-call overhead (function calls, type checks, branches) rather than on the additions.</p>
+<p><b>A vector at a time.</b> <b>Vectorised execution</b> passes a batch of values, a <b>vector</b>, between operators: in DuckDB 2,048 values of one column per call (<a href="https://duckdb.org/docs/stable/internals/vector" target="_blank" rel="noopener noreferrer">DuckDB execution format</a>). The per-call overhead is paid once per 2,048 values, and the inner loop is a tight loop over an array of one type, which the compiler turns into SIMD instructions and the CPU's caches and branch predictor love.</p>
+<div class="card" id="vdCard"><h4 class="vt">Same plan, same 10 million values: the vector engine makes 2,048 times fewer calls between operators</h4>
+<div class="seg" id="vdMode"><button data-m="row" class="on">Row at a time (Postgres, SQLite)</button><button data-m="vec">A vector at a time (DuckDB)</button></div>
+<div class="rd-svg" id="vdSvg"></div>
+<p class="small mute" id="vdCap"></p>
+</div>
+<details class="dp"><summary>Where vectorised execution comes from, and the compiled alternative <span class="mute">(depth)</span></summary><div class="b"><p>The idea comes from MonetDB/X100 (<a href="https://www.cidrdb.org/cidr2005/papers/P19.pdf" target="_blank" rel="noopener noreferrer">Boncz, Zukowski and Nes, CIDR 2005</a>); DuckDB, ClickHouse, Snowflake, Databricks Photon and Velox all execute this way. The other modern route attacks the same overhead by compiling to machine code: Postgres's JIT compiles expressions, and engines such as HyPer compile whole queries.</p></div></details>
 <p>Measured on one question, the sum of the 10 million <code>tokens</code> values, already in memory, one CPU thread unless marked (<code>src/measure/vec_ooc.py</code>, <code>engines.py</code>):</p>
-<div class="card" id="vecCard"><div id="vecBars" class="bars"></div><div class="small mute" id="vecNote"></div></div>
+<div class="card" id="vecCard"><h4 class="vt">Without vectors, summing 10 million numbers takes about a second; with them, milliseconds</h4><div id="vecBars" class="bars"></div><div class="small mute" id="vecNote"></div></div>
 <p>The two row-at-a-time engines take about a second; DuckDB on one thread takes 7.9 ms, about 136 times less, and numpy, a vectorised loop with no query engine around it, 2.4 ms. The Python loop sits in between because summing machine integers in a list is the simplest possible loop; a database's per-row work (decoding a tuple, checking visibility, evaluating an expression tree) is heavier. Parallel workers help both kinds of engine, but they multiply, they do not remove, the per-row cost.</p>
 <h3>Late materialisation</h3>
 <p><b>The problem.</b> <code>SELECT sum(tokens) WHERE chat_id = 424242</code> needs <code>tokens</code> only for the 7 rows that match. Fetching and decoding the whole <code>tokens</code> column first and filtering afterwards ("early materialisation", building full rows up front) wastes most of that work.</p>
-<p><b>The idea.</b> Evaluate the filter on <code>chat_id</code> alone, keep a list of the positions that passed, and fetch other columns only for those positions, as late as possible (<a href="https://www.cs.umd.edu/~abadi/papers/abadi-sigmod08.pdf" target="_blank" rel="noopener noreferrer">Abadi, Madden and Hachem, SIGMOD 2008</a>). DuckDB does this per row group when reading Parquet, and the lab shows it in bytes. In a shuffled file, the footer says one chat needs the <code>chat_id</code> and <code>tokens</code> chunks of all 100 row groups (64 MB); DuckDB read 50 MB, because it fetched <code>tokens</code> only from the row groups where the chat actually appeared.</p>
-<p><b>Its limit.</b> The gain is at the granularity of what can be skipped. Selecting the longest <code>content</code> among messages over 1,495 tokens (6,950 rows, in every row group) still read 404 MB, more than reading <code>content</code> for all 10 million rows (390 MB), because every row group had a match and the text of a row group is one chunk. Late materialisation saved the decoding of most strings, not the bytes. Sorting so that matches cluster is again what turns it into fewer bytes.</p>
+<p><b>The idea.</b> Evaluate the filter on <code>chat_id</code> alone, keep a list of the positions that passed, and fetch other columns only for those positions, as late as possible (<a href="https://www.cs.umd.edu/~abadi/papers/abadi-sigmod08.pdf" target="_blank" rel="noopener noreferrer">Abadi, Madden and Hachem, SIGMOD 2008</a>). DuckDB does this per row group when reading Parquet, and it shows in bytes:</p>
+<div class="card" id="lateCard"><h4 class="vt">Late materialisation saves bytes only where whole chunks can be left unread</h4><div id="lateBars" class="bars"></div>
+<p class="small mute">Top pair: one chat in a shuffled file (100 row groups): the footer says the <code>chat_id</code> and <code>tokens</code> chunks of all 100 row groups are needed, 64 MB; DuckDB read 50 MB, because it fetched <code>tokens</code> only from the row groups where the chat actually appeared. Bottom pair: the longest <code>content</code> among messages over 1,495 tokens (6,950 rows, in every row group) read 404 MB, more than reading <code>content</code> for all 10 million rows (390 MB), because every row group had a match and the text of a row group is one chunk <span class="meas">measured</span>.</p></div>
+<p><b>Its limit.</b> The gain is at the granularity of what can be skipped: in the second case late materialisation saved the decoding of most strings, not the bytes. Sorting so that matches cluster is again what turns it into fewer bytes.</p>
 <div class="co"><div class="t">What this means for you</div>You do not choose the execution model; you choose the engine. For analytics over more than a few million rows, choose one that executes in vectors and reads columns (DuckDB, ClickHouse, Polars, any warehouse). Then write your data so that its tricks apply: sorted by the main filter, with the columns you filter on kept narrow.</div>
 </section>
 
 <section id="s-pq">
 <h2>5. The Parquet file, byte by byte</h2>
 <p><b>Why a file format matters.</b> Sections 2 to 4 describe what every column store does inside its own storage. <b>Apache Parquet</b> writes the same structure into an ordinary file that any engine can read: DuckDB, ClickHouse, Spark, pandas, Polars, BigQuery, Snowflake, and every lakehouse table format. It is the shared language of analytics data, so knowing its layout explains most performance surprises.</p>
-<h3>The layout</h3>
-<div class="card"><svg id="pqLayout" aria-label="Parquet file layout"></svg></div>
-<ol>
-<li>The file starts with the 4 bytes <code>PAR1</code> (hex <code>50 41 52 31</code>), a "magic number" that identifies the format.</li>
-<li><b>Row groups</b> follow, one after another. Each holds one <b>column chunk</b> per column, and each chunk is a sequence of <b>pages</b>: optionally one <i>dictionary page</i>, then <i>data pages</i>. Every page starts with a small <b>page header</b> (its type, sizes, value count, encoding) and is the unit that is encoded and compressed.</li>
-<li>At the end comes the <b>footer</b> (the <i>file metadata</i>): the schema, then for every row group and every column chunk its byte offset, sizes, encodings, codec and <b>statistics</b> (min, max, null count). It is serialised with Apache Thrift's compact protocol.</li>
-<li>The last 8 bytes are the footer's length (4 bytes, little-endian) and <code>PAR1</code> again (<a href="https://github.com/apache/parquet-format/blob/master/README.md" target="_blank" rel="noopener noreferrer">parquet-format README</a>).</li>
-</ol>
-<p><b>Why the footer is at the end.</b> A writer streams row groups out without knowing in advance how big they will be, then writes the offsets once it knows them. A reader does the reverse: read the last 8 bytes, then the footer, and only then decide which byte ranges of the file it needs. That is why a query on object storage starts with one small request at the end of the file (section 6 shows the requests).</p>
-<p>The <a href="#" data-tab="t-bytes">Inside a Parquet file</a> tab opens a real 23,047-byte file (the first 1,000 messages, two row groups of 500, no compression) region by region, with every header decoded by a small Thrift reader written for this page and checked against pyarrow's own reading. Two details from it worth knowing here:</p>
-<ul>
-<li>The <code>role</code> column's dictionary page holds just <code>user</code> and <code>assistant</code> (each with a 4-byte length). Its data page starts with the bit width, <code>01</code>, then one bit-packed run whose bytes are <code>aa aa aa ...</code>: binary 10101010, read from the lowest bit up, is 0, 1, 0, 1: user, assistant, user, assistant. Ten million roles are 10 million bits.</li>
-<li>The <code>id</code> column of 500 values takes 80 bytes with delta encoding, page header included: the body is a short header, the first value and deltas that need zero bits each.</li>
-</ul>
+<p><b>The layout</b> (<a href="https://github.com/apache/parquet-format/blob/master/README.md" target="_blank" rel="noopener noreferrer">parquet-format README</a>): the file starts with the 4 bytes <code>PAR1</code> (hex <code>50 41 52 31</code>), a "magic number" that identifies the format. <b>Row groups</b> follow, one after another; each holds one <b>column chunk</b> per column, and each chunk is a sequence of <b>pages</b>: optionally one <i>dictionary page</i>, then <i>data pages</i>. Every page starts with a small <b>page header</b> (its type, sizes, value count, encoding) and is the unit that is encoded and compressed. At the end comes the <b>footer</b> (the <i>file metadata</i>): the schema, then for every row group and every column chunk its byte offset, sizes, encodings, codec and <b>statistics</b> (min, max, null count), serialised with Apache Thrift's compact protocol. The last 8 bytes are the footer's length (4 bytes, little-endian) and <code>PAR1</code> again.</p>
+<div class="card" id="byCard"><h4 class="vt">A real 23,047-byte Parquet file, drawn to scale: most bytes are page bodies; the footer is the map</h4>
+<div id="byMap" class="plot"></div>
+<div class="hmleg" id="byLeg"></div>
+<div class="detail" id="byDetail"></div>
+<p class="small mute">The first 1,000 chat messages (six columns, <code>content</code> left out so the pages stay small), written by pyarrow 25.0.1 as two row groups of 500 rows, with no compression so the bytes stay readable, dictionary encoding for <code>role</code> and <code>model</code>, delta encoding for <code>id</code> and plain for the rest. Click any region, starting with the footer length at the very end. Every value was decoded from the file by a 49-line Thrift compact-protocol reader written for this page (<code>src/measure/thrift_compact.py</code>), and each column chunk's offsets and sizes were checked equal to pyarrow's own reading of the footer.</p>
+</div>
+<p><b>Why the footer is at the end.</b> A writer streams row groups out without knowing in advance how big they will be, then writes the offsets once it knows them. A reader does the reverse: (1) read the last 8 bytes, the footer length and <code>PAR1</code>; (2) read and decode the footer; (3) compare the query's filter with each row group's statistics and skip what cannot match; (4) for each surviving column chunk the query needs, read its byte range, then page by page: the page header, then the body (decompress, then decode). That is why a query on object storage starts with one small request at the end of the file (section 6 shows the requests). The <code>role</code> and <code>id</code> pages of this file are the ones drawn in section 2's encoding figure.</p>
+<details class="dp"><summary>Decoding the role column by hand, the Thrift encoding and every column chunk in the footer <span class="mute">(depth)</span></summary><div class="b">
+<div id="byRole"></div>
+<p class="small">The footer is Thrift compact protocol: each field is a one-byte header holding the gap to the previous field id and a type, then the value; integers are variable-length and zigzag-encoded. Field numbers and enum values from <a href="https://github.com/apache/parquet-format/blob/master/src/main/thrift/parquet.thrift" target="_blank" rel="noopener noreferrer">parquet.thrift</a>; the hybrid RLE/bit-packing format from <a href="https://parquet.apache.org/docs/file-format/data-pages/encodings/" target="_blank" rel="noopener noreferrer">the encodings page</a>.</p>
+<div class="tw" id="byChunks"></div>
+</div></details>
 <h3>Real metadata of the 10-million-row file</h3>
 <p>DuckDB 1.5.6 writing the messages with its defaults (Snappy, row groups of 122,880 rows) produced a 534 MB file with 82 row groups and a 76,648-byte footer. Row group 0, as pyarrow reads the footer:</p>
 <div class="tw" id="pqRg0"></div>
-<p>Two things to notice. DuckDB wrote <code>id</code> and <code>created_at</code> with PLAIN encoding (Snappy then halves <code>id</code>), whereas pyarrow with delta encoding would make them a few hundred kilobytes for the whole file (section 2): writers differ, and it shows in file size. And the <code>created_at</code> min and max of row group 0 are 2025-09-01 00:00:03 and 2025-09-05 06:24:00: about four days per row group, so a one-day query touches one or two of 82 row groups.</p>
+<p>Two things to notice. DuckDB wrote <code>id</code> and <code>created_at</code> with PLAIN encoding (Snappy then halves <code>id</code>: 0.98 MB to 0.49 MB), whereas pyarrow with delta encoding would make them a few hundred kilobytes for the whole file (section 2): writers differ, and it shows in file size. And the <code>created_at</code> min and max of row group 0 are 2025-09-01 00:00:03 and 2025-09-05 06:24:00: about four days per row group, so a one-day query touches one or two of 82 row groups.</p>
 <h3>Beyond min/max: page index and bloom filters</h3>
 <ul>
 <li><b>Page index</b>: optional per-page min/max (ColumnIndex) and page locations (OffsetIndex) stored near the footer, so a reader can skip pages inside a column chunk, not just whole row groups (<a href="https://github.com/apache/parquet-format/blob/master/PageIndex.md" target="_blank" rel="noopener noreferrer">PageIndex.md</a>).</li>
 <li><b>Bloom filters</b>: a compact bit array per column chunk that answers "is value X definitely absent?" Min/max cannot rule out chat 424242 when the chunk spans 400,000 to 450,000; a bloom filter can. DuckDB writes them by default (<code>WRITE_BLOOM_FILTER</code> true, target false-positive ratio 0.01, <a href="https://duckdb.org/docs/current/sql/statements/copy.html" target="_blank" rel="noopener noreferrer">COPY docs</a>).</li>
 </ul>
-<h3>Row group size and sort order, measured</h3>
-<p>The spec suggests large row groups (512 MB to 1 GB) for sequential scans; DuckDB defaults to 122,880 rows. The <a href="#" data-tab="t-lab">Parquet lab</a> tab measures 36 versions of the same file. The headline, at row groups of 100,000 rows with Snappy:</p>
-<div class="card" id="sortCard">
-<div class="seg" id="sortQ"><button data-m="chat" class="on">One chat</button><button data-m="day">One day</button><button data-m="model">One model</button><button data-m="all">Tokens per model</button></div>
-<div id="sortBars" class="bars"></div><div class="small mute" id="sortNote"></div>
-</div>
-<p><b>Sort order decides what can be skipped</b>, and it has to be chosen when the file is written: shuffled rows make every filter read everything, while sorting by the filtered column reads only the matching row groups. Time order is a good default for event data, because new data arrives in time order and most questions name a time range. <b>Row group size</b> trades skipping against overhead: tiny row groups (10,000 rows) skip finely but bloat the footer and slow every query; huge ones skip little. A few hundred thousand to a few million rows, or 100 MB to 1 GB, is the usual range.</p>
-<div class="co"><div class="t">In production (October 2026)</div>parquet-format 2.14.0 (2026-09-11) added ALP, a float encoding, in preview (<a href="https://github.com/apache/parquet-format/releases/tag/apache-parquet-format-2.14.0" target="_blank" rel="noopener noreferrer">release</a>). Newer columnar file formats compete for ML and random access: Lance (multimodal, v12.0.0, 2026-09-17), Vortex (LF AI and Data incubation), Meta's Nimble (explicitly unstable) and the research format F3 (SIGMOD 2025, decoders embedded as WebAssembly). Parquet remains the interchange default.</div>
+<p><b>Row group size</b> trades skipping against overhead. The spec suggests large row groups (512 MB to 1 GB) for sequential scans; DuckDB defaults to 122,880 rows. Tiny row groups (10,000 rows) skip finely but bloat the footer and slow every query; huge ones skip little. A few hundred thousand to a few million rows, or 100 MB to 1 GB, is the usual range; the <a href="#" data-tab="t-lab">Parquet lab</a> tab measures all three sizes.</p>
 </section>
 
 <section id="s-duck">
 <h2>6. DuckDB in depth</h2>
-<p><b>What it is.</b> DuckDB is a column-oriented, vectorised SQL engine that runs <b>inside your process</b>, like SQLite: <code>pip install duckdb</code>, no server, no network hop, no users to manage (<a href="https://mytherin.github.io/papers/2019-duckdbdemo.pdf" target="_blank" rel="noopener noreferrer">SIGMOD 2019 demo paper</a>). A database is one file (or none, in memory). Version 1.5.6 (2026-09-28); 1.4 is the long-term-support line; a 2.0 is scheduled for 2026-10-21 and was in public preview at the time of writing (<a href="https://duckdb.org/release_calendar.html" target="_blank" rel="noopener noreferrer">release calendar</a>). MIT licensed; in August 2026 DuckLabs agreed to join AWS (announced 2026-08-26, closed 2026-08-31), with DuckDB staying MIT under the non-profit DuckDB Foundation (root's Database atlas, <a href="https://www.aboutamazon.com/news/company-news/aws-ducklabs" target="_blank" rel="noopener noreferrer">announcement</a>).</p>
-<h3>Querying files in place</h3>
-<p>Its most useful habit for analytics: it reads Parquet, CSV and JSON files directly, with no load step, and treats a glob of files as one table.</p>
+<p><b>What it is.</b> DuckDB is a column-oriented, vectorised SQL engine that runs <b>inside your process</b>, like SQLite: <code>pip install duckdb</code>, no server, no network hop, no users to manage (<a href="https://mytherin.github.io/papers/2019-duckdbdemo.pdf" target="_blank" rel="noopener noreferrer">SIGMOD 2019 demo paper</a>). A database is one file (or none, in memory); MIT licensed. Its most useful habit for analytics: it reads Parquet, CSV and JSON files directly, with no load step, and treats a glob of files as one table.</p>
 <pre class="fm" style="font-size:12.5px;white-space:pre;overflow-x:auto">import duckdb
 con = duckdb.connect()                      # in memory; or duckdb.connect('chat.duckdb')
 con.sql("""
@@ -283,7 +325,7 @@ con.sql("COPY (SELECT * FROM read_csv('events.csv')) TO 'events.parquet' (FORMAT
 <p>Results move to pandas, Polars and Arrow without copying the data value by value, and DuckDB can query a pandas or Polars DataFrame in scope by its variable name. The same SQL runs over a 10 KB CSV or a folder of 500 GB of Parquet.</p>
 <h3>Reading from object storage, measured</h3>
 <p>The <code>httpfs</code> extension reads files over HTTP(S) and S3 and, for Parquet, uses the footer plus HTTP <b>range requests</b> to download only the parts a query needs (<a href="https://duckdb.org/docs/current/core_extensions/httpfs/https.html" target="_blank" rel="noopener noreferrer">httpfs docs</a>). To see exactly which bytes, the 534 MB file was served by a small local HTTP server that logs every request (<code>src/measure/remote_small.py</code>):</p>
-<div class="card" id="httpCard">
+<div class="card" id="httpCard"><h4 class="vt">Over HTTP, one day costs a footer request and two chunk requests: 0.22% of the file</h4>
 <div class="seg" id="httpQ"><button data-m="one_day" class="on">One day</button><button data-m="case6">Tokens per model</button><button data-m="one_row">One message by id</button></div>
 <div id="httpSvg" class="plot"></div>
 <div class="small" id="httpNote"></div>
@@ -292,20 +334,20 @@ con.sql("COPY (SELECT * FROM read_csv('events.csv')) TO 'events.parquet' (FORMAT
 <h3>Bigger than memory, measured</h3>
 <p>Operators that must see all their input before producing output (sorting, grouping, joining, window functions) <b>spill</b> to a temporary directory when they exceed <code>memory_limit</code>, which defaults to 80% of RAM (<a href="https://duckdb.org/docs/current/guides/performance/how_to_tune_workloads.html" target="_blank" rel="noopener noreferrer">tuning guide</a>). Sorting all 10 million messages by their text (about 1 GB of strings) with the limit set to 300 MB took 3.6 s and wrote up to 790 MB of temporary files; with the default limit (12.7 GiB on this laptop) it took 2.6 s and spilled nothing (<code>vec_ooc.py</code>). Slower, but it finishes: this is what lets one laptop chew through data several times its memory.</p>
 <h3>When DuckDB beats Spark, and when it does not</h3>
-<p>Spark spreads work over a cluster; that costs start-up time, shuffles over the network and an operations burden, and pays off only when the data or the computation is too big for one machine. Most analytical data is not: Jordan Tigani, a founding engineer of BigQuery now running MotherDuck (so not neutral), reported that most BigQuery customers stored under a terabyte and that 90% of queries processed under 100 MB (<a href="https://motherduck.com/blog/big-data-is-dead/" target="_blank" rel="noopener noreferrer">Big data is dead, 2023</a>). Coiled's TPC-H benchmark (2024, by a Dask vendor) found "no project wins": DuckDB was the clear winner for SQL on 100 GB of local data, Spark was beaten by about 10 times or more at small scales, and at 10 TB the distributed engines scaled where single-machine DuckDB and Polars did not (<a href="https://docs.coiled.io/blog/tpch.html" target="_blank" rel="noopener noreferrer">Coiled TPC-H</a>). The rule of thumb: up to a few hundred GB on one machine, start with DuckDB (or Polars); past what one large machine can hold, or with many concurrent users, use a distributed engine or a warehouse.</p>
+<p>Spark spreads work over a cluster; that costs start-up time, shuffles over the network and an operations burden, and pays off only when the data or the computation is too big for one machine. The rule of thumb: up to a few hundred GB on one machine, start with DuckDB (or Polars); past what one large machine can hold, or with many concurrent users, use a distributed engine or a warehouse.</p>
+<details class="dp"><summary>The evidence: Tigani and the Coiled TPC-H benchmark <span class="mute">(depth)</span></summary><div class="b"><p>Most analytical data is not: Jordan Tigani, a founding engineer of BigQuery now running MotherDuck (so not neutral), reported that most BigQuery customers stored under a terabyte and that 90% of queries processed under 100 MB (<a href="https://motherduck.com/blog/big-data-is-dead/" target="_blank" rel="noopener noreferrer">Big data is dead, 2023</a>). Coiled's TPC-H benchmark (2024, by a Dask vendor) found "no project wins": DuckDB was the clear winner for SQL on 100 GB of local data, Spark was beaten by about 10 times or more at small scales, and at 10 TB the distributed engines scaled where single-machine DuckDB and Polars did not (<a href="https://docs.coiled.io/blog/tpch.html" target="_blank" rel="noopener noreferrer">Coiled TPC-H</a>).</p></div></details>
 <h3>Where it stops, and what grew around it</h3>
 <ul>
-<li><b>One writing process at a time</b> per database file (many threads inside it); snapshot isolation is its only level (atlas). It is not the live store behind a web app with many writers.</li>
+<li><b>One writing process at a time</b> per database file (many threads inside it); snapshot isolation is its only level (root's Database atlas). It is not the live store behind a web app with many writers.</li>
 <li><b>Lakehouse formats:</b> the <code>iceberg</code> extension reads tables directly and reads and writes through an Iceberg REST catalog; the <code>delta</code> extension, built on Delta Kernel, reads and does blind appends (<a href="https://duckdb.org/docs/current/core_extensions/iceberg/overview.html" target="_blank" rel="noopener noreferrer">iceberg</a>, <a href="https://duckdb.org/docs/current/core_extensions/delta.html" target="_blank" rel="noopener noreferrer">delta</a>).</li>
-<li><b>DuckLake</b>, the DuckDB team's own table format, keeps all lakehouse metadata in a SQL database (Postgres, MySQL, SQLite or DuckDB) and the data in Parquet, which gives multi-writer access; announced 2025-05-27, v1.0 declared production-ready 2026-04-13 (<a href="https://ducklake.select/news/" target="_blank" rel="noopener noreferrer">ducklake.select</a>).</li>
-<li><b>MotherDuck</b> runs DuckDB as a cloud service (storage $0.043 per GB-month; compute instances from $2.93 an hour, or $0.73 per compute-unit hour metered per query; <a href="https://motherduck.com/product/pricing/" target="_blank" rel="noopener noreferrer">pricing</a>).</li>
+<li><b>DuckLake</b>, the DuckDB team's own table format, keeps all lakehouse metadata in a SQL database (Postgres, MySQL, SQLite or DuckDB) and the data in Parquet, which gives multi-writer access (<a href="https://ducklake.select/news/" target="_blank" rel="noopener noreferrer">ducklake.select</a>).</li>
+<li><b>MotherDuck</b> runs DuckDB as a cloud service. Versions, the AWS deal and prices are in the dated table in section 12.</li>
 </ul>
 </section>
 
 <section id="s-ch">
 <h2>7. ClickHouse: a column store server for fresh events</h2>
-<p><b>The problem it solves.</b> DuckDB on Parquet is ideal for files that change once a night. A product dashboard wants something else: events arriving every second (messages, token counts, latencies), queried by many people at once, answered in well under a second, over billions of rows. That needs a server that ingests continuously and stays columnar. ClickHouse is the most widely used open-source one (Apache 2.0; 26.9.10.4 stable and 26.8 LTS on 2026-10-04, <a href="https://raw.githubusercontent.com/ClickHouse/ClickHouse/master/utils/list-versions/version_date.tsv" target="_blank" rel="noopener noreferrer">versions</a>).</p>
-<h3>MergeTree, run for real</h3>
+<p><b>The problem it solves.</b> DuckDB on Parquet is ideal for files that change once a night. A product dashboard wants something else: events arriving every second (messages, token counts, latencies), queried by many people at once, answered in well under a second, over billions of rows. That needs a server that ingests continuously and stays columnar. ClickHouse is the most widely used open-source one (Apache 2.0).</p>
 <p>The figures below come from ClickHouse itself, embedded in Python through chDB 3.7.2, which bundles ClickHouse 25.8 (a year behind the current release; the MergeTree behaviour shown is long-standing). The 10 million messages were inserted in 10 batches into</p>
 <pre class="fm" style="font-size:12.5px;white-space:pre;overflow-x:auto">CREATE TABLE chat.messages (id UInt64, chat_id UInt64, role LowCardinality(String),
   model LowCardinality(String), tokens UInt32, content String, created_at DateTime)
@@ -313,19 +355,26 @@ ENGINE = MergeTree ORDER BY (chat_id, created_at)</pre>
 <ul>
 <li><b>Every insert writes a part.</b> A <b>part</b> is an immutable folder of column files, sorted by the table's <code>ORDER BY</code>, written in one go and never modified. After 10 inserts, <code>system.parts</code> listed 10 parts of 1,000,000 rows and 47.6 MiB each. Merges were paused for this step so the parts could be seen.</li>
 <li><b>Background merges combine parts</b>, like an LSM-tree's compaction (<a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a>): read sorted parts, write one bigger sorted part, drop the old ones. <code>OPTIMIZE TABLE ... FINAL</code> forced it: one part, <code>all_1_10_2</code> (blocks 1 to 10, merge level 2), 10,000,000 rows, 476 MiB, in 3.9 s.</li>
-<li><b>ORDER BY is the primary index, and it is sparse.</b> Within a part, rows are cut into <b>granules</b> of 8,192 rows (<code>index_granularity</code>, default 8192) and the index stores the key of the first row of each granule, not of every row (<a href="https://clickhouse.com/docs/guides/best-practices/sparse-primary-indexes" target="_blank" rel="noopener noreferrer">sparse primary indexes</a>). Finding chat 424242 is a binary search over 1,221 index entries, and <code>EXPLAIN indexes = 1</code> reported <b>Granules: 1/1221</b>: one granule of 8,192 rows read. Before the merge it reported Parts: 1/10, Granules: 1/1230.</li>
-<li><b>Other filters scan.</b> The same table filtered on one day of <code>created_at</code> reported Granules: 1221/1221. The order chosen for the table decides which questions are cheap; a second order needs a <i>projection</i> or a second table. That is section 3's rule again, made explicit in the schema.</li>
-<li><b>Sorting compresses.</b> With the default LZ4 codec, <code>chat_id</code> (sorted first) shrank from 80 MB to 8.0 MB on disk, while <code>id</code>, unsorted in this order, only halved (80 to 40 MB) and <code>created_at</code> did not shrink at all.</li>
+<li><b>ORDER BY is the primary index, and it is sparse.</b> Within a part, rows are cut into <b>granules</b> of 8,192 rows (<code>index_granularity</code>, default 8192) and the index stores the key of the first row of each granule, not of every row (<a href="https://clickhouse.com/docs/guides/best-practices/sparse-primary-indexes" target="_blank" rel="noopener noreferrer">sparse primary indexes</a>).</li>
 </ul>
-<h3>Materialised views as insert triggers</h3>
-<p>An <b>incremental materialised view</b> in ClickHouse runs its query on every inserted block and writes the result into a target table (<a href="https://clickhouse.com/docs/materialized-view/incremental-materialized-view" target="_blank" rel="noopener noreferrer">docs</a>). Here a view kept tokens per model per day in a SummingMergeTree table: after the 10 inserts it held 1,408 partial rows, to be summed by later merges; summed at query time, 1 March 2026 came to 28,800 messages and 9,134,325 tokens, the same as every other engine on this page. Dashboards read the small table, not the 10 million rows. <b>Refreshable</b> materialised views instead re-run a full query on a schedule.</p>
-<h3>Defaults and limits worth knowing (26.9 source, 2026-10-04)</h3>
+<div class="card" id="grCard"><h4 class="vt">The sparse index finds one chat in one granule of 1,221; a filter on time reads them all</h4>
+<div class="seg" id="grMode"><button data-m="chat" class="on">WHERE chat_id = 424242</button><button data-m="time">WHERE created_at on one day</button></div>
+<div class="rd-svg" id="grSvg"></div>
+<p class="small mute" id="grCap"></p>
+<p class="small mute">The merged part, from <code>EXPLAIN indexes = 1</code> <span class="meas">measured</span>: <b>Granules: 1/1221</b> by binary search for the chat (before the merge, Parts: 1/10, Granules: 1/1230); <b>Granules: 1221/1221</b> by generic exclusion search for one day of <code>created_at</code>. One tick per 8 index entries; a granule is 8,192 rows.</p>
+</div>
+<p>The order chosen for the table decides which questions are cheap; a second order needs a <i>projection</i> or a second table. That is section 3's rule again, made explicit in the schema. <b>Sorting also compresses:</b> with the default LZ4 codec, <code>chat_id</code> (sorted first) shrank from 80 MB to 8.0 MB on disk, while <code>id</code>, unsorted in this order, only halved (80 to 40 MB) and <code>created_at</code> did not shrink at all.</p>
+<p><b>Materialised views as insert triggers.</b> An <b>incremental materialised view</b> in ClickHouse runs its query on every inserted block and writes the result into a target table (<a href="https://clickhouse.com/docs/materialized-view/incremental-materialized-view" target="_blank" rel="noopener noreferrer">docs</a>). Here a view kept tokens per model per day in a SummingMergeTree table: after the 10 inserts it held 1,408 partial rows, to be summed by later merges; summed at query time, 1 March 2026 came to 28,800 messages and 9,134,325 tokens, the same as every other engine on this page. Dashboards read the small table, not the 10 million rows. <b>Refreshable</b> materialised views instead re-run a full query on a schedule.</p>
+<p><b>The defaults that bite.</b> Inserts are not fsynced by default (<code>fsync_after_insert</code> = 0, confirmed in the embedded server too): an acknowledged insert can be lost if the machine loses power before the OS flushes it; replication covers this in practice. Each insert makes a part, so thousands of tiny inserts outrun merging: above 1,000 active parts in a partition inserts are delayed, above 3,000 they fail with "Too many parts" (<code>parts_to_delay_insert</code>, <code>parts_to_throw_insert</code>); batch inserts (thousands of rows each) or use async inserts, which buffer on the server. Updates and deletes are expensive by design (below).</p>
+<details class="dp"><summary>More defaults, a correction to the docs, and scaling <span class="mute">(26.9 source, 2026-10-04)</span></summary><div class="b">
 <ul>
-<li><b>Inserts are not fsynced</b> by default (<code>fsync_after_insert</code> = 0, confirmed in the embedded server too): an acknowledged insert can be lost if the machine loses power before the OS flushes it. Replication covers this in practice; turn it on if a single node must not lose data.</li>
-<li><b>Too many parts:</b> each insert makes a part, so thousands of tiny inserts outrun merging. Above 1,000 active parts in a partition inserts are delayed, above 3,000 they fail with "Too many parts" (<code>parts_to_delay_insert</code>, <code>parts_to_throw_insert</code>). Batch inserts (thousands of rows each) or use async inserts, which buffer on the server; <span class="ill">correction</span> the docs read as if async inserts are opt-in, but since 26.2 <code>async_insert</code> is on by default (<a href="https://github.com/ClickHouse/ClickHouse/blob/v26.9.10.4-stable/src/Core/SettingsChangesHistory.cpp" target="_blank" rel="noopener noreferrer">settings history</a>).</li>
-<li><b>Updates and deletes are expensive by design.</b> Lightweight DELETE marks rows hidden and removes them at later merges; lightweight UPDATE (patch parts) is still Beta; <b>ReplacingMergeTree</b> deduplicates rows with the same sorting key only during merges, at unknown times, so queries add <code>FINAL</code> when duplicates matter (<a href="https://clickhouse.com/docs/engines/table-engines/mergetree-family/replacingmergetree" target="_blank" rel="noopener noreferrer">ReplacingMergeTree</a>).</li>
+<li><b>ReplacingMergeTree</b> deduplicates rows with the same sorting key only during merges, at unknown times, so queries add <code>FINAL</code> when duplicates matter (<a href="https://clickhouse.com/docs/engines/table-engines/mergetree-family/replacingmergetree" target="_blank" rel="noopener noreferrer">ReplacingMergeTree</a>).</li>
+<li><b>Correction:</b> the docs read as if async inserts are opt-in, but since 26.2 <code>async_insert</code> is on by default (<a href="https://github.com/ClickHouse/ClickHouse/blob/v26.9.10.4-stable/src/Core/SettingsChangesHistory.cpp" target="_blank" rel="noopener noreferrer">settings history</a>).</li>
+<li>Lightweight DELETE marks rows hidden and removes them at later merges; lightweight UPDATE (patch parts) is still Beta.</li>
+<li>Turn on <code>fsync_after_insert</code> if a single node must not lose data.</li>
 <li><b>Scaling:</b> shard across servers with a Distributed table and replicate asynchronously through ClickHouse Keeper; ClickHouse Cloud's SharedMergeTree keeps data in object storage instead (<a href="https://clickhouse.com/docs/cloud/reference/shared-merge-tree" target="_blank" rel="noopener noreferrer">SharedMergeTree</a>).</li>
 </ul>
+</div></details>
 <div class="co"><div class="t">When to choose it, when not</div>Choose ClickHouse for append-mostly event data, dashboards and observability where queries must be sub-second over billions of rows and data is minutes old. Do not use it as a system of record: no general transactions, no unique constraints, weak single-row updates, and the not-fsynced default. For data that changes once a day and a few analysts, DuckDB on Parquet is simpler.</div>
 </section>
 
@@ -333,18 +382,15 @@ ENGINE = MergeTree ORDER BY (chat_id, created_at)</pre>
 <h2>8. Cloud warehouses: storage apart from compute, and how they bill</h2>
 <p><b>The problem.</b> DuckDB and ClickHouse run on machines you size. When data reaches tens of terabytes, or twenty teams query it at once, sizing and running those machines becomes a job of its own. A <b>cloud data warehouse</b> is a managed column store that removes that job.</p>
 <p><b>The idea they share: separate storage from compute.</b> The table lives as compressed columnar files in the provider's object storage (cheap, effectively unlimited, durable). Query engines are separate machines that read those files when a query runs and can be added, resized or switched off without moving data. Each team can get its own compute over the same tables, and when nobody queries, compute can cost nothing. The price is a network hop between the two, hidden by local caches.</p>
-<div class="tw"><table>
-<thead><tr><th>Service</th><th>Storage</th><th>Compute and isolation</th><th>How you pay (list prices, US region, fetched 2026-10-04)</th></tr></thead>
-<tbody>
-<tr><td><b>Google BigQuery</b></td><td>Columnar files (Capacitor) on Colossus</td><td>Dremel execution trees whose leaves are <i>slots</i> (units of CPU and memory) (<a href="https://cloud.google.com/blog/products/data-analytics/new-blog-series-bigquery-explained-overview" target="_blank" rel="noopener noreferrer">Google Cloud blog, 2020</a>); snapshot isolation for multi-statement transactions (atlas)</td><td><b>On demand:</b> $6.25 per TiB of data processed, first 1 TiB a month free, at least 10 MB per query and per table referenced; you pay for the columns you select "even if you set an explicit LIMIT". <b>Capacity:</b> slot-hours at $0.04 (Standard), $0.06 (Enterprise), $0.10 (Enterprise Plus), per second with a 1-minute minimum. Storage about $0.023 per GiB-month active, $0.016 long-term (<a href="https://cloud.google.com/bigquery/pricing" target="_blank" rel="noopener noreferrer">pricing</a>).</td></tr>
-<tr><td><b>Snowflake</b></td><td>Immutable <i>micro-partitions</i> of 50 to 500 MB uncompressed, columnar inside, with per-column value ranges for pruning (<a href="https://docs.snowflake.com/en/user-guide/tables-clustering-micropartitions" target="_blank" rel="noopener noreferrer">docs</a>)</td><td><i>Virtual warehouses</i>: compute clusters you start, suspend and resize (XS uses 1 credit an hour, doubling per size); read committed is the only isolation level (atlas)</td><td>Per second with a 60-second minimum each time a warehouse starts or resumes (<a href="https://docs.snowflake.com/en/user-guide/warehouses-overview" target="_blank" rel="noopener noreferrer">docs</a>); a credit costs $2 (Standard), $3 (Enterprise) or $4 (Business Critical) on AWS US East; storage $23 per TB-month (<a href="https://www.snowflake.com/legal-files/CreditConsumptionTable.pdf" target="_blank" rel="noopener noreferrer">credit table, effective 2026-10-02</a>)</td></tr>
-<tr><td><b>Amazon Redshift</b></td><td>Redshift Managed Storage on S3 with local SSD caches (RA3, the new RG nodes, Serverless), $0.024 per GB-month</td><td>Provisioned clusters (ra3.xlplus $1.086, ra3.4xlarge $3.26 per node-hour) or Serverless; snapshot isolation is the default for new clusters (atlas)</td><td><b>Serverless:</b> $0.375 per RPU-hour (an RPU is 16 GB of memory), per second with a 60-second minimum; the default base capacity is 128 RPUs, adjustable down to 4 (<a href="https://aws.amazon.com/redshift/pricing/" target="_blank" rel="noopener noreferrer">pricing</a>, <a href="https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-capacity.html" target="_blank" rel="noopener noreferrer">capacity docs</a>)</td></tr>
-<tr><td><b>Databricks SQL</b></td><td>Your own cloud storage, in open formats (Delta Lake, Iceberg) under Unity Catalog (<a href="https://docs.databricks.com/aws/en/lakehouse/" target="_blank" rel="noopener noreferrer">docs</a>)</td><td>SQL warehouses from 2X-Small (1 worker) to 5X-Large (512 workers), the Photon vectorised engine (<a href="https://docs.databricks.com/aws/en/compute/sql-warehouse/warehouse-behavior" target="_blank" rel="noopener noreferrer">sizes</a>)</td><td>DBUs (Databricks units) per hour by size, plus your own cloud bill for storage. On Azure a 2X-Small is 4 DBU an hour, Small 12 (<a href="https://azure.microsoft.com/en-us/pricing/details/databricks/" target="_blank" rel="noopener noreferrer">Azure pricing</a>). The dollar price per DBU is rendered by script on the pricing page and could not be read: <b>unconfirmed</b> here.</td></tr>
-</tbody></table></div>
-<p><b>The two billing models change how you design.</b> When you pay per byte scanned (BigQuery on demand, Redshift Spectrum at $5 per TB), every column you name and every partition you fail to prune is money, and <code>SELECT *</code> on a wide table is the classic expensive mistake. When you pay for compute time (Snowflake, Redshift Serverless, BigQuery capacity), a scan that takes 2 seconds on a running warehouse is nearly free, but a warehouse kept awake by a dashboard that refreshes every few minutes is not, because of the 60-second minimum on every resume.</p>
-<div class="card" id="whCard">
-<div class="t"><b>What one dashboard query costs</b> <span class="ill">derived from list prices, not measured</span></div>
-<p class="small">The root page's case 6 query (tokens per model) reads the <code>model</code> and <code>tokens</code> columns. In BigQuery's billing a STRING is 2 bytes plus its UTF-8 length and an INT64 8 bytes (<a href="https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/data-types#data_type_sizes" target="_blank" rel="noopener noreferrer">data type sizes</a>), so at 10M messages the query is billed 165.0 MB. The compute-time services are charged here as one 60-second minimum per refresh, assuming the warehouse suspends between refreshes and the query itself runs under a minute.</p>
+<div class="card" id="whdCard"><h4 class="vt">One copy of the data, many compute clusters: each team scales and suspends its own</h4>
+<div class="rd-svg" id="whdSvg"></div>
+<p class="small mute">Every warehouse has this shape under different names (below).</p>
+</div>
+<details class="dp"><summary>How BigQuery, Snowflake, Redshift and Databricks name the pieces <span class="mute">(depth)</span></summary><div class="b"><p>The same shape in each service, with different names: BigQuery keeps columnar files (Capacitor) on Colossus and runs Dremel execution trees whose leaves are <i>slots</i>, units of CPU and memory (<a href="https://cloud.google.com/blog/products/data-analytics/new-blog-series-bigquery-explained-overview" target="_blank" rel="noopener noreferrer">Google Cloud blog, 2020</a>); Snowflake keeps immutable <i>micro-partitions</i> of 50 to 500 MB uncompressed, columnar inside, with per-column value ranges for pruning (<a href="https://docs.snowflake.com/en/user-guide/tables-clustering-micropartitions" target="_blank" rel="noopener noreferrer">docs</a>), read by <i>virtual warehouses</i> you start, suspend and resize (XS uses 1 credit an hour, doubling per size); Redshift keeps Redshift Managed Storage on S3 with local SSD caches, read by provisioned clusters or Serverless; Databricks SQL reads your own cloud storage in open formats (Delta Lake, Iceberg) under Unity Catalog with the Photon vectorised engine (<a href="https://docs.databricks.com/aws/en/lakehouse/" target="_blank" rel="noopener noreferrer">docs</a>).</p></div></details>
+<p><b>Isolation differs, and it matters for reports</b> (root's Database atlas): BigQuery gives snapshot isolation for multi-statement transactions; Snowflake offers read committed only, so a report that reads two tables in one transaction can see different moments of each; Redshift defaults to snapshot isolation for new clusters. Isolation levels themselves are on <a href="https://app.notion.com/p/3ef5c17b0d0d8155aa64ddeb09da144e" target="_blank" rel="noopener noreferrer">Transactions and concurrency</a>.</p>
+<p><b>The two billing models change how you design.</b> When you pay per byte scanned (BigQuery on demand, Redshift Spectrum), every column you name and every partition you fail to prune is money, and <code>SELECT *</code> on a wide table is the classic expensive mistake: BigQuery bills the columns you select "even if you set an explicit LIMIT". When you pay for compute time (Snowflake, Redshift Serverless, BigQuery capacity), a scan that takes 2 seconds on a running warehouse is nearly free, but a warehouse kept awake by a dashboard that refreshes every few minutes is not, because of the 60-second minimum each time a warehouse starts or resumes (<a href="https://docs.snowflake.com/en/user-guide/warehouses-overview" target="_blank" rel="noopener noreferrer">Snowflake docs</a>). Predict: at one refresh a minute, which bill grows faster as the table grows from 10 million to 10 billion rows?</p>
+<div class="card" id="whCard"><h4 class="vt">Pay-per-byte grows with the table; pay-per-second grows with how often you ask</h4>
+<p class="small">The root page's case 6 query (tokens per model) reads the <code>model</code> and <code>tokens</code> columns. In BigQuery's billing a STRING is 2 bytes plus its UTF-8 length and an INT64 8 bytes (<a href="https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/data-types#data_type_sizes" target="_blank" rel="noopener noreferrer">data type sizes</a>), so at 10M messages the query is billed 165.0 MB <span class="der">derived</span>. The compute-time services are charged here as one 60-second minimum per refresh, assuming the warehouse suspends between refreshes and the query itself runs under a minute. List prices, US region, fetched 2026-10-04: BigQuery on demand $6.25 per TiB (at least 10 MB per query); Snowflake Enterprise $3 per credit; Redshift Serverless $0.375 per RPU-hour at 8 RPU.</p>
 <div class="ctl">
 <label>Messages in the table: <b id="whRowsV"></b><input type="range" id="whRows" min="0" max="3" step="1" value="2"></label>
 <label>Refreshes per day: <b id="whRefV"></b><input type="range" id="whRef" min="0" max="4" step="1" value="2"></label>
@@ -352,82 +398,88 @@ ENGINE = MergeTree ORDER BY (chat_id, created_at)</pre>
 <div class="out" id="whOut"></div>
 <div class="small mute" id="whNote"></div>
 </div>
-<p><b>When not to reach for one.</b> If the data fits on one machine (most of it does: section 6), a warehouse adds a bill, a network and a second copy for little gain. If you need per-request answers for an app, warehouses answer in seconds, not milliseconds; the atlas notes that BigQuery's DML is rate limited and Snowflake's billing suits batch analytics. And mind the isolation levels: a report that reads two tables in one Snowflake transaction can see different moments of each, since read committed is all it offers.</p>
-<div class="co"><div class="t">What pros do</div>Set auto-suspend short (Snowflake) or cap slots (BigQuery capacity), put a budget alert on day one, partition and cluster big tables by the column most queries filter on (time), materialise expensive dashboard queries into small summary tables, and check the bytes a BigQuery query will bill before running it (the console shows the estimate; a dry run returns it).</div>
+<p><b>When not to reach for one.</b> If the data fits on one machine (most of it does: section 6), a warehouse adds a bill, a network and a second copy for little gain. If you need per-request answers for an app, warehouses answer in seconds, not milliseconds; the atlas notes that BigQuery's DML is rate limited and Snowflake's billing suits batch analytics.</p>
+<div class="co"><div class="t">What pros do</div>Set auto-suspend short (Snowflake) or cap slots (BigQuery capacity), put a budget alert on day one, partition and cluster big tables by the column most queries filter on (time), materialise expensive dashboard queries into small summary tables, and check the bytes a BigQuery query will bill before running it (the console shows the estimate; a dry run returns it). Every list price is in the dated table in section 12.</div>
 </section>
 
 <section id="s-lake">
 <h2>9. The lakehouse: making a folder of Parquet files behave like a table</h2>
-<p><b>The problem.</b> Object storage (S3, Google Cloud Storage, Azure Blob) is the cheapest durable place to keep terabytes, and Parquet is the format every engine reads. So teams put Parquet files in a bucket and called it a <b>data lake</b>. A folder of files is not a table, though, and the chat product hits every gap within a month:</p>
-<ul>
+<p><b>The problem.</b> Object storage (S3, Google Cloud Storage, Azure Blob) is the cheapest durable place to keep terabytes, and Parquet is the format every engine reads. So teams put Parquet files in a bucket and called it a <b>data lake</b>. A folder of files is not a table, though: it has no atomic commit, no safe change, no schema history, no time travel, and planning starts by listing objects.</p>
+<details class="dp"><summary>The five gaps, as the chat product hits them within a month <span class="mute">(depth)</span></summary><div class="b"><ul>
 <li><b>No atomic commit.</b> A nightly job writes 40 files; a reader that lists the folder halfway through sees 23 of them and reports wrong totals. A job that crashes leaves half its files behind.</li>
 <li><b>No safe change.</b> Deleting one user's messages (a privacy request) means rewriting files while others read them. Two writers at once can overwrite each other.</li>
 <li><b>No schema history.</b> Add a <code>lang</code> column and old files lack it; rename a column and readers that match by name break.</li>
 <li><b>No time travel.</b> "What did this table look like when we trained last Tuesday's model?" has no answer once files are rewritten.</li>
 <li><b>Slow planning.</b> Listing a folder of a million objects on S3 takes many API calls before a single byte of data is read.</li>
-</ul>
-<p><b>The idea.</b> A <b>table format</b> keeps, next to the data files, a small set of <b>metadata files</b> that list exactly which data files make up the table at each moment, with their statistics. A commit writes new data files first (invisible), then new metadata, and finally makes the new metadata current with one atomic step. Readers read whichever metadata is current when they start, so they always see a whole commit or none of it. Old metadata stays, so old versions stay readable. The <b>lakehouse</b> is that combination, data lake storage with warehouse-style tables on top, named in the CIDR 2021 paper by Armbrust, Ghodsi, Xin and Zaharia (<a href="https://www.cidrdb.org/cidr2021/papers/cidr2021_paper17.pdf" target="_blank" rel="noopener noreferrer">Lakehouse paper</a>). Three formats matter:</p>
-
-<h3>Apache Iceberg: a tree of metadata, walked through on a real table</h3>
-<p>The spec (<a href="https://iceberg.apache.org/spec/" target="_blank" rel="noopener noreferrer">iceberg.apache.org/spec</a>) tracks individual files, not directories, in four layers. Built here with pyiceberg 0.12.0 on the local disk (<code>src/measure/iceberg_walk.py</code>), one day of chat messages at a time:</p>
-<div class="card" id="iceMini">
-<svg id="iceTree" aria-label="Iceberg metadata tree"></svg>
-<div class="small mute">The real files after the second append. Every name is the one pyiceberg wrote; the <a href="#" data-tab="t-ice">Iceberg, step by step</a> tab replays all eight steps and opens each file.</div>
-</div>
+</ul></div></details>
+<p>So teams kept a warehouse beside the lake and copied data between them with ETL, two copies that drift apart. The <b>lakehouse</b> is the alternative named in the CIDR 2021 paper by Armbrust, Ghodsi, Xin and Zaharia (<a href="https://www.cidrdb.org/cidr2021/papers/cidr2021_paper17.pdf" target="_blank" rel="noopener noreferrer">Lakehouse paper</a>): one copy in open files on the lake, with a metadata layer that gives it warehouse-style tables.</p>
+<figure><img src="img/lakehouse_fig1.webp" alt="Three architecture diagrams side by side: (a) structured data goes through ETL into data warehouses that serve BI and reports; (b) all data lands in a data lake, ETL copies part of it into data warehouses for BI, while data science and machine learning read the lake directly; (c) a metadata, caching and indexing layer sits on the data lake and serves BI, reports, data science and machine learning from one copy" loading="lazy" width="1100" height="453">
+<figcaption>Notice what disappears from (b) to (c): the second copy in a warehouse and the ETL arrow feeding it. In (c) every consumer reads the lake through one metadata layer, which is what the table formats below are.<span class="cr">Figure 1 of Armbrust, Ghodsi, Xin and Zaharia, "Lakehouse", CIDR 2021, CC BY 3.0, <a href="https://www.cidrdb.org/cidr2021/papers/cidr2021_paper17.pdf" target="_blank" rel="noopener noreferrer">cidrdb.org</a>.</span></figcaption></figure>
+<p><b>The idea.</b> A <b>table format</b> keeps, next to the data files, a small set of <b>metadata files</b> that list exactly which data files make up the table at each moment, with their statistics. A commit writes new data files first (invisible), then new metadata, and finally makes the new metadata current with one atomic step. Readers read whichever metadata is current when they start, so they always see a whole commit or none of it. Old metadata stays, so old versions stay readable. Three formats matter: Iceberg, Delta Lake and Hudi.</p>
+<h3>Apache Iceberg: a tree of metadata, built for real</h3>
+<p>The spec (<a href="https://iceberg.apache.org/spec/" target="_blank" rel="noopener noreferrer">iceberg.apache.org/spec</a>) tracks individual files, not directories, in four layers under a catalog. A real table was built on the local disk with pyiceberg 0.12.0 and a SQLite catalog, one day of chat messages at a time (<code>src/measure/iceberg_walk.py</code>, 2026-10-04): step through its commits below.</p>
 <ol>
-<li><b>Catalog</b>: holds one pointer per table, the location of the current <code>metadata.json</code>. Here a SQLite file; in production a REST catalog service, AWS Glue, Unity Catalog or Polaris (below).</li>
+<li><b>Catalog</b>: holds one pointer per table, the location of the current <code>metadata.json</code>.</li>
 <li><b><code>metadata.json</code></b>: the table's schemas (each column with a permanent <b>field id</b>), partition specs, and the list of <b>snapshots</b>, each one the complete state of the table after one commit. Every commit writes a new one; ours grew from 1,036 bytes to 7,761 bytes over eight steps.</li>
 <li><b>Manifest list</b> (<code>snap-...avro</code>): one per snapshot, listing the manifests that make it up, with partition value ranges so a reader can skip whole manifests.</li>
 <li><b>Manifests</b> (<code>...-m0.avro</code>): each lists data files with their partition values, row counts, and per-column lower and upper bounds (min/max, like Parquet's) so the planner can skip files without opening them.</li>
 <li><b>Data files</b>: ordinary Parquet. One day of our messages is one 323 KB file.</li>
 </ol>
-<p>What each step of the real run wrote, in short:</p>
+<div class="card" id="iceCard"><h4 class="vt">Nothing is modified in place: every commit adds files, and the newest metadata decides which ones are the table</h4>
+<div class="seg" id="iceFmt"><button data-m="ice" class="on">Apache Iceberg</button><button data-m="delta">Delta Lake</button></div>
+<div class="chips" id="iceSteps"></div>
+<div id="iceWhat" style="font-size:14px;margin-bottom:6px"></div>
+<div id="iceMap" class="plot"></div>
+<div class="out" id="iceStats"></div>
+<div class="detail" id="iceDetail"></div>
+<p class="small mute">Every box is a file the table really wrote; new ones are outlined, and files the current version no longer uses fade (they stay on disk for time travel). Click a box to open its decoded contents. The toggle replays the same story with Delta Lake (deltalake 1.6.6), whose metadata is a log of JSON commits instead of a tree.</p>
+</div>
 <div class="tw"><table class="small">
 <thead><tr><th>Step</th><th>New files</th><th>What it shows</th></tr></thead>
 <tbody>
 <tr><td>Create, partition by <code>day(created_at)</code></td><td>2 metadata.json</td><td>No data yet: a table is its metadata. Adding the partition spec was itself a commit.</td></tr>
 <tr><td>Append 2026-03-01 (28,800 rows)</td><td>1 Parquet, 1 manifest, 1 manifest list, 1 metadata.json</td><td>The data file lands in <code>created_at_day=2026-03-01/</code>; snapshot 1 exists only once metadata.json 00002 is current.</td></tr>
-<tr><td>Append 2026-03-02</td><td>same four kinds</td><td>The new manifest list names both manifests: snapshots share unchanged manifests rather than copying them.</td></tr>
+<tr><td>Append 2026-03-02</td><td>same four kinds</td><td>The new manifest list names both manifests: snapshots share unchanged manifests rather than copying them, so a commit costs one new manifest, not a copy of the table's file list.</td></tr>
 <tr><td>Add column <code>lang</code></td><td>1 metadata.json only</td><td><b>Schema evolution</b> rewrites no data: schema 1 adds field id 7. Old files simply have no field 7, read as null.</td></tr>
 <tr><td>Delete chat 520912</td><td>1 Parquet, 2 manifests, 1 list, 1 metadata.json</td><td>pyiceberg rewrote the one affected file (28,798 rows) and recorded the old one as DELETED: <b>copy-on-write</b>. The old file stays on disk for time travel.</td></tr>
 <tr><td>Partition spec day to month</td><td>1 metadata.json only</td><td><b>Partition evolution</b>: new data uses month; old files keep their day layout; queries need no change, because they filter on <code>created_at</code>, never on the partition column (<b>hidden partitioning</b>).</td></tr>
 <tr><td>Time travel to snapshot 1</td><td>none</td><td>Reading snapshot 1899985093966477424 returns 28,800 rows and the 6 original columns; the current snapshot has 115,198 rows and 7 columns.</td></tr>
 </tbody></table></div>
-<p>A query for one day planned exactly one of the table's four live data files, from manifest bounds alone, before opening any Parquet: the same min/max pruning as section 3, one level up. <b>Concurrency</b> is optimistic: a writer builds new metadata from the snapshot it read, then asks the catalog to swap the pointer only if it still points where it did; if another writer won, it re-checks for conflicts and retries (<a href="https://iceberg.apache.org/spec/" target="_blank" rel="noopener noreferrer">spec</a>). Format v2 added row-level deletes through <i>delete files</i> (merge-on-read, the alternative to copy-on-write); v3 adds deletion vectors, row lineage, default values, variant and geospatial types; a v4 is in draft. Current Java release: 1.12.0, 2026-09-29 (<a href="https://iceberg.apache.org/releases/" target="_blank" rel="noopener noreferrer">releases</a>).</p>
-
-<h3>Delta Lake: an ordered log of JSON commits</h3>
-<p>Delta keeps a folder <code>_delta_log/</code> of numbered JSON files; commit <i>n</i> is <code>00000000000000000003.json</code> for <i>n</i> = 3, and creating it atomically (put-if-absent) is the commit (<a href="https://github.com/delta-io/delta/blob/master/PROTOCOL.md" target="_blank" rel="noopener noreferrer">PROTOCOL.md</a>). Each holds <b>actions</b>: <code>add</code> a file (with per-file stats), <code>remove</code> a file, <code>metaData</code> (schema), <code>protocol</code>, <code>commitInfo</code>. The same steps with deltalake 1.6.6 (<code>src/measure/delta_walk.py</code>) wrote four commits; the delete wrote one <code>add</code> (28,798 rows copied) and one <code>remove</code>, exactly like Iceberg's copy-on-write. Readers replay the log; to keep replay short, Delta Spark writes a Parquet <b>checkpoint</b> of the whole state every 10 commits by default (an implementation default, not part of the protocol). Delta also has deletion vectors, <b>liquid clustering</b> (changeable clustering keys instead of fixed partitions) and <b>UniForm</b>, which writes Iceberg metadata for the same files so Iceberg readers can read a Delta table (<a href="https://docs.delta.io/latest/delta-uniform.html" target="_blank" rel="noopener noreferrer">UniForm</a>). Current: delta-spark 4.4.0.</p>
-<h3>Apache Hudi, in brief</h3>
-<p>Hudi is built for streaming upserts, for example from a change-data feed. Its tables are <b>copy-on-write</b> (rewrite base files on update) or <b>merge-on-read</b> (append updates to log files, merge at read time, compact later), with a record-level index mapping each key to its file group so an upsert finds its row fast (<a href="https://hudi.apache.org/docs/table_types" target="_blank" rel="noopener noreferrer">table types</a>). Current: 1.2.1 (2026-09-24). Iceberg has the broadest engine support today, which is why the atlas suggests it unless you live in Spark and Databricks (Delta) or stream CDC upserts (Hudi).</p>
-
-<h3>Catalogs: where the pointer lives</h3>
-<p>The atomic step needs one place that holds "current metadata for table X" and can compare-and-swap it. That is the <b>catalog</b>, and in 2026 it is where vendors compete:</p>
-<ul>
-<li><b>Iceberg REST catalog</b>: an OpenAPI spec, so any engine talks to any catalog; a commit sends requirements such as "the current snapshot is still 42" plus updates (<a href="https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml" target="_blank" rel="noopener noreferrer">spec</a>).</li>
-<li><b>AWS Glue Data Catalog</b>: has an Iceberg REST endpoint (<a href="https://docs.aws.amazon.com/glue/latest/dg/connect-glu-iceberg-rest.html" target="_blank" rel="noopener noreferrer">docs</a>); <b>Amazon S3 Tables</b> (announced 2024-12-03) are buckets that store Iceberg tables and run compaction and snapshot clean-up for you (<a href="https://aws.amazon.com/about-aws/whats-new/2024/12/amazon-s3-tables-apache-iceberg-tables-analytics-workloads/" target="_blank" rel="noopener noreferrer">announcement</a>).</li>
-<li><b>Unity Catalog</b>: Databricks' catalog; its open-source version is an LF AI and Data sandbox project, release 0.6.0 (2026-08), serving Delta tables and the Iceberg REST API (<a href="https://www.unitycatalog.io/" target="_blank" rel="noopener noreferrer">unitycatalog.io</a>).</li>
-<li><b>Apache Polaris</b>: an Iceberg REST catalog that Snowflake donated; incubating from 2024-08-09, a top-level Apache project since 2026-02-15 (<a href="https://incubator.apache.org/projects/polaris.html" target="_blank" rel="noopener noreferrer">Apache</a>).</li>
-<li><b>Nessie</b> (Git-like branches and multi-table commits) and <b>Lakekeeper</b> (a Rust REST catalog) are open-source alternatives; <b>DuckLake</b> (section 6) puts the whole catalog and metadata in a SQL database.</li>
-</ul>
-
-<h3>The small-files problem, measured</h3>
-<p>Streaming or frequent small appends create many small files. Each file costs an open, a footer read and a plan entry; each is compressed on its own, and on S3 each is at least one request. The same 10 million messages, measured with DuckDB 1.5.6 (<code>src/measure/remote_small.py</code>):</p>
-<div class="card" id="sfCard"><div id="sfBars" class="bars"></div><div class="small mute" id="sfNote"></div></div>
-<p>The fix is <b>compaction</b>: rewrite many small files into few large ones as a new commit, which readers never notice. Iceberg's <code>rewrite_data_files</code> procedure targets 512 MB files by default; Delta's <code>OPTIMIZE</code> targets 1 GB, and its auto compaction 128 MB (<a href="https://iceberg.apache.org/docs/latest/spark-procedures/" target="_blank" rel="noopener noreferrer">Iceberg procedures</a>, <a href="https://github.com/delta-io/delta/blob/master/spark/src/main/scala/org/apache/spark/sql/delta/sources/DeltaSQLConf.scala" target="_blank" rel="noopener noreferrer">Delta config</a>). Then expire old snapshots and delete files no snapshot references, or storage grows for ever: time travel is paid for in bytes.</p>
+<p>A query for one day planned exactly one of the table's four live data files, from manifest bounds alone, before opening any Parquet: the same min/max pruning as section 3, one level up. The alternative to copy-on-write is <b>merge-on-read</b>: write a small delete file now, pay at read time.</p>
+<details class="dp"><summary>Iceberg format versions <span class="mute">(depth)</span></summary><div class="b"><p>Format v2 added row-level deletes through <i>delete files</i> (merge-on-read); v3 adds deletion vectors, row lineage, default values, variant and geospatial types; a v4 is in draft.</p></div></details>
+<h3>Two writers at once: optimistic concurrency</h3>
+<p>A writer builds new metadata from the snapshot it read, then asks the catalog to swap the pointer only if it still points where it did; if another writer won, it re-checks for conflicts and retries (<a href="https://iceberg.apache.org/spec/" target="_blank" rel="noopener noreferrer">spec</a>). No locks are held while files are written, which is why many engines can write one table.</p>
+<div class="card" id="occCard"><h4 class="vt">The commit is one compare-and-swap on the catalog pointer; the loser retries on top of the winner</h4>
+<div class="rd-svg" id="occSvg"></div>
+<div class="an-ctl" id="occCtl"></div>
+<div class="an-cap" id="occCap"></div>
+<p class="small mute">Metadata files: solid, committed; dashed, written but not visible; faded, superseded or orphaned; orange, current. <span class="ill">illustrative</span> snapshot numbers; the protocol is the spec's. In the Iceberg REST catalog a commit sends requirements such as "the current snapshot is still 42" plus the updates.</p>
+</div>
+<h3>Delta Lake and Apache Hudi</h3>
+<p><b>Delta Lake</b> keeps a folder <code>_delta_log/</code> of numbered JSON files; commit <i>n</i> is <code>00000000000000000003.json</code> for <i>n</i> = 3, and creating it atomically (put-if-absent) is the commit (<a href="https://github.com/delta-io/delta/blob/master/PROTOCOL.md" target="_blank" rel="noopener noreferrer">PROTOCOL.md</a>). Each holds <b>actions</b>: <code>add</code> a file (with per-file stats), <code>remove</code> a file, <code>metaData</code> (schema), <code>protocol</code>, <code>commitInfo</code>. The same steps with deltalake 1.6.6 (<code>src/measure/delta_walk.py</code>) wrote four commits; the delete wrote one <code>add</code> (28,798 rows copied) and one <code>remove</code>, exactly like Iceberg's copy-on-write.</p>
+<details class="dp"><summary>Delta checkpoints, deletion vectors, liquid clustering and UniForm <span class="mute">(depth)</span></summary><div class="b"><p>Readers replay the log; to keep replay short, Delta Spark writes a Parquet <b>checkpoint</b> of the whole state every 10 commits by default (an implementation default, not part of the protocol). Delta also has deletion vectors, <b>liquid clustering</b> (changeable clustering keys instead of fixed partitions) and <b>UniForm</b>, which writes Iceberg metadata for the same files so Iceberg readers can read a Delta table (<a href="https://docs.delta.io/latest/delta-uniform.html" target="_blank" rel="noopener noreferrer">UniForm</a>).</p></div></details>
+<p><b>Apache Hudi</b> is built for streaming upserts, for example from a change-data feed. Its tables are <b>copy-on-write</b> (rewrite base files on update) or <b>merge-on-read</b> (append updates to log files, merge at read time, compact later), with a record-level index mapping each key to its file group so an upsert finds its row fast (<a href="https://hudi.apache.org/docs/table_types" target="_blank" rel="noopener noreferrer">table types</a>). Iceberg has the broadest engine support today, which is why the atlas suggests it unless you live in Spark and Databricks (Delta) or stream CDC upserts (Hudi).</p>
+<p><b>Catalogs: where the pointer lives.</b> The atomic step needs one place that holds "current metadata for table X" and can compare-and-swap it: the <b>catalog</b>, and in 2026 it is where vendors compete. The <b>Iceberg REST catalog</b> is an OpenAPI spec, so any engine talks to any catalog (<a href="https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml" target="_blank" rel="noopener noreferrer">spec</a>); AWS Glue, Unity Catalog, Apache Polaris, Nessie and Lakekeeper implement it or something close, and DuckLake (section 6) puts the whole catalog and metadata in a SQL database. The vendors' catalogs, with dates, are in section 12.</p>
+<h3>Partitioning and the small-files problem, measured</h3>
+<p><b>Partitioning</b> puts each value range of a column (usually a day or a month of time) into its own set of files, so a filter on that range skips whole files before a single footer is read. Pick the grain so files stay hundreds of MB: partition by time, cluster or sort by the key inside. Partitioning by a high-cardinality column (a user id) makes one folder per user and millions of tiny files.</p>
+<p>Tiny files are the cost to watch. Streaming or frequent small appends create many of them; each costs an open, a footer read and a plan entry, each is compressed on its own, and on S3 each is at least one request. The same 10 million messages, measured with DuckDB 1.5.6 (<code>src/measure/remote_small.py</code>):</p>
+<div class="card" id="sfCard"><h4 class="vt">The same rows as 10,066 files took 124 times longer to aggregate than as one file</h4><div id="sfBars" class="bars"></div><div class="small mute" id="sfNote"></div>
+<p class="small mute">At about 10,000 files the data also took 8% more disk <span class="meas">measured</span>; compacting the 10,066 files back into one took 12.4 s.</p></div>
+<p>The fix is <b>compaction</b>: rewrite many small files into few large ones as a new commit, which readers never notice. Iceberg's <code>rewrite_data_files</code> procedure targets 512 MB files by default; Delta's <code>OPTIMIZE</code> targets 1 GB, and its auto compaction 128 MB (<a href="https://iceberg.apache.org/docs/latest/spark-procedures/" target="_blank" rel="noopener noreferrer">Iceberg procedures</a>, <a href="https://github.com/delta-io/delta/blob/master/spark/src/main/scala/org/apache/spark/sql/delta/sources/DeltaSQLConf.scala" target="_blank" rel="noopener noreferrer">Delta config</a>). Then expire old snapshots and delete files no snapshot references, or storage grows for ever (and deleted personal data is still on disk): time travel is paid for in bytes.</p>
 <div class="co warn"><div class="t">When not to use a table format</div>One team, one engine, data that fits in DuckDB or Postgres: a lakehouse adds a catalog to run, compaction jobs to schedule and snapshot expiry to remember. Its pay-off is many engines (Spark for ETL, Trino or a warehouse for BI, Python for ML) sharing one copy of very large tables with safe concurrent writes.</div>
 </section>
 
 <section id="s-elt">
 <h2>10. Getting the data there: ETL, ELT, change data capture and dbt</h2>
-<p><b>The problem.</b> Every engine on this page holds a <i>copy</i>. The app writes to Postgres; analytics reads somewhere else; something must move the rows, keep the copy fresh enough, and never lose or double-count a message.</p>
-<p><b>Two shapes of pipeline.</b></p>
-<ul>
-<li><b>ETL</b> (extract, transform, load): pull rows out, clean and reshape them in a separate program (a Python job, Spark), then load only the finished tables. It was the norm when warehouse compute was scarce and expensive.</li>
-<li><b>ELT</b> (extract, load, transform): copy the raw rows into the warehouse or lake as they are, then transform them <i>inside</i> it with SQL. Cheap separated compute made this the default: the raw copy stays, so a fixed transformation can be re-run over history.</li>
-</ul>
+<p><b>The problem.</b> Every engine on this page holds a <i>copy</i>. The app writes to Postgres; analytics reads somewhere else; something must move the rows, keep the copy fresh enough, and never lose or double-count a message. Two shapes of pipeline do it:</p>
+<div class="card" id="eltCard"><h4 class="vt">ELT replaced ETL by moving the transformation inside the warehouse and keeping the raw copy</h4>
+<div class="rd-svg" id="eltSvg"></div>
+<p class="small mute"><b>ETL</b> (extract, transform, load): pull rows out, clean and reshape them in a separate program (a Python job, Spark), then load only the finished tables; the norm when warehouse compute was scarce and expensive. <b>ELT</b> (extract, load, transform): copy the raw rows in as they are, then transform them <i>inside</i> the warehouse or lake with SQL. Cheap separated compute made ELT the default: the raw copy stays, so a fixed transformation can be re-run over history.</p>
+</div>
 <p><b>Extracting without hurting the app.</b> A nightly <code>COPY (SELECT ... WHERE created_at &gt;= yesterday)</code> works for append-only tables like messages, as long as it reads from a replica. Rows that change (a user's plan, a deleted chat) need <b>change data capture (CDC)</b>: a tool such as <a href="https://debezium.io/documentation/reference/stable/connectors/postgresql.html" target="_blank" rel="noopener noreferrer">Debezium</a> reads Postgres's write-ahead log through a replication slot and emits every insert, update and delete in commit order. That machinery (slots, the outbox pattern, delivery guarantees) is owned by <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>; the leftover risk on the database side, an abandoned slot that keeps WAL forever, is on <a href="https://app.notion.com/p/3ef5c17b0d0d8149a0c9d3e2083ed0de" target="_blank" rel="noopener noreferrer">Running Postgres in production</a>. Landing a change stream in a lake is what Hudi's merge-on-read and Iceberg's row-level deletes are for.</p>
-<h3>dbt, in one section</h3>
-<p><b>dbt</b> is the common tool for the T in ELT. You write each transformed table as one <code>SELECT</code> in a file (a <b>model</b>); dbt works out the order from references between models, runs them in the warehouse, and runs <b>tests</b> (not null, unique, accepted values, relationships) on the results. A daily usage table for the chat product, as an <b>incremental model</b> that only processes new rows on each run (<a href="https://docs.getdbt.com/docs/build/incremental-models-overview" target="_blank" rel="noopener noreferrer">dbt docs</a>):</p>
+<p><b>dbt</b> is the common tool for the T in ELT. You write each transformed table as one <code>SELECT</code> in a file (a <b>model</b>); dbt works out the order from references between models, runs them in the warehouse, and runs <b>tests</b> (not null, unique, accepted values, relationships) on the results. Start with plain SQL views; reach for dbt when there are more than a handful of transformations or more than one person.</p>
+<details class="dp"><summary>A dbt incremental model, and the mistakes it prevents and causes <span class="mute">(depth)</span></summary><div class="b">
+<p>A daily usage table for the chat product, as an <b>incremental model</b> that only processes new rows on each run (<a href="https://docs.getdbt.com/docs/build/incremental-models-overview" target="_blank" rel="noopener noreferrer">dbt docs</a>):</p>
 <pre class="fm" style="font-size:12.5px;white-space:pre;overflow-x:auto">-- models/daily_tokens.sql
 &#123;&#123; config(materialized='incremental', unique_key=['day', 'model']) &#125;&#125;
 select cast(created_at as date) as day, model,
@@ -439,65 +491,49 @@ from &#123;&#123; source('app', 'messages') &#125;&#125;
 &#123;% endif %&#125;
 group by 1, 2</pre>
 <p class="small mute">The double braces above are dbt's Jinja templating, shown verbatim.</p>
-<p>State in October 2026: the Python engine is now called dbt Core v1 (1.12.5, 2026-09-15); the Rust <b>Fusion</b> engine is "v2" and the recommended default, with its runtime open-sourced as dbt Core v2.0 alpha (<a href="https://docs.getdbt.com/docs/fusion/about-fusion" target="_blank" rel="noopener noreferrer">dbt Fusion</a>); and dbt Labs merged with Fivetran (announced 2025-10-13, completed 2026-06-01) (<a href="https://www.fivetran.com/press/fivetran-dbt-labs-complete-merger-to-create-the-data-infrastructure-for-trusted-ai-agents" target="_blank" rel="noopener noreferrer">Fivetran</a>).</p>
-<div class="co warn"><div class="t">Mistakes this prevents, and causes</div>Incremental models skip rows that arrive late unless the filter looks back (the two days above); a pipeline that is not idempotent double-counts on retry (merge on a unique key, never blind-append in a retried job); and a model graph of 400 SQL files with no owner is its own maintenance problem. Start with plain SQL views; reach for dbt when there are more than a handful of transformations or more than one person.</div>
+<p>Incremental models skip rows that arrive late unless the filter looks back (the two days above); a pipeline that is not idempotent double-counts on retry (merge on a unique key, never blind-append in a retried job); and a model graph of 400 SQL files with no owner is its own maintenance problem.</p>
+</div></details>
 </section>
 
 <section id="s-ml">
-<h2>11. Feeding ML: training data, feature history and point-in-time joins</h2>
-<p><b>Training data lives in Parquet.</b> Datasets on the Hugging Face Hub are served as Parquet files (<a href="https://huggingface.co/docs/hub/datasets-duckdb" target="_blank" rel="noopener noreferrer">HF docs</a>), so DuckDB can query them by URL with the same range reads as section 6. For your own training sets, everything above applies with two additions. Write <b>shards</b> of a few hundred MB, so many data-loader workers read in parallel and a crashed job resumes from a shard. And choose the sort order for the reads that matter: sorted by time, "everything since the last training run" prunes to a few row groups; sorted by user, "all of this user's data" (a deletion request, a per-user split) does.</p>
+<h2>11. Feeding ML: training data and point-in-time joins</h2>
+<p><b>Training data lives in Parquet.</b> Datasets on the Hugging Face Hub are served as Parquet files (<a href="https://huggingface.co/docs/hub/datasets-duckdb" target="_blank" rel="noopener noreferrer">HF docs</a>), so DuckDB can query them by URL with the same range reads as section 6. Everything above applies to your own training sets: write shards of a few hundred MB, so many data-loader workers read in parallel and a crashed job resumes from a shard, and choose the sort order for the reads that matter (sorted by time, "everything since the last training run" prunes to a few row groups; sorted by user, "all of this user's data", a deletion request or a per-user split, does). Shard sizes, token files, packing and data loaders are <a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">Storage and loading at scale</a>.</p>
 <p><b>Features need history.</b> A <b>feature</b> is an input to a model computed from data ("tokens this user used in the last 7 days", "the user's plan"). To train, each example needs each feature <i>as it was when the example happened</i>. Joining today's value instead is <b>leakage</b>: the model learns from information it will never have at prediction time, scores well offline and disappoints in production.</p>
-<p>Measured on the chat data with DuckDB (<code>src/measure/ml_asof.py</code>): one training example per chat (999,951 chats, stamped with their first message), and the user's plan as the feature. The chat data has no plan history, so one was generated (<span class="ill">illustrative</span>: 19,968 users, 20%, upgraded from free to pro on a random day). The naive join, today's plan, labelled 198,446 examples "pro"; the <b>point-in-time join</b> labelled 101,517. So 96,929 examples, almost half of the "pro" ones, carried a plan their user did not have yet. Chat 13 started on 2025-09-01; its user upgraded on 2026-05-11; the naive join calls it a pro chat.</p>
+<p>Measured on the chat data with DuckDB (<code>src/measure/ml_asof.py</code>): one training example per chat (999,951 chats, stamped with their first message), and the user's plan as the feature. The chat data has no plan history, so one was generated (<span class="ill">illustrative</span>: 19,968 users, 20%, upgraded from free to pro on a random day). Predict how many of the "pro" labels the naive join gets wrong: a few percent, a quarter, or about half?</p>
+<div class="card" id="asofCard"><h4 class="vt">Today's plan leaked into 96,929 training examples, almost half of the "pro" labels</h4>
+<div class="rd-svg" id="asofSvg"></div>
+<div id="asofBars" class="bars"></div>
+<p class="small mute">Chat 13 started on 2025-09-01; its user upgraded on 2026-05-11. The naive join (each user's latest plan) calls it a pro chat; the point-in-time join takes the plan in force when the chat started, free. Over all 999,951 examples the naive join labelled 198,446 "pro", the point-in-time join 101,517 <span class="meas">measured</span>; the difference, 96,929, carried a plan their user did not have yet.</p>
+</div>
 <pre class="fm" style="font-size:12.5px;white-space:pre;overflow-x:auto">-- the plan in force when each chat started: an ASOF join
 SELECT e.chat_id, e.ts, p.plan
 FROM examples e
 ASOF JOIN plan_history p
   ON e.user_id = p.user_id AND e.ts &gt;= p.valid_from</pre>
-<p>An ASOF join matches each row with the latest row of the other table at or before its timestamp (<a href="https://duckdb.org/docs/stable/guides/sql_features/asof_join" target="_blank" rel="noopener noreferrer">DuckDB ASOF join</a>). A <b>feature store</b> packages this: an <i>offline store</i> (columnar, the full history, for building training sets with point-in-time joins) and an <i>online store</i> (a key-value store with only the latest value per entity, for serving), filled by the same feature definitions so training and serving agree. In Feast, <code>get_historical_features</code> takes a table of entity keys and event timestamps and joins each feature's latest value at or before each timestamp (<a href="https://docs.feast.dev/getting-started/concepts/point-in-time-joins" target="_blank" rel="noopener noreferrer">Feast point-in-time joins</a>; Feast 0.66.0, 2026-08-21). When you need one, and how it fits the serving path, is on <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a>; datasets themselves are on <a href="https://app.notion.com/p/3c65c17b0d0d811fa5ecda8d365ab00f" target="_blank" rel="noopener noreferrer">Topic: data-curation-and-datasets</a>.</p>
+<p>An ASOF join matches each row with the latest row of the other table at or before its timestamp (<a href="https://duckdb.org/docs/stable/guides/sql_features/asof_join" target="_blank" rel="noopener noreferrer">DuckDB ASOF join</a>). A <b>feature store</b> packages this as an offline store for training sets and an online store for serving; Feast's <code>get_historical_features</code> takes a table of entity keys and event timestamps and joins each feature's latest value at or before each timestamp (<a href="https://docs.feast.dev/getting-started/concepts/point-in-time-joins" target="_blank" rel="noopener noreferrer">Feast point-in-time joins</a>). Feature stores as a platform piece are <a href="https://app.notion.com/p/3c65c17b0d0d81b9943cf6c72600f96b" target="_blank" rel="noopener noreferrer">ML platforms and workflows</a>; how they fit the serving path is <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a>.</p>
 <div class="co key"><div class="t">The habit that prevents leakage</div>Keep history instead of overwriting it: an append-only table of changes (valid_from per row), or a lakehouse table you can time-travel, or CDC events landed raw. Then every training set is an ASOF join against an event timestamp, and you can rebuild any past training set exactly.</div>
 </section>
 
 <section id="s-pro">
-<h2>12. What pros do, and the common mistakes</h2>
-<h3>The path most teams should follow</h3>
-<ol>
-<li><b>Start inside Postgres</b>, on a read replica, with a few summary tables refreshed by a job. Under a few million rows of events, that is enough.</li>
-<li><b>When analytic queries take seconds and hurt the app</b>, export to Parquet (nightly, or CDC for changing rows) and query it with DuckDB from notebooks and jobs. One machine handles hundreds of gigabytes.</li>
-<li><b>When dashboards need sub-second answers over billions of fresh events</b>, run ClickHouse (or ClickHouse Cloud), fed by batched inserts.</li>
-<li><b>When many teams, many engines or tens of terabytes</b> share the data, put it in a lakehouse (Iceberg plus a catalog) and/or a cloud warehouse, with dbt for transformations and budget alerts from day one.</li>
-</ol>
-<p>Each step adds a system to run and a copy to keep correct, so take the next one only when the current one measurably fails.</p>
-<h3>Common mistakes</h3>
-<details class="mist"><summary>Running analytics on the primary database</summary><div class="b">Each analytic query over the 10M messages kept Postgres busy for 0.5 to 10 seconds here, reading every page of the table; on the primary that competes with users. Use a replica, or a copy.</div></details>
-<details class="mist"><summary>Writing Parquet in whatever order rows arrive, then wondering why filters are slow</summary><div class="b">Pruning works only if the filtered column is clustered: in the lab, one chat's messages cost 0.46 MB sorted by chat and 34 to 86 MB shuffled. Sort by the column most queries filter on (usually time, then a key).</div></details>
-<details class="mist"><summary>Thousands of tiny files</summary><div class="b">Streaming jobs that write a file every few seconds: the same 10M rows as about 10,000 files took 124 times longer to aggregate than as one file, and 8% more disk. Batch writes, and schedule compaction.</div></details>
-<details class="mist"><summary><code>SELECT *</code> on a pay-per-byte warehouse</summary><div class="b">BigQuery bills every column selected, even with LIMIT. Name the columns; preview with table previews or a dry run.</div></details>
-<details class="mist"><summary>Treating a column store as a database for the app</summary><div class="b">Single-row updates, unique constraints and read-your-writes are where they are weakest (ClickHouse deduplicates only at merge time, and does not fsync inserts by default). Keep the system of record in Postgres.</div></details>
-<details class="mist"><summary>Partitioning by a high-cardinality column</summary><div class="b">Partitioning a lakehouse table by user id makes one folder per user and millions of tiny files. Partition by time at a grain that gives files of hundreds of MB; cluster or sort by the key inside.</div></details>
-<details class="mist"><summary>Never expiring snapshots</summary><div class="b">Every Iceberg or Delta rewrite keeps the old files for time travel. Without snapshot expiry and orphan clean-up, storage grows for ever, and deleted personal data is still on disk.</div></details>
-<details class="mist"><summary>Training on today's feature values</summary><div class="b">Section 11: half of the "pro" examples were leaked. Join features as of each example's timestamp.</div></details>
-<details class="mist"><summary>Reaching for Spark at 50 GB</summary><div class="b">A cluster adds minutes of start-up and an operations burden; DuckDB or Polars on one machine finish first at this scale (section 6). Reach for distributed engines when data or concurrency truly exceeds one machine.</div></details>
-<h3>Glossary</h3>
-<dl class="kv">
-<dt>OLTP / OLAP</dt><dd>Many small reads and writes of whole rows (the app) / few large reads of a few columns of many rows (analytics).</dd>
-<dt>Row group</dt><dd>A block of rows inside a Parquet file or column store; the unit of skipping.</dd>
-<dt>Column chunk</dt><dd>One column's values within one row group, stored contiguously.</dd>
-<dt>Page</dt><dd>The unit inside a column chunk that is encoded and compressed (a dictionary page, data pages).</dd>
-<dt>Encoding / codec</dt><dd>Type-aware compact representation (dictionary, RLE, delta) / generic byte compression (Snappy, zstd).</dd>
-<dt>Zone map, min/max statistics</dt><dd>Smallest and largest value per block, used to skip blocks that cannot match.</dd>
-<dt>Footer</dt><dd>The metadata at the end of a Parquet file: schema, row groups, column chunk offsets and statistics.</dd>
-<dt>Vectorised execution</dt><dd>Operators process batches (vectors) of a few thousand values per call instead of one row per call.</dd>
-<dt>Late materialisation</dt><dd>Evaluate filters on a few columns first; fetch the other columns only for rows that survive.</dd>
-<dt>Part, merge (ClickHouse)</dt><dd>An immutable sorted chunk written per insert / the background job that combines parts.</dd>
-<dt>Table format</dt><dd>Metadata files (Iceberg, Delta, Hudi) that turn data files into a table with atomic commits, snapshots and schema history.</dd>
-<dt>Snapshot, time travel</dt><dd>The table's full state after one commit / reading an older snapshot.</dd>
-<dt>Catalog</dt><dd>The service that holds each table's current metadata pointer and swaps it atomically.</dd>
-<dt>Compaction</dt><dd>Rewriting many small files into fewer large ones.</dd>
-<dt>ETL / ELT / CDC</dt><dd>Transform before loading / load raw then transform in place / streaming every row change from the database's log.</dd>
-<dt>Point-in-time join</dt><dd>Joining each example to feature values as of its own timestamp (an ASOF join).</dd>
-</dl>
+<h2>12. Versions, prices and vendor news, dated</h2>
+<p>Everything on this page that will change within a year is collected here, with the date it was read. The mechanisms above do not depend on any of it.</p>
+<details class="dp"><summary>The dated table <span class="mute">(read 2026-10-04 unless marked; list prices, US region)</span></summary><div class="b"><div class="tw"><table class="small">
+<thead><tr><th>System</th><th>State</th><th>Prices and limits</th></tr></thead>
+<tbody>
+<tr><td><b>DuckDB</b></td><td>1.5.6 (2026-09-28); 1.4 is the long-term-support line; a 2.0 is scheduled for 2026-10-21 and was in public preview at the time of writing (<a href="https://duckdb.org/release_calendar.html" target="_blank" rel="noopener noreferrer">release calendar</a>). DuckLabs agreed to join AWS (announced 2026-08-26, closed 2026-08-31), with DuckDB staying MIT under the non-profit DuckDB Foundation (root's Database atlas, <a href="https://www.aboutamazon.com/news/company-news/aws-ducklabs" target="_blank" rel="noopener noreferrer">announcement</a>). DuckLake announced 2025-05-27, v1.0 declared production-ready 2026-04-13.</td><td>MotherDuck: storage $0.043 per GB-month; compute instances from $2.93 an hour, or $0.73 per compute-unit hour metered per query (<a href="https://motherduck.com/product/pricing/" target="_blank" rel="noopener noreferrer">pricing</a>)</td></tr>
+<tr><td><b>ClickHouse</b></td><td>26.9.10.4 stable and 26.8 LTS on 2026-10-04 (<a href="https://raw.githubusercontent.com/ClickHouse/ClickHouse/master/utils/list-versions/version_date.tsv" target="_blank" rel="noopener noreferrer">versions</a>); chDB 3.7.2 bundles 25.8</td><td>Open source, Apache 2.0</td></tr>
+<tr><td><b>Google BigQuery</b></td><td>Snapshot isolation for multi-statement transactions</td><td><b>On demand:</b> $6.25 per TiB of data processed, first 1 TiB a month free, at least 10 MB per query and per table referenced. <b>Capacity:</b> slot-hours at $0.04 (Standard), $0.06 (Enterprise), $0.10 (Enterprise Plus), per second with a 1-minute minimum. Storage about $0.023 per GiB-month active, $0.016 long-term (<a href="https://cloud.google.com/bigquery/pricing" target="_blank" rel="noopener noreferrer">pricing</a>)</td></tr>
+<tr><td><b>Snowflake</b></td><td>Read committed only</td><td>Per second with a 60-second minimum each time a warehouse starts or resumes; a credit costs $2 (Standard), $3 (Enterprise) or $4 (Business Critical) on AWS US East; storage $23 per TB-month (<a href="https://www.snowflake.com/legal-files/CreditConsumptionTable.pdf" target="_blank" rel="noopener noreferrer">credit table, effective 2026-10-02</a>)</td></tr>
+<tr><td><b>Amazon Redshift</b></td><td>Redshift Managed Storage on S3 with local SSD caches (RA3, the new RG nodes, Serverless); snapshot isolation by default for new clusters</td><td>Storage $0.024 per GB-month; provisioned ra3.xlplus $1.086, ra3.4xlarge $3.26 per node-hour; <b>Serverless</b> $0.375 per RPU-hour (an RPU is 16 GB of memory), per second with a 60-second minimum; the default base capacity is 128 RPUs, adjustable down to 4 (<a href="https://aws.amazon.com/redshift/pricing/" target="_blank" rel="noopener noreferrer">pricing</a>, <a href="https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-capacity.html" target="_blank" rel="noopener noreferrer">capacity docs</a>); Redshift Spectrum $5 per TB scanned</td></tr>
+<tr><td><b>Databricks SQL</b></td><td>SQL warehouses from 2X-Small (1 worker) to 5X-Large (512 workers) (<a href="https://docs.databricks.com/aws/en/compute/sql-warehouse/warehouse-behavior" target="_blank" rel="noopener noreferrer">sizes</a>)</td><td>DBUs (Databricks units) per hour by size, plus your own cloud bill for storage. On Azure a 2X-Small is 4 DBU an hour, Small 12 (<a href="https://azure.microsoft.com/en-us/pricing/details/databricks/" target="_blank" rel="noopener noreferrer">Azure pricing</a>). The dollar price per DBU is rendered by script on the pricing page and could not be read: <b>unconfirmed</b> here.</td></tr>
+<tr><td><b>Parquet and newer formats</b></td><td>parquet-format 2.14.0 (2026-09-11) added ALP, a float encoding, in preview (<a href="https://github.com/apache/parquet-format/releases/tag/apache-parquet-format-2.14.0" target="_blank" rel="noopener noreferrer">release</a>). Newer columnar file formats compete for ML and random access: Lance (multimodal, v12.0.0, 2026-09-17), Vortex (LF AI and Data incubation), Meta's Nimble (explicitly unstable) and the research format F3 (SIGMOD 2025, decoders embedded as WebAssembly). Parquet remains the interchange default.</td><td></td></tr>
+<tr><td><b>Table formats</b></td><td>Iceberg Java 1.12.0, 2026-09-29 (<a href="https://iceberg.apache.org/releases/" target="_blank" rel="noopener noreferrer">releases</a>); delta-spark 4.4.0; Hudi 1.2.1 (2026-09-24)</td><td></td></tr>
+<tr><td><b>Catalogs</b></td><td><b>AWS Glue Data Catalog</b> has an Iceberg REST endpoint (<a href="https://docs.aws.amazon.com/glue/latest/dg/connect-glu-iceberg-rest.html" target="_blank" rel="noopener noreferrer">docs</a>); <b>Amazon S3 Tables</b> (announced 2024-12-03) are buckets that store Iceberg tables and run compaction and snapshot clean-up for you (<a href="https://aws.amazon.com/about-aws/whats-new/2024/12/amazon-s3-tables-apache-iceberg-tables-analytics-workloads/" target="_blank" rel="noopener noreferrer">announcement</a>). <b>Unity Catalog</b>: Databricks' catalog; its open-source version is an LF AI and Data sandbox project, release 0.6.0 (2026-08), serving Delta tables and the Iceberg REST API (<a href="https://www.unitycatalog.io/" target="_blank" rel="noopener noreferrer">unitycatalog.io</a>). <b>Apache Polaris</b>: an Iceberg REST catalog that Snowflake donated; incubating from 2024-08-09, a top-level Apache project since 2026-02-15 (<a href="https://incubator.apache.org/projects/polaris.html" target="_blank" rel="noopener noreferrer">Apache</a>). <b>Nessie</b> (Git-like branches and multi-table commits) and <b>Lakekeeper</b> (a Rust REST catalog) are open-source alternatives.</td><td></td></tr>
+<tr><td><b>dbt</b></td><td>The Python engine is now called dbt Core v1 (1.12.5, 2026-09-15); the Rust <b>Fusion</b> engine is "v2" and the recommended default, with its runtime open-sourced as dbt Core v2.0 alpha (<a href="https://docs.getdbt.com/docs/fusion/about-fusion" target="_blank" rel="noopener noreferrer">dbt Fusion</a>); dbt Labs merged with Fivetran (announced 2025-10-13, completed 2026-06-01) (<a href="https://www.fivetran.com/press/fivetran-dbt-labs-complete-merger-to-create-the-data-infrastructure-for-trusted-ai-agents" target="_blank" rel="noopener noreferrer">Fivetran</a>)</td><td></td></tr>
+<tr><td><b>Feast</b></td><td>0.66.0, 2026-08-21</td><td></td></tr>
+</tbody></table></div></div></details>
 </section>
-<div class="foot">Measured 2026-10-04 on an Apple M1 Pro laptop (16 GB, macOS) shared with other jobs: PostgreSQL 16.2 (pgserver wheel), SQLite 3.47.1, DuckDB 1.5.6, pyarrow 25.0.1, pyiceberg 0.12.0, deltalake 1.6.6, chDB 3.7.2 (ClickHouse 25.8). Every script is in <code>src/measure/</code>, each run under 20 minutes; the data generator is the parent page's. Prices are list prices fetched 2026-10-04.</div>
+<div class="foot">Measured 2026-10-04 on an Apple M1 Pro laptop (16 GB, macOS) shared with other jobs: PostgreSQL 16.2 (pgserver wheel), SQLite 3.47.1, DuckDB 1.5.6, pyarrow 25.0.1, pyiceberg 0.12.0, deltalake 1.6.6, chDB 3.7.2 (ClickHouse 25.8). Every script is in <code>src/measure/</code>, each run under 20 minutes; the data generator is the parent page's. Timings within about 2 times of each other are equal on a shared machine. Prices are list prices fetched 2026-10-04.</div>
 </div>
 
 <div class="tab" id="t-lab" role="tabpanel" hidden>
@@ -525,56 +561,13 @@ ASOF JOIN plan_history p
 <li>Requested 10,000-row groups came out as 977 groups of about 10,240 rows: DuckDB rounds row groups to its 2,048-row vectors.</li>
 </ul>
 </div>
-<div class="tab" id="t-bytes" role="tabpanel" hidden>
-<h2 style="margin-top:14px">Inside a Parquet file, byte by byte</h2>
-<p>A real file: the first 1,000 chat messages (six columns, <code>content</code> left out so the pages stay small), written by pyarrow 25.0.1 as two row groups of 500 rows, with no compression so the bytes stay readable, dictionary encoding for <code>role</code> and <code>model</code>, delta encoding for <code>id</code> and plain for the rest. Every region below is drawn to scale and every value was decoded from the file by a 49-line Thrift compact-protocol reader (<code>src/measure/thrift_compact.py</code>); each column chunk's offsets and sizes were checked equal to pyarrow's own reading of the footer.</p>
-<div class="try"><b>Try:</b> click the orange region at the very end (the footer length), then the footer, then a <code>role</code> dictionary page and its data page.</div>
-<div class="card">
-<div id="byMap" class="plot"></div>
-<div class="hmleg" id="byLeg"></div>
-</div>
-<div class="detail" id="byDetail"></div>
-<h3>Decoding the role column by hand</h3>
-<div class="card" id="byRole"></div>
-<h3>Every column chunk in the footer</h3>
-<div class="tw" id="byChunks"></div>
-<h3>How a reader uses this</h3>
-<ol class="tight">
-<li>Read the last 8 bytes: the footer length and <code>PAR1</code>.</li>
-<li>Read the footer; decode it (Thrift compact protocol: each field is a one-byte header holding the gap to the previous field id and a type, then the value; integers are variable-length and zigzag-encoded).</li>
-<li>For each row group, compare the query's filter with the statistics; skip what cannot match.</li>
-<li>For each surviving column chunk the query needs, read its byte range, then page by page: the page header, then the page body (decompress, then decode).</li>
-</ol>
-<p class="small mute">Field numbers and enum values from <a href="https://github.com/apache/parquet-format/blob/master/src/main/thrift/parquet.thrift" target="_blank" rel="noopener noreferrer">parquet.thrift</a>; the hybrid RLE/bit-packing format from <a href="https://parquet.apache.org/docs/file-format/data-pages/encodings/" target="_blank" rel="noopener noreferrer">the encodings page</a>.</p>
-</div>
-<div class="tab" id="t-ice" role="tabpanel" hidden>
-<h2 style="margin-top:14px">Iceberg, step by step: every file a real table writes</h2>
-<p>A real Apache Iceberg table built on the local disk with pyiceberg 0.12.0 and a SQLite catalog, from the chat messages, one day at a time (<code>src/measure/iceberg_walk.py</code>, 2026-10-04). Step through the eight commits: each box is a file the table really wrote, new ones are outlined, and files the current snapshot no longer uses fade (they stay on disk for time travel). Click any box to open its decoded contents. The toggle replays the same story with Delta Lake (deltalake 1.6.6), whose metadata is a log of JSON commits instead of a tree.</p>
-<div class="seg" id="iceFmt"><button data-m="ice" class="on">Apache Iceberg</button><button data-m="delta">Delta Lake</button></div>
-<div class="chips" id="iceSteps"></div>
-<div class="card">
-<div id="iceWhat" style="font-size:14px;margin-bottom:6px"></div>
-<div id="iceMap" class="plot"></div>
-<div class="out" id="iceStats"></div>
-</div>
-<div class="detail" id="iceDetail"><span class="mute small">Click a file above.</span></div>
-<h3>What to notice</h3>
-<ul class="tight">
-<li><b>Nothing is modified in place.</b> Every commit writes new files and a new metadata.json (Iceberg) or the next numbered log file (Delta). That is what makes commits atomic and old versions readable.</li>
-<li><b>Schema and partition changes are metadata-only</b>: steps 4 and 7 wrote one metadata.json and no data.</li>
-<li><b>The delete rewrote a whole file</b> (copy-on-write, in both formats): 28,798 rows copied to remove 2. Engines that support merge-on-read write a small delete file instead and pay at read time.</li>
-<li><b>Snapshots share manifests</b>: the manifest list of each snapshot points at the older manifests unchanged, so a commit costs one new manifest, not a copy of the table's file list.</li>
-</ul>
-</div>
 
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <h2 style="margin-top:14px">Further reading</h2>
 <div id="s-more">
 <h3>This page's tabs</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-lab">Parquet lab</a></div><p>36 measured files: sort order, row group size and codec against bytes read and time. <span class="rt">10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-bytes">Inside a Parquet file</a></div><p>A real file decoded region by region, down to the bits of one column. <span class="rt">10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-ice">Iceberg, step by step</a></div><p>Every file an Iceberg and a Delta table write over eight commits, decoded. <span class="rt">10 min</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-lab">Parquet lab</a></div><p>36 measured files: sort order, row group size and codec against bytes read and time. <span class="rt">3 min, plus as long as you explore</span></p></div>
 </div>
 <h3>The parent page and its tabs</h3>
 <div class="grid">
@@ -582,7 +575,7 @@ ASOF JOIN plan_history p
 </div>
 <h3>Sibling pages</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes: pages, B-trees, LSM-trees, the WAL, index types</a></div><p>Pages, B-trees, LSM-trees (MergeTree's ancestor), BRIN, the WAL. <span class="rt">Child page, about 44 minutes.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes: pages, B-trees, LSM-trees, the WAL, index types</a></div><p>Pages, B-trees, LSM-trees (MergeTree's ancestor), BRIN, the WAL. <span class="rt">Child page, about 39 minutes.</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d817f9e15f445b079e9c8" target="_blank" rel="noopener noreferrer">Query planning and performance: EXPLAIN, statistics, slow queries, tuning</a></div><p>EXPLAIN, statistics and slow queries on the row-store side. <span class="rt">Child page, about 45 minutes.</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d813980dcd474e19f6c3f" target="_blank" rel="noopener noreferrer">SQL and data modelling: queries, joins, schema design, normalisation, migrations</a></div><p>The SQL used here (joins, GROUP BY, window functions), schema design. <span class="rt">Child page, about 42 minutes.</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d8155aa64ddeb09da144e" target="_blank" rel="noopener noreferrer">Transactions and concurrency: ACID, MVCC, isolation anomalies, locks</a></div><p>Isolation levels, MVCC: what "snapshot isolation" and "read committed" mean in the warehouse rows above. <span class="rt">Child page, about 38 minutes.</span></p></div>
@@ -597,6 +590,8 @@ ASOF JOIN plan_history p
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a></div><p>CDC, the outbox pattern and Kafka: how rows get from Postgres to the analytics copy. <span class="rt">50 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a></div><p>Feature stores, training and serving skew, where the offline store fits. <span class="rt">40 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d811fa5ecda8d365ab00f" target="_blank" rel="noopener noreferrer">Topic: data-curation-and-datasets</a></div><p>Building training datasets, which mostly live as Parquet. <span class="rt">50 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">Storage and loading at scale: formats, shards, streaming</a></div><p>Parquet, Arrow and token files for training: shards, packing, streaming and loaders. <span class="rt">Child page</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b9943cf6c72600f96b" target="_blank" rel="noopener noreferrer">ML platforms and workflows</a></div><p>Feature stores and the point-in-time join as a platform piece, pipelines, registries. <span class="rt">Child page</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a></div><p>Pipelines and schedulers that run the ETL jobs. <span class="rt">28 min</span></p></div>
 </div>
 <h3>Primary sources and the best explanations</h3>
@@ -620,10 +615,10 @@ ASOF JOIN plan_history p
 </div>
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
-<script>/* 21_js_common.js */
-// ---- Shared helpers (copied from Topic: databases): the step-animation controller (play, pause, step, scrub, speed) ----
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -654,7 +649,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -788,7 +783,7 @@ window.BARS=function(el,rows,opt){opt=opt||{};
   function http(k){
     const h=D.http[k],el=$('httpSvg'),W=RD.width(el),N=D.http_file,H=56,m=8;
     const X=v=>m+v/N*(W-2*m);let b='<rect x="'+m+'" y="22" width="'+(W-2*m)+'" height="26" fill="var(--soft)" stroke="var(--line)"/>';
-    b+=RD.t(m,14,'byte 0',{fs:10,fill:'var(--mute)'})+RD.t(W-m,14,FMT.mb(N)+' (footer)',{a:'end',fs:10,fill:'var(--mute)'});
+    b+=RD.t(m,14,'byte 0',{fs:11,fill:'var(--mute)'})+RD.t(W-m,14,FMT.mb(N)+' (footer)',{a:'end',fs:11,fill:'var(--mute)'});
     h.log.forEach((r,i)=>{if(!r.range)return;const x=X(r.range[0]),w=Math.max(2,X(r.range[1])-x);
       b+='<rect x="'+x.toFixed(1)+'" y="22" width="'+w.toFixed(1)+'" height="26" fill="'+(r.range[1]>=N-1?'var(--c2)':'var(--c3)')+'"><title>GET bytes '+r.range[0].toLocaleString()+' to '+r.range[1].toLocaleString()+'</title></rect>'});
     
@@ -798,6 +793,44 @@ window.BARS=function(el,rows,opt){opt=opt||{};
   }
   RD.seg($('httpQ'),http);RD.onRender(()=>http(document.querySelector('#httpQ .on').dataset.m));http('one_day');
   RD.onResize(()=>{http(document.querySelector('#httpQ .on').dataset.m)});
+})();
+</script>
+<script>/* 24_js_rd_hero.js */
+// ---- Reading, top: the hero figure. The real 82-row-group Parquet file drawn as area (bytes), one-day query highlighted ----
+(function(){
+  const el=document.getElementById('heroSvg');if(!el)return;
+  const F=D.full,R=F.rgs,N=R.length;
+  const cols=F.rg0_columns.map(c=>({col:c.col,b:c.compressed}));const tot=cols.reduce((a,c)=>a+c.b,0);
+  const day=r=>!(r.ca1<'2026-03-01 00:00:00'||r.ca0>='2026-03-02 00:00:00');
+  const hit=R.findIndex(day);
+  const need={created_at:1,tokens:1};
+  function draw(){
+    const W=RD.width(el),narrow=W<560,ml=narrow?0:118,fw=3,H=narrow?190:220,top=narrow?30:26,bot=26;
+    const pw=W-ml-fw-6,bw=pw/N,ph=H-top-bot;
+    let b='',y=top;
+    const ys={};
+    cols.forEach(c=>{const h=c.b/tot*ph;ys[c.col]=[y,h];y+=h});
+    for(let g=0;g<N;g++){const x=ml+g*bw;
+      cols.forEach(c=>{const [yy,h]=ys[c.col];let fill='var(--dim)',op=0.55;
+        if(need[c.col]){fill=g===hit?'var(--c2)':'var(--acc2)';op=1}
+        b+='<rect x="'+x.toFixed(2)+'" y="'+yy.toFixed(2)+'" width="'+Math.max(0.6,bw-0.6).toFixed(2)+'" height="'+Math.max(0.3,h).toFixed(2)+'" fill="'+fill+'" fill-opacity="'+op+'"/>'})}
+    // footer at the end of the file
+    // the footer is 76,648 bytes, 0.014% of the file: drawn as a 3 px line, not to scale, so it can be seen
+    const fx=ml+pw+5;b+='<rect x="'+fx+'" y="'+top+'" width="'+fw+'" height="'+ph+'" fill="var(--c2)"/>';
+    // labels
+    if(!narrow){['content','created_at'].forEach(k=>{const [yy,h]=ys[k];b+=RD.t(ml-6,yy+h/2+4,k,{a:'end',fs:11})});
+      const y0=ys.id[0],y1=ys.content[0];b+=RD.t(ml-6,(y0+y1)/2-2,'id, chat_id,',{a:'end',fs:11})+RD.t(ml-6,(y0+y1)/2+11,'role, model, tokens',{a:'end',fs:11})}
+    else{const [yy,h]=ys.content;b+=RD.t(6,yy+h/2+4,'content (73% of the bytes)',{fs:11.5,w:600})}
+    const [cy,ch]=ys.created_at;const hx=ml+(hit+0.5)*bw;
+    b+='<line x1="'+hx+'" x2="'+hx+'" y1="'+(cy+ch)+'" y2="'+(H-bot+6)+'" stroke="var(--c2)" stroke-width="1.5"/>';
+    b+=RD.t(Math.min(Math.max(hx,ml+90),W-110),H-6,'row group '+hit+': holds 1 March',{a:'middle',fs:11,fill:'var(--c2)',w:600});
+    b+=RD.t(ml,top-10,'row group 0',{fs:11,fill:'var(--mute)'})+RD.t(ml+pw,top-10,'row group 81',{a:'end',fs:11,fill:'var(--mute)'});
+    b+=RD.t(W,H-6,narrow?'footer':'footer, read first',{a:'end',fs:11,fill:'var(--c2)',w:600});
+    if(!narrow){b+=RD.t(ml+pw/2,top-10,'534 MB, 82 row groups, area = bytes',{a:'middle',fs:11,fill:'var(--mute)'})}
+    el.innerHTML=RD.svg(W,H,b,'The 534 MB Parquet file as 82 row groups of 7 column chunks; the one-day query reads the footer and two chunks of one row group');
+  }
+  draw();RD.onRender(draw);RD.onResize(draw);
+  window.CHK=window.CHK||{};CHK.heroHit=hit;
 })();
 </script>
 <script>/* 25_js_prune.js */
@@ -825,8 +858,8 @@ window.BARS=function(el,rows,opt){opt=opt||{};
       if(g<c.done){const hit=st.mode==='off'||q.match(r);fill=hit?(q.match(r)?'var(--c3)':'var(--c2)'):'var(--mute)';op=hit?0.95:0.18}
       b+='<rect x="'+(x+0.5).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(1,bw-1).toFixed(1)+'" height="'+hgt.toFixed(1)+'" fill="'+fill+'" fill-opacity="'+op+'"><title>Row group '+g+': '+(st.q==='day'?r.ca0+' to '+r.ca1:'chat_id '+r.c0+' to '+r.c1)+'</title></rect>'});
     if(c.done>0&&c.done<N){const x=m.l+c.done*bw;b+='<line x1="'+x+'" x2="'+x+'" y1="'+m.t+'" y2="'+(H-m.b)+'" stroke="var(--ink)" stroke-dasharray="3 3"/>'}
-    b+=RD.t(m.l,H-12,'row group 0 (2025-09-01)',{fs:10,fill:'var(--mute)'})+RD.t(W-m.r,H-12,'row group 81 (2026-08-14)',{a:'end',fs:10,fill:'var(--mute)'});
-    b+=RD.t(W-m.r,H-1,'footer at the end of the file',{a:'end',fs:10,fill:i>=1?'var(--c2)':'var(--mute)'});
+    b+=RD.t(m.l,H-12,'row group 0 (2025-09-01)',{fs:11,fill:'var(--mute)'})+RD.t(W-m.r,H-12,'row group 81 (2026-08-14)',{a:'end',fs:11,fill:'var(--mute)'});
+    b+=RD.t(W-m.r,H-1,'footer at the end of the file',{a:'end',fs:11,fill:i>=1?'var(--c2)':'var(--mute)'});
     el.innerHTML=RD.svg(W,H,b,'Row groups read and skipped');
     let cap;
     if(i===0)cap='<b>The query:</b> <code>SELECT count(*), sum(tokens) WHERE '+q.label+'</code> on 10,000,000 messages in one 534 MB Parquet file. Nothing read yet.';
@@ -839,57 +872,171 @@ window.BARS=function(el,rows,opt){opt=opt||{};
   }
   window.CHK=window.CHK||{};CHK.prune=(mode,q)=>{const o={mode:st.mode,q:st.q};st.mode=mode;st.q=q;const c=compute(NSTEPS-1);st.mode=o.mode;st.q=o.q;return c};
   const A=RD.anim({card:'prCard',ctl:'prCtl',n:NSTEPS,ms:1100,draw,label:'Pruning step'});
-  RD.seg($('prMode'),v=>{st.mode=v;A.reset(NSTEPS);A.play()});
-  RD.seg($('prQ'),v=>{st.q=v;A.reset(NSTEPS);A.play()});
+  RD.seg($('prMode'),v=>{st.mode=v;A.reset(NSTEPS)});
+  RD.seg($('prQ'),v=>{st.q=v;A.reset(NSTEPS)});
   RD.onResize(()=>A.redraw());
 })();
 </script>
 <script>/* 26_js_rd_pq.js */
-// ---- Reading sections 5 and 9: Parquet layout drawing, row group 0 metadata table, Iceberg mini tree ----
+// ---- Reading section 5: row group 0 metadata table of the 10M-row file ----
 (function(){
   const $=id=>document.getElementById(id);
-  function layout(){
-    const el=$('pqLayout');if(!el)return;const W=Math.min(860,RD.width(el.parentNode)-30),narrow=W<520;
-    const cols=['id','chat_id','role','model','tokens','content','created_at'];
-    let y=8,b='';const box=(x,yy,w,h,fill,label,o)=>{o=o||{};return '<rect x="'+x+'" y="'+yy+'" width="'+w+'" height="'+h+'" rx="3" fill="'+fill+'" stroke="var(--line)"/>'+(label?RD.t(x+6,yy+h/2+4,label,{fs:o.fs||11,fill:o.fill}):'')};
-    b+=box(0,y,W,22,'var(--c2)','PAR1 (4 bytes)',{fill:'var(--bg)'});y+=28;
-    [0,1].forEach(g=>{
-      b+=RD.t(0,y+12,'Row group '+g+(g?' ... (82 in the 10M file)':': 122,880 rows'),{fs:11.5,w:600});y+=18;
-      const cw=(W-(narrow?0:0))/ (narrow?2:cols.length);
-      cols.forEach((c,i)=>{const col=narrow?i%2:i,row=narrow?Math.floor(i/2):0,x=col*cw,yy=y+row*40;
-        b+='<rect x="'+(x+1)+'" y="'+yy+'" width="'+(cw-3)+'" height="34" rx="3" fill="var(--acc2)" stroke="var(--line)"/>'+RD.t(x+5,yy+13,c,{fs:10.5,w:600})+RD.t(x+5,yy+27,'header | pages',{fs:9.5,fill:'var(--mute)'})});
-      y+=(narrow?Math.ceil(cols.length/2):1)*40+6});
-    b+=box(0,y,W,34,'var(--soft)',narrow?'Footer: schema, chunk offsets, statistics':'Footer: schema; per row group and column: offset, sizes, encodings, codec, min, max, nulls',{fs:narrow?10:11});y+=40;
-    b+=box(0,y,W*0.45,22,'var(--soft)','footer length (4 bytes)',{fs:10.5})+box(W*0.47,y,W*0.53,22,'var(--c2)','PAR1',{fill:'var(--bg)'});y+=28;
-    el.outerHTML='<svg id="pqLayout" viewBox="0 0 '+W+' '+y+'" width="'+W+'" height="'+y+'" role="img" aria-label="Parquet file layout">'+b+'</svg>';
-  }
-  layout();RD.onResize(layout);RD.onRender(layout);
   // row group 0 of the 10M file
   const c0=D.full.rg0_columns;
   $('pqRg0').innerHTML='<table class="small"><thead><tr><th>Column</th><th>Type</th><th>Encodings</th><th class="num">Compressed</th><th class="num">Uncompressed</th><th>Min</th><th>Max</th></tr></thead><tbody>'+
     c0.map(c=>'<tr><td><code>'+c.col+'</code></td><td>'+c.physical+'</td><td>'+c.encodings.join(', ')+'</td><td class="num">'+FMT.mb(c.compressed)+'</td><td class="num">'+FMT.mb(c.uncompressed)+'</td><td style="overflow-wrap:anywhere">'+RD.esc(String(c.min).slice(0,22))+'</td><td style="overflow-wrap:anywhere">'+RD.esc(String(c.max).slice(0,22))+'</td></tr>').join('')+'</tbody></table>'+
     '<div class="small mute">'+D.full.created_by+'; codec SNAPPY for every chunk; 122,880 values each. "PLAIN_DICTIONARY" is how pyarrow names DuckDB\'s dictionary encoding (the spec now calls it RLE_DICTIONARY).</div>';
-  // Iceberg tree after the second append
-  function tree(){
-    const el=$('iceTree');if(!el)return;const W=Math.min(860,RD.width(el.parentNode)-30);
-    const s=D.ice.steps[2],fs=s.files,ml=fs.find(f=>f.kind==='manifest list'),mj=fs.find(f=>f.kind==='metadata.json');
-    const short=p=>p.split('/').pop();const tr=(p,n)=>{p=short(p);return p.length>n?p.slice(0,n-1)+'…':p};
-    const n=W<520?22:40;
-    const ms=ml.entries.map(e=>e.manifest_path),dfs=[D.ice.steps[1].files.find(f=>f.kind.startsWith('data')).path,fs.find(f=>f.kind.startsWith('data')).path];
-    const rows=[{y:6,items:[{t:'catalog: chat.messages',s:'pointer to current metadata'}]},
-      {y:56,items:[{t:tr(mj.path,n),s:'snapshots 1 and 2, schema, partition spec'}]},
-      {y:106,items:[{t:tr(ml.path,n),s:'manifest list of snapshot 2'}]},
-      {y:156,items:ms.map((p,i)=>({t:tr(p,n/2+4),s:'manifest: 1 file, 28,800 rows'}))},
-      {y:206,items:dfs.slice().reverse().map(p=>({t:tr(p,n/2+4),s:'Parquet, '+p.split('/')[3].replace('created_at_day=','day ')}))}];
-    let b='';const bh=40;
-    rows.forEach((r,ri)=>{const k=r.items.length,w=(W-(k-1)*8)/k;
-      r.items.forEach((it,i)=>{const x=i*(w+8);
-        b+='<rect x="'+x+'" y="'+r.y+'" width="'+w+'" height="'+bh+'" rx="4" fill="'+(ri===0?'var(--acc2)':ri===4?'var(--soft)':'var(--bg)')+'" stroke="var(--acc)"/>'+RD.t(x+6,r.y+16,RD.esc(it.t),{fs:10.5,w:600})+RD.t(x+6,r.y+31,RD.esc(it.s),{fs:9.5,fill:'var(--mute)'});
-        if(ri>0){const prev=rows[ri-1],pk=prev.items.length,pw=(W-(pk-1)*8)/pk,pi=Math.min(pk-1,i),px=pi*(pw+8)+pw/2;
-          b+='<line x1="'+px+'" y1="'+(prev.y+bh)+'" x2="'+(x+w/2)+'" y2="'+r.y+'" stroke="var(--mute)"/>'}})});
-    el.outerHTML='<svg id="iceTree" viewBox="0 0 '+W+' 250" width="'+W+'" height="250" role="img" aria-label="Iceberg metadata tree">'+b+'</svg>';
-  }
-  tree();RD.onResize(tree);RD.onRender(tree);
+})();
+</script>
+<script>/* 27_js_rd_figs.js */
+// ---- Reading figures added in the 2026-10-24 rebuild: encodings on real values, row against vector execution,
+// late materialisation bars, ClickHouse granules, storage apart from compute, the commit race, ETL against ELT, the ASOF timeline ----
+(function(){
+  const $=id=>document.getElementById(id);
+  const tw=(s,fs)=>String(s).length*(fs||11)*0.6+12; // text box width estimate
+  // a box with one or more lines of text
+  function box(x,y,w,h,lines,o){o=o||{};let s='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h+'" rx="4" fill="'+(o.fill||'var(--bg)')+'" stroke="'+(o.stroke||'var(--line)')+'" stroke-width="'+(o.sw||1)+'"'+(o.dash?' stroke-dasharray="4 3"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>';
+    const L=[].concat(lines),lh=14,y0=y+h/2-(L.length-1)*lh/2+4;
+    L.forEach((t,i)=>{s+=RD.t(x+(o.left?6:w/2),y0+i*lh,t,{a:o.left?null:'middle',fs:o.fs||11,w:i===0&&o.bold?600:null,fill:o.ink})});return s}
+  const arrow=(x1,y1,x2,y2,c)=>{const a=Math.atan2(y2-y1,x2-x1),h=6;return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+(c||'var(--mute)')+'" stroke-width="1.4"/><path d="M'+x2+' '+y2+' L'+(x2-h*Math.cos(a-0.45)).toFixed(1)+' '+(y2-h*Math.sin(a-0.45)).toFixed(1)+' L'+(x2-h*Math.cos(a+0.45)).toFixed(1)+' '+(y2-h*Math.sin(a+0.45)).toFixed(1)+'Z" fill="'+(c||'var(--mute)')+'"/>'};
+  // flow a list of small boxes left to right, wrapping; returns {s, y}
+  function flow(items,x0,y,W,o){o=o||{};let x=x0,s='';const h=22,g=4;
+    items.forEach(it=>{const t=typeof it==='string'?it:it.t,w=Math.max(o.minw||0,tw(t));if(x+w>W&&x>x0){x=x0;y+=h+g}
+      s+=box(x,y,w,h,t,{fill:it.fill||o.fill,stroke:it.stroke||o.stroke,ink:it.ink});x+=w+g});
+    return {s,y:y+h}}
+
+  // 1. encodings on real values (section 2)
+  function enc(){const el=$('encDiag');if(!el)return;const W=RD.width(el);let s='',y=4;
+    const M=D.lab?null:null;const cnt=[['large',2499355],['mini',2498787],['reasoning',2498218],['standard',2503640]];
+    const rows=[
+      {t:'1. Dictionary, then bit-packing: role',in:['user','assistant','user','assistant','user','assistant','user','assistant'],
+       out:[{t:'dictionary: 0 = user, 1 = assistant',fill:'var(--acc2)'},{t:'codes 0 1 0 1 0 1 0 1'},{t:'1 bit each: byte aa',fill:'var(--c2)',ink:'var(--bg)'}]},
+      {t:'2. Run-length: model, table sorted by model',in:['large','large','large','...','mini','...','reasoning','...','standard'],
+       out:cnt.map((c,i)=>({t:i+' ('+c[0]+') x '+c[1].toLocaleString(),fill:i===0?'var(--c2)':'var(--acc2)',ink:i===0?'var(--bg)':null}))},
+      {t:'3. Delta: id',in:['1','2','3','4','5','...','500'],
+       out:[{t:'first value 1',fill:'var(--acc2)'},{t:'smallest delta 1'},{t:'offsets 0 0 0 0: 0 bits each',fill:'var(--c2)',ink:'var(--bg)'}]},
+      {t:'4. Codec only: content (free text)',in:['835 MB plain'],
+       out:[{t:'389 MB with Snappy',fill:'var(--acc2)'},{t:'223 MB with zstd',fill:'var(--c2)',ink:'var(--bg)'}]}];
+    rows.forEach((r,i)=>{s+=RD.t(0,y+12,r.t,{fs:12,w:600});y+=18;
+      let f=flow(r.in,0,y,W,{fill:'var(--soft)'});s+=f.s;y=f.y+4;
+      s+=arrow(14,y,14,y+14,'var(--acc)')+RD.t(24,y+12,'stored as',{fs:11,fill:'var(--mute)'});y+=18;
+      f=flow(r.out,0,y,W);s+=f.s;y=f.y+(i<rows.length-1?16:4)});
+    el.innerHTML=RD.svg(W,y+2,s,'Four encodings applied to real values of the chat messages')}
+  enc();RD.onRender(enc);RD.onResize(enc);
+
+  // 2. row at a time against a vector at a time (section 4)
+  let vm='row';
+  function vd(){const el=$('vdSvg');if(!el)return;const W=RD.width(el),narrow=W<560;let s='';
+    const bw=narrow?(W-30)/3:150,gap=(W-3*bw)/2,H=narrow?150:140,by=46,bh=40;
+    const xs=[0,bw+gap,2*(bw+gap)];
+    s+=box(xs[0],by,bw,bh,narrow?['pages of','tokens']:['pages of tokens','(10,000,000 values)'],{fill:'var(--soft)'});
+    s+=box(xs[1],by,bw,bh,['Scan',narrow?'decode':'decode values'],{bold:1});
+    s+=box(xs[2],by,bw,bh,['Aggregate','sum(tokens)'],{bold:1});
+    s+=arrow(xs[0]+bw,by+bh/2,xs[1]-2,by+bh/2);
+    const ax1=xs[1]+bw,ax2=xs[2]-2;s+=arrow(ax1,by+bh/2,ax2,by+bh/2,'var(--c2)');
+    const mid=(ax1+ax2)/2;
+    if(vm==='row'){s+='<rect x="'+(mid-6)+'" y="'+(by-26)+'" width="12" height="18" fill="var(--c2)"/>';
+      s+=RD.t(mid,by-32,'1 value per call',{a:'middle',fs:11,fill:'var(--c2)'});}
+    else{const vw=narrow?Math.min(130,W*0.4):Math.min(ax2-ax1-8,110);let cells='';for(let i=0;i<16;i++)cells+='<rect x="'+(mid-vw/2+i*vw/16).toFixed(1)+'" y="'+(by-26)+'" width="'+(vw/16-1).toFixed(1)+'" height="18" fill="var(--c2)"/>';
+      s+=cells+RD.t(mid,by-32,'2,048 values per call',{a:'middle',fs:11,fill:'var(--c2)'});}
+    const calls=vm==='row'?'10,000,000':'4,883';
+    s+=RD.t(W/2,by+bh+30,'calls from Aggregate to Scan: '+calls,{a:'middle',fs:12.5,w:600});
+    el.innerHTML=RD.svg(W,H+14,s,'Operators passing one row or one vector per call');
+    $('vdCap').innerHTML=vm==='row'?'Row at a time: the aggregate pulls one row per call, so the per-call overhead is paid 10,000,000 times for 10,000,000 additions.':'A vector at a time: 10,000,000 / 2,048, rounded up, is 4,883 calls <span class="der">derived</span>; the overhead is paid 4,883 times and the additions run in a loop the compiler turns into SIMD instructions.'}
+  if($('vdMode'))RD.seg($('vdMode'),v=>{vm=v;vd()});vd();RD.onRender(vd);RD.onResize(vd);
+
+  // 3. late materialisation bars (section 4)
+  if($('lateBars')){const f=D.lab.files.find(x=>x.sort==='random'&&x.rg===100000&&x.comp==='snappy').q.chat,C=D.full.counted;
+    BARS($('lateBars'),[
+      {nm:'One chat, shuffled: needed by footer',v:f.need_bytes,txt:FMT.mb(f.need_bytes),col:'var(--dim)'},
+      {nm:'One chat, shuffled: DuckDB read',v:f.read_bytes,txt:FMT.mb(f.read_bytes),col:'var(--c3)',hl:true},
+      {nm:'content, all 10M rows',v:C.content_all.bytes_read,txt:FMT.mb(C.content_all.bytes_read),col:'var(--dim)'},
+      {nm:'content, 6,950 rows over 1,495 tokens',v:C.content_selective.bytes_read,txt:FMT.mb(C.content_selective.bytes_read),col:'var(--c2)',hl:true}]);}
+
+  // 4. ClickHouse granules (section 7)
+  let gm='chat';
+  function gr(){const el=$('grSvg');if(!el)return;const W=RD.width(el),G=1221,H=118;let s='';
+    const x0=4,pw=W-8,gw=pw/G,ty=34,by=58,bh=30;
+    const tgt=Math.round(424242/1e6*G); // chat_id is the first sort key; chats are numbered up to 1,000,000
+    // index entries: one tick per granule would be 1,221 ticks; drawn every 8th for legibility
+    for(let g=0;g<G;g+=8){const x=x0+g*gw;s+='<line x1="'+x.toFixed(1)+'" x2="'+x.toFixed(1)+'" y1="'+(ty)+'" y2="'+(ty+10)+'" stroke="var(--mute)" stroke-width="0.6"/>'}
+    const nar=W<560;s+=RD.t(x0,ty-6,nar?'sparse index: 1,221 entries':'sparse primary index: 1,221 entries (first key of each granule)',{fs:11,fill:'var(--mute)'});
+    if(gm==='chat'){s+='<rect x="'+x0+'" y="'+by+'" width="'+pw+'" height="'+bh+'" fill="var(--dim)" fill-opacity="0.5"/>';
+      const hx=x0+tgt*gw;s+='<rect x="'+(hx-2).toFixed(1)+'" y="'+by+'" width="4" height="'+bh+'" fill="var(--c2)"/>';
+      // binary search brackets
+      let lo=0,hi=G,k=0;while(hi-lo>80&&k<4){const m=(lo+hi)>>1;const yy=ty+14+k*3;s+='<line x1="'+(x0+lo*gw).toFixed(1)+'" x2="'+(x0+hi*gw).toFixed(1)+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--c2)" stroke-width="1.2" opacity="'+(0.4+k*0.15)+'"/>';if(tgt<m)hi=m;else lo=m;k++}
+      s+=arrow(hx,ty+12,hx,by-2,'var(--c2)');
+      s+=RD.t(Math.min(Math.max(hx,110),W-110),by+bh+20,'1 granule of 1,221 read',{a:'middle',fs:11.5,fill:'var(--c2)',w:600});}
+    else{s+='<rect x="'+x0+'" y="'+by+'" width="'+pw+'" height="'+bh+'" fill="var(--c2)" fill-opacity="0.85"/>';
+      s+=RD.t(W/2,by+bh+20,'1,221 of 1,221 granules read',{a:'middle',fs:11.5,fill:'var(--c2)',w:600});}
+    s+=RD.t(x0,by-4,nar?'the merged part: 1,221 granules':'the merged part, 10,000,000 rows in 1,221 granules, sorted by (chat_id, created_at)',{fs:11,fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,H,s,'ClickHouse granules read for two filters');
+    $('grCap').textContent=gm==='chat'?'Binary search over the index: chat 424242 sits near the 42% point of the chat_id order; the range is halved until one granule (8,192 rows) is left, the one whose first key is at or below the chat.':'created_at is second in ORDER BY: within a chat the rows are in time order, but across the part every chat spans the year, so no granule can be excluded by time.'}
+  if($('grMode'))RD.seg($('grMode'),v=>{gm=v;gr()});gr();RD.onRender(gr);RD.onResize(gr);
+
+  // 5. storage apart from compute (section 8)
+  function whd(){const el=$('whdSvg');if(!el)return;const W=RD.width(el),narrow=W<560;let s='';
+    const names=narrow?[['ETL'],['BI'],['ML team']]:[['ETL warehouse','size M, nightly'],['BI warehouse','size S, all day'],['ML team','suspended: costs nothing']];
+    const n=3,g=10,bw=(W-(n-1)*g)/n,by=8,bh=narrow?40:46;
+    names.forEach((t,i)=>{const x=i*(bw+g),off=i===2;s+=box(x,by,bw,bh,t,{bold:1,op:off?0.5:1,dash:off});
+      s+=box(x+bw*0.15,by+bh+8,bw*0.7,20,'local cache',{fill:'var(--soft)',fs:11,op:off?0.5:1});
+      s+=arrow(x+bw/2,by+bh+28,x+bw/2,by+bh+58,off?'var(--dim)':'var(--acc)')});
+    const sy=by+bh+62,sh=46;s+=box(0,sy,W,sh,narrow?['object storage: one copy','columnar files']:['object storage: one copy of every table','compressed columnar files, cheap and durable'],{fill:'var(--acc2)',bold:1});
+    for(let i=0;i<(narrow?8:16);i++){const x=10+i*((W-20)/(narrow?8:16));s+='<rect x="'+x.toFixed(1)+'" y="'+(sy+sh-9)+'" width="'+((W-20)/(narrow?8:16)-4).toFixed(1)+'" height="5" fill="var(--acc)" opacity="0.5"/>'}
+    s+=RD.t(W-4,sy-8,'network hop',{a:'end',fs:11,fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,sy+sh+4,s,'Several compute clusters reading one copy of the data in object storage')}
+  whd();RD.onRender(whd);RD.onResize(whd);
+
+  // 6. two writers, one catalog pointer (section 9): a stepper
+  const OCC=[
+    {p:'v42',a:['reads v42'],b:['reads v42'],files:{v42:1},cap:'<b>Step 1.</b> The catalog points at metadata v42. Writers A and B both start from it; neither takes a lock.'},
+    {p:'v42',a:['writes data','and v43a'],b:['writes data','and v43b'],files:{v42:1,v43a:2,v43b:2},cap:'<b>Step 2.</b> Each writes its new data files and a new metadata file built on v42. Nothing is visible yet: readers still follow the pointer to v42.'},
+    {p:'v43a',a:['swap 42 to 43a','succeeds'],b:['waiting'],files:{v42:3,v43a:1,v43b:2},win:'a',cap:'<b>Step 3.</b> A asks the catalog to swap the pointer from v42 to v43a only if it still points at v42. It does, so the swap succeeds: A\'s commit is visible, whole, to every reader that starts now.'},
+    {p:'v43a',a:['done'],b:['swap 42 to 43b','refused'],files:{v42:3,v43a:1,v43b:4},lose:'b',cap:'<b>Step 4.</b> B asks for the same swap from v42. The pointer is now v43a, so the catalog refuses. v43b is never visible; its files become orphans for clean-up.'},
+    {p:'v44',a:['done'],b:['rebuilds on 43a','swap 43a to 44: ok'],files:{v42:3,v43a:3,v43b:4,v44:1},win:'b',cap:'<b>Step 5.</b> B re-reads v43a, checks that A\'s change does not conflict with its own (two appends never do; two rewrites of the same file would), writes v44 on top of v43a and swaps again. Both commits are in the table, in order.'}];
+  let occA=null;
+  function occ(i){const el=$('occSvg');if(!el)return;const W=RD.width(el),narrow=W<560,st=OCC[i];let s='';
+    const cw=Math.min(230,W*0.6),cx=(W-cw)/2;
+    s+=box(cx,4,cw,34,['catalog: chat.messages','current = '+st.p],{fill:'var(--acc2)',bold:1});
+    const ww=(W-12)/2,wy=54,wh=52;
+    s+=box(0,wy,ww,wh,['Writer A'].concat(st.a),{bold:1,stroke:st.win==='a'?'var(--good)':'var(--line)',sw:st.win==='a'?2:1});
+    s+=box(ww+12,wy,ww,wh,['Writer B'].concat(st.b),{bold:1,stroke:st.lose==='b'?'var(--bad)':st.win==='b'?'var(--good)':'var(--line)',sw:(st.lose||st.win==='b')?2:1});
+    const fs=['v42','v43a','v43b','v44'],fw=(W-3*8)/4,fy=wy+wh+18;
+    fs.forEach((f,k)=>{const x=k*(fw+8),state=st.files[f],lab=narrow?f:'metadata '+f;if(!state){s+=box(x,fy,fw,28,lab,{op:0.15,dash:1});return}
+      const cur=f===st.p;s+=box(x,fy,fw,28,lab,{fill:cur?'var(--c2)':'var(--bg)',ink:cur?'var(--bg)':null,dash:state===2||state===4,op:state===4?0.4:state===3?0.7:1,stroke:cur?'var(--c2)':'var(--line)'})});
+    const pk=fs.indexOf(st.p),px=pk*(fw+8)+fw/2;s+=arrow(W/2,38,px,fy-2,'var(--c2)');
+    el.innerHTML=RD.svg(W,fy+32,s,'Two writers committing to one Iceberg table');$('occCap').innerHTML=st.cap}
+  if($('occCtl'))occA=RD.anim({card:'occCard',ctl:'occCtl',n:OCC.length,ms:2200,draw:occ,label:'Commit step'});
+  RD.onResize(()=>occA&&occA.redraw());
+
+  // 7. ETL against ELT (section 10)
+  function elt(){const el=$('eltSvg');if(!el)return;const W=RD.width(el),narrow=W<560;let s='';
+    const rows=[{t:'ETL',b:[['Postgres','(app)'],['transform job','(Python, Spark)'],['warehouse:',narrow?'final tables':'finished tables only']],hl:-1},
+      {t:'ELT',b:[['Postgres','(app)'],['warehouse:',narrow?'raw copy':'raw copy kept'],['SQL models',narrow?'(dbt)':'(dbt), inside'],['finished','tables']],hl:1}];
+    let y=4;rows.forEach(r=>{s+=RD.t(0,y+12,r.t,{fs:12,w:600});y+=18;const n=r.b.length,g=narrow?14:22,bw=(W-(n-1)*g)/n,bh=40;
+      r.b.forEach((t,i)=>{const x=i*(bw+g);s+=box(x,y,bw,bh,t,{fill:i===r.hl?'var(--c2)':i===0?'var(--soft)':'var(--bg)',ink:i===r.hl?'var(--bg)':null,fs:11});if(i<n-1)s+=arrow(x+bw+1,y+bh/2,x+bw+g-1,y+bh/2)});y+=bh+14});
+    el.innerHTML=RD.svg(W,y,s,'ETL transforms before loading; ELT loads raw rows and transforms inside the warehouse')}
+  elt();RD.onRender(elt);RD.onResize(elt);
+
+  // 8. the ASOF timeline for chat 13 (section 11)
+  function asof(){const el=$('asofSvg');if(!el)return;const W=RD.width(el);let s='';
+    const t0=Date.UTC(2025,8,1),t1=Date.UTC(2026,9,4),X=t=>8+(t-t0)/(t1-t0)*(W-16);
+    const up=Date.UTC(2026,4,11),c13=Date.UTC(2025,8,1,1,15,18),y=40,h=22;
+    s+=RD.t(8,y-8,'user of chat 13: plan history',{fs:11,fill:'var(--mute)'});
+    s+='<rect x="'+X(t0)+'" y="'+y+'" width="'+(X(up)-X(t0)).toFixed(1)+'" height="'+h+'" fill="var(--acc2)"/>'+RD.t(X(t0)+6,y+15,'free',{fs:11.5,w:600});
+    s+='<rect x="'+X(up).toFixed(1)+'" y="'+y+'" width="'+(X(t1)-X(up)).toFixed(1)+'" height="'+h+'" fill="var(--c4)" fill-opacity="0.75"/>'+RD.t(X(up)+6,y+15,'pro',{fs:11.5,w:600});
+    s+=RD.t(X(up),y+h+14,'upgraded 2026-05-11',{a:'middle',fs:11,fill:'var(--mute)'});
+    const cx=X(c13)+1;s+='<line x1="'+cx+'" x2="'+cx+'" y1="'+(y-2)+'" y2="'+(y+h+44)+'" stroke="var(--ink)" stroke-width="2"/>';
+    s+=RD.t(cx+4,y+h+30,'chat 13 starts 2025-09-01',{fs:11,w:600});
+    const nar=W<560,ny=y+h+56;s+=arrow(X(t1)-4,ny,cx+6,ny,'var(--bad)')+RD.t(X(t1)-6,ny-6,nar?'naive: latest plan, pro':'naive: the latest plan, pro (leak)',{a:'end',fs:11,fill:'var(--bad)',w:600});
+    const ay=ny+26;s+=arrow(cx+40,ay,cx+6,ay,'var(--good)')+RD.t(cx+46,ay+4,nar?'ASOF: plan at start, free':'ASOF: the plan in force at the chat\'s start, free',{fs:11,fill:'var(--good)',w:600});
+    s+=RD.t(W-8,y-8,'2026-10-04',{a:'end',fs:11,fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,ay+12,s,'Timeline of one user\'s plan and the two joins')}
+  asof();RD.onRender(asof);RD.onResize(asof);
+  if($('asofBars')){const A=D.asof;BARS($('asofBars'),[
+    {nm:'"pro" by the naive join',v:A.naive_pro,txt:A.naive_pro.toLocaleString(),col:'var(--bad)'},
+    {nm:'"pro" by the ASOF join',v:A.asof_pro,txt:A.asof_pro.toLocaleString(),col:'var(--good)',hl:true},
+    {nm:'leaked labels',v:A.leaked,txt:A.leaked.toLocaleString(),col:'var(--c2)'}]);}
 })();
 </script>
 <script>/* 41_js_lab.js */
@@ -918,9 +1065,9 @@ window.BARS=function(el,rows,opt){opt=opt||{};
     const x0=0,x1=Math.max(...xs)*1.05,ly0=Math.log10(Math.min(...ys)/1.5),ly1=Math.log10(Math.max(...ys)*1.5);
     const X=v=>m.l+(v-x0)/(x1-x0)*(W-m.l-m.r),Y=v=>H-m.b-(Math.log10(v)-ly0)/(ly1-ly0)*(H-m.t-m.b);
     let b='';
-    for(let e=Math.floor(ly0);e<=Math.ceil(ly1);e++)for(const mm of [1,2,5]){const v=mm*Math.pow(10,e),lv=Math.log10(v);if(lv<ly0||lv>ly1)continue;const y=Y(v);b+='<line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/>'+RD.t(m.l-4,y+4,mb(v),{a:'end',fs:10,fill:'var(--mute)'})}
-    [0,250e6,500e6,750e6,1000e6].forEach(v=>{if(v>x1)return;const x=X(v);b+='<line x1="'+x+'" x2="'+x+'" y1="'+m.t+'" y2="'+(H-m.b)+'" stroke="var(--line)"/>'+RD.t(x,H-m.b+14,v?(v/1e6)+' MB':'0',{a:'middle',fs:10,fill:'var(--mute)'})});
-    b+=RD.t((W+m.l)/2,H-4,'file size',{a:'middle',fs:10.5,fill:'var(--mute)'});
+    for(let e=Math.floor(ly0);e<=Math.ceil(ly1);e++)for(const mm of [1,2,5]){const v=mm*Math.pow(10,e),lv=Math.log10(v);if(lv<ly0||lv>ly1)continue;const y=Y(v);b+='<line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/>'+RD.t(m.l-4,y+4,mb(v),{a:'end',fs:11,fill:'var(--mute)'})}
+    [0,250e6,500e6,750e6,1000e6].forEach(v=>{if(v>x1)return;const x=X(v);b+='<line x1="'+x+'" x2="'+x+'" y1="'+m.t+'" y2="'+(H-m.b)+'" stroke="var(--line)"/>'+RD.t(x,H-m.b+14,v?(v/1e6)+' MB':'0',{a:'middle',fs:11,fill:'var(--mute)'})});
+    b+=RD.t((W+m.l)/2,H-4,'file size',{a:'middle',fs:11,fill:'var(--mute)'});
     const cur=find();
     L.files.forEach(f=>{const x=X(f.bytes),y=Y(f.q[st.q].read_bytes),r=f.rg===10000?3:f.rg===100000?4.5:6;
       b+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+r+'" fill="'+SC[f.sort]+'" fill-opacity="0.75"><title>'+f.sort+', '+f.rg+' rows, '+f.comp+': '+mb(f.bytes)+' file, '+mb(f.q[st.q].read_bytes)+' read</title></circle>'});
@@ -936,7 +1083,7 @@ window.BARS=function(el,rows,opt){opt=opt||{};
 })();
 </script>
 <script>/* 45_js_bytes.js */
-// ---- Inside a Parquet file tab: byte map of the real 23,047-byte file (D.tiny) ----
+// ---- Reading section 5 (moved from the Inside a Parquet file tab, 2026-10-24): byte map of the real 23,047-byte file (D.tiny) ----
 (function(){
   const T=D.tiny,$=id=>document.getElementById(id),N=T.bytes;
   const CC={id:'var(--c1)',chat_id:'var(--c2)',role:'var(--c3)',model:'var(--c4)',tokens:'var(--c5)',created_at:'var(--c6)'};
@@ -988,23 +1135,22 @@ window.BARS=function(el,rows,opt){opt=opt||{};
   $('byChunks').innerHTML='<table class="small"><thead><tr><th>Row group</th><th>Column</th><th>Type</th><th>Encodings</th><th class="num">Bytes</th><th class="num">Offset</th><th>Min</th><th>Max</th></tr></thead><tbody>'+
     T.chunks.map(c=>'<tr><td>'+c.rg+'</td><td><code>'+c.col+'</code></td><td>'+c.type+'</td><td>'+c.encodings.join(', ')+'</td><td class="num">'+c.compressed.toLocaleString()+'</td><td class="num">'+(c.dictionary_page_offset!=null?c.dictionary_page_offset:c.data_page_offset).toLocaleString()+'</td><td style="overflow-wrap:anywhere">'+RD.esc(String(c.min))+'</td><td style="overflow-wrap:anywhere">'+RD.esc(String(c.max))+'</td></tr>').join('')+'</tbody></table>';
   function all(){map();detail()}
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-bytes']=window.TAB_RENDER['t-bytes']||[]).push(all);
-  addEventListener('resize',()=>{const t=$('t-bytes');if(t&&!t.hidden)map()});
+  RD.onRender(all);RD.onResize(map);
   all();
 })();
 </script>
 <script>/* 46_js_ice.js */
-// ---- Iceberg, step by step tab: real files written by pyiceberg and deltalake (D.ice, D.delta) ----
+// ---- Reading section 9 (moved from the Iceberg, step by step tab, 2026-10-24): real files written by pyiceberg and deltalake (D.ice, D.delta) ----
 (function(){
   const $=id=>document.getElementById(id),I=D.ice,DL=D.delta;
-  const st={fmt:'ice',k:I.steps.length-1,sel:null};
+  const st={fmt:'ice',k:0,sel:null};
   const base=p=>p.split('/').pop();
   const short=(p,n)=>{p=base(p);return p.length>n?p.slice(0,8)+'…'+p.slice(-(n-9)):p};
   function steps(){const S=st.fmt==='ice'?I.steps:DL.steps;
     if(st.k>=S.length)st.k=S.length-1;
     $('iceSteps').innerHTML=S.map((s,i)=>'<button data-i="'+i+'"'+(i===st.k?' class="on"':'')+'>'+(i+1)+'. '+RD.esc(s.step)+'</button>').join('');}
   $('iceSteps').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.k=+b.dataset.i;st.sel=null;draw()});
-  RD.seg($('iceFmt'),v=>{st.fmt=v;st.k=(v==='ice'?I.steps:DL.steps).length-1;st.sel=null;draw()});
+  RD.seg($('iceFmt'),v=>{st.fmt=v;st.k=0;st.sel=null;draw()});
   function iceState(){
     const files=[];I.steps.slice(0,st.k+1).forEach((s,i)=>s.files.forEach(f=>files.push(Object.assign({step:i},f))));
     const mjs=files.filter(f=>f.kind==='metadata.json'),cur=mjs[mjs.length-1];
@@ -1033,7 +1179,7 @@ window.BARS=function(el,rows,opt){opt=opt||{};
       b+=RD.t(x,y+12,ln[0]+' ('+fs.length+')',{fs:11.5,w:600});y+=18;
       fs.forEach(f=>{const isNew=f.step===st.k,isLive=state.live.has(f.path),on=st.sel===f.path;
         b+='<g data-p="'+RD.esc(f.path)+'" style="cursor:pointer"><rect x="'+(x+1)+'" y="'+y+'" width="'+(laneW-2)+'" height="'+bh+'" rx="4" fill="'+(on?'var(--acc2)':'var(--bg)')+'" stroke="'+(isNew?'var(--c2)':'var(--line)')+'" stroke-width="'+(isNew?2.5:1)+'" opacity="'+(isLive?1:0.4)+'"/>'+
-          RD.t(x+6,y+14,RD.esc(short(f.path,Math.max(14,Math.floor(laneW/6.6)))),{fs:10.5})+RD.t(x+6,y+28,FMT.mb(f.bytes)+(isLive?'':' (not in current snapshot)')+(isNew?' new':''),{fs:9.5,fill:'var(--mute)'})+'</g>';
+          RD.t(x+6,y+14,RD.esc(short(f.path,Math.max(14,Math.floor(laneW/6.6)))),{fs:11})+RD.t(x+6,y+28,FMT.mb(f.bytes)+(isLive?'':' (not in current snapshot)')+(isNew?' new':''),{fs:11,fill:'var(--mute)'})+'</g>';
         y+=bh+gap});
       maxY=Math.max(maxY,y);if(narrow)y0=y+8;});
     el.innerHTML=RD.svg(W,Math.max(60,narrow?y0:maxY),b,'Files of the table');
@@ -1058,13 +1204,12 @@ window.BARS=function(el,rows,opt){opt=opt||{};
     if(st.fmt==='ice')return '<p class="small"><b>Time travel, run:</b> reading snapshot '+I.tt.snapshot_id+' (step 2) returned '+I.tt.rows.toLocaleString()+' rows and columns '+I.tt.columns.join(', ')+'; the current snapshot has '+I.tt.now_rows.toLocaleString()+' rows and adds <code>lang</code>. A scan filtered on 2026-03-02 planned '+I.plan.length+' data file: '+RD.esc(base(I.plan[0]))+'.</p>';
     return '<p class="small"><b>Time travel, run:</b> reading version 0 returned '+DL.tt.rows.toLocaleString()+' rows and columns '+DL.tt.columns.join(', ')+'.</p>';
   }
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-ice']=window.TAB_RENDER['t-ice']||[]).push(draw);
-  addEventListener('resize',()=>{const t=$('t-ice');if(t&&!t.hidden)draw()});
+  RD.onRender(draw);RD.onResize(draw);
   draw();
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace an-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1082,6 +1227,8 @@ window.BARS=function(el,rows,opt){opt=opt||{};
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('an-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

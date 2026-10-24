@@ -24,3 +24,21 @@ Scores 0 to 2 on: parameter to move, reproduces a measured or published figure (
 | R5 | Re-drawing the root's rows-vs-columns animation | | Owned by the root's Reading section 5 and Query plans case 6: linked | none | rejected |
 
 What the methodology lacked here: a rule for "measured on a shared machine". Timings were taken with each engine's own in-process cache sized to hold the data (OS page cache was being evicted by other jobs), and the page says timings within about 2x are equal.
+
+## Rebuild of 2026-10-24 (teaching contract)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| B1 | Hero: the real file as area (82 row groups by 7 chunks, rg0 proportions), one-day query highlighted | top | built |
+| B2 | Encodings on real values (role bits, model runs, id deltas, content codecs) | Reading 2 | built, replaces six text cards |
+| B3 | Row at a time against a vector at a time, call counts (derived) | Reading 4 | built (toggle) |
+| B4 | Late materialisation, needed against read | Reading 4 | built (bars from lab and counted reads) |
+| B5 | ClickHouse sparse index and granules, chat against time filter | Reading 7 | built (toggle; R1's merge animation still rejected) |
+| B6 | Storage apart from compute | Reading 8 | built (static) |
+| B7 | Two writers, one catalog pointer | Reading 9 | built (stepper, illustrative snapshot numbers) |
+| B8 | ETL against ELT | Reading 10 | built (static) |
+| B9 | ASOF timeline for chat 13 plus leak counts | Reading 11 | built |
+| B10 | Lakehouse paper Figure 1 | Reading 9 | real image, CC BY 3.0 |
+| A3, A4 | Byte map, Iceberg explorer | moved from their tabs into Reading 5 and 9 | moved |
+| A11 | Sort order bars | moved from Reading 5 to Reading 3 | moved |
+| R6 | Parquet layout schematic | | removed: the hero and the real byte map show the same structure |
+| R7 | Iceberg mini tree | | removed: the explorer, now inline, shows the same files |

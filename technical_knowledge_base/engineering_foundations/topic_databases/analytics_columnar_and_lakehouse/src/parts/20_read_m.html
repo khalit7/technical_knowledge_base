@@ -1,41 +1,20 @@
 
 <section id="s-pro">
-<h2>12. What pros do, and the common mistakes</h2>
-<h3>The path most teams should follow</h3>
-<ol>
-<li><b>Start inside Postgres</b>, on a read replica, with a few summary tables refreshed by a job. Under a few million rows of events, that is enough.</li>
-<li><b>When analytic queries take seconds and hurt the app</b>, export to Parquet (nightly, or CDC for changing rows) and query it with DuckDB from notebooks and jobs. One machine handles hundreds of gigabytes.</li>
-<li><b>When dashboards need sub-second answers over billions of fresh events</b>, run ClickHouse (or ClickHouse Cloud), fed by batched inserts.</li>
-<li><b>When many teams, many engines or tens of terabytes</b> share the data, put it in a lakehouse (Iceberg plus a catalog) and/or a cloud warehouse, with dbt for transformations and budget alerts from day one.</li>
-</ol>
-<p>Each step adds a system to run and a copy to keep correct, so take the next one only when the current one measurably fails.</p>
-<h3>Common mistakes</h3>
-<details class="mist"><summary>Running analytics on the primary database</summary><div class="b">Each analytic query over the 10M messages kept Postgres busy for 0.5 to 10 seconds here, reading every page of the table; on the primary that competes with users. Use a replica, or a copy.</div></details>
-<details class="mist"><summary>Writing Parquet in whatever order rows arrive, then wondering why filters are slow</summary><div class="b">Pruning works only if the filtered column is clustered: in the lab, one chat's messages cost 0.46 MB sorted by chat and 34 to 86 MB shuffled. Sort by the column most queries filter on (usually time, then a key).</div></details>
-<details class="mist"><summary>Thousands of tiny files</summary><div class="b">Streaming jobs that write a file every few seconds: the same 10M rows as about 10,000 files took 124 times longer to aggregate than as one file, and 8% more disk. Batch writes, and schedule compaction.</div></details>
-<details class="mist"><summary><code>SELECT *</code> on a pay-per-byte warehouse</summary><div class="b">BigQuery bills every column selected, even with LIMIT. Name the columns; preview with table previews or a dry run.</div></details>
-<details class="mist"><summary>Treating a column store as a database for the app</summary><div class="b">Single-row updates, unique constraints and read-your-writes are where they are weakest (ClickHouse deduplicates only at merge time, and does not fsync inserts by default). Keep the system of record in Postgres.</div></details>
-<details class="mist"><summary>Partitioning by a high-cardinality column</summary><div class="b">Partitioning a lakehouse table by user id makes one folder per user and millions of tiny files. Partition by time at a grain that gives files of hundreds of MB; cluster or sort by the key inside.</div></details>
-<details class="mist"><summary>Never expiring snapshots</summary><div class="b">Every Iceberg or Delta rewrite keeps the old files for time travel. Without snapshot expiry and orphan clean-up, storage grows for ever, and deleted personal data is still on disk.</div></details>
-<details class="mist"><summary>Training on today's feature values</summary><div class="b">Section 11: half of the "pro" examples were leaked. Join features as of each example's timestamp.</div></details>
-<details class="mist"><summary>Reaching for Spark at 50 GB</summary><div class="b">A cluster adds minutes of start-up and an operations burden; DuckDB or Polars on one machine finish first at this scale (section 6). Reach for distributed engines when data or concurrency truly exceeds one machine.</div></details>
-<h3>Glossary</h3>
-<dl class="kv">
-<dt>OLTP / OLAP</dt><dd>Many small reads and writes of whole rows (the app) / few large reads of a few columns of many rows (analytics).</dd>
-<dt>Row group</dt><dd>A block of rows inside a Parquet file or column store; the unit of skipping.</dd>
-<dt>Column chunk</dt><dd>One column's values within one row group, stored contiguously.</dd>
-<dt>Page</dt><dd>The unit inside a column chunk that is encoded and compressed (a dictionary page, data pages).</dd>
-<dt>Encoding / codec</dt><dd>Type-aware compact representation (dictionary, RLE, delta) / generic byte compression (Snappy, zstd).</dd>
-<dt>Zone map, min/max statistics</dt><dd>Smallest and largest value per block, used to skip blocks that cannot match.</dd>
-<dt>Footer</dt><dd>The metadata at the end of a Parquet file: schema, row groups, column chunk offsets and statistics.</dd>
-<dt>Vectorised execution</dt><dd>Operators process batches (vectors) of a few thousand values per call instead of one row per call.</dd>
-<dt>Late materialisation</dt><dd>Evaluate filters on a few columns first; fetch the other columns only for rows that survive.</dd>
-<dt>Part, merge (ClickHouse)</dt><dd>An immutable sorted chunk written per insert / the background job that combines parts.</dd>
-<dt>Table format</dt><dd>Metadata files (Iceberg, Delta, Hudi) that turn data files into a table with atomic commits, snapshots and schema history.</dd>
-<dt>Snapshot, time travel</dt><dd>The table's full state after one commit / reading an older snapshot.</dd>
-<dt>Catalog</dt><dd>The service that holds each table's current metadata pointer and swaps it atomically.</dd>
-<dt>Compaction</dt><dd>Rewriting many small files into fewer large ones.</dd>
-<dt>ETL / ELT / CDC</dt><dd>Transform before loading / load raw then transform in place / streaming every row change from the database's log.</dd>
-<dt>Point-in-time join</dt><dd>Joining each example to feature values as of its own timestamp (an ASOF join).</dd>
-</dl>
+<h2>12. Versions, prices and vendor news, dated</h2>
+<p>Everything on this page that will change within a year is collected here, with the date it was read. The mechanisms above do not depend on any of it.</p>
+<details class="dp"><summary>The dated table <span class="mute">(read 2026-10-04 unless marked; list prices, US region)</span></summary><div class="b"><div class="tw"><table class="small">
+<thead><tr><th>System</th><th>State</th><th>Prices and limits</th></tr></thead>
+<tbody>
+<tr><td><b>DuckDB</b></td><td>1.5.6 (2026-09-28); 1.4 is the long-term-support line; a 2.0 is scheduled for 2026-10-21 and was in public preview at the time of writing ({{release calendar|https://duckdb.org/release_calendar.html}}). DuckLabs agreed to join AWS (announced 2026-08-26, closed 2026-08-31), with DuckDB staying MIT under the non-profit DuckDB Foundation (root's Database atlas, {{announcement|https://www.aboutamazon.com/news/company-news/aws-ducklabs}}). DuckLake announced 2025-05-27, v1.0 declared production-ready 2026-04-13.</td><td>MotherDuck: storage $0.043 per GB-month; compute instances from $2.93 an hour, or $0.73 per compute-unit hour metered per query ({{pricing|https://motherduck.com/product/pricing/}})</td></tr>
+<tr><td><b>ClickHouse</b></td><td>26.9.10.4 stable and 26.8 LTS on 2026-10-04 ({{versions|https://raw.githubusercontent.com/ClickHouse/ClickHouse/master/utils/list-versions/version_date.tsv}}); chDB 3.7.2 bundles 25.8</td><td>Open source, Apache 2.0</td></tr>
+<tr><td><b>Google BigQuery</b></td><td>Snapshot isolation for multi-statement transactions</td><td><b>On demand:</b> $6.25 per TiB of data processed, first 1 TiB a month free, at least 10 MB per query and per table referenced. <b>Capacity:</b> slot-hours at $0.04 (Standard), $0.06 (Enterprise), $0.10 (Enterprise Plus), per second with a 1-minute minimum. Storage about $0.023 per GiB-month active, $0.016 long-term ({{pricing|https://cloud.google.com/bigquery/pricing}})</td></tr>
+<tr><td><b>Snowflake</b></td><td>Read committed only</td><td>Per second with a 60-second minimum each time a warehouse starts or resumes; a credit costs $2 (Standard), $3 (Enterprise) or $4 (Business Critical) on AWS US East; storage $23 per TB-month ({{credit table, effective 2026-10-02|https://www.snowflake.com/legal-files/CreditConsumptionTable.pdf}})</td></tr>
+<tr><td><b>Amazon Redshift</b></td><td>Redshift Managed Storage on S3 with local SSD caches (RA3, the new RG nodes, Serverless); snapshot isolation by default for new clusters</td><td>Storage $0.024 per GB-month; provisioned ra3.xlplus $1.086, ra3.4xlarge $3.26 per node-hour; <b>Serverless</b> $0.375 per RPU-hour (an RPU is 16 GB of memory), per second with a 60-second minimum; the default base capacity is 128 RPUs, adjustable down to 4 ({{pricing|https://aws.amazon.com/redshift/pricing/}}, {{capacity docs|https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-capacity.html}}); Redshift Spectrum $5 per TB scanned</td></tr>
+<tr><td><b>Databricks SQL</b></td><td>SQL warehouses from 2X-Small (1 worker) to 5X-Large (512 workers) ({{sizes|https://docs.databricks.com/aws/en/compute/sql-warehouse/warehouse-behavior}})</td><td>DBUs (Databricks units) per hour by size, plus your own cloud bill for storage. On Azure a 2X-Small is 4 DBU an hour, Small 12 ({{Azure pricing|https://azure.microsoft.com/en-us/pricing/details/databricks/}}). The dollar price per DBU is rendered by script on the pricing page and could not be read: <b>unconfirmed</b> here.</td></tr>
+<tr><td><b>Parquet and newer formats</b></td><td>parquet-format 2.14.0 (2026-09-11) added ALP, a float encoding, in preview ({{release|https://github.com/apache/parquet-format/releases/tag/apache-parquet-format-2.14.0}}). Newer columnar file formats compete for ML and random access: Lance (multimodal, v12.0.0, 2026-09-17), Vortex (LF AI and Data incubation), Meta's Nimble (explicitly unstable) and the research format F3 (SIGMOD 2025, decoders embedded as WebAssembly). Parquet remains the interchange default.</td><td></td></tr>
+<tr><td><b>Table formats</b></td><td>Iceberg Java 1.12.0, 2026-09-29 ({{releases|https://iceberg.apache.org/releases/}}); delta-spark 4.4.0; Hudi 1.2.1 (2026-09-24)</td><td></td></tr>
+<tr><td><b>Catalogs</b></td><td><b>AWS Glue Data Catalog</b> has an Iceberg REST endpoint ({{docs|https://docs.aws.amazon.com/glue/latest/dg/connect-glu-iceberg-rest.html}}); <b>Amazon S3 Tables</b> (announced 2024-12-03) are buckets that store Iceberg tables and run compaction and snapshot clean-up for you ({{announcement|https://aws.amazon.com/about-aws/whats-new/2024/12/amazon-s3-tables-apache-iceberg-tables-analytics-workloads/}}). <b>Unity Catalog</b>: Databricks' catalog; its open-source version is an LF AI and Data sandbox project, release 0.6.0 (2026-08), serving Delta tables and the Iceberg REST API ({{unitycatalog.io|https://www.unitycatalog.io/}}). <b>Apache Polaris</b>: an Iceberg REST catalog that Snowflake donated; incubating from 2024-08-09, a top-level Apache project since 2026-02-15 ({{Apache|https://incubator.apache.org/projects/polaris.html}}). <b>Nessie</b> (Git-like branches and multi-table commits) and <b>Lakekeeper</b> (a Rust REST catalog) are open-source alternatives.</td><td></td></tr>
+<tr><td><b>dbt</b></td><td>The Python engine is now called dbt Core v1 (1.12.5, 2026-09-15); the Rust <b>Fusion</b> engine is "v2" and the recommended default, with its runtime open-sourced as dbt Core v2.0 alpha ({{dbt Fusion|https://docs.getdbt.com/docs/fusion/about-fusion}}); dbt Labs merged with Fivetran (announced 2025-10-13, completed 2026-06-01) ({{Fivetran|https://www.fivetran.com/press/fivetran-dbt-labs-complete-merger-to-create-the-data-infrastructure-for-trusted-ai-agents}})</td><td></td></tr>
+<tr><td><b>Feast</b></td><td>0.66.0, 2026-08-21</td><td></td></tr>
+</tbody></table></div></div></details>
 </section>

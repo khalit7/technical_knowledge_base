@@ -22,8 +22,8 @@
       if(g<c.done){const hit=st.mode==='off'||q.match(r);fill=hit?(q.match(r)?'var(--c3)':'var(--c2)'):'var(--mute)';op=hit?0.95:0.18}
       b+='<rect x="'+(x+0.5).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(1,bw-1).toFixed(1)+'" height="'+hgt.toFixed(1)+'" fill="'+fill+'" fill-opacity="'+op+'"><title>Row group '+g+': '+(st.q==='day'?r.ca0+' to '+r.ca1:'chat_id '+r.c0+' to '+r.c1)+'</title></rect>'});
     if(c.done>0&&c.done<N){const x=m.l+c.done*bw;b+='<line x1="'+x+'" x2="'+x+'" y1="'+m.t+'" y2="'+(H-m.b)+'" stroke="var(--ink)" stroke-dasharray="3 3"/>'}
-    b+=RD.t(m.l,H-12,'row group 0 (2025-09-01)',{fs:10,fill:'var(--mute)'})+RD.t(W-m.r,H-12,'row group 81 (2026-08-14)',{a:'end',fs:10,fill:'var(--mute)'});
-    b+=RD.t(W-m.r,H-1,'footer at the end of the file',{a:'end',fs:10,fill:i>=1?'var(--c2)':'var(--mute)'});
+    b+=RD.t(m.l,H-12,'row group 0 (2025-09-01)',{fs:11,fill:'var(--mute)'})+RD.t(W-m.r,H-12,'row group 81 (2026-08-14)',{a:'end',fs:11,fill:'var(--mute)'});
+    b+=RD.t(W-m.r,H-1,'footer at the end of the file',{a:'end',fs:11,fill:i>=1?'var(--c2)':'var(--mute)'});
     el.innerHTML=RD.svg(W,H,b,'Row groups read and skipped');
     let cap;
     if(i===0)cap='<b>The query:</b> <code>SELECT count(*), sum(tokens) WHERE '+q.label+'</code> on 10,000,000 messages in one 534 MB Parquet file. Nothing read yet.';
@@ -36,7 +36,7 @@
   }
   window.CHK=window.CHK||{};CHK.prune=(mode,q)=>{const o={mode:st.mode,q:st.q};st.mode=mode;st.q=q;const c=compute(NSTEPS-1);st.mode=o.mode;st.q=o.q;return c};
   const A=RD.anim({card:'prCard',ctl:'prCtl',n:NSTEPS,ms:1100,draw,label:'Pruning step'});
-  RD.seg($('prMode'),v=>{st.mode=v;A.reset(NSTEPS);A.play()});
-  RD.seg($('prQ'),v=>{st.q=v;A.reset(NSTEPS);A.play()});
+  RD.seg($('prMode'),v=>{st.mode=v;A.reset(NSTEPS)});
+  RD.seg($('prQ'),v=>{st.q=v;A.reset(NSTEPS)});
   RD.onResize(()=>A.redraw());
 })();

@@ -96,7 +96,7 @@ window.BARS=function(el,rows,opt){opt=opt||{};
   function http(k){
     const h=D.http[k],el=$('httpSvg'),W=RD.width(el),N=D.http_file,H=56,m=8;
     const X=v=>m+v/N*(W-2*m);let b='<rect x="'+m+'" y="22" width="'+(W-2*m)+'" height="26" fill="var(--soft)" stroke="var(--line)"/>';
-    b+=RD.t(m,14,'byte 0',{fs:10,fill:'var(--mute)'})+RD.t(W-m,14,FMT.mb(N)+' (footer)',{a:'end',fs:10,fill:'var(--mute)'});
+    b+=RD.t(m,14,'byte 0',{fs:11,fill:'var(--mute)'})+RD.t(W-m,14,FMT.mb(N)+' (footer)',{a:'end',fs:11,fill:'var(--mute)'});
     h.log.forEach((r,i)=>{if(!r.range)return;const x=X(r.range[0]),w=Math.max(2,X(r.range[1])-x);
       b+='<rect x="'+x.toFixed(1)+'" y="22" width="'+w.toFixed(1)+'" height="26" fill="'+(r.range[1]>=N-1?'var(--c2)':'var(--c3)')+'"><title>GET bytes '+r.range[0].toLocaleString()+' to '+r.range[1].toLocaleString()+'</title></rect>'});
     

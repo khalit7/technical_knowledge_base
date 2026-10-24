@@ -1,4 +1,4 @@
-// ---- Inside a Parquet file tab: byte map of the real 23,047-byte file (D.tiny) ----
+// ---- Reading section 5 (moved from the Inside a Parquet file tab, 2026-10-24): byte map of the real 23,047-byte file (D.tiny) ----
 (function(){
   const T=D.tiny,$=id=>document.getElementById(id),N=T.bytes;
   const CC={id:'var(--c1)',chat_id:'var(--c2)',role:'var(--c3)',model:'var(--c4)',tokens:'var(--c5)',created_at:'var(--c6)'};
@@ -50,7 +50,6 @@
   $('byChunks').innerHTML='<table class="small"><thead><tr><th>Row group</th><th>Column</th><th>Type</th><th>Encodings</th><th class="num">Bytes</th><th class="num">Offset</th><th>Min</th><th>Max</th></tr></thead><tbody>'+
     T.chunks.map(c=>'<tr><td>'+c.rg+'</td><td><code>'+c.col+'</code></td><td>'+c.type+'</td><td>'+c.encodings.join(', ')+'</td><td class="num">'+c.compressed.toLocaleString()+'</td><td class="num">'+(c.dictionary_page_offset!=null?c.dictionary_page_offset:c.data_page_offset).toLocaleString()+'</td><td style="overflow-wrap:anywhere">'+RD.esc(String(c.min))+'</td><td style="overflow-wrap:anywhere">'+RD.esc(String(c.max))+'</td></tr>').join('')+'</tbody></table>';
   function all(){map();detail()}
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-bytes']=window.TAB_RENDER['t-bytes']||[]).push(all);
-  addEventListener('resize',()=>{const t=$('t-bytes');if(t&&!t.hidden)map()});
+  RD.onRender(all);RD.onResize(map);
   all();
 })();
