@@ -26,7 +26,7 @@
     $('rd-kahCnt').innerHTML=RD.stat('Sum now',S(r.s,9),'after '+i+' of 11 numbers')+RD.stat('Exact so far',S(exactSoFar,9),'math.fsum')+RD.stat('Final ('+(km==='naive'?'naive':'Kahan')+')',i===KT.length-1?S(fin,9):'…','exact '+S(EX,9)+'; nearest float16 2052');
   }
   const KA=RD.anim({card:'rd-kahCard',ctl:'rd-kahCtl',n:KT.length,draw:kdraw,ms:1300,label:'Summation step'});
-  RD.seg($('rd-kahMode'),m=>{km=m;KT=kahanTrace(km);KA.reset(KT.length);KA.play()});
+  RD.seg($('rd-kahMode'),m=>{km=m;KT=kahanTrace(km);KA.reset(KT.length)});
   // ---------- softmax ----------
   const Z=[1000,999,0],NM=['cat','dog','sat'],TGT=2;
   let sm='naive',sf='fp32';
@@ -69,7 +69,7 @@
     $('rd-smCnt').innerHTML=RD.stat('Finite values',nf,'so far')+RD.stat('Infinities',ni?'<span class="bad">'+ni+'</span>':0,'')+RD.stat('NaNs',nn?'<span class="bad">'+nn+'</span>':0,'')+RD.stat('Step',(i+1)+' of '+ST.length,'');
   }
   const SA=RD.anim({card:'rd-smCard',ctl:'rd-smCtl',n:ST.length,draw:smdraw,ms:1700,label:'Softmax step'});
-  const re=()=>{ST=smTrace();SA.reset(ST.length);SA.play()};
+  const re=()=>{ST=smTrace();SA.reset(ST.length)};
   RD.seg($('rd-smMode'),m=>{sm=m;re()});RD.seg($('rd-smFmt'),m=>{sf=m;re()});
   window.NC_ANIM={smTrace:()=>smTrace(),setSm:(m,f)=>{sm=m;sf=f;ST=smTrace();SA.reset(ST.length)},kahan:m=>kahanTrace(m)};
 })();

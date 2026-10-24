@@ -25,3 +25,14 @@ Scores 0 to 2 on: moving quantity, reproduces a source, computable from public d
 Data: `inputs/measure_a.py` (bits, constants, summation, order, threads, MPS; output `out_a.json`), `inputs/measure_b.py` (SmolLM2-135M, HuggingFaceTB/SmolLM2-135M, one step on 4 x 128 tokens of Tiny Shakespeare; output `out_b.json`), `inputs/nan_demo.py`; PyTorch v2.14.1 source excerpts in `inputs/pytorch_v2.14.1/`; OFP8 extract in `inputs/ofp8_spec_extract.txt`. Page data `parts/20_js_data.js` made by `mk_data.py`.
 
 What the methodology lacked: a rule for two libraries that legitimately disagree on the same operation (PyTorch saturates an FP8 E4M3 overflow, ml_dtypes returns NaN; the spec allows both): treated like conflicting primary sources, both measured and shown side by side, with the spec clause that permits both.
+
+## 2026-10-24 rebuild (teaching contract)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| 12 | Hero: every format's bits to scale above its range on one log axis, SmolLM2 median gradient marked | Reading top | built (static) |
+| 13 | Cancellation digits: 1.0001 in float32 minus 1, correct digits against carried noise | Reading s4 | built (static, `derive_new_visuals.py`) |
+| 14 | Reduction trees: the eight numbers as 1, 2 and 4 threads, three answers to an exact 0 | Reading s6 | built (toggle, real float64) |
+| 15 | Naive against stable BCE, logsigmoid, softplus in fp32, fp16, bf16 | Reading s8 | built (emulated rounding) |
+| 16 | NaN spread through a linear layer and one step | Reading s10 | built (4-step stepper) |
+| 5 | Summation lab | moved from its own tab into Reading s5 | it explains one mechanism |
+| R5 | Real photo or image | rejected: the page is about arithmetic, no physical object teaches it |

@@ -1,4 +1,4 @@
-// ---- Summation lab tab ----
+// ---- Reading section 5: the summation lab (moved inline from its own tab on 2026-10-24) ----
 (function(){
   const $=id=>document.getElementById(id),S=FP.show;
   const COL={naive:'var(--bad)',pairwise:'var(--c1)',kahan:'var(--c3)',acc32:'var(--c4)'},LAB={naive:'naive',pairwise:'pairwise',kahan:'Kahan',acc32:'fp32 accumulator'};
@@ -51,6 +51,6 @@
     $('sl-shufOut').innerHTML='Same '+n.toLocaleString('en')+' numbers in 20 random orders, naive '+f.name+' sum: <b>'+u.length+' distinct results</b>, from '+S(u[0],10)+' to '+S(u[u.length-1],10)+' (exact '+S(ex,10)+'). Pairwise and Kahan results also depend on the order, by much less. <br><code>'+u.slice(0,12).map(v=>S(v,10)).join(', ')+(u.length>12?', …':'')+'</code>';
   }
   ['sl-fmt','sl-data','sl-seed'].forEach(id=>$(id).addEventListener('change',draw));let tm=0;$('sl-n').addEventListener('input',()=>{$('sl-nv').textContent=N().toLocaleString('en');clearTimeout(tm);tm=setTimeout(draw,120)});$('sl-shuf').addEventListener('click',shuffle);
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-sum']=[draw];
+  RD.onRender(draw);RD.onResize(draw);draw();
   window.SL={run,data};
 })();

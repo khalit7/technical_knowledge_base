@@ -53,7 +53,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     for (const key in N.lab) { const [f, n] = key.split('_'); const r = await p.evaluate((f, n) => SL.run('u', +n, 1, f), f, n);
       for (const k of ['exact', 'naive', 'pairwise', 'kahan', 'acc32']) if (!(f === 'fp32' && k === 'acc32')) ok(Math.abs(r[k] - N.lab[key][k]) <= (k === 'exact' ? 1e-9 : 0), 'lab ' + key + ' ' + k + ': ' + r[k] + ' vs ' + N.lab[key][k]) }
     // numbers quoted in the Reading text
-    const T = await p.evaluate(() => document.getElementById('t-read').innerText.replace(/−/g, '-'));
+    const T = await p.evaluate(() => document.getElementById('t-read').textContent.replace(/−/g, '-'));
     const must = ['2.4076058864593506', '401a1637', '0.30000000000000004', '0.6000000000000001', '2,048', '16,777,216', '1000.3133', '1.000000082690371', '0.0066799', '0.0066309', '9.99999993922529',
       '83.8%', '15.2%', '97.9%', '8.2%', '96.5 million', '258', '102', '-4320.4336', '-4320.4326', '-4320.4331', '0.0043', '29.3288', '1.2038029432296753', '134,515,008', '3.5607', '68%', '7.2%', '5.0%', '4.8%', '0.55%', '0.9994', '1001.313', '316', '2.1269', '0.1269'];
     const Tn = T.replace(/\s+/g, ''); for (const s of must) ok(Tn.includes(s.replace(/\s+/g, '')), 'Reading text contains ' + s);
@@ -105,23 +105,47 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (const v of ['nan', 'inf', '-0', 'abc', '2^-149', '(1+2)*3']) await setx(v);
   await setx('2.40760596444438'); await shot('#fx-cards', 'float-loss');
   await undef('float');
-  // ---- Summation lab ----
-  await tab('t-sum');
+  // ---- Summation lab (inline in Reading section 5 since 2026-10-24) ----
+  await tab('t-read');
   for (const f of ['fp16', 'bf16', 'fp32']) for (const d of ['u', 'n', 'm', 'b', 'h']) {
     await p.select('#sl-fmt', f); await p.select('#sl-data', d); await p.$eval('#sl-n', e => { e.value = 3; e.dispatchEvent(new Event('input')) }); await sleep(200);
     const t = await p.$eval('#sl-res', e => e.innerText); ok(!/NaN|undefined/.test(t), 'lab text ' + f + ' ' + d);
-    if (d === 'u' || d === 'b') await shot('#t-sum .card', 'lab-' + f + '-' + d) }
+    if (d === 'u' || d === 'b') await shot('#rd-labCard', 'lab-' + f + '-' + d) }
   await p.select('#sl-fmt', 'fp16'); await p.select('#sl-data', 'u'); await p.$eval('#sl-n', e => { e.value = 4; e.dispatchEvent(new Event('input')) }); await sleep(400);
   const nv = await p.$eval('#sl-res', e => e.innerText); ok(nv.includes('2048'), 'lab fp16 naive stalls at 2048');
-  await p.click('#sl-shuf'); await sleep(300); ok(/distinct results/.test(await p.$eval('#sl-shufOut', e => e.innerText)), 'shuffle output'); await shot('#t-sum .card', 'lab-shuffle');
-  await p.$eval('#sl-n', e => { e.value = 5; e.dispatchEvent(new Event('input')) }); await sleep(2500); await shot('#t-sum .card', 'lab-1e5');
-  await undef('sum');
+  await p.click('#sl-shuf'); await sleep(300); ok(/distinct results/.test(await p.$eval('#sl-shufOut', e => e.innerText)), 'shuffle output'); await shot('#rd-labCard', 'lab-shuffle');
+  await p.$eval('#sl-n', e => { e.value = 5; e.dispatchEvent(new Event('input')) }); await sleep(2500); await shot('#rd-labCard', 'lab-1e5');
+  await undef('reading after lab');
+  // ---- visuals added 2026-10-24 ----
+  if (width === 390) {
+    const NV = JSON.parse(fs.readFileSync(path.join(here, 'new_visuals.json'), 'utf8'));
+    const tr = await p.evaluate(() => ['1', '2', '4'].map(m => NC_TREE(m)));
+    ok(tr[0] === NV.trees.one_thread && tr[1] === NV.trees.two_threads && tr[2] === NV.trees.four_threads, 'reduction trees match derive_new_visuals.py: ' + tr);
+    const fb = await p.evaluate(() => [NC_TOOL.first('bce', 'fp32'), NC_TOOL.first('ls', 'fp32'), NC_TOOL.first('sp', 'fp32'), NC_TOOL.first('bce', 'fp16')]);
+    ok(fb[0] === 16.64 && fb[1] === -88.73 && fb[2] === 88.73 && fb[3] === 7.63, 'toolbox first non-finite logits ' + fb);
+    const st = await p.evaluate(() => [NC_TOOL.eval('bce', 2, 'fp32')[1], NC_TOOL.eval('bce', 30, 'fp32').map(String)]);
+    ok(Math.abs(st[0] - 2.1269) < 5e-5 && st[1][0] === 'Infinity' && st[1][1] === '30', 'toolbox BCE values ' + JSON.stringify(st));
+    const ns = await p.evaluate(() => NC_NAN.steps());
+    ok(JSON.stringify(ns) === JSON.stringify([[1, 0, 3], [1, 0, 3], [1, 3, 0], [1, 3, 9]]), 'NaN spread counts ' + JSON.stringify(ns));
+  }
+  for (const m of ['1', '2', '4']) { await p.click('#rd-treeMode button[data-m="' + m + '"]'); await sleep(40); await shot('#rd-treeCard', 'tree-' + m) }
+  for (const fn of ['bce', 'ls', 'sp']) for (const f of ['fp32', 'fp16', 'bf16']) { await p.click('#rd-toolFn button[data-m=' + fn + ']'); await p.click('#rd-toolFmt button[data-m=' + f + ']'); await sleep(40) }
+  await shot('#rd-toolCard', 'tool');
+  for (let i = 1; i < 4; i++) { await p.click('#rd-nanCtl-f'); await sleep(20) } await shot('#rd-nanCard', 'nan-end');
+  await shot('#rd-heroCard', 'hero'); await shot('#rd-cancCard', 'canc');
+  await undef('reading new visuals');
   await tab('t-more'); await undef('more');
   ok(errs.length === 0, tag + ' page errors: ' + errs.join(' | '));
   ok(!(await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)), tag + ' sideways scroll');
   ok(await p.$eval('#jsErr', e => e.hidden), tag + ' error box hidden');
   await p.close();
 }
+{ const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(url); await p.evaluate(() => { try { localStorage.clear() } catch (e) {} }); await p.reload(); await sleep(300);
+  for (const id of ['rd-kahCard', 'rd-smCard', 'rd-nanCard']) { await (await p.$('#' + id)).scrollIntoView(); await sleep(1800) }
+  for (const m of ['kahan', 'naive']) { await p.click('#rd-kahMode button[data-m=' + m + ']'); await sleep(300) }
+  await p.click('#rd-smMode button[data-m=stable]'); await sleep(2000);
+  const pos = await p.evaluate(() => ['rd-kahCtl-s', 'rd-smCtl-s', 'rd-nanCtl-s'].map(i => +document.getElementById(i).value));
+  ok(pos.every(v => v === 0), 'no animation moves before the reader acts (normal motion): ' + pos); await p.close() }
 await browser.close();
 console.log('checks', checks, 'fails', fails);
 process.exit(fails ? 1 : 0);

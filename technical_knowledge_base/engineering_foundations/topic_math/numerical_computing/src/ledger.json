@@ -1,0 +1,4552 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Numerical computing for ML Numerical computing for ML: floating point, precision formats, stable softmax How a computer stores a number, bit by bit, and what that does to training: IEEE 754, machine epsilon and rounding, the formats ML uses (float64 to FP8 and 4-bit), cancellation, summation error and non-deterministic reductions, the stable softmax and its relatives, mixed precision and loss scaling, and hunting NaNs.",
+  "label": "core",
+  "key": "numerical computing for ml numerical computing for ml: floating",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Measured on a laptop and on a real model (SmolLM2-135M).",
+  "label": "core",
+  "key": "measured on a laptop and on a real model",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "A child page of Topic: math .",
+  "label": "core",
+  "key": "a child page of topic: math",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Float explorer Summation lab Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "One screen 1 Bits 2 IEEE 754 3 Gaps, rounding 4 ML formats 5 Error per operation 6 Cancellation 7 Summation 8 Determinism 9 Stable softmax 10 Stable toolbox 11 Mixed precision 12 NaN hunting 13 Research 14 Mistakes",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "navigation"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "Numerical computing in one screen About 45 minutes to read the main line (about 10,300 words including tables and code excerpts, and 600 formulas); the collapsible derivation and the mistakes list add a few more, and the measured tables can be skimmed.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old reading-time note, replaced by the measured subtitle"
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "Every section can be read alone, and every symbol is defined where it first appears.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "meta note on how to read the page"
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "The running example is the root page's tiny model: logits z = ( 2 , 1 , 0 ) z = (2, 1, 0) for the words cat, dog and sat, target sat, loss 2.408 2.408 ; and the same three words with logits ( 1000 , 999 , 0 ) (1000, 999, 0) , the case the root's Gradient lab uses for overflow.",
+  "label": "core",
+  "key": "the running example is the root page's tiny model",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "Real measurements come from this laptop (Apple M1 Pro, PyTorch 2.14.1, NumPy 2.5.3) and from one real training step of SmolLM2-135M ; every number is recomputed by the scripts in this page's source folder.",
+  "label": "depth",
+  "key": "one real training step of smollm2-135m",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "A computer stores a real number as a sign, a power of two and a fixed number of binary digits.",
+  "label": "core",
+  "key": "a computer stores a real number as a sign",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "So it can only hold numbers from a finite grid: the grid is dense near zero and sparse far away, every result is snapped to the nearest grid point, and the grid ends (past it lies infinity).",
+  "label": "core",
+  "key": "so it can only hold numbers from a finite",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "Everything on this page follows from that picture: why 0.1 + 0.2 ≠ 0.3 0.1 + 0.2 \\ne 0.3 , why softmax needs the max subtracted, why fp16 training needs loss scaling and bf16 does not, why adding a million numbers in 16 bits returns garbage, and why the same model gives different answers on different runs.",
+  "label": "core",
+  "key": "everything on this page follows from that picture: why",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "Idea In one line One number to remember Where ML meets it Floating point sign, exponent (range), mantissa (precision) loss 2.408 2.408 in fp32 is 0 10000000 0011010... every tensor Machine epsilon, rounding relative gap between neighbours; results round to the nearest, ties to even fp32 2 − 23 ≈ 1.19 × 10 − 7 2^{-23} \\approx 1.19 \\times 10^{-7} ; bf16 2 − 7 = 0.0078 2^{-7} = 0.0078 what \"precision\" means ML formats trade mantissa bits for speed and memory; exponent bits decide the range fp16 max 65,504 65{,}504 ; bf16 max 3.4 × 10 38 3.4 \\times 10^{38} training and serving dtypes Cancellation subtracting nearly equal numbers leaves only the rounding error one-pass fp32 variance of three numbers: − 8 -8 variance, log near 1, norms Summation adding in a different order gives a different answer; long sums drift fp16 running sum of ones stops at 2048 2048 reductions, accumulators Determinism parallel hardware changes the order, so results change MPS index_add_ : 20 different results in 20 runs reproducibility, batch invariance Stable softmax subtract the max logit first; work in logs ln ⁡ ∑ e z = 1000.313 \\ln\\sum e^{z} = 1000.313 for ( 1000 , 999 , 0 ) (1000, 999, 0) every classifier and LLM Stable toolbox log1p, expm1, logsigmoid, BCE with logits, Welford, epsilon naive log ⁡ ( 1 − σ ( 30 ) ) \\log(1 - \\sigma(30)) in fp32: − ∞ -\\infty losses, norms Mixed precision 16-bit compute, fp32 master weights; scale the loss in fp16 SmolLM2 in pure fp16: 8.2% of gradients become 0 training recipes NaN hunting find the first operation that made inf or NaN ∞ / ∞ = \\infty / \\infty = NaN debugging divergence The one idea to keep Every floating-point result is the true result times ( 1 + δ ) (1 + \\delta) with | δ | |\\delta| at most half the format's epsilon, as long as nothing overflows or underflows .",
+  "label": "core",
+  "key": "idea in one line one number to remember where",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "Trouble comes from three places only: leaving the range (overflow to infinity, underflow to zero), subtracting nearly equal numbers (cancellation), and piling up many small errors (long sums).",
+  "label": "core",
+  "key": "trouble comes from three places only: leaving the range",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "Stable algorithms are rearrangements that avoid all three.",
+  "label": "core",
+  "key": "stable algorithms are rearrangements that avoid all three",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "Two tabs sit beside this one.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab pointer; tabs changed"
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "The Float explorer takes any number and shows its bits, its neighbours and its rounding error in float64, float32, TF32, bfloat16, float16, FP8 E4M3 and E5M2, and lets you flip single bits.",
+  "label": "core",
+  "key": "in float64, float32, tf32, bfloat16, float16, fp8",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "The Summation lab adds thousands of numbers in 16 or 32 bits with four algorithms and shuffles their order.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Summation lab tab removed; the lab is inline in section 5"
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "The training topic's Quantization and precision page owns the 8-bit and 4-bit formats in depth (INT8, INT4, NF4, GPTQ, AWQ, block scaling, FP8 training recipes); this page owns the arithmetic underneath them.",
+  "label": "core",
+  "key": "this page owns the arithmetic underneath them",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "How numbers are labelled Measured : run on this laptop or on SmolLM2-135M by the scripts in src/inputs/ .",
+  "label": "depth",
+  "key": "smollm2-135m by the scripts in src/inputs/",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "Derived : computed from a formula shown next to it.",
+  "label": "depth",
+  "key": "derived : computed from a formula shown next to",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "Published : quoted from a specification, paper or library source, linked.",
+  "label": "depth",
+  "key": "published : quoted from a specification, paper or library",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "numerical computing in one screen",
+  "text": "Bit patterns are computed, never typed by hand: NumPy, Python's struct and ml_dtypes 0.6.0 for the 8- and 16-bit formats, and this page's own emulator, which matches ml_dtypes on 17,610 test values.",
+  "label": "depth",
+  "key": "bit patterns are computed, never typed by hand: numpy",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "How a computer stores a number The question.",
+  "label": "core",
+  "key": "how a computer stores a number",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "A memory cell holds only 0s and 1s.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up box removed"
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "How do you get from a row of bits to − 13 -13 , to 0.1 0.1 , to 3 × 10 38 3 \\times 10^{38} ?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up box removed"
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "Binary: place values are powers of two In decimal, 413 413 means 4 × 100 + 1 × 10 + 3 × 1 4 \\times 100 + 1 \\times 10 + 3 \\times 1 : each place is worth ten times the place to its right.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "decimal place values: below the reader (expertise reversal)"
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "In binary each place is worth twice the place to its right, and each digit (a bit ) is 0 or 1.",
+  "label": "core",
+  "key": "in binary each place is worth twice the place",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "So 1101 2 = 1 × 8 + 1 × 4 + 0 × 2 + 1 × 1 = 13.",
+  "label": "core",
+  "key": "each place is worth twice the place to its right",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "1101_2 = 1 \\times 8 + 1 \\times 4 + 0 \\times 2 + 1 \\times 1 = 13.",
+  "label": "core",
+  "key": "1.101 2 × 2 3",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "The subscript 2 says \"read in base 2\".",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "explains notation already clear from the example"
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "Places to the right of the binary point are worth 1 2 , 1 4 , 1 8 , … \\tfrac12, \\tfrac14, \\tfrac18, \\dots , so 0.101 2 = 1 2 + 1 8 = 0.625 0.101_2 = \\tfrac12 + \\tfrac18 = 0.625 .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "worked binary fraction: below the reader; the place values 1/2, 1/4, 1/8 are kept"
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "A fraction has a finite binary expansion only if its denominator is a power of two.",
+  "label": "core",
+  "key": "a fraction has a finite binary expansion only if",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "1 10 \\tfrac{1}{10} is not, so in binary it repeats forever, 0.1 = 0.0 0011 2 0.1 = 0.0\\overline{0011}_2 , exactly as 1 3 = 0.333 … \\tfrac13 = 0.333\\ldots repeats in decimal.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "analogy with 1/3; the repeating binary 0.1 is kept"
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "Any computer that stores a fixed number of bits must cut 0.1 0.1 off somewhere; that cut is the first rounding error you meet, and it is why 0.1 + 0.2 0.1 + 0.2 prints as 0.30000000000000004 in Python (measured).",
+  "label": "core",
+  "key": "is why 0.1 + 0.2 0.1 + 0.2 prints",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "Integers and two's complement An unsigned 8-bit integer holds 0 0 to 2 8 − 1 = 255 2^8 - 1 = 255 .",
+  "label": "depth",
+  "key": "an unsigned 8-bit integer holds 0 0 to 2",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "For negative numbers, every modern machine uses two's complement : the top bit is worth − 2 7 = − 128 -2^{7} = -128 instead of + 128 +128 .",
+  "label": "depth",
+  "key": "every modern machine uses two's complement : the top",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "So an 8-bit signed integer (int8) holds − 128 -128 to 127 127 , and − 13 = 11110011 2 = − 128 + 64 + 32 + 16 + 2 + 1. -13 = 11110011_2 = -128 + 64 + 32 + 16 + 2 + 1.",
+  "label": "depth",
+  "key": "and − 13 = 11110011 2 = −",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "The trick that makes it popular: adding works with the same circuit as unsigned addition, and negating is \"flip every bit, add 1\" ( 13 = 00001101 2 13 = 00001101_2 , flipped 11110010 2 11110010_2 , plus one 11110011 2 11110011_2 ).",
+  "label": "depth",
+  "key": "the same circuit as unsigned addition, and negating is",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "The price is that integers wrap around : in int8, 127 + 1 = − 128 127 + 1 = -128 (derived; NumPy does the same and warns).",
+  "label": "depth",
+  "key": "the price is that integers wrap around : in",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "Integers are exact inside their range and evenly spaced, which is why quantised weights are stored as int8 or int4 codes with a separate scale (the Quantization and precision page).",
+  "label": "depth",
+  "key": "integers are exact inside their range and evenly spaced",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "Why integers are not enough: the floating point idea ML needs both 3 × 10 − 8 3 \\times 10^{-8} (a typical small gradient) and 5 × 10 4 5 \\times 10^{4} (a large activation) in the same tensor.",
+  "label": "core",
+  "key": "3 × 10 − 8 3 \\times 10^{-8} (a",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "An evenly spaced grid fine enough for the first needs about 10 12 10^{12} steps to reach the second, about 41 bits, and it would waste nearly all of them on precision nobody needs at large values.",
+  "label": "core",
+  "key": "an evenly spaced grid fine enough for the first",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "The fix is scientific notation in base 2: store a number as x = ( − 1 ) s × m × 2 E , 1 ≤ m < 2. x = (-1)^{s} \\times m \\times 2^{E}, \\qquad 1 \\le m \\lt 2 .",
+  "label": "core",
+  "key": "x = (-1)^{s} \\times m \\times 2^{e}",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "Read it as: a sign s s (0 for plus, 1 for minus), a significand m m (also called the mantissa: the digits, always between 1 and 2), and an exponent E E (an integer: which power of two).",
+  "label": "core",
+  "key": "base-2 scientific notation",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "Example: 13 = 1.625 × 2 3 13 = 1.625 \\times 2^{3} because 1.625 × 8 = 13 1.625 \\times 8 = 13 , and in binary 1101 2 = 1.101 2 × 2 3 1101_2 = 1.101_2 \\times 2^{3} : moving the binary point three places is multiplying by 2 3 2^3 .",
+  "label": "core",
+  "key": "1101 2 = 1.101 2 × 2 3",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "The point \"floats\" to just after the first 1, hence floating point .",
+  "label": "core",
+  "key": "the point \"floats\" to just after the first 1",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "With a fixed number of bits for m m , every number carries the same number of significant binary digits whatever its size: the gaps between neighbours grow in proportion to the number.",
+  "label": "core",
+  "key": "every number carries the same number of significant",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "That proportional grid is the whole design.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restatement: \"gaps grow in proportion to the number\" carries it"
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "What it is used for in ML Every weight, activation and gradient is a floating-point number; token ids, counts and quantised codes are integers.",
+  "label": "depth",
+  "key": "token ids, counts and quantised codes are integers",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. how a computer stores a number",
+  "text": "Integer wraparound appears in practice when an int32 index overflows past 2 31 − 1 ≈ 2.1 × 10 9 2^{31} - 1 \\approx 2.1 \\times 10^{9} elements, the size of a single large embedding or attention tensor.",
+  "label": "depth",
+  "key": "wraparound appears in practice when an int32 index overflows",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "IEEE 754, bit by bit The question.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "The root page's loss is 2.4076 … 2.4076\\ldots .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "Which 32 bits does PyTorch store for it, and how do you read them back?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "The standard that fixes the answer is IEEE 754 , first published in 1985 and revised in 2008 and 2019 ( IEEE 754-2019 ; William Kahan, its main architect, received the 1989 Turing Award for it).",
+  "label": "core",
+  "key": "ieee 754-2019 ; william kahan, its main architect, received",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "Before it, every computer maker rounded differently and the same program gave different answers on different machines.",
+  "label": "core",
+  "key": "before it, every computer maker rounded differently",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "It defines the formats, what every operation must return, and the special values.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restatement: the sections that follow say what the standard fixes"
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "A 32-bit float ( float32 , fp32, \"single precision\") is three fields: sign: 1 bit exponent field: 8 bits fraction (mantissa) field: 23 bits x = ( − 1 ) s × ( 1 + f 2 23 ) × 2 e − 127 ( 1 ≤ e ≤ 254 ) x = (-1)^{s} \\times \\Bigl(1 + \\frac{f}{2^{23}}\\Bigr) \\times 2^{\\,e - 127} \\qquad (1 \\le e \\le 254) s s the sign bit: 0 for positive, 1 for negative. e e the 8-bit biased exponent field, read as an unsigned integer 0 to 255.",
+  "label": "core",
+  "key": "sign: 1 bit exponent field: 8 bits fraction (mantissa)",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "The true exponent is E = e − 127 E = e - 127 ; 127 is the bias ( 2 8 − 1 − 1 2^{8-1} - 1 ).",
+  "label": "core",
+  "key": "the true exponent is e = e − 127",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "Storing E + 127 E + 127 instead of a signed E E makes the fields of positive floats sort in the same order as the numbers, so hardware can compare floats with integer comparisons. f f the 23-bit fraction field, read as an integer 0 to 2 23 − 1 2^{23} - 1 .",
+  "label": "core",
+  "key": "floats with integer comparisons. f f the 23-bit fraction",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "The leading 1 of the significand is not stored (every normal number has one, so it is free: the hidden bit ).",
+  "label": "core",
+  "key": "the significand is",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "A float32 therefore carries p = 24 p = 24 significant bits, the format's precision .",
+  "label": "core",
+  "key": "carries p = 24 p = 24 significant bits",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "Pick a value and a format: the bits are computed, then read back with the formula above.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "UI instruction replaced by the card title"
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "The full version, with any number and bit flipping, is the Float explorer tab. loss 2.4076 0.1 − 2.5 -2.5 1 10 − 40 10^{-40} (subnormal in fp32) − 0 -0 ∞ \\infty NaN float32 bfloat16 float16 FP8 E4M3 Worked by hand, the loss in fp32.",
+  "label": "core",
+  "key": "loss 2.4076 0.1 − 2.5 -2.5 1 10 −",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "The exact loss is ln ⁡ ( e 2 + e 1 + e 0 ) = 2.40760596444438 … \\ln(e^2 + e^1 + e^0) = 2.40760596444438\\ldots (the root's tiny model, target sat).",
+  "label": "core",
+  "key": "ln ⁡ ( e 2 + e 1 +",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "It lies between 2 1 = 2 2^1 = 2 and 2 2 = 4 2^2 = 4 , so E = 1 E = 1 and the stored exponent is e = 1 + 127 = 128 = 10000000 2 e = 1 + 127 = 128 = 10000000_2 .",
+  "label": "core",
+  "key": "so e = 1 e = 1 and",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "The significand is 2.4076 … / 2 = 1.2038 … 2.4076\\ldots / 2 = 1.2038\\ldots ; its fractional part times 2 23 2^{23} is 1,709,622.6 … 1{,}709{,}622.6\\ldots , which rounds to f = 1,709,623 f = 1{,}709{,}623 .",
+  "label": "core",
+  "key": "1.2038\\ldots ; its fractional part times 2 23 2^{23}",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "Reading back: x = ( 1 + 1,709,623 / 8,388,608 ) × 2 x = (1 + 1{,}709{,}623 / 8{,}388{,}608) \\times 2 , which is 1.2038029432296753 × 2 1.2038029432296753 \\times 2 , which is 2.4076058864593506 2.4076058864593506 .",
+  "label": "core",
+  "key": "1.2038029432296753",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "The stored value is off by 7.8 × 10 − 8 7.8 \\times 10^{-8} , a relative error of 3.2 × 10 − 8 3.2 \\times 10^{-8} .",
+  "label": "core",
+  "key": "off by 7.8 × 10 − 8 7.8 \\times",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "Python's standard library agrees: struct.pack('>f', loss).hex() gives 401a1637 , which is the same 32 bits in hexadecimal (measured).",
+  "label": "core",
+  "key": "struct.pack('>f', loss).hex() gives 401a1637",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "Four kinds of bit pattern The two extreme exponent fields are reserved.",
+  "label": "core",
+  "key": "four kinds of bit pattern the two extreme exponent",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "That gives four kinds of float, and every ML bug involving NaN starts in this table: Exponent field e e Fraction f f Meaning Value (float32) 1 to 254 anything normal ± ( 1 + f / 2 23 ) × 2 e − 127 \\pm(1 + f/2^{23}) \\times 2^{e-127} : from 2 − 126 ≈ 1.18 × 10 − 38 2^{-126} \\approx 1.18 \\times 10^{-38} to ( 2 − 2 − 23 ) × 2 127 ≈ 3.40 × 10 38 (2 - 2^{-23}) \\times 2^{127} \\approx 3.40 \\times 10^{38} 0 0 zero + 0 +0 or − 0 -0 : two zeros, equal when compared; 1 / ( − 0 ) = − ∞ 1/(-0) = -\\infty 0 not 0 subnormal (denormal) ± ( f / 2 23 ) × 2 − 126 \\pm (f/2^{23}) \\times 2^{-126} : no hidden 1, so fewer significant bits; down to 2 − 149 ≈ 1.4 × 10 − 45 2^{-149} \\approx 1.4 \\times 10^{-45} 255 0 infinity ± ∞ \\pm\\infty : the result of overflow, or of 1 / 0 1/0 255 not 0 NaN (\"not a number\") the result of 0 / 0 0/0 , ∞ − ∞ \\infty - \\infty , 0 × ∞ 0 \\times \\infty , − 1 \\sqrt{-1} , ln ⁡ ( − 1 ) \\ln(-1) ; any operation on a NaN gives NaN, and NaN is not equal even to itself Why subnormals exist.",
+  "label": "core",
+  "key": "every ml bug involving nan starts in this table",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "Without them the gap between 0 and the smallest normal number, 2 − 126 2^{-126} , would be 2 23 2^{23} times wider than the gap just above it, so two different tiny numbers could subtract to exactly 0.",
+  "label": "core",
+  "key": "would be 2 23 2^{23} times wider than",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "With them, numbers fade to zero in equal steps of 2 − 149 2^{-149} ( gradual underflow ), and x − y = 0 x - y = 0 only when x = y x = y ( Goldberg 1991 , its \"Denormalized Numbers\" subsection).",
+  "label": "core",
+  "key": "numbers fade to zero in equal steps of 2",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "The price is that a subnormal keeps fewer significant bits: 10 − 40 10^{-40} in float32 has only 17 of them.",
+  "label": "core",
+  "key": "10 − 40 10^{-40} in float32",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "Some hardware drops subnormals for speed ( flush to zero ): Google's TPU blog says \"bfloat16 handles denormals differently from FP32: it flushes them to zero\" ( Wang and Kanwar 2019 ), and PyTorch's notes say AMD MI200's FP16 and BF16 matrix instructions \"flush input and output denormal values to zero\" ( numerical accuracy notes, v2.14.1 ).",
+  "label": "depth",
+  "key": "some hardware drops subnormals for speed ( flush to",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "The NaN rules that matter in practice.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "NaN spreads: one NaN in a matrix multiply's input makes every output that touches it NaN, and one NaN in the loss makes every gradient NaN. x != x is true only for NaN, which is how torch.isnan works conceptually.",
+  "label": "core",
+  "key": "one nan in a matrix multiply's input makes every",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "And NaN compares false with everything, so loss > 10 is false for a NaN loss: a divergence check written that way never fires (use not torch.isfinite(loss) ).",
+  "label": "core",
+  "key": "compares false with everything, so loss > 10 is",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "What it is used for in ML Reading a dtype: torch.finfo(torch.float32) prints exactly these constants ( eps , max , smallest_normal , tiny ).",
+  "label": "core",
+  "key": "constants ( eps , max , smallest_normal , tiny",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "2. ieee 754, bit by bit",
+  "text": "Debugging: a NaN is a bit pattern with an all-ones exponent, so a tensor dump that shows 7fc00000 is a NaN and 7f800000 is + ∞ +\\infty .",
+  "label": "core",
+  "key": "7fc00000 is a nan and 7f800000 is + ∞",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Gaps between floats, machine epsilon and rounding The question.",
+  "label": "core",
+  "key": "gaps between floats, machine epsilon and rounding",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "How close together are neighbouring floats, how wrong can one rounding make a number, and which way does a tie go?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "The grid doubles its spacing every power of two Between two consecutive powers of two, 2 E 2^E and 2 E + 1 2^{E+1} (one binade ), a format with p p significant bits has exactly 2 p − 1 2^{p-1} evenly spaced values.",
+  "label": "core",
+  "key": "the grid doubles its spacing every power of two",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "The spacing there is one ulp (\"unit in the last place\"): ulp ⁡ ( x ) = 2 E − ( p − 1 ) for 2 E ≤ | x | < 2 E + 1 . \\operatorname{ulp}(x) = 2^{\\,E - (p - 1)} \\quad \\text{for } 2^E \\le |x| \\lt 2^{E+1} .",
+  "label": "core",
+  "key": "ulp ⁡ ( x ) = 2 e −",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "In words: the gap is the value of the last stored bit.",
+  "label": "core",
+  "key": "is the value of the last stored bit",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "For float32 ( p = 24 p = 24 ) the gap is 2 − 23 2^{-23} between 1 and 2, 2 − 22 2^{-22} between 2 and 4, and 2 − 13 ≈ 1.2 × 10 − 4 2^{-13} \\approx 1.2 \\times 10^{-4} between 1024 and 2048.",
+  "label": "core",
+  "key": "is 2 − 23 2^{-23} between 1 and 2",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "So float32 can tell 1000.0 from 1000.0001 but not from 1000.00001.",
+  "label": "core",
+  "key": "float32 can tell 1000.0 from 1000.0001 but not from",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Below the smallest normal number the spacing stops shrinking: subnormals are evenly spaced.",
+  "label": "core",
+  "key": "below the smallest normal number the spacing stops shrinking",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "The picture below draws every positive value of FP8 E4M3 ( p = 4 p = 4 : 8 values per binade) so the doubling is visible; the formats you train with have the same shape with many more points.",
+  "label": "core",
+  "key": "fp8 e4m3 ( p = 4 p = 4",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Every non-negative FP8 E4M3 value up to 16 on one axis (ticks), with the gap to the next value under each binade.",
+  "label": "core",
+  "key": "every non-negative fp8 e4m3 value up to 16",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Left of 2 − 6 = 0.0156 2^{-6} = 0.0156 the subnormals are evenly spaced ( 2 − 9 2^{-9} apart); each binade after that has 8 values and twice the previous spacing.",
+  "label": "core",
+  "key": "left of 2 − 6 = 0.0156 2^{-6} =",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Drawn from the format's definition by this page's emulator. linear axis (0 to 16) log axis (every binade the same width) Machine epsilon and unit roundoff Machine epsilon ε \\varepsilon is the gap between 1 and the next float: ε = 2 − ( p − 1 ) \\varepsilon = 2^{-(p-1)} .",
+  "label": "core",
+  "key": "drawn from the format's definition by this page's emulator",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "The unit roundoff u = ε / 2 = 2 − p u = \\varepsilon / 2 = 2^{-p} is the largest relative error of one rounding.",
+  "label": "core",
+  "key": "the unit roundoff u = ε / 2 =",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Libraries report ε \\varepsilon ( torch.finfo(...).eps , numpy.finfo(...).eps , C's FLT_EPSILON ); numerical analysis texts usually write u u ( Higham 2002 , chapter 2).",
+  "label": "core",
+  "key": "write u u ( higham 2002 , chapter 2)",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Mixing them up is a factor of two.",
+  "label": "core",
+  "key": "mixing them up is a factor of two",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Why one rounding costs at most u u relative error.",
+  "label": "depth",
+  "key": "why one rounding costs at most u u relative",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Take x x with 2 E ≤ | x | < 2 E + 1 2^E \\le |x| \\lt 2^{E+1} .",
+  "label": "depth",
+  "key": "take x x with 2 e ≤ | x",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Neighbouring floats there are 2 E − p + 1 2^{E-p+1} apart, so the nearest one is at most half that away: | fl ⁡ ( x ) − x | ≤ 2 E − p |\\operatorname{fl}(x) - x| \\le 2^{E-p} .",
+  "label": "depth",
+  "key": "neighbouring floats there are 2 e − p +",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Divide by | x | ≥ 2 E |x| \\ge 2^E : | fl ⁡ ( x ) − x | | x | ≤ 2 E − p 2 E = 2 − p = u . \\frac{|\\operatorname{fl}(x) - x|}{|x|} \\le \\frac{2^{E-p}}{2^{E}} = 2^{-p} = u .",
+  "label": "depth",
+  "key": "divide by | x | ≥ 2 e |x|",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Here fl ⁡ ( x ) \\operatorname{fl}(x) means \" x x rounded to the format\".",
+  "label": "depth",
+  "key": "here fl ⁡ ( x ) \\operatorname{fl}(x) means \"",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "This holds for every x x in the normal range.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "implied by the bound and the subnormal caveat kept beside it"
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Check on the loss: float32 3.2 × 10 − 8 ≤ u = 5.96 × 10 − 8 3.2 \\times 10^{-8} \\le u = 5.96 \\times 10^{-8} ; float16 2.408203125 2.408203125 , error 2.5 × 10 − 4 ≤ 2 − 11 = 4.9 × 10 − 4 2.5 \\times 10^{-4} \\le 2^{-11} = 4.9 \\times 10^{-4} ; bfloat16 2.40625 2.40625 , error 5.6 × 10 − 4 ≤ 2 − 8 = 3.9 × 10 − 3 5.6 \\times 10^{-4} \\le 2^{-8} = 3.9 \\times 10^{-3} (all derived from the bits above).",
+  "label": "depth",
+  "key": "check on the loss: float32 3.2 × 10 −",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "In the subnormal range the bound fails: there the absolute error is at most half of the smallest subnormal, and the relative error can reach 100%.",
+  "label": "depth",
+  "key": "the smallest subnormal, and the relative error can reach",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "A handy reading: p p bits are about p log 10 ⁡ 2 ≈ 0.301 p p \\log_{10} 2 \\approx 0.301\\,p decimal digits. float64 carries about 16 digits, float32 about 7.2, float16 about 3.3 and bfloat16 about 2.4 (derived). bfloat16 cannot tell 256 from 257: both round to 256.",
+  "label": "core",
+  "key": "float32 about 7.2, float16 about 3.3 and bfloat16 about",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Round to nearest, ties to even IEEE 754 requires every basic operation ( + , − , × , ÷ , +, -, \\times, \\div, \\sqrt{\\ } , and the fused multiply-add) to return the exactly rounded result: compute as if with infinite precision, then round once.",
+  "label": "core",
+  "key": "round to nearest, ties to even ieee 754 requires",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "The default rounding mode is round to nearest, ties to even : pick the nearest float, and if the exact result sits exactly halfway between two, pick the one whose last bit is 0.",
+  "label": "core",
+  "key": "mode is round to nearest, ties to even",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Ties to even, rather than ties away from zero, avoids a systematic upward drift when many ties occur.",
+  "label": "core",
+  "key": "ties away from zero",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Three measured examples in float16 and bfloat16: Sum Neighbours Result Why float16 1 + 2 − 11 1 + 2^{-11} 1 1 and 1 + 2 − 10 1 + 2^{-10} 1 1 exactly halfway; 1 has last bit 0 (even) float16 1 + 3 ⋅ 2 − 11 1 + 3 \\cdot 2^{-11} 1 + 2 − 10 1 + 2^{-10} and 1 + 2 − 9 1 + 2^{-9} 1.001953125 1.001953125 halfway; 1 + 2 − 9 1 + 2^{-9} is the even one, so the tie goes up bfloat16 1 + 2 − 8 1 + 2^{-8} 1 1 and 1 + 2 − 7 1 + 2^{-7} 1 1 halfway, ties to even: the addition is lost entirely The last row is the whole story of why bf16 weights need help: any update smaller than half an ulp of the weight disappears, every time.",
+  "label": "core",
+  "key": "sum neighbours result why float16 1 + 2 −",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Section 11 measures how often that happens on a real model.",
+  "label": "core",
+  "key": "measures how often",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Stochastic rounding Nearest rounding is deterministic and, for a tiny repeated update, always wrong in the same direction.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restatement: the 0.107 example shows nearest rounding never moving the weight"
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Stochastic rounding rounds up with probability equal to how far the exact value lies toward the upper neighbour: if x x sits a fraction t t of the way from a a to the next float b b , it returns b b with probability t t and a a otherwise, so on average it returns x x exactly ( 𝔼 [ SR ⁡ ( x ) ] = ( 1 − t ) a + t b = x \\mathbb{E}[\\operatorname{SR}(x)] = (1 - t)a + tb = x ).",
+  "label": "core",
+  "key": "if x x sits a fraction t t of",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Example (derived): a bfloat16 weight 0.107 0.107 sits where the gap is 2 − 11 ≈ 0.000488 2^{-11} \\approx 0.000488 ; an update of 10 − 4 10^{-4} is 0.205 0.205 of a gap, so nearest rounding never moves the weight, while stochastic rounding moves it one gap up about one step in five and after 1,000 such updates the weight has moved about 0.1 0.1 in expectation, as it should.",
+  "label": "core",
+  "key": "example (derived): a bfloat16 weight 0.107 0.107 sits where",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Gupta et al. trained networks with 16-bit fixed point \"when using stochastic rounding\" ( Gupta et al.",
+  "label": "depth",
+  "key": "gupta et al. trained networks with 16-bit fixed point",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "2015 ); Zamirai et al. used it, and Kahan summation (section 7), to train in bf16 alone ( Zamirai et al.",
+  "label": "depth",
+  "key": "2015 ); zamirai et al. used it, and kahan",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "2020 ); NVIDIA's 4-bit pretraining recipe uses it on gradients \"for unbiased gradient estimation\" ( NVIDIA 2025 ).",
+  "label": "depth",
+  "key": "2020 ); nvidia's 4-bit pretraining recipe uses it on",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "What it is used for in ML Choosing a dtype is choosing ε \\varepsilon : an update, a residual or a loss difference smaller than ε \\varepsilon times the value it is added to is invisible.",
+  "label": "core",
+  "key": "an update, a residual or a loss difference",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "3. gaps between floats, machine epsilon and rounding",
+  "text": "Tolerances in tests ( torch.testing.assert_close ) are set from ε \\varepsilon of the dtype for the same reason.",
+  "label": "core",
+  "key": "( torch.testing.assert_close ) are set from",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "The formats ML uses The question. float64, float32, TF32, float16, bfloat16, FP8, 4-bit: what does each give up, and why did ML move from the first to the last in fifteen years?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading and \"The question\" wind-up"
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "Every format is the same recipe with different field widths.",
+  "label": "core",
+  "key": "every format is the same recipe with different field",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "The exponent bits decide the range (how large and how small a number can be before overflow or underflow); the mantissa bits decide the precision ( ε \\varepsilon , the relative gap).",
+  "label": "core",
+  "key": "exponent bits decide the range",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "Fewer bits per number means less memory, less memory traffic and more arithmetic per second on the same chip, which is why each new GPU generation added a narrower format.",
+  "label": "core",
+  "key": "traffic and more arithmetic per second on the same",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "All limits below are computed from the bit layouts by recompute.py and agree with NumPy, ml_dtypes and the specifications cited.",
+  "label": "core",
+  "key": "all limits below are computed from the bit layouts",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "Format sign / exp / mantissa bias ε \\varepsilon largest smallest normal smallest subnormal e z e^{z} overflows at First defined float64 1 / 11 / 52 1023 2.2 × 10 − 16 2.2 \\times 10^{-16} 1.8 × 10 308 1.8 \\times 10^{308} 2.2 × 10 − 308 2.2 \\times 10^{-308} 4.9 × 10 − 324 4.9 \\times 10^{-324} 709.78 IEEE 754-1985 ( 2019 edition ) float32 1 / 8 / 23 127 1.19 × 10 − 7 1.19 \\times 10^{-7} 3.40 × 10 38 3.40 \\times 10^{38} 1.18 × 10 − 38 1.18 \\times 10^{-38} 1.4 × 10 − 45 1.4 \\times 10^{-45} 88.72 IEEE 754-1985 TF32 1 / 8 / 10 127 9.8 × 10 − 4 9.8 \\times 10^{-4} 3.40 × 10 38 3.40 \\times 10^{38} 1.18 × 10 − 38 1.18 \\times 10^{-38} n/a 88.72 NVIDIA A100, 14 May 2020 ( Ampere in depth ) float16 1 / 5 / 10 15 9.8 × 10 − 4 9.8 \\times 10^{-4} 65,504 65{,}504 6.1 × 10 − 5 6.1 \\times 10^{-5} 6.0 × 10 − 8 6.0 \\times 10^{-8} 11.09 IEEE 754-2008 (binary16) bfloat16 1 / 8 / 7 127 7.8 × 10 − 3 7.8 \\times 10^{-3} 3.39 × 10 38 3.39 \\times 10^{38} 1.18 × 10 − 38 1.18 \\times 10^{-38} 9.2 × 10 − 41 9.2 \\times 10^{-41} 88.72 Google Brain for TPUs ( blog, Aug 2019 ) FP8 E4M3 1 / 4 / 3 7 0.125 0.125 448 448 0.0156 0.0156 0.00195 0.00195 6.10 Micikevicius et al., Sep 2022 ; OCP OFP8 rev.",
+  "label": "core",
+  "key": "format sign / exp / mantissa bias ε \\varepsilon",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "1.0 , approved 20 Jun 2023 FP8 E5M2 1 / 5 / 2 15 0.25 0.25 57,344 57{,}344 6.1 × 10 − 5 6.1 \\times 10^{-5} 1.5 × 10 − 5 1.5 \\times 10^{-5} 10.96 same two documents ε = 2 − m \\varepsilon = 2^{-m} for m m mantissa bits. \"Largest\" is ( 2 − 2 − m ) × 2 E max ⁡ (2 - 2^{-m}) \\times 2^{E_{\\max}} for the IEEE-style formats and ( 2 − 2 − ( m − 1 ) ) × 2 8 = 448 (2 - 2^{-(m-1)}) \\times 2^{8} = 448 for E4M3, whose top exponent holds numbers (only S.1111.111 is NaN, and there is no infinity: OFP8 spec, table 2). \" e z e^z overflows at\" is ln ⁡ \\ln of the largest value: the logit above which a naive softmax returns infinity, as in the root's Gradient lab (709.78, 88.72, 11.09).",
+  "label": "core",
+  "key": "1.0 , approved 20 jun 2023 fp8 e5m2 1",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "TF32 is a compute mode, not a storage type: tensors stay float32 in memory, and the tensor core reads \"the first 10 bits of the input mantissa\" (PyTorch notes, v2.14.1).",
+  "label": "core",
+  "key": "tf32 is a compute mode, not a storage type",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "Spacing of each format against the size of the number, both on log scales (first view: the range where weights, activations and gradients live).",
+  "label": "core",
+  "key": "against the size of the number, both on log",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "Each line climbs one step per binade (relative precision constant), is flat at the left in the subnormal range (absolute precision constant) and stops at the format's largest value. bfloat16 and float32 cover the same range; bfloat16 sits 2 16 2^{16} higher, its gaps 65,536 times wider. float16 is as precise as TF32 but stops at 65,504.",
+  "label": "core",
+  "key": "is flat at the left in the subnormal range",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "Derived from the bit layouts.",
+  "label": "core",
+  "key": "derived from the bit layouts",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "2 − 30 2^{-30} to 2 20 2^{20} , where ML numbers live full range of the chosen formats What each one is for float64 is NumPy's default and the reference this page checks everything against.",
+  "label": "core",
+  "key": "2 − 30 2^{-30} to 2 20 2^{20}",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "GPUs built for ML run it slowly or not at all on tensor cores, so training never uses it. float32 is PyTorch's default dtype and the format of master weights, optimiser state and accumulators in mixed-precision training (section 11).",
+  "label": "core",
+  "key": "gpus built for ml run it slowly or not",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "About 7 decimal digits.",
+  "label": "core",
+  "key": "float32 about 7.2",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "TF32 keeps float32's range and float16's precision for matrix multiplies on NVIDIA Ampere and later: \"TF32 includes an 8-bit exponent (same as FP32), 10-bit mantissa (same precision as FP16), and 1 sign-bit\" ( NVIDIA, May 2020 ).",
+  "label": "core",
+  "key": "an 8-bit exponent (same as fp32), 10-bit mantissa (same",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "In PyTorch 2.14.1 it is off by default for matrix multiplies and on for convolutions; the notes recommend torch.backends.cuda.matmul.fp32_precision = \"tf32\" \"if your network does not need full float32 precision\" ( notes ). float16 has 3 more mantissa bits than bfloat16 but only 5 exponent bits: it overflows at 65,504 and turns anything below 6 × 10 − 8 6 \\times 10^{-8} into 0.",
+  "label": "core",
+  "key": "in pytorch 2.14.1 it is off by default for",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "That is why it needs loss scaling (section 11). bfloat16 is float32 with the last 16 bits cut off: same 8 exponent bits, 7 mantissa bits.",
+  "label": "core",
+  "key": "bfloat16 is float32 with the last 16 bits cut",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "Google's reasoning: \"neural networks are far more sensitive to the size of the exponent than that of the mantissa\", and the multipliers are \"about half the size in silicon of a typical FP16 multiplier\" ( Wang and Kanwar 2019 ).",
+  "label": "core",
+  "key": "google's reasoning: \"neural networks are far more sensitive to",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "Conversion to and from float32 is a shift ( Kalamkar et al.",
+  "label": "core",
+  "key": "is a shift ( kalamkar et al",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "It is the default training dtype in 2026.",
+  "label": "core",
+  "key": "it is the default training dtype in 2026",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "FP8 comes in two flavours because forward and backward passes need different things: \"E4M3 for weight and activation tensors, and E5M2 for gradient tensors\" ( Micikevicius et al.",
+  "label": "core",
+  "key": "passes need different things: \"e4m3 for weight and activation",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "With only 8 values per binade (E4M3) every tensor needs its own scale factor; how that is chosen per tensor, per row or per tile is the Quantization and precision page's subject.",
+  "label": "core",
+  "key": "every tensor needs its own scale",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "PyTorch also has float8_e4m3fnuz and float8_e5m2fnuz variants with no negative zero.",
+  "label": "depth",
+  "key": "pytorch also has float8_e4m3fnuz and float8_e5m2fnuz variants with no",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "The OCP Microscaling (MX) spec v1.0 (Sep 2023) defines MXFP8, MXFP6, MXFP4 and MXINT8: blocks of 32 elements sharing one power-of-two scale stored as E8M0 (spec, table 1).",
+  "label": "owned:models_and_training/topic_llm_training_and_post_training/quantization_and_precision",
+  "key": "e8m0",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "MXFP4's elements are E2M1, which can only be 0 , ± 0.5 , ± 1 , ± 1.5 , ± 2 , ± 3 , ± 4 , ± 6 0, \\pm0.5, \\pm1, \\pm1.5, \\pm2, \\pm3, \\pm4, \\pm6 .",
+  "label": "owned:models_and_training/topic_llm_training_and_post_training/quantization_and_precision",
+  "key": "±1.5, ±2, ±3, ±4, ±6",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "NVIDIA's NVFP4 (Blackwell) uses blocks of 16 with an E4M3 scale \"to each 16-value micro-block\" plus \"a second-level FP32 scalar applied per tensor\" ( NVIDIA, 24 Jun 2025 ).",
+  "label": "core",
+  "key": "with an e4m3 scale",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "Depth, outliers and measured errors: Quantization and precision , its Bit explorer and One real layer tabs.",
+  "label": "core",
+  "key": "its bit explorer and one real layer tabs",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "Two libraries, two answers for the same FP8 cast (measured) Converting 1000 1000 to E4M3 (largest 448): PyTorch 2.14.1's tensor.to(torch.float8_e4m3fn) returns 448 (it saturates), while ml_dtypes 0.6.0 returns NaN .",
+  "label": "core",
+  "key": "two libraries, two answers for the same fp8 cast",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "Both are allowed: the OFP8 spec \"requires implementation of saturating and non-saturating modes\", and in non-saturating mode an overflowing E4M3 result is NaN (spec, section 5.2 and table 3).",
+  "label": "core",
+  "key": "both are allowed: the ofp8 spec \"requires implementation of",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "E5M2 has infinities, so 1000 1000 rounds to 1024 in both.",
+  "label": "core",
+  "key": "e5m2 has infinities, so 1000 1000 rounds to 1024",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "Know which one your kernel does before you trust an FP8 tensor's max.",
+  "label": "core",
+  "key": "know which one your kernel does before you trust",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "4. the formats ml uses",
+  "text": "What it is used for in ML Reading a training recipe: \"bf16 mixed precision\" means bf16 matrix multiplies with float32 master weights and accumulators; \"FP8 training\" means FP8 matrix-multiply inputs with per-tensor or per-block scales and higher-precision accumulation; an inference card's \"NVFP4\" or \"MXFP4\" means 4-bit weights with block scales.",
+  "label": "core",
+  "key": "recipe: \"bf16 mixed precision\" means bf16 matrix multiplies with",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "5. the error of one operation, and how errors travel",
+  "text": "The error of one operation, and how errors travel The question.",
+  "label": "core",
+  "key": "the error of one operation",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "5. the error of one operation, and how errors travel",
+  "text": "If each operation is rounded, how wrong can a whole computation get, and how do you tell a hard problem from a bad algorithm?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "5. the error of one operation, and how errors travel",
+  "text": "Because IEEE 754 rounds each basic operation once, correctly, every operation obeys the standard model ( Higham 2002 , chapter 2): fl ⁡ ( x ∘ y ) = ( x ∘ y ) ( 1 + δ ) , | δ | ≤ u , ∘ ∈ { + , − , × , ÷ } \\operatorname{fl}(x \\circ y) = (x \\circ y)(1 + \\delta), \\qquad |\\delta| \\le u, \\qquad \\circ \\in \\{+, -, \\times, \\div\\} In words: the computed result is the exact result of the exact inputs, nudged by a relative error of at most u u ( 5.96 × 10 − 8 5.96 \\times 10^{-8} in float32), as long as the result neither overflows nor underflows.",
+  "label": "core",
+  "key": "because ieee 754 rounds each basic operation once, correctly",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "5. the error of one operation, and how errors travel",
+  "text": "One operation is therefore almost perfect.",
+  "label": "core",
+  "key": "one operation is almost perfect",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "5. the error of one operation, and how errors travel",
+  "text": "Problems come from what happens to errors already present in the inputs, and from many operations in a row.",
+  "label": "core",
+  "key": "and from many operations in a row",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "5. the error of one operation, and how errors travel",
+  "text": "The fused multiply-add (FMA, required since IEEE 754-2008) computes a × b + c a \\times b + c with a single rounding instead of two; matrix-multiply units are built from it.",
+  "label": "core",
+  "key": "the fused multiply-add (fma, required since ieee 754-2008) computes",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "5. the error of one operation, and how errors travel",
+  "text": "Two ways to measure how wrong an answer is.",
+  "label": "core",
+  "key": "two ways to measure",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "5. the error of one operation, and how errors travel",
+  "text": "The forward error is the distance from the true answer.",
+  "label": "core",
+  "key": "the forward error is the distance from the true",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "5. the error of one operation, and how errors travel",
+  "text": "The backward error asks a different question: is the computed answer the exact answer for a slightly different input, and how different?",
+  "label": "core",
+  "key": "the backward error asks",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "5. the error of one operation, and how errors travel",
+  "text": "An algorithm whose answers are always exact answers to inputs perturbed by a few u u is backward stable .",
+  "label": "core",
+  "key": "inputs perturbed by a few u u is backward",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "5. the error of one operation, and how errors travel",
+  "text": "The two are linked by the condition number of the problem: forward error ≲ κ × backward error . \\text{forward error} \\lesssim \\kappa \\times \\text{backward error} .",
+  "label": "core",
+  "key": "forward error ≲ κ × backward error . \\text{forward",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "5. the error of one operation, and how errors travel",
+  "text": "So there are two separate ways to get a bad answer: a badly conditioned problem (large κ \\kappa : any algorithm loses digits) or an unstable algorithm (large backward error on a well-conditioned problem: a better algorithm fixes it).",
+  "label": "core",
+  "key": "so there are two separate ways to get a",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "5. the error of one operation, and how errors travel",
+  "text": "The naive softmax of section 9 is the second kind.",
+  "label": "core",
+  "key": "the naive softmax of section",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Cancellation and the condition number of a computation The question.",
+  "label": "core",
+  "key": "the condition number of a",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Why does ( 1 + 10 − 8 ) − 1 (1 + 10^{-8}) - 1 come out as exactly 0 in float32, and why does a textbook variance formula return a negative variance?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Catastrophic cancellation Subtracting two nearly equal numbers is exact (the Sterbenz lemma: if y / 2 ≤ x ≤ 2 y y/2 \\le x \\le 2y , then x − y x - y is a float), but it exposes the rounding errors the two numbers already carried, now measured against a tiny result.",
+  "label": "core",
+  "key": "is exact (the sterbenz lemma: if y / 2",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Measured, x = 10 − 8 x = 10^{-8} : float32: 1 + 10 − 8 1 + 10^{-8} rounds to 1 (the gap above 1 is 1.2 × 10 − 7 1.2 \\times 10^{-7} ), so ( 1 + x ) − 1 = 0 (1 + x) - 1 = 0 : 100% error . float64: ( 1 + x ) − 1 = 9.99999993922529 × 10 − 9 (1 + x) - 1 = 9.99999993922529 \\times 10^{-9} , a relative error of 6.1 × 10 − 9 6.1 \\times 10^{-9} , which is 5 × 10 7 5 \\times 10^{7} times the format's u = 1.1 × 10 − 16 u = 1.1 \\times 10^{-16} .",
+  "label": "depth",
+  "key": "x = 10 − 8 x = 10^{-8}",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Eight of sixteen digits are gone, not because the subtraction was inexact but because 1 + x 1 + x was rounded first.",
+  "label": "depth",
+  "key": "because 1 + x 1 + x was rounded",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "The general rule: when a ≈ b a \\approx b , the relative error of a − b a - b is the relative error of the inputs multiplied by | a | / | a − b | |a| / |a - b| .",
+  "label": "core",
+  "key": "rule: when a ≈ b a \\approx b",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "The fix is always the same: rewrite the formula so the subtraction of nearly equal quantities never happens.",
+  "label": "core",
+  "key": "rewrite the formula so the subtraction of nearly equal",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "The condition number of a function How much does a small relative change in the input x x change the output f ( x ) f(x) ?",
+  "label": "core",
+  "key": "the condition number of a function how much does",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Divide the two relative changes and let the input change shrink to zero: κ f ( x ) = | Δ f / f Δ x / x | → | x f ′ ( x ) f ( x ) | . \\kappa_f(x) = \\left|\\frac{\\Delta f / f}{\\Delta x / x}\\right| \\to \\left| \\frac{x\\, f'(x)}{f(x)} \\right| .",
+  "label": "core",
+  "key": "divide the two relative changes and let the input",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Read it as an error amplifier: an input known to relative accuracy u u gives an output known to about κ f ( x ) u \\kappa_f(x)\\, u , whatever algorithm you use.",
+  "label": "core",
+  "key": "an input known to relative accuracy u u gives",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Worked values (derived): f f κ f ( x ) \\kappa_f(x) At κ \\kappa Meaning x − 1 x - 1 | x / ( x − 1 ) | |x / (x - 1)| x = 1.0001 x = 1.0001 10,001 4 of float32's 7 digits are lost ln ⁡ x \\ln x 1 / | ln ⁡ x | 1 / |\\ln x| x = 1.0001 x = 1.0001 10,000 ln ⁡ \\ln near 1 is ill-conditioned in x x : pass x − 1 x - 1 instead (log1p) e x e^{x} | x | |x| x = 1000 x = 1000 1,000 large logits amplify their own errors x \\sqrt{x} 1 / 2 1/2 any 0.5 harmless ln ⁡ ∑ j e z j \\ln \\sum_j e^{z_j} ∑ j | z j | p j / | ln ⁡ ∑ j e z j | \\sum_j |z_j|\\, p_j / |\\ln \\sum_j e^{z_j}| z = ( 1000 , 999 , 0 ) z = (1000, 999, 0) 0.9994 perfectly well-conditioned: overflow there is the algorithm's fault The last row uses ∂ ln ⁡ ∑ j e z j / ∂ z i = p i \\partial \\ln\\sum_j e^{z_j} / \\partial z_i = p_i , the softmax (root page, \"cross-entropy four ways\"); for several inputs the condition number sums | z i | | ∂ f / ∂ z i | |z_i|\\,|\\partial f/\\partial z_i| and divides by | f | |f| .",
+  "label": "core",
+  "key": "worked values (derived): f f κ f ( x",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Matrices have their own condition number, σ max ⁡ / σ min ⁡ \\sigma_{\\max}/\\sigma_{\\min} : see the Linear algebra page, section 13, where the float32 normal equations lose 77% of the answer and QR keeps it. log1p and expm1 For tiny x x , ln ⁡ ( 1 + x ) ≈ x \\ln(1 + x) \\approx x and e x − 1 ≈ x e^{x} - 1 \\approx x , but computing them as written rounds 1 + x 1 + x or produces e x ≈ 1 e^{x} \\approx 1 and then cancels.",
+  "label": "core",
+  "key": "matrices have their own condition number, σ max ⁡",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "The library functions log1p(x) and expm1(x) compute them directly from x x .",
+  "label": "core",
+  "key": "with no rounded",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Measured in float64 at x = 10 − 10 x = 10^{-10} : log(1 + x) gives 1.000000082690371 × 10 − 10 1.000000082690371 \\times 10^{-10} (relative error 8.3 × 10 − 8 8.3 \\times 10^{-8} , about 8 correct digits), log1p(x) gives 9.9999999995 × 10 − 11 9.9999999995 \\times 10^{-11} (all 16); exp(x) - 1 is off by the same 8.3 × 10 − 8 8.3 \\times 10^{-8} and expm1(x) is exact.",
+  "label": "depth",
+  "key": "measured in float64 at x = 10 − 10",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Section 10 uses both inside softplus and BCE.",
+  "label": "core",
+  "key": "uses both inside softplus and bce",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Variance: one pass, two passes, Welford The variance of x 1 , … , x n x_1, \\dots, x_n with mean x ‾ \\bar{x} is 1 n ∑ i ( x i − x ‾ ) 2 \\frac1n \\sum_i (x_i - \\bar x)^2 .",
+  "label": "core",
+  "key": "x 1 , … , x n x_1, \\dots",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Expanding the square gives the \"computational formula\" 1 n ∑ i x i 2 − x ‾ 2 \\frac1n \\sum_i x_i^2 - \\bar{x}^2 , which needs only one pass over the data and subtracts two huge, nearly equal numbers.",
+  "label": "core",
+  "key": "\"computational formula\" 1 n ∑ i x i 2",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Measured in float32 on three numbers near 10,000 (stored as 10000.0996 10000.0996 , 10000.2002 10000.2002 , 10000.2998 10000.2998 ; exact variance of the stored values 0.0066797 0.0066797 ): Method float32 result What happened one pass, x 2 − x ‾ 2 \\overline{x^2} - \\bar x^2 − 8.0 -8.0 ∑ x i 2 ≈ 3.0 × 10 8 \\sum x_i^2 \\approx 3.0 \\times 10^{8} , where float32's gap is 32; the true difference, 0.02, is far below one gap.",
+  "label": "core",
+  "key": "measured in float32 on three numbers near 10,000 (stored",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "A variance cannot be negative: ⋅ \\sqrt{\\cdot} of it is NaN. two passes: mean first, then ∑ ( x i − x ‾ ) 2 \\sum (x_i - \\bar x)^2 0.0066799 0.0066799 the subtraction happens before squaring, on numbers of size 0.1 Welford, one pass 0.0066309 0.0066309 updates the mean and the sum of squared deviations together; 0.7% off here, never negative Welford's algorithm ( Welford 1962 ) keeps a running mean m k m_k and a running sum of squared deviations M k M_k after k k values: m k = m k − 1 + x k − m k − 1 k , M k = M k − 1 + ( x k − m k − 1 ) ( x k − m k ) , var ⁡ = M n / n . m_k = m_{k-1} + \\frac{x_k - m_{k-1}}{k}, \\qquad M_k = M_{k-1} + (x_k - m_{k-1})(x_k - m_k), \\qquad \\operatorname{var} = M_n / n .",
+  "label": "core",
+  "key": "a variance cannot be negative: ⋅ \\sqrt{\\cdot} of it",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "Every term is a deviation from a running mean, so nothing large is ever subtracted from something large.",
+  "label": "core",
+  "key": "so nothing large is ever subtracted from something large",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "On the three numbers: m = 10000.0996 , 10000.1504 , 10000.2002 m = 10000.0996, 10000.1504, 10000.2002 and M = 0 , 0.00501 , 0.01989 M = 0, 0.00501, 0.01989 , so var ⁡ = 0.01989 / 3 = 0.00663 \\operatorname{var} = 0.01989 / 3 = 0.00663 (measured, float32).",
+  "label": "depth",
+  "key": "m = 10000.0996 , 10000.1504 , 10000.2002 m =",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "It also merges partial results from two halves of the data exactly (Chan et al.",
+  "label": "core",
+  "key": "it also merges partial results from two halves of",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "1979), which is what parallel hardware needs: PyTorch's reductions for variance and normalisation statistics use a WelfordOps accumulator ( SharedReduceOps.h, v2.14.1 ).",
+  "label": "core",
+  "key": "parallel hardware needs: pytorch's reductions for variance and normalisation",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "What it is used for in ML LayerNorm, BatchNorm and RMSNorm statistics; running means of metrics over a long evaluation; any \"subtract the mean\" in a loss.",
+  "label": "core",
+  "key": "inside a layernorm, batchnorm or rmsnorm",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "6. cancellation and the condition number of a computation",
+  "text": "If a hand-written normalisation uses (x**2).mean() - x.mean()**2 , it can go negative on large activations and turn 1 / var ⁡ + ϵ 1/\\sqrt{\\operatorname{var} + \\epsilon} into NaN.",
+  "label": "core",
+  "key": "can go negative on large activations and turn 1",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Summation: order matters, and long sums drift The question.",
+  "label": "core",
+  "key": "summation: order matters, and long sums drift",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "A loss is a mean over a batch; a matrix multiply is millions of sums; a gradient is a sum over tokens.",
+  "label": "core",
+  "key": "a loss is a mean over a batch",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "What happens to a sum of a million numbers in 16 bits?",
+  "label": "core",
+  "key": "a million numbers in 16",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Floating-point addition is not associative In exact arithmetic ( a + b ) + c = a + ( b + c ) (a + b) + c = a + (b + c) .",
+  "label": "core",
+  "key": "floating-point addition is not associative",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "In floating point each + + rounds, and the rounding depends on the sizes of the operands, so the grouping changes the answer.",
+  "label": "core",
+  "key": "each + + rounds, and the rounding depends on",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Measured in float64: ( 0.1 + 0.2 ) + 0.3 = 0.6000000000000001 (0.1 + 0.2) + 0.3 = 0.6000000000000001 , but 0.1 + ( 0.2 + 0.3 ) = 0.6 0.1 + (0.2 + 0.3) = 0.6 .",
+  "label": "core",
+  "key": "measured in float64: ( 0.1 + 0.2 ) +",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "( 10 16 + 1 ) − 10 16 = 0 (10^{16} + 1) - 10^{16} = 0 , but ( 10 16 − 10 16 ) + 1 = 1 (10^{16} - 10^{16}) + 1 = 1 .",
+  "label": "core",
+  "key": "( 10 16 + 1 ) − 10 16",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Near 10 16 10^{16} float64's gap is 2, so 10 16 + 1 10^{16} + 1 is a tie and rounds back to 10 16 10^{16} : the 1 is absorbed .",
+  "label": "core",
+  "key": "gap is 2, so 10 16 + 1 10^{16}",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Addition is still commutative ( a + b = b + a a + b = b + a exactly), and a single addition is still within u u .",
+  "label": "core",
+  "key": "addition is still commutative ( a + b =",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "It is chains of additions in different orders that differ.",
+  "label": "core",
+  "key": "it is chains of additions in different orders that",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "How large is the error of a long sum?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading-like question"
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Add x 1 , … , x n x_1, \\dots, x_n left to right ( recursive summation ).",
+  "label": "core",
+  "key": "x 1 , … , x n x_1, \\dots",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Each partial sum is rounded: s ˆ k = ( s ˆ k − 1 + x k ) ( 1 + δ k ) \\hat s_k = (\\hat s_{k-1} + x_k)(1 + \\delta_k) with | δ k | ≤ u |\\delta_k| \\le u .",
+  "label": "depth",
+  "key": "multiplying out",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Unrolling, x 1 x_1 and x 2 x_2 pass through n − 1 n - 1 roundings, x 3 x_3 through n − 2 n - 2 , and so on, so to first order in u u | s ˆ n − s n | ≤ ( n − 1 ) u ∑ i = 1 n | x i | . |\\hat s_n - s_n| \\le (n - 1)\\, u \\sum_{i=1}^{n} |x_i| .",
+  "label": "core",
+  "key": "x 1 x_1 and x 2 x_2 pass through",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Where that bound comes from, in three lines s ˆ 2 = ( x 1 + x 2 ) ( 1 + δ 2 ) \\hat s_2 = (x_1 + x_2)(1 + \\delta_2) , s ˆ 3 = ( ( x 1 + x 2 ) ( 1 + δ 2 ) + x 3 ) ( 1 + δ 3 ) \\hat s_3 = \\bigl((x_1 + x_2)(1 + \\delta_2) + x_3\\bigr)(1 + \\delta_3) , and so on.",
+  "label": "depth",
+  "key": "where that bound comes from, in three lines s",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Multiplying out, s ˆ n = ∑ i x i ∏ k = max ⁡ ( i , 2 ) n ( 1 + δ k ) \\hat s_n = \\sum_i x_i \\prod_{k = \\max(i, 2)}^{n} (1 + \\delta_k) .",
+  "label": "depth",
+  "key": "multiplying out, s ˆ n = ∑ i x",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Each product of at most n − 1 n - 1 factors ( 1 + δ k ) (1 + \\delta_k) lies within ( 1 ± u ) n − 1 = 1 ± ( n − 1 ) u + O ( u 2 ) (1 \\pm u)^{n-1} = 1 \\pm (n-1)u + O(u^2) .",
+  "label": "depth",
+  "key": "each product of at most n − 1 n",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Subtract the exact sum and bound each term by | x i | ( n − 1 ) u |x_i|\\,(n-1)u .",
+  "label": "depth",
+  "key": "subtract the exact sum and bound each term by",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "The full statement with the O ( u 2 ) O(u^2) term is in Higham 2002 , chapter 4.",
+  "label": "depth",
+  "key": "the full statement with the o ( u 2",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "The bound grows with n n , and it is relative to ∑ | x i | \\sum|x_i| , not to the answer: with mixed signs the answer can be tiny and the relative error huge.",
+  "label": "core",
+  "key": "is relative to ∑ | x i | \\sum|x_i|",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Worse than the bound suggests is stagnation : once the running sum is large, each new small term is below half a gap and is lost entirely.",
+  "label": "core",
+  "key": "is stagnation : once the running sum is large",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Adding 1 over and over (measured): float16 stops at 2,048 , bfloat16 at 256 , float32 at 16,777,216 .",
+  "label": "core",
+  "key": "float16 stops at 2,048 , bfloat16 at 256",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "These are 2 p 2^{p} : at 2 p 2^p the gap becomes 2, and adding 1 is a tie that rounds back (to even).",
+  "label": "core",
+  "key": "and adding 1 is a tie that rounds back",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Three better algorithms Pairwise summation : add neighbours in pairs, then pairs of pairs, as a binary tree.",
+  "label": "core",
+  "key": "pairwise summation : add neighbours in pairs, then pairs",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Each term passes through only ⌈ log 2 ⁡ n ⌉ \\lceil \\log_2 n \\rceil roundings, so the bound becomes ⌈ log 2 ⁡ n ⌉ u ∑ | x i | \\lceil \\log_2 n \\rceil\\, u \\sum|x_i| : 20 instead of a million for n = 10 6 n = 10^6 .",
+  "label": "core",
+  "key": "⌈ log 2 ⁡ n ⌉ \\lceil \\log_2 n",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "It is what GPUs do naturally (a tree reduction), and NumPy uses \"partial pairwise summation\" (its sum docstring).",
+  "label": "core",
+  "key": "numpy uses \"partial pairwise summation\" (its sum docstring)",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Kahan (compensated) summation ( Kahan 1965 ) carries a second number c c that holds what the last addition lost, and feeds it back into the next one.",
+  "label": "core",
+  "key": "kahan (compensated) summation ( kahan 1965 ) carries a",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Its error bound is ( 2 u + O ( n u 2 ) ) ∑ | x i | \\bigl(2u + O(n u^2)\\bigr)\\sum|x_i| : independent of n n while n u ≪ 1 n u \\ll 1 .",
+  "label": "core",
+  "key": "bound is ( 2 u + o ( n",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Python's built-in sum of floats switched to a compensated algorithm in 3.12: measured, Python 3.13 gives sum([1e16, 1.0, -1e16]) = 1.0 where Python 3.9 gives 0.0 ; math.fsum is exactly rounded.",
+  "label": "depth",
+  "key": "python's built-in sum of floats switched to a compensated",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Accumulate in higher precision : keep 16-bit inputs but add them in a float32 accumulator.",
+  "label": "core",
+  "key": "accumulate in higher precision",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "This is what tensor cores do for fp16 and bf16 matrix multiplies (PyTorch notes: \"intermediate accumulations (reduction) in single-precision\"), and what FP8 recipes do every so many elements: DeepSeek-V3 promotes partial sums to FP32 every 128 elements (see Quantization and precision ). y = x k − c , t = s + y , c = ( t − s ) − y , s = t y = x_k - c, \\qquad t = s + y, \\qquad c = (t - s) - y, \\qquad s = t Read Kahan's four lines as: y y is the new term corrected by last step's loss; t t is the rounded new sum; ( t − s ) (t - s) is what actually got added, so ( t − s ) − y (t - s) - y is minus what was lost; keep it in c c .",
+  "label": "core",
+  "key": "for fp16 and bf16 matrix multiplies (pytorch notes: \"intermediate",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "In exact arithmetic c c would always be 0, which is why an optimising compiler that assumes associativity can silently delete it.",
+  "label": "core",
+  "key": "in exact arithmetic c c would always be 0",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Before and after: the same eleven float16 numbers, 2048 2048 then ten copies of 0.4 0.4 (stored as 0.39990234 0.39990234 ).",
+  "label": "core",
+  "key": "before and after: the same eleven float16 numbers, 2048",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Exact sum 2051.999 2051.999 ; the nearest float16 is 2052.",
+  "label": "core",
+  "key": "exact sum 2051.999 2051.999 ; the nearest float16 is",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Naive running sum Kahan summation Measured: a long sum in three formats and five ways Sum the first N N of a million numbers drawn uniformly from [ 0 , 1 ) [0, 1) , each first rounded to the format so that only the summation rounds.",
+  "label": "depth",
+  "key": "sum the first n n of a million numbers",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Relative error against the exact sum ( math.fsum ), measured on this laptop; \"fp32 accumulator\" adds the 16-bit inputs in a float32 running sum; torch.sum is PyTorch 2.14.1 on the CPU.",
+  "label": "depth",
+  "key": "\"fp32 accumulator\" adds the 16-bit inputs in a float32",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "What the table shows: the naive 16-bit running sum is useless past a few thousand terms (stagnation: float16 is 59% low at N = 10 4 N = 10^4 , bfloat16 is 50% low at N = 10 3 N = 10^3 ).",
+  "label": "core",
+  "key": "the naive 16-bit running sum is useless past a",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Pairwise and Kahan stay within one rounding of the final result.",
+  "label": "core",
+  "key": "pairwise and kahan stay within one rounding",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Kahan in bfloat16 fails at N = 10 6 N = 10^6 (87% error) exactly as its bound warns: n u 2 = 10 6 × 2 − 16 ≈ 15 n u^2 = 10^6 \\times 2^{-16} \\approx 15 , no longer small.",
+  "label": "core",
+  "key": "kahan in bfloat16 fails at n = 10 6",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "The float32 accumulator is the best by orders of magnitude, which is why hardware does it.",
+  "label": "core",
+  "key": "the float32 accumulator is the best by orders of",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "At N = 10 6 N = 10^6 the true sum, about 500,000, is beyond float16's 65,504, so pairwise, NumPy and torch.sum overflow to infinity and Kahan to NaN (its correction becomes ∞ − ∞ \\infty - \\infty ); only the naive sum stays finite, because it stalled at 2,048 long before.",
+  "label": "core",
+  "key": "at n = 10 6 n = 10^6 the",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "The Summation lab reruns this live, with other data and shuffled orders.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab; the lab is inline"
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "What it is used for in ML Loss means over long sequences, gradient accumulation over micro-batches, metric averages over a test set, the dot products inside every matrix multiply.",
+  "label": "core",
+  "key": "never keep a running total in bf16",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "7. summation: order matters, and long sums drift",
+  "text": "Rules: accumulate in float32 (or float64 for metrics), prefer the library's reduction to a Python loop, and never keep a running total in bf16.",
+  "label": "core",
+  "key": "float64 for metrics), prefer the library's reduction to a",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "Determinism: why the same code gives different numbers The question.",
+  "label": "core",
+  "key": "determinism: why the same code gives different numbers",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "You fix every seed and run the same training step twice.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "The losses differ in the sixth digit.",
+  "label": "core",
+  "key": "differ in the sixth digit",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "Where does the randomness come from?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "From the order of additions.",
+  "label": "core",
+  "key": "the order of additions",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "A parallel reduction splits a sum into chunks, adds each chunk, then adds the chunk totals; the chunking depends on the number of threads, the block sizes a kernel picks for this tensor shape, and whether a matrix multiply splits its inner dimension ( split-K ).",
+  "label": "core",
+  "key": "a parallel reduction splits a sum into chunks, adds",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "A GPU kernel that lets many threads add into one location uses atomic adds , and then the order is whichever thread finishes first.",
+  "label": "core",
+  "key": "kernel that lets many threads add into one location",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "Measured on this laptop: Experiment Distinct results Note 8 numbers ± 10 − 10 , ± 10 − 5 , ± 10 − 2 , ± 1 \\pm10^{-10}, \\pm10^{-5}, \\pm10^{-2}, \\pm1 (exact sum 0), 10,000 shuffles, plain left-to-right loop 258 results from − 2.2 × 10 − 16 -2.2 \\times 10^{-16} to 2.2 × 10 − 16 2.2 \\times 10^{-16} same, Python 3.13 built-in sum 102 reproduces the 102 printed by Thinking Machines, 10 Sep 2025 10 5 10^5 normal float32 values, sequential fp32 sum, 20 random orders 20 of 20 spread 0.0043 around the exact 29.3288 torch.sum of 10 7 10^7 float32 on the CPU, 5 runs each at 1, 2, 4, 8 threads 1 per thread count, 3 overall 1 or 2 threads − 4320.4326 -4320.4326 , 4 threads − 4320.4336 -4320.4336 , 8 threads − 4320.4331 -4320.4331 (exact − 4320.4332 -4320.4332 ) index_add_ of 10 6 10^6 float32 into 10 slots, 20 runs, Apple GPU (MPS) 20 of 20 the same call on the CPU: 1 of 20; torch.sum on MPS: 1 of 20 So \"nondeterminism\" has two different meanings.",
+  "label": "core",
+  "key": "measured on this laptop: experiment distinct results note 8",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "Run-to-run : the same call on the same input differs between runs (atomics, as in the MPS index_add_ row).",
+  "label": "core",
+  "key": "run-to-run : the same call on the same input",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "Configuration-dependent : the same call is repeatable, but changes with thread count, batch size or hardware (the torch.sum row).",
+  "label": "core",
+  "key": "repeatable, but changes with thread count, batch size or",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "Thinking Machines showed that LLM inference is mostly the second kind: the forward pass \"involves no operations that require atomic adds\" and is run-to-run deterministic, but kernels are not batch invariant , so a request's numbers depend on how many other requests share its batch.",
+  "label": "core",
+  "key": "thinking machines showed that llm inference is mostly the",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "Sampling Qwen3-235B-A22B-Instruct-2507 1,000 times at temperature 0, they got 80 unique completions, all identical for the first 102 tokens; with batch-invariant kernels all 1,000 matched (same post; the serving side is on the ML system design page).",
+  "label": "core",
+  "key": "sampling qwen3-235b-a22b-instruct-2507 1,000 times at temperature 0, they got",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "In training, the backward pass is where atomics live: gradients of embeddings, gathers and scatters add many contributions into the same row.",
+  "label": "core",
+  "key": "in training, the backward pass is where atomics live",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "What PyTorch lets you control (v2.14.1) torch.manual_seed(0) seeds \"the RNG for all devices\"; DataLoader workers need their own seeding function and generator (the notes give a seed_worker recipe). torch.use_deterministic_algorithms(True) picks deterministic implementations where they exist and raises a RuntimeError for operations that have none.",
+  "label": "depth",
+  "key": "what pytorch lets you control (v2.14.1) torch.manual_seed(0) seeds \"the",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "The docstring lists both: made deterministic, for example index_add , scatter_add_ and the backward of nn.Embedding on CUDA; raising, for example NLLLoss and histc on CUDA.",
+  "label": "depth",
+  "key": "the docstring lists both: made deterministic, for example index_add",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "Deterministic kernels \"tend to have worse performance\". torch.backends.cudnn.benchmark = False stops cuDNN choosing among algorithms by timing (which \"may select different algorithms on subsequent runs\"); torch.backends.cudnn.deterministic = True controls only cuDNN's convolution choice.",
+  "label": "depth",
+  "key": "deterministic kernels \"tend to have worse performance\". torch.backends.cudnn.benchmark =",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "Up to v2.9.1 the docstring also required CUBLAS_WORKSPACE_CONFIG=:4096:8 (or :16:8 ) for some CUDA operations; that paragraph is absent from v2.10.0 onward (checked in both sources).",
+  "label": "depth",
+  "key": "up to v2.9.1 the docstring also required cublas_workspace_config=:4096:8 (or",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "Even then: \"Completely reproducible results are not guaranteed across PyTorch releases, individual commits, or different platforms\" ( reproducibility notes ), and A.sum(-1)[0] \"is not guaranteed to be bitwise equal\" to the sum of the slice ( numerical accuracy notes ).",
+  "label": "depth",
+  "key": "even then: \"completely reproducible results are not guaranteed across",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "8. determinism: why the same code gives different numbers",
+  "text": "What it is used for in ML Debugging (bit-identical reruns let you bisect a divergence), on-policy RL (the sampler and the trainer must compute the same log-probabilities, Thinking Machines' motivation), regression tests on model outputs (compare with a tolerance, not with == ), and evaluation at temperature 0 (expect small differences between runs and providers).",
+  "label": "core",
+  "key": "trainer must compute the same log-probabilities, thinking machines' motivation)",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "The stable softmax, log-sum-exp and log-softmax The question.",
+  "label": "core",
+  "key": "the stable softmax, log-sum-exp and log-softmax the",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "The root's tiny model gives logits ( 2 , 1 , 0 ) (2, 1, 0) and a loss of 2.408.",
+  "label": "core",
+  "key": "logits ( 2 , 1 , 0 ) (2",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Push the logits to ( 1000 , 999 , 0 ) (1000, 999, 0) : the true probabilities barely change in shape, yet a naive softmax returns NaN.",
+  "label": "core",
+  "key": "( 1000 , 999 , 0 ) (1000, 999",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Why, and what one-line change fixes it?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "The naive formula and where it breaks The softmax turns logits z 1 , … , z n z_1, \\dots, z_n into probabilities: p i = e z i ∑ j = 1 n e z j , loss = − ln ⁡ p y for the target y . p_i = \\frac{e^{z_i}}{\\sum_{j=1}^{n} e^{z_j}}, \\qquad \\text{loss} = -\\ln p_y \\ \\text{ for the target } y .",
+  "label": "core",
+  "key": "the softmax turns logits z 1 , …",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "For z = ( 2 , 1 , 0 ) z = (2, 1, 0) : e 2 = 7.389 e^2 = 7.389 , e 1 = 2.718 e^1 = 2.718 , e 0 = 1 e^0 = 1 , sum 11.107 11.107 , so p = ( 0.665 , 0.245 , 0.090 ) p = (0.665, 0.245, 0.090) and the loss for the target sat is − ln ⁡ 0.090 = 2.408 -\\ln 0.090 = 2.408 (the root page's numbers).",
+  "label": "core",
+  "key": "for z = ( 2 , 1 , 0",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Now take z = ( 1000 , 999 , 0 ) z = (1000, 999, 0) . e 1000 e^{1000} is about 10 434 10^{434} , past float32's largest value ( e 88.72 e^{88.72} ) and even float64's ( e 709.78 e^{709.78} ), so it rounds to ∞ \\infty .",
+  "label": "core",
+  "key": "now take z = ( 1000 , 999",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "The sum is ∞ \\infty , p cat = ∞ / ∞ = p_{\\text{cat}} = \\infty/\\infty = NaN, and one NaN makes the loss and every gradient NaN.",
+  "label": "core",
+  "key": "the sum is ∞ \\infty , p cat =",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "The problem itself is easy (its condition number is 0.9994, section 6): the answer is p = ( 0.731 , 0.269 , e − 1000.3 ) p = (0.731, 0.269, e^{-1000.3}) .",
+  "label": "core",
+  "key": "the answer is p = ( 0.731 , 0.269",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Only the algorithm fails.",
+  "label": "core",
+  "key": "only the algorithm fails",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "The fix: subtract the largest logit Multiply the top and bottom of the softmax by the same number e − m e^{-m} : e z i ∑ j e z j = e − m e z i e − m ∑ j e z j = e z i − m ∑ j e z j − m . \\frac{e^{z_i}}{\\sum_j e^{z_j}} = \\frac{e^{-m}\\, e^{z_i}}{e^{-m} \\sum_j e^{z_j}} = \\frac{e^{z_i - m}}{\\sum_j e^{z_j - m}} .",
+  "label": "core",
+  "key": "the fix: subtract the largest logit multiply the top",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "The value is unchanged for any m m .",
+  "label": "core",
+  "key": "the value is unchanged for any m m",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Choose m = max j ⁡ z j m = \\max_j z_j .",
+  "label": "core",
+  "key": "every exponent is at most 0",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Then every exponent z j − m z_j - m is at most 0, so every e z j − m e^{z_j - m} lies in ( 0 , 1 ] (0, 1] : nothing can overflow, and the denominator lies between 1 (the largest term is exactly e 0 = 1 e^0 = 1 ) and n n .",
+  "label": "core",
+  "key": "every e z j − m e^{z_j - m}",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Terms that underflow to 0 are smaller than the format's tiniest number, far below u u relative to the 1 in the denominator, so dropping them changes nothing visible.",
+  "label": "core",
+  "key": "terms that underflow to 0 are",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "The same move gives the log-sum-exp , the log of the softmax denominator: LSE ⁡ ( z ) = ln ⁡ ∑ j e z j = m + ln ⁡ ∑ j e z j − m , m = max j ⁡ z j . \\operatorname{LSE}(z) = \\ln \\sum_j e^{z_j} = m + \\ln \\sum_j e^{z_j - m}, \\qquad m = \\max_j z_j .",
+  "label": "core",
+  "key": "the same move gives the log-sum-exp , the log",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "For ( 1000 , 999 , 0 ) (1000, 999, 0) : 1000 + ln ⁡ ( 1 + e − 1 + e − 1000 ) 1000 + \\ln(1 + e^{-1} + e^{-1000}) , that is 1000 + ln ⁡ 1.3679 = 1000.3133 1000 + \\ln 1.3679 = 1000.3133 (derived).",
+  "label": "core",
+  "key": "for ( 1000 , 999 , 0 ) (1000",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "The old Topic: math child page's example, logits ( 1000 , 1001 ) (1000, 1001) , gives 1001 + ln ⁡ ( e − 1 + 1 ) = 1001.313 1001 + \\ln(e^{-1} + 1) = 1001.313 the same way (rechecked).",
+  "label": "core",
+  "key": "the old topic: math child page's example, logits (",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Log-softmax: never take the log of a softmax The loss needs ln ⁡ p y \\ln p_y .",
+  "label": "core",
+  "key": "never take the log of a softmax",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Computing p y p_y first and then its log fails for unlikely targets: here p sat = e − 1000.31 p_{\\text{sat}} = e^{-1000.31} , which underflows to 0 even in float64 (its smallest number is about e − 744 e^{-744} ), and − ln ⁡ 0 = ∞ -\\ln 0 = \\infty .",
+  "label": "core",
+  "key": "p sat = e − 1000.31 p_{\\text{sat}} = e^{-1000.31}",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Taking logs of the shifted formula instead gives the log-softmax with no exponential of anything large and no log of anything small: ln ⁡ p i = z i − LSE ⁡ ( z ) = ( z i − m ) − ln ⁡ ∑ j e z j − m . \\ln p_i = z_i - \\operatorname{LSE}(z) = (z_i - m) - \\ln \\sum_j e^{z_j - m} .",
+  "label": "core",
+  "key": "ln ⁡ p i = z i − lse",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "For the target sat: ln ⁡ p sat = ( 0 − 1000 ) − 0.3133 = − 1000.3133 \\ln p_{\\text{sat}} = (0 - 1000) - 0.3133 = -1000.3133 , so the loss is 1000.3133 1000.3133 : huge, honest and finite.",
+  "label": "core",
+  "key": "ln ⁡ p sat = ( 0 − 1000",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Its gradient with respect to the logits is p − onehot ( y ) = ( 0.731 , 0.269 , − 1 ) p - \\text{onehot}(y) = (0.731, 0.269, -1) , also finite.",
+  "label": "core",
+  "key": "p − onehot ( y ) = ( 0.731",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "The same reason makes every likelihood a sum of logs: 1,000 tokens each predicted with probability 0.1 have likelihood 10 − 1000 10^{-1000} , which underflows even float64, while its log, − 1000 ln ⁡ 10 = − 2302.6 -1000 \\ln 10 = -2302.6 , is an ordinary number (derived).",
+  "label": "core",
+  "key": "with probability 0.1 have likelihood 10 − 1000 10^{-1000}",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "This is why PyTorch's CrossEntropyLoss takes \"unnormalized logits\", not probabilities: it runs log-softmax and the negative log-likelihood fused.",
+  "label": "core",
+  "key": "runs log-softmax and the negative log-likelihood fused",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Before and after: one softmax, computed naively and stably, every intermediate shown as its stored bits.",
+  "label": "core",
+  "key": "before and after: one softmax",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Logits cat 1000, dog 999, sat 0 (target sat).",
+  "label": "core",
+  "key": "logits cat 1000, dog 999, sat 0 (target sat)",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Every operation is rounded to the chosen format by this page's emulator; the numbers match NumPy and ml_dtypes ( recompute.py ).",
+  "label": "core",
+  "key": "every operation is rounded to the chosen format by",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Naive: exp, sum, divide Stable: subtract max, then exp float32 float16 bfloat16 Try bfloat16 with the stable mode: 999 999 is not a bfloat16 number (between 512 and 1024 the gap is 4), so it is stored as 1000 and the stable softmax returns ( 0.5 , 0.5 , 0 ) (0.5, 0.5, 0) : stable, but the logits had already lost the difference.",
+  "label": "core",
+  "key": "naive: exp, sum, divide stable: subtract max, then exp",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Keep logits and softmax in float32: PyTorch's autocast lists softmax , log_softmax , cross_entropy , exp , log and sum among the \"CUDA Ops that can autocast to float32 \" ( amp docs, v2.14.1 ).",
+  "label": "core",
+  "key": "keep logits and softmax in float32: pytorch's autocast lists",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "What PyTorch actually runs (v2.14.1) torch.logsumexp is exactly the formula above, with one extra guard: if the max is infinite (a row of all − ∞ -\\infty , as in a fully masked attention row), it shifts by 0 instead, so the result is − ∞ -\\infty rather than NaN from − ∞ − ( − ∞ ) -\\infty - (-\\infty) : // aten/src/ATen/native/ReduceOps.cpp, lines 1543-1558 (v2.14.1) static Tensor& logsumexp_out_impl(Tensor& result, const Tensor& self, IntArrayRef dims, bool keepdim) { // can't take max of empty tensor if (self.numel() != 0) { ... auto maxes = at::amax(at::real(self), dims, true); auto maxes_squeezed = (keepdim ? maxes : at::squeeze(maxes, dims)); maxes_squeezed.masked_fill_(maxes_squeezed.abs() == INFINITY, 0); at::sum_out(result, (self - maxes).exp_(), dims, keepdim); result.log_().add_(maxes_squeezed); } else { ... } The CPU softmax kernel does the same three steps per row: reduce to the max, map x ↦ e x − max ⁡ x \\mapsto e^{x - \\max} , sum and multiply by the reciprocal ( SoftMaxKernel.cpp, lines 60 to 91 ).",
+  "label": "depth",
+  "key": "torch.logsumexp is exactly the formula above, with one extra",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Excerpts are saved in src/inputs/pytorch_v2.14.1/excerpts.txt .",
+  "label": "depth",
+  "key": "excerpts are saved in src/inputs/pytorch_v2.14.1/excerpts.txt",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "One pass instead of two: the online softmax The stable softmax reads the logits twice (once for the max, once for the sum).",
+  "label": "core",
+  "key": "one pass instead of two: the online softmax the",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Milakov and Gimelshein showed the max and the sum can be updated together in one pass ( 2018 ): after seeing z 1 , … , z k z_1, \\dots, z_k , keep the running max m k m_k and the running sum d k = ∑ j ≤ k e z j − m k d_k = \\sum_{j \\le k} e^{z_j - m_k} , and when a new logit arrives rescale the old sum to the new max: m k = max ⁡ ( m k − 1 , z k ) , d k = d k − 1 e m k − 1 − m k + e z k − m k . m_k = \\max(m_{k-1}, z_k), \\qquad d_k = d_{k-1}\\, e^{m_{k-1} - m_k} + e^{z_k - m_k} .",
+  "label": "core",
+  "key": "keep the running max m k m_k and",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "On ( 1000 , 999 , 0 ) (1000, 999, 0) : m = 1000 , d = 1 m = 1000, d = 1 ; then m = 1000 , d = 1 + e − 1 = 1.368 m = 1000, d = 1 + e^{-1} = 1.368 ; then d = 1.368 + e − 1000 = 1.368 d = 1.368 + e^{-1000} = 1.368 , the same denominator as before.",
+  "label": "core",
+  "key": "on ( 1000 , 999 , 0 ) (1000",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "This rescaling is the heart of FlashAttention ( Dao et al.",
+  "label": "core",
+  "key": "this rescaling is the heart of flashattention ( dao",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "2022 ; the FlashAttention paper page runs the kernel in its Run the kernel tab), which computes attention's softmax tile by tile without ever holding a full row of scores.",
+  "label": "core",
+  "key": "2022 ; the flashattention paper page runs the kernel",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "The error analysis of the shifted formulas is in Blanchard, Higham and Higham 2021 .",
+  "label": "core",
+  "key": "the error analysis of the shifted formulas is",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "What it is used for in ML Every cross-entropy loss, every attention layer (with the mask's − ∞ -\\infty entries), log-likelihoods of sequences, mixture models and the ELBO (sums of probabilities done in log space), beam-search scores.",
+  "label": "core",
+  "key": "the mask's − ∞ -\\infty",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "Rule: work with logits and log-probabilities, call the fused function ( cross_entropy , log_softmax , logsumexp ), and never write torch.log(torch.softmax(z, -1)) .",
+  "label": "depth",
+  "key": "cross_entropy on logits",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "9. the stable softmax, log-sum-exp and log-softmax",
+  "text": "The root's Gradient lab , panel 5, lets you slide the top logit from 0 to 1,200 and watch the float32 and float64 overflow points (88.72 and 709.78); the Information theory page explains why the loss is a cross-entropy; the Matrix calculus and backprop page derives p − onehot ( y ) p - \\text{onehot}(y) .",
+  "label": "core",
+  "key": "p − onehot ( y ) p - \\text{onehot}(y)",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "The stable toolbox: logsigmoid, BCE with logits, softplus, epsilons The question.",
+  "label": "core",
+  "key": "the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Softmax is one function.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Which other everyday formulas in ML overflow, underflow or cancel, and what is the stable rewrite of each?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "One pattern covers almost all of them: split on the sign, so the exponential only ever sees a non-positive number, and use log1p for the log of one plus something small.",
+  "label": "core",
+  "key": "split on the sign, so the exponential only ever",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "The identity behind it is e − | x | ≤ 1 e^{-|x|} \\le 1 for every x x . logsigmoid The sigmoid σ ( x ) = 1 / ( 1 + e − x ) \\sigma(x) = 1/(1 + e^{-x}) gives a probability from one logit.",
+  "label": "core",
+  "key": "the identity behind it is e − | x",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Its log appears in every binary loss.",
+  "label": "core",
+  "key": "its log appears in every binary loss",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Naively, ln ⁡ σ ( − 100 ) \\ln\\sigma(-100) in float32: e 100 e^{100} overflows (past e 88.72 e^{88.72} ), σ = 1 / ∞ = 0 \\sigma = 1/\\infty = 0 , ln ⁡ 0 = − ∞ \\ln 0 = -\\infty (measured); the true value is − 100 -100 .",
+  "label": "core",
+  "key": "naively, ln ⁡ σ ( − 100 ) \\ln\\sigma(-100)",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "The stable form comes from two cases.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "transition sentence; the two cases are in the closed derivation"
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "For x ≥ 0 x \\ge 0 , ln ⁡ σ ( x ) = − ln ⁡ ( 1 + e − x ) \\ln\\sigma(x) = -\\ln(1 + e^{-x}) .",
+  "label": "depth",
+  "key": "for x ≥ 0 x \\ge 0 , ln",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "For x < 0 x \\lt 0 , multiply top and bottom by e x e^{x} : σ ( x ) = e x / ( 1 + e x ) \\sigma(x) = e^{x}/(1 + e^{x}) , so ln ⁡ σ ( x ) = x − ln ⁡ ( 1 + e x ) \\ln\\sigma(x) = x - \\ln(1 + e^{x}) .",
+  "label": "depth",
+  "key": "for x < 0 x \\lt 0 , multiply",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Both are one formula: ln ⁡ σ ( x ) = min ⁡ ( x , 0 ) − log1p ⁡ ( e − | x | ) . \\ln \\sigma(x) = \\min(x, 0) - \\operatorname{log1p}\\bigl(e^{-|x|}\\bigr) .",
+  "label": "core",
+  "key": "one formula: ln ⁡ σ ( x ) =",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "PyTorch's CPU kernel is that line, computed in float32 even for 16-bit inputs: min_vec - buffer_vec0.log1p() with buffer_vec0 = data_vec0.abs().neg().exp() ( Activation.cpp, lines 33 to 48 ).",
+  "label": "depth",
+  "key": "pytorch's cpu kernel is that line, computed in float32",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Binary cross-entropy with logits For a logit x x and a label y ∈ { 0 , 1 } y \\in \\{0, 1\\} (or a soft label in [ 0 , 1 ] [0, 1] ), binary cross-entropy is ℓ = − [ y ln ⁡ σ ( x ) + ( 1 − y ) ln ⁡ ( 1 − σ ( x ) ) ] \\ell = -[\\,y \\ln\\sigma(x) + (1 - y)\\ln(1 - \\sigma(x))\\,] .",
+  "label": "core",
+  "key": "for a logit x x and a label y",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Two facts make it stable: 1 − σ ( x ) = σ ( − x ) 1 - \\sigma(x) = \\sigma(-x) , and ln ⁡ σ ( − x ) = ln ⁡ σ ( x ) − x \\ln\\sigma(-x) = \\ln\\sigma(x) - x (from σ ( − x ) = e − x σ ( x ) \\sigma(-x) = e^{-x}\\sigma(x) ).",
+  "label": "core",
+  "key": "= σ ( − x ) 1 - \\sigma(x)",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Substitute: ℓ = − y ln ⁡ σ ( x ) − ( 1 − y ) ( ln ⁡ σ ( x ) − x ) = ( 1 − y ) x − ln ⁡ σ ( x ) = max ⁡ ( x , 0 ) − x y + log1p ⁡ ( e − | x | ) . \\ell = -y \\ln\\sigma(x) - (1 - y)\\bigl(\\ln\\sigma(x) - x\\bigr) = (1 - y)\\,x - \\ln\\sigma(x) = \\max(x, 0) - x y + \\operatorname{log1p}\\bigl(e^{-|x|}\\bigr) .",
+  "label": "depth",
+  "key": "substitute: ℓ = − y ln ⁡ σ (",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "The last form uses the logsigmoid line above.",
+  "label": "depth",
+  "key": "the logsigmoid line",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Worked: x = 2 x = 2 , y = 1 y = 1 gives 0 − 2 + 2 + log1p ⁡ ( e − 2 ) = 0.1269 0 - 2 + 2 + \\operatorname{log1p}(e^{-2}) = 0.1269 ; y = 0 y = 0 gives 2 + 0.1269 = 2.1269 2 + 0.1269 = 2.1269 (derived).",
+  "label": "core",
+  "key": "worked: x = 2 x = 2 , y",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Naively in float32 with x = 30 x = 30 , y = 0 y = 0 : σ ( 30 ) = 1 − 9.4 × 10 − 14 \\sigma(30) = 1 - 9.4 \\times 10^{-14} rounds to exactly 1, ln ⁡ ( 1 − 1 ) = − ∞ \\ln(1 - 1) = -\\infty , loss ∞ \\infty (measured); the stable form gives 30 + log1p ⁡ ( e − 30 ) = 30.0 30 + \\operatorname{log1p}(e^{-30}) = 30.0 .",
+  "label": "core",
+  "key": "naively in float32 with x = 30 x =",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "PyTorch v2.14.1 computes (1 - target).mul_(input).sub_(log_sigmoid_input) , the middle form above ( Loss.cpp, lines 349 to 364 ).",
+  "label": "core",
+  "key": "pytorch v2.14.1 computes (1 - target).mul_(input).sub_(log_sigmoid_input) , the middle",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Why not Sigmoid then BCELoss?",
+  "label": "core",
+  "key": "why not sigmoid then bceloss?",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Because the probability has already rounded to 0 or 1 before the loss sees it.",
+  "label": "core",
+  "key": "because the probability has already rounded to 0 or",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "PyTorch patches the symptom: \"BCELoss clamps its log function outputs to be greater than or equal to -100\", so the x = 30 x = 30 example returns 100 instead of 30, a finite but wrong loss with a wrong gradient.",
+  "label": "core",
+  "key": "pytorch patches the symptom: \"bceloss clamps its log function",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Under autocast it refuses outright: \" binary_cross_entropy and BCELoss raise an error in autocast-enabled regions\", and the docs say to combine the sigmoid and the loss with binary_cross_entropy_with_logits ( loss.py , amp docs , v2.14.1). softplus softplus ⁡ ( x ) = ln ⁡ ( 1 + e x ) \\operatorname{softplus}(x) = \\ln(1 + e^{x}) , a smooth ReLU and the negative of ln ⁡ σ ( − x ) \\ln\\sigma(-x) .",
+  "label": "core",
+  "key": "under autocast it refuses outright: \" binary_cross_entropy and bceloss",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Naively, float32 softplus ⁡ ( 100 ) = ln ⁡ ( 1 + ∞ ) = ∞ \\operatorname{softplus}(100) = \\ln(1 + \\infty) = \\infty (measured).",
+  "label": "core",
+  "key": "softplus ⁡ ( 100 ) = ln ⁡ (",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Stable: max ⁡ ( x , 0 ) + log1p ⁡ ( e − | x | ) \\max(x, 0) + \\operatorname{log1p}(e^{-|x|}) .",
+  "label": "core",
+  "key": "max ⁡ ( x , 0 ) + log1p",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "PyTorch's nn.Softplus(beta=1.0, threshold=20.0) takes a shortcut instead: when β x > 20 \\beta x \\gt 20 it returns x x unchanged.",
+  "label": "depth",
+  "key": "when β x > 20 \\beta x \\gt 20",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "What it drops, log1p ⁡ ( e − 20 ) = 2.1 × 10 − 9 \\operatorname{log1p}(e^{-20}) = 2.1 \\times 10^{-9} , is a thousand times smaller than float32's gap at 20 ( 1.9 × 10 − 6 1.9 \\times 10^{-6} ), so the shortcut is exact in float32 (derived).",
+  "label": "depth",
+  "key": "what it drops, log1p ⁡ ( e − 20",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Epsilons: the small numbers added on purpose Many formulas divide by something that can be 0: a standard deviation, a norm, a square root of a second moment.",
+  "label": "core",
+  "key": "divide by something that can be 0",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Libraries add a small ϵ \\epsilon (not machine epsilon, just a small constant): LayerNorm : y = x − mean ⁡ ( x ) var ⁡ ( x ) + ϵ γ + β y = \\dfrac{x - \\operatorname{mean}(x)}{\\sqrt{\\operatorname{var}(x) + \\epsilon}}\\,\\gamma + \\beta , default ϵ = 10 − 5 \\epsilon = 10^{-5} ( nn.LayerNorm , v2.14.1).",
+  "label": "depth",
+  "key": "y = x − mean ⁡ ( x",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "For a constant row, var ⁡ = 0 \\operatorname{var} = 0 : without ϵ \\epsilon the result is 0 / 0 = 0/0 = NaN; with it, 0 × 1 / 10 − 5 = 0 × 316.2 = 0 0 \\times 1/\\sqrt{10^{-5}} = 0 \\times 316.2 = 0 .",
+  "label": "depth",
+  "key": "without ϵ \\epsilon the result is 0 /",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "It also caps the gain for nearly constant rows at 316.",
+  "label": "depth",
+  "key": "it also caps the gain for nearly constant rows",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "RMSNorm : y = x / ϵ + 1 n ∑ i x i 2 y = x / \\sqrt{\\epsilon + \\tfrac1n\\sum_i x_i^2} .",
+  "label": "depth",
+  "key": "i x i 2 y = x / \\sqrt{\\epsilon",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "PyTorch's default ϵ \\epsilon is now the machine epsilon of the compute type, 1.19 × 10 − 7 1.19 \\times 10^{-7} for float16, bfloat16 and float32 inputs (docstring, v2.14.1); model configs set their own (SmolLM2-135M: rms_norm_eps 10 − 5 10^{-5} ).",
+  "label": "depth",
+  "key": "pytorch's default ϵ \\epsilon is now the machine epsilon",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Adam : the update divides by v ˆ + ϵ \\sqrt{\\hat v} + \\epsilon with default ϵ = 10 − 8 \\epsilon = 10^{-8} ( torch.optim.Adam , v2.14.1).",
+  "label": "depth",
+  "key": "divides by v ˆ + ϵ \\sqrt{\\hat v} +",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "In float16, 10 − 8 10^{-8} is below the smallest subnormal ( 6 × 10 − 8 6 \\times 10^{-8} ) and becomes 0: one reason optimiser state stays in float32.",
+  "label": "depth",
+  "key": "in float16, 10 − 8 10^{-8} is below the",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Even 10 − 5 10^{-5} is not a normal float16 number: it is a subnormal (stored as 1.0014 × 10 − 5 1.0014 \\times 10^{-5} ; smallest normal 6.1 × 10 − 5 6.1 \\times 10^{-5} ).",
+  "label": "depth",
+  "key": "even 10 − 5 10^{-5} is not a normal",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Autocast runs layer_norm , group_norm and norm in float32 for this kind of reason (amp docs).",
+  "label": "depth",
+  "key": "autocast runs layer_norm , group_norm and norm in float32",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "Function Fails when Stable form PyTorch ln ⁡ ∑ e z \\ln\\sum e^{z} any z > 88.7 z \\gt 88.7 (fp32) m + ln ⁡ ∑ e z − m m + \\ln\\sum e^{z - m} logsumexp ln ⁡ softmax ⁡ \\ln \\operatorname{softmax} a probability underflows z − LSE ⁡ ( z ) z - \\operatorname{LSE}(z) log_softmax , cross_entropy ln ⁡ σ ( x ) \\ln\\sigma(x) x < − 88.7 x \\lt -88.7 min ⁡ ( x , 0 ) − log1p ⁡ ( e − | x | ) \\min(x,0) - \\operatorname{log1p}(e^{-|x|}) logsigmoid BCE of σ ( x ) \\sigma(x) σ ( x ) \\sigma(x) rounds to 0 or 1 ( | x | ≳ 17 |x| \\gtrsim 17 in fp32) max ⁡ ( x , 0 ) − x y + log1p ⁡ ( e − | x | ) \\max(x,0) - xy + \\operatorname{log1p}(e^{-|x|}) binary_cross_entropy_with_logits ln ⁡ ( 1 + e x ) \\ln(1 + e^{x}) x > 88.7 x \\gt 88.7 max ⁡ ( x , 0 ) + log1p ⁡ ( e − | x | ) \\max(x,0) + \\operatorname{log1p}(e^{-|x|}) softplus ln ⁡ ( 1 + x ) \\ln(1 + x) , e x − 1 e^{x} - 1 | x | ≪ 1 |x| \\ll 1 direct series log1p , expm1 variance large mean, small spread two-pass or Welford var , norms (Welford) x / ‖ x ‖ x / \\lVert x \\rVert x = 0 x = 0 x / max ⁡ ( ‖ x ‖ , ϵ ) x / \\max(\\lVert x \\rVert, \\epsilon) F.normalize ( ϵ = 10 − 12 \\epsilon = 10^{-12} ) \" | x | ≳ 17 |x| \\gtrsim 17 \": float32 σ ( x ) \\sigma(x) equals 1 once e − x e^{-x} is below half of float32's gap under 1 ( 2 − 25 2^{-25} ), that is for x > 25 ln ⁡ 2 = 17.3 x \\gt 25 \\ln 2 = 17.3 (derived).",
+  "label": "core",
+  "key": "function fails when stable form pytorch ln ⁡ ∑",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "10. the stable toolbox: logsigmoid, bce with logits, softplus, epsilons",
+  "text": "What it is used for in ML Classifiers (BCE with logits for multi-label heads, reward models trained with − ln ⁡ σ ( r w − r l ) -\\ln\\sigma(r_w - r_l) , which is exactly a logsigmoid), DPO's loss (also − ln ⁡ σ ( ⋅ ) -\\ln\\sigma(\\cdot) ), gating functions, every normalisation layer, every optimiser.",
+  "label": "core",
+  "key": "reward models trained with − ln ⁡ σ (",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Mixed-precision training: master weights, loss scaling, and why bf16 skips it The question.",
+  "label": "core",
+  "key": "mixed-precision training: master weights, loss scaling, and why bf16",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Training in 16 bits halves memory and doubles speed.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "What exactly breaks if you just call model.half() , and what do the standard fixes repair?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "The recipe that made 16-bit training work comes from Micikevicius et al.",
+  "label": "core",
+  "key": "the recipe that made 16-bit training work",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "2017 : \"maintaining a master copy of weights in FP32, loss-scaling that minimizes gradient values becoming zeros, and FP16 arithmetic with accumulation in FP32\".",
+  "label": "core",
+  "key": "2017 : \"maintaining a master copy of weights in",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Each of the three fixes one failure.",
+  "label": "core",
+  "key": "each of the three fixes one failure",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "To see the failures on a real model rather than in principle, this page ran one training step of SmolLM2-135M (134,515,008 parameters, 30 layers) on 4 sequences of 128 tokens of Tiny Shakespeare: once in float32 on the CPU as the reference (loss 3.5607), then in pure float16 and pure bfloat16 on the laptop's GPU (MPS), keeping every one of the 134.5 million gradients (measured; src/inputs/measure_b.py ).",
+  "label": "core",
+  "key": "this page ran one training step of smollm2-135m (134,515,008",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Failure 1: small updates vanish (fix: float32 master weights) A weight update is the learning rate times something of order one (Adam's normalised step).",
+  "label": "core",
+  "key": "failure 1: small updates vanish (fix: float32 master weights)",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Added to a 16-bit weight, it disappears whenever it is below half the weight's gap (section 3).",
+  "label": "core",
+  "key": "added to a 16-bit weight, it disappears whenever it",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "On SmolLM2's real weights (median | w | = 0.107 |w| = 0.107 ), the fraction of weights an update of size η \\eta would not change at all: Update size η \\eta float32 weights float16 weights bfloat16 weights 10 − 3 10^{-3} 0% 0.00005% 1.3% 10 − 4 10^{-4} 0% 15.2% 83.8% 10 − 5 10^{-5} 0% 83.8% 97.9% Measured: (w.to(dtype) - eta * sign(g).to(dtype)) == w.to(dtype) over all 134.5M weights.",
+  "label": "core",
+  "key": "on smollm2's real weights (median | w | =",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "The two 83.8% cells are the same weights: both conditions reduce to | w | ≥ 2 − 5 |w| \\ge 2^{-5} .",
+  "label": "core",
+  "key": "the two 83.8% cells are the same weights: both",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Typical LLM learning rates are 10 − 4 10^{-4} to 10 − 3 10^{-3} , decayed lower at the end of training.",
+  "label": "core",
+  "key": "typical llm learning rates are 10 − 4 10^{-4}",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "At a median weight of 0.107, bfloat16's gap is 2 − 11 = 0.00049 2^{-11} = 0.00049 , so any step below 0.00024 0.00024 is lost: most of a run at learning rate 10 − 4 10^{-4} would not train.",
+  "label": "core",
+  "key": "at a median weight of 0.107, bfloat16's gap is",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "The fix is a float32 master copy of the weights: the optimiser adds the update in float32, and a 16-bit copy is made for the next forward pass.",
+  "label": "core",
+  "key": "and a 16-bit copy is made for the next",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "The paper's version of the argument: an update becomes zero \"when the magnitude of a normalized weight value is at least 2048 times larger that of the weight update\" (float16 has 10 mantissa bits, 2 11 = 2048 2^{11} = 2048 ).",
+  "label": "depth",
+  "key": "an update becomes zero \"when the magnitude of a",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "On their Mandarin speech model, dropping the float32 master copy cost \"80% relative accuracy loss\" ( Micikevicius et al.",
+  "label": "depth",
+  "key": "on their mandarin speech model, dropping the float32 master",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "The bytes this costs (2 + 2 + 4 + 4 + 4 = 16 per parameter with Adam) are counted on the Quantization and precision page.",
+  "label": "core",
+  "key": "the bytes this costs (2 + 2 + 4",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Failure 2: small gradients underflow (fix: loss scaling, float16 only) Gradients are small.",
+  "label": "core",
+  "key": "failure 2: small gradients underflow (fix: loss scaling, float16",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "In the float32 reference step, the median | g | |g| is 3.2 × 10 − 5 3.2 \\times 10^{-5} , below float16's smallest normal number ( 2 − 14 = 6.1 × 10 − 5 2^{-14} = 6.1 \\times 10^{-5} ): 68% of SmolLM2's gradients live in float16's subnormal range, where precision drains away, 7.2% are below its smallest subnormal 2 − 24 2^{-24} , and 5.0% are below 2 − 25 2^{-25} and round to exactly 0 when cast (measured).",
+  "label": "core",
+  "key": "the median | g | |g| is 3.2 ×",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "The 2017 paper found the same order on a speech model: \"approximately 5% of weight gradient values have exponents smaller than − 24 -24 \".",
+  "label": "core",
+  "key": "the 2017 paper found the same order on a",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Loss scaling multiplies the loss by a constant S S before the backward pass.",
+  "label": "core",
+  "key": "loss scaling multiplies the loss by",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "By the chain rule every gradient is multiplied by S S too, shifting the whole histogram right by log 2 ⁡ S \\log_2 S binades into float16's range; the gradients are divided by S S in float32 before the update, so the step is unchanged.",
+  "label": "core",
+  "key": "by the chain rule every gradient is multiplied by",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Too small an S S leaves gradients in the underflow zone; too large pushes the largest past 65,504 into infinity.",
+  "label": "core",
+  "key": "too small an",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "SmolLM2-135M's real gradients against float16's range.",
+  "label": "core",
+  "key": "smollm2-135m's real gradients",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Bars: how many of the 134.5M gradients fall in each binade [ 2 e , 2 e + 1 ) [2^{e}, 2^{e+1}) (float32 reference step, measured), shifted by the loss scale.",
+  "label": "core",
+  "key": "bars: how many of the 134.5m gradients fall in",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Shading: float16 rounds to 0 (left of 2 − 25 2^{-25} ), subnormal ( 2 − 25 2^{-25} to 2 − 14 2^{-14} ), normal, overflow (right of 2 16 2^{16} ).",
+  "label": "core",
+  "key": "shading: float16 rounds to 0 (left of 2 −",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Loss scale S = 2 k S = 2^{k} , k k = 0 ( S S = 1 ) The slider reads the float32 histogram; the real float16 runs below are the ground truth (pure float16 forward and backward on MPS, every gradient compared with the float32 one): So on this model a static scale between 2 8 2^{8} and 2 16 2^{16} works and 2 20 2^{20} is fatal: one overflow in the backward pass becomes infinity, then NaN, and spreads to 96.5 million gradients.",
+  "label": "core",
+  "key": "loss scale s = 2 k s = 2^{k}",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "The paper's own scales: an SSD detector \"diverges when gradients are not scaled, but scaling them by a factor of 8 (increasing the exponents by 3) is sufficient\", and the factors used across its models ranged \"from 8 to 32K\"; it proposed, without running it, a dynamic scale that is lowered and the step skipped on overflow.",
+  "label": "depth",
+  "key": "an ssd detector \"diverges when gradients are not scaled",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Because the right scale changes during training, frameworks adjust it: PyTorch's GradScaler starts at init_scale=2.0**16 , and when a step produces inf or NaN gradients it skips the step and multiplies the scale by backoff_factor=0.5 ; after growth_interval=2000 clean steps it multiplies by growth_factor=2.0 ( grad_scaler.py, lines 123 to 131, v2.14.1 ).",
+  "label": "core",
+  "key": "because the right scale changes during training, frameworks adjust",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Why bfloat16 mostly does not need loss scaling bfloat16 has float32's 8 exponent bits, so its smallest normal number is 1.2 × 10 − 38 1.2 \\times 10^{-38} like float32's; SmolLM2's smallest gradient is 2 − 51 ≈ 4 × 10 − 16 2^{-51} \\approx 4 \\times 10^{-16} , 22 orders of magnitude inside the range.",
+  "label": "core",
+  "key": "why bfloat16 mostly does not need loss scaling bfloat16",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "In the pure bfloat16 run only 0.00005% of gradients became 0, with no scaling. bfloat16's problem is the other axis: with 8 significant bits its gradients had a median relative error of 4.8% , against 0.55% for float16 at a good scale (measured).",
+  "label": "core",
+  "key": "in the pure bfloat16 run only 0.00005% of gradients",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Range is fixed by the format; precision is fixed by float32 master weights and float32 accumulation.",
+  "label": "core",
+  "key": "range is fixed by the format; precision",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Google's summary: \"Unlike FP16, which typically requires special handling via techniques such as loss scaling, BF16 comes close to being a drop-in replacement for FP32\" ( Wang and Kanwar 2019 ). \"Mostly\": hardware that flushes bfloat16 subnormals to zero (section 2) has a smaller range at the bottom, and FP8 and 4-bit training are back to needing scales, per tensor or per block.",
+  "label": "core",
+  "key": "\"unlike fp16, which typically requires special handling via techniques",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "Failure 3: large activations overflow (fix: bf16, or keep the risky ops in float32) float16's largest number, 65,504, is reachable inside a network: attention scores before the softmax, the sum of squares inside a norm, a residual stream with outlier features, the logits of a large vocabulary.",
+  "label": "core",
+  "key": "failure 3: large activations overflow (fix: bf16, or keep",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "One overflow gives ∞ \\infty , the next softmax gives NaN.",
+  "label": "core",
+  "key": "one overflow gives ∞ \\infty , the next softmax",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "This is why autocast keeps exactly those operations in float32 ( softmax , layer_norm , norm , sum , exp , the losses; section 9) and runs matrix multiplies in 16 bits with float32 accumulation.",
+  "label": "core",
+  "key": "is why autocast keeps exactly those operations in float32",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-read",
+  "section": "11. mixed-precision training: master weights, loss scaling, and why bf16 skips it",
+  "text": "What it is used for in ML The standard PyTorch loop: with torch.autocast(\"cuda\", dtype=torch.bfloat16) around the forward pass, float32 parameters and optimiser; with float16, add scaler = torch.amp.GradScaler() , scaler.scale(loss).backward() , scaler.step(opt) , scaler.update() , and unscale before gradient clipping ( scaler.unscale_(opt) ) so the clip threshold applies to the true gradients.",
+  "label": "core",
+  "key": "scaler.scale(loss).backward() , scaler.step(opt) , scaler.update() , and",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "NaN hunting: where non-finite numbers come from and how to find the first one The question.",
+  "label": "core",
+  "key": "nan hunting: where non-finite numbers come from and how",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Step 41,200 logs loss: nan .",
+  "label": "core",
+  "key": "step 41,200 logs loss: nan",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Every weight is now NaN.",
+  "label": "core",
+  "key": "every weight is now nan",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Which operation started it?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 374,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "NaN never appears from nowhere: some operation received an input outside its domain or produced a result outside the format's range.",
+  "label": "core",
+  "key": "nan never appears from nowhere: some operation received an",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Once it exists it spreads through every operation that touches it, through the backward pass into the gradients, through the optimiser into the weights, and the run is over.",
+  "label": "core",
+  "key": "it spreads through every operation that touches it",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "The usual sources: Operation Result Typical ML cause e x e^{x} , x > 88.72 x \\gt 88.72 (fp32) or > 11.09 \\gt 11.09 (fp16) ∞ \\infty naive softmax or sigmoid, an exponentiated log-variance any result above 65,504 in fp16 ∞ \\infty attention scores, sums of squares, large activations, too large a loss scale ∞ / ∞ \\infty / \\infty , ∞ − ∞ \\infty - \\infty , 0 × ∞ 0 \\times \\infty NaN normalising by an overflowed sum; Adam's m / v m / \\sqrt{v} once both overflow 0 / 0 0 / 0 NaN a norm or standard deviation of a zero or constant vector without ϵ \\epsilon ln ⁡ 0 \\ln 0 , x / 0 x / 0 − ∞ -\\infty , ± ∞ \\pm\\infty log of an underflowed probability; division by an underflowed count ln ⁡ x \\ln x , x \\sqrt{x} for x < 0 x \\lt 0 NaN a variance that cancelled to a negative number (section 6) arccos ⁡ x \\arccos x , | x | > 1 |x| \\gt 1 NaN a cosine similarity that rounds to 1.0000001 1.0000001 (measured: torch.acos(torch.tensor(1.0000001)) is NaN; clamp first) gradient of x \\sqrt{x} at 0 ∞ \\infty an L2 norm of a zero vector inside the loss (measured: the gradient is inf ) A real hunt, on the running example The naive softmax cross-entropy on logits ( 1000 , 999 , 0 ) (1000, 999, 0) , target sat, in PyTorch 2.14.1 (measured, src/inputs/nan_demo.py ): the forward pass returns loss = inf , not NaN ( p sat = 1 / ∞ = 0 p_{\\text{sat}} = 1/\\infty = 0 , − ln ⁡ 0 = ∞ -\\ln 0 = \\infty ), and the backward pass returns gradients [nan, nan, nan] .",
+  "label": "core",
+  "key": "operation result typical ml cause e x e^{x}",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Wrapping the same code in torch.autograd.detect_anomaly() stops at the culprit: Function 'DivBackward0' returned nan values in its 0th output , the division by the overflowed sum.",
+  "label": "core",
+  "key": "stops at the culprit: function 'divbackward0' returned nan values",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "The fused F.cross_entropy on the same logits returns 1000.3132 with gradient [0.7311, 0.2689, -1.0] .",
+  "label": "core",
+  "key": "the fused f.cross_entropy on the same logits returns 1000.3132",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "A procedure Check where it first appears.",
+  "label": "core",
+  "key": "check where it first appears",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Log the loss and the global gradient norm every step; a gradient norm that jumps by orders of magnitude a few steps before the NaN points to an instability (learning rate, a layer's logits growing), not a single bad operation.",
+  "label": "core",
+  "key": "log the loss and the global gradient norm every",
+  "where": ""
+ },
+ {
+  "id": 381,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "With GradScaler , a few skipped steps are normal; skipped steps every iteration are not.",
+  "label": "core",
+  "key": "with gradscaler , a few skipped steps are normal",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Find the first non-finite activation.",
+  "label": "core",
+  "key": "find the first non-finite activation",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Register a forward hook on every module that checks torch.isfinite(output).all() and records the module name; the first one to fail is the culprit, everything after it is collateral.",
+  "label": "core",
+  "key": "a forward hook on every module that checks torch.isfinite(output).all()",
+  "where": ""
+ },
+ {
+  "id": 384,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Find the first non-finite gradient. torch.autograd.detect_anomaly() (or set_detect_anomaly(True) ) does \"two things\": it records forward tracebacks so the backward error can name \"the forward operation that created the failing backward function\", and with check_nan=True \"any backward computation that generates 'nan' value will raise an error\".",
+  "label": "core",
+  "key": "find the first non-finite gradient. torch.autograd.detect_anomaly() (or set_detect_anomaly(true) )",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Its own warning: \"This mode should be enabled only for debugging\" ( anomaly_mode.py, v2.14.1 ).",
+  "label": "core",
+  "key": "\"this mode should be enabled only for debugging\" (",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Save the batch and the weights at the failing step; rerun in float32, then in float64.",
+  "label": "core",
+  "key": "replay the batch",
+  "where": ""
+ },
+ {
+  "id": 387,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "If float64 is finite, it is a precision or range problem (section 4); if not, it is the data or the maths (a log of 0, a division by a zero norm).",
+  "label": "core",
+  "key": "if float64 is finite, it is a precision or",
+  "where": ""
+ },
+ {
+  "id": 388,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Fix the cause, not the symptom.",
+  "label": "core",
+  "key": "fix the cause, not the symptom",
+  "where": ""
+ },
+ {
+  "id": 389,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Replace the naive formula with its stable form (sections 9 and 10), keep the risky operation in float32, lower the learning rate or clip gradients for an instability. torch.nan_to_num on a loss hides the evidence; skipping a step on a non-finite loss is acceptable only as a guard while you look.",
+  "label": "core",
+  "key": "for an instability. torch.nan_to_num on a loss hides the",
+  "where": ""
+ },
+ {
+  "id": 390,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "What it is used for in ML Every divergence post-mortem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "use-box opener; the two instabilities are kept"
+ },
+ {
+  "id": 391,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "Two published instabilities had exactly this shape: PaLM added an auxiliary \"z loss = 10 − 4 ⋅ log 2 ⁡ Z = 10^{-4} \\cdot \\log^2 Z to encourage the softmax normalizer log ⁡ ( Z ) \\log(Z) to be close to 0, which we found increases the stability of training\" ( Chowdhery et al.",
+  "label": "depth",
+  "key": "10 − 4 ⋅ log 2 ⁡ z",
+  "where": ""
+ },
+ {
+  "id": 392,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "2022 , section 5); ViT-22B saw attention logits \"grow to over 50000 in magnitude\" without normalisation, near float16's 65,504, and fixed it by applying LayerNorm to queries and keys ( Dehghani et al.",
+  "label": "depth",
+  "key": "vit-22b saw attention logits \"grow to over 50000 in",
+  "where": ""
+ },
+ {
+  "id": 393,
+  "tab": "t-read",
+  "section": "12. nan hunting: where non-finite numbers come from and how to find the first one",
+  "text": "2023 , appendix B).",
+  "label": "depth",
+  "key": "2023 , appendix b)",
+  "where": ""
+ },
+ {
+  "id": 394,
+  "tab": "t-read",
+  "section": "13. where research is now",
+  "text": "Where research is now The question.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading and \"The question\" wind-up"
+ },
+ {
+  "id": 395,
+  "tab": "t-read",
+  "section": "13. where research is now",
+  "text": "Which numerical questions are still open in 2026, and which papers are worth reading next?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "\"The question\" wind-up"
+ },
+ {
+  "id": 396,
+  "tab": "t-read",
+  "section": "13. where research is now",
+  "text": "Fewer bits for training.",
+  "label": "depth",
+  "key": "fewer bits for training",
+  "where": ""
+ },
+ {
+  "id": 397,
+  "tab": "t-read",
+  "section": "13. where research is now",
+  "text": "FP8 training at 671B parameters with fine-grained scaling (DeepSeek-V3, December 2024; the DeepSeek-V3 paper page animates it in its Quantise and accumulate tab) and NVFP4 pretraining of a 12B model on 10 trillion tokens, \"the longest publicly documented training run in 4-bit precision to date\", using random Hadamard transforms, two-dimensional block scaling, stochastic rounding of gradients and a few layers kept in higher precision ( NVIDIA, Sep 2025 ).",
+  "label": "depth",
+  "key": "fp8 training at 671b parameters with fine-grained scaling (deepseek-v3",
+  "where": ""
+ },
+ {
+  "id": 398,
+  "tab": "t-read",
+  "section": "13. where research is now",
+  "text": "Every ingredient is this page's: range (scales), precision (rounding), and accumulation.",
+  "label": "depth",
+  "key": "every ingredient is this page's: range (scales), precision (rounding)",
+  "where": ""
+ },
+ {
+  "id": 399,
+  "tab": "t-read",
+  "section": "13. where research is now",
+  "text": "Depth and measurements: Quantization and precision .",
+  "label": "core",
+  "key": "quantization and precision",
+  "where": ""
+ },
+ {
+  "id": 400,
+  "tab": "t-read",
+  "section": "13. where research is now",
+  "text": "Can the float32 master copy go?",
+  "label": "depth",
+  "key": "can the float32 master copy go?",
+  "where": ""
+ },
+ {
+  "id": 401,
+  "tab": "t-read",
+  "section": "13. where research is now",
+  "text": "Zamirai et al. show nearest rounding \"cancels small updates\" in bf16 and that stochastic rounding and Kahan summation on the weight update recover \"0.1% lower to 0.2% higher validation accuracy compared to 32-bit training\" across seven applications ( 2020 ).",
+  "label": "depth",
+  "key": "zamirai et al. show nearest rounding \"cancels small updates\"",
+  "where": ""
+ },
+ {
+  "id": 402,
+  "tab": "t-read",
+  "section": "13. where research is now",
+  "text": "Determinism as a feature.",
+  "label": "depth",
+  "key": "determinism as a feature",
+  "where": ""
+ },
+ {
+  "id": 403,
+  "tab": "t-read",
+  "section": "13. where research is now",
+  "text": "Batch-invariant kernels make inference reproducible at a speed cost ( Thinking Machines 2025 ); on-policy reinforcement learning needs the sampler's and the trainer's log-probabilities to match bit for bit.",
+  "label": "depth",
+  "key": "batch-invariant kernels make inference reproducible at a speed cost",
+  "where": ""
+ },
+ {
+  "id": 404,
+  "tab": "t-read",
+  "section": "13. where research is now",
+  "text": "Accurate kernels, one pass.",
+  "label": "depth",
+  "key": "accurate kernels, one pass",
+  "where": ""
+ },
+ {
+  "id": 405,
+  "tab": "t-read",
+  "section": "13. where research is now",
+  "text": "Online softmax ( Milakov and Gimelshein 2018 ) inside FlashAttention, with error analysis of shifted log-sum-exp and softmax ( Blanchard, Higham and Higham 2021 ).",
+  "label": "depth",
+  "key": "online softmax ( milakov and gimelshein 2018 ) inside",
+  "where": ""
+ },
+ {
+  "id": 406,
+  "tab": "t-read",
+  "section": "13. where research is now",
+  "text": "QK normalisation, z-loss and softmax capping keep logits in range so that low precision survives (section 12).",
+  "label": "depth",
+  "key": "qk normalisation, z-loss and softmax capping keep logits in",
+  "where": ""
+ },
+ {
+  "id": 407,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Common mistakes Comparing floats with == 0.1 + 0.2 ≠ 0.3 0.1 + 0.2 \\ne 0.3 in every binary format.",
+  "label": "core",
+  "key": "0.1 + 0.2 ≠ 0.3 0.1 + 0.2 \\ne",
+  "where": ""
+ },
+ {
+  "id": 408,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Compare with a tolerance scaled to the dtype: torch.testing.assert_close or math.isclose(a, b, rel_tol=...) , with the relative tolerance a few times ε \\varepsilon of the dtype.",
+  "label": "depth",
+  "key": "torch.testing.assert_close or math.isclose(a, b, rel_tol=...)",
+  "where": ""
+ },
+ {
+  "id": 409,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Writing torch.log(torch.softmax(z)) or Sigmoid then BCELoss Probabilities round to 0 or 1 before the log sees them.",
+  "label": "core",
+  "key": "to 0 or 1 before the",
+  "where": ""
+ },
+ {
+  "id": 410,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Use log_softmax , cross_entropy on logits, and binary_cross_entropy_with_logits (sections 9 and 10).",
+  "label": "depth",
+  "key": "use log_softmax , cross_entropy on logits",
+  "where": ""
+ },
+ {
+  "id": 411,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Keeping a running sum, a metric or an optimiser state in bf16 A bf16 running sum of ones stops at 256; a bf16 sum of a thousand numbers in [ 0 , 1 ) [0, 1) is 50% low (measured, section 7).",
+  "label": "depth",
+  "key": "a bf16 running sum of ones stops at 256",
+  "where": ""
+ },
+ {
+  "id": 412,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Accumulate in float32; keep master weights and Adam's moments in float32.",
+  "label": "depth",
+  "key": "keep master weights and adam's moments in float32",
+  "where": ""
+ },
+ {
+  "id": 413,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Believing machine epsilon is the smallest positive number ε \\varepsilon is the gap above 1 (float32 1.19 × 10 − 7 1.19 \\times 10^{-7} ); the smallest positive float32 is 1.4 × 10 − 45 1.4 \\times 10^{-45} and the smallest normal one 1.18 × 10 − 38 1.18 \\times 10^{-38} .",
+  "label": "depth",
+  "key": "the smallest positive float32 is 1.4 × 10 −",
+  "where": ""
+ },
+ {
+  "id": 414,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "And libraries' eps is 2 u 2u , twice the unit roundoff in textbooks.",
+  "label": "depth",
+  "key": "libraries' eps is 2 u 2u",
+  "where": ""
+ },
+ {
+  "id": 415,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Using fp16 without a loss scaler, or bf16 with one \"to be safe\" fp16 without scaling silently zeroes gradients (8.2% on SmolLM2, measured). bf16 does not need scaling; a scaler is harmless but adds skipped steps if misconfigured.",
+  "label": "depth",
+  "key": "fp16 without a loss scaler, or bf16 with one",
+  "where": ""
+ },
+ {
+  "id": 416,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Clipping gradients before unscaling them With GradScaler the gradients are S S times too large until unscaled; clip after scaler.unscale_(optimizer) .",
+  "label": "depth",
+  "key": "are s s times too large until",
+  "where": ""
+ },
+ {
+  "id": 417,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Expecting bit-identical results across GPUs, batch sizes or thread counts The order of additions changes (section 8). torch.sum of the same tensor gives different results at 4 and 8 CPU threads (measured).",
+  "label": "depth",
+  "key": "expecting bit-identical results across gpus, batch sizes or thread",
+  "where": ""
+ },
+ {
+  "id": 418,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Compare with tolerances; for exact reproducibility fix hardware, versions, batch shapes and use deterministic algorithms.",
+  "label": "depth",
+  "key": "compare with tolerances; for exact reproducibility fix hardware, versions",
+  "where": ""
+ },
+ {
+  "id": 419,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Computing a variance as x 2 − x ‾ 2 \\overline{x^2} - \\bar x^2 It can be negative ( − 8 -8 on three float32 numbers near 10,000, measured).",
+  "label": "depth",
+  "key": "a variance as x 2 − x ‾ 2",
+  "where": ""
+ },
+ {
+  "id": 420,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Use two passes or Welford.",
+  "label": "depth",
+  "key": "use two passes or welford",
+  "where": ""
+ },
+ {
+  "id": 421,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Storing logits or targets in bf16 and expecting their small differences to survive 999 and 1000 are the same bfloat16 number; so are 256 and 257.",
+  "label": "depth",
+  "key": "999 and 1000 are the same bfloat16 number",
+  "where": ""
+ },
+ {
+  "id": 422,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Keep logits, losses and anything compared by small differences in float32.",
+  "label": "depth",
+  "key": "keep logits, losses and anything compared by small differences",
+  "where": ""
+ },
+ {
+  "id": 423,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Trusting an FP8 cast's overflow behaviour without checking PyTorch saturates 1000 → 448 1000 \\to 448 in E4M3; ml_dtypes returns NaN (measured, section 4).",
+  "label": "depth",
+  "key": "pytorch saturates 1000 → 448 1000 \\to 448 in",
+  "where": ""
+ },
+ {
+  "id": 424,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Letting the compiler reassociate Fast-math flags ( -ffast-math , some JIT settings) let the compiler assume associativity and delete Kahan's correction term as algebraically zero (section 7).",
+  "label": "depth",
+  "key": "delete kahan's correction term as algebraically zero (section",
+  "where": ""
+ },
+ {
+  "id": 425,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "The root's Practice drills tab includes softmax and log-sum-exp problems; try them after this page.",
+  "label": "depth",
+  "key": "the root's practice drills tab includes softmax and log-sum-exp",
+  "where": ""
+ },
+ {
+  "id": 426,
+  "tab": "t-read",
+  "section": "14. common mistakes",
+  "text": "Next pages: Linear algebra (condition numbers of matrices), Matrix calculus and backprop (the gradients that underflow), Quantization and precision (8- and 4-bit formats in depth).",
+  "label": "core",
+  "key": "matrix calculus and backprop",
+  "where": ""
+ },
+ {
+  "id": 427,
+  "tab": "t-float",
+  "section": "float explorer",
+  "text": "Float explorer Type any number, or move the slider, and see what each format stores: its bits (sign, exponent, mantissa), the value you get back, the rounding error, the gap to the neighbouring numbers, and what happens at the edges (subnormals, underflow to 0, overflow to infinity or, in FP8 E4M3, saturation or NaN).",
+  "label": "core",
+  "key": "float explorer type any number, or move the slider",
+  "where": ""
+ },
+ {
+  "id": 428,
+  "tab": "t-float",
+  "section": "float explorer",
+  "text": "Click any bit to flip it : the number the new bits encode becomes the input.",
+  "label": "core",
+  "key": "click any bit to flip it : the number",
+  "where": ""
+ },
+ {
+  "id": 429,
+  "tab": "t-float",
+  "section": "float explorer",
+  "text": "Every format is emulated exactly by this page's code, which matches ml_dtypes and NumPy on 17,610 test values ( recompute.py ).",
+  "label": "core",
+  "key": "every format is emulated exactly by this page's code",
+  "where": ""
+ },
+ {
+  "id": 430,
+  "tab": "t-float",
+  "section": "float explorer",
+  "text": "It extends Reading sections 2 (IEEE 754) to 4; block formats (MXFP4, NVFP4, NF4) are in the Quantization and precision page's Bit explorer.",
+  "label": "core",
+  "key": "block formats (mxfp4, nvfp4, nf4) are in the quantization",
+  "where": ""
+ },
+ {
+  "id": 431,
+  "tab": "t-float",
+  "section": "float explorer",
+  "text": "Try: 0.1 (no format stores it exactly); 1e-8 , a small gradient (float16 and both FP8s store 0, bfloat16 keeps it); 70000 (float16 overflows); 999 (bfloat16 stores 1000); 500 in E4M3 (saturates to 448 or becomes NaN, depending on the mode); 1+2^-8 (bfloat16 rounds the tie to 1); then type 1 and, in float16, flip the last exponent bit (the value halves to 0.5) and then the first (the exponent becomes all ones: infinity).",
+  "label": "core",
+  "key": "try: 0.1 (no format stores it exactly); 1e-8",
+  "where": ""
+ },
+ {
+  "id": 432,
+  "tab": "t-float",
+  "section": "float explorer",
+  "text": "Number (accepts 1e-8 , 2^-24 , 1+2^-8 , -0 , inf , nan ) Magnitude slider: | x | = 2 t |x| = 2^{t} , t t = Add y y to the stored value (shows absorption) E4M3 overflow saturate to 448 (PyTorch .to(), measured) NaN (ml_dtypes, OFP8 non-saturating mode) \"Gap here\" is one ulp at this magnitude; \"relative error\" is | stored − x | / | x | |\\text{stored} - x| / |x| , at most u = 2 − ( m + 1 ) u = 2^{-(m+1)} for normal numbers.",
+  "label": "core",
+  "key": "number (accepts 1e-8 , 2^-24 , 1+2^-8 , -0",
+  "where": ""
+ },
+ {
+  "id": 433,
+  "tab": "t-float",
+  "section": "float explorer",
+  "text": "TF32 is shown as the 19 bits a tensor core reads, rounded to nearest even here; in memory it is a float32, and PyTorch's notes say the tensor core reads \"only the first 10 bits of the input mantissa\", which would truncate instead and can differ by one step. float64 is JavaScript's own number type, so it is exact by construction.",
+  "label": "core",
+  "key": "tf32 is shown as the 19 bits a tensor",
+  "where": ""
+ },
+ {
+  "id": 434,
+  "tab": "t-float",
+  "section": "float explorer",
+  "text": "Neighbour buttons step to the next representable number down or up.",
+  "label": "core",
+  "key": "neighbour buttons step to the next representable number down",
+  "where": ""
+ },
+ {
+  "id": 435,
+  "tab": "t-sum",
+  "section": "summation lab",
+  "text": "Summation lab Add N N numbers in float16, bfloat16 or float32 with four algorithms and compare each with the exact sum (computed with Shewchuk's exact algorithm, as Python's math.fsum ).",
+  "label": "core",
+  "key": "algorithm, as python's math.fsum )",
+  "where": ""
+ },
+ {
+  "id": 436,
+  "tab": "t-sum",
+  "section": "summation lab",
+  "text": "Every addition is rounded to the chosen format exactly as the hardware would round it.",
+  "label": "core",
+  "key": "rounded to the chosen format exactly as the hardware",
+  "where": ""
+ },
+ {
+  "id": 437,
+  "tab": "t-sum",
+  "section": "summation lab",
+  "text": "The chart repeats the sum for every N N up to your choice, so you can see each method's error grow (or not).",
+  "label": "core",
+  "key": "error against",
+  "where": ""
+ },
+ {
+  "id": 438,
+  "tab": "t-sum",
+  "section": "summation lab",
+  "text": "It extends Reading section 7 , which shows the same experiment measured in NumPy and PyTorch on a million numbers.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer from the removed Summation lab tab to Reading"
+ },
+ {
+  "id": 439,
+  "tab": "t-sum",
+  "section": "summation lab",
+  "text": "Try: float16, uniform, N = 10,000 N = 10{,}000 : the naive sum stalls at 2,048 (59% low) while pairwise and Kahan are within one rounding; then big first value : one 10,000 followed by small numbers, where naive loses almost all of them; then mixed signs : the exact sum is small compared with ∑ | x i | \\sum|x_i| , and every method's error bound is relative to ∑ | x i | \\sum|x_i| , not to the answer, so relative errors grow; then press Shuffle 20 orders .",
+  "label": "core",
+  "key": "float16, uniform, n = 10,000 n = 10{,}000",
+  "where": ""
+ },
+ {
+  "id": 440,
+  "tab": "t-sum",
+  "section": "summation lab",
+  "text": "Format float16 bfloat16 float32 Data uniform on [0, 1) normal (mean 0, sd 1) mixed signs: uniform on [−1, 1) big first value: 10,000 then uniform [0, 0.1) decreasing: 1/i N N = Seed A relative error of exactly 0 is drawn at the bottom edge, an infinite one (overflow) at the top.",
+  "label": "core",
+  "key": "format float16 bfloat16 float32 data uniform on [0, 1)",
+  "where": ""
+ },
+ {
+  "id": 441,
+  "tab": "t-sum",
+  "section": "summation lab",
+  "text": "Shuffle 20 orders (naive sum) The four algorithms Naive : one running sum, s ← fl ⁡ ( s + x i ) s \\leftarrow \\operatorname{fl}(s + x_i) ; error bound ( N − 1 ) u ∑ | x i | (N-1)u\\sum|x_i| .",
+  "label": "core",
+  "key": "shuffle 20 orders (naive sum)",
+  "where": ""
+ },
+ {
+  "id": 442,
+  "tab": "t-sum",
+  "section": "summation lab",
+  "text": "Pairwise : add neighbours, then pairs of pairs (a binary tree); bound ⌈ log 2 ⁡ N ⌉ u ∑ | x i | \\lceil\\log_2 N\\rceil u \\sum|x_i| .",
+  "label": "core",
+  "key": "⌈ log 2 ⁡ n ⌉ u ∑ |",
+  "where": ""
+ },
+ {
+  "id": 443,
+  "tab": "t-sum",
+  "section": "summation lab",
+  "text": "Kahan : a running sum plus a correction c c holding what the last addition lost; bound ( 2 u + O ( N u 2 ) ) ∑ | x i | (2u + O(Nu^2))\\sum|x_i| , so it degrades once N u 2 Nu^2 is not small (bfloat16 at N ≈ 10 5 N \\approx 10^5 ). fp32 accumulator : the 16-bit inputs added into a float32 running sum, what tensor cores do. \"Best possible\" is the exact sum rounded once to the format: no algorithm that returns a value in this format can do better.",
+  "label": "core",
+  "key": "\"best possible\" is the exact sum rounded once to",
+  "where": ""
+ },
+ {
+  "id": 444,
+  "tab": "t-sum",
+  "section": "summation lab",
+  "text": "Data are generated by a seeded generator (mulberry32) and rounded to the format first, so only the summation rounds; recompute.py reproduces the uniform cases at N = 100 N = 100 , 1,000 and 10,000 in NumPy.",
+  "label": "core",
+  "key": "so only the summation rounds; recompute.py reproduces the uniform",
+  "where": ""
+ },
+ {
+  "id": 445,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Reading times for knowledge base pages are each page's own stated time where it gives one, otherwise estimated from the length of its Reading tab (about 230 words a minute).",
+  "label": "core",
+  "key": "further reading reading times for knowledge base pages are",
+  "where": ""
+ },
+ {
+  "id": 446,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Times for outside resources are for the part recommended, checked on 5 October 2026.",
+  "label": "core",
+  "key": "times for outside resources are for the part recommended",
+  "where": ""
+ },
+ {
+  "id": 447,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Every link opens in a new tab.",
+  "label": "core",
+  "key": "every link opens in a new tab",
+  "where": ""
+ },
+ {
+  "id": 448,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The tabs on this page Float explorer Any number in float64, float32, TF32, bfloat16, float16, FP8 E5M2 and E4M3: bits you can flip, stored value, rounding error, gap, neighbours, and what adding a small y y does.",
+  "label": "core",
+  "key": "on this page float explorer any number in float64",
+  "where": ""
+ },
+ {
+  "id": 449,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Summation lab Up to 100,000 numbers summed in 16 or 32 bits by four algorithms, with error against N N , five kinds of data and 20 shuffled orders.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading card for the removed Summation lab tab"
+ },
+ {
+  "id": 450,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The parent page and its tabs Topic: math One prediction of a tiny next-token model followed through one training step; this page's running example (logits ( 2 , 1 , 0 ) (2, 1, 0) , loss 2.408) comes from it.",
+  "label": "core",
+  "key": "the parent page and its tabs topic: math one",
+  "where": ""
+ },
+ {
+  "id": 451,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Tabs: Notation decoder , Gradient lab (its panel 5, \"Overflow and the log-sum-exp trick\", is the short version of section 9 here), Practice drills (softmax and log-sum-exp problems).",
+  "label": "core",
+  "key": "tabs: notation decoder , gradient lab (its panel 5",
+  "where": ""
+ },
+ {
+  "id": 452,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The sibling pages Linear algebra for ML: vectors to SVD, rank, conditioning, low-rank methods Vectors to SVD; its section 13 is the condition number of a matrix, with a float32 normal-equations run that loses 77% of the answer.",
+  "label": "core",
+  "key": "the sibling pages linear algebra for ml: vectors to",
+  "where": ""
+ },
+ {
+  "id": 453,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Matrix calculus and backprop: Jacobians, layouts, vector-Jacobian products, autodiff Jacobians, layouts, vector-Jacobian products and autodiff: where the gradients that underflow in section 11 come from, and p − onehot ( y ) p - \\text{onehot}(y) derived.",
+  "label": "core",
+  "key": "matrix calculus and backprop: jacobians, layouts, vector-jacobian products, autodiff",
+  "where": ""
+ },
+ {
+  "id": 454,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Probability for ML: random variables, distributions to losses, MLE, MAP, Bayes Distributions to losses, MLE, MAP, Bayes; why log-likelihoods are summed in log space.",
+  "label": "core",
+  "key": "probability for ml: random variables, distributions to losses, mle",
+  "where": ""
+ },
+ {
+  "id": 455,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Statistics for ML: estimation, bias and variance, bootstrap, hypothesis tests Estimation, bias and variance, bootstrap, hypothesis tests; the estimators whose computation section 6 makes stable.",
+  "label": "core",
+  "key": "statistics for ml: estimation, bias and variance, bootstrap, hypothesis",
+  "where": ""
+ },
+ {
+  "id": 456,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Calculus and optimisation for ML: derivatives to convexity, Hessians, Newton, Lagrange Derivatives to convexity, Hessians, Newton, Lagrange; the derivative inside the condition number of section 6.",
+  "label": "core",
+  "key": "calculus and optimisation for ml: derivatives to convexity, hessians",
+  "where": ""
+ },
+ {
+  "id": 457,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Information theory for ML: entropy, cross-entropy, KL, mutual information Entropy, cross-entropy, KL; why the softmax loss is a cross-entropy and why assigning probability exactly 0 makes it infinite.",
+  "label": "core",
+  "key": "information theory for ml: entropy, cross-entropy, kl, mutual information",
+  "where": ""
+ },
+ {
+  "id": 458,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Variational inference and generative-model maths: ELBO, VAEs, diffusion ELBO, VAEs, diffusion: log-likelihoods and log-variances that need every trick in section 10.",
+  "label": "core",
+  "key": "variational inference and generative-model maths: elbo, vaes, diffusion elbo",
+  "where": ""
+ },
+ {
+  "id": 459,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Related pages in the knowledge base Quantization and precision The 8- and 4-bit side in depth: INT8, INT4, NF4, GPTQ, AWQ, MXFP4, NVFP4, FP8 training recipes, outliers; tabs Bit explorer (block formats) and One real layer, every scheme .",
+  "label": "core",
+  "key": "related pages in the knowledge base quantization and precision",
+  "where": ""
+ },
+ {
+  "id": 460,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "DeepSeek-V3 technical report (paper page) FP8 training at 671B: tile and block scaling and promotion to FP32 every 128 elements, animated in Quantise and accumulate .",
+  "label": "core",
+  "key": "deepseek-v3 technical report (paper page) fp8 training at 671b",
+  "where": ""
+ },
+ {
+  "id": 461,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "FlashAttention (paper page) The online softmax of section 9 inside a fused attention kernel; Run the kernel tab.",
+  "label": "core",
+  "key": "inside a fused attention kernel; run the kernel tab",
+  "where": ""
+ },
+ {
+  "id": 462,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "ML system design Why an LLM service does not give the same answer twice (temperature, batch invariance) and what that means for testing.",
+  "label": "core",
+  "key": "ml system design why an llm service does not",
+  "where": ""
+ },
+ {
+  "id": 463,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "About 40 min; the nondeterminism part is about 40 min.",
+  "label": "core",
+  "key": "about 40 min; the nondeterminism part is about 40",
+  "where": ""
+ },
+ {
+  "id": 464,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Distributed training Where reductions across GPUs (all-reduce, reduce-scatter) add numbers in an order set by the network.",
+  "label": "core",
+  "key": "distributed training where reductions across gpus (all-reduce, reduce-scatter) add",
+  "where": ""
+ },
+ {
+  "id": 465,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Books and classic papers Goldberg 1991, \"What every computer scientist should know about floating-point arithmetic\" The classic tutorial: rounding error, guard digits, cancellation, the IEEE standard, signed zero, denormals.",
+  "label": "core",
+  "key": "books and classic papers goldberg 1991, \"what every computer",
+  "where": ""
+ },
+ {
+  "id": 466,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Read sections 1 and 2.",
+  "label": "core",
+  "key": "read sections 1 and 2",
+  "where": ""
+ },
+ {
+  "id": 467,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Higham 2002, Accuracy and Stability of Numerical Algorithms, 2nd ed.",
+  "label": "core",
+  "key": "higham 2002, accuracy and stability of numerical algorithms, 2nd",
+  "where": ""
+ },
+ {
+  "id": 468,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Chapter 1 (principles: cancellation, conditioning, stability), chapter 2 (floating point, the standard model), chapter 4 (summation: recursive, pairwise, compensated).",
+  "label": "core",
+  "key": "chapter 1 (principles: cancellation, conditioning, stability), chapter 2 (floating",
+  "where": ""
+ },
+ {
+  "id": 469,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "About 3 hours for the three chapters.",
+  "label": "core",
+  "key": "about 3 hours for the three chapters",
+  "where": ""
+ },
+ {
+  "id": 470,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Blanchard, Higham and Higham 2021, \"Accurately computing the log-sum-exp and softmax functions\" Rounding-error analysis of the shifted formulas of section 9.",
+  "label": "core",
+  "key": "blanchard, higham and higham 2021, \"accurately computing the log-sum-exp",
+  "where": ""
+ },
+ {
+  "id": 471,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Kahan 1965, \"Further remarks on reducing truncation errors\" One page: compensated summation.",
+  "label": "core",
+  "key": "kahan 1965, \"further remarks on reducing truncation errors\" one",
+  "where": ""
+ },
+ {
+  "id": 472,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Welford 1962, \"Note on a method for calculating corrected sums of squares and products\" The one-pass variance of section 6.",
+  "label": "core",
+  "key": "welford 1962, \"note on a method for calculating corrected",
+  "where": ""
+ },
+ {
+  "id": 473,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "IEEE 754-2019 The standard itself (paywalled); the formats, rounding modes and special values of sections 2 and 3.",
+  "label": "core",
+  "key": "ieee 754-2019 the standard itself (paywalled); the formats, rounding",
+  "where": ""
+ },
+ {
+  "id": 474,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Formats and mixed precision Micikevicius et al.",
+  "label": "core",
+  "key": "formats and mixed precision micikevicius et al",
+  "where": ""
+ },
+ {
+  "id": 475,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2017, \"Mixed Precision Training\" Master weights, loss scaling, FP32 accumulation; section 3 is the argument reproduced on SmolLM2 in section 11.",
+  "label": "core",
+  "key": "2017, \"mixed precision training\" master weights, loss scaling, fp32",
+  "where": ""
+ },
+ {
+  "id": 476,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2022, \"FP8 Formats for Deep Learning\" E4M3 and E5M2, table 1, and which tensors get which.",
+  "label": "core",
+  "key": "2022, \"fp8 formats for deep learning\" e4m3 and e5m2",
+  "where": ""
+ },
+ {
+  "id": 477,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "OCP 8-bit Floating Point Specification (OFP8) rev.",
+  "label": "core",
+  "key": "ocp 8-bit floating point specification (ofp8) rev",
+  "where": ""
+ },
+ {
+  "id": 478,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "1.0, June 2023 Tables 1 to 3: encodings, special values, saturating and non-saturating conversion.",
+  "label": "core",
+  "key": "1.0, june 2023 tables 1 to 3: encodings, special",
+  "where": ""
+ },
+ {
+  "id": 479,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Wang and Kanwar 2019, \"BFloat16: The secret to high performance on Cloud TPUs\" Why bf16 keeps float32's exponent.",
+  "label": "core",
+  "key": "wang and kanwar 2019, \"bfloat16: the secret to high",
+  "where": ""
+ },
+ {
+  "id": 480,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2019, \"A Study of BFLOAT16 for Deep Learning Training\" bf16 across image, speech, language and recommendation models.",
+  "label": "core",
+  "key": "2019, \"a study of bfloat16 for deep learning training\"",
+  "where": ""
+ },
+ {
+  "id": 481,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "NVIDIA 2025, \"Pretraining Large Language Models with NVFP4\" 4-bit pretraining at 12B and 10T tokens: Hadamard transforms, 2D scaling, stochastic rounding.",
+  "label": "core",
+  "key": "nvidia 2025, \"pretraining large language models with nvfp4\" 4-bit",
+  "where": ""
+ },
+ {
+  "id": 482,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2020, \"Revisiting BFloat16 Training\" Stochastic rounding and Kahan summation instead of float32 master weights.",
+  "label": "core",
+  "key": "2020, \"revisiting bfloat16 training\" stochastic rounding and kahan summation",
+  "where": ""
+ },
+ {
+  "id": 483,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Stable algorithms, determinism, and the libraries Thinking Machines 2025, \"Defeating Nondeterminism in LLM Inference\" Non-associativity, atomics, batch invariance; the 80 unique completions.",
+  "label": "core",
+  "key": "stable algorithms, determinism, and the libraries thinking machines 2025",
+  "where": ""
+ },
+ {
+  "id": 484,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Milakov and Gimelshein 2018, \"Online normalizer calculation for softmax\" The one-pass softmax.",
+  "label": "core",
+  "key": "milakov and gimelshein 2018, \"online normalizer calculation for softmax\"",
+  "where": ""
+ },
+ {
+  "id": 485,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "PyTorch notes: Numerical accuracy (v2.14.1) Non-associativity, extremal values, TF32, reduced-precision reductions, denormal flushing on AMD.",
+  "label": "core",
+  "key": "pytorch notes: numerical accuracy (v2.14.1) non-associativity, extremal values, tf32",
+  "where": ""
+ },
+ {
+  "id": 486,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "PyTorch notes: Reproducibility (v2.14.1) Seeds, cuDNN, deterministic algorithms, DataLoader workers.",
+  "label": "core",
+  "key": "pytorch notes: reproducibility (v2.14.1) seeds, cudnn, deterministic algorithms, dataloader",
+  "where": ""
+ },
+ {
+  "id": 487,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "PyTorch: Automatic Mixed Precision (v2.14.1) Which ops autocast to 16 bits and which to float32; the BCE note.",
+  "label": "core",
+  "key": "pytorch: automatic mixed precision (v2.14.1) which ops autocast to",
+  "where": ""
+ },
+ {
+  "id": 488,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "About 15 min. ml_dtypes NumPy dtypes for bfloat16, FP8 and FP4, used to check every bit pattern here.",
+  "label": "core",
+  "key": "about 15 min. ml_dtypes numpy dtypes for bfloat16, fp8",
+  "where": ""
+ },
+ {
+  "id": 489,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Sources and checks: src/recompute.py (every worked number), src/inputs/measure_a.py (bits, summation, order, threads, MPS), src/inputs/measure_b.py (SmolLM2-135M training step), src/inputs/nan_demo.py , PyTorch v2.14.1 excerpts in src/inputs/pytorch_v2.14.1/ , the OFP8 extract in src/inputs/ofp8_spec_extract.txt .",
+  "label": "core",
+  "key": "sources and checks: src/recompute.py (every worked number), src/inputs/measure_a.py (bits",
+  "where": ""
+ },
+ {
+  "id": 490,
+  "tab": "t-read",
+  "section": "5. summation (script-rendered)",
+  "text": "Measured summation table: relative error of naive, pairwise, Kahan, fp32 accumulator and torch.sum in float16, bfloat16 and float32 for N = 100 to 10^6 (inputs/out_a.json, drawn by 22_js_rd_figs.js inside a closed block).",
+  "label": "depth",
+  "key": "the measured table: three formats, five methods",
+  "where": ""
+ },
+ {
+  "id": 491,
+  "tab": "t-read",
+  "section": "5. summation (script-rendered)",
+  "text": "Summation lab: four algorithms, three formats, five kinds of data, error against N, 20 shuffled orders; JS checked against NumPy (moved inline from its own tab).",
+  "label": "core",
+  "key": "error against",
+  "where": ""
+ },
+ {
+  "id": 492,
+  "tab": "t-read",
+  "section": "9. mixed precision (script-rendered)",
+  "text": "Measured pure float16 runs at loss scales 2^0 to 2^24 and bfloat16: share of gradients that became 0, non-finite counts (96,541,441 at 2^20), median relative errors (drawn from 20_js_data.js).",
+  "label": "core",
+  "key": "96.5 million",
+  "where": ""
+ },
+ {
+  "id": 493,
+  "tab": "t-read",
+  "section": "9. mixed precision (script-rendered)",
+  "text": "Loss-scale slider over the float32 gradient exponent histogram of SmolLM2-135M with zones for float16 zero, subnormal, normal and overflow.",
+  "label": "core",
+  "key": "slide into float16",
+  "where": ""
+ },
+ {
+  "id": 494,
+  "tab": "t-read",
+  "section": "5. summation (script-rendered)",
+  "text": "Kahan stepper: naive float16 sum stays at 2048, Kahan reaches 2052, with every intermediate y, t, c.",
+  "label": "core",
+  "key": "the nearest float16 is 2052",
+  "where": ""
+ },
+ {
+  "id": 495,
+  "tab": "t-read",
+  "section": "7. softmax (script-rendered)",
+  "text": "Softmax stepper: naive and stable in float32, float16 and bfloat16 with every intermediate as bits; bf16 stores 999 as 1000 and returns (0.5, 0.5, 0).",
+  "label": "core",
+  "key": "(0.5, 0.5, 0)",
+  "where": ""
+ },
+ {
+  "id": 496,
+  "tab": "t-read",
+  "section": "1. bits (script-rendered)",
+  "text": "Decode card: 8 values in 4 formats with fields and the formula read back.",
+  "label": "core",
+  "key": "decode a number",
+  "where": ""
+ },
+ {
+  "id": 497,
+  "tab": "t-read",
+  "section": "top (added 2026-10-24)",
+  "text": "Hero: bit layouts of six formats to scale and their representable ranges on one log axis, with SmolLM2 median gradient marked.",
+  "label": "core",
+  "key": "exponent bits set the range, mantissa bits set the gap",
+  "where": ""
+ },
+ {
+  "id": 498,
+  "tab": "t-read",
+  "section": "4. cancellation (added 2026-10-24)",
+  "text": "Cancellation digits figure: 1.0001 in float32 minus 1 keeps 4 correct digits of 8; relative error equals the input error times kappa = 10,001.",
+  "label": "core",
+  "key": "the four leading digits that agreed",
+  "where": ""
+ },
+ {
+  "id": 499,
+  "tab": "t-read",
+  "section": "6. determinism (added 2026-10-24)",
+  "text": "Reduction trees: the eight numbers summed as 1, 2 and 4 threads give 8.7e-18, 4.5e-17 and 3.6e-17 for an exact 0.",
+  "label": "core",
+  "key": "three answers to a sum that is exactly 0",
+  "where": ""
+ },
+ {
+  "id": 500,
+  "tab": "t-read",
+  "section": "8. toolbox (added 2026-10-24)",
+  "text": "Naive against stable curves: naive float32 BCE fails from x = 16.64 = 24 ln 2; logsigmoid from -88.73; float16 BCE from 7.63.",
+  "label": "core",
+  "key": "24 \\ln 2",
+  "where": ""
+ },
+ {
+  "id": 501,
+  "tab": "t-read",
+  "section": "10. nan (added 2026-10-24)",
+  "text": "NaN stepper: one NaN input makes a row of Y NaN, the loss NaN, one row of dL/dW NaN, then every next output NaN.",
+  "label": "core",
+  "key": "one nan in, a whole row out",
+  "where": ""
+ }
+]

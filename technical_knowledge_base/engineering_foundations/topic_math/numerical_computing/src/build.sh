@@ -19,5 +19,6 @@ s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a hre
 node ../../../../../html_utils/tex2mathml.mjs < ../index.raw.html > ../index.html || exit 1
 rm -f ../index.raw.html
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
-if grep -q '—' ../index.html; then echo "EM DASH FOUND"; grep -n -o '.\{30\}—.\{30\}' ../index.html | head; fi
+D=$(printf '\342\200\224')   # U+2014, written as octal bytes so this file holds none
+if grep -q "$D" ../index.html; then echo "EM DASH FOUND"; grep -n -o ".\{30\}$D.\{30\}" ../index.html | head; fi
 wc -c ../index.html
