@@ -1,63 +1,61 @@
 <section id="rd-s7">
-<h2>7. Kueue in depth: quota, flavors, topology</h2>
-<p><b>The problem.</b> Several teams share a fixed pool of GPUs. Each needs a guaranteed share, idle shares should be usable by others, jobs should wait in an orderly queue rather than as Pending pods, and a 16-GPU job should get 16 GPUs that are close together.</p>
-<p><b>How it works.</b> Kueue is a controller plus webhooks. Its objects (all <code>kueue.x-k8s.io/v1beta2</code>; v0.20 no longer serves v1beta1):</p>
-<div class="km-map">
-<div style="--kc:var(--c1)"><b>ResourceFlavor</b>A kind of capacity, mapped to nodes by labels (and tolerations): "H100 in block 1", "spot A100". Optional <code>topologyName</code> for topology-aware placement.</div>
-<div style="--kc:var(--c2)"><b>ClusterQueue</b>A team's quota: for each flavor and resource a <code>nominalQuota</code> (plus <code>borrowingLimit</code>, <code>lendingLimit</code>), a queueing strategy, preemption rules, and the <code>cohort</code> it shares with.</div>
-<div style="--kc:var(--c3)"><b>LocalQueue</b>A namespace's door into a ClusterQueue. Jobs say <code>kueue.x-k8s.io/queue-name: &lt;localqueue&gt;</code>.</div>
-<div style="--kc:var(--c4)"><b>Workload</b>Kueue's record of one job: its pod sets (count and requests per pod), created by Kueue's integration for Jobs, JobSets, TrainJobs, RayJobs and others. Admission is a property of the Workload.</div>
-<div style="--kc:var(--c5)"><b>Cohort</b>A group of ClusterQueues that lend each other unused quota; cohorts can form a tree.</div>
-<div style="--kc:var(--c6)"><b>Topology</b>An ordered list of node labels (block, rack, host) for topology-aware scheduling.</div>
+<h2>7. Gang scheduling: every pod or none</h2>
+<p>The scheduler places one pod per cycle and knows nothing of the job it belongs to. Two jobs that each need the whole cluster can each get half, and wait forever for the other half: a <dfn>partial-placement deadlock</dfn>. The parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} produced exactly that on this cluster and fixed it with Kueue. A <dfn>gang</dfn> is a set of pods that must start together; <dfn>gang scheduling</dfn> binds all of them or none. Kubernetes v1.37 has it built in, behind a gate: a <code>PodGroup</code> object with <code>gang.minCount</code>, and a GangScheduling plugin that holds a group's pods at PreEnqueue until minCount exist and at Permit until minCount are placed. This page switched the gate on for one run, on the parent's deadlock input:</p>
+<div class="rd-card" id="km-gang-card">
+<h4>The parent's deadlock input, without and with a PodGroup <span class="meas">measured</span></h4>
+<div class="seg" id="km-gang-mode"><button data-m="nogang" class="on">No gang (default)</button><button data-m="gang">PodGroup, minCount 2</button></div>
+<div class="km-svg" id="km-gang-svg"></div>
+<div class="an-ctl" id="km-gang-ctl"></div>
+<div class="an-cap" id="km-gang-cap"></div>
+<p class="small mute">Three jobs of two pods, each pod holding a whole worker's 4 fake GPUs (12 in all, so 1.5 jobs fit), released one second apart in the order a0, b0, c0, a1, b1, c1. Pods sleep 30 s in the gang run (600 s in the other, which was stopped after 28 s). Snapshots in <code>src/runs/e11nogang.snap</code>, <code>e11gang.snap</code>; scheduler log in <code>e11gang.schedlog.txt</code>.</p>
 </div>
-<p>When a labelled job is created, Kueue's webhook makes it start <dfn>suspended</dfn> (<code>spec.suspend: true</code>: the job controller creates no pods). Kueue's scheduler loop takes the head of each queue, tries to <dfn>assign flavors</dfn> (for each resource group, the flavors in order, checking the workload's total request against unused quota, borrowing and preemption possibilities), reserves the quota, runs any <dfn>admission checks</dfn> (for example a ProvisioningRequest that asks the cluster autoscaler for nodes first), and then admits: it writes the chosen flavors into the Workload, injects the flavors' node labels as a nodeSelector into the pod template, and unsuspends the job. From there the normal scheduler places pods. The parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} quotes the loop (<code>pkg/scheduler/scheduler.go</code> in Kueue) and shows queueing and cohort borrowing and reclaim; here are the two things it did not run.</p>
-<div class="km-pair">
-<div><b>Flavors in order <span class="meas">measured</span></b>A ClusterQueue with flavor km-b1 (8 GPUs of quota, nodes labelled block b1) listed before km-b2 (4 GPUs, block b2). Four jobs of 2 pods x 2 GPUs: the first two got km-b1, the third km-b2 (pods got <code>nodeSelector: mi.example.com/block: b2</code> injected), the fourth waited with <code>insufficient unused quota for example.com/gpu in flavor km-b1, 4 more needed, insufficient unused quota for example.com/gpu in flavor km-b2, 4 more needed</code>.</div>
-<div><b>Topology-aware scheduling <span class="meas">measured</span></b>A flavor with a Topology (block, then host). Three pods of 2 GPUs with <code>kueue.x-k8s.io/podset-required-topology: mi.example.com/block</code> were admitted inside block b1 (two pods on worker, one on worker2). Three pods of 4 GPUs, the same annotation, 12 GPUs of quota free: refused, <code>topology "km-topo" allows to fit only 2 out of 3 pod(s); all pods must fit in a single "mi.example.com/block" topology domain</code>. With <code>podset-preferred-topology</code> instead, admitted across both blocks.</div>
-</div>
-<p>The message comes from <code>pkg/cache/scheduler/tas_flavor_snapshot.go</code> line 2953 at Kueue v0.20.2 <span class="pub">source</span>. Topology-aware scheduling is beta and on by default since v0.14 (<code>pkg/features/kube_features.go</code> lines 975-978). Kueue then pins each pod with a nodeSelector on the host label (the pods above got <code>kubernetes.io/hostname: mi-kind-worker</code>), so the default scheduler only confirms the placement. Step through these admissions, quota bar by quota bar, in the {{Kueue admission|#t-kmq}} tab.</p>
-<h3>The rest of Kueue, briefly (described, not run here)</h3>
-<ul class="tight">
-<li><b>Flavor fungibility</b>: by default the search stops at the first flavor where the workload fits or fits by borrowing (<code>whenCanBorrow: MayStopSearch</code>), but tries the next flavor before preempting in the current one (<code>whenCanPreempt: TryNextFlavor</code>) (<code>apis/kueue/v1beta2/clusterqueue_types.go</code> lines 526-549).</li>
-<li><b>Preemption</b>: <code>withinClusterQueue</code> (by priority inside a team), <code>reclaimWithinCohort</code> (take back lent quota; the parent's lab measured it), <code>borrowWithinCohort</code> (preempt to borrow). Kueue preempts whole workloads, which is the right unit for training.</li>
-<li><b>Fair sharing</b>: in the Kueue configuration, share cohort capacity by weight rather than first come; and admission fair sharing orders a queue by each LocalQueue's recent usage ({{Kueue fair sharing|https://kueue.sigs.k8s.io/docs/concepts/fair_sharing/}} <span class="pub">docs</span>).</li>
-<li><b>waitForPodsReady</b>: evict and requeue an admitted workload whose pods are not all ready within a timeout (default 30 minutes in v0.20), closing the gap between "quota reserved" and "pods really running".</li>
-<li><b>MultiKueue</b>: one manager cluster dispatching workloads to several worker clusters.</li>
-</ul>
-<p><b>The cost.</b> Kueue reasons about quota, not nodes (except with topology): with 12 GPUs of quota and 12 GPUs in the cluster, an admitted job can still be unplaceable if a node is cordoned or fragmented. Keep quotas equal to what is really schedulable, and mind the webhook: as section 6 found, while Kueue is down no pod can be created anywhere it watches.</p>
-</section>
-
-<section id="rd-s8">
-<h2>8. JobSet in depth</h2>
-<p><b>The problem.</b> One training run is often several groups of pods (a driver and workers; parameter servers; a group per data-parallel replica), each an Indexed Job, which must share a network identity, succeed or fail as a whole, and be restarted together.</p>
-<p><b>How it works.</b> A <dfn>JobSet</dfn> (<code>jobset.x-k8s.io/v1alpha2</code>, kubernetes-sigs, v0.13.0) holds a list of <dfn>replicatedJobs</dfn>, each a Job template and a replica count. The controller creates Jobs named <code>&lt;jobset&gt;-&lt;replicatedJob&gt;-&lt;index&gt;</code>, a headless Service named after the JobSet, and sets each pod's hostname and subdomain so it resolves as <code>&lt;jobset&gt;-&lt;replicatedJob&gt;-&lt;jobIndex&gt;-&lt;podIndex&gt;.&lt;jobset&gt;</code>; inside the running example's pods <code>hostname -f</code> printed <code>km-e3a-node-0-0.km-e3a.km.svc.cluster.local</code> <span class="meas">measured</span>. It labels every pod with <code>jobset.sigs.k8s.io/jobset-name</code>, <code>replicatedjob-name</code>, <code>job-index</code>, <code>restart-attempt</code> and more, which is what failure handling and Kueue key on.</p>
-<ul class="tight">
-<li><b>failurePolicy</b>: <code>maxRestarts</code> (restart the whole JobSet up to N times), <code>restartStrategy</code> (Recreate, BlockingRecreate which waits for every old pod to be gone, InPlaceRestart which restarts healthy containers in place), and ordered <code>rules</code> matched on the failed Job's reason (<code>onJobFailureReasons</code>) with actions <code>FailJobSet</code>, <code>RestartJobSet</code>, <code>RestartJobSetAndIgnoreMaxRestarts</code>, <code>RestartJob</code>, <code>RestartJobAndIgnoreMaxRestarts</code> (<code>api/jobset/v1alpha2/jobset_types.go</code> lines 464-545 at v0.13.0 <span class="pub">source</span>). If no rule matches, RestartJobSet applies.</li>
-<li><b>successPolicy</b>: <code>operator: All</code> or <code>Any</code> over <code>targetReplicatedJobs</code>, so the JobSet completes when the driver completes.</li>
-<li><b>startupPolicy</b> (<code>InOrder</code>) or <code>dependsOn</code>: start the coordinator before the workers.</li>
-<li><b>Exclusive placement</b>: the annotation <code>alpha.jobset.sigs.k8s.io/exclusive-topology: &lt;label&gt;</code> puts each child Job alone in one topology domain (one Job per rack, say) through pod affinity and anti-affinity (line 49).</li>
-<li><b>Workload-aware scheduling</b>: v0.13 can describe the JobSet to the native Workload API (<code>spec.scheduling</code>, behind its own feature gate and the alpha CompositePodGroup gate; not run here).</li>
-</ul>
-<p>The policy that ran in section 2, the shape JobSet recommends for preemptible training:</p>
-<pre class="rd-code">spec:
-  failurePolicy:
-    maxRestarts: 0                        # a crash is not retried
-    rules:
-    - name: disruptedRestartFree
-      action: RestartJobSetAndIgnoreMaxRestarts
-      onJobFailureReasons: [PodFailurePolicy]
-  replicatedJobs:
-  - name: node
-    template:
-      spec:
-        backoffLimit: 0
-        podFailurePolicy:                 # an evicted or preempted pod fails its Job at once,
-          rules:                          # with reason PodFailurePolicy
-          - action: FailJob
-            onPodConditions:
-            - {type: DisruptionTarget}</pre>
-<p class="rd-codecap"><code>src/k8s/train-jobset.sh km-e3b policy</code> (abridged). Run e3b: one eviction, <code>restarts: 1</code>, resumed from step 50, completed. Run e3c: a crash, <code>jobset failed due to reaching max number of restarts (first failed job: km-e3c-node-0)</code>.</p>
-<div class="pr"><div class="q">Predict. In run e3b the evicted pod's Job failed with reason PodFailurePolicy. The other pod of the same Job then also exited 1 (its peer was gone). Does that second failure spend the restart budget?</div>
-<div class="opts"><button data-a="0">Yes, it is a separate failure with reason BackoffLimitExceeded</button><button data-a="1">No: the Job had already failed once, and the JobSet restarts whole Jobs, not pods</button></div>
-<div class="ans" hidden>No. A Job fails once; the first matching pod failure decides its reason. The JobSet sees one failed Job with reason PodFailurePolicy, matches the rule, deletes every Job and recreates them (status <code>restarts: 1</code>, no <code>restartsCountTowardsMax</code>). The order matters, though: the evicted pod reached Failed at 17.5 s and its peer at 18.2 s, so the Job's first failure was the disruption.</div></div>
+<p>Without the gang, a0, b0 and c0 each took a worker and the other three waited: every job half placed, none able to run. With the PodGroups, a0 was held at PreEnqueue (<code>waiting for minCount pods from a gang to appear in scheduling queue</code>); when a1 arrived both were placed and released together (<code>Quorum is met for a gang. Allowing other pods from a gang waiting on permit</code>); gangs b and c were refused as a whole (<code>minCount (2) cannot be satisfied: 1 scheduled, 0 remaining</code>) and ran one after another as the GPUs freed up.</p>
+<p><b>Which one to use.</b> Native gangs fix the deadlock but have no notion of quota or queues: a big job still waits behind whatever arrives first, and two teams still race. Kueue gives queues and quotas and works with the default scheduler today (and its admission can lag behind real placement: an admitted workload can still find a node broken, which <code>waitForPodsReady</code>, default timeout 30 minutes in v0.20 per <code>apis/config/v1beta2/defaults.go</code> line 48, handles by evicting and requeueing it). Volcano and KAI replace the scheduler and give both, at the cost of running a second scheduler you must trust with every GPU pod.</p>
+<p>Beyond Kueue and the native PodGroup, three batch schedulers replace kube-scheduler for GPU pods and do gangs, queues and fair share inside it: <b>Volcano</b> (CNCF), <b>KAI Scheduler</b> (NVIDIA, from Run:ai) and <b>YuniKorn</b>; the older <b>coscheduling plugin</b> is a second scheduler build with a PodGroup CRD (what OpenAI used on its 7,500-node cluster); <b>LeaderWorkerSet</b> gangs each serving group (section 11).</p>
+<details class="dp"><summary>The gang options compared: where the gang is decided, what else each brings, versions <span class="mute">(reference)</span></summary><div class="b">
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Option</th><th>Where the gang is decided</th><th>What else it brings</th><th>Status (dated)</th></tr></thead>
+<tbody>
+<tr><td data-h="Option">Kueue (+ JobSet or Job)</td><td data-h="Where">Admission: the whole workload's quota is reserved before any pod exists; the default scheduler places the pods</td><td data-h="Brings">Queues, quotas, cohorts, flavors, topology-aware placement, MultiKueue</td><td data-h="Status">v0.20.2 (2026-10-15), kubernetes-sigs; measured in the parent's lab and in section 8</td></tr>
+<tr><td data-h="Option">Native PodGroup</td><td data-h="Where">Inside kube-scheduler: PreEnqueue holds pods until the group's minCount exists, Permit holds bound pods until minCount are placed</td><td data-h="Brings">Group-level preemption and disruption mode; Workload objects; topology (alpha)</td><td data-h="Status">KEP-4671: alpha v1.35, gate GenericWorkload beta in v1.37 but <b>off by default</b> (<code>pkg/features/kube_features.go</code> lines 1622-1625); measured below</td></tr>
+<tr><td data-h="Option">Coscheduling plugin (scheduler-plugins)</td><td data-h="Where">A second scheduler build with a PodGroup CRD and a Permit plugin</td><td data-h="Brings">Little else</td><td data-h="Status">What OpenAI used on its 7,500-node cluster (OpenAI blog 2021-01-25) <span class="pub">operator</span>; not run here</td></tr>
+<tr><td data-h="Option">Volcano</td><td data-h="Where">Its own scheduler (pods set <code>schedulerName: volcano</code>), PodGroup with minMember</td><td data-h="Brings">Queues, fair share, its own Job CRD, binpack and other policies</td><td data-h="Status">v1.16.0 (2026-10-15), CNCF incubating, built on kube-batch (README) <span class="vend">project</span>; not run here</td></tr>
+<tr><td data-h="Option">KAI Scheduler (NVIDIA, from Run:ai)</td><td data-h="Where">Its own scheduler with hierarchical PodGroups</td><td data-h="Brings">Hierarchical queues, time-based fair share, GPU sharing, topology-aware scheduling, DRA</td><td data-h="Status">Apache-2.0 since 2025-04-01, v0.18.6 (2026-10-15) <span class="vend">vendor</span>; not run here</td></tr>
+<tr><td data-h="Option">LeaderWorkerSet (serving)</td><td data-h="Where">Its own controller; each group of leader and workers "can be scheduled in an all-or-nothing manner" (alpha)</td><td data-h="Brings">Groups as the unit of scaling, rollout and restart (section 11)</td><td data-h="Status">v1.0.0 (2026-10-16), kubernetes-sigs; README <span class="pub">docs</span>; not run here</td></tr>
+<tr><td data-h="Option">YuniKorn</td><td data-h="Where">Its own scheduler with application-level gang placeholders</td><td data-h="Brings">Hierarchical queues (from the Hadoop world)</td><td data-h="Status">v1.10.0 (2026-10-06); not run here</td></tr>
+</tbody></table></div>
+<p class="small mute">Versions and dates from the topic's shared facts (release feeds read 2026-10-16); feature lists from each project's README.</p>
+</div></details>
+<div class="co warn"><div class="t">Kueue's webhook is on the path of every pod</div><p>Restarting the API server for this run restarted Kueue's controller too, and until it served again <i>every</i> pod creation in the cluster failed (<code>failed calling webhook "mpod.kb.io" ... connection refused</code>): Kueue's pod webhook has <code>failurePolicy: Fail</code> for every namespace except kube-system and kueue-system, so Kueue is on the critical path of all pods, queued or not. Run it with several replicas and watch its readiness.</p></div>
+<details class="dp"><summary>The native PodGroup in full: the objects, the gate, the Permit timeout, the finalizer trap <span class="mute">(depth)</span></summary><div class="b">
+<p>The pieces: a <code>PodGroup</code> object (<code>scheduling.k8s.io/v1beta1</code>) with <code>schedulingPolicy.gang.minCount</code>, a pod field <code>spec.schedulingGroup.podGroupName</code> (it replaced <code>workloadRef</code> in v1.36, <code>staging/src/k8s.io/api/core/v1/types.go</code> lines 4697-4716), and the GangScheduling plugin. To try it, this page turned on the gate in the API server (plus <code>--runtime-config=scheduling.k8s.io/v1beta1=true</code>) and in the scheduler, ran the parent's deadlock input again with placeholder pods, and restored both manifests (<code>src/scripts/km_gang_reconf.sh</code>):</p>
+<pre class="rd-code">apiVersion: scheduling.k8s.io/v1beta1
+kind: PodGroup
+metadata: {name: km-a, namespace: km}
+spec:
+  schedulingPolicy:
+    gang: {minCount: 2}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: km-a-0, namespace: km, labels: {km-gang: km-a}}
+spec:
+  schedulingGroup: {podGroupName: km-a}
+  schedulingGates: [{name: km.example.com/release}]   # the run releases pods in the order a0 b0 c0 a1 b1 c1
+  ...
+    resources:
+      requests: {cpu: 100m, memory: 64Mi, example.com/gpu: "4"}</pre>
+<p class="rd-codecap"><code>src/k8s/gang-podgroup.sh</code> and <code>gang-pod.sh</code> (abridged); three such groups, km-a, km-b and km-c.</p>
+<p>A pod held at Permit gives up after 5 minutes:</p>
+<pre class="rd-code">40 	// permitTimeoutDuration defines how long the gang pods should
+41 	// wait at the permit stage for a quorum before being rejected.
+42 	permitTimeoutDuration = 5 * time.Minute
+...
+402	if scheduledPodsCount &lt; int(podGroup.Spec.SchedulingPolicy.Gang.MinCount) {
+...
+407		return fwk.NewStatus(fwk.Wait, "waiting for minCount pods from a gang to be scheduled"), permitTimeoutDuration</pre>
+<p class="rd-codecap"><code>pkg/scheduler/framework/plugins/gangscheduling/gangscheduling.go</code>, kubernetes v1.37.0.</p>
+<div class="co warn"><div class="t">The webhook outage in full, and the finalizer trap</div>
+<p>The full message: <code>failed calling webhook "mpod.kb.io": failed to call webhook: Post "https://kueue-webhook-service.kueue-system.svc:443/mutate--v1-pod?timeout=10s": ... connection refused</code>. And the PodGroups carry a finalizer (<code>scheduling.k8s.io/podgroup-protection</code>) that a kube-controller-manager controller removes; with the gate on only in the API server and scheduler, deleting them hung until the finalizer was removed by hand. Turning on a beta gate means turning it on in every component that has it.</p></div>
+</div></details>
 </section>
