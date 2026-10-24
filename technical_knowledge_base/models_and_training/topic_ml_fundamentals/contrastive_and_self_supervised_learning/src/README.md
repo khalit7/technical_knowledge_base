@@ -37,3 +37,5 @@ Files:
 - `check_core.mjs` + `recompute.py`: the page's InfoNCE losses, top-1, gradients and hardest-negative shares against PyTorch cross_entropy and autograd, every number quoted in the text, the published Spearman figures, derived constants. `node check_core.mjs && OMP_NUM_THREADS=2 uv run --with torch --with numpy --with scipy python recompute.py` (169 checks, 0 failures, now including the hero means and the triplet counts; results in `check/`).
 - `check_page.mjs`: drives every control and every animation step at 390 px dark with reduced motion and 920 px light; checks no animation moves by itself, the triplet counts against `recompute.py`, sideways scroll; fails on script errors, NaN, undefined or Infinity (258 checks, 0 errors).
 - `mk_coverage.py` writes `coverage.json` (every fact of `live.md`, checked to appear in the page). `viz_ideas.md`: ranked ideas.
+
+- 2026-10-24, topic close: Further reading times set to headers (root 23 min, plus 1; Loss, Evaluation metrics, Activation, Distillation).
