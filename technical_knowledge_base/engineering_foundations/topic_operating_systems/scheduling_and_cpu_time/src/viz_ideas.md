@@ -4,17 +4,20 @@ What the text needs to be understood: what a switch costs and why; how CFS turns
 
 | Idea | Score (teach / data / cost) | Placement | Status |
 |---|---|---|---|
+| Hero (2026-10-24): one CPU's run queue, classes in order and the fair class opened out with three threads at their measured vruntime; below it the first 300 ms of five threads stalled by a 1-CPU quota (measured gaps) | 5 / 5 / 1 | Reading top | built |
+| Context-switch stepper (2026-10-24): threads A and B, CPU registers and MMU; six frames from user mode through `__schedule`, `switch_mm_irqs_off`, `cpu_switch_to` to B resuming | 4 / 4 (source) / 1 | Reading s2 | built (the mechanism had no visual) |
 | Same three threads (two busy, one waking loader) under CFS 5.10, EEVDF 6.12 and EEVDF with a 0.1 ms slice: Gantt to scale, vruntime line with V and deadlines, captions per scheduling event, counters (CPU, waits, preemptions); simulator identical to a Python reference (7/7) | 5 / 4 (model from source) / 3 | Reading s5 | built (the page's before/after animation) |
 | Fair-share stepper: up to five editable threads (nice, periodic, custom slice), CPU-count factor, both schedulers, summary of shares and waits | 5 / 4 / 2 | tab | built |
 | Throttle replay: measured gaps of 1, 2 or 5 spinning threads under cpu.max, 100 ms per step, 100 ms against 10 ms period, cpu.stat beside | 5 / 5 / 2 | Reading s9 | built (measured before/after) |
-| CPU budget lab: measured heat map threads x workers per quota, 4 metrics, every repeat on click | 5 / 5 / 2 | tab | built |
+| CPU budget lab: measured heat map threads x workers per quota, 4 metrics, every repeat on click | 5 / 5 / 2 | Reading s11 (moved from its tab 2026-10-24: it explains one mechanism) | built |
 | vruntime and CPU time of nice 0, nice 5 and a sleeper read live from /proc/PID/sched | 5 / 5 / 1 | Reading s4 | built |
 | Context-switch and cross-CPU costs, log bars with ranges; cache-pollution rounds table | 4 / 5 / 1 | Reading s2 | built |
 | Wake-up delay by policy (p50 to p99 bars) | 4 / 5 / 1 | Reading s6 | built |
 | Load average with D-state tasks against the kernel's fixed-point formula | 4 / 5 / 1 | Reading s10 | built |
 | What programs see (cpu_count, affinity, torch threads) per docker flag set; shares to weight conversion table; noisy-neighbour bars | 4 / 5 / 1 | Reading s7, s9 | built |
 | The running job's threads with waits; worker pid churn drill | 4 / 5 / 1 | Reading s1 | built |
-| Predict-then-reveal drills (7) | 4 / - / 1 | Reading, budget tab | built |
+| Predict-then-reveal drills (7) | 4 / - / 1 | Reading | built |
+| Flame graph image (py-spy) for section 10 | 2 / - / 1 | - | rejected: Capacity planning and performance owns reading flame graphs and has a real (CC0) one; linked |
 | FIFO/SJF/STCF/RR/MLFQ simulator | - | - | rejected: the root's OS simulators tab owns it, checked against OSTEP; linked |
 | Lottery against stride animation | 2 / 3 / 2 | - | rejected: a worked stride sequence in the text is enough; CFS is the point |
 | Multi-CPU load-balancing animation | 3 / 1 / 3 | - | rejected: perf sched and tracepoints are not available unprivileged here; it would be illustrative only |

@@ -1,7 +1,28 @@
-<section id="rd-one">
-<h2>In one screen</h2>
-<p class="lead">A CPU core runs one thread at a time. The <b>scheduler</b> is the kernel code that decides which runnable thread gets each core next and for how long; a <b>context switch</b> is the act of swapping one thread out and another in. On Linux, ordinary threads share CPUs <i>fairly by weight</i> (CFS until kernel 6.5, EEVDF from 6.6), a few classes jump the queue (real-time, deadline), and containers add a second layer on top: a <i>weight</i> that decides how contended CPUs are split between groups, and a <i>quota</i> that stops a group cold when it has used its share of each 100 ms.</p>
-<p>The root page, {{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}} section 3, gave the intuition, its OS simulators tab runs OSTEP's policies, and its Debug lab measured the two classic training-job failures (a CPU limit and too many threads). This page goes one level down: what the kernel actually does, line by line where it helps (Linux v5.10, the kernel these runs used, and v6.12 for EEVDF), what each step costs on a real kernel, and how it shows up in ML work. Each mechanism follows the same pattern: <b>problem, how it works, what it costs here, when it bites in ML, the command that shows it, the fix.</b></p>
+<section id="rd-top">
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">A CPU runs one thread at a time. Linux keeps <b>a run queue per CPU</b>; ordinary threads share it <b>in proportion to their weight</b> (the one with the least weighted CPU time, its <i>virtual runtime</i>, runs next), and a container's CPU limit is <b>a quota per 100 ms period</b> that, once spent, stops every thread of the container until the next period.</p>
+<div class="hero" id="sc-hero-card"><h4>Who runs next is a sort by virtual runtime; a CPU limit is a stop, not fewer CPUs</h4>
+<h5>One CPU's run queue <span class="meas">measured</span></h5>
+<div class="rd-svg" id="sc-hero-rq"></div>
+<p class="small">The fair class opened out: three threads on one CPU placed by their <code>se.vruntime</code> from <code>/proc/PID/sched</code>, 1 s into section 4's run. The nice-5 loop keeps pace with the nice-0 loop on a third of the CPU because its virtual runtime grows 3.06 times faster; the sleeper is always behind and runs as soon as it wakes.</p>
+<h5>A container with a 1-CPU quota and 5 busy threads <span class="meas">measured</span></h5>
+<div class="rd-svg" id="sc-hero-q"></div>
+<p class="small">The first 300 ms of section 9's run: five threads spend the 100 ms quota in a burst (100 / 5 = 20 ms of wall time if each has a CPU), then all of them stop (here <span id="sc-hero-qn"></span> ms at a stretch) until the period timer refills it. The CPU work done is the same as with one thread; the stall is the cost.</p></div>
+<p><b>You need:</b> what a process and a thread are ({{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}) and that a container is a cgroup ({{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}} owns cgroups v2 in full). The intuition and OSTEP's classic policies are in the root, {{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}} section 3, and its OS simulators tab.</p>
+<dl class="terms">
+<dt>Task</dt><dd>what Linux schedules: every thread is one.</dd>
+<dt>Run queue</dt><dd>per CPU, its runnable tasks, split by scheduling class.</dd>
+<dt>Class, policy</dt><dd>deadline, real-time, fair, idle, tried in that order; a thread's policy (SCHED_OTHER, BATCH, IDLE, FIFO, RR, DEADLINE) picks its class.</dd>
+<dt>Nice, weight</dt><dd>nice -20 to 19 indexes a weight (1024 at nice 0, about 1.25 times per step); shares follow weights.</dd>
+<dt>Virtual runtime</dt><dd>CPU time × 1024 / weight; the smallest runs next.</dd>
+<dt>Lag, deadline</dt><dd>EEVDF's additions: service owed, and when the current request is due.</dd>
+<dt>Affinity</dt><dd>the CPUs a thread (or, as a cpuset, a container) may run on.</dd>
+<dt>cpu.weight, cpu.max</dt><dd>a container's share of contended CPUs, and its quota per period.</dd>
+<dt>Throttling</dt><dd>the whole group taken off every CPU when its quota is spent.</dd>
+<dt>Load average</dt><dd>a decaying count of runnable plus uninterruptible tasks, machine-wide.</dd>
+</dl>
+<p class="small mute">Measured on Docker Desktop's Linux VM on an Apple M1 laptop (Linux 5.10.104-linuxkit, arm64, 5 CPUs, one NUMA node, no GPU), October 2026; labels: <span class="meas">measured</span> ran here, <span class="src">source</span> from kernel source or documentation, <span class="ill">model</span> this page's simulator, <span class="nrh">not run here</span> taught from sources.</p>
+<details class="dp"><summary>The page in one table, with what was measured <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table class="tbl-sm">
 <thead><tr><th>Mechanism</th><th>What it does</th><th>Measured here <span class="meas">measured</span></th><th>When it bites in ML</th><th>Look with</th></tr></thead>
 <tbody>
@@ -13,16 +34,9 @@
 <tr><td><a href="#rd-s9">cgroup cpu.max</a></td><td>quota per 100 ms period, then the whole group stops</td><td>5 threads on 1 CPU: stalls of 77 to 83 ms every period</td><td>step-time spikes in Kubernetes pods with CPU limits</td><td><code>cat cpu.stat</code></td></tr>
 <tr><td><a href="#rd-s9">cgroup cpu.weight</a></td><td>splits contended CPUs between groups</td><td>Docker's <code>--cpu-shares 1024</code> became weight 39, not 100</td><td>a neighbour container slows your step from 24.2 to 34.2 ms</td><td><code>cat cpu.weight</code></td></tr>
 <tr><td><a href="#rd-s10">Load average</a></td><td>decaying count of running plus uninterruptible tasks</td><td>3 tasks in D state, using no CPU, still count</td><td>"load 40" on a node whose CPUs are idle (stuck I/O)</td><td><code>cat /proc/loadavg</code>, <code>ps -eo stat</code></td></tr>
-</tbody></table></div>
-<div class="co key"><div class="t">Five things to remember</div>
-<ol class="tight">
-<li><b>A CPU limit is a quota, not fewer CPUs.</b> Threads beyond the quota do not wait politely: the whole container runs flat out and then stops until the next period (<a href="#rd-s9">section 9</a>).</li>
-<li><b>Nothing inside a container tells PyTorch about the quota.</b> <code>os.cpu_count()</code> and <code>torch.get_num_threads()</code> ignore <code>cpu.max</code>; only CPU affinity (cpuset) is seen. Set thread counts yourself (<a href="#rd-s11">section 11</a>).</li>
-<li><b>Fair means proportional to weight.</b> Nice levels are weights spaced by 1.25 times; a cgroup's <code>cpu.weight</code> is the same idea one level up (<a href="#rd-s4">section 4</a>).</li>
-<li><b>A switch is cheap; waking across CPUs and losing caches are not.</b> A switch between two threads on one CPU took about 1.5 us here; in this VM, waking a thread on another, idle CPU took 29 times longer (<a href="#rd-s2">section 2</a>).</li>
-<li><b>Load average is not CPU use.</b> On Linux it also counts tasks blocked in uninterruptible waits, such as a stuck network file system (<a href="#rd-s10">section 10</a>).</li>
-</ol></div>
-<p class="small mute">How this page was measured: Docker Desktop's Linux VM on an Apple M1 laptop (Linux 5.10.104-linuxkit, arm64, 5 CPUs, CONFIG_HZ=1000, CONFIG_PREEMPT=y, one NUMA node, no GPU), image <code>kb-os-lab:1</code> (the root's lab image), October 2026. Containers were not privileged; <code>CAP_SYS_NICE</code> was added where a run needed it (said there). Other agents' experiments shared the VM: every timing was repeated, the spread is shown, and the VM's load average at the time is recorded with each run. Things that need a newer kernel, privileges, hardware counters, real NUMA or a GPU are taught from primary sources and tagged <span class="nrh">not run here</span>. Labels: <span class="meas">measured</span> ran here; <span class="src">source</span> read from kernel source or documentation; <span class="ill">model</span> computed by this page's simulator. Scripts and raw outputs: <code>src/exp/</code> and <code>src/raw/</code> in the repository.</p>
+</tbody></table></div></div></details>
+<details class="dp"><summary>How this page was measured, and the OSTEP chapter map <span class="mute">(provenance)</span></summary><div class="b">
+<p>Docker Desktop's Linux VM on an Apple M1 laptop (Linux 5.10.104-linuxkit, arm64, 5 CPUs, CONFIG_HZ=1000, CONFIG_PREEMPT=y, one NUMA node, no GPU), image <code>kb-os-lab:1</code> (the root's lab image), October 2026. Containers were not privileged; <code>CAP_SYS_NICE</code> was added where a run needed it (said there). Other agents' experiments shared the VM: every timing was repeated, the spread is shown, and the VM's load average at the time is recorded with each run. Things that need a newer kernel, privileges, hardware counters, real NUMA or a GPU are taught from primary sources and tagged <span class="nrh">not run here</span>. Scripts and raw outputs: <code>src/exp/</code> and <code>src/raw/</code> in the repository. Kernel line numbers are Linux v5.10 unless marked v6.12.</p>
 <div class="tw"><table class="tbl-sm"><caption class="small mute" style="text-align:left">OSTEP chapter map for this page ({{free online|https://pages.cs.wisc.edu/~remzi/OSTEP/}})</caption>
 <thead><tr><th>OSTEP chapter</th><th>Sections here</th></tr></thead><tbody>
 <tr><td>4 The Process; 6 Mechanism: Limited Direct Execution</td><td>1, 2 (the timer interrupt and the context switch)</td></tr>
@@ -30,5 +44,27 @@
 <tr><td>9 Scheduling: Proportional Share (lottery, stride, CFS)</td><td>3, 4, 5, 9</td></tr>
 <tr><td>10 Multiprocessor Scheduling</td><td>2, 7, 8</td></tr>
 <tr><td>26 Concurrency: An Introduction; 27 Thread API</td><td>1, 11 (threads are what gets scheduled; locks and futexes: the sibling {{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}})</td></tr>
-</tbody></table></div>
+</tbody></table></div></div></details>
+</section>
+<section id="rd-s1">
+<h2>1. What gets scheduled: threads, states, run queues</h2>
+<p><b>The unit is the thread.</b> Every thread is its own task (<code>task_struct</code>); a process is a group of tasks sharing one address space, so a PyTorch process with 5 compute threads competes as 5 tasks. The STAT letter of <code>ps</code> gives the state: <b>R</b> running or <dfn id="g-runnable">runnable</dfn> (waiting only for a CPU), <b>S</b> sleeping until an event, <b>D</b> sleeping <i>uninterruptibly</i> (usually on I/O in the kernel), <b>T</b> stopped, <b>Z</b> exited, not yet reaped. Only R tasks need the scheduler.</p>
+<p><b>Run queues.</b> Each CPU has its own, split by <dfn id="g-class">scheduling class</dfn> and tried highest first: stop (a per-CPU kernel helper), deadline, real-time, fair, idle (the hero's top row). Almost everything you run is fair. The CPU changes thread at four kinds of moment:</p>
+<div class="mech">
+<div><b>1. it blocks</b>A read, a lock, <code>sleep</code>: it leaves the run queue. A <i>voluntary</i> switch.</div>
+<div><b>2. the timer tick</b>Every 1 ms here (CONFIG_HZ=1000) an interrupt charges the running thread and may take the CPU away. An <i>involuntary</i> switch. Without it a spinning thread would keep the CPU forever (OSTEP's <i>limited direct execution</i>).</div>
+<div><b>3. a wake-up</b>A woken thread that deserves the CPU more than the current one preempts it at once.</div>
+<div><b>4. the switch point</b>The decision sets a "need to reschedule" flag; the switch happens at the next safe point, which with CONFIG_PREEMPT=y (this VM) includes most kernel code.</div>
+</div>
+<h3>The running job, seen by the scheduler <span class="meas">measured</span></h3>
+<p>The root's training job (2 DataLoader workers, <code>--threads 2</code>) in a 2-CPU container, every thread read from <code>/proc/PID/task/TID/</code> 7 s after start; "waiting" is time runnable but not running (<code>schedstat</code>, {{sched-stats docs|https://docs.kernel.org/scheduler/sched-stats.html}}), throttled time included.</p>
+<div class="tw" id="sc-job"></div>
+<p id="sc-job-note"></p>
+<div class="drill"><p class="q">The DataLoader workers above have run for less than a second. The job has been running for 7. Why?</p>
+<div class="ch"><button>They crashed and were restarted</button><button data-ok="1">A new iterator forks new workers every epoch</button><button>The scheduler migrated them</button></div>
+<div class="ans" hidden>Each <code>for batch in loader</code> creates a new iterator, and without <code>persistent_workers=True</code> each iterator forks fresh worker processes and joins the old ones (PyTorch's {{DataLoader docs|https://docs.pytorch.org/docs/stable/data.html}}). This job's epoch is 128 steps, about half a second here, so the worker pids changed every half second: <span id="sc-churn"></span>. Each fork costs the start-up the root's Syscall tracer measured; at real epoch lengths it is negligible, at tiny ones it is not.</div></div>
+<p class="cmd">ps -eLo pid,lwp,cls,ni,pri,psr,stat,pcpu,comm   # one line per thread: class, nice, last CPU, state</p>
+<details class="dp"><summary>In the source, and the raw <code>ps</code> output <span class="mute">(depth)</span></summary><div class="b">
+<p>Inside each <code>struct task_struct</code> sits a <code>struct sched_entity</code> (weight, virtual runtime, total CPU time), the scheduling policy, the priority and the set of allowed CPUs ({{include/linux/sched.h, v5.10|https://github.com/torvalds/linux/blob/v5.10/include/linux/sched.h#L640}}); the process id is the thread-group id. The per-CPU <code>struct rq</code> holds a deadline queue, a real-time queue and a fair queue (<code>cfs_rq</code>) ({{kernel/sched/sched.h, v5.10|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/sched.h#L895}}); the class order comes from the linker script, which lists them lowest first ({{include/asm-generic/vmlinux.lds.h line 128|https://github.com/torvalds/linux/blob/v5.10/include/asm-generic/vmlinux.lds.h#L128}}). Live, per thread: <code>top -H -p PID</code>.</p>
+<pre class="cd out" id="sc-job-ps"></pre></div></details>
 </section>

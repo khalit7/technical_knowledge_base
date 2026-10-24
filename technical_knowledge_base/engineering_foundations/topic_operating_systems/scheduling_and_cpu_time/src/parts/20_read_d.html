@@ -1,36 +1,53 @@
-<section id="rd-s2">
-<h2>2. The context switch: what is saved and what it costs</h2>
-<p class="ostep">ch. 6 Limited Direct Execution (6.3 Saving and Restoring Context); ch. 10 Multiprocessor Scheduling (cache affinity)</p>
-<p><b>The problem.</b> To run another thread, the CPU's state for the current one must be put somewhere and the other's brought back, so that each thread resumes as if it had never stopped. <b>How it works.</b> When a thread enters the kernel (system call, interrupt, fault), the hardware and the entry code have already saved its user registers on that thread's own kernel stack. The switch itself, in <code>context_switch()</code> ({{kernel/sched/core.c line 3728, v5.10|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/core.c#L3728}}), is then three steps:</p>
-<div class="stage"><span class="on">1 pick the next task</span><span>2 switch the address space</span><span>3 switch registers and stack</span></div>
-<ul class="tight">
-<li><b>Pick:</b> <code>__schedule()</code> asks each class in order (section 1) for its best task.</li>
-<li><b>Address space:</b> <code>switch_mm_irqs_off()</code> (line 3765) points the MMU at the next process's page tables. Skipped between threads of one process (same address space). On arm64 each address space carries an ASID tag in the TLB, so the TLB is not flushed (the sibling {{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}} page, section 3).</li>
-<li><b>Registers and stack:</b> <code>switch_to()</code> (line 3779) calls <code>__switch_to()</code>, which hands over the floating-point and SIMD registers lazily ({{arch/arm64/kernel/process.c line 552|https://github.com/torvalds/linux/blob/v5.10/arch/arm64/kernel/process.c#L552}}), then <code>cpu_switch_to</code>, about twenty instructions of assembly that store the callee-saved registers x19 to x28, the frame pointer, the stack pointer and the return address of the old task and load the new task's ({{arch/arm64/kernel/entry.S line 892|https://github.com/torvalds/linux/blob/v5.10/arch/arm64/kernel/entry.S#L892}}). Its final <code>ret</code> returns into the <i>other</i> task's kernel stack, which later returns to that task's user code.</li>
-</ul>
-<pre class="src5">// arch/arm64/kernel/entry.S, v5.10, lines 892-905 (abridged)
-SYM_FUNC_START(cpu_switch_to)
-	mov	x10, #THREAD_CPU_CONTEXT
-	add	x8, x0, x10              // x0 = previous task
-	mov	x9, sp
-	stp	x19, x20, [x8], #16      // store callee-saved registers
-	...
-	stp	x29, x9, [x8], #16       // frame pointer and stack pointer
-	str	lr, [x8]                 // where to resume
-	add	x8, x1, x10              // x1 = next task
-	ldp	x19, x20, [x8], #16      // restore callee-saved registers ...</pre>
-<h3>What it costs here <span class="meas">measured</span></h3>
-<p>Two processes pinned to one CPU pass one byte back and forth through two pipes, 200,000 times (the lmbench method the root used: subtract the cost of the same pipe calls without a switch, divide by two switches per round trip). Then the same with two threads of one process and a futex (the kernel's wait-and-wake primitive under every lock), then hand-offs across two CPUs. Five runs each, VM load average about 5 at the time.</p>
-<div class="card"><div class="rd-chart" id="sc-ctx"></div><p class="small mute" id="sc-ctx-note"></p></div>
-<p><b>Reading it.</b> A switch between two processes on one CPU costs <span id="sc-ctx-pipe"></span> us (the root measured 1.33 us with the same method), and between two threads of one process no less (<span id="sc-ctx-futex"></span> us): on this CPU, changing address space is nearly free thanks to ASIDs, and the cost is the kernel's sleep-and-wake path, not the register swap. Across CPUs the hardware is fast: a token passed through one shared cache line by two spinning threads takes <span id="sc-ctx-spin"></span> ns one way. But waking a <i>sleeping</i> thread on another CPU took <span id="sc-ctx-xidle"></span> us one way when that CPU was idle and <span id="sc-ctx-xbusy"></span> us when a low-priority busy loop kept it awake: the wake-up needs an inter-processor interrupt, and an idle virtual CPU must first be woken by the hypervisor. That is this VM; we did not measure bare metal. Why it costs this much here (a GICv2 emulated in QEMU on Hypervisor.framework) is section 5 of {{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}}. <code>sched_yield()</code> is only a hint in CFS (it marks the caller to be skipped once, {{fair.c line 7167|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/fair.c#L7167}}): <span id="sc-yield"></span> of the calls actually switched.</p>
-<h3>The indirect cost: cold caches <span class="meas">measured</span></h3>
-<p>After a switch the new thread finds the caches and TLB full of someone else's data and pays to refill them. To see it, a loop walks a working set of 4 MiB in random order (each load depends on the previous one) for 3 s alone on a CPU, then 6 s sharing that CPU with a busy loop that touches no memory, then with one that streams through 64 MiB; we compare nanoseconds per load over the CPU time it actually got. Three rounds:</p>
-<div class="tw" id="sc-cache"></div>
-<p>The spread between rounds (alone: <span id="sc-cache-alone"></span> ns per load, as the VM's load rose) is as large as the effect, so this VM cannot give a clean number. Two things held in all three rounds: sharing with the streaming loop was the slowest, which is the cache effect; and sharing with the memory-free loop was also slower than alone, which is not a cache effect, and which we cannot explain from inside the VM (the host may move virtual CPUs between core types). CFS's long slices (section 4: 9 ms each for two tasks) are what keep this cost small: refilling 4 MiB at an illustrative 50 GB/s takes about 84 us, paid once per slice, under 1% of 9 ms.</p>
-<div class="drill"><p class="q">The Debug lab's "Too many threads" case ran 5 PyTorch threads on a 1-CPU quota. Which counter should explode?</p>
-<div class="ch"><button>voluntary switches</button><button data-ok="1">involuntary switches</button><button>page faults</button></div>
-<div class="ans" hidden>A <dfn id="g-vol">voluntary</dfn> switch happens when the thread blocks; an <dfn id="g-invol">involuntary</dfn> one when the kernel takes the CPU away (tick or wake-up preemption, or throttling). Five busy threads fighting for one CPU's worth of quota are preempted constantly: the root's {{Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}} case "Too many threads for the CPUs you have" recorded 3,571 involuntary switches with 5 threads against 16 with one, for the same arithmetic.</div></div>
-<p><b>When it bites in ML.</b> Rarely through the switch itself: a training step is milliseconds, a switch microseconds. It bites through <i>numbers</i> (hundreds of threads from per-process thread pools on a few cores, section 11), through <i>hand-offs</i> (a DataLoader batch crosses processes with at least two wake-ups; fine per batch, ruinous per sample), and through <i>busy waiting</i>: libraries that spin instead of sleeping (GNU OpenMP's idle threads spin before they sleep unless <code>OMP_WAIT_POLICY=passive</code>, {{libgomp docs|https://gcc.gnu.org/onlinedocs/libgomp/GOMP_005fSPINCOUNT.html}}) trade a whole CPU for microseconds of latency, which is right on a dedicated node and wrong under a CPU quota.</p>
-<p class="cmd">grep ctxt /proc/PID/status; pidstat -w -t -p PID 1   # voluntary (cswch/s) and involuntary (nvcswch/s), per thread</p>
-<p class="cmd">perf stat -e context-switches,cpu-migrations -p PID; perf sched record; perf sched latency   # not run here: needs perf_event access</p>
+<section id="rd-s3">
+<h2>3. Fair share: from stride scheduling to CFS</h2>
+<p class="ostep">ch. 7 Scheduling: Introduction; ch. 8 MLFQ; ch. 9 Proportional Share</p>
+<p>OSTEP's first policies (FIFO, shortest job first, round robin, MLFQ) optimise <dfn id="g-turn">turnaround time</dfn> (finish minus arrival) or <dfn id="g-resp">response time</dfn> (first run minus arrival); the root's {{OS simulators|n:3f05c17b0d0d81c5a97ce991644af140}} tab runs them. Linux asks instead for <b>proportional share</b>: does each thread get its share? OSTEP chapter 9 gives three answers, the third Linux's:</p>
+<div class="k2">
+<div><b>Lottery (1994)</b>Each job holds tickets; every slice the scheduler draws a random ticket. Shares are right on average, noisy over short windows ({{Waldspurger and Weihl, OSDI 1994|https://www.usenix.org/legacy/publications/library/proceedings/osdi/full_papers/waldspurger.pdf}}).</div>
+<div><b>Stride</b>Deterministic: each job has a <i>stride</i> = a big number / its tickets and a <i>pass</i> counter; run the job with the smallest pass, then add its stride to its pass. Exact shares every round.</div>
+<div><b>CFS (2007)</b>Stride scheduling in units of time: the pass is <i>virtual runtime</i>, which grows by the CPU time used divided by the weight. Run the smallest. Section 4.</div>
+</div>
+<p>OSTEP's stride example: A, B and C hold 100, 50 and 250 tickets, so with a big number of 10,000 their strides are <span id="sc-stride-v"></span>. Starting from zero (ties to A, then B), the first eight picks are <b id="sc-stride-o"></b>: C runs five times in eight, A twice, B once, and over any long window the shares are exactly 250 : 100 : 50. Replace "tickets" by "weight" and "stride" by "1024 / weight per unit of CPU time" and you have the core of CFS; the rest of the kernel code handles what the toy leaves out: sleepers, new threads, many CPUs (section 7) and groups (section 9).</p>
+</section>
+<section id="rd-s4">
+<h2>4. CFS: weights, virtual runtime, slices (Linux 2.6.23 to 6.5; the kernel measured here)</h2>
+<p class="ostep">ch. 9.7 The Linux Completely Fair Scheduler; {{CFS design doc|https://docs.kernel.org/scheduler/sched-design-CFS.html}}</p>
+<p>CFS "basically models an ideal, precise multi-tasking CPU" (the design doc), one that runs all n threads at once at 1/n speed each; it tracks how far each thread is behind that ideal and runs the one furthest behind.</p>
+<h3>Weights: what nice means</h3>
+<p>A thread's <dfn id="g-nice">nice</dfn> value (-20 to 19, default 0) indexes a fixed table of <dfn id="g-weight">weights</dfn>, <code>sched_prio_to_weight</code> ({{core.c line 8457|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/core.c#L8457}}): nice 0 is 1024, each step about 1.25 times (nice -1 is 1277, nice 1 is 820, nice 5 is 335, nice 19 is 15), so that one level is "a gentle 10% change" in share against a competitor (the comment above the table). Two busy threads on one CPU get <i>w</i><sub>a</sub> / (<i>w</i><sub>a</sub> + <i>w</i><sub>b</sub>) each: nice 0 against nice 5 is 1024 / 1359 = <span id="sc-share05"></span>; the root measured 75.38%, and this page <span id="sc-setsid"></span> (below).</p>
+<div class="drill"><p class="q">Three busy threads share one CPU: two at nice 0 and one at nice 5. What does each nice-0 thread get?</p>
+<div class="ch"><button>33%</button><button data-ok="1">43%</button><button>50%</button></div>
+<div class="ans" hidden>1024 / (1024 + 1024 + 335) = 42.97% each, and 14.06% for the nice-5 thread. Shares depend on who else is runnable: nice 5 means "a third of a nice-0 thread's weight", not "75%".</div></div>
+<h3>Virtual runtime: the one number CFS sorts by <span class="meas">measured</span></h3>
+<p>Three tasks on one CPU: busy loops at nice 0 and nice 5, and a "sleeper" (runs about 1 ms, sleeps 5 ms); every 50 ms for 2 s we read <code>se.vruntime</code> and <code>se.sum_exec_runtime</code> from <code>/proc/PID/sched</code>. Predict: which lines stay together, virtual runtime or CPU time?</p>
+<div class="card"><h4>Equal virtual time, unequal real time</h4><div class="seg" id="sc-vr-mode"><button data-m="vr" class="on">virtual runtime</button><button data-m="ex">CPU time received</button></div><div class="rd-chart" id="sc-vr"></div><p class="small mute" id="sc-vr-note"></p></div>
+<p>The two busy loops' vruntimes advance together (never more than <span id="sc-vr-gap"></span> ms apart, under one slice) while their CPU time diverges <span id="sc-vr-ratio"></span> times, the weight ratio 1024 / 335 = 3.057. That is the whole invariant of CFS, and the rule that produces it is charged at every tick and whenever the thread stops (<code>update_curr()</code>, {{fair.c line 842|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/fair.c#L842}}):</p>
+<div class="fm"><div class="eq">vruntime += Δexec × 1024 / weight</div><dl><dt>Δexec</dt><dd>nanoseconds of CPU just used</dd><dt>weight</dt><dd>from the nice table; 1024 at nice 0, so a nice-0 thread's vruntime is its CPU time</dd></dl></div>
+<p>Runnable threads sit in a red-black tree ordered by vruntime and the leftmost runs next (the hero's axis): exactly stride scheduling. The queue keeps <code>min_vruntime</code>, a floor that only moves forward. The sleeper trails by a median <span id="sc-vr-lag"></span> ms: on each wake-up it is placed at most half a latency period (9 ms here) behind <code>min_vruntime</code>, so it runs at once but cannot bank more than 9 ms of credit however long it slept.</p>
+<h3>How long a thread runs: period and slice</h3>
+<p>No fixed time slice: CFS aims to run every runnable thread once per <dfn id="g-period">scheduling period</dfn> and gives each a share of it by weight. On this VM: <span id="sc-tun"></span>.</p>
+<div class="tw" id="sc-slices"></div>
+<div class="fm"><div class="eq">period = latency if n ≤ 8, else n × min_granularity;   slice<sub>i</sub> = period × w<sub>i</sub> / Σw</div><dl><dt>latency</dt><dd>6 ms × factor</dd><dt>min_granularity</dt><dd>0.75 ms × factor; 8 = latency / min_granularity</dd><dt>factor</dt><dd>1 + log2(min(CPUs, 8)): 3 on this VM's 5 CPUs, 4 on 8 or more</dd></dl></div>
+<p>Two nice-0 threads get 9 ms each, eight get 2.25 ms; beyond eight the period stretches (sixteen threads: 36 ms), which stops oversubscribed nodes switching themselves to death and is why their latency grows. A thread is preempted at the tick when its slice is used, or by a waking thread that is behind it by more than the <dfn id="g-wgran">wake-up granularity</dfn> (1 ms × factor = 3 ms here). A new thread starts one virtual slice <i>after</i> min_vruntime (START_DEBIT), so forking cannot jump the queue.</p>
+<p>Change any of this and watch it: the {{Fair-share stepper|#t-fair}} tab runs this exact rule set on threads you define, tick by tick, beside EEVDF.</p>
+<p class="cmd">cat /proc/PID/sched   # se.vruntime, se.sum_exec_runtime, nr_switches, se.load.weight, policy, prio</p>
+<p class="cmd">renice -n 10 -p PID; nice -n 10 python preprocess.py   # lower priority: weight 110 instead of 1024</p>
+<details class="dp"><summary>The rules line by line, and autogroup <span class="mute">(depth)</span></summary><div class="b">
+<p><b>Charging.</b> <code>update_curr()</code> uses <code>calc_delta_fair()</code> (fair.c line 671); insertion is <code>__enqueue_entity</code> ({{line 575|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/fair.c#L575}}), the pick <code>pick_next_entity</code> (line 4435), the floor <code>min_vruntime</code> (line 540). A nice-5 thread's vruntime grows 3.06 times faster than its CPU time.</p>
+<p><b>Period and slice.</b> <code>__sched_period</code> and <code>sched_slice</code> ({{lines 687 and 701|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/fair.c#L687}}); <code>sysctl_sched_latency</code> (line 38), <code>sysctl_sched_min_granularity</code> (line 59); the factor from <code>get_update_sysctl_factor</code> (line 159).</p>
+<p><b>Preemption at the tick</b> (<code>check_preempt_tick</code>, line 4355): switched out when it has run longer than its slice, or, once it has run at least <code>min_granularity</code>, when its vruntime is ahead of the leftmost thread's by more than a slice. <b>At wake-up</b> (<code>place_entity</code>, line 4108; <code>check_preempt_wakeup</code>, line 6916): the woken thread is placed at max(its own vruntime, min_vruntime - latency / 2) and preempts if the running thread is ahead of it by more than the wake-up granularity, scaled by the woken thread's weight:</p>
+<pre class="src5">// kernel/sched/fair.c, v5.10, lines 6869-6880: should the woken thread se preempt curr?
+static int wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se)
+{
+	s64 gran, vdiff = curr->vruntime - se->vruntime;
+	if (vdiff <= 0)
+		return -1;
+	gran = wakeup_gran(se);
+	if (vdiff > gran)
+		return 1;
+	return 0;
+}</pre>
+<p><b>Groups and autogroup.</b> With cgroups, fairness is applied per level: a container is one entity in its parent's run queue with its own weight (<code>cpu.weight</code>, section 9), and threads compete inside it. Desktop kernels add <dfn id="g-autogroup">autogroup</dfn>: each session (a terminal, say) becomes its own group, so a <code>make -j64</code> in one terminal cannot starve another; the side effect is that nice only works within a session. This kernel has it on (<code>sched_autogroup_enabled</code> = 1) but it only applies to tasks in the root cgroup ({{kernel/sched/autogroup.c line 109|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/autogroup.c#L109}}), never inside a container: two busy loops in different sessions (<code>setsid</code>) still split 75 : 25 by nice:</p>
+<pre class="cd out" id="sc-setsid-raw"></pre>
+</div></details>
 </section>

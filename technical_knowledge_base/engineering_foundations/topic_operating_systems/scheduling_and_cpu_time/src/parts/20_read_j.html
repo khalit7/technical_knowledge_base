@@ -1,34 +1,52 @@
-<section id="rd-s9">
-<h2>9. cgroup CPU control: cpu.weight, cpu.max and throttling</h2>
-<p class="ostep">beyond OSTEP; {{cgroup v2: CPU interface files|https://docs.kernel.org/admin-guide/cgroup-v2.html#cpu-interface-files}}; {{CFS bandwidth control doc|https://docs.kernel.org/scheduler/sched-bwc.html}}</p>
-<p>A container is a cgroup, and the cgroup's <code>cpu</code> controller has two independent knobs. <b>cpu.weight</b> is relative: it only matters when CPUs are contended, and then splits them between groups the way nice splits them between threads. <b>cpu.max</b> is absolute: a cap that applies even on an idle machine. (A third, <code>cpuset.cpus</code>, is affinity: section 7.) Namespaces, delegation and pressure stall information are the sibling {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}} page's subject; here we look at how the scheduler enforces the two knobs.</p>
-<h3>cpu.weight: shares of a contended CPU</h3>
-<p><code>cpu.weight</code> runs from 1 to 10,000, default 100. The kernel turns it into the group's CFS weight as weight × 1024 / 100 ({{core.c line 8286|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/core.c#L8286}}), so a default group weighs the same as one nice-0 thread in its parent's queue. The trap is the translation from older interfaces: Docker's <code>--cpu-shares</code> and Kubernetes' <code>requests.cpu</code> speak cgroup v1 "shares" (default 1024; Kubernetes uses milli-CPUs × 1024 / 1000, {{pkg/kubelet/cm/helpers_linux.go line 88, v1.34.0|https://github.com/kubernetes/kubernetes/blob/v1.34.0/pkg/kubelet/cm/helpers_linux.go#L88}}), and the OCI runtime converts shares to a v2 weight. runc 1.1 used a linear map, 1 + (shares - 2) × 9,999 / 262,142 ({{libcontainer/cgroups/utils.go line 423, runc v1.1.2|https://github.com/opencontainers/runc/blob/v1.1.2/libcontainer/cgroups/utils.go#L423}}), which sends the default 1024 shares to weight 39, well below the default weight 100. A newer quadratic map in the opencontainers/cgroups library (from v0.0.3, {{utils.go line 425|https://github.com/opencontainers/cgroups/blob/v0.0.3/utils.go#L425}}; runc v1.3.6 and v1.4.0 depend on versions that have it, per their go.mod) sends 1024 to 100.</p>
-<div class="tw" id="sc-conv"></div>
-<p><b>Measured</b> with this VM's Docker 20.10 (the old map): two busy containers pinned to the same CPU with <code>--cpu-shares 1024</code> and <code>512</code> got weights <span id="sc-w-ab"></span> and split the CPU <span id="sc-w-split"></span> (predicted 39 / 59 = 66.1%). Then a one-thread training step (eight 512 × 512 matmuls) in a container started with no shares flag (weight 100):</p>
-<div class="card"><div class="rd-chart" id="sc-nb"></div><p class="small mute" id="sc-nb-note"></p></div>
-<p>A neighbour started with Docker's "default" <code>--cpu-shares 1024</code> got weight 39 and still took <span id="sc-nb-pct"></span> of the shared CPU, slowing the step from <span id="sc-nb-alone"></span> to <span id="sc-nb-39"></span> ms (the weights predict × 139 / 100 = <span id="sc-nb-p39"></span> ms); a neighbour at <code>--cpu-shares 128</code> (weight 5) cost <span id="sc-nb-5"></span> ms (predicted <span id="sc-nb-p5"></span>). Weight protects you only in proportion to everyone else's, and only when you are actually competing for the same CPUs.</p>
-<h3>cpu.max: the quota, and why it stalls</h3>
-<p><code>cpu.max</code> holds "$MAX $PERIOD": the group may use $MAX microseconds of CPU in each $PERIOD (default 100,000 us). <code>--cpus 2</code> writes <code>200000 100000</code>. The kernel's CFS bandwidth control enforces it like this:</p>
-<ol class="tight">
-<li>Each group has a global pool, refilled to the quota at every period by a timer (<code>__refill_cfs_bandwidth_runtime</code>, {{fair.c line 4601|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/fair.c#L4601}}; <code>do_sched_cfs_period_timer</code>, line 4942).</li>
-<li>Each CPU running the group's threads borrows from the pool in slices of <code>sched_cfs_bandwidth_slice_us</code> = 5,000 us (line 129; the same value read here) and charges the time its threads run (<code>__account_cfs_rq_runtime</code>, line 4653).</li>
-<li>When a CPU's slice runs out and the pool is empty, <code>throttle_cfs_rq()</code> (line 4741) removes the whole group from that CPU's run queue: every thread of the container stops, runnable or not, until the next refill.</li>
-</ol>
-<p>So the quota is spent at the speed of however many threads are running. Five threads on a 1-CPU quota burn 100 ms of CPU in 20 ms of wall time and then all stop for 80 ms. Periods may be 1 ms to 1 s and quotas at least 1 ms ({{core.c lines 7891 to 7919|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/core.c#L7891}}). Kernels from 5.14 add <code>cpu.max.burst</code>, which lets unused quota carry over to absorb short bursts ({{sched-bwc doc|https://docs.kernel.org/scheduler/sched-bwc.html}}) <span class="nrh">not on this kernel</span>.</p>
-<h3>Replay: threads against a quota, period by period <span class="meas">measured</span></h3>
-<p>Inside a container with a CPU limit, N threads spin for 1 s, and each records every gap of more than 300 us in its own progress (a gap is time it was not running). Drawn to scale: one lane per thread, dark where the thread ran, light where it was stopped, period boundaries as ticks. Step through the periods; switch runs to compare the same quota with one thread and five, or the same five threads with a 100 ms and a 10 ms period.</p>
-<div class="card" id="sc-thr-card">
-<div class="seg" id="sc-thr-run"></div>
-<div class="an-ctl" id="sc-thr-ctl"></div>
-<div class="an-cap" id="sc-thr-cap" aria-live="polite"></div>
-<div class="rd-svg" id="sc-thr-svg"></div>
-<div class="an-cnt" id="sc-thr-cnt"></div>
+<section id="rd-s11">
+<h2>11. The CPU budget of a training job: threads, workers, pinning</h2>
+<p>A training process gets some CPUs (a quota, a cpuset, a node) and every thread it starts spends from them. The defaults are sized for the whole machine, so they overspend whenever the job gets less, and a GPU waiting for its next batch is the symptom. The data pipeline itself is {{Storage and loading at scale|n:3f95c17b0d0d81398782efcb29d950d4}}'s; here is what its threads cost.</p>
+<h3>Who starts threads in a PyTorch job</h3>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>Pool</th><th>Default size</th><th>Set with</th></tr></thead><tbody>
+<tr><td>Intra-op (one operator split across threads: matmul, convolution)</td><td>the CPUs in the affinity mask (5 here; section 7)</td><td><code>torch.set_num_threads(n)</code>, <code>OMP_NUM_THREADS</code>, <code>MKL_NUM_THREADS</code></td></tr>
+<tr><td>Inter-op (independent operators in parallel, TorchScript and some backends)</td><td>the same</td><td><code>torch.set_num_interop_threads(n)</code> (before any parallel work)</td></tr>
+<tr><td>DataLoader workers (processes)</td><td>0</td><td><code>num_workers</code>; each worker sets its own torch threads to 1 ({{worker.py line 274, v2.14.1|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/data/_utils/worker.py#L274}})</td></tr>
+<tr><td>Pin-memory thread (copies batches into page-locked memory)</td><td>1 if <code>pin_memory=True</code></td><td>(dataloader.py line 1198)</td></tr>
+<tr><td>Per-process launchers</td><td>torchrun sets <code>OMP_NUM_THREADS=1</code> when it starts several processes and the variable is unset ({{run.py line 980|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/run.py#L980}})</td><td>set it yourself, per process</td></tr>
+<tr><td>Libraries inside workers (tokenizers, OpenCV, NumPy's BLAS)</td><td>often all CPUs, per worker</td><td>their own variables (e.g. <code>TOKENIZERS_PARALLELISM</code>, <code>OPENBLAS_NUM_THREADS</code>)</td></tr>
+</tbody></table></div>
+<p>One process with 4 workers that each start a 5-thread tokenizer pool, plus PyTorch's pools, runs dozens of busy threads in a 2-CPU container: <dfn id="g-oversub">oversubscription</dfn>.</p>
+<h3>The budget, measured <span class="meas">measured</span></h3>
+<p>One training loop: a Dataset whose samples cost real CPU (four FFT round trips over 8,192 floats, standing in for decode), batches of 64, and a "model step" of six pairs of 64 × 1024 by 1024 × 1024 matmuls on T threads (no GPU here). T in 1, 2, 4, 5 (PyTorch's default here), W in 0, 1, 2, 4 workers, 20 timed steps, under <code>--cpus 1</code>, <code>2</code> and <code>4</code>; the grid three times. Details of the run in the closed block.</p>
+<div class="drill"><p class="q">Under a 1-CPU quota, which configuration gave the fastest steps?</p>
+<div class="ch"><button>5 threads, 4 workers</button><button>1 thread, 2 workers</button><button data-ok="1">1 or 2 threads, no workers</button></div>
+<div class="ans" hidden><span id="sc-b-ans"></span></div></div>
+<div class="card"><h4>The fastest cells keep compute threads plus busy workers near the quota</h4>
+<div class="seg" id="sc-b-q"><button data-m="1" class="on">quota 1 CPU</button><button data-m="2">quota 2 CPUs</button><button data-m="4">quota 4 CPUs</button></div>
+<div class="seg" id="sc-b-m"><button data-m="med" class="on">median step, ms</button><button data-m="thr">periods throttled</button><button data-m="wait">time waiting for data</button><button data-m="inv">involuntary switches (main)</button></div>
+<div class="hmwrap"><table class="hm" id="sc-b-hm"></table></div>
+<div class="hmleg" id="sc-b-leg"></div>
+<div id="sc-b-det"></div>
+<p class="small mute">Each cell: the median over the three repeats of that run's median step time (or of the chosen metric); click a cell for every repeat. "Periods throttled" is <code>nr_throttled / nr_periods</code> from <code>cpu.stat</code> over the 20 timed steps; "waiting for data" is the share of step time the main loop spent in <code>next(iterator)</code>. Raw output: <code>src/raw/grid.txt</code>.</p>
 </div>
-<div class="tw" id="sc-thr-sum"></div>
-<p><b>What it shows.</b> With as many threads as the quota allows, nothing stops. With five, every thread stops for <span id="sc-thr-5"></span> ms in each 100 ms period (predicted: 100 - 100 / 5 = 80 ms), and the container's <code>cpu.stat</code> counts the periods. The total CPU used is the same in every run: throttling does not cost work, it costs <i>latency</i>, which is what a training step, a request or a GPU waiting for its next batch feels. A 10 ms period caps the stall near 8 ms (measured up to <span id="sc-thr-10"></span> ms) at the price of ten times as many throttling events. <code>throttled_usec</code> adds up the throttled time of every CPU the group was on, which is why it can exceed the wall-clock time of the run.</p>
-<div class="co warn"><div class="t">Measured on the root page</div>The root's {{Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}} case "Step time quadruples under a CPU limit: cgroup throttling" ran the same matmul step at 138 ms per step with 2 CPUs and 701 ms with half a CPU (2 threads), throttled in every period; "Too many threads for the CPUs you have" ran 5 threads on 1 CPU at 496 ms per step against 210 ms with 1 thread. The CPU budget lab tab of this page extends that to the whole grid of threads, DataLoader workers and quotas.</div>
-<p><b>Fixes.</b> Size thread pools and workers to the quota (section 11); in Kubernetes, some clusters set CPU requests without limits so pods share idle CPU by weight instead of being throttled; the kubelet can use a shorter period (the <code>CPUCFSQuotaPeriod</code> feature gate, {{helpers_linux.go line 73|https://github.com/kubernetes/kubernetes/blob/v1.34.0/pkg/kubelet/cm/helpers_linux.go#L73}}); or give the pod exclusive cores with the static CPU manager policy (section 7).</p>
-<p class="cmd">cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.weight /sys/fs/cgroup/cpu.stat   # inside the container</p>
-<p class="cmd">docker run --cpus 2 --cpu-shares 512 --cpuset-cpus 0-3 ...; systemd-run -p CPUQuota=200% -p CPUWeight=50 ...</p>
+<div class="tw" id="sc-grid-sum"></div>
+<details class="dp"><summary>What the grid says, quota by quota <span class="mute">(depth)</span></summary><div class="b"><div id="sc-b-find"></div></div></details>
+<p>The default (5 threads, sized from the machine) was the worst or near the worst choice at every quota smaller than the machine. With one CPU, workers did not help at all; with two or four, the best was a couple of compute threads plus a couple of workers, about one busy thread per CPU of quota. The best point depends on your decode against your model step; the rule does not.</p>
+<h3>Recipes</h3>
+<ol class="tight">
+<li><b>Read the budget, then set every pool:</b> <code>cpu.max[0] / cpu.max[1]</code> (or the cpuset size, or the Kubernetes limit) divided by the training processes on the node; compute threads + busy workers ≈ budget.</li>
+<li><b>Keep workers alive</b> with <code>persistent_workers=True</code> (section 1).</li>
+<li><b>A starving GPU's signature:</b> rising <code>nr_throttled</code>, involuntary switches in the thousands, the main thread waiting on a run queue, or <code>py-spy dump</code> showing it in <code>next(it)</code> (the root's Debug lab case "The training loop waits for data: DataLoader-bound").</li>
+<li><b>Multi-socket GPU nodes:</b> <code>torchrun --numa-binding=node</code> (section 8).</li>
+<li><b>Noisy neighbours:</b> weights help only under contention and in proportion (section 9); exclusive cores are the only real isolation.</li>
+<li><b>Background work yields:</b> <code>nice -n 10</code> or SCHED_BATCH, SCHED_IDLE for uploads (section 6); never real-time.</li>
+</ol>
+<pre class="cd"><span class="c"># size PyTorch's pools from the container's quota (or affinity), not from os.cpu_count()</span>
+<span class="k">import</span> os, math, torch
+<span class="k">def</span> cpu_budget():
+    n = len(os.sched_getaffinity(0))                    <span class="c"># cpuset / taskset</span>
+    <span class="k">try</span>:
+        q, p = open(<span class="s">"/sys/fs/cgroup/cpu.max"</span>).read().split()
+        <span class="k">if</span> q != <span class="s">"max"</span>: n = min(n, max(1, math.floor(int(q) / int(p))))
+    <span class="k">except</span> OSError: <span class="k">pass</span>                              <span class="c"># cgroup v1 or no cgroup</span>
+    <span class="k">return</span> n
+b = cpu_budget() // int(os.environ.get(<span class="s">"LOCAL_WORLD_SIZE"</span>, <span class="s">"1"</span>))
+torch.set_num_threads(max(1, b // 2)); num_workers = max(0, b - b // 2)</pre>
+<p class="small mute">The split between threads and workers in the last line is a starting point, not a rule; measure your own step the way the grid above did.</p>
+<details class="dp"><summary>How the grid was run <span class="mute">(provenance)</span></summary><div class="b"><p class="small">Script <code>src/exp/grid.py</code>: 3 warm-up steps then 20 timed steps per cell, <code>torch.set_num_threads(T)</code>, the step on the CPU because there is no GPU, in containers started with <code>--cpus 1</code>, <code>2</code> and <code>4</code>. The VM's 1-minute load at the start of each repeat: <span id="sc-b-load"></span> (other agents' experiments ran at the same time).</p></div></details>
 </section>

@@ -27,7 +27,7 @@
       'One busy thread cannot use more than the quota: '+f(used)+' ms of '+f(allow)+' ms allowed. Nothing is throttled; the short gaps are the VM\'s own interruptions.')+'</p>';
     $('sc-thr-cnt').innerHTML=RD.stat('CPU used so far',f(sofar)+' ms','all threads')+RD.stat('allowed so far',f(r.quota/r.period*end)+' ms','quota / period × time')+RD.stat('longest stop so far',f(mx,1)+' ms','any thread')}
   const an=RD.anim({card:'sc-thr-card',ctl:'sc-thr-ctl',n:NS,draw,ms:1100,label:'100 ms window'});
-  RD.seg($('sc-thr-run'),m=>{cur=+m;an.reset(NS);an.play()});RD.onResize(()=>an.redraw());
+  RD.seg($('sc-thr-run'),m=>{cur=+m;an.reset(NS)});RD.onResize(()=>an.redraw());
   $('sc-thr-sum').innerHTML='<table class="tbl-sm"><thead><tr><th>run (docker flags)</th><th class="num">CPU used, ms</th><th class="num">predicted stop per period, ms</th><th class="num">longest stop per thread, ms</th><th class="num">periods throttled</th><th class="num">throttled_usec / 1000</th></tr></thead><tbody>'+
     D.map(r=>{const pred=r.n*r.period>r.quota?r.period/1000-r.quota/1000/r.n:0;return '<tr><td><code>'+r.flags+'</code>, '+r.n+' thr.</td><td class="num">'+f(r.threads.reduce((s,t)=>s+t.cpu_ms,0))+'</td><td class="num">'+f(pred,1)+'</td><td class="num">'+r.threads.map(t=>f(t.max_gap,1)).join(', ')+'</td><td class="num">'+r.stat.nr_throttled+' of '+r.stat.nr_periods+'</td><td class="num">'+f(r.stat.throttled_usec/1000)+'</td></tr>'}).join('')+
     '</tbody><caption class="small mute" style="caption-side:bottom;text-align:left">src/exp/schedlab.c mode throttle, src/exp/throttle.sh; raw/throttle.txt. Predicted stop = period - quota / threads. cpu.stat counts include the container\'s start-up shell.</caption></table>';

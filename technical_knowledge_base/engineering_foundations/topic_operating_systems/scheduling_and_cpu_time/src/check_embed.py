@@ -42,5 +42,5 @@ for lit, cond in checks:
     p = has(lit); bad += not (p and cond)
     print(("ok   " if p and cond else "FAIL ") + lit + ("" if p else "  (literal not found in page)"))
 for pat in ["/" + "Users/", "gl" + "pat", "sk" + "-ant"]:
-    ok(f"no '{pat}' in the page or src", pat not in html and not any(pat in p.read_text(errors="ignore") for p in pathlib.Path(".").rglob("*") if p.is_file()))
+    ok(f"no '{pat}' in the page or src", pat not in html and not any(pat in p.read_text(errors="ignore") for p in pathlib.Path(".").rglob("*") if p.is_file() and "__pycache__" not in p.parts))  # skip bytecode (absolute paths; never committed)
 print("check_embed:", "PASS" if not bad else f"{bad} FAIL"); sys.exit(1 if bad else 0)

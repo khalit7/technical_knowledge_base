@@ -1,4 +1,4 @@
-// ---- CPU budget lab tab: the measured grid of torch threads x DataLoader workers under three quotas ----
+// ---- Reading section 11 (moved from the CPU budget lab tab, 2026-10-24): the measured grid of torch threads x DataLoader workers under three quotas ----
 (function(){
   const $=id=>document.getElementById(id);if(!$('sc-b-hm'))return;
   const G=window.SC_DATA.grid,f=(x,d)=>Number(x).toLocaleString('en-US',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});
@@ -32,7 +32,6 @@
     '<li><b>With 0 workers</b> the main thread decodes every batch itself (waiting for data half the step or more); workers remove that wait only if there is quota left to run them.</li></ul>';
   const b1=best(1);$('sc-b-ans').innerHTML='With one CPU of quota the best was '+b1.T+' thread'+(b1.T>1?'s':'')+' and no workers ('+f(b1.v,1)+' ms). Workers are more busy threads competing for the same 100 ms per period; on a single CPU they cannot overlap with anything, so they only add throttling and switching.';
   $('sc-b-load').textContent=[...new Map(G.map(c=>[c.rep+'/'+c.q,c])).values()].map(c=>'repeat '+c.rep+', quota '+c.q+': '+f(c.load,2)).join('; ');
-  document.querySelectorAll('#t-budget .drill').forEach(d=>{const bs=[...d.querySelectorAll('.ch button')],ans=d.querySelector('.ans');
-    bs.forEach(b=>b.addEventListener('click',()=>{bs.forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.ok)x.classList.add('right')});if(!b.dataset.ok)b.classList.add('wrong');ans.hidden=false}))});
+  // the drill is wired by 26_js_drill.js with the other Reading drills
   draw();
 })();

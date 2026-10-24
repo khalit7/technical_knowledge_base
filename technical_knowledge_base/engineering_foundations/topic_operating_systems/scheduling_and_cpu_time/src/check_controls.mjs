@@ -11,7 +11,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.goto(file); const wait = ms => new Promise(r => setTimeout(r, ms)); let n = 0;
   const clickAll = async sel => { const els = await p.$$(sel); for (const e of els) { if (await e.evaluate(x => x.offsetParent !== null && !x.disabled)) { await e.evaluate(x => x.click()); n++; await wait(15) } } };
   const sweep = async () => { const t = await p.evaluate(() => document.body.innerText); if (/\bNaN\b|\bundefined\b|Infinity/.test(t)) errs.push('NaN/undefined/Infinity in text'); if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth)) errs.push('sideways scroll') };
-  for (const tab of ['t-read', 't-fair', 't-budget', 't-more']) {
+  for (const tab of ['t-read', 't-fair', 't-more']) {
     await p.click(`button[data-t=${tab}]`); await wait(200);
     await clickAll(`#${tab} .seg button`); await clickAll(`#${tab} .drill .ch button`); await clickAll(`#${tab} details summary`);
     await clickAll(`#${tab} .an-ctl button`); await clickAll(`#${tab} td.v`);

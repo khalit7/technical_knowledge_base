@@ -9,7 +9,7 @@
   function draw(i){const r=runs[mode];i=Math.min(i,r.snaps.length-1);V.draw($('sc-ee-svg'),r,i,{derived:der[mode],horizon:40000});
     $('sc-ee-cap').innerHTML=V.caption(r,i);$('sc-ee-cnt').innerHTML=V.counters(r,i,der[mode])}
   const an=RD.anim({card:'sc-ee-card',ctl:'sc-ee-ctl',n:runs.cfs.snaps.length,draw,ms:900,label:'Scheduling step'});
-  RD.seg($('sc-ee-mode'),m=>{mode=m;an.reset(runs[m].snaps.length);an.play()});
+  RD.seg($('sc-ee-mode'),m=>{mode=m;an.reset(runs[m].snaps.length)});
   RD.onResize(()=>an.redraw());
   const name={cfs:'CFS (5.10)',eevdf:'EEVDF (6.12)',short:'EEVDF, loader slice 0.1 ms'};
   const rows=Object.keys(runs).map(k=>{const r=runs[k],w=r.waits.loader;

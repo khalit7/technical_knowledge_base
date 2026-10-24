@@ -48,7 +48,7 @@
     if(an){an.reset(res[pol].snaps.length)}}
   table();rerun();
   an=RD.anim({card:'sc-f-card',ctl:'sc-f-ctl',n:res.cfs.snaps.length,draw,ms:800,label:'Scheduling step'});
-  RD.seg($('sc-f-pol'),m=>{pol=m;an.reset(res[m].snaps.length);an.play()});
+  RD.seg($('sc-f-pol'),m=>{pol=m;an.reset(res[m].snaps.length)});
   (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-fair']=window.TAB_RENDER['t-fair']||[]).push(()=>an.redraw());
   addEventListener('resize',()=>{const t=$('t-fair');if(t&&!t.hidden)an.redraw()});
 })();

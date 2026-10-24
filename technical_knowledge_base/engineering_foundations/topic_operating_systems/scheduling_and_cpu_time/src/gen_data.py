@@ -82,8 +82,10 @@ for blk in t.split("### host: docker run ")[1:]:
     head = blk.splitlines()[0].strip()
     cm = re.search(r"cpu.max (\d+) (\d+) threads (\d+)", blk)
     th = []
-    for m in re.finditer(r"^thread (\d+) cpu_ms ([\d.]+) gaps (\d+) gap_ms ([\d.]+) max_gap_ms ([\d.]+)\ngaps \d+((?: [\d.]+-[\d.]+)*)", blk, re.M):
-        gaps = [[float(a), float(b)] for a, b in (g.split("-") for g in m.group(6).split())]
+    for m in re.finditer(r"^thread (\d+) cpu_ms ([\d.]+) gaps (\d+) gap_ms ([\d.]+) max_gap_ms ([\d.]+)\ngaps \d+((?: -?[\d.]+--?[\d.]+)*)", blk, re.M):
+        # a gap may start before the 1 s window (negative times, recorded while the threads started): clip it to 0
+        # (before 2026-10-24 the pattern rejected a negative first gap and silently dropped that thread's gaps)
+        gaps = [[max(0.0, float(a)), float(b)] for a, b in re.findall(r"(-?[\d.]+)-(-?[\d.]+)", m.group(6)) if float(b) > 0]
         th.append({"cpu_ms": float(m.group(2)), "gap_ms": float(m.group(4)), "max_gap": float(m.group(5)), "gaps": gaps})
     s0 = dict((k, int(x)) for k, x in re.findall(r"(\w+) (\d+)", blk.split("cpu.stat before:")[1].splitlines()[0]))
     s1 = dict((k, int(x)) for k, x in re.findall(r"(\w+) (\d+)", blk.split("cpu.stat after:")[1].splitlines()[0]))
