@@ -22,3 +22,8 @@ Question the page keeps returning to: what does Kubernetes do with a multi-node 
 
 ## What the methodology lacked
 A rule for reconfiguring a shared cluster's control plane for one experiment: here backups outside the manifests folder, verify-identical on restore, and a note that restarting the API server takes Kueue's fail-closed webhook down with it.
+
+## 2026-10-24 rebuild
+- **Built**: the hero chain of objects (static annotated diagram: structure); the two-network training pod (static, section 5); Deployment against LeaderWorkerSet (static, section 11). All drawn at the measured width with a narrow layout under 600 px.
+- **Moved**: the Scheduling cycle stepper from its tab into section 3's closed block (the core keeps the spread-against-pack before/after, which carries the claim); the Kueue admission stepper from its tab inline into section 8.
+- **Rejected**: an RDMA or LWS run (no RDMA hardware or GPUs on kind; a model server on kind would show pods, not the mechanism); a photo (software subject; the hardware pages own the physical photos); a KServe object-tree animation (the static diagram plus the source lines say it).

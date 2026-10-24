@@ -210,6 +210,4 @@
     pr.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
       pr.querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.a==='1')x.classList.add('right')});
       if(b.dataset.a!=='1')b.classList.add('wrong');ans.hidden=false}))});
-  const r=$('t-read');if(r){const c=r.cloneNode(true);c.querySelectorAll('style,nav,.rd-card,pre').forEach(x=>x.remove());
-    const words=(c.textContent.match(/\S+/g)||[]).length;window.RD_WORDS=words;const e=$('rd-time');if(e)e.textContent=Math.round(words/200)}
 })();

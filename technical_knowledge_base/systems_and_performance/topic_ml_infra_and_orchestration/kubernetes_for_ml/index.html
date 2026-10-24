@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Kubernetes for ML: scheduling, device plugins, gang scheduling and operators</h1>
-<div class="sub">How a training job becomes running pods on Kubernetes, taught from zero and run for real: the control loop (API server, etcd, controllers, scheduler, kubelet), Jobs and their failure policies, the scheduler's filter and score cycle, GPUs as extended resources, device plugins and DRA, placement and preemption, gang scheduling (Kueue, JobSet, Volcano, KAI, and the new native PodGroup), Kueue and JobSet in depth, operators (Kubeflow Trainer v2), and volumes. Every manifest ran on a kind cluster (Kubernetes v1.37.0) with the topic's running example. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a>. Data as of October 2026.</div>
+<div class="sub">How a multi-node GPU job becomes running pods, and which add-on closes each gap: the control loop, Jobs and failure policies, the scheduler, device plugins, the GPU Operator and DRA, RDMA networking, placement and preemption, gang scheduling, Kueue, JobSet, operators (Kubeflow Trainer v2, KubeRay) and serving (LeaderWorkerSet, KServe, the vLLM production stack). Every training manifest ran on a kind cluster (Kubernetes v1.37.0) with the topic's running example. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a>. Data as of October 2026. Reading: 32 min, plus 19 in closed details.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-kmcyc" aria-selected="false">Scheduling cycle</button><button role="tab" data-t="t-kmq" aria-selected="false">Kueue admission</button><button role="tab" data-t="t-kmb" aria-selected="false">Manifest builder</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-kmb" aria-selected="false">Manifest builder</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -182,15 +182,42 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-read .km-map>div{border:1px solid var(--line);border-left:4px solid var(--kc,var(--acc));border-radius:7px;padding:6px 9px;font-size:12.5px;min-width:0}
 #t-read .km-map>div b{display:block;font-size:13.5px}
 </style>
-<p class="lead">Kubernetes was built to keep web services running, one replica at a time. A training job is a different animal: it needs all of its machines at once, it needs GPUs that Kubernetes does not natively understand, and a single lost process stops the whole run. This page shows, on a real cluster, what Kubernetes does with such a job by default, where that goes wrong, and which pieces (device plugins, DRA, Kueue, JobSet, PodGroups, operators) fill each gap.</p>
-<p class="small mute">Reading time about <span id="rd-time">41</span> minutes. Labels: <span class="meas">measured here</span> ran on this topic's kind cluster (Apple M1 Pro, Docker Desktop VM, shared machine; timings rough, orders and messages exact); <span class="pub">docs</span> or <span class="pub">source</span> read from the project's documentation or code at the pinned version; <span class="vend">vendor</span> a company describing its product; <span class="der">derived</span> computed here from those. Source is quoted at Kubernetes v1.37.0, Kueue v0.20.2, JobSet v0.13.0 and Kubeflow Trainer v2.3.0, with file and line. The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Scheduling lab</a> already shows the gang deadlock, Kueue admission and quota borrowing on the same cluster; this page goes underneath them.</p>
+<style>
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px;min-width:0}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;min-width:0}
+#t-read .hero h4{margin:0 0 4px;font-size:14.5px}
+</style>
+<p class="small mute">Labels: <span class="meas">measured here</span> ran on this topic's kind cluster (Apple M1 Pro, Docker Desktop VM, shared machine, 16 Oct 2026; timings rough, orders and messages exact); <span class="pub">docs</span> or <span class="pub">source</span> read from the project's documentation or code at the pinned version (Kubernetes v1.37.0, Kueue v0.20.2, JobSet v0.13.0, Kubeflow Trainer v2.3.0, LeaderWorkerSet v1.0.0, KServe v0.21.0); <span class="vend">vendor</span> a company describing its product; <span class="der">derived</span> computed here from those.</p>
 <nav class="nav" id="rd-nav">
-<a href="#rd-s0">0 One screen</a><a href="#rd-s1">1 Control loop</a><a href="#rd-s2">2 Jobs</a><a href="#rd-s3">3 Scheduler</a><a href="#rd-s4">4 GPUs</a><a href="#rd-s5">5 Placement</a><a href="#rd-s6">6 Gangs</a><a href="#rd-s7">7 Kueue</a><a href="#rd-s8">8 JobSet</a><a href="#rd-s9">9 Operators</a><a href="#rd-s10">10 Storage</a><a href="#rd-mis">Mistakes</a><a href="#rd-iq">Interview</a>
+<a href="#rd-s0">The idea</a><a href="#rd-s1">1 Control loop</a><a href="#rd-s2">2 Jobs</a><a href="#rd-s3">3 Scheduler</a><a href="#rd-s4">4 GPUs</a><a href="#rd-s5">5 RDMA</a><a href="#rd-s6">6 Placement</a><a href="#rd-s7">7 Gangs</a><a href="#rd-s8">8 Kueue</a><a href="#rd-s9">9 JobSet</a><a href="#rd-s10">10 Operators</a><a href="#rd-s11">11 Serving</a><a href="#rd-s12">12 Storage</a><a href="#rd-deep">Depth</a>
 </nav>
 
 <section id="rd-s0">
-<h2>0. In one screen</h2>
-<p>The running example of this topic is a tiny GPT trained with DDP over 4 processes on 2 machines (the root's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">running example</a>: 112,577 parameters, 200 steps, global loss 2.2638769149780273 at step 200 on every system). On Kubernetes each machine's share becomes a <dfn>pod</dfn> (one or more containers that are always placed together on one node), and the job becomes a stack of objects, each made by a different program. Here is what each layer adds, and what was measured for it on this page.</p>
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">Kubernetes places <b>one pod at a time</b>, ranks nodes by <b>CPU and memory</b> and treats every pod failure on its own, so a multi-node GPU training job needs add-ons that <span class="hl">count and attach GPUs</span> (device plugins, DRA), <span class="hl">admit the whole job at once</span> (Kueue, PodGroups) and <span class="hl">restart it as one unit</span> (JobSet, operators, LeaderWorkerSet for serving).</p>
+<div class="hero" id="km-hero-card"><h4>One training job is a chain of objects; each controller watches one and writes the next</h4>
+<div class="rd-svg" id="km-hero-svg"></div>
+<p class="small">Read top to bottom: you write only the top object. Every box is an object stored by the API server (in etcd); every arrow is a different program that watches the box above and writes the box below; nobody calls anybody. <span class="hl">Highlighted</span>: the gap each add-on closes, with the section that shows it. Measured on this page's kind cluster with the topic's running example: a TrainJob became a JobSet, two Indexed pods and the same loss, 2.2638769149780273 at step 200.</p></div>
+<p><b>You need:</b> the topic's running example and its Scheduling lab (the root, <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a>: a tiny GPT trained with DDP over 4 processes on 2 machines, 112,577 parameters, 200 steps); how torchrun finds its peers (<a href="https://app.notion.com/p/3fc5c17b0d0d81b3a8a5c58224bff9fa" target="_blank" rel="noopener noreferrer">Launching distributed training</a>); what a container is (<a href="https://app.notion.com/p/3f05c17b0d0d8156a841e4bf28f11293" target="_blank" rel="noopener noreferrer">Containers and isolation</a>). Slurm does the same job with one controller (<a href="https://app.notion.com/p/3c65c17b0d0d81889c32cd050bbbadd3" target="_blank" rel="noopener noreferrer">Slurm from zero</a>); Ray's own scheduling is on <a href="https://app.notion.com/p/3fc5c17b0d0d811cba13f3aeccf8724b" target="_blank" rel="noopener noreferrer">Ray</a>; how a serving engine batches and routes is on the <a href="https://app.notion.com/p/3f35c17b0d0d818aa406da1f7a784c62" target="_blank" rel="noopener noreferrer">LLM serving in production</a> page.</p>
+<dl class="terms">
+<dt>Pod</dt><dd>one or more containers always placed together on one node; the unit Kubernetes schedules.</dd>
+<dt>Controller</dt><dd>a loop that watches some objects and writes others until the actual state matches the spec (reconciling).</dd>
+<dt>Extended resource</dt><dd>a counted resource with a domain name (<code>nvidia.com/gpu</code>); filtered on, never ranked by default.</dd>
+<dt>Device plugin, DRA</dt><dd>the two ways a node tells Kubernetes about devices: a count per node, or described devices the scheduler allocates.</dd>
+<dt>Gang</dt><dd>a set of pods that must start together; gang scheduling binds all or none.</dd>
+<dt>Workload (Kueue)</dt><dd>Kueue's record of one job; admitting it reserves quota for every pod at once.</dd>
+<dt>JobSet, operator</dt><dd>a group of Jobs with one lifecycle; a custom object plus a controller that writes the lower objects for you.</dd>
+<dt>LeaderWorkerSet</dt><dd>a serving replica made of a leader pod and N-1 workers, created, restarted and rolled as one.</dd>
+</dl>
+<details class="dp"><summary>The layers in one table: what each adds, what it does not do, what was measured <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table class="rd-cmp">
 <thead><tr><th>Layer</th><th>What it adds for a training job</th><th>What it does not do</th><th>Measured here</th></tr></thead>
 <tbody>
@@ -201,14 +228,14 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td data-h="Layer">PodGroup (native, beta, off)</td><td data-h="Adds">Gang scheduling inside the default scheduler</td><td data-h="Does not">Quota or queues</td><td data-h="Measured">the root's deadlock input ran job by job, no deadlock</td></tr>
 <tr><td data-h="Layer">Operator (Trainer v2 TrainJob)</td><td data-h="Adds">Framework knowledge: builds the JobSet, sets torchrun's variables</td><td data-h="Does not">Anything the layers below cannot</td><td data-h="Measured">the TrainJob built a JobSet with PET_* variables; same loss</td></tr>
 </tbody></table></div>
+</div></details>
 <div class="co key"><div class="t">Three surprises this page measures</div>
-<p>(1) The default scheduler does not look at GPUs when it ranks nodes: it ranks by CPU and memory only, so it scatters small GPU jobs and can leave no node with 4 free GPUs (section 3). (2) A rank that exits with code 13 makes its pod exit with code 1, because torchrun is the container's main process, so a Job failure rule on code 13 never fires (section 2). (3) Kubernetes v1.37 ships native gang scheduling, but behind a feature gate that is off by default (section 6).</p></div>
+<p>(1) The default scheduler does not look at GPUs when it ranks nodes: it ranks by CPU and memory only, so it scatters small GPU jobs and can leave no node with 4 free GPUs (section 3). (2) A rank that exits with code 13 makes its pod exit with code 1, because torchrun is the container's main process, so a Job failure rule on code 13 never fires (section 2). (3) Kubernetes v1.37 ships native gang scheduling, but behind a feature gate that is off by default (section 7).</p></div>
 </section>
 
 <section id="rd-s1">
 <h2>1. The control loop: who does what</h2>
-<p><b>The problem.</b> A cluster has many machines and many programs that must agree on what should run where, while machines fail and people submit work. Kubernetes' answer is one shared database of desired and actual state, and many small programs that each watch part of it and act.</p>
-<p><b>How it works.</b> Everything is an <dfn>object</dfn> (a record such as a Job or a Pod) with a <dfn>spec</dfn> (what you want) and a <dfn>status</dfn> (what is true now). Objects live in <dfn>etcd</dfn>, a replicated key-value store, and only one program talks to etcd: the <dfn>API server</dfn>, which validates every write, runs <dfn>admission webhooks</dfn> (external programs that may change or refuse an object), stores it, and streams changes to anyone <dfn>watching</dfn>. A <dfn>controller</dfn> is a loop that watches some kinds of object and writes others so that actual state moves toward the spec; this is called <dfn>reconciling</dfn>. The <dfn>job controller</dfn> (inside kube-controller-manager) creates pods for Jobs; the <dfn>scheduler</dfn> watches pods with no node and writes a node name into each; the <dfn>kubelet</dfn>, an agent on every node, watches pods bound to its node, starts their containers through the container runtime and writes their status back. Nobody calls anybody: each program reads and writes objects. Every write bumps the object's <dfn>resourceVersion</dfn>, and every write is attributed to a <dfn>field manager</dfn> (kubectl, kube-controller-manager, kubelet), which is how the animation below knows who did what.</p>
+<p>Everything is an <dfn>object</dfn> with a <dfn>spec</dfn> (what you want) and a <dfn>status</dfn> (what is true now), stored in <dfn>etcd</dfn>. Only the <dfn>API server</dfn> talks to etcd: it validates each write, runs <dfn>admission webhooks</dfn> (external programs that may change or refuse an object), stores it and streams the change to everyone <dfn>watching</dfn>. The <dfn>job controller</dfn> (in kube-controller-manager) writes pods for Jobs; the <dfn>scheduler</dfn> writes a node name into each pod that has none; the <dfn>kubelet</dfn> on each node starts the pods bound to it and writes their status. Step through one job below, then switch layers: each layer you add is one more controller in the chain.</p>
 <div class="rd-card" id="km-life-card">
 <h4>The same training job at three levels, from the API server's point of view <span class="meas">measured</span></h4>
 <div class="seg" id="km-life-mode"><button data-m="job" class="on">Indexed Job by hand</button><button data-m="jobset">JobSet</button><button data-m="trainjob">Kubeflow TrainJob</button></div>
@@ -217,19 +244,19 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div class="an-cap" id="km-life-cap"></div>
 <div class="an-cnt" id="km-life-cnt"></div>
 <div class="km-objs" id="km-life-objs"></div>
-<p class="small mute">Every step is one change the watcher (<code>src/scripts/km_watch.py</code>, a Python client watching the namespace) received, with its arrival time after the first object was created. The three runs are the running example (2 pods x 2 ranks, 200 steps) submitted as an Indexed Job plus a headless Service, as a JobSet, and as a Kubeflow Trainer TrainJob, on 16 Oct 2026. The TrainJob's own creation is not in the stream (the watcher did not watch TrainJobs); its first step is the Trainer controller writing the JobSet.</p>
+<p class="small mute">Every step is one change the watcher (<code>src/scripts/km_watch.py</code>) received, timed from the first object's creation. The running example (2 pods x 2 ranks, 200 steps) submitted as an Indexed Job plus a headless Service, as a JobSet, and as a Kubeflow Trainer TrainJob, 16 Oct 2026. The TrainJob's own creation is not in the stream (the watcher did not watch TrainJobs); its first step is the Trainer controller writing the JobSet.</p>
 </div>
-<p><b>What the run shows.</b> From <code>kubectl create</code> to both pods bound took 44 ms: the job controller created pod 0 after 21 ms, the scheduler bound it 13 ms later. The containers started at 0.61 s because the image was already on the nodes (a real CUDA training image, 3 GB compressed or more, is pulled first, which can take minutes and is a common reason a GPU pod sits in ContainerCreating; section 10). Training took 15 s, and the Job was marked Complete at 17.6 s. Each layer you add puts one more controller in the chain: the JobSet controller writes the Job, the Trainer controller writes the JobSet. None of them talks to the others; they only read and write objects.</p>
-<div class="pr"><div class="q">Predict. Which program writes the pod's <code>spec.nodeName</code>, the field that says where it runs?</div>
-<div class="opts"><button data-a="0">The kubelet of the chosen node</button><button data-a="1">The scheduler, through the pod's binding subresource</button><button data-a="0">The job controller, when it creates the pod</button></div>
-<div class="ans" hidden>The scheduler. It posts a Binding to the API server (<code>pods/binding</code>), which sets <code>spec.nodeName</code>; the kubelet only reacts to it. In the recorded run the pod's field managers are only <code>kube-controller-manager</code> (it created the pod) and <code>kubelet</code> (status): the binding write is not recorded as a field manager. A pod created with <code>nodeName</code> already set skips the scheduler entirely, which is how DaemonSets and static pods used to work and why a hand-set nodeName ignores taints and quotas.</div></div>
+<p><b>What the run shows.</b> From <code>kubectl create</code> to both pods bound took 44 ms: the job controller created pod 0 after 21 ms, the scheduler bound it 13 ms later. The containers started at 0.61 s because the image was already on the nodes (a real CUDA image of 3 GB or more is pulled first, often for minutes: section 12). Training took 15 s and the Job was marked Complete at 17.6 s. The scheduler, not the kubelet, sets <code>spec.nodeName</code>, by posting a Binding; a pod created with <code>nodeName</code> already set skips the scheduler, and with it taints and quotas.</p>
+<details class="dp"><summary>Field managers, scale limits and how to check <span class="mute">(depth)</span></summary><div class="b">
+<p>Every write bumps the object's <dfn>resourceVersion</dfn> and is attributed to a <dfn>field manager</dfn> (kubectl, kube-controller-manager, kubelet), which is how the animation knows who did what. In the recorded run the pod's field managers are only <code>kube-controller-manager</code> (it created the pod) and <code>kubelet</code> (status): the binding write is not recorded as a field manager. A hand-set nodeName is how DaemonSets and static pods used to work.</p>
 <p><b>The cost.</b> Every object and every watch costs API server memory. On this cluster the control plane runs in 1.6 GB, and in the parent's Scheduling lab the API server restarted once at 1.27 GB under load. Installing Kubeflow Trainer's three custom resource definitions (2.4 MB of YAML, mostly embedded JobSet and pod schemas) raised the control plane's memory from 1.04 to 1.25 GiB <span class="meas">measured</span>. Kubernetes v1.37 is designed for at most 5,000 nodes, 110 pods per node, 150,000 pods and 300,000 containers (<a href="https://kubernetes.io/docs/setup/best-practices/cluster-large/" target="_blank" rel="noopener noreferrer">Considerations for large clusters</a> <span class="pub">docs</span>, read 2026-10-16); training clusters hit the node and watch limits long before the pod limit, since they run about one pod per node.</p>
-<p><b>How to check it.</b> <code>kubectl get events -n NS --sort-by=.metadata.creationTimestamp</code> shows who did what; <code>kubectl get pod P -o yaml --show-managed-fields</code> shows the field managers; <code>kubectl get --raw /metrics</code> on the API server and the controllers' logs show the rest.</p>
+<p><b>How to check.</b> <code>kubectl get events -n NS --sort-by=.metadata.creationTimestamp</code> shows who did what; <code>kubectl get pod P -o yaml --show-managed-fields</code> shows the field managers; <code>kubectl get --raw /metrics</code> on the API server and the controllers' logs show the rest.</p>
+</div></details>
 </section>
 <section id="rd-s2">
-<h2>2. Pods and Jobs: running a training job with no add-ons</h2>
-<p><b>The problem.</b> A bare pod runs once on one node; if the node dies the pod is gone. A training job needs several pods that know their rank, can find each other by name, and are retried in a controlled way when they fail.</p>
-<p><b>How it works.</b> A <dfn>Job</dfn> (batch/v1) creates pods until enough have succeeded. <code>completions</code> is how many must succeed, <code>parallelism</code> how many run at once. With <code>completionMode: Indexed</code> each pod gets an index 0..N-1 in the environment variable <code>JOB_COMPLETION_INDEX</code> and in a label, and the pod's hostname becomes <code>&lt;job&gt;-&lt;index&gt;</code>. A <dfn>headless Service</dfn> (a Service with <code>clusterIP: None</code>, which only publishes DNS records) whose name matches the pods' <code>subdomain</code> gives each pod a DNS name <code>&lt;job&gt;-&lt;index&gt;.&lt;service&gt;</code>. That is all torchrun needs: node rank from the index, rendezvous address from pod 0's name. This is the running example as a plain Indexed Job, exactly as it ran (the crash knobs at the end are the failure runs below):</p>
+<h2>2. Pods and Jobs: a training job with no add-ons</h2>
+<p>A <dfn>Job</dfn> (batch/v1) creates pods until enough have succeeded (<code>completions</code> of them, <code>parallelism</code> at a time). With <code>completionMode: Indexed</code> each pod gets an index 0..N-1 in <code>JOB_COMPLETION_INDEX</code> and the hostname <code>&lt;job&gt;-&lt;index&gt;</code>; a <dfn>headless Service</dfn> (<code>clusterIP: None</code>, DNS records only) whose name matches the pods' <code>subdomain</code> makes each resolvable as <code>&lt;job&gt;-&lt;index&gt;.&lt;service&gt;</code>. That is all torchrun needs: node rank from the index, rendezvous address from pod 0's name. The running example ran this way unchanged.</p>
+<details class="dp"><summary>The manifest that ran <span class="mute">(the Indexed Job plus its Service, with the crash knobs of the runs below)</span></summary><div class="b">
 <pre class="rd-code">apiVersion: v1
 kind: Service
 metadata: {name: km-e2c, namespace: km}
@@ -273,13 +300,12 @@ spec:
       - name: shared
         hostPath: {path: /shared, type: Directory}</pre>
 <p class="rd-codecap"><code>src/k8s/train-indexed-job.sh km-e2c exit13ok ...</code>; the same generator with policy <code>none</code> and no crash flags is the run in section 1. <code>example.com/gpu</code> is this cluster's fake GPU (section 4).</p>
-<h3>The failure knobs, and what each did on the same crash</h3>
-<p>When a pod fails, the job controller decides between retrying, failing the Job and ignoring the failure:</p>
+</div></details>
+<p><b>When a pod fails</b>, the job controller retries, fails the Job or ignores the failure, by these knobs:</p>
 <ul class="tight">
-<li><dfn>backoffLimit</dfn>: how many failed pods the Job tolerates (default 6: <code>staging/src/k8s.io/api/batch/v1/types.go</code> line 353 <span class="pub">source</span>). Retries wait 10 s, doubling per failure since the last success, capped at 10 minutes (<code>pkg/controller/job/job_controller.go</code> lines 76-79, <code>backoff_utils.go</code> lines 255-276 at v1.37.0 <span class="pub">source</span>).</li>
-<li><dfn>podFailurePolicy</dfn>: rules matched in order against a failed pod's container exit codes or pod conditions, with actions <code>FailJob</code> (stop now), <code>Ignore</code> (do not count it), <code>Count</code> (the default) and <code>FailIndex</code>. It cannot be used with <code>restartPolicy: OnFailure</code> (same file, line 338), because then the kubelet restarts the container in place and the Job never sees a failed pod.</li>
-<li><dfn>backoffLimitPerIndex</dfn> and <code>maxFailedIndexes</code>: a retry budget per index, for jobs whose indexes are independent shards.</li>
-<li><dfn>successPolicy</dfn>: declare success early, for example when the leader index succeeds.</li>
+<li><dfn>backoffLimit</dfn>: how many failed <i>pods</i> the Job tolerates (default 6); retries wait 10 s, doubling per failure, capped at 10 minutes.</li>
+<li><dfn>podFailurePolicy</dfn>: rules matched in order on a failed pod's exit codes or conditions, with actions <code>FailJob</code>, <code>Ignore</code>, <code>Count</code> (the default) and <code>FailIndex</code>. Not allowed with <code>restartPolicy: OnFailure</code>, where the kubelet restarts the container in place and the Job never sees a failed pod.</li>
+<li><dfn>backoffLimitPerIndex</dfn> (with <code>maxFailedIndexes</code>) and <dfn>successPolicy</dfn>: a budget per index for independent shards; success declared early, for example when the leader index succeeds.</li>
 </ul>
 <div class="rd-card" id="km-fail-card">
 <h4>Nine failure runs (seven of the running example, two of small shard jobs), pod by pod <span class="meas">measured</span></h4>
@@ -290,12 +316,15 @@ spec:
 <div class="an-cap" id="km-fail-cap"></div>
 <p class="small mute">One row per pod attempt, index on the left, time in seconds after the first object was created. Crash runs: rank 1 exits with code 13 after step 20 on every attempt (no checkpoint before step 50, so retries crash again). Eviction runs: pod index 1 is evicted through the Eviction API (what <code>kubectl drain</code> and the scheduler's preemption use) about 16 s in, after the step-50 checkpoint. Raw watch streams in <code>src/runs/e2*.watch.jsonl</code>, <code>e3b</code>, <code>e3c</code>, <code>e4a</code>, <code>e4b</code>.</p>
 </div>
-<p><b>What happened.</b></p>
 <div class="km-pair">
 <div><b>Exit code 13 never reaches Kubernetes</b>The rank exited 13, torchrun printed <code>exitcode : 13 (pid: 13)</code> as the root cause, and then torchrun itself, the container's main process, exited 1. A rule <code>onExitCodes: In [13]</code> (run e2b) therefore never matched: the Job retried after 19.1 s and failed with <code>BackoffLimitExceeded</code> at 34 s, exactly like no rule at all (e2a, 34 s). The rule on code 1 (e2c) failed the Job at 11.6 s with reason <code>PodFailurePolicy</code> and message "Container trainer for pod km/km-e2c-0-pj2zt failed with exit code 1 matching FailJob rule at index 0".</div>
 <div><b>Eviction: one failure becomes two</b>With <code>Ignore</code> on the <code>DisruptionTarget</code> condition (e2d2), the evicted pod was not counted (<code>status.failed</code> 1, not 2), but the other pod's ranks lost their peer, its torchrun exited 1, and that failure counted: <code>BackoffLimitExceeded</code> with backoffLimit 0, the same outcome as with no rule (e2d1). A pod-level rule cannot say "the gang failed because one member was disrupted".</div>
 </div>
-<p>The fix for the second case lives one layer up: a JobSet (section 8) whose Job fails fast on <code>DisruptionTarget</code> and whose failure policy restarts all pods without spending the restart budget (e3b). The run restarted once, resumed from its step-50 checkpoint and completed; the same JobSet with a real crash (e3c) failed at 8.8 s with <code>ReachedMaxRestarts</code>. That is the policy a preemptible training job wants: evictions and preemptions are free, bugs are not.</p>
+<p>The fix for the second case lives one layer up: a JobSet (section 9) whose Job fails fast on <code>DisruptionTarget</code> and whose failure policy restarts all pods without spending the restart budget (e3b). The run restarted once, resumed from its step-50 checkpoint and completed; the same JobSet with a real crash (e3c) failed at 8.8 s with <code>ReachedMaxRestarts</code>. That is the policy a preemptible training job wants: <span class="hl">evictions are free, bugs are not</span>.</p>
+<div class="pr"><div class="q">Predict. In run e2a (backoffLimit 2, two pods per attempt, deterministic crash), how many attempts did the Job make before failing?</div>
+<div class="opts"><button data-a="0">Three: backoffLimit 2 means two retries</button><button data-a="1">Two: each attempt adds two failed pods, and 4 &gt; 2</button><button data-a="0">Seven: the default is 6</button></div>
+<div class="ans" hidden>Two. backoffLimit counts failed <i>pods</i>, not attempts. The first attempt produced two failed pods (the crashing pod and its peer), within the limit; the second made four, over it. For a multi-pod training job, set backoffLimit with the pod count in mind, or move restart decisions to JobSet, which counts restarts of the whole group.</div></div>
+<details class="dp"><summary>Exit code 1 as a rule, the resumed run's loss, the shard runs, sources <span class="mute">(depth)</span></summary><div class="b">
 <div class="co warn"><div class="t">Choosing a rule on exit code 1 is a trade-off</div><p>Code 1 is what torchrun returns for any failed worker in these runs, including ones you want retried (a lost peer, a NCCL timeout). A rule <code>FailJob on 1</code> stops wasting GPUs on a deterministic bug but also gives up on transient failures. Alternatives: have the training script write the root cause somewhere a wrapper can read and exit with its own code (torchrun records it in the file named by <code>TORCHELASTIC_ERROR_FILE</code> when the script's entry point is decorated with <code>@record</code>: <a href="https://pytorch.org/docs/stable/elastic/errors.html" target="_blank" rel="noopener noreferrer">PyTorch elastic errors</a> <span class="pub">docs</span>, the page the log itself points to); or launch one process per pod without torchrun, so the script's exit code is the container's.</p></div>
 <p><b>Did the resumed run train the same model?</b> Almost: after resuming from step 50 with 4 ranks, the global loss matched the uninterrupted run at most logged steps and differed by <span id="km-res-diff">2.4e-7</span> (one float32 rounding step) at steps <span id="km-res-steps">70, 180 and 200</span>. This is the DDP gradient-bucket rebuild effect the root's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Failure lab</a> identified (there after a resume at step 100); the steps that differ depend on where the run resumed.</p>
 <p><b>Two smaller lessons from the shard runs.</b> With <code>backoffLimitPerIndex: 1</code>, the broken shard (index 2) was retried after 9.7 s and the Job failed with <code>FailedIndexes</code> while indexes 0, 1 and 3 completed (e4a). With <code>successPolicy</code> on index 0 (e4b), the Job reached <code>SuccessCriteriaMet</code> at 8.1 s but <code>Complete</code> only at 39.3 s: the two workers ran <code>sleep</code> as their main process, which ignores SIGTERM, so they were killed after the default 30 s grace period (exit 137). A training container whose main process ignores SIGTERM also loses the chance to write a last checkpoint on preemption.</p>
@@ -303,305 +332,58 @@ spec:
 <div class="pr"><div class="q">Predict. In run e2a (backoffLimit 2, two pods per attempt, deterministic crash), how many attempts did the Job make before failing?</div>
 <div class="opts"><button data-a="0">Three: backoffLimit 2 means two retries</button><button data-a="1">Two: each attempt adds two failed pods, and 4 &gt; 2</button><button data-a="0">Seven: the default is 6</button></div>
 <div class="ans" hidden>Two. backoffLimit counts failed <i>pods</i>, not attempts. The first attempt produced two failed pods (the crashing pod and its peer), within the limit; the second made four, over it. For a multi-pod training job, set backoffLimit with the pod count in mind, or move restart decisions to JobSet, which counts restarts of the whole group.</div></div>
+<p><b>Did the resumed run train the same model?</b> Almost: after resuming from step 50 with 4 ranks, the global loss matched the uninterrupted run at most logged steps and differed by <span id="km-res-diff">2.4e-7</span> (one float32 rounding step) at steps <span id="km-res-steps">70, 180 and 200</span>. This is the DDP gradient-bucket rebuild effect the root's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Failure lab</a> identified (there after a resume at step 100); the steps that differ depend on where the run resumed.</p>
+<p><b>The shard runs.</b> With <code>backoffLimitPerIndex: 1</code>, the broken shard (index 2) was retried after 9.7 s and the Job failed with <code>FailedIndexes</code> while indexes 0, 1 and 3 completed (e4a). With <code>successPolicy</code> on index 0 (e4b), the Job reached <code>SuccessCriteriaMet</code> at 8.1 s but <code>Complete</code> only at 39.3 s: the two workers ran <code>sleep</code> as their main process, which ignores SIGTERM, so they were killed after the default 30 s grace period (exit 137). A training container whose main process ignores SIGTERM also loses the chance to write a last checkpoint on preemption.</p>
+<p>Since v1.33 a Job adds the condition <code>SuccessCriteriaMet</code> before <code>Complete</code>, and <code>FailureTarget</code> before <code>Failed</code> (both visible in every run above): the terminal condition is written only after all pods have terminated. Watch for <code>Complete</code> or <code>Failed</code>, not for the first.</p>
+<p class="small mute">Sources at v1.37.0: backoffLimit default 6 in <code>staging/src/k8s.io/api/batch/v1/types.go</code> line 353, the OnFailure restriction at line 338; the backoff in <code>pkg/controller/job/job_controller.go</code> lines 76-79 and <code>backoff_utils.go</code> lines 255-276 <span class="pub">source</span>.</p>
+</div></details>
 </section>
 <section id="rd-s3">
 <h2>3. The scheduler: filter, score, bind</h2>
-<p><b>The problem.</b> A pod with no node must be put on one that can run it, and among those, on a good one. "Good" for a web service means spread out; for training it usually means packed together, so that whole nodes stay free for the next big job.</p>
-<p><b>How it works.</b> kube-scheduler keeps a <dfn>scheduling queue</dfn> of unbound pods (sorted by priority, then age) and takes one pod per <dfn>scheduling cycle</dfn>. Each step of the cycle is an <dfn>extension point</dfn> where <dfn>plugins</dfn> (Go code compiled into the scheduler, configured per <dfn>profile</dfn>) run:</p>
-<ol class="tight">
-<li><b>PreEnqueue</b>: may keep a pod out of the queue entirely (scheduling gates, and in v1.37 the gang plugin).</li>
-<li><b>PreFilter, Filter</b>: every plugin can reject a node: not enough free GPUs (NodeResourcesFit), an untolerated taint (TaintToleration), a label mismatch (NodeAffinity), a volume on another node (VolumeBinding), a spread rule (PodTopologySpread). A node is <dfn>feasible</dfn> only if every Filter passes.</li>
-<li><b>PostFilter</b>: runs only if no node is feasible; the default is preemption (section 5).</li>
-<li><b>PreScore, Score, NormalizeScore</b>: each scoring plugin gives each feasible node 0 to 100; the scores are multiplied by the plugin's <dfn>weight</dfn> and summed.</li>
-<li><b>Reserve, Permit</b>: the chosen node's resources are reserved in the scheduler's cache; Permit can hold the pod (the gang plugin does).</li>
-<li><b>PreBind, Bind</b>: in a separate <dfn>binding cycle</dfn>, volumes are bound and the Binding is written, so the next pod's cycle does not wait for the API call.</li>
-</ol>
-<p>The default plugins and weights are in <code>pkg/scheduler/apis/config/v1/default_plugins.go</code> lines 32-57 at v1.37.0 <span class="pub">source</span>: TaintToleration 3, NodeAffinity 2, PodTopologySpread 2, InterPodAffinity 2, NodeResourcesFit 1, NodeResourcesBalancedAllocation 1, ImageLocality 1. The cycle itself is <code>schedulingCycle</code> and <code>schedulePod</code> in <code>pkg/scheduler/schedule_one.go</code> (lines 169 and 572); the highest total wins, ties are broken by a random number drawn per node (<code>framework/sorted_nodes.go</code> lines 61-64). On clusters of 100 nodes or more the scheduler stops looking after enough feasible nodes (<code>numFeasibleNodesToFind</code>, lines 866-892: 50% minus 1% per 125 nodes, at least 5%, at least 100 nodes), so on a 5,000-node cluster a pod is scored against 500 of them, not the best of all.</p>
-<pre class="rd-code">57  minFeasibleNodesToFind = 100
-...
-879 	if percentage == 0 {
-880 		percentage = int32(50) - numAllNodes/125
-881 		if percentage &lt; minFeasibleNodesPercentageToFind {
-882 			percentage = minFeasibleNodesPercentageToFind
-883 		}
-884 	}</pre>
-<p class="rd-codecap"><code>pkg/scheduler/schedule_one.go</code>, kubernetes v1.37.0.</p>
-<h3>The default scheduler does not see GPUs when it ranks nodes</h3>
-<p>NodeResourcesFit's default scoring strategy, <dfn>LeastAllocated</dfn>, prefers the node with the most free capacity, but it counts only the resources its strategy lists, and the default list is CPU and memory, weight 1 each (<code>apis/config/v1/defaults.go</code> lines 33-35). An extended resource such as a GPU is used to <i>filter</i> (a node with too few free GPUs is rejected) but never to <i>rank</i> unless you list it (<code>noderesources/resource_allocation.go</code> lines 176-182). The alternative strategy, <dfn>MostAllocated</dfn>, prefers the fullest node: bin packing.</p>
+<p>kube-scheduler takes one unbound pod per <dfn>scheduling cycle</dfn> (from a queue sorted by priority, then age). <dfn>Filter</dfn> plugins reject nodes that cannot run it (too few free GPUs, an untolerated taint, a label or volume mismatch); <dfn>Score</dfn> plugins give each remaining node 0 to 100, multiplied by the plugin's <dfn>weight</dfn> and summed; the highest total wins (ties broken at random) and a separate <dfn>binding cycle</dfn> writes the Binding. For a web service "good" means spread out; for training it usually means packed, so whole nodes stay free for the next big job.</p>
+<p><b>The trap.</b> NodeResourcesFit's default scoring strategy, <dfn>LeastAllocated</dfn>, prefers the emptiest node but counts only the resources it lists, and the default list is CPU and memory. A GPU is used to <i>filter</i> but never to <i>rank</i> unless you list it. The alternative, <dfn>MostAllocated</dfn>, prefers the fullest node: bin packing.</p>
 <div class="rd-card" id="km-pack-card">
 <h4>The same six pods, default profile against a bin-packing profile <span class="meas">measured</span></h4>
 <div class="seg" id="km-pack-mode"><button data-m="e6spread" class="on">Default (LeastAllocated, cpu and memory)</button><button data-m="e6pack">MostAllocated, GPUs counted (weight 5)</button></div>
 <div class="km-svg" id="km-pack-svg"></div>
 <div class="an-ctl" id="km-pack-ctl"></div>
 <div class="an-cap" id="km-pack-cap"></div>
-<p class="small mute">Pods asking for 2, 1, 1, 2 and 2 fake GPUs, then one asking for 4, created one after another on 3 workers of 4 GPUs each. Both profiles ran in one kube-scheduler (two profiles, chosen per pod with <code>spec.schedulerName</code>; config in <code>src/k8s/km-sched-config.yaml</code>), with per-plugin scores logged by <code>--vmodule=schedule_one=10</code>. <code>src/recompute.py</code> recomputes every logged score from the node states with the ported formulas: <span id="km-pack-match">135 of 135</span> match. The step-by-step cycle, every plugin and every node, is in the <a href="#" data-tab="t-kmcyc">Scheduling cycle</a> tab.</p>
+<p class="small mute">Pods asking for 2, 1, 1, 2 and 2 fake GPUs, then one asking for 4, created one after another on 3 workers of 4 GPUs each. Both profiles ran in one kube-scheduler (two profiles, chosen per pod with <code>spec.schedulerName</code>; config in <code>src/k8s/km-sched-config.yaml</code>), with per-plugin scores logged by <code>--vmodule=schedule_one=10</code>. <code>src/recompute.py</code> recomputes every logged score from the node states with the ported formulas: <span id="km-pack-match">135 of 135</span> match. The step-by-step cycle, every plugin and every node, is in the closed block below.</p>
 </div>
-<p><b>What happened.</b> Under the default profile the GPUs did not enter the score at all: every node scored 94 or 95 for NodeResourcesFit (a 100m pod on a 5-CPU node moves the score by one point), so pods went wherever CPU and memory were a hair freer, and to a random node among equals. After five pods every worker held some GPUs (4, 3 and 1 used) and the 4-GPU pod stayed Pending: <code>0/4 nodes are available: 1 node(s) had untolerated taint(s), 3 Insufficient example.com/gpu</code>, with 4 GPUs free in total. Under MostAllocated with GPUs weighted 5, pods 2 and 3 joined pod 1 on one worker (scores 55 and 73 against 19), pods 4 and 5 shared the second, and the 4-GPU pod got the empty third.</p>
-<div class="co"><div class="t">When it matters, and the cost</div><p>On a cluster that runs whole-node training jobs only, spreading does not matter. On a cluster that mixes 1- and 2-GPU jobs (notebooks, evaluation, small fine-tunes) with 8-GPU jobs, spreading fragments the nodes and the large jobs starve while the GPU allocation looks fine. Bin packing costs some resilience (one node failure kills more small jobs) and concentrates heat; the usual answer is separate node pools, or a scheduler (Volcano, KAI) or Kueue's topology placement that packs by design. Because the scheduler's config is a control-plane setting, a managed cluster may not let you change it; a second scheduler profile or a second scheduler binary is the usual route.</p></div>
+<p><b>What happened.</b> Under the default profile every node scored 94 or 95 for NodeResourcesFit (a 100m pod on a 5-CPU node moves the score by one point), so pods went wherever CPU and memory were a hair freer. After five pods every worker held some GPUs (4, 3 and 1 used) and the 4-GPU pod stayed Pending with 4 GPUs free in total: <code>0/4 nodes are available: 1 node(s) had untolerated taint(s), 3 Insufficient example.com/gpu</code>. Under MostAllocated with GPUs weighted 5, pods 2 and 3 joined pod 1 on one worker (scores 55 and 73 against 19), pods 4 and 5 shared the second, and the 4-GPU pod got the empty third.</p>
+<div class="co"><div class="t">When it matters, and the cost</div><p>It matters on a cluster that mixes 1- and 2-GPU jobs (notebooks, evaluation, small fine-tunes) with 8-GPU jobs: spreading fragments the nodes and the large jobs starve while the GPU allocation looks fine. Bin packing costs some resilience (one node failure kills more small jobs) and concentrates heat; the usual answers are separate node pools, a second scheduler profile (the scheduler config is a control-plane setting a managed cluster may not expose), or a scheduler (Volcano, KAI) or Kueue topology placement that packs by design.</p></div>
 <div class="pr"><div class="q">Predict. You add <code>example.com/gpu</code> with weight 5 to the default LeastAllocated strategy instead. What happens to the 4-GPU pod?</div>
 <div class="opts"><button data-a="0">It fits: GPUs are now counted</button><button data-a="1">It is even more certain to stay Pending: LeastAllocated now actively spreads GPUs</button><button data-a="0">The scheduler refuses the config</button></div>
 <div class="ans" hidden>Spreads harder. LeastAllocated prefers the node with the most free GPUs, so each small pod goes to the emptiest worker and every worker ends up partly used. Counting GPUs only helps with a packing strategy (MostAllocated, or RequestedToCapacityRatio with a rising shape). This variant was not run here; it follows from the same formula (<code>least_allocated.go</code> lines 52-60).</div></div>
-</section>
-<section id="rd-s4">
-<h2>4. GPUs as resources: extended resources, device plugins and DRA</h2>
-<p><b>The problem.</b> Kubernetes knows CPU and memory natively. A GPU is a device on one node: the scheduler must count them, and the kubelet must give a container the right device files, driver libraries and environment for the specific GPUs it got.</p>
-<p><b>Extended resources: counting only.</b> An <dfn>extended resource</dfn> is any resource name with a domain (<code>nvidia.com/gpu</code>, <code>example.com/gpu</code>) that appears in a node's <code>status.capacity</code>. Pods request it in whole numbers, the scheduler subtracts, and that is all: it cannot be overcommitted (a request, if given with a limit, must equal it), and nothing is attached to the container (<a href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#extended-resources" target="_blank" rel="noopener noreferrer">Extended resources</a> <span class="pub">docs</span>). This topic's cluster has no GPUs, so its setup wrote <code>example.com/gpu: 4</code> into each worker's status by hand (the root's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">running example</a> setup): every GPU number on this page is that counter. The parent's labs, and sections 2, 3 and 6 here, rely on nothing more.</p>
-<p><b>Device plugins: counting plus attaching.</b> A <dfn>device plugin</dfn> is a small gRPC server, usually a DaemonSet pod on every GPU node, that the kubelet talks to over a Unix socket in <code>/var/lib/kubelet/device-plugins/</code>. The API (<code>staging/src/k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1/api.proto</code> at v1.37.0 <span class="pub">source</span>) has the plugin call <code>Register</code> (line 14) on the kubelet's socket, then the kubelet calls <code>ListAndWatch</code> (line 48, a stream of the device IDs and their health), optionally <code>GetPreferredAllocation</code> (line 55, so a plugin can pick GPUs that share an NVLink or PCIe switch), and <code>Allocate</code> (line 60) once per container, whose answer lists device files, mounts, environment variables or CDI device names to add. NVIDIA's plugin advertises <code>nvidia.com/gpu</code>, is deployed as a DaemonSet, and can split GPUs by MIG (strategies none, single, mixed, the last exposing names like <code>nvidia.com/mig-1g.10gb</code>) or share them by time-slicing ("nothing special is done to isolate workloads", in its README) or MPS (<a href="https://github.com/NVIDIA/k8s-device-plugin" target="_blank" rel="noopener noreferrer">NVIDIA/k8s-device-plugin</a> <span class="vend">vendor</span>, v0.20.1 released 2026-09-22). In production it usually comes with the NVIDIA GPU Operator (26.7.2, 2026-10-14), which also installs the driver, the container toolkit and DCGM. MIG itself is on <a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a>.</p>
-<p><b>DRA: describing devices.</b> <dfn>Dynamic Resource Allocation</dfn> (resource.k8s.io/v1, GA in v1.34: <a href="https://kubernetes.io/blog/2025/09/01/kubernetes-v1-34-dra-updates/" target="_blank" rel="noopener noreferrer">Kubernetes blog, 2025-09-01</a> <span class="pub">docs</span>) replaces "a count of opaque units" with structured devices. A DRA <dfn>driver</dfn> publishes <dfn>ResourceSlices</dfn>: the devices on a node with attributes (model, memory, NUMA node, PCIe root) and capacities. A cluster admin defines <dfn>DeviceClasses</dfn> (a CEL selector over those attributes). A pod references a <dfn>ResourceClaim</dfn> (or a template that makes one per pod) asking for, say, exactly 2 devices of a class whose memory is at least 80Gi. The <b>scheduler</b> allocates specific devices to the claim while it picks the node (the DynamicResources plugin, weight 2 when the feature is on), and the kubelet then calls the driver on that node (<code>NodePrepareResources</code>) to set them up. Allocation moves from the node to the scheduler, so the scheduler knows which devices, not just how many.</p>
-<div class="rd-card" id="km-dev-card">
-<h4>The same request, through a device plugin and through DRA <span class="meas">measured</span></h4>
-<div class="seg" id="km-dev-mode"><button data-m="dp" class="on">Device plugin (count)</button><button data-m="dra">DRA (described devices)</button></div>
-<div class="km-svg" id="km-dev-svg"></div>
-<div class="an-ctl" id="km-dev-ctl"></div>
-<div class="an-cap" id="km-dev-cap"></div>
-<p class="small mute">Device plugin: Kubernetes' own e2e sample plugin (<code>test/images/sample-device-plugin</code>, image 1.8.0) on worker3, advertising two fake devices as <code>example.com/resource</code>. DRA: a hand-written ResourceSlice of four fake GPUs on worker3 (two with 40Gi, two with 80Gi), a DeviceClass and a claim template asking for 2 devices with at least 80Gi; no DRA driver installed. Manifests in <code>src/k8s/e7-device-plugin.yaml</code> and <code>e8-dra.yaml</code>; outputs in <code>src/runs/e7.steps.txt</code> and <code>e8.steps.txt</code>.</p>
-</div>
-<p><b>What the runs show.</b> The device plugin registered in 9 ms (log: "Device Plugin registered with the Kubelet", then "ListAndWatch"); the node reported <code>example.com/resource: 2</code> on its next status update; a pod asking for 1 got <code>Allocate request="container_requests:{devices_ids:\"Dev-2\"}"</code> and saw the file <code>/tmp/Dev-2</code> mounted, and the kubelet recorded the assignment in its checkpoint file (<code>kubelet_internal_checkpoint</code>: pod UID, container, device IDs). After the plugin pod was deleted, the node kept <code>capacity 2</code> with <code>allocatable 0</code>; patching it out of the node status did not help (the kubelet wrote it back within seconds), and it went away only when the kubelet was restarted at cleanup, about 50 minutes later. Through DRA, the scheduler allocated <code>gpu-2</code> and <code>gpu-3</code> (the two 80Gi devices) and wrote them into the claim's status before binding; the kubelet then failed with <code>Failed to prepare dynamic resources: prepare dynamic resources: DRA driver gpu.km.example.com is not registered</code> (<code>pkg/kubelet/cm/dra/plugin/dra_plugin_manager.go</code> line 280), and a second identical pod was refused at scheduling with <code>3 cannot allocate all claims</code>. The split is visible: allocation works from the published slice alone; only preparation needs the driver.</p>
-<div class="km-pair">
-<div><b>Device plugin</b>Simple, everywhere, what NVIDIA's stack uses today. Counts only: "2 GPUs" cannot say "on the same NVLink island" or "with 80 GB" except through node labels and separate resource names. The scheduler picks the node; the kubelet picks the GPUs.</div>
-<div><b>DRA</b>Typed devices, CEL selection, sharing a claim between pods, the scheduler choosing exact devices. Needs a DRA driver (the NVIDIA GPU DRA driver now lives at <a href="https://github.com/kubernetes-sigs/dra-driver-nvidia-gpu" target="_blank" rel="noopener noreferrer">kubernetes-sigs/dra-driver-nvidia-gpu</a>, the old NVIDIA/k8s-dra-driver-gpu address redirects there; latest release v0.5.1, 2026-10-12, GitHub API; not run here) and v1.34 or later. Allocation is more work in the scheduler for every pod with a claim.</div>
-</div>
-<div class="pr"><div class="q">Predict. A node's GPU device plugin crashes and restarts while a training pod is running on that node's 8 GPUs. What happens to the running pod?</div>
-<div class="opts"><button data-a="0">It is killed: its devices are no longer registered</button><button data-a="1">Nothing: the containers already have their devices; only new allocations wait for the plugin</button><button data-a="0">It is rescheduled to another node</button></div>
-<div class="ans" hidden>Nothing happens to it. Allocate happens once, at container start; the device files are already in the container. While the plugin is gone the node's allocatable for that resource drops to 0 (as measured above), so new GPU pods cannot land there, and on re-registration the kubelet restores it from ListAndWatch. A plugin that reports a device Unhealthy also only lowers allocatable; killing the pod that uses it is someone else's job (a health checker, or the root's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Failure lab</a> patterns).</div></div>
-</section>
-<section id="rd-s5">
-<h2>5. Placement controls: affinity, taints, spread, priority and preemption</h2>
-<p><b>The problem.</b> GPU nodes are expensive and different from each other (H100 against A100, one network block against another). You want training pods only on GPU nodes, everything else kept off them, a job's pods close together, and important jobs able to take GPUs from unimportant ones.</p>
-<ul class="tight">
-<li><dfn>nodeSelector</dfn> and <dfn>node affinity</dfn>: the pod lists node labels it requires (<code>requiredDuringSchedulingIgnoredDuringExecution</code>, a Filter) or prefers (<code>preferred...</code>, a Score). Cloud providers label GPU nodes with the accelerator type; Kueue's flavors (section 7) work by adding a nodeSelector for you.</li>
-<li><dfn>Taints</dfn> and <dfn>tolerations</dfn>: a node's taint repels every pod that does not tolerate it. GPU node pools are usually tainted (for example <code>nvidia.com/gpu=present:NoSchedule</code>) so that only pods that tolerate it (training pods, the device plugin DaemonSet) land there. <code>NoExecute</code> also evicts running pods; the node lifecycle controller adds <code>node.kubernetes.io/unreachable</code> this way when a node goes silent (the root's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Failure lab</a> measures it).</li>
-<li><dfn>topologySpreadConstraints</dfn>: keep the count of matching pods per <dfn>topology domain</dfn> (all nodes sharing a label value, such as a zone or this cluster's block <code>mi.example.com/block</code>) within <code>maxSkew</code> of each other.</li>
-<li><dfn>Pod affinity</dfn> and <dfn>anti-affinity</dfn>: place a pod near (or away from) pods with given labels in a domain. JobSet's exclusive placement (section 8) is built from these.</li>
-</ul>
-<h3>A spread rule meets a tainted node</h3>
-<p>Three 1-GPU pods with <code>maxSkew: 1</code> over the two blocks (b1 = worker and worker2, b2 = worker3), while worker3 carries a taint the pods do not tolerate (say it is reserved for inference). Should b2 count as a domain the pods must spread into?</p>
-<div class="rd-card" id="km-spread-card">
-<h4>nodeTaintsPolicy Ignore (the default) against Honor, same pods <span class="meas">measured</span></h4>
-<div class="seg" id="km-spread-mode"><button data-m="ignore" class="on">Ignore (default)</button><button data-m="honor">Honor</button></div>
-<div class="km-svg" id="km-spread-svg"></div>
-<div class="an-cap" id="km-spread-cap"></div>
-<p class="small mute"><code>src/k8s/spread-pod.sh</code>; taint <code>km.example.com/reserved=inference:NoSchedule</code> on worker3 during the runs, removed after.</p>
-</div>
-<p>With the default, the tainted block still counts as a domain with zero pods, so after one pod in b1 the second would make the skew 2 and is refused: two pods Pending with <code>2 node(s) didn't match pod topology spread constraints, 2 node(s) had untolerated taint(s)</code>. With <code>nodeTaintsPolicy: Honor</code> the tainted node is left out of the count and all three run in b1. The same trap exists for <code>nodeAffinityPolicy</code>, whose default is Honor.</p>
-<h3>Priority and preemption</h3>
-<p>A <dfn>PriorityClass</dfn> maps a name to an integer. Higher-priority pods go first in the scheduling queue, and when nothing fits, the default PostFilter plugin looks for a node where evicting lower-priority pods would make room (<dfn>preemption</dfn>). The victims get the <code>DisruptionTarget</code> condition (reason <code>PreemptionByScheduler</code>), receive SIGTERM and their grace period, and the preemptor waits with <code>status.nominatedNodeName</code> set until they are gone. <code>preemptionPolicy: Never</code> keeps the queue priority but never evicts.</p>
-<div class="rd-card" id="km-pre-card">
-<h4>Three low-priority jobs fill the cluster; two high-priority jobs arrive <span class="meas">measured</span></h4>
-<div class="km-svg" id="km-pre-svg"></div>
-<div class="an-ctl" id="km-pre-ctl"></div>
-<div class="an-cap" id="km-pre-cap"></div>
-<p class="small mute">PriorityClasses km-low (100), km-high (1000) and km-high-nopreempt (1000, preemptionPolicy Never) from <code>src/k8s/e5-priority.yaml</code>; every pod asks for a whole worker's 4 fake GPUs. Events in <code>src/runs/e5a.events.txt</code>.</p>
-</div>
-<p><b>Cost and when it matters.</b> Preemption is how a shared research cluster lets production training take GPUs back, but the scheduler preempts <i>pods</i>, not jobs: evicting one pod of a 64-pod training job kills all 64 (section 2), and the scheduler does not know that. It will also happily preempt a pod that is 3 minutes from a checkpoint. That is why training clusters move preemption up a level: Kueue preempts whole workloads by priority or to reclaim quota (the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Scheduling lab</a> shows the reclaim), and the native PodGroup has a <code>disruptionMode</code> (single or all) for exactly this. A PodDisruptionBudget limits voluntary evictions (drains), but not preemption by priority beyond a best effort.</p>
-</section>
-<section id="rd-s6">
-<h2>6. Gang scheduling: every pod or none</h2>
-<p><b>The problem.</b> The scheduler places one pod per cycle and knows nothing of the job it belongs to. Two jobs that each need the whole cluster can each get half, and wait forever for the other half. The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Scheduling lab</a> produced exactly that on this cluster (three 2-pod jobs, each pod a whole worker: three pods Running and doing nothing, three Pending) and fixed it with Kueue. A <dfn>gang</dfn> is a set of pods that must start together; <dfn>gang scheduling</dfn> binds all of them or none.</p>
-<h3>The options, October 2026</h3>
-<div class="tw"><table class="rd-cmp">
-<thead><tr><th>Option</th><th>Where the gang is decided</th><th>What else it brings</th><th>Status (dated)</th></tr></thead>
-<tbody>
-<tr><td data-h="Option">Kueue (+ JobSet or Job)</td><td data-h="Where">Admission: the whole workload's quota is reserved before any pod exists; the default scheduler places the pods</td><td data-h="Brings">Queues, quotas, cohorts, flavors, topology-aware placement, MultiKueue</td><td data-h="Status">v0.20.2 (2026-10-15), kubernetes-sigs; measured in the parent's lab and in section 7</td></tr>
-<tr><td data-h="Option">Native PodGroup</td><td data-h="Where">Inside kube-scheduler: PreEnqueue holds pods until the group's minCount exists, Permit holds bound pods until minCount are placed</td><td data-h="Brings">Group-level preemption and disruption mode; Workload objects; topology (alpha)</td><td data-h="Status">KEP-4671: alpha v1.35, gate GenericWorkload beta in v1.37 but <b>off by default</b> (<code>pkg/features/kube_features.go</code> lines 1622-1625); measured below</td></tr>
-<tr><td data-h="Option">Coscheduling plugin (scheduler-plugins)</td><td data-h="Where">A second scheduler build with a PodGroup CRD and a Permit plugin</td><td data-h="Brings">Little else</td><td data-h="Status">What OpenAI used on its 7,500-node cluster (OpenAI blog 2021-01-25) <span class="pub">operator</span>; not run here</td></tr>
-<tr><td data-h="Option">Volcano</td><td data-h="Where">Its own scheduler (pods set <code>schedulerName: volcano</code>), PodGroup with minMember</td><td data-h="Brings">Queues, fair share, its own Job CRD, binpack and other policies</td><td data-h="Status">v1.16.0 (2026-10-15), CNCF incubating, built on kube-batch (README) <span class="vend">project</span>; not run here</td></tr>
-<tr><td data-h="Option">KAI Scheduler (NVIDIA, from Run:ai)</td><td data-h="Where">Its own scheduler with hierarchical PodGroups</td><td data-h="Brings">Hierarchical queues, time-based fair share, GPU sharing, topology-aware scheduling, DRA</td><td data-h="Status">Apache-2.0 since 2025-04-01, v0.18.6 (2026-10-15) <span class="vend">vendor</span>; not run here</td></tr>
-<tr><td data-h="Option">YuniKorn</td><td data-h="Where">Its own scheduler with application-level gang placeholders</td><td data-h="Brings">Hierarchical queues (from the Hadoop world)</td><td data-h="Status">v1.10.0 (2026-10-06); not run here</td></tr>
-</tbody></table></div>
-<p class="small mute">Versions and dates from the topic's shared facts (release feeds read 2026-10-16); feature lists from each project's README.</p>
-<h3>Native gang scheduling, switched on for one run</h3>
-<p>Kubernetes v1.37 has the pieces built in: a <code>PodGroup</code> object (<code>scheduling.k8s.io/v1beta1</code>) with <code>schedulingPolicy.gang.minCount</code>, a pod field <code>spec.schedulingGroup.podGroupName</code> (it replaced <code>workloadRef</code> in v1.36, <code>staging/src/k8s.io/api/core/v1/types.go</code> lines 4697-4716), and a GangScheduling plugin. To try it, this page turned on the gate in the API server (plus <code>--runtime-config=scheduling.k8s.io/v1beta1=true</code>) and in the scheduler, ran the parent's deadlock input again with placeholder pods, and restored both manifests (<code>src/scripts/km_gang_reconf.sh</code>):</p>
-<pre class="rd-code">apiVersion: scheduling.k8s.io/v1beta1
-kind: PodGroup
-metadata: {name: km-a, namespace: km}
-spec:
-  schedulingPolicy:
-    gang: {minCount: 2}
----
-apiVersion: v1
-kind: Pod
-metadata: {name: km-a-0, namespace: km, labels: {km-gang: km-a}}
-spec:
-  schedulingGroup: {podGroupName: km-a}
-  schedulingGates: [{name: km.example.com/release}]   # the run releases pods in the order a0 b0 c0 a1 b1 c1
-  ...
-    resources:
-      requests: {cpu: 100m, memory: 64Mi, example.com/gpu: "4"}</pre>
-<p class="rd-codecap"><code>src/k8s/gang-podgroup.sh</code> and <code>gang-pod.sh</code> (abridged); three such groups, km-a, km-b and km-c.</p>
-<div class="rd-card" id="km-gang-card">
-<h4>The parent's deadlock input, without and with a PodGroup <span class="meas">measured</span></h4>
-<div class="seg" id="km-gang-mode"><button data-m="nogang" class="on">No gang (default)</button><button data-m="gang">PodGroup, minCount 2</button></div>
-<div class="km-svg" id="km-gang-svg"></div>
-<div class="an-ctl" id="km-gang-ctl"></div>
-<div class="an-cap" id="km-gang-cap"></div>
-<p class="small mute">Three jobs of two pods, each pod holding a whole worker's 4 fake GPUs (12 in all, so 1.5 jobs fit), released one second apart in the order a0, b0, c0, a1, b1, c1. Pods sleep 30 s in the gang run (600 s in the other, which was stopped after 28 s). Snapshots in <code>src/runs/e11nogang.snap</code>, <code>e11gang.snap</code>; scheduler log in <code>e11gang.schedlog.txt</code>.</p>
-</div>
-<p>Without the gang, a0, b0 and c0 each took a worker and the other three waited: every job half placed, none able to run. With the PodGroups, a0 was held at PreEnqueue (<code>waiting for minCount pods from a gang to appear in scheduling queue</code>); when a1 arrived both were placed and released together (<code>Quorum is met for a gang. Allowing other pods from a gang waiting on permit</code>); gangs b and c were refused as a whole (<code>minCount (2) cannot be satisfied: 1 scheduled, 0 remaining</code>) and ran one after another as the GPUs freed up. A pod held at Permit gives up after 5 minutes:</p>
-<pre class="rd-code">40 	// permitTimeoutDuration defines how long the gang pods should
-41 	// wait at the permit stage for a quorum before being rejected.
-42 	permitTimeoutDuration = 5 * time.Minute
-...
-402	if scheduledPodsCount &lt; int(podGroup.Spec.SchedulingPolicy.Gang.MinCount) {
-...
-407		return fwk.NewStatus(fwk.Wait, "waiting for minCount pods from a gang to be scheduled"), permitTimeoutDuration</pre>
-<p class="rd-codecap"><code>pkg/scheduler/framework/plugins/gangscheduling/gangscheduling.go</code>, kubernetes v1.37.0.</p>
-<div class="co warn"><div class="t">Two things went wrong on the way, both worth knowing</div>
-<p>Restarting the API server restarted Kueue's controller too, and until it served again <i>every</i> pod creation in the cluster failed: <code>failed calling webhook "mpod.kb.io": failed to call webhook: Post "https://kueue-webhook-service.kueue-system.svc:443/mutate--v1-pod?timeout=10s": ... connection refused</code>. Kueue's pod webhook has <code>failurePolicy: Fail</code> for every namespace except kube-system and kueue-system, so Kueue is on the critical path of all pods, queued or not. And the PodGroups carry a finalizer (<code>scheduling.k8s.io/podgroup-protection</code>) that a kube-controller-manager controller removes; with the gate on only in the API server and scheduler, deleting them hung until the finalizer was removed by hand. Turning on a beta gate means turning it on in every component that has it.</p></div>
-<p><b>Which one to use.</b> Native gangs fix the deadlock but have no notion of quota or queues: a big job still waits behind whatever arrives first, and two teams still race. Kueue gives queues and quotas and works with the default scheduler today (and its admission can lag behind real placement: an admitted workload can still find a node broken, which <code>waitForPodsReady</code>, default timeout 30 minutes in v0.20 per <code>apis/config/v1beta2/defaults.go</code> line 48, handles by evicting and requeueing it). Volcano and KAI replace the scheduler and give both, at the cost of running a second scheduler you must trust with every GPU pod.</p>
-</section>
-<section id="rd-s7">
-<h2>7. Kueue in depth: quota, flavors, topology</h2>
-<p><b>The problem.</b> Several teams share a fixed pool of GPUs. Each needs a guaranteed share, idle shares should be usable by others, jobs should wait in an orderly queue rather than as Pending pods, and a 16-GPU job should get 16 GPUs that are close together.</p>
-<p><b>How it works.</b> Kueue is a controller plus webhooks. Its objects (all <code>kueue.x-k8s.io/v1beta2</code>; v0.20 no longer serves v1beta1):</p>
-<div class="km-map">
-<div style="--kc:var(--c1)"><b>ResourceFlavor</b>A kind of capacity, mapped to nodes by labels (and tolerations): "H100 in block 1", "spot A100". Optional <code>topologyName</code> for topology-aware placement.</div>
-<div style="--kc:var(--c2)"><b>ClusterQueue</b>A team's quota: for each flavor and resource a <code>nominalQuota</code> (plus <code>borrowingLimit</code>, <code>lendingLimit</code>), a queueing strategy, preemption rules, and the <code>cohort</code> it shares with.</div>
-<div style="--kc:var(--c3)"><b>LocalQueue</b>A namespace's door into a ClusterQueue. Jobs say <code>kueue.x-k8s.io/queue-name: &lt;localqueue&gt;</code>.</div>
-<div style="--kc:var(--c4)"><b>Workload</b>Kueue's record of one job: its pod sets (count and requests per pod), created by Kueue's integration for Jobs, JobSets, TrainJobs, RayJobs and others. Admission is a property of the Workload.</div>
-<div style="--kc:var(--c5)"><b>Cohort</b>A group of ClusterQueues that lend each other unused quota; cohorts can form a tree.</div>
-<div style="--kc:var(--c6)"><b>Topology</b>An ordered list of node labels (block, rack, host) for topology-aware scheduling.</div>
-</div>
-<p>When a labelled job is created, Kueue's webhook makes it start <dfn>suspended</dfn> (<code>spec.suspend: true</code>: the job controller creates no pods). Kueue's scheduler loop takes the head of each queue, tries to <dfn>assign flavors</dfn> (for each resource group, the flavors in order, checking the workload's total request against unused quota, borrowing and preemption possibilities), reserves the quota, runs any <dfn>admission checks</dfn> (for example a ProvisioningRequest that asks the cluster autoscaler for nodes first), and then admits: it writes the chosen flavors into the Workload, injects the flavors' node labels as a nodeSelector into the pod template, and unsuspends the job. From there the normal scheduler places pods. The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Scheduling lab</a> quotes the loop (<code>pkg/scheduler/scheduler.go</code> in Kueue) and shows queueing and cohort borrowing and reclaim; here are the two things it did not run.</p>
-<div class="km-pair">
-<div><b>Flavors in order <span class="meas">measured</span></b>A ClusterQueue with flavor km-b1 (8 GPUs of quota, nodes labelled block b1) listed before km-b2 (4 GPUs, block b2). Four jobs of 2 pods x 2 GPUs: the first two got km-b1, the third km-b2 (pods got <code>nodeSelector: mi.example.com/block: b2</code> injected), the fourth waited with <code>insufficient unused quota for example.com/gpu in flavor km-b1, 4 more needed, insufficient unused quota for example.com/gpu in flavor km-b2, 4 more needed</code>.</div>
-<div><b>Topology-aware scheduling <span class="meas">measured</span></b>A flavor with a Topology (block, then host). Three pods of 2 GPUs with <code>kueue.x-k8s.io/podset-required-topology: mi.example.com/block</code> were admitted inside block b1 (two pods on worker, one on worker2). Three pods of 4 GPUs, the same annotation, 12 GPUs of quota free: refused, <code>topology "km-topo" allows to fit only 2 out of 3 pod(s); all pods must fit in a single "mi.example.com/block" topology domain</code>. With <code>podset-preferred-topology</code> instead, admitted across both blocks.</div>
-</div>
-<p>The message comes from <code>pkg/cache/scheduler/tas_flavor_snapshot.go</code> line 2953 at Kueue v0.20.2 <span class="pub">source</span>. Topology-aware scheduling is beta and on by default since v0.14 (<code>pkg/features/kube_features.go</code> lines 975-978). Kueue then pins each pod with a nodeSelector on the host label (the pods above got <code>kubernetes.io/hostname: mi-kind-worker</code>), so the default scheduler only confirms the placement. Step through these admissions, quota bar by quota bar, in the <a href="#" data-tab="t-kmq">Kueue admission</a> tab.</p>
-<h3>The rest of Kueue, briefly (described, not run here)</h3>
-<ul class="tight">
-<li><b>Flavor fungibility</b>: by default the search stops at the first flavor where the workload fits or fits by borrowing (<code>whenCanBorrow: MayStopSearch</code>), but tries the next flavor before preempting in the current one (<code>whenCanPreempt: TryNextFlavor</code>) (<code>apis/kueue/v1beta2/clusterqueue_types.go</code> lines 526-549).</li>
-<li><b>Preemption</b>: <code>withinClusterQueue</code> (by priority inside a team), <code>reclaimWithinCohort</code> (take back lent quota; the parent's lab measured it), <code>borrowWithinCohort</code> (preempt to borrow). Kueue preempts whole workloads, which is the right unit for training.</li>
-<li><b>Fair sharing</b>: in the Kueue configuration, share cohort capacity by weight rather than first come; and admission fair sharing orders a queue by each LocalQueue's recent usage (<a href="https://kueue.sigs.k8s.io/docs/concepts/fair_sharing/" target="_blank" rel="noopener noreferrer">Kueue fair sharing</a> <span class="pub">docs</span>).</li>
-<li><b>waitForPodsReady</b>: evict and requeue an admitted workload whose pods are not all ready within a timeout (default 30 minutes in v0.20), closing the gap between "quota reserved" and "pods really running".</li>
-<li><b>MultiKueue</b>: one manager cluster dispatching workloads to several worker clusters.</li>
-</ul>
-<p><b>The cost.</b> Kueue reasons about quota, not nodes (except with topology): with 12 GPUs of quota and 12 GPUs in the cluster, an admitted job can still be unplaceable if a node is cordoned or fragmented. Keep quotas equal to what is really schedulable, and mind the webhook: as section 6 found, while Kueue is down no pod can be created anywhere it watches.</p>
-</section>
-
-<section id="rd-s8">
-<h2>8. JobSet in depth</h2>
-<p><b>The problem.</b> One training run is often several groups of pods (a driver and workers; parameter servers; a group per data-parallel replica), each an Indexed Job, which must share a network identity, succeed or fail as a whole, and be restarted together.</p>
-<p><b>How it works.</b> A <dfn>JobSet</dfn> (<code>jobset.x-k8s.io/v1alpha2</code>, kubernetes-sigs, v0.13.0) holds a list of <dfn>replicatedJobs</dfn>, each a Job template and a replica count. The controller creates Jobs named <code>&lt;jobset&gt;-&lt;replicatedJob&gt;-&lt;index&gt;</code>, a headless Service named after the JobSet, and sets each pod's hostname and subdomain so it resolves as <code>&lt;jobset&gt;-&lt;replicatedJob&gt;-&lt;jobIndex&gt;-&lt;podIndex&gt;.&lt;jobset&gt;</code>; inside the running example's pods <code>hostname -f</code> printed <code>km-e3a-node-0-0.km-e3a.km.svc.cluster.local</code> <span class="meas">measured</span>. It labels every pod with <code>jobset.sigs.k8s.io/jobset-name</code>, <code>replicatedjob-name</code>, <code>job-index</code>, <code>restart-attempt</code> and more, which is what failure handling and Kueue key on.</p>
-<ul class="tight">
-<li><b>failurePolicy</b>: <code>maxRestarts</code> (restart the whole JobSet up to N times), <code>restartStrategy</code> (Recreate, BlockingRecreate which waits for every old pod to be gone, InPlaceRestart which restarts healthy containers in place), and ordered <code>rules</code> matched on the failed Job's reason (<code>onJobFailureReasons</code>) with actions <code>FailJobSet</code>, <code>RestartJobSet</code>, <code>RestartJobSetAndIgnoreMaxRestarts</code>, <code>RestartJob</code>, <code>RestartJobAndIgnoreMaxRestarts</code> (<code>api/jobset/v1alpha2/jobset_types.go</code> lines 464-545 at v0.13.0 <span class="pub">source</span>). If no rule matches, RestartJobSet applies.</li>
-<li><b>successPolicy</b>: <code>operator: All</code> or <code>Any</code> over <code>targetReplicatedJobs</code>, so the JobSet completes when the driver completes.</li>
-<li><b>startupPolicy</b> (<code>InOrder</code>) or <code>dependsOn</code>: start the coordinator before the workers.</li>
-<li><b>Exclusive placement</b>: the annotation <code>alpha.jobset.sigs.k8s.io/exclusive-topology: &lt;label&gt;</code> puts each child Job alone in one topology domain (one Job per rack, say) through pod affinity and anti-affinity (line 49).</li>
-<li><b>Workload-aware scheduling</b>: v0.13 can describe the JobSet to the native Workload API (<code>spec.scheduling</code>, behind its own feature gate and the alpha CompositePodGroup gate; not run here).</li>
-</ul>
-<p>The policy that ran in section 2, the shape JobSet recommends for preemptible training:</p>
-<pre class="rd-code">spec:
-  failurePolicy:
-    maxRestarts: 0                        # a crash is not retried
-    rules:
-    - name: disruptedRestartFree
-      action: RestartJobSetAndIgnoreMaxRestarts
-      onJobFailureReasons: [PodFailurePolicy]
-  replicatedJobs:
-  - name: node
-    template:
-      spec:
-        backoffLimit: 0
-        podFailurePolicy:                 # an evicted or preempted pod fails its Job at once,
-          rules:                          # with reason PodFailurePolicy
-          - action: FailJob
-            onPodConditions:
-            - {type: DisruptionTarget}</pre>
-<p class="rd-codecap"><code>src/k8s/train-jobset.sh km-e3b policy</code> (abridged). Run e3b: one eviction, <code>restarts: 1</code>, resumed from step 50, completed. Run e3c: a crash, <code>jobset failed due to reaching max number of restarts (first failed job: km-e3c-node-0)</code>.</p>
-<div class="pr"><div class="q">Predict. In run e3b the evicted pod's Job failed with reason PodFailurePolicy. The other pod of the same Job then also exited 1 (its peer was gone). Does that second failure spend the restart budget?</div>
-<div class="opts"><button data-a="0">Yes, it is a separate failure with reason BackoffLimitExceeded</button><button data-a="1">No: the Job had already failed once, and the JobSet restarts whole Jobs, not pods</button></div>
-<div class="ans" hidden>No. A Job fails once; the first matching pod failure decides its reason. The JobSet sees one failed Job with reason PodFailurePolicy, matches the rule, deletes every Job and recreates them (status <code>restarts: 1</code>, no <code>restartsCountTowardsMax</code>). The order matters, though: the evicted pod reached Failed at 17.5 s and its peer at 18.2 s, so the Job's first failure was the disruption.</div></div>
-</section>
-<section id="rd-s9">
-<h2>9. Operators: Kubeflow Trainer v2 and KubeRay</h2>
-<p><b>The problem.</b> Writing the JobSet of section 8 by hand for every run means every user knows torchrun's flags, the DNS naming and the restart rules. An <dfn>operator</dfn> packages that knowledge: a <dfn>custom resource definition</dfn> (CRD, a new object kind the API server stores), a controller that reconciles it into lower-level objects, and usually webhooks that validate and default it.</p>
-<p><b>Kubeflow Trainer v2.</b> Trainer v2 (v2.0 July 2025; v2.3.0 released 2026-08-07, whose README still calls the API alpha) has two kinds of object: a <dfn>TrainingRuntime</dfn> or <dfn>ClusterTrainingRuntime</dfn>, written once by the platform team, holding a JobSet template and an ML policy (torch, torchtune, DeepSpeed, JAX, MLX and XGBoost runtimes ship in its <code>manifests/base/runtimes</code>), and a <dfn>TrainJob</dfn>, written by the user, that names a runtime and says only what differs. The controller merges the two into a JobSet. It replaced the v1 Training Operator's per-framework kinds (PyTorchJob and friends); v1 is maintained on its release-1.9 branch (v1.9.4, 2026-08-18), and Kueue's docs call its integration legacy.</p>
-<pre class="rd-code">apiVersion: trainer.kubeflow.org/v1alpha1
-kind: TrainJob
-metadata: {name: km-tj, namespace: km}
-spec:
-  runtimeRef: {name: torch-distributed}      # Trainer's own ClusterTrainingRuntime
-  trainer:
-    image: mi-train:1
-    numNodes: 2
-    numProcPerNode: 2
-    command: ["torchrun", "/opt/mi/train.py", "--ckpt-dir=/tmp/ckpt", "--log-dir=/tmp/logs"]
-    resourcesPerNode:
-      requests: {cpu: 500m, memory: 400Mi, example.com/gpu: "2"}
-      limits: {cpu: "2", memory: 900Mi, example.com/gpu: "2"}</pre>
-<p class="rd-codecap"><code>src/k8s/e12-trainjob.yaml</code>. Note what is missing: no rank, no master address, no Service.</p>
-<p><b>What the controller built</b> <span class="meas">measured</span> (Trainer v2.3.0 installed for this run on the kind cluster, its controller capped at 256 MiB, removed afterwards): a JobSet <code>km-tj</code> owned by the TrainJob, one replicated Job <code>node</code> of 2 Indexed pods with <code>restartPolicy: OnFailure</code>, container port 29500, and five environment variables, which torchrun reads as its own flags:</p>
-<div class="tw"><table><thead><tr><th>Variable</th><th>Value in the pod</th><th>Flag it replaces</th></tr></thead><tbody id="km-tj-env"></tbody></table></div>
-<p>The training script is the same file and the global loss at step 200 was again <span id="km-tj-loss">2.2638769149780273</span>. The master address the controller wrote, <code>km-tj-node-0-0.km-tj</code>, is the same JobSet DNS rule as the hand-written run's <code>km-e3a-node-0-0.km-e3a</code>; the operator encodes the convention, nothing more (<code>pkg/runtime/framework/plugins/torch/torch.go</code> lines 147-165 at v2.3.0 <span class="pub">source</span>). The cost: three CRDs of 2.4 MB of YAML in the API server (the control plane grew by about 0.2 GiB here), one more controller and two more webhooks on the path of every TrainJob. Note also <code>restartPolicy: OnFailure</code>: the kubelet restarts a failed container in place, so the Job (and a podFailurePolicy, which then cannot be used) never sees the failure.</p>
-<p><b>KubeRay</b> (v1.7.1, 2026-09-21) is the operator for Ray: <code>RayCluster</code> (a head pod and worker groups, with autoscaling), <code>RayJob</code> (a cluster plus a submitted driver, torn down after) and <code>RayService</code>. Kueue can admit a RayJob or RayCluster as one workload. Ray's own scheduling (placement groups, the object store) is the <a href="https://app.notion.com/p/3fc5c17b0d0d811cba13f3aeccf8724b" target="_blank" rel="noopener noreferrer">Ray</a> sibling page's subject; the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Scheduling lab</a> measures Ray placement groups. Not run here.</p>
-<p><b>When an operator is worth it.</b> When many users submit the same shape of job (one runtime, many TrainJobs), or when the framework needs more than a Job can express (Ray's head and workers, MPI's launcher and hostfile). When a team runs one kind of job and already has a JobSet template, the operator adds an API surface to upgrade and little else.</p>
-</section>
-
-<section id="rd-s10">
-<h2>10. Storage for training pods: volumes, claims and CSI</h2>
-<p><b>The problem.</b> A container's file system disappears with it. Checkpoints and datasets must outlive pods and be reachable from whichever node the restarted pod lands on.</p>
-<p><b>How it works.</b> A pod mounts <dfn>volumes</dfn>. A <dfn>PersistentVolumeClaim</dfn> (PVC) asks for storage by size and <dfn>access mode</dfn> (ReadWriteOnce: one node; ReadWriteMany: many nodes; ReadOnlyMany); a <dfn>StorageClass</dfn> says which provisioner creates the <dfn>PersistentVolume</dfn> (PV) and when; a <dfn>CSI driver</dfn> (Container Storage Interface) is the plugin that attaches and mounts it on a node. For training the usual choices are a shared file system through CSI (Lustre, GPFS, Weka, NFS, Filestore, FSx: ReadWriteMany), object storage read by the job itself, and local NVMe for caches. kind's default StorageClass is <code>rancher.io/local-path</code>: a folder on one node's disk, with <code>volumeBindingMode: WaitForFirstConsumer</code>.</p>
-<div class="rd-card" id="km-pvc-card">
-<h4>A checkpoint on node-local storage pins the restart <span class="meas">measured</span></h4>
-<pre class="rd-code rd-out" id="km-pvc-out"></pre>
-<p class="small mute">A 100Mi ReadWriteOnce claim, a writer pod on worker that writes <code>latest</code>, then a reader pod forced onto worker3 (<code>src/k8s/e9-pvc.yaml</code>, <code>e9-reader.yaml</code>). Lines trimmed from <code>src/runs/e9.steps.txt</code>.</p>
-</div>
-<p>The claim stayed Pending (<code>waiting for first consumer to be created before binding</code>) until the writer pod was scheduled; the volume was then created on that pod's node and got a node affinity to it. A pod on any other node is unschedulable: <code>1 node(s) didn't match PersistentVolume's node affinity</code>. If the checkpoint of a training job lives on such a volume, a restart after a node failure cannot run anywhere else; and if that node is gone, the checkpoint is gone too. Use node-local volumes for caches, not for state the job must resume from. Storage systems themselves are the <a href="https://app.notion.com/p/3fc5c17b0d0d818a94ced3fc7c3331fe" target="_blank" rel="noopener noreferrer">Storage and data movement</a> sibling's subject and the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Storage lab</a> measures checkpoint writes on this cluster (the host folder these pods mount was 36 times slower than a Docker volume there).</p>
-<p class="small mute">Images are storage too: a pod on a fresh node first pulls the training image: Trainer's default torch runtime image, <code>pytorch/pytorch:2.13.0-cuda13.0-cudnn9-runtime</code>, is 3.04 GB compressed (Docker Hub API, read 2026-10-16), before any project code or data, which is why GPU clusters pre-pull images onto nodes, run a pull-through registry cache, or use lazy-loading snapshotters. The images here were preloaded with <code>kind load</code>.</p>
-</section>
-<section id="rd-mis">
-<h2>Common mistakes, with the messages they produce</h2>
-<details class="mist"><summary>Matching a Job failure rule on the training script's exit code</summary><div class="b">Under torchrun the container exits 1 whatever the rank returned (run e2b: the rank exited 13, the rule on 13 never fired, the Job retried a deterministic crash). Match what the container really returns, or launch one process per pod. Message to look for in the pod log: <code>exitcode  : 13 (pid: 13)</code> under "Root Cause", next to a container exit code of 1.</div></details>
-<details class="mist"><summary>Ignoring disruptions per pod in a multi-pod job</summary><div class="b">An <code>Ignore</code> rule on DisruptionTarget does not save the job: the peers fail a moment later with an ordinary error and are counted (run e2d2, <code>BackoffLimitExceeded</code>). Fail the Job on disruption and restart the group at the JobSet level (run e3b).</div></details>
-<details class="mist"><summary>Expecting the default scheduler to pack GPUs</summary><div class="b">It ranks by CPU and memory only. Symptom: GPUs free in total, big job Pending with <code>Insufficient nvidia.com/gpu</code> on every node (here <code>3 Insufficient example.com/gpu</code>). Fix: MostAllocated with the GPU resource listed, separate node pools by job size, or a packing scheduler.</div></details>
-<details class="mist"><summary>Partial placement that looks healthy</summary><div class="b">Half-placed jobs show as Running pods with no progress; the scheduler reports only <code>Insufficient</code> for the rest, and preemption declines (<code>Preemption is not helpful for scheduling</code>). Use Kueue, a gang scheduler, or (when enabled) a PodGroup.</div></details>
-<details class="mist"><summary>A spread constraint that counts a tainted domain</summary><div class="b"><code>2 node(s) didn't match pod topology spread constraints</code> with free nodes available: the default <code>nodeTaintsPolicy: Ignore</code> counts nodes the pod cannot use. Set <code>Honor</code>.</div></details>
-<details class="mist"><summary>Checkpoints on a node-local volume</summary><div class="b"><code>1 node(s) didn't match PersistentVolume's node affinity</code> after a restart lands elsewhere; the checkpoint is also lost with the node. Use a shared file system (ReadWriteMany) or object storage for resumable state.</div></details>
-<details class="mist"><summary>A main process that ignores SIGTERM</summary><div class="b">Preemption and eviction send SIGTERM, wait <code>terminationGracePeriodSeconds</code> (default 30 s), then SIGKILL (exit 137, run e4b). A training process should catch SIGTERM, write a checkpoint and exit; give it a grace period long enough to do so; and do not hide it behind a shell that swallows the signal (<code>sh -c "exec torchrun ..."</code>, as this page's manifests do, keeps torchrun as PID 1).</div></details>
-<details class="mist"><summary>Treating Kueue's webhook as optional</summary><div class="b">With Kueue's controller down, <code>failed calling webhook "mpod.kb.io" ... connection refused</code> for every pod in every namespace it watches, including system add-ons outside kube-system. Run Kueue with several replicas, watch its readiness, and know the namespaces its webhook excludes.</div></details>
-<details class="mist"><summary>Assuming a removed device plugin cleans up</summary><div class="b">The node keeps the resource in capacity with allocatable 0 (measured here after deleting the plugin, until the kubelet restarted). Dashboards that sum capacity overcount GPUs; sum allocatable.</div></details>
-<details class="mist"><summary>Using v1beta1 Kueue objects with Kueue v0.20</summary><div class="b">v0.20 serves only <code>kueue.x-k8s.io/v1beta2</code>; manifests still written for v1beta1 are rejected because the version is no longer served (Kueue CHANGELOG-0.20, "Actions required", in the topic's shared facts; not run here). Convert them before upgrading.</div></details>
-</section>
-
-<section id="rd-iq">
-<h2>Interview questions, with short answers</h2>
-<details class="qa"><summary>Walk me through what happens between <code>kubectl apply</code> of a training Job and the first training step.</summary><div>The API server validates the Job, runs admission webhooks (Kueue may suspend it until quota is reserved), stores it in etcd. The job controller sees it and creates the pods; the scheduler filters and scores nodes for each and writes a Binding; the kubelet on each node pulls the image, starts the container (device plugin Allocate or DRA prepare first), and reports status. torchrun in each pod then rendezvouses through the DNS name of pod 0. Measured here: pods bound 44 ms after creation, containers started at 0.6 s, with the image preloaded.</div></details>
-<details class="qa"><summary>Why does Kubernetes need add-ons for distributed training when Slurm does not?</summary><div>Slurm allocates a job's nodes as one unit, so gangs, queues and fairshare are built in. Kubernetes schedules pods one at a time, has no queue beyond Pending pods, and no quota sharing between teams; Kueue (admission, quota, cohorts), JobSet (group lifecycle) and gang scheduling (PodGroup, Volcano, KAI) add what Slurm's controller does itself.</div></details>
-<details class="qa"><summary>What is the difference between a device plugin and DRA?</summary><div>A device plugin advertises a count of identical devices and the kubelet picks which ones at container start; DRA publishes typed devices with attributes, pods claim them with CEL selectors, and the scheduler allocates specific devices while it picks the node. DRA can express "2 GPUs with 80 GB on one NVLink island"; a device plugin needs node labels and separate resource names to approximate it.</div></details>
-<details class="qa"><summary>A 64-GPU job has been Pending for an hour with 80 GPUs free. What do you check?</summary><div>Whether any node or topology domain can host its pods: free GPUs may be scattered (spread scoring), on tainted or cordoned nodes, in a flavor or block the job cannot use, or behind a Kueue quota or a TAS constraint. Read the pod's FailedScheduling event and the Workload's QuotaReserved condition message; compare allocatable, not capacity.</div></details>
-<details class="qa"><summary>How should a training job on a preemptible pool be configured so that preemptions are free and bugs are not?</summary><div>Pods fail their Job on DisruptionTarget (podFailurePolicy FailJob), the JobSet restarts all Jobs on reason PodFailurePolicy without counting it (RestartJobSetAndIgnoreMaxRestarts), maxRestarts stays low for real crashes, the process checkpoints on SIGTERM within the grace period, and checkpoints live on shared storage. Run e3b shows the restart and resume.</div></details>
-<details class="qa"><summary>Kueue or Volcano?</summary><div>Kueue keeps the default scheduler and adds queueing and quota at admission; it composes with JobSet, Trainer, KubeRay and cluster autoscaling. Volcano (or KAI) replaces the scheduler and does gangs, queues and fair share inside it, which also lets it pack and place by topology pod by pod. Choose Kueue when the cluster runs many kinds of workload and you want upstream components; a full batch scheduler when the cluster is dedicated to batch GPU jobs and needs its policies.</div></details>
-<details class="qa"><summary>Design question: the Kubernetes layer of a training platform for a 1,000-GPU lab (125 nodes of 8 GPUs).</summary><div>Node pools by GPU type, tainted, labelled by rack and network block; NVIDIA GPU Operator for driver, device plugin (or DRA driver) and DCGM; a health-check DaemonSet that cordons failing nodes. Kueue with one ClusterQueue per team in a cohort (nominal shares, borrowing, reclaim), flavors per GPU type, topology-aware scheduling on the block and rack labels, and waitForPodsReady; priority classes for production, research and preemptible. JobSet (or TrainJob over it) as the job API, with the disruption-free restart policy and checkpoint-on-SIGTERM; checkpoints on a parallel file system through CSI, datasets streamed from object storage. A bin-packing scheduler profile for small jobs or a separate pool. Trade-offs to explain: quota by team against throughput, spreading against packing, one big cluster against several with MultiKueue, and the control-plane limits (5,000 nodes, watch load), which 125 nodes does not approach.</div></details>
-<details class="qa"><summary>Why is the scheduler's tie-break random, and why does it matter for GPUs?</summary><div>Among equal scores it picks by a per-node random number, so equal nodes share load. For GPU jobs under the default profile, nodes are nearly always equal (GPUs do not enter the score), so placement of small jobs is effectively random, which is what fragments the cluster.</div></details>
-</section>
-</div>
-<div class="tab" id="t-kmcyc" role="tabpanel" hidden>
+<div class="pr"><div class="q">Predict. You add <code>example.com/gpu</code> with weight 5 to the default LeastAllocated strategy instead. What happens to the 4-GPU pod?</div>
+<div class="opts"><button data-a="0">It fits: GPUs are now counted</button><button data-a="1">It is even more certain to stay Pending: LeastAllocated now actively spreads GPUs</button><button data-a="0">The scheduler refuses the config</button></div>
+<div class="ans" hidden>Spreads harder. LeastAllocated prefers the node with the most free GPUs, so each small pod goes to the emptiest worker and every worker ends up partly used. Counting GPUs only helps with a packing strategy (MostAllocated, or RequestedToCapacityRatio with a rising shape). This variant was not run here; it follows from the same formula (<code>least_allocated.go</code> lines 52-60).</div></div>
+<details class="dp" id="km-cyc-det"><summary>Every plugin, every node: the full scheduling cycle of each pod, on the recorded runs or your own sequence <span class="mute">(depth)</span></summary><div class="b" id="km-cyc-wrap">
 <style>
-#t-kmcyc .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-kmcyc .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-kmcyc .an-play{min-width:6.4em}
-#t-kmcyc .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px;overflow-wrap:anywhere}
-#t-kmcyc .an-cap .t{font-weight:600;font-size:14px}
-#t-kmcyc .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-kmcyc .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
-#t-kmcyc .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
-#t-kmcyc .ph{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}#t-kmcyc .ph span{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:1px 9px;color:var(--mute)}
-#t-kmcyc .ph span.on{border-color:var(--acc);background:var(--acc2);color:var(--ink);font-weight:600}#t-kmcyc .ph span.done{color:var(--ink)}
-#t-kmcyc .nodes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:8px 0}
-#t-kmcyc .nd{border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12.5px;min-width:0;background:var(--bg)}
-#t-kmcyc .nd.out{opacity:.5}#t-kmcyc .nd.win{outline:2px solid var(--good);outline-offset:1px}
-#t-kmcyc .nd b{font-size:13.5px}#t-kmcyc .slots{display:flex;gap:3px;margin:4px 0}#t-kmcyc .slots i{flex:1;height:16px;border-radius:3px;border:1px dashed var(--line)}
-#t-kmcyc .slots i.u{border:0}#t-kmcyc .slots i.n{border:2px solid var(--acc);background:var(--acc2)}
-#t-kmcyc .fl{margin:3px 0;line-height:1.35}#t-kmcyc .fl .ok{color:var(--good)}#t-kmcyc .fl .no{color:var(--bad);font-weight:600}
-#t-kmcyc .sc .row{display:grid;grid-template-columns:minmax(0,7.5em) minmax(0,1fr) 3.4em;gap:6px;align-items:center;margin:2px 0;font-size:11.5px}
-#t-kmcyc .sc .tr{height:9px;background:var(--soft);border-radius:2px;position:relative;overflow:hidden}#t-kmcyc .sc .fi{position:absolute;left:0;top:0;bottom:0;background:var(--acc);border-radius:2px}
-#t-kmcyc .sc .v{text-align:right;font-variant-numeric:tabular-nums}
-#t-kmcyc .tot{font-weight:600;margin-top:3px}#t-kmcyc .chk{color:var(--good);font-size:11px}
-#t-kmcyc input.seq{width:min(100%,14em)}
-#t-kmcyc .tw table{min-width:520px}
+#km-cyc-wrap .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#km-cyc-wrap .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#km-cyc-wrap .an-play{min-width:6.4em}
+#km-cyc-wrap .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px;overflow-wrap:anywhere}
+#km-cyc-wrap .an-cap .t{font-weight:600;font-size:14px}
+#km-cyc-wrap .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#km-cyc-wrap .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#km-cyc-wrap .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#km-cyc-wrap .ph{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}#km-cyc-wrap .ph span{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:1px 9px;color:var(--mute)}
+#km-cyc-wrap .ph span.on{border-color:var(--acc);background:var(--acc2);color:var(--ink);font-weight:600}#km-cyc-wrap .ph span.done{color:var(--ink)}
+#km-cyc-wrap .nodes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:8px 0}
+#km-cyc-wrap .nd{border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12.5px;min-width:0;background:var(--bg)}
+#km-cyc-wrap .nd.out{opacity:.5}#km-cyc-wrap .nd.win{outline:2px solid var(--good);outline-offset:1px}
+#km-cyc-wrap .nd b{font-size:13.5px}#km-cyc-wrap .slots{display:flex;gap:3px;margin:4px 0}#km-cyc-wrap .slots i{flex:1;height:16px;border-radius:3px;border:1px dashed var(--line)}
+#km-cyc-wrap .slots i.u{border:0}#km-cyc-wrap .slots i.n{border:2px solid var(--acc);background:var(--acc2)}
+#km-cyc-wrap .fl{margin:3px 0;line-height:1.35}#km-cyc-wrap .fl .ok{color:var(--good)}#km-cyc-wrap .fl .no{color:var(--bad);font-weight:600}
+#km-cyc-wrap .sc .row{display:grid;grid-template-columns:minmax(0,7.5em) minmax(0,1fr) 3.4em;gap:6px;align-items:center;margin:2px 0;font-size:11.5px}
+#km-cyc-wrap .sc .tr{height:9px;background:var(--soft);border-radius:2px;position:relative;overflow:hidden}#km-cyc-wrap .sc .fi{position:absolute;left:0;top:0;bottom:0;background:var(--acc);border-radius:2px}
+#km-cyc-wrap .sc .v{text-align:right;font-variant-numeric:tabular-nums}
+#km-cyc-wrap .tot{font-weight:600;margin-top:3px}#km-cyc-wrap .chk{color:var(--good);font-size:11px}
+#km-cyc-wrap input.seq{width:min(100%,14em)}
+#km-cyc-wrap .tw table{min-width:520px}
 </style>
-<h2>Scheduling cycle: one pod at a time, every plugin, every node</h2>
-<p>The kube-scheduler of this topic's kind cluster placed the same six pods twice, once under the default profile and once under a bin-packing profile, while logging every plugin's score for every node (<code>--vmodule=schedule_one=10</code>, which reaches the V(10) lines at <code>pkg/scheduler/schedule_one.go</code> lines 980-1052 at v1.37.0). Step through the cycle of each pod: Filter removes nodes, Score ranks the rest, the highest total wins, Bind writes the result. Every score shown is the scheduler's logged value; a check mark means <code>src/recompute.py</code> computed the same number from the node's state with the ported formulas. Reading section <a href="#" data-tab="t-read">3</a> explains the plugins.</p>
-<div class="card" id="km-cyc-card">
+<p>Plugins are Go code compiled into the scheduler and configured per <dfn>profile</dfn>. The cycle's extension points, in order: <b>PreEnqueue</b> (may keep a pod out of the queue: scheduling gates, and in v1.37 the gang plugin); <b>PreFilter, Filter</b> (NodeResourcesFit, TaintToleration, NodeAffinity, VolumeBinding, PodTopologySpread; a node is <dfn>feasible</dfn> only if every Filter passes); <b>PostFilter</b> (only when no node is feasible; the default is preemption, section 6); <b>PreScore, Score, NormalizeScore</b>; <b>Reserve, Permit</b> (resources reserved in the scheduler's cache; Permit can hold the pod, as the gang plugin does); <b>PreBind, Bind</b> in the binding cycle, so the next pod's cycle does not wait for the API call. Default weights (<code>pkg/scheduler/apis/config/v1/default_plugins.go</code> lines 32-57 at v1.37.0 <span class="pub">source</span>): TaintToleration 3, NodeAffinity 2, PodTopologySpread 2, InterPodAffinity 2, NodeResourcesFit 1, NodeResourcesBalancedAllocation 1, ImageLocality 1. The default resource list is in <code>apis/config/v1/defaults.go</code> lines 33-35; extended resources are left out of the score in <code>noderesources/resource_allocation.go</code> lines 176-182.</p>
+<p>Step through each pod's cycle below: Filter removes nodes, Score ranks the rest, Bind writes the result. Every score shown is the scheduler's logged value (<code>--vmodule=schedule_one=10</code>, the V(10) lines at <code>pkg/scheduler/schedule_one.go</code> lines 980-1052); a check mark means <code>src/recompute.py</code> computed the same number from the node's state with the ported formulas.</p>
+<div class="rd-card" id="km-cyc-card"><h4>One pod at a time through Filter, Score, Select and Bind, every logged score <span class="meas">measured</span></h4>
 <div class="seg" id="km-cyc-prof"><button data-m="e6spread" class="on">Default profile</button><button data-m="e6pack">km-binpack profile</button></div>
 <div class="seg" id="km-cyc-src"><button data-m="rec" class="on">Recorded run (2, 1, 1, 2, 2, 4 GPUs)</button><button data-m="own">Your own sequence</button></div>
 <div id="km-cyc-own" hidden><label class="small">GPUs per pod, in order (1 to 4 each, up to 10 pods): <input class="seq" id="km-cyc-seq" value="1,1,1,1,4,4"></label> <span class="small mute" id="km-cyc-seqmsg"></span></div>
@@ -640,39 +422,198 @@ profiles:
 <dt>BalancedAllocation</dt><dd>50 + ⌊(50 + s<sub>with pod</sub> − s<sub>without</sub>) / 2⌋, s = ⌊(1 − σ) × 100⌋, σ the spread of the CPU and memory fractions (<code>balanced_allocation.go</code> lines 204-262)</dd>
 <dt>total</dt><dd>3 × TaintToleration + 1 × NodeResourcesFit + 1 × BalancedAllocation + 1 × ImageLocality (+ 2 × the affinity and spread plugins, 0 here)</dd>
 </dl></div>
+
+<p>The cycle itself is <code>schedulingCycle</code> and <code>schedulePod</code> in <code>pkg/scheduler/schedule_one.go</code> (lines 169 and 572); ties are broken by a random number drawn per node (<code>framework/sorted_nodes.go</code> lines 61-64). On clusters of 100 nodes or more the scheduler stops looking after enough feasible nodes (<code>numFeasibleNodesToFind</code>, lines 866-892: 50% minus 1% per 125 nodes, at least 5%, at least 100 nodes), so on a 5,000-node cluster a pod is scored against 500 of them, not the best of all.</p>
+<pre class="rd-code">57  minFeasibleNodesToFind = 100
+...
+879 	if percentage == 0 {
+880 		percentage = int32(50) - numAllNodes/125
+881 		if percentage &lt; minFeasibleNodesPercentageToFind {
+882 			percentage = minFeasibleNodesPercentageToFind
+883 		}
+884 	}</pre>
+<p class="rd-codecap"><code>pkg/scheduler/schedule_one.go</code>, kubernetes v1.37.0.</p>
+</div></details>
+</section>
+<section id="rd-s4">
+<h2>4. GPUs as resources: extended resources, device plugins, the GPU Operator and DRA</h2>
+<p>Kubernetes knows CPU and memory natively. A GPU is a device on one node: the scheduler must count them, and the kubelet must give a container the right device files, driver libraries and environment for the specific GPUs it got. There are three levels of help.</p>
+<p><b>Extended resources: counting only.</b> Any resource name with a domain (<code>nvidia.com/gpu</code>, <code>example.com/gpu</code>) in a node's <code>status.capacity</code>. Pods request whole numbers, the scheduler subtracts, and nothing is attached to the container; it cannot be overcommitted (a limit, if given, must equal the request) (<a href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#extended-resources" target="_blank" rel="noopener noreferrer">Extended resources</a> <span class="pub">docs</span>). This topic's cluster has no GPUs, so its setup wrote <code>example.com/gpu: 4</code> into each worker's status by hand: every GPU number on this page is that counter.</p>
+<p><b>Device plugins: counting plus attaching.</b> A <dfn>device plugin</dfn> is a small gRPC server, usually a DaemonSet pod on every GPU node, that calls the kubelet's <code>Register</code>; the kubelet then streams <code>ListAndWatch</code> (device IDs and health), may ask <code>GetPreferredAllocation</code> (so the plugin can pick GPUs that share an NVLink or PCIe switch) and calls <code>Allocate</code> once per container, whose answer lists device files, mounts, environment variables or CDI device names. The scheduler picks the node; <span class="hl">the kubelet picks which GPUs</span>.</p>
+<p><b>The NVIDIA GPU Operator</b> is how that stack usually arrives: an operator that runs as containers on each GPU node "the NVIDIA drivers (to enable CUDA), Kubernetes device plugin for GPUs, the NVIDIA Container Runtime, automatic node labelling, DCGM based monitoring and others" (<a href="https://github.com/NVIDIA/gpu-operator" target="_blank" rel="noopener noreferrer">NVIDIA/gpu-operator README</a> at v26.7.2, released 2026-10-14 <span class="vend">vendor</span>), so GPU nodes can boot the same OS image as CPU nodes. NVIDIA's device plugin advertises <code>nvidia.com/gpu</code> and can split GPUs by MIG or share them by time-slicing or MPS; MIG itself is on <a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a>, and DCGM's metrics on <a href="https://app.notion.com/p/3c65c17b0d0d818ebf79d1af4532f3ee" target="_blank" rel="noopener noreferrer">Observability and cost</a>.</p>
+<p><b>DRA: described devices.</b> <dfn>Dynamic Resource Allocation</dfn> (resource.k8s.io/v1, GA in v1.34) replaces "a count of opaque units" with structured devices. A DRA <dfn>driver</dfn> publishes <dfn>ResourceSlices</dfn> (each device with attributes such as model, memory, NUMA node, PCIe root); an admin defines <dfn>DeviceClasses</dfn> (a CEL selector); a pod references a <dfn>ResourceClaim</dfn> asking for, say, exactly 2 devices of a class with at least 80Gi. <span class="hl">The scheduler allocates the exact devices</span> while it picks the node, and the kubelet then asks the node's driver to prepare them.</p>
+<div class="rd-card" id="km-dev-card">
+<h4>The same request, through a device plugin and through DRA <span class="meas">measured</span></h4>
+<div class="seg" id="km-dev-mode"><button data-m="dp" class="on">Device plugin (count)</button><button data-m="dra">DRA (described devices)</button></div>
+<div class="km-svg" id="km-dev-svg"></div>
+<div class="an-ctl" id="km-dev-ctl"></div>
+<div class="an-cap" id="km-dev-cap"></div>
+<p class="small mute">Device plugin: Kubernetes' own e2e sample plugin (<code>test/images/sample-device-plugin</code>, image 1.8.0) on worker3, advertising two fake devices as <code>example.com/resource</code>. DRA: a hand-written ResourceSlice of four fake GPUs on worker3 (two with 40Gi, two with 80Gi), a DeviceClass and a claim template asking for 2 devices with at least 80Gi; no DRA driver installed. Manifests in <code>src/k8s/e7-device-plugin.yaml</code> and <code>e8-dra.yaml</code>; outputs in <code>src/runs/e7.steps.txt</code> and <code>e8.steps.txt</code>.</p>
 </div>
-<div class="tab" id="t-kmq" role="tabpanel" hidden>
+<p><b>What the runs show.</b> The device plugin registered in 9 ms; a pod asking for 1 got <code>Allocate request="container_requests:{devices_ids:\"Dev-2\"}"</code> and saw <code>/tmp/Dev-2</code> mounted. After the plugin pod was deleted, the node kept <code>capacity 2</code> with <code>allocatable 0</code> until the kubelet was restarted. Through DRA, the scheduler allocated <code>gpu-2</code> and <code>gpu-3</code> (the two 80Gi devices) and wrote them into the claim before binding; the kubelet then failed with <code>DRA driver gpu.km.example.com is not registered</code>. The split is visible: <span class="hl">allocation works from the published slice alone; only preparation needs the driver</span>.</p>
+<div class="km-pair">
+<div><b>Device plugin</b>Simple, everywhere, what NVIDIA's stack uses today. Counts only: "2 GPUs" cannot say "on the same NVLink island" or "with 80 GB" except through node labels and separate resource names. The scheduler picks the node; the kubelet picks the GPUs.</div>
+<div><b>DRA</b>Typed devices, CEL selection, sharing a claim between pods, the scheduler choosing exact devices. Needs a DRA driver on every node and v1.34 or later; allocation is more work in the scheduler for every pod with a claim.</div>
+</div>
+<div class="pr"><div class="q">Predict. A node's GPU device plugin crashes and restarts while a training pod is running on that node's 8 GPUs. What happens to the running pod?</div>
+<div class="opts"><button data-a="0">It is killed: its devices are no longer registered</button><button data-a="1">Nothing: the containers already have their devices; only new allocations wait for the plugin</button><button data-a="0">It is rescheduled to another node</button></div>
+<div class="ans" hidden>Nothing happens to it. Allocate happens once, at container start; the device files are already in the container. While the plugin is gone the node's allocatable for that resource drops to 0 (as measured above), so new GPU pods cannot land there, and on re-registration the kubelet restores it from ListAndWatch. A plugin that reports a device Unhealthy also only lowers allocatable; killing the pod that uses it is someone else's job (a health checker, or the root's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Failure lab</a> patterns).</div></div>
+<details class="dp"><summary>The device-plugin API, NVIDIA's plugin, the DRA run in full <span class="mute">(depth)</span></summary><div class="b">
+<p>The plugin talks to the kubelet over a Unix socket in <code>/var/lib/kubelet/device-plugins/</code>. The API (<code>staging/src/k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1/api.proto</code> at v1.37.0 <span class="pub">source</span>): <code>Register</code> line 14, <code>ListAndWatch</code> line 48, <code>GetPreferredAllocation</code> line 55, <code>Allocate</code> line 60. NVIDIA's plugin is deployed as a DaemonSet; its MIG strategies are none, single and mixed (the last exposing names like <code>nvidia.com/mig-1g.10gb</code>), and for time-slicing its README says "nothing special is done to isolate workloads" (<a href="https://github.com/NVIDIA/k8s-device-plugin" target="_blank" rel="noopener noreferrer">NVIDIA/k8s-device-plugin</a> <span class="vend">vendor</span>, v0.20.1 released 2026-09-22). The GPU Operator also installs the container toolkit. DRA's GA: <a href="https://kubernetes.io/blog/2025/09/01/kubernetes-v1-34-dra-updates/" target="_blank" rel="noopener noreferrer">Kubernetes blog, 2025-09-01</a> <span class="pub">docs</span>; the scheduler's DynamicResources plugin has weight 2 when the feature is on. The NVIDIA GPU DRA driver now lives at <a href="https://github.com/kubernetes-sigs/dra-driver-nvidia-gpu" target="_blank" rel="noopener noreferrer">kubernetes-sigs/dra-driver-nvidia-gpu</a> (the old NVIDIA/k8s-dra-driver-gpu address redirects there; latest release v0.5.1, 2026-10-12, GitHub API; not run here); the GPU Operator README's roadmap includes managing it as one of its components.</p>
+<p>In the device-plugin run the log read "Device Plugin registered with the Kubelet", then "ListAndWatch"; the node reported <code>example.com/resource: 2</code> on its next status update, and the kubelet recorded the assignment in its checkpoint file (<code>kubelet_internal_checkpoint</code>: pod UID, container, device IDs). Patching the leftover capacity out of the node status did not help (the kubelet wrote it back within seconds); it went away only when the kubelet was restarted at cleanup, about 50 minutes later. The DRA failure in full: <code>Failed to prepare dynamic resources: prepare dynamic resources: DRA driver gpu.km.example.com is not registered</code> (<code>pkg/kubelet/cm/dra/plugin/dra_plugin_manager.go</code> line 280), and a second identical pod was refused at scheduling with <code>3 cannot allocate all claims</code>.</p>
+</div></details>
+</section>
+<section id="rd-s5">
+<h2>5. Multi-node networking: getting the RDMA NIC into the pod</h2>
+<p>A pod normally has one interface, <code>eth0</code>, on the cluster's pod network (made by the cluster's CNI plugin: an overlay or routed network over TCP). That is enough for DNS and torchrun's rendezvous, but NCCL's all-reduce between nodes wants the RDMA fabric (InfiniBand or RoCE, usually one 400 Gb/s card per GPU: <a href="https://app.notion.com/p/3fc5c17b0d0d816a871df56477fc83b2" target="_blank" rel="noopener noreferrer">Cluster anatomy</a>). With no RDMA device in the container NCCL prints <code>NET/IB : No device found.</code> and carries on over sockets, much slower and without an error (<a href="https://app.notion.com/p/3fc5c17b0d0d81b3a8a5c58224bff9fa" target="_blank" rel="noopener noreferrer">Launching distributed training</a>). Two things must be added to the pod: <span class="hl">the RDMA device</span> and <span class="hl">a network interface on the fabric</span>.</p>
+<div class="hero" id="km-net-card"><h4>A training pod with two networks: the pod network for names, the RDMA fabric for NCCL</h4>
+<div class="rd-svg" id="km-net-svg"></div>
+<p class="small">The GPUs come from the GPU device plugin (section 4); the RDMA device from a second device plugin (the RDMA shared device plugin, or the SR-IOV network device plugin, which hands each pod its own virtual function of the NIC); the second interface, <code>net1</code>, from <b>Multus</b>, a CNI "meta-plugin" that calls further CNI plugins for each network the pod's annotation <code>k8s.v1.cni.cncf.io/networks</code> names (a NetworkAttachmentDefinition object) (<a href="https://github.com/k8snetworkplumbingwg/multus-cni" target="_blank" rel="noopener noreferrer">Multus CNI</a> v4.3.1 <span class="pub">docs</span>). Not run here: the kind cluster has no RDMA hardware.</p></div>
+<ul class="tight">
+<li><b>The simple way</b>: <code>hostNetwork: true</code>. The pod sees every host interface, RDMA NICs included; it gives up network isolation and port separation between pods, which is acceptable on nodes that run one training pod each.</li>
+<li><b>The managed way</b>: the <b>NVIDIA Network Operator</b> (v26.7.1, 2026-10-16 <span class="vend">vendor</span>), the networking counterpart of the GPU Operator. Its NicClusterPolicy installs the NIC driver container, the RDMA shared device plugin or the SR-IOV network device plugin, Multus and the secondary-network CNI plugins (macvlan, host-device, IP over InfiniBand) and an IP address manager, so that "RDMA and GPUDirect RDMA workloads" run in the cluster (<a href="https://github.com/Mellanox/network-operator" target="_blank" rel="noopener noreferrer">Mellanox/network-operator README</a> <span class="vend">vendor</span>). A pod then requests, next to <code>nvidia.com/gpu: 8</code>, a resource such as <code>rdma/hca_shared_devices_a: 1</code> (the plugin's example name) and names the secondary network in its annotation.</li>
+<li><b>How to check</b>: inside the pod, <code>ibv_devices</code> lists the RDMA devices and <code>ip addr</code> shows <code>net1</code>; with <code>NCCL_DEBUG=INFO</code> the log must say <code>NET/IB</code>, not <code>NET/Socket</code>; set <code>NCCL_NET=IB</code> to turn a silent fallback into an error.</li>
+</ul>
+<p class="small mute">The fabric itself (InfiniBand against RoCE, rails, GPUDirect RDMA) is on <a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a>; NCCL's variables on Launching distributed training. Sources read 2026-10-24: the Network Operator README; the <a href="https://github.com/Mellanox/k8s-rdma-shared-dev-plugin" target="_blank" rel="noopener noreferrer">k8s-rdma-shared-dev-plugin README</a> (v1.5.4, 2026-07-28); the <a href="https://github.com/k8snetworkplumbingwg/sriov-network-device-plugin" target="_blank" rel="noopener noreferrer">SR-IOV network device plugin</a> (v3.11.0, 2025-12-16).</p>
+</section>
+<section id="rd-s6">
+<h2>6. Placement controls: affinity, taints, spread, priority and preemption</h2>
+<p>Training pods only on GPU nodes, everything else kept off them, a job's pods close together, important jobs able to take GPUs from unimportant ones: four controls do it.</p>
+<ul class="tight">
+<li><dfn>nodeSelector</dfn> and <dfn>node affinity</dfn>: node labels the pod requires (<code>requiredDuringSchedulingIgnoredDuringExecution</code>, a Filter) or prefers (<code>preferred...</code>, a Score). Kueue's flavors (section 8) add one for you.</li>
+<li><dfn>Taints</dfn> and <dfn>tolerations</dfn>: a node's taint repels every pod that does not tolerate it. GPU pools are usually tainted (for example <code>nvidia.com/gpu=present:NoSchedule</code>) so only training pods and the device plugin DaemonSet land there. <code>NoExecute</code> also evicts running pods; the node lifecycle controller adds <code>node.kubernetes.io/unreachable</code> this way when a node goes silent (the root's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Failure lab</a> measures it).</li>
+<li><dfn>topologySpreadConstraints</dfn>: keep the count of matching pods per <dfn>topology domain</dfn> (nodes sharing a label value, such as a zone or this cluster's block <code>mi.example.com/block</code>) within <code>maxSkew</code>.</li>
+<li><dfn>Pod affinity</dfn> and <dfn>anti-affinity</dfn>: place a pod near (or away from) pods with given labels in a domain. JobSet's exclusive placement (section 9) is built from these.</li>
+</ul>
+<p><b>A spread rule meets a tainted node.</b> Three 1-GPU pods with <code>maxSkew: 1</code> over the two blocks (b1 = worker and worker2, b2 = worker3), while worker3 carries a taint the pods do not tolerate. Predict: does b2 still count as a domain they must spread into?</p>
+<div class="rd-card" id="km-spread-card">
+<h4>nodeTaintsPolicy Ignore (the default) against Honor, same pods <span class="meas">measured</span></h4>
+<div class="seg" id="km-spread-mode"><button data-m="ignore" class="on">Ignore (default)</button><button data-m="honor">Honor</button></div>
+<div class="km-svg" id="km-spread-svg"></div>
+<div class="an-cap" id="km-spread-cap"></div>
+<p class="small mute"><code>src/k8s/spread-pod.sh</code>; taint <code>km.example.com/reserved=inference:NoSchedule</code> on worker3 during the runs, removed after.</p>
+</div>
+<p>With the default, the tainted block still counts as a domain with zero pods, so after one pod in b1 the second would make the skew 2 and is refused: two pods Pending with <code>2 node(s) didn't match pod topology spread constraints, 2 node(s) had untolerated taint(s)</code>. With <code>nodeTaintsPolicy: Honor</code> the tainted node is left out of the count and all three run in b1. The same trap exists for <code>nodeAffinityPolicy</code>, whose default is Honor.</p>
+<p><b>Priority and preemption.</b> A <dfn>PriorityClass</dfn> maps a name to an integer. Higher-priority pods go first in the queue, and when nothing fits, the default PostFilter plugin looks for a node where evicting lower-priority pods makes room (<dfn>preemption</dfn>). The victims get the <code>DisruptionTarget</code> condition (reason <code>PreemptionByScheduler</code>), SIGTERM and their grace period; the preemptor waits with <code>status.nominatedNodeName</code> set. <code>preemptionPolicy: Never</code> keeps the queue priority but never evicts.</p>
+<div class="rd-card" id="km-pre-card">
+<h4>Three low-priority jobs fill the cluster; two high-priority jobs arrive <span class="meas">measured</span></h4>
+<div class="km-svg" id="km-pre-svg"></div>
+<div class="an-ctl" id="km-pre-ctl"></div>
+<div class="an-cap" id="km-pre-cap"></div>
+<p class="small mute">PriorityClasses km-low (100), km-high (1000) and km-high-nopreempt (1000, preemptionPolicy Never) from <code>src/k8s/e5-priority.yaml</code>; every pod asks for a whole worker's 4 fake GPUs. Events in <code>src/runs/e5a.events.txt</code>.</p>
+</div>
+<p><b>Cost and when it matters.</b> The scheduler preempts <i>pods</i>, not jobs: evicting one pod of a 64-pod training job kills all 64 (section 2), and it will happily preempt a pod 3 minutes from a checkpoint. That is why training clusters move preemption up a level: Kueue preempts whole workloads by priority or to reclaim quota (the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Scheduling lab</a> shows the reclaim), and the native PodGroup has a <code>disruptionMode</code> (single or all) for exactly this. A PodDisruptionBudget limits voluntary evictions (drains), but not preemption by priority beyond a best effort.</p>
+</section>
+<section id="rd-s7">
+<h2>7. Gang scheduling: every pod or none</h2>
+<p>The scheduler places one pod per cycle and knows nothing of the job it belongs to. Two jobs that each need the whole cluster can each get half, and wait forever for the other half: a <dfn>partial-placement deadlock</dfn>. The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Scheduling lab</a> produced exactly that on this cluster and fixed it with Kueue. A <dfn>gang</dfn> is a set of pods that must start together; <dfn>gang scheduling</dfn> binds all of them or none. Kubernetes v1.37 has it built in, behind a gate: a <code>PodGroup</code> object with <code>gang.minCount</code>, and a GangScheduling plugin that holds a group's pods at PreEnqueue until minCount exist and at Permit until minCount are placed. This page switched the gate on for one run, on the parent's deadlock input:</p>
+<div class="rd-card" id="km-gang-card">
+<h4>The parent's deadlock input, without and with a PodGroup <span class="meas">measured</span></h4>
+<div class="seg" id="km-gang-mode"><button data-m="nogang" class="on">No gang (default)</button><button data-m="gang">PodGroup, minCount 2</button></div>
+<div class="km-svg" id="km-gang-svg"></div>
+<div class="an-ctl" id="km-gang-ctl"></div>
+<div class="an-cap" id="km-gang-cap"></div>
+<p class="small mute">Three jobs of two pods, each pod holding a whole worker's 4 fake GPUs (12 in all, so 1.5 jobs fit), released one second apart in the order a0, b0, c0, a1, b1, c1. Pods sleep 30 s in the gang run (600 s in the other, which was stopped after 28 s). Snapshots in <code>src/runs/e11nogang.snap</code>, <code>e11gang.snap</code>; scheduler log in <code>e11gang.schedlog.txt</code>.</p>
+</div>
+<p>Without the gang, a0, b0 and c0 each took a worker and the other three waited: every job half placed, none able to run. With the PodGroups, a0 was held at PreEnqueue (<code>waiting for minCount pods from a gang to appear in scheduling queue</code>); when a1 arrived both were placed and released together (<code>Quorum is met for a gang. Allowing other pods from a gang waiting on permit</code>); gangs b and c were refused as a whole (<code>minCount (2) cannot be satisfied: 1 scheduled, 0 remaining</code>) and ran one after another as the GPUs freed up.</p>
+<p><b>Which one to use.</b> Native gangs fix the deadlock but have no notion of quota or queues: a big job still waits behind whatever arrives first, and two teams still race. Kueue gives queues and quotas and works with the default scheduler today (and its admission can lag behind real placement: an admitted workload can still find a node broken, which <code>waitForPodsReady</code>, default timeout 30 minutes in v0.20 per <code>apis/config/v1beta2/defaults.go</code> line 48, handles by evicting and requeueing it). Volcano and KAI replace the scheduler and give both, at the cost of running a second scheduler you must trust with every GPU pod.</p>
+<p>Beyond Kueue and the native PodGroup, three batch schedulers replace kube-scheduler for GPU pods and do gangs, queues and fair share inside it: <b>Volcano</b> (CNCF), <b>KAI Scheduler</b> (NVIDIA, from Run:ai) and <b>YuniKorn</b>; the older <b>coscheduling plugin</b> is a second scheduler build with a PodGroup CRD (what OpenAI used on its 7,500-node cluster); <b>LeaderWorkerSet</b> gangs each serving group (section 11).</p>
+<details class="dp"><summary>The gang options compared: where the gang is decided, what else each brings, versions <span class="mute">(reference)</span></summary><div class="b">
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Option</th><th>Where the gang is decided</th><th>What else it brings</th><th>Status (dated)</th></tr></thead>
+<tbody>
+<tr><td data-h="Option">Kueue (+ JobSet or Job)</td><td data-h="Where">Admission: the whole workload's quota is reserved before any pod exists; the default scheduler places the pods</td><td data-h="Brings">Queues, quotas, cohorts, flavors, topology-aware placement, MultiKueue</td><td data-h="Status">v0.20.2 (2026-10-15), kubernetes-sigs; measured in the parent's lab and in section 8</td></tr>
+<tr><td data-h="Option">Native PodGroup</td><td data-h="Where">Inside kube-scheduler: PreEnqueue holds pods until the group's minCount exists, Permit holds bound pods until minCount are placed</td><td data-h="Brings">Group-level preemption and disruption mode; Workload objects; topology (alpha)</td><td data-h="Status">KEP-4671: alpha v1.35, gate GenericWorkload beta in v1.37 but <b>off by default</b> (<code>pkg/features/kube_features.go</code> lines 1622-1625); measured below</td></tr>
+<tr><td data-h="Option">Coscheduling plugin (scheduler-plugins)</td><td data-h="Where">A second scheduler build with a PodGroup CRD and a Permit plugin</td><td data-h="Brings">Little else</td><td data-h="Status">What OpenAI used on its 7,500-node cluster (OpenAI blog 2021-01-25) <span class="pub">operator</span>; not run here</td></tr>
+<tr><td data-h="Option">Volcano</td><td data-h="Where">Its own scheduler (pods set <code>schedulerName: volcano</code>), PodGroup with minMember</td><td data-h="Brings">Queues, fair share, its own Job CRD, binpack and other policies</td><td data-h="Status">v1.16.0 (2026-10-15), CNCF incubating, built on kube-batch (README) <span class="vend">project</span>; not run here</td></tr>
+<tr><td data-h="Option">KAI Scheduler (NVIDIA, from Run:ai)</td><td data-h="Where">Its own scheduler with hierarchical PodGroups</td><td data-h="Brings">Hierarchical queues, time-based fair share, GPU sharing, topology-aware scheduling, DRA</td><td data-h="Status">Apache-2.0 since 2025-04-01, v0.18.6 (2026-10-15) <span class="vend">vendor</span>; not run here</td></tr>
+<tr><td data-h="Option">LeaderWorkerSet (serving)</td><td data-h="Where">Its own controller; each group of leader and workers "can be scheduled in an all-or-nothing manner" (alpha)</td><td data-h="Brings">Groups as the unit of scaling, rollout and restart (section 11)</td><td data-h="Status">v1.0.0 (2026-10-16), kubernetes-sigs; README <span class="pub">docs</span>; not run here</td></tr>
+<tr><td data-h="Option">YuniKorn</td><td data-h="Where">Its own scheduler with application-level gang placeholders</td><td data-h="Brings">Hierarchical queues (from the Hadoop world)</td><td data-h="Status">v1.10.0 (2026-10-06); not run here</td></tr>
+</tbody></table></div>
+<p class="small mute">Versions and dates from the topic's shared facts (release feeds read 2026-10-16); feature lists from each project's README.</p>
+</div></details>
+<div class="co warn"><div class="t">Kueue's webhook is on the path of every pod</div><p>Restarting the API server for this run restarted Kueue's controller too, and until it served again <i>every</i> pod creation in the cluster failed (<code>failed calling webhook "mpod.kb.io" ... connection refused</code>): Kueue's pod webhook has <code>failurePolicy: Fail</code> for every namespace except kube-system and kueue-system, so Kueue is on the critical path of all pods, queued or not. Run it with several replicas and watch its readiness.</p></div>
+<details class="dp"><summary>The native PodGroup in full: the objects, the gate, the Permit timeout, the finalizer trap <span class="mute">(depth)</span></summary><div class="b">
+<p>The pieces: a <code>PodGroup</code> object (<code>scheduling.k8s.io/v1beta1</code>) with <code>schedulingPolicy.gang.minCount</code>, a pod field <code>spec.schedulingGroup.podGroupName</code> (it replaced <code>workloadRef</code> in v1.36, <code>staging/src/k8s.io/api/core/v1/types.go</code> lines 4697-4716), and the GangScheduling plugin. To try it, this page turned on the gate in the API server (plus <code>--runtime-config=scheduling.k8s.io/v1beta1=true</code>) and in the scheduler, ran the parent's deadlock input again with placeholder pods, and restored both manifests (<code>src/scripts/km_gang_reconf.sh</code>):</p>
+<pre class="rd-code">apiVersion: scheduling.k8s.io/v1beta1
+kind: PodGroup
+metadata: {name: km-a, namespace: km}
+spec:
+  schedulingPolicy:
+    gang: {minCount: 2}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: km-a-0, namespace: km, labels: {km-gang: km-a}}
+spec:
+  schedulingGroup: {podGroupName: km-a}
+  schedulingGates: [{name: km.example.com/release}]   # the run releases pods in the order a0 b0 c0 a1 b1 c1
+  ...
+    resources:
+      requests: {cpu: 100m, memory: 64Mi, example.com/gpu: "4"}</pre>
+<p class="rd-codecap"><code>src/k8s/gang-podgroup.sh</code> and <code>gang-pod.sh</code> (abridged); three such groups, km-a, km-b and km-c.</p>
+<p>A pod held at Permit gives up after 5 minutes:</p>
+<pre class="rd-code">40 	// permitTimeoutDuration defines how long the gang pods should
+41 	// wait at the permit stage for a quorum before being rejected.
+42 	permitTimeoutDuration = 5 * time.Minute
+...
+402	if scheduledPodsCount &lt; int(podGroup.Spec.SchedulingPolicy.Gang.MinCount) {
+...
+407		return fwk.NewStatus(fwk.Wait, "waiting for minCount pods from a gang to be scheduled"), permitTimeoutDuration</pre>
+<p class="rd-codecap"><code>pkg/scheduler/framework/plugins/gangscheduling/gangscheduling.go</code>, kubernetes v1.37.0.</p>
+<div class="co warn"><div class="t">The webhook outage in full, and the finalizer trap</div>
+<p>The full message: <code>failed calling webhook "mpod.kb.io": failed to call webhook: Post "https://kueue-webhook-service.kueue-system.svc:443/mutate--v1-pod?timeout=10s": ... connection refused</code>. And the PodGroups carry a finalizer (<code>scheduling.k8s.io/podgroup-protection</code>) that a kube-controller-manager controller removes; with the gate on only in the API server and scheduler, deleting them hung until the finalizer was removed by hand. Turning on a beta gate means turning it on in every component that has it.</p></div>
+</div></details>
+</section>
+<section id="rd-s8">
+<h2>8. Kueue: quota, flavors, topology</h2>
+<p>Several teams share a fixed pool of GPUs. Each needs a guaranteed share, idle shares should be usable by others, jobs should wait in an orderly queue rather than as Pending pods, and a 16-GPU job should get 16 GPUs that are close together. Kueue is a controller plus webhooks with six kinds of object (all <code>kueue.x-k8s.io/v1beta2</code>; v0.20 no longer serves v1beta1):</p>
+<div class="km-map">
+<div style="--kc:var(--c1)"><b>ResourceFlavor</b>A kind of capacity, mapped to nodes by labels (and tolerations): "H100 in block 1", "spot A100". Optional <code>topologyName</code> for topology-aware placement.</div>
+<div style="--kc:var(--c2)"><b>ClusterQueue</b>A team's quota: for each flavor and resource a <code>nominalQuota</code> (plus <code>borrowingLimit</code>, <code>lendingLimit</code>), a queueing strategy, preemption rules, and the <code>cohort</code> it shares with.</div>
+<div style="--kc:var(--c3)"><b>LocalQueue</b>A namespace's door into a ClusterQueue. Jobs say <code>kueue.x-k8s.io/queue-name: &lt;localqueue&gt;</code>.</div>
+<div style="--kc:var(--c4)"><b>Workload</b>Kueue's record of one job: its pod sets (count and requests per pod), created by Kueue's integration for Jobs, JobSets, TrainJobs, RayJobs and others. Admission is a property of the Workload.</div>
+<div style="--kc:var(--c5)"><b>Cohort</b>A group of ClusterQueues that lend each other unused quota; cohorts can form a tree.</div>
+<div style="--kc:var(--c6)"><b>Topology</b>An ordered list of node labels (block, rack, host) for topology-aware scheduling.</div>
+</div>
+<p><b>Admission, step by step.</b> A labelled job is made to start <dfn>suspended</dfn> (<code>spec.suspend: true</code>: no pods). Kueue's loop takes the head of each queue, <dfn>assigns flavors</dfn> (the flavors in order, checking the workload's total request against unused quota, borrowing and preemption), reserves the quota, runs any <dfn>admission checks</dfn> (for example a ProvisioningRequest that asks the cluster autoscaler for nodes first), then admits: it writes the chosen flavors into the Workload, injects the flavor's node labels as a nodeSelector and unsuspends the job. From there the normal scheduler places pods. The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Scheduling lab</a> shows queueing and cohort borrowing and reclaim; here are the two things it did not run, one decision per step.</p>
+<div id="km-q-wrap">
 <style>
-#t-kmq .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-kmq .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-kmq .an-play{min-width:6.4em}
-#t-kmq .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px;overflow-wrap:anywhere}
-#t-kmq .an-cap .t{font-weight:600;font-size:14px}
-#t-kmq .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-kmq .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
-#t-kmq .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
-#t-kmq .wl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:8px 0}
-#t-kmq .wl div{border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;min-width:0;overflow-wrap:anywhere}
-#t-kmq .wl div.cur{outline:2px solid var(--acc)}#t-kmq .wl div.ok{border-left:4px solid var(--good)}#t-kmq .wl div.no{border-left:4px solid var(--bad)}
-#t-kmq .qb .row{display:grid;grid-template-columns:minmax(0,8em) minmax(0,1fr) 5.5em;gap:8px;align-items:center;font-size:12.5px;margin:4px 0}
-#t-kmq .qb .tr{height:16px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden;border:1px solid var(--line)}
-#t-kmq .qb .fi{position:absolute;top:0;bottom:0;border-radius:2px}#t-kmq .qb .v{text-align:right;font-variant-numeric:tabular-nums}
-#t-kmq .topo{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px;margin:8px 0}
-#t-kmq .blk{border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}#t-kmq .blk.ok{border-color:var(--good)}#t-kmq .blk.bad{border-color:var(--bad)}
-#t-kmq .blk b{font-size:13px}#t-kmq .hosts{display:flex;gap:6px;margin-top:4px}
-#t-kmq .host{flex:1;border:1px solid var(--line);border-radius:6px;padding:4px;font-size:11.5px;min-width:0}
-#t-kmq .host .sl{display:flex;gap:2px;margin-top:3px}#t-kmq .host .sl i{flex:1;height:14px;border-radius:2px;border:1px dashed var(--line)}#t-kmq .host .sl i.u{background:var(--c1);border:0}
-#t-kmq pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:8px 10px;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}
+#km-q-wrap .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#km-q-wrap .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#km-q-wrap .an-play{min-width:6.4em}
+#km-q-wrap .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px;overflow-wrap:anywhere}
+#km-q-wrap .an-cap .t{font-weight:600;font-size:14px}
+#km-q-wrap .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#km-q-wrap .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#km-q-wrap .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#km-q-wrap .wl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:8px 0}
+#km-q-wrap .wl div{border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;min-width:0;overflow-wrap:anywhere}
+#km-q-wrap .wl div.cur{outline:2px solid var(--acc)}#km-q-wrap .wl div.ok{border-left:4px solid var(--good)}#km-q-wrap .wl div.no{border-left:4px solid var(--bad)}
+#km-q-wrap .qb .row{display:grid;grid-template-columns:minmax(0,8em) minmax(0,1fr) 5.5em;gap:8px;align-items:center;font-size:12.5px;margin:4px 0}
+#km-q-wrap .qb .tr{height:16px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden;border:1px solid var(--line)}
+#km-q-wrap .qb .fi{position:absolute;top:0;bottom:0;border-radius:2px}#km-q-wrap .qb .v{text-align:right;font-variant-numeric:tabular-nums}
+#km-q-wrap .topo{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px;margin:8px 0}
+#km-q-wrap .blk{border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}#km-q-wrap .blk.ok{border-color:var(--good)}#km-q-wrap .blk.bad{border-color:var(--bad)}
+#km-q-wrap .blk b{font-size:13px}#km-q-wrap .hosts{display:flex;gap:6px;margin-top:4px}
+#km-q-wrap .host{flex:1;border:1px solid var(--line);border-radius:6px;padding:4px;font-size:11.5px;min-width:0}
+#km-q-wrap .host .sl{display:flex;gap:2px;margin-top:3px}#km-q-wrap .host .sl i{flex:1;height:14px;border-radius:2px;border:1px dashed var(--line)}#km-q-wrap .host .sl i.u{background:var(--c1);border:0}
+#km-q-wrap pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:8px 10px;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}
 </style>
-<h2>Kueue admission: what Kueue decided for each workload, and why</h2>
-<p>Seven workloads, as Kueue v0.20.2 recorded them on this topic's kind cluster (16 Oct 2026): four ordinary jobs against a ClusterQueue with two flavors, and three topology-aware jobs against a ClusterQueue whose flavor carries a Topology. Each step replays one decision of Kueue's flavor assigner from the Workload objects (<code>src/runs/e10a.workloads.yaml</code>, <code>e10b*.workloads.yaml</code>): the requests summed over the pod set, each flavor's quota before and after, and the message or nodeSelector Kueue wrote. Reading section <a href="#" data-tab="t-read">7</a> explains the objects; the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Scheduling lab</a> has queueing, borrowing and reclaim.</p>
-<div class="card" id="km-q-card">
+<div class="rd-card" id="km-q-card"><h4>What Kueue decided for each workload: a full flavor falls through to the next; a full block refuses with quota free <span class="meas">measured</span></h4>
 <div class="seg" id="km-q-mode"><button data-m="flavors" class="on">Flavors: km-b1 then km-b2</button><button data-m="tas">Topology-aware (TAS)</button></div>
 <div class="wl" id="km-q-wl"></div>
 <div id="km-q-viz"></div>
 <div class="an-ctl" id="km-q-ctl"></div>
 <div class="an-cap" id="km-q-cap"></div>
 </div>
-<h3>The objects that ran</h3>
-<pre>apiVersion: kueue.x-k8s.io/v1beta2
+<p class="small mute">Seven workloads as Kueue v0.20.2 recorded them (16 Oct 2026): four ordinary jobs against a ClusterQueue with two flavors, and three topology-aware jobs against a ClusterQueue whose flavor carries a Topology. Each step replays one decision of the flavor assigner from the Workload objects (<code>src/runs/e10a.workloads.yaml</code>, <code>e10b*.workloads.yaml</code>): the requests summed over the pod set, each flavor's quota before and after, and the message or nodeSelector Kueue wrote.</p>
+</div>
+<div class="km-pair">
+<div><b>Flavors in order <span class="meas">measured</span></b>A ClusterQueue with flavor km-b1 (8 GPUs of quota, nodes labelled block b1) listed before km-b2 (4 GPUs, block b2). Four jobs of 2 pods x 2 GPUs: the first two got km-b1, the third km-b2 (pods got <code>nodeSelector: mi.example.com/block: b2</code> injected), the fourth waited with <code>insufficient unused quota for example.com/gpu in flavor km-b1, 4 more needed, insufficient unused quota for example.com/gpu in flavor km-b2, 4 more needed</code>.</div>
+<div><b>Topology-aware scheduling <span class="meas">measured</span></b>A flavor with a Topology (block, then host). Three pods of 2 GPUs with <code>kueue.x-k8s.io/podset-required-topology: mi.example.com/block</code> were admitted inside block b1 (two pods on worker, one on worker2). Three pods of 4 GPUs, the same annotation, 12 GPUs of quota free: refused, <code>topology "km-topo" allows to fit only 2 out of 3 pod(s); all pods must fit in a single "mi.example.com/block" topology domain</code>. With <code>podset-preferred-topology</code> instead, admitted across both blocks.</div>
+</div>
+<p><b>The cost.</b> Kueue reasons about quota, not nodes (except with topology): with 12 GPUs of quota and 12 GPUs in the cluster, an admitted job can still be unplaceable if a node is cordoned or fragmented. Keep quotas equal to what is really schedulable, and mind the webhook: as section 7 found, while Kueue is down no pod can be created anywhere it watches.</p>
+<details class="dp"><summary>The objects that ran, and the rest of Kueue (fungibility, preemption, fair sharing, waitForPodsReady, MultiKueue) <span class="mute">(depth)</span></summary><div class="b">
+<pre class="rd-code">apiVersion: kueue.x-k8s.io/v1beta2
 kind: ResourceFlavor
 metadata: {name: km-b1}
 spec:
@@ -714,6 +655,128 @@ spec:
   nodeLabels: {km.example.com/tas: "true"}
   topologyName: km-topo                      # ClusterQueue km-cq-tas: 4 CPUs, 3Gi, 12 GPUs of km-tas</pre>
 <p class="small mute">Abridged from <code>src/k8s/e10-kueue.yaml</code>; jobs from <code>src/k8s/kueue-job.sh</code> (an Indexed Job labelled <code>kueue.x-k8s.io/queue-name</code>, the TAS ones annotated <code>kueue.x-k8s.io/podset-required-topology</code> or <code>podset-preferred-topology</code> on the pod template). The label <code>km.example.com/tas=true</code> was put on the three workers for the TAS runs and removed after.</p>
+
+<p>The message comes from <code>pkg/cache/scheduler/tas_flavor_snapshot.go</code> line 2953 at Kueue v0.20.2 <span class="pub">source</span>. Topology-aware scheduling is beta and on by default since v0.14 (<code>pkg/features/kube_features.go</code> lines 975-978). Kueue then pins each pod with a nodeSelector on the host label (the pods above got <code>kubernetes.io/hostname: mi-kind-worker</code>), so the default scheduler only confirms the placement.</p>
+<p><b>The rest of Kueue</b> (described, not run here):</p>
+<ul class="tight">
+<li><b>Flavor fungibility</b>: by default the search stops at the first flavor where the workload fits or fits by borrowing (<code>whenCanBorrow: MayStopSearch</code>), but tries the next flavor before preempting in the current one (<code>whenCanPreempt: TryNextFlavor</code>) (<code>apis/kueue/v1beta2/clusterqueue_types.go</code> lines 526-549).</li>
+<li><b>Preemption</b>: <code>withinClusterQueue</code> (by priority inside a team), <code>reclaimWithinCohort</code> (take back lent quota; the parent's lab measured it), <code>borrowWithinCohort</code> (preempt to borrow). Kueue preempts whole workloads, which is the right unit for training.</li>
+<li><b>Fair sharing</b>: in the Kueue configuration, share cohort capacity by weight rather than first come; and admission fair sharing orders a queue by each LocalQueue's recent usage (<a href="https://kueue.sigs.k8s.io/docs/concepts/fair_sharing/" target="_blank" rel="noopener noreferrer">Kueue fair sharing</a> <span class="pub">docs</span>).</li>
+<li><b>waitForPodsReady</b>: evict and requeue an admitted workload whose pods are not all ready within a timeout (default 30 minutes in v0.20), closing the gap between "quota reserved" and "pods really running".</li>
+<li><b>MultiKueue</b>: one manager cluster dispatching workloads to several worker clusters.</li>
+</ul>
+</div></details>
+</section>
+<section id="rd-s9">
+<h2>9. JobSet: several Jobs with one lifecycle</h2>
+<p>A <dfn>JobSet</dfn> (<code>jobset.x-k8s.io/v1alpha2</code>, kubernetes-sigs, v0.13.0) holds a list of <dfn>replicatedJobs</dfn>, each a Job template and a replica count (a driver and workers; a group per data-parallel replica). The controller creates Jobs named <code>&lt;jobset&gt;-&lt;replicatedJob&gt;-&lt;index&gt;</code> and one headless Service named after the JobSet, so every pod resolves as <code>&lt;jobset&gt;-&lt;replicatedJob&gt;-&lt;jobIndex&gt;-&lt;podIndex&gt;.&lt;jobset&gt;</code>; inside the running example's pods <code>hostname -f</code> printed <code>km-e3a-node-0-0.km-e3a.km.svc.cluster.local</code> <span class="meas">measured</span>. Its <b>failurePolicy</b> decides, per failed <i>Job</i>, whether to fail the set or restart all of it, and whether that restart counts. The policy that ran in section 2, the shape JobSet recommends for preemptible training:</p>
+<pre class="rd-code">spec:
+  failurePolicy:
+    maxRestarts: 0                        # a crash is not retried
+    rules:
+    - name: disruptedRestartFree
+      action: RestartJobSetAndIgnoreMaxRestarts
+      onJobFailureReasons: [PodFailurePolicy]
+  replicatedJobs:
+  - name: node
+    template:
+      spec:
+        backoffLimit: 0
+        podFailurePolicy:                 # an evicted or preempted pod fails its Job at once,
+          rules:                          # with reason PodFailurePolicy
+          - action: FailJob
+            onPodConditions:
+            - {type: DisruptionTarget}</pre>
+<p class="rd-codecap"><code>src/k8s/train-jobset.sh km-e3b policy</code> (abridged). Run e3b: one eviction, <code>restarts: 1</code>, resumed from step 50, completed. Run e3c: a crash, <code>jobset failed due to reaching max number of restarts (first failed job: km-e3c-node-0)</code>.</p>
+<div class="pr"><div class="q">Predict. In run e3b the evicted pod's Job failed with reason PodFailurePolicy. The other pod of the same Job then also exited 1 (its peer was gone). Does that second failure spend the restart budget?</div>
+<div class="opts"><button data-a="0">Yes, it is a separate failure with reason BackoffLimitExceeded</button><button data-a="1">No: the Job had already failed once, and the JobSet restarts whole Jobs, not pods</button></div>
+<div class="ans" hidden>No. A Job fails once; the first matching pod failure decides its reason. The JobSet sees one failed Job with reason PodFailurePolicy, matches the rule, deletes every Job and recreates them (status <code>restarts: 1</code>, no <code>restartsCountTowardsMax</code>). The order matters, though: the evicted pod reached Failed at 17.5 s and its peer at 18.2 s, so the Job's first failure was the disruption.</div></div>
+<details class="dp"><summary>Every JobSet knob: failure rules and restart strategies, success, startup order, exclusive placement, Workload API <span class="mute">(depth)</span></summary><div class="b">
+<p>The controller labels every pod with <code>jobset.sigs.k8s.io/jobset-name</code>, <code>replicatedjob-name</code>, <code>job-index</code>, <code>restart-attempt</code> and more, which is what failure handling and Kueue key on.</p>
+<ul class="tight">
+<li><b>failurePolicy</b>: <code>maxRestarts</code> (restart the whole JobSet up to N times), <code>restartStrategy</code> (Recreate, BlockingRecreate which waits for every old pod to be gone, InPlaceRestart which restarts healthy containers in place), and ordered <code>rules</code> matched on the failed Job's reason (<code>onJobFailureReasons</code>) with actions <code>FailJobSet</code>, <code>RestartJobSet</code>, <code>RestartJobSetAndIgnoreMaxRestarts</code>, <code>RestartJob</code>, <code>RestartJobAndIgnoreMaxRestarts</code> (<code>api/jobset/v1alpha2/jobset_types.go</code> lines 464-545 at v0.13.0 <span class="pub">source</span>). If no rule matches, RestartJobSet applies.</li>
+<li><b>successPolicy</b>: <code>operator: All</code> or <code>Any</code> over <code>targetReplicatedJobs</code>, so the JobSet completes when the driver completes.</li>
+<li><b>startupPolicy</b> (<code>InOrder</code>) or <code>dependsOn</code>: start the coordinator before the workers.</li>
+<li><b>Exclusive placement</b>: the annotation <code>alpha.jobset.sigs.k8s.io/exclusive-topology: &lt;label&gt;</code> puts each child Job alone in one topology domain (one Job per rack, say) through pod affinity and anti-affinity (line 49).</li>
+<li><b>Workload-aware scheduling</b>: v0.13 can describe the JobSet to the native Workload API (<code>spec.scheduling</code>, behind its own feature gate and the alpha CompositePodGroup gate; not run here).</li>
+</ul>
+</div></details>
+</section>
+<section id="rd-s10">
+<h2>10. Operators: Kubeflow Trainer v2 and KubeRay</h2>
+<p>Writing the JobSet of section 9 by hand for every run means every user knows torchrun's flags, the DNS naming and the restart rules. An <dfn>operator</dfn> packages that knowledge: a <dfn>custom resource definition</dfn> (CRD, a new object kind the API server stores), a controller that reconciles it into lower-level objects, and usually webhooks that validate and default it.</p>
+<p><b>Kubeflow Trainer v2.</b> Trainer v2 (v2.0 July 2025; v2.3.0 released 2026-08-07, whose README still calls the API alpha) has two kinds of object: a <dfn>TrainingRuntime</dfn> or <dfn>ClusterTrainingRuntime</dfn>, written once by the platform team, holding a JobSet template and an ML policy (torch, torchtune, DeepSpeed, JAX, MLX and XGBoost runtimes ship in its <code>manifests/base/runtimes</code>), and a <dfn>TrainJob</dfn>, written by the user, that names a runtime and says only what differs. The controller merges the two into a JobSet.</p>
+<pre class="rd-code">apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata: {name: km-tj, namespace: km}
+spec:
+  runtimeRef: {name: torch-distributed}      # Trainer's own ClusterTrainingRuntime
+  trainer:
+    image: mi-train:1
+    numNodes: 2
+    numProcPerNode: 2
+    command: ["torchrun", "/opt/mi/train.py", "--ckpt-dir=/tmp/ckpt", "--log-dir=/tmp/logs"]
+    resourcesPerNode:
+      requests: {cpu: 500m, memory: 400Mi, example.com/gpu: "2"}
+      limits: {cpu: "2", memory: 900Mi, example.com/gpu: "2"}</pre>
+<p class="rd-codecap"><code>src/k8s/e12-trainjob.yaml</code>. Note what is missing: no rank, no master address, no Service.</p>
+<p><b>What the controller built</b> <span class="meas">measured</span> (Trainer v2.3.0 installed for this run on the kind cluster, its controller capped at 256 MiB, removed afterwards): a JobSet <code>km-tj</code> owned by the TrainJob, one replicated Job <code>node</code> of 2 Indexed pods with <code>restartPolicy: OnFailure</code>, container port 29500, and five environment variables, which torchrun reads as its own flags:</p>
+<div class="tw"><table><thead><tr><th>Variable</th><th>Value in the pod</th><th>Flag it replaces</th></tr></thead><tbody id="km-tj-env"></tbody></table></div>
+<p>The training script is the same file and the global loss at step 200 was again <span id="km-tj-loss">2.2638769149780273</span>. The master address the controller wrote, <code>km-tj-node-0-0.km-tj</code>, is the same JobSet DNS rule as the hand-written run's <code>km-e3a-node-0-0.km-e3a</code>; the operator encodes the convention, nothing more. The cost: three CRDs of 2.4 MB of YAML in the API server (the control plane grew by about 0.2 GiB here), one more controller and two more webhooks on the path of every TrainJob. Note also <code>restartPolicy: OnFailure</code>: the kubelet restarts a failed container in place, so the Job (and a podFailurePolicy, which then cannot be used) never sees the failure.</p>
+<p><b>KubeRay</b> (v1.7.1, 2026-09-21) is the operator for Ray: <code>RayCluster</code> (a head pod and worker groups, with autoscaling), <code>RayJob</code> (a cluster plus a submitted driver, torn down after) and <code>RayService</code>. Kueue can admit a RayJob or RayCluster as one workload. Ray's own scheduling (placement groups, the object store) is the <a href="https://app.notion.com/p/3fc5c17b0d0d811cba13f3aeccf8724b" target="_blank" rel="noopener noreferrer">Ray</a> sibling page's subject; the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Scheduling lab</a> measures Ray placement groups. Not run here.</p>
+<p><b>When an operator is worth it.</b> When many users submit the same shape of job (one runtime, many TrainJobs), or when the framework needs more than a Job can express (Ray's head and workers, MPI's launcher and hostfile). When a team runs one kind of job and already has a JobSet template, the operator adds an API surface to upgrade and little else.</p>
+<details class="dp"><summary>Trainer v1, the source of the variables <span class="mute">(depth)</span></summary><div class="b">
+<p>Trainer v2 replaced the v1 Training Operator's per-framework kinds (PyTorchJob and friends); v1 is maintained on its release-1.9 branch (v1.9.4, 2026-08-18), and Kueue's docs call its integration legacy. The PET_* variables are written in <code>pkg/runtime/framework/plugins/torch/torch.go</code> lines 147-165 at v2.3.0 <span class="pub">source</span>.</p>
+</div></details>
+</section>
+
+<section id="rd-s11">
+<h2>11. Serving on Kubernetes: Deployments, LeaderWorkerSet, KServe and the vLLM production stack</h2>
+<p>Serving replicas run for months, scale with traffic and are updated while serving. A model that fits on one node is an ordinary <dfn>Deployment</dfn>: each replica is one pod (say one vLLM server on 8 GPUs), scaled by changing <code>replicas</code> and rolled pod by pod. A model sharded across nodes (pipeline or tensor parallel over 2 or more nodes) breaks that: a replica is now <i>several</i> pods that must be created together, find a leader, fail together and be upgraded together. A Deployment would roll one shard of a replica at a time and leave half-updated groups.</p>
+<div class="hero" id="km-lws-card"><h4>The unit of scaling changes from a pod to a group</h4>
+<div class="rd-svg" id="km-lws-svg"></div>
+<p class="small">Top: a Deployment of four single-node replicas, each pod independent (one fails, one is replaced). Bottom: a <b>LeaderWorkerSet</b> with <code>replicas: 2</code> and <code>size: 4</code>, eight pods in two groups, each a leader (L) and 3 workers (W); <span class="hl">the group</span> is what is created, scaled, restarted and rolled.</p></div>
+<p><b>LeaderWorkerSet</b> (LWS, kubernetes-sigs, v1.0.0 released 2026-10-16) is the API for that group. Its README: "a group of pods as a unit of replication", with one template for the leader and one for the workers, a unique index 0 to n-1 per pod, rolling update "at the group level", a scale subresource for the HPA that counts groups, opt-in topology placement of a group, gang scheduling of each group (alpha), and "all-or-nothing restart" (<a href="https://github.com/kubernetes-sigs/lws" target="_blank" rel="noopener noreferrer">kubernetes-sigs/lws</a> <span class="pub">docs</span>). In the API (<code>api/leaderworkerset/v1/leaderworkerset_types.go</code> at v1.0.0 <span class="pub">source</span>) <code>size</code> is the number of pods per group (default 1, line 403), the default <code>restartPolicy</code> is <code>RecreateGroupOnPodRestart</code> (line 408: one pod's failure recreates the whole group, the serving cousin of JobSet's restart-everything), and every container gets <code>LWS_LEADER_ADDRESS</code>, <code>LWS_GROUP_SIZE</code> and <code>LWS_WORKER_INDEX</code> (lines 82-90), the serving equivalent of torchrun's master address, world size and rank.</p>
+<p><b>KServe</b> (v0.21.0, 2026-09-25) is the operator one level up. Its <code>LLMInferenceService</code> (<code>serving.kserve.io/v1alpha2</code>) takes a model URI and a <code>parallelism</code> block; its controller writes a <b>Deployment</b> for a single-node model and a <b>LeaderWorkerSet</b> for a multi-node one, with <code>size</code> set from the pipeline (or data) parallel degree, <code>restartPolicy: RecreateGroupOnPodRestart</code> and <code>startupPolicy: LeaderCreated</code> (<code>pkg/controller/v1alpha2/llmisvc/workload_multi_node.go</code> lines 167-191 and <code>workload_single_node.go</code> line 118 at v0.21.0 <span class="pub">source</span>), plus prefill and decode workloads when the two phases are split, and routing through the Gateway API Inference Extension (a dependency in its <code>go.mod</code>). The classic <code>InferenceService</code> runs on Knative (scale to zero, canaries) or, in the lighter install, as plain Deployments.</p>
+<p><b>The vLLM production stack</b> (Helm chart vllm-stack-0.1.13, 2026-09-29) is the minimal alternative: one Helm release with three parts, "Serving engine" (vLLM Deployments), "Request router" ("based on routing keys or session IDs to maximize KV cache reuse") and an "Observability stack" (Prometheus and Grafana) (<a href="https://github.com/vllm-project/production-stack" target="_blank" rel="noopener noreferrer">vllm-project/production-stack README</a> <span class="pub">docs</span>). llm-d, which co-designs LWS according to the LWS README, is the larger option.</p>
+<p class="small mute">What this page does not teach: how the router scores replicas, how autoscaling on queue length works and how KServe hands it to KEDA are on <a href="https://app.notion.com/p/3f35c17b0d0d818aa406da1f7a784c62" target="_blank" rel="noopener noreferrer">LLM serving in production</a>; disaggregated prefill and decode, Dynamo and llm-d as systems on <a href="https://app.notion.com/p/3c65c17b0d0d8170bd7cdf47af0ec07b" target="_blank" rel="noopener noreferrer">Distributed and disaggregated serving</a>; vLLM itself on its own page. Not run here: LWS and KServe need a model server and GPUs to show anything a kind cluster could.</p>
+</section>
+<section id="rd-s12">
+<h2>12. Storage for training pods: volumes, claims and CSI</h2>
+<p>Checkpoints and datasets must outlive pods and be reachable from whichever node the restarted pod lands on. A pod mounts <dfn>volumes</dfn>. A <dfn>PersistentVolumeClaim</dfn> (PVC) asks for storage by size and <dfn>access mode</dfn> (ReadWriteOnce: one node; ReadWriteMany: many nodes; ReadOnlyMany); a <dfn>StorageClass</dfn> says which provisioner creates the <dfn>PersistentVolume</dfn> (PV) and when; a <dfn>CSI driver</dfn> (Container Storage Interface) is the plugin that attaches and mounts it on a node. For training the usual choices are a shared file system through CSI (Lustre, GPFS, Weka, NFS, Filestore, FSx: ReadWriteMany), object storage read by the job itself, and local NVMe for caches. kind's default StorageClass is <code>rancher.io/local-path</code>: a folder on one node's disk, with <code>volumeBindingMode: WaitForFirstConsumer</code>.</p>
+<div class="rd-card" id="km-pvc-card">
+<h4>A checkpoint on node-local storage pins the restart <span class="meas">measured</span></h4>
+<pre class="rd-code rd-out" id="km-pvc-out"></pre>
+<p class="small mute">A 100Mi ReadWriteOnce claim, a writer pod on worker that writes <code>latest</code>, then a reader pod forced onto worker3 (<code>src/k8s/e9-pvc.yaml</code>, <code>e9-reader.yaml</code>). Lines trimmed from <code>src/runs/e9.steps.txt</code>.</p>
+</div>
+<p>The claim stayed Pending (<code>waiting for first consumer to be created before binding</code>) until the writer pod was scheduled; the volume was then created on that pod's node and got a node affinity to it. A pod on any other node is unschedulable: <code>1 node(s) didn't match PersistentVolume's node affinity</code>. If the checkpoint of a training job lives on such a volume, a restart after a node failure cannot run anywhere else; and if that node is gone, the checkpoint is gone too. Use node-local volumes for caches, not for state the job must resume from. Storage systems themselves are the <a href="https://app.notion.com/p/3fc5c17b0d0d818a94ced3fc7c3331fe" target="_blank" rel="noopener noreferrer">Storage and data movement</a> sibling's subject and the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Storage lab</a> measures checkpoint writes on this cluster (the host folder these pods mount was 36 times slower than a Docker volume there).</p>
+<p class="small mute">Images are storage too: a pod on a fresh node first pulls the training image: Trainer's default torch runtime image, <code>pytorch/pytorch:2.13.0-cuda13.0-cudnn9-runtime</code>, is 3.04 GB compressed (Docker Hub API, read 2026-10-16), before any project code or data, which is why GPU clusters pre-pull images onto nodes, run a pull-through registry cache, or use lazy-loading snapshotters. The images here were preloaded with <code>kind load</code>.</p>
+</section>
+<section id="rd-deep">
+<h2>Depth: mistakes with the messages they produce, and interview rehearsal</h2>
+<details class="dp"><summary>Ten common mistakes, each with the message it produces <span class="mute">(diagnostic reference)</span></summary><div class="b">
+<details class="mist"><summary>Matching a Job failure rule on the training script's exit code</summary><div class="b">Under torchrun the container exits 1 whatever the rank returned (run e2b: the rank exited 13, the rule on 13 never fired, the Job retried a deterministic crash). Match what the container really returns, or launch one process per pod. Message to look for in the pod log: <code>exitcode  : 13 (pid: 13)</code> under "Root Cause", next to a container exit code of 1.</div></details>
+<details class="mist"><summary>Ignoring disruptions per pod in a multi-pod job</summary><div class="b">An <code>Ignore</code> rule on DisruptionTarget does not save the job: the peers fail a moment later with an ordinary error and are counted (run e2d2, <code>BackoffLimitExceeded</code>). Fail the Job on disruption and restart the group at the JobSet level (run e3b).</div></details>
+<details class="mist"><summary>Expecting the default scheduler to pack GPUs</summary><div class="b">It ranks by CPU and memory only. Symptom: GPUs free in total, big job Pending with <code>Insufficient nvidia.com/gpu</code> on every node (here <code>3 Insufficient example.com/gpu</code>). Fix: MostAllocated with the GPU resource listed, separate node pools by job size, or a packing scheduler.</div></details>
+<details class="mist"><summary>Partial placement that looks healthy</summary><div class="b">Half-placed jobs show as Running pods with no progress; the scheduler reports only <code>Insufficient</code> for the rest, and preemption declines (<code>Preemption is not helpful for scheduling</code>). Use Kueue, a gang scheduler, or (when enabled) a PodGroup.</div></details>
+<details class="mist"><summary>A spread constraint that counts a tainted domain</summary><div class="b"><code>2 node(s) didn't match pod topology spread constraints</code> with free nodes available: the default <code>nodeTaintsPolicy: Ignore</code> counts nodes the pod cannot use. Set <code>Honor</code>.</div></details>
+<details class="mist"><summary>Checkpoints on a node-local volume</summary><div class="b"><code>1 node(s) didn't match PersistentVolume's node affinity</code> after a restart lands elsewhere; the checkpoint is also lost with the node. Use a shared file system (ReadWriteMany) or object storage for resumable state.</div></details>
+<details class="mist"><summary>A main process that ignores SIGTERM</summary><div class="b">Preemption and eviction send SIGTERM, wait <code>terminationGracePeriodSeconds</code> (default 30 s), then SIGKILL (exit 137, run e4b). A training process should catch SIGTERM, write a checkpoint and exit; give it a grace period long enough to do so; and do not hide it behind a shell that swallows the signal (<code>sh -c "exec torchrun ..."</code>, as this page's manifests do, keeps torchrun as PID 1).</div></details>
+<details class="mist"><summary>Treating Kueue's webhook as optional</summary><div class="b">With Kueue's controller down, <code>failed calling webhook "mpod.kb.io" ... connection refused</code> for every pod in every namespace it watches, including system add-ons outside kube-system. Run Kueue with several replicas, watch its readiness, and know the namespaces its webhook excludes.</div></details>
+<details class="mist"><summary>Assuming a removed device plugin cleans up</summary><div class="b">The node keeps the resource in capacity with allocatable 0 (measured here after deleting the plugin, until the kubelet restarted). Dashboards that sum capacity overcount GPUs; sum allocatable.</div></details>
+<details class="mist"><summary>Using v1beta1 Kueue objects with Kueue v0.20</summary><div class="b">v0.20 serves only <code>kueue.x-k8s.io/v1beta2</code>; manifests still written for v1beta1 are rejected because the version is no longer served (Kueue CHANGELOG-0.20, "Actions required", in the topic's shared facts; not run here). Convert them before upgrading.</div></details>
+</div></details>
+<details class="dp"><summary>Interview rehearsal: eight questions with short answers <span class="mute">(optional)</span></summary><div class="b">
+<details class="qa"><summary>Walk me through what happens between <code>kubectl apply</code> of a training Job and the first training step.</summary><div>The API server validates the Job, runs admission webhooks (Kueue may suspend it until quota is reserved), stores it in etcd. The job controller sees it and creates the pods; the scheduler filters and scores nodes for each and writes a Binding; the kubelet on each node pulls the image, starts the container (device plugin Allocate or DRA prepare first), and reports status. torchrun in each pod then rendezvouses through the DNS name of pod 0. Measured here: pods bound 44 ms after creation, containers started at 0.6 s, with the image preloaded.</div></details>
+<details class="qa"><summary>Why does Kubernetes need add-ons for distributed training when Slurm does not?</summary><div>Slurm allocates a job's nodes as one unit, so gangs, queues and fairshare are built in. Kubernetes schedules pods one at a time, has no queue beyond Pending pods, and no quota sharing between teams; Kueue (admission, quota, cohorts), JobSet (group lifecycle) and gang scheduling (PodGroup, Volcano, KAI) add what Slurm's controller does itself.</div></details>
+<details class="qa"><summary>What is the difference between a device plugin and DRA?</summary><div>A device plugin advertises a count of identical devices and the kubelet picks which ones at container start; DRA publishes typed devices with attributes, pods claim them with CEL selectors, and the scheduler allocates specific devices while it picks the node. DRA can express "2 GPUs with 80 GB on one NVLink island"; a device plugin needs node labels and separate resource names to approximate it.</div></details>
+<details class="qa"><summary>A 64-GPU job has been Pending for an hour with 80 GPUs free. What do you check?</summary><div>Whether any node or topology domain can host its pods: free GPUs may be scattered (spread scoring), on tainted or cordoned nodes, in a flavor or block the job cannot use, or behind a Kueue quota or a TAS constraint. Read the pod's FailedScheduling event and the Workload's QuotaReserved condition message; compare allocatable, not capacity.</div></details>
+<details class="qa"><summary>How should a training job on a preemptible pool be configured so that preemptions are free and bugs are not?</summary><div>Pods fail their Job on DisruptionTarget (podFailurePolicy FailJob), the JobSet restarts all Jobs on reason PodFailurePolicy without counting it (RestartJobSetAndIgnoreMaxRestarts), maxRestarts stays low for real crashes, the process checkpoints on SIGTERM within the grace period, and checkpoints live on shared storage. Run e3b shows the restart and resume.</div></details>
+<details class="qa"><summary>Kueue or Volcano?</summary><div>Kueue keeps the default scheduler and adds queueing and quota at admission; it composes with JobSet, Trainer, KubeRay and cluster autoscaling. Volcano (or KAI) replaces the scheduler and does gangs, queues and fair share inside it, which also lets it pack and place by topology pod by pod. Choose Kueue when the cluster runs many kinds of workload and you want upstream components; a full batch scheduler when the cluster is dedicated to batch GPU jobs and needs its policies.</div></details>
+<details class="qa"><summary>Design question: the Kubernetes layer of a training platform for a 1,000-GPU lab (125 nodes of 8 GPUs).</summary><div>Node pools by GPU type, tainted, labelled by rack and network block; NVIDIA GPU Operator for driver, device plugin (or DRA driver) and DCGM; a health-check DaemonSet that cordons failing nodes. Kueue with one ClusterQueue per team in a cohort (nominal shares, borrowing, reclaim), flavors per GPU type, topology-aware scheduling on the block and rack labels, and waitForPodsReady; priority classes for production, research and preemptible. JobSet (or TrainJob over it) as the job API, with the disruption-free restart policy and checkpoint-on-SIGTERM; checkpoints on a parallel file system through CSI, datasets streamed from object storage. A bin-packing scheduler profile for small jobs or a separate pool. Trade-offs to explain: quota by team against throughput, spreading against packing, one big cluster against several with MultiKueue, and the control-plane limits (5,000 nodes, watch load), which 125 nodes does not approach.</div></details>
+<details class="qa"><summary>Why is the scheduler's tie-break random, and why does it matter for GPUs?</summary><div>Among equal scores it picks by a per-node random number, so equal nodes share load. For GPU jobs under the default profile, nodes are nearly always equal (GPUs do not enter the score), so placement of small jobs is effectively random, which is what fragments the cluster.</div></details>
+</div></details>
+</section>
 </div>
 <div class="tab" id="t-kmb" role="tabpanel" hidden>
 <style>
@@ -752,12 +815,11 @@ spec:
 #t-more .lb.v{color:var(--c4);border-color:var(--c4)}#t-more .lb.p{color:var(--c1);border-color:var(--c1)}#t-more .lb.d{color:var(--c3);border-color:var(--c3)}
 </style>
 <h2>Further reading</h2>
-<p class="small mute">Times: knowledge-base pages, the Reading tab (with its cards, without code) at 200 words a minute; outside resources, an estimate for the part worth reading. Labels: <span class="lb d">docs</span> project documentation, <span class="lb p">operator</span> an organisation describing its own cluster, <span class="lb v">vendor</span> a company or project describing what it ships. Links checked 2026-10-16.</p>
-<h3>This page's tabs</h3>
+<p class="small mute">Times: knowledge-base pages, their Reading time when linked; outside resources, an estimate for the part worth reading. Labels: <span class="lb d">docs</span> project documentation, <span class="lb p">operator</span> an organisation describing its own cluster, <span class="lb v">vendor</span> a company or project describing what it ships. Links checked 2026-10-16; serving and RDMA links 2026-10-24.</p>
+<h3>This page's tools</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-kmcyc">Scheduling cycle</a></div><p>Six pods through Filter, Score, Select and Bind under two profiles, every logged plugin score, and the same formulas on your own sequence. <span class="rt">10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-kmq">Kueue admission</a></div><p>Seven recorded Workloads: flavor by flavor, quota bar by quota bar, and topology-aware placement block by block. <span class="rt">6 min</span></p></div>
 <div class="sp"><div class="n"><a href="#" data-tab="t-kmb">Manifest builder</a></div><p>The running example as an Indexed Job, JobSet, JobSet through Kueue or TrainJob; the objects it creates and what a crash or an eviction does. <span class="rt">8 min</span></p></div>
+<div class="sp"><div class="n">Inside Reading</div><p>The scheduling cycle stepper (every plugin, every node, your own sequence) is in section 3's closed block; Kueue's admission stepper in section 8.</p></div>
 </div>
 <h3>The parent topic and its other children</h3>
 <div class="grid">
@@ -779,7 +841,7 @@ spec:
 <div class="sp"><div class="n"><a href="https://kubernetes.io/docs/concepts/workloads/controllers/job/" target="_blank" rel="noopener noreferrer">Jobs: pod failure policy, backoff limit per index, success policy</a> <span class="lb d">docs</span></div><p>Every knob of section 2, with examples. <span class="rt">25 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/" target="_blank" rel="noopener noreferrer">Dynamic Resource Allocation</a> <span class="lb d">docs</span></div><p>DeviceClass, ResourceSlice, ResourceClaim and the scheduler's role. <span class="rt">20 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/device-plugins/" target="_blank" rel="noopener noreferrer">Device plugins</a> <span class="lb d">docs</span></div><p>The gRPC protocol, registration and health. <span class="rt">15 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling" target="_blank" rel="noopener noreferrer">KEP-4671: gang scheduling with the Workload object</a> <span class="lb d">docs</span></div><p>The design behind the PodGroup of section 6 and its graduation plan. <span class="rt">30 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling" target="_blank" rel="noopener noreferrer">KEP-4671: gang scheduling with the Workload object</a> <span class="lb d">docs</span></div><p>The design behind the PodGroup of section 7 and its graduation plan. <span class="rt">30 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://kubernetes.io/docs/setup/best-practices/cluster-large/" target="_blank" rel="noopener noreferrer">Considerations for large clusters</a> <span class="lb d">docs</span></div><p>The 5,000-node limits and what to tune near them. <span class="rt">10 min</span></p></div>
 </div>
 <h3>Batch and ML add-ons</h3>
@@ -790,6 +852,10 @@ spec:
 <div class="sp"><div class="n"><a href="https://github.com/volcano-sh/volcano" target="_blank" rel="noopener noreferrer">Volcano</a> <span class="lb v">project</span></div><p>A batch scheduler with PodGroups, queues and its own Job CRD. <span class="rt">15 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://github.com/kai-scheduler/KAI-Scheduler" target="_blank" rel="noopener noreferrer">KAI Scheduler</a> <span class="lb v">vendor</span></div><p>NVIDIA's open-sourced Run:ai scheduler: hierarchical queues, GPU sharing, topology. <span class="rt">15 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://github.com/NVIDIA/k8s-device-plugin" target="_blank" rel="noopener noreferrer">NVIDIA k8s-device-plugin</a> <span class="lb v">vendor</span></div><p>MIG strategies, time-slicing and MPS sharing, and the configuration file. <span class="rt">15 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://lws.sigs.k8s.io/docs/" target="_blank" rel="noopener noreferrer">LeaderWorkerSet</a> <span class="lb d">docs</span></div><p>Groups of leader and worker pods as the unit of replication, for multi-node serving, with examples. <span class="rt">20 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://kserve.github.io/website/" target="_blank" rel="noopener noreferrer">KServe</a> <span class="lb d">docs</span></div><p>InferenceService and LLMInferenceService, Knative against plain Deployments, the llm-d integration. <span class="rt">30 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://docs.vllm.ai/projects/production-stack" target="_blank" rel="noopener noreferrer">vLLM production stack</a> <span class="lb d">docs</span></div><p>The Helm chart: engines, router and observability, with cloud tutorials. <span class="rt">20 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/networking/software/cloud-orchestration/index.html" target="_blank" rel="noopener noreferrer">NVIDIA Network Operator</a> <span class="lb v">vendor</span></div><p>RDMA and GPUDirect RDMA in Kubernetes: NicClusterPolicy, device plugins, Multus and secondary networks. <span class="rt">30 min</span></p></div>
 </div>
 <h3>Operators at scale</h3>
 <div class="grid">
@@ -799,9 +865,9 @@ spec:
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab (Topic: evaluation-and-llm-judges): shared helpers, copied from Topic: benchmarks and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -832,7 +898,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -1080,12 +1146,100 @@ window.KM={"meta":{"measured":"Apple M1 Pro, Docker Desktop VM, shared machine; 
     pr.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
       pr.querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.a==='1')x.classList.add('right')});
       if(b.dataset.a!=='1')b.classList.add('wrong');ans.hidden=false}))});
-  const r=$('t-read');if(r){const c=r.cloneNode(true);c.querySelectorAll('style,nav,.rd-card,pre').forEach(x=>x.remove());
-    const words=(c.textContent.match(/\S+/g)||[]).length;window.RD_WORDS=words;const e=$('rd-time');if(e)e.textContent=Math.round(words/200)}
+})();
+</script>
+<script>/* 24_js_km_static.js */
+// ---- Static annotated diagrams of the Reading tab (prefix km): the hero chain, the two-network pod, Deployment against LeaderWorkerSet ----
+// No data and no motion: each is drawn at the measured width and redrawn on resize or when the tab opens.
+(function(){
+  const $=id=>document.getElementById(id);
+  const T=RD.t;
+  const rect=(x,y,w,h,f,s,o)=>{o=o||{};return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.rx==null?6:o.rx)+'" fill="'+f+'" stroke="'+s+'" stroke-width="'+(o.sw||1)+'"'+(o.d?' stroke-dasharray="'+o.d+'"':'')+'/>'};
+  const line=(x1,y1,x2,y2,c,w,d)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+c+'" stroke-width="'+(w||1)+'"'+(d?' stroke-dasharray="'+d+'"':'')+'/>';
+  const arrowDown=(x,y1,y2,c)=>line(x,y1,x,y2-6,c,2)+'<path d="M'+(x-5)+' '+(y2-7)+' L'+(x+5)+' '+(y2-7)+' L'+x+' '+y2+' Z" fill="'+c+'"/>';
+
+  // ---------- hero: the chain of objects ----------
+  const ROWS=[
+    {o:'TrainJob',s:'you write it: image, nodes, processes per node',g:'framework knowledge: rank and master address',sec:'10'},
+    {o:'JobSet',s:'replicatedJobs and a failurePolicy',g:'restart the whole group as one unit',sec:'9',w:'Trainer controller'},
+    {o:'Indexed Jobs + headless Service',s:'pod indexes 0..N-1, one DNS name per pod',g:'ranks and stable names',sec:'2',w:'JobSet controller'},
+    {o:'Workload: suspended, then admitted',s:'quota checked for all pods together',g:'admit the whole job at once',sec:'8',w:'Kueue (webhook and loop)'},
+    {o:'Pods with no node',s:'one per node share of the job',g:'gang: hold them until all can be placed',sec:'7',w:'job controller, once unsuspended'},
+    {o:'Pods bound to nodes',s:'Filter, Score, Bind, one pod per cycle',g:'count GPUs when ranking nodes',sec:'3',w:'kube-scheduler'},
+    {o:'Containers with GPUs and an RDMA NIC',s:'torchrun starts; NCCL finds the fabric',g:'attach the devices and the fabric',sec:'s 4 and 5',w:'kubelet + device plugin or DRA + Multus'}];
+  function hero(){
+    const el=$('km-hero-svg');if(!el)return;const W=Math.max(300,Math.min(860,RD.width(el)));
+    const wide=W>=600, bw=wide?Math.round(W*0.5):W-2, bh=wide?42:58, ah=30;let y=2,b='';
+    ROWS.forEach((r,i)=>{
+      if(i){b+=arrowDown(22,y,y+ah,'var(--mute)')+T(34,y+19,r.w,{fs:11,fill:'var(--mute)'});y+=ah}
+      b+=rect(1,y,bw,bh,i===0?'var(--acc2)':'var(--soft)',i===0?'var(--acc)':'var(--line)');
+      b+=T(10,y+17,r.o,{fs:12.5,w:600})+T(10,y+33,r.s,{fs:11,fill:'var(--mute)'});
+      const gx=wide?bw+16:10, gy=wide?y+25:y+49;
+      if(wide)b+=line(bw+2,y+bh/2,bw+12,y+bh/2,'var(--acc)',1.5);
+      b+=T(gx,gy,r.g+' (section'+(r.sec[0]==='s'?r.sec:' '+r.sec)+')',{fs:11.5,fill:'var(--acc)',w:600});
+      y+=bh});
+    el.innerHTML=RD.svg(W,y+4,b,'The chain of objects from a TrainJob down to containers with GPUs, with the controller that writes each and the gap each add-on closes')}
+
+  // ---------- section 5: a pod on two networks ----------
+  function net(){
+    const el=$('km-net-svg');if(!el)return;const W=Math.max(300,Math.min(860,RD.width(el)));
+    const wide=W>=600;let b='',H;
+    const pw=wide?Math.round(W*0.52):W-2, px=1, py=22;
+    // node and pod
+    const ph=wide?150:166;
+    b+=T(px,14,'GPU node',{fs:11.5,w:600,fill:'var(--mute)'});
+    b+=rect(px,py,pw,ph,'var(--bg)','var(--line)',{d:'4 3'});
+    b+=rect(px+8,py+8,pw-16,ph-16,'var(--soft)','var(--line)');
+    b+=T(px+16,py+26,'Training pod',{fs:12.5,w:600});
+    const gx=px+16, gy=py+36, gs=Math.min(22,Math.floor((pw-48)/8)-3);
+    for(let k=0;k<8;k++)b+=rect(gx+k*(gs+3),gy,gs,gs,'var(--c1)','none',{rx:3});
+    b+=T(gx,gy+gs+15,'nvidia.com/gpu: 8 (GPU device plugin)',{fs:11});
+    b+=rect(gx,gy+gs+24,gs*2+3,gs,'var(--acc)','none',{rx:3});
+    b+=T(gx+gs*2+12,gy+gs+24+gs*0.7,'rdma/hca_shared_devices_a: 1',{fs:11});
+    b+=T(gx,gy+2*gs+40,'(RDMA shared or SR-IOV device plugin)',{fs:11,fill:'var(--mute)'});
+    // interfaces
+    const ix=wide?px+pw-58:px+16, e0y=wide?py+56:py+ph-30, n1y=wide?py+104:py+ph-30, n1x=wide?ix:px+pw/2+6;
+    b+=rect(ix,e0y,44,20,'var(--bg)','var(--ink)',{rx:4})+T(ix+22,e0y+14,'eth0',{fs:11,a:'middle'});
+    b+=rect(n1x,n1y,44,20,'var(--bg)','var(--acc)',{rx:4,sw:2})+T(n1x+22,n1y+14,'net1',{fs:11,a:'middle',w:600});
+    if(wide){
+      const lx=px+pw+40, y1=py+66, y2=py+114;
+      b+=line(ix+44,y1,lx,y1,'var(--ink)',1.5)+line(ix+44,y2,lx,y2,'var(--acc)',3);
+      b+=rect(lx,y1-18,W-lx-1,30,'var(--soft)','var(--line)')+T(lx+8,y1-3,'pod network (primary CNI)',{fs:11.5,w:600})+T(lx+8,y1+9,'DNS, rendezvous, TCP',{fs:11,fill:'var(--mute)'});
+      b+=rect(lx,y2-18,W-lx-1,30,'var(--acc2)','var(--acc)')+T(lx+8,y2-3,'RDMA fabric (InfiniBand or RoCE)',{fs:11.5,w:600})+T(lx+8,y2+9,'NCCL all-reduce; via Multus',{fs:11,fill:'var(--mute)'});
+      H=py+ph+6}
+    else{
+      const y0=py+ph+18, cx0=ix+22, cx1=n1x+22, bw=(W-12)/2;
+      b+=line(cx0,e0y+20,cx0,y0,'var(--ink)',1.5)+line(cx1,n1y+20,cx1,y0,'var(--acc)',3);
+      b+=rect(1,y0,bw,44,'var(--soft)','var(--line)')+T(8,y0+16,'pod network',{fs:11.5,w:600})+T(8,y0+30,'(primary CNI): DNS,',{fs:11,fill:'var(--mute)'})+T(8,y0+41,'rendezvous, TCP',{fs:11,fill:'var(--mute)'});
+      b+=rect(bw+11,y0,bw,44,'var(--acc2)','var(--acc)')+T(bw+18,y0+16,'RDMA fabric (IB, RoCE)',{fs:11.5,w:600})+T(bw+18,y0+30,'NCCL all-reduce,',{fs:11,fill:'var(--mute)'})+T(bw+18,y0+41,'attached by Multus',{fs:11,fill:'var(--mute)'});
+      H=y0+48}
+    el.innerHTML=RD.svg(W,H,b,'A training pod with GPUs and an RDMA device from device plugins, eth0 on the pod network and net1 on the RDMA fabric')}
+
+  // ---------- section 11: Deployment against LeaderWorkerSet ----------
+  function lws(){
+    const el=$('km-lws-svg');if(!el)return;const W=Math.max(300,Math.min(860,RD.width(el)));
+    let b='',y=14;const gap=6;
+    b+=T(1,y,'Deployment, replicas: 4 (one pod is one replica)',{fs:11.5,w:600});y+=8;
+    const dw=(W-2-gap*3)/4;
+    for(let k=0;k<4;k++){const x=1+k*(dw+gap);b+=rect(x,y,dw,40,'var(--soft)','var(--line)')+T(x+dw/2,y+17,'pod',{fs:11,a:'middle',w:600})+T(x+dw/2,y+32,W<520?'1 node':'replica '+k+', 1 node',{fs:11,a:'middle',fill:'var(--mute)'})}
+    y+=40+26;
+    b+=T(1,y,'LeaderWorkerSet, replicas: 2, size: 4 (a group is one replica)',{fs:11.5,w:600});y+=8;
+    const gw=(W-2-gap*2)/2;
+    for(let g=0;g<2;g++){const gx=1+g*(gw+gap*2);
+      b+=rect(gx,y,gw,76,'var(--acc2)','var(--acc)',{sw:1.5,d:'5 3'});
+      const pw=(gw-10-3*4)/4;
+      for(let k=0;k<4;k++){const x=gx+5+k*(pw+4),L=k===0;
+        b+=rect(x,y+6,pw,36,L?'var(--bg)':'var(--soft)',L?'var(--acc)':'var(--line)',{sw:L?2:1})+T(x+pw/2,y+22,pw<50?(L?'L':'W'):(L?'leader':'worker'),{fs:11,a:'middle',w:L?600:400})+T(x+pw/2,y+36,String(k),{fs:11,a:'middle',fill:'var(--mute)'})}
+      b+=T(gx+6,y+56,'group '+g+': created, restarted',{fs:11,fill:'var(--acc)',w:600})+T(gx+6,y+70,'and rolled as one',{fs:11,fill:'var(--acc)',w:600})}
+    y+=80;
+    el.innerHTML=RD.svg(W,y,b,'A Deployment of four one-pod replicas above a LeaderWorkerSet of two groups, each a leader and three workers')}
+
+  function all(){hero();net();lws()}
+  all();RD.onRender(all);RD.onResize(all);
 })();
 </script>
 <script>/* 30_js_km_cycle.js */
-// ---- Scheduling cycle tab (t-kmcyc): recorded scores, and the same formulas on the reader's own sequence ----
+// ---- Scheduling cycle (Reading section 3, closed block): recorded scores, and the same formulas on the reader's own sequence ----
 window.KMCYC=(function(){
   const K=window.KM,$=id=>document.getElementById(id),E=RD.esc;
   const WK=['mi-kind-worker','mi-kind-worker2','mi-kind-worker3'],ALL=['mi-kind-control-plane'].concat(WK);
@@ -1149,8 +1303,7 @@ window.KMCYC=(function(){
     A=RD.anim({card:'km-cyc-card',ctl:'km-cyc-ctl',n:sim.length*5,draw,ms:1100,label:'Pod and phase'});
     RD.seg($('km-cyc-prof'),m=>{tag=m;load();A.reset(sim.length*5)});
     RD.seg($('km-cyc-src'),m=>{src=m;$('km-cyc-own').hidden=m!=='own';if(m==='rec')seq=[2,1,1,2,2,4];else parse();load();A.reset(sim.length*5)});
-    $('km-cyc-seq').addEventListener('input',()=>{parse();load();A.reset(sim.length*5)});
-    (window.TAB_RENDER=window.TAB_RENDER||{})['t-kmcyc']=[()=>A.redraw()]}
+    $('km-cyc-seq').addEventListener('input',()=>{parse();load();A.reset(sim.length*5)});}
   function parse(){const v=$('km-cyc-seq').value.split(/[^0-9]+/).filter(x=>x).map(Number).filter(x=>x>=1&&x<=4).slice(0,10);
     if(v.length){seq=v;$('km-cyc-seqmsg').textContent=v.length+' pods'}else{seq=[1];$('km-cyc-seqmsg').textContent='enter numbers 1 to 4'}}
   init();
@@ -1158,7 +1311,7 @@ window.KMCYC=(function(){
 })();
 </script>
 <script>/* 31_js_km_kueue.js */
-// ---- Kueue admission tab (t-kmq): replays recorded Workloads ----
+// ---- Kueue admission (Reading section 8): replays recorded Workloads ----
 window.KMQ=(function(){
   const K=window.KM,$=id=>document.getElementById(id),E=RD.esc;if(!$('km-q-card'))return {};
   const QUOTA={flavors:[['km-b1',8,'block b1: worker, worker2'],['km-b2',4,'block b2: worker3']],tas:[['km-tas',12,'all three workers, topology km-topo']]};
@@ -1195,7 +1348,6 @@ window.KMQ=(function(){
     $('km-q-viz').innerHTML=v;$('km-q-cap').innerHTML='<div class="t">'+short(s.w.name)+', step '+(i+1)+' of '+steps.length+'</div>'+E(s.c)}
   load();const A=RD.anim({card:'km-q-card',ctl:'km-q-ctl',n:steps.length,draw,ms:1700,label:'Admission step'});
   RD.seg($('km-q-mode'),m=>{mode=m;load();A.reset(steps.length)});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-kmq']=[()=>A.redraw()];
   return {steps:()=>steps};
 })();
 </script>
@@ -1274,7 +1426,7 @@ window.KMB=(function(){
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace km-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1292,6 +1444,8 @@ window.KMB=(function(){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('km-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

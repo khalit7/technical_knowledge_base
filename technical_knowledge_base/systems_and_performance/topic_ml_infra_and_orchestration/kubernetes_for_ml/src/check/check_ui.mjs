@@ -51,8 +51,8 @@ try {
       clicks += await page.evaluate(t => { let c = 0; document.querySelectorAll('#' + t + ' .pr .opts button, #' + t + ' details summary').forEach(b => { b.click(); c++ }); return c }, t);
       await check(t + ' predicts');
     }
-    // the cycle tab's own-sequence mode
-    await page.evaluate(() => document.querySelector('#tabs button[data-t="t-kmcyc"]').click());
+    // the scheduling cycle's own-sequence mode (Reading section 3, closed block)
+    await page.evaluate(() => { document.querySelector('#tabs button[data-t="t-read"]').click(); document.getElementById('km-cyc-det').open = true });
     for (const v of ['1,1,1,1,4,4', '4,4,4,4', '3,3,3', 'x', '2,2,2,2,2,2,2,2,2,2']) {
       await page.evaluate(v => { document.querySelector('#km-cyc-src button[data-m="own"]').click(); const i = document.getElementById('km-cyc-seq'); i.value = v; i.dispatchEvent(new Event('input'));
         const b = document.querySelector('#km-cyc-ctl button[aria-label="Next step"]'); for (let k = 0; k < 60; k++) b.click() }, v); clicks++;

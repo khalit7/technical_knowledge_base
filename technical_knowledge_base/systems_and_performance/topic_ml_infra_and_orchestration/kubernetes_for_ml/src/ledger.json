@@ -1,0 +1,3644 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Kubernetes for ML: scheduling, device plugins, gang scheduling and operators Kubernetes for ML: scheduling, device plugins, gang scheduling and operators How a training job becomes running pods on Kubernetes, taught from zero and run for real: the control loop (API server, etcd, controllers, scheduler, kubelet), Jobs and their failure policies, the scheduler's filter and score cycle, GPUs as extended resources, device plugins and DRA, placement and preemption, gang scheduling (Kueue, JobSet, Volcano, KAI, and the new native PodGroup), Kueue and JobSet in depth, operators (Kubeflow Trainer v2), and volumes.",
+  "label": "core",
+  "key": "every training manifest ran on a kind cluster (kubernetes v1.37.0)",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Every manifest ran on a kind cluster (Kubernetes v1.37.0) with the topic's running example.",
+  "label": "core",
+  "key": "cluster (kubernetes v1.37.0) with the topic's running",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "A child of Topic: ml-infra-and-orchestration .",
+  "label": "core",
+  "key": "a child of topic: ml-infra-and-orchestration",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Scheduling cycle Kueue admission Manifest builder Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar; the Scheduling cycle and Kueue admission tabs moved into Reading"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "Kubernetes was built to keep web services running, one replica at a time.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the core idea sentence carries it"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "A training job is a different animal: it needs all of its machines at once, it needs GPUs that Kubernetes does not natively understand, and a single lost process stops the whole run.",
+  "label": "core",
+  "key": "admit the whole job at once",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page shows, on a real cluster, what Kubernetes does with such a job by default, where that goes wrong, and which pieces (device plugins, DRA, Kueue, JobSet, PodGroups, operators) fill each gap.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the page plan; the hero figure carries it"
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "Reading time about 41 minutes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old reading time; replaced by the header subtitle"
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "Labels: measured here ran on this topic's kind cluster (Apple M1 Pro, Docker Desktop VM, shared machine; timings rough, orders and messages exact); docs or source read from the project's documentation or code at the pinned version; vendor a company describing its product; derived computed here from those.",
+  "label": "core",
+  "key": "topic's kind cluster (apple m1 pro, docker",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "Source is quoted at Kubernetes v1.37.0, Kueue v0.20.2, JobSet v0.13.0 and Kubeflow Trainer v2.3.0, with file and line.",
+  "label": "core",
+  "key": "kubeflow trainer v2.3.0, leaderworkerset v1.0.0",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "The parent's Scheduling lab already shows the gang deadlock, Kueue admission and quota borrowing on the same cluster; this page goes underneath them.",
+  "label": "core",
+  "key": "produced exactly that on this cluster",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 Control loop 2 Jobs 3 Scheduler 4 GPUs 5 Placement 6 Gangs 7 Kueue 8 JobSet 9 Operators 10 Storage Mistakes Interview",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old section nav"
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "In one screen The running example of this topic is a tiny GPT trained with DDP over 4 processes on 2 machines (the root's running example : 112,577 parameters, 200 steps, global loss 2.2638769149780273 at step 200 on every system).",
+  "label": "core",
+  "key": "112,577 parameters, 200 steps",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "On Kubernetes each machine's share becomes a pod (one or more containers that are always placed together on one node), and the job becomes a stack of objects, each made by a different program.",
+  "label": "core",
+  "key": "one or more containers always placed together on one node",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Here is what each layer adds, and what was measured for it on this page.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up to the table"
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Layer What it adds for a training job What it does not do Measured here Pod One process group on one node, with CPU, memory and GPU requests Restart elsewhere, know about the other pods bound 13 ms after creation, container started at 0.6 s measured Indexed Job + headless Service N pods with indexes 0..N-1, stable DNS names, retries, failure rules Start the pods together; treat a lost peer as one failure the running example ran unchanged; loss 2.2638769149780273 JobSet Several Jobs as one unit, its own headless Service, restart-everything failure policy Gang scheduling by itself an eviction restarted the run free of its restart budget and it resumed from step 50 Kueue Quota, queues, admission of the whole job at once, flavors, topology Place pods on nodes (the scheduler still does) flavor fallback, a topology refusal with quota free PodGroup (native, beta, off) Gang scheduling inside the default scheduler Quota or queues the root's deadlock input ran job by job, no deadlock Operator (Trainer v2 TrainJob) Framework knowledge: builds the JobSet, sets torchrun's variables Anything the layers below cannot the TrainJob built a JobSet with PET_* variables; same loss Three surprises this page measures (1) The default scheduler does not look at GPUs when it ranks nodes: it ranks by CPU and memory only, so it scatters small GPU jobs and can leave no node with 4 free GPUs (section 3).",
+  "label": "depth",
+  "key": "running example ran unchanged; loss 2.2638769149780273 jobset",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "(2) A rank that exits with code 13 makes its pod exit with code 1, because torchrun is the container's main process, so a Job failure rule on code 13 never fires (section 2).",
+  "label": "core",
+  "key": "code 1, because torchrun is the container's",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "(3) Kubernetes v1.37 ships native gang scheduling, but behind a feature gate that is off by default (section 6).",
+  "label": "core",
+  "key": "kubernetes v1.37 ships native gang scheduling, but",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "The control loop: who does what The problem.",
+  "label": "core",
+  "key": "the control loop: who does what",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "A cluster has many machines and many programs that must agree on what should run where, while machines fail and people submit work.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the hero and section 1 carry it"
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "Kubernetes' answer is one shared database of desired and actual state, and many small programs that each watch part of it and act.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by the hero caption"
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "Everything is an object (a record such as a Job or a Pod) with a spec (what you want) and a status (what is true now).",
+  "label": "core",
+  "key": "with a spec (what you want) and a status (what is true now)",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "Objects live in etcd , a replicated key-value store, and only one program talks to etcd: the API server , which validates every write, runs admission webhooks (external programs that may change or refuse an object), stores it, and streams changes to anyone watching .",
+  "label": "core",
+  "key": "only the api server talks to etcd",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "A controller is a loop that watches some kinds of object and writes others so that actual state moves toward the spec; this is called reconciling .",
+  "label": "core",
+  "key": "a loop that watches some objects and writes others",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "The job controller (inside kube-controller-manager) creates pods for Jobs; the scheduler watches pods with no node and writes a node name into each; the kubelet , an agent on every node, watches pods bound to its node, starts their containers through the container runtime and writes their status back.",
+  "label": "core",
+  "key": "writes pods for jobs; the scheduler writes a node name",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "Nobody calls anybody: each program reads and writes objects.",
+  "label": "core",
+  "key": "nobody calls anybody",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "Every write bumps the object's resourceVersion , and every write is attributed to a field manager (kubectl, kube-controller-manager, kubelet), which is how the animation below knows who did what.",
+  "label": "depth",
+  "key": "is attributed to a field manager",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "The same training job at three levels, from the API server's point of view measured Indexed Job by hand JobSet Kubeflow TrainJob Every step is one change the watcher ( src/scripts/km_watch.py , a Python client watching the namespace) received, with its arrival time after the first object was created.",
+  "label": "core",
+  "key": "is one change the watcher ( src/scripts/km_watch.py",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "The three runs are the running example (2 pods x 2 ranks, 200 steps) submitted as an Indexed Job plus a headless Service, as a JobSet, and as a Kubeflow Trainer TrainJob, on 16 Oct 2026.",
+  "label": "core",
+  "key": "ranks, 200 steps) submitted as an indexed",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "The TrainJob's own creation is not in the stream (the watcher did not watch TrainJobs); its first step is the Trainer controller writing the JobSet.",
+  "label": "core",
+  "key": "first step is the trainer controller writing",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "What the run shows.",
+  "label": "core",
+  "key": "what the run shows",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "From kubectl create to both pods bound took 44 ms: the job controller created pod 0 after 21 ms, the scheduler bound it 13 ms later.",
+  "label": "core",
+  "key": "took 44 ms: the job controller created",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "The containers started at 0.61 s because the image was already on the nodes (a real CUDA training image, 3 GB compressed or more, is pulled first, which can take minutes and is a common reason a GPU pod sits in ContainerCreating; section 10).",
+  "label": "core",
+  "key": "a real cuda image of 3 gb or more is pulled first",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "Training took 15 s, and the Job was marked Complete at 17.6 s.",
+  "label": "core",
+  "key": "the job was marked complete at 17.6",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "Each layer you add puts one more controller in the chain: the JobSet controller writes the Job, the Trainer controller writes the JobSet.",
+  "label": "core",
+  "key": "each layer you add is one more controller in the chain",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "None of them talks to the others; they only read and write objects.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates \"nobody calls anybody\""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "Which program writes the pod's spec.nodeName , the field that says where it runs?",
+  "label": "core",
+  "key": "the scheduler, not the kubelet, sets",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "The kubelet of the chosen node The scheduler, through the pod's binding subresource The job controller, when it creates the pod The scheduler.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "predict options; the answer is now prose in section 1"
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "It posts a Binding to the API server ( pods/binding ), which sets spec.nodeName ; the kubelet only reacts to it.",
+  "label": "core",
+  "key": "by posting a binding",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "In the recorded run the pod's field managers are only kube-controller-manager (it created the pod) and kubelet (status): the binding write is not recorded as a field manager.",
+  "label": "depth",
+  "key": "field managers are only kube-controller-manager (it created",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "A pod created with nodeName already set skips the scheduler entirely, which is how DaemonSets and static pods used to work and why a hand-set nodeName ignores taints and quotas.",
+  "label": "core",
+  "key": "skips the scheduler, and with it taints and quotas",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "Every object and every watch costs API server memory.",
+  "label": "depth",
+  "key": "object and every watch costs api server",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "On this cluster the control plane runs in 1.6 GB, and in the parent's Scheduling lab the API server restarted once at 1.27 GB under load.",
+  "label": "depth",
+  "key": "1.6 gb, and in the parent's scheduling",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "Installing Kubeflow Trainer's three custom resource definitions (2.4 MB of YAML, mostly embedded JobSet and pod schemas) raised the control plane's memory from 1.04 to 1.25 GiB measured .",
+  "label": "depth",
+  "key": "kubeflow trainer's three custom resource definitions (2.4",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "Kubernetes v1.37 is designed for at most 5,000 nodes, 110 pods per node, 150,000 pods and 300,000 containers ( Considerations for large clusters docs , read 2026-10-16); training clusters hit the node and watch limits long before the pod limit, since they run about one pod per node.",
+  "label": "depth",
+  "key": "300,000 containers ( considerations for large clusters",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. the control loop: who does what",
+  "text": "How to check it. kubectl get events -n NS --sort-by=.metadata.creationTimestamp shows who did what; kubectl get pod P -o yaml --show-managed-fields shows the field managers; kubectl get --raw /metrics on the API server and the controllers' logs show the rest.",
+  "label": "depth",
+  "key": "--sort-by=.metadata.creationtimestamp shows who did what; kubectl get",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Pods and Jobs: running a training job with no add-ons The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "A bare pod runs once on one node; if the node dies the pod is gone.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "A training job needs several pods that know their rank, can find each other by name, and are retried in a controlled way when they fail.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the section opening carries it"
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "A Job (batch/v1) creates pods until enough have succeeded. completions is how many must succeed, parallelism how many run at once.",
+  "label": "core",
+  "key": "completions of them, parallelism at a time",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "With completionMode: Indexed each pod gets an index 0..N-1 in the environment variable JOB_COMPLETION_INDEX and in a label, and the pod's hostname becomes <job>-<index> .",
+  "label": "core",
+  "key": "job_completion_index",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "A headless Service (a Service with clusterIP: None , which only publishes DNS records) whose name matches the pods' subdomain gives each pod a DNS name <job>-<index>.<service> .",
+  "label": "core",
+  "key": "dns records only",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "That is all torchrun needs: node rank from the index, rendezvous address from pod 0's name.",
+  "label": "core",
+  "key": "index, rendezvous address from pod 0's name",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "This is the running example as a plain Indexed Job, exactly as it ran (the crash knobs at the end are the failure runs below): apiVersion: v1 kind: Service metadata: {name: km-e2c, namespace: km} spec: clusterIP: None selector: {job-name: km-e2c} publishNotReadyAddresses: true # DNS records before the pods are Ready: rendezvous happens first --- apiVersion: batch/v1 kind: Job metadata: {name: km-e2c, namespace: km} spec: completions: 2 parallelism: 2 completionMode: Indexed backoffLimit: 2 podFailurePolicy: rules: - action: FailJob onExitCodes: {containerName: trainer, operator: In, values: [1]} template: spec: restartPolicy: Never subdomain: km-e2c containers: - name: trainer image: mi-train:1 imagePullPolicy: Never command: [\"sh\", \"-c\"] args: - >- exec torchrun --nnodes=2 --nproc-per-node=2 --node-rank=$JOB_COMPLETION_INDEX --master-addr=km-e2c-0.km-e2c --master-port=29500 /opt/mi/train.py --ckpt-dir=/shared/ckpt/km-e2c --log-dir=/shared/logs/km-e2c --steps 200 --crash-rank 1 --crash-step 20 --no-resume resources: requests: {cpu: 500m, memory: 400Mi, example.com/gpu: \"2\"} limits: {cpu: \"2\", memory: 900Mi, example.com/gpu: \"2\"} volumeMounts: - {name: shared, mountPath: /shared} volumes: - name: shared hostPath: {path: /shared, type: Directory} src/k8s/train-indexed-job.sh km-e2c exit13ok ... ; the same generator with policy none and no crash flags is the run in section 1. example.com/gpu is this cluster's fake GPU (section 4).",
+  "label": "depth",
+  "key": "--nproc-per-node=2 --node-rank=$job_completion_index --master-addr=km-e2c-0.km-e2c --master-port=29500 /opt/mi/train.py --ckpt-dir=/shared/ckpt/km-e2c --log-dir=/shared/logs/km-e2c",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "The failure knobs, and what each did on the same crash When a pod fails, the job controller decides between retrying, failing the Job and ignoring the failure: backoffLimit : how many failed pods the Job tolerates (default 6: staging/src/k8s.io/api/batch/v1/types.go line 353 source ).",
+  "label": "core",
+  "key": "how many failed pods the job tolerates (default 6)",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Retries wait 10 s, doubling per failure since the last success, capped at 10 minutes ( pkg/controller/job/job_controller.go lines 76-79, backoff_utils.go lines 255-276 at v1.37.0 source ). podFailurePolicy : rules matched in order against a failed pod's container exit codes or pod conditions, with actions FailJob (stop now), Ignore (do not count it), Count (the default) and FailIndex .",
+  "label": "core",
+  "key": "retries wait 10 s, doubling per failure",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "It cannot be used with restartPolicy: OnFailure (same file, line 338), because then the kubelet restarts the container in place and the Job never sees a failed pod. backoffLimitPerIndex and maxFailedIndexes : a retry budget per index, for jobs whose indexes are independent shards. successPolicy : declare success early, for example when the leader index succeeds.",
+  "label": "core",
+  "key": "not allowed with restartpolicy: onfailure",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Nine failure runs (seven of the running example, two of small shard jobs), pod by pod measured exited 0 exited non-zero evicted (DisruptionTarget) killed after grace period (137) ◆ Job or JobSet condition One row per pod attempt, index on the left, time in seconds after the first object was created.",
+  "label": "core",
+  "key": "measured exited 0 exited non-zero evicted (disruptiontarget",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Crash runs: rank 1 exits with code 13 after step 20 on every attempt (no checkpoint before step 50, so retries crash again).",
+  "label": "core",
+  "key": "every attempt (no checkpoint before step 50",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Eviction runs: pod index 1 is evicted through the Eviction API (what kubectl drain and the scheduler's preemption use) about 16 s in, after the step-50 checkpoint.",
+  "label": "core",
+  "key": "and the scheduler's preemption use) about 16",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Raw watch streams in src/runs/e2*.watch.jsonl , e3b , e3c , e4a , e4b .",
+  "label": "core",
+  "key": "raw watch streams in src/runs/e2*.watch.jsonl , e3b",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Exit code 13 never reaches Kubernetes The rank exited 13, torchrun printed exitcode : 13 (pid: 13) as the root cause, and then torchrun itself, the container's main process, exited 1.",
+  "label": "core",
+  "key": "reaches kubernetes the rank exited 13, torchrun",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "A rule onExitCodes: In [13] (run e2b) therefore never matched: the Job retried after 19.1 s and failed with BackoffLimitExceeded at 34 s, exactly like no rule at all (e2a, 34 s).",
+  "label": "core",
+  "key": "after 19.1 s and failed with backofflimitexceeded",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "The rule on code 1 (e2c) failed the Job at 11.6 s with reason PodFailurePolicy and message \"Container trainer for pod km/km-e2c-0-pj2zt failed with exit code 1 matching FailJob rule at index 0\".",
+  "label": "core",
+  "key": "message \"container trainer for pod km/km-e2c-0-pj2zt failed",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Eviction: one failure becomes two With Ignore on the DisruptionTarget condition (e2d2), the evicted pod was not counted ( status.failed 1, not 2), but the other pod's ranks lost their peer, its torchrun exited 1, and that failure counted: BackoffLimitExceeded with backoffLimit 0, the same outcome as with no rule (e2d1).",
+  "label": "core",
+  "key": "that failure counted: backofflimitexceeded with backofflimit 0",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "A pod-level rule cannot say \"the gang failed because one member was disrupted\".",
+  "label": "core",
+  "key": "gang failed because one member was disrupted\"",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "The fix for the second case lives one layer up: a JobSet (section 8) whose Job fails fast on DisruptionTarget and whose failure policy restarts all pods without spending the restart budget (e3b).",
+  "label": "core",
+  "key": "pods without spending the restart budget (e3b",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "The run restarted once, resumed from its step-50 checkpoint and completed; the same JobSet with a real crash (e3c) failed at 8.8 s with ReachedMaxRestarts .",
+  "label": "core",
+  "key": "restarted once, resumed from its step-50 checkpoint",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "That is the policy a preemptible training job wants: evictions and preemptions are free, bugs are not.",
+  "label": "core",
+  "key": "evictions are free, bugs are not",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Choosing a rule on exit code 1 is a trade-off Code 1 is what torchrun returns for any failed worker in these runs, including ones you want retried (a lost peer, a NCCL timeout).",
+  "label": "depth",
+  "key": "trade-off code 1 is what torchrun returns",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "A rule FailJob on 1 stops wasting GPUs on a deterministic bug but also gives up on transient failures.",
+  "label": "depth",
+  "key": "1 stops wasting gpus on a deterministic",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Alternatives: have the training script write the root cause somewhere a wrapper can read and exit with its own code (torchrun records it in the file named by TORCHELASTIC_ERROR_FILE when the script's entry point is decorated with @record : PyTorch elastic errors docs , the page the log itself points to); or launch one process per pod without torchrun, so the script's exit code is the container's.",
+  "label": "depth",
+  "key": "named by torchelastic_error_file when the script's entry",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Did the resumed run train the same model?",
+  "label": "depth",
+  "key": "the resumed run train the same model?",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Almost: after resuming from step 50 with 4 ranks, the global loss matched the uninterrupted run at most logged steps and differed by 2.4e-7 (one float32 rounding step) at steps 70, 180 and 200 .",
+  "label": "depth",
+  "key": "differed by 2.4e-7 (one float32 rounding step",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "This is the DDP gradient-bucket rebuild effect the root's Failure lab identified (there after a resume at step 100); the steps that differ depend on where the run resumed.",
+  "label": "depth",
+  "key": "step 100); the steps that differ depend",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Two smaller lessons from the shard runs.",
+  "label": "depth",
+  "key": "two smaller lessons from the shard runs",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "With backoffLimitPerIndex: 1 , the broken shard (index 2) was retried after 9.7 s and the Job failed with FailedIndexes while indexes 0, 1 and 3 completed (e4a).",
+  "label": "depth",
+  "key": "backofflimitperindex: 1 , the broken shard (index",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "With successPolicy on index 0 (e4b), the Job reached SuccessCriteriaMet at 8.1 s but Complete only at 39.3 s: the two workers ran sleep as their main process, which ignores SIGTERM, so they were killed after the default 30 s grace period (exit 137).",
+  "label": "depth",
+  "key": "index 0 (e4b), the job reached successcriteriamet",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "A training container whose main process ignores SIGTERM also loses the chance to write a last checkpoint on preemption.",
+  "label": "depth",
+  "key": "training container whose main process ignores sigterm",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Since v1.33 a Job adds the condition SuccessCriteriaMet before Complete , and FailureTarget before Failed (both visible in every run above): the terminal condition is written only after all pods have terminated.",
+  "label": "depth",
+  "key": "v1.33 a job adds the condition successcriteriamet",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Watch for Complete or Failed , not for the first.",
+  "label": "depth",
+  "key": "watch for complete or failed , not",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "In run e2a (backoffLimit 2, two pods per attempt, deterministic crash), how many attempts did the Job make before failing?",
+  "label": "core",
+  "key": "backofflimit 2, two pods per attempt, deterministic",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "Three: backoffLimit 2 means two retries Two: each attempt adds two failed pods, and 4 > 2 Seven: the default is 6 Two. backoffLimit counts failed pods , not attempts.",
+  "label": "core",
+  "key": "default is 6 two. backofflimit counts failed",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "The first attempt produced two failed pods (the crashing pod and its peer), within the limit; the second made four, over it.",
+  "label": "core",
+  "key": "attempt produced two failed pods (the crashing",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "2. pods and jobs: running a training job with no add-ons",
+  "text": "For a multi-pod training job, set backoffLimit with the pod count in mind, or move restart decisions to JobSet, which counts restarts of the whole group.",
+  "label": "core",
+  "key": "restart decisions to jobset, which counts restarts",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "The scheduler: filter, score, bind The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "A pod with no node must be put on one that can run it, and among those, on a good one. \"Good\" for a web service means spread out; for training it usually means packed together, so that whole nodes stay free for the next big job.",
+  "label": "core",
+  "key": "for training it usually means packed",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "How it works. kube-scheduler keeps a scheduling queue of unbound pods (sorted by priority, then age) and takes one pod per scheduling cycle .",
+  "label": "core",
+  "key": "sorted by priority, then age",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "Each step of the cycle is an extension point where plugins (Go code compiled into the scheduler, configured per profile ) run: PreEnqueue : may keep a pod out of the queue entirely (scheduling gates, and in v1.37 the gang plugin).",
+  "label": "depth",
+  "key": "go code compiled into the scheduler",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "PreFilter, Filter : every plugin can reject a node: not enough free GPUs (NodeResourcesFit), an untolerated taint (TaintToleration), a label mismatch (NodeAffinity), a volume on another node (VolumeBinding), a spread rule (PodTopologySpread).",
+  "label": "depth",
+  "key": "a node is feasible only if every filter passes",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "A node is feasible only if every Filter passes.",
+  "label": "depth",
+  "key": "is feasible only if every filter passes",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "PostFilter : runs only if no node is feasible; the default is preemption (section 5).",
+  "label": "depth",
+  "key": "only when no node is feasible",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "PreScore, Score, NormalizeScore : each scoring plugin gives each feasible node 0 to 100; the scores are multiplied by the plugin's weight and summed.",
+  "label": "core",
+  "key": "give each remaining node 0 to 100",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "Reserve, Permit : the chosen node's resources are reserved in the scheduler's cache; Permit can hold the pod (the gang plugin does).",
+  "label": "depth",
+  "key": "resources reserved in the scheduler's cache",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "PreBind, Bind : in a separate binding cycle , volumes are bound and the Binding is written, so the next pod's cycle does not wait for the API call.",
+  "label": "depth",
+  "key": "so the next pod's cycle does not wait for the api call",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "The default plugins and weights are in pkg/scheduler/apis/config/v1/default_plugins.go lines 32-57 at v1.37.0 source : TaintToleration 3, NodeAffinity 2, PodTopologySpread 2, InterPodAffinity 2, NodeResourcesFit 1, NodeResourcesBalancedAllocation 1, ImageLocality 1.",
+  "label": "depth",
+  "key": "podtopologyspread 2, interpodaffinity 2, noderesourcesfit 1, noderesourcesbalancedallocation",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "The cycle itself is schedulingCycle and schedulePod in pkg/scheduler/schedule_one.go (lines 169 and 572); the highest total wins, ties are broken by a random number drawn per node ( framework/sorted_nodes.go lines 61-64).",
+  "label": "depth",
+  "key": "schedulingcycle and schedulepod in pkg/scheduler/schedule_one.go (lines 169",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "On clusters of 100 nodes or more the scheduler stops looking after enough feasible nodes ( numFeasibleNodesToFind , lines 866-892: 50% minus 1% per 125 nodes, at least 5%, at least 100 nodes), so on a 5,000-node cluster a pod is scored against 500 of them, not the best of all.",
+  "label": "depth",
+  "key": "feasible nodes ( numfeasiblenodestofind , lines 866-892",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "57 minFeasibleNodesToFind = 100 ...",
+  "label": "depth",
+  "key": "57 minfeasiblenodestofind = 100",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "879 if percentage == 0 { 880 percentage = int32(50) - numAllNodes/125 881 if percentage < minFeasibleNodesPercentageToFind { 882 percentage = minFeasibleNodesPercentageToFind 883 } 884 } pkg/scheduler/schedule_one.go , kubernetes v1.37.0.",
+  "label": "depth",
+  "key": "minfeasiblenodespercentagetofind { 882 percentage = minfeasiblenodespercentagetofind 883",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "The default scheduler does not see GPUs when it ranks nodes NodeResourcesFit's default scoring strategy, LeastAllocated , prefers the node with the most free capacity, but it counts only the resources its strategy lists, and the default list is CPU and memory, weight 1 each ( apis/config/v1/defaults.go lines 33-35).",
+  "label": "core",
+  "key": "counts only the resources it lists",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "An extended resource such as a GPU is used to filter (a node with too few free GPUs is rejected) but never to rank unless you list it ( noderesources/resource_allocation.go lines 176-182).",
+  "label": "core",
+  "key": "a gpu is used to filter but never to rank",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "The alternative strategy, MostAllocated , prefers the fullest node: bin packing.",
+  "label": "core",
+  "key": "mostallocated , prefers the fullest node: bin",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "The same six pods, default profile against a bin-packing profile measured Default (LeastAllocated, cpu and memory) MostAllocated, GPUs counted (weight 5) Pods asking for 2, 1, 1, 2 and 2 fake GPUs, then one asking for 4, created one after another on 3 workers of 4 GPUs each.",
+  "label": "core",
+  "key": "memory) mostallocated, gpus counted (weight 5) pods",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "Both profiles ran in one kube-scheduler (two profiles, chosen per pod with spec.schedulerName ; config in src/k8s/km-sched-config.yaml ), with per-plugin scores logged by --vmodule=schedule_one=10 . src/recompute.py recomputes every logged score from the node states with the ported formulas: 135 of 135 match.",
+  "label": "core",
+  "key": "--vmodule=schedule_one=10 . src/recompute.py recomputes every logged score",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "The step-by-step cycle, every plugin and every node, is in the Scheduling cycle tab.",
+  "label": "core",
+  "key": "step-by-step cycle, every plugin and every node",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "Under the default profile the GPUs did not enter the score at all: every node scored 94 or 95 for NodeResourcesFit (a 100m pod on a 5-CPU node moves the score by one point), so pods went wherever CPU and memory were a hair freer, and to a random node among equals.",
+  "label": "core",
+  "key": "node scored 94 or 95 for noderesourcesfit",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "After five pods every worker held some GPUs (4, 3 and 1 used) and the 4-GPU pod stayed Pending: 0/4 nodes are available: 1 node(s) had untolerated taint(s), 3 Insufficient example.com/gpu , with 4 GPUs free in total.",
+  "label": "core",
+  "key": "node(s) had untolerated taint(s), 3 insufficient example.com/gpu",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "Under MostAllocated with GPUs weighted 5, pods 2 and 3 joined pod 1 on one worker (scores 55 and 73 against 19), pods 4 and 5 shared the second, and the 4-GPU pod got the empty third.",
+  "label": "core",
+  "key": "under mostallocated with gpus weighted 5, pods",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "When it matters, and the cost On a cluster that runs whole-node training jobs only, spreading does not matter.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "implied by \"it matters on a cluster that mixes\" sizes"
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "On a cluster that mixes 1- and 2-GPU jobs (notebooks, evaluation, small fine-tunes) with 8-GPU jobs, spreading fragments the nodes and the large jobs starve while the GPU allocation looks fine.",
+  "label": "core",
+  "key": "2-gpu jobs (notebooks, evaluation, small fine-tunes) with",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "Bin packing costs some resilience (one node failure kills more small jobs) and concentrates heat; the usual answer is separate node pools, or a scheduler (Volcano, KAI) or Kueue's topology placement that packs by design.",
+  "label": "core",
+  "key": "packing costs some resilience (one node failure",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "Because the scheduler's config is a control-plane setting, a managed cluster may not let you change it; a second scheduler profile or a second scheduler binary is the usual route.",
+  "label": "core",
+  "key": "the scheduler config is a control-plane setting",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "You add example.com/gpu with weight 5 to the default LeastAllocated strategy instead.",
+  "label": "core",
+  "key": "5 to the default leastallocated strategy instead",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "What happens to the 4-GPU pod?",
+  "label": "core",
+  "key": "what happens to the 4-gpu pod?",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "It fits: GPUs are now counted It is even more certain to stay Pending: LeastAllocated now actively spreads GPUs The scheduler refuses the config Spreads harder.",
+  "label": "core",
+  "key": "stay pending: leastallocated now actively spreads gpus",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "LeastAllocated prefers the node with the most free GPUs, so each small pod goes to the emptiest worker and every worker ends up partly used.",
+  "label": "core",
+  "key": "leastallocated prefers the node with the most",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "Counting GPUs only helps with a packing strategy (MostAllocated, or RequestedToCapacityRatio with a rising shape).",
+  "label": "core",
+  "key": "with a packing strategy (mostallocated, or requestedtocapacityratio",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "3. the scheduler: filter, score, bind",
+  "text": "This variant was not run here; it follows from the same formula ( least_allocated.go lines 52-60).",
+  "label": "core",
+  "key": "the same formula ( least_allocated.go lines 52-60",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "GPUs as resources: extended resources, device plugins and DRA The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "Kubernetes knows CPU and memory natively.",
+  "label": "core",
+  "key": "kubernetes knows cpu and memory natively",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "A GPU is a device on one node: the scheduler must count them, and the kubelet must give a container the right device files, driver libraries and environment for the specific GPUs it got.",
+  "label": "core",
+  "key": "right device files, driver libraries and environment",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "Extended resources: counting only.",
+  "label": "core",
+  "key": "extended resources: counting only",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "An extended resource is any resource name with a domain ( nvidia.com/gpu , example.com/gpu ) that appears in a node's status.capacity .",
+  "label": "core",
+  "key": "any resource name with a domain",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "Pods request it in whole numbers, the scheduler subtracts, and that is all: it cannot be overcommitted (a request, if given with a limit, must equal it), and nothing is attached to the container ( Extended resources docs ).",
+  "label": "core",
+  "key": "pods request whole numbers, the scheduler subtracts",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "This topic's cluster has no GPUs, so its setup wrote example.com/gpu: 4 into each worker's status by hand (the root's running example setup): every GPU number on this page is that counter.",
+  "label": "core",
+  "key": "wrote example.com/gpu: 4 into each worker's status",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "The parent's labs, and sections 2, 3 and 6 here, rely on nothing more.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "a pointer to other sections"
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "Device plugins: counting plus attaching.",
+  "label": "core",
+  "key": "device plugins: counting plus attaching",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "A device plugin is a small gRPC server, usually a DaemonSet pod on every GPU node, that the kubelet talks to over a Unix socket in /var/lib/kubelet/device-plugins/ .",
+  "label": "depth",
+  "key": "over a unix socket in /var/lib/kubelet/device-plugins/",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "The API ( staging/src/k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1/api.proto at v1.37.0 source ) has the plugin call Register (line 14) on the kubelet's socket, then the kubelet calls ListAndWatch (line 48, a stream of the device IDs and their health), optionally GetPreferredAllocation (line 55, so a plugin can pick GPUs that share an NVLink or PCIe switch), and Allocate (line 60) once per container, whose answer lists device files, mounts, environment variables or CDI device names to add.",
+  "label": "depth",
+  "key": "register line 14",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "NVIDIA's plugin advertises nvidia.com/gpu , is deployed as a DaemonSet, and can split GPUs by MIG (strategies none, single, mixed, the last exposing names like nvidia.com/mig-1g.10gb ) or share them by time-slicing (\"nothing special is done to isolate workloads\", in its README) or MPS ( NVIDIA/k8s-device-plugin vendor , v0.20.1 released 2026-09-22).",
+  "label": "depth",
+  "key": "nvidia.com/mig-1g.10gb",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "In production it usually comes with the NVIDIA GPU Operator (26.7.2, 2026-10-14), which also installs the driver, the container toolkit and DCGM.",
+  "label": "core",
+  "key": "v26.7.2, released 2026-10-14",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "MIG itself is on Virtualization and the GPU driver stack .",
+  "label": "core",
+  "key": "on virtualization and the gpu driver stack",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "Dynamic Resource Allocation (resource.k8s.io/v1, GA in v1.34: Kubernetes blog, 2025-09-01 docs ) replaces \"a count of opaque units\" with structured devices.",
+  "label": "core",
+  "key": "dynamic resource allocation (resource.k8s.io/v1, ga in v1.34",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "A DRA driver publishes ResourceSlices : the devices on a node with attributes (model, memory, NUMA node, PCIe root) and capacities.",
+  "label": "core",
+  "key": "publishes resourceslices",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "A cluster admin defines DeviceClasses (a CEL selector over those attributes).",
+  "label": "core",
+  "key": "an admin defines deviceclasses",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "A pod references a ResourceClaim (or a template that makes one per pod) asking for, say, exactly 2 devices of a class whose memory is at least 80Gi.",
+  "label": "core",
+  "key": "exactly 2 devices of a class with at least 80gi",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "The scheduler allocates specific devices to the claim while it picks the node (the DynamicResources plugin, weight 2 when the feature is on), and the kubelet then calls the driver on that node ( NodePrepareResources ) to set them up.",
+  "label": "core",
+  "key": "the scheduler allocates the exact devices",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "Allocation moves from the node to the scheduler, so the scheduler knows which devices, not just how many.",
+  "label": "core",
+  "key": "the scheduler allocates the exact devices",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "The same request, through a device plugin and through DRA measured Device plugin (count) DRA (described devices) Device plugin: Kubernetes' own e2e sample plugin ( test/images/sample-device-plugin , image 1.8.0) on worker3, advertising two fake devices as example.com/resource .",
+  "label": "core",
+  "key": "test/images/sample-device-plugin , image 1.8.0) on worker3, advertising",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "DRA: a hand-written ResourceSlice of four fake GPUs on worker3 (two with 40Gi, two with 80Gi), a DeviceClass and a claim template asking for 2 devices with at least 80Gi; no DRA driver installed.",
+  "label": "core",
+  "key": "resourceslice of four fake gpus on worker3",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "Manifests in src/k8s/e7-device-plugin.yaml and e8-dra.yaml ; outputs in src/runs/e7.steps.txt and e8.steps.txt .",
+  "label": "core",
+  "key": "src/k8s/e7-device-plugin.yaml and e8-dra.yaml ; outputs in src/runs/e7.steps.txt",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "What the runs show.",
+  "label": "core",
+  "key": "what the runs show",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "The device plugin registered in 9 ms (log: \"Device Plugin registered with the Kubelet\", then \"ListAndWatch\"); the node reported example.com/resource: 2 on its next status update; a pod asking for 1 got Allocate request=\"container_requests:{devices_ids:\\\"Dev-2\\\"}\" and saw the file /tmp/Dev-2 mounted, and the kubelet recorded the assignment in its checkpoint file ( kubelet_internal_checkpoint : pod UID, container, device IDs).",
+  "label": "core",
+  "key": "pod asking for 1 got allocate request=\"container_requests:{devices_ids:\\\"dev-2\\\"}\"",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "After the plugin pod was deleted, the node kept capacity 2 with allocatable 0 ; patching it out of the node status did not help (the kubelet wrote it back within seconds), and it went away only when the kubelet was restarted at cleanup, about 50 minutes later.",
+  "label": "depth",
+  "key": "restarted at cleanup, about 50 minutes later",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "Through DRA, the scheduler allocated gpu-2 and gpu-3 (the two 80Gi devices) and wrote them into the claim's status before binding; the kubelet then failed with Failed to prepare dynamic resources: prepare dynamic resources: DRA driver gpu.km.example.com is not registered ( pkg/kubelet/cm/dra/plugin/dra_plugin_manager.go line 280), and a second identical pod was refused at scheduling with 3 cannot allocate all claims .",
+  "label": "depth",
+  "key": "pkg/kubelet/cm/dra/plugin/dra_plugin_manager.go line 280), and a second identical",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "The split is visible: allocation works from the published slice alone; only preparation needs the driver.",
+  "label": "core",
+  "key": "visible: allocation works from the published slice",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "Device plugin Simple, everywhere, what NVIDIA's stack uses today.",
+  "label": "core",
+  "key": "device plugin simple, everywhere, what nvidia's stack",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "Counts only: \"2 GPUs\" cannot say \"on the same NVLink island\" or \"with 80 GB\" except through node labels and separate resource names.",
+  "label": "core",
+  "key": "\"with 80 gb\" except through node labels",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "The scheduler picks the node; the kubelet picks the GPUs.",
+  "label": "core",
+  "key": "scheduler picks the node; the kubelet picks",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "DRA Typed devices, CEL selection, sharing a claim between pods, the scheduler choosing exact devices.",
+  "label": "core",
+  "key": "between pods, the scheduler choosing exact devices",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "Needs a DRA driver (the NVIDIA GPU DRA driver now lives at kubernetes-sigs/dra-driver-nvidia-gpu , the old NVIDIA/k8s-dra-driver-gpu address redirects there; latest release v0.5.1, 2026-10-12, GitHub API; not run here) and v1.34 or later.",
+  "label": "depth",
+  "key": "nvidia/k8s-dra-driver-gpu address redirects there; latest release v0.5.1",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "Allocation is more work in the scheduler for every pod with a claim.",
+  "label": "core",
+  "key": "allocation is more work in the scheduler",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "A node's GPU device plugin crashes and restarts while a training pod is running on that node's 8 GPUs.",
+  "label": "core",
+  "key": "is running on that node's 8 gpus",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "What happens to the running pod?",
+  "label": "core",
+  "key": "what happens to the running pod?",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "It is killed: its devices are no longer registered Nothing: the containers already have their devices; only new allocations wait for the plugin It is rescheduled to another node Nothing happens to it.",
+  "label": "core",
+  "key": "longer registered nothing: the containers already have",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "Allocate happens once, at container start; the device files are already in the container.",
+  "label": "core",
+  "key": "allocate happens once, at container start; the",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "While the plugin is gone the node's allocatable for that resource drops to 0 (as measured above), so new GPU pods cannot land there, and on re-registration the kubelet restores it from ListAndWatch.",
+  "label": "core",
+  "key": "allocatable for that resource drops to 0",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "4. gpus as resources: extended resources, device plugins and dra",
+  "text": "A plugin that reports a device Unhealthy also only lowers allocatable; killing the pod that uses it is someone else's job (a health checker, or the root's Failure lab patterns).",
+  "label": "core",
+  "key": "device unhealthy also only lowers allocatable; killing",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "Placement controls: affinity, taints, spread, priority and preemption The problem.",
+  "label": "core",
+  "key": "controls: affinity, taints, spread, priority and preemption",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "GPU nodes are expensive and different from each other (H100 against A100, one network block against another).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "You want training pods only on GPU nodes, everything else kept off them, a job's pods close together, and important jobs able to take GPUs from unimportant ones. nodeSelector and node affinity : the pod lists node labels it requires ( requiredDuringSchedulingIgnoredDuringExecution , a Filter) or prefers ( preferred... , a Score).",
+  "label": "core",
+  "key": "requires ( requiredduringschedulingignoredduringexecution , a filter) or",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "Cloud providers label GPU nodes with the accelerator type; Kueue's flavors (section 7) work by adding a nodeSelector for you.",
+  "label": "core",
+  "key": "kueue's flavors (section 8) add one for you",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "Taints and tolerations : a node's taint repels every pod that does not tolerate it.",
+  "label": "core",
+  "key": "tolerations : a node's taint repels every",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "GPU node pools are usually tainted (for example nvidia.com/gpu=present:NoSchedule ) so that only pods that tolerate it (training pods, the device plugin DaemonSet) land there.",
+  "label": "core",
+  "key": "gpu pools are usually tainted",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "NoExecute also evicts running pods; the node lifecycle controller adds node.kubernetes.io/unreachable this way when a node goes silent (the root's Failure lab measures it). topologySpreadConstraints : keep the count of matching pods per topology domain (all nodes sharing a label value, such as a zone or this cluster's block mi.example.com/block ) within maxSkew of each other.",
+  "label": "core",
+  "key": "pods; the node lifecycle controller adds node.kubernetes.io/unreachable",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "Pod affinity and anti-affinity : place a pod near (or away from) pods with given labels in a domain.",
+  "label": "core",
+  "key": "pod affinity and anti-affinity : place a",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "JobSet's exclusive placement (section 8) is built from these.",
+  "label": "core",
+  "key": "jobset's exclusive placement (section 9)",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "A spread rule meets a tainted node Three 1-GPU pods with maxSkew: 1 over the two blocks (b1 = worker and worker2, b2 = worker3), while worker3 carries a taint the pods do not tolerate (say it is reserved for inference).",
+  "label": "core",
+  "key": "worker2, b2 = worker3), while worker3 carries",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "Should b2 count as a domain the pods must spread into? nodeTaintsPolicy Ignore (the default) against Honor, same pods measured Ignore (default) Honor src/k8s/spread-pod.sh ; taint km.example.com/reserved=inference:NoSchedule on worker3 during the runs, removed after.",
+  "label": "core",
+  "key": "ignore (default) honor src/k8s/spread-pod.sh ; taint km.example.com/reserved=inference:noschedule",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "With the default, the tainted block still counts as a domain with zero pods, so after one pod in b1 the second would make the skew 2 and is refused: two pods Pending with 2 node(s) didn't match pod topology spread constraints, 2 node(s) had untolerated taint(s) .",
+  "label": "core",
+  "key": "topology spread constraints, 2 node(s) had untolerated",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "With nodeTaintsPolicy: Honor the tainted node is left out of the count and all three run in b1.",
+  "label": "core",
+  "key": "count and all three run in b1",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "The same trap exists for nodeAffinityPolicy , whose default is Honor.",
+  "label": "core",
+  "key": "trap exists for nodeaffinitypolicy , whose default",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "Priority and preemption A PriorityClass maps a name to an integer.",
+  "label": "core",
+  "key": "priorityclass maps a name to an integer",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "Higher-priority pods go first in the scheduling queue, and when nothing fits, the default PostFilter plugin looks for a node where evicting lower-priority pods would make room ( preemption ).",
+  "label": "core",
+  "key": "nothing fits, the default postfilter plugin looks",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "The victims get the DisruptionTarget condition (reason PreemptionByScheduler ), receive SIGTERM and their grace period, and the preemptor waits with status.nominatedNodeName set until they are gone. preemptionPolicy: Never keeps the queue priority but never evicts.",
+  "label": "core",
+  "key": "preemptionpolicy: never",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "Three low-priority jobs fill the cluster; two high-priority jobs arrive measured PriorityClasses km-low (100), km-high (1000) and km-high-nopreempt (1000, preemptionPolicy Never) from src/k8s/e5-priority.yaml ; every pod asks for a whole worker's 4 fake GPUs.",
+  "label": "core",
+  "key": "and km-high-nopreempt (1000, preemptionpolicy never) from src/k8s/e5-priority.yaml",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "Events in src/runs/e5a.events.txt .",
+  "label": "core",
+  "key": "events in src/runs/e5a.events.txt",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "Cost and when it matters.",
+  "label": "core",
+  "key": "cost and when it matters",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "Preemption is how a shared research cluster lets production training take GPUs back, but the scheduler preempts pods , not jobs: evicting one pod of a 64-pod training job kills all 64 (section 2), and the scheduler does not know that.",
+  "label": "core",
+  "key": "not jobs: evicting one pod of a 64-pod training job kills all 64",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "It will also happily preempt a pod that is 3 minutes from a checkpoint.",
+  "label": "core",
+  "key": "3 minutes from a checkpoint",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "That is why training clusters move preemption up a level: Kueue preempts whole workloads by priority or to reclaim quota (the parent's Scheduling lab shows the reclaim), and the native PodGroup has a disruptionMode (single or all) for exactly this.",
+  "label": "core",
+  "key": "level: kueue preempts whole workloads by priority",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "5. placement controls: affinity, taints, spread, priority and preemption",
+  "text": "A PodDisruptionBudget limits voluntary evictions (drains), but not preemption by priority beyond a best effort.",
+  "label": "core",
+  "key": "poddisruptionbudget limits voluntary evictions (drains), but not",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Gang scheduling: every pod or none The problem.",
+  "label": "core",
+  "key": "gang scheduling: every pod or none the",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "The scheduler places one pod per cycle and knows nothing of the job it belongs to.",
+  "label": "core",
+  "key": "the scheduler places one pod per cycle",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Two jobs that each need the whole cluster can each get half, and wait forever for the other half.",
+  "label": "core",
+  "key": "jobs that each need the whole cluster",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "The parent's Scheduling lab produced exactly that on this cluster (three 2-pod jobs, each pod a whole worker: three pods Running and doing nothing, three Pending) and fixed it with Kueue.",
+  "label": "core",
+  "key": "three jobs of two pods",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "A gang is a set of pods that must start together; gang scheduling binds all of them or none.",
+  "label": "core",
+  "key": "that must start together; gang scheduling binds",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "The options, October 2026 Option Where the gang is decided What else it brings Status (dated) Kueue (+ JobSet or Job) Admission: the whole workload's quota is reserved before any pod exists; the default scheduler places the pods Queues, quotas, cohorts, flavors, topology-aware placement, MultiKueue v0.20.2 (2026-10-15), kubernetes-sigs; measured in the parent's lab and in section 7 Native PodGroup Inside kube-scheduler: PreEnqueue holds pods until the group's minCount exists, Permit holds bound pods until minCount are placed Group-level preemption and disruption mode; Workload objects; topology (alpha) KEP-4671: alpha v1.35, gate GenericWorkload beta in v1.37 but off by default ( pkg/features/kube_features.go lines 1622-1625); measured below Coscheduling plugin (scheduler-plugins) A second scheduler build with a PodGroup CRD and a Permit plugin Little else What OpenAI used on its 7,500-node cluster (OpenAI blog 2021-01-25) operator ; not run here Volcano Its own scheduler (pods set schedulerName: volcano ), PodGroup with minMember Queues, fair share, its own Job CRD, binpack and other policies v1.16.0 (2026-10-15), CNCF incubating, built on kube-batch (README) project ; not run here KAI Scheduler (NVIDIA, from Run:ai) Its own scheduler with hierarchical PodGroups Hierarchical queues, time-based fair share, GPU sharing, topology-aware scheduling, DRA Apache-2.0 since 2025-04-01, v0.18.6 (2026-10-15) vendor ; not run here YuniKorn Its own scheduler with application-level gang placeholders Hierarchical queues (from the Hadoop world) v1.10.0 (2026-10-06); not run here Versions and dates from the topic's shared facts (release feeds read 2026-10-16); feature lists from each project's README.",
+  "label": "depth",
+  "key": "topology-aware placement, multikueue v0.20.2 (2026-10-15), kubernetes-sigs; measured",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Native gang scheduling, switched on for one run Kubernetes v1.37 has the pieces built in: a PodGroup object ( scheduling.k8s.io/v1beta1 ) with schedulingPolicy.gang.minCount , a pod field spec.schedulingGroup.podGroupName (it replaced workloadRef in v1.36, staging/src/k8s.io/api/core/v1/types.go lines 4697-4716), and a GangScheduling plugin.",
+  "label": "depth",
+  "key": "spec.schedulinggroup.podgroupname",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "To try it, this page turned on the gate in the API server (plus --runtime-config=scheduling.k8s.io/v1beta1=true ) and in the scheduler, ran the parent's deadlock input again with placeholder pods, and restored both manifests ( src/scripts/km_gang_reconf.sh ): apiVersion: scheduling.k8s.io/v1beta1 kind: PodGroup metadata: {name: km-a, namespace: km} spec: schedulingPolicy: gang: {minCount: 2} --- apiVersion: v1 kind: Pod metadata: {name: km-a-0, namespace: km, labels: {km-gang: km-a}} spec: schedulingGroup: {podGroupName: km-a} schedulingGates: [{name: km.example.com/release}] # the run releases pods in the order a0 b0 c0 a1 b1 c1 ... resources: requests: {cpu: 100m, memory: 64Mi, example.com/gpu: \"4\"} src/k8s/gang-podgroup.sh and gang-pod.sh (abridged); three such groups, km-a, km-b and km-c.",
+  "label": "depth",
+  "key": "src/scripts/km_gang_reconf.sh ): apiversion: scheduling.k8s.io/v1beta1 kind: podgroup metadata",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "The parent's deadlock input, without and with a PodGroup measured No gang (default) PodGroup, minCount 2 Three jobs of two pods, each pod holding a whole worker's 4 fake GPUs (12 in all, so 1.5 jobs fit), released one second apart in the order a0, b0, c0, a1, b1, c1.",
+  "label": "core",
+  "key": "measured no gang (default) podgroup, mincount 2",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Pods sleep 30 s in the gang run (600 s in the other, which was stopped after 28 s).",
+  "label": "core",
+  "key": "the other, which was stopped after 28",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Snapshots in src/runs/e11nogang.snap , e11gang.snap ; scheduler log in e11gang.schedlog.txt .",
+  "label": "core",
+  "key": "snapshots in src/runs/e11nogang.snap , e11gang.snap ; scheduler",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Without the gang, a0, b0 and c0 each took a worker and the other three waited: every job half placed, none able to run.",
+  "label": "core",
+  "key": "without the gang, a0, b0 and c0",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "With the PodGroups, a0 was held at PreEnqueue ( waiting for minCount pods from a gang to appear in scheduling queue ); when a1 arrived both were placed and released together ( Quorum is met for a gang.",
+  "label": "core",
+  "key": "the podgroups, a0 was held at preenqueue",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Allowing other pods from a gang waiting on permit ); gangs b and c were refused as a whole ( minCount (2) cannot be satisfied: 1 scheduled, 0 remaining ) and ran one after another as the GPUs freed up.",
+  "label": "core",
+  "key": "mincount (2) cannot be satisfied: 1 scheduled",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "A pod held at Permit gives up after 5 minutes: 40 // permitTimeoutDuration defines how long the gang pods should 41 // wait at the permit stage for a quorum before being rejected.",
+  "label": "depth",
+  "key": "minutes: 40 // permittimeoutduration defines how long",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "42 permitTimeoutDuration = 5 * time.Minute ...",
+  "label": "depth",
+  "key": "42 permittimeoutduration = 5 * time.minute",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "402 if scheduledPodsCount < int(podGroup.Spec.SchedulingPolicy.Gang.MinCount) { ...",
+  "label": "depth",
+  "key": "402 if scheduledpodscount < int(podgroup.spec.schedulingpolicy.gang.mincount) {",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "407 return fwk.NewStatus(fwk.Wait, \"waiting for minCount pods from a gang to be scheduled\"), permitTimeoutDuration pkg/scheduler/framework/plugins/gangscheduling/gangscheduling.go , kubernetes v1.37.0.",
+  "label": "depth",
+  "key": "be scheduled\"), permittimeoutduration pkg/scheduler/framework/plugins/gangscheduling/gangscheduling.go , kubernetes v1.37.0",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Two things went wrong on the way, both worth knowing Restarting the API server restarted Kueue's controller too, and until it served again every pod creation in the cluster failed: failed calling webhook \"mpod.kb.io\": failed to call webhook: Post \"https://kueue-webhook-service.kueue-system.svc:443/mutate--v1-pod?timeout=10s\": ... connection refused .",
+  "label": "depth",
+  "key": "\"mpod.kb.io\": failed to call webhook: post \"https://kueue-webhook-service.kueue-system.svc:443/mutate--v1-pod?timeout=10s\"",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Kueue's pod webhook has failurePolicy: Fail for every namespace except kube-system and kueue-system, so Kueue is on the critical path of all pods, queued or not.",
+  "label": "core",
+  "key": "failurepolicy: fail for every namespace except kube-system",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "And the PodGroups carry a finalizer ( scheduling.k8s.io/podgroup-protection ) that a kube-controller-manager controller removes; with the gate on only in the API server and scheduler, deleting them hung until the finalizer was removed by hand.",
+  "label": "depth",
+  "key": "scheduling.k8s.io/podgroup-protection ) that a kube-controller-manager controller removes",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Turning on a beta gate means turning it on in every component that has it.",
+  "label": "depth",
+  "key": "means turning it on in every component",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Which one to use.",
+  "label": "core",
+  "key": "which one to use",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Native gangs fix the deadlock but have no notion of quota or queues: a big job still waits behind whatever arrives first, and two teams still race.",
+  "label": "core",
+  "key": "still waits behind whatever arrives first, and",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Kueue gives queues and quotas and works with the default scheduler today (and its admission can lag behind real placement: an admitted workload can still find a node broken, which waitForPodsReady , default timeout 30 minutes in v0.20 per apis/config/v1beta2/defaults.go line 48, handles by evicting and requeueing it).",
+  "label": "core",
+  "key": "per apis/config/v1beta2/defaults.go line 48, handles by evicting",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "6. gang scheduling: every pod or none",
+  "text": "Volcano and KAI replace the scheduler and give both, at the cost of running a second scheduler you must trust with every GPU pod.",
+  "label": "core",
+  "key": "second scheduler you must trust with every",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Kueue in depth: quota, flavors, topology The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Several teams share a fixed pool of GPUs.",
+  "label": "core",
+  "key": "several teams share a fixed pool of",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Each needs a guaranteed share, idle shares should be usable by others, jobs should wait in an orderly queue rather than as Pending pods, and a 16-GPU job should get 16 GPUs that are close together.",
+  "label": "core",
+  "key": "pending pods, and a 16-gpu job should",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Kueue is a controller plus webhooks.",
+  "label": "core",
+  "key": "kueue is a controller plus webhooks",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Its objects (all kueue.x-k8s.io/v1beta2 ; v0.20 no longer serves v1beta1): ResourceFlavor A kind of capacity, mapped to nodes by labels (and tolerations): \"H100 in block 1\", \"spot A100\".",
+  "label": "core",
+  "key": "kueue.x-k8s.io/v1beta2 ; v0.20 no longer serves v1beta1",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Optional topologyName for topology-aware placement.",
+  "label": "core",
+  "key": "optional topologyname for topology-aware placement",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "ClusterQueue A team's quota: for each flavor and resource a nominalQuota (plus borrowingLimit , lendingLimit ), a queueing strategy, preemption rules, and the cohort it shares with.",
+  "label": "core",
+  "key": "resource a nominalquota (plus borrowinglimit , lendinglimit",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "LocalQueue A namespace's door into a ClusterQueue.",
+  "label": "core",
+  "key": "localqueue a namespace's door into a clusterqueue",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Jobs say kueue.x-k8s.io/queue-name: <localqueue> .",
+  "label": "core",
+  "key": "kueue.x-k8s.io/queue-name",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Workload Kueue's record of one job: its pod sets (count and requests per pod), created by Kueue's integration for Jobs, JobSets, TrainJobs, RayJobs and others.",
+  "label": "core",
+  "key": "kueue's integration for jobs, jobsets, trainjobs, rayjobs",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Admission is a property of the Workload.",
+  "label": "core",
+  "key": "admission is a property of the workload",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Cohort A group of ClusterQueues that lend each other unused quota; cohorts can form a tree.",
+  "label": "core",
+  "key": "clusterqueues that lend each other unused quota",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Topology An ordered list of node labels (block, rack, host) for topology-aware scheduling.",
+  "label": "core",
+  "key": "labels (block, rack, host) for topology-aware scheduling",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "When a labelled job is created, Kueue's webhook makes it start suspended ( spec.suspend: true : the job controller creates no pods).",
+  "label": "core",
+  "key": "spec.suspend: true",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Kueue's scheduler loop takes the head of each queue, tries to assign flavors (for each resource group, the flavors in order, checking the workload's total request against unused quota, borrowing and preemption possibilities), reserves the quota, runs any admission checks (for example a ProvisioningRequest that asks the cluster autoscaler for nodes first), and then admits: it writes the chosen flavors into the Workload, injects the flavors' node labels as a nodeSelector into the pod template, and unsuspends the job.",
+  "label": "core",
+  "key": "assigns flavors",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "From there the normal scheduler places pods.",
+  "label": "core",
+  "key": "from there the normal scheduler places pods",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "The parent's Scheduling lab quotes the loop ( pkg/scheduler/scheduler.go in Kueue) and shows queueing and cohort borrowing and reclaim; here are the two things it did not run.",
+  "label": "core",
+  "key": "shows queueing and cohort borrowing and reclaim",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Flavors in order measured A ClusterQueue with flavor km-b1 (8 GPUs of quota, nodes labelled block b1) listed before km-b2 (4 GPUs, block b2).",
+  "label": "core",
+  "key": "order measured a clusterqueue with flavor km-b1",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Four jobs of 2 pods x 2 GPUs: the first two got km-b1, the third km-b2 (pods got nodeSelector: mi.example.com/block: b2 injected), the fourth waited with insufficient unused quota for example.com/gpu in flavor km-b1, 4 more needed, insufficient unused quota for example.com/gpu in flavor km-b2, 4 more needed .",
+  "label": "core",
+  "key": "nodeselector: mi.example.com/block: b2 injected), the fourth waited",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Topology-aware scheduling measured A flavor with a Topology (block, then host).",
+  "label": "core",
+  "key": "topology-aware scheduling measured a flavor with a",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Three pods of 2 GPUs with kueue.x-k8s.io/podset-required-topology: mi.example.com/block were admitted inside block b1 (two pods on worker, one on worker2).",
+  "label": "core",
+  "key": "with kueue.x-k8s.io/podset-required-topology: mi.example.com/block were admitted inside block",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Three pods of 4 GPUs, the same annotation, 12 GPUs of quota free: refused, topology \"km-topo\" allows to fit only 2 out of 3 pod(s); all pods must fit in a single \"mi.example.com/block\" topology domain .",
+  "label": "core",
+  "key": "annotation, 12 gpus of quota free: refused",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "With podset-preferred-topology instead, admitted across both blocks.",
+  "label": "core",
+  "key": "with podset-preferred-topology instead, admitted across both blocks",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "The message comes from pkg/cache/scheduler/tas_flavor_snapshot.go line 2953 at Kueue v0.20.2 source .",
+  "label": "depth",
+  "key": "pkg/cache/scheduler/tas_flavor_snapshot.go line 2953 at kueue v0.20.2 source",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Topology-aware scheduling is beta and on by default since v0.14 ( pkg/features/kube_features.go lines 975-978).",
+  "label": "depth",
+  "key": "default since v0.14 ( pkg/features/kube_features.go lines 975-978",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Kueue then pins each pod with a nodeSelector on the host label (the pods above got kubernetes.io/hostname: mi-kind-worker ), so the default scheduler only confirms the placement.",
+  "label": "depth",
+  "key": "kubernetes.io/hostname: mi-kind-worker ), so the default scheduler",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Step through these admissions, quota bar by quota bar, in the Kueue admission tab.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed Kueue admission tab"
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "The rest of Kueue, briefly (described, not run here) Flavor fungibility : by default the search stops at the first flavor where the workload fits or fits by borrowing ( whenCanBorrow: MayStopSearch ), but tries the next flavor before preempting in the current one ( whenCanPreempt: TryNextFlavor ) ( apis/kueue/v1beta2/clusterqueue_types.go lines 526-549).",
+  "label": "depth",
+  "key": "whencanpreempt: trynextflavor ) ( apis/kueue/v1beta2/clusterqueue_types.go lines 526-549",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Preemption : withinClusterQueue (by priority inside a team), reclaimWithinCohort (take back lent quota; the parent's lab measured it), borrowWithinCohort (preempt to borrow).",
+  "label": "depth",
+  "key": "withinclusterqueue (by priority inside a team), reclaimwithincohort",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Kueue preempts whole workloads, which is the right unit for training.",
+  "label": "depth",
+  "key": "kueue preempts whole workloads, which is the",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Fair sharing : in the Kueue configuration, share cohort capacity by weight rather than first come; and admission fair sharing orders a queue by each LocalQueue's recent usage ( Kueue fair sharing docs ). waitForPodsReady : evict and requeue an admitted workload whose pods are not all ready within a timeout (default 30 minutes in v0.20), closing the gap between \"quota reserved\" and \"pods really running\".",
+  "label": "depth",
+  "key": "v0.20), closing the gap between \"quota reserved\"",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "MultiKueue : one manager cluster dispatching workloads to several worker clusters.",
+  "label": "depth",
+  "key": "cluster dispatching workloads to several worker clusters",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Kueue reasons about quota, not nodes (except with topology): with 12 GPUs of quota and 12 GPUs in the cluster, an admitted job can still be unplaceable if a node is cordoned or fragmented.",
+  "label": "core",
+  "key": "nodes (except with topology): with 12 gpus",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "7. kueue in depth: quota, flavors, topology",
+  "text": "Keep quotas equal to what is really schedulable, and mind the webhook: as section 6 found, while Kueue is down no pod can be created anywhere it watches.",
+  "label": "core",
+  "key": "schedulable, and mind the webhook: as section",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "JobSet in depth The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "One training run is often several groups of pods (a driver and workers; parameter servers; a group per data-parallel replica), each an Indexed Job, which must share a network identity, succeed or fail as a whole, and be restarted together.",
+  "label": "core",
+  "key": "a driver and workers; a group per data-parallel replica",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "A JobSet ( jobset.x-k8s.io/v1alpha2 , kubernetes-sigs, v0.13.0) holds a list of replicatedJobs , each a Job template and a replica count.",
+  "label": "core",
+  "key": "jobset ( jobset.x-k8s.io/v1alpha2 , kubernetes-sigs, v0.13.0) holds",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "The controller creates Jobs named <jobset>-<replicatedJob>-<index> , a headless Service named after the JobSet, and sets each pod's hostname and subdomain so it resolves as <jobset>-<replicatedJob>-<jobIndex>-<podIndex>.<jobset> ; inside the running example's pods hostname -f printed km-e3a-node-0-0.km-e3a.km.svc.cluster.local measured .",
+  "label": "core",
+  "key": "one headless service named after the jobset",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "It labels every pod with jobset.sigs.k8s.io/jobset-name , replicatedjob-name , job-index , restart-attempt and more, which is what failure handling and Kueue key on. failurePolicy : maxRestarts (restart the whole JobSet up to N times), restartStrategy (Recreate, BlockingRecreate which waits for every old pod to be gone, InPlaceRestart which restarts healthy containers in place), and ordered rules matched on the failed Job's reason ( onJobFailureReasons ) with actions FailJobSet , RestartJobSet , RestartJobSetAndIgnoreMaxRestarts , RestartJob , RestartJobAndIgnoreMaxRestarts ( api/jobset/v1alpha2/jobset_types.go lines 464-545 at v0.13.0 source ).",
+  "label": "depth",
+  "key": "restartjobsetandignoremaxrestarts , restartjob , restartjobandignoremaxrestarts ( api/jobset/v1alpha2/jobset_types.go",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "If no rule matches, RestartJobSet applies. successPolicy : operator: All or Any over targetReplicatedJobs , so the JobSet completes when the driver completes. startupPolicy ( InOrder ) or dependsOn : start the coordinator before the workers.",
+  "label": "depth",
+  "key": "rule matches, restartjobset applies. successpolicy : operator",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "Exclusive placement : the annotation alpha.jobset.sigs.k8s.io/exclusive-topology: <label> puts each child Job alone in one topology domain (one Job per rack, say) through pod affinity and anti-affinity (line 49).",
+  "label": "depth",
+  "key": "exclusive placement : the annotation alpha.jobset.sigs.k8s.io/exclusive-topology",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "Workload-aware scheduling : v0.13 can describe the JobSet to the native Workload API ( spec.scheduling , behind its own feature gate and the alpha CompositePodGroup gate; not run here).",
+  "label": "depth",
+  "key": "workload-aware scheduling : v0.13 can describe the",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "The policy that ran in section 2, the shape JobSet recommends for preemptible training: spec: failurePolicy: maxRestarts: 0 # a crash is not retried rules: - name: disruptedRestartFree action: RestartJobSetAndIgnoreMaxRestarts onJobFailureReasons: [PodFailurePolicy] replicatedJobs: - name: node template: spec: backoffLimit: 0 podFailurePolicy: # an evicted or preempted pod fails its Job at once, rules: # with reason PodFailurePolicy - action: FailJob onPodConditions: - {type: DisruptionTarget} src/k8s/train-jobset.sh km-e3b policy (abridged).",
+  "label": "core",
+  "key": "action: failjob onpodconditions: - {type: disruptiontarget} src/k8s/train-jobset.sh",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "Run e3b: one eviction, restarts: 1 , resumed from step 50, completed.",
+  "label": "core",
+  "key": "eviction, restarts: 1 , resumed from step",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "Run e3c: a crash, jobset failed due to reaching max number of restarts (first failed job: km-e3c-node-0) .",
+  "label": "core",
+  "key": "number of restarts (first failed job: km-e3c-node-0",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "In run e3b the evicted pod's Job failed with reason PodFailurePolicy.",
+  "label": "core",
+  "key": "e3b the evicted pod's job failed with",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "The other pod of the same Job then also exited 1 (its peer was gone).",
+  "label": "core",
+  "key": "same job then also exited 1 (its",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "Does that second failure spend the restart budget?",
+  "label": "core",
+  "key": "that second failure spend the restart budget?",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "Yes, it is a separate failure with reason BackoffLimitExceeded No: the Job had already failed once, and the JobSet restarts whole Jobs, not pods No.",
+  "label": "core",
+  "key": "separate failure with reason backofflimitexceeded no: the",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "A Job fails once; the first matching pod failure decides its reason.",
+  "label": "core",
+  "key": "first matching pod failure decides its reason",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "The JobSet sees one failed Job with reason PodFailurePolicy, matches the rule, deletes every Job and recreates them (status restarts: 1 , no restartsCountTowardsMax ).",
+  "label": "core",
+  "key": "them (status restarts: 1 , no restartscounttowardsmax",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "8. jobset in depth",
+  "text": "The order matters, though: the evicted pod reached Failed at 17.5 s and its peer at 18.2 s, so the Job's first failure was the disruption.",
+  "label": "core",
+  "key": "the evicted pod reached failed at 17.5",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "Operators: Kubeflow Trainer v2 and KubeRay The problem.",
+  "label": "core",
+  "key": "operators: kubeflow trainer v2 and kuberay",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "Writing the JobSet of section 8 by hand for every run means every user knows torchrun's flags, the DNS naming and the restart rules.",
+  "label": "core",
+  "key": "means every user knows torchrun's flags, the",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "An operator packages that knowledge: a custom resource definition (CRD, a new object kind the API server stores), a controller that reconciles it into lower-level objects, and usually webhooks that validate and default it.",
+  "label": "core",
+  "key": "lower-level objects, and usually webhooks that validate",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "Trainer v2 (v2.0 July 2025; v2.3.0 released 2026-08-07, whose README still calls the API alpha) has two kinds of object: a TrainingRuntime or ClusterTrainingRuntime , written once by the platform team, holding a JobSet template and an ML policy (torch, torchtune, DeepSpeed, JAX, MLX and XGBoost runtimes ship in its manifests/base/runtimes ), and a TrainJob , written by the user, that names a runtime and says only what differs.",
+  "label": "core",
+  "key": "2025; v2.3.0 released 2026-08-07, whose readme still",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "The controller merges the two into a JobSet.",
+  "label": "core",
+  "key": "controller merges the two into a jobset",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "It replaced the v1 Training Operator's per-framework kinds (PyTorchJob and friends); v1 is maintained on its release-1.9 branch (v1.9.4, 2026-08-18), and Kueue's docs call its integration legacy. apiVersion: trainer.kubeflow.org/v1alpha1 kind: TrainJob metadata: {name: km-tj, namespace: km} spec: runtimeRef: {name: torch-distributed} # Trainer's own ClusterTrainingRuntime trainer: image: mi-train:1 numNodes: 2 numProcPerNode: 2 command: [\"torchrun\", \"/opt/mi/train.py\", \"--ckpt-dir=/tmp/ckpt\", \"--log-dir=/tmp/logs\"] resourcesPerNode: requests: {cpu: 500m, memory: 400Mi, example.com/gpu: \"2\"} limits: {cpu: \"2\", memory: 900Mi, example.com/gpu: \"2\"} src/k8s/e12-trainjob.yaml .",
+  "label": "core",
+  "key": "2 command: [\"torchrun\", \"/opt/mi/train.py\", \"--ckpt-dir=/tmp/ckpt\", \"--log-dir=/tmp/logs\"] resourcespernode",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "Note what is missing: no rank, no master address, no Service.",
+  "label": "core",
+  "key": "missing: no rank, no master address, no",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "What the controller built measured (Trainer v2.3.0 installed for this run on the kind cluster, its controller capped at 256 MiB, removed afterwards): a JobSet km-tj owned by the TrainJob, one replicated Job node of 2 Indexed pods with restartPolicy: OnFailure , container port 29500, and five environment variables, which torchrun reads as its own flags: Variable Value in the pod Flag it replaces The training script is the same file and the global loss at step 200 was again 2.2638769149780273 .",
+  "label": "core",
+  "key": "the controller built measured (trainer v2.3.0 installed",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "The master address the controller wrote, km-tj-node-0-0.km-tj , is the same JobSet DNS rule as the hand-written run's km-e3a-node-0-0.km-e3a ; the operator encodes the convention, nothing more ( pkg/runtime/framework/plugins/torch/torch.go lines 147-165 at v2.3.0 source ).",
+  "label": "depth",
+  "key": "pkg/runtime/framework/plugins/torch/torch.go lines 147-165 at v2.3.0 source",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "The cost: three CRDs of 2.4 MB of YAML in the API server (the control plane grew by about 0.2 GiB here), one more controller and two more webhooks on the path of every TrainJob.",
+  "label": "core",
+  "key": "about 0.2 gib here), one more controller",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "Note also restartPolicy: OnFailure : the kubelet restarts a failed container in place, so the Job (and a podFailurePolicy, which then cannot be used) never sees the failure.",
+  "label": "core",
+  "key": "also restartpolicy: onfailure : the kubelet restarts",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "KubeRay (v1.7.1, 2026-09-21) is the operator for Ray: RayCluster (a head pod and worker groups, with autoscaling), RayJob (a cluster plus a submitted driver, torn down after) and RayService .",
+  "label": "core",
+  "key": "kuberay (v1.7.1, 2026-09-21) is the operator for",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "Kueue can admit a RayJob or RayCluster as one workload.",
+  "label": "core",
+  "key": "kueue can admit a rayjob or raycluster",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "Ray's own scheduling (placement groups, the object store) is the Ray sibling page's subject; the parent's Scheduling lab measures Ray placement groups.",
+  "label": "core",
+  "key": "parent's scheduling lab measures ray placement groups",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "When an operator is worth it.",
+  "label": "core",
+  "key": "when an operator is worth it",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "When many users submit the same shape of job (one runtime, many TrainJobs), or when the framework needs more than a Job can express (Ray's head and workers, MPI's launcher and hostfile).",
+  "label": "core",
+  "key": "runtime, many trainjobs), or when the framework",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "9. operators: kubeflow trainer v2 and kuberay",
+  "text": "When a team runs one kind of job and already has a JobSet template, the operator adds an API surface to upgrade and little else.",
+  "label": "core",
+  "key": "already has a jobset template, the operator",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "Storage for training pods: volumes, claims and CSI The problem.",
+  "label": "core",
+  "key": "storage for training pods: volumes, claims and",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "A container's file system disappears with it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; \"must outlive pods\" carries it"
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "Checkpoints and datasets must outlive pods and be reachable from whichever node the restarted pod lands on.",
+  "label": "core",
+  "key": "reachable from whichever node the restarted pod",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "A pod mounts volumes .",
+  "label": "core",
+  "key": "a pod mounts volumes",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "A PersistentVolumeClaim (PVC) asks for storage by size and access mode (ReadWriteOnce: one node; ReadWriteMany: many nodes; ReadOnlyMany); a StorageClass says which provisioner creates the PersistentVolume (PV) and when; a CSI driver (Container Storage Interface) is the plugin that attaches and mounts it on a node.",
+  "label": "core",
+  "key": "readwriteonce: one node; readwritemany: many nodes; readonlymany",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "For training the usual choices are a shared file system through CSI (Lustre, GPFS, Weka, NFS, Filestore, FSx: ReadWriteMany), object storage read by the job itself, and local NVMe for caches. kind's default StorageClass is rancher.io/local-path : a folder on one node's disk, with volumeBindingMode: WaitForFirstConsumer .",
+  "label": "core",
+  "key": "for caches. kind's default storageclass is rancher.io/local-path",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "A checkpoint on node-local storage pins the restart measured A 100Mi ReadWriteOnce claim, a writer pod on worker that writes latest , then a reader pod forced onto worker3 ( src/k8s/e9-pvc.yaml , e9-reader.yaml ).",
+  "label": "core",
+  "key": "forced onto worker3 ( src/k8s/e9-pvc.yaml , e9-reader.yaml",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "Lines trimmed from src/runs/e9.steps.txt .",
+  "label": "core",
+  "key": "lines trimmed from src/runs/e9.steps.txt",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "The claim stayed Pending ( waiting for first consumer to be created before binding ) until the writer pod was scheduled; the volume was then created on that pod's node and got a node affinity to it.",
+  "label": "core",
+  "key": "stayed pending ( waiting for first consumer",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "A pod on any other node is unschedulable: 1 node(s) didn't match PersistentVolume's node affinity .",
+  "label": "core",
+  "key": "unschedulable: 1 node(s) didn't match persistentvolume's node",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "If the checkpoint of a training job lives on such a volume, a restart after a node failure cannot run anywhere else; and if that node is gone, the checkpoint is gone too.",
+  "label": "core",
+  "key": "node failure cannot run anywhere else; and",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "Use node-local volumes for caches, not for state the job must resume from.",
+  "label": "core",
+  "key": "node-local volumes for caches, not for state",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "Storage systems themselves are the Storage and data movement sibling's subject and the parent's Storage lab measures checkpoint writes on this cluster (the host folder these pods mount was 36 times slower than a Docker volume there).",
+  "label": "core",
+  "key": "folder these pods mount was 36 times",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "Images are storage too: a pod on a fresh node first pulls the training image: Trainer's default torch runtime image, pytorch/pytorch:2.13.0-cuda13.0-cudnn9-runtime , is 3.04 GB compressed (Docker Hub API, read 2026-10-16), before any project code or data, which is why GPU clusters pre-pull images onto nodes, run a pull-through registry cache, or use lazy-loading snapshotters.",
+  "label": "core",
+  "key": "image: trainer's default torch runtime image, pytorch/pytorch:2.13.0-cuda13.0-cudnn9-runtime",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "10. storage for training pods: volumes, claims and csi",
+  "text": "The images here were preloaded with kind load .",
+  "label": "core",
+  "key": "images here were preloaded with kind load",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Common mistakes, with the messages they produce Matching a Job failure rule on the training script's exit code Under torchrun the container exits 1 whatever the rank returned (run e2b: the rank exited 13, the rule on 13 never fired, the Job retried a deterministic crash).",
+  "label": "depth",
+  "key": "under torchrun the container exits 1 whatever",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Match what the container really returns, or launch one process per pod.",
+  "label": "depth",
+  "key": "container really returns, or launch one process",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Message to look for in the pod log: exitcode : 13 (pid: 13) under \"Root Cause\", next to a container exit code of 1.",
+  "label": "depth",
+  "key": "13 (pid: 13) under \"root cause\", next",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Ignoring disruptions per pod in a multi-pod job An Ignore rule on DisruptionTarget does not save the job: the peers fail a moment later with an ordinary error and are counted (run e2d2, BackoffLimitExceeded ).",
+  "label": "depth",
+  "key": "error and are counted (run e2d2, backofflimitexceeded",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Fail the Job on disruption and restart the group at the JobSet level (run e3b).",
+  "label": "depth",
+  "key": "group at the jobset level (run e3b",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Expecting the default scheduler to pack GPUs It ranks by CPU and memory only.",
+  "label": "depth",
+  "key": "expecting the default scheduler to pack gpus",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Symptom: GPUs free in total, big job Pending with Insufficient nvidia.com/gpu on every node (here 3 Insufficient example.com/gpu ).",
+  "label": "depth",
+  "key": "on every node (here 3 insufficient example.com/gpu",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Fix: MostAllocated with the GPU resource listed, separate node pools by job size, or a packing scheduler.",
+  "label": "depth",
+  "key": "mostallocated with the gpu resource listed, separate",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Partial placement that looks healthy Half-placed jobs show as Running pods with no progress; the scheduler reports only Insufficient for the rest, and preemption declines ( Preemption is not helpful for scheduling ).",
+  "label": "depth",
+  "key": "partial placement that looks healthy half-placed jobs",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Use Kueue, a gang scheduler, or (when enabled) a PodGroup.",
+  "label": "depth",
+  "key": "gang scheduler, or (when enabled) a podgroup",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "A spread constraint that counts a tainted domain 2 node(s) didn't match pod topology spread constraints with free nodes available: the default nodeTaintsPolicy: Ignore counts nodes the pod cannot use.",
+  "label": "depth",
+  "key": "domain 2 node(s) didn't match pod topology",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Checkpoints on a node-local volume 1 node(s) didn't match PersistentVolume's node affinity after a restart lands elsewhere; the checkpoint is also lost with the node.",
+  "label": "depth",
+  "key": "node-local volume 1 node(s) didn't match persistentvolume's",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Use a shared file system (ReadWriteMany) or object storage for resumable state.",
+  "label": "depth",
+  "key": "system (readwritemany) or object storage for resumable",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "A main process that ignores SIGTERM Preemption and eviction send SIGTERM, wait terminationGracePeriodSeconds (default 30 s), then SIGKILL (exit 137, run e4b).",
+  "label": "depth",
+  "key": "eviction send sigterm, wait terminationgraceperiodseconds (default 30",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "A training process should catch SIGTERM, write a checkpoint and exit; give it a grace period long enough to do so; and do not hide it behind a shell that swallows the signal ( sh -c \"exec torchrun ...\" , as this page's manifests do, keeps torchrun as PID 1).",
+  "label": "depth",
+  "key": "manifests do, keeps torchrun as pid 1",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Treating Kueue's webhook as optional With Kueue's controller down, failed calling webhook \"mpod.kb.io\" ... connection refused for every pod in every namespace it watches, including system add-ons outside kube-system.",
+  "label": "depth",
+  "key": "kueue's controller down, failed calling webhook \"mpod.kb.io\"",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Run Kueue with several replicas, watch its readiness, and know the namespaces its webhook excludes.",
+  "label": "depth",
+  "key": "kueue with several replicas, watch its readiness",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Assuming a removed device plugin cleans up The node keeps the resource in capacity with allocatable 0 (measured here after deleting the plugin, until the kubelet restarted).",
+  "label": "depth",
+  "key": "resource in capacity with allocatable 0 (measured",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Dashboards that sum capacity overcount GPUs; sum allocatable.",
+  "label": "depth",
+  "key": "that sum capacity overcount gpus; sum allocatable",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Using v1beta1 Kueue objects with Kueue v0.20 v0.20 serves only kueue.x-k8s.io/v1beta2 ; manifests still written for v1beta1 are rejected because the version is no longer served (Kueue CHANGELOG-0.20, \"Actions required\", in the topic's shared facts; not run here).",
+  "label": "depth",
+  "key": "serves only kueue.x-k8s.io/v1beta2 ; manifests still written",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Convert them before upgrading.",
+  "label": "depth",
+  "key": "convert them before upgrading",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Interview questions, with short answers Walk me through what happens between kubectl apply of a training Job and the first training step.",
+  "label": "depth",
+  "key": "me through what happens between kubectl apply",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The API server validates the Job, runs admission webhooks (Kueue may suspend it until quota is reserved), stores it in etcd.",
+  "label": "depth",
+  "key": "server validates the job, runs admission webhooks",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The job controller sees it and creates the pods; the scheduler filters and scores nodes for each and writes a Binding; the kubelet on each node pulls the image, starts the container (device plugin Allocate or DRA prepare first), and reports status. torchrun in each pod then rendezvouses through the DNS name of pod 0.",
+  "label": "depth",
+  "key": "through the dns name of pod 0",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Measured here: pods bound 44 ms after creation, containers started at 0.6 s, with the image preloaded.",
+  "label": "depth",
+  "key": "bound 44 ms after creation, containers started",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why does Kubernetes need add-ons for distributed training when Slurm does not?",
+  "label": "depth",
+  "key": "does kubernetes need add-ons for distributed training",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Slurm allocates a job's nodes as one unit, so gangs, queues and fairshare are built in.",
+  "label": "depth",
+  "key": "one unit, so gangs, queues and fairshare",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Kubernetes schedules pods one at a time, has no queue beyond Pending pods, and no quota sharing between teams; Kueue (admission, quota, cohorts), JobSet (group lifecycle) and gang scheduling (PodGroup, Volcano, KAI) add what Slurm's controller does itself.",
+  "label": "depth",
+  "key": "kueue (admission, quota, cohorts), jobset (group lifecycle",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What is the difference between a device plugin and DRA?",
+  "label": "depth",
+  "key": "difference between a device plugin and dra?",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A device plugin advertises a count of identical devices and the kubelet picks which ones at container start; DRA publishes typed devices with attributes, pods claim them with CEL selectors, and the scheduler allocates specific devices while it picks the node.",
+  "label": "depth",
+  "key": "selectors, and the scheduler allocates specific devices",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "DRA can express \"2 GPUs with 80 GB on one NVLink island\"; a device plugin needs node labels and separate resource names to approximate it.",
+  "label": "depth",
+  "key": "with 80 gb on one nvlink island\"",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A 64-GPU job has been Pending for an hour with 80 GPUs free.",
+  "label": "depth",
+  "key": "64-gpu job has been pending for an",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What do you check?",
+  "label": "depth",
+  "key": "what do you check?",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Whether any node or topology domain can host its pods: free GPUs may be scattered (spread scoring), on tainted or cordoned nodes, in a flavor or block the job cannot use, or behind a Kueue quota or a TAS constraint.",
+  "label": "depth",
+  "key": "scattered (spread scoring), on tainted or cordoned",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Read the pod's FailedScheduling event and the Workload's QuotaReserved condition message; compare allocatable, not capacity.",
+  "label": "depth",
+  "key": "workload's quotareserved condition message; compare allocatable, not",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How should a training job on a preemptible pool be configured so that preemptions are free and bugs are not?",
+  "label": "depth",
+  "key": "preemptible pool be configured so that preemptions",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Pods fail their Job on DisruptionTarget (podFailurePolicy FailJob), the JobSet restarts all Jobs on reason PodFailurePolicy without counting it (RestartJobSetAndIgnoreMaxRestarts), maxRestarts stays low for real crashes, the process checkpoints on SIGTERM within the grace period, and checkpoints live on shared storage.",
+  "label": "depth",
+  "key": "reason podfailurepolicy without counting it (restartjobsetandignoremaxrestarts), maxrestarts",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Run e3b shows the restart and resume.",
+  "label": "depth",
+  "key": "run e3b shows the restart and resume",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Kueue keeps the default scheduler and adds queueing and quota at admission; it composes with JobSet, Trainer, KubeRay and cluster autoscaling.",
+  "label": "depth",
+  "key": "with jobset, trainer, kuberay and cluster autoscaling",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Volcano (or KAI) replaces the scheduler and does gangs, queues and fair share inside it, which also lets it pack and place by topology pod by pod.",
+  "label": "depth",
+  "key": "replaces the scheduler and does gangs, queues",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Choose Kueue when the cluster runs many kinds of workload and you want upstream components; a full batch scheduler when the cluster is dedicated to batch GPU jobs and needs its policies.",
+  "label": "depth",
+  "key": "want upstream components; a full batch scheduler",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Design question: the Kubernetes layer of a training platform for a 1,000-GPU lab (125 nodes of 8 GPUs).",
+  "label": "depth",
+  "key": "training platform for a 1,000-gpu lab (125",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Node pools by GPU type, tainted, labelled by rack and network block; NVIDIA GPU Operator for driver, device plugin (or DRA driver) and DCGM; a health-check DaemonSet that cordons failing nodes.",
+  "label": "depth",
+  "key": "dcgm; a health-check daemonset that cordons failing",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Kueue with one ClusterQueue per team in a cohort (nominal shares, borrowing, reclaim), flavors per GPU type, topology-aware scheduling on the block and rack labels, and waitForPodsReady; priority classes for production, research and preemptible.",
+  "label": "depth",
+  "key": "and waitforpodsready; priority classes for production, research",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "JobSet (or TrainJob over it) as the job API, with the disruption-free restart policy and checkpoint-on-SIGTERM; checkpoints on a parallel file system through CSI, datasets streamed from object storage.",
+  "label": "depth",
+  "key": "the disruption-free restart policy and checkpoint-on-sigterm; checkpoints",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A bin-packing scheduler profile for small jobs or a separate pool.",
+  "label": "depth",
+  "key": "bin-packing scheduler profile for small jobs or",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Trade-offs to explain: quota by team against throughput, spreading against packing, one big cluster against several with MultiKueue, and the control-plane limits (5,000 nodes, watch load), which 125 nodes does not approach.",
+  "label": "depth",
+  "key": "multikueue, and the control-plane limits (5,000 nodes",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why is the scheduler's tie-break random, and why does it matter for GPUs?",
+  "label": "depth",
+  "key": "the scheduler's tie-break random, and why does",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Among equal scores it picks by a per-node random number, so equal nodes share load.",
+  "label": "depth",
+  "key": "per-node random number, so equal nodes share",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "For GPU jobs under the default profile, nodes are nearly always equal (GPUs do not enter the score), so placement of small jobs is effectively random, which is what fragments the cluster.",
+  "label": "depth",
+  "key": "effectively random, which is what fragments the",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-kmcyc",
+  "section": "scheduling cycle: one pod at a time, every plugin, every node",
+  "text": "Scheduling cycle: one pod at a time, every plugin, every node The kube-scheduler of this topic's kind cluster placed the same six pods twice, once under the default profile and once under a bin-packing profile, while logging every plugin's score for every node ( --vmodule=schedule_one=10 , which reaches the V(10) lines at pkg/scheduler/schedule_one.go lines 980-1052 at v1.37.0).",
+  "label": "depth",
+  "key": "--vmodule=schedule_one=10",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-kmcyc",
+  "section": "scheduling cycle: one pod at a time, every plugin, every node",
+  "text": "Step through the cycle of each pod: Filter removes nodes, Score ranks the rest, the highest total wins, Bind writes the result.",
+  "label": "depth",
+  "key": "filter removes nodes, score ranks the rest",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-kmcyc",
+  "section": "scheduling cycle: one pod at a time, every plugin, every node",
+  "text": "Every score shown is the scheduler's logged value; a check mark means src/recompute.py computed the same number from the node's state with the ported formulas.",
+  "label": "depth",
+  "key": "mark means src/recompute.py computed the same number",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-kmcyc",
+  "section": "scheduling cycle: one pod at a time, every plugin, every node",
+  "text": "Reading section 3 explains the plugins.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer from the removed tab"
+ },
+ {
+  "id": 349,
+  "tab": "t-kmcyc",
+  "section": "scheduling cycle: one pod at a time, every plugin, every node",
+  "text": "Default profile km-binpack profile Recorded run (2, 1, 1, 2, 2, 4 GPUs) Your own sequence GPUs per pod, in order (1 to 4 each, up to 10 pods): Workers have 5 CPUs, 9.7 GiB and 4 fake GPUs each (as the nodes report them; the containers are capped lower, which the scheduler does not see).",
+  "label": "depth",
+  "key": "default profile km-binpack profile recorded run (2",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-kmcyc",
+  "section": "scheduling cycle: one pod at a time, every plugin, every node",
+  "text": "Every pod requests 100m CPU and 64Mi.",
+  "label": "depth",
+  "key": "every pod requests 100m cpu and 64mi",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-kmcyc",
+  "section": "scheduling cycle: one pod at a time, every plugin, every node",
+  "text": "The control plane is filtered by its taint node-role.kubernetes.io/control-plane:NoSchedule .",
+  "label": "depth",
+  "key": "plane is filtered by its taint node-role.kubernetes.io/control-plane:noschedule",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-kmcyc",
+  "section": "scheduling cycle: one pod at a time, every plugin, every node",
+  "text": "TaintToleration gives every untainted node 100, weight 3 (300); ImageLocality logged 0 for every node in both runs; the page does not explain why (not investigated).",
+  "label": "depth",
+  "key": "tainttoleration gives every untainted node 100, weight",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-kmcyc",
+  "section": "scheduling cycle: one pod at a time, every plugin, every node",
+  "text": "In \"your own sequence\" the formulas are the same ported code, and a tie goes to the first node in name order; the real scheduler draws at random ( framework/sorted_nodes.go lines 61-64).",
+  "label": "depth",
+  "key": "draws at random ( framework/sorted_nodes.go lines 61-64",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-kmcyc",
+  "section": "scheduling cycle: one pod at a time, every plugin, every node",
+  "text": "The two recorded runs side by side Pod GPUs Default: bound to totals (w, w2, w3) km-binpack: bound to totals (w, w2, w3) The profile that ran apiVersion: kubescheduler.config.k8s.io/v1 kind: KubeSchedulerConfiguration clientConnection: kubeconfig: /etc/kubernetes/scheduler.conf leaderElection: leaderElect: true profiles: - schedulerName: default-scheduler - schedulerName: km-binpack pluginConfig: - name: NodeResourcesFit args: scoringStrategy: type: MostAllocated resources: - {name: cpu, weight: 1} - {name: memory, weight: 1} - {name: example.com/gpu, weight: 5} src/k8s/km-sched-config.yaml , mounted into kind's kube-scheduler static pod with --config by src/scripts/km_sched_reconf.sh for the runs and removed after (the original manifest restored and checked identical).",
+  "label": "depth",
+  "key": "kubescheduler.config.k8s.io/v1 kind: kubeschedulerconfiguration clientconnection: kubeconfig: /etc/kubernetes/scheduler.conf leaderelection",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-kmcyc",
+  "section": "scheduling cycle: one pod at a time, every plugin, every node",
+  "text": "A pod chooses the profile with spec.schedulerName: km-binpack .",
+  "label": "depth",
+  "key": "pod chooses the profile with spec.schedulername: km-binpack",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-kmcyc",
+  "section": "scheduling cycle: one pod at a time, every plugin, every node",
+  "text": "The formulas LeastAllocated per resource ⌊(capacity − requested) × 100 / capacity⌋, then the weighted mean, rounded down; requested counts a container with no request as 100m CPU and 200 MiB ( least_allocated.go lines 52-60, scheduler/util/pod_resources.go lines 28-31) MostAllocated per resource ⌊requested × 100 / capacity⌋, weighted mean ( most_allocated.go lines 54-65) BalancedAllocation 50 + ⌊(50 + s with pod − s without ) / 2⌋, s = ⌊(1 − σ) × 100⌋, σ the spread of the CPU and memory fractions ( balanced_allocation.go lines 204-262) total 3 × TaintToleration + 1 × NodeResourcesFit + 1 × BalancedAllocation + 1 × ImageLocality (+ 2 × the affinity and spread plugins, 0 here)",
+  "label": "depth",
+  "key": "least_allocated.go lines 52-60, scheduler/util/pod_resources.go lines 28-31) mostallocated",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-kmq",
+  "section": "kueue admission: what kueue decided for each workload, and why",
+  "text": "Kueue admission: what Kueue decided for each workload, and why Seven workloads, as Kueue v0.20.2 recorded them on this topic's kind cluster (16 Oct 2026): four ordinary jobs against a ClusterQueue with two flavors, and three topology-aware jobs against a ClusterQueue whose flavor carries a Topology.",
+  "label": "core",
+  "key": "2026): four ordinary jobs against a clusterqueue",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-kmq",
+  "section": "kueue admission: what kueue decided for each workload, and why",
+  "text": "Each step replays one decision of Kueue's flavor assigner from the Workload objects ( src/runs/e10a.workloads.yaml , e10b*.workloads.yaml ): the requests summed over the pod set, each flavor's quota before and after, and the message or nodeSelector Kueue wrote.",
+  "label": "core",
+  "key": "the workload objects ( src/runs/e10a.workloads.yaml , e10b*.workloads.yaml",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-kmq",
+  "section": "kueue admission: what kueue decided for each workload, and why",
+  "text": "Reading section 7 explains the objects; the parent's Scheduling lab has queueing, borrowing and reclaim.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer from the removed tab"
+ },
+ {
+  "id": 360,
+  "tab": "t-kmq",
+  "section": "kueue admission: what kueue decided for each workload, and why",
+  "text": "Flavors: km-b1 then km-b2 Topology-aware (TAS) The objects that ran apiVersion: kueue.x-k8s.io/v1beta2 kind: ResourceFlavor metadata: {name: km-b1} spec: nodeLabels: {mi.example.com/block: b1} # km-b2: b2 --- apiVersion: kueue.x-k8s.io/v1beta2 kind: ClusterQueue metadata: {name: km-cq} spec: cohortName: km-cohort namespaceSelector: {} queueingStrategy: BestEffortFIFO resourceGroups: - coveredResources: [\"cpu\", \"memory\", \"example.com/gpu\"] flavors: - name: km-b1 resources: - {name: cpu, nominalQuota: 4} - {name: memory, nominalQuota: 2Gi} - {name: example.com/gpu, nominalQuota: 8} - name: km-b2 resources: - {name: cpu, nominalQuota: 2} - {name: memory, nominalQuota: 1Gi} - {name: example.com/gpu, nominalQuota: 4} --- apiVersion: kueue.x-k8s.io/v1beta2 kind: Topology metadata: {name: km-topo} spec: levels: - nodeLabel: mi.example.com/block - nodeLabel: kubernetes.io/hostname --- apiVersion: kueue.x-k8s.io/v1beta2 kind: ResourceFlavor metadata: {name: km-tas} spec: nodeLabels: {km.example.com/tas: \"true\"} topologyName: km-topo # ClusterQueue km-cq-tas: 4 CPUs, 3Gi, 12 GPUs of km-tas Abridged from src/k8s/e10-kueue.yaml ; jobs from src/k8s/kueue-job.sh (an Indexed Job labelled kueue.x-k8s.io/queue-name , the TAS ones annotated kueue.x-k8s.io/podset-required-topology or podset-preferred-topology on the pod template).",
+  "label": "depth",
+  "key": "mi.example.com/block - nodelabel: kubernetes.io/hostname --- apiversion: kueue.x-k8s.io/v1beta2",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-kmq",
+  "section": "kueue admission: what kueue decided for each workload, and why",
+  "text": "The label km.example.com/tas=true was put on the three workers for the TAS runs and removed after.",
+  "label": "depth",
+  "key": "km.example.com/tas=true was put on the three workers",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-kmb",
+  "section": "manifest builder: the running example at any layer",
+  "text": "Manifest builder: the running example at any layer Choose how to submit the running example and see the manifest you would write, the objects Kubernetes then creates (and which program creates each), and what happens on a success, a crash of rank 1 and an eviction of one pod.",
+  "label": "core",
+  "key": "crash of rank 1 and an eviction",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-kmb",
+  "section": "manifest builder: the running example at any layer",
+  "text": "With 2 nodes, 2 processes and 2 GPUs per node the manifests are byte for byte the ones that ran on this page (checked by src/check/check_ui.mjs against the generator scripts in src/k8s/ ); outcomes marked measured are those runs, others are derived from the rules in the Reading tab and were not run.",
+  "label": "core",
+  "key": "src/check/check_ui.mjs against the generator scripts in src/k8s/",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-kmb",
+  "section": "manifest builder: the running example at any layer",
+  "text": "Layer Indexed Job + headless Service JobSet JobSet through Kueue Kubeflow TrainJob Failure handling Nodes (pods) 1 2 3 4 Processes per node 1 2 4 Fake GPUs per node 1 2 4 What happens next the run succeeds rank 1 exits 13 at step 20 pod index 1 is evicted at step 50 You write Kubernetes creates",
+  "label": "core",
+  "key": "kubeflow trainjob failure handling nodes (pods) 1",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Times: knowledge-base pages, the Reading tab (with its cards, without code) at 200 words a minute; outside resources, an estimate for the part worth reading.",
+  "label": "core",
+  "key": "their reading time when linked",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Labels: docs project documentation, operator an organisation describing its own cluster, vendor a company or project describing what it ships.",
+  "label": "core",
+  "key": "docs project documentation, operator an organisation describing",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "This page's tabs Scheduling cycle Six pods through Filter, Score, Select and Bind under two profiles, every logged plugin score, and the same formulas on your own sequence.",
+  "label": "depth",
+  "key": "every plugin, every node",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min Kueue admission Seven recorded Workloads: flavor by flavor, quota bar by quota bar, and topology-aware placement block by block.",
+  "label": "depth",
+  "key": "seven workloads as kueue v0.20.2 recorded them",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "6 min Manifest builder The running example as an Indexed Job, JobSet, JobSet through Kueue or TrainJob; the objects it creates and what a crash or an eviction does.",
+  "label": "core",
+  "key": "job, jobset, jobset through kueue or trainjob",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "8 min The parent topic and its other children Topic: ml-infra-and-orchestration The root: Slurm, Kubernetes and Ray compared on one running example.",
+  "label": "core",
+  "key": "children topic: ml-infra-and-orchestration the root: slurm, kubernetes",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Its Scheduling lab has the gang deadlock, Kueue admission, borrowing and reclaim on this same kind cluster; its Failure lab the node failures, out-of-service taint and goodput; its Cost lab the allocation-against-use gap.",
+  "label": "core",
+  "key": "gang deadlock, kueue admission, borrowing and reclaim",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "28 min Sibling pages Cluster anatomy (nodes, networks, storage tiers); Slurm from zero ; Ray (tasks, actors, Ray Train, KubeRay's runtime); Launching distributed training (torchrun rendezvous, NCCL, hangs); Fault tolerance at scale ; Storage and data movement ; Observability and cost (GPU metrics, DCGM); ML platforms and workflows .",
+  "label": "core",
+  "key": "28 min sibling pages cluster anatomy (nodes",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Neighbouring knowledge-base pages Containers and isolation Namespaces, cgroups v2 and seccomp: what a pod's containers are made of underneath.",
+  "label": "core",
+  "key": "pages containers and isolation namespaces, cgroups v2",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Virtualization and the GPU driver stack MIG, the driver and one CUDA call down: what a device plugin hands a container.",
+  "label": "core",
+  "key": "45 min virtualization and the gpu driver",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "51 min Distributed PyTorch c10d, DDP, FSDP2 and torchrun at the PyTorch level: what runs inside the pods.",
+  "label": "core",
+  "key": "distributed pytorch c10d, ddp, fsdp2 and torchrun",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Topic: llm-training-and-post-training The training side of the same machinery: the stages a cluster runs, and in its Machinery section (\"Running the job\") the stack of a big run, the 2026 frameworks and a checklist.",
+  "label": "core",
+  "key": "30 min topic: llm-training-and-post-training the training side",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "27 min LLM serving in production Kubernetes for inference instead: autoscaling, routing, cold starts.",
+  "label": "core",
+  "key": "27 min llm serving in production kubernetes",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "32 min Distributed systems fundamentals Replication and consensus, the ideas under etcd and leader election.",
+  "label": "core",
+  "key": "32 min distributed systems fundamentals replication and",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "48 min Kubernetes itself Scheduling Framework docs The extension points of section 3 with their contracts.",
+  "label": "core",
+  "key": "48 min kubernetes itself scheduling framework docs",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min Jobs: pod failure policy, backoff limit per index, success policy docs Every knob of section 2, with examples.",
+  "label": "core",
+  "key": "15 min jobs: pod failure policy, backoff",
+  "where": ""
+ },
+ {
+  "id": 381,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "25 min Dynamic Resource Allocation docs DeviceClass, ResourceSlice, ResourceClaim and the scheduler's role.",
+  "label": "core",
+  "key": "25 min dynamic resource allocation docs deviceclass",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min Device plugins docs The gRPC protocol, registration and health.",
+  "label": "core",
+  "key": "20 min device plugins docs the grpc",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min KEP-4671: gang scheduling with the Workload object docs The design behind the PodGroup of section 6 and its graduation plan.",
+  "label": "core",
+  "key": "kep-4671: gang scheduling with the workload object",
+  "where": ""
+ },
+ {
+  "id": 384,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Considerations for large clusters docs The 5,000-node limits and what to tune near them.",
+  "label": "core",
+  "key": "considerations for large clusters docs the 5,000-node",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min Batch and ML add-ons Kueue documentation docs Concepts (cluster queues, cohorts, fair sharing, topology-aware scheduling), and the integrations.",
+  "label": "core",
+  "key": "10 min batch and ml add-ons kueue",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min JobSet documentation docs Failure policy, success policy, exclusive placement, with the training examples.",
+  "label": "core",
+  "key": "45 min jobset documentation docs failure policy",
+  "where": ""
+ },
+ {
+  "id": 387,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "25 min Kubeflow Trainer docs TrainJob and runtimes, the Python SDK, and the migration from the v1 operator.",
+  "label": "core",
+  "key": "25 min kubeflow trainer docs trainjob and",
+  "where": ""
+ },
+ {
+  "id": 388,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "25 min Volcano project A batch scheduler with PodGroups, queues and its own Job CRD.",
+  "label": "core",
+  "key": "25 min volcano project a batch scheduler",
+  "where": ""
+ },
+ {
+  "id": 389,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min KAI Scheduler vendor NVIDIA's open-sourced Run:ai scheduler: hierarchical queues, GPU sharing, topology.",
+  "label": "core",
+  "key": "15 min kai scheduler vendor nvidia's open-sourced",
+  "where": ""
+ },
+ {
+  "id": 390,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min NVIDIA k8s-device-plugin vendor MIG strategies, time-slicing and MPS sharing, and the configuration file.",
+  "label": "core",
+  "key": "min nvidia k8s-device-plugin vendor mig strategies, time-slicing",
+  "where": ""
+ },
+ {
+  "id": 391,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min Operators at scale Scaling Kubernetes to 7,500 nodes (OpenAI, 2021) operator One pod per node, the coscheduling plugin against partial placement, GPU health taints.",
+  "label": "core",
+  "key": "kubernetes to 7,500 nodes (openai, 2021) operator",
+  "where": ""
+ },
+ {
+  "id": 392,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Old but still the clearest account.",
+  "label": "core",
+  "key": "old but still the clearest account",
+  "where": ""
+ },
+ {
+  "id": 393,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "LeaderWorkerSet: a group of leader and workers as the unit of replication; size, restartPolicy RecreateGroupOnPodRestart, LWS_* variables",
+  "label": "core",
+  "key": "recreategrouponpodrestart",
+  "where": ""
+ },
+ {
+  "id": 394,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "KServe LLMInferenceService writes a Deployment for one node and a LeaderWorkerSet for several",
+  "label": "core",
+  "key": "llminferenceservice",
+  "where": ""
+ },
+ {
+  "id": 395,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "vLLM production stack: engines, router, observability, Helm chart vllm-stack-0.1.13",
+  "label": "core",
+  "key": "vllm-stack-0.1.13",
+  "where": ""
+ },
+ {
+  "id": 396,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "RDMA in a pod: hostNetwork, or Multus secondary networks plus an RDMA or SR-IOV device plugin; NVIDIA Network Operator v26.7.1",
+  "label": "core",
+  "key": "v26.7.1",
+  "where": ""
+ },
+ {
+  "id": 397,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "RDMA check: NET/IB not NET/Socket; NCCL_NET=IB makes the fallback an error",
+  "label": "core",
+  "key": "nccl_net=ib",
+  "where": ""
+ },
+ {
+  "id": 398,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "GPU Operator installs driver, device plugin, container runtime, node labelling, DCGM",
+  "label": "core",
+  "key": "automatic node labelling",
+  "where": ""
+ },
+ {
+  "id": 399,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "TrainJob env table (script-rendered): five PET_* variables replace torchrun flags",
+  "label": "core",
+  "key": "five environment variables, which torchrun reads as its own flags",
+  "where": ""
+ },
+ {
+  "id": 400,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "Scheduling cycle side-by-side table (script-rendered): where each of the six pods went under each profile",
+  "label": "core",
+  "key": "the two recorded runs side by side",
+  "where": ""
+ },
+ {
+  "id": 401,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "PVC run output (script-rendered): WaitForFirstConsumer, then node affinity refusal",
+  "label": "core",
+  "key": "persistentvolume's node affinity",
+  "where": ""
+ },
+ {
+  "id": 402,
+  "tab": "t-read",
+  "section": "added 2026-10-24",
+  "text": "Hero figure: TrainJob to JobSet to Jobs to Workload to pods to bound pods to containers, with the gap each closes",
+  "label": "core",
+  "key": "one training job is a chain of objects",
+  "where": ""
+ }
+]

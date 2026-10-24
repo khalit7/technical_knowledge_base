@@ -1,4 +1,4 @@
-// ---- Kueue admission tab (t-kmq): replays recorded Workloads ----
+// ---- Kueue admission (Reading section 8): replays recorded Workloads ----
 window.KMQ=(function(){
   const K=window.KM,$=id=>document.getElementById(id),E=RD.esc;if(!$('km-q-card'))return {};
   const QUOTA={flavors:[['km-b1',8,'block b1: worker, worker2'],['km-b2',4,'block b2: worker3']],tas:[['km-tas',12,'all three workers, topology km-topo']]};
@@ -35,6 +35,5 @@ window.KMQ=(function(){
     $('km-q-viz').innerHTML=v;$('km-q-cap').innerHTML='<div class="t">'+short(s.w.name)+', step '+(i+1)+' of '+steps.length+'</div>'+E(s.c)}
   load();const A=RD.anim({card:'km-q-card',ctl:'km-q-ctl',n:steps.length,draw,ms:1700,label:'Admission step'});
   RD.seg($('km-q-mode'),m=>{mode=m;load();A.reset(steps.length)});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-kmq']=[()=>A.redraw()];
   return {steps:()=>steps};
 })();

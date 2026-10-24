@@ -1,37 +1,102 @@
-<section id="rd-s9">
-<h2>9. Operators: Kubeflow Trainer v2 and KubeRay</h2>
-<p><b>The problem.</b> Writing the JobSet of section 8 by hand for every run means every user knows torchrun's flags, the DNS naming and the restart rules. An <dfn>operator</dfn> packages that knowledge: a <dfn>custom resource definition</dfn> (CRD, a new object kind the API server stores), a controller that reconciles it into lower-level objects, and usually webhooks that validate and default it.</p>
-<p><b>Kubeflow Trainer v2.</b> Trainer v2 (v2.0 July 2025; v2.3.0 released 2026-08-07, whose README still calls the API alpha) has two kinds of object: a <dfn>TrainingRuntime</dfn> or <dfn>ClusterTrainingRuntime</dfn>, written once by the platform team, holding a JobSet template and an ML policy (torch, torchtune, DeepSpeed, JAX, MLX and XGBoost runtimes ship in its <code>manifests/base/runtimes</code>), and a <dfn>TrainJob</dfn>, written by the user, that names a runtime and says only what differs. The controller merges the two into a JobSet. It replaced the v1 Training Operator's per-framework kinds (PyTorchJob and friends); v1 is maintained on its release-1.9 branch (v1.9.4, 2026-08-18), and Kueue's docs call its integration legacy.</p>
-<pre class="rd-code">apiVersion: trainer.kubeflow.org/v1alpha1
-kind: TrainJob
-metadata: {name: km-tj, namespace: km}
-spec:
-  runtimeRef: {name: torch-distributed}      # Trainer's own ClusterTrainingRuntime
-  trainer:
-    image: mi-train:1
-    numNodes: 2
-    numProcPerNode: 2
-    command: ["torchrun", "/opt/mi/train.py", "--ckpt-dir=/tmp/ckpt", "--log-dir=/tmp/logs"]
-    resourcesPerNode:
-      requests: {cpu: 500m, memory: 400Mi, example.com/gpu: "2"}
-      limits: {cpu: "2", memory: 900Mi, example.com/gpu: "2"}</pre>
-<p class="rd-codecap"><code>src/k8s/e12-trainjob.yaml</code>. Note what is missing: no rank, no master address, no Service.</p>
-<p><b>What the controller built</b> <span class="meas">measured</span> (Trainer v2.3.0 installed for this run on the kind cluster, its controller capped at 256 MiB, removed afterwards): a JobSet <code>km-tj</code> owned by the TrainJob, one replicated Job <code>node</code> of 2 Indexed pods with <code>restartPolicy: OnFailure</code>, container port 29500, and five environment variables, which torchrun reads as its own flags:</p>
-<div class="tw"><table><thead><tr><th>Variable</th><th>Value in the pod</th><th>Flag it replaces</th></tr></thead><tbody id="km-tj-env"></tbody></table></div>
-<p>The training script is the same file and the global loss at step 200 was again <span id="km-tj-loss">2.2638769149780273</span>. The master address the controller wrote, <code>km-tj-node-0-0.km-tj</code>, is the same JobSet DNS rule as the hand-written run's <code>km-e3a-node-0-0.km-e3a</code>; the operator encodes the convention, nothing more (<code>pkg/runtime/framework/plugins/torch/torch.go</code> lines 147-165 at v2.3.0 <span class="pub">source</span>). The cost: three CRDs of 2.4 MB of YAML in the API server (the control plane grew by about 0.2 GiB here), one more controller and two more webhooks on the path of every TrainJob. Note also <code>restartPolicy: OnFailure</code>: the kubelet restarts a failed container in place, so the Job (and a podFailurePolicy, which then cannot be used) never sees the failure.</p>
-<p><b>KubeRay</b> (v1.7.1, 2026-09-21) is the operator for Ray: <code>RayCluster</code> (a head pod and worker groups, with autoscaling), <code>RayJob</code> (a cluster plus a submitted driver, torn down after) and <code>RayService</code>. Kueue can admit a RayJob or RayCluster as one workload. Ray's own scheduling (placement groups, the object store) is the {{Ray|n:3fc5c17b0d0d811cba13f3aeccf8724b}} sibling page's subject; the parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} measures Ray placement groups. Not run here.</p>
-<p><b>When an operator is worth it.</b> When many users submit the same shape of job (one runtime, many TrainJobs), or when the framework needs more than a Job can express (Ray's head and workers, MPI's launcher and hostfile). When a team runs one kind of job and already has a JobSet template, the operator adds an API surface to upgrade and little else.</p>
-</section>
-
-<section id="rd-s10">
-<h2>10. Storage for training pods: volumes, claims and CSI</h2>
-<p><b>The problem.</b> A container's file system disappears with it. Checkpoints and datasets must outlive pods and be reachable from whichever node the restarted pod lands on.</p>
-<p><b>How it works.</b> A pod mounts <dfn>volumes</dfn>. A <dfn>PersistentVolumeClaim</dfn> (PVC) asks for storage by size and <dfn>access mode</dfn> (ReadWriteOnce: one node; ReadWriteMany: many nodes; ReadOnlyMany); a <dfn>StorageClass</dfn> says which provisioner creates the <dfn>PersistentVolume</dfn> (PV) and when; a <dfn>CSI driver</dfn> (Container Storage Interface) is the plugin that attaches and mounts it on a node. For training the usual choices are a shared file system through CSI (Lustre, GPFS, Weka, NFS, Filestore, FSx: ReadWriteMany), object storage read by the job itself, and local NVMe for caches. kind's default StorageClass is <code>rancher.io/local-path</code>: a folder on one node's disk, with <code>volumeBindingMode: WaitForFirstConsumer</code>.</p>
-<div class="rd-card" id="km-pvc-card">
-<h4>A checkpoint on node-local storage pins the restart <span class="meas">measured</span></h4>
-<pre class="rd-code rd-out" id="km-pvc-out"></pre>
-<p class="small mute">A 100Mi ReadWriteOnce claim, a writer pod on worker that writes <code>latest</code>, then a reader pod forced onto worker3 (<code>src/k8s/e9-pvc.yaml</code>, <code>e9-reader.yaml</code>). Lines trimmed from <code>src/runs/e9.steps.txt</code>.</p>
+<section id="rd-s8">
+<h2>8. Kueue: quota, flavors, topology</h2>
+<p>Several teams share a fixed pool of GPUs. Each needs a guaranteed share, idle shares should be usable by others, jobs should wait in an orderly queue rather than as Pending pods, and a 16-GPU job should get 16 GPUs that are close together. Kueue is a controller plus webhooks with six kinds of object (all <code>kueue.x-k8s.io/v1beta2</code>; v0.20 no longer serves v1beta1):</p>
+<div class="km-map">
+<div style="--kc:var(--c1)"><b>ResourceFlavor</b>A kind of capacity, mapped to nodes by labels (and tolerations): "H100 in block 1", "spot A100". Optional <code>topologyName</code> for topology-aware placement.</div>
+<div style="--kc:var(--c2)"><b>ClusterQueue</b>A team's quota: for each flavor and resource a <code>nominalQuota</code> (plus <code>borrowingLimit</code>, <code>lendingLimit</code>), a queueing strategy, preemption rules, and the <code>cohort</code> it shares with.</div>
+<div style="--kc:var(--c3)"><b>LocalQueue</b>A namespace's door into a ClusterQueue. Jobs say <code>kueue.x-k8s.io/queue-name: &lt;localqueue&gt;</code>.</div>
+<div style="--kc:var(--c4)"><b>Workload</b>Kueue's record of one job: its pod sets (count and requests per pod), created by Kueue's integration for Jobs, JobSets, TrainJobs, RayJobs and others. Admission is a property of the Workload.</div>
+<div style="--kc:var(--c5)"><b>Cohort</b>A group of ClusterQueues that lend each other unused quota; cohorts can form a tree.</div>
+<div style="--kc:var(--c6)"><b>Topology</b>An ordered list of node labels (block, rack, host) for topology-aware scheduling.</div>
 </div>
-<p>The claim stayed Pending (<code>waiting for first consumer to be created before binding</code>) until the writer pod was scheduled; the volume was then created on that pod's node and got a node affinity to it. A pod on any other node is unschedulable: <code>1 node(s) didn't match PersistentVolume's node affinity</code>. If the checkpoint of a training job lives on such a volume, a restart after a node failure cannot run anywhere else; and if that node is gone, the checkpoint is gone too. Use node-local volumes for caches, not for state the job must resume from. Storage systems themselves are the {{Storage and data movement|n:3fc5c17b0d0d818a94ced3fc7c3331fe}} sibling's subject and the parent's {{Storage lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} measures checkpoint writes on this cluster (the host folder these pods mount was 36 times slower than a Docker volume there).</p>
-<p class="small mute">Images are storage too: a pod on a fresh node first pulls the training image: Trainer's default torch runtime image, <code>pytorch/pytorch:2.13.0-cuda13.0-cudnn9-runtime</code>, is 3.04 GB compressed (Docker Hub API, read 2026-10-16), before any project code or data, which is why GPU clusters pre-pull images onto nodes, run a pull-through registry cache, or use lazy-loading snapshotters. The images here were preloaded with <code>kind load</code>.</p>
+<p><b>Admission, step by step.</b> A labelled job is made to start <dfn>suspended</dfn> (<code>spec.suspend: true</code>: no pods). Kueue's loop takes the head of each queue, <dfn>assigns flavors</dfn> (the flavors in order, checking the workload's total request against unused quota, borrowing and preemption), reserves the quota, runs any <dfn>admission checks</dfn> (for example a ProvisioningRequest that asks the cluster autoscaler for nodes first), then admits: it writes the chosen flavors into the Workload, injects the flavor's node labels as a nodeSelector and unsuspends the job. From there the normal scheduler places pods. The parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} shows queueing and cohort borrowing and reclaim; here are the two things it did not run, one decision per step.</p>
+<div id="km-q-wrap">
+<style>
+#km-q-wrap .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#km-q-wrap .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#km-q-wrap .an-play{min-width:6.4em}
+#km-q-wrap .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px;overflow-wrap:anywhere}
+#km-q-wrap .an-cap .t{font-weight:600;font-size:14px}
+#km-q-wrap .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#km-q-wrap .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#km-q-wrap .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#km-q-wrap .wl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:8px 0}
+#km-q-wrap .wl div{border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;min-width:0;overflow-wrap:anywhere}
+#km-q-wrap .wl div.cur{outline:2px solid var(--acc)}#km-q-wrap .wl div.ok{border-left:4px solid var(--good)}#km-q-wrap .wl div.no{border-left:4px solid var(--bad)}
+#km-q-wrap .qb .row{display:grid;grid-template-columns:minmax(0,8em) minmax(0,1fr) 5.5em;gap:8px;align-items:center;font-size:12.5px;margin:4px 0}
+#km-q-wrap .qb .tr{height:16px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden;border:1px solid var(--line)}
+#km-q-wrap .qb .fi{position:absolute;top:0;bottom:0;border-radius:2px}#km-q-wrap .qb .v{text-align:right;font-variant-numeric:tabular-nums}
+#km-q-wrap .topo{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px;margin:8px 0}
+#km-q-wrap .blk{border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}#km-q-wrap .blk.ok{border-color:var(--good)}#km-q-wrap .blk.bad{border-color:var(--bad)}
+#km-q-wrap .blk b{font-size:13px}#km-q-wrap .hosts{display:flex;gap:6px;margin-top:4px}
+#km-q-wrap .host{flex:1;border:1px solid var(--line);border-radius:6px;padding:4px;font-size:11.5px;min-width:0}
+#km-q-wrap .host .sl{display:flex;gap:2px;margin-top:3px}#km-q-wrap .host .sl i{flex:1;height:14px;border-radius:2px;border:1px dashed var(--line)}#km-q-wrap .host .sl i.u{background:var(--c1);border:0}
+#km-q-wrap pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:8px 10px;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}
+</style>
+<div class="rd-card" id="km-q-card"><h4>What Kueue decided for each workload: a full flavor falls through to the next; a full block refuses with quota free <span class="meas">measured</span></h4>
+<div class="seg" id="km-q-mode"><button data-m="flavors" class="on">Flavors: km-b1 then km-b2</button><button data-m="tas">Topology-aware (TAS)</button></div>
+<div class="wl" id="km-q-wl"></div>
+<div id="km-q-viz"></div>
+<div class="an-ctl" id="km-q-ctl"></div>
+<div class="an-cap" id="km-q-cap"></div>
+</div>
+<p class="small mute">Seven workloads as Kueue v0.20.2 recorded them (16 Oct 2026): four ordinary jobs against a ClusterQueue with two flavors, and three topology-aware jobs against a ClusterQueue whose flavor carries a Topology. Each step replays one decision of the flavor assigner from the Workload objects (<code>src/runs/e10a.workloads.yaml</code>, <code>e10b*.workloads.yaml</code>): the requests summed over the pod set, each flavor's quota before and after, and the message or nodeSelector Kueue wrote.</p>
+</div>
+<div class="km-pair">
+<div><b>Flavors in order <span class="meas">measured</span></b>A ClusterQueue with flavor km-b1 (8 GPUs of quota, nodes labelled block b1) listed before km-b2 (4 GPUs, block b2). Four jobs of 2 pods x 2 GPUs: the first two got km-b1, the third km-b2 (pods got <code>nodeSelector: mi.example.com/block: b2</code> injected), the fourth waited with <code>insufficient unused quota for example.com/gpu in flavor km-b1, 4 more needed, insufficient unused quota for example.com/gpu in flavor km-b2, 4 more needed</code>.</div>
+<div><b>Topology-aware scheduling <span class="meas">measured</span></b>A flavor with a Topology (block, then host). Three pods of 2 GPUs with <code>kueue.x-k8s.io/podset-required-topology: mi.example.com/block</code> were admitted inside block b1 (two pods on worker, one on worker2). Three pods of 4 GPUs, the same annotation, 12 GPUs of quota free: refused, <code>topology "km-topo" allows to fit only 2 out of 3 pod(s); all pods must fit in a single "mi.example.com/block" topology domain</code>. With <code>podset-preferred-topology</code> instead, admitted across both blocks.</div>
+</div>
+<p><b>The cost.</b> Kueue reasons about quota, not nodes (except with topology): with 12 GPUs of quota and 12 GPUs in the cluster, an admitted job can still be unplaceable if a node is cordoned or fragmented. Keep quotas equal to what is really schedulable, and mind the webhook: as section 7 found, while Kueue is down no pod can be created anywhere it watches.</p>
+<details class="dp"><summary>The objects that ran, and the rest of Kueue (fungibility, preemption, fair sharing, waitForPodsReady, MultiKueue) <span class="mute">(depth)</span></summary><div class="b">
+<pre class="rd-code">apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata: {name: km-b1}
+spec:
+  nodeLabels: {mi.example.com/block: b1}     # km-b2: b2
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata: {name: km-cq}
+spec:
+  cohortName: km-cohort
+  namespaceSelector: {}
+  queueingStrategy: BestEffortFIFO
+  resourceGroups:
+  - coveredResources: ["cpu", "memory", "example.com/gpu"]
+    flavors:
+    - name: km-b1
+      resources:
+      - {name: cpu, nominalQuota: 4}
+      - {name: memory, nominalQuota: 2Gi}
+      - {name: example.com/gpu, nominalQuota: 8}
+    - name: km-b2
+      resources:
+      - {name: cpu, nominalQuota: 2}
+      - {name: memory, nominalQuota: 1Gi}
+      - {name: example.com/gpu, nominalQuota: 4}
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: Topology
+metadata: {name: km-topo}
+spec:
+  levels:
+  - nodeLabel: mi.example.com/block
+  - nodeLabel: kubernetes.io/hostname
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata: {name: km-tas}
+spec:
+  nodeLabels: {km.example.com/tas: "true"}
+  topologyName: km-topo                      # ClusterQueue km-cq-tas: 4 CPUs, 3Gi, 12 GPUs of km-tas</pre>
+<p class="small mute">Abridged from <code>src/k8s/e10-kueue.yaml</code>; jobs from <code>src/k8s/kueue-job.sh</code> (an Indexed Job labelled <code>kueue.x-k8s.io/queue-name</code>, the TAS ones annotated <code>kueue.x-k8s.io/podset-required-topology</code> or <code>podset-preferred-topology</code> on the pod template). The label <code>km.example.com/tas=true</code> was put on the three workers for the TAS runs and removed after.</p>
+
+<p>The message comes from <code>pkg/cache/scheduler/tas_flavor_snapshot.go</code> line 2953 at Kueue v0.20.2 <span class="pub">source</span>. Topology-aware scheduling is beta and on by default since v0.14 (<code>pkg/features/kube_features.go</code> lines 975-978). Kueue then pins each pod with a nodeSelector on the host label (the pods above got <code>kubernetes.io/hostname: mi-kind-worker</code>), so the default scheduler only confirms the placement.</p>
+<p><b>The rest of Kueue</b> (described, not run here):</p>
+<ul class="tight">
+<li><b>Flavor fungibility</b>: by default the search stops at the first flavor where the workload fits or fits by borrowing (<code>whenCanBorrow: MayStopSearch</code>), but tries the next flavor before preempting in the current one (<code>whenCanPreempt: TryNextFlavor</code>) (<code>apis/kueue/v1beta2/clusterqueue_types.go</code> lines 526-549).</li>
+<li><b>Preemption</b>: <code>withinClusterQueue</code> (by priority inside a team), <code>reclaimWithinCohort</code> (take back lent quota; the parent's lab measured it), <code>borrowWithinCohort</code> (preempt to borrow). Kueue preempts whole workloads, which is the right unit for training.</li>
+<li><b>Fair sharing</b>: in the Kueue configuration, share cohort capacity by weight rather than first come; and admission fair sharing orders a queue by each LocalQueue's recent usage ({{Kueue fair sharing|https://kueue.sigs.k8s.io/docs/concepts/fair_sharing/}} <span class="pub">docs</span>).</li>
+<li><b>waitForPodsReady</b>: evict and requeue an admitted workload whose pods are not all ready within a timeout (default 30 minutes in v0.20), closing the gap between "quota reserved" and "pods really running".</li>
+<li><b>MultiKueue</b>: one manager cluster dispatching workloads to several worker clusters.</li>
+</ul>
+</div></details>
 </section>

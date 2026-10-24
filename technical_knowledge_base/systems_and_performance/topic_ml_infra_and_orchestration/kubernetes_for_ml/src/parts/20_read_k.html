@@ -1,0 +1,28 @@
+<section id="rd-s10">
+<h2>10. Operators: Kubeflow Trainer v2 and KubeRay</h2>
+<p>Writing the JobSet of section 9 by hand for every run means every user knows torchrun's flags, the DNS naming and the restart rules. An <dfn>operator</dfn> packages that knowledge: a <dfn>custom resource definition</dfn> (CRD, a new object kind the API server stores), a controller that reconciles it into lower-level objects, and usually webhooks that validate and default it.</p>
+<p><b>Kubeflow Trainer v2.</b> Trainer v2 (v2.0 July 2025; v2.3.0 released 2026-08-07, whose README still calls the API alpha) has two kinds of object: a <dfn>TrainingRuntime</dfn> or <dfn>ClusterTrainingRuntime</dfn>, written once by the platform team, holding a JobSet template and an ML policy (torch, torchtune, DeepSpeed, JAX, MLX and XGBoost runtimes ship in its <code>manifests/base/runtimes</code>), and a <dfn>TrainJob</dfn>, written by the user, that names a runtime and says only what differs. The controller merges the two into a JobSet.</p>
+<pre class="rd-code">apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata: {name: km-tj, namespace: km}
+spec:
+  runtimeRef: {name: torch-distributed}      # Trainer's own ClusterTrainingRuntime
+  trainer:
+    image: mi-train:1
+    numNodes: 2
+    numProcPerNode: 2
+    command: ["torchrun", "/opt/mi/train.py", "--ckpt-dir=/tmp/ckpt", "--log-dir=/tmp/logs"]
+    resourcesPerNode:
+      requests: {cpu: 500m, memory: 400Mi, example.com/gpu: "2"}
+      limits: {cpu: "2", memory: 900Mi, example.com/gpu: "2"}</pre>
+<p class="rd-codecap"><code>src/k8s/e12-trainjob.yaml</code>. Note what is missing: no rank, no master address, no Service.</p>
+<p><b>What the controller built</b> <span class="meas">measured</span> (Trainer v2.3.0 installed for this run on the kind cluster, its controller capped at 256 MiB, removed afterwards): a JobSet <code>km-tj</code> owned by the TrainJob, one replicated Job <code>node</code> of 2 Indexed pods with <code>restartPolicy: OnFailure</code>, container port 29500, and five environment variables, which torchrun reads as its own flags:</p>
+<div class="tw"><table><thead><tr><th>Variable</th><th>Value in the pod</th><th>Flag it replaces</th></tr></thead><tbody id="km-tj-env"></tbody></table></div>
+<p>The training script is the same file and the global loss at step 200 was again <span id="km-tj-loss">2.2638769149780273</span>. The master address the controller wrote, <code>km-tj-node-0-0.km-tj</code>, is the same JobSet DNS rule as the hand-written run's <code>km-e3a-node-0-0.km-e3a</code>; the operator encodes the convention, nothing more. The cost: three CRDs of 2.4 MB of YAML in the API server (the control plane grew by about 0.2 GiB here), one more controller and two more webhooks on the path of every TrainJob. Note also <code>restartPolicy: OnFailure</code>: the kubelet restarts a failed container in place, so the Job (and a podFailurePolicy, which then cannot be used) never sees the failure.</p>
+<p><b>KubeRay</b> (v1.7.1, 2026-09-21) is the operator for Ray: <code>RayCluster</code> (a head pod and worker groups, with autoscaling), <code>RayJob</code> (a cluster plus a submitted driver, torn down after) and <code>RayService</code>. Kueue can admit a RayJob or RayCluster as one workload. Ray's own scheduling (placement groups, the object store) is the {{Ray|n:3fc5c17b0d0d811cba13f3aeccf8724b}} sibling page's subject; the parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} measures Ray placement groups. Not run here.</p>
+<p><b>When an operator is worth it.</b> When many users submit the same shape of job (one runtime, many TrainJobs), or when the framework needs more than a Job can express (Ray's head and workers, MPI's launcher and hostfile). When a team runs one kind of job and already has a JobSet template, the operator adds an API surface to upgrade and little else.</p>
+<details class="dp"><summary>Trainer v1, the source of the variables <span class="mute">(depth)</span></summary><div class="b">
+<p>Trainer v2 replaced the v1 Training Operator's per-framework kinds (PyTorchJob and friends); v1 is maintained on its release-1.9 branch (v1.9.4, 2026-08-18), and Kueue's docs call its integration legacy. The PET_* variables are written in <code>pkg/runtime/framework/plugins/torch/torch.go</code> lines 147-165 at v2.3.0 <span class="pub">source</span>.</p>
+</div></details>
+</section>
+

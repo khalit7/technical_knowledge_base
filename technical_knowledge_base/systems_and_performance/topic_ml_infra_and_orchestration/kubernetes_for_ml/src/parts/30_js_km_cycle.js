@@ -1,4 +1,4 @@
-// ---- Scheduling cycle tab (t-kmcyc): recorded scores, and the same formulas on the reader's own sequence ----
+// ---- Scheduling cycle (Reading section 3, closed block): recorded scores, and the same formulas on the reader's own sequence ----
 window.KMCYC=(function(){
   const K=window.KM,$=id=>document.getElementById(id),E=RD.esc;
   const WK=['mi-kind-worker','mi-kind-worker2','mi-kind-worker3'],ALL=['mi-kind-control-plane'].concat(WK);
@@ -62,8 +62,7 @@ window.KMCYC=(function(){
     A=RD.anim({card:'km-cyc-card',ctl:'km-cyc-ctl',n:sim.length*5,draw,ms:1100,label:'Pod and phase'});
     RD.seg($('km-cyc-prof'),m=>{tag=m;load();A.reset(sim.length*5)});
     RD.seg($('km-cyc-src'),m=>{src=m;$('km-cyc-own').hidden=m!=='own';if(m==='rec')seq=[2,1,1,2,2,4];else parse();load();A.reset(sim.length*5)});
-    $('km-cyc-seq').addEventListener('input',()=>{parse();load();A.reset(sim.length*5)});
-    (window.TAB_RENDER=window.TAB_RENDER||{})['t-kmcyc']=[()=>A.redraw()]}
+    $('km-cyc-seq').addEventListener('input',()=>{parse();load();A.reset(sim.length*5)});}
   function parse(){const v=$('km-cyc-seq').value.split(/[^0-9]+/).filter(x=>x).map(Number).filter(x=>x>=1&&x<=4).slice(0,10);
     if(v.length){seq=v;$('km-cyc-seqmsg').textContent=v.length+' pods'}else{seq=[1];$('km-cyc-seqmsg').textContent='enter numbers 1 to 4'}}
   init();
