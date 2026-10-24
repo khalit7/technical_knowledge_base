@@ -55,3 +55,6 @@ Why about 35 minutes is right: the page owns eleven mechanisms (threads and run 
 
 ## Departures from the child-page method
 No `live.md` or `coverage.json`: the page is new, there was no old text. Measurements on a real kernel replace the "real data" of the training pages; things that need a 6.6+ kernel (EEVDF), privileges (perf, real-time in the root cgroup), real NUMA or a GPU are taught from sources and tagged "not run here"; EEVDF is shown through a simulator checked line by line against v6.12 source and labelled as a model.
+
+## Topic close (2026-10-24)
+Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.
