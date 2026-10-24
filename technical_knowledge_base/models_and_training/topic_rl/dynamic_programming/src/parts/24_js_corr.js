@@ -1,4 +1,4 @@
-// ---- Reading section 10: the corridor, one backup per step, four ways ----
+// ---- Reading section 8: the corridor, one backup per step, four ways ----
 (function(){
   const D=window.DPE,w=D.W.corr,g=0.9,NM=['A','B','C','G'];
   const VS=[8.1,9,10,0],VPI=D.evalExact(w,D.uniform(w),g);
