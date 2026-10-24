@@ -5,7 +5,7 @@ const src=(k,txt)=>{const l=L(k);return '<a href="'+l.u+'" target="_blank" rel="
 const f1=x=>(Math.round(x*10)/10).toFixed(1);
 
 // predict-then-reveal (every .pr with buttons carrying data-r)
-document.querySelectorAll('#t-read .pr, #t-ldrz .pr, #t-ldhang .pr, #t-ldenv .pr').forEach(pr=>{
+document.querySelectorAll('#t-read .pr, #t-ldenv .pr').forEach(pr=>{
   const ans=pr.querySelector('.ans');
   pr.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
     pr.querySelectorAll('.opts button').forEach(x=>x.classList.toggle(x.dataset.r==='1'?'right':'wrong',x===b||x.dataset.r==='1'));
@@ -64,7 +64,7 @@ chain();
   const j0=f('add_part',e=>e.g[0]==='0'&&e.who==='B'), c0=f('complete',e=>e.g[0]==='0'), w=f('add_wait',e=>e.who==='C'),
     c1=f('complete',e=>e.g[0]==='1'), fl=E.find(e=>e.k==='a_failed'&&e.t>M.kill_C), dd=f('dead'), c2=f('complete',e=>e.g[0]==='2'),nw=f('a_new'),dn=E.filter(e=>e.k==='a_done'&&e.t>nw.t)[0];
   D.rzStats={j0:j0.t,c0:c0.t,cup:M.C_up,w:w.t,c1:c1.t,kill:M.kill_C,fail:fl.t,dead:dd.t,c2:c2.t};
-  $('ld-rz-stats').innerHTML=[
+  if($('ld-rz-stats'))$('ld-rz-stats').innerHTML=[
    RD.stat('Round 0 last call','+'+f1(c0.t-j0.t)+' s','from B joining (the 2nd, min_nodes) to complete'),
    RD.stat('C joins a running job',f1(dn.t-nw.t)+' s','from the agents noticing C (wait list) to round 1 done at max_nodes'),
    RD.stat('Failure noticed',f1(fl.t-M.kill_C)+' s','kill of C to "Worker group FAILED" (monitor interval 1 s)'),
@@ -117,7 +117,7 @@ chain();
   }
   steps=build(mode);
   const an=RD.anim({card:'ld-st-card',ctl:'ld-st-ctl',n:steps.length,draw:draw,ms:2600,label:'Store animation step'});
-  RD.seg($('ld-st-mode'),m=>{mode=m;steps=build(m);an.reset(steps.length);an.play()});
+  RD.seg($('ld-st-mode'),m=>{mode=m;steps=build(m);an.reset(steps.length)});
   RD.onResize(()=>an.redraw());
 })();
 
@@ -169,7 +169,7 @@ chain();
 // 8. recorded text blocks
 $('ld-sidecar').textContent='docker run --rm --pid=container:ld-rz --cap-add SYS_PTRACE --memory 256m --cpus 0.5 \\\n  -v "$PWD":/w mi-train:1 /w/py-spy dump --pid 33';
 $('ld-sidecar-out').textContent=D.sidecar.join('\n');
-$('ld-frout').textContent=D.fr.patched.slice(0,10).join('\n');
+if($('ld-frout'))$('ld-frout').textContent=D.fr.patched.slice(0,10).join('\n');
 $('ld-detail-msg').textContent=D.detail.mismatch_DETAIL.mismatch.replace(/\)\)\./,')).\n').replace(/, but /,',\nbut ');
 $('ld-shmraw').innerHTML='Recorded: <code>'+D.net.shm_docker.map(esc).join('<br>')+'</code><br>kind pod (<code>src/scripts/ld-shm-pod.yaml</code>, memory limit 128 Mi): <code>'+D.net.shm_kind.map(esc).join('<br>')+'</code>';
 })();
