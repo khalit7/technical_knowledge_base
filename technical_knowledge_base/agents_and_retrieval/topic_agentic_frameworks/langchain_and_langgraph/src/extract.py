@@ -77,6 +77,7 @@ def main():
                                       tools=[t["function"]["name"] for t in b.get("tools", [])], stream=b.get("stream"), temperature=b.get("temperature")))
         x["first_body"] = raw["requests"][0]["body"]
         data[key] = x
+    data["e8"] = D("e8_lcel")
     for k in ("e2", "e3", "e4", "e5"):
         data[k].pop("versions", None)
     data["versions"] = D("e1_supersteps")["versions"]

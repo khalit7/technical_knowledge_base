@@ -36,8 +36,8 @@ window.FLGG=(function(){
       const cp=(st.copies||{})[nd]||1;
       for(let k=cp-1;k>=1;k--)b+='<rect x="'+(p.x-w/2+k*4)+'" y="'+(p.y-k*4)+'" width="'+w+'" height="'+bh+'" rx="'+(se?13:6)+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1.2"/>';
       b+='<rect x="'+(p.x-w/2)+'" y="'+p.y+'" width="'+w+'" height="'+bh+'" rx="'+(se?13:6)+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+(cls==='next'||cls==='lost'?2:1.2)+'"'+(cls==='lost'?' stroke-dasharray="3 2"':'')+'/>';
-      b+='<text x="'+p.x+'" y="'+(p.y+17)+'" text-anchor="middle" font-size="'+(se?10:11)+'" fill="'+tc+'"'+(se?' font-weight="600"':'')+'>'+esc(lab)+(cp>1?' ×'+cp:'')+'</text>';
-      const bd=(st.badge||{})[nd];if(bd)b+='<text x="'+(p.x+w/2+4)+'" y="'+(p.y+9)+'" font-size="10" fill="var(--c2)" font-weight="600">'+esc(bd)+'</text>'});
+      b+='<text x="'+p.x+'" y="'+(p.y+17)+'" text-anchor="middle" font-size="'+(se?10.5:11)+'" fill="'+tc+'"'+(se?' font-weight="600"':'')+'>'+esc(lab)+(cp>1?' ×'+cp:'')+'</text>';
+      const bd=(st.badge||{})[nd];if(bd)b+='<text x="'+(p.x+w/2+4)+'" y="'+(p.y+9)+'" font-size="10.5" fill="var(--c2)" font-weight="600">'+esc(bd)+'</text>'});
     return RD.svg(W,H,b,'Graph '+name);
   }
   return {svg,LAYOUT};

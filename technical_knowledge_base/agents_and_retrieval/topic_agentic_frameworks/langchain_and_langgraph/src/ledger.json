@@ -1,0 +1,2963 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "LangChain and LangGraph: graphs, state, checkpointers, interrupts, durable execution LangChain and LangGraph: graphs, state, checkpointers, interrupts, durable execution How LangGraph runs a graph (super-steps, channels, reducers), what a checkpointer stores and what survives a crash, how interrupts and Command really behave, streaming, subgraphs, LangChain 1.x's create_agent and middleware, the store, deployment, and the criticisms, checked.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Taught from zero and measured on langgraph 1.2.14 and langchain 1.4.3: 44 small graph runs with no model, SQLite and Postgres checkpointers, 9 Claude Haiku 4.5 calls inside a graph that was killed and resumed, and two create_agent runs on a local model.",
+  "label": "core",
+  "key": "44 small graph runs",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "A child of Topic: agentic-frameworks .",
+  "label": "core",
+  "key": "A child of",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of 6 October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "About 27 min to read.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Super-step lab Crash lab Further reading",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "In one screen 1.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "Subgraphs 9. create_agent 10.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "Criticisms Mistakes and questions",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "the page in one screen",
+  "text": "The page in one screen LangChain is a Python (and TypeScript) library of building blocks for model applications: one interface for every provider's chat model, tools, and since version 1.0 a ready agent loop, create_agent , customised with middleware (code that runs before or after each model or tool call).",
+  "label": "core",
+  "key": "one interface for models, tools and retrievers",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "the page in one screen",
+  "text": "LangGraph is the runtime underneath: you describe a program as a graph of steps (nodes) that read and update one shared state , and LangGraph runs it in rounds called super-steps , saving a checkpoint of the state after each one.",
+  "label": "core",
+  "key": "rounds of parallel steps over one shared state",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "the page in one screen",
+  "text": "The 1.0 announcement put the split in one line each: LangChain is \"the fastest way to build an AI agent\", LangGraph \"a lower level framework and runtime, useful for highly custom and controllable agents\" ( LangChain, 22 Oct 2025 ).",
+  "label": "volatile",
+  "key": "the fastest way to build an AI agent",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "the page in one screen",
+  "text": "The reason to use LangGraph rather than the thirty-line loop of the Topic: agentic-frameworks Reading tab is almost entirely the checkpoint: it is what lets a run survive a crash, wait days for a person, and be rewound.",
+  "label": "core",
+  "key": "surviving a crash, waiting days for a person and rewinding are all that checkpoint",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "the page in one screen",
+  "text": "So this page spends most of its time on what a checkpoint holds and what it does and does not save you from, measured.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "the page in one screen",
+  "text": "Piece The problem it solves Section StateGraph , nodes, edges Write a workflow or agent as named steps over typed state, so the runtime can schedule, save and resume it 2 Reducers Two steps running at once both write the same key: a reducer says how to merge 3 Super-steps A precise rule for what runs next, what runs in parallel, and when writes become visible 3 Checkpointer, thread_id The state outlives the process: resume, inspect, rewind 4 Pending writes, durability modes A crash mid-step loses only the work still in flight, at a price per step you choose 5 interrupt() , Command Pause for a person (for days), resume with their answer; route from inside a node 6 Streaming modes Show progress, tokens and state changes while a long run is going 7 Subgraphs, Command.PARENT Compose graphs; hand control from one agent to another 8 create_agent , middleware The standard tool-calling loop without writing the graph; approvals, limits, summaries as plug-ins 9 Store Memory that crosses threads (users, projects), unlike the checkpoint 10 LangSmith Deployment, Agent Server Someone else runs the processes, the database and the resume 11 What the experiments on this page found Labels: MEASURED run for this page on 6 October 2026 (Apple M1 Pro; langgraph 1.2.14, langchain 1.4.3, langgraph-checkpoint 4.2.0); DOCS read from official docs or source on that date; UNCONFIRMED no primary source found.",
+  "label": "core",
+  "key": "How to merge when two steps running at once write the same key",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "the page in one screen",
+  "text": "The graphs in sections 3 to 8 have no model in them: every node is a plain Python function over the running example (the textstats repository with two planted bugs used across the agents topics), so their traces are exact and repeat on every run.",
+  "label": "core",
+  "key": "every node is a plain function over the running example",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "the page in one screen",
+  "text": "Real model calls appear in sections 5 and 9 and in the Crash lab .",
+  "label": "core",
+  "key": "Real model calls appear in sections 5 and 9",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "LangChain: three eras, and what is still useful LangChain began as one package that wrapped everything: prompts, chains of calls, agents, retrievers, hundreds of integrations.",
+  "label": "depth",
+  "key": "The split:",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "It was then split into a small stable core plus integration packages, and in October 2025 cut down to an agent library on top of LangGraph.",
+  "label": "depth",
+  "key": "The split:",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "The dates, from the repositories, PyPI and LangChain's own posts: 24 Oct 2022 First commit by Harrison Chase ( GitHub ); version 0.0.1 on PyPI the next day.",
+  "label": "volatile",
+  "key": "First LangChain commit, by Harrison Chase",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "4 Apr 2023 $10M seed led by Benchmark ( LangChain ).",
+  "label": "volatile",
+  "key": "$10M seed led by Benchmark",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "1 Aug 2023 LCEL, the LangChain Expression Language: chains composed with the | operator, \"a declarative way to truly compose chains\" ( LangChain ).",
+  "label": "core",
+  "key": "a declarative way to truly compose chains",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "9 Aug 2023 First LangGraph commit, by Nuno Campos ( GitHub ).",
+  "label": "volatile",
+  "key": "First LangGraph commit, by Nuno Campos",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "12 Dec 2023 The split: langchain-core (interfaces and LCEL) and langchain-community (third-party integrations) ( LangChain ); provider packages such as langchain-openai followed.",
+  "label": "volatile",
+  "key": "provider packages such as",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "6 to 8 Jan 2024 langchain 0.1.0, the first stable version ( LangChain ).",
+  "label": "volatile",
+  "key": "the first stable version",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "8 to 17 Jan 2024 LangGraph on PyPI (0.0.8) and announced: \"a module built on top of LangChain to better enable creation of cyclical graphs, often needed for agent runtimes\" ( LangChain ).",
+  "label": "volatile",
+  "key": "better enable creation of cyclical graphs",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "29 to 30 Jul 2025 Deep Agents: planning tool, subagents, a file system and a detailed prompt, on LangGraph; now \"The batteries-included agent harness\" ( LangChain , README ).",
+  "label": "volatile",
+  "key": "The batteries-included agent harness",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "13 to 17 Oct 2025 \"LangGraph Platform is now LangSmith Deployment and LangGraph Studio is now LangSmith Studio\" ( LangSmith changelog ).",
+  "label": "volatile",
+  "key": "LangGraph Platform is now LangSmith Deployment",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "20 Oct 2025 $125M Series B at a $1.25B valuation, led by IVP ( LangChain ).",
+  "label": "volatile",
+  "key": "$125M Series B",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "22 Oct 2025 LangChain 1.0 and LangGraph 1.0 announced together (wheels on PyPI since 17 Oct); \"no breaking changes until 2.0\"; create_agent \"uses LangGraph under the hood\"; legacy chains, retrievers and indexes moved to langchain-classic ( LangChain , migration guide ).",
+  "label": "volatile",
+  "key": "no breaking changes until 2.0",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "10 Mar 2026 LangGraph 1.1: an opt-in version=\"v2\" output format (typed stream parts; invoke returns an object with .value and .interrupts ) ( release notes ).",
+  "label": "volatile",
+  "key": "typed stream parts",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "12 May 2026 LangGraph 1.2: per-node timeouts, node error handlers, graceful shutdown, DeltaChannel (beta) and event streaming (beta) ( 1.2.0a6 notes ).",
+  "label": "volatile",
+  "key": "graceful shutdown",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "6 Oct 2026 langgraph 1.2.14, the version measured here (PyPI, released that day).",
+  "label": "volatile",
+  "key": "released that day",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "No 2.x of langchain , langchain-core or langgraph exists.",
+  "label": "volatile",
+  "key": "No 2.x of",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "What remains useful from LangChain today is the thin layer: one chat-model interface across providers ( init_chat_model(\"provider:model\") or a class such as ChatOpenAI ), message types, the @tool decorator that turns a typed Python function into a tool schema, and create_agent with middleware (section 9).",
+  "label": "core",
+  "key": "init_chat_model",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "The old chains and retrievers still import from langchain-classic ; langchain-community never reached 1.0 (0.4.2, May 2026, PyPI ).",
+  "label": "volatile",
+  "key": "it never reached 1.0",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "LangGraph does not need LangChain at all: its README says it \"can be used without LangChain\", and every graph in sections 2 to 8 imports only langgraph .",
+  "label": "core",
+  "key": "can be used without LangChain",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "In the 30 days to 6 October 2026, langgraph was downloaded 44,769,952 times from PyPI and langchain 170,457,766 times (against 12,449,784 for openai-agents and 2,442,764 for crewai ) ( pypistats ).",
+  "label": "volatile",
+  "key": "170,457,766",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "Downloads count CI runs and installs pulled in as dependencies, so they measure reach, not use.",
+  "label": "volatile",
+  "key": "so this measures reach, not use",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "Uber ( Finch, 17 Jul 2025 ) and LinkedIn ( SQL Bot, 9 Dec 2024 ) describe LangGraph systems on their own engineering blogs; Klarna and Replit appear only in LangChain's case studies (vendor claims).",
+  "label": "volatile",
+  "key": "Klarna and Replit appear only in LangChain's case studies",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. langchain: three eras, and what is still useful",
+  "text": "AWS's open-source blog introduced Pizza Bot, an inbox for background agents built on Deep Agents and LangGraph, on 10 September 2026, and says it \"is a community project rather than an AWS service\" ( AWS Open Source Blog ).",
+  "label": "volatile",
+  "key": "community project rather than an AWS service",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "A graph from zero Start from the problem.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "The running example's tests fail because of two bugs.",
+  "label": "core",
+  "key": "two bugs",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "A sensible workflow: run the tests, diagnose each failure (the two diagnoses are independent, so they can run at the same time), propose one fix from both diagnoses, show the fix to a person, and apply it only if they approve.",
+  "label": "core",
+  "key": "diagnose each failure",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "In plain Python that is five function calls in a row.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "LangGraph asks you to write the same thing as three kinds of object: State : a typed dictionary (a TypedDict , Pydantic model or dataclass) that every step reads and updates.",
+  "label": "core",
+  "key": "TypedDict",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "Here: the code, the test output, a list of diagnoses, the patch, the decision.",
+  "label": "core",
+  "key": "the diagnoses, the patch, the decision",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "Nodes : plain functions that take the state and return a partial update , a dictionary with only the keys they change.",
+  "label": "core",
+  "key": "partial update",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "A node never mutates the state it was given.",
+  "label": "core",
+  "key": "A node never mutates the state",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "Edges : which node runs after which.",
+  "label": "core",
+  "key": "which node runs after which",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "A normal edge always fires; a conditional edge calls a function on the state and returns the name of the next node (or several, or END ).",
+  "label": "core",
+  "key": "conditional edge",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "This is the graph that the Crash lab ran with real Claude Haiku 4.5 calls, trimmed to its shape (the full script is in this page's src/code/e6_real.py ): class S(TypedDict, total=False): core: str test_output: str diagnoses: Annotated[list, operator.add] # a reducer: parallel writes are concatenated patch: str decision: str passed: bool b = StateGraph(S) b.add_node(\"read_and_test\", read_and_test) # returns {\"core\": ..., \"test_output\": ...} b.add_node(\"diagnose_word_count\", diag(\"test_word_count\")) b.add_node(\"diagnose_top_words\", diag(\"test_top_words\")) b.add_node(\"propose_fix\", propose_fix) # one model call, returns {\"patch\": ...} b.add_node(\"human_review\", human_review) # calls interrupt(), returns {\"decision\": ...} b.add_node(\"apply_and_test\", apply_and_test) b.add_edge(START, \"read_and_test\") b.add_edge(\"read_and_test\", \"diagnose_word_count\") # two edges out of one node: b.add_edge(\"read_and_test\", \"diagnose_top_words\") # both run, in parallel b.add_edge([\"diagnose_word_count\", \"diagnose_top_words\"], \"propose_fix\") # wait for both b.add_edge(\"propose_fix\", \"human_review\") b.add_edge(\"human_review\", \"apply_and_test\") b.add_edge(\"apply_and_test\", END) app = b.compile(checkpointer=SqliteSaver(conn)) # the checkpointer is what makes it durable app.invoke({}, {\"configurable\": {\"thread_id\": \"fix-1\"}}) compile() checks the wiring (an edge to an unknown node raises ValueError: Found edge ending at unknown node ; a node that no edge reaches compiles without complaint MEASURED ) and returns a Pregel object, the runtime of section 3.",
+  "label": "core",
+  "key": "src/code/e6_real.py",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "It has invoke (run to the end or to the next interrupt), stream (the same, yielding events as it goes), get_state and get_state_history (read checkpoints) and update_state (write one, which is how you edit or rewind).",
+  "label": "core",
+  "key": "get_state_history",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "Every call carries a config whose thread_id names the run; with a checkpointer it is required (\"you must specify a thread_id \", docs ).",
+  "label": "core",
+  "key": "must specify a",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "Dashed arrows are conditional edges; solid ones always fire.",
+  "label": "core",
+  "key": "Dashed arrows",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "START and END are not nodes you write: START is where the input enters, and reaching END with nothing else scheduled ends the run.",
+  "label": "core",
+  "key": "reaching END with nothing else scheduled",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "A second way to write the same thing is the functional API (stable since langgraph 0.2.74, 19 Feb 2025, release notes ): ordinary Python control flow inside a function marked @entrypoint , calling functions marked @task whose results are saved.",
+  "label": "volatile",
+  "key": "stable in langgraph 0.2.74",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "Section 9 shows a measured example.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. a graph from zero",
+  "text": "Both compile to the same runtime: \"Compiling a StateGraph or creating an @entrypoint produces a Pregel instance\" ( docs ).",
+  "label": "core",
+  "key": "produces a Pregel instance",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "How a graph runs: super-steps LangGraph's README says it \"is inspired by Pregel and Apache Beam\".",
+  "label": "core",
+  "key": "inspired by Pregel and Apache Beam",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Pregel is Google's system for computing over huge graphs ( Malewicz et al., SIGMOD 2010 ); it runs in the bulk synchronous parallel style that Valiant described in 1990 ( CACM 33(8) ): work proceeds in rounds, everything in a round runs in parallel, and results are exchanged only at the barrier between rounds.",
+  "label": "core",
+  "key": "bulk synchronous parallel",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "LangGraph calls a round a super-step : \"a single tick of the graph where all nodes scheduled for that step execute (potentially in parallel)\" ( docs ).",
+  "label": "core",
+  "key": "a single tick of the graph",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Each super-step has three phases, which you can read straight out of pregel/_algo.py : Plan.",
+  "label": "core",
+  "key": "pregel/_algo.py",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Every state key is a channel with a version number that goes up each time it is written.",
+  "label": "core",
+  "key": "version number that rises on each write",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Edges are channels too, with names you never typed: branch:to:propose_fix , or join:diagnose_word_count+diagnose_top_words:propose_fix for a wait-for-both edge.",
+  "label": "core",
+  "key": "join:diagnose_word_count+diagnose_top_words:propose_fix",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Each node remembers the version of each trigger channel it last saw ( versions_seen ).",
+  "label": "core",
+  "key": "versions_seen",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "A node runs in this step if one of its trigger channels has a newer version than it saw.",
+  "label": "core",
+  "key": "runs in this step if one has a newer version",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "All triggered nodes run in parallel.",
+  "label": "core",
+  "key": "All triggered nodes run in parallel",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Each reads the state as it was at the start of the step , so no node sees another's output from the same step.",
+  "label": "core",
+  "key": "as of the start of the step",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "What a node returns is not applied yet: it is held, and saved, as a pending write .",
+  "label": "core",
+  "key": "pending write",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "At the barrier, all pending writes are applied together, sorted by task path rather than by finishing time, each through its channel's reducer; written channels get the next version; and a checkpoint is saved.",
+  "label": "core",
+  "key": "sorted by task path rather than finishing time",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Then the next plan starts.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "When no node is triggered, the run ends.",
+  "label": "core",
+  "key": "When no node is triggered, the run ends",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "A key with no reducer is a LastValue channel: it accepts exactly one write per step.",
+  "label": "core",
+  "key": "LastValue",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "A key annotated with a reducer ( Annotated[list, operator.add] , or add_messages for chat messages) is a BinaryOperatorAggregate channel: any number of writes are folded in.",
+  "label": "core",
+  "key": "BinaryOperatorAggregate",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Watch both on the same two-branch graph: findings with a reducer findings without a reducer Recorded MEASURED : each frame is drawn from the checkpoints and task events of a real run on langgraph 1.2.14 ( src/code/e1_supersteps.py ), not from a model of the algorithm.",
+  "label": "core",
+  "key": "Every frame is drawn from the checkpoints and task events of a real run",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Hidden trigger channels are left out here; the Super-step lab shows them, with versions_seen, on seven graphs.",
+  "label": "core",
+  "key": "show hidden trigger channels",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "What the toggle shows.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "With the reducer, the two findings are concatenated in a fixed order: check_top_words finished first, yet its finding comes second, because writes are applied by task path.",
+  "label": "core",
+  "key": "check_top_words finished first, yet its finding comes second",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Without it, the step fails with InvalidUpdateError: At key 'findings': Can receive only one value per step.",
+  "label": "core",
+  "key": "Can receive only one value per step",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Use an Annotated key to handle multiple values.",
+  "label": "core",
+  "key": "Use an Annotated key to handle multiple values",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "One more thing happened that the error message does not say MEASURED : both writes had already been saved as pending writes, so every later get_state() on that thread raised the same error.",
+  "label": "core",
+  "key": "every later get_state()",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "The thread is stuck until you write past it: update_state(config, {\"findings\": [...]}, as_node=\"check_tokenize\") saved a new checkpoint, after which invoke(None, config) finished the run MEASURED ; fix the schema before you run, not after.",
+  "label": "core",
+  "key": "as_node=\"check_tokenize\"",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "To bypass a reducer on purpose for one write (reset a list, say), return Overwrite(value) (since langgraph 1.0.2, 29 Oct 2025, release ).",
+  "label": "core",
+  "key": "Overwrite(value)",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Predict: branch A is two nodes long (search, then read the hits), branch B one node (lint).",
+  "label": "core",
+  "key": "branch A is two nodes long",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Both have a plain edge into join .",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "How many times does join run?",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "In super-step 3, B's edge has fired and A is still on its second node, so join is triggered by B alone and runs alongside a_read_hits ; in super-step 4 A's edge fires and join runs again.",
+  "label": "core",
+  "key": "join runs alongside a_read_hits",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "The recorded log is read, a_search, b_lint, a_read_hits, join, join .",
+  "label": "core",
+  "key": "read, a_search, b_lint, a_read_hits, join, join",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Written as add_edge([\"a_read_hits\", \"b_lint\"], \"join\") the edge becomes one join: channel that fires only when both have written, and join runs once.",
+  "label": "core",
+  "key": "add_edge([\"a_read_hits\", \"b_lint\"], \"join\")",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Plain edges mean \"run when any arrives\"; the list form means \"wait for all\".",
+  "label": "core",
+  "key": "run when any arrives",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Both runs are in the Super-step lab .",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Loops and the recursion limit.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "A conditional edge may point backwards (fix, test, fix again).",
+  "label": "core",
+  "key": "A conditional edge may point backwards",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Each pass is a super-step, and the run stops with GraphRecursionError when it exceeds recursion_limit super-steps.",
+  "label": "core",
+  "key": "GraphRecursionError",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "The default was 25 up to langgraph 1.0.x, then 10,000 in 1.1.0 and 10,007 in 1.2.0 SOURCE ( DEFAULT_RECURSION_LIMIT in _internal/_config.py of each wheel on PyPI; override with LANGGRAPH_DEFAULT_RECURSION_LIMIT or per call).",
+  "label": "core",
+  "key": "10,007 in 1.2.0",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Older tutorials that warn about hitting 25 describe the old default; a runaway agent loop now runs for a very long time unless you set a limit or a model-call limit (section 9) yourself.",
+  "label": "core",
+  "key": "a runaway loop now runs for a very long time",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Map-reduce with Send .",
+  "label": "core",
+  "key": "Map-reduce with",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "When the number of parallel tasks is known only at run time (one review per file), a conditional edge returns a list of Send(\"review\", {\"file\": f}) .",
+  "label": "core",
+  "key": "Send(\"review\", {\"file\": f})",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Each Send becomes one task in the next super-step, with its own input rather than the shared state.",
+  "label": "core",
+  "key": "with its own input instead of the shared state",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "Recorded: three files, three review tasks in one step, results gathered by a reducer, then summarise .",
+  "label": "core",
+  "key": "three files, three review tasks in one step",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "3. how a graph runs: super-steps",
+  "text": "The Super-step lab steps through seven recorded graphs (linear, fan-out with and without a reducer, uneven branches with plain edges and with a join, a loop, and Send), showing every channel's value and version, the hidden trigger channels, and each node's versions_seen at every phase.",
+  "label": "core",
+  "key": "Seven recorded graphs",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Checkpointers: what is saved, where, and how big it gets A checkpointer is the object you pass to compile(checkpointer=...) ; it saves a checkpoint at every super-step boundary and the pending writes of every task in between.",
+  "label": "core",
+  "key": "at every super-step boundary",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Without one, the state lives only in the running process, and interrupts cannot be resumed (section 6).",
+  "label": "core",
+  "key": "interrupts cannot be resumed",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "With one, a thread's whole history is in a database, keyed by thread_id .",
+  "label": "core",
+  "key": "a thread's whole history is in a database",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "What one checkpoint holds (the Checkpoint type in langgraph-checkpoint 4.2.0): id (unique and increasing, so it sorts by time), ts , channel_values (the state, plus trigger channels), channel_versions , versions_seen (per node) and updated_channels .",
+  "label": "core",
+  "key": "unique and increasing, so it sorts by time",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Beside it sits metadata: source ( input , loop , update or fork ), step (-1 for the input checkpoint, then 0, 1, 2 ...), the parent checkpoint and the run id.",
+  "label": "core",
+  "key": "-1 for the input checkpoint",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Pick a checkpoint of the recorded linear run to see the real thing: MEASURED straight from InMemorySaver.list() after the run (ids shortened to their last 8 characters, version strings to their counter).",
+  "label": "core",
+  "key": "straight from InMemorySaver.list()",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Pending writes are stored against the checkpoint before the step that produced them.",
+  "label": "core",
+  "key": "Pending writes are stored against the checkpoint before the step",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "The official list ( docs ): InMemorySaver (in the core package, \"for experimentation\"), SqliteSaver ( langgraph-checkpoint-sqlite , \"ideal for experimentation and local workflows\"), PostgresSaver ( langgraph-checkpoint-postgres , \"used in LangSmith.",
+  "label": "core",
+  "key": "Ideal for using in production",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Ideal for using in production\"), and separately packaged MongoDB and Azure Cosmos DB savers.",
+  "label": "core",
+  "key": "Azure Cosmos DB",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Redis appears in the docs only as a store (section 10), not a checkpointer: the old version of this page listed it as a checkpointer backend.",
+  "label": "core",
+  "key": "the old version of this page listed it as a checkpointer backend",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "The schemas, read from the two databases after the runs below MEASURED : SQLite (3.1.1): two tables. checkpoints (thread_id, checkpoint_ns, checkpoint_id, parent_checkpoint_id, type, checkpoint BLOB, metadata BLOB) and writes (thread_id, checkpoint_ns, checkpoint_id, task_id, idx, channel, type, value BLOB).",
+  "label": "depth",
+  "key": "parent_checkpoint_id",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Each checkpoint row holds the whole serialized state.",
+  "label": "core",
+  "key": "keeps the whole serialized state in each checkpoint row",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Postgres (3.1.2, Postgres 16 in Docker): four tables, created by setup() through 10 migrations. checkpoints (small JSONB rows), checkpoint_blobs (one row per channel per version, so an unchanged channel is not stored again), checkpoint_writes and checkpoint_migrations .",
+  "label": "depth",
+  "key": "through 10 migrations",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Values are serialized with JsonPlusSerializer (msgpack; pickle fallback off by default; LANGGRAPH_STRICT_MSGPACK=true restricts which classes may be rebuilt).",
+  "label": "depth",
+  "key": "LANGGRAPH_STRICT_MSGPACK",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "An EncryptedSerializer encrypts everything with an AES key from LANGGRAPH_AES_KEY ( docs ): checkpoints hold every prompt, tool result and secret your agent saw.",
+  "label": "core",
+  "key": "LANGGRAPH_AES_KEY",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Storage grows with the square of the run length An agent's state is mostly its message list, and the message list changes every step.",
+  "label": "core",
+  "key": "the list changes every step",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "A checkpoint stores the whole list each time, so a run of N steps that adds about the same amount per step stores about N(N+1)/2 copies' worth.",
+  "label": "core",
+  "key": "N(N+1)/2",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "The test: an agent-shaped graph with no model, 40 super-steps, each adding a tool call and a 1,000-character tool result, stored bytes read back after every step MEASURED .",
+  "label": "core",
+  "key": "1,000-character tool result",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "LangGraph 1.2 added a beta channel type, DeltaChannel , that stores only each step's new writes and rebuilds the value by replaying them: SQLite Postgres Stored bytes = checkpoint rows + blobs + writes, uncompressed ( length() in SQLite, octet_length() in Postgres).",
+  "label": "core",
+  "key": "DeltaChannel",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Tool results are hex text, different every step, so compression would not hide the growth. get_state times are one call on the M1 Pro; Postgres times include the round trip into Docker.",
+  "label": "core",
+  "key": "Tool results are hex text",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "So for long agent threads, either keep the message list short (summarise or trim with middleware, section 9, or a context policy ), prune old checkpoints, or try DeltaChannel , whose docstring marks it beta: \"The API and on-disk representation may change\".",
+  "label": "core",
+  "key": "prune old checkpoints",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Its price is on the read side: reading the state replays writes.",
+  "label": "core",
+  "key": "reading the state replays writes",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "Durability modes: when the checkpoint is written invoke(..., durability=...) takes one of three values ( docs ): \"sync\" persists \"synchronously before the next step starts\"; \"async\" , the default in the source, persists \"asynchronously while the next step executes\", with a \"small risk\" of losing a checkpoint in a crash; \"exit\" persists \"only when graph execution exits\", so \"you cannot recover from system failures (like process crashes) mid-execution\".",
+  "label": "core",
+  "key": "small risk",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. checkpointers: what is saved, where, and how big it gets",
+  "text": "The cost of each, on a one-node loop of 200 super-steps (best of 3) MEASURED : A fraction of a millisecond per step against model calls of seconds: for agents the overhead does not matter, and sync is the safe choice. exit exists for short graphs where you only care about the final state.",
+  "label": "core",
+  "key": "half a millisecond per step",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "What survives a crash Three things can stop a run halfway: the process dies (a deploy, an out-of-memory kill, a laptop lid), a node raises (a provider timeout), or a person has not answered yet.",
+  "label": "core",
+  "key": "out-of-memory kill",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "The first two are tested here; the third is section 6.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "A kill in the middle of a parallel step, no model.",
+  "label": "core",
+  "key": "First without a model",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "Graph: run the tests, then two checks in parallel (one 0.5 s, one 6 s), then merge.",
+  "label": "core",
+  "key": "(0.5 s and 6 s)",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "The process is sent SIGKILL about 3 s into the parallel step, after the fast check has returned and while the slow one is still running; a fresh process then calls invoke(None, config) on the same thread.",
+  "label": "core",
+  "key": "SIGKILL about 3 s into the parallel step",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "Every node appends to a log when it runs, so we can see what ran where MEASURED : With a checkpointer writing each step, the fast check's result survived as a pending write, and the resumed process ran only the slow check and the merge.",
+  "label": "core",
+  "key": "the resumed process ran only the slow check and the merge",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "The docs promise exactly this: \"When a graph node fails mid-execution at a given super-step, LangGraph stores pending checkpoint writes from any other nodes that completed successfully at that super-step.",
+  "label": "core",
+  "key": "don't re-run the successful nodes",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "When you resume graph execution from that super-step you don't re-run the successful nodes.\" The same happened when the slow node raised an exception instead of being killed: the database held the fast node's write plus an __error__ write, and the resume re-ran only the node that failed.",
+  "label": "core",
+  "key": "__error__",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "With exit nothing had been saved, invoke(None) failed with EmptyInputError: Received no input for __start__ , and the only option was to start over.",
+  "label": "core",
+  "key": "EmptyInputError: Received no input for __start__",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "The same experiment with real model calls.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "The graph of section 2, each diagnosis a Claude Haiku 4.5 call through claude -p with every tool off, killed the moment the first diagnosis returned, then resumed, then approved at the interrupt.",
+  "label": "core",
+  "key": "killed the whole process group the moment the first diagnosis returned",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "Once with sync , once with exit : Bars are model calls to scale in seconds, one lane per process; the red line is the SIGKILL.",
+  "label": "core",
+  "key": "the red line is the SIGKILL",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "A call cut by the kill (hatched) was in flight: its tokens may well have been billed, but no result came back and the recording has no usage for it.",
+  "label": "core",
+  "key": "its tokens may well have been billed",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "Call times overlap other agents' load on the same machine, so durations are indicative.",
+  "label": "core",
+  "key": "durations are indicative",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "Full transcripts and the replay: Crash lab .",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "What a checkpointer does not do.",
+  "label": "core",
+  "key": "What a checkpointer does not do",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "It does not restart anything: some supervisor (a job queue, Kubernetes, the Agent Server of section 11) must notice the dead run and call resume with the same thread_id .",
+  "label": "core",
+  "key": "It restarts nothing",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "It cannot save the call that was in flight; the smaller your nodes, the less a crash costs.",
+  "label": "core",
+  "key": "the smaller your nodes, the less a crash costs",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "And it cannot make side effects safe: a node that sent an e-mail and then died before its write was saved will send it again on resume.",
+  "label": "core",
+  "key": "sends it again on resume",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "Per node, LangGraph adds three knobs: RetryPolicy (defaults in 1.2.14: first wait 0.5 s, doubling, at most 128 s, 3 attempts in all, with jitter), TimeoutPolicy (1.2; run and idle timeouts, \"Timeouts apply to async nodes only\", 1.2.0a6 notes ), and error_handler (1.2; runs after the retries are exhausted and may return a Command , for compensation steps).",
+  "label": "core",
+  "key": "at most 128 s",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "5. what survives a crash",
+  "text": "The parent's Orchestration lab tab, part \"Durable execution\", kills, resumes, interrupts and forks a linear version of this graph and contrasts the checkpointer with Temporal-style event-history replay; this page's Crash lab replays both runs above call by call.",
+  "label": "core",
+  "key": "Temporal-style event-history replay",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "6. interrupts and command: pausing for a person, and routing from inside a node",
+  "text": "Interrupts and Command: pausing for a person, and routing from inside a node An agent about to apply a patch, pay a refund or send an e-mail should sometimes ask first, and the answer may come tomorrow.",
+  "label": "core",
+  "key": "the answer may come tomorrow",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "6. interrupts and command: pausing for a person, and routing from inside a node",
+  "text": "Holding a process open for a day is fragile, so LangGraph does it with the checkpoint: inside a node, interrupt(payload) raises a special exception, the runtime saves the state, and invoke returns with the payload (in the 1.1+ version=\"v2\" format, in result.interrupts ).",
+  "label": "core",
+  "key": "result.interrupts",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "6. interrupts and command: pausing for a person, and routing from inside a node",
+  "text": "Later, from any process, invoke(Command(resume=answer), config) loads the thread and runs the node again, and this time interrupt() returns the answer instead of raising. \"The thread_id you choose is effectively your persistent cursor\" ( docs ).",
+  "label": "core",
+  "key": "interrupt() returns the answer instead of raising",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. interrupts and command: pausing for a person, and routing from inside a node",
+  "text": "The key phrase is runs the node again : from its first line (\"The graph resumes from the start of the node, re-executing all logic\", interrupt 's docstring).",
+  "label": "core",
+  "key": "re-executing all logic",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. interrupts and command: pausing for a person, and routing from inside a node",
+  "text": "Watch a node that sends a notification e-mail and then asks for approval, against the same node with the e-mail moved after the question: e-mail before interrupt() e-mail after interrupt() MEASURED counters are the recorded counts of each line's executions in src/code/e4_interrupts.py (no model); the highlighted line is the one running.",
+  "label": "core",
+  "key": "move the e-mail after the question",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. interrupts and command: pausing for a person, and routing from inside a node",
+  "text": "Every rule in the docs follows from that one fact, and each was checked here MEASURED : Command is the object that carries these instructions.",
+  "label": "core",
+  "key": "Every rule in the docs follows from that one fact",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. interrupts and command: pausing for a person, and routing from inside a node",
+  "text": "Command(resume=...) answers interrupts; returned from a node, Command(update={...}, goto=\"node\") updates the state and picks the next node in one move (the node must declare its possible destinations, for example add_node(\"triage\", f, destinations=(\"billing\", \"tech\")) , so the graph can be drawn); goto may also be a Send or a list; and graph=Command.PARENT sends the jump to the enclosing graph, which is how one agent hands a conversation to another (section 8).",
+  "label": "core",
+  "key": "destinations=(\"billing\", \"tech\")",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "6. interrupts and command: pausing for a person, and routing from inside a node",
+  "text": "Static breakpoints , compile(interrupt_before=[\"apply\"]) , stop before a node without any code in it; resuming is invoke(None, config) .",
+  "label": "core",
+  "key": "interrupt_before=[\"apply\"]",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "6. interrupts and command: pausing for a person, and routing from inside a node",
+  "text": "The docs keep them for debugging: \"Static interrupts are not recommended for human-in-the-loop workflows.\" Time travel uses the same machinery: get_state_history(config) lists every checkpoint; update_state(old_config, values, as_node=...) writes a new checkpoint whose parent is an old one (a fork), and invoke(None, new_config) runs forward from it.",
+  "label": "core",
+  "key": "not recommended for human-in-the-loop workflows",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "6. interrupts and command: pausing for a person, and routing from inside a node",
+  "text": "The parent's Orchestration lab forks a recorded run with an edited diagnosis; it is not repeated here.",
+  "label": "core",
+  "key": "forks a recorded run with an edited diagnosis",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "7. streaming: seven views of one run",
+  "text": "Streaming: seven views of one run A run that takes minutes needs to show progress. stream(..., stream_mode=...) yields events as the graph runs, and the mode decides what an event is.",
+  "label": "core",
+  "key": "yields events as the graph runs",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "7. streaming: seven views of one run",
+  "text": "Same two-check graph as section 3, one run per mode, events counted MEASURED ; click a mode to see what it emitted: messages is the mode for chat interfaces: it yields each model token with metadata saying which node and step produced it, and needs a model, so it was measured on the create_agent run of section 9 instead.",
+  "label": "core",
+  "key": "measured on the create_agent run of section 9",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "7. streaming: seven views of one run",
+  "text": "Several modes can be combined ( stream_mode=[\"updates\", \"custom\"] yields (mode, data) pairs), and subgraphs=True adds events from inside subgraphs with their namespace.",
+  "label": "core",
+  "key": "subgraphs=True",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "7. streaming: seven views of one run",
+  "text": "Since 1.1, version=\"v2\" makes every event a typed dictionary {\"type\", \"ns\", \"data\"} (recorded above under \"v2\"); since 1.2 the docs recommend a third API for new applications, event streaming ( stream_events(..., version=\"v3\") , beta), with one typed stream per model call ( docs ).",
+  "label": "core",
+  "key": "version=\"v3\"",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "8. subgraphs and handoffs",
+  "text": "Subgraphs and handoffs A compiled graph can be a node of another graph.",
+  "label": "core",
+  "key": "A compiled graph can be a node of another",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "8. subgraphs and handoffs",
+  "text": "Two ways to do it, which behave differently on resume.",
+  "label": "core",
+  "key": "behave differently on resume",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "8. subgraphs and handoffs",
+  "text": "Recorded: a parent graph ( triage , fix_bug , apply ) whose fix_bug is a two-node subgraph ( locate , then patch , which calls interrupt() ) MEASURED : In both, the subgraph got its own checkpoints under a namespace ( fix_bug:<task id> ), so locate was not re-run on resume and get_state(config, subgraphs=True) showed the paused subgraph's own state.",
+  "label": "core",
+  "key": "is a two-node subgraph",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "8. subgraphs and handoffs",
+  "text": "The difference: called from inside a function, the parent's wrapper function ran twice, because the parent node is what resumes from its first line.",
+  "label": "core",
+  "key": "the parent's wrapper function ran twice",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "8. subgraphs and handoffs",
+  "text": "Whether a subgraph keeps state between calls is set by compile(checkpointer=...) on the subgraph: None (default) inherits the parent's checkpointer for one call, True keeps state per thread, False keeps none ( docs ).",
+  "label": "core",
+  "key": "True keeps state per thread",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "8. subgraphs and handoffs",
+  "text": "A node inside a subgraph returned Command(goto=\"billing\", graph=Command.PARENT, update={...}) ; the parent ran billing next, and the final log was [\"triage: refund question, handing off\", \"billing: handled\"] MEASURED .",
+  "label": "core",
+  "key": "billing: handled",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "8. subgraphs and handoffs",
+  "text": "That is the whole mechanism behind LangGraph's handoff pattern.",
+  "label": "core",
+  "key": "the whole mechanism behind LangGraph's handoff pattern",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "8. subgraphs and handoffs",
+  "text": "The prebuilt langgraph-supervisor and langgraph-swarm packages still exist, but the supervisor README now says \"We now recommend using the supervisor pattern directly via tools rather than this library for most use cases\", and neither has had a release since December 2025 ( langgraph-supervisor ); LangChain's multi-agent docs point to subagents as tools and to Deep Agents.",
+  "label": "core",
+  "key": "We now recommend using the supervisor pattern directly via tools",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "8. subgraphs and handoffs",
+  "text": "When several agents help at all is the subject of Multi-agent patterns , whose section 6 sets handoffs like this one against agents called as tools.",
+  "label": "core",
+  "key": "sets handoffs like this one against agents called as tools",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "9. create_agent and middleware: the agent loop as a graph Most people never write a StateGraph for a tool-calling agent: LangChain 1.x gives you one. create_agent(model, tools, system_prompt=..., middleware=[...], checkpointer=...) builds the ReAct -style loop (call the model; if it asked for tools, run them and call it again; otherwise stop) and \"uses LangGraph under the hood\" ( LangChain ).",
+  "label": "core",
+  "key": "uses LangGraph under the hood",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "It replaces LangGraph's create_react_agent , deprecated since 1.0 and due for removal in 2.0 ( migration guide ).",
+  "label": "core",
+  "key": "create_react_agent",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "Middleware is how you change that loop without rewriting it.",
+  "label": "core",
+  "key": "changes that loop without rewriting it",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "A middleware class implements some of six hooks ( docs ): before_agent and after_agent (once per invocation), before_model and after_model (around every model call, as graph nodes that may return a state update or jump), and wrap_model_call and wrap_tool_call (functions wrapped around each call, for retries, fallbacks, caching or rewriting the request). before_* hooks run first to last, after_* last to first, and wrap hooks nest like function calls.",
+  "label": "core",
+  "key": "wrap hooks nest like function calls",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "Built in: HumanInTheLoopMiddleware , SummarizationMiddleware , ModelCallLimitMiddleware , ToolCallLimitMiddleware , ModelRetryMiddleware , ToolRetryMiddleware , ModelFallbackMiddleware , ToolErrorMiddleware , PIIMiddleware , TodoListMiddleware , LLMToolSelectorMiddleware , ProviderToolSearchMiddleware , ContextEditingMiddleware , ShellToolMiddleware , FilesystemFileSearchMiddleware and LLMToolEmulator (the exports of langchain.agents.middleware in 1.4.3; the docs page adds filesystem, subagent and rubric middleware from the deepagents package).",
+  "label": "depth",
+  "key": "ProviderToolSearchMiddleware",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "The hooks become nodes.",
+  "label": "core",
+  "key": "The hooks become nodes",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "The compiled graph of the same agent without and with two middlewares, read with get_graph() MEASURED : no middleware HumanInTheLoop + ModelCallLimit A recorded run.",
+  "label": "core",
+  "key": "read with get_graph()",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "The running example with three tools ( read_file , run_tests , write_file ), write_file behind the approval middleware, a SQLite checkpointer, and a small local model (Qwen3-4B-Instruct-2507, 4-bit, on mlx-lm on the M1 Pro, temperature 0) through LangChain's ChatOpenAI pointed at the local server; every HTTP request was logged.",
+  "label": "core",
+  "key": "Qwen3-4B-Instruct-2507",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "The approval middleware calls interrupt() with the pending tool calls; the \"person\" was a script, run twice: once approving everything, once rejecting any write outside textstats/ with a reason MEASURED : reviewer approves everything reviewer checks the path The first request, exactly as sent The interrupt payload of the first approval Messages from the checkpoint after the run, each shortened.",
+  "label": "core",
+  "key": "rejecting any write outside",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "Times per request include waiting for a lock shared with other agents using the same local server, so they are not model speed.",
+  "label": "core",
+  "key": "they are not model speed",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "This is a 4-billion-parameter local model, not Claude: the point is what the framework did, not how well the model did.",
+  "label": "core",
+  "key": "A 4-billion-parameter local model",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "First, the request: the first body sent to the server held our system prompt verbatim, the user message, and three tool schemas generated from the functions' signatures and docstrings, with nothing added by LangChain MEASURED (open \"The first request\" below), which answers the hidden-prompt criticism for this version.",
+  "label": "core",
+  "key": "with nothing added by LangChain",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "Second, the gate: the interrupt payload is a HITLRequest , a list of action_requests (tool name, arguments, description) plus the decisions allowed for each; the answer is {\"decisions\": [...]} , each approve , edit (replace the arguments), reject (with a message the model sees as the tool result) or respond (answer instead of running the tool).",
+  "label": "core",
+  "key": "HITLRequest",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "Third, the human matters: the model wrote a brand-new core.py at the repository root; the approve-all reviewer let it through and the bugs stayed; the checking reviewer's rejection message made the model read the real file and fix one of the two bugs, after which it declared success without running the tests.",
+  "label": "core",
+  "key": "declared success without running the tests",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "Gates are only as good as the reviewer, and an agent's final message is not evidence.",
+  "label": "core",
+  "key": "an agent's final message is not evidence",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "The functional API, measured.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "The same durability with plain Python: an @entrypoint function called two @task diagnoses in parallel and then a propose task per diagnosis; the first propose raised a simulated provider timeout.",
+  "label": "core",
+  "key": "simulated provider timeout",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "9. create_agent and middleware: the agent loop as a graph",
+  "text": "Calling invoke(None, config) again finished the run, and the task counters were MEASURED : finished tasks' results came from the checkpoint, only the failed one and the tasks after it ran.",
+  "label": "core",
+  "key": "finished tasks came from the checkpoint",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "10. the store: memory across threads",
+  "text": "The store: memory across threads A checkpoint belongs to one thread: a new conversation starts empty.",
+  "label": "core",
+  "key": "a new conversation starts empty",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "10. the store: memory across threads",
+  "text": "What should carry over (a user's preferences, facts about a project) goes in a store : \"LangGraph stores provide cross-thread long-term memory, complementing per-thread checkpointer persistence\" ( docs ).",
+  "label": "core",
+  "key": "complementing per-thread checkpointer persistence",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "10. the store: memory across threads",
+  "text": "A store is a key-value database whose keys live in namespaces , tuples such as (\"users\", user_id, \"prefs\") ; you pass it to compile(store=...) and a node receives it as an argument.",
+  "label": "core",
+  "key": "(\"users\", user_id, \"prefs\")",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "10. the store: memory across threads",
+  "text": "Recorded, three threads of one graph sharing an InMemoryStore MEASURED : Backends: InMemoryStore for tests, and PostgresStore , MongoDBStore , RedisStore or UpstashStore for production; with an index configuration (an embedding function, its dimensions and the fields to embed) store.search(namespace, query=...) does semantic search ( docs ; not run here: it needs an embedding model).",
+  "label": "core",
+  "key": "UpstashStore",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "10. the store: memory across threads",
+  "text": "A store keeps exactly what your node writes; what to remember, what to do when a new fact contradicts an old one, and when to retrieve is a design problem of its own, which a memory layer hands to a model.",
+  "label": "core",
+  "key": "A store keeps exactly what your node writes",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "10. the store: memory across threads",
+  "text": "Agent memory layers compares three of them (Mem0, Zep's Graphiti and Letta) on one twelve-session conversation; one finding there is that Mem0's open-source library has been \"single-pass, ADD-only\" since v2.0.0 (16 April 2026), one model call per add() and no UPDATE or DELETE.",
+  "label": "owned:agents_and_retrieval/topic_agentic_harnesses/context_engineering",
+  "key": "ADD-only",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "11. deployment: langsmith deployment and the agent server",
+  "text": "Deployment: LangSmith Deployment and the Agent Server Everything above runs in your own process with your own database, and you own the parts a checkpointer does not do: a process to run each graph, a queue, something that notices a dead run and resumes it, and an HTTP API.",
+  "label": "core",
+  "key": "you own what a checkpointer does not do",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "11. deployment: langsmith deployment and the agent server",
+  "text": "LangChain sells those as a service.",
+  "label": "core",
+  "key": "LangChain sells those as LangSmith Deployment",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "11. deployment: langsmith deployment and the agent server",
+  "text": "Names changed in October 2025: \"LangGraph Platform is now LangSmith Deployment and LangGraph Studio is now LangSmith Studio\" ( LangSmith changelog, 13 to 17 Oct 2025 ); the server formerly called LangGraph Server is now the Agent Server , \"built on the concept of assistants\" with \"built-in persistence and a task queue\" ( docs ), and \"you do not need to implement or configure checkpointers or stores manually\" when using it.",
+  "label": "core",
+  "key": "built on the concept of assistants",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "11. deployment: langsmith deployment and the agent server",
+  "text": "Studio is a visual debugger over a running graph's threads, checkpoints and interrupts.",
+  "label": "core",
+  "key": "visual debugger over a running graph's threads",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "11. deployment: langsmith deployment and the agent server",
+  "text": "Prices change; on 6 October 2026 the pricing page listed a Plus plan at $39 per seat per month with one small deployment included, and usage-metered compute beyond it ( pricing ; read through a summarising fetch, so treat the figures as indicative).",
+  "label": "volatile",
+  "key": "$39 per seat per month",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "11. deployment: langsmith deployment and the agent server",
+  "text": "Hosted agent runtimes in general (Claude Managed Agents, the OpenAI Agents API) are compared on the parent's Production stack tab.",
+  "label": "core",
+  "key": "Claude Managed Agents",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "The criticisms, checked, and when LangGraph earns its keep The criticism of LangChain is old, specific and mostly about the pre-1.0 package: Abstraction tax.",
+  "label": "core",
+  "key": "mostly about the pre-1.0 package",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "Max Woolf, 14 Jul 2023: \"The problem with LangChain is that it makes simple things relatively complex\" ( minimaxir.com ).",
+  "label": "core",
+  "key": "makes simple things relatively complex",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "Octomind (Fabian Both; the page is undated, the first archived copy is from 14 Jun 2024; the site is gone): \"We used LangChain in production for over 12 months, starting in early 2023 then removing it in 2024\", and \"in hindsight, we would've been better off long-term without a framework\" ( archived copy ).",
+  "label": "core",
+  "key": "removing it in 2024",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "Both target prompt templates, output parsers and LCEL chains, which 1.0 moved to langchain-classic ; neither discusses LangGraph.",
+  "label": "core",
+  "key": "neither discusses LangGraph",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "Hamel Husain, 14 Feb 2024: the prompts a framework sends are \"the fastest way to understand how they work\" ( hamel.dev ).",
+  "label": "core",
+  "key": "the fastest way to understand how they work",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "Anthropic, 19 Dec 2024: frameworks \"often create extra layers of abstraction that can obscure the underlying prompts and responses, making them harder to debug\" ( Building effective agents ).",
+  "label": "core",
+  "key": "obscure the underlying prompts",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "The first version of that page named \"LangGraph from LangChain\" first among the frameworks it meant ( archived 20 Dec 2024 ); the current one names others.",
+  "label": "core",
+  "key": "LangGraph from LangChain",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "The cure is unchanged: log the literal request, as section 9 does.",
+  "label": "core",
+  "key": "log the literal request",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "For a linear tool loop a schema, nodes, edges and compile() are overhead over a loop you can write in thirty lines; the parent's Same agent, six ways tab shows the same agent in both styles.",
+  "label": "core",
+  "key": "Same agent, six ways",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "The 0.x years broke APIs often.",
+  "label": "core",
+  "key": "broke APIs often",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "Since October 2025 the promise is \"no breaking changes until 2.0\", and 1.0 is a long-term-support line until 2.0 ships ( release policy ); a year in, no 2.x exists, while defaults still move inside 1.x (the recursion limit went from 25 to 10,000 in 1.1.0, section 3).",
+  "label": "core",
+  "key": "long-term-support line",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "Two critiques this page adds from its own runs: the reducer error leaves a thread unreadable until repaired (section 3), and resuming re-executes the interrupted node and its wrapper (sections 6 and 8), which is correct but surprises everyone once.",
+  "label": "core",
+  "key": "Two this page adds from its runs",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "When LangGraph earns its keep Runs long enough that a crash or deploy mid-run must not lose paid work (pending writes saved the finished diagnosis in section 5).",
+  "label": "core",
+  "key": "A crash or deploy mid-run must not lose paid work",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "Approvals that wait hours or days: interrupt plus checkpoint, resumable from any process.",
+  "label": "core",
+  "key": "Approvals that wait hours or days",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "Real branching: parallel fan-out with merge rules, wait-for-all joins, loops with limits, map-reduce over a list known only at run time.",
+  "label": "core",
+  "key": "wait-for-all joins",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "If you have hand-built a DAG engine over model calls, this is that engine plus persistence, streaming and rewind.",
+  "label": "core",
+  "key": "A small DAG engine over model calls",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "You want inspection: every intermediate state is a row you can read, diff and fork.",
+  "label": "core",
+  "key": "read, diff and fork any intermediate state",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "12. the criticisms, checked, and when langgraph earns its keep",
+  "text": "If none applies, a plain loop over provider calls behind a gateway such as LiteLLM ( Gateways and routing ), with tracing ( LLM observability ), is the simpler system; if you only need a typed agent loop, the four libraries in Typed agent libraries are lighter; and if you want a finished harness (tools, permissions, hooks, sessions) rather than a graph you assemble, the Claude Agent SDK runs Claude Code's own loop as a library.",
+  "label": "core",
+  "key": "runs Claude Code's own loop as a library",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Two parallel nodes write the same key that has no reducer InvalidUpdateError at the end of the step, and the saved pending writes keep the thread failing on every read until update_state repairs it (section 3).",
+  "label": "depth",
+  "key": "keep the thread failing on every read",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Give every key that parallel nodes write a reducer.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting a join with plain edges Two plain edges into one node mean \"run when either arrives\": with branches of different lengths the node runs twice.",
+  "label": "depth",
+  "key": "the node runs twice",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use add_edge([\"a\", \"b\"], \"join\") to wait for both (section 3).",
+  "label": "depth",
+  "key": "add_edge([\"a\", \"b\"], \"join\")",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A side effect before interrupt() The node re-runs from its first line on resume, so the e-mail is sent twice (measured, section 6).",
+  "label": "depth",
+  "key": "the e-mail is sent twice",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Put side effects after the interrupt, in a later node, or make them idempotent with a key.",
+  "label": "depth",
+  "key": "make it idempotent with a key",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Wrapping interrupt() in try/except Exception The interrupt is an exception; a bare except catches it and the node carries on without pausing (measured: the except branch auto-approved).",
+  "label": "depth",
+  "key": "it auto-approved",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Catch specific exception types only.",
+  "label": "depth",
+  "key": "catch specific types",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "No checkpointer in production, or InMemorySaver Without a checkpointer an interrupt still returns its payload, but Command(resume=...) fails with \"Cannot use Command(resume=...) without checkpointer\" (measured).",
+  "label": "depth",
+  "key": "the interrupt returns but the resume fails",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "InMemorySaver loses everything with the process.",
+  "label": "depth",
+  "key": "in-memory state dies with the process",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use Postgres (or SQLite for one machine).",
+  "label": "depth",
+  "key": "use Postgres, or SQLite on one machine",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Reusing a thread_id for a new conversation, or a new one for a resume The thread id is the cursor: the same id continues (and appends to) the old state; a different id starts from nothing.",
+  "label": "depth",
+  "key": "the id is the cursor",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Resume with the id the paused run used, which your approval link must carry.",
+  "label": "depth",
+  "key": "your approval link must carry",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Letting the message list grow forever Storage grows with the square of the run length (section 4: 1.3 MB for 40 small steps).",
+  "label": "depth",
+  "key": "1.3 MB for 40 small steps",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Trim or summarise messages, prune checkpoints, or try DeltaChannel (beta).",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Trusting the old recursion limit Tutorials say a loop stops at 25 super-steps; since langgraph 1.1.0 the default is 10,000 (10,007 in 1.2).",
+  "label": "depth",
+  "key": "Trusting the old recursion limit of 25",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Set recursion_limit or a model-call limit yourself.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Approving tool calls without reading them The approval gate only helps if the reviewer checks what it shows.",
+  "label": "depth",
+  "key": "Approving tool calls without reading them",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "In section 9, an approve-everything reviewer let a 4B model write a new core.py in the wrong directory.",
+  "label": "depth",
+  "key": "in the wrong directory",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Assuming LangGraph restarts crashed runs It saves state; it does not watch processes.",
+  "label": "depth",
+  "key": "it saves state",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A supervisor, queue or the Agent Server has to call resume.",
+  "label": "depth",
+  "key": "a supervisor, a queue or the Agent Server must call resume",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Interview questions What is a super-step, and why does LangGraph use them?",
+  "label": "depth",
+  "key": "What is a super-step, and why does LangGraph use them?",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "One round of the graph: plan which nodes are triggered (a trigger channel has a version newer than the node last saw), run them all in parallel against the state as of the step start, then apply all their writes together through the reducers and save a checkpoint.",
+  "label": "depth",
+  "key": "plan the triggered nodes",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Taken from Pregel and bulk synchronous parallel computing.",
+  "label": "depth",
+  "key": "From Pregel and bulk synchronous",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "It makes parallel branches deterministic (writes applied in a fixed order) and gives a natural point to checkpoint.",
+  "label": "depth",
+  "key": "fixed write order",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What does a reducer do, and what happens without one?",
+  "label": "depth",
+  "key": "What does a reducer do",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "It merges several writes to one key in a step (append, add, merge messages by id).",
+  "label": "depth",
+  "key": "merge messages by id",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Without one, a key accepts one write per step; two parallel writes raise InvalidUpdateError.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A run crashes while two nodes are running in parallel; one had finished.",
+  "label": "depth",
+  "key": "one had finished",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What re-runs on resume?",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "With a checkpointer in sync or async mode, only the unfinished one: the finished node's output was saved as a pending write against the step's checkpoint.",
+  "label": "depth",
+  "key": "the finished output was a pending write",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "With durability \"exit\", everything: nothing was saved.",
+  "label": "depth",
+  "key": "With \"exit\", everything",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The call that was in flight is lost and paid again either way.",
+  "label": "depth",
+  "key": "The call in flight is lost and paid again either way",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How does interrupt() work, and what is the trap?",
+  "label": "depth",
+  "key": "what is the trap?",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "It raises a special exception; the runtime saves state and returns the payload.",
+  "label": "depth",
+  "key": "It raises; the runtime saves state",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Command(resume=value) reloads the thread and re-runs the node from its first line, and interrupt() then returns the value.",
+  "label": "depth",
+  "key": "re-runs the node from its first line",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Trap: everything before it runs again, so side effects there repeat.",
+  "label": "depth",
+  "key": "Everything before it runs again",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Multiple interrupts in a node are matched by order; parallel ones are resumed by interrupt id.",
+  "label": "depth",
+  "key": "parallel ones resume by id",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A checkpointer saves the full graph state per thread, every step: short-term memory, resume, time travel.",
+  "label": "depth",
+  "key": "saves the full graph state per thread at every step",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A store holds application key-value data across threads in namespaces: long-term memory such as user preferences, optionally with semantic search.",
+  "label": "depth",
+  "key": "optionally with semantic search",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Durability modes: which would you choose for an agent and why? sync: the checkpoint is written before the next step starts, so a crash never loses a finished step; the measured cost is under half a millisecond per step on SQLite, nothing next to a model call. async (the default) overlaps the write with the next step at a small risk; exit writes only at the end and cannot recover from a crash.",
+  "label": "depth",
+  "key": "async (the default) overlaps the write",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How would you implement a multi-day human approval with LangGraph?",
+  "label": "depth",
+  "key": "Design a multi-day human approval",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Postgres checkpointer; the approval node calls interrupt() with the diff; the run returns; store the thread_id in the approval request; the approve endpoint calls invoke(Command(resume=\"approve\"), {\"thread_id\": ...}) from any worker; keep side effects after the interrupt; something must retry if that worker dies.",
+  "label": "depth",
+  "key": "store the thread_id in the approval request",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What is create_agent and how does middleware change the graph?",
+  "label": "depth",
+  "key": "how does middleware change the graph",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "LangChain 1.x's standard tool-calling loop, compiled to a LangGraph graph with a model node and a tools node.",
+  "label": "depth",
+  "key": "a model node and a tools node",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Each middleware hook (before_model, after_model and so on) becomes its own node on the path, and wrap hooks nest around the model or tool call; the human-in-the-loop middleware is an after_model node that calls interrupt() with the pending tool calls.",
+  "label": "depth",
+  "key": "after_model node that calls interrupt()",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "When would you not use LangGraph?",
+  "label": "depth",
+  "key": "When would you not use LangGraph?",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A short, linear tool loop with no need to survive crashes, wait for people, branch in parallel or inspect intermediate state: a plain loop is simpler and shows you every prompt.",
+  "label": "depth",
+  "key": "a plain loop is simpler and shows every prompt",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Measurements: langgraph 1.2.14, langchain 1.4.3, langchain-core 1.6.7, langgraph-checkpoint 4.2.0, langgraph-checkpoint-sqlite 3.1.1, langgraph-checkpoint-postgres 3.1.2 (Postgres 16 in Docker), langchain-openai 1.6.7, Python 3.12, Apple M1 Pro, 6 October 2026.",
+  "label": "core",
+  "key": "Postgres 16 in Docker",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Model calls: Claude Haiku 4.5 through Claude Code ( claude -p , tools off, --setting-sources project --strict-mcp-config --no-session-persistence , Claude subscription) and a local Qwen3-4B-Instruct-2507 4-bit model on mlx-lm.",
+  "label": "core",
+  "key": "--strict-mcp-config",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Scripts, redacted recordings and data in this page's src/ .",
+  "label": "core",
+  "key": "Scripts, redacted recordings and data",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-steps",
+  "section": "super-step lab: seven graphs, every phase, every channel",
+  "text": "Super-step lab: seven graphs, every phase, every channel Each graph below was compiled and run on langgraph 1.2.14 with an InMemorySaver ; the frames are built from what the run left behind (every checkpoint's channel values, versions and versions_seen, every task's start and finish event) MEASURED .",
+  "label": "core",
+  "key": "with an InMemorySaver",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-steps",
+  "section": "super-step lab: seven graphs, every phase, every channel",
+  "text": "No model is involved: nodes are plain functions, so the traces are exact.",
+  "label": "core",
+  "key": "so their traces are exact",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-steps",
+  "section": "super-step lab: seven graphs, every phase, every channel",
+  "text": "Pick a graph and step through it; the before/after pairs are \"with and without a reducer\" and \"plain edges against a join\". show hidden trigger channels ( branch:to: , join: , __start__ , __pregel_tasks ) versions_seen at this point How to read it Plan (amber outline): the nodes whose trigger channel has a version above the one recorded for them in versions_seen.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-steps",
+  "section": "super-step lab: seven graphs, every phase, every channel",
+  "text": "The trigger of a node reached by a plain edge is branch:to:<node> ; a wait-for-all edge uses one join:a+b:node channel, which becomes available only when every source has written.",
+  "label": "core",
+  "key": "one join: channel that fires only when both have written",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-steps",
+  "section": "super-step lab: seven graphs, every phase, every channel",
+  "text": "Execute (filled blue): the tasks of this super-step and their pending writes.",
+  "label": "core",
+  "key": "their pending writes listed under the table",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-steps",
+  "section": "super-step lab: seven graphs, every phase, every channel",
+  "text": "Each task saw the state as of the start of the step.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-steps",
+  "section": "super-step lab: seven graphs, every phase, every channel",
+  "text": "Update : all writes applied in task-path order through each channel's reducer; changed rows are highlighted; versions go up; a checkpoint is saved.",
+  "label": "core",
+  "key": "changed rows highlighted",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-steps",
+  "section": "super-step lab: seven graphs, every phase, every channel",
+  "text": "The counters count node executions and saved checkpoints.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-steps",
+  "section": "super-step lab: seven graphs, every phase, every channel",
+  "text": "Version numbers here are the integer part of LangGraph's version strings (it uses a counter plus a random suffix); only their order matters.",
+  "label": "core",
+  "key": "a counter plus a random suffix",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-steps",
+  "section": "super-step lab: seven graphs, every phase, every channel",
+  "text": "What each graph teaches Script: src/code/e1_supersteps.py ; data: src/data/e1_supersteps.json .",
+  "label": "core",
+  "key": "src/data/e1_supersteps.json",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-steps",
+  "section": "super-step lab: seven graphs, every phase, every channel",
+  "text": "The recovery of the failed thread with update_state is in src/data/e1b_checks.json .",
+  "label": "core",
+  "key": "src/data/e1b_checks.json",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-crash",
+  "section": "crash lab: kill a graph that is paying for model calls",
+  "text": "Crash lab: kill a graph that is paying for model calls The graph of Reading section 2 on the running example: run the tests, diagnose the two failures in parallel (each one Claude Haiku 4.5 call through claude -p , every tool off), propose one fix, wait for approval at an interrupt() , apply and test.",
+  "label": "core",
+  "key": "every tool off",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-crash",
+  "section": "crash lab: kill a graph that is paying for model calls",
+  "text": "A driver started it, sent SIGKILL to the whole process group the moment the first diagnosis returned, started a second process that called invoke(None) on the same thread (or a fresh invoke({}) when there was no checkpoint), and a third that answered the interrupt with Command(resume=\"approve\") .",
+  "label": "core",
+  "key": "started a second process that called",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-crash",
+  "section": "crash lab: kill a graph that is paying for model calls",
+  "text": "Same input twice: with durability=\"sync\" and with \"exit\" MEASURED . durability=\"sync\" durability=\"exit\" Every model call in this run Click a row to read the model's answer (the recording's result text).",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-crash",
+  "section": "crash lab: kill a graph that is paying for model calls",
+  "text": "Input and output tokens and the cost equivalent ( total_cost_usd , priced at API list prices; the subscription is what pays) come from each call's result record; output includes the model's thinking tokens.",
+  "label": "core",
+  "key": "output includes thinking tokens",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-crash",
+  "section": "crash lab: kill a graph that is paying for model calls",
+  "text": "What was in the database when the process died (no-model version) The same kill on the no-model graph of Reading section 5 (a 0.5 s check and a 6 s check in parallel), read back from SQLite straight after the kill.",
+  "label": "core",
+  "key": "Read back from SQLite straight after the kill",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-crash",
+  "section": "crash lab: kill a graph that is paying for model calls",
+  "text": "Pick the case: Pending writes are listed under the checkpoint they belong to: the writes of super-step n are stored against checkpoint n-1, which is how a resumed run knows which tasks of that step are already done.",
+  "label": "core",
+  "key": "the writes of super-step n against checkpoint n-1",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-crash",
+  "section": "crash lab: kill a graph that is paying for model calls",
+  "text": "The __error__ write marks the task that raised.",
+  "label": "core",
+  "key": "marks the task that raised",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-crash",
+  "section": "crash lab: kill a graph that is paying for model calls",
+  "text": "Task ids are shortened to 6 characters.",
+  "label": "core",
+  "key": "Task ids shortened to 6 characters",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-crash",
+  "section": "crash lab: kill a graph that is paying for model calls",
+  "text": "How it was recorded Scripts src/code/e6_real.py (real) and src/code/e2_crash.py (no model).",
+  "label": "core",
+  "key": "src/code/e2_crash.py",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-crash",
+  "section": "crash lab: kill a graph that is paying for model calls",
+  "text": "Claude Code , model claude-haiku-4-5-20251001 , --tools \"\" --setting-sources project --strict-mcp-config --no-session-persistence , a system prompt asking for no em-dashes.",
+  "label": "core",
+  "key": "claude-haiku-4-5-20251001",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-crash",
+  "section": "crash lab: kill a graph that is paying for model calls",
+  "text": "Raw recordings stay in the scratchpad; the redacted copies in src/recordings/e6/ keep a whitelisted init record, every assistant message (thinking signatures removed) and the result record.",
+  "label": "core",
+  "key": "whitelisted init record",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-crash",
+  "section": "crash lab: kill a graph that is paying for model calls",
+  "text": "The \"person\" approving was the driver script.",
+  "label": "core",
+  "key": "was the driver script",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-crash",
+  "section": "crash lab: kill a graph that is paying for model calls",
+  "text": "Wall times overlap other agents' work on the same machine.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Links checked on 6 October 2026.",
+  "label": "core",
+  "key": "Links checked on 6 October 2026",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Times are estimates for a careful read.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "This page's tabs Super-step lab Seven recorded graphs stepped through plan, execute and update, with every channel, version and versions_seen.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Crash lab Two real runs with Claude Haiku 4.5 killed mid-step and resumed, sync against exit, call by call; the database contents at the moment of death.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The parent and its tabs Topic: agentic-frameworks The root: workflows against agents, the orchestration schools compared, durability, structured output, multi-agent, gateways, observability, memory, hosted runtimes, how to choose.",
+  "label": "core",
+  "key": "the orchestration schools compared",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Its Reading section 3 is this page's summary.",
+  "label": "core",
+  "key": "Its Reading section 3 is this page's summary",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Its Orchestration lab replays a linear LangGraph run killed, resumed, interrupted and forked, and contrasts checkpointing with Temporal; its Same agent, six ways tab runs this page's agent style next to five other libraries on one task.",
+  "label": "core",
+  "key": "contrasts checkpointing with Temporal",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Reading about 30 min; each lab about 30 min.",
+  "label": "core",
+  "key": "each lab about 30 min",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Sibling child pages Claude Agent SDK The harness-as-library school: a complete agent loop with tools, permissions and sessions, rather than a graph you assemble; its section 7 sessions are history to resume, not checkpoints of a graph.",
+  "label": "core",
+  "key": "rather than a graph you assemble",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Multi-agent patterns Where section 8's handoffs and subgraphs lead: patterns run for real, with token and quality accounting; its section 6 sets handoffs against agents-as-tools.",
+  "label": "core",
+  "key": "token and quality accounting",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Typed agent libraries The minimal-loop school read from source (Pydantic AI, OpenAI Agents SDK, smolagents, ADK); the lighter alternative when you need no graph.",
+  "label": "core",
+  "key": "The minimal-loop school read from source",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "LLM observability LangSmith and its peers; how to see the literal requests a framework sends.",
+  "label": "core",
+  "key": "LangSmith and its peers",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Gateways and routing What sits between your graph's model calls and the providers: retries, fallbacks, timeouts and budgets.",
+  "label": "core",
+  "key": "retries, fallbacks, timeouts and budgets",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Agent memory layers Beyond section 10's store: Mem0, Graphiti and Letta compared on one conversation.",
+  "label": "core",
+  "key": "Mem0, Graphiti and Letta compared on one conversation",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Related pages Building a harness: the loop, tool calling, edit formats, stop conditions The loop that create_agent packages, written by hand, with tool calling at the API level.",
+  "label": "core",
+  "key": "The loop that create_agent packages",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Context engineering: window budgets, caching, compaction, memory files, subagents What to do about the growing message list of section 4: trimming, summarising, compaction.",
+  "label": "core",
+  "key": "What to do about the growing message list",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "ReAct The paper behind the reason-act loop that create_agent runs.",
+  "label": "core",
+  "key": "The paper behind the reason-act loop",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Primary sources LangChain and LangGraph reach v1.0 22 Oct 2025: what each package is now for, and the stability promise.",
+  "label": "core",
+  "key": "what each package is now for",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "LangGraph docs: Graph API, persistence, interrupts, streaming The reference for everything on this page; start with the Graph API and Persistence pages.",
+  "label": "core",
+  "key": "start with the Graph API and Persistence pages",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "About 60 min for the core pages.",
+  "label": "core",
+  "key": "About 60 min for the core pages",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "LangGraph source: pregel/_algo.py apply_writes and prepare_next_tasks: the super-step in about 300 lines.",
+  "label": "core",
+  "key": "the super-step in about 300 lines",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "LangChain middleware docs The six hooks, their order, and the built-in middleware.",
+  "label": "core",
+  "key": "The six hooks, their order",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Pregel: a system for large-scale graph processing Malewicz et al., SIGMOD 2010: where super-steps come from.",
+  "label": "core",
+  "key": "where super-steps come from",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "LangGraph releases 1.1 (v2 output), 1.2 (timeouts, error handlers, DeltaChannel, event streaming) and every patch since.",
+  "label": "core",
+  "key": "every patch since",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Critiques Why we no longer use LangChain for building our AI agents (archived) Octomind, June 2024: a year in production, then removed.",
+  "label": "core",
+  "key": "a year in production, then removed",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Fuck You, Show Me The Prompt Hamel Husain, 14 Feb 2024: intercept what frameworks send.",
+  "label": "core",
+  "key": "intercept what frameworks send",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The Problem With LangChain Max Woolf, 14 Jul 2023: the abstraction-tax argument at its sharpest.",
+  "label": "core",
+  "key": "the abstraction-tax argument at its sharpest",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "How and when to build multi-agent systems LangChain, 16 Jun 2025: its answer to Cognition and Anthropic on multi-agent design.",
+  "label": "core",
+  "key": "its answer to Cognition and Anthropic",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Durability overhead table (script-rendered): ms per super-step for InMemorySaver and SQLite under sync, async, exit",
+  "label": "core",
+  "key": "one-node loop of 200 super-steps",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Kill outcome table (script-rendered): what each process ran, what was saved, under SIGKILL and exception, sync and exit",
+  "label": "core",
+  "key": "Every node logs when it runs",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Interrupt rules table (script-rendered): seven measured cases",
+  "label": "core",
+  "key": "Matching is strictly index-based",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Interrupt rules: a bare try/except swallows the interrupt; response_schema validates the resume",
+  "label": "core",
+  "key": "response_schema",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Subgraph table (script-rendered): starts before pause and after resume, namespaces, for subgraph as node and called in a function",
+  "label": "core",
+  "key": "get_state(config, subgraphs=True)",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Store table (script-rendered): three threads, two users, preferences carried across threads",
+  "label": "core",
+  "key": "Three threads of one graph sharing an",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Findings box (script-rendered): five measured headlines restated from sections 3 to 6",
+  "label": "core",
+  "key": "What the experiments on this page found",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Crash calls table and model answers (script-rendered)",
+  "label": "core",
+  "key": "Every model call of this run",
+  "where": ""
+ }
+]

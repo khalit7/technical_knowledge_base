@@ -25,3 +25,9 @@ Central question: what does the LangGraph runtime actually do between your nodes
 
 ## What the methodology lacked
 Nothing published to reproduce; the "defaults reproduce" rule became: the page's numbers regenerate from the redacted records (check_page.py), costs reproduce from list prices, and defaults quoted from docs were checked in the installed source (durability default async, RetryPolicy defaults, recursion limit per version from the wheels).
+
+## 2026-10-24 rebuild
+- Added: hero figure (static annotated diagram: the stack and the super-step loop with checkpoints and resume); section 1's LCEL pipeline (static HTML diagram with the real values of one call, E8); cost stats (E8).
+- Moved inline: the Super-step lab player (section 3) and the Crash lab replay (section 5); the old static two-run lanes and the two-graph reducer card were removed as duplicates of them.
+- Added: section 12's comparison table (need, plain loop, LangGraph).
+- Rejected: an LCEL overhead slider (one number with nothing worth moving; a stat says it); a photo or paper figure (no physical object; Pregel's paper figure would add nothing the hero does not show).
