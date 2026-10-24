@@ -25,7 +25,16 @@ for(const [scheme,width] of (quick?[['dark',390]]:[['dark',390],['light',920]]))
   const walk=async(ctl,what)=>{const n=await steps(ctl);for(const i of [0,1,2,Math.floor(n/2),n]){await slide(ctl+'-s',i);await probe(what+' step '+i)}};
   // ---------------- Reading ----------------
   await probe('read open');
-  for(const g of ['rd-rf','rd-base','rd-sac','rd-quiz']){await p.$eval('#'+g,e=>e.scrollIntoView());await sleep(200)}
+  for(const g of ['rd-rf','rd-base','rd-pgc','rd-ga','co-ex','rd-pp','rd-sac','rd-depth']){await p.$eval('#'+g,e=>e.scrollIntoView());await sleep(400)}
+  // nothing may move before the reader acts: every animation still on step 0 and paused after scrolling past it
+  {probes++;const moving=await p.evaluate(()=>[...document.querySelectorAll('.an-ctl')].filter(c=>{const s=c.querySelector('input[type=range]'),b=c.querySelector('.an-play');return (s&&+s.value!==0)||(b&&/Pause/.test(b.textContent))}).map(c=>c.id));
+   if(moving.length){fails++;say('FAIL autoplay',scheme,width,moving)}}
+  // new static figures and the natural-gradient slider
+  for(const v of [0,50,98,99])for(const d of [1,10,50]){await slide('rd-ngP',v);await slide('rd-ngD',d);await probe('ng '+v+' '+d)}
+  await slide('rd-ngP',0);await slide('rd-ngD',10);await shot('#rd-ngC','ng');
+  for(const m of ['td3','sac','ddpg']){await click('#rd-oacM button[data-m="'+m+'"]');await probe('oac '+m);await shot('#rd-oacC','oac-'+m)}
+  for(const id of ['rd-heroC','rd-jpC','rd-rtgC','rd-a3cC'])await shot('#'+id,id);
+  await p.$eval('#rd-hero g[data-go="rd-ppo"]',e=>e.dispatchEvent(new MouseEvent('click',{bubbles:true})));await sleep(200);await probe('hero click');
   await p.$$eval('details',ds=>ds.forEach(d=>d.open=true));await probe('details open');
   await p.$eval('#rd-spine tr[data-go="rd-ppo"]',e=>e.click());await sleep(200);await probe('spine click');await shot('#rd-spine','spine');
   // baseline explorer
@@ -48,8 +57,8 @@ for(const [scheme,width] of (quick?[['dark',390]]:[['dark',390],['light',920]]))
   await p.$eval('#rd-sa',e=>e.scrollIntoView());await sleep(1200);
   for(const v of [0,44,100,130,150,200]){await slide('rd-saA',v);await probe('sac '+v)}
   await click('#rd-saB');await probe('sac auto');await slide('rd-saA',87);await shot('#rd-sa','sac');
-  // ---------------- Short corridor ----------------
-  await tab('t-cor');await sleep(300);await probe('cor open');
+  // ---------------- Short corridor (sections 4 and 5 of Reading since 2026-10-24) ----------------
+  await p.$eval('#co-fig',e=>e.scrollIntoView());await sleep(300);await probe('cor in view');
   await p.waitForFunction(()=>document.getElementById('co-figS').textContent.startsWith('Seeds'),{timeout:300000,polling:300});await probe('cor curves');
   for(const m of ['rf','ac'])for(const sd of ['1','3']){await click('#co-exM button[data-k="'+m+'"]');await pick('co-exS',sd);await walk('co-exC','cor '+m+' '+sd)}
   await click('#co-exM button[data-k="ac"]');await pick('co-exS','1');await slide('co-exC-s',30);await shot('#co-ex','cor-ex');

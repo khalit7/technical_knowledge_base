@@ -118,5 +118,13 @@
     for(let k=0;k<n;k++){const o=corRun(kind,at,aw,episodes,s0+k,eps,maxT);for(let e=0;e<episodes;e++)m[e]+=o.tot[e]/n;for(let e=0;e<=episodes;e++)mp[e]+=o.ps[e]/n;cut+=o.cut}
     return {m,mp,cut}}
 
-  root.PGE={rng,softmax,pgStats,pgRun,pgSpread,baseVar,gae,gaeKWeights,ppoL,ppoDL,ppoRun,SAC,sacR,sacER,gaussH,sacGauss,sacBoltz,sacCurve,sacAuto,corV,COR,corStep,corPi,corRun,corAvg};
+  // ---- 7. Natural gradient on a two-action policy p = sigmoid(z) (section 8) ----
+  // KL(old || new) between Bernoulli(p) and Bernoulli(q); the Fisher information of z is p(1 - p);
+  // a plain step dz, and the natural step for a KL budget delta: dz = sqrt(2 delta / F).
+  function klB(p,q){return p*Math.log(p/q)+(1-p)*Math.log((1-p)/(1-q))}
+  function ngStep(p,dz,delta){const z=Math.log(p/(1-p)),sg=x=>1/(1+Math.exp(-x)),F=p*(1-p);
+    const q=sg(z+dz),dzN=Math.sqrt(2*delta/F),qN=sg(z+dzN);
+    return {z,F,q,kl:klB(p,q),quad:0.5*F*dz*dz,dzN,qN,klN:klB(p,qN)}}
+
+  root.PGE={rng,softmax,pgStats,pgRun,pgSpread,baseVar,gae,gaeKWeights,ppoL,ppoDL,ppoRun,SAC,sacR,sacER,gaussH,sacGauss,sacBoltz,sacCurve,sacAuto,corV,COR,corStep,corPi,corRun,corAvg,klB,ngStep};
 })(typeof window!=='undefined'?window:globalThis);

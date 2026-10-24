@@ -19,4 +19,5 @@ out.corV={};for(const p of [0.05,0.5,0.95,E.COR.pStar])out.corV[p]=E.corV(p);out
 out.corRun={};for(const [k,at,aw] of [['rf',-13,0],['rfb',-9,-6],['ac',-9,-6]])for(const s of [1,2])for(const eps of [0.05,0]){const o=E.corRun(k,Math.pow(2,at),aw?Math.pow(2,aw):0,300,s,eps,5000);out.corRun[k+'|'+s+'|'+eps]={tot:A(o.tot),ps:A(o.ps),cut:o.cut,w:o.w}}
 out.corAvg={};for(const [id,k,at,aw] of [['r12','rf',-12,0],['r13','rf',-13,0],['r14','rf',-14,0],['rb','rfb',-9,-6],['ac','ac',-9,-6],['ac12','ac',-12,-6]]){const o=E.corAvg(k,Math.pow(2,at),aw?Math.pow(2,aw):0,1000,100,1,0.05,5000);
   const av=(a,b)=>{let q=0;for(let e=a;e<b;e++)q+=o.m[e];return q/(b-a)};out.corAvg[id]={e1_10:av(0,10),e100_200:av(100,200),e400_500:av(400,500),e900_1000:av(900,1000),pEnd:o.mp[1000],cut:o.cut}}
+out.ngStep={};for(const p of [0.5,0.6,0.75,0.9,0.99,0.995])for(const d of [0.001,0.01,0.05])out.ngStep[p+'|'+d]=E.ngStep(p,1,d);
 fs.writeFileSync(path.join(here,'js_dump.json'),JSON.stringify(out));console.log('wrote js_dump.json');
