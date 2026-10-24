@@ -1,59 +1,9 @@
-// ---- OS simulators, 2: address translation (linear and two-level), the TLB on an array walk, page replacement ----
+// ---- OS simulators, 2: the TLB on an array walk, page replacement (address translation, once 2a here, retired 2026-10-24: Virtual memory owns it; the translate functions stay in 31_js_sim_b_core.js for check_js.mjs) ----
 (function(){
-const SC=window.SIMCORE,A=window.SIMA,D=window.SIMDATA;if(!document.getElementById('sim-tr-card'))return;
+const SC=window.SIMCORE,A=window.SIMA,D=window.SIMDATA;if(!document.getElementById('sim-tlb-card'))return;
 const $=id=>document.getElementById(id);
 const hex=(v,w)=>'0x'+v.toString(16).padStart(w||1,'0');
 const bin=(v,n)=>v.toString(2).padStart(n,'0');
-// ---------- 2a. translate ----------
-// linear: 16 KiB address space, 1 KiB pages (16 PTEs), 32 physical frames; the table is the one in src/sim/make_ref.py (mulberry32, seed 99)
-const rnd=SC.mulberry32(99),PT=[];for(let k=0;k<16;k++)PT.push(rnd()<0.6?((1<<31)|Math.floor(rnd()*32))>>>0:0);
-const ML=D.ml,MEM=ML.pages.map(h=>{const a=[];for(let i=0;i<64;i+=2)a.push(parseInt(h.slice(i,i+2),16));return a});
-const TR={mode:'lin',va:6245};
-function picks(){const el=$('sim-tr-pick');let vs;
-  if(TR.mode==='lin'){vs=[6245,3548,1000,9000,15000]}else vs=ML.answers.map(a=>a[0]);
-  el.innerHTML=vs.map(v=>'<button data-m="'+v+'">'+hex(v,4)+'</button>').join('');
-  const va=$('sim-tr-va');va.max=TR.mode==='lin'?16383:32767;if(TR.va>+va.max)TR.va=vs[0];va.value=TR.va}
-A.seg($('sim-tr-pick'),m=>{TR.va=+m;$('sim-tr-va').value=TR.va;tan.go(0);tan.play()});
-A.seg($('sim-tr-mode'),m=>{TR.mode=m;TR.va=m==='lin'?6245:ML.answers[0][0];picks();tan.reset(m==='lin'?4:5)});
-$('sim-tr-va').addEventListener('input',e=>{TR.va=+e.target.value;tan.redraw()});
-function bits(b,parts,W,y,step){// parts: [{n,label,col,on}]
-  const tot=parts.reduce((s,p)=>s+p.n,0),bw=Math.min(22,(W-8)/tot);let x=4,o='';
-  parts.forEach(p=>{const s=bin(p.v,p.n);for(let k=0;k<p.n;k++){o+=A.R(x+k*bw,y,bw-1.5,20,p.on?p.col:'var(--soft)',{st:'var(--line)'})+A.T(x+k*bw+bw/2-0.7,y+14,s[k],{a:'middle',fs:Math.min(12,bw*0.62),fill:p.on?'var(--bg)':'var(--ink)'})}
-    o+=A.T(x+p.n*bw/2,y+34,p.label+' = '+p.v,{a:'middle',fs:10.5,fill:'var(--mute)'});x+=p.n*bw});return o}
-function grid32(bytes,hl,W,y,title,sub){// 32 bytes as 8 x 4
-  const cw=Math.min(40,(W-8)/8),ch=17;let o=A.T(4,y-17,title,{fs:11,w:600})+(sub?A.T(4,y-4,sub,{fs:10,fill:'var(--mute)'}):'');
-  for(let k=0;k<32;k++){const x=4+(k%8)*cw,yy=y+Math.floor(k/8)*ch,on=k===hl;o+=A.R(x,yy,cw-2,ch-2,on?'var(--acc)':'var(--soft)',{st:'var(--line)'})+A.T(x+cw/2-1,yy+12,bytes[k].toString(16).padStart(2,'0'),{a:'middle',fs:Math.min(11,cw*0.33),fill:on?'var(--bg)':'var(--ink)'})}
-  return o}
-function trDraw(i){const el=$('sim-tr-svg'),W=Math.min(560,Math.max(290,A.width(el)));let o='',H=0,cap='',refs=0;
-  if(TR.mode==='lin'){const r=SC.translateLinear(TR.va,1024,PT);
-    o+=bits(0,[{n:4,v:r.vpn,label:'VPN',col:'var(--c1)',on:true},{n:10,v:r.off,label:'offset',col:'var(--c3)',on:i>=0}],W,4);
-    // page table rows
-    const rh=15,y0=58;o+=A.T(4,y0-6,'Page table (16 entries; PTE = valid bit | PFN)',{fs:11,w:600});
-    for(let k=0;k<16;k++){const y=y0+k*rh,on=i>=1&&k===r.vpn,v=(PT[k]>>>31)&1;o+=A.R(4,y,W-8,rh-2,on?(v?'var(--open2)':'var(--hl)'):'var(--bg)',{st:'var(--line)'})+
-      A.T(10,y+11,'VPN '+String(k).padStart(2,' '),{fs:10.5,fill:'var(--mute)'})+A.T(80,y+11,hex(PT[k],8),{fs:10.5})+A.T(170,y+11,v?'valid, PFN '+(PT[k]&0x7FFFFFFF):'invalid',{fs:10.5,fill:v?'var(--ink)':'var(--mute)'})}
-    H=y0+16*rh+8;refs=i>=1?(r.valid&&i>=3?2:1):0;
-    cap=['Split the 14-bit address: the top 4 bits are the virtual page number ('+r.vpn+'), the low 10 bits the offset inside the 1 KiB page ('+r.off+').',
-      'Read page-table entry '+r.vpn+' from memory (one memory reference before the real one): '+hex(PT[r.vpn],8)+'.',
-      r.valid?'Valid, frame '+r.pfn+': physical address = '+r.pfn+' × 1024 + '+r.off+' = '+r.pa+' ('+hex(r.pa,4)+').':'The valid bit is 0: the MMU raises a page fault and the kernel decides (load the page, or kill the process with a segmentation fault).',
-      r.valid?'Now the access itself: 2 memory references for 1 load. A TLB hit would have skipped the first.':'No access happens; on Linux an access to an unmapped address ends in SIGSEGV.'][Math.min(i,3)];
-    $('sim-tr-note').innerHTML='The page table is generated (seeded); it is the table the Python reference checks. A real x86-64 or arm64 table has four levels for a 48-bit address space.'}
-  else{const r=SC.walkTwoLevel(TR.va,ML.pdbr,MEM);
-    o+=bits(0,[{n:5,v:r.pdi,label:'directory',col:'var(--c4)',on:true},{n:5,v:r.pti,label:'table',col:'var(--c1)',on:true},{n:5,v:r.off,label:'offset',col:'var(--c3)',on:true}],W,4);
-    let y=78;o+=grid32(MEM[ML.pdbr],i>=1?r.pdi:-1,W,y,'Page directory (page '+ML.pdbr+', the PDBR)',i>=1?'PDE '+hex(r.pde,2)+(r.pde_valid?' valid, PT in page '+r.pt_pfn:' invalid'):'');y+=4*17+38;
-    if(i>=2&&r.pde_valid){o+=grid32(MEM[r.pt_pfn],r.pti,W,y,'Page table (page '+r.pt_pfn+')','PTE '+hex(r.pte,2)+(r.pte_valid?' valid, frame '+r.pfn:' invalid'));y+=4*17+38}
-    if(i>=3&&r.pa!=null){o+=grid32(MEM[r.pfn],r.off,W,y,'Data page (frame '+r.pfn+')','byte '+r.off+' = '+hex(r.value,2));y+=4*17+8}
-    H=y+4;const ans=ML.answers.find(a=>a[0]===TR.va);
-    cap=['15-bit address, 32-byte pages: 5 bits pick the page-directory entry ('+r.pdi+'), 5 the page-table entry ('+r.pti+'), 5 the byte ('+r.off+').',
-      'Read PDE '+r.pdi+' of the directory: '+hex(r.pde,2)+(r.pde_valid?' (valid; the page table is in page '+r.pt_pfn+').':' (invalid: fault; this whole 1 KiB region has no page table at all, which is the point of two levels).'),
-      r.pde_valid?'Read PTE '+r.pti+' of that page table: '+hex(r.pte,2)+(r.pte_valid?' (valid, frame '+r.pfn+').':' (invalid: page fault).'):'Fault at the directory.',
-      r.pa!=null?'Physical address = frame '+r.pfn+' × 32 + '+r.off+' = '+hex(r.pa,3)+'; the byte there is '+hex(r.value,2)+'.':'No physical address: the walk faulted.',
-      r.pa!=null?'3 memory references for 1 load (directory, table, data): a TLB miss is dearer with more levels, which is why the TLB matters.':'The kernel handles the fault.'][Math.min(i,4)]+
-      (ans&&i>=3?' <span class="mute">(OSTEP <code>paging-multilevel-translate.py -s 1 -c</code> answers '+(ans[1]==null?'a fault':hex(ans[1],3))+' for this address.)</span>':'');
-    $('sim-tr-note').innerHTML='The memory is the 128 pages of 32 bytes printed by OSTEP\'s <code>paging-multilevel-translate.py -s 1</code>, so the five addresses above are that homework\'s questions. Any other address may fault.'}
-  $('sim-tr-cap').innerHTML='<b>Step '+(i+1)+'.</b> '+cap;
-  el.innerHTML=A.svg(W,H,o,'Address translation, step '+(i+1))}
-picks();
-const tan=A.anim({card:'sim-tr-card',ctl:'sim-tr-ctl',n:4,draw:trDraw,ms:1500,label:'Translation step'});
 // ---------- 2b. TLB ----------
 const TL={shape:'16x16',page:128,ent:4,ord:'row'};let tres=null,tother=null,taddr=[],rows=16,cols=16,base=0;
 function tlbCompute(){if(TL.shape==='19'){rows=1;cols=10;base=100;$('sim-tlb-page').disabled=true}else{[rows,cols]=TL.shape.split('x').map(Number);base=0;$('sim-tlb-page').disabled=false}
@@ -80,7 +30,7 @@ const tl=A.anim({card:'sim-tlb-card',ctl:'sim-tlb-ctl',n:256,draw:tlbDraw,ms:90,
 $('sim-tlb-shape').addEventListener('change',e=>{TL.shape=e.target.value;tlbCompute()});
 $('sim-tlb-page').addEventListener('change',e=>{TL.page=+e.target.value;tlbCompute()});
 $('sim-tlb-ent').addEventListener('change',e=>{TL.ent=+e.target.value;tlbCompute()});
-A.seg($('sim-tlb-ord'),m=>{TL.ord=m;tlbCompute();tl.go(0);tl.play()});
+A.seg($('sim-tlb-ord'),m=>{TL.ord=m;tlbCompute();tl.go(0)});
 tlbCompute();
 // real TLB chart
 (function(){const pts={'4k':[],huge:[]};D.raw.tlb.forEach(l=>{const m=l.match(/^(4k|huge) pages\s+(\d+) ns_per_access ([\d.]+)/);if(m)pts[m[1]].push([+m[2],+m[3]])});
@@ -118,7 +68,7 @@ function rpAll(){const refs=REFS[RP.refs];let h='<div class="bars">';['OPT','FIF
 const rp=A.anim({card:'sim-rp-card',ctl:'sim-rp-ctl',n:11,draw:rpDraw,ms:800,label:'Access'});
 $('sim-rp-refs').addEventListener('change',e=>{RP.refs=e.target.value;rpCompute()});
 $('sim-rp-fr').addEventListener('input',e=>{RP.fr=+e.target.value;$('sim-rp-frv').textContent=RP.fr;rpCompute()});
-A.seg($('sim-rp-pol'),m=>{RP.pol=m;rpCompute();rp.go(0);rp.play()});
+A.seg($('sim-rp-pol'),m=>{RP.pol=m;rpCompute();rp.go(0)});
 rpCompute();
-A.onResize(()=>{tan.redraw();tl.redraw();rp.redraw()});
+A.onResize(()=>{tl.redraw();rp.redraw()});
 })();

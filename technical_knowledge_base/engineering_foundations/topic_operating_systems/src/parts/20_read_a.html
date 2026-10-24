@@ -1,25 +1,68 @@
+<section id="rd-s0">
+<h2>The idea</h2>
+<p class="core"><b>The core idea.</b> An <dfn id="g-os">operating system</dfn> turns one machine into many private ones: every program gets its own memory, a share of the CPUs and handles on files and devices, all owned by one <dfn id="g-kernel">kernel</dfn> that the program can reach only through a <dfn id="g-syscall">system call</dfn>. A training job runs at full speed between those crossings and pays at each one: a system call, a page fault, a context switch, a CPU-quota stall, an fsync, a VM exit.</p>
+
+<div class="fig" id="rd-hero">
+<h4>Between your Python call and the hardware: every layer is one child page, and the blue line is the only door into the kernel</h4>
+<div class="stk">
+<div class="lv">Your program</div>
+<div class="row"><div class="bx"><b>python train.py</b>model, DataLoader workers, optimiser step, torch.save; the running job of this topic, a tiny CPU-only PyTorch run</div></div>
+<div class="lv">In your process</div>
+<div class="row">
+<div class="bx"><b>Threads and locks</b>PyTorch's operator pool, the GIL, queues, asyncio<span class="pg">{{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}}</span></div>
+<div class="bx"><b>Allocators</b>pymalloc, glibc malloc, mimalloc, the CUDA caching allocator<span class="pg">{{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}}</span></div>
+<div class="bx"><b>Runtimes</b>CPython, libtorch, glibc, libcudart, libcuda: each ends in system calls<span class="pg">{{Syscall tracer|#t-trace}}</span></div>
+</div>
+<div class="gate"><b>System call</b>: one trapping instruction (<code>svc #0</code>, <code>syscall</code>); 281 ns for <code>getppid</code> here, against 1.3 ns for a function call</div>
+<div class="lv">Kernel</div>
+<div class="row">
+<div class="bx"><b>Processes, signals, descriptors</b>fork, exec, wait, PID 1<span class="pg">{{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}</span></div>
+<div class="bx"><b>Scheduler</b>run queues, CFS and EEVDF, CPU quotas<span class="pg">{{Scheduling and CPU time|n:3f05c17b0d0d81ed9c18cc47c6bfdf76}}</span></div>
+<div class="bx"><b>Virtual memory</b>page tables, faults, copy-on-write, page cache, OOM killer<span class="pg">{{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}}</span></div>
+<div class="bx"><b>File systems and block layer</b>VFS, writeback, fsync, journal, NVMe queues<span class="pg">{{Storage and file systems|n:3f05c17b0d0d8141be7acc1313570cbf}}</span></div>
+<div class="bx"><b>Namespaces and cgroups</b>what a container sees and may use<span class="pg">{{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}</span></div>
+<div class="bx"><b>Drivers</b>nvidia.ko, NVMe, virtio<span class="pg">{{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}}</span></div>
+</div>
+<div class="lv">Hypervisor</div>
+<div class="row"><div class="bx"><b>In a cloud VM</b>KVM, Nitro or (here) Apple's Hypervisor.framework: a second layer of page tables, VM exits, the IOMMU<span class="pg">{{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}}</span></div></div>
+<div class="lv">Hardware</div>
+<div class="row"><div class="bx hw"><b>CPU cores</b>and the timer interrupt</div><div class="bx hw"><b>MMU and TLB</b>translate every address</div><div class="bx hw"><b>RAM</b>4 KiB frames</div><div class="bx hw"><b>NVMe SSD</b>queues read by DMA</div><div class="bx hw"><b>GPU</b>command buffers and a doorbell</div></div>
+</div>
+<p class="cap">Static diagram. A program runs on the CPU directly, in user mode; it crosses the blue line only with a system call, a fault or an interrupt (OSTEP's <i>limited direct execution</i>). Each box names the page that owns it; section 1 prices every crossing.</p>
+</div>
+
+<p class="small"><b>You need</b> nothing beyond Python: this root starts from zero. Caches and the machine under the OS, from the programmer's side, are Part 2 of the {{C++ page|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}.</p>
+<div class="small"><b>New terms on this page</b> (each used in the comparisons below):</div>
+<div class="terms">
+<div><b>Kernel</b>: the core of the OS, running in the CPU's privileged mode with full control of the hardware; on this page Linux means the kernel.</div>
+<div><b>User mode, kernel mode</b>: the CPU's two <dfn id="g-mode">privilege modes</dfn> (EL0 and EL1 on ARM64, rings 3 and 0 on x86-64); user mode cannot touch devices or the memory map.</div>
+<div><b>System call</b>: a numbered request to the kernel through one trapping instruction, the only way in.</div>
+<div><b><dfn id="g-process">Process</dfn></b>: a running program: an address space, registers, open file descriptors, credentials and a PID.</div>
+<div><b><dfn id="g-thread">Thread</dfn></b>: a second flow of execution in the same process: own registers and stack, shared memory and files.</div>
+<div><b>Virtual address, page</b>: every address a program uses is translated by the MMU, page by page (4 KiB here), through per-process page tables.</div>
+<div><b>Page fault</b>: the trap on a page with no valid entry; minor if no I/O is needed, major if the device must be read.</div>
+<div><b><dfn id="g-pagecache">Page cache</dfn></b>: file data the kernel keeps in otherwise free memory; read and write go through it.</div>
+<div><b>Context switch</b>: saving one thread's registers and loading another's, plus a new address space if the process changes.</div>
+<div><b>Namespace, cgroup</b>: what a group of processes can see; how much of each resource it may use. A container is both.</div>
+<div><b>fsync</b>: the call that returns only when a file's data and metadata are on the device.</div>
+<div><b>Hypervisor, <dfn id="g-driver">driver</dfn></b>: the program that runs whole operating systems as guests; kernel code that runs one kind of device.</div>
+</div>
+</section>
+
 <section id="rd-one">
-<h2>In one screen: one training job, followed through the operating system</h2>
-<p class="lead">An <dfn id="g-os">operating system</dfn> (OS) is the program that owns the machine: it shares the CPUs, the memory and the devices among all the programs that run, and it gives each of them a simpler, safer machine to program against than the bare hardware. Every line of a training script eventually asks it for something. This page follows one real job, a tiny CPU-only PyTorch run, from <code>python train.py</code> to its last checkpoint, and stops at each point where the OS does work.</p>
-<div class="prob" id="rd-journey">
-<a href="#rd-s1" style="--sc:var(--c1)"><b>The script asks the kernel for everything</b><span>Opening a file, allocating memory, starting a thread: each is a <i>system call</i>, the only door from a program into the kernel. Section 1.</span></a>
-<a href="#rd-s2" style="--sc:var(--c1)"><b>torchrun and the DataLoader start processes</b><span>Workers are created with fork, spawn or forkserver; each is a separate address space. Section 2.</span></a>
-<a href="#rd-s3" style="--sc:var(--c1)"><b>Threads and processes share a few CPUs</b><span>The scheduler decides who runs; a container's CPU limit can pause your job every 100 ms. Section 3.</span></a>
-<a href="#rd-s4" style="--sc:var(--c1)"><b>The dataset is memory-mapped</b><span>Pages of the file appear in memory on first touch (a page fault); copy-on-write shares pages after fork. Section 4.</span></a>
-<a href="#rd-s5" style="--sc:var(--c1)"><b>Tensors need memory</b><span>malloc, arenas and PyTorch's caching allocator sit between your code and the kernel's pages. Section 5.</span></a>
-<a href="#rd-s6" style="--sc:var(--c4)"><b>Threads contend for locks</b><span>Locks, futexes, and the event loops that asyncio and tokio are built on. Section 6.</span></a>
-<a href="#rd-s7" style="--sc:var(--c3)"><b>A checkpoint goes to disk</b><span>write() only reaches memory; fsync and an atomic rename make it survive a crash. Section 7.</span></a>
-<a href="#rd-s8" style="--sc:var(--c2)"><b>It all runs in a container</b><span>Namespaces hide the rest of the machine, cgroups cap CPU and memory, and the OOM killer ends the job with exit 137. Section 8.</span></a>
-<a href="#rd-s9" style="--sc:var(--c2)"><b>On a real cluster: a VM and a GPU driver</b><span>Hypervisors, the IOMMU, MIG, and one CUDA call from Python down to the GPU. Section 9.</span></a>
-<a href="#rd-s10" style="--sc:var(--c2)"><b>When it breaks</b><span>A symptom-to-subsystem table, the tools that show each subsystem, and ten interview questions. Section 10.</span></a>
-</div>
-<p><b>The three easy pieces.</b> The book this page follows, <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/" target="_blank" rel="noopener noreferrer">Operating Systems: Three Easy Pieces</a> (OSTEP, by Remzi and Andrea Arpaci-Dusseau, free online), organises the whole subject into three ideas, and so does this page:</p>
-<div class="mech">
-<div><b><span class="pc v">Virtualization</span></b>The OS turns one CPU into the illusion of many (processes, scheduling) and one physical memory into a private, huge memory for each program (virtual memory). Sections 2 to 5.</div>
-<div><b><span class="pc c">Concurrency</span></b>Several threads of execution share memory at once; the OS gives them locks and ways to wait. Section 6.</div>
-<div><b><span class="pc p">Persistence</span></b>Data must survive a crash or power loss: devices, file systems, and the exact promise that fsync makes. Section 7.</div>
-<div><b><span class="pc x">Beyond the book</span></b>Containers, virtual machines and the GPU driver stack are where an ML job actually runs. Sections 8 and 9.</div>
-</div>
-<div class="co key"><div class="t">How this page knows what it says</div>Every output on this page was produced for real, on 2026-10-05, inside the Docker image <code>kb-os-lab:1</code> (Debian 12, Python 3.11.2, PyTorch 2.14.1 CPU build), on Linux 5.10.104 running in Docker Desktop's virtual machine on an Apple M1 laptop with 5 CPUs and about 10 GB of memory: <span class="meas">measured here</span>. A virtual machine on a laptop is not a training server, so absolute numbers are this machine's, and ratios are the lesson. What needs a GPU, a newer kernel (6.6 and later) or several memory nodes is taught from man pages, kernel documentation, kernel source at a pinned version, or vendor documentation and labelled <span class="nrh">not run here</span>. Scripts and raw outputs: <code>src/read/code/</code>.</div>
-<p class="small mute">About 50 minutes (some 11,000 words plus the animations). The three tabs after this one are hands-on: {{OS simulators|#t-sim}} (schedulers, paging, copy-on-write, races and crash consistency, step by step), {{Syscall tracer|#t-trace}} (every system call of the same job), and {{Debug lab|#t-debug}} (real failures of training jobs, reproduced). Eight child pages will take each section deeper (listed in section 10).</p>
+<h2>The topic in one screen: what the kernel shares out, and where each part bites a training job</h2>
+<div class="tw"><table class="cmp">
+<thead><tr><th>Page</th><th>What the kernel shares out</th><th>The mechanism, in one line</th><th>Where it bites a training job</th><th>Check first</th><th>Measured here</th></tr></thead>
+<tbody>
+<tr><td>{{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}</td><td>the right to run a program; handles on files, pipes and sockets</td><td>a process is a kernel record changed only by system calls: fork copies it, exec replaces the program, wait collects its end, a signal interrupts it</td><td>DataLoader start methods; SIGTERM that never reaches a shell-wrapped PID 1; zombie workers</td><td><code>ps -eo pid,ppid,stat,cmd</code>, <code>/proc/PID/status</code></td><td>first batch 0.021 s with fork, 0.836 s with spawn</td></tr>
+<tr><td>{{Scheduling and CPU time|n:3f05c17b0d0d81ed9c18cc47c6bfdf76}}</td><td>CPU time</td><td>a run queue per CPU; the fair class runs the thread with the least virtual runtime; a cgroup quota stops the whole group once spent</td><td>low GPU utilisation from throttled or oversubscribed DataLoader workers; thread pools sized from the host's CPU count</td><td><code>cpu.stat</code> (nr_throttled), <code>top -H</code></td><td>a nice-5 loop gets about a third of a CPU against nice 0 (its virtual runtime grows 3.06 times faster)</td></tr>
+<tr><td>{{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}}</td><td>physical memory</td><td>every address translated page by page through a tree of tables and the TLB; pages filled at first touch; fork shares pages copy-on-write</td><td>worker memory climbing as reference counts copy shared pages; exit 137 from the cgroup OOM killer</td><td><code>smaps_rollup</code> (PSS, Private_Dirty), <code>memory.events</code></td><td>fork + exit + wait grows about 19 microseconds per resident MiB</td></tr>
+<tr><td>{{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}}</td><td>memory inside one process</td><td>allocators buy big regions rarely and hand out small pieces often; freed memory stays with the allocator</td><td>RSS that never drops after <code>del</code>; "CUDA out of memory" with gigabytes reserved</td><td><code>memory_allocated</code> against <code>memory_reserved</code>, tracemalloc</td><td>1,562 KiB of live data held as 110,524 KiB of RSS</td></tr>
+<tr><td>{{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}}</td><td>shared memory, and waiting</td><td>an atomic instruction for every shared update; a futex sleeps a thread only when a lock is contended; epoll or io_uring for I/O</td><td>a hang after fork with threads; the GIL capping Python threads</td><td><code>py-spy dump</code>, <code>strace -c -f</code></td><td>an uncontended lock is one atomic instruction (about 10 ns)</td></tr>
+<tr><td>{{Storage and file systems|n:3f05c17b0d0d8141be7acc1313570cbf}}</td><td>durable bytes on devices</td><td>writes land in the page cache and reach the device later; fsync and rename decide what a crash leaves</td><td>an empty or torn checkpoint after a crash; a slow first epoch</td><td>strace the save (fsync, rename, directory fsync); <code>vmstat 1</code></td><td><code>write()</code> 1.4 us against <code>fsync</code> 1,305 us for one 4 KiB record</td></tr>
+<tr><td>{{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}</td><td>a private view and a budget on the one shared kernel</td><td>namespaces, cgroups, capabilities and seccomp, and an overlayfs image; no second kernel</td><td>exit 137; a full <code>/dev/shm</code>; the host's CPU count; untrusted code</td><td><code>/sys/fs/cgroup/memory.max</code>, <code>cpu.max</code></td><td><code>docker run --rm</code> took about 0.4 s, of which the namespaces were about 4 ms</td></tr>
+<tr><td>{{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}}</td><td>the whole machine to guests; the GPU to processes</td><td>guest code runs on the CPU directly and exits only at boundaries; a CUDA launch is stores into mapped memory plus a doorbell</td><td>"CUDA driver version is insufficient"; sharing one GPU (MIG, MPS, time slicing)</td><td><code>nvidia-smi</code> against <code>torch.version.cuda</code></td><td>one VM exit costs about 0.92 µs</td></tr>
+</tbody></table></div>
+<p class="small mute">Every number was measured on this topic's lab machine (below) by the page in the first column. OSTEP's three pieces map onto the rows: <b>virtualization</b> (processes, scheduling, virtual memory, allocators), <b>concurrency</b>, <b>persistence</b> (storage); containers, virtual machines and the GPU driver are beyond the book, and are where an ML job actually runs.</p>
+<details class="xc"><summary>How this topic knows what it says</summary><div><p class="small">Every output on these pages was produced for real, on 2026-10-05, inside the Docker image <code>kb-os-lab:1</code> (Debian 12, Python 3.11.2, PyTorch 2.14.1 CPU build), on Linux 5.10.104 running in Docker Desktop's virtual machine on an Apple M1 laptop with 5 CPUs and about 10 GB of memory: <span class="meas">measured here</span>. A virtual machine on a laptop is not a training server, so absolute numbers are this machine's, and ratios are the lesson. What needs a GPU, a newer kernel (6.6 and later) or several memory nodes is taught from man pages, kernel documentation, kernel source at a pinned version, or vendor documentation and labelled <span class="nrh">not run here</span>. Scripts and raw outputs: <code>src/read/code/</code>.</p></div></details>
 </section>

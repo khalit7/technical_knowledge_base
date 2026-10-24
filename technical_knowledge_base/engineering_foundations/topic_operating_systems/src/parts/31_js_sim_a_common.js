@@ -1,12 +1,12 @@
 // ---- OS simulators tab: shared helpers. A step-animation controller like RD.anim (play, pause, step, scrub,
-// speed), but registered on t-sim: it animates only while its card is on screen in the visible tab, plays once
-// the first time it scrolls into view, and never autoplays under prefers-reduced-motion. ----
+// speed), but registered on t-sim: it animates only while its card is on screen in the visible tab, and
+// never on its own: since 2026-10-24 it waits on its step until the reader presses play or steps (no autoplay on scroll or on a mode switch). ----
 window.SIMA=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-sim']=window.TAB_RENDER['t-sim']||[]).push(f)};
   const tabVisible=()=>{const t=document.getElementById('t-sim');return t&&!t.hidden};
-  // o: {card, ctl, n, draw(i), ms, label, autoplay (default true)}
+  // o: {card, ctl, n, draw(i), ms, label}
   function anim(o){
     const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
     const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};const pid=o.ctl+'-';
@@ -31,13 +31,13 @@ window.SIMA=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&tabVisible()&&card.offsetParent){st.started=true;if(!RM&&o.autoplay!==false){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+      if(st.vis&&!st.started&&tabVisible()&&card.offsetParent){st.started=true}kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
     return{reset(n,i){setPlay(false);st.n=Math.max(1,n);st.i=i==null?0:Math.max(0,Math.min(st.n-1,i));show()},
       go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},redraw(){o.draw(st.i)},
-      play(){if(!RM)setPlay(true)},get i(){return st.i},get n(){return st.n}};
+      play(){},get i(){return st.i},get n(){return st.n}};
   }
   const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
   const svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+esc(label||'')+'">'+body+'</svg>';

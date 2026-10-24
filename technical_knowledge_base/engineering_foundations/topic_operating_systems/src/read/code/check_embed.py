@@ -64,11 +64,23 @@ def arenas(tag):
     return n
 new_arenas = arenas("after_fork_main") - arenas("before_fork_main")
 words = {1: "one", 2: "two", 3: "three", 4: "four"}
-checks += ["%s new pairs appeared in the main process, each 132 KiB" % words.get(new_arenas, new_arenas)]
+# since 2026-10-24 the arena pairs are quoted on Memory allocators, section 4
+ALLOC = open(os.path.join(HERE, "../../../memory_allocators/index.html"), encoding="utf-8").read()
+if "appearing %s times when the DataLoader started" % words.get(new_arenas, new_arenas) not in ALLOC:
+    fail("arena pairs (%d) not quoted on Memory allocators" % new_arenas)
+else:
+    print("ok %d new arena pairs, quoted on Memory allocators" % new_arenas)
 caps = re.search(r"=(cap_[a-z_,]+)", D["container"]).group(1).count(",") + 1
 checks += ["%d capabilities remain" % caps]
 cpumax = re.search(r"cpu\.max: (\d+) (\d+)", D["container"]).groups()
-checks += ["%d ms of CPU time per %d ms period" % (int(cpumax[0]) // 1000, int(cpumax[1]) // 1000)]
+checks += ["reads %d ms per %d ms period" % (int(cpumax[0]) // 1000, int(cpumax[1]) // 1000)]
+# the boundary ladder (section 1) and the TLB pointer chase (section 4, closed)
+S = D["syscall"]
+checks += ["%.1f ns</div>" % S["function_call_ns"], "%.1f ns</div>" % S["clock_gettime_vdso_ns"], "%d ns</div>" % round(S["getppid_syscall_ns"]), "%d ns</div>" % round(S["pread_4KiB_pagecache_ns"])]
+cnt = re.search(r"none final=(\d+) expected=(\d+)", D["counter"]).groups()
+checks += ["ended at {:,} instead of {:,} here".format(int(cnt[0]), int(cnt[1]))]
+T = {r["lines"]: r for r in D["tlb"]}
+checks += ["%.2f, %.2f and %.2f at 4,096" % (T[4096]["packed"], T[4096]["spread"], T[4096]["thp"])]
 for s in checks:
     if s.replace("&micro;", "µ") in html or s in html:
         print("ok", s)
