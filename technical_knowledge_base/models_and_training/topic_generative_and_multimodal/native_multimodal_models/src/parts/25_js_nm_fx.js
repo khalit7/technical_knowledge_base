@@ -1,5 +1,6 @@
-// ---- Fusion explorer tab (t-nmfx): sequences and attention masks of each design on one toy request ----
+// ---- Reading section 6, the fusion explorer: sequences and attention masks of each design on one toy request ----
 (function(){
+  if(!document.getElementById('fx-pick'))return;
   const E=RD.esc;
   // toy sequence: 0,1 text | 2..5 input image | 6,7 text | 8..11 output image
   const LAB=['draw','this','i1','i2','i3','i4','in','red','o1','o2','o3','o4'];
@@ -36,20 +37,21 @@
       note:'No vision encoder at all. Mask shown as Gemma 4 12B Unified\'s config (bidirectional among vision tokens); Fuyu treats image patches as ordinary causal positions.'},
     {id:'speech',n:'Any-to-any speech',ex:'Moshi, Qwen3-Omni, GPT-4o voice',speech:true,
       inn:'audio codec tokens or audio-encoder features at 12.5 frames a second (Moshi, Qwen3-Omni)',out:'codec tokens: one big step per 80 ms frame, the frame\'s codebooks by a small model',calls:'12.5 big steps per second of speech',
-      note:'Not one flat sequence: Moshi runs parallel streams (its own audio, the user\'s audio, text) and predicts all of them at every 80 ms step. Reading section 8 and the Token economics tab have the arithmetic.'}];
+      note:'Not one flat sequence: Moshi runs parallel streams (its own audio, the user\'s audio, text) and predicts all of them at every 80 ms step. Section 9 draws it; the Token economics tab has the arithmetic.'}];
   const COLS={t:'var(--c5)',i:'var(--c1)',o:'var(--c3)'};
   function maskSVG(d,w){
     if(d.speech)return '<p class="small mute">No single-sequence mask: three parallel streams per frame (see the note).</p>';
-    const n=12,lw=34,cell=Math.max(12,Math.min(22,Math.floor((w-lw-30)/(n+1))));
-    let s='';const x0=lw,y0=lw;
-    for(let c=0;c<n;c++){s+=RD.t(x0+c*cell+cell/2,y0-6,LAB[c],{a:'middle',fs:9,fill:d.has(c)?COLS[KIND(c)]:'var(--mute)'})}
+    const n=12,lw=38,cell=Math.max(14,Math.min(24,Math.floor((w-lw-30)/(n+1))));
+    let s='';const x0=lw,y0=40;
+    // column labels turned so 11 px text never collides at phone width
+    for(let c=0;c<n;c++){const cx=x0+c*cell+cell/2+3,cy=y0-5;s+='<text x="'+cx+'" y="'+cy+'" font-size="11" transform="rotate(-60 '+cx+' '+cy+')" fill="'+(d.has(c)?COLS[KIND(c)]:'var(--mute)')+'">'+LAB[c]+'</text>'}
     for(let r=0;r<n;r++){
-      s+=RD.t(x0-4,y0+r*cell+cell*0.7,LAB[r],{a:'end',fs:9,fill:d.has(r)?COLS[KIND(r)]:'var(--mute)'});
+      s+=RD.t(x0-4,y0+r*cell+cell*0.7,LAB[r],{a:'end',fs:11,fill:d.has(r)?COLS[KIND(r)]:'var(--mute)'});
       for(let c=0;c<n;c++){let f='var(--soft)',op=1;
         if(d.has(r)&&d.has(c)&&d.mask(r,c)){f=COLS[KIND(c)];op=.75}
         else if(d.x&&d.has(r)&&d.x(r,c)){f='var(--c4)';op=.75}
         s+='<rect x="'+(x0+c*cell+.5)+'" y="'+(y0+r*cell+.5)+'" width="'+(cell-1)+'" height="'+(cell-1)+'" fill="'+f+'" fill-opacity="'+op+'"></rect>'}
-      const L=d.has(r)?d.loss(r):'';s+=RD.t(x0+n*cell+8,y0+r*cell+cell*0.7,L||'',{fs:10,w:600});
+      const L=d.has(r)?d.loss(r):'';s+=RD.t(x0+n*cell+8,y0+r*cell+cell*0.7,L||'',{fs:11,w:600});
       if(!d.has(r))s+=RD.t(x0+n*cell/2,y0+r*cell+cell*0.7,'',{});
     }
     const W=x0+n*cell+22,H=y0+n*cell+4;
@@ -75,9 +77,9 @@
     document.getElementById('fx-pick').addEventListener('click',e=>{const bt=e.target.closest('button');if(!bt)return;
       if(!cmp()||next==='a'){A=bt.dataset.id;next='b'}else{B=bt.dataset.id;next='a'}draw()});
     document.getElementById('fx-cmp').addEventListener('change',draw);
-    let t=0;addEventListener('resize',()=>{const tab=document.getElementById('t-nmfx');if(tab.hidden)return;clearTimeout(t);t=setTimeout(draw,80)});
+    RD.onResize(draw);
     draw();
   }
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-nmfx']=window.TAB_RENDER['t-nmfx']||[]).push(init);
+  RD.onRender(init);init();
   window.NMFX=D;
 })();

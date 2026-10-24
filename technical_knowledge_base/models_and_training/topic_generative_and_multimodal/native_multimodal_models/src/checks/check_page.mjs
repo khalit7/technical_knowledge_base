@@ -10,7 +10,7 @@ const require=createRequire(path.resolve(here,'../../../../../../html_utils/pack
 const puppeteer=require('puppeteer');
 const page_=path.resolve(here,'../../index.html');
 const shots=process.argv[2]||path.resolve(here,'..','..','.shots_nm');fs.mkdirSync(shots,{recursive:true});
-const TABS=['t-read','t-nmfx','t-nmgen','t-nmtok','t-more'];
+const TABS=['t-read','t-nmtok','t-more'];
 const b=await puppeteer.launch({headless:'shell'});
 let bad=0;
 try{

@@ -28,5 +28,5 @@
     cnt.innerHTML=RD.stat('Positions in the language model',st.c[0].toLocaleString('en-US'),'')+RD.stat('Sequential network calls so far',st.c[1].toLocaleString('en-US'),'')+RD.stat('What the image generator saw of the photo',st.c[2],'');
     cap.innerHTML='<div class="t">'+(i+1)+'. '+E(st.t)+'</div><p>'+E(st.p)+'</p>'}
   const A=RD.anim({card:'nm-fa-card',ctl:'nm-fa-ctl',n:S.pipe.length,draw,ms:2600,label:'Step'});
-  RD.seg(document.getElementById('nm-fa-mode'),m=>{mode=m;A.reset(S[m].length);A.play()});
+  RD.seg(document.getElementById('nm-fa-mode'),m=>{mode=m;A.reset(S[m].length)});
 })();
