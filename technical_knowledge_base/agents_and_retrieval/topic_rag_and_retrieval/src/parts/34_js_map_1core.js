@@ -51,7 +51,7 @@ window.MAP=(function(){
     S.addEventListener('input',()=>{setPlay(false);s.i=+S.value;show()});
     if(V)V.addEventListener('change',()=>{s.spd=+V.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{es.forEach(e=>{s.vis=e.isIntersecting;
-      if(s.vis&&!s.seen&&visible()&&!RM&&o.autoplay!==false){s.seen=true;setPlay(true)}kick()})},{threshold:0.15}).observe(card)}else s.vis=true;
+      kick()})},{threshold:0.15}).observe(card)}else s.vis=true;
     document.addEventListener('visibilitychange',kick);
     return {reset(n,i){s.n=n;s.i=(i==null?0:i);show()},show,setPlay,get i(){return s.i},kick};
   }

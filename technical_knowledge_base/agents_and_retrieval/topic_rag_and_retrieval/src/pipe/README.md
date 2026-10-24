@@ -1,5 +1,7 @@
 # Pipeline lab (tab `t-pipe` of Topic: rag-and-retrieval)
 
+> **Retired tab, kept runs (2026-10-24).** The Pipeline lab tab this folder built was retired when the topic was closed to the teaching contract: every stage it measured is taught, with these runs, on the child page that owns it. The scripts and `out/` stay because the child pages import and read them; `make_data.py`, `check_numbers.py` and `check_tab.mjs` (which built and checked the tab) moved to `../retired/pipe/` and the tab's parts to `../retired/parts/` (paths inside them assume their old folders).
+
 The tab's parts are `../parts/31_tab_pip_*.html` (text and layout), `../parts/31_js_pip_*.js` (behaviour) and `../parts/31_js_pip_0data.js` (data, generated). Every id and class is prefixed `pip-`; CSS is scoped under `#t-pipe`.
 
 ## How to rerun
