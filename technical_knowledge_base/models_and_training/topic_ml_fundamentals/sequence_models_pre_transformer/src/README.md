@@ -43,3 +43,5 @@ Why about 19 minutes is right: the page owns six mechanisms (recurrence and BPTT
 `ledger.json`, 220 units: core 173, depth 35, fat 12, owned 0, volatile 0; `python3 html_utils/ledger.py check`: problems 0. 211 drafted by `ledger.py init` from the old page, 9 added by hand for the new hero and gradient visual and for script-rendered charts (keys placed in static captions). Fat: header boilerplate, the old navigation and reading-time phrasing, wind-ups, transitions, chart-control labels. No unit is labelled owned: Beyond attention does not carry xLSTM or "Were RNNs all we needed?", so those stay here, closed.
 
 Checks (24 October 2026): `sh html_utils/checkpage.sh <folder>`: tabs 3, fail=0, emdash 0, errbox 1, clipped 0. `node src/check_page.mjs`: 1,580 actions, 0 problems, seq2seq forward OK. `check_cells.py`: 16 of 16 equal, max difference 7.5e-8. `recompute.py`: 34 checks, 0 failures. Earlier checks (3 October 2026): 1,496 actions, 0 problems.
+
+- 2026-10-24, topic close: Further reading times set to headers (root 23 min, plus 1; Normalisation and initialisation, Activation, Contrastive, Tokenizers, Positional Encodings).
