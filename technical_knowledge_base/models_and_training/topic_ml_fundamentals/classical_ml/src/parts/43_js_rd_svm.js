@@ -13,6 +13,6 @@
       'With the kernel the boundary bends around the moons. Large C trusts every training point: the boundary starts wrapping single points and the support vectors thin out.')+' Support vectors: '+free+' on the margin, '+at+' inside it or misclassified (&alpha; = C).';
     document.getElementById('rd-svN').innerHTML=RD.stat('support vectors',m.sv.length+' of '+d.Xtr.length)+(m.w?RD.stat('margin width 2/||w||',(2/Math.hypot(m.w[0],m.w[1])).toFixed(2),'standardised units'):RD.stat('gamma',MR.gscale(d.Xtr).toFixed(3),'1 / (2 &times; Var(X))'))+RD.stat('training accuracy',RD.pct(o.train))+RD.stat('test accuracy',RD.pct(o.test),d.Xte.length+' unseen points')}
   const A=RD.anim({card:'rd-sv',ctl:'rd-svC',n:CS.length,draw,ms:1500,label:'C'});
-  seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;kern=b.dataset.k;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(CS.length);A.play()});
+  seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;kern=b.dataset.k;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(CS.length)});
   let rz=0;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{if(!document.getElementById('t-read').hidden)A.redraw()},200)});
 })();

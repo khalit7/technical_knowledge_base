@@ -15,13 +15,17 @@ Scored with the Methodology (.claude/skills/explainer-page/visuals/choosing.md s
 | CM7 | **PCA raw against standardised on UCI Wine**, tweened projection and scree | 1 | 2 (x2) (99.8% proline; 36.2% / 19.2%) | 2 (x2) | 2 | 2 (standardise first) | 1 | 1 | 1 | 0 | 15 | built, Reading 9 |
 | CM8 | **Grid, random and Bayesian search on a real response surface** (SVC on digits, 1,517 CV cells), budgets with idle hyperparameters, live random distribution, BO distribution from recompute | 1 | 1 (x2) (Bergstra's 1 - 0.95^n by construction; BO paths equal to NumPy) | 2 (x2) | 2 | 2 (grid is not reliably worse in 2-D with both parameters important; it collapses with idle ones; all end within CV noise) | 2 | 2 | 1 | -2 | 15 | built, Reading 10 |
 | CM9 | **Distance concentration** (nearest / farthest against dimension, seeded simulation) | 1 | 0 | 2 (x2) | 1 | 1 | 1 | 0 | 0 | 0 | 8 | built small, Reading 6 (illustrative) |
-| CM10 | Isolation forest path-length toy | 1 | 1 | 2 | 1 | 0 | 0 | 1 | 1 | -1 | 7 | rejected: anomaly detection is one paragraph here; the PR-metric point is owned by Evaluation metrics |
+| CM10 | Isolation forest path-length toy | 1 | 1 | 2 | 1 | 0 | 0 | 1 | 1 | -1 | 7 | built 2026-10-24 as a stepper, Reading 8: the teaching contract asks for a visual for every mechanism; real Old Faithful data, illustrative seeds |
 | CM11 | Live t-SNE / UMAP | 1 | 0 | 1 | 1 | 2 | 0 | 0 (Distill's misread-tsne is the canonical live version) | 1 | -3 | n/a | rejected: linked to Distill; Kobak and Linderman correction in text |
 | CM12 | Hinge / logistic / exponential loss shapes | | | | | | | 0 | | | n/a | rejected: on Loss functions (margin section), linked |
 | CM13 | Ridge / lasso geometry | | | | | | | 0 | | | n/a | rejected: owned by Regularisation |
 | CM14 | Hierarchical clustering dendrogram | 1 | 1 | 2 | 1 | 0 | 0 | 0 | 1 | -2 | 4 | rejected: common elsewhere, the comparison of linkages is a table row |
 | CM15 | XGBoost leaf weight / gain worked example | 0 | 1 | 2 | 0 | 0 | 1 | 0 | 0 | 0 | n/a | rejected: worked by hand on Calculus and optimisation for ML; formulas shown and linked |
 | CM16 | Shipping sklearn's own random forest RNG | | | | | | | | | | | rejected: would need MT19937 in JS; the forest is checked tree by tree on the same bootstrap samples and in distribution instead |
+
+| CM17 | **Hero: three model shapes on the same points** (logistic regression, depth-3 tree, 100 depth-2 boosted trees), dataset selectable | 1 | 2 (x2) (engine checked against sklearn) | 2 (x2) | 2 | 1 | 2 | 1 | 0 | -1 | 14 | built 2026-10-24, top of Reading |
+| CM18 | Naive Bayes double counting, static bars | 0 | 1 (x2) (derived) | 2 (x2) | 1 | 2 | 1 | 1 | 0 | 0 | 11 | built 2026-10-24, Reading 1 |
+| CM19 | Level-wise against leaf-wise growth, static SVG before/after | 0 | 1 (x2) (library defaults) | 2 (x2) | 2 | 1 | 1 | 1 | 1 | 0 | 12 | built 2026-10-24, Reading 3 |
 
 Inspiration: scikit-learn's "classifier comparison" and "cluster comparison" galleries (made exact and interactive here), TensorFlow Playground, the DeepSeek MLA explainer's step controller (reused via RD.anim), Bergstra and Bengio's Figure 1.
 

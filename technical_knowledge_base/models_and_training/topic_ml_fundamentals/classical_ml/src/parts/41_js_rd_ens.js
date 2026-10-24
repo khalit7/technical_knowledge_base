@@ -41,6 +41,6 @@
     document.getElementById('rd-enT').innerHTML=C[0];document.getElementById('rd-enP').innerHTML=C[1];
     document.getElementById('rd-enN').innerHTML=RD.stat(mode==='tree'?'depth':mode==='rf'?'trees':'stages',n>=13&&mode==='tree'?'none':String(n))+RD.stat('training error (MSE)',e[0].toFixed(0),'g&sup2;, 100 readings')+RD.stat('held-out error (MSE)',e[1].toFixed(0),'g&sup2;, 33 readings')+RD.stat('best held-out in this mode',e0[bestI][1].toFixed(0),'at '+(mode==='tree'?'depth ':'')+STEPS[mode][bestI]+(mode==='rf'?' trees':mode==='gb'?' stages':''))}
   const A=RD.anim({card:'rd-en',ctl:'rd-enC',n:STEPS[mode].length,draw,ms:1500,label:'Step'});
-  seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(STEPS[mode].length);A.play()});
+  seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(STEPS[mode].length)});
   let rz=0;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{if(!document.getElementById('t-read').hidden)A.redraw()},200)});
 })();
