@@ -24,7 +24,7 @@ Python is `$GM_SCRATCH/venv/bin/python -I` under `nice -n 15`, 4 threads; GPU (M
 | `tok/roundtrip.py <key> [dtype]` | MPS | `out/tok/<key>_<dtype>.json`, reconstructions in `$GM_SCRATCH/av/tok/` |
 | `tok/metrics.py` | CPU | `out/tok/metrics.json` (PSNR, SSIM, LPIPS) |
 | `make_data.py` | CPU | `parts/22_js_av_0data.js` |
-| `absorb_lab.py` | CPU, seconds | `parts/22_js_av_1lab.js`: the root Latent lab's runs, sprites and SD VAE measurements, copied field by field from the root's committed `src/parts/31_js_lt_0data.js` (read only) |
+| `absorb_lab.py` | CPU, seconds | `parts/22_js_av_1lab.js`: the root Latent lab's runs, sprites and SD VAE measurements, copied field by field from the root's committed `src/retired/parts/31_js_lt_0data.js` (read only; moved there when the Latent lab was retired, 2026-10-24) |
 | `fill_static.py` | build | writes every `data-av` value into `../index.html` (fails on an unresolved path) |
 | `make_pub_table.mjs` | | the list behind the closed published-tokenizer table of section 10 (written once into `20_read_f.html`) |
 | `check_data.py`, `check_page.mjs` | | data match (both data parts against their sources), every `data-av` resolves and is filled; every control at 390 px dark and 920 px light, nothing playing after scrolling |
@@ -60,3 +60,11 @@ Why about 35 minutes is right: the Reading now carries what two pages split, the
 - Absorbed visuals reuse the root Latent lab's committed data part rather than its scratch outputs, so this page rebuilds without the scratch folder and agrees with the lab by construction (`check_data.py` compares them field by field).
 
 Sources and file:line references: `sources.md`; visuals built and rejected: `viz_ideas.md`.
+
+## 2026-10-24, topic close
+The root retired its Latent lab tab (parts moved to root `src/retired/parts/`, recordings stay in root `src/latent/out`); this page owns everything the lab taught, and the root's ledger labels those units `owned:` this page with keys such as "fd 611", "0.18159", "30.1 times higher" and "same psnr, different picture" (all present in the built page).
+- `absorb_lab.py` and `check_data.py` read `src/retired/parts/31_js_lt_0data.js`; `absorb_lab.py` rerun (data unchanged), `check_data.py` OK.
+- Prose that read as "go to the Latent lab" became provenance: "root Latent lab recordings", root `src/latent/sd_scale.py` and `perc_demo.py`; the loss-units table row is now "16-number VAE, &beta; = 1 (reference)".
+- Further reading: the root entry rewritten (the topic as a map; no reading time quoted while the root is rebuilt); sibling times corrected to their headers (Latent diffusion 33, Video and audio 28, Tokenizers 42; Math page "about 41 min" de-duplicated). Ledger unit 359's key follows the new wording.
+- Reading time unchanged: 35 min, plus 12 in closed details (audit 7,976 and 2,700 words).
+- Root fat audit (2026-10-24): "Why 64 tokens of 7 bits beat 16 real numbers", dropped from the root Latent lab at close-out, restored as a closed block under the section 1 figure (ledger unit 422). Reading time unchanged.
