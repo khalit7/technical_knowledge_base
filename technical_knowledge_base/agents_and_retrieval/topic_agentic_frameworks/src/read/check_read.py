@@ -27,7 +27,13 @@ chk("s0 agent 24.8 s, $0.030", f"{R['agent']['wall']} s for ${R['agent']['cost']
 ft = json.load(open(os.path.join(SRC, "same", "data", "first_tokens.json")))
 for k, v in [("a1_1", "397"), ("a2_1", "385"), ("a4_1", "491"), ("a3_1", "507"), ("a5_1", "2,231")]:
     chk(f"s2 first request {k} {v}", f"{ft[k]['full']:,}" == v and v in read)
-chk("mistakes 385 to 2,231", "from 385 to 2,231 tokens" in read and min(x["full"] for x in ft.values()) == 385 and max(x["full"] for x in ft.values()) == 2231)
+chk("s2 range 385 to 2,231", "from 385 tokens (LangGraph) to 2,231" in read and min(x["full"] for x in ft.values()) == 385 and max(x["full"] for x in ft.values()) == 2231)
+# Claude Agent SDK first-call sizes (input + cache writes + cache reads), as the Same agent tab's bars count them
+_sd = open(os.path.join(SRC, "parts", "31_js_same_0data.js")).read()
+_SD = json.loads(_sd[_sd.index("{"):_sd.rstrip().rstrip(";").rindex("}") + 1])
+for k in ("a6_haiku_1", "a6b_haiku_1", "a6c_haiku_1"):
+    c = _SD["claude"][k]["calls"][0]
+    chk(f"comparison table first call {k}", f"{c['in'] + c['cw'] + c['cr']:,}" in read)
 chk("s5 same hidden score", R["agent"]["hidden"] == R["multi"]["hidden"] == 5)
 chk("s5 multi costs more", R["multi"]["tokens"] > 3 * R["agent"]["tokens"] and R["multi"]["wall"] > 2 * R["agent"]["wall"])
 chk("s1 two designs 6/6", sorted(k for k in ["chain", "route", "parallel", "orch", "evalopt", "agent"] if R[k]["hidden"] == 6) == ["evalopt", "route"])

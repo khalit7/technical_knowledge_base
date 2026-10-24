@@ -1,6 +1,6 @@
 # Production stack (tab t-ops)
 
-Parts: `parts/33_tab_ops.html` (HTML and scoped CSS), `parts/33_js_a_data.js` (generated), `33_js_b_core.js` (helpers `window.OPU`: step animation, predict-then-reveal, values in prose), `33_js_c_gw.js` (architecture picture, gateway replay, keys table), `33_js_d_sim.js` (gateway simulator), `33_js_e_trace.js` (trace viewer, cost attribution), `33_js_f_evals.js` (regression suite), `33_js_g_mem.js` (memory layers). Ids and classes are prefixed `ops-`; renders register in `window.TAB_RENDER['t-ops']`.
+Parts: `parts/33_tab_ops.html` (HTML and scoped CSS), `parts/33_js_a_data.js` (generated), `33_js_b_core.js` (helpers `window.OPU`: step animation, predict-then-reveal, values in prose), `33_js_c_gw.js` (architecture picture, gateway replay, keys table), `33_js_d_sim.js` (gateway simulator), `33_js_e_trace.js` (trace viewer, cost attribution), `33_js_f_evals.js` (regression suite). The memory-layers section (`33_js_g_mem.js`) was retired on 2026-10-24: Context engineering, section 8, owns memory layers and ran the real libraries on twelve sessions; `recordings/memory.json` and `code/mem.py` stay as the record of this tab's four-session run, no longer embedded. Ids and classes are prefixed `ops-`; renders register in `window.TAB_RENDER['t-ops']`.
 
 ## What was run (5 to 6 October 2026, Apple M1 Pro 16 GB)
 - Gateway: LiteLLM 1.104.0 proxy (`code/config.yaml`; Postgres 16 in Docker for virtual keys) in front of `code/fake_upstream.py` (scripted 429/500/503/hang, canned answer on success) and the local model `mlx-community/Qwen3-4B-Instruct-2507-4bit` (mlx-lm 0.32.0, own server on port 8097 after the shared one ran out of GPU memory) behind afsame's logging proxy. Driver `code/gw_record.py`: scenarios direct_ok, direct_429, direct_503, direct_hang, gw_ok, gw_retry, gw_timeout, gw_fallback, gw_cooldown, keys.
@@ -11,7 +11,7 @@ Parts: `parts/33_tab_ops.html` (HTML and scoped CSS), `parts/33_js_a_data.js` (g
 ## Pipeline
 1. `python3 redact.py <scratchpad>/agents/recordings/afops` writes `recordings/` (whitelisted span and event attributes; no user, account, organisation, session, request or key ids; Claude Code hook/plugin/settings events dropped; paths to /work; em-dashes to ", ") and fails on any leak.
 2. `python3 build_data.py` writes `parts/33_js_a_data.js` from `recordings/` only.
-3. `sh ../build.sh`, then `python3 check_numbers.py <t-ops innerText>`: regenerates the data part and compares, checks the page embeds it, and recomputes the quoted numbers (20 checks).
+3. `sh ../build.sh`, then `python3 check_numbers.py <t-ops innerText>`: regenerates the data part and compares, checks the page embeds it, and recomputes the quoted numbers (16 checks since the memory checks went with the section).
 
 ## Departures from the brief
 - Langfuse self-hosted was not run (six services); the backends are compared from their docs, and the collector stands in as a neutral sink.

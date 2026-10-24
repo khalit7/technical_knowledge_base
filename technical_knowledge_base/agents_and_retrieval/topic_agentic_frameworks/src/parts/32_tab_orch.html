@@ -75,9 +75,8 @@
 
 <section id="orch-s-res">
 <h2>Same input, six results</h2>
-<div class="orch-pred" id="orch-pr1"><b>Predict first.</b> All six fixed the visible tests. Which one took the longest wall-clock time?
-<div class="opts"><button data-a="agent">The free agent (it chooses its own steps)</button><button data-a="orch">Orchestrator-workers (most moving parts)</button><button data-a="evalopt">Evaluator-optimizer</button><button data-a="chain">Prompt chaining</button></div>
-<div class="ans" id="orch-pr1a"></div></div>
+<div class="orch-pred done" id="orch-pr1"><b>Predict first.</b> All six fixed the visible tests. Which one took the longest wall-clock time? <span class="mute">(The free agent (it chooses its own steps); Orchestrator-workers (most moving parts); Evaluator-optimizer; Prompt chaining?)</span>
+<details><summary>Open the answer</summary><div class="ans" id="orch-pr1a"></div></details></div>
 <div class="orch-fig">
 <div class="seg" id="orch-mx" role="group" aria-label="Metric"><button data-m="wall" class="on">Wall time</button><button data-m="tok">Tokens processed</button><button data-m="out">Tokens written</button><button data-m="cost">Cost equivalent</button><button data-m="hid">Hidden checks</button></div>
 <div id="orch-bars" class="bars"></div>
@@ -120,12 +119,7 @@
 </div>
 <h3>What the recording proves, line by line from the event log</h3>
 <ul id="orch-dfind"></ul>
-<h3>Three details that bite in production</h3>
-<ul>
-<li><b>When the checkpoint is written.</b> LangGraph has three durability modes (from the pinned source, <code>langgraph/types.py</code>): <code>"sync"</code>, "changes are persisted synchronously before the next step starts"; <code>"async"</code> (the default), "persisted asynchronously while the next step executes"; <code>"exit"</code>, "persisted only when the graph exits". Under <code>"exit"</code> the kill above would have lost the diagnosis too. <code>"async"</code> is faster but a crash in the wrong millisecond can lose the last step.</li>
-<li><b>A resumed node runs again from its first line.</b> The <code>interrupt()</code> docstring says it plainly: "The graph resumes from the start of the node, re-executing all logic." The event log shows <code>human_review</code> starting twice. Anything with a side effect (sending an email, charging a card, writing a file) that sits before an interrupt, or inside a node that can crash, must be safe to run twice (<b>idempotent</b>) or must move into its own node. The same holds for the killed model call: it was paid for and its answer was lost, so the resumed process called the model again.</li>
-<li><b>Nothing restarts the process for you.</b> The checkpointer makes resuming possible; something else has to notice the crash and call <code>invoke</code> again with the same thread id (here, the driver script; in production a job queue, a supervisor, or a hosted platform).</li>
-</ul>
+<p><b>What bites in production</b>, each measured on {{LangChain and LangGraph|n:3c65c17b0d0d81529358c996382224ac}}: when the checkpoint is written (the three durability modes, and that <code>"exit"</code> would have lost the diagnosis too, section 5); that a resumed node runs again from its first line, as the event log here shows with <code>human_review</code> starting twice, so a side effect before an interrupt must be idempotent (section 6); and that nothing restarts the process for you: something has to notice the crash and call <code>invoke</code> again with the same thread id (here, the driver script).</p>
 <h3>What Temporal-style durable workflows add</h3>
 <p>{{Temporal|https://docs.temporal.io/workflows}} is a workflow engine that predates LLM agents and is now often used to run them. It takes a different route to the same goal:</p>
 <div class="tw"><table class="orch-t"><thead><tr><th></th><th>LangGraph checkpointer</th><th>Temporal</th></tr></thead><tbody>
@@ -153,10 +147,7 @@
 <p class="small mute">Top: when each agent was thinking (pale bars) and running tools (orange). Bottom: how many tokens each agent sent on its most recent model call, the size of its context, drawn to one scale in both runs.</p>
 <ul id="orch-mfind"></ul>
 <h3>Two published arguments, and where each applies</h3>
-<div class="orch-two">
-<div class="sp"><div class="n">For: Anthropic, 13 June 2025</div><p>{{How we built our multi-agent research system|https://www.anthropic.com/engineering/multi-agent-research-system}}: a lead Claude Opus 4 with Claude Sonnet 4 subagents "outperformed single-agent Claude Opus 4 by 90.2%" on Anthropic's internal research evaluation. By their measurements agents use about 4 times the tokens of a chat and multi-agent systems about 15 times; token usage alone explained 80% of the variance on BrowseComp. Good fit: "heavy parallelization, information that exceeds single context windows, and interfacing with numerous complex tools". Poor fit: "most coding tasks involve fewer truly parallelizable tasks than research", and domains that need shared context or many dependencies between agents.</p></div>
-<div class="sp"><div class="n">Against: Cognition, 12 June 2025</div><p>{{Don't Build Multi-Agents (Walden Yan)|https://cognition.com/blog/dont-build-multi-agents}}: two principles, "Share context, and share full agent traces, not just individual messages" and "Actions carry implicit decisions, and conflicting decisions carry bad results". Their example: two subagents building parts of a Flappy Bird clone each guess a different style, and the parts do not fit. Recommended instead: one single-threaded agent, plus a model that compresses history for very long tasks. Subagents are acceptable when they only answer narrow, read-only questions, as in Claude Code.</p></div>
-</div>
+<p>Anthropic (13 June 2025, {{How we built our multi-agent research system|https://www.anthropic.com/engineering/multi-agent-research-system}}) reports a lead with parallel subagents beating single-agent Claude Opus 4 by 90.2% on its internal research evaluation, at about 15 times the tokens of a chat, and says "most coding tasks involve fewer truly parallelizable tasks than research". Cognition (12 June 2025, {{Don't Build Multi-Agents|https://cognition.com/blog/dont-build-multi-agents}}) argues "Actions carry implicit decisions, and conflicting decisions carry bad results": two subagents building parts of a Flappy Bird clone each guess a different style, and the parts do not fit. Both posts, quoted in full and read against the other evidence: {{Multi-agent patterns|n:3c65c17b0d0d8194a306c37803387bf3}}, section 10. Where each applies to a task:</p>
 <div class="tw"><table class="orch-t"><thead><tr><th>Property of the task</th><th>Which argument wins</th><th>Why</th></tr></thead><tbody>
 <tr><td>Many independent, read-only lookups (research, search, audits)</td><td>Anthropic</td><td>pieces do not have to agree with each other; parallel contexts hold more material than one window; the extra tokens buy coverage</td></tr>
 <tr><td>Pieces that write to the same artefact (code, a document, a design)</td><td>Cognition</td><td>each writer makes unstated choices; the merge is where they conflict</td></tr>

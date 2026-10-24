@@ -33,7 +33,7 @@ window.OU=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+      kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -193,8 +193,7 @@ window.OU=(function(){
     '<b>A permission gate changes behaviour.</b> In an earlier agent run the allow-list admitted <code>python3</code> but the model typed <code>python</code>: '+D.agent_denied.denials+' commands denied, and it edited the code without ever seeing a test run ('+U.sec(D.agent_denied.wall)+', '+U.usd(D.agent_denied.cost)+'). Workflows cannot fall into this; agents need their tools and permissions designed for how the model actually behaves.'
   ].map(x=>'<li>'+x+'</li>').join('');
   // prediction
-  const pr=document.getElementById('orch-pr1');pr.querySelector('.opts').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
-    pr.querySelectorAll('.opts button').forEach(x=>x.classList.toggle('right',x.dataset.a===fast[5]));if(b.dataset.a!==fast[5])b.classList.add('wrong');pr.classList.add('done');
+  const pr=document.getElementById('orch-pr1');pr.querySelector('details').addEventListener('toggle',()=>{
     document.getElementById('orch-pr1a').innerHTML='<b>'+NAMES[fast[5]]+'</b>: '+U.sec(TOT[fast[5]].wall)+'. '+KEYS.filter(k=>k!==fast[5]).map(k=>NAMES[k]+' '+U.sec(TOT[k].wall)).join(', ')+'. The loop ran twice and each strict review thought for over 11,000 tokens: in this run a review cost more than the code it reviewed. The free agent, with no plan at all, finished in '+U.sec(TOT.agent.wall)+'.'});
   U.onRender(()=>{if(an)an.redraw();bars()});
 })();
