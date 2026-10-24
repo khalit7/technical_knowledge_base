@@ -38,3 +38,12 @@ All inputs are the worlds' definitions (`parts/21_js_dpe.js`, `recompute.py`): S
 ## What the methodology lacked for this page
 
 A fair unit of cost across algorithms whose steps differ in kind (an evaluation sweep, an improvement, a single prioritised backup). Model look-ups, with frames of one value-iteration sweep's worth, made the race honest; worth reusing for any page comparing iterative solvers.
+
+## 2026-10-24 rebuild to the teaching contract
+| Idea | Decision |
+|---|---|
+| Hero: one optimality backup of Class 3 with real numbers beside Silver's grid after 1, 3, 6 sweeps (static) | **built**, top of Reading: the whiteboard picture (backup, then sweep) |
+| Value-iteration stepper on Silver's shortest path, one sweep per step, beside the update equation | **built**, section 7: the process is the point, so a learner-paced stepper; reproduces the slide's V1 to V7 |
+| Gambler's problem | **moved** from the Sweep lab to a closed block in section 7: one example of one method, not a cross-page tool |
+| Sweep lab | **kept as a tab**: the one tool sections 4 to 12 all use |
+| Real images | **none**: a mechanism page; Sutton and Barto's figures are CC BY-NC-ND |

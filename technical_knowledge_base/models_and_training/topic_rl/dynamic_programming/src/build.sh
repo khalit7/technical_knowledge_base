@@ -6,7 +6,7 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/
 # JS: every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js (the tab wiring) last.
 # Links may be written {{text|url}} (url may be n:<notion id>, or #t-<tab> for a link to a tab); plain <a> tags pass through.
 cd "$(dirname "$0")"
-{ cat parts/01_head.html parts/10_header.html parts/20_read_a.html parts/20_read_b.html parts/20_read_c.html
+{ cat parts/01_head.html parts/10_header.html parts/20_read_*.html
   for f in parts/3*_tab_*.html; do cat "$f"; done
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html
@@ -18,19 +18,21 @@ s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a hre
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
 if grep -q '—' ../index.html; then echo "EM DASH FOUND"; grep -n -o '.\{30\}—.\{30\}' ../index.html | head; fi
 wc -c ../index.html
-# Reading time (230 words per minute over the Reading tab's visible text) and the best-resources total
+# Reading time: the header states it by hand from html_utils/audit_pages.mjs (230 words a minute, core and closed details apart,
+# script-written text included); this prints a static estimate as a cross-check and fills in the best-resources total
 python3 - <<'PY'
 import re
 s=open('../index.html').read()
 a=s.index('id="t-read"');b=s.index('id="t-lab"')
-t=re.sub(r'<script.*?</script>|<style.*?</style>','',s[a:b],flags=re.S);t=re.sub(r'<[^>]+>',' ',t)
-w=len(t.split());m=round(w/230)
+t=re.sub(r'<script.*?</script>|<style.*?</style>','',s[a:b],flags=re.S)
+d=re.sub(r'<details.*?</details>','',t,flags=re.S)
+w=len(re.sub(r'<[^>]+>',' ',d).split());wt=len(re.sub(r'<[^>]+>',' ',t).split());m=round(w/230)
 tot=0
 for x in re.findall(r'class="rt">\(([^)]*)\)',s[s.index('id="more-best"'):s.index('id="more-end-best"')]):
     h=re.search(r'(\d+)h',x);mm=re.search(r'(\d+) ?m(?:in)?\b',x)
     tot+=(int(h.group(1))*60 if h else 0)+(int(mm.group(1)) if mm else 0)
 res='%dh %02dm'%(tot//60,tot%60)
-s=s.replace('RT_MIN',str(m)).replace('RES_TIME',res)
+s=s.replace('RES_TIME',res)
 open('../index.html','w').write(s)
-print('reading words',w,'minutes',m,'resources',res)
+print('reading static words: core',w,'closed',wt-w,'(about',m,'min core); resources',res)
 PY

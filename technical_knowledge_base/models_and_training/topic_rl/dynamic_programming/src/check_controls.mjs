@@ -48,8 +48,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   for (const [d, v, m] of [[1, 2, 2], [10, 10, 4], [20, 20, 20], [3, 5, 2]]) { for (const [k, x] of [['D', d], ['V', v], ['M', m]]) await p.$eval('#dp-cu' + k, (e, x) => { e.value = x; e.dispatchEvent(new Event('input')) }, x); await scan('#dp-cu', 'curse ' + d + ' ' + v + ' ' + m) }
   // VI against Q-learning
   for (const m of ['vi', 'ql']) { await p.$eval('#rd-gwM button[data-m="' + m + '"]', e => e.click()); await scrub('rd-gwC', 'rd-gw', 'gw ' + m) }
-  // mistakes
-  await p.$$eval('#dp-wrong details', ds => ds.forEach(d => d.open = true)); await scan('#dp-wrong', 'mistakes');
+  // hero, the value-iteration stepper, the gambler (closed block), the depth blocks
+  await scan('#dp-hero', 'hero');
+  await scrub('dp-swC', 'dp-sw', 'sweep stepper');
+  await p.$eval('#dp-gm', d => { d.open = true; d.dispatchEvent(new Event('toggle')) });
+  for (const ph of ['0.25', '0.4', '0.45', '0.5', '0.55']) { await p.select('#dp-gmS', ph); await scan('#dp-gm', 'gambler ' + ph) }
+  await p.$$eval('#t-read details', ds => ds.forEach(d => d.open = true)); await scan('#t-read', 'reading, all details open');
   // Sweep lab
   await p.$eval('button[data-t=t-lab]', e => e.click());
   const meths = await p.$$eval('#sw-ma option', os => os.map(o => o.value));
@@ -65,7 +69,6 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     await p.select('#sw-ma', 'pi'); await p.select('#sw-mb', 'vi'); await p.$eval('#sw-ctl-s', e => { e.value = 3; e.dispatchEvent(new Event('input')) });
     const el = await p.$('#sw-cards'); await el.screenshot({ path: path.join(shots, `lab-${w}-${scheme}-${width}.png`) });
   }
-  for (const ph of ['0.25', '0.4', '0.45', '0.5', '0.55']) { await p.select('#sw-ph', ph); await scan('#sw-gam', 'gambler ' + ph) }
   await p.$eval('button[data-t=t-more]', e => e.click()); await scan('#t-more', 'more');
   const err = await p.$eval('#jsErr', e => e.hidden ? '' : e.textContent);
   if (err || errs.length) { bad++; console.log('ERRORS', scheme, err, errs) }
@@ -73,6 +76,17 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   if (side) { bad++; console.log('SIDEWAYS SCROLL', scheme, width) }
   await p.close();
 }
+// nothing may move before the reader acts: normal motion, scroll every animation into view, wait, check every scrubber is still at 0
+{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
+  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
+  await p.goto('file://' + file);
+  for (const t of ['t-read', 't-lab']) { await p.$eval('button[data-t=' + t + ']', e => e.click());
+    for (const c of await p.$$eval('#' + t + ' .an-ctl', es => es.map(e => e.id))) { await p.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2500));
+      checks++; const v = await p.$eval('#' + c + '-s', e => +e.value); if (v !== 0) { bad++; console.log('AUTOPLAY', c, v) } } }
+  // a mode switch must not start playback either
+  for (const [seg, c] of [['#dp-coM button[data-m="cba"]', 'dp-coC'], ['#rd-gwM button[data-m="ql"]', 'rd-gwC']]) { await p.$eval('button[data-t=t-read]', e => e.click()); await p.$eval(seg, e => { e.scrollIntoView({ block: 'center' }); e.click() }); await new Promise(r => setTimeout(r, 2500));
+    checks++; const v = await p.$eval('#' + c + '-s', e => +e.value); if (v !== 0) { bad++; console.log('AUTOPLAY after mode switch', c, v) } }
+  await p.close(); }
 await b.close();
 console.log(`controls check: ${checks} scans, ${bad} problems`);
 process.exit(bad ? 1 : 0);
