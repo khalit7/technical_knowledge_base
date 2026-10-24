@@ -64,3 +64,5 @@ Why about 25 minutes is right: the page owns ten method families plus the tabula
 
 ## Knowledge ledger (`ledger.json`)
 209 units: core 147, depth 45, fat 16, owned 1 (ridge and lasso, at Regularisation). 197 were drafted by `ledger.py init` from the old page; 12 were added for the new visuals and for script-hidden or merged material. Fat units carry a `note` (navigation, tab names, fragments, restatements, the old reading-time line). `python3 html_utils/ledger.py check`: problems 0.
+
+- 2026-10-24, topic close: Further reading times set to the targets' headers (root 23 min, plus 1; Loss, Regularisation, Optimisers, Evaluation metrics, Contrastive).
