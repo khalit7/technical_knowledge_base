@@ -27,3 +27,11 @@ Existing visuals not repeated (the parent's Latent lab owns them): one image thr
 
 ## What the methodology lacked
 A rule for binding prose numbers to data: here every measured number in the Reading tab is a `data-av` span filled from the embedded records, so a rerun cannot leave stale numbers in the text.
+
+## 2026-10-23 rebuild to the teaching contract
+This page now owns the autoencoder concepts the root's Latent lab used to teach, so the "not repeated" list above no longer holds: the lab's visuals that teach a core idea were rebuilt here from the lab's recorded data (`absorb_lab.py`, read only), and the root should link here.
+- **Added inline**: hero (four test images through a plain autoencoder, a VAE and a VQ-VAE, the three latent forms annotated); drawn-to-scale bars of what a generator works on (pixels, FLUX.1, SD 1.5, DC-AE, Chameleon tokens); the two 2-D latent spaces side by side, codes or decodes (before/after: the KL term); random-code samples for AE N(0, I), AE fitted Gaussian, VAE; interpolation (pixels, AE, VAE); reparameterisation flow diagram (static); the &beta; slider over five recorded runs (one widget, one variable); scaled against raw noising toggle and the three wrong-factor sets; 4 against 32 channels crops (SD 1.5 against FLUX.2); same-PSNR blur against reconstruction.
+- **Moved into Reading**: the Posterior collapse tab (KL curves, the four runs' decodes, KL per dimension in a closed block) and the Quantizer playground (2-D toy into section 8, VQ table with usage curves, reconstructions and token map; sorted frequencies in a closed block; FSQ and LFQ table in section 9). Both explained one mechanism each.
+- **Changed**: no animation plays by itself (template `RD.anim`); the collapse decode animation and the comparator's crop animation became toggles (the change between end states is the point, not the motion); the three-loss strip is a toggle; every number in the prose is written into the static HTML at build time (`fill_static.py`), replacing the script fill.
+- **Kept as a tab**: Tokenizer comparator (a dataset view used by sections 10 to 12).
+- **Rejected**: a real photo or paper figure. This is a mechanism page and every picture is the page's own data (real reconstructions, real latents); the canonical figures (VQ-VAE, VQGAN, LDM) are under the arXiv default licence, which does not grant reuse.

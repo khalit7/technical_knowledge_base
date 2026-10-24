@@ -1,4 +1,4 @@
-// ---- Tokenizer comparator tab (recorded data in AVD.tok) ----
+// ---- Tokenizer comparator tab (recorded data in AVD.tok); crops are a toggle, nothing moves by itself ----
 (function(){
   const T=AVD.tok,M=T.m,esc=RD.esc,fmt=n=>n.toLocaleString('en-GB');
   const order=T.order.filter(k=>M[k]);
@@ -24,22 +24,21 @@
     order.forEach(k=>{const m=M[k];const f=v=>isFinite(v)?v.toFixed(3):'<span data-nanok>NaN</span>';h+='<tr><td>'+esc(m.label)+'</td><td>'+m.norm+'</td><td class="num">'+f(m.raw_std)+'</td><td class="num">'+f(m.lat_std)+'</td><td class="num">'+f(m.lat_mean)+'</td></tr>'});
     document.getElementById('avtok-stat').innerHTML=h+'</tbody>';
   }
-  // crops: an animation that flips the big tile through original, then each model
-  let img=T.crop_images[0];const seq=['orig'].concat(order.filter(k=>!M[k].nan));
+  // crops: a toggle between the original and each autoencoder (left tile stays the original)
+  let img=T.crop_images[0],cur=1;const seq=['orig'].concat(order.filter(k=>!M[k].nan));
   document.getElementById('avtok-img').innerHTML=T.crop_images.map(c=>'<button data-c="'+c+'" class="'+(c===img?'on':'')+'">'+esc(T.crop_names[c])+'</button>').join('');
-  document.getElementById('avtok-model').innerHTML=seq.map((k,i)=>'<button data-m="'+i+'"'+(i===0?' class="on"':'')+'>'+esc(k==='orig'?'Original':M[k].short)+'</button>').join('');
+  document.getElementById('avtok-model').innerHTML=seq.slice(1).map((k,i)=>'<button data-m="'+(i+1)+'"'+(i===0?' class="on"':'')+'>'+esc(M[k].short)+'</button>').join('');
   function draw(i){
     const k=seq[i],cr=T.crops[img],box=document.getElementById('avtok-crops');
-    box.innerHTML='<figure><img src="'+cr.orig+'" alt="original crop"><figcaption>Original</figcaption></figure><figure><img src="'+cr[k]+'" alt="crop"><figcaption>'+(k==='orig'?'Original':esc(M[k].label))+'</figcaption></figure>';
-    document.querySelectorAll('#avtok-model button').forEach((b,j)=>b.classList.toggle('on',j===i));
+    box.innerHTML='<figure><img src="'+cr.orig+'" alt="original crop"><figcaption>Original</figcaption></figure><figure><img src="'+cr[k]+'" alt="'+esc(M[k].label)+' crop"><figcaption>'+esc(M[k].label)+'</figcaption></figure>';
+    document.querySelectorAll('#avtok-model button').forEach(b=>b.classList.toggle('on',+b.dataset.m===i));
     const pi=T.images.indexOf(img);
-    document.getElementById('avtok-cap').innerHTML=k==='orig'?'<div class="t">The original</div><p>Step through the autoencoders; the left tile stays the original.</p>':
-      '<div class="t">'+esc(M[k].label)+'</div><p>'+esc(M[k].latent_shape.join(' x '))+' latent; on this image PSNR '+M[k].per[pi].psnr.toFixed(2)+' dB, SSIM '+M[k].per[pi].ssim.toFixed(3)+', LPIPS '+M[k].per[pi].lpips.toFixed(3)+'.</p>';
+    document.getElementById('avtok-cap').innerHTML='<div class="t">'+esc(M[k].label)+'</div><p>'+esc(M[k].latent_shape.join(' x '))+' latent; on this image PSNR '+M[k].per[pi].psnr.toFixed(2)+' dB, SSIM '+M[k].per[pi].ssim.toFixed(3)+', LPIPS '+M[k].per[pi].lpips.toFixed(3)+'.</p>';
   }
-  const an=RD.anim({card:'avtok-crop-card',ctl:'avtok-ctl',n:seq.length,draw,ms:1600,label:'Autoencoder',tab:'t-avtok'});
-  document.getElementById('avtok-model').addEventListener('click',e=>{const b=e.target.closest('button');if(b)an.go(+b.dataset.m)});
+  document.getElementById('avtok-model').addEventListener('click',e=>{const b=e.target.closest('button');if(b){cur=+b.dataset.m;draw(cur)}});
   document.getElementById('avtok-img').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;img=b.dataset.c;
-    document.querySelectorAll('#avtok-img button').forEach(x=>x.classList.toggle('on',x===b));an.redraw()});
+    document.querySelectorAll('#avtok-img button').forEach(x=>x.classList.toggle('on',x===b));draw(cur)});
+  draw(cur);
   (function(){const ti=T.images.indexOf('s03_text');const v=order.filter(k=>!M[k].nan).map(k=>M[k].per[ti].psnr);
     document.getElementById('avtok-text-min').textContent=Math.min(...v).toFixed(1);document.getElementById('avtok-text-max').textContent=Math.max(...v).toFixed(1)})();
   table();per();stat();
