@@ -33,3 +33,5 @@ Already built elsewhere in the knowledge base, so linked, not rebuilt: Mixtral's
 
 - A rule for papers whose mechanism is already visualised elsewhere in the KB: build what is specific to the paper (here its cost claims and its routing analysis) and link the rest.
 - Checking whether "figures without values" are vector graphics before calling them unreadable (lesson already in papers.md from ReAct and InstructGPT; it applied here and changed two conclusions).
+
+| P-mixtral_of_experts.h | Hero: the paper's Figure 1 (MoE layer), CC BY 4.0, as WebP | built 2026-10-25 (light pass) |

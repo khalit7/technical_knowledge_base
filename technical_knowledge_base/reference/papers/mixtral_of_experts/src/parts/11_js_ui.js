@@ -15,11 +15,11 @@ const ln2=(x1,y1,x2,y2,c,o)=>{o=o||{};return '<line x1="'+(+x1).toFixed(1)+'" y1
 const G=(op,s)=>op<=0?'':op>=1?s:'<g opacity="'+op.toFixed(3)+'">'+s+'</g>';
 const cl01=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v);
 
-// makeAnim: one input animated step by step, with modes (old method and new) sharing one scale.
+// makeAnim (never autoplays since 2026-10-25: it waits on step 1 until the reader presses play or steps): one input animated step by step, with modes (old method and new) sharing one scale.
 // o = {id, modes:{m:[{t,c}...]}, mode, draw(svgHost, mode, k, e, width), counters(mode,k,e) -> html, dur}
 // Expects #<id>Svg, #<id>Play, #<id>Back, #<id>Fwd, #<id>Scrub, #<id>Spd, #<id>Step, #<id>Cap, #<id>Cnt and a .seg #<id>M.
 function makeAnim(o){const id=o.id,card=$(id);if(!card)return null;const DUR=o.dur||3000,MOVE=.65;
-  const st={m:o.mode,k:0,t:RM?1:0,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',w:0};
+  const st={m:o.mode,k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',w:0};
   const steps=()=>o.modes[st.m];
   function draw(){const host=$(id+'Svg'),w=host.clientWidth;if(!w)return;st.w=w;const e=RM?1:ease(cl01(st.t/MOVE));
     host.innerHTML=o.draw(st.m,st.k,e,w);
@@ -39,8 +39,8 @@ function makeAnim(o){const id=o.id,card=$(id);if(!card)return null;const DUR=o.d
   $(id+'Scrub').addEventListener('input',e=>{pause();const n=steps().length,v=+e.target.value;st.k=Math.min(n-1,Math.floor(v/100));st.t=cl01(v/100-st.k);if(st.k===n-1&&v>=n*100)st.t=1;draw()});
   $(id+'Spd').addEventListener('change',e=>{st.spd=+e.target.value});
   const seg=$(id+'M');if(seg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM)st.play=true;draw();kick()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;if(st.vis&&!st.started&&!RM){st.started=true;st.play=true}kick()},{threshold:.15}).observe(card)}else st.vis=true;
+    st.m=b.dataset.m;st.k=0;st.t=1;pause();draw()}));
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   fit($(id+'Svg'),()=>draw());
   return {draw,st,kick}}

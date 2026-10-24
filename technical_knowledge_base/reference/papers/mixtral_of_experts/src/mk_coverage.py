@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header and links (live.md lines 18 to 22)
- ('Reading time line "9 min read, +~2h 55m resources"', 'dropped: replaced by the build-computed reading time and resources total of the new page', ['min to read', 'of resources']),
+ ('Reading time line "9 min read, +~2h 55m resources"', 'dropped: replaced by the measured reading time in the header (2026-10-25)', ['Reading: ', 'in closed details']),
  ('Authors/lab: Mistral AI (Jiang, Sablayrolles, Roux, Mensch et al.)', R + ', headline card (all 26 authors)', ['Albert Q. Jiang', 'Alexandre Sablayrolles', 'Antoine Roux', 'Arthur Mensch', 'Mistral AI']),
  ('Date: January 2024 (arXiv v1 2024-01-08; weights released via magnet link 2023-12-08)', R + ', card and Problem', ['January 2024', 'arXiv v1 8 January 2024', 'magnet link on 8 December 2023']),
  ('Link arXiv 2401.04088 (~45 min)', 'card and Further reading', ['https://arxiv.org/abs/2401.04088', '(45 min)']),
