@@ -54,3 +54,7 @@ Why 34 minutes is right: the page teaches ten mechanisms across five allocators 
 
 ## Departures from the method
 Child-page shape (`.claude/skills/explainer-page/page-kinds/topic-child.md`), with the topic's own additions: OSTEP chapter map (closed), measured runs beside every mechanism, predict-then-reveal drills and interview rehearsal (closed). The two simulators are checked against the code they port (OSTEP's homework; PyTorch's allocator source) and sit inline. The cycle-collector run is on the Mac, not in the Linux VM, and says so beside it. No `live.md` or `coverage.json`: the page is new, there was no old Notion text.
+
+## Topic close (2026-10-24)
+Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.
+The provenance block gained the dead-code trap of the root's first malloc strace; the arena pairs and the 7,880-page figure now point to the root's recording and to Virtual memory section 7.
