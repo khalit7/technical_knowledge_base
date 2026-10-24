@@ -103,7 +103,7 @@ function ckRun(kind,beta){const key=kind==='ul'?'ul':kind+beta;if(RUNS[key])retu
   $('thLoss').innerHTML='after 4,000 full-batch steps each, '+last(T.dpoLoss)[1].toFixed(5)+' for DPO and '+last(T.rmLoss)[1].toFixed(5)+' for the reward model (Bradley-Terry labels, β = '+T.beta+')';
   $('thUn').textContent=T.unseenDPO>0.9999?'more than 99.99%':pc(T.unseenDPO,2);
   const d=SW('DPO β = 0.1'),z=last(d.trace);$('dispC').textContent=z.c.toFixed(2);$('dispX').textContent=fmt(Math.exp(-z.c),0);$('dispL').textContent=z.l.toFixed(2);
-  PRED_REVEAL['pr-disp']=()=>fit($('dispSvg'),w=>{const H=210,runs=['DPO β = 0.1','DPO β = 1','DPO β = 5'].map(SW);
+  fit($('dispSvg'),w=>{const H=210,runs=['DPO β = 0.1','DPO β = 1','DPO β = 5'].map(SW);
     const cv=x=>x.c==null?0:x.c,lv=x=>x.l==null?0:x.l;const all=runs.flatMap(r=>r.trace.flatMap(x=>[cv(x),lv(x)]));const leg=legendW([['chosen, β = 0.1','var(--mw)'],['rejected, β = 0.1','var(--ml)'],['β = 1','var(--mw)','da'],['β = 5','var(--mu)']],44,13,w-54);
     const f=linFrame({W:w,H,pl:40,pr:10,pt:10+leg.h,pb:30,x:[0,600],y:[Math.min(...all)-0.5,1],xl:'training step',yl:'log π_θ/π_ref (nats)'});let s=f.s+leg.s+ln2(40,f.Y(0),w-10,f.Y(0),'var(--mute)',{sw:1});
     runs.forEach((r,i)=>{const c=i===2?'var(--mu)':'var(--mw)',c2=i===2?'var(--mu)':'var(--ml)',da=i===1?'5 3':null;s+=lineS(r.trace.map(x=>[x.s,cv(x)]),f.X,f.Y,c,{da})+lineS(r.trace.map(x=>[x.s,lv(x)]),f.X,f.Y,c2,{da,op:i?0.7:1})});
@@ -111,7 +111,7 @@ function ckRun(kind,beta){const key=kind==='ul'?'ul':kind+beta;if(RUNS[key])retu
   // toy against paper
   const BM=TOYRES.byMethod,g=m=>BM.find(x=>x.m===m).meanGap.toFixed(3);
   $('toyGap').innerHTML='PPO-GT '+g('PPO-GT')+', PPO '+g('PPO')+', Preferred-FT '+g('Preferred-FT')+', DPO '+g('DPO')+' overall, of which DPO at β = 5: '+SW('DPO β = 5').meanGap.toFixed(3)+', β = 1: '+SW('DPO β = 1').meanGap.toFixed(3)+', β = 0.1: '+SW('DPO β = 0.1').meanGap.toFixed(3)+', β = 0.05: '+SW('DPO β = 0.05').meanGap.toFixed(3)+'; Unlikelihood '+g('Unlikelihood');
-  PRED_REVEAL['pr-toy']=()=>fit($('toyMini'),w=>{const ms=['DPO','PPO','PPO-GT','Unlikelihood','Preferred-FT'];const P=toyPlane(w,{legend:ms.map(m=>[m,MCOL[m],'d'])});let s=P.s;
+  fit($('toyMini'),w=>{const ms=['DPO','PPO','PPO-GT','Unlikelihood','Preferred-FT'];const P=toyPlane(w,{legend:ms.map(m=>[m,MCOL[m],'d'])});let s=P.s;
     TOYRES.sweep.forEach(r=>r.trace.slice(1).forEach(x=>{if(x.kl<=P.xmax)s+=dotS(P.X(x.kl),P.Y(x.r),2.4,MCOL[r.m],{op:.65,t:r.m+' '+r.p+', step '+x.s})}));
     $('toyMini').innerHTML=svgW(w,P.H,s,'Toy sweep')});
   const rc_=PAPER.rc;$('seZ').textContent='4.7 ± 4.3 points, z = '+rc_.tldr_gap_z.toFixed(2);$('seZ2').textContent=rc_.tldr_dpo_vs_bo_z.toFixed(1);$('seZ3').textContent=rc_.hh_dpo_vs_bo_z.toFixed(1);

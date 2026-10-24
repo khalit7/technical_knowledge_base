@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "9 min read, +~2h 30m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "9 min read, +~2h 30m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['Reading: ', 'in closed details']),
  ('Authors: Rafailov, Sharma, Mitchell, Ermon, Manning, Finn (Stanford, CZ Biohub)', R + ', headline card', ['Rafael Rafailov', 'Archit Sharma', 'Eric Mitchell', 'Stefano Ermon', 'Christopher D. Manning', 'Chelsea Finn', 'Stanford University, CZ Biohub']),
  ('Date: May 2023, arXiv 2305.18290; NeurIPS 2023 Outstanding Paper Runner-Up', R + ', headline card (precisely: Outstanding Main Track Runner-Up, from the NeurIPS blog)', ['May 2023', 'arXiv 2305.18290', 'NeurIPS 2023 (Outstanding Main Track Runner-Up)']),
  ('Link arXiv (~45 min)', 'card and Further reading', ['https://arxiv.org/abs/2305.18290', '(45 min)']),
@@ -58,7 +58,7 @@ C = [
  ('Labs run both: DPO then RLVR, as in OLMo 2 and Tulu 3', R + ', Why it matters; Then and now', ['labs commonly run a DPO stage then RLVR']),
  ('Family: IPO, KTO, ORPO, SimPO, CPO, rDPO, TR-DPO, DiscoPOP', R + ', Why it matters; Then and now (several run on the toy)', ['IPO', 'KTO', 'ORPO', 'SimPO', 'CPO', 'rDPO', 'TR-DPO', 'DiscoPOP']),
  ('GRPO group-relative advantage deletes the value model, same motivation', R + ', Why it matters', ['GRPO is a separate line with the same motive of deleting RLHF machinery, there the value model']),
- ('Policy log-ratio = reward as reusable tool: implicit rewards for data filtering and reward-model distillation; derivation pattern recurs', R + ', Why it matters (now sourced: RewardBench, DICE)', ['policy log-ratio = reward', 'RewardBench', 'DICE', 'solve the KL-regularised objective in closed form, substitute back']),
+ ('Policy log-ratio = reward as reusable tool: implicit rewards for data filtering and reward-model distillation; derivation pattern recurs', R + ', Why it matters (now sourced: RewardBench, DICE)', ['log-ratio = reward', 'RewardBench', 'DICE', 'solve the KL-regularised objective in closed form, substitute back']),
  # connections
  ('InstructGPT (2022-03): the pipeline DPO collapses', 'Connections; Further reading', ['3c65c17b0d0d8180b958d8299996a063', 'the three-stage RLHF pipeline DPO collapses into one loss']),
  ('Constitutional AI (2022-12): RLAIF pairs consumed directly', 'Connections; Further reading', ['3c65c17b0d0d815a9b31e9443961c700', 'DPO consumes such pairs directly']),

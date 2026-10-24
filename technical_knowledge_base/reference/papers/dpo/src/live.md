@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Direct Preference Optimization: Your Language Model is Secretly a Reward Model","Takeaway":"DPO collapses RLHF's reward-model-plus-PPO pipeline into one binary cross-entropy loss by reparameterising the reward as the policy/reference log-ratio, matching or beating PPO at 2023 scales.","Topics":["llm-training-and-post-training","rl"],"Year":"2023","url":"https://app.notion.com/p/3c65c17b0d0d818bb1d8cafd30e20f9e"}
+{"Paper":"Direct Preference Optimization: Your Language Model is Secretly a Reward Model","Takeaway":"DPO collapses RLHF's reward-model-plus-PPO pipeline into one binary cross-entropy loss by reparameterising the reward as the policy/reference log-ratio, which the paper reports as matching or beating PPO on its three tasks at 2023 scales.","Topics":["llm-training-and-post-training","rl"],"Year":"2023","url":"https://app.notion.com/p/3c65c17b0d0d818bb1d8cafd30e20f9e"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

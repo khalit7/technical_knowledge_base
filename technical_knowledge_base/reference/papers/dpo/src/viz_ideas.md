@@ -22,3 +22,10 @@ Question the page keeps returning to: does one classification loss really optimi
 | P-dpo.16 | Length-bias demo (DPO's long answers, SimPO's fix) | | | rejected: all toy answers have 4 words; would need a different toy |
 
 Methodology gap noted: for a training-objective paper the most useful "known answer" was an exactly enumerable output space, which lets every curve be compared with the true optimum; worth adding to papers.md's training-recipe row.
+
+## 2026-10-25 light pass
+| id | Idea | Placement | Status |
+|---|---|---|---|
+| P-dpo.17 | **Hero: the paper's own Figure 1** (CC BY 4.0), RLHF against DPO, split into its two panels for phone width, with the bridge equation (Eq. 5 into Eq. 1, Z cancels) under it | Reading, top | built |
+| P-dpo.18 | Likelihood-displacement chart and toy-sweep chart moved out of their predict reveals into their own inline cards, each with a title saying what to notice | Reading | built |
+| P-dpo.19 | A hand-built SVG hero of the change of variables | | rejected: the paper's own figure is CC BY and is the one people cite; the equation line under it carries the change of variables, and the pipeline animation in Idea already redraws Figure 1 on the toy's counts |
