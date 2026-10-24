@@ -1,4 +1,4 @@
-// ---- Cross-attention viewer (t-ldxa) ----
+// ---- Cross-attention viewer (Reading section 3; was its own tab until 2026-10-24) ----
 (function(){
   const U=window.LDU,L=U.L,$=id=>document.getElementById(id),X=L.xa||{};const keys=Object.keys(X);if(!keys.length)return;
   const names={g01:'red bicycle',g01_blue:'blue bicycle',g06:'astronaut, horse',x08:'two cats, three dogs'};
@@ -19,7 +19,7 @@
     $('xa-cap2').innerHTML=mode==='step'?'predicted clean image at step '+(st+1):'final image, seed '+v.seed;
     const mx=mode==='step'?v.m16[st].max[tok]:v.m32max[tok];
     $('xa-anc').innerHTML='<div class="t">'+RD.esc(v.prompt)+'</div><p>'+(mode==='step'?(st<3?'Early steps: the predicted image is a blur of the layout, and the word\'s map is already roughly where its object will be.':st<12?'Middle steps: the layout is fixed; maps sharpen around their objects.':'Late steps: detail is being added; the maps change little.'):'The run-average map at the 32 &times; 32 layers.')+' Strongest cell for this word: '+U.pct(mx,1)+' of a position\'s attention.</p>'}
-  const an=RD.anim({card:'xa-card',ctl:'xa-ctl',n:7,draw,ms:1500,label:'Step',tab:'t-ldxa'});
+  const an=RD.anim({card:'xa-card',ctl:'xa-ctl',n:7,draw,ms:1500,label:'Step'});
   $('xa-prompt').innerHTML=keys.map((k,i)=>'<button data-m="'+k+'"'+(i===0?' class="on"':'')+'>'+(names[k]||k)+'</button>').join('');
   RD.seg($('xa-prompt'),k=>{tok=null;setPrompt(k)});
   $('xa-toks').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!b.isConnected||+b.dataset.i>=X[P].tokens.length)return;tok=+b.dataset.i;$('xa-toks').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));an.redraw()});
@@ -36,5 +36,5 @@
     img(a.img,im=>U.overlay($('xa-c1'),im,ma.subarray(ia*1024,(ia+1)*1024),32,0.75));img(b.img,im=>U.overlay($('xa-c2'),im,mb.subarray(ib*1024,(ib+1)*1024),32,0.75));
     $('xa-cmp-note').innerHTML='The same starting noise and settings; only the colour word differs. The colour word\'s map (run average, 32 &times; 32 layers) sits on the object it colours. Prompt-to-Prompt (Hertz et al. 2022, <a href="https://arxiv.org/abs/2208.01626" target="_blank" rel="noopener noreferrer">arXiv:2208.01626</a>) turns this into an editing method by reusing the first run\'s maps for the second. <span class="meas">measured</span>'})();
   setPrompt(P);
-  RD.onRender(()=>an.redraw(),'t-ldxa');
+  RD.onRender(()=>an.redraw());
 })();

@@ -37,3 +37,8 @@ Method: `.claude/skills/explainer-page/visuals/choosing.md`. Scored 1 to 5 on: t
 
 - A rule for **counting without weights**: meta-device instantiation plus FlopCounterMode gives exact parameters and FLOPs for gated or 20B models at no cost; worth adding as a standard move for architecture pages, with the check against public totals (it found three discrepancies: SD3's stored position table, diffusers' DiT port duplicating embedders, DiT's frozen position parameter).
 - A note that papers' "Gflops" are often multiply-accumulates (DiT), so a FLOP counter disagrees by exactly 2x.
+
+## 2026-10-24 rebuild (teaching contract)
+- Built: hero (static, SD 1.5's three networks with the denoiser's 50 passes and the measured time split); passes per image, teacher vs distilled student (toggle, four model families, data from pipeline defaults and model cards); DiT's Figure 3 as a real image (CC BY 4.0) beside adaLN-Zero.
+- Moved: the Cross-attention viewer tab into Reading section 3 (one mechanism, so inline); the four-prompt mini map grid it duplicated was removed.
+- Rejected: an animated distillation (the difference is the end state, a toggle shows it); redrawing the VAE scaling factor (Autoencoders and VAEs section 11 owns it); re-running LCM-LoRA (Diffusion from zero section 7 measured it).
