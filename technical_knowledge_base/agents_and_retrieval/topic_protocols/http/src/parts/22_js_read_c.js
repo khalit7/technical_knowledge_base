@@ -39,7 +39,7 @@
     document.getElementById('rd-hp-cnt').innerHTML=RD.stat('This request so far',sum(rows,st.k)+' B','')+RD.stat('Request 1 headers',r1+' B',mode==='h1'?'text':'HEADERS block')+RD.stat('Request 2 headers',st.r>0?r2+' B':'...',st.r>0?'saved '+Math.round(100*(1-r2/r1))+'%':'')+RD.stat('HTTP/1.1 for comparison',H[set].h1_head_bytes+' B','every request');
   }
   const A=RD.anim({card:'rd-hp',ctl:'rd-hp-ctl',n:S.length,draw,ms:900,label:'Field'});
-  const re=()=>{S=steps();A.reset(S.length);A.play()};
+  const re=()=>{S=steps();A.reset(S.length)};
   RD.seg(document.getElementById('rd-hp-set'),m=>{set=m;re()});
   RD.seg(document.getElementById('rd-hp-mode'),m=>{mode=m;re()});
 })();

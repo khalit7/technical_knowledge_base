@@ -34,3 +34,7 @@ Scores 0 to 2 on: moves with a parameter / reproduces a figure (x2) / computable
 ## What the methodology lacked for this page
 
 The scoring has no slot for "found a behaviour the docs do not state" (nginx 1.29.7's changed upstream defaults against its own directive page; hypercorn answering a smuggled request on a connection RFC 9112 says to close; SDKs retrying POSTs without idempotency keys). For protocol pages, a local reproduction that can disagree with documentation scored as high as a reproduced figure.
+
+## 2026-10-24 rebuild (teaching contract)
+Built: hero path (static annotated diagram: hops, wire version, timer, errors written); cache freshness and validation timeline (static, measured headers, illustrative timing); CORS preflight before/after (toggle-compare on the 24 Oct 2026 recording); the Set-Cookie line with attributes marked (annotated text); HTTP/3 stream map (static, from `raw/h3_frames.json`); retry-safety diagram (static, replaces the retry table). Moved inline: the frame viewer (section 6) and the timeout chain (section 9).
+Rejected: a status-code-per-hop figure (the hero already places 413, 502, 504 and 524 on their hops); a separate GOAWAY diagram (the drill and the retry-safety figure carry it); a lost-packet animation (owned by the root's On the wire tab, linked); photos (no physical object teaches HTTP).

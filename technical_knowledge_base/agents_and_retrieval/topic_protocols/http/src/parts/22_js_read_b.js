@@ -31,7 +31,7 @@
     document.getElementById('rd-hol-cnt').innerHTML=RD.stat('Time',f1(now)+' ms','since A was sent')+RD.stat('B, time to answer',bw,'median of 3 runs')+RD.stat('Connections used',mode==='h1_two_conns'?'2':'1','');
   }
   const holA=RD.anim({card:'rd-hol',ctl:'rd-hol-ctl',n:5,draw:drawHol,ms:1700,label:'HOL step'});
-  RD.seg(document.getElementById('rd-hol-seg'),m=>{mode=m;holA.reset(5);holA.play()});
+  RD.seg(document.getElementById('rd-hol-seg'),m=>{mode=m;holA.reset(5)});
   RD.onResize(()=>holA.redraw());
 
   // ---------- flow control ----------
@@ -57,6 +57,6 @@
       RD.stat('Stalls for credit',String(exp),'derived: ceil(200,000 / '+cap.toLocaleString('en-US')+') &#8722; 1')+RD.stat('Expected time','&#8776; '+(exp*50)+' ms','derived: stalls &#215; 50 ms');
   }
   const fcA=RD.anim({card:'rd-fc',ctl:'rd-fc-ctl',n:F.runs[0].frames.length,draw:drawFc,ms:700,label:'Frame'});
-  RD.seg(document.getElementById('rd-fc-seg'),m=>{run=+m;fcA.reset(F.runs[run].frames.length);fcA.play()});
+  RD.seg(document.getElementById('rd-fc-seg'),m=>{run=+m;fcA.reset(F.runs[run].frames.length)});
   RD.onResize(()=>fcA.redraw());
 })();

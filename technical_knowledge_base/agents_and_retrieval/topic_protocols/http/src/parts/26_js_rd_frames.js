@@ -48,7 +48,7 @@
     document.getElementById('fr-cnt').innerHTML=RD.stat('Step',(i+1)+' / '+E.length,'')+RD.stat('Client sent',o.toLocaleString('en-US')+' B',ver==='h1'?'':'incl. frame headers')+RD.stat('Server sent',n.toLocaleString('en-US')+' B','')+
       (ver==='h1'?RD.stat('Time',f.t.toFixed(1)+' ms',''):RD.stat('Header blocks / DATA',hb+' / '+db.toLocaleString('en-US')+' B','payload bytes so far'));
   }
-  const A=RD.anim({card:'fr-card',ctl:'fr-ctl',n:E.length,draw,ms:900,label:'Frame',tab:'t-frames'});
+  const A=RD.anim({card:'fr-card',ctl:'fr-ctl',n:E.length,draw,ms:900,label:'Frame'});
   list.addEventListener('click',e=>{const it=e.target.closest('[data-i]');if(it)A.go(+it.dataset.i)});
   document.getElementById('fr-jump').addEventListener('click',e=>{const b=e.target.closest('[data-j]');if(b)A.go(+b.dataset.j)});
   function src(){document.getElementById('fr-src').innerHTML='<span class="meas">measured</span> '+(ver==='h1'?'Root page recording (<code>topic_protocols/src/wire/raw/h1_request.bin</code>, <code>h1_response.bin</code>, <code>h1_arrivals.json</code>), plain HTTP/1.1 to its stand-in server.':esc(D[ver].server)+'; client '+esc(D[ver].client)+'; recorded '+esc(D[ver].recorded)+' (<code>raw/'+ver+'_frames.json</code>).')}
