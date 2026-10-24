@@ -1,50 +1,73 @@
-<section id="rd-s10">
-<h2>10. Measured: recall against latency in pgvector</h2>
-<p>The same measurement every team should run on its own data, done here on the 522,931 questions: for 1,000 test questions, the exact top 10 (computed outside the database), then each index at several settings, recording recall@10 and the latency of the full SQL query from a client on the same machine (second pass, so caches are warm; <code>shared_buffers</code> 4 GB holds the table and every index) <span class="meas">measured</span>.</p>
+<section id="rd-s7">
+<h2>7. Vectors in Postgres: distance and storage</h2>
+<p>A <dfn id="g-vector">vector</dfn> is an ordered list of numbers; an <dfn id="g-embedding">embedding model</dfn> is trained so that texts with similar meaning get vectors pointing in similar directions. all-MiniLM-L6-v2 turns the running question into 384 numbers, the first eight <code class="fx" id="embDims"></code>, with length (norm) @@qnorm@@ because the model normalises its output. No single number means anything on its own; only distances between vectors do. Training, choosing and judging models is {{Embedding models|n:3c65c17b0d0d81508f99e1fa78c2bb41}}'s. For the test question <i>"@@ex_q@@"</i> the three nearest stored questions by cosine were <i>"@@ex1@@"</i> (@@ex1c@@), <i>"@@ex2@@"</i> (@@ex2c@@) and <i>"@@ex3@@"</i> (@@ex3c@@) <span class="meas">measured</span>.</p>
+<div class="tw nomin"><table>
+<thead><tr><th>Measure</th><th>Formula</th><th>pgvector operator</th><th>Reads as</th></tr></thead>
+<tbody>
+<tr><td>Dot product</td><td>a&middot;b = &Sigma; a<sub>i</sub>b<sub>i</sub></td><td><code>&lt;#&gt;</code> (returns the negative, so smaller is closer)</td><td>bigger is closer; depends on length too</td></tr>
+<tr><td>Cosine</td><td>a&middot;b / (|a| |b|)</td><td><code>&lt;=&gt;</code> returns 1 &minus; cosine</td><td>the angle only</td></tr>
+<tr><td>Euclidean (L2)</td><td>&radic;&Sigma;(a<sub>i</sub>&minus;b<sub>i</sub>)<sup>2</sup></td><td><code>&lt;-&gt;</code></td><td>straight-line distance</td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">For unit vectors all three rank alike</div>If every vector has length 1, cosine = dot product and |a&minus;b|<sup>2</sup> = 2 &minus; 2&middot;cos(a,b), so the three orders are identical. Most text models normalise (OpenAI says its embeddings are normalised to length 1, {{OpenAI embeddings guide|https://developers.openai.com/api/docs/guides/embeddings}}), so pick the cheapest operator: pgvector's {{README|https://github.com/pgvector/pgvector#exact-search}} advises inner product, and the exact scan with <code>&lt;#&gt;</code> took @@exact_ip_p50@@ ms against @@exact_p50@@ ms with cosine <span class="meas">measured</span>. Without normalisation dot product favours long vectors, and length can carry meaning (some recommendation models let it encode popularity): use the measure the model was trained with, and index with the matching operator class, or the index is not used.</div>
+<p><b>What a vector costs.</b> pgvector stores a <code>vector(n)</code> as 4 bytes per number plus 8 of header: 384 &times; 4 + 8 = <b>1,544 bytes</b> (confirmed by <code>pg_column_size</code> <span class="meas">measured</span>), and 6,152 for the common 1,536-dimension models ({{README|https://github.com/pgvector/pgvector#vector-type}}). The 522,931 vectors take @@vec_mb@@ MB, @@vec_share@@% of the whole @@heap_mb@@ MB table: the texts are tiny next to them. At 100 million 1,536-dimension vectors that is 615 GB before any index.</p>
+</section>
+
+<section id="rd-s8">
+<h2>8. pgvector's indexes, measured: recall against latency</h2>
+<p>Exact <dfn id="g-knn">k-nearest-neighbour (kNN)</dfn> search computes the distance to every stored vector: 522,931 &times; 384 = about 201 million multiply-adds per query. Postgres ran <code>ORDER BY embedding &lt;=&gt; $1 LIMIT 10</code> as a parallel sequential scan with a top-N heap sort, reading @@exact_buf@@ pages of 8 KB from memory, in <b>@@exact_p50@@ ms</b> median (@@exact_p95@@ ms p95) <span class="meas">measured</span>: fine for a nightly job, too slow for a search box, and linear in the table. An <dfn id="g-ann">approximate nearest-neighbour (ANN)</dfn> index looks at a small part of the data and sometimes misses a true neighbour; its quality is <dfn id="g-recall">recall@k</dfn>, the share of the true k nearest it returns. Quote recall and latency together: any index is fast at low enough recall.</p>
+<p>pgvector offers two ANN indexes and you choose one (there is no default). <dfn id="g-hnsw">HNSW</dfn> is a layered graph of near neighbours walked greedily; <code>hnsw.ef_search</code> (default 40) is the number of candidates a query keeps, its recall dial. <dfn id="g-ivfflat">IVFFlat</dfn> files each vector under its nearest of <code>lists</code> k-means centroids and scans the closest <code>ivfflat.probes</code> lists (default 1). How both work inside is taught on {{Vector indexes from the inside|n:3f85c17b0d0d81f29707c130b2ebcfb1}} (IVF in section 3, HNSW in section 6, on the same 522,931 Quora vectors). Here is what they buy in Postgres. <b>Predict</b>: at the defaults, how many times faster than exact is HNSW, and what share of the true top 10 does it return?</p>
+<div class="card" id="annCard">
+<p class="ft" style="font-weight:600;margin:0 0 6px">HNSW at its defaults is about @@speedup@@ times faster than exact and finds @@hnsw40_rec_pct@@% of the true top 10</p>
+<div class="ctl">
+<label>Index <select id="annIdx"></select></label>
+<label><span id="annKnobL">ef_search</span> = <b id="annKnobV"></b><input type="range" id="annKnob" min="0" max="6" step="1" value="2"></label>
+<label>Latency <span class="seg" id="annLat"><button data-m="p50_ms" class="on">median</button><button data-m="p95_ms">p95</button></span></label>
+</div>
+<div class="out" id="annStats"></div>
+<div class="plot rd-svg" id="annPlot"></div>
+<div class="lg" id="annLeg"></div>
+<p class="small mute" id="annNote"></p>
+<p class="small mute">Every point measured on PostgreSQL 18.6 with pgvector 0.8.7: 1,000 test queries, recall@10 against exact search computed outside the database, latency of the whole SQL query from a client on the same machine (second pass, warm; <code>shared_buffers</code> 4 GB holds the table and every index) <span class="meas">measured</span>. Slide HNSW m 16 from ef_search 10 to 640, then pick IVFFlat and the binary index.</p>
+</div>
+<ul class="tight">
+<li><b>ef_search is the dial.</b> HNSW m 16 at the defaults: @@hnsw40_p50@@ ms against @@exact_p50@@ ms, recall @@hnsw40_rec@@, @@hnsw_buf@@ pages read against @@exact_buf@@. From ef_search 10 to 640 recall rose from @@hnsw10_rec@@ to @@hnsw640_rec@@ while latency grew about @@ef_growth@@ times; past about 0.99 each extra point costs more than the last.</li>
+<li><b>m changes the curve, not just a point.</b> m 8 builds in @@m8_build@@ s but tops out lower (@@m8_640@@ at ef_search 640); m 32 with ef_construction 128 took @@m32_build@@ s and reached @@m32_40@@ already at ef_search 40.</li>
+<li><b>IVFFlat needs many probes.</b> With 523 lists (rows / 1000), 1 probe gave recall @@ivf1_rec@@; @@ivf23_rec@@ took 23 probes (&radic;lists) at @@ivf23_p50@@ ms, slower than HNSW at higher recall, though it built in @@ivf_build@@ s against @@hnsw_build@@ s.</li>
+<li><b>Size.</b> HNSW was @@hnsw_mb@@ MB, about @@hnsw_bpv@@ bytes per vector (the 1,544-byte vector is copied into the index, plus its links); IVFFlat @@ivf_mb@@ MB.</li>
+</ul>
 <pre class="sql"><span class="k">CREATE INDEX</span> q_hnsw <span class="k">ON</span> q <span class="k">USING</span> hnsw (embedding vector_cosine_ops);   <span class="c">-- m 16, ef_construction 64</span>
 <span class="k">SET</span> hnsw.ef_search = 40;                                          <span class="c">-- per session, or SET LOCAL per transaction</span>
 <span class="k">SELECT</span> id <span class="k">FROM</span> q <span class="k">ORDER BY</span> embedding &lt;=&gt; $1 <span class="k">LIMIT</span> 10;</pre>
+<details class="depth"><summary>The knobs, the measured table, when exact is right, and what pgvector lacks</summary>
+<div class="tw nomin"><table>
+<thead><tr><th>Knob (pgvector name)</th><th>Default</th><th>What it does</th><th>Raising it costs</th></tr></thead>
+<tbody>
+<tr><td><code>m</code></td><td>16</td><td>links per vector per layer; layer 0 keeps up to 2&middot;m (pgvector's <code>HnswGetLayerM</code>, as the paper recommends)</td><td>build time, index size, slower inserts</td></tr>
+<tr><td><code>ef_construction</code></td><td>64</td><td>candidate list size while inserting</td><td>build time</td></tr>
+<tr><td><code>hnsw.ef_search</code></td><td>40</td><td>candidate list size per query; also caps the rows one index scan returns</td><td>query latency</td></tr>
+<tr><td><code>lists</code> (IVFFlat)</td><td>none: you set it</td><td>number of k-means cells, fixed at build time</td><td>build time; too many makes each probe miss more</td></tr>
+<tr><td><code>ivfflat.probes</code></td><td>1</td><td>lists scanned per query</td><td>query latency</td></tr>
+</tbody></table></div>
+<p>The README's starting points for IVFFlat: <code>lists</code> = rows / 1000 up to 1M rows, &radic;rows above; <code>probes</code> = &radic;lists ({{README, IVFFlat|https://github.com/pgvector/pgvector#ivfflat}}). Build it after the data is loaded, or the centroids describe the wrong data, and rebuild it as new data drifts away from them. HNSW ({{Malkov and Yashunin, arXiv 2016|https://arxiv.org/abs/1603.09320}}) has no training step, so it can be created on an empty table; builds are slower, the graph is fastest in RAM, every insert searches the graph, and deletes leave holes repaired only by VACUUM (section 13).</p>
 <div class="tw" id="measTab"></div>
-<p>What the numbers say:</p>
-<ul class="tight">
-<li><b>HNSW at its defaults is about @@speedup@@ times faster than exact search</b> (@@hnsw40_p50@@ ms against @@exact_p50@@ ms median) and returns @@hnsw40_rec_pct@@% of the true top 10. Its query plan read @@hnsw_buf@@ pages from memory, against @@exact_buf@@ for the exact scan.</li>
-<li><b>ef_search is the dial.</b> From 10 to 640, recall rose from @@hnsw10_rec@@ to @@hnsw640_rec@@ while latency grew about @@ef_growth@@ times. Past about 0.99 each extra point of recall costs more than the last.</li>
-<li><b>m changes the curve, not just a point.</b> m 8 builds in @@m8_build@@ s but tops out lower (@@m8_640@@ at ef_search 640); m 32 with ef_construction 128 took @@m32_build@@ s to build and reached @@m32_40@@ already at ef_search 40. The defaults sit in between.</li>
-<li><b>IVFFlat needs many probes.</b> With 523 lists (rows / 1000), 1 probe gave recall @@ivf1_rec@@; reaching @@ivf23_rec@@ took 23 probes (&radic;lists) at @@ivf23_p50@@ ms, slower than HNSW at higher recall. It built in @@ivf_build@@ s against @@hnsw_build@@ s for HNSW.</li>
-<li><b>Size.</b> The HNSW index was @@hnsw_mb@@ MB, about @@hnsw_bpv@@ bytes per vector: the 1,544-byte vector is copied into the index, plus its links. IVFFlat was @@ivf_mb@@ MB.</li>
-</ul>
-<p>{{ANN lab|#t-ann}} plots all of these as curves with the knobs, plus the halfvec and binary variants of section 11 and a memory calculator for your own sizes.</p>
-<div class="corr"><div class="t">Re-based on a measurement</div>The old page's latency row "HNSW ANN query, 1M vectors, in memory: 1 to 5 ms" was unconfirmed. Measured here at 523k vectors of 384 dimensions: @@hnsw40_p50@@ ms median, @@hnsw40_p95@@ ms p95 at the defaults, including the client round trip. Time per query grows slowly with N for HNSW (roughly with log N, per the paper) and linearly with dimensions, so a 1M by 1,536 table will be several times slower; measure it.</div>
+<p><b>Exact search is still right</b> when the set is small (thousands to roughly 100,000 vectors; the old page's "below about 100k" is a rule of thumb, not a measured line: at 100k vectors of 384 numbers it would be about a fifth of the time measured here), when a filter has already cut the candidates to a few thousand (section 10), and for the ground truth that measures an ANN index's recall.</p>
+<p><b>Not in pgvector</b>: product quantisation, int8, a disk-resident graph. Tiger Data's open pgvectorscale extension adds a StreamingDiskANN index ({{GitHub|https://github.com/timescale/pgvectorscale}}); Azure Database for PostgreSQL has pg_diskann (GA May 2025); Google AlloyDB has the <code>alloydb_scann</code> index ({{AlloyDB docs|https://docs.cloud.google.com/alloydb/docs/ai/store-index-query-vectors}}).</p>
+<div class="corr"><div class="t">Corrected from the old storage page</div><ul class="tight"><li>"HNSW is the default in pgvector": pgvector has no default. pgvector never used GiST: its first index (0.1.0, 2021-04-20) was IVFFlat; HNSW came in 0.5.0 (2023-08-28) ({{CHANGELOG|https://github.com/pgvector/pgvector/blob/master/CHANGELOG.md}}).</li><li>"ScaNN is available in Postgres via pgvector's competitor extensions": precisely, Google AlloyDB's <code>alloydb_scann</code> extension (formerly postgres_scann), a managed-service feature.</li><li>"HNSW memory is the vectors plus M &times; 8 to 12 bytes per node": unconfirmed as stated; the measured size above replaces it.</li><li>"HNSW ANN query, 1M vectors, in memory: 1 to 5 ms" was unconfirmed; measured here at 523k by 384: @@hnsw40_p50@@ ms median, @@hnsw40_p95@@ ms p95 at the defaults, client round trip included. HNSW time grows slowly with N (roughly log N, per the paper) and linearly with dimensions, so 1M by 1,536 will be several times slower; measure it.</li></ul></div>
+</details>
 </section>
 
-<section id="rd-s11">
-<h2>11. Smaller vectors in pgvector</h2>
-<p>Memory is what makes vector search expensive at scale, and most of it is the vectors themselves. <dfn id="g-quant">Quantisation</dfn> stores each number in fewer bits; how scalar, binary and product quantisation work, and what each byte budget keeps, is on {{Vector indexes from the inside|n:3f85c17b0d0d81f29707c130b2ebcfb1}} (its section 4 and IVF-PQ lab). pgvector offers two forms beside the float32 <code>vector</code> (6,144 bytes at 1,536 dimensions):</p>
-<ul class="tight">
-<li><b><code>halfvec</code></b> (float16, pgvector 0.7.0+): 3,072 bytes, 2&times; smaller, with a very small recall loss (measured below); it also lifts HNSW's limit from 2,000 to 4,000 dimensions.</li>
-<li><b><code>bit</code> via <code>binary_quantize</code></b> (1 bit, the sign of each number): 192 bytes, 32&times; smaller, compared by Hamming distance; it needs re-ranking with the full vectors.</li>
-</ul>
-<p>Measured on the 522,931 questions (indexes on an expression, so the table keeps full float32 vectors for re-ranking) <span class="meas">measured</span>:</p>
-<div class="tw" id="quantTab"></div>
-<p><b>Binary quantisation needs re-ranking, and a model that tolerates it.</b> Alone, the 1-bit index found @@bin_rec@@ of the true top 10: 384 signs keep too little of a small model's meaning. Fetching more candidates by Hamming distance and re-ordering them by the full vectors recovers recall (@@bin100_rec@@ with 100 candidates, @@bin400_rec@@ with 400). Larger models lose less; measure yours.</p>
+<section id="rd-s9">
+<h2>9. Smaller vectors in pgvector</h2>
+<p>Most of the memory is the vectors themselves, so <dfn id="g-quant">quantisation</dfn>, fewer bits per number, is the lever (how scalar, binary and product quantisation work is {{Vector indexes from the inside|n:3f85c17b0d0d81f29707c130b2ebcfb1}}'s sections 4 and 5). pgvector offers two forms beside float32 <code>vector</code> (6,144 bytes of floats at 1,536 dimensions): <b><code>halfvec</code></b> (float16, 0.7.0+), 3,072 bytes, with a very small recall loss, and it lifts HNSW's limit from 2,000 to 4,000 dimensions; and <b><code>bit</code> via <code>binary_quantize</code></b> (the sign of each number), 192 bytes, compared by Hamming distance. Both are on the chart above.</p>
+<p><b>Binary needs re-ranking, and a model that tolerates it.</b> Alone, the 1-bit index found @@bin_rec@@ of the true top 10: 384 signs keep too little of a small model's meaning. Fetching more candidates by Hamming distance and re-ordering them with the full vectors recovers it (@@bin100_rec@@ with 100 candidates, @@bin400_rec@@ with 400) <span class="meas">measured</span>; larger models lose less.</p>
 <pre class="sql"><span class="k">CREATE INDEX ON</span> q <span class="k">USING</span> hnsw ((binary_quantize(embedding)::bit(384)) bit_hamming_ops);
 <span class="k">SELECT</span> id <span class="k">FROM</span> (
   <span class="k">SELECT</span> id, embedding <span class="k">FROM</span> q
   <span class="k">ORDER BY</span> binary_quantize(embedding)::bit(384) &lt;~&gt; binary_quantize($1) <span class="k">LIMIT</span> 100  <span class="c">-- needs hnsw.ef_search &gt;= 100</span>
 ) s <span class="k">ORDER BY</span> embedding &lt;=&gt; $1 <span class="k">LIMIT</span> 10;</pre>
-<p><b>Fewer dimensions.</b> Models trained with Matryoshka representation learning (taught on {{Embedding models|n:3c65c17b0d0d81508f99e1fa78c2bb41}}) keep a usable embedding in the first 256 or 512 numbers. In pgvector, index a prefix with <code>subvector(embedding, 1, 256)::vector(256)</code> and re-rank with the full vector. all-MiniLM-L6-v2 was not trained this way, so it was not tested here. A 3,072-dimension vector exceeds HNSW's 2,000 limit for <code>vector</code>: index it as <code>halfvec</code> or shortened.</p>
-</section>
-
-<section id="rd-s12">
-<h2>12. Filtered search in pgvector</h2>
-<p>Real queries carry conditions: "nearest questions <b>from this workspace</b>", "documents this user may see". An ANN index orders by distance only; it knows nothing about <code>tenant_id</code>. The strategies (post-filter, pre-filter then exact, filter-aware graphs such as ACORN and Qdrant's payload links) and where each breaks are taught, with an animation and a Filter lab, on {{Vector indexes from the inside|n:3f85c17b0d0d81f29707c130b2ebcfb1}} (its section 9). In pgvector they come down to three choices:</p>
-<ul class="tight">
-<li><b>Post-filter</b> (the default before 0.8.0, and still with iterative scans off): the index returns its <code>ef_search</code> candidates, then the <code>WHERE</code> clause drops the rest. If the condition keeps 1% of rows, the 40 candidates of a default HNSW scan hold on average 0.4 matching rows ({{pgvector README, Filtering|https://github.com/pgvector/pgvector#filtering}}).</li>
-<li><b>Pre-filter</b>: a B-tree finds the matching rows, then exact distances over just those. Exact and fast when the filter is selective; a brute-force scan of most of the table when it is not.</li>
-<li><b>Filter during the search</b>: pgvector 0.8.0 (2024-10-30) added <dfn id="g-iter">iterative index scans</dfn>: <code>hnsw.iterative_scan = strict_order</code> or <code>relaxed_order</code> resumes the scan until enough rows pass, up to <code>hnsw.max_scan_tuples</code> (20,000 by default).</li>
-</ul>
-<p>Measured on the 522,931 questions, 1,000 test queries, each with a filter on a synthetic <code>tenant</code> column (row id modulo 100, so 1% of rows; and modulo 10, 10%), HNSW at defaults, recall against the exact filtered top 10 <span class="meas">measured</span>:</p>
-<div class="tw" id="filtTab"></div>
-<p>@@filt_text@@</p>
-<div class="co"><div class="t">What to do in pgvector</div><ul class="tight"><li>Turn on iterative scans for any filtered vector query: <code>SET hnsw.iterative_scan = relaxed_order;</code> (wrap in a materialised CTE and re-sort if exact order matters, as the README shows).</li><li>Keep a B-tree on the filter column so pre-filtering is possible, but do not trust the planner to pick it: here, with the B-tree present and iterative scans off, it chose the HNSW index for the 1% filter on every query and returned @@plan_rows@@ rows on average (<code>EXPLAIN ANALYZE</code> showed <i>Rows Removed by Filter: 41</i> and <i>rows=0</i>) <span class="meas">measured</span>. The planner does not know the index scan stops at ef_search candidates. Check the plan, and force the pre-filter with a materialised CTE when you know the filter is selective.</li><li>For a few large tenants, a <b>partial index</b> per tenant (<code>CREATE INDEX ... WHERE tenant_id = 7</code>); for many tenants, <b>list partitioning</b> by tenant so each partition has its own small index. pgvector's README notes that a shared index lets one tenant's vectors affect another's recall and speed.</li></ul></div>
+<details class="depth"><summary>The measured quantisation table, and Matryoshka prefixes</summary>
+<p>Indexes on an expression, so the table keeps full float32 vectors for re-ranking <span class="meas">measured</span>:</p>
+<div class="tw" id="quantTab"></div>
+<p><b>Fewer dimensions.</b> Models trained with Matryoshka representation learning ({{Embedding models|n:3c65c17b0d0d81508f99e1fa78c2bb41}}) keep a usable embedding in the first 256 or 512 numbers: index <code>subvector(embedding, 1, 256)::vector(256)</code> and re-rank with the full vector. all-MiniLM-L6-v2 was not trained this way, so it was not tested here. A 3,072-dimension vector exceeds HNSW's 2,000 limit for <code>vector</code>: index it as <code>halfvec</code> or shortened.</p>
+</details>
 </section>

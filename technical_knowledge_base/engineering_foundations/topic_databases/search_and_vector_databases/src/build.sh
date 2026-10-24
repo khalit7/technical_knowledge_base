@@ -22,13 +22,13 @@ s = open('../index.html').read(); f = json.load(open('facts.json'))
 missing = sorted(set(k for k in re.findall(r'@@([a-z0-9_]+)@@', s) if k not in f))
 if missing: print('MISSING FACTS', missing)
 s = re.sub(r'@@([a-z0-9_]+)@@', lambda m: html.escape(str(f.get(m.group(1), '@@' + m.group(1) + '@@')), quote=False), s)
-a = s.index('id="t-read"'); b = s.index('id="t-ann"')
+a = s.index('id="t-read"'); b = s.index('id="t-side"')
 t = re.sub(r'<script.*?</script>|<style.*?</style>', '', s[a:b], flags=re.S); t = re.sub(r'<[^>]+>', ' ', t)
 w = len(t.split()); m = round(w / 230)
 s = s.replace('RT_MIN', str(m)).replace('RT_WORDS', f'{w:,}')
 open('../index.html', 'w').write(s)
-print('reading words', w, 'minutes', m)
+print('static Reading words (core and closed)', w)
 PY
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
-if grep -q '—' ../index.html; then echo "EM DASH FOUND"; grep -n -o '.\{30\}—.\{30\}' ../index.html | head; fi
+D=$(printf '\342\200\224'); if grep -q "$D" ../index.html; then echo "EM DASH FOUND"; grep -n -o ".\{30\}$D.\{30\}" ../index.html | head; fi
 wc -c ../index.html

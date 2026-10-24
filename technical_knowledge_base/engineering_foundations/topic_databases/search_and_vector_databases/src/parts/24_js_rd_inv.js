@@ -34,5 +34,5 @@
     document.getElementById('invCnt').innerHTML=RD.stat('Texts read at query time',mode==='index'?(s.look?'0':'0'):read,'of '+docs.length)+RD.stat('Postings entries read',post,'')+RD.stat('Questions matched',mode==='index'?(s.look?hitDocs.size:'not yet'):'substring test','')}
   build();
   const A=RD.anim({card:'invCard',ctl:'invCtl',n:seq.length,draw:draw,ms:1500,label:'Index step'});
-  RD.seg(document.getElementById('invSeg'),m=>{mode=m;build();A.reset(seq.length);A.play()});
+  RD.seg(document.getElementById('invSeg'),m=>{mode=m;build();A.reset(seq.length)});
 })();

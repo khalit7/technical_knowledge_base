@@ -71,37 +71,64 @@
 #t-read .mini tr.hl td{background:var(--hl)}
 #t-read .mini td.num{text-align:right}
 #t-read #invBox .tbls>div{flex:1 1 300px}#t-read #invBox .mini{width:100%}#t-read #invBox .mini td.key{width:2.2em}#t-read #invBox tr.dim td{opacity:.35}
+#t-read .core1{font-size:17px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:12px 0}
+#t-read figure.fig{margin:12px 0;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg)}
+#t-read figure.fig .ft{font-weight:600;font-size:14px;margin:0 0 6px}
+#t-read figure.fig figcaption{font-size:12.5px;color:var(--mute);margin-top:6px}
+#t-read .terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:4px 14px;font-size:13.5px;margin:6px 0}
+#t-read .terms div{min-width:0}
+#t-read details.depth{border:1px solid var(--line);border-radius:8px;padding:6px 12px;margin:10px 0;background:var(--soft)}
+#t-read details.depth>summary{cursor:pointer;font-weight:600;font-size:14px}
+#t-read details.depth[open]>summary{margin-bottom:6px}
+#t-read .need{font-size:13.5px}
+#t-read .lg span{display:inline-flex;align-items:center;gap:4px}#t-read .lg i{display:inline-block;width:14px;height:3px;border-radius:2px}
+#t-read select{max-width:100%}
+#t-read .plot{border:1px solid var(--line);border-radius:8px;padding:4px}
+#t-read .lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
 </style>
 <nav class="nav" id="rd-nav">
-<a href="#rd-one">One screen</a><a href="#rd-s1">1 Two ways to search</a><a href="#rd-s2">2 Text to terms</a><a href="#rd-s3">3 Inverted index</a><a href="#rd-s4">4 BM25</a><a href="#rd-s5">5 Phrases and typos</a><a href="#rd-s6">6 Search engines</a><a href="#rd-s7">7 Embeddings</a><a href="#rd-s8">8 Exact kNN</a><a href="#rd-s9">9 pgvector indexes</a><a href="#rd-s10">10 Measured</a><a href="#rd-s11">11 Smaller vectors</a><a href="#rd-s12">12 Filters</a><a href="#rd-s13">13 Hybrid</a><a href="#rd-s14">14 pgvector or not</a><a href="#rd-s15">15 Operations</a><a href="#rd-pro">In production</a><a href="#rd-mist">Mistakes</a><a href="#rd-num">Numbers</a><a href="#rd-gloss">Glossary</a>
+<a href="#rd-one">The idea</a><a href="#rd-s1">1 Two ways</a><a href="#rd-s2">2 Text to terms</a><a href="#rd-s3">3 Inverted index</a><a href="#rd-s4">4 BM25</a><a href="#rd-s5">5 Phrases and typos</a><a href="#rd-s6">6 Search engines</a><a href="#rd-s7">7 Vectors in Postgres</a><a href="#rd-s8">8 pgvector indexes</a><a href="#rd-s9">9 Smaller vectors</a><a href="#rd-s10">10 Filters</a><a href="#rd-s11">11 Hybrid</a><a href="#rd-s12">12 Postgres or a vector DB</a><a href="#rd-s13">13 Operating an index</a><a href="#rd-ref">Reference</a>
 </nav>
 
 <section id="rd-one">
-<h2>Search and vector databases in one screen</h2>
-<p class="small mute">About RT_MIN minutes to read (RT_WORDS words), plus the animations and the two tabs. It assumes only the parent page's first sections (tables, rows, an index, a query plan); every new term is explained where it first appears and collected in the <a href="#rd-gloss">Glossary</a>. Numbers marked <span class="meas">measured</span> were measured for this page on a laptop (Apple M1 Pro, 10 cores, 16 GB RAM, PostgreSQL 18.6 built from source, pgvector 0.8.7 built against it, 2026-10-04; other jobs shared the machine, so treat times as plus or minus 30%); numbers marked <span class="ill">illustrative</span> are drawn to explain, not measured.</p>
-<p class="lead"><b>Search means finding the stored texts that best answer a question, ranked, in milliseconds.</b> There are two ways to decide "best". <b>Lexical search</b> matches the words: an <b>inverted index</b> lists, for every word, the documents that contain it, and <b>BM25</b> scores how well each one matches. <b>Semantic search</b> matches the meaning: a model turns each text into a list of numbers (an <b>embedding</b>), and the database finds the stored embeddings nearest to the question's, usually with an <b>approximate nearest neighbour (ANN)</b> index such as <b>HNSW</b> because the exact search reads everything. Production systems often run both and merge the two rankings (<b>hybrid search</b>).</p>
-<p><b>The running example.</b> The parent page's chat product has a new feature: when a user types a question, show the earlier questions that ask the same thing (to reuse an answer, merge duplicates, or suggest help articles). As a real stand-in for "earlier questions" this page uses the public <a href="https://github.com/beir-cellar/beir" target="_blank" rel="noopener noreferrer">BEIR</a> copy of the Quora duplicate-questions set: <b>522,931 real questions</b>, plus 10,000 test questions whose true duplicates are labelled by people, so every method can be scored. Each question was embedded with <a href="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2" target="_blank" rel="noopener noreferrer">all-MiniLM-L6-v2</a> (384 numbers per question, @@embed_s@@ seconds for the whole set on the laptop's GPU) and loaded into one Postgres table, <code>q(id, body, embedding vector(384))</code> <span class="meas">measured</span>.</p>
+<h2>The idea in one screen</h2>
+<p class="core1"><b>A search index is a precomputed shortcut from a question to its few best rows: an inverted index maps each word to the rows that contain it, a vector index maps a point in meaning-space to its neighbours, and every design on this page is a trade between how fresh, how exact and how cheap that shortcut is.</b></p>
+<figure class="fig"><p class="ft">One question, two shortcuts, one SQL statement: the whole page on one picture</p>
+<div class="rd-svg" id="svHero"></div>
+<figcaption>Every number was measured for this page on PostgreSQL 18.6 with pgvector 0.8.7 over 522,931 real Quora questions (Apple M1 Pro, 2026-10-04): the GIN lookup took 0.25 ms against 258 ms for <code>LIKE</code>, HNSW 0.76 ms against 91 ms exact at recall 0.989, and fusion helped on SciFact (0.714) but not on Quora (0.825 against 0.839 for vectors alone) <span class="meas">measured</span>. Times are plus or minus 30%: other jobs shared the machine.</figcaption></figure>
+<p class="need"><b>You need</b>: tables, indexes and query plans from the parent {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}; what an embedding is from {{Embedding models|n:3c65c17b0d0d81508f99e1fa78c2bb41}}. How ANN indexes work inside (IVF, PQ, HNSW, DiskANN, filtered ANN) is {{Vector indexes from the inside|n:3f85c17b0d0d81f29707c130b2ebcfb1}}'s; this page uses them as Postgres and the vector databases ship them. Retrieval metrics (recall@k, nDCG) are defined on {{RAG and retrieval evaluation|n:3ef5c17b0d0d8194a914d1843ee26f13}}.</p>
+<p class="small"><b>New terms</b>, each defined where it first appears:</p>
+<div class="terms">
+<div><b>analysis</b>: text to index terms (tokenise, drop stop words, stem)</div>
+<div><b>inverted index, postings list</b>: term to the sorted ids of rows containing it</div>
+<div><b>tsvector, tsquery, GIN</b>: Postgres's stored terms, its search condition, and the index that holds postings</div>
+<div><b>BM25</b>: the standard word-match score (idf, saturating term frequency, length)</div>
+<div><b>segment, refresh</b>: Lucene's immutable mini-index; turning buffered writes into one</div>
+<div><b>ANN, recall@k</b>: an approximate nearest-neighbour index; the share of the true top k it returns</div>
+<div><b>iterative scan</b>: pgvector resuming an index scan until enough rows pass the filter</div>
+<div><b>RRF</b>: reciprocal rank fusion, merging ranked lists by 1 / (60 + rank)</div>
+</div>
+<p><b>The running example.</b> The parent page's chat product wants, when a user types a question, the earlier questions that ask the same thing (reuse an answer, merge duplicates, suggest help articles). The real stand-in is the public {{BEIR|https://github.com/beir-cellar/beir}} copy of Quora duplicate questions: <b>522,931 real questions</b> plus 10,000 test questions whose true duplicates people labelled, so every method can be scored. Each question was embedded with {{all-MiniLM-L6-v2|https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2}} (384 numbers, @@embed_s@@ seconds for the whole set on the laptop's GPU) and loaded into one table, <code>q(id, body, embedding vector(384))</code> <span class="meas">measured</span>. The {{Retrievers side by side|#t-side}} tab shows real test questions answered five ways, with the labelled duplicates marked.</p>
+<details class="depth"><summary>Each piece in one table: problem, mechanism, cost (reference)</summary>
 <div class="tw"><table class="sum">
-<thead><tr><th>Piece</th><th>The problem it solves</th><th>How, in one line</th><th>What it costs</th></tr></thead>
+<thead><tr><th>Piece</th><th>The problem it solves</th><th>How, in one line</th><th>What it costs here</th></tr></thead>
 <tbody>
-<tr><td><a href="#rd-s3">Inverted index</a></td><td><code>LIKE '%word%'</code> reads every row</td><td>Word to list of documents, built once; a query reads only the lists of its words</td><td>@@gin_mb@@ MB of GIN index for 523k short questions; slower writes</td></tr>
-<tr><td><a href="#rd-s4">BM25</a></td><td>Thousands of matches: which first?</td><td>Rare words count more, repeats count less and less, long documents are discounted</td><td>Postgres's built-in <code>ts_rank</code> is not BM25 (no rarity weight)</td></tr>
-<tr><td><a href="#rd-s7">Embeddings</a></td><td>"start investing in shares" should find "how do I invest in stock market"</td><td>A model maps meaning to a point in 384 or more dimensions; close points, close meaning</td><td>A model call per text; 1,544 bytes per 384-number vector</td></tr>
-<tr><td><a href="#rd-s8">Exact kNN</a></td><td>Find the nearest vectors</td><td>Compare the question with every stored vector</td><td>@@exact_p50@@ ms per query on 523k vectors</td></tr>
-<tr><td><a href="#rd-s9">HNSW</a></td><td>Exact is too slow</td><td>A layered graph walked greedily towards the question</td><td>@@hnsw40_p50@@ ms at @@hnsw40_rec@@ recall; @@hnsw_mb@@ MB index, @@hnsw_build@@ s to build</td></tr>
-<tr><td><a href="#rd-s12">Filtered search</a></td><td>"Nearest, but only this user's"</td><td>Iterative index scans, or a plain index then exact search</td><td>Naive post-filtering returned @@post1_rows@@ rows of 10 at a 1% filter</td></tr>
-<tr><td><a href="#rd-s13">Hybrid search</a></td><td>Words and meaning each miss things</td><td>Run both, fuse the rankings with reciprocal rank fusion</td><td>Two queries; it is not always a win: nDCG@10 on SciFact @@s_hyb@@ against @@s_bm25@@ (BM25) and @@s_vec@@ (vector), but on Quora vectors alone (@@vec_q@@) beat the fusion (@@hyb_q@@)</td></tr>
-</tbody></table></div>
-<div class="co key"><div class="t">The one idea to keep</div>Every fast search trades something away on purpose. An inverted index trades write speed and space for reads; BM25 trades meaning for exact words; an ANN index trades a little <b>recall</b> (the share of the true nearest neighbours it returns) for a speed-up of about a hundred times. A professional states the trade in numbers (recall at a latency, on their own data) and measures it again whenever the data, the filter or the model changes.</div>
-<p>Two tabs sit beside this one. {{ANN lab|#t-ann}} plots every measured index setting as recall against latency and memory, with the knobs. {{Retrievers side by side|#t-side}} shows real test questions answered by five retrievers, with the human-labelled duplicates marked. The parent page's {{Database atlas|n:3cd5c17b0d0d815d8841ec845f5f3324}} tab (open it on the parent) compares the products named in section 14 on many more axes; this page links it rather than repeating it.</p>
+<tr><td>Inverted index</td><td><code>LIKE '%word%'</code> reads every row</td><td>Word to list of documents, built once; a query reads only the lists of its words</td><td>@@gin_mb@@ MB of GIN index for 523k short questions; slower writes</td></tr>
+<tr><td>BM25</td><td>Thousands of matches: which first?</td><td>Rare words count more, repeats count less and less, long documents are discounted</td><td>Postgres's built-in <code>ts_rank</code> is not BM25 (no rarity weight)</td></tr>
+<tr><td>Embeddings</td><td>"start investing in shares" should find "how do I invest in stock market"</td><td>A model maps meaning to a point; close points, close meaning</td><td>A model call per text; 1,544 bytes per 384-number vector</td></tr>
+<tr><td>Exact kNN</td><td>Find the nearest vectors</td><td>Compare the question with every stored vector</td><td>@@exact_p50@@ ms per query on 523k vectors</td></tr>
+<tr><td>HNSW</td><td>Exact is too slow</td><td>A layered graph walked greedily towards the question</td><td>@@hnsw40_p50@@ ms at @@hnsw40_rec@@ recall; @@hnsw_mb@@ MB index, @@hnsw_build@@ s to build</td></tr>
+<tr><td>Filtered search</td><td>"Nearest, but only this user's"</td><td>Iterative index scans, or a plain index then exact search</td><td>Naive post-filtering returned @@post1_rows@@ rows of 10 at a 1% filter</td></tr>
+<tr><td>Hybrid search</td><td>Words and meaning each miss things</td><td>Run both, fuse the rankings with RRF</td><td>Two queries; not always a win (SciFact yes, Quora no)</td></tr>
+</tbody></table></div></details>
 </section>
 
 <section id="rd-s1">
 <h2>1. Two ways to search</h2>
-<p>A user types <i>"How do I start investing in shares?"</i>. Among the stored questions are <i>"How do I invest in share market?"</i> and <i>"How do I invest in stock market?"</i>. The first shares three words with the query; the second shares only "invest" and means the same thing. A good search returns both, and ranks them above <i>"What is the share market?"</i>, which shares words but asks something else.</p>
+<p>The user types <i>"How do I start investing in shares?"</i>. Stored are <i>"How do I invest in share market?"</i> (three shared words) and <i>"How do I invest in stock market?"</i> (one shared word, same meaning). A good search returns both above <i>"What is the share market?"</i>, which shares words but asks something else.</p>
 <div class="two">
-<div><h4>Lexical (keyword) search</h4><p class="small">Compares <b>words</b>. Exact, explainable ("it matched <code>invest</code> and <code>share</code>"), cheap, no model needed, and very good at names, codes, error messages and rare terms (<code>ERR_SSL_PROTOCOL</code>, a product SKU). Blind to synonyms and paraphrase: "stock" is not "share".</p></div>
-<div><h4>Semantic (vector) search</h4><p class="small">Compares <b>meaning</b> through embeddings. Finds paraphrases and other languages, works on images too. Needs a model at write and query time, is hard to explain, and can miss exact identifiers the model never learned (a part number embeds close to other part numbers).</p></div>
+<div><h4 style="color:var(--c1)">Lexical (keyword) search</h4><p class="small">Compares <b>words</b>. Exact, explainable ("it matched <code>invest</code> and <code>share</code>"), cheap, no model, and strong on names, codes, error messages and rare terms (<code>ERR_SSL_PROTOCOL</code>, a product SKU). Blind to synonyms: "stock" is not "share".</p></div>
+<div><h4 style="color:var(--c2)">Semantic (vector) search</h4><p class="small">Compares <b>meaning</b> through embeddings. Finds paraphrases and other languages, works on images. Needs a model at write and query time, is hard to explain, and can miss exact identifiers (a part number embeds close to other part numbers).</p></div>
 </div>
-<p>Two questions decide every design on this page: <b>how to find candidates fast</b> (an index, so a query does not read every row) and <b>how to order them</b> (a score). Sections 2 to 6 answer both for words, sections 7 to 12 for vectors, and section 13 combines them. Judging which retriever is better on your data (recall@k, nDCG, building a labelled test set) belongs to the evaluation topic's {{RAG and retrieval evaluation|n:3ef5c17b0d0d8194a914d1843ee26f13}} page; this page uses its metric definitions and links it.</p>
+<p>Each side needs <b>a way to find candidates fast</b> (an index) and <b>a way to order them</b> (a score): sections 2 to 6 for words, 7 to 10 for vectors, 11 combines them, 12 and 13 choose and run the system.</p>
 </section>

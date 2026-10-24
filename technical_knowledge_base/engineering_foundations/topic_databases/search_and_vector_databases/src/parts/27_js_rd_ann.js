@@ -1,4 +1,4 @@
-// ---- ANN lab tab: recall against latency curves from the measurements (SV.ann), and a memory calculator ----
+// ---- Reading section 8 (moved from the ANN lab tab on 2026-10-24): recall against latency curves from the measurements (SV.ann), and a memory calculator ----
 (function(){
   const A=SV.ann;if(!A||!document.getElementById('annPlot'))return;
   const S=[];// series: {id,name,knob,color,pts:[{k,recall,p50,p95}],bytes,build}
@@ -36,8 +36,7 @@
     el.innerHTML=RD.svg(w,h,g,'Recall against latency for every measured index setting');
     document.getElementById('annLeg').innerHTML=S.map(z=>'<span><i style="background:'+z.color+'"></i>'+z.name+'</span>').join('')+'<span><i style="background:var(--ink);height:8px;width:8px"></i>exact scan</span>';
     document.getElementById('annNote').textContent='Exact recall is about 1 rather than exactly 1 because a few queries have ties at the 10th place. Recall below 0.4 is clipped to the left edge.'}
-  window.TAB_RENDER=window.TAB_RENDER||{};(window.TAB_RENDER['t-ann']=window.TAB_RENDER['t-ann']||[]).push(draw,mem);
-  addEventListener('resize',()=>{if(!document.getElementById('t-ann').hidden){draw();}});
+  RD.onRender(draw);RD.onRender(mem);RD.onResize(draw);
   // ---- memory calculator ----
   const h16=A.hnsw['m16_efc64'],link=h16.bytes/A.rows-(4*A.dims+8);
   document.getElementById('memLinkNote').textContent='m 16 used '+(h16.bytes/A.rows).toFixed(0)+' bytes per vector at 384 dimensions, of which 1,544 is the vector, leaving about '+link.toFixed(0)+' bytes of links, tuple headers and page slack; the estimate assumes that part stays the same at other sizes.';

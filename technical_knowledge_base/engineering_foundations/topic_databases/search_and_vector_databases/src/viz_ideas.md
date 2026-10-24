@@ -19,3 +19,19 @@ Scored 1 to 5 on teaching value (T), data reality (D), fit to the page (F). Buil
 | 13 | Running a dedicated vector DB (Qdrant) locally for a measured comparison | 4 | 5 | 4 | | not done: time budget; the page says the dedicated-store numbers are vendor-run and tells the reader to measure |
 
 What the methodology lacked: guidance for toys whose algorithm is real but whose data is illustrative (2D). Here the toy is labelled illustrative, the counts are exact for the toy, and the real numbers sit in the same section.
+
+## 2026-10-24 rebuild to the teaching contract
+| # | Idea | Kind | Placement | Status |
+|---|---|---|---|---|
+| 14 | Hero: one question through words (analyse, GIN, BM25) and meaning (embed, HNSW, cosine), fused by RRF in one SQL statement, measured numbers on the boxes | static annotated diagram | top | built (`23_js_rd_figs.js`, `svHero`) |
+| 15 | The running question through Postgres analysis, from its real `ts_debug` (tokens, stop words struck, stems, tsvector) | static diagram on real data | section 2 | built (`svAnal`) |
+| 16 | LIKE scan against the full-text and trigram GIN indexes, log-scale bars | static bars on measured data | section 3 | built (`svLike`), replaces a four-row table |
+| 17 | One document through an Elasticsearch shard: buffer, translog, refresh, segments, delete mark, merge, flush | stepper (process) | section 6 | built (`esCard`); clock illustrative, defaults from Elastic docs |
+| 18 | ANN lab chart moved inline (recall against latency, every measured setting) | parameter chart | section 8 | moved from the ANN lab tab, which was removed |
+| 19 | Filtered search: recall, rows and latency per method at 1% and 10% | bars on measured data | section 10 | built (`svFilt`); the table moved to a closed block |
+| 20 | Hybrid: nDCG@10 per retriever on Quora and SciFact | bars on measured data | section 11 | built (`svHyb`); the table moved to a closed block |
+| 21 | Where each store keeps its data (RAM, local disk, object storage) for pgvector, Qdrant, Weaviate, Milvus, Turbopuffer | static annotated diagram (structure) | section 12 | built (`svTiers`) from vendor architecture docs |
+| 22 | Memory calculator moved inline | calculator | section 12 | moved from the ANN lab tab |
+| 23 | Zero-downtime rebuild (v1 and v2 side by side, switch, drop), shared by Elasticsearch reindex and pgvector re-embedding | static diagram (process with states) | section 13 | built (`svRebuild`) |
+| 24 | Vector column's share of the table as a stacked bar | | | rejected: one sentence ("78% of the table") says it |
+| 25 | Real photograph or screenshot | | | rejected: nothing physical to show; a mechanism page |

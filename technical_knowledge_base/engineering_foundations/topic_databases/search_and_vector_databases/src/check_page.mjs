@@ -28,10 +28,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     if (bad(t)) probs.push(tag + ': bad text ' + (t.match(/.{0,40}(NaN|undefined|Infinity|\[object|@@[a-z0-9_]+@@).{0,40}/) || [''])[0]);
     const sw = await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1); if (sw) probs.push(tag + ': sideways scroll') };
   await scan('read initial');
-  for (const [card, ctl, seg] of [['invCard', 'invCtl', 'invSeg']]) {
-    const modes = await p.$$eval('#' + seg + ' button', es => es.map(e => e.dataset.m));
+  // never autoplay: scroll each animation into view, wait, and expect it still on step 0
+  for (const c of ['invCard', 'esCard']) { await p.evaluate(c => document.getElementById(c).scrollIntoView({ block: 'center' }), c); await sleep(3500);
+    const v = await p.evaluate(c => document.getElementById(c.replace('Card', 'Ctl') + '-s').value, c); if (v !== '0') probs.push(c + ' moved by itself to step ' + v) }
+  for (const [card, ctl, seg] of [['invCard', 'invCtl', 'invSeg'], ['esCard', 'esCtl', null]]) {
+    const modes = seg ? await p.$$eval('#' + seg + ' button', es => es.map(e => e.dataset.m)) : ['only'];
     for (const m of modes) {
-      await p.evaluate((seg, m) => document.querySelector('#' + seg + ' button[data-m="' + m + '"]').click(), seg, m); await sleep(60);
+      if (seg) await p.evaluate((seg, m) => document.querySelector('#' + seg + ' button[data-m="' + m + '"]').click(), seg, m); await sleep(60);
       await p.evaluate(card => document.getElementById(card).scrollIntoView({ block: 'center' }), card); await sleep(80);
       const n = await p.evaluate(ctl => +document.getElementById(ctl + '-s').max, ctl);
       await p.evaluate(ctl => { const s = document.getElementById(ctl + '-s'); s.value = 0; s.dispatchEvent(new Event('input')) }, ctl);
@@ -55,10 +58,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   if (!js.bm25.every((x, i) => close(x, ref.bm25[i]))) probs.push('bm25 mismatch ' + js.bm25 + ' vs ' + ref.bm25);
   if (!js.idf.every((x, i) => close(x, ref.idf[i]))) probs.push('idf mismatch');
   if (js.rrf.join() !== ref.rrf.join()) probs.push('rrf order mismatch ' + js.rrf + ' vs ' + ref.rrf);
-  // tabs
-  for (const t of ['t-ann', 't-side', 't-more']) {
-    await p.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), t); await sleep(150); await scan(t);
-    if (t === 't-ann') {
+  // the measured ANN chart and the memory calculator (Reading sections 8 and 12)
+  {
       const n = await p.$$eval('#annIdx option', o => o.length);
       for (let i = 0; i < n; i++) { await p.select('#annIdx', String(i)); const mx = await p.evaluate(() => +document.getElementById('annKnob').max);
         for (let k = 0; k <= mx; k++) { await p.evaluate(k => { const e = document.getElementById('annKnob'); e.value = k; e.dispatchEvent(new Event('input')) }, k); } await scan('ann idx ' + i) }
@@ -67,6 +68,12 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
         for (const d of ['384', '3072']) for (const ty of ['f32', 'f16', 'bit']) { await p.select('#memD', d); await p.select('#memT', ty); await scan(`mem ${v} ${d} ${ty}`) } }
       const mm = await p.evaluate(() => document.getElementById('memOut').innerText); if (!mm.includes('GB') && !mm.includes('MB')) probs.push('memory calc empty');
     }
+  // figures drawn at every width
+  for (const id of ['svHero','svAnal','svLike','esFig','annPlot','svFilt','svHyb','svTiers','svRebuild']) { const n = await p.$$eval('#' + id + ' svg', e => e.length); if (!n) probs.push('figure missing ' + id) }
+  // no animation may move before the reader acts
+  // tabs
+  for (const t of ['t-side', 't-more']) {
+    await p.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), t); await sleep(150); await scan(t);
     if (t === 't-side') {
       for (const c of ['quora', 'scifact']) { await p.evaluate(c => document.querySelector('#sdCorp button[data-m="' + c + '"]').click(), c);
         const n = await p.$$eval('#sdQ option', o => o.length); for (let i = 0; i < n; i++) { await p.select('#sdQ', String(i)); await scan(`side ${c} ${i}`) } }

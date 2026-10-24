@@ -1,55 +1,94 @@
-<section id="rd-s15">
-<h2>15. Operations: building, updating and keeping an index honest</h2>
-<h3>Building</h3>
-<ul class="tight">
-<li><b>Load first, index after.</b> pgvector's README: indexes build faster after the initial data is loaded, and IVFFlat must be built after (its centroids come from the data). Use <code>COPY</code> for loading: the 522,931 rows went in by binary COPY in @@copy_s@@ s <span class="meas">measured</span>.</li>
-<li><b>Give the build memory.</b> HNSW builds "significantly faster when the graph fits into <code>maintenance_work_mem</code>". Measured on a 200,000-row copy of the table: @@b200_s@@ s with 2 GB, @@b200_64_s@@ s with 64 MB, where Postgres printed <i>"@@notice@@"</i> <span class="meas">measured</span>. Do not set it so high that a build exhausts the server's memory.</li>
-<li><b>Use parallel workers.</b> Parallel HNSW builds arrived in 0.6.0; <code>max_parallel_maintenance_workers</code> (here 3, plus the leader) sets how many.</li>
-<li><b>Never block writes in production:</b> <code>CREATE INDEX CONCURRENTLY</code> builds without locking out inserts (slower, and it can fail and leave an invalid index to drop). Watch progress in <code>pg_stat_progress_create_index</code>.</li>
-</ul>
-<h3>Updating</h3>
-<ul class="tight">
-<li><b>Inserts get slower.</b> Each insert into an HNSW-indexed table searches the graph to find its neighbours. 5,000 single-row inserts (each its own transaction) took @@ins_h@@ s with the index and @@ins_n@@ s without <span class="meas">measured</span>: batch inserts where you can.</li>
-<li><b>Deletes leave holes.</b> A deleted or updated row stays in the graph until VACUUM removes it and repairs the links around it; meanwhile scans skip dead entries, which can return fewer rows. After deleting 10% of the 200,000 rows, VACUUM took @@vac_s@@ s; rebuilding the index from scratch (<code>REINDEX</code>) took @@reidx_s@@ s <span class="meas">measured</span>. The README advises <code>REINDEX INDEX CONCURRENTLY</code> before <code>VACUUM</code> when vacuuming is slow. Search engines have the same problem in another form (deleted documents live until a segment merge, section 6).</li>
-<li><b>Changing the embedding model means re-embedding everything.</b> Vectors from two models are not comparable. The safe pattern: add a new column (or table) for the new model, backfill it in batches, build its index concurrently, compare recall and relevance on a labelled set, switch queries over, then drop the old column. Store the model name and version beside every vector.</li>
-</ul>
-<h3>Keeping it honest</h3>
-<ul class="tight">
-<li><b>Monitor recall, not just latency.</b> Recall changes silently as data grows, drifts from IVF centroids, or gains a filter. Sample a few queries an hour, run them exactly (<code>SET enable_indexscan = off</code> in a transaction, or on a replica) and compare with the index's answer.</li>
-<li><b>Set ef_search per query, not globally,</b> with <code>SET LOCAL</code> inside a transaction, so a high-recall feature does not slow every other query.</li>
-<li><b>Size memory for the index.</b> Check <code>pg_relation_size</code> of each vector index against <code>shared_buffers</code> and the machine's RAM; an HNSW index that falls out of memory turns microsecond page reads into SSD reads at every hop.</li>
-</ul>
+<section id="rd-s12">
+<h2>12. Postgres or a dedicated vector database?</h2>
+<p>A "vector database" is an ANN index plus storage, filtering and an API, run as its own system; pgvector adds the same index types to the Postgres you may already run. Most of them run HNSW, so the comparison is about <b>where the data lives, how filters and tenants are handled, and what you pay for</b>, not about the algorithm.</p>
+<figure class="fig"><p class="ft">Where the data lives sets the cost: memory-resident designs pay for RAM per vector, object-storage designs pay with a slow first query</p>
+<div class="rd-svg" id="svTiers"></div>
+<figcaption>From each vendor's architecture docs (2026-10): {{Qdrant storage|https://qdrant.tech/documentation/concepts/storage/}}, {{Weaviate storage|https://docs.weaviate.io/weaviate/concepts/storage}}, {{Milvus architecture|https://milvus.io/docs/architecture_overview.md}}, {{Turbopuffer architecture|https://turbopuffer.com/docs/architecture}}. Turbopuffer's vendor figures on 1M documents: p50 14 ms warm, 874 ms cold, when a query must read object storage.</figcaption></figure>
+<div class="tw"><table>
+<thead><tr><th>System</th><th>Index and filtering</th><th>Multi-tenancy</th><th>Consistency</th><th>You pay mostly for</th></tr></thead>
+<tbody>
+<tr><td><b>pgvector</b></td><td>HNSW, IVFFlat; iterative scans for filters; halfvec, bit, sparsevec</td><td>a <code>tenant_id</code> column with partial indexes or list partitions (section 10)</td><td>Postgres transactions: vector, text and metadata change together</td><td>RAM for the HNSW index on your Postgres server</td></tr>
+<tr><td><b>Qdrant</b></td><td>HNSW per segment, filters checked during traversal; scalar, binary and product quantisation</td><td>one collection with a tenant payload field (<code>is_tenant</code> co-locates a tenant's vectors), or a shard per large tenant ({{guide|https://qdrant.tech/documentation/guides/multiple-partitions/}})</td><td>no multi-point transactions; replicas favour availability by default</td><td>RAM to cache the memory-mapped vectors</td></tr>
+<tr><td><b>Weaviate</b></td><td>HNSW, flat, dynamic; ACORN filtering; BM25 and hybrid built in</td><td>a shard per tenant; tenants can be ACTIVE, INACTIVE (on disk) or OFFLOADED to S3 ({{docs|https://docs.weaviate.io/weaviate/manage-collections/multi-tenancy}})</td><td>leaderless replication, tunable levels</td><td>RAM for each active tenant's HNSW</td></tr>
+<tr><td><b>Milvus</b></td><td>HNSW, IVF variants, DISKANN, SCANN, GPU CAGRA</td><td>database (64 by default), collection (65,536), partition (1,024 per collection), or a partition key for millions of tenants ({{docs|https://milvus.io/docs/multi_tenancy.md}})</td><td>default "bounded staleness": a search can miss very recent writes</td><td>a cluster of components on Kubernetes, with object storage underneath</td></tr>
+<tr><td><b>Turbopuffer</b> (service)</td><td>SPFresh centroid index; BM25 inverted index; exact metadata filters</td><td>a namespace per tenant, each its own object-storage prefix</td><td>strong by default, eventual on request</td><td>object storage plus queries; the cost advantage is the vendor's claim</td></tr>
+</tbody></table></div>
+<div class="two">
+<div><h4>Stay in Postgres (pgvector) when</h4><ul class="tight"><li>the vectors describe rows you already keep there, and queries join or filter on them (tenant, permissions, dates);</li><li>the vector, its text and its metadata must change in <b>one transaction</b>, deletes must take effect at once (a deleted document's embedding must stop being found), and you want one backup and failover story;</li><li>the index fits comfortably in the server's memory (the calculator below).</li></ul></div>
+<div><h4>Consider a dedicated store when</h4><ul class="tight"><li>the index no longer fits one server's memory, or vector load would crowd out the transactional workload;</li><li>most queries are heavily filtered and need in-graph filtering, or there are thousands of isolated tenants;</li><li>you want disk-based or quantised indexes Postgres lacks (DiskANN, PQ, int8), GPU builds, or object-storage economics;</li><li>a separate team owns search and wants to scale and rebuild it independently.</li></ul></div>
+</div>
+<div class="card" id="memCard">
+<p><b>Will the index fit?</b> Using the measured HNSW size at 384 dimensions (@@hnsw_bpv@@ bytes per vector, 1,544 of them the vector), the links cost about @@link_bytes@@ bytes per vector, so 10 million 1,536-dimension vectors need about @@mem10m@@ GB of index (plus the same again in the table) and 100 million about @@mem100m@@ GB. Predict 10 million at halfvec, then set it. <span id="memLinkNote" class="small mute"></span> <span class="ill">derived, an estimate</span></p>
+<div class="ctl">
+<label>Vectors: <b id="memNv"></b><input type="range" id="memN" min="0" max="40" step="1" value="20"></label>
+<label>Dimensions <select id="memD"><option>384</option><option>768</option><option>1024</option><option selected>1536</option><option>3072</option></select></label>
+<label>Index stores <select id="memT"><option value="f32">float32 vectors (vector)</option><option value="f16">float16 (halfvec)</option><option value="bit">binary (bit), re-rank from the table</option></select></label>
+</div>
+<div class="out" id="memOut"></div>
+<p class="small mute" id="memNote"></p>
+</div>
+<div class="co warn"><div class="t">"Under 10M vectors pgvector wins": unconfirmed</div>The often-quoted thresholds (pgvector below about 10 million vectors, a dedicated store above about 100 million) have no primary measurement behind them; the parent's atlas marks them unconfirmed. They are where to start measuring, not a crossover. The evidence that exists is vendor-run: Tiger Data reported Postgres with pgvector <b>plus their pgvectorscale extension</b> (not plain pgvector) on 50M 768-dimension vectors at 99% recall with 28 times lower p95 latency than Pinecone's s1 pods ({{vendor blog, 2024-06-11|https://www.tigerdata.com/blog/pgvector-vs-pinecone}}); Zilliz, the company behind Milvus, publishes {{VectorDBBench|https://github.com/zilliztech/VectorDBBench}}. Neither is independent; no dedicated store was run for this page. Measure your own data at your own recall target.</div>
+<details class="depth"><summary>Versions, licences and the other stores (dated table, checked 2026-10-04)</summary>
+<div class="tw"><table>
+<thead><tr><th>System</th><th>Version (date)</th><th>What it is, licence</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>pgvector</td><td>0.8.7 (2026-10-01)</td><td>Postgres extension, PostgreSQL licence</td><td>measured on this page</td></tr>
+<tr><td>Qdrant</td><td>1.19.1 (2026-09-04)</td><td>Rust server, Apache 2.0</td><td></td></tr>
+<tr><td>Milvus</td><td>3.0.2 (2026-09-20)</td><td>distributed, Apache 2.0, many components on Kubernetes</td><td></td></tr>
+<tr><td>Weaviate</td><td>1.39.8 (2026-10-01)</td><td>Go server, BSD-3 core</td><td></td></tr>
+<tr><td>LanceDB</td><td>0.39.0 (2026-09-17)</td><td>embedded library over the Lance columnar format, Apache 2.0</td><td>IVF_PQ by default, IVF-HNSW variants; files on S3; each write is a new table version</td></tr>
+<tr><td>Pinecone</td><td>service</td><td>serverless: immutable "slabs" on object storage plus a memtable</td><td>internals not published; namespaces per tenant; officially eventually consistent; pod-based indexes are legacy</td></tr>
+<tr><td>Vespa</td><td>8.x</td><td>search and ranking engine, Apache 2.0</td><td>modified HNSW plus exact; text, vectors and ML ranking in one query; writes synced before ack</td></tr>
+<tr><td>Elasticsearch / OpenSearch</td><td>9.5.4 / 3.9.0 (late September 2026)</td><td>section 6</td><td>Lucene HNSW; ES defaults to BBQ (binary) for 384+ dimensions since 9.1, int8 below; OpenSearch defaults to Faiss; near real-time</td></tr>
+<tr><td>Apache Lucene</td><td>10.5.2 (latest on 2026-10-04)</td><td>Java library, Apache 2.0</td><td>{{Lucene news|https://lucene.apache.org/core/corenews.html}}</td></tr>
+<tr><td>Typesense</td><td>v30.2 (2026-04-19)</td><td>C++, GPL-3.0</td><td>in-memory, one node</td></tr>
+<tr><td>Meilisearch</td><td>v1.54.3 (2026-10-01)</td><td>Rust, MIT AND BUSL-1.1</td><td></td></tr>
+<tr><td>ParadeDB pg_search</td><td>v0.26.0 (2026-10-03)</td><td>Postgres extension, AGPL-3.0</td><td>still 0.x</td></tr>
+<tr><td>pgvectorscale</td><td>v0.9.1 (2026-09-04)</td><td>Postgres extension (Tiger Data)</td><td>StreamingDiskANN</td></tr>
+</tbody></table></div>
+<p class="small mute">Versions and consistency are from the parent page's {{Database atlas|n:3cd5c17b0d0d815d8841ec845f5f3324}} (open the atlas tab there for licences, Jepsen results, scaling and "reach for it / avoid when"); index facts from each vendor's docs: {{Qdrant|https://qdrant.tech/documentation/concepts/indexing/}}, {{Milvus|https://milvus.io/docs/index-explained.md}}, {{Weaviate|https://docs.weaviate.io/weaviate/concepts/filtering}}, {{LanceDB|https://docs.lancedb.com/indexing/vector-index}}, {{Pinecone|https://docs.pinecone.io/guides/get-started/database-architecture}}, {{Vespa|https://docs.vespa.ai/en/querying/approximate-nn-hnsw.html}}, {{Elasticsearch|https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/dense-vector}}, {{OpenSearch|https://docs.opensearch.org/latest/mappings/supported-field-types/knn-methods-engines/}}.</p>
+</details>
 </section>
 
-<section id="rd-pro">
-<h2>What professionals do in production (2026)</h2>
+<section id="rd-s13">
+<h2>13. Operating a search index: rebuilds, writes and recall</h2>
+<p>Both kinds of index get rebuilt: a search engine when a mapping or analyser changes, a vector index when the embedding model changes (vectors from two models are not comparable). The safe pattern is the same in both: build the new one beside the old, compare, switch, drop.</p>
+<figure class="fig"><p class="ft">Never rebuild in place: run old and new side by side and switch in one step</p>
+<div class="rd-svg" id="svRebuild"></div>
+<figcaption>Store the model name and version beside every vector, so a mixed table cannot happen silently. The Elasticsearch alias swap is atomic; in Postgres, the switch is a deploy that changes the queried column.</figcaption></figure>
+<div class="two">
+<div><h4>Building</h4><ul class="tight">
+<li><b>Load first, index after</b>: indexes build faster after the data is in, and IVFFlat must be built after. <code>COPY</code> loaded the 522,931 rows in @@copy_s@@ s <span class="meas">measured</span>.</li>
+<li><b>Give the build memory</b>: HNSW builds "significantly faster when the graph fits into <code>maintenance_work_mem</code>". A 200,000-row copy built in @@b200_s@@ s with 2 GB and @@b200_64_s@@ s with 64 MB, where Postgres printed <i>"@@notice@@"</i> <span class="meas">measured</span>. Not so high that a build exhausts the server.</li>
+<li><b>Parallel workers</b> (0.6.0+): <code>max_parallel_maintenance_workers</code> (here 3, plus the leader).</li>
+<li><b><code>CREATE INDEX CONCURRENTLY</code></b> builds without locking out inserts (slower, and a failure leaves an invalid index to drop); watch <code>pg_stat_progress_create_index</code>.</li>
+</ul></div>
+<div><h4>Writes and deletes</h4><ul class="tight">
+<li><b>Inserts get slower</b>: each insert searches the graph for its neighbours. 5,000 single-row inserts took @@ins_h@@ s with HNSW and @@ins_n@@ s without <span class="meas">measured</span>: batch them.</li>
+<li><b>Deletes leave holes</b>: a deleted or updated row stays in the graph until VACUUM removes it and repairs the links; meanwhile scans skip dead entries and can return fewer rows. After deleting 10% of 200,000 rows VACUUM took @@vac_s@@ s, a full <code>REINDEX</code> @@reidx_s@@ s <span class="meas">measured</span>; the README advises <code>REINDEX INDEX CONCURRENTLY</code> before <code>VACUUM</code> when vacuuming is slow. Lucene has the same problem as dead documents waiting for a merge (section 6).</li>
+</ul></div>
+</div>
+<div class="co key"><div class="t">Keeping it honest: monitor recall, not just latency</div>Recall changes silently as data grows, drifts from IVF centroids, or gains a filter. Sample a few queries an hour, run them exactly (<code>SET enable_indexscan = off</code> in a transaction, or on a replica) and compare with the index's answer; keep a labelled set of 100 to 1,000 real queries and rescore it after every model, index or parameter change (the evaluation page shows how). Set <code>ef_search</code> per query with <code>SET LOCAL</code>, so a high-recall feature does not slow every other query. Check <code>pg_relation_size</code> of each vector index against <code>shared_buffers</code> and RAM: an HNSW index that falls out of memory turns page reads into SSD reads at every hop.</div>
+<p><b>What teams do in production (2026).</b> Postgres first: pgvector beside the data, HNSW at defaults with the operator class matching the model, iterative scans on for filtered queries, and the labelled set before any tuning. Hybrid (BM25 from a search engine or pg_search, plus vectors, fused with RRF, then a reranker when quality matters more than a few tens of milliseconds) is the usual start for user-facing search, kept only if it beats the better single retriever. The search engine is fed from the primary database, never written to directly, and can be rebuilt at any time. halfvec for storage, binary or int8 for the index and full vectors for re-ranking once memory is the cost. Tenants isolated by design: partitions or partial indexes in Postgres, namespaces in Pinecone and Turbopuffer, a shard per tenant in Weaviate, a tenant payload field in Qdrant.</p>
+</section>
+
+<section id="rd-ref">
+<h2>Reference</h2>
+<details class="depth"><summary>Common mistakes, each with the measurement that shows it</summary>
 <ul class="tight">
-<li><b>Postgres first.</b> Start with pgvector beside the data, HNSW with default parameters, <code>vector_cosine_ops</code> or <code>vector_ip_ops</code> matching the model, iterative scans on for filtered queries, and a labelled set of 100 to 1,000 real queries with known good answers before tuning anything.</li>
-<li><b>Hybrid as the usual starting point for user-facing search</b>: BM25 (a search engine, or pg_search) plus vectors, fused with RRF, then a reranker for the top results when quality matters more than a few tens of milliseconds; kept only if it beats the better single retriever on the labelled set (it did on SciFact here, not on Quora).</li>
-<li><b>The search engine is fed, never written to directly</b>: changes flow from the primary database through an outbox or CDC, and the index can be rebuilt from scratch at any time (aliases make the switch atomic in Elasticsearch).</li>
-<li><b>halfvec for storage, binary or int8 for the index, full vectors for re-ranking</b> once memory becomes the cost.</li>
-<li><b>Tenant isolation by design</b>: partitions or partial indexes per large tenant in Postgres, namespaces in Pinecone and Turbopuffer, multi-tenancy shards in Weaviate, payload-indexed tenant fields in Qdrant.</li>
-<li><b>Recall and relevance dashboards</b> beside latency, measured on the labelled set after every model, index or parameter change (the evaluation page shows how).</li>
-</ul>
-</section>
-
-<section id="rd-mist">
-<h2>Common mistakes</h2>
-<details class="mist"><summary>Using <code>LIKE '%word%'</code> as search</summary><div class="b">It scans every row, matches substrings instead of words, ignores stemming and ranks nothing. Measured: @@like_ms@@ ms against @@fts_ms@@ ms with a GIN index.</div></details>
-<details class="mist"><summary>Calling ts_rank "BM25"</summary><div class="b">Postgres's ranking has no idf; on the labelled Quora set it scored @@q_fts_or@@ nDCG@10 against @@q_bm25@@ for BM25 over the same lexemes.</div></details>
-<details class="mist"><summary>Requiring every word (plainto_tsquery) for natural-language questions</summary><div class="b">AND semantics returned no match at all for @@q_and_empty@@% of Quora test questions. Use OR with ranking, or websearch syntax, or let BM25 do the weighting.</div></details>
-<details class="mist"><summary>Different text configuration at index and query time</summary><div class="b">An index on <code>to_tsvector('english', body)</code> is not used by a query on <code>to_tsvector(body)</code> under a different default configuration, and stems differ. Name the configuration everywhere.</div></details>
-<details class="mist"><summary>Quoting ANN latency without recall</summary><div class="b">Any index is fast at low recall: HNSW with m 8 at ef_search 10 answered in @@m8_10_p50@@ ms but found only @@m8_10_rec@@ of the true top 10.</div></details>
-<details class="mist"><summary>Post-filtering a selective condition</summary><div class="b">With a 1% filter and iterative scans off, pgvector returned @@post1_rows@@ rows on average instead of 10. Turn on iterative scans, add a B-tree for pre-filtering, or partition by tenant.</div></details>
-<details class="mist"><summary>Expecting more than ef_search rows from one HNSW scan</summary><div class="b"><code>LIMIT 100</code> with the default ef_search of 40 returns at most 40 rows (pgvector README, Troubleshooting). Raise ef_search to at least the LIMIT.</div></details>
-<details class="mist"><summary>Building IVFFlat on an empty or small table</summary><div class="b">The centroids are learned from the rows present at build time; built too early they describe the wrong data and recall collapses. Build after loading, rebuild after large changes.</div></details>
-<details class="mist"><summary>Mismatched distance operator and operator class</summary><div class="b">An index built with <code>vector_l2_ops</code> is not used by an <code>ORDER BY embedding &lt;=&gt; $1</code> (cosine) query; the query silently falls back to a sequential scan. Also, the ORDER BY must be the bare operator in ascending order (not <code>1 - (a &lt;=&gt; b) DESC</code>).</div></details>
-<details class="mist"><summary>Mixing embeddings from two models or versions</summary><div class="b">Distances between them are meaningless. Store the model id with each vector and re-embed everything when the model changes.</div></details>
-<details class="mist"><summary>Treating the search engine as the database</summary><div class="b">No multi-document transactions, about a second of staleness, and a history of lost writes under partitions. Keep the truth in Postgres and rebuild the index from it.</div></details>
-</section>
-
-<section id="rd-num">
-<h2>Numbers to know</h2>
+<li><b>Using <code>LIKE '%word%'</code> as search</b>: it scans every row, matches substrings, ignores stemming and ranks nothing (@@like_ms@@ ms against @@fts_ms@@ ms with GIN).</li>
+<li><b>Calling ts_rank "BM25"</b>: no idf; @@q_fts_or@@ against @@q_bm25@@ nDCG@10 on Quora.</li>
+<li><b>Requiring every word (plainto_tsquery) for natural-language questions</b>: no match at all for @@q_and_empty@@% of Quora test questions; use OR with ranking, websearch syntax, or BM25.</li>
+<li><b>Different text configuration at index and query time</b>: an index on <code>to_tsvector('english', body)</code> is not used by a query on <code>to_tsvector(body)</code> under another default, and stems differ.</li>
+<li><b>Quoting ANN latency without recall</b>: HNSW m 8 at ef_search 10 answered in @@m8_10_p50@@ ms but found only @@m8_10_rec@@ of the true top 10.</li>
+<li><b>Post-filtering a selective condition</b>: @@post1_rows@@ rows on average instead of 10 at a 1% filter.</li>
+<li><b>Expecting more than ef_search rows from one HNSW scan</b>: <code>LIMIT 100</code> with the default ef_search of 40 returns at most 40 rows (pgvector README, Troubleshooting); raise ef_search to at least the LIMIT.</li>
+<li><b>Building IVFFlat on an empty or small table</b>: the centroids describe the wrong data and recall collapses; build after loading, rebuild after large changes.</li>
+<li><b>Mismatched operator and operator class</b>: an index built with <code>vector_l2_ops</code> is not used by <code>ORDER BY embedding &lt;=&gt; $1</code>, which silently falls back to a sequential scan; and the ORDER BY must be the bare operator ascending (not <code>1 - (a &lt;=&gt; b) DESC</code>).</li>
+<li><b>Mixing embeddings from two models or versions</b>: distances between them are meaningless.</li>
+<li><b>Treating the search engine as the database</b>: no multi-document transactions, about a second of staleness, and a history of lost writes under partitions.</li>
+</ul></details>
+<details class="depth"><summary>Numbers to know</summary>
 <div class="tw"><table>
 <thead><tr><th>Quantity</th><th>Value</th><th>Source</th></tr></thead>
 <tbody>
@@ -59,16 +98,14 @@
 <tr><td>Exact kNN, 523k &times; 384, in memory</td><td>@@exact_p50@@ ms median</td><td>measured</td></tr>
 <tr><td>HNSW at defaults, same data</td><td>@@hnsw40_p50@@ ms median, recall@10 @@hnsw40_rec@@</td><td>measured</td></tr>
 <tr><td>HNSW build, 523k &times; 384, 4 processes</td><td>@@hnsw_build@@ s, @@hnsw_mb@@ MB</td><td>measured</td></tr>
-<tr><td>Elasticsearch refresh interval</td><td>1 s (documents searchable after about a second)</td><td>Elastic docs</td></tr>
+<tr><td>Elasticsearch refresh interval</td><td>1 s</td><td>Elastic docs</td></tr>
 <tr><td>BM25 defaults</td><td>k1 1.2, b 0.75</td><td>Lucene</td></tr>
 <tr><td>RRF constant</td><td>k = 60</td><td>Cormack et al. 2009</td></tr>
 <tr><td>Compression</td><td>halfvec 2&times;, int8 4&times;, binary 32&times;, PQ 64&times; (96 codes for 1,536-d)</td><td>derived</td></tr>
-<tr><td>100M &times; 1,536-d float32</td><td>615 GB before any index</td><td>derived (parent atlas)</td></tr>
-</tbody></table></div>
-</section>
-
-<section id="rd-gloss">
-<h2>Glossary</h2>
+<tr><td>100M &times; 1,536-d float32</td><td>615 GB before any index</td><td>derived</td></tr>
+</tbody></table></div></details>
+<details class="depth"><summary>Glossary</summary>
 <div class="gl" id="glossList"></div>
+</details>
 </section>
 </div>
