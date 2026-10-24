@@ -1,0 +1,6 @@
+# Networking foundations: IP, TCP, UDP and QUIC
+
+Notion: https://app.notion.com/p/3c65c17b0d0d8117b21dcb9041879564 (child of Topic: protocols)
+Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_protocols/networking_foundations/
+
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Addresses and prefixes, ports and sockets, the TCP connection's life (handshake, states, TIME_WAIT), retransmission (RTO, fast retransmit, RACK-TLP), windows and window over RTT, congestion control (slow start, Reno, CUBIC, BBR, bufferbloat), Nagle and delayed ACKs, accept queues, NAT and idle timeouts, MTU and path MTU black holes, UDP, QUIC as a transport (connection migration recorded), moving big checkpoints, the round-trip budget of a request, where TCP still matters in a GPU job, and debugging a connection (ping, traceroute, ss, tcpdump). Measured on a real internet path and on loopback (October 2026). Rebuilt 2026-10-24 to the teaching contract: core idea and a headers-to-scale hero at the top, every visual inline (the TCP timeline is now in Reading section 4, the throughput calculator in section 13), depth in closed blocks. Tabs: Reading, Further reading. Replaces the old page "TCP, UDP, and IP: the transport foundations"; no child pages, databases or video.

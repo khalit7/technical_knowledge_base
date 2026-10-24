@@ -64,7 +64,7 @@ Research can be split across subagents (for example one per section of topics, p
 - Never write to Notion except: the new Tech news child page and new Papers rows (each a link page), the link-page steps of `sync-kb-github`, and the freshness row at the end.
 - Never put knowledge in Notion: its pages are only links to the site. If a Notion page holds text that is not in the repository, stop and show Khalid.
 - There is no Updates changelog, Tracker or Visuals database any more (retired 2026-10-19): do not recreate them. The record of a run is its tech-news issue, its git commits and the freshness row's notes.
-- No em-dashes anywhere. Privacy grep before every commit (the pattern list is in `agents_and_retrieval/topic_protocols/src/.private_patterns`).
+- No em-dashes anywhere. Privacy grep before every commit (the pattern list is in `engineering_foundations/topic_protocols/src/.private_patterns`).
 - Never delete a Notion page; retitle "TO DELETE: ..." and tell Khalid.
 
 ## Report

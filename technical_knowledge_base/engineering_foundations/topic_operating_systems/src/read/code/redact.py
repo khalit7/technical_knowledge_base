@@ -4,7 +4,7 @@ Usage: python3 redact.py <out folder>"""
 import os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "../../../../../agents_and_retrieval/topic_protocols/src"))
+sys.path.insert(0, os.path.join(HERE, "../../../../../engineering_foundations/topic_protocols/src"))
 try:
     import private_patterns
     PRIV = private_patterns.alternation()

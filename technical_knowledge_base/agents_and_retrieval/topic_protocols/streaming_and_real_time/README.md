@@ -1,6 +1,0 @@
-# Streaming and real-time: SSE, WebSockets, webhooks, long polling
-
-Notion: https://app.notion.com/p/3c65c17b0d0d812daa9fdb38719fc82b (child of Topic: protocols)
-Site: https://khalit7.github.io/technical_knowledge_base/agents_and_retrieval/topic_protocols/streaming_and_real_time/
-
-Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Rebuilt 2026-10-24 to the teaching contract: core idea and hero at the top, then server push from zero on the parent topic's streaming LLM request: the four ways on one clock, SSE byte by byte and its clients (the six-connection trap), LLM token streams and client-side TTFT, cutting, resuming and cancelling a stream, WebSockets (handshake, frames, compression, proxies, heartbeats, scale, CSWSH), webhooks (signatures, retries, dedupe, order, SSRF), voice and WebRTC, gRPC streaming on the wire, WebTransport, choosing, debugging; depth (parser test, reference tables, interview questions, corrections) in closed blocks. Everything measured on 5 October 2026 against local servers (plus 4 s of Wikimedia's public SSE stream). Tabs: Reading, Further reading. Replaces the old written page and folds in "WebSocket protocol (RFC 6455) in depth" (3c65c17b0d0d81bdb2a1caea5d41776e), both saved in the parent topic's `src/read/old/`; no child pages, databases or video.
