@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""Labels for ledger.json (2026-10-24 rebuild): id -> (label, key). Units not listed here are fat. Run once after ledger.py init."""
+import json, os
+CE = "owned:agents_and_retrieval/topic_agentic_harnesses/context_engineering"
+AS = "owned:agents_and_retrieval/topic_agentic_harnesses/agent_security"
+L = {
+1:("core","background process"),2:("core","read at pinned versions"),3:("depth","fake inbox"),4:("core","A child of"),5:("volatile","Data as of October 2026"),
+13:("core","a coding harness is invoked"),14:("core","Months: a searchable session history"),15:("core","the agent loop (call the model"),16:("core","nobody watches it"),
+17:("core","standing access to live accounts, granted once at setup"),18:("volatile","formerly Clawdbot, then Moltbot"),19:("core","daemon that owns all your chat channels"),
+20:("volatile","501(c)(3)"),21:("volatile","391,456 stars"),22:("volatile","v2026.10.5"),23:("volatile","Hermes Agent (Nous Research)"),24:("core","One agent class behind"),
+25:("volatile","251,476 stars"),26:("volatile","Threshold"),28:("depth","about 240 lines"),29:("depth","not installed or run here"),
+37:("core","call the model, run the tool it asks for"),39:("core","07:40"),40:("core","always running and turns events into runs"),41:("core","Baileys"),42:("core","more than 20 channels"),
+43:("core","A single long-lived Gateway owns all messaging surfaces"),44:("core","127.0.0.1:18789"),46:("core","NO_REPLY"),47:("core","which history an event joins"),48:("core","each webhook is isolated"),
+49:("core","enable DM isolation"),50:("core","per-channel-peer"),51:("core","a system prompt assembled from files"),52:("core","hand a turn to Claude Code or Codex"),
+53:("core","heartbeat alerts go to your own direct messages"),54:("core","Illustrative schedule (not a recording)"),55:("core","a laptop that sleeps misses its heartbeats"),
+57:("depth","3,000 tokens"),59:("depth","144,000 tokens"),60:("depth","4,096 tokens on Haiku 4.5"),61:("depth","assumption for the drill"),
+62:("depth","every page also served as markdown"),63:("depth","Node 24.16+"),64:("depth","openrouter/moonshotai/kimi-k2"),65:("depth","never picked automatically"),
+66:("depth","execute through Claude CLI"),67:("depth","v2026.5.14"),68:("depth","similar external harnesses still use ACP"),69:("depth","OpenClaw keeps a mirror"),
+70:("depth","a host for coding harnesses rather than a rival"),71:("depth","its only working directory for tools"),72:("depth","Project Context"),
+73:("depth","does not control which tools exist"),74:("depth","Sub-agents get only this file"),75:("depth","Persona, boundaries, tone"),76:("depth","4,000 characters"),
+77:("depth","never in shared or group contexts"),78:("depth","bootstrapTotalMaxChars"),79:("depth","memory/YYYY-MM-DD.md"),80:("depth","monitor scratch"),
+81:("depth","seven tiers, highest first"),82:("depth","clawhub.ai"),83:("depth","openclaw-agent.sqlite"),84:("depth","main session's key"),85:("depth","steered into the current run by default"),
+87:("depth","untrusted code from the internet"),88:("depth","commit f97608f"),89:("depth","just over two weeks"),90:("depth","One AIAgent class serves CLI"),
+91:("depth","70+ registered tools"),92:("depth","one of each active at a time"),95:("depth","Hermes tries to write and maintain them itself"),96:("core","2,200 characters"),
+98:("depth","one the user corrected"),99:("depth","creation_nudge_interval"),100:("depth",".curator_ledger.jsonl"),101:("depth","168 hours"),102:("depth","50-100 API calls"),
+103:("depth","skills used by scheduled jobs are never touched"),105:("depth","/skills approve"),106:("depth","terminal() ungated"),108:("depth","a skill written from one lucky run"),
+109:("depth","The check is the ledger"),110:("depth","agents that improve their own harness"),111:("depth","85% of the window"),112:("depth","Constraints and Preferences"),
+114:("depth","no LLM summarization"),115:("core","Cron-run sessions cannot recursively create more cron jobs"),116:("depth","Atropos"),118:("depth","hermes claw migrate"),
+119:("volatile","1.86T tokens"),120:("volatile","traffic routed through OpenRouter"),
+122:("core","thirty seconds after a request"),123:("core","halfway through"),124:("core","decides whether an irreversible action happens first"),125:("core","merge several queued messages"),
+127:("core","OpenClaw steers by default"),128:("core","Skipped to process an incoming message."),129:("core","moved to the background rather than killed"),
+130:("core","the newest message wins, at a tool boundary"),131:("core","book Thursday 10:00"),132:("core","already serviced at Kwik Garage last month"),
+134:("core","Please cancel my earlier confirmation"),135:("core","Sonnet 0 of 2"),136:("core","held rather than sent"),137:("core","interrupt run read the correction first"),
+138:("core","a follow-up whatever the policy is called"),139:("core","A held action outlives its context"),140:("core","reject A1"),141:("core","expire pending actions"),
+142:("core","error: unknown tool"),143:("core","not whether anything was sent"),
+145:("core","conversation never ends"),146:("core","60,000 total"),147:("core","puts the hits in the prompt first"),148:("core","260 pounds paid by Sam"),
+149:("core","wants to book the car's annual service"),150:("core","The right answer is no"),151:("core","keyword rule, every answer read by hand"),152:("core","0 of 3 runs searched"),
+153:("core","search past sessions first"),154:("core","the deciding line ranked fifth"),155:("core","Sonnet searched on its own"),156:("core","failure modes, not rates"),
+157:("core","top four hits by BM25"),158:("depth","Lexical search needs stemming"),159:("depth","tokenize='porter'"),160:("depth","A strict parser can fake an empty memory"),
+161:("depth","no record of this year's service"),162:("depth","s2_haiku_hintbug_1"),163:(CE,"Mem0"),
+165:("core","cannot reliably tell an instruction from a fact"),166:("core","lethal trifecta"),167:("core","anyone can send you mail"),168:("core","enforcement that text cannot reach"),
+170:("core","fewer tools in groups"),171:("core","at most 3 pending per channel"),172:("core","8-character codes"),173:("core","per-sender sessions"),174:("core","what it would take to undo it"),
+175:("core","refused outright on unattended heartbeat and scheduled runs"),176:("core","nothing is re-run"),177:("core","Approvals outside the conversation"),
+178:("core","cannot be produced by the model"),179:("core","Muse does this"),180:("core","Credentials out of the model's reach"),181:("core","placeholders swapped for the real token"),
+182:(AS,"cannot leak what it never sees"),183:("core","not reachable from the internet"),184:("depth","is off by default"),186:("depth","trusted operators"),
+187:("depth","read that as negligence"),188:("depth","a report counts only when a boundary in code fails"),189:("depth","assume one careful operator"),190:("depth","still text judging text"),
+191:("depth","calls send_reply"),193:("depth","whatever the text said"),194:("depth","facts the model cannot change"),195:("depth","neither model even proposed a send on a heartbeat"),
+196:("depth","for the day one does"),198:("core","free verifier"),200:("core","should it have answered at all"),201:("core","a sent message stays sent"),202:("core","Delay window"),
+203:("core","repo-backed QA scenario pack"),204:("core","only fake users, fake preferences, fake secrets"),205:("core","no public personal-agent leaderboard"),
+207:("depth","read on 6 Oct 2026"),208:("depth","level of the published advisory"),209:("depth","CVE-2026-25253"),210:("depth","victim's browser initiates the outbound connection"),
+211:("depth","fixed 28 Jan"),212:("depth","never send a token to an endpoint"),213:("depth","35.4%"),214:("depth","not confirmed victims"),215:("depth","reach it over a private network"),
+216:("depth","1.5 million API authentication tokens"),217:("depth","17,000 human owners"),218:("depth","one leaked key per agent"),219:("depth","824 of over 10,700"),
+220:("depth","Atomic Stealer"),221:("depth","won't trigger a virus signature"),222:("depth","away from keychains and browser profiles"),223:("depth","MoltMatch"),
+224:("depth","consent-level action"),225:("depth","on office computers"),226:("depth","software that needs approval"),227:("depth","1,309 security advisories"),
+228:("depth","682 CVEs"),229:("depth","steady patch stream"),230:("depth","CVE-2026-53869"),231:("depth","a command injection in the dangerous-command check"),
+232:("depth","no repository advisories"),233:("depth","cannot be the only layer"),234:("depth","the sole objective of multiple criminal groups"),235:("depth","signing out everywhere"),
+236:("depth","memory and context poisoning"),237:("depth","not resident ones specifically"),
+238:("volatile","Announced 8 Sep 2026"),239:("core","Muse Secure VM"),240:("core","surrogate tokens"),241:("core","not via their conversation with Muse"),242:("core","not the raw DOM"),
+243:("core","No accuracy figures"),244:("core","keep credentials, egress and consent in a component it cannot talk to"),245:("volatile","Muse Spark 1.3"),
+246:("core","router, scheduler, memory and delivery surface"),247:("core","Hermes exposes itself over ACP"),249:("core","with the repository as its world"),
+250:("depth","13 minutes, September 2026"),251:("depth","39 claims, 20 verified, 15 corrected, 4 unconfirmed"),
+268:("depth","in one minute"),269:("depth","Same agent loop; different boundary"),270:("depth","reads text from anyone who can message you"),271:("depth","a code gate by action class and trigger"),
+272:("depth","Design the approval flow"),273:("depth","Classify actions: read, reversible"),274:("depth","rendered by the app, not the chat"),275:("depth","invalidated by a newer message"),
+276:("depth","for allowed payees only"),277:("depth","correction while the agent is mid-task"),278:("depth","never queue it behind the current run"),279:("depth","Do not kill a running tool mid-write"),
+280:("depth","skips unstarted sequential calls"),281:("depth","never-ending assistant memory"),282:("depth","a small capped profile in every prompt"),283:("depth","unless told when to"),
+284:("depth","evaluate a personal agent with no verifier"),285:("depth","ten-scenario pack"),286:("depth","Sources were read on 6 Oct 2026"),287:("depth","claude-haiku-4-5-20251001"),
+288:("depth","the subscription paid"),
+289:("core","two heartbeats, two requests from Sam, one scheduled job"),290:("core","one ACTION line per reply"),291:("core","watch the gate classify each action"),
+292:("core","means appended to a list"),293:("core","except calendar changes on unattended runs"),294:("core","about 420 tokens of its own"),
+295:("core","re-decided below by whatever policy you set"),296:("core","who started the run"),297:("core","no model is involved"),298:("core","they only reach Sam"),
+299:("core","A decision table, not a re-run"),300:("core","might have continued differently"),302:("core","proposed before the agent read Sam's correction"),
+303:("core","Every proposed action, with the recorded decision and yours"),304:("core","Links checked on 6 October 2026"),306:("core","through one fake day"),
+308:("core","Harness atlas"),310:("core","The threat model from zero"),313:("core","the machinery under section 5"),315:("core","The coding harness this page keeps comparing against"),
+317:("core","Tool calling, stop conditions and the action boundary"),319:("core","the runtimes OpenClaw can host"),321:("core","where Hermes's ShareGPT export and skill loop lead"),
+323:("core","memory layers Mem0, Zep and Letta"),325:("core","The protocols personal agents use"),327:("core","The operating-system boundary a sandbox is made of"),
+328:("core","Where trajectories like Hermes's ShareGPT exports go"),329:("core","Grading agent runs when no test suite exists"),330:("core","the clearest text on hosting one harness in another"),
+331:("core","Bootstrap files, skills, sessions, steering"),332:("core","The exact mid-run message rules"),333:("core","what counts as a vulnerability"),
+334:("core","Subsystem map and design principles"),336:("core","The learning loop in the authors' words"),337:("core","Eight layers, approval modes, container hardening"),
+338:("core","the best public design for the boundary"),339:("core","framing from a non-participant"),340:("core","16 Jun 2025"),341:("core","A shared vocabulary for agent risks"),
+342:("core","Rudrendu Paul"),343:("core","not used as a source here"),
+}
+H = os.path.dirname(os.path.abspath(__file__))
+p = os.path.join(H, "ledger.json"); U = [u for u in json.load(open(p)) if u["id"] <= 343]
+for u in U:
+    lab, key = L.get(u["id"], ("fat", ""))
+    u["label"], u["key"] = lab, key
+    u["where"] = "" if not lab.startswith("owned:") else ""
+# units for tables drawn by script (invisible to the check's text scan): their key is a static caption
+U += [
+ {"id": 344, "tab": "t-read", "section": "depth", "text": "Script-drawn table: the old page's 39 claims with status, primary-source finding and section (src/old_claims.json).", "label": "depth", "key": "39 claims, 20 verified", "where": ""},
+ {"id": 345, "tab": "t-read", "section": "5", "text": "Script-drawn list: every memory-scenario answer with what was searched or retrieved and the grade.", "label": "core", "key": "Every answer", "where": ""},
+ {"id": 346, "tab": "t-read", "section": "4", "text": "Script-drawn chips: the four delivery x gate cells per model, one chip per action, outcomes at the end.", "label": "core", "key": "Same input, real recordings", "where": ""},
+ {"id": 347, "tab": "t-read", "section": "6", "text": "Script-drawn: 64 proposed non-read actions re-decided by the chosen policy, with counters.", "label": "core", "key": "all 45 recorded gate-on decisions", "where": ""},
+]
+json.dump(U, open(p, "w"), indent=1, ensure_ascii=False); open(p, "a").write("\n")
+from collections import Counter; print(Counter(u["label"].split(":")[0] for u in U))
