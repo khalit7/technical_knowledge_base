@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Latent diffusion and diffusion transformers</h1>
-<div class="sub">How a text-to-image model is built: why it denoises a small latent instead of pixels, the U-Net read from Stable Diffusion 1.5's config, how text gets in (CLIP, T5 and LLM encoders, cross-attention), the diffusion transformer (patches, adaLN-Zero, scaling with compute), SD3's joint-attention MMDiT and FLUX's double and single streams, positions for images, resolution and aspect ratio, and what one image costs. Parameter and FLOP counts from eleven real configs, SD 1.5 profiled and its cross-attention recorded, tiny DiTs trained against the topic's U-Net on an Apple M1 Pro. Data as of October 2026.</div>
+<div class="sub">How a text-to-image model's denoiser is built and what an image costs: why it works on a VAE latent, the U-Net, DiT and MMDiT, how text gets in, positions and resolution, and few-step distillation. Parameters and FLOPs counted from eleven real configs; SD 1.5 profiled and its cross-attention recorded on an Apple M1 Pro. Data as of October 2026. <span id="rd-time">Reading: 32 min, plus 15 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-ldarch" aria-selected="false">Architecture explorer</button><button role="tab" data-t="t-ldxa" aria-selected="false">Cross-attention viewer</button><button role="tab" data-t="t-ldcalc" aria-selected="false">Tokens and FLOPs calculator</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-ldarch" aria-selected="false">Architecture explorer</button><button role="tab" data-t="t-ldcalc" aria-selected="false">Tokens and FLOPs calculator</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab ldp" id="t-read" role="tabpanel">
 <style>
@@ -226,63 +226,104 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 .ldp .ld-resimg img{width:100%;max-width:320px;display:block;border-radius:6px;margin:6px 0}
 .ldp .rd-bars .tr span+span{left:0}
 .ldp pre.ld-wrap{white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* 2026-10-24 rebuild: top of page, closed depth blocks, the paper figure, the moved cross-attention viewer, distillation */
+.ldp .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+.ldp .hl{color:var(--acc);font-weight:600}
+.ldp .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+.ldp .hero h4{margin:0 0 4px;font-size:14.5px}
+.ldp .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.ldp .terms dt{font-weight:600}.ldp .terms dd{margin:0}
+@media (max-width:520px){.ldp .terms{grid-template-columns:minmax(0,1fr)}.ldp .terms dd{margin:0 0 4px}}
+.ldp details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+.ldp details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+.ldp details.dp>summary .mute{font-weight:400;color:var(--mute)}
+.ldp details.dp>.b{padding:0 12px 10px;min-width:0}
+.ldp figure.ld-fig{margin:10px 0;border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
+.ldp figure.ld-fig img{width:100%;height:auto;display:block;background:#fff;border-radius:6px;padding:4px}
+.ldp figure.ld-fig figcaption{font-size:12.5px;color:var(--mute);margin-top:4px}
+.ldp figure.ld-fig figcaption b{color:var(--ink)}
+#ld-xa .xa-main{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px;align-items:start}
+#ld-xa figure{margin:0;min-width:0}#ld-xa figcaption{font-size:12px;color:var(--mute);margin-top:3px}
+#ld-xa canvas,#ld-xa img.xa-big{width:100%;max-width:360px;aspect-ratio:1;display:block;border-radius:6px;background:var(--soft)}
+#ld-xa .xa-toks{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+#ld-xa .xa-toks button{font-size:12.5px;padding:2px 8px}
+#ld-xa .xa-toks button.on{background:var(--acc2);border-color:var(--acc);color:var(--ink);font-weight:600}
+#ld-xa .xa-cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px;margin:8px 0}
+#ld-xa .xa-cmp canvas,#ld-xa .xa-cmp img{max-width:220px}
+#ld-xa h5{margin:10px 0 2px;font-size:13.5px}
 </style>
 <nav class="nav" id="rd-nav">
-<a href="#ld-s0">0 One screen</a><a href="#ld-s1">1 Why latents</a><a href="#ld-s2">2 The U-Net</a><a href="#ld-s3">3 Text in</a><a href="#ld-s4">4 DiT</a><a href="#ld-s5">5 MMDiT</a><a href="#ld-s6">6 Double and single stream</a><a href="#ld-s7">7 Positions</a><a href="#ld-s8">8 Resolution</a><a href="#ld-s9">9 Cost</a><a href="#ld-mis">Mistakes</a><a href="#ld-iq">Interview</a><a href="#ld-tr">What transfers</a>
+<a href="#ld-s0">The idea</a><a href="#ld-s1">1 Why latents</a><a href="#ld-s2">2 The U-Net</a><a href="#ld-s3">3 Text in</a><a href="#ld-s4">4 DiT</a><a href="#ld-s5">5 MMDiT</a><a href="#ld-s6">6 Double and single stream</a><a href="#ld-s7">7 Positions</a><a href="#ld-s8">8 Resolution</a><a href="#ld-s9">9 Cost</a><a href="#ld-s10">10 Few steps</a><a href="#ld-dp">Depth</a>
 </nav>
 
 <section id="ld-s0">
-<p class="lead">A text-to-image model is three networks in a row: a <dfn>text encoder</dfn> that turns the prompt into vectors, a <dfn>denoiser</dfn> that runs once per sampling step on a small <dfn>latent</dfn> (a compressed grid standing in for the image), and the <dfn>VAE decoder</dfn> that turns the final latent into pixels once. This page is about the middle network and how the text reaches it: why it works on latents, how its two families (the convolutional <dfn>U-Net</dfn> and the <dfn>diffusion transformer</dfn>, DiT) are built, and what one image costs. Reading time about <span id="ld-time">35</span> minutes (words outside widgets at 200 a minute; the folded answers add about <span id="ld-time-qa">4</span>).</p>
+<p class="core">A text-to-image model runs one large network, the <span class="hl">denoiser</span>, tens of times on a small VAE <dfn>latent</dfn> while a text encoder steers it, so the price of an image is <span class="hl">FLOPs per denoiser pass &times; passes per image</span>. Every design on this page changes one of those two factors or how the text reaches the image: the latent shrinks the pass, the U-Net and the diffusion transformer (DiT) are two ways to build it, cross-attention and joint attention are two ways to read the prompt, and distillation cuts the passes.</p>
 
-<div class="co"><div class="t">Where this page starts</div>
-<p>The parent page <a href="https://app.notion.com/p/3c65c17b0d0d817ab6ade318917bff55" target="_blank" rel="noopener noreferrer">Topic: generative-and-multimodal</a> gives the one-screen picture in its Reading section 4, and its tabs already hold three things this page builds on and does not repeat: the <b>Diffusion lab</b> (noising, samplers and guidance on Stable Diffusion 1.5, with its timings: 0.319 s per U-Net pass, 0.610 s per guided step, 0.488 s per VAE decode, measured on Apple M1 Pro), the <b>Latent lab</b> (the SD VAE and its scaling factor) and the <b>Model map</b> (one prompt through six real pipelines, with every generator's release, licence and size). The sibling page <a href="https://app.notion.com/p/3c65c17b0d0d814da93bdb159b7c1e11" target="_blank" rel="noopener noreferrer">Autoencoders and VAEs</a> owns the VAE side (nine generator VAEs compared), and the sibling pages <a href="https://app.notion.com/p/3c65c17b0d0d81cf9bf0d94e57ce9164" target="_blank" rel="noopener noreferrer">Diffusion from zero</a> and <a href="https://app.notion.com/p/3fc5c17b0d0d8136a1efc73aaa446ceb" target="_blank" rel="noopener noreferrer">Flow matching</a> own the objectives and samplers the denoiser is trained and run with. The original paper is on the <a href="https://app.notion.com/p/3c65c17b0d0d81bb98adc0daf8462cb6" target="_blank" rel="noopener noreferrer">LDM / Stable Diffusion paper page</a>, with a live toy of latent against pixel diffusion at fixed compute. Here: the denoiser's insides, read from real configs and code.</p></div>
+<div class="hero" id="ld-hero-card"><h4>One image from Stable Diffusion 1.5: the denoiser runs 50 times, everything else once</h4>
+<div class="rd-svg" id="ld-hero"></div>
+<p class="ld-note" id="ld-hero-cap">The running example at the topic's settings (512 &times; 512, 25 DPM-Solver++ steps, guidance 7.5). Times are the root page's Diffusion lab measurements on Apple M1 Pro: 0.319 s per U-Net pass, 0.610 s per guided step (two passes batched), 0.488 s per VAE decode; 25 &times; 0.610 = 15.3 s of denoising against one decode. <span class="meas">measured</span> <span class="der">derived</span> Parameters counted from the configs.</p></div>
 
-<p><b>The running example.</b> The topic's own (root <span class="ld-mono">src/data/README.md</span>): <b>Stable Diffusion 1.5</b> in float16 (U-Net 859,520,964 parameters, CLIP ViT-L/14 text encoder 123,060,480, VAE 83,653,863; pinned revision 451f4fe), run on the laptop's GPU with the topic's prompts, for everything about a real U-Net; the topic's tiny denoisers on <b>Fashion-MNIST</b> (grey 28 &times; 28 clothing, padded to 32 &times; 32): the 1.04M-parameter <span class="ld-mono">TinyUNet</span> the Flow lab trained, and the shared <span class="ld-mono">TinyDiT</span> trained here with exactly the same recipe; and the configs of <b>ten more denoisers</b> (SDXL, DiT-XL/2, PixArt-&Sigma;, Sana, SD3 Medium, SD3.5 Large, FLUX.1, FLUX.2 [klein], Qwen-Image, Z-Image), instantiated without weights so their parameters and FLOPs can be counted exactly.</p>
+<p><b>You need:</b> what a denoiser predicts and how a sampler and classifier-free guidance use it (<a href="https://app.notion.com/p/3c65c17b0d0d81cf9bf0d94e57ce9164" target="_blank" rel="noopener noreferrer">Diffusion from zero</a>, sections 4, 5 and 6; for SD3 and FLUX, the velocity objective of <a href="https://app.notion.com/p/3fc5c17b0d0d8136a1efc73aaa446ceb" target="_blank" rel="noopener noreferrer">Flow matching</a>), and the VAE that makes the latent, with its scaling factor (<a href="https://app.notion.com/p/3c65c17b0d0d814da93bdb159b7c1e11" target="_blank" rel="noopener noreferrer">Autoencoders and VAEs</a>, section 11). The parent <a href="https://app.notion.com/p/3c65c17b0d0d817ab6ade318917bff55" target="_blank" rel="noopener noreferrer">Topic: generative-and-multimodal</a> gives the one-screen picture; its Diffusion lab, Latent lab and Model map (one prompt through six real pipelines, with every generator's release, licence and size) are reused here, not repeated.</p>
+<dl class="terms">
+<dt>Latent</dt><dd>the VAE's compressed grid standing in for the image: 64 &times; 64 &times; 4 for a 512 &times; 512 SD 1.5 image.</dd>
+<dt>Denoiser, timestep</dt><dd>the network that takes a noisy latent and its noise level (the timestep) and predicts the noise or velocity at every position.</dd>
+<dt>U-Net</dt><dd>a convolutional denoiser that shrinks the grid level by level and grows it back, with skip connections across.</dd>
+<dt>DiT, patchify</dt><dd>a transformer denoiser: the latent is cut into p &times; p patches, each patch one token.</dd>
+<dt>Cross-attention</dt><dd>image positions as queries, the prompt's text vectors as keys and values.</dd>
+<dt>adaLN-Zero</dt><dd>conditioning by predicting each block's LayerNorm shift and scale and a residual gate, initialised to zero.</dd>
+<dt>MMDiT, single stream</dt><dd>one attention over image and text tokens, with separate weights per modality (MMDiT) or shared weights (single stream).</dd>
+<dt>Passes per step</dt><dd>2 with classifier-free guidance (conditional and unconditional prediction), 1 without or after guidance distillation.</dd>
+<dt>Distillation</dt><dd>training a student to do in a few passes what the teacher sampler does in many.</dd>
+</dl>
 
 <div class="rd-card">
-<h4>The whole subject on one screen</h4>
+<h4>Six denoiser designs on one screen: how the image is held, how the text gets in, what a pass costs</h4>
 <div class="tw"><table class="rd-cmp" id="ld-onescreen">
 <thead><tr><th>Design</th><th>Example</th><th>How the image is held</th><th>How text gets in</th><th>Parameters</th><th>FLOPs per pass at 1024 px</th></tr></thead>
 <tbody></tbody></table></div>
-<p class="ld-note">Parameters: counted from each config on PyTorch's meta device (no weights), checked exactly against measured or public Hub totals (<a href="#ld-s6">section 6</a>). FLOPs: one denoiser pass for one 1024 &times; 1024 image (two multiply-add FLOPs per multiply-accumulate), counted by <span class="ld-mono">torch.utils.flop_counter</span> on meta tensors with the pipeline's default text length. <span class="der">derived</span> Every model's breakdown is in the <a href="#" data-tab="t-ldarch">Architecture explorer</a>.</p>
+<p class="ld-note">Rows in the order the designs appeared. Parameters counted from each config on PyTorch's meta device (no weights), checked exactly against measured or public Hub totals; FLOPs for one denoiser pass at 1024 &times; 1024 with the pipeline's default text length (two FLOPs per multiply-accumulate, <span class="ld-mono">torch.utils.flop_counter</span>). <span class="der">derived</span> Breakdowns: <a href="#" data-tab="t-ldarch">Architecture explorer</a>.</p>
 </div>
+<details class="dp"><summary>The running example and how everything was counted <span class="mute">(provenance)</span></summary><div class="b">
+<p>The topic's own (root <span class="ld-mono">src/data/README.md</span>): <b>Stable Diffusion 1.5</b> in float16 (U-Net 859,520,964 parameters, CLIP ViT-L/14 text encoder 123,060,480, VAE 83,653,863; pinned revision 451f4fe), run on the laptop's GPU with the topic's prompts, for everything about a real U-Net; the topic's tiny denoisers on <b>Fashion-MNIST</b> (grey 28 &times; 28 clothing, padded to 32 &times; 32): the 1.04M-parameter <span class="ld-mono">TinyUNet</span> the Flow lab trained, and the shared <span class="ld-mono">TinyDiT</span> trained here with exactly the same recipe; and the configs of <b>ten more denoisers</b> (SDXL, DiT-XL/2, PixArt-&Sigma;, Sana, SD3 Medium, SD3.5 Large, FLUX.1, FLUX.2 [klein], Qwen-Image, Z-Image), instantiated without weights so their parameters and FLOPs can be counted exactly.</p>
+<p>To count any model: instantiate it on the meta device and run it under <span class="ld-mono">FlopCounterMode</span> (<span class="ld-mono">src/arch/fwd_meta.py</span> does this for every model on this page in seconds, with no weights). To time it: one pass at several sizes (section 9 does this on the laptop's GPU).</p>
+</div></details>
 </section>
 
 <section id="ld-s1">
 <h2>1. Why latent diffusion: the compute arithmetic</h2>
-<p><b>The problem.</b> A diffusion or flow model runs its denoiser tens of times per image (the parent page's Diffusion lab: 25 steps, each two passes with guidance). Everything the denoiser costs is multiplied by that. And a 512 &times; 512 colour image is 786,432 numbers, while the details that matter to a viewer (shapes, layout, texture statistics) are far fewer.</p>
-<p><b>How it works.</b> Train an autoencoder once, then train and run the denoiser on its latent. Stable Diffusion's VAE maps 512 &times; 512 &times; 3 to 64 &times; 64 &times; 4 = 16,384 numbers, 48 times fewer (the <dfn>downsampling factor</dfn> f = 8 per side, 4 channels). The decoder runs once at the end; the denoiser never sees a pixel. Rombach et al. called this splitting "perceptual compression" (the autoencoder) from "semantic compression" (the generator); the paper's own f sweep is rebuilt on the <a href="https://app.notion.com/p/3c65c17b0d0d81bb98adc0daf8462cb6" target="_blank" rel="noopener noreferrer">LDM paper page</a>.</p>
+<p><b>The problem.</b> The denoiser runs tens of times per image (the parent's Diffusion lab: 25 steps, each two passes with guidance), so everything it costs is multiplied. A 512 &times; 512 colour image is 786,432 numbers, while the details that matter to a viewer (shapes, layout, texture statistics) are far fewer.</p>
+<p><b>How it works.</b> Train an autoencoder once, then train and run the denoiser on its latent. Stable Diffusion's VAE maps 512 &times; 512 &times; 3 to 64 &times; 64 &times; 4 = 16,384 numbers, 48 times fewer (the <dfn>downsampling factor</dfn> f = 8 per side, 4 channels). The decoder runs once at the end; the denoiser never sees a pixel. Rombach et al. called this splitting "perceptual compression" (the autoencoder) from "semantic compression" (the generator); the paper's own f sweep is rebuilt on the <a href="https://app.notion.com/p/3c65c17b0d0d81bb98adc0daf8462cb6" target="_blank" rel="noopener noreferrer">LDM paper page</a>, with a live toy of latent against pixel diffusion at fixed compute.</p>
 
 <div class="rd-card" id="ld-c-pix">
-<h4>The same U-Net on latents and on pixels</h4>
+<h4>The same U-Net costs hundreds of times more on pixels than on the latent</h4>
 <div class="rd-bars" id="ld-pixbars"></div>
 <p class="ld-note" id="ld-pixnote"></p>
 </div>
 
-<p><b>The cost has two parts, and they scale differently.</b> Convolutions and the linear layers of attention cost in proportion to the number of positions N; the attention scores cost in proportion to N<sup>2</sup> (every position compares itself with every other). SD 1.5 puts self-attention on its 64 &times; 64 level, so at 512 &times; 512 that level already compares 4,096 positions with 4,096. On pixels the same level would hold 262,144 positions: an attention matrix of 6.9 &times; 10<sup>10</sup> entries per head per layer, which is why no one runs this network on pixels and why pixel-space models (DDPM, ADM, Imagen's base model) worked mostly at 64 to 256 pixels and reached higher resolutions with separate upsampling models.</p>
+<p><b>Two parts that scale differently.</b> Convolutions and linear layers cost in proportion to the positions N, attention scores to N<sup>2</sup>. SD 1.5's top level already compares 4,096 positions with 4,096; on pixels it would hold 262,144, an attention matrix of 6.9 &times; 10<sup>10</sup> entries per head per layer. That is why pixel-space models (DDPM, ADM, Imagen's base model) worked mostly at 64 to 256 pixels and reached higher resolutions with separate upsampling models.</p>
 
 <div class="pr" id="ld-pr-double"><div class="q">Predict: double the image side, 512 to 1024 pixels (four times the positions). How much more does one SD 1.5 U-Net pass cost?</div>
 <div class="opts"><button data-ok="0">4 times (cost follows the pixels)</button><button data-ok="1">about 6 times</button><button data-ok="0">16 times (attention is quadratic)</button></div>
 <div class="ans" hidden></div></div>
 
-<p><b>When it matters, and the price.</b> Latents make high resolution affordable, but they cap quality at what the decoder can draw (small text, faces at a distance: the sibling page <a href="https://app.notion.com/p/3c65c17b0d0d814da93bdb159b7c1e11" target="_blank" rel="noopener noreferrer">Autoencoders and VAEs</a> measures nine decoders), and the denoiser must learn the latent's statistics, which is why the scaling factor exists (the parent's Latent lab). The trend since 2023 has been to spend the saved compute on a bigger denoiser and to push the compression further with more channels (FLUX.1 and SD3: 16 channels at f = 8; Sana's DC-AE: 32 channels at f = 32), not to go back to pixels.</p>
-<p><b>Check it.</b> Count it: instantiate the network on the meta device and run it under <span class="ld-mono">FlopCounterMode</span> (the script in <span class="ld-mono">src/arch/fwd_meta.py</span> does this for every model on this page in seconds, with no weights). Time it: one pass at several sizes (<a href="#ld-s9">section 9</a> does this on the laptop's GPU).</p>
+<p><b>The price.</b> Latents cap quality at what the decoder can draw (small text, faces at a distance: <a href="https://app.notion.com/p/3c65c17b0d0d814da93bdb159b7c1e11" target="_blank" rel="noopener noreferrer">Autoencoders and VAEs</a> measures nine decoders), and the denoiser must be fed a latent with the statistics it was trained on, which is what the scaling factor is for (same page, section 11). Since 2023 the saved compute has gone into a bigger denoiser and deeper compression with more channels (FLUX.1 and SD3: 16 channels at f = 8; Sana's DC-AE: 32 channels at f = 32), not back to pixels.</p>
 </section>
 <section id="ld-s2">
 <h2>2. The U-Net, read from Stable Diffusion 1.5's config</h2>
-<p><b>The problem.</b> The denoiser takes a noisy latent and the step's noise level (the <dfn>timestep</dfn>) and predicts the noise (or the velocity, for a flow model) at every position. It must see both fine detail (to remove noise pixel by pixel) and the whole layout (to know that the blob in the corner is a wheel). A <dfn>U-Net</dfn> (Ronneberger et al. 2015, <a href="https://arxiv.org/abs/1505.04597" target="_blank" rel="noopener noreferrer">arXiv:1505.04597</a>) gets both by shrinking the grid level by level, so that a 3 &times; 3 convolution at the bottom covers a large part of the image, then growing it back, with <dfn>skip connections</dfn> that hand each level's features straight across to the matching level on the way up.</p>
+<p><b>The problem.</b> The denoiser takes a noisy latent and the step's noise level (the <dfn>timestep</dfn>) and predicts the noise (or the velocity, for a flow model) at every position. It must see fine detail (to remove noise position by position) and the whole layout (to know that the blob in the corner is a wheel). A <dfn>U-Net</dfn> (Ronneberger et al. 2015, <a href="https://arxiv.org/abs/1505.04597" target="_blank" rel="noopener noreferrer">arXiv:1505.04597</a>) gets both by shrinking the grid level by level, so that a 3 &times; 3 convolution at the bottom covers a large part of the image, then growing it back, with <dfn>skip connections</dfn> that hand each level's features straight across to the matching level on the way up.</p>
 
 <div class="rd-card" id="ld-c-anim">
-<h4>One latent through the U-Net, then through a DiT</h4>
+<h4>One latent through the U-Net, then the same latent through a DiT: levels and skips against one repeated block</h4>
 <div class="seg" id="ld-an-mode"><button data-m="unet" class="on">SD 1.5 U-Net</button><button data-m="dit">DiT-XL/2 (same latent)</button></div>
 <div class="rd-svg" id="ld-an-svg"></div>
 <div class="an-ctl" id="ld-an-ctl"></div>
 <div class="an-cap" id="ld-an-cap"></div>
 <div class="an-cnt" id="ld-an-cnt"></div>
-<p class="ld-note">Both networks take the same 64 &times; 64 &times; 4 latent of a 512 &times; 512 image (DiT-XL/2 as the authors' 512 model: patch 2, 1,024 tokens). Boxes are drawn to scale: height is the grid side (or, for the DiT, the number of tokens), width the channels per position. Parameters and FLOPs per stage counted on meta tensors (<span class="ld-mono">src/arch/extras.py</span>), one pass, batch 1. <span class="der">derived</span></p>
+<p class="ld-note">Press play or step. Both networks take the same 64 &times; 64 &times; 4 latent of a 512 &times; 512 image (DiT-XL/2 as the authors' 512 model: patch 2, 1,024 tokens). Boxes are drawn to scale: height is the grid side (or, for the DiT, the number of tokens), width the channels per position. Parameters and FLOPs per stage counted on meta tensors (<span class="ld-mono">src/arch/extras.py</span>), one pass, batch 1. <span class="der">derived</span></p>
 </div>
 
-<p><b>How it works, read from the config.</b> SD 1.5's <span class="ld-mono">unet/config.json</span> at the pinned revision says everything: <span class="ld-mono">block_out_channels [320, 640, 1280, 1280]</span> (four levels, at 64, 32, 16 and 8 positions per side for a 512 image), <span class="ld-mono">down_block_types</span> three <span class="ld-mono">CrossAttnDownBlock2D</span> then one plain <span class="ld-mono">DownBlock2D</span> (no attention at 8 &times; 8, except in the middle block), <span class="ld-mono">layers_per_block 2</span> (two ResNet blocks per level on the way down, three on the way up), <span class="ld-mono">cross_attention_dim 768</span> (the width of CLIP ViT-L's text vectors) and <span class="ld-mono">attention_head_dim 8</span>, which is not a head dimension at all: diffusers reads it as the <i>number</i> of heads, so heads are 40, 80 and 160 wide. Its own source says so (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/unets/unet_2d_condition.py#L249" target="_blank" rel="noopener noreferrer">unet_2d_condition.py line 249</a>): "This looks weird upon first reading it and it is."</p>
+<p><b>How it works, read from the config.</b> SD 1.5's <span class="ld-mono">unet/config.json</span> at the pinned revision says everything: <span class="ld-mono">block_out_channels [320, 640, 1280, 1280]</span> (four levels, at 64, 32, 16 and 8 positions per side for a 512 image), <span class="ld-mono">down_block_types</span> three <span class="ld-mono">CrossAttnDownBlock2D</span> then one plain <span class="ld-mono">DownBlock2D</span> (no attention at 8 &times; 8, except in the middle block), <span class="ld-mono">layers_per_block 2</span> (two ResNet blocks per level on the way down, three on the way up), <span class="ld-mono">cross_attention_dim 768</span> (the width of CLIP ViT-L's text vectors) and <span class="ld-mono">attention_head_dim 8</span>, which diffusers reads as the <i>number</i> of heads, so heads are 40, 80 and 160 wide (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/unets/unet_2d_condition.py#L249" target="_blank" rel="noopener noreferrer">unet_2d_condition.py line 249</a>; a classic mistake, closed block at the end).</p>
 <div class="rd-two">
 <div class="rd-card"><h4>ResNet block (the convolutional part)</h4><p>GroupNorm, SiLU, 3 &times; 3 convolution; then the <b>time embedding</b> is projected to the block's channels and <b>added</b> to every position (<span class="ld-mono">time_emb_proj</span>); GroupNorm, SiLU, 3 &times; 3 convolution; plus the input (a residual). The time embedding is a 320-wide sinusoid of the timestep (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/unets/unet_2d_condition.py#L569" target="_blank" rel="noopener noreferrer">line 569</a>) through a two-layer MLP to 1,280.</p></div>
 <div class="rd-card"><h4>Transformer block (the attention part)</h4><p>Flatten the grid into a sequence; <b>self-attention</b> (<span class="ld-mono">attn1</span>: every position looks at every other), <b>cross-attention</b> (<span class="ld-mono">attn2</span>: every position looks at the 77 text vectors, <a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/attention.py#L1043" target="_blank" rel="noopener noreferrer">attention.py line 1043</a>), a GEGLU feed-forward, each with LayerNorm and a residual; reshape back to a grid. One per ResNet block at the 64, 32 and 16 levels, one in the middle.</p></div>
@@ -294,23 +335,25 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div class="ans" hidden></div></div>
 
 <div class="rd-card" id="ld-c-where">
-<h4>Where the parameters are, where the FLOPs are, where the time goes</h4>
+<h4>Parameters sit where the grid is small; FLOPs and time sit where it is large</h4>
 <div class="seg" id="ld-where-mode"><button data-m="par" class="on">Parameters by kind</button><button data-m="lev" >Parameters and FLOPs by level</button><button data-m="time">Time by kind (measured)</button></div>
 <div class="rd-bars" id="ld-where-bars"></div>
 <p class="ld-note" id="ld-where-note"></p>
 </div>
-<p><b>The lesson of the three views:</b> parameters sit where the grid is small and the channels many (the 16 &times; 16 and 8 &times; 8 levels hold most of them), while the FLOPs sit where the grid is large (the two 64 &times; 64 levels do 38% of the work with 3.4% of the weights). A parameter count says what the model can store; FLOPs per pass say what an image costs. DiT's authors made the same point and measured complexity in Gflops for this reason (<a href="#ld-s4">section 4</a>).</p>
-<p><b>The cost, and when it matters.</b> The U-Net's convolutions build in locality and multi-scale structure, which makes it data-efficient at small scale (this page's tiny experiment in <a href="#ld-s4">section 4</a> shows it) but heterogeneous: every level has its own width, block mix and attention cost, so scaling it means hand-redistributing blocks. SDXL did exactly that: "we omit the transformer block at the highest feature level, use 2 and 10 blocks at the lower levels, and remove the lowest level" (<a href="https://arxiv.org/abs/2307.01952" target="_blank" rel="noopener noreferrer">Podell et al. 2023</a>, section 2.1), for a 2.6B U-Net (counted here: 2,567,463,684).</p>
-<p><b>Check it.</b> Load the U-Net (or instantiate it on the meta device), print <span class="ld-mono">unet.config</span>, sum parameters by module name, and hook the top-level blocks with a device sync on each side to time them. The code below ran here; its output is pasted under it.</p>
+<p><b>The lesson of the three views:</b> parameters sit where the grid is small and the channels many (the 16 &times; 16 and 8 &times; 8 levels hold most of them), while the FLOPs sit where the grid is large (the two 64 &times; 64 levels do 38% of the work with 3.4% of the weights). A parameter count says what the model can store; FLOPs per pass say what an image costs. DiT's authors measured complexity in Gflops for this reason (section 4).</p>
+<p><b>The cost of the design.</b> The U-Net's convolutions build in locality and multi-scale structure, which makes it data-efficient at small scale (this page's tiny experiment in section 4 shows it) but heterogeneous: every level has its own width, block mix and attention cost, so scaling it means hand-redistributing blocks. SDXL did exactly that: "we omit the transformer block at the highest feature level, use 2 and 10 blocks at the lower levels, and remove the lowest level" (<a href="https://arxiv.org/abs/2307.01952" target="_blank" rel="noopener noreferrer">Podell et al. 2023</a>, section 2.1), for a 2.6B U-Net (counted here: 2,567,463,684).</p>
+<details class="dp"><summary>Check it yourself: count a U-Net without downloading it <span class="mute">(code that ran here)</span></summary><div class="b">
+<p>Load the U-Net (or instantiate it on the meta device), print <span class="ld-mono">unet.config</span>, sum parameters by module name, and hook the top-level blocks with a device sync on each side to time them. The code below ran here; its output is pasted under it.</p>
 <pre class="rd-code" id="ld-code-meta"></pre>
 <pre class="rd-code rd-out" id="ld-code-meta-out"></pre>
 <p class="rd-codecap">From <span class="ld-mono">src/arch/params.py</span> (simplified: the script also classifies every parameter); CPU, no weights downloaded; diffusers 0.41.0.</p>
+</div></details>
 </section>
 <section id="ld-s3">
 <h2>3. How the text gets in: encoders, pooled vectors and cross-attention</h2>
 <p><b>The problem.</b> The denoiser must draw what the prompt says, so the prompt has to reach every position of the latent at every step. Two questions: what vectors stand for the prompt (the <dfn>text encoder</dfn> and which of its outputs), and how the image positions read them (cross-attention, joint attention or modulation).</p>
 
-<p><b>Step 1: tokens.</b> SD 1.5's tokenizer (CLIP's byte-pair encoding) turns the running example's first prompt into a start token, 11 word pieces and an end token, then pads to exactly 77 positions with the end token's id (49407) again. 77 is the context length CLIP was trained with; anything longer is cut, and diffusers says so in a warning (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion.py#L413" target="_blank" rel="noopener noreferrer">pipeline_stable_diffusion.py line 413</a>). A 97-token prompt, run here:</p>
+<p><b>Step 1: tokens.</b> SD 1.5's tokenizer (CLIP's byte-pair encoding) turns the running example's first prompt into a start token, 11 word pieces and an end token, then pads to exactly 77 positions with the end token's id (49407) again. 77 is the context length CLIP was trained with; anything longer is cut, with only a logged warning (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion.py#L413" target="_blank" rel="noopener noreferrer">pipeline_stable_diffusion.py line 413</a>). A 97-token prompt, run here:</p>
 <div class="ld-toks" id="ld-toks"></div>
 <pre class="rd-code rd-out ld-wrap" id="ld-trunc"></pre>
 <p class="rd-codecap">Tokens and warning from <span class="ld-mono">src/sd/text_enc.py</span> (CPU, the pinned SD 1.5 tokenizer and text encoder, float32). <span class="meas">measured</span></p>
@@ -318,19 +361,38 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <p><b>Step 2: the encoder's outputs.</b> CLIP's text transformer is <dfn>causal</dfn> (each position sees only itself and earlier positions). Three consequences, each checked here on three prompts:</p>
 <div class="rd-checks" id="ld-te-checks"></div>
 <ul>
-<li><b>The start token's output is a constant.</b> Position 0 sees only itself, so its 768-number output is identical for every prompt (cosine <span data-ld="te.sot_cos_g01_g06" data-f="f6"></span>, largest difference <span data-ld="te.sot_max_abs_diff" data-f="g"></span>). It carries no information about the prompt, yet the U-Net's cross-attention puts most of its weight there (<a href="#ld-xa-mass">below</a>): a slot to attend to when nothing in the prompt concerns a position, the same "attention sink" seen in language models.</li>
-<li><b>The pooled vector is the end token's output.</b> CLIP's single summary vector (<span class="ld-mono">pooler_output</span>) is the final-layer output at the end token (equal here to within 10<sup>&minus;5</sup>). SD 1.5 ignores it and passes the whole 77 &times; 768 <dfn>sequence</dfn> to cross-attention.</li>
-<li><b>Padding is not empty.</b> The positions after the end token have seen the whole prompt; their outputs stay close to the end token's (cosine 1.00 just after it, falling to <span data-ld="te.cos_pad_last" data-f="f2"></span> at the last position). SD 1.5's U-Net applies no mask, so the image attends to them.</li>
+<li><b>The start token's output is a constant.</b> Position 0 sees only itself, so its 768-number output is identical for every prompt (cosine <span data-ld="te.sot_cos_g01_g06" data-f="f6"></span>, largest difference <span data-ld="te.sot_max_abs_diff" data-f="g"></span>). It carries nothing about the prompt, yet the U-Net's cross-attention puts most of its weight there (below): a slot to attend to when no word concerns a position, the same "attention sink" seen in language models.</li>
+<li><b>The pooled vector is the end token's output</b>, and SD 1.5 ignores it: the whole 77 &times; 768 <dfn>sequence</dfn> goes to cross-attention, padding included.</li>
 </ul>
+<details class="dp"><summary>The pooled vector and the padding, checked <span class="mute">(depth)</span></summary><div class="b"><p>CLIP's single summary vector (<span class="ld-mono">pooler_output</span>) is the final-layer output at the end token (equal here to within 10<sup>&minus;5</sup>). <b>Padding is not empty:</b> the positions after the end token have seen the whole prompt; their outputs stay close to the end token's (cosine 1.00 just after it, falling to <span data-ld="te.cos_pad_last" data-f="f2"></span> at the last position). SD 1.5's U-Net applies no mask, so the image attends to them.</p></div></details>
 
-<p><b>Step 3: cross-attention.</b> In each transformer block of the U-Net, the latent positions form the queries and the 77 text vectors the keys and values: position <i>i</i> computes a softmax over the 77 tokens and takes the weighted mix of their values. The weights are a map per token: where in the image that word is being used. Recorded here for the running example's prompts (25 DPM-Solver++ steps, guidance 7.5, the conditional half, averaged over heads and over the five 16 &times; 16 layers):</p>
-<div class="rd-card" id="ld-c-xmini">
-<h4>Where the words land: four prompts, the same recording</h4>
-<div class="seg" id="ld-xm-prompt"></div>
-<div class="ld-xm" id="ld-xm"></div>
-<p class="ld-note" id="ld-xm-note"></p>
+<p><b>Step 3: cross-attention.</b> In each transformer block of the U-Net, the latent positions form the queries and the 77 text vectors the keys and values: position <i>i</i> computes a softmax over the 77 tokens and takes the weighted mix of their values. The weights are a map per token: where in the image that word is being used. Recorded here while SD 1.5 generated four of the topic's images (512 &times; 512, 25 DPM-Solver++ steps, guidance 7.5, float16 on the laptop's GPU). Pick a prompt and a word, then step through the run:</p>
+
+<div class="rd-card" id="ld-xa">
+<h4>Each word's map is in place from the first steps, while the image is still a blur</h4>
+<div class="seg" id="xa-prompt"></div>
+<div class="xa-toks" id="xa-toks"></div>
+<div class="seg" id="xa-mode"><button data-m="step" class="on">Step by step (16 &times; 16 layers)</button><button data-m="avg">All steps (32 &times; 32 layers)</button></div>
+<div id="xa-card">
+<div class="xa-main"><figure><canvas id="xa-cv" width="360" height="360"></canvas><figcaption id="xa-cap1"></figcaption></figure>
+<figure><img class="xa-big" id="xa-x0" alt="SD 1.5's predicted clean image at the chosen step"><figcaption id="xa-cap2"></figcaption></figure></div>
+<div class="an-ctl" id="xa-ctl"></div>
+<div class="an-cap" id="xa-anc"></div>
 </div>
-<p id="ld-xa-mass"><b>Where the attention mass goes.</b> Averaged over all steps and layers at each resolution, the start token takes <span data-ld="xm.g01.start16" data-f="pct0"></span> of the 16 &times; 16 layers' cross-attention for the bicycle prompt, the 11 words <span data-ld="xm.g01.words16" data-f="pct0"></span> and the end and padding positions <span data-ld="xm.g01.end16" data-f="pct0"></span>. <span class="meas">measured on Apple M1 Pro (MPS), float16</span> The <a href="#" data-tab="t-ldxa">Cross-attention viewer</a> shows every token at every recorded step, the predicted image under it, and the red/blue swap.</p>
+<h5 id="ld-xa-mass">The start token takes most of the attention</h5>
+<div class="seg" id="xa-res"><button data-m="64">64 &times; 64 layers</button><button data-m="32">32 &times; 32</button><button data-m="16" class="on">16 &times; 16</button><button data-m="8">8 &times; 8 (middle)</button></div>
+<div class="rd-bars" id="xa-mass"></div>
+<p class="ld-note" id="xa-mass-note"></p>
+<h5>One word changed, same seed: the colour word's map sits on the object it colours</h5>
+<div class="xa-cmp" id="xa-cmp"></div>
+<p class="ld-note" id="xa-cmp-note"></p>
+<p class="ld-note">Left: the word's map over the model's guess of the final image at that step (x&#770;<sub>0</sub>, decoded by the VAE), at seven of the 25 steps. <span class="meas">measured on Apple M1 Pro (MPS), float16</span></p>
+</div>
+<p>Averaged over all steps and layers at each resolution, the start token takes <span data-ld="xm.g01.start16" data-f="pct0"></span> of the 16 &times; 16 layers' cross-attention for the bicycle prompt, the 11 words <span data-ld="xm.g01.words16" data-f="pct0"></span> and the end and padding positions <span data-ld="xm.g01.end16" data-f="pct0"></span>.</p>
+<details class="dp"><summary>How the maps were recorded, and the code <span class="mute">(provenance)</span></summary><div class="b">
+<p>Every <span class="ld-mono">attn2</span> processor of the U-Net replaced by one that keeps the softmax output (<span class="ld-mono">src/sd/sd_ld.py</span>): diffusers routes every attention layer through a processor object, so swapping the processors records every map without touching the model. The conditional half of the guided batch, mean over heads, summed per resolution; maps stored as 8-bit, each token scaled to its own maximum (the mass bars use the unscaled values). The step image is the model's prediction of the clean latent at that step, x&#770;<sub>0</sub> = (x<sub>t</sub> &minus; &radic;(1 &minus; &alpha;&#772;<sub>t</sub>) &epsilon;&#770;) / &radic;&alpha;&#772;<sub>t</sub> with the guided &epsilon;&#770;, decoded by the VAE. The part that records the maps:</p>
+<pre class="rd-code" id="ld-code-grab"></pre>
+</div></details>
 
 <div class="pr" id="ld-pr-horse"><div class="q">Predict: the topic's test image g06 ("an astronaut riding a horse on the moon, digital art", seed 5) shows no horse. What does the "horse" token's cross-attention map look like?</div>
 <div class="opts"><button data-ok="0">Nothing: the token gets no attention at all</button><button data-ok="1">It is weak and lands on the astronaut's body: the word is read, but no separate region is given to it</button><button data-ok="0">A sharp horse-shaped region that the decoder fails to draw</button></div>
@@ -342,24 +404,25 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tbody>
 <tr><td>SD 1.5</td><td data-h="Sequence">CLIP ViT-L last layer, 77 &times; 768</td><td data-h="Pooled">not used</td><td data-h="Note">cross-attention in the U-Net</td></tr>
 <tr><td>SDXL</td><td data-h="Sequence">CLIP ViT-L and OpenCLIP bigG <b>penultimate</b> layers concatenated, 77 &times; 2,048 (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl.py#L414" target="_blank" rel="noopener noreferrer">line 414</a>)</td><td data-h="Pooled">bigG pooled (1,280), added to the time embedding with the size and crop numbers (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl.py#L734" target="_blank" rel="noopener noreferrer">line 734</a>)</td><td data-h="Note">text encoders 817M (<a href="https://arxiv.org/abs/2307.01952" target="_blank" rel="noopener noreferrer">SDXL paper</a>)</td></tr>
-<tr><td>PixArt-&Sigma;, Sana</td><td data-h="Sequence">T5-XXL encoder (PixArt) or Gemma 2 2B (Sana), up to 300 tokens</td><td data-h="Pooled">none: time only, through one shared modulation (<a href="#ld-s4">section 4</a>)</td><td data-h="Note">cross-attention in a DiT</td></tr>
-<tr><td>SD3, SD3.5</td><td data-h="Sequence">CLIP-L and CLIP-G (77, zero-padded to 4,096 wide) then T5-XXL (256 in diffusers, <a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion_3/pipeline_stable_diffusion_3.py#L237" target="_blank" rel="noopener noreferrer">line 237</a>; the paper's figure says 77 + 77)</td><td data-h="Pooled">CLIP-L + CLIP-G pooled, 2,048, into every block's modulation</td><td data-h="Note">joint attention (<a href="#ld-s5">section 5</a>)</td></tr>
-<tr><td>FLUX.1</td><td data-h="Sequence">T5-XXL, 512 tokens (the diffusers default, padded)</td><td data-h="Pooled">CLIP-L pooled, 768, into modulation</td><td data-h="Note">double then single stream (<a href="#ld-s6">section 6</a>)</td></tr>
+<tr><td>PixArt-&Sigma;, Sana</td><td data-h="Sequence">T5-XXL encoder (PixArt) or Gemma 2 2B (Sana), up to 300 tokens</td><td data-h="Pooled">none: time only, through one shared modulation (section 4)</td><td data-h="Note">cross-attention in a DiT</td></tr>
+<tr><td>SD3, SD3.5</td><td data-h="Sequence">CLIP-L and CLIP-G (77, zero-padded to 4,096 wide) then T5-XXL (256 in diffusers, <a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion_3/pipeline_stable_diffusion_3.py#L237" target="_blank" rel="noopener noreferrer">line 237</a>; the paper's figure says 77 + 77)</td><td data-h="Pooled">CLIP-L + CLIP-G pooled, 2,048, into every block's modulation</td><td data-h="Note">joint attention (section 5)</td></tr>
+<tr><td>FLUX.1</td><td data-h="Sequence">T5-XXL, 512 tokens (the diffusers default, padded)</td><td data-h="Pooled">CLIP-L pooled, 768, into modulation</td><td data-h="Note">double then single stream (section 6)</td></tr>
 <tr><td>Qwen-Image, Z-Image, FLUX.2 [klein]</td><td data-h="Sequence">a decoder language model's hidden states: Qwen2.5-VL 7B (Qwen-Image, dropping the first 34 tokens of its chat template), Qwen3 4B's second-to-last layer (Z-Image), three Qwen3 layers concatenated to 7,680 (klein)</td><td data-h="Pooled">none</td><td data-h="Note">only the prompt's real tokens (Qwen-Image, Z-Image) or padded to 512 (klein)</td></tr>
 </tbody></table></div>
-<p>Two published results explain the trend. Imagen found that scaling the frozen text encoder improved fidelity and alignment more than scaling the image model (quoted on the parent page). SD3 trained with each of its three encoders dropped independently, which buys a choice at inference: against the full model, the version without T5-XXL (4.7B parameters) won 50% of human comparisons on aesthetics (no difference), 46% on prompt adherence and 38% on written text, i.e. T5 matters most for spelling (<a href="https://arxiv.org/abs/2403.03206" target="_blank" rel="noopener noreferrer">Esser et al. 2024</a>, section 5.3.3; <span class="vend">vendor</span>, Stability AI's own raters). The same paper gives the drop rate as 46.3% in one place and 46.4% in another; 0.464<sup>3</sup> = 0.0999, so 46.4% is the value that makes "roughly an unconditional model in 10% of all steps" true. <span class="der">derived</span></p>
+<p>Two published results explain the trend. Imagen found that scaling the frozen text encoder improved fidelity and alignment more than scaling the image model (quoted on the parent page). SD3 trained with each of its three encoders dropped independently, which buys a choice at inference: against the full model, the version without T5-XXL (4.7B parameters) won 50% of human comparisons on aesthetics (no difference), 46% on prompt adherence and 38% on written text, i.e. T5 matters most for spelling (<a href="https://arxiv.org/abs/2403.03206" target="_blank" rel="noopener noreferrer">Esser et al. 2024</a>, section 5.3.3; <span class="vend">vendor</span>, Stability AI's own raters).</p>
+<details class="dp"><summary>A discrepancy in the SD3 paper's drop rate <span class="mute">(checked)</span></summary><div class="b"><p>The same paper gives the drop rate as 46.3% in one place and 46.4% in another; 0.464<sup>3</sup> = 0.0999, so 46.4% is the value that makes "roughly an unconditional model in 10% of all steps" true. <span class="der">derived</span></p></div></details>
 
-<p><b>The cost.</b> The encoder runs once per prompt (twice with classifier-free guidance, for the empty prompt), so even a 7B language model is a small share of an image's compute next to 25 to 50 denoiser steps; it is a large share of the <i>memory</i>, which is why SD3 made T5 droppable and why FLUX.2 [klein] uses a 4B encoder. Inside the denoiser, cross-attention costs N &times; T (positions times text tokens) per layer and joint attention (N + T)<sup>2</sup>: at 1,024 image tokens and 512 text tokens, the text half of a joint sequence is not small (<a href="#ld-s9">section 9</a>).</p>
-<p><b>Check it.</b> Recording cross-attention takes one replacement processor: diffusers routes every attention layer through a processor object, so swapping the <span class="ld-mono">attn2</span> processors for one that keeps the softmax output records every map without touching the model. The part that does it, from <span class="ld-mono">src/sd/sd_ld.py</span>:</p>
-<pre class="rd-code" id="ld-code-grab"></pre>
+<p><b>The cost.</b> The encoder runs once per prompt (twice with guidance, for the empty prompt), a small share of compute next to 25 to 50 denoiser steps even at 7B, but a large share of <i>memory</i>: why SD3 made T5 droppable and FLUX.2 [klein] uses a 4B encoder. Inside the denoiser, cross-attention costs N &times; T per layer and joint attention (N + T)<sup>2</sup> (section 9).</p>
 </section>
 <section id="ld-s4">
 <h2>4. The diffusion transformer (DiT): patches, adaLN-Zero, and scaling with compute</h2>
-<p><b>The problem.</b> The U-Net is a hand-built stack of different blocks; transformers, by contrast, are one block repeated, with well-understood scaling and a decade of systems work behind them. Peebles and Xie asked whether a plain transformer can replace the U-Net inside latent diffusion, and what to scale (<a href="https://arxiv.org/abs/2212.09748" target="_blank" rel="noopener noreferrer">Scalable Diffusion Models with Transformers, Dec 2022</a>).</p>
-<p><b>How it works.</b> Four pieces, all visible in the animation of <a href="#ld-s2">section 2</a> (switch it to DiT):</p>
+<p><b>The problem.</b> The U-Net is a hand-built stack of different blocks; a transformer is one block repeated, with well-understood scaling and years of systems work behind it. Peebles and Xie asked whether a plain transformer can replace the U-Net inside latent diffusion, and what to scale (<a href="https://arxiv.org/abs/2212.09748" target="_blank" rel="noopener noreferrer">Scalable Diffusion Models with Transformers, Dec 2022</a>).</p>
+<figure class="ld-fig" id="ld-fig-dit"><a href="img/dit_block_fig3.webp" target="_blank" rel="noopener noreferrer"><img src="img/dit_block_fig3.webp" width="1400" height="578" alt="DiT architecture figure from the paper: on the left, a noised 32 by 32 by 4 latent is patchified, embedded with the timestep and label, passed through N DiT blocks, a layer norm and a linear-and-reshape layer to give noise and covariance; on the right, three block designs: adaLN-Zero with scale, shift and gate parameters regressed from the conditioning, cross-attention, and in-context conditioning" loading="lazy"></a>
+<figcaption><b>Notice the arrows coming in from the right of the adaLN-Zero block:</b> the conditioning never enters as tokens; an MLP turns it into &gamma;, &beta; (scale and shift for each LayerNorm) and &alpha; (the gate before each residual add). The two greyed blocks are the alternatives the paper tested and rejected (results below). Tap to open full size. Figure 3 of Peebles and Xie, <a href="https://arxiv.org/abs/2212.09748" target="_blank" rel="noopener noreferrer">arXiv:2212.09748</a>, CC BY 4.0.</figcaption></figure>
+<p><b>How it works.</b> Four pieces, all visible in the animation of section 2 (switch it to DiT):</p>
 <ol>
 <li><b>Patchify.</b> Cut the I &times; I &times; C latent into p &times; p patches and embed each linearly (a convolution with kernel and stride p): T = (I / p)<sup>2</sup> tokens of width d. At 256 &times; 256 the latent is 32 &times; 32 &times; 4, so p = 2 gives 256 tokens; at 512, 1,024 tokens.</li>
-<li><b>Positions.</b> Add a fixed 2-D sine-cosine embedding (as in ViT and MAE): the tokens carry where they came from (<a href="#ld-s7">section 7</a>).</li>
+<li><b>Positions.</b> Add a fixed 2-D sine-cosine embedding (as in ViT and MAE): the tokens carry where they came from (section 7).</li>
 <li><b>N identical DiT blocks</b> with <dfn>adaLN-Zero</dfn> conditioning (below).</li>
 <li><b>Unpatchify.</b> A final adaptive LayerNorm and a linear layer map each token back to p &times; p &times; 2C numbers (the noise and, for DiT, a learned variance), reshaped into the latent grid (<a href="https://github.com/facebookresearch/DiT/blob/ed81ce2229091fd4ecc9a223645f95cf379d582b/models.py#L218" target="_blank" rel="noopener noreferrer">models.py line 218</a>).</li>
 </ol>
@@ -375,67 +438,71 @@ for block in self.blocks:
     nn.init.constant_(block.adaLN_modulation[-1].weight, 0)
     nn.init.constant_(block.adaLN_modulation[-1].bias, 0)</pre>
 <p class="rd-codecap"><span class="ld-mono">modulate(x, shift, scale)</span> is <span class="ld-mono">x * (1 + scale) + shift</span> (line 19). facebookresearch/DiT at ed81ce2.</p>
-<p>The paper compared four ways to bring c in, each as a DiT-XL/2 trained 400K steps (Table 4, FID-50K without guidance, lower is better; <span class="indep">published, the authors' runs</span>):</p>
+<div class="rd-card">
+<h4>adaLN-Zero beat the other three ways of bringing in the condition</h4>
 <div class="rd-bars" id="ld-condbars"></div>
-<p class="ld-note">In-context: c appended as two extra tokens. Cross-attention: an extra cross-attention layer reading c, "roughly a 15% overhead" in Gflops. adaLN: regress shift and scale only (4d outputs), no gates. adaLN-Zero: shift, scale and zero-initialised gates (6d). Parameters from the same table.</p>
+<p class="ld-note">Table 4 of the paper: each a DiT-XL/2 trained 400K steps, FID-50K without guidance, lower is better (<span class="indep">published, the authors' runs</span>). In-context: c appended as two extra tokens. Cross-attention: an extra cross-attention layer reading c, "roughly a 15% overhead" in Gflops. adaLN: regress shift and scale only (4d outputs), no gates. adaLN-Zero: shift, scale and zero-initialised gates (6d). Parameters from the same table.</p>
+</div>
 
 <p><b>Scaling: what to grow.</b> DiT's central result: across 12 models (four widths and depths times three patch sizes), FID after 400K steps follows the forward-pass compute, not the parameter count. Shrinking the patch from 8 to 2 leaves the parameters almost unchanged and multiplies the tokens, and so the compute, by 16.</p>
 <div class="rd-card" id="ld-c-scale">
-<h4>DiT's 12 models: compute against FID</h4>
+<h4>DiT's 12 models: FID falls with compute per pass, whatever the size of the model</h4>
 <div class="rd-svg" id="ld-scale-svg"></div>
 <p class="ld-note" id="ld-scale-note"></p>
 </div>
 <div class="pr" id="ld-pr-patch"><div class="q">Predict: DiT-XL with 4 &times; 4 patches has 675M parameters, 29.05 Gflops and FID 43.01. Halve the patch to 2 &times; 2. What happens to parameters, compute and FID?</div>
 <div class="opts"><button data-ok="0">Parameters double, compute doubles, FID a little better</button><button data-ok="1">Parameters unchanged, compute about 4 times, FID less than half</button><button data-ok="0">Parameters unchanged, compute unchanged, FID unchanged (same model)</button></div>
 <div class="ans" hidden></div></div>
-<p>Two more results to read critically. <b>Sampling compute does not buy back model compute:</b> DiT-L/2 with 1,000 sampling steps (80.7 Tflops per image) scored FID-10K 25.9, DiT-XL/2 with 128 steps (15.2 Tflops) 23.7. <b>The headline FID 2.27 used guidance on three of the four latent channels only</b>, a detail in the appendix; four-channel guidance at scale 1.375 gave 2.20, so the choice did not flatter the result, but a reimplementation that guides all channels at 1.5 is not the published configuration.</p>
+<details class="dp"><summary>Two more DiT results to read critically <span class="mute">(depth)</span></summary><div class="b">
+<p><b>Sampling compute does not buy back model compute:</b> DiT-L/2 with 1,000 sampling steps (80.7 Tflops per image) scored FID-10K 25.9, DiT-XL/2 with 128 steps (15.2 Tflops) 23.7. <b>The headline FID 2.27 used guidance on three of the four latent channels only</b>, a detail in the appendix; four-channel guidance at scale 1.375 gave 2.20, so the choice did not flatter the result, but a reimplementation that guides all channels at 1.5 is not the published configuration.</p>
+</div></details>
 
-<h3>Measured here: the topic's tiny DiT against its tiny U-Net</h3>
+<p><b>At toy scale the U-Net wins.</b> Trained here with the topic's flow-matching recipe on Fashion-MNIST, a 4.1M-parameter DiT given the same training compute as the 1.0M-parameter U-Net scored a Fr&eacute;chet distance of 38.1 against the U-Net's 23.75 (lower is better, guidance 1.5): convolutions build in locality a small transformer must learn. DiT wins by how it scales with compute, not by data efficiency. Smaller patches helped at equal steps (2 &times; 2 beat 4 &times; 4 beat 8 &times; 8, as in DiT's Figure 8), and zero-initialised gates beat the default initialisation. <span class="meas">measured on Apple M1 Pro (MPS), one seed</span></p>
+<details class="dp"><summary>The tiny DiT against the tiny U-Net: setup, every run, the same noise through each <span class="mute">(measured here)</span></summary><div class="b">
 <p>The shared <span class="ld-mono">TinyDiT</span> (4 &times; 4 patches of the 32 &times; 32 Fashion-MNIST image, 64 tokens, width 192, 6 blocks, adaLN-Zero exactly as above: 4,127,632 parameters) trained with the Flow lab's flow-matching recipe unchanged (batch 128, AdamW 5 &times; 10<sup>&minus;4</sup>, 200 warm-up steps, EMA 0.999, 10% label dropout, seed 0), against the Flow lab's <span class="ld-mono">TinyUNet</span> (1,040,353 parameters, 4,000 steps). Scored as the Flow lab scores: 1,000 samples (100 per class) from the same noise, 50 Euler steps, Fr&eacute;chet distance in the topic's Fashion-MNIST classifier's feature space (<dfn>FD</dfn>; lower is better; 1,000 real images score <span data-ld="tiny.floor" data-f="f2"></span>) and the classifier's accuracy on the requested class.</p>
 <div class="tw"><table class="rd-cmp" id="ld-tinytab"><thead><tr><th>Denoiser</th><th>Parameters</th><th>Tokens</th><th>FLOPs per pass</th><th>Steps</th><th>Training compute</th><th>FD, s = 1</th><th>FD, s = 1.5</th><th>Accuracy, s = 1.5</th></tr></thead><tbody></tbody></table></div>
 <p class="ld-note">FLOPs per pass counted with <span class="ld-mono">FlopCounterMode</span> (batch 1), the DiT's attention scores added by formula because the counter does not see <span class="ld-mono">nn.MultiheadAttention</span>'s fused path (<span class="ld-mono">src/tiny/flops.py</span>). Training compute = 3 &times; FLOPs per pass &times; 128 &times; steps (DiT's own estimate of forward plus backward). s: guidance scale in diffusers' convention. <span class="meas">measured on Apple M1 Pro (MPS), float32, one seed</span></p>
-<div class="rd-card" id="ld-c-tinyimg">
-<h4>The same noise through each denoiser</h4>
 <div class="seg" id="ld-tiny-pick"></div>
 <div class="ld-tstrip" id="ld-tiny-strip"></div>
 <p class="ld-note" id="ld-tiny-note"></p>
-</div>
 <p id="ld-tiny-read"></p>
+</div></details>
 
 <h3>Cheaper modulation: adaLN-single, and attention without N<sup>2</sup></h3>
-<p>adaLN-Zero has a price the paper's Gflops hide: each block's modulation layer is d &times; 6d, a third of the block (attention 4d<sup>2</sup>, MLP 8d<sup>2</sup>, modulation 6d<sup>2</sup>). Counted here, DiT-XL/2's modulation layers hold 225.8M of its 675.1M parameters (33.4%). PixArt-&alpha; found the same, "a substantial proportion (27%) of the parameters" in its text-conditioned DiT, and replaced them with <dfn>adaLN-single</dfn>: one MLP computes the six vectors from the timestep once, shared by all blocks, plus a small learned per-block offset (<a href="https://arxiv.org/abs/2310.00426" target="_blank" rel="noopener noreferrer">Chen et al. 2023</a>). The two figures agree: 225.8M over DiT-XL/2 plus PixArt's 148.8M of cross-attention is 27.4%, and the paper's 833M to 611M (&minus;26%) matches the 610,856,096 counted here for PixArt-&Sigma;. <span class="der">derived</span> Sana (<a href="#ld-s1">section 1</a>'s 32 &times; DC-AE) went further and replaced softmax attention by ReLU <dfn>linear attention</dfn> (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/attention_processor.py#L5371" target="_blank" rel="noopener noreferrer">attention_processor.py line 5371</a>), so its cost grows linearly with tokens: counted here, attention scores are 2% of Sana's FLOPs at 1024 pixels, against 15 to 37% for the softmax transformers on this page.</p>
-<div class="deepnote"><b>Go deeper (optional):</b> the training objectives these denoisers use are on the sibling pages <a href="https://app.notion.com/p/3c65c17b0d0d81cf9bf0d94e57ce9164" target="_blank" rel="noopener noreferrer">Diffusion from zero</a> (&epsilon;, x<sub>0</sub> and v prediction, schedules) and <a href="https://app.notion.com/p/3fc5c17b0d0d8136a1efc73aaa446ceb" target="_blank" rel="noopener noreferrer">Flow matching</a> (SD3's and FLUX's objective); the <a href="#" data-tab="t-ldarch">Architecture explorer</a> breaks every model's parameters down the same way.</div>
+<p>adaLN-Zero has a price the paper's Gflops hide: each block's modulation layer is d &times; 6d, a third of the block (attention 4d<sup>2</sup>, MLP 8d<sup>2</sup>, modulation 6d<sup>2</sup>). Counted here, DiT-XL/2's modulation layers hold 225.8M of its 675.1M parameters (33.4%). PixArt-&alpha; found the same, "a substantial proportion (27%) of the parameters" in its text-conditioned DiT, and replaced them with <dfn>adaLN-single</dfn>: one MLP computes the six vectors from the timestep once, shared by all blocks, plus a small learned per-block offset (<a href="https://arxiv.org/abs/2310.00426" target="_blank" rel="noopener noreferrer">Chen et al. 2023</a>). Sana (section 1's 32 &times; DC-AE) went further and replaced softmax attention by ReLU <dfn>linear attention</dfn> (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/attention_processor.py#L5371" target="_blank" rel="noopener noreferrer">attention_processor.py line 5371</a>), so its cost grows linearly with tokens: counted here, attention scores are 2% of Sana's FLOPs at 1024 pixels, against 15 to 37% for the softmax transformers on this page.</p>
+<details class="dp"><summary>PixArt's 27% and DiT's 33% agree <span class="mute">(checked)</span></summary><div class="b"><p>225.8M of modulation over DiT-XL/2 plus PixArt's 148.8M of cross-attention is 27.4%, and the paper's 833M to 611M (&minus;26%) matches the 610,856,096 counted here for PixArt-&Sigma;. <span class="der">derived</span></p></div></details>
 </section>
 <section id="ld-s5">
 <h2>5. MMDiT: text and image in one attention</h2>
-<p><b>The problem.</b> In cross-attention the text is read but never changes: the 77 vectors are the same in every layer, so the text cannot adapt to what the image has become. DiT's class conditioning through adaLN carries only one vector, too little for a sentence. Stable Diffusion 3 wanted the text to be processed alongside the image (<a href="https://arxiv.org/abs/2403.03206" target="_blank" rel="noopener noreferrer">Esser et al., Mar 2024</a>).</p>
+<p><b>The problem.</b> In cross-attention the text is read but never changes: the 77 vectors are the same in every layer, so the text cannot adapt to what the image has become. DiT's class conditioning through adaLN carries only one vector, too little for a sentence. Stable Diffusion 3 wanted the text processed alongside the image (<a href="https://arxiv.org/abs/2403.03206" target="_blank" rel="noopener noreferrer">Esser et al., Mar 2024</a>).</p>
 <p><b>How it works.</b> Concatenate the text tokens and the image tokens into one sequence and run one attention over all of it, but give each modality its own weights: "two separate sets of weights for the two modalities ... equivalent to having two independent transformers for each modality, but joining the sequences of the two modalities for the attention operation" (section 4). Each block has, for image and for text separately, the Q, K, V and output projections, the MLP and the adaLN modulation (driven by the timestep and the pooled text vector); only the softmax is shared. In diffusers the join is one line (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/attention_processor.py#L1480" target="_blank" rel="noopener noreferrer">attention_processor.py line 1480</a>): <span class="ld-mono">query = torch.cat([query, encoder_hidden_states_query_proj], dim=2)</span>, the same for keys and values, then split again after attention.</p>
 
 <div class="rd-card" id="ld-c-mask">
-<h4>Who attends to whom: four ways to mix text and image</h4>
+<h4>Who attends to whom: only cross-attention leaves the text unchanged</h4>
 <div class="seg" id="ld-mask-mode"><button data-m="cross" class="on">Cross-attention (SD 1.5, PixArt)</button><button data-m="concat">DiT, text as tokens</button><button data-m="mmdit">MMDiT (SD3, Qwen-Image)</button><button data-m="single">Single stream (FLUX, Z-Image)</button></div>
 <div class="rd-svg" id="ld-mask-svg"></div>
 <div class="an-cnt" id="ld-mask-cnt"></div>
 <p class="ld-note" id="ld-mask-note"></p>
 </div>
 
-<p><b>What it bought, by the paper's own comparison.</b> On CC12M at matched settings, "Our MM-DiT variant significantly outperforms the cross-attention and vanilla variants" (DiT with concatenated text, CrossDiT with cross-attention, and UViT), on validation loss, CLIP score and FID (section 5.2.3, Figure 4; <span class="vend">vendor</span>, the authors' runs). Two engineering details came with it. <b>QK-normalisation:</b> at scale, attention logits grew until the attention entropy collapsed in the last blocks; RMSNorm on Q and K in both streams prevented it and "enables efficient training at bf16-mixed precision" (section 5.3.2, "QK-Normalization"). <b>Modulation is a third of the model:</b> each stream has its own d &times; 6d modulation per block, so counted here SD3.5 Large's modulation layers hold 2,686.3M of 8,056.6M parameters (33.3%) and Qwen-Image's (60 MMDiT blocks) 6,815.9M of 20,430.4M (33.4%).</p>
-<div class="co"><div class="t">A finding from counting: the position table the Hub counts and diffusers does not</div>
-<p>SD3 Medium's config instantiated here has 2,028,328,000 parameters; the Hub's public total for the repo is 2,084,951,104. The difference, 56,623,104, is exactly 192 &times; 192 &times; 1,536: the 2-D position table for a 192 &times; 192 patch grid. Diffusers registers it as a buffer that is saved with the weights (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/embeddings.py#L331" target="_blank" rel="noopener noreferrer">embeddings.py line 331</a>: <span class="ld-mono">persistent = True if pos_embed_max_size else False</span>), not as a parameter. SD3.5 Large: 8,146,280,768 on the Hub against 8,056,627,520 here, a gap of 89,653,248 = 192 &times; 192 &times; 2,432. With the table, both configs reproduce the Hub totals exactly. <span class="der">derived</span> Parameter counts in model cards can include such tables; check before comparing.</p></div>
+<p><b>What it bought, by the paper's own comparison.</b> On CC12M at matched settings, "Our MM-DiT variant significantly outperforms the cross-attention and vanilla variants" (DiT with concatenated text, CrossDiT with cross-attention, and UViT), on validation loss, CLIP score and FID (section 5.2.3, Figure 4; <span class="vend">vendor</span>, the authors' runs). <b>QK-normalisation</b> came with it: at scale, attention logits grew until the attention entropy collapsed in the last blocks; RMSNorm on Q and K in both streams prevented it and "enables efficient training at bf16-mixed precision" (section 5.3.2, "QK-Normalization"). <b>Modulation is a third of the model:</b> each stream has its own d &times; 6d modulation per block, so counted here SD3.5 Large's modulation layers hold 2,686.3M of 8,056.6M parameters (33.3%) and Qwen-Image's (60 MMDiT blocks) 6,815.9M of 20,430.4M (33.4%).</p>
 <p><b>The cost.</b> Joint attention costs (N + T)<sup>2</sup> per layer and the text stream's weights run on every text token, so text length is no longer nearly free: SD3.5 Large at 1024 pixels costs 28.95 TFLOP per pass with 77 text tokens and 31.12 with diffusers' 333 (a 7.5% difference, counted).</p>
+<details class="dp"><summary>A finding from counting: the position table the Hub counts and diffusers does not <span class="mute">(checked)</span></summary><div class="b">
+<p>SD3 Medium's config instantiated here has 2,028,328,000 parameters; the Hub's public total for the repo is 2,084,951,104. The difference, 56,623,104, is exactly 192 &times; 192 &times; 1,536: the 2-D position table for a 192 &times; 192 patch grid. Diffusers registers it as a buffer that is saved with the weights (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/embeddings.py#L331" target="_blank" rel="noopener noreferrer">embeddings.py line 331</a>: <span class="ld-mono">persistent = True if pos_embed_max_size else False</span>), not as a parameter. SD3.5 Large: 8,146,280,768 on the Hub against 8,056,627,520 here, a gap of 89,653,248 = 192 &times; 192 &times; 2,432. With the table, both configs reproduce the Hub totals exactly. <span class="der">derived</span> Parameter counts in model cards can include such tables; check before comparing.</p>
+</div></details>
 </section>
 
 <section id="ld-s6">
 <h2>6. FLUX-style double and single stream blocks</h2>
 <p><b>The problem.</b> Two full weight sets per block double the parameters per unit of depth. Once text and image have been mixed for a while, do they still need separate weights?</p>
-<p><b>How it works.</b> FLUX.1 (Black Forest Labs, August 2024; no paper, but the FLUX.1 Kontext report describes it) "is built from a mix of double stream and single stream blocks. Double stream blocks employ separate weights for image and text tokens ... After passing the sequences through the double stream blocks, we concatenate them and apply 38 single stream blocks to the image and text tokens. Finally, we discard the text tokens and decode the image tokens" (<a href="https://arxiv.org/abs/2506.15742" target="_blank" rel="noopener noreferrer">Labs et al. 2025</a>, section 2). The released code has 19 double blocks and 38 single blocks (<a href="https://github.com/black-forest-labs/flux/blob/802fb4713906133fcbd0d8dc5351620ca4773036/src/flux/util.py#L299" target="_blank" rel="noopener noreferrer">BFL flux util.py</a>: depth 19, depth_single_blocks 38, hidden size 3,072, 24 heads). A single-stream block is a <dfn>parallel</dfn> transformer block (as in ViT-22B): one LayerNorm and one modulation, then attention and the MLP computed side by side from the same input, their outputs concatenated and projected once (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/transformers/transformer_flux.py#L404" target="_blank" rel="noopener noreferrer">transformer_flux.py line 404</a>), which halves the modulation parameters and makes larger matrix multiplications.</p>
+<p><b>How it works.</b> FLUX.1 (Black Forest Labs, August 2024; no paper, but the FLUX.1 Kontext report describes it) : "Double stream blocks employ separate weights for image and text tokens ... we concatenate them and apply 38 single stream blocks to the image and text tokens. Finally, we discard the text tokens and decode the image tokens" (<a href="https://arxiv.org/abs/2506.15742" target="_blank" rel="noopener noreferrer">Labs et al. 2025</a>, section 2). The released code has 19 double blocks and 38 single blocks (<a href="https://github.com/black-forest-labs/flux/blob/802fb4713906133fcbd0d8dc5351620ca4773036/src/flux/util.py#L299" target="_blank" rel="noopener noreferrer">BFL flux util.py</a>: depth 19, depth_single_blocks 38, hidden size 3,072, 24 heads). A single-stream block is a <dfn>parallel</dfn> transformer block (as in ViT-22B): one LayerNorm and one modulation, then attention and the MLP computed side by side from the same input, their outputs concatenated and projected once (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/transformers/transformer_flux.py#L404" target="_blank" rel="noopener noreferrer">transformer_flux.py line 404</a>), which halves the modulation parameters and makes larger matrix multiplications.</p>
 <div class="rd-card" id="ld-c-mod">
-<h4>Where the parameters go in ten denoisers</h4>
+<h4>Where the parameters go in eleven denoisers: modulation shrinks from a third to a few per cent</h4>
 <div class="leg" id="ld-mod-leg"></div>
 <div class="rd-bars" id="ld-mod-bars"></div>
 <p class="ld-note">Shares of each model's parameters by kind of layer, counted on the meta device from the configs (attention and MLP split by stream; modulation = every adaLN, adaLN-single, time-injection or shared modulation layer). <span class="der">derived</span> The <a href="#" data-tab="t-ldarch">Architecture explorer</a> shows the numbers and the block structure.</p>
 </div>
-<p><b>Three things the counts show.</b> (1) <b>Guidance distillation is visible in the weights.</b> FLUX.1 [dev] counted here is 11,901,408,320 and [schnell] 11,891,178,560, both equal to the Hub's public totals; the difference, 10,229,760, is the guidance embedder: [dev] was distilled to take the guidance scale as an input (embedded like the timestep), so it runs one denoiser pass per step where classifier-free guidance runs two. (2) <b>Single blocks are half-size:</b> FLUX.1's 38 single blocks hold 5,380.5M parameters, its 19 double blocks 6,456.8M. (3) <b>Modulation keeps shrinking:</b> 27.3% of FLUX.1, then FLUX.2 [klein] 4B shares one modulation per stream across all its blocks (5 double, 20 single): 160.4M, 4.1% of 3,875,544,576 (equal to the Hub total). Z-Image runs a single stream from the start (two refiner layers each for noise and caption, then 30 joint layers) with a low-rank modulation: 2.1% of 6,154,908,736.</p>
+<p><b>Three things the counts show.</b> (1) <b>Guidance distillation is visible in the weights.</b> FLUX.1 [dev] counted here is 11,901,408,320 and [schnell] 11,891,178,560, both equal to the Hub's public totals; the difference, 10,229,760, is the guidance embedder: [dev] was distilled to take the guidance scale as an input (embedded like the timestep), so it runs one denoiser pass per step where classifier-free guidance runs two (section 10). (2) <b>Single blocks are half-size:</b> FLUX.1's 38 single blocks hold 5,380.5M parameters, its 19 double blocks 6,456.8M. (3) <b>Modulation keeps shrinking:</b> 27.3% of FLUX.1, then FLUX.2 [klein] 4B shares one modulation per stream across all its blocks (5 double, 20 single): 160.4M, 4.1% of 3,875,544,576 (equal to the Hub total). Z-Image runs a single stream from the start (two refiner layers each for noise and caption, then 30 joint layers) with a low-rank modulation: 2.1% of 6,154,908,736.</p>
 <div class="pr" id="ld-pr-dev"><div class="q">Predict: FLUX.1 [dev] at 28 steps against SD3.5 Large at 28 steps with guidance 7.0, both at 1024 pixels. FLUX.1 has 1.5 times the parameters. Which costs more per image?</div>
 <div class="opts"><button data-ok="0">FLUX.1, by about 1.5 times (it is bigger)</button><button data-ok="1">FLUX.1, but only by about 1.2 times: SD3.5 runs two passes per step, FLUX.1 [dev] one</button><button data-ok="0">SD3.5 Large, by about 2 times</button></div>
 <div class="ans" hidden></div></div>
@@ -443,26 +510,25 @@ for block in self.blocks:
 
 <section id="ld-s7">
 <h2>7. Positions for image tokens: tables, crops and 2-D RoPE</h2>
-<p><b>The problem.</b> Attention is blind to order: shuffle the tokens and the outputs shuffle with them. An image transformer must be told where each patch sits, in two dimensions, and ideally in a way that still works at a resolution or aspect ratio it was not trained at.</p>
-<p><b>Three answers in use.</b></p>
+<p><b>The problem.</b> Attention is blind to order: shuffle the tokens and the outputs shuffle with them. An image transformer must be told where each patch sits, in two dimensions, ideally in a way that still works at a resolution or aspect ratio it was not trained at. Three answers are in use:</p>
 <ul>
 <li><b>A fixed 2-D sine-cosine table</b> (DiT, PixArt): half the channels encode the row, half the column, at geometric frequencies. It is computed for one grid; the DiT code builds it at construction for one input size, which is why this page's FLOP counter had to rebuild DiT-XL/2 for every resolution.</li>
 <li><b>A large table, center-cropped</b> (SD3): one table for a 192 &times; 192 patch grid, cropped to the image's grid at run time (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/embeddings.py#L336" target="_blank" rel="noopener noreferrer">embeddings.py line 336</a>), so any size up to 192 &times; 2 &times; 8 = 3,072 pixels per side has positions. For mixed aspect ratios the paper builds "a combination of extended and interpolated position grids" and center-crops them (section 5.3.2).</li>
-<li><b>Rotary embeddings in 2-D or 3-D</b> (FLUX, Qwen-Image, Z-Image, FLUX.2): rotate each query and key by angles proportional to the token's position, so their dot product depends only on the offset between two tokens. FLUX splits each 128-wide head into 16 channels for a third axis (time or reference image), 56 for the row and 56 for the column (<span class="ld-mono">axes_dim [16, 56, 56]</span>); image token ids are (0, row, column) (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/flux/pipeline_flux.py#L508" target="_blank" rel="noopener noreferrer">pipeline_flux.py line 508</a>) and the text tokens' ids are all zero, so text sits at "no position" and is told apart by its own weights. Qwen-Image's MSRoPE instead places the text "along the diagonal of the image" grid (<a href="https://arxiv.org/abs/2508.02324" target="_blank" rel="noopener noreferrer">Qwen-Image report</a>, section 2.4). Z-Image uses 32/48/48 channels; FLUX.2 four axes of 32. There is no table to outgrow, which helps with new sizes but does not by itself make the model good at them (<a href="#ld-s8">section 8</a>).</li>
+<li><b>Rotary embeddings in 2-D or 3-D</b> (FLUX, Qwen-Image, Z-Image, FLUX.2): rotate each query and key by angles proportional to the token's position, so their dot product depends only on the offset between two tokens. FLUX splits each 128-wide head into 16 channels for a third axis (time or reference image), 56 for the row and 56 for the column (<span class="ld-mono">axes_dim [16, 56, 56]</span>); image token ids are (0, row, column) (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/flux/pipeline_flux.py#L508" target="_blank" rel="noopener noreferrer">pipeline_flux.py line 508</a>) and the text tokens' ids are all zero, so text sits at "no position" and is told apart by its own weights. Qwen-Image's MSRoPE instead places the text "along the diagonal of the image" grid (<a href="https://arxiv.org/abs/2508.02324" target="_blank" rel="noopener noreferrer">Qwen-Image report</a>, section 2.4). Z-Image uses 32/48/48 channels; FLUX.2 four axes of 32. There is no table to outgrow, which helps with new sizes but does not by itself make the model good at them (section 8).</li>
 </ul>
 <div class="rd-card" id="ld-c-rope">
-<h4>FLUX's position ids for a small latent</h4>
+<h4>FLUX's position ids: image tokens get (0, row, column), text tokens all zero</h4>
 <div class="rd-calc"><label>Latent rows (after 2 &times; 2 packing) <input type="number" id="ld-rope-h" min="1" max="8" value="3"></label><label>Latent columns <input type="number" id="ld-rope-w" min="1" max="8" value="4"></label><label>Text tokens <input type="number" id="ld-rope-t" min="1" max="6" value="3"></label></div>
 <div class="rd-svg" id="ld-rope-svg"></div>
 <p class="ld-note" id="ld-rope-note"></p>
 </div>
-<p>RoPE itself (why rotating q and k makes attention depend on relative position, and how frequencies are chosen) is on the <a href="https://app.notion.com/p/3c65c17b0d0d81a5b7c9e578fcdfac00" target="_blank" rel="noopener noreferrer">Positional Encodings</a> page and the <a href="https://app.notion.com/p/3c65c17b0d0d81cfa5e9f54459720098" target="_blank" rel="noopener noreferrer">RoFormer paper page</a>; here only the 2-D and 3-D split is new.</p>
+<p>RoPE itself (why rotating q and k makes attention depend on relative position, and how frequencies are chosen) is on <a href="https://app.notion.com/p/3c65c17b0d0d81a5b7c9e578fcdfac00" target="_blank" rel="noopener noreferrer">Positional Encodings</a> and the <a href="https://app.notion.com/p/3c65c17b0d0d81cfa5e9f54459720098" target="_blank" rel="noopener noreferrer">RoFormer paper page</a>; here only the 2-D and 3-D split is new.</p>
 </section>
 <section id="ld-s8">
 <h2>8. Resolution and aspect ratio</h2>
 <p><b>The problem.</b> A denoiser learns the statistics of the latent grids it was trained on: their size, their shape, and how much of a subject one position covers. SD 1.5 was fine-tuned at 512 &times; 512 (its model card: 595k steps at that size). Ask it for another size and nothing in the code stops you: the U-Net is convolutional and its attention takes any number of positions.</p>
 <div class="rd-card" id="ld-c-res">
-<h4>One prompt, one seed, four sizes (SD 1.5)</h4>
+<h4>One prompt, one seed, four sizes: at four times the training area SD 1.5 draws four puppies</h4>
 <div class="seg" id="ld-res-pick"></div>
 <div class="ld-resimg" id="ld-res-img"></div>
 <p class="ld-note" id="ld-res-note"></p>
@@ -472,58 +538,90 @@ for block in self.blocks:
 <ul>
 <li><b>Train at the sizes you will sample.</b> SDXL pretrained at 256 &times; 256, then 512, then fine-tuned on "different aspect ratios ... of ~1024 &times; 1024 pixel area" (<a href="https://arxiv.org/abs/2307.01952" target="_blank" rel="noopener noreferrer">Podell et al. 2023</a>, section 2.5).</li>
 <li><b>Aspect-ratio bucketing</b> (from NovelAI's 2022 work, which SDXL and SD3 cite): sort the training images into buckets of similar shape, keep the pixel count as close to 1024<sup>2</sup> as the shape allows, with height and width in multiples of 64, and build each batch from one bucket (SDXL section 2.3, which also feeds the bucket's size to the model as a condition). For a transformer, equal area means a similar number of tokens, so the cost per batch stays level.</li>
-<li><b>Tell the model what it is looking at.</b> SDXL's <dfn>micro-conditioning</dfn> feeds the original image size, the crop offsets and the target size as Fourier features added to the time embedding (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl.py#L734" target="_blank" rel="noopener noreferrer">pipeline line 734</a>). Without the size condition, 39% of SDXL's pretraining data would have been discarded as smaller than 256 pixels, and the paper blames random crops in training for SD 1.5's cut-off heads; with the crop offsets as an input, sampling at (0, 0) asks for an uncropped image and other values "simulate the amount of cropping" (section 2.2, Figures 4 and 5; <span class="vend">vendor</span> figures).</li>
-<li><b>Shift the noise schedule with resolution.</b> More pixels carry more redundant signal, so the same noise level destroys less of the image; SD3 shifts its timesteps by a factor of &radic;(m / n) (m pixels at the new resolution, n at the base) and FLUX computes the shift from the image's token count (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/flux/pipeline_flux.py#L73" target="_blank" rel="noopener noreferrer">pipeline_flux.py line 73</a>). The sibling page <a href="https://app.notion.com/p/3fc5c17b0d0d8136a1efc73aaa446ceb" target="_blank" rel="noopener noreferrer">Flow matching</a> owns the details.</li>
+<li><b>Tell the model what it is looking at.</b> SDXL's <dfn>micro-conditioning</dfn> adds the original size, crop offsets and target size to the time embedding as Fourier features (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl.py#L734" target="_blank" rel="noopener noreferrer">pipeline line 734</a>). The size condition kept the 39% of pretraining data smaller than 256 pixels that would otherwise be discarded; the crop condition targets SD 1.5's cut-off heads, which the paper blames on random crops: sampling at (0, 0) asks for an uncropped image, other values "simulate the amount of cropping" (section 2.2, Figures 4 and 5; <span class="vend">vendor</span>).</li>
+<li><b>Shift the noise schedule with resolution.</b> More pixels carry more redundant signal, so the same noise level destroys less of the image; SD3 shifts its timesteps by a factor of &radic;(m / n) (m pixels at the new resolution, n at the base) and FLUX computes the shift from the image's token count (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/flux/pipeline_flux.py#L73" target="_blank" rel="noopener noreferrer">pipeline_flux.py line 73</a>). <a href="https://app.notion.com/p/3fc5c17b0d0d8136a1efc73aaa446ceb" target="_blank" rel="noopener noreferrer">Flow matching</a> owns the details.</li>
 </ul>
 </section>
 
 <section id="ld-s9">
 <h2>9. What one image costs</h2>
-<p><b>The formula.</b> One image = text encoder once (twice with guidance and a negative or empty prompt) + <i>steps</i> &times; <i>passes per step</i> &times; <i>FLOPs per pass</i> + one VAE decode. Passes per step is 2 with classifier-free guidance (the conditional and the unconditional prediction, batched together) and 1 for a guidance-distilled model (FLUX.1 [dev]) or a model sampled without guidance (FLUX.1 [schnell], Z-Image-Turbo). FLOPs per pass grow with the image tokens N (linear layers, convolutions) and with N<sup>2</sup> (attention), so at high resolution attention takes over: counted here, attention scores are <span data-ld="cost.sd15_attn512" data-f="pct0"></span> of SD 1.5's FLOPs at 512 pixels and <span data-ld="cost.sd15_attn2048" data-f="pct0"></span> at 2,048.</p>
+<p><b>The formula.</b> One image = text encoder once (twice with guidance and a negative or empty prompt) + <i>steps</i> &times; <i>passes per step</i> &times; <span class="hl">FLOPs per pass</span> + one VAE decode. Passes per step is 2 with classifier-free guidance (the conditional and the unconditional prediction, batched together) and 1 for a guidance-distilled model (FLUX.1 [dev]) or a model sampled without guidance (FLUX.1 [schnell], Z-Image-Turbo). FLOPs per pass grow with the image tokens N (linear layers, convolutions) and with N<sup>2</sup> (attention), so at high resolution attention takes over: counted here, attention scores are <span data-ld="cost.sd15_attn512" data-f="pct0"></span> of SD 1.5's FLOPs at 512 pixels and <span data-ld="cost.sd15_attn2048" data-f="pct0"></span> at 2,048.</p>
 <div class="rd-card" id="ld-c-cost">
-<h4>One 1024 &times; 1024 image with each pipeline's default settings</h4>
+<h4>One 1024 &times; 1024 image with each pipeline's default settings: steps &times; passes moves the total as much as model size</h4>
 <div class="tw"><table class="rd-cmp" id="ld-costtab"><thead><tr><th>Pipeline</th><th>Tokens (image + text)</th><th>FLOPs per pass</th><th>Steps &times; passes</th><th>Denoiser FLOPs per image</th></tr></thead><tbody></tbody></table></div>
 <p class="ld-note">Steps and guidance from each pipeline's <span class="ld-mono">__call__</span> defaults in diffusers 0.41.0, except where the model card recommends otherwise (FLUX.1 [schnell] "1 to 4 steps": 4; FLUX.2 [klein] 4B card: 4 steps, guidance 1.0; Z-Image-Turbo card: 9 steps, "8 DiT forwards", guidance 0). SD 1.5 and DiT-XL/2 were trained at 512 and 256 and are included for scale. Text encoders and the VAE decode are not included. <span class="der">derived</span> Try other sizes and settings in the <a href="#" data-tab="t-ldcalc">Tokens and FLOPs calculator</a>.</p>
 </div>
 <p><b>Measured here.</b> One SD 1.5 U-Net pass on the laptop's GPU (float16, attention slicing, batch 1) at six sizes, against the counted FLOPs:</p>
 <div class="rd-card" id="ld-c-m1">
+<h4>Time per pass grows faster than FLOPs: the laptop runs large attention less efficiently</h4>
 <div class="rd-svg" id="ld-m1-svg"></div>
 <p class="ld-note" id="ld-m1-note"></p>
 </div>
-<p><b>Where the time goes inside one pass</b> (the same guided pass as the Diffusion lab's 0.610 s, hooked per kind of layer): <span id="ld-prof-sum"></span> The parameter view of <a href="#ld-s2">section 2</a> would have predicted none of this.</p>
+<p><b>Where the time goes inside one pass</b> (the same guided pass as the Diffusion lab's 0.610 s, hooked per kind of layer): <span id="ld-prof-sum"></span> The parameter view of section 2 would have predicted none of this. Seconds do not transfer to a datacenter GPU with a fused attention kernel; the FLOP shares do (closed block "What transfers", below).</p>
 <div class="pr" id="ld-pr-steps"><div class="q">Predict: you must halve the cost of SD3.5 Large images at 1024 pixels without retraining. Which change saves the most?</div>
 <div class="opts"><button data-ok="0">Drop the T5 encoder (it is 4.7B parameters)</button><button data-ok="1">Halve the steps (28 to 14), or distil guidance away (two passes to one)</button><button data-ok="0">Shorten the prompt from 333 to 77 text tokens</button></div>
 <div class="ans" hidden></div></div>
 </section>
-<section id="ld-mis">
-<h2>Common mistakes</h2>
-<details class="mist"><summary>Reading <span class="ld-mono">attention_head_dim</span> in an SD 1.x or 2.x config as the head width</summary><div class="b">In <span class="ld-mono">UNet2DConditionModel</span> configs it is the number of heads (SD 1.5: 8 heads of width 40, 80 and 160; SDXL's <span class="ld-mono">[5, 10, 20]</span>: heads of width 64). diffusers keeps the old name for "40,000+ configurations" and maps it at <a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/unets/unet_2d_condition.py#L254" target="_blank" rel="noopener noreferrer">unet_2d_condition.py line 254</a>. Transformer configs (<span class="ld-mono">SD3Transformer2DModel</span>, <span class="ld-mono">FluxTransformer2DModel</span>) mean what they say: 64 and 128.</div></details>
-<details class="mist"><summary>Writing prompts longer than 77 tokens for a CLIP-conditioned model</summary><div class="b">Everything past position 77 is dropped, with only a logged warning (the real one is in <a href="#ld-s3">section 3</a>). SD 1.5 and SDXL never see the end of a long prompt; SD3 sees it through T5 only. Fixes: shorten, put what matters first, or use a long-prompt helper that encodes chunks of 75 and concatenates them (the model then sees several start and end tokens, which it was not trained on). A T5- or LLM-conditioned model accepts 256 to 512 tokens.</div></details>
-<details class="mist"><summary>Sampling far from the training resolution</summary><div class="b">SD 1.5 at 1024 pixels (<a href="#ld-s8">section 8</a>) is a real run on this page: asked for one puppy on a canvas four times its training area, it drew four puppies of the usual size. It is not a bug in the sampler; it is the denoiser's learned statistics. Use a model trained near the target size and aspect ratio (bucketing), or generate at the native size and upscale (a second img2img pass at the high resolution is the common recipe).</div></details>
-<details class="mist"><summary>Comparing models by parameter count when the question is cost</summary><div class="b">DiT-XL/8 and DiT-XL/2 have the same 675M parameters and differ 16 times in compute and 5 times in FID. FLUX.1 [dev] has 1.5 times SD3.5 Large's parameters but costs about 1.2 times as much per image because it needs one pass per step instead of two. Count FLOPs per pass, multiply by steps and passes (<a href="#ld-s9">section 9</a>).</div></details>
-<details class="mist"><summary>Trusting a parameter count without knowing what was counted</summary><div class="b">Three cases found while counting for this page: SD3's checkpoints include a 192 &times; 192 position table that diffusers holds as a buffer (56.6M numbers for SD3 Medium, 89.7M for SD3.5 Large, <a href="#ld-s5">section 5</a>); diffusers' port of DiT-XL/2 has 749,826,464 parameters against the authors' 675,129,632, because its conversion script copies the timestep and class embedders into every one of the 28 blocks (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/scripts/convert_dit_to_diffusers.py#L34" target="_blank" rel="noopener noreferrer">convert_dit_to_diffusers.py line 34</a>), 27 extra copies of 2,777,472 parameters, and holds the position table as a buffer where the authors' code has a frozen parameter (256 &times; 1,152 = 294,912 at 256 pixels): 27 &times; 2,777,472 &minus; 294,912 = 74,696,832, the whole gap; and model cards round ("12 billion" for 11.9B). State what a number includes.</div></details>
-<details class="mist"><summary>Running classifier-free guidance on a guidance-distilled model</summary><div class="b">FLUX.1 [dev]'s <span class="ld-mono">guidance_scale</span> is an input to the network (an embedding, default 3.5), not the CFG weight; the diffusers pipeline runs one pass per step unless <span class="ld-mono">true_cfg_scale</span> is set above its default 1.0 with a negative prompt, which doubles the cost and was not what the model was distilled for. [schnell] has no guidance embedder at all (10,229,760 fewer parameters, <a href="#ld-s6">section 6</a>).</div></details>
-<details class="mist"><summary>Feeding a model text features from the wrong layer</summary><div class="b">SD 1.5 was trained on CLIP's last layer, SDXL on the penultimate layers of two encoders (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl.py#L414" target="_blank" rel="noopener noreferrer">line 414</a>), Z-Image on Qwen3's second-to-last layer. The two layers differ: measured here on SD 1.5's encoder, the cosine between the last and penultimate layer's output is <span id="ld-clipskip"></span> across the prompt's positions. "Clip skip" settings in user interfaces swap these; on a model trained with one, the other shifts every cross-attention input.</div></details>
-<details class="mist"><summary>Running a DiT at a size its position table was not built for</summary><div class="b">The authors' DiT code builds its sine-cosine table for one latent size; giving it another fails in the patch embedding before attention is reached. The real error, from counting DiT-XL/2 at 1024 pixels on this page before rebuilding the model per size: <pre class="rd-code rd-out ld-wrap">AssertionError: Input height (128) doesn't match model (32).</pre> Rebuild (or interpolate) the table for the new grid; RoPE models (<a href="#ld-s7">section 7</a>) have no table to rebuild, but still need training at the new size.</div></details>
-<details class="mist"><summary>Expecting a small transformer to beat a U-Net on a small budget</summary><div class="b">The tiny experiment in <a href="#ld-s4">section 4</a>: at equal training compute the topic's 1M-parameter U-Net beat a 4M-parameter DiT by a wide margin. DiT's advantage is in how it scales with compute and how well it fits modern hardware and systems, not in data efficiency at toy scale.</div></details>
-</section>
 
-<section id="ld-iq">
-<h2>Interview questions</h2>
-<details class="qa"><summary>Why do most image generators run diffusion in a VAE latent instead of on pixels?</summary><div>A denoiser runs 20 to 50 times per image, so its cost per pass dominates. An f = 8 VAE cuts positions 64 times (48 times fewer numbers for SD's 4 channels), and attention cost falls with the square: counted here, SD 1.5's U-Net would cost about 680 times more per pass on a 512 &times; 512 pixel grid. The price is a quality ceiling set by the decoder and the need to normalise the latent (scaling factor).</div></details>
-<details class="qa"><summary>Where are a U-Net's parameters, and where are its FLOPs?</summary><div>Parameters at the low-resolution, high-channel levels (weights grow with channels squared); FLOPs at the high-resolution levels (cost grows with positions). For SD 1.5 at 512: the two 64 &times; 64 stages do 38% of the FLOPs with 3.4% of the weights, while up_blocks.1 (16 &times; 16) holds 258M parameters.</div></details>
-<details class="qa"><summary>What is adaLN-Zero and why initialise it at zero?</summary><div>The conditioning vector (timestep plus class or pooled text) is mapped per block to a shift and scale for each LayerNorm and a gate on each residual branch. Zero-initialising that mapping makes every block the identity at the start, so a deep stack trains stably from a well-behaved function; in DiT's ablation it beat plain adaLN (FID 19.5 vs 25.2), cross-attention (26.1) and in-context tokens (35.2). Its cost: the modulation layer is about a third of each block's parameters, which PixArt cut with adaLN-single and FLUX.2 with shared modulation.</div></details>
-<details class="qa"><summary>Cross-attention or joint attention (MMDiT) for text: what are the trade-offs?</summary><div>Cross-attention: text is read-only, cost N &times; T per layer, a cheap way to add text to any backbone. Joint attention: one softmax over image and text, so text tokens are updated by the image and both modalities interact symmetrically; cost (N + T)<sup>2</sup> and a second set of weights per block (or shared weights in single-stream blocks). SD3 found MMDiT better than cross-attention DiT and UViT at matched settings; nearly every 2025 to 2026 open model uses joint attention.</div></details>
-<details class="qa"><summary>Why did the DiT paper report Gflops rather than parameters?</summary><div>Because quality tracked compute per forward pass, not parameters: shrinking the patch size quadruples tokens and Gflops without changing the weights, and FID improved accordingly. Their "Gflops" are multiply-accumulates (counted here at exactly half the FLOPs).</div></details>
-<details class="qa"><summary>FLUX.1 [dev] against [schnell]: what differs in the weights and in the cost?</summary><div>[dev] has a guidance embedder (10.2M parameters) because it was distilled to take the guidance scale as an input: one pass per step, default 28 steps. [schnell] was distilled further (latent adversarial diffusion distillation, per its card) to 1 to 4 steps without guidance. Same transformer otherwise: 19 double and 38 single-stream blocks.</div></details>
-<details class="qa"><summary>How would you support many aspect ratios and resolutions?</summary><div>Bucketed training at roughly constant area (similar token counts per batch), size and crop conditioning or their equivalent, position encodings that extend (RoPE or a large cropped table), a resolution-dependent timestep shift, and progressive training from low to high resolution. Check by sampling at every bucket and at an unseen size.</div></details>
-<details class="qa"><summary>Design question: a text-to-image service must return 1024 &times; 1024 images in about a second on one datacenter GPU. Sketch the model and the arithmetic.</summary><div>Work backwards from compute. If the GPU sustains S TFLOP/s on the denoiser, one second buys S TFLOP. A FLUX.1-sized model costs 74 TFLOP per pass at 1024 (counted), so even 4 passes need 300 TFLOP: plausible only with a few-step distilled model and a fast kernel. Levers in order of size: (1) steps and passes: a distilled few-step model (adversarial or consistency distillation) with guidance distilled in, 1 pass per step; (2) tokens: a deeper-compression VAE (f = 16 or 32 with more channels, as in Sana's DC-AE) cuts tokens 4 to 16 times; (3) attention cost: linear or windowed attention at high resolution; (4) model size: a 2 to 5B denoiser rather than 12B; (5) text encoder: a 2 to 4B LLM or T5, run once and cached for repeated prompts. Then measure: the calculator gives FLOPs, but kernel efficiency decides the seconds. Keep a quality check (a preference or VQA-based metric) in the loop, since every lever trades quality.</div></details>
-<details class="qa"><summary>Why does SD 1.5's cross-attention put so much weight on the start token?</summary><div>CLIP's text encoder is causal, so the start token's output is the same constant for every prompt. Softmax attention has to put its weight somewhere; a position whose content no word concerns puts it on that constant slot, which acts as a no-op (an attention sink). Measured here: about <span data-ld="xm.g01.start16" data-f="pct0"></span> of the 16 &times; 16 layers' cross-attention for the bicycle prompt.</div></details>
+<section id="ld-s10">
+<h2>10. Few steps: distillation</h2>
+<p><b>The problem.</b> The cost formula's biggest lever is <span class="hl">passes per image</span>: 50 for SD 1.5 at the topic's settings, 100 for SDXL at its pipeline default, against one decode. Better solvers bring 1,000 steps down to 10 to 25 (<a href="https://app.notion.com/p/3c65c17b0d0d81cf9bf0d94e57ce9164" target="_blank" rel="noopener noreferrer">Diffusion from zero</a>, section 5), but no solver follows a curved path in one or two straight steps. Below about 8 steps you need a second model trained to jump: <dfn>distillation</dfn>, where a <dfn>student</dfn> learns to do in a few passes what the <dfn>teacher</dfn> (the original model plus its sampler) does in many. A student removes one of two things.</p>
+<div class="rd-card" id="ld-c-dist">
+<h4>Distilled students cut passes per image 7 to 100 times; FLOPs per pass stay the same</h4>
+<div class="seg" id="ld-dist-mode"><button data-m="before" class="on">Teacher sampling</button><button data-m="after">Distilled student</button></div>
+<div class="rd-svg" id="ld-dist-svg"></div>
+<div class="an-cnt" id="ld-dist-cnt"></div>
+<p class="ld-note" id="ld-dist-note">One square is one denoiser pass; blue conditional, orange the unconditional passes guidance adds. Teachers at the topic's settings (SD 1.5) or the diffusers pipeline defaults. Students: LCM-LoRA 4 steps, guidance off (measured on <a href="https://app.notion.com/p/3c65c17b0d0d81cf9bf0d94e57ce9164" target="_blank" rel="noopener noreferrer">Diffusion from zero</a>, section 7); SDXL-Turbo 1 step, <span class="ld-mono">guidance_scale=0.0</span> (<a href="https://huggingface.co/stabilityai/sdxl-turbo" target="_blank" rel="noopener noreferrer">card</a>: "1 to 4 steps"); SD3-Turbo "four unguided sampling steps" (<a href="https://arxiv.org/abs/2403.12015" target="_blank" rel="noopener noreferrer">LADD</a>); FLUX.1 [schnell] 4 steps (<a href="https://huggingface.co/black-forest-labs/FLUX.1-schnell" target="_blank" rel="noopener noreferrer">card</a>: "1 to 4 steps"). [dev] and [schnell] share one 11.9B transformer, 74.38 TFLOP per pass at 1024: 28 passes are 2,083 TFLOP, 4 are 298. <span class="der">derived</span></p>
+</div>
+<ul>
+<li><b>Remove the second pass per step: guidance distillation.</b> Train a student that takes the guidance scale w as an input and outputs the guided prediction in one call (<a href="https://arxiv.org/abs/2210.03142" target="_blank" rel="noopener noreferrer">Meng et al. 2022</a>). FLUX.1 [dev] is such a model ("Trained using guidance distillation", its <a href="https://huggingface.co/black-forest-labs/FLUX.1-dev" target="_blank" rel="noopener noreferrer">model card</a>), and it shows in the weights: the 10,229,760-parameter guidance embedder of section 6. Halves the cost at the same steps; negative prompts lose their slot, since there is no unconditional pass to replace.</li>
+<li><b>Remove steps: four families of students.</b>
+<ul>
+<li><b>Progressive distillation</b> (<a href="https://arxiv.org/abs/2202.00512" target="_blank" rel="noopener noreferrer">Salimans and Ho 2022</a>): a student does in one step what the teacher does in two; repeat, halving each round.</li>
+<li><b>Consistency distillation</b> (<a href="https://arxiv.org/abs/2303.01469" target="_blank" rel="noopener noreferrer">Song et al. 2023</a>): train a map from any point on the sampling path straight to its end. <dfn>Latent consistency models</dfn> do it in SD's latent with guidance baked in (<a href="https://arxiv.org/abs/2310.04378" target="_blank" rel="noopener noreferrer">Luo et al. 2023</a>); <dfn>LCM-LoRA</dfn> packs the result into a 67.5M-parameter LoRA that plugs into an unchanged SD 1.5 (<a href="https://arxiv.org/abs/2311.05556" target="_blank" rel="noopener noreferrer">Luo et al. 2023</a>).</li>
+<li><b>Adversarial distillation</b>: add a GAN loss so one or two steps give sharp images. ADD (<a href="https://arxiv.org/abs/2311.17042" target="_blank" rel="noopener noreferrer">Sauer et al. 2023</a>, SDXL-Turbo) judges decoded pixels with a frozen DINOv2 discriminator; <dfn>LADD</dfn> (<a href="https://arxiv.org/abs/2403.12015" target="_blank" rel="noopener noreferrer">Sauer et al. 2024</a>) judges in the latent, with generative features of a pretrained latent diffusion model instead of a pixel-space discriminator, which enables "high-resolution multi-aspect ratio image synthesis": SD3-Turbo, and FLUX.1 [schnell] ("Trained using latent adversarial diffusion distillation", its card).</li>
+<li><b>Distribution matching</b> (<a href="https://arxiv.org/abs/2311.18828" target="_blank" rel="noopener noreferrer">DMD, Yin et al. 2023</a>; <a href="https://arxiv.org/abs/2405.14867" target="_blank" rel="noopener noreferrer">DMD2, 2024</a>): match the student's output distribution to the teacher's, using two score models.</li>
+</ul></li>
+</ul>
+<p><b>What it costs.</b> A student is a new model: training it takes compute and data (LCM about 32 A100 GPU hours), it is tied to its teacher's weights, and the few-step regime has its own failures. Measured on SD 1.5 by <a href="https://app.notion.com/p/3c65c17b0d0d81cf9bf0d94e57ce9164" target="_blank" rel="noopener noreferrer">Diffusion from zero</a> (section 7): "LCM-LoRA is sharp at 1 to 4 steps but drops the lighthouse; DPM-Solver++ needs 4 steps to keep it". Flow-based shortcuts (rectified flow, reflow, one-step distillation of a flow) are on <a href="https://app.notion.com/p/3fc5c17b0d0d8136a1efc73aaa446ceb" target="_blank" rel="noopener noreferrer">Flow matching</a>, sections 6 and 7.</p>
+<details class="dp"><summary>Seven distillation methods: idea, steps and published result <span class="mute">(reference)</span></summary><div class="b">
+<div class="tw"><table class="rd-cmp"><thead><tr><th>Method (first version)</th><th>Idea</th><th>Steps</th><th>Published result</th></tr></thead><tbody>
+<tr><td>Progressive distillation (Salimans and Ho, Feb 2022)</td><td data-h="Idea">Halve the steps repeatedly: a student does in one step what the teacher does in two; v-prediction introduced for it</td><td data-h="Steps">1 to 8</td><td data-h="Result">CIFAR-10 FID 9.12 / 4.51 / 3.00 / 2.57 at 1 / 2 / 4 / 8 steps (Table 2)</td></tr>
+<tr><td>Guidance distillation (Meng et al., Oct 2022)</td><td data-h="Idea">First teach a student, conditioned on the scale w, to output the guided prediction in one call; then distil steps</td><td data-h="Steps">1 to 4</td><td data-h="Result">1 to 4 steps on ImageNet 256 and LAION 512, "at least 10-fold" faster (abstract; the Figure 1 caption says at least 20x fewer steps)</td></tr>
+<tr><td>Consistency models (Song et al., Mar 2023)</td><td data-h="Idea">Train a map from any point on the ODE path straight to its end (distilled from a teacher, CD, or trained alone, CT)</td><td data-h="Steps">1 or 2</td><td data-h="Result">CD: CIFAR-10 FID 3.55 / 2.93, ImageNet 64 6.20 / 4.70 at 1 / 2 steps; CT: 8.70 / 5.83 and 13.0 / 11.1</td></tr>
+<tr><td>Latent consistency models (Luo et al., Oct 2023)</td><td data-h="Idea">Consistency distillation in SD's latent space, guidance baked in (w = 8 in the tables)</td><td data-h="Steps">1 to 8</td><td data-h="Result">LAION-Aesthetics 6+ at 512 px, FID 35.36 / 13.31 / 11.10 / 11.84 at 1 / 2 / 4 / 8 steps against DDIM's 183.29 / 81.05 / 22.38 / 13.83 (Table 1); about 32 A100 GPU hours</td></tr>
+<tr><td>LCM-LoRA (Luo et al., Nov 2023)</td><td data-h="Idea">The same distillation as a LoRA on an unchanged base model</td><td data-h="Steps">2 to 8</td><td data-h="Result">67.5M trainable parameters on SD 1.5's 0.98B; run on Diffusion from zero</td></tr>
+<tr><td>Adversarial diffusion distillation (Sauer et al., Nov 2023)</td><td data-h="Idea">Distillation loss plus a GAN discriminator on frozen DINOv2 ViT-S features; the SD-Turbo (from SD 2.1) and SDXL-Turbo model cards name it as their training method</td><td data-h="Steps">1 to 4</td><td data-h="Result">ADD-M (SD 1.5 backbone) at 1 step: COCO FID-5k 19.7, CLIP 0.326, 0.09 s, against DPM-Solver at 25 steps 20.1 (Table 2); human raters prefer ADD-XL at 4 steps over SDXL at 50 steps</td></tr>
+<tr><td>Distribution matching distillation (Yin et al., Nov 2023; DMD2 May 2024)</td><td data-h="Idea">Match the student's output distribution to the teacher's using two score models</td><td data-h="Steps">1 to 4</td><td data-h="Result">ImageNet 64 one-step FID 2.62 (DMD), 1.28 (DMD2, longer training; teacher EDM 2.32 deterministic); SDXL-based DMD2 4 steps COCO-10k FID 19.32 against the 100-call teacher's 19.36</td></tr>
+</tbody></table></div>
+<p class="ld-note">Every row is published (the papers' own numbers, vendor-reported, on the datasets named), as compiled and checked on Diffusion from zero on 2026-10-17. Later, latent-specific: LADD (Sauer et al., Mar 2024) replaces ADD's pixel-space DINOv2 discriminator with the teacher's latent features (SD3-Turbo, four unguided steps; FLUX.1 [schnell] per its card).</p>
+</div></details>
 </section>
-
-<section id="ld-tr">
-<h2>What transfers from this laptop</h2>
-<p>Measured on Apple M1 Pro: SD 1.5 in float16 with attention slicing on the laptop's GPU (MPS), one process, peak memory <span id="ld-peak"></span>; the tiny models in float32 for 4 to 32 minutes each; all parameter and FLOP counts on CPU without weights. <b>What transfers exactly:</b> parameter counts, FLOPs per pass and their breakdowns (shape arithmetic, identical on any device), the cross-attention patterns up to float16 rounding, and the token counts behind every cost. <b>What transfers in direction only:</b> the tiny results (U-Net ahead of DiT at small compute, smaller patches better at equal steps; one seed each, a 28 &times; 28 dataset, a classifier-space FD). <b>What does not transfer:</b> seconds. MPS with attention slicing runs attention far less efficiently than a datacenter GPU with a fused attention kernel (FlashAttention), so the share of time spent in attention, the achieved TFLOP/s and the relative cost of the large-resolution passes all change; the FLOP shares on this page are the device-independent part.</p>
+<section id="ld-dp">
+<h2>Depth: mistakes, rehearsal, what transfers</h2>
+<details class="dp" id="ld-mis"><summary>Common mistakes, each from a real run or a real config <span class="mute">(9)</span></summary><div class="b">
+<p><b>Reading <span class="ld-mono">attention_head_dim</span> in an SD 1.x or 2.x config as the head width.</b> In <span class="ld-mono">UNet2DConditionModel</span> configs it is the number of heads (SD 1.5: 8 heads of width 40, 80 and 160; SDXL's <span class="ld-mono">[5, 10, 20]</span>: heads of width 64). diffusers keeps the old name for "40,000+ configurations" and maps it at <a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/unets/unet_2d_condition.py#L254" target="_blank" rel="noopener noreferrer">unet_2d_condition.py line 254</a>. Transformer configs (<span class="ld-mono">SD3Transformer2DModel</span>, <span class="ld-mono">FluxTransformer2DModel</span>) mean what they say: 64 and 128.</p>
+<p><b>Writing prompts longer than 77 tokens for a CLIP-conditioned model.</b> Everything past position 77 is dropped, with only a logged warning (the real one is in <a href="#ld-s3">section 3</a>). SD 1.5 and SDXL never see the end of a long prompt; SD3 sees it through T5 only. Fixes: shorten, put what matters first, or use a long-prompt helper that encodes chunks of 75 and concatenates them (the model then sees several start and end tokens, which it was not trained on). A T5- or LLM-conditioned model accepts 256 to 512 tokens.</p>
+<p><b>Sampling far from the training resolution.</b> SD 1.5 at 1024 pixels (<a href="#ld-s8">section 8</a>) is a real run on this page: asked for one puppy on a canvas four times its training area, it drew four puppies of the usual size. It is not a bug in the sampler; it is the denoiser's learned statistics. Use a model trained near the target size and aspect ratio (bucketing), or generate at the native size and upscale (a second img2img pass at the high resolution is the common recipe).</p>
+<p><b>Comparing models by parameter count when the question is cost.</b> DiT-XL/8 and DiT-XL/2 have the same 675M parameters and differ 16 times in compute and 5 times in FID. FLUX.1 [dev] has 1.5 times SD3.5 Large's parameters but costs about 1.2 times as much per image because it needs one pass per step instead of two. Count FLOPs per pass, multiply by steps and passes (<a href="#ld-s9">section 9</a>).</p>
+<p><b>Trusting a parameter count without knowing what was counted.</b> Three cases found while counting for this page: SD3's checkpoints include a 192 &times; 192 position table that diffusers holds as a buffer (56.6M numbers for SD3 Medium, 89.7M for SD3.5 Large, <a href="#ld-s5">section 5</a>); diffusers' port of DiT-XL/2 has 749,826,464 parameters against the authors' 675,129,632, because its conversion script copies the timestep and class embedders into every one of the 28 blocks (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/scripts/convert_dit_to_diffusers.py#L34" target="_blank" rel="noopener noreferrer">convert_dit_to_diffusers.py line 34</a>), 27 extra copies of 2,777,472 parameters, and holds the position table as a buffer where the authors' code has a frozen parameter (256 &times; 1,152 = 294,912 at 256 pixels): 27 &times; 2,777,472 &minus; 294,912 = 74,696,832, the whole gap; and model cards round ("12 billion" for 11.9B). State what a number includes.</p>
+<p><b>Running classifier-free guidance on a guidance-distilled model.</b> FLUX.1 [dev]'s <span class="ld-mono">guidance_scale</span> is an input to the network (an embedding, default 3.5), not the CFG weight; the diffusers pipeline runs one pass per step unless <span class="ld-mono">true_cfg_scale</span> is set above its default 1.0 with a negative prompt, which doubles the cost and was not what the model was distilled for. [schnell] has no guidance embedder at all (10,229,760 fewer parameters, <a href="#ld-s6">section 6</a>).</p>
+<p><b>Feeding a model text features from the wrong layer.</b> SD 1.5 was trained on CLIP's last layer, SDXL on the penultimate layers of two encoders (<a href="https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion_xl/pipeline_stable_diffusion_xl.py#L414" target="_blank" rel="noopener noreferrer">line 414</a>), Z-Image on Qwen3's second-to-last layer. The two layers differ: measured here on SD 1.5's encoder, the cosine between the last and penultimate layer's output is <span id="ld-clipskip"></span> across the prompt's positions. "Clip skip" settings in user interfaces swap these; on a model trained with one, the other shifts every cross-attention input.</p>
+<div style="margin:6px 0"><b>Running a DiT at a size its position table was not built for.</b> The authors' DiT code builds its sine-cosine table for one latent size; giving it another fails in the patch embedding before attention is reached. The real error, from counting DiT-XL/2 at 1024 pixels on this page before rebuilding the model per size: <pre class="rd-code rd-out ld-wrap">AssertionError: Input height (128) doesn't match model (32).</pre> Rebuild (or interpolate) the table for the new grid; RoPE models (<a href="#ld-s7">section 7</a>) have no table to rebuild, but still need training at the new size.</div>
+<p><b>Expecting a small transformer to beat a U-Net on a small budget.</b> The tiny experiment in <a href="#ld-s4">section 4</a>: at equal training compute the topic's 1M-parameter U-Net beat a 4M-parameter DiT by a wide margin. DiT's advantage is in how it scales with compute and how well it fits modern hardware and systems, not in data efficiency at toy scale.</p>
+</div></details>
+<details class="dp" id="ld-iq"><summary>Interview rehearsal <span class="mute">(optional, 9 questions)</span></summary><div class="b">
+<p><b>Why do most image generators run diffusion in a VAE latent instead of on pixels?</b> A denoiser runs 20 to 50 times per image, so its cost per pass dominates. An f = 8 VAE cuts positions 64 times (48 times fewer numbers for SD's 4 channels), and attention cost falls with the square: counted here, SD 1.5's U-Net would cost about 680 times more per pass on a 512 &times; 512 pixel grid. The price is a quality ceiling set by the decoder and the need to normalise the latent (scaling factor).</p>
+<p><b>Where are a U-Net's parameters, and where are its FLOPs?</b> Parameters at the low-resolution, high-channel levels (weights grow with channels squared); FLOPs at the high-resolution levels (cost grows with positions). For SD 1.5 at 512: the two 64 &times; 64 stages do 38% of the FLOPs with 3.4% of the weights, while up_blocks.1 (16 &times; 16) holds 258M parameters.</p>
+<p><b>What is adaLN-Zero and why initialise it at zero?</b> The conditioning vector (timestep plus class or pooled text) is mapped per block to a shift and scale for each LayerNorm and a gate on each residual branch. Zero-initialising that mapping makes every block the identity at the start, so a deep stack trains stably from a well-behaved function; in DiT's ablation it beat plain adaLN (FID 19.5 vs 25.2), cross-attention (26.1) and in-context tokens (35.2). Its cost: the modulation layer is about a third of each block's parameters, which PixArt cut with adaLN-single and FLUX.2 with shared modulation.</p>
+<p><b>Cross-attention or joint attention (MMDiT) for text: what are the trade-offs?</b> Cross-attention: text is read-only, cost N &times; T per layer, a cheap way to add text to any backbone. Joint attention: one softmax over image and text, so text tokens are updated by the image and both modalities interact symmetrically; cost (N + T)<sup>2</sup> and a second set of weights per block (or shared weights in single-stream blocks). SD3 found MMDiT better than cross-attention DiT and UViT at matched settings; nearly every 2025 to 2026 open model uses joint attention.</p>
+<p><b>Why did the DiT paper report Gflops rather than parameters?</b> Because quality tracked compute per forward pass, not parameters: shrinking the patch size quadruples tokens and Gflops without changing the weights, and FID improved accordingly. Their "Gflops" are multiply-accumulates (counted here at exactly half the FLOPs).</p>
+<p><b>FLUX.1 [dev] against [schnell]: what differs in the weights and in the cost?</b> [dev] has a guidance embedder (10.2M parameters) because it was distilled to take the guidance scale as an input: one pass per step, default 28 steps. [schnell] was distilled further (latent adversarial diffusion distillation, per its card) to 1 to 4 steps without guidance. Same transformer otherwise: 19 double and 38 single-stream blocks.</p>
+<p><b>How would you support many aspect ratios and resolutions?</b> Bucketed training at roughly constant area (similar token counts per batch), size and crop conditioning or their equivalent, position encodings that extend (RoPE or a large cropped table), a resolution-dependent timestep shift, and progressive training from low to high resolution. Check by sampling at every bucket and at an unseen size.</p>
+<p><b>Design question: a text-to-image service must return 1024 &times; 1024 images in about a second on one datacenter GPU. Sketch the model and the arithmetic.</b> Work backwards from compute. If the GPU sustains S TFLOP/s on the denoiser, one second buys S TFLOP. A FLUX.1-sized model costs 74 TFLOP per pass at 1024 (counted), so even 4 passes need 300 TFLOP: plausible only with a few-step distilled model and a fast kernel. Levers in order of size: (1) steps and passes: a distilled few-step model (adversarial or consistency distillation) with guidance distilled in, 1 pass per step; (2) tokens: a deeper-compression VAE (f = 16 or 32 with more channels, as in Sana's DC-AE) cuts tokens 4 to 16 times; (3) attention cost: linear or windowed attention at high resolution; (4) model size: a 2 to 5B denoiser rather than 12B; (5) text encoder: a 2 to 4B LLM or T5, run once and cached for repeated prompts. Then measure: the calculator gives FLOPs, but kernel efficiency decides the seconds. Keep a quality check (a preference or VQA-based metric) in the loop, since every lever trades quality.</p>
+<p><b>Why does SD 1.5's cross-attention put so much weight on the start token?</b> CLIP's text encoder is causal, so the start token's output is the same constant for every prompt. Softmax attention has to put its weight somewhere; a position whose content no word concerns puts it on that constant slot, which acts as a no-op (an attention sink). Measured here: about <span data-ld="xm.g01.start16" data-f="pct0"></span> of the 16 &times; 16 layers' cross-attention for the bicycle prompt.</p>
+</div></details>
+<details class="dp" id="ld-tr"><summary>What transfers from this laptop, and what does not <span class="mute">(provenance)</span></summary><div class="b"><p>Measured on Apple M1 Pro: SD 1.5 in float16 with attention slicing on the laptop's GPU (MPS), one process, peak memory <span id="ld-peak"></span>; the tiny models in float32 for 4 to 32 minutes each; all parameter and FLOP counts on CPU without weights. <b>What transfers exactly:</b> parameter counts, FLOPs per pass and their breakdowns (shape arithmetic, identical on any device), the cross-attention patterns up to float16 rounding, and the token counts behind every cost. <b>What transfers in direction only:</b> the tiny results (U-Net ahead of DiT at small compute, smaller patches better at equal steps; one seed each, a 28 &times; 28 dataset, a classifier-space FD). <b>What does not transfer:</b> seconds. MPS with attention slicing runs attention far less efficiently than a datacenter GPU with a fused attention kernel (FlashAttention), so the share of time spent in attention, the achieved TFLOP/s and the relative cost of the large-resolution passes all change; the FLOP shares on this page are the device-independent part.</p></div></details>
 </section>
 </div>
 <div class="tab ldp" id="t-ldarch" role="tabpanel" hidden>
@@ -556,38 +654,6 @@ for block in self.blocks:
 <h2>All eleven at the chosen size</h2>
 <div class="tw"><table id="la-all"><thead><tr><th>Denoiser</th><th>Parameters</th><th>Modulation share</th><th>Image tokens</th><th>Text tokens</th><th>FLOPs per pass</th><th>Attention-score share</th><th>Check</th></tr></thead><tbody></tbody></table></div>
 <p class="ld-note">Counting: <span class="ld-mono">src/arch/params.py</span> (parameters, by name patterns listed in the script; fused single-stream layers split by their row and column counts), <span class="ld-mono">src/arch/flops_all.py</span> (one pass, batch 1, no classifier-free-guidance batching, the pipeline's default text length, on meta tensors under <span class="ld-mono">FlopCounterMode</span>). Attention-score share: the batched matrix multiplications (<span class="ld-mono">aten.bmm</span>, the QK<sup>T</sup> and attention-times-V products) as a share of all FLOPs; Sana's linear attention and cross-attention are its only bmm. Configs: the Hub repos pinned in the root's Model map (<span class="ld-mono">src/map/inputs/</span>), FLUX.2 [klein] 4B and DiT-XL/2 fetched here, FLUX.1 from Black Forest Labs' public code and SD3 from the paper's depth rule (both repos are gated); "Check" says which total each count was verified against; * marks a size outside the counted grid (DiT-XL/2 was counted up to 1024), from the fitted formula. <span class="der">derived</span></p>
-</section>
-</div>
-<div class="tab ldp" id="t-ldxa" role="tabpanel" hidden>
-<style>
-#t-ldxa .xa-main{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px;align-items:start}
-#t-ldxa figure{margin:0;min-width:0}#t-ldxa figcaption{font-size:12px;color:var(--mute);margin-top:3px}
-#t-ldxa canvas,#t-ldxa img.xa-big{width:100%;max-width:360px;aspect-ratio:1;display:block;border-radius:6px;background:var(--soft)}
-#t-ldxa .xa-toks{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
-#t-ldxa .xa-toks button{font-size:12.5px;padding:2px 8px}
-#t-ldxa .xa-toks button.on{background:var(--acc2);border-color:var(--acc);color:var(--ink);font-weight:600}
-#t-ldxa .xa-cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px;margin:8px 0}
-#t-ldxa .xa-cmp canvas,#t-ldxa .xa-cmp img{max-width:220px}
-</style>
-<section>
-<p class="lead">Stable Diffusion 1.5's cross-attention, recorded while it generated four images with the topic's shared settings (512 &times; 512, 25 DPM-Solver++ steps, guidance 7.5, float16 on the laptop's GPU). Pick a prompt and a word: the map shows which latent positions read that word, at seven of the 25 steps, over the model's own guess of the final image at that step. Extends Reading <a href="#ld-s3" data-tab="t-read">section 3</a>.</p>
-<div class="seg" id="xa-prompt"></div>
-<div class="xa-toks" id="xa-toks"></div>
-<div class="seg" id="xa-mode"><button data-m="step" class="on">Step by step (16 &times; 16 layers)</button><button data-m="avg">All steps (32 &times; 32 layers)</button></div>
-<div class="rd-card" id="xa-card">
-<div class="xa-main"><figure><canvas id="xa-cv" width="360" height="360"></canvas><figcaption id="xa-cap1"></figcaption></figure>
-<figure><img class="xa-big" id="xa-x0" alt="predicted clean image"><figcaption id="xa-cap2"></figcaption></figure></div>
-<div class="an-ctl" id="xa-ctl"></div>
-<div class="an-cap" id="xa-anc"></div>
-</div>
-<h2>Where the attention mass goes</h2>
-<div class="seg" id="xa-res"><button data-m="64">64 &times; 64 layers</button><button data-m="32">32 &times; 32</button><button data-m="16" class="on">16 &times; 16</button><button data-m="8">8 &times; 8 (middle)</button></div>
-<div class="rd-bars" id="xa-mass"></div>
-<p class="ld-note" id="xa-mass-note"></p>
-<h2>Before and after: one word changed, same seed</h2>
-<div class="xa-cmp" id="xa-cmp"></div>
-<p class="ld-note" id="xa-cmp-note"></p>
-<p class="ld-note">How the maps were recorded: every <span class="ld-mono">attn2</span> processor of the U-Net replaced by one that keeps the softmax output (<span class="ld-mono">src/sd/sd_ld.py</span>, the code in Reading section 3); the conditional half of the guided batch, mean over heads, summed per resolution; maps stored as 8-bit, each token scaled to its own maximum (the mass bars use the unscaled values). The step image is the model's prediction of the clean latent at that step, x&#770;<sub>0</sub> = (x<sub>t</sub> &minus; &radic;(1 &minus; &alpha;&#772;<sub>t</sub>) &epsilon;&#770;) / &radic;&alpha;&#772;<sub>t</sub> with the guided &epsilon;&#770;, decoded by the VAE. <span class="meas">measured on Apple M1 Pro (MPS), float16</span></p>
 </section>
 </div>
 <div class="tab ldp" id="t-ldcalc" role="tabpanel" hidden>
@@ -627,12 +693,11 @@ for block in self.blocks:
 #t-more .sp p{overflow-wrap:anywhere}
 </style>
 <section>
-<p class="lead">This page's tabs, the parent topic and its labs, the sibling pages, the knowledge base pages this one leans on, the papers and code behind it and the best outside resources, each with an approximate time. Outside sources are marked <span class="who v">maker</span> (by the people who built the method or model) or <span class="who i">third-party</span>. Links checked on 2026-10-17.</p>
+<p class="lead">This page's tabs, the parent topic and its labs, the sibling pages, the knowledge base pages this one leans on, the papers and code behind it and the best outside resources, each with an approximate time. Outside sources are marked <span class="who v">maker</span> (by the people who built the method or model) or <span class="who i">third-party</span>. Links checked on 2026-10-17; distillation links added 2026-10-24.</p>
 <h3>This page</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>Why latents, the U-Net read from its config, text conditioning, DiT, MMDiT, double and single streams, positions, resolution, cost, mistakes and interview questions. <span class="rt" id="ld-more-time">about 35 min, plus 4 for the folded answers</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>Why latents, the U-Net read from its config, text conditioning with SD 1.5's recorded cross-attention, DiT, MMDiT, double and single streams, positions, resolution, cost, few-step distillation; mistakes and rehearsal in closed blocks. <span class="rt" id="ld-more-time">Reading: 32 min, plus 15 in closed details</span></p></div>
 <div class="sp"><div class="n"><a href="#" data-tab="t-ldarch">Architecture explorer</a></div><p>Eleven denoisers counted from their configs: parameters by kind of layer, config values, FLOPs per pass at three sizes, two side by side. <span class="rt">10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-ldxa">Cross-attention viewer</a></div><p>SD 1.5's cross-attention for four prompts, every word, seven steps over the predicted image; attention mass per token; red against blue. <span class="rt">8 min</span></p></div>
 <div class="sp"><div class="n"><a href="#" data-tab="t-ldcalc">Tokens and FLOPs calculator</a></div><p>Any of the eleven at any size, text length, steps and guidance: tokens, FLOPs per pass and per image, time at a throughput you set. <span class="rt">5 min</span></p></div>
 </div>
 <h3>The parent topic and its labs</h3>
@@ -642,7 +707,7 @@ for block in self.blocks:
 <h3>Sibling pages (children of the same topic)</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d814da93bdb159b7c1e11" target="_blank" rel="noopener noreferrer">Autoencoders and VAEs: latents and image tokenizers</a></div><p>The VAE half of latent diffusion: nine generator VAEs on the same images, scaling and shift factors, the SDXL float16 NaNs. <span class="rt">about 33 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81cf9bf0d94e57ce9164" target="_blank" rel="noopener noreferrer">Diffusion from zero: DDPM, samplers and guidance</a></div><p>The objective and the sampling loop this page's denoisers run in: schedules, &epsilon;/x<sub>0</sub>/v prediction, samplers, guidance, distillation. <span class="rt">about 25 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81cf9bf0d94e57ce9164" target="_blank" rel="noopener noreferrer">Diffusion from zero: DDPM, samplers and guidance</a></div><p>The objective and the sampling loop this page's denoisers run in: schedules, &epsilon;/x<sub>0</sub>/v prediction, samplers, guidance (sections 4 to 6), and the measured LCM-LoRA run quoted in section 10. <span class="rt">about 25 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3fc5c17b0d0d8136a1efc73aaa446ceb" target="_blank" rel="noopener noreferrer">Flow matching and rectified flow</a></div><p>SD3's and FLUX's objective, timestep sampling and the resolution shift mentioned in section 8. <span class="rt">about 32 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c99f60ceb2f02cf5ea" target="_blank" rel="noopener noreferrer">Vision encoders: ViT, CLIP and SigLIP</a></div><p>Patch embeddings, position interpolation and CLIP's text-image training: the other side of the text encoders used here. <span class="rt">about 26 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8139bd6cd4137dd2a4d8" target="_blank" rel="noopener noreferrer">Native multimodal and any-to-any models</a></div><p>Generating images with one transformer that also reads text: the alternative to a separate denoiser. <span class="rt">about 33 min</span></p></div>
@@ -674,6 +739,9 @@ for block in self.blocks:
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/2112.10752" target="_blank" rel="noopener noreferrer">Rombach et al. 2021, LDM</a> <span class="who v">maker</span></div><p>The original; the paper page above walks it. <span class="rt">60 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/1505.04597" target="_blank" rel="noopener noreferrer">Ronneberger et al. 2015, U-Net</a> <span class="who v">maker</span></div><p>The architecture's origin, in medical segmentation. <span class="rt">20 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/2205.11487" target="_blank" rel="noopener noreferrer">Saharia et al. 2022, Imagen</a> <span class="who v">maker</span></div><p>Frozen T5-XXL as the text encoder; scaling the encoder over the denoiser. <span class="rt">40 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2210.03142" target="_blank" rel="noopener noreferrer">Meng et al. 2022, guidance distillation</a> <span class="who i">third-party</span></div><p>One pass per step instead of two: what FLUX.1 [dev] does. <span class="rt">30 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2310.04378" target="_blank" rel="noopener noreferrer">Luo et al. 2023, Latent consistency models</a> <span class="who i">third-party</span></div><p>Consistency distillation in SD's latent; LCM-LoRA follows from it. <span class="rt">30 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2403.12015" target="_blank" rel="noopener noreferrer">Sauer et al. 2024, LADD</a> <span class="who v">maker</span></div><p>Adversarial distillation in the latent: SD3-Turbo, and the method behind FLUX.1 [schnell]. <span class="rt">30 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/2208.01626" target="_blank" rel="noopener noreferrer">Hertz et al. 2022, Prompt-to-Prompt</a> <span class="who i">third-party</span></div><p>Editing images by controlling cross-attention maps, the idea behind the red/blue comparison. <span class="rt">30 min</span></p></div>
 </div>
 <h3>Code (pinned)</h3>
@@ -689,7 +757,7 @@ for block in self.blocks:
 <div class="sp"><div class="n"><a href="https://huggingface.co/blog/stable_diffusion" target="_blank" rel="noopener noreferrer">Stable Diffusion with Diffusers (Hugging Face blog)</a> <span class="who v">maker</span></div><p>The pipeline written out by hand: text encoder, U-Net loop, VAE. <span class="rt">20 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://lilianweng.github.io/posts/2021-07-11-diffusion-models/" target="_blank" rel="noopener noreferrer">What are Diffusion Models? (Lilian Weng)</a> <span class="who i">third-party</span></div><p>The maths with the architectures in context; updated over time. <span class="rt">45 min</span></p></div>
 </div>
-<p class="ld-note">Scripts, recorded outputs and source references: <span class="ld-mono">src/</span> in this page's folder (<span class="ld-mono">README.md</span> first; <span class="ld-mono">inputs/source_lines.json</span> lists every file and line quoted, located by pattern). Built 17 October 2026.</p>
+<p class="ld-note">Scripts, recorded outputs and source references: <span class="ld-mono">src/</span> in this page's folder (<span class="ld-mono">README.md</span> first; <span class="ld-mono">inputs/source_lines.json</span> lists every file and line quoted, located by pattern). Built 17 October 2026; rebuilt to the teaching contract 24 October 2026.</p>
 </section>
 </div>
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
@@ -697,7 +765,7 @@ for block in self.blocks:
 <script>/* 21_js_rd_common.js */
 // ---- Shared helpers (copied from the root page's 21_js_rd_common.js; generalised so every tab of this page can use them: o.tab names the tab) ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -728,7 +796,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()},o.tab);
     show();
@@ -816,8 +884,58 @@ window.LDU=(function(){
   return {L,int,fx,M,B,P,FL,pct,byKey,flops,tokens,grid,D,get,fmt,fill,setAns,wirePredicts,bars,CAT,CATS,b64u8,ramp,overlay};
 })();
 </script>
+<script>/* 23_js_ld_zhero.js */
+// ---- Hero (top of Reading): SD 1.5's three networks for one image, the denoiser's 50 passes, and where the time goes ----
+// Parameters: counted (U-Net from out/arch.json; text encoder and VAE from the root's src/data/README.md).
+// Times: the root page's Diffusion lab on Apple M1 Pro (0.610 s per guided step, 0.488 s per VAE decode); 25 steps is the topic's setting.
+(function(){
+  const el=document.getElementById('ld-hero');if(!el)return;
+  const U=window.LDU,L=U.L;
+  const unetP=U.byKey.sd15.params,g=U.grid('sd15',512),fl=g?g[2]:NaN;
+  const steps=25,passes=2,stepS=0.610,decS=0.488,denS=steps*stepS;
+  // text with its colour as an inline style (the page's .rd-svg CSS would override a fill attribute)
+  const T=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' style="font-size:'+(o.fs||11)+'px;fill:'+(o.fill||'var(--ink)')+(o.w?';font-weight:'+o.w:'')+'">'+s+'</text>'};
+  const boxes=[
+    {t:'Prompt',l:['77 tokens (CLIP)'],w:0.13},
+    {t:'Text encoder',l:['CLIP ViT-L, 123.1M','once per prompt'],w:0.18},
+    {t:'Denoiser: U-Net',l:[U.M(unetP)+' parameters',U.fx(fl/1e12,2)+' TFLOP per pass','on a 64 × 64 × 4 latent'],w:0.30,hl:1},
+    {t:'VAE decoder',l:['83.7M parameters','once, '+decS+' s'],w:0.18},
+    {t:'Image',l:['512 × 512 × 3','786,432 numbers'],w:0.21}];
+  function box(x,y,w,h,b){let s='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="'+(b.hl?'var(--acc2)':'var(--soft)')+'" stroke="'+(b.hl?'var(--acc)':'var(--line)')+'" stroke-width="'+(b.hl?2:1)+'"/>';
+    s+=T(x+8,y+17,b.t,{fs:12.5,w:600});b.l.forEach((ln,i)=>{s+=T(x+8,y+33+i*14,ln,{fs:11,fill:'var(--mute)'})});return s}
+  const arr=(x1,y1,x2,y2)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--mute)" stroke-width="1.5" marker-end="url(#ld-h-ar)"/>';
+  const defs='<defs><marker id="ld-h-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--mute)"/></marker></defs>';
+  const loopLab='× '+(steps*passes)+' passes: '+steps+' steps × '+passes+' (guidance)';
+  function timeBar(x,y,w){const tot=denS+decS,wd=w*denS/tot;let s='';
+    s+=T(x,y-6,'Time for one image on the M1 Pro',{fs:11,fill:'var(--mute)'});
+    s+='<rect x="'+x+'" y="'+y+'" width="'+wd.toFixed(1)+'" height="20" rx="3" fill="var(--acc)"/>';
+    s+='<rect x="'+(x+wd+1).toFixed(1)+'" y="'+y+'" width="'+Math.max(3,w-wd-1).toFixed(1)+'" height="20" rx="2" fill="var(--c2)"/>';
+    s+=T(x+6,y+14,'denoiser: '+steps+' × '+'0.610 s = '+U.fx(denS,1)+' s',{fs:11,fill:'var(--bg)',w:600});
+    s+=T(x+w,y+34,'VAE decode '+decS+' s',{fs:11,a:'end',fill:'var(--c2)'});return s}
+  function draw(){
+    const W=Math.min(880,RD.width(el));let s=defs,H;
+    if(W>=640){
+      const gap=20,x0=4,usable=W-8-gap*4,bh=76,y0=34;let x=x0;const pos=[];
+      boxes.forEach((b,i)=>{const w=usable*b.w;pos.push([x,w]);s+=box(x,y0,w,bh,b);if(i<boxes.length-1)s+=arr(x+w+2,y0+bh/2,x+w+gap-2,y0+bh/2);x+=w+gap});
+      const [dx,dw]=pos[2];
+      s+='<path d="M'+(dx+dw-14)+' '+y0+' C '+(dx+dw-14)+' '+(y0-22)+', '+(dx+14)+' '+(y0-22)+', '+(dx+14)+' '+(y0-2)+'" fill="none" stroke="var(--acc)" stroke-width="1.8" marker-end="url(#ld-h-ar)"/>';
+      s+=T(dx+dw/2,y0-20,loopLab,{fs:11.5,a:'middle',fill:'var(--acc)',w:600});
+      s+=timeBar(x0,y0+bh+30,W-8);H=y0+bh+30+40;
+    }else{
+      const x0=4,bw=W-46,gap=22;let y=4;const pos=[];
+      boxes.forEach((b,i)=>{const h=24+b.l.length*14;pos.push([y,h]);s+=box(x0,y,bw,h,b);if(i<boxes.length-1)s+=arr(x0+30,y+h+1,x0+30,y+h+gap-1);y+=h+gap});
+      const [dy,dh]=pos[2];
+      s+='<path d="M'+(x0+bw)+' '+(dy+dh-10)+' C '+(x0+bw+30)+' '+(dy+dh-10)+', '+(x0+bw+30)+' '+(dy+10)+', '+(x0+bw+2)+' '+(dy+10)+'" fill="none" stroke="var(--acc)" stroke-width="1.8" marker-end="url(#ld-h-ar)"/>';
+      s+=T(x0+bw-4,dy+dh+12,loopLab,{fs:11,a:'end',fill:'var(--acc)',w:600});
+      y+=6;s+=timeBar(x0,y+14,W-12);H=y+14+40;
+    }
+    el.innerHTML=RD.svg(W,H,s,'Stable Diffusion 1.5 for one image: prompt, text encoder once, U-Net denoiser 50 passes on the latent, VAE decoder once, image; the denoiser takes '+U.fx(100*denS/(denS+decS),0)+'% of the time');
+  }
+  draw();RD.onResize(draw);RD.onRender(draw);
+})();
+</script>
 <script>/* 24_js_ld_read1.js */
-// ---- Reading, sections 0 to 3: one-screen table, pixels vs latent, the U-Net vs DiT animation, where parameters/FLOPs/time go, tokens, cross-attention mini viewer ----
+// ---- Reading, sections 0 to 3: one-screen table, pixels vs latent, the U-Net vs DiT animation, where parameters/FLOPs/time go, tokens, the horse predict card ----
 (function(){
   const U=window.LDU,L=U.L,$=id=>document.getElementById(id);
   const A=U.byKey;
@@ -901,7 +1019,7 @@ window.LDU=(function(){
         RD.stat('FLOPs so far',U.FL(cf),U.pct(cf/src.total,0)+' of the pass')+RD.stat('This stage',U.FL(pf(s,src)[0]),U.P(pf(s,src)[1])+' parameters');
     }
     const an=RD.anim({card:'ld-c-anim',ctl:'ld-an-ctl',n:unet.length,draw,ms:1700,label:'Stage'});
-    RD.seg($('ld-an-mode'),m=>{mode=m;an.reset(seq().length);an.play()});
+    RD.seg($('ld-an-mode'),m=>{mode=m;an.reset(seq().length)});
     RD.onResize(()=>an.redraw());
   })();
   // ------------------------------------------------ section 2: where parameters, FLOPs and time go
@@ -935,21 +1053,54 @@ window.LDU=(function(){
     const ok=v=>v?'<span class="ok">yes</span>':'<span class="no">no</span>';
     $('ld-te-checks').innerHTML='<div>Start-token output equal across prompts: '+ok(t.sot_max_abs_diff===0)+' (cosine '+U.fx(t.sot_cos_g01_g06,6)+', '+U.fx(t.sot_cos_g01_x08,6)+')</div><div>Pooled vector = end-token output: '+ok(t.pooled_eq)+'</div><div>Padding close to the end token: cosine '+t.cos_pad.map(v=>U.fx(v,2)).join(', ')+' (every 8th position)</div><div>Prompt of '+t.long_tokens+' tokens: cut at 77</div>';
   })();
-  // ------------------------------------------------ section 3: mini cross-attention viewer
+  // ------------------------------------------------ section 3: the horse predict card (the viewer itself is 24_js_ld_xa.js)
   (function(){
-    const X=L.xa||{};const keys=Object.keys(X);if(!keys.length)return;
-    const names={g01:'red bicycle',g01_blue:'blue bicycle',g06:'astronaut, horse',x08:'two cats, three dogs'};
-    const seg=$('ld-xm-prompt');seg.innerHTML=keys.map((k,i)=>'<button data-m="'+k+'"'+(i===0?' class="on"':'')+'>'+(names[k]||k)+'</button>').join('');
-    const imgs={};
-    function draw(k){const v=X[k];const box=$('ld-xm');const n=v.tokens.length;const eos=n-2;
-      const m=U.b64u8(v.m32);const words=[];for(let i=1;i<eos;i++)words.push(i);
-      box.innerHTML='<figure><img src="'+v.img+'" alt="SD 1.5 output"><figcaption>output, seed '+v.seed+'</figcaption></figure>'+words.map(i=>'<figure><canvas width="128" height="128" data-i="'+i+'"></canvas><figcaption>'+RD.esc(v.tokens[i].replace('</w>',''))+'</figcaption></figure>').join('');
-      const im=new Image();im.onload=()=>{box.querySelectorAll('canvas').forEach(c=>{const i=+c.dataset.i;U.overlay(c,im,m.subarray(i*1024,(i+1)*1024),32,0.72)})};im.src=v.img;
-      $('ld-xm-note').innerHTML='"'+RD.esc(v.prompt)+'": each word\'s cross-attention map, averaged over all 25 steps and the five 32 &times; 32 layers, heads and the conditional half, each scaled to its own maximum and laid over the output. <span class="meas">measured on Apple M1 Pro (MPS), float16</span>'}
-    RD.seg(seg,draw);draw(keys[0]);
+    const X=L.xa||{};
     const v=X.g06;if(v){const ti=v.tokens.findIndex(s=>s.startsWith('horse'));const mm=v.mass['16'];
-      U.setAns('ld-pr-horse','Measured on the topic\'s g06 recording (open "astronaut, horse" above, or the Cross-attention viewer): the "horse" token receives '+U.pct(mm.per_token[ti],2)+' of the 16 &times; 16 layers\' cross-attention, against '+U.pct(mm.per_token[v.tokens.findIndex(s=>s.startsWith('astronaut'))],2)+' for "astronaut" and '+U.pct(mm.per_token[v.tokens.findIndex(s=>s.startsWith('moon'))],2)+' for "moon", and its map sits on the astronaut\'s legs and body, where a horse would be under a rider. The word was read; no region of the image was given to it. The same happens in the "two cats, three dogs" recording: the image has four cats and no dog, and the "dogs" map lands on the cats. Missing objects and attributes bound to the wrong subject are the failures Attend-and-Excite (Chefer et al. 2023) attacks by boosting a neglected token\'s attention during sampling.')}
+      U.setAns('ld-pr-horse','Measured on the topic\'s g06 recording (pick "astronaut, horse" in the viewer above): the "horse" token receives '+U.pct(mm.per_token[ti],2)+' of the 16 &times; 16 layers\' cross-attention, against '+U.pct(mm.per_token[v.tokens.findIndex(s=>s.startsWith('astronaut'))],2)+' for "astronaut" and '+U.pct(mm.per_token[v.tokens.findIndex(s=>s.startsWith('moon'))],2)+' for "moon", and its map sits on the astronaut\'s legs and body, where a horse would be under a rider. The word was read; no region of the image was given to it. The same happens in the "two cats, three dogs" recording: the image has four cats and no dog, and the "dogs" map lands on the cats. Missing objects and attributes bound to the wrong subject are the failures Attend-and-Excite (Chefer et al. 2023) attacks by boosting a neglected token\'s attention during sampling.')}
   })();
+})();
+</script>
+<script>/* 24_js_ld_xa.js */
+// ---- Cross-attention viewer (Reading section 3; was its own tab until 2026-10-24) ----
+(function(){
+  const U=window.LDU,L=U.L,$=id=>document.getElementById(id),X=L.xa||{};const keys=Object.keys(X);if(!keys.length)return;
+  const names={g01:'red bicycle',g01_blue:'blue bicycle',g06:'astronaut, horse',x08:'two cats, three dogs'};
+  let P=keys[0],tok=null,mode='step',res='16';const imgCache={};
+  const cv=$('xa-cv');
+  function img(src,cb){if(imgCache[src]){cb(imgCache[src]);return}const im=new Image();im.onload=()=>{imgCache[src]=im;cb(im)};im.src=src}
+  function words(v){const n=v.tokens.length;const r=[];for(let i=0;i<n;i++)r.push(i);return r}
+  const clean=s=>s.replace('</w>','').replace('<|startoftext|>','[start]').replace('<|endoftext|>','[end]');
+  function setPrompt(k){P=k;const v=X[k];const n=v.tokens.length;tok=tok!=null&&tok<n-2&&tok>0?tok:Math.min(n-3,v.tokens.findIndex((s,i)=>i>0&&/bicycle|horse|cats|dog/.test(s))>0?v.tokens.findIndex((s,i)=>i>0&&/bicycle|horse|cats|dog/.test(s)):1);
+    $('xa-toks').innerHTML=words(v).map(i=>'<button data-i="'+i+'"'+(i===tok?' class="on"':'')+'>'+RD.esc(clean(v.tokens[i]))+'</button>').join('');
+    an.reset(mode==='step'?v.steps.length:1);mass();an.go(mode==='step'?v.steps.length-1:0)}
+  function draw(i){const v=X[P];if(!v||tok==null||tok>=v.tokens.length)return;const st=v.steps[Math.min(i,v.steps.length-1)];
+    let map,side;if(mode==='step'){const m=U.b64u8(v.m16[st].b);const n=v.tokens.length;map=m.subarray(tok*256,(tok+1)*256);side=16}else{const m=U.b64u8(v.m32);map=m.subarray(tok*1024,(tok+1)*1024);side=32}
+    const src=mode==='step'?v.x0[st]:v.img;
+    img(src,im=>U.overlay(cv,im,map,side,0.75));
+    $('xa-x0').src=src;
+    $('xa-cap1').innerHTML='"'+RD.esc(clean(v.tokens[tok]))+'" '+(mode==='step'?'at step '+(st+1)+' of 25 (timestep '+v.timesteps[st]+')':'averaged over all 25 steps');
+    $('xa-cap2').innerHTML=mode==='step'?'predicted clean image at step '+(st+1):'final image, seed '+v.seed;
+    const mx=mode==='step'?v.m16[st].max[tok]:v.m32max[tok];
+    $('xa-anc').innerHTML='<div class="t">'+RD.esc(v.prompt)+'</div><p>'+(mode==='step'?(st<3?'Early steps: the predicted image is a blur of the layout, and the word\'s map is already roughly where its object will be.':st<12?'Middle steps: the layout is fixed; maps sharpen around their objects.':'Late steps: detail is being added; the maps change little.'):'The run-average map at the 32 &times; 32 layers.')+' Strongest cell for this word: '+U.pct(mx,1)+' of a position\'s attention.</p>'}
+  const an=RD.anim({card:'xa-card',ctl:'xa-ctl',n:7,draw,ms:1500,label:'Step'});
+  $('xa-prompt').innerHTML=keys.map((k,i)=>'<button data-m="'+k+'"'+(i===0?' class="on"':'')+'>'+(names[k]||k)+'</button>').join('');
+  RD.seg($('xa-prompt'),k=>{tok=null;setPrompt(k)});
+  $('xa-toks').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!b.isConnected||+b.dataset.i>=X[P].tokens.length)return;tok=+b.dataset.i;$('xa-toks').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));an.redraw()});
+  RD.seg($('xa-mode'),m=>{mode=m;const v=X[P];an.reset(m==='step'?v.steps.length:1);an.go(m==='step'?v.steps.length-1:0)});
+  function mass(){const v=X[P],m=v.mass[res];if(!m){$('xa-mass').innerHTML='';return}
+    const rows=m.per_token.map((x,i)=>({name:RD.esc(clean(v.tokens[i]))+(i===v.tokens.length-1?' (first padding)':''),v:x,label:U.pct(x,1),color:i===0?'var(--c2)':i>=v.tokens.length-2?'var(--c6)':'var(--c1)',hl:i===tok}));
+    U.bars($('xa-mass'),rows,Math.max(...rows.map(r=>r.v)));
+    $('xa-mass-note').innerHTML='Share of the cross-attention of the '+res+' &times; '+res+' layers on each token, averaged over positions, heads, layers and all 25 steps. The start token: '+U.pct(m.start,0)+'; the words: '+U.pct(m.words,0)+'; the end token and all 64 padding positions together: '+U.pct(m.end_and_padding,0)+' (only the first padding position is listed). <span class="meas">measured</span>'}
+  RD.seg($('xa-res'),r=>{res=r;mass()});
+  // before / after: red vs blue
+  (function(){const a=X.g01,b=X.g01_blue;if(!a||!b)return;const ia=a.tokens.findIndex(s=>s.startsWith('red')),ib=b.tokens.findIndex(s=>s.startsWith('blue')),ka=a.tokens.findIndex(s=>s.startsWith('bicycle'));
+    const box=$('xa-cmp');box.innerHTML='<figure><img src="'+a.img+'" alt="red"><figcaption>"red", seed 0</figcaption></figure><figure><canvas width="220" height="220" id="xa-c1"></canvas><figcaption>map of "red"</figcaption></figure><figure><img src="'+b.img+'" alt="blue"><figcaption>"blue", seed 0</figcaption></figure><figure><canvas width="220" height="220" id="xa-c2"></canvas><figcaption>map of "blue"</figcaption></figure>';
+    const ma=U.b64u8(a.m32),mb=U.b64u8(b.m32);
+    img(a.img,im=>U.overlay($('xa-c1'),im,ma.subarray(ia*1024,(ia+1)*1024),32,0.75));img(b.img,im=>U.overlay($('xa-c2'),im,mb.subarray(ib*1024,(ib+1)*1024),32,0.75));
+    $('xa-cmp-note').innerHTML='The same starting noise and settings; only the colour word differs. The colour word\'s map (run average, 32 &times; 32 layers) sits on the object it colours. Prompt-to-Prompt (Hertz et al. 2022, <a href="https://arxiv.org/abs/2208.01626" target="_blank" rel="noopener noreferrer">arXiv:2208.01626</a>) turns this into an editing method by reusing the first run\'s maps for the second. <span class="meas">measured</span>'})();
+  setPrompt(P);
+  RD.onRender(()=>an.redraw());
 })();
 </script>
 <script>/* 25_js_ld_read2.js */
@@ -1109,6 +1260,39 @@ window.LDU=(function(){
   U.fill();U.wirePredicts();
 })();
 </script>
+<script>/* 27_js_ld_distil.js */
+// ---- Reading section 10: denoiser passes per image, teacher sampling against the distilled student (toggle, no animation) ----
+// Teachers: SD 1.5 at the topic's 25 guided steps; SDXL, SD3 and FLUX.1 [dev] at their diffusers 0.41.0 pipeline defaults (L.pipe).
+// Students: LCM-LoRA 4 steps, guidance off (Diffusion from zero, section 7, measured); SDXL-Turbo 1 step, guidance 0 (model card);
+// SD3-Turbo "four unguided sampling steps" (LADD, arXiv:2403.12015); FLUX.1 [schnell] 4 steps (model card).
+(function(){
+  const el=document.getElementById('ld-dist-svg');if(!el)return;
+  const U=window.LDU,L=U.L,P=L.pipe;
+  const rows=[
+    {m:'SD 1.5',b:[25,2,'DPM-Solver++, 25 steps, guidance 7.5'],a:[4,1,'LCM-LoRA, 4 steps, guidance off']},
+    {m:'SDXL',b:[P.sdxl.num_inference_steps,2,'pipeline default, guidance '+U.fx(P.sdxl.guidance_scale,1)],a:[1,1,'SDXL-Turbo (ADD), 1 step']},
+    {m:'SD3',b:[P.sd3.num_inference_steps,2,'pipeline default, guidance '+U.fx(P.sd3.guidance_scale,1)],a:[4,1,'SD3-Turbo (LADD), 4 unguided steps']},
+    {m:'FLUX.1',b:[P.flux1.num_inference_steps,1,'[dev], guidance-distilled'],a:[4,1,'[schnell] (LADD), 4 steps']}];
+  let mode='before';
+  // text with its colour as an inline style (the page's .rd-svg CSS would override a fill attribute)
+  const T=(x,y,t,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' style="font-size:'+(o.fs||11)+'px;fill:'+(o.fill||'var(--ink)')+(o.w?';font-weight:'+o.w:'')+'">'+t+'</text>'};
+  function draw(){
+    const W=Math.min(880,RD.width(el)),cell=W<520?9:10,gp=2,cols=Math.max(10,Math.floor((W-8)/(cell+gp)));
+    let s='',y=4;
+    rows.forEach(r=>{const [st,ps,lab]=mode==='before'?r.b:r.a,n=st*ps;
+      const cnt=n+' pass'+(n>1?'es':'');
+      if(W<520){s+=T(4,y+12,r.m+': '+lab,{fs:11.5,w:600});s+=T(4,y+27,cnt,{fs:11.5,fill:'var(--acc)',w:600});y+=33}
+      else{s+=T(4,y+12,r.m+': '+lab,{fs:11.5,w:600});s+=T(W-4,y+12,cnt,{fs:11.5,a:'end',fill:'var(--acc)',w:600});y+=18}
+      for(let i=0;i<n;i++){const c=i%cols,rr=Math.floor(i/cols),unc=ps===2&&i%2===1;
+        s+='<rect x="'+(4+c*(cell+gp))+'" y="'+(y+rr*(cell+gp))+'" width="'+cell+'" height="'+cell+'" rx="1.5" fill="'+(unc?'var(--c2)':'var(--c1)')+'"/>'}
+      y+=Math.max(1,Math.ceil(n/cols))*(cell+gp)+12});
+    el.innerHTML=RD.svg(W,y,s,'Denoiser passes per image, '+(mode==='before'?'teacher sampling':'distilled students'));
+  }
+  document.getElementById('ld-dist-cnt').innerHTML=rows.map(r=>{const b=r.b[0]*r.b[1],a=r.a[0]*r.a[1];return RD.stat(r.m,b+' → '+a+' passes',U.fx(b/a,1).replace(/\.0$/,'')+' times fewer')}).join('');
+  RD.seg(document.getElementById('ld-dist-mode'),m=>{mode=m;draw()});
+  draw();RD.onResize(draw);RD.onRender(draw);
+})();
+</script>
 <script>/* 31_js_ldarch.js */
 // ---- Architecture explorer (t-ldarch) ----
 (function(){
@@ -1139,48 +1323,6 @@ window.LDU=(function(){
     return '<tr><td>'+m.label+'</td><td>'+U.P(m.params)+'</td><td>'+U.pct(m.cats.mod/m.params,1)+'</td><td>'+U.int(N)+'</td><td>'+(f.T||'none')+'</td><td>'+(g?U.FL(g[2]):U.FL(U.flops(k,N))+' *')+'</td><td>'+(g?U.pct(g[3]/g[2],0):'')+'</td><td class="small">'+(m.hub||k==='sd15'||k==='dit'?'<span class="ok">exact</span>':'Model map count')+'</td></tr>'}).join('')}
   function draw(){const r=+$('la-res').value;card($('la-ca'),$('la-a').value,r);card($('la-cb'),$('la-b').value,r);all(r)}
   ['la-a','la-b','la-res'].forEach(i=>$(i).addEventListener('change',draw));draw();
-})();
-</script>
-<script>/* 32_js_ldxa.js */
-// ---- Cross-attention viewer (t-ldxa) ----
-(function(){
-  const U=window.LDU,L=U.L,$=id=>document.getElementById(id),X=L.xa||{};const keys=Object.keys(X);if(!keys.length)return;
-  const names={g01:'red bicycle',g01_blue:'blue bicycle',g06:'astronaut, horse',x08:'two cats, three dogs'};
-  let P=keys[0],tok=null,mode='step',res='16';const imgCache={};
-  const cv=$('xa-cv');
-  function img(src,cb){if(imgCache[src]){cb(imgCache[src]);return}const im=new Image();im.onload=()=>{imgCache[src]=im;cb(im)};im.src=src}
-  function words(v){const n=v.tokens.length;const r=[];for(let i=0;i<n;i++)r.push(i);return r}
-  const clean=s=>s.replace('</w>','').replace('<|startoftext|>','[start]').replace('<|endoftext|>','[end]');
-  function setPrompt(k){P=k;const v=X[k];const n=v.tokens.length;tok=tok!=null&&tok<n-2&&tok>0?tok:Math.min(n-3,v.tokens.findIndex((s,i)=>i>0&&/bicycle|horse|cats|dog/.test(s))>0?v.tokens.findIndex((s,i)=>i>0&&/bicycle|horse|cats|dog/.test(s)):1);
-    $('xa-toks').innerHTML=words(v).map(i=>'<button data-i="'+i+'"'+(i===tok?' class="on"':'')+'>'+RD.esc(clean(v.tokens[i]))+'</button>').join('');
-    an.reset(mode==='step'?v.steps.length:1);mass();an.go(mode==='step'?v.steps.length-1:0)}
-  function draw(i){const v=X[P];if(!v||tok==null||tok>=v.tokens.length)return;const st=v.steps[Math.min(i,v.steps.length-1)];
-    let map,side;if(mode==='step'){const m=U.b64u8(v.m16[st].b);const n=v.tokens.length;map=m.subarray(tok*256,(tok+1)*256);side=16}else{const m=U.b64u8(v.m32);map=m.subarray(tok*1024,(tok+1)*1024);side=32}
-    const src=mode==='step'?v.x0[st]:v.img;
-    img(src,im=>U.overlay(cv,im,map,side,0.75));
-    $('xa-x0').src=src;
-    $('xa-cap1').innerHTML='"'+RD.esc(clean(v.tokens[tok]))+'" '+(mode==='step'?'at step '+(st+1)+' of 25 (timestep '+v.timesteps[st]+')':'averaged over all 25 steps');
-    $('xa-cap2').innerHTML=mode==='step'?'predicted clean image at step '+(st+1):'final image, seed '+v.seed;
-    const mx=mode==='step'?v.m16[st].max[tok]:v.m32max[tok];
-    $('xa-anc').innerHTML='<div class="t">'+RD.esc(v.prompt)+'</div><p>'+(mode==='step'?(st<3?'Early steps: the predicted image is a blur of the layout, and the word\'s map is already roughly where its object will be.':st<12?'Middle steps: the layout is fixed; maps sharpen around their objects.':'Late steps: detail is being added; the maps change little.'):'The run-average map at the 32 &times; 32 layers.')+' Strongest cell for this word: '+U.pct(mx,1)+' of a position\'s attention.</p>'}
-  const an=RD.anim({card:'xa-card',ctl:'xa-ctl',n:7,draw,ms:1500,label:'Step',tab:'t-ldxa'});
-  $('xa-prompt').innerHTML=keys.map((k,i)=>'<button data-m="'+k+'"'+(i===0?' class="on"':'')+'>'+(names[k]||k)+'</button>').join('');
-  RD.seg($('xa-prompt'),k=>{tok=null;setPrompt(k)});
-  $('xa-toks').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!b.isConnected||+b.dataset.i>=X[P].tokens.length)return;tok=+b.dataset.i;$('xa-toks').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));an.redraw()});
-  RD.seg($('xa-mode'),m=>{mode=m;const v=X[P];an.reset(m==='step'?v.steps.length:1);an.go(m==='step'?v.steps.length-1:0)});
-  function mass(){const v=X[P],m=v.mass[res];if(!m){$('xa-mass').innerHTML='';return}
-    const rows=m.per_token.map((x,i)=>({name:RD.esc(clean(v.tokens[i]))+(i===v.tokens.length-1?' (first padding)':''),v:x,label:U.pct(x,1),color:i===0?'var(--c2)':i>=v.tokens.length-2?'var(--c6)':'var(--c1)',hl:i===tok}));
-    U.bars($('xa-mass'),rows,Math.max(...rows.map(r=>r.v)));
-    $('xa-mass-note').innerHTML='Share of the cross-attention of the '+res+' &times; '+res+' layers on each token, averaged over positions, heads, layers and all 25 steps. The start token: '+U.pct(m.start,0)+'; the words: '+U.pct(m.words,0)+'; the end token and all 64 padding positions together: '+U.pct(m.end_and_padding,0)+' (only the first padding position is listed). <span class="meas">measured</span>'}
-  RD.seg($('xa-res'),r=>{res=r;mass()});
-  // before / after: red vs blue
-  (function(){const a=X.g01,b=X.g01_blue;if(!a||!b)return;const ia=a.tokens.findIndex(s=>s.startsWith('red')),ib=b.tokens.findIndex(s=>s.startsWith('blue')),ka=a.tokens.findIndex(s=>s.startsWith('bicycle'));
-    const box=$('xa-cmp');box.innerHTML='<figure><img src="'+a.img+'" alt="red"><figcaption>"red", seed 0</figcaption></figure><figure><canvas width="220" height="220" id="xa-c1"></canvas><figcaption>map of "red"</figcaption></figure><figure><img src="'+b.img+'" alt="blue"><figcaption>"blue", seed 0</figcaption></figure><figure><canvas width="220" height="220" id="xa-c2"></canvas><figcaption>map of "blue"</figcaption></figure>';
-    const ma=U.b64u8(a.m32),mb=U.b64u8(b.m32);
-    img(a.img,im=>U.overlay($('xa-c1'),im,ma.subarray(ia*1024,(ia+1)*1024),32,0.75));img(b.img,im=>U.overlay($('xa-c2'),im,mb.subarray(ib*1024,(ib+1)*1024),32,0.75));
-    $('xa-cmp-note').innerHTML='The same starting noise and settings; only the colour word differs. The colour word\'s map (run average, 32 &times; 32 layers) sits on the object it colours. Prompt-to-Prompt (Hertz et al. 2022, <a href="https://arxiv.org/abs/2208.01626" target="_blank" rel="noopener noreferrer">arXiv:2208.01626</a>) turns this into an editing method by reusing the first run\'s maps for the second. <span class="meas">measured</span>'})();
-  setPrompt(P);
-  RD.onRender(()=>an.redraw(),'t-ldxa');
 })();
 </script>
 <script>/* 33_js_ldcalc.js */
@@ -1231,7 +1373,7 @@ window.LDU=(function(){
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace ld-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1249,6 +1391,8 @@ window.LDU=(function(){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('ld-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

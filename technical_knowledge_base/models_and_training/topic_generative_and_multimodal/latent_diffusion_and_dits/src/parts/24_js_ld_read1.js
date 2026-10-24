@@ -1,4 +1,4 @@
-// ---- Reading, sections 0 to 3: one-screen table, pixels vs latent, the U-Net vs DiT animation, where parameters/FLOPs/time go, tokens, cross-attention mini viewer ----
+// ---- Reading, sections 0 to 3: one-screen table, pixels vs latent, the U-Net vs DiT animation, where parameters/FLOPs/time go, tokens, the horse predict card ----
 (function(){
   const U=window.LDU,L=U.L,$=id=>document.getElementById(id);
   const A=U.byKey;
@@ -82,7 +82,7 @@
         RD.stat('FLOPs so far',U.FL(cf),U.pct(cf/src.total,0)+' of the pass')+RD.stat('This stage',U.FL(pf(s,src)[0]),U.P(pf(s,src)[1])+' parameters');
     }
     const an=RD.anim({card:'ld-c-anim',ctl:'ld-an-ctl',n:unet.length,draw,ms:1700,label:'Stage'});
-    RD.seg($('ld-an-mode'),m=>{mode=m;an.reset(seq().length);an.play()});
+    RD.seg($('ld-an-mode'),m=>{mode=m;an.reset(seq().length)});
     RD.onResize(()=>an.redraw());
   })();
   // ------------------------------------------------ section 2: where parameters, FLOPs and time go
@@ -116,19 +116,10 @@
     const ok=v=>v?'<span class="ok">yes</span>':'<span class="no">no</span>';
     $('ld-te-checks').innerHTML='<div>Start-token output equal across prompts: '+ok(t.sot_max_abs_diff===0)+' (cosine '+U.fx(t.sot_cos_g01_g06,6)+', '+U.fx(t.sot_cos_g01_x08,6)+')</div><div>Pooled vector = end-token output: '+ok(t.pooled_eq)+'</div><div>Padding close to the end token: cosine '+t.cos_pad.map(v=>U.fx(v,2)).join(', ')+' (every 8th position)</div><div>Prompt of '+t.long_tokens+' tokens: cut at 77</div>';
   })();
-  // ------------------------------------------------ section 3: mini cross-attention viewer
+  // ------------------------------------------------ section 3: the horse predict card (the viewer itself is 24_js_ld_xa.js)
   (function(){
-    const X=L.xa||{};const keys=Object.keys(X);if(!keys.length)return;
-    const names={g01:'red bicycle',g01_blue:'blue bicycle',g06:'astronaut, horse',x08:'two cats, three dogs'};
-    const seg=$('ld-xm-prompt');seg.innerHTML=keys.map((k,i)=>'<button data-m="'+k+'"'+(i===0?' class="on"':'')+'>'+(names[k]||k)+'</button>').join('');
-    const imgs={};
-    function draw(k){const v=X[k];const box=$('ld-xm');const n=v.tokens.length;const eos=n-2;
-      const m=U.b64u8(v.m32);const words=[];for(let i=1;i<eos;i++)words.push(i);
-      box.innerHTML='<figure><img src="'+v.img+'" alt="SD 1.5 output"><figcaption>output, seed '+v.seed+'</figcaption></figure>'+words.map(i=>'<figure><canvas width="128" height="128" data-i="'+i+'"></canvas><figcaption>'+RD.esc(v.tokens[i].replace('</w>',''))+'</figcaption></figure>').join('');
-      const im=new Image();im.onload=()=>{box.querySelectorAll('canvas').forEach(c=>{const i=+c.dataset.i;U.overlay(c,im,m.subarray(i*1024,(i+1)*1024),32,0.72)})};im.src=v.img;
-      $('ld-xm-note').innerHTML='"'+RD.esc(v.prompt)+'": each word\'s cross-attention map, averaged over all 25 steps and the five 32 &times; 32 layers, heads and the conditional half, each scaled to its own maximum and laid over the output. <span class="meas">measured on Apple M1 Pro (MPS), float16</span>'}
-    RD.seg(seg,draw);draw(keys[0]);
+    const X=L.xa||{};
     const v=X.g06;if(v){const ti=v.tokens.findIndex(s=>s.startsWith('horse'));const mm=v.mass['16'];
-      U.setAns('ld-pr-horse','Measured on the topic\'s g06 recording (open "astronaut, horse" above, or the Cross-attention viewer): the "horse" token receives '+U.pct(mm.per_token[ti],2)+' of the 16 &times; 16 layers\' cross-attention, against '+U.pct(mm.per_token[v.tokens.findIndex(s=>s.startsWith('astronaut'))],2)+' for "astronaut" and '+U.pct(mm.per_token[v.tokens.findIndex(s=>s.startsWith('moon'))],2)+' for "moon", and its map sits on the astronaut\'s legs and body, where a horse would be under a rider. The word was read; no region of the image was given to it. The same happens in the "two cats, three dogs" recording: the image has four cats and no dog, and the "dogs" map lands on the cats. Missing objects and attributes bound to the wrong subject are the failures Attend-and-Excite (Chefer et al. 2023) attacks by boosting a neglected token\'s attention during sampling.')}
+      U.setAns('ld-pr-horse','Measured on the topic\'s g06 recording (pick "astronaut, horse" in the viewer above): the "horse" token receives '+U.pct(mm.per_token[ti],2)+' of the 16 &times; 16 layers\' cross-attention, against '+U.pct(mm.per_token[v.tokens.findIndex(s=>s.startsWith('astronaut'))],2)+' for "astronaut" and '+U.pct(mm.per_token[v.tokens.findIndex(s=>s.startsWith('moon'))],2)+' for "moon", and its map sits on the astronaut\'s legs and body, where a horse would be under a rider. The word was read; no region of the image was given to it. The same happens in the "two cats, three dogs" recording: the image has four cats and no dog, and the "dogs" map lands on the cats. Missing objects and attributes bound to the wrong subject are the failures Attend-and-Excite (Chefer et al. 2023) attacks by boosting a neglected token\'s attention during sampling.')}
   })();
 })();

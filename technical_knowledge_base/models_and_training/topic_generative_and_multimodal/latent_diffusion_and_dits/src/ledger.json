@@ -1,0 +1,3152 @@
+[
+ {
+  "id": 1,
+  "tab": "t-read",
+  "section": "",
+  "text": "Latent diffusion and diffusion transformers Latent diffusion and diffusion transformers How a text-to-image model is built: why it denoises a small latent instead of pixels, the U-Net read from Stable Diffusion 1.5's config, how text gets in (CLIP, T5 and LLM encoders, cross-attention), the diffusion transformer (patches, adaLN-Zero, scaling with compute), SD3's joint-attention MMDiT and FLUX's double and single streams, positions for images, resolution and aspect ratio, and what one image costs.",
+  "label": "core",
+  "key": "latent diffusion and diffusion transformers latent diffusion and diffusion",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "t-read",
+  "section": "",
+  "text": "Parameter and FLOP counts from eleven real configs, SD 1.5 profiled and its cross-attention recorded, tiny DiTs trained against the topic's U-Net on an Apple M1 Pro.",
+  "label": "core",
+  "key": "sd 1.5 profiled and its cross-attention",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "t-read",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026.",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "t-read",
+  "section": "",
+  "text": "Reading Architecture explorer Cross-attention viewer Tokens and FLOPs calculator Further reading 0 One screen 1 Why latents 2 The U-Net 3 Text in 4 DiT 5 MMDiT 6 Double and single stream 7 Positions 8 Resolution 9 Cost Mistakes Interview What transfers A text-to-image model is three networks in a row: a text encoder that turns the prompt into vectors, a denoiser that runs once per sampling step on a small latent (a compressed grid standing in for the image), and the VAE decoder that turns the final latent into pixels once.",
+  "label": "core",
+  "key": "1 why latents 2 the u-net 3 text in",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page is about the middle network and how the text reaches it: why it works on latents, how its two families (the convolutional U-Net and the diffusion transformer , DiT) are built, and what one image costs.",
+  "label": "core",
+  "key": "two ways to build it",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "Reading time about 35 minutes (words outside widgets at 200 a minute; the folded answers add about 4 ).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old reading-time line; the header now carries the measured time"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "Where this page starts The parent page Topic: generative-and-multimodal gives the one-screen picture in its Reading section 4, and its tabs already hold three things this page builds on and does not repeat: the Diffusion lab (noising, samplers and guidance on Stable Diffusion 1.5, with its timings: 0.319 s per U-Net pass, 0.610 s per guided step, 0.488 s per VAE decode, measured on Apple M1 Pro), the Latent lab (the SD VAE and its scaling factor) and the Model map (one prompt through six real pipelines, with every generator's release, licence and size).",
+  "label": "core",
+  "key": "0.319 s per u-net pass, 0.610 s per guided",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "The sibling page Autoencoders and VAEs owns the VAE side (nine generator VAEs compared), and the sibling pages Diffusion from zero and Flow matching own the objectives and samplers the denoiser is trained and run with.",
+  "label": "core",
+  "key": "the vae that makes the latent",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "The original paper is on the LDM / Stable Diffusion paper page , with a live toy of latent against pixel diffusion at fixed compute.",
+  "label": "core",
+  "key": "paper page , with a live toy of latent",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "Here: the denoiser's insides, read from real configs and code.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "The topic's own (root src/data/README.md ): Stable Diffusion 1.5 in float16 (U-Net 859,520,964 parameters, CLIP ViT-L/14 text encoder 123,060,480, VAE 83,653,863; pinned revision 451f4fe), run on the laptop's GPU with the topic's prompts, for everything about a real U-Net; the topic's tiny denoisers on Fashion-MNIST (grey 28 × 28 clothing, padded to 32 × 32): the 1.04M-parameter TinyUNet the Flow lab trained, and the shared TinyDiT trained here with exactly the same recipe; and the configs of ten more denoisers (SDXL, DiT-XL/2, PixArt-Σ, Sana, SD3 Medium, SD3.5 Large, FLUX.1, FLUX.2 [klein], Qwen-Image, Z-Image), instantiated without weights so their parameters and FLOPs can be counted exactly.",
+  "label": "depth",
+  "key": "the topic's own (root src/data/readme.md ): stable diffusion 1.5",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "The whole subject on one screen Design Example How the image is held How text gets in Parameters FLOPs per pass at 1024 px Parameters: counted from each config on PyTorch's meta device (no weights), checked exactly against measured or public Hub totals ( section 6 ).",
+  "label": "core",
+  "key": "design example how the image is held how text",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "",
+  "text": "FLOPs: one denoiser pass for one 1024 × 1024 image (two multiply-add FLOPs per multiply-accumulate), counted by torch.utils.flop_counter on meta tensors with the pipeline's default text length. derived Every model's breakdown is in the Architecture explorer .",
+  "label": "core",
+  "key": "two flops per multiply-accumulate",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "Why latent diffusion: the compute arithmetic The problem.",
+  "label": "core",
+  "key": "why latent diffusion: the compute arithmetic the problem.",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "A diffusion or flow model runs its denoiser tens of times per image (the parent page's Diffusion lab: 25 steps, each two passes with guidance).",
+  "label": "core",
+  "key": "diffusion lab: 25 steps, each two passes with",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "Everything the denoiser costs is multiplied by that.",
+  "label": "core",
+  "key": "costs is multiplied",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "And a 512 × 512 colour image is 786,432 numbers, while the details that matter to a viewer (shapes, layout, texture statistics) are far fewer.",
+  "label": "core",
+  "key": "a 512 × 512 colour image is 786,432 numbers,",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "Train an autoencoder once, then train and run the denoiser on its latent.",
+  "label": "core",
+  "key": "train an autoencoder once, then train and run the",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "Stable Diffusion's VAE maps 512 × 512 × 3 to 64 × 64 × 4 = 16,384 numbers, 48 times fewer (the downsampling factor f = 8 per side, 4 channels).",
+  "label": "core",
+  "key": "stable diffusion's vae maps 512 × 512 × 3",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "The decoder runs once at the end; the denoiser never sees a pixel.",
+  "label": "core",
+  "key": "the decoder runs once at the end; the denoiser",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "Rombach et al. called this splitting \"perceptual compression\" (the autoencoder) from \"semantic compression\" (the generator); the paper's own f sweep is rebuilt on the LDM paper page .",
+  "label": "core",
+  "key": "rombach et al. called this splitting \"perceptual compression\" (the",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "The same U-Net on latents and on pixels The cost has two parts, and they scale differently.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading run-on restated by the new card title"
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "Convolutions and the linear layers of attention cost in proportion to the number of positions N; the attention scores cost in proportion to N 2 (every position compares itself with every other).",
+  "label": "core",
+  "key": "convolutions and linear layers cost in proportion to the positions n",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "SD 1.5 puts self-attention on its 64 × 64 level, so at 512 × 512 that level already compares 4,096 positions with 4,096.",
+  "label": "core",
+  "key": "level already compares 4,096 positions with",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "On pixels the same level would hold 262,144 positions: an attention matrix of 6.9 × 10 10 entries per head per layer, which is why no one runs this network on pixels and why pixel-space models (DDPM, ADM, Imagen's base model) worked mostly at 64 to 256 pixels and reached higher resolutions with separate upsampling models.",
+  "label": "core",
+  "key": "an attention matrix of 6.9 × 10 10 entries",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "Predict: double the image side, 512 to 1024 pixels (four times the positions).",
+  "label": "core",
+  "key": "predict: double the image side, 512 to 1024 pixels",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "How much more does one SD 1.5 U-Net pass cost?",
+  "label": "core",
+  "key": "how much more does one sd 1.5 u-net pass",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "4 times (cost follows the pixels) about 6 times 16 times (attention is quadratic) When it matters, and the price.",
+  "label": "core",
+  "key": "4 times (cost follows the pixels) about 6 times",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "Latents make high resolution affordable, but they cap quality at what the decoder can draw (small text, faces at a distance: the sibling page Autoencoders and VAEs measures nine decoders), and the denoiser must learn the latent's statistics, which is why the scaling factor exists (the parent's Latent lab).",
+  "label": "core",
+  "key": "cap quality at what the decoder can draw (small",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "The trend since 2023 has been to spend the saved compute on a bigger denoiser and to push the compression further with more channels (FLUX.1 and SD3: 16 channels at f = 8; Sana's DC-AE: 32 channels at f = 32), not to go back to pixels.",
+  "label": "core",
+  "key": "with more channels (flux.1 and sd3: 16 channels at",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "Count it: instantiate the network on the meta device and run it under FlopCounterMode (the script in src/arch/fwd_meta.py does this for every model on this page in seconds, with no weights).",
+  "label": "depth",
+  "key": "on the meta device and run it under flopcountermode",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. why latent diffusion: the compute arithmetic",
+  "text": "Time it: one pass at several sizes ( section 9 does this on the laptop's GPU).",
+  "label": "depth",
+  "key": "time it: one pass at several sizes (",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "The U-Net, read from Stable Diffusion 1.5's config The problem.",
+  "label": "core",
+  "key": "the u-net, read from stable diffusion 1.5's config the",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "The denoiser takes a noisy latent and the step's noise level (the timestep ) and predicts the noise (or the velocity, for a flow model) at every position.",
+  "label": "core",
+  "key": "the denoiser takes a noisy latent and the step's",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "It must see both fine detail (to remove noise pixel by pixel) and the whole layout (to know that the blob in the corner is a wheel).",
+  "label": "core",
+  "key": "and the whole layout (to know that the blob",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "A U-Net (Ronneberger et al.",
+  "label": "core",
+  "key": "a u-net (ronneberger et al.",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "2015, arXiv:1505.04597 ) gets both by shrinking the grid level by level, so that a 3 × 3 convolution at the bottom covers a large part of the image, then growing it back, with skip connections that hand each level's features straight across to the matching level on the way up.",
+  "label": "core",
+  "key": "2015, arxiv:1505.04597 ) gets both by shrinking the grid",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "One latent through the U-Net, then through a DiT SD 1.5 U-Net DiT-XL/2 (same latent) Both networks take the same 64 × 64 × 4 latent of a 512 × 512 image (DiT-XL/2 as the authors' 512 model: patch 2, 1,024 tokens).",
+  "label": "core",
+  "key": "both networks take the same 64 × 64 ×",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "Boxes are drawn to scale: height is the grid side (or, for the DiT, the number of tokens), width the channels per position.",
+  "label": "core",
+  "key": "boxes are drawn to scale: height is the grid",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "Parameters and FLOPs per stage counted on meta tensors ( src/arch/extras.py ), one pass, batch 1. derived How it works, read from the config.",
+  "label": "core",
+  "key": "parameters and flops per stage counted on meta tensors",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "SD 1.5's unet/config.json at the pinned revision says everything: block_out_channels [320, 640, 1280, 1280] (four levels, at 64, 32, 16 and 8 positions per side for a 512 image), down_block_types three CrossAttnDownBlock2D then one plain DownBlock2D (no attention at 8 × 8, except in the middle block), layers_per_block 2 (two ResNet blocks per level on the way down, three on the way up), cross_attention_dim 768 (the width of CLIP ViT-L's text vectors) and attention_head_dim 8 , which is not a head dimension at all: diffusers reads it as the number of heads, so heads are 40, 80 and 160 wide.",
+  "label": "core",
+  "key": "sd 1.5's unet/config.json at the pinned revision says everything:",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "Its own source says so ( unet_2d_condition.py line 249 ): \"This looks weird upon first reading it and it is.\" ResNet block (the convolutional part) GroupNorm, SiLU, 3 × 3 convolution; then the time embedding is projected to the block's channels and added to every position ( time_emb_proj ); GroupNorm, SiLU, 3 × 3 convolution; plus the input (a residual).",
+  "label": "core",
+  "key": "resnet block (the convolutional part) groupnorm, silu, 3 ×",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "The time embedding is a 320-wide sinusoid of the timestep ( line 569 ) through a two-layer MLP to 1,280.",
+  "label": "core",
+  "key": "the time embedding is a 320-wide sinusoid of the",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "Transformer block (the attention part) Flatten the grid into a sequence; self-attention ( attn1 : every position looks at every other), cross-attention ( attn2 : every position looks at the 77 text vectors, attention.py line 1043 ), a GEGLU feed-forward, each with LayerNorm and a residual; reshape back to a grid.",
+  "label": "core",
+  "key": "transformer block (the attention part) flatten the grid into",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "One per ResNet block at the 64, 32 and 16 levels, one in the middle.",
+  "label": "core",
+  "key": "one per resnet block at the 64, 32 and",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "Skip connections are concatenations, not sums: each up-block ResNet receives its input with the matching down-level features stacked on as extra channels ( unet_2d_blocks.py line 2444 ).",
+  "label": "core",
+  "key": "skip connections are concatenations, not sums: each up-block resnet",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "Twelve feature maps go across (the input convolution, two ResNets and a downsampler at each of the first three levels, two ResNets at the last), and the up path consumes three per level.",
+  "label": "core",
+  "key": "twelve feature maps go across (the input convolution, two",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "That is why the up blocks hold most of the parameters: their first convolutions see twice the channels.",
+  "label": "core",
+  "key": "that is why the up blocks hold most of",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "Predict: of SD 1.5's 859.5M U-Net parameters, which kind of layer holds the most?",
+  "label": "core",
+  "key": "predict: of sd 1.5's 859.5m u-net parameters, which kind",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "Attention (self and cross) Convolutions in the ResNet blocks The feed-forward layers Where the parameters are, where the FLOPs are, where the time goes Parameters by kind Parameters and FLOPs by level Time by kind (measured) The lesson of the three views: parameters sit where the grid is small and the channels many (the 16 × 16 and 8 × 8 levels hold most of them), while the FLOPs sit where the grid is large (the two 64 × 64 levels do 38% of the work with 3.4% of the weights).",
+  "label": "core",
+  "key": "attention (self and cross) convolutions in the resnet blocks",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "A parameter count says what the model can store; FLOPs per pass say what an image costs.",
+  "label": "core",
+  "key": "a parameter count says what the model can store;",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "DiT's authors made the same point and measured complexity in Gflops for this reason ( section 4 ).",
+  "label": "core",
+  "key": "measured complexity in gflops for this reason (",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "The cost, and when it matters.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading fragment"
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "The U-Net's convolutions build in locality and multi-scale structure, which makes it data-efficient at small scale (this page's tiny experiment in section 4 shows it) but heterogeneous: every level has its own width, block mix and attention cost, so scaling it means hand-redistributing blocks.",
+  "label": "core",
+  "key": "the u-net's convolutions build in locality and multi-scale structure,",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "SDXL did exactly that: \"we omit the transformer block at the highest feature level, use 2 and 10 blocks at the lower levels, and remove the lowest level\" ( Podell et al.",
+  "label": "core",
+  "key": "sdxl did exactly that: \"we omit the transformer block",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "2023 , section 2.1), for a 2.6B U-Net (counted here: 2,567,463,684).",
+  "label": "core",
+  "key": "2023 , section 2.1), for a 2.6b u-net (counted",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "Load the U-Net (or instantiate it on the meta device), print unet.config , sum parameters by module name, and hook the top-level blocks with a device sync on each side to time them.",
+  "label": "depth",
+  "key": "load the u-net (or instantiate it on the meta",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "The code below ran here; its output is pasted under it.",
+  "label": "depth",
+  "key": "the code below ran here; its output is pasted",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. the u-net, read from stable diffusion 1.5's config",
+  "text": "From src/arch/params.py (simplified: the script also classifies every parameter); CPU, no weights downloaded; diffusers 0.41.0.",
+  "label": "depth",
+  "key": "from src/arch/params.py (simplified: the script also classifies every parameter);",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "How the text gets in: encoders, pooled vectors and cross-attention The problem.",
+  "label": "core",
+  "key": "how the text gets in: encoders, pooled vectors and",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "The denoiser must draw what the prompt says, so the prompt has to reach every position of the latent at every step.",
+  "label": "core",
+  "key": "the denoiser must draw what the prompt says, so",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "Two questions: what vectors stand for the prompt (the text encoder and which of its outputs), and how the image positions read them (cross-attention, joint attention or modulation).",
+  "label": "core",
+  "key": "two questions: what vectors stand for the prompt (the",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "SD 1.5's tokenizer (CLIP's byte-pair encoding) turns the running example's first prompt into a start token, 11 word pieces and an end token, then pads to exactly 77 positions with the end token's id (49407) again.",
+  "label": "core",
+  "key": "sd 1.5's tokenizer (clip's byte-pair encoding) turns the running",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "77 is the context length CLIP was trained with; anything longer is cut, and diffusers says so in a warning ( pipeline_stable_diffusion.py line 413 ).",
+  "label": "core",
+  "key": "77 is the context length clip was trained with;",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "A 97-token prompt, run here: Tokens and warning from src/sd/text_enc.py (CPU, the pinned SD 1.5 tokenizer and text encoder, float32). measured Step 2: the encoder's outputs.",
+  "label": "core",
+  "key": "a 97-token prompt, run here: tokens and warning from",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "CLIP's text transformer is causal (each position sees only itself and earlier positions).",
+  "label": "core",
+  "key": "clip's text transformer is causal (each position sees only",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "Three consequences, each checked here on three prompts: The start token's output is a constant.",
+  "label": "core",
+  "key": "three consequences, each checked here on three prompts: the",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "Position 0 sees only itself, so its 768-number output is identical for every prompt (cosine , largest difference ).",
+  "label": "core",
+  "key": "position 0 sees only itself, so its 768-number output",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "It carries no information about the prompt, yet the U-Net's cross-attention puts most of its weight there ( below ): a slot to attend to when nothing in the prompt concerns a position, the same \"attention sink\" seen in language models.",
+  "label": "core",
+  "key": "about the prompt, yet the u-net's cross-attention puts most",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "The pooled vector is the end token's output.",
+  "label": "core",
+  "key": "the pooled vector is the end token's",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "CLIP's single summary vector ( pooler_output ) is the final-layer output at the end token (equal here to within 10 −5 ).",
+  "label": "depth",
+  "key": "clip's single summary vector ( pooler_output ) is the",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "SD 1.5 ignores it and passes the whole 77 × 768 sequence to cross-attention.",
+  "label": "core",
+  "key": "the whole 77 × 768 sequence",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "Padding is not empty.",
+  "label": "depth",
+  "key": "padding is not",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "The positions after the end token have seen the whole prompt; their outputs stay close to the end token's (cosine 1.00 just after it, falling to at the last position).",
+  "label": "depth",
+  "key": "the positions after the end token have seen the",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "SD 1.5's U-Net applies no mask, so the image attends to them.",
+  "label": "depth",
+  "key": "sd 1.5's u-net applies no mask, so the image",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "In each transformer block of the U-Net, the latent positions form the queries and the 77 text vectors the keys and values: position i computes a softmax over the 77 tokens and takes the weighted mix of their values.",
+  "label": "core",
+  "key": "in each transformer block of the u-net, the latent",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "The weights are a map per token: where in the image that word is being used.",
+  "label": "core",
+  "key": "the weights are a map per token: where in",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "Recorded here for the running example's prompts (25 DPM-Solver++ steps, guidance 7.5, the conditional half, averaged over heads and over the five 16 × 16 layers): Where the words land: four prompts, the same recording Where the attention mass goes.",
+  "label": "core",
+  "key": "25 dpm-solver++ steps, guidance 7.5, float16",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "Averaged over all steps and layers at each resolution, the start token takes of the 16 × 16 layers' cross-attention for the bicycle prompt, the 11 words and the end and padding positions . measured on Apple M1 Pro (MPS), float16 The Cross-attention viewer shows every token at every recorded step, the predicted image under it, and the red/blue swap.",
+  "label": "core",
+  "key": "averaged over all steps and layers at each resolution,",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "Predict: the topic's test image g06 (\"an astronaut riding a horse on the moon, digital art\", seed 5) shows no horse.",
+  "label": "core",
+  "key": "predict: the topic's test image g06 (\"an astronaut riding",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "What does the \"horse\" token's cross-attention map look like?",
+  "label": "core",
+  "key": "what does the \"horse\" token's cross-attention map look like?",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "Nothing: the token gets no attention at all It is weak and lands on the astronaut's body: the word is read, but no separate region is given to it A sharp horse-shaped region that the decoder fails to draw Bigger encoders and other outputs.",
+  "label": "core",
+  "key": "nothing: the token gets no attention at all it",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "Every later model changed what the text side hands over (encoders, widths and lengths read from the pipelines and configs, diffusers v0.41.0): Model Sequence for attention Pooled / global vector Note SD 1.5 CLIP ViT-L last layer, 77 × 768 not used cross-attention in the U-Net SDXL CLIP ViT-L and OpenCLIP bigG penultimate layers concatenated, 77 × 2,048 ( line 414 ) bigG pooled (1,280), added to the time embedding with the size and crop numbers ( line 734 ) text encoders 817M ( SDXL paper ) PixArt-Σ, Sana T5-XXL encoder (PixArt) or Gemma 2 2B (Sana), up to 300 tokens none: time only, through one shared modulation ( section 4 ) cross-attention in a DiT SD3, SD3.5 CLIP-L and CLIP-G (77, zero-padded to 4,096 wide) then T5-XXL (256 in diffusers, line 237 ; the paper's figure says 77 + 77) CLIP-L + CLIP-G pooled, 2,048, into every block's modulation joint attention ( section 5 ) FLUX.1 T5-XXL, 512 tokens (the diffusers default, padded) CLIP-L pooled, 768, into modulation double then single stream ( section 6 ) Qwen-Image, Z-Image, FLUX.2 [klein] a decoder language model's hidden states: Qwen2.5-VL 7B (Qwen-Image, dropping the first 34 tokens of its chat template), Qwen3 4B's second-to-last layer (Z-Image), three Qwen3 layers concatenated to 7,680 (klein) none only the prompt's real tokens (Qwen-Image, Z-Image) or padded to 512 (klein) Two published results explain the trend.",
+  "label": "core",
+  "key": "every later model changed what the text side hands",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "Imagen found that scaling the frozen text encoder improved fidelity and alignment more than scaling the image model (quoted on the parent page).",
+  "label": "core",
+  "key": "imagen found that scaling the frozen text encoder improved",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "SD3 trained with each of its three encoders dropped independently, which buys a choice at inference: against the full model, the version without T5-XXL (4.7B parameters) won 50% of human comparisons on aesthetics (no difference), 46% on prompt adherence and 38% on written text, i.e.",
+  "label": "core",
+  "key": "sd3 trained with each of its three encoders dropped",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "T5 matters most for spelling ( Esser et al.",
+  "label": "core",
+  "key": "t5 matters most for spelling ( esser et al.",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "2024 , section 5.3.3; vendor , Stability AI's own raters).",
+  "label": "core",
+  "key": "2024 , section 5.3.3; vendor , stability ai's own",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "The same paper gives the drop rate as 46.3% in one place and 46.4% in another; 0.464 3 = 0.0999, so 46.4% is the value that makes \"roughly an unconditional model in 10% of all steps\" true. derived The cost.",
+  "label": "depth",
+  "key": "the same paper gives the drop rate as 46.3%",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "The encoder runs once per prompt (twice with classifier-free guidance, for the empty prompt), so even a 7B language model is a small share of an image's compute next to 25 to 50 denoiser steps; it is a large share of the memory , which is why SD3 made T5 droppable and why FLUX.2 [klein] uses a 4B encoder.",
+  "label": "core",
+  "key": "the encoder runs once per prompt (twice with",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "Inside the denoiser, cross-attention costs N × T (positions times text tokens) per layer and joint attention (N + T) 2 : at 1,024 image tokens and 512 text tokens, the text half of a joint sequence is not small ( section 9 ).",
+  "label": "core",
+  "key": "per layer and joint attention (n + t) 2",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "Recording cross-attention takes one replacement processor: diffusers routes every attention layer through a processor object, so swapping the attn2 processors for one that keeps the softmax output records every map without touching the model.",
+  "label": "depth",
+  "key": "diffusers routes every attention layer through a processor object,",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. how the text gets in: encoders, pooled vectors and cross-attention",
+  "text": "The part that does it, from src/sd/sd_ld.py :",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lead-in to the code"
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "The diffusion transformer (DiT): patches, adaLN-Zero, and scaling with compute The problem.",
+  "label": "core",
+  "key": "the diffusion transformer (dit): patches, adaln-zero, and scaling with",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "The U-Net is a hand-built stack of different blocks; transformers, by contrast, are one block repeated, with well-understood scaling and a decade of systems work behind them.",
+  "label": "core",
+  "key": "the u-net is a hand-built stack of different blocks;",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Peebles and Xie asked whether a plain transformer can replace the U-Net inside latent diffusion, and what to scale ( Scalable Diffusion Models with Transformers, Dec 2022 ).",
+  "label": "core",
+  "key": "peebles and xie asked whether a plain transformer can",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Four pieces, all visible in the animation of section 2 (switch it to DiT): Patchify.",
+  "label": "core",
+  "key": "four pieces, all visible in the animation of section",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Cut the I × I × C latent into p × p patches and embed each linearly (a convolution with kernel and stride p): T = (I / p) 2 tokens of width d.",
+  "label": "core",
+  "key": "cut the i × i × c latent into",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "At 256 × 256 the latent is 32 × 32 × 4, so p = 2 gives 256 tokens; at 512, 1,024 tokens.",
+  "label": "core",
+  "key": "at 256 × 256 the latent is 32 ×",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Add a fixed 2-D sine-cosine embedding (as in ViT and MAE): the tokens carry where they came from ( section 7 ).",
+  "label": "core",
+  "key": "add a fixed 2-d sine-cosine embedding (as in vit",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "N identical DiT blocks with adaLN-Zero conditioning (below).",
+  "label": "core",
+  "key": "n identical dit blocks with adaln-zero conditioning (below).",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "A final adaptive LayerNorm and a linear layer map each token back to p × p × 2C numbers (the noise and, for DiT, a learned variance), reshaped into the latent grid ( models.py line 218 ). adaLN-Zero.",
+  "label": "core",
+  "key": "a final adaptive layernorm and a linear layer map",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "The timestep and class embeddings are summed into one vector c.",
+  "label": "core",
+  "key": "the timestep and class embeddings are summed into one",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Each block feeds c through SiLU and one linear layer to 6d numbers: a shift and scale for the LayerNorm before attention and before the MLP (adaptive LayerNorm, the same trick as FiLM and StyleGAN), and a gate that multiplies each branch before its residual add.",
+  "label": "core",
+  "key": "each block feeds c through silu and one linear",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "That linear layer is initialised to zero, so every gate starts at 0 and every block starts as the identity.",
+  "label": "core",
+  "key": "that linear layer is initialised to zero, so every",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "The authors' code, as it ran here for counting ( models.py lines 119 to 121 and 207 ): def forward(self, x, c): shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(c).chunk(6, dim=1) x = x + gate_msa.unsqueeze(1) * self.attn(modulate(self.norm1(x), shift_msa, scale_msa)) x = x + gate_mlp.unsqueeze(1) * self.mlp(modulate(self.norm2(x), shift_mlp, scale_mlp)) return x ... # Zero-out adaLN modulation layers in DiT blocks: for block in self.blocks: nn.init.constant_(block.adaLN_modulation[-1].weight, 0) nn.init.constant_(block.adaLN_modulation[-1].bias, 0) modulate(x, shift, scale) is x * (1 + scale) + shift (line 19). facebookresearch/DiT at ed81ce2.",
+  "label": "core",
+  "key": "the authors' code, as it ran here for counting",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "The paper compared four ways to bring c in, each as a DiT-XL/2 trained 400K steps (Table 4, FID-50K without guidance, lower is better; published, the authors' runs ): In-context: c appended as two extra tokens.",
+  "label": "core",
+  "key": "in-context: c appended as two extra tokens.",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Cross-attention: an extra cross-attention layer reading c, \"roughly a 15% overhead\" in Gflops. adaLN: regress shift and scale only (4d outputs), no gates. adaLN-Zero: shift, scale and zero-initialised gates (6d).",
+  "label": "core",
+  "key": "cross-attention: an extra cross-attention layer reading c, \"roughly a",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Parameters from the same table.",
+  "label": "core",
+  "key": "parameters from the same table.",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Scaling: what to grow.",
+  "label": "core",
+  "key": "scaling: what to grow.",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "DiT's central result: across 12 models (four widths and depths times three patch sizes), FID after 400K steps follows the forward-pass compute, not the parameter count.",
+  "label": "core",
+  "key": "dit's central result: across 12 models (four widths and",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Shrinking the patch from 8 to 2 leaves the parameters almost unchanged and multiplies the tokens, and so the compute, by 16.",
+  "label": "core",
+  "key": "shrinking the patch from 8 to 2 leaves the",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "DiT's 12 models: compute against FID Predict: DiT-XL with 4 × 4 patches has 675M parameters, 29.05 Gflops and FID 43.01.",
+  "label": "core",
+  "key": "predict: dit-xl with 4 × 4 patches has 675m",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Halve the patch to 2 × 2.",
+  "label": "core",
+  "key": "halve the patch to 2 × 2.",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "What happens to parameters, compute and FID?",
+  "label": "core",
+  "key": "what happens to parameters, compute and fid?",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Parameters double, compute doubles, FID a little better Parameters unchanged, compute about 4 times, FID less than half Parameters unchanged, compute unchanged, FID unchanged (same model) Two more results to read critically.",
+  "label": "core",
+  "key": "parameters double, compute doubles, fid a little better parameters",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Sampling compute does not buy back model compute: DiT-L/2 with 1,000 sampling steps (80.7 Tflops per image) scored FID-10K 25.9, DiT-XL/2 with 128 steps (15.2 Tflops) 23.7.",
+  "label": "depth",
+  "key": "sampling compute does not buy back model compute: dit-l/2",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "The headline FID 2.27 used guidance on three of the four latent channels only , a detail in the appendix; four-channel guidance at scale 1.375 gave 2.20, so the choice did not flatter the result, but a reimplementation that guides all channels at 1.5 is not the published configuration.",
+  "label": "depth",
+  "key": "the headline fid 2.27 used guidance on three of",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Measured here: the topic's tiny DiT against its tiny U-Net The shared TinyDiT (4 × 4 patches of the 32 × 32 Fashion-MNIST image, 64 tokens, width 192, 6 blocks, adaLN-Zero exactly as above: 4,127,632 parameters) trained with the Flow lab's flow-matching recipe unchanged (batch 128, AdamW 5 × 10 −4 , 200 warm-up steps, EMA 0.999, 10% label dropout, seed 0), against the Flow lab's TinyUNet (1,040,353 parameters, 4,000 steps).",
+  "label": "depth",
+  "key": "the shared tinydit (4 × 4 patches of the",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Scored as the Flow lab scores: 1,000 samples (100 per class) from the same noise, 50 Euler steps, Fréchet distance in the topic's Fashion-MNIST classifier's feature space ( FD ; lower is better; 1,000 real images score ) and the classifier's accuracy on the requested class.",
+  "label": "depth",
+  "key": "scored as the flow lab scores: 1,000 samples (100",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Denoiser Parameters Tokens FLOPs per pass Steps Training compute FD, s = 1 FD, s = 1.5 Accuracy, s = 1.5 FLOPs per pass counted with FlopCounterMode (batch 1), the DiT's attention scores added by formula because the counter does not see nn.MultiheadAttention 's fused path ( src/tiny/flops.py ).",
+  "label": "depth",
+  "key": "denoiser parameters tokens flops per pass steps training compute",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Training compute = 3 × FLOPs per pass × 128 × steps (DiT's own estimate of forward plus backward). s: guidance scale in diffusers' convention. measured on Apple M1 Pro (MPS), float32, one seed The same noise through each denoiser Cheaper modulation: adaLN-single, and attention without N 2 adaLN-Zero has a price the paper's Gflops hide: each block's modulation layer is d × 6d, a third of the block (attention 4d 2 , MLP 8d 2 , modulation 6d 2 ).",
+  "label": "depth",
+  "key": "training compute = 3 × flops per pass ×",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Counted here, DiT-XL/2's modulation layers hold 225.8M of its 675.1M parameters (33.4%).",
+  "label": "core",
+  "key": "counted here, dit-xl/2's modulation layers hold 225.8m of its",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "PixArt-α found the same, \"a substantial proportion (27%) of the parameters\" in its text-conditioned DiT, and replaced them with adaLN-single : one MLP computes the six vectors from the timestep once, shared by all blocks, plus a small learned per-block offset ( Chen et al.",
+  "label": "core",
+  "key": "pixart-α found the same, \"a substantial proportion (27%) of",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "The two figures agree: 225.8M over DiT-XL/2 plus PixArt's 148.8M of cross-attention is 27.4%, and the paper's 833M to 611M (−26%) matches the 610,856,096 counted here for PixArt-Σ. derived Sana ( section 1 's 32 × DC-AE) went further and replaced softmax attention by ReLU linear attention ( attention_processor.py line 5371 ), so its cost grows linearly with tokens: counted here, attention scores are 2% of Sana's FLOPs at 1024 pixels, against 15 to 37% for the softmax transformers on this page.",
+  "label": "depth",
+  "key": "over dit-xl/2 plus pixart's 148.8m of cross-attention is 27.4%,",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. the diffusion transformer (dit): patches, adaln-zero, and scaling with compute",
+  "text": "Go deeper (optional): the training objectives these denoisers use are on the sibling pages Diffusion from zero (ε, x 0 and v prediction, schedules) and Flow matching (SD3's and FLUX's objective); the Architecture explorer breaks every model's parameters down the same way.",
+  "label": "core",
+  "key": "the velocity objective of",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "MMDiT: text and image in one attention The problem.",
+  "label": "core",
+  "key": "mmdit: text and image in one attention the problem.",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "In cross-attention the text is read but never changes: the 77 vectors are the same in every layer, so the text cannot adapt to what the image has become.",
+  "label": "core",
+  "key": "in cross-attention the text is read but never changes:",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "DiT's class conditioning through adaLN carries only one vector, too little for a sentence.",
+  "label": "core",
+  "key": "dit's class conditioning through adaln carries only one vector,",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "Stable Diffusion 3 wanted the text to be processed alongside the image ( Esser et al., Mar 2024 ).",
+  "label": "core",
+  "key": "processed alongside the image ( esser et al., mar",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "Concatenate the text tokens and the image tokens into one sequence and run one attention over all of it, but give each modality its own weights: \"two separate sets of weights for the two modalities ... equivalent to having two independent transformers for each modality, but joining the sequences of the two modalities for the attention operation\" (section 4).",
+  "label": "core",
+  "key": "concatenate the text tokens and the image tokens into",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "Each block has, for image and for text separately, the Q, K, V and output projections, the MLP and the adaLN modulation (driven by the timestep and the pooled text vector); only the softmax is shared.",
+  "label": "core",
+  "key": "each block has, for image and for text separately,",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "In diffusers the join is one line ( attention_processor.py line 1480 ): query = torch.cat([query, encoder_hidden_states_query_proj], dim=2) , the same for keys and values, then split again after attention.",
+  "label": "core",
+  "key": "in diffusers the join is one line ( attention_processor.py",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "Who attends to whom: four ways to mix text and image Cross-attention (SD 1.5, PixArt) DiT, text as tokens MMDiT (SD3, Qwen-Image) Single stream (FLUX, Z-Image) What it bought, by the paper's own comparison.",
+  "label": "core",
+  "key": "cross-attention (sd 1.5, pixart) dit, text as tokens mmdit",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "On CC12M at matched settings, \"Our MM-DiT variant significantly outperforms the cross-attention and vanilla variants\" (DiT with concatenated text, CrossDiT with cross-attention, and UViT), on validation loss, CLIP score and FID (section 5.2.3, Figure 4; vendor , the authors' runs).",
+  "label": "core",
+  "key": "on cc12m at matched settings, \"our mm-dit variant significantly",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "Two engineering details came with it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lead-in sentence"
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "QK-normalisation: at scale, attention logits grew until the attention entropy collapsed in the last blocks; RMSNorm on Q and K in both streams prevented it and \"enables efficient training at bf16-mixed precision\" (section 5.3.2, \"QK-Normalization\").",
+  "label": "core",
+  "key": "at scale, attention logits grew until the attention entropy",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "Modulation is a third of the model: each stream has its own d × 6d modulation per block, so counted here SD3.5 Large's modulation layers hold 2,686.3M of 8,056.6M parameters (33.3%) and Qwen-Image's (60 MMDiT blocks) 6,815.9M of 20,430.4M (33.4%).",
+  "label": "core",
+  "key": "modulation is a third of the model: each stream",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "A finding from counting: the position table the Hub counts and diffusers does not SD3 Medium's config instantiated here has 2,028,328,000 parameters; the Hub's public total for the repo is 2,084,951,104.",
+  "label": "depth",
+  "key": "a finding from counting: the position table the hub",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "The difference, 56,623,104, is exactly 192 × 192 × 1,536: the 2-D position table for a 192 × 192 patch grid.",
+  "label": "depth",
+  "key": "the difference, 56,623,104, is exactly 192 × 192 ×",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "Diffusers registers it as a buffer that is saved with the weights ( embeddings.py line 331 : persistent = True if pos_embed_max_size else False ), not as a parameter.",
+  "label": "depth",
+  "key": "diffusers registers it as a buffer that is saved",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "SD3.5 Large: 8,146,280,768 on the Hub against 8,056,627,520 here, a gap of 89,653,248 = 192 × 192 × 2,432.",
+  "label": "depth",
+  "key": "sd3.5 large: 8,146,280,768 on the hub against 8,056,627,520 here,",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "With the table, both configs reproduce the Hub totals exactly. derived Parameter counts in model cards can include such tables; check before comparing.",
+  "label": "depth",
+  "key": "with the table, both configs reproduce the hub totals",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. mmdit: text and image in one attention",
+  "text": "Joint attention costs (N + T) 2 per layer and the text stream's weights run on every text token, so text length is no longer nearly free: SD3.5 Large at 1024 pixels costs 28.95 TFLOP per pass with 77 text tokens and 31.12 with diffusers' 333 (a 7.5% difference, counted).",
+  "label": "core",
+  "key": "joint attention costs (n + t) 2 per layer",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "FLUX-style double and single stream blocks The problem.",
+  "label": "core",
+  "key": "flux-style double and single stream blocks the problem.",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "Two full weight sets per block double the parameters per unit of depth.",
+  "label": "core",
+  "key": "two full weight sets per block double the parameters",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "Once text and image have been mixed for a while, do they still need separate weights?",
+  "label": "core",
+  "key": "once text and image have been mixed for a",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "FLUX.1 (Black Forest Labs, August 2024; no paper, but the FLUX.1 Kontext report describes it) \"is built from a mix of double stream and single stream blocks.",
+  "label": "core",
+  "key": "flux.1 (black forest labs, august 2024; no paper, but",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "Double stream blocks employ separate weights for image and text tokens ...",
+  "label": "core",
+  "key": "double stream blocks employ separate weights for image and",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "After passing the sequences through the double stream blocks, we concatenate them and apply 38 single stream blocks to the image and text tokens.",
+  "label": "core",
+  "key": "we concatenate them and apply 38 single stream blocks",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "Finally, we discard the text tokens and decode the image tokens\" ( Labs et al.",
+  "label": "core",
+  "key": "finally, we discard the text tokens and decode the",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "2025 , section 2).",
+  "label": "core",
+  "key": "2025 , section 2).",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "The released code has 19 double blocks and 38 single blocks ( BFL flux util.py : depth 19, depth_single_blocks 38, hidden size 3,072, 24 heads).",
+  "label": "core",
+  "key": "the released code has 19 double blocks and 38",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "A single-stream block is a parallel transformer block (as in ViT-22B): one LayerNorm and one modulation, then attention and the MLP computed side by side from the same input, their outputs concatenated and projected once ( transformer_flux.py line 404 ), which halves the modulation parameters and makes larger matrix multiplications.",
+  "label": "core",
+  "key": "a single-stream block is a parallel transformer block (as",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "Where the parameters go in ten denoisers Shares of each model's parameters by kind of layer, counted on the meta device from the configs (attention and MLP split by stream; modulation = every adaLN, adaLN-single, time-injection or shared modulation layer). derived The Architecture explorer shows the numbers and the block structure.",
+  "label": "core",
+  "key": "shares of each model's parameters by kind of layer,",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "Three things the counts show.",
+  "label": "core",
+  "key": "three things the counts show.",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "(1) Guidance distillation is visible in the weights.",
+  "label": "core",
+  "key": "(1) guidance distillation is visible in the weights.",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "FLUX.1 [dev] counted here is 11,901,408,320 and [schnell] 11,891,178,560, both equal to the Hub's public totals; the difference, 10,229,760, is the guidance embedder: [dev] was distilled to take the guidance scale as an input (embedded like the timestep), so it runs one denoiser pass per step where classifier-free guidance runs two.",
+  "label": "core",
+  "key": "flux.1 [dev] counted here is 11,901,408,320 and [schnell] 11,891,178,560,",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "(2) Single blocks are half-size: FLUX.1's 38 single blocks hold 5,380.5M parameters, its 19 double blocks 6,456.8M.",
+  "label": "core",
+  "key": "(2) single blocks are half-size: flux.1's 38 single blocks",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "(3) Modulation keeps shrinking: 27.3% of FLUX.1, then FLUX.2 [klein] 4B shares one modulation per stream across all its blocks (5 double, 20 single): 160.4M, 4.1% of 3,875,544,576 (equal to the Hub total).",
+  "label": "core",
+  "key": "(3) modulation keeps shrinking: 27.3% of flux.1, then flux.2",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "Z-Image runs a single stream from the start (two refiner layers each for noise and caption, then 30 joint layers) with a low-rank modulation: 2.1% of 6,154,908,736.",
+  "label": "core",
+  "key": "z-image runs a single stream from the start (two",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "Predict: FLUX.1 [dev] at 28 steps against SD3.5 Large at 28 steps with guidance 7.0, both at 1024 pixels.",
+  "label": "core",
+  "key": "predict: flux.1 [dev] at 28 steps against sd3.5 large",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "FLUX.1 has 1.5 times the parameters.",
+  "label": "core",
+  "key": "flux.1 has 1.5 times the parameters.",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "Which costs more per image?",
+  "label": "core",
+  "key": "which costs more per image?",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "6. flux-style double and single stream blocks",
+  "text": "FLUX.1, by about 1.5 times (it is bigger) FLUX.1, but only by about 1.2 times: SD3.5 runs two passes per step, FLUX.1 [dev] one SD3.5 Large, by about 2 times",
+  "label": "core",
+  "key": "flux.1, by about 1.5 times (it is bigger) flux.1,",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "Positions for image tokens: tables, crops and 2-D RoPE The problem.",
+  "label": "core",
+  "key": "positions for image tokens: tables, crops and 2-d rope",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "Attention is blind to order: shuffle the tokens and the outputs shuffle with them.",
+  "label": "core",
+  "key": "attention is blind to order: shuffle the tokens and",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "An image transformer must be told where each patch sits, in two dimensions, and ideally in a way that still works at a resolution or aspect ratio it was not trained at.",
+  "label": "core",
+  "key": "an image transformer must be told where each patch",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "Three answers in use.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lead-in sentence"
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "A fixed 2-D sine-cosine table (DiT, PixArt): half the channels encode the row, half the column, at geometric frequencies.",
+  "label": "core",
+  "key": "a fixed 2-d sine-cosine table (dit, pixart): half the",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "It is computed for one grid; the DiT code builds it at construction for one input size, which is why this page's FLOP counter had to rebuild DiT-XL/2 for every resolution.",
+  "label": "core",
+  "key": "it is computed for one grid; the dit code",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "A large table, center-cropped (SD3): one table for a 192 × 192 patch grid, cropped to the image's grid at run time ( embeddings.py line 336 ), so any size up to 192 × 2 × 8 = 3,072 pixels per side has positions.",
+  "label": "core",
+  "key": "a large table, center-cropped (sd3): one table for a",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "For mixed aspect ratios the paper builds \"a combination of extended and interpolated position grids\" and center-crops them (section 5.3.2).",
+  "label": "core",
+  "key": "for mixed aspect ratios the paper builds \"a combination",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "Rotary embeddings in 2-D or 3-D (FLUX, Qwen-Image, Z-Image, FLUX.2): rotate each query and key by angles proportional to the token's position, so their dot product depends only on the offset between two tokens.",
+  "label": "core",
+  "key": "rotary embeddings in 2-d or 3-d (flux, qwen-image, z-image,",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "FLUX splits each 128-wide head into 16 channels for a third axis (time or reference image), 56 for the row and 56 for the column ( axes_dim [16, 56, 56] ); image token ids are (0, row, column) ( pipeline_flux.py line 508 ) and the text tokens' ids are all zero, so text sits at \"no position\" and is told apart by its own weights.",
+  "label": "core",
+  "key": "flux splits each 128-wide head into 16 channels for",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "Qwen-Image's MSRoPE instead places the text \"along the diagonal of the image\" grid ( Qwen-Image report , section 2.4).",
+  "label": "core",
+  "key": "qwen-image's msrope instead places the text \"along the diagonal",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "Z-Image uses 32/48/48 channels; FLUX.2 four axes of 32.",
+  "label": "core",
+  "key": "z-image uses 32/48/48 channels; flux.2 four axes of 32.",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "There is no table to outgrow, which helps with new sizes but does not by itself make the model good at them ( section 8 ).",
+  "label": "core",
+  "key": "there is no table to outgrow, which helps with",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "7. positions for image tokens: tables, crops and 2-d rope",
+  "text": "FLUX's position ids for a small latent Latent rows (after 2 × 2 packing) Latent columns Text tokens RoPE itself (why rotating q and k makes attention depend on relative position, and how frequencies are chosen) is on the Positional Encodings page and the RoFormer paper page ; here only the 2-D and 3-D split is new.",
+  "label": "core",
+  "key": "latent rows (after 2 × 2 packing) latent columns",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "Resolution and aspect ratio The problem.",
+  "label": "core",
+  "key": "resolution and aspect ratio the problem.",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "A denoiser learns the statistics of the latent grids it was trained on: their size, their shape, and how much of a subject one position covers.",
+  "label": "core",
+  "key": "a denoiser learns the statistics of the latent grids",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "SD 1.5 was fine-tuned at 512 × 512 (its model card: 595k steps at that size).",
+  "label": "core",
+  "key": "sd 1.5 was fine-tuned at 512 × 512 (its",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "Ask it for another size and nothing in the code stops you: the U-Net is convolutional and its attention takes any number of positions.",
+  "label": "core",
+  "key": "ask it for another size and nothing in the",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "One prompt, one seed, four sizes (SD 1.5) What the four sizes show.",
+  "label": "core",
+  "key": "one prompt, one seed, four sizes",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "At 512, the training size, one puppy fills the frame.",
+  "label": "core",
+  "key": "at 512, the training size, one puppy fills the",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "At 768 (2.25 times the area) one puppy still holds together, with more background.",
+  "label": "core",
+  "key": "at 768 (2.25 times the area) one puppy still",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "At 1024 (four times the area) the model draws four puppies : each region of the 128 × 128 latent is denoised with the statistics of a 64 × 64 training image, so the canvas fills with several subjects of the usual size; the U-Net's attention reaches the whole grid, but nothing in its training taught it what one large subject looks like at this scale.",
+  "label": "core",
+  "key": "at 1024 (four times the area) the model draws",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "At 256 the puppy is cropped at the edge and its proportions are off: too few positions for the layout it learned.",
+  "label": "core",
+  "key": "at 256 the puppy is cropped at the edge",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "The same seed and settings throughout; no sampler change fixes this.",
+  "label": "core",
+  "key": "the same seed and settings throughout; no sampler change",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "How production models handle it.",
+  "label": "core",
+  "key": "how production models handle it.",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "Train at the sizes you will sample.",
+  "label": "core",
+  "key": "train at the sizes you will sample.",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "SDXL pretrained at 256 × 256, then 512, then fine-tuned on \"different aspect ratios ... of ~1024 × 1024 pixel area\" ( Podell et al.",
+  "label": "core",
+  "key": "sdxl pretrained at 256 × 256, then 512, then",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "2023 , section 2.5).",
+  "label": "core",
+  "key": "2023 , section 2.5).",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "Aspect-ratio bucketing (from NovelAI's 2022 work, which SDXL and SD3 cite): sort the training images into buckets of similar shape, keep the pixel count as close to 1024 2 as the shape allows, with height and width in multiples of 64, and build each batch from one bucket (SDXL section 2.3, which also feeds the bucket's size to the model as a condition).",
+  "label": "core",
+  "key": "aspect-ratio bucketing (from novelai's 2022 work, which sdxl and",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "For a transformer, equal area means a similar number of tokens, so the cost per batch stays level.",
+  "label": "core",
+  "key": "for a transformer, equal area means a similar number",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "Tell the model what it is looking at.",
+  "label": "core",
+  "key": "tell the model what it is looking at.",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "SDXL's micro-conditioning feeds the original image size, the crop offsets and the target size as Fourier features added to the time embedding ( pipeline line 734 ).",
+  "label": "core",
+  "key": "micro-conditioning adds the original size, crop offsets and target size",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "Without the size condition, 39% of SDXL's pretraining data would have been discarded as smaller than 256 pixels, and the paper blames random crops in training for SD 1.5's cut-off heads; with the crop offsets as an input, sampling at (0, 0) asks for an uncropped image and other values \"simulate the amount of cropping\" (section 2.2, Figures 4 and 5; vendor figures).",
+  "label": "core",
+  "key": "sampling at (0, 0) asks for an uncropped image",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "Shift the noise schedule with resolution.",
+  "label": "core",
+  "key": "shift the noise schedule with resolution.",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "More pixels carry more redundant signal, so the same noise level destroys less of the image; SD3 shifts its timesteps by a factor of √(m / n) (m pixels at the new resolution, n at the base) and FLUX computes the shift from the image's token count ( pipeline_flux.py line 73 ).",
+  "label": "core",
+  "key": "more pixels carry more redundant signal, so the same",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "8. resolution and aspect ratio",
+  "text": "The sibling page Flow matching owns the details.",
+  "label": "core",
+  "key": "flow matching owns the details.",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "9. what one image costs",
+  "text": "What one image costs The formula.",
+  "label": "core",
+  "key": "what one image costs the formula.",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "9. what one image costs",
+  "text": "One image = text encoder once (twice with guidance and a negative or empty prompt) + steps × passes per step × FLOPs per pass + one VAE decode.",
+  "label": "core",
+  "key": "one image = text encoder once (twice with guidance",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "9. what one image costs",
+  "text": "Passes per step is 2 with classifier-free guidance (the conditional and the unconditional prediction, batched together) and 1 for a guidance-distilled model (FLUX.1 [dev]) or a model sampled without guidance (FLUX.1 [schnell], Z-Image-Turbo).",
+  "label": "core",
+  "key": "passes per step is 2 with classifier-free guidance (the",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "9. what one image costs",
+  "text": "FLOPs per pass grow with the image tokens N (linear layers, convolutions) and with N 2 (attention), so at high resolution attention takes over: counted here, attention scores are of SD 1.5's FLOPs at 512 pixels and at 2,048.",
+  "label": "core",
+  "key": "flops per pass grow with the image tokens n",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "9. what one image costs",
+  "text": "One 1024 × 1024 image with each pipeline's default settings Pipeline Tokens (image + text) FLOPs per pass Steps × passes Denoiser FLOPs per image Steps and guidance from each pipeline's __call__ defaults in diffusers 0.41.0, except where the model card recommends otherwise (FLUX.1 [schnell] \"1 to 4 steps\": 4; FLUX.2 [klein] 4B card: 4 steps, guidance 1.0; Z-Image-Turbo card: 9 steps, \"8 DiT forwards\", guidance 0).",
+  "label": "core",
+  "key": "one 1024 × 1024 image with each pipeline's default",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "9. what one image costs",
+  "text": "SD 1.5 and DiT-XL/2 were trained at 512 and 256 and are included for scale.",
+  "label": "core",
+  "key": "sd 1.5 and dit-xl/2 were trained at 512 and",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "9. what one image costs",
+  "text": "Text encoders and the VAE decode are not included. derived Try other sizes and settings in the Tokens and FLOPs calculator .",
+  "label": "core",
+  "key": "text encoders and the vae decode are not included.",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "9. what one image costs",
+  "text": "One SD 1.5 U-Net pass on the laptop's GPU (float16, attention slicing, batch 1) at six sizes, against the counted FLOPs: Where the time goes inside one pass (the same guided pass as the Diffusion lab's 0.610 s, hooked per kind of layer): The parameter view of section 2 would have predicted none of this.",
+  "label": "core",
+  "key": "one sd 1.5 u-net pass on the laptop's gpu",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "9. what one image costs",
+  "text": "Predict: you must halve the cost of SD3.5 Large images at 1024 pixels without retraining.",
+  "label": "core",
+  "key": "predict: you must halve the cost of sd3.5 large",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "9. what one image costs",
+  "text": "Which change saves the most?",
+  "label": "core",
+  "key": "which change saves the most?",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "9. what one image costs",
+  "text": "Drop the T5 encoder (it is 4.7B parameters) Halve the steps (28 to 14), or distil guidance away (two passes to one) Shorten the prompt from 333 to 77 text tokens",
+  "label": "core",
+  "key": "drop the t5 encoder (it is 4.7b parameters) halve",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Reading attention_head_dim in an SD 1.x or 2.x config as the head width In UNet2DConditionModel configs it is the number of heads (SD 1.5: 8 heads of width 40, 80 and 160; SDXL's [5, 10, 20] : heads of width 64). diffusers keeps the old name for \"40,000+ configurations\" and maps it at unet_2d_condition.py line 254 .",
+  "label": "depth",
+  "key": "reading attention_head_dim in an sd 1.x or 2.x config",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Transformer configs ( SD3Transformer2DModel , FluxTransformer2DModel ) mean what they say: 64 and 128.",
+  "label": "depth",
+  "key": "transformer configs ( sd3transformer2dmodel , fluxtransformer2dmodel ) mean what",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Writing prompts longer than 77 tokens for a CLIP-conditioned model Everything past position 77 is dropped, with only a logged warning (the real one is in section 3 ).",
+  "label": "depth",
+  "key": "writing prompts longer than 77 tokens for a clip-conditioned",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "SD 1.5 and SDXL never see the end of a long prompt; SD3 sees it through T5 only.",
+  "label": "depth",
+  "key": "sd 1.5 and sdxl never see the end of",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Fixes: shorten, put what matters first, or use a long-prompt helper that encodes chunks of 75 and concatenates them (the model then sees several start and end tokens, which it was not trained on).",
+  "label": "depth",
+  "key": "fixes: shorten, put what matters first, or use a",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A T5- or LLM-conditioned model accepts 256 to 512 tokens.",
+  "label": "depth",
+  "key": "a t5- or llm-conditioned model accepts 256 to 512",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Sampling far from the training resolution SD 1.5 at 1024 pixels ( section 8 ) is a real run on this page: asked for one puppy on a canvas four times its training area, it drew four puppies of the usual size.",
+  "label": "depth",
+  "key": "sd 1.5 at 1024 pixels ( section 8 )",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "It is not a bug in the sampler; it is the denoiser's learned statistics.",
+  "label": "depth",
+  "key": "it is not a bug in the sampler; it",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use a model trained near the target size and aspect ratio (bucketing), or generate at the native size and upscale (a second img2img pass at the high resolution is the common recipe).",
+  "label": "depth",
+  "key": "use a model trained near the target size and",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Comparing models by parameter count when the question is cost DiT-XL/8 and DiT-XL/2 have the same 675M parameters and differ 16 times in compute and 5 times in FID.",
+  "label": "depth",
+  "key": "comparing models by parameter count when the question is",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "FLUX.1 [dev] has 1.5 times SD3.5 Large's parameters but costs about 1.2 times as much per image because it needs one pass per step instead of two.",
+  "label": "depth",
+  "key": "flux.1 [dev] has 1.5 times sd3.5 large's parameters but",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Count FLOPs per pass, multiply by steps and passes ( section 9 ).",
+  "label": "depth",
+  "key": "count flops per pass, multiply by steps and passes",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Trusting a parameter count without knowing what was counted Three cases found while counting for this page: SD3's checkpoints include a 192 × 192 position table that diffusers holds as a buffer (56.6M numbers for SD3 Medium, 89.7M for SD3.5 Large, section 5 ); diffusers' port of DiT-XL/2 has 749,826,464 parameters against the authors' 675,129,632, because its conversion script copies the timestep and class embedders into every one of the 28 blocks ( convert_dit_to_diffusers.py line 34 ), 27 extra copies of 2,777,472 parameters, and holds the position table as a buffer where the authors' code has a frozen parameter (256 × 1,152 = 294,912 at 256 pixels): 27 × 2,777,472 − 294,912 = 74,696,832, the whole gap; and model cards round (\"12 billion\" for 11.9B).",
+  "label": "depth",
+  "key": "trusting a parameter count without knowing what was counted",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "State what a number includes.",
+  "label": "depth",
+  "key": "state what a number includes.",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Running classifier-free guidance on a guidance-distilled model FLUX.1 [dev]'s guidance_scale is an input to the network (an embedding, default 3.5), not the CFG weight; the diffusers pipeline runs one pass per step unless true_cfg_scale is set above its default 1.0 with a negative prompt, which doubles the cost and was not what the model was distilled for. [schnell] has no guidance embedder at all (10,229,760 fewer parameters, section 6 ).",
+  "label": "depth",
+  "key": "flux.1 [dev]'s guidance_scale is an input to the network",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Feeding a model text features from the wrong layer SD 1.5 was trained on CLIP's last layer, SDXL on the penultimate layers of two encoders ( line 414 ), Z-Image on Qwen3's second-to-last layer.",
+  "label": "depth",
+  "key": "feeding a model text features from the wrong layer",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The two layers differ: measured here on SD 1.5's encoder, the cosine between the last and penultimate layer's output is across the prompt's positions. \"Clip skip\" settings in user interfaces swap these; on a model trained with one, the other shifts every cross-attention input.",
+  "label": "depth",
+  "key": "the two layers differ: measured here on sd 1.5's",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Running a DiT at a size its position table was not built for The authors' DiT code builds its sine-cosine table for one latent size; giving it another fails in the patch embedding before attention is reached.",
+  "label": "depth",
+  "key": "running a dit at a size its position table",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The real error, from counting DiT-XL/2 at 1024 pixels on this page before rebuilding the model per size: AssertionError: Input height (128) doesn't match model (32).",
+  "label": "depth",
+  "key": "the real error, from counting dit-xl/2 at 1024 pixels",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Rebuild (or interpolate) the table for the new grid; RoPE models ( section 7 ) have no table to rebuild, but still need training at the new size.",
+  "label": "depth",
+  "key": "rebuild (or interpolate) the table for the new grid;",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting a small transformer to beat a U-Net on a small budget The tiny experiment in section 4 : at equal training compute the topic's 1M-parameter U-Net beat a 4M-parameter DiT by a wide margin.",
+  "label": "depth",
+  "key": "expecting a small transformer to beat a u-net on",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "DiT's advantage is in how it scales with compute and how well it fits modern hardware and systems, not in data efficiency at toy scale.",
+  "label": "depth",
+  "key": "dit's advantage is in how it scales with compute",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Interview questions Why do most image generators run diffusion in a VAE latent instead of on pixels?",
+  "label": "depth",
+  "key": "why do most image generators run diffusion in a",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A denoiser runs 20 to 50 times per image, so its cost per pass dominates.",
+  "label": "depth",
+  "key": "a denoiser runs 20 to 50 times per image,",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "An f = 8 VAE cuts positions 64 times (48 times fewer numbers for SD's 4 channels), and attention cost falls with the square: counted here, SD 1.5's U-Net would cost about 680 times more per pass on a 512 × 512 pixel grid.",
+  "label": "depth",
+  "key": "an f = 8 vae cuts positions 64 times",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The price is a quality ceiling set by the decoder and the need to normalise the latent (scaling factor).",
+  "label": "depth",
+  "key": "the price is a quality ceiling set by the",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Where are a U-Net's parameters, and where are its FLOPs?",
+  "label": "depth",
+  "key": "where are a u-net's parameters, and where are its",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Parameters at the low-resolution, high-channel levels (weights grow with channels squared); FLOPs at the high-resolution levels (cost grows with positions).",
+  "label": "depth",
+  "key": "parameters at the low-resolution, high-channel levels (weights grow with",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "For SD 1.5 at 512: the two 64 × 64 stages do 38% of the FLOPs with 3.4% of the weights, while up_blocks.1 (16 × 16) holds 258M parameters.",
+  "label": "depth",
+  "key": "for sd 1.5 at 512: the two 64 ×",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What is adaLN-Zero and why initialise it at zero?",
+  "label": "depth",
+  "key": "what is adaln-zero and why initialise it at zero?",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The conditioning vector (timestep plus class or pooled text) is mapped per block to a shift and scale for each LayerNorm and a gate on each residual branch.",
+  "label": "depth",
+  "key": "the conditioning vector (timestep plus class or pooled text)",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Zero-initialising that mapping makes every block the identity at the start, so a deep stack trains stably from a well-behaved function; in DiT's ablation it beat plain adaLN (FID 19.5 vs 25.2), cross-attention (26.1) and in-context tokens (35.2).",
+  "label": "depth",
+  "key": "zero-initialising that mapping makes every block the identity at",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Its cost: the modulation layer is about a third of each block's parameters, which PixArt cut with adaLN-single and FLUX.2 with shared modulation.",
+  "label": "depth",
+  "key": "its cost: the modulation layer is about a third",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Cross-attention or joint attention (MMDiT) for text: what are the trade-offs?",
+  "label": "depth",
+  "key": "cross-attention or joint attention (mmdit) for text: what are",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Cross-attention: text is read-only, cost N × T per layer, a cheap way to add text to any backbone.",
+  "label": "depth",
+  "key": "cross-attention: text is read-only, cost n × t per",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Joint attention: one softmax over image and text, so text tokens are updated by the image and both modalities interact symmetrically; cost (N + T) 2 and a second set of weights per block (or shared weights in single-stream blocks).",
+  "label": "depth",
+  "key": "joint attention: one softmax over image and text, so",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "SD3 found MMDiT better than cross-attention DiT and UViT at matched settings; nearly every 2025 to 2026 open model uses joint attention.",
+  "label": "depth",
+  "key": "sd3 found mmdit better than cross-attention dit and uvit",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why did the DiT paper report Gflops rather than parameters?",
+  "label": "depth",
+  "key": "why did the dit paper report gflops rather than",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Because quality tracked compute per forward pass, not parameters: shrinking the patch size quadruples tokens and Gflops without changing the weights, and FID improved accordingly.",
+  "label": "depth",
+  "key": "because quality tracked compute per forward pass, not parameters:",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Their \"Gflops\" are multiply-accumulates (counted here at exactly half the FLOPs).",
+  "label": "depth",
+  "key": "their \"gflops\" are multiply-accumulates (counted here at exactly half",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "FLUX.1 [dev] against [schnell]: what differs in the weights and in the cost? [dev] has a guidance embedder (10.2M parameters) because it was distilled to take the guidance scale as an input: one pass per step, default 28 steps. [schnell] was distilled further (latent adversarial diffusion distillation, per its card) to 1 to 4 steps without guidance.",
+  "label": "depth",
+  "key": "flux.1 [dev] against [schnell]: what differs in the weights",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Same transformer otherwise: 19 double and 38 single-stream blocks.",
+  "label": "depth",
+  "key": "same transformer otherwise: 19 double and 38 single-stream blocks.",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How would you support many aspect ratios and resolutions?",
+  "label": "depth",
+  "key": "how would you support many aspect ratios and resolutions?",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Bucketed training at roughly constant area (similar token counts per batch), size and crop conditioning or their equivalent, position encodings that extend (RoPE or a large cropped table), a resolution-dependent timestep shift, and progressive training from low to high resolution.",
+  "label": "depth",
+  "key": "bucketed training at roughly constant area (similar token counts",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Check by sampling at every bucket and at an unseen size.",
+  "label": "depth",
+  "key": "check by sampling at every bucket and at an",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Design question: a text-to-image service must return 1024 × 1024 images in about a second on one datacenter GPU.",
+  "label": "depth",
+  "key": "design question: a text-to-image service must return 1024 ×",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Sketch the model and the arithmetic.",
+  "label": "depth",
+  "key": "sketch the model and the arithmetic.",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Work backwards from compute.",
+  "label": "depth",
+  "key": "work backwards from compute.",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "If the GPU sustains S TFLOP/s on the denoiser, one second buys S TFLOP.",
+  "label": "depth",
+  "key": "if the gpu sustains s tflop/s on the denoiser,",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A FLUX.1-sized model costs 74 TFLOP per pass at 1024 (counted), so even 4 passes need 300 TFLOP: plausible only with a few-step distilled model and a fast kernel.",
+  "label": "depth",
+  "key": "a flux.1-sized model costs 74 tflop per pass at",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Levers in order of size: (1) steps and passes: a distilled few-step model (adversarial or consistency distillation) with guidance distilled in, 1 pass per step; (2) tokens: a deeper-compression VAE (f = 16 or 32 with more channels, as in Sana's DC-AE) cuts tokens 4 to 16 times; (3) attention cost: linear or windowed attention at high resolution; (4) model size: a 2 to 5B denoiser rather than 12B; (5) text encoder: a 2 to 4B LLM or T5, run once and cached for repeated prompts.",
+  "label": "depth",
+  "key": "levers in order of size: (1) steps and passes:",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Then measure: the calculator gives FLOPs, but kernel efficiency decides the seconds.",
+  "label": "depth",
+  "key": "then measure: the calculator gives flops, but kernel efficiency",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Keep a quality check (a preference or VQA-based metric) in the loop, since every lever trades quality.",
+  "label": "depth",
+  "key": "keep a quality check (a preference or vqa-based metric)",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why does SD 1.5's cross-attention put so much weight on the start token?",
+  "label": "depth",
+  "key": "why does sd 1.5's cross-attention put so much weight",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "CLIP's text encoder is causal, so the start token's output is the same constant for every prompt.",
+  "label": "depth",
+  "key": "clip's text encoder is causal, so the start token's",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Softmax attention has to put its weight somewhere; a position whose content no word concerns puts it on that constant slot, which acts as a no-op (an attention sink).",
+  "label": "depth",
+  "key": "softmax attention has to put its weight somewhere; a",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Measured here: about of the 16 × 16 layers' cross-attention for the bicycle prompt.",
+  "label": "depth",
+  "key": "measured here: about of the 16 × 16 layers'",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "what transfers from this laptop",
+  "text": "What transfers from this laptop Measured on Apple M1 Pro: SD 1.5 in float16 with attention slicing on the laptop's GPU (MPS), one process, peak memory ; the tiny models in float32 for 4 to 32 minutes each; all parameter and FLOP counts on CPU without weights.",
+  "label": "depth",
+  "key": "measured on apple m1 pro: sd 1.5 in float16",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "what transfers from this laptop",
+  "text": "What transfers exactly: parameter counts, FLOPs per pass and their breakdowns (shape arithmetic, identical on any device), the cross-attention patterns up to float16 rounding, and the token counts behind every cost.",
+  "label": "depth",
+  "key": "what transfers exactly: parameter counts, flops per pass and",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "what transfers from this laptop",
+  "text": "What transfers in direction only: the tiny results (U-Net ahead of DiT at small compute, smaller patches better at equal steps; one seed each, a 28 × 28 dataset, a classifier-space FD).",
+  "label": "depth",
+  "key": "what transfers in direction only: the tiny results (u-net",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "what transfers from this laptop",
+  "text": "What does not transfer: seconds.",
+  "label": "depth",
+  "key": "what does not transfer: seconds.",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "what transfers from this laptop",
+  "text": "MPS with attention slicing runs attention far less efficiently than a datacenter GPU with a fused attention kernel (FlashAttention), so the share of time spent in attention, the achieved TFLOP/s and the relative cost of the large-resolution passes all change; the FLOP shares on this page are the device-independent part.",
+  "label": "depth",
+  "key": "mps with attention slicing runs attention far less efficiently",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "what transfers from this laptop",
+  "text": "Eleven denoisers instantiated from their configs without weights (PyTorch's meta device), every parameter sorted by the kind of layer it belongs to, and one pass counted at the resolution you pick.",
+  "label": "core",
+  "key": "eleven denoisers instantiated from their configs without weights (pytorch's",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "what transfers from this laptop",
+  "text": "Pick two to compare.",
+  "label": "core",
+  "key": "pick two to compare.",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "what transfers from this laptop",
+  "text": "Extends Reading sections 2 , 4 , 5 and 6 .",
+  "label": "core",
+  "key": "extends reading sections 2 , 4 , 5 and",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "what transfers from this laptop",
+  "text": "Model A Model B Image size 512 × 512 1024 × 1024 2048 × 2048",
+  "label": "core",
+  "key": "model a model b image size 512 × 512",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "all eleven at the chosen size",
+  "text": "All eleven at the chosen size Denoiser Parameters Modulation share Image tokens Text tokens FLOPs per pass Attention-score share Check Counting: src/arch/params.py (parameters, by name patterns listed in the script; fused single-stream layers split by their row and column counts), src/arch/flops_all.py (one pass, batch 1, no classifier-free-guidance batching, the pipeline's default text length, on meta tensors under FlopCounterMode ).",
+  "label": "core",
+  "key": "all eleven at the chosen size denoiser parameters modulation",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "all eleven at the chosen size",
+  "text": "Attention-score share: the batched matrix multiplications ( aten.bmm , the QK T and attention-times-V products) as a share of all FLOPs; Sana's linear attention and cross-attention are its only bmm.",
+  "label": "core",
+  "key": "attention-score share: the batched matrix multiplications ( aten.bmm ,",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "all eleven at the chosen size",
+  "text": "Configs: the Hub repos pinned in the root's Model map ( src/map/inputs/ ), FLUX.2 [klein] 4B and DiT-XL/2 fetched here, FLUX.1 from Black Forest Labs' public code and SD3 from the paper's depth rule (both repos are gated); \"Check\" says which total each count was verified against; * marks a size outside the counted grid (DiT-XL/2 was counted up to 1024), from the fitted formula. derived Stable Diffusion 1.5's cross-attention, recorded while it generated four images with the topic's shared settings (512 × 512, 25 DPM-Solver++ steps, guidance 7.5, float16 on the laptop's GPU).",
+  "label": "core",
+  "key": "configs: the hub repos pinned in the root's model",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "all eleven at the chosen size",
+  "text": "Pick a prompt and a word: the map shows which latent positions read that word, at seven of the 25 steps, over the model's own guess of the final image at that step.",
+  "label": "core",
+  "key": "guess of the final image at that",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "all eleven at the chosen size",
+  "text": "Extends Reading section 3 .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab link"
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "all eleven at the chosen size",
+  "text": "Step by step (16 × 16 layers) All steps (32 × 32 layers)",
+  "label": "core",
+  "key": "step by step (16 × 16 layers) all steps",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "where the attention mass goes",
+  "text": "Where the attention mass goes 64 × 64 layers 32 × 32 16 × 16 8 × 8 (middle)",
+  "label": "core",
+  "key": "64 × 64 layers 32 × 32 16 ×",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "before and after: one word changed, same seed",
+  "text": "Before and after: one word changed, same seed How the maps were recorded: every attn2 processor of the U-Net replaced by one that keeps the softmax output ( src/sd/sd_ld.py , the code in Reading section 3); the conditional half of the guided batch, mean over heads, summed per resolution; maps stored as 8-bit, each token scaled to its own maximum (the mass bars use the unscaled values).",
+  "label": "depth",
+  "key": "every attn2 processor of the u-net replaced by one",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "before and after: one word changed, same seed",
+  "text": "The step image is the model's prediction of the clean latent at that step, x̂ 0 = (x t − √(1 − ᾱ t ) ε̂) / √ᾱ t with the guided ε̂, decoded by the VAE. measured on Apple M1 Pro (MPS), float16 What one image costs in denoiser compute, for any of the eleven denoisers on this page at any size: tokens from the VAE factor and patch, FLOPs per pass from the counted formula, then steps and passes.",
+  "label": "depth",
+  "key": "the step image is the model's prediction of the",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "before and after: one word changed, same seed",
+  "text": "Extends Reading section 9 .",
+  "label": "core",
+  "key": "extends reading section 9 .",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "before and after: one word changed, same seed",
+  "text": "Denoiser Width (px) Height (px) Text tokens Steps Passes per step 1 (no CFG, or guidance-distilled) 2 (classifier-free guidance) Images Sustained throughput (TFLOP/s) Pipeline defaults Throughput: measured here Check: DiT-XL/2 at 256",
+  "label": "core",
+  "key": "denoiser width (px) height (px) text tokens steps passes",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "FLOPs per pass against image size, all eleven The formula: FLOPs(N, T) = k 0 + k 1 N + k 2 T + k 3 N 2 + k 4 NT + k 5 T 2 , N = image tokens (or the U-Net's top-level latent positions), T = text tokens, with the six coefficients fitted to counts on meta tensors at 10 square sizes and 1 to 5 text lengths per model ( src/arch/flops_all.py ).",
+  "label": "core",
+  "key": "flops per pass against image size, all eleven the",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "It reproduces every counted point to within 10 −12 relative, except Z-Image (2%: its code pads both sequences to multiples of 32).",
+  "label": "core",
+  "key": "it reproduces every counted point to within 10 −12",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "Non-square sizes use the same N; for a U-Net that is exact for the convolutions and the attention.",
+  "label": "core",
+  "key": "non-square sizes use the same n; for a u-net",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "Not included: the text encoder, the VAE decoder, and anything the formula cannot see (kernel efficiency: attention FLOPs run at very different speeds depending on the kernel).",
+  "label": "core",
+  "key": "not included: the text encoder, the vae decoder, and",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "Throughput is yours to set: the default is the effective rate measured here for SD 1.5's U-Net at 512 × 512 in float16 on the M1 Pro's GPU; a datacenter GPU's sustained rate must be measured, and its vendor peak (NVIDIA lists 989 TFLOPS of dense BF16 for an H100 SXM, H100 page ) is an upper bound no denoiser reaches. derived This page's tabs, the parent topic and its labs, the sibling pages, the knowledge base pages this one leans on, the papers and code behind it and the best outside resources, each with an approximate time.",
+  "label": "core",
+  "key": "throughput is yours to set: the default is the",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "Outside sources are marked maker (by the people who built the method or model) or third-party .",
+  "label": "core",
+  "key": "outside sources are marked maker (by the people who",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "Links checked on 2026-10-17.",
+  "label": "core",
+  "key": "links checked on",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "This page Reading Why latents, the U-Net read from its config, text conditioning, DiT, MMDiT, double and single streams, positions, resolution, cost, mistakes and interview questions. about 35 min, plus 4 for the folded answers Architecture explorer Eleven denoisers counted from their configs: parameters by kind of layer, config values, FLOPs per pass at three sizes, two side by side.",
+  "label": "core",
+  "key": "this page reading why latents, the u-net read from",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "10 min Cross-attention viewer SD 1.5's cross-attention for four prompts, every word, seven steps over the predicted image; attention mass per token; red against blue.",
+  "label": "core",
+  "key": "one word changed, same seed",
+  "where": "",
+  "note": "Further-reading card of the removed Cross-attention viewer tab; the viewer now lives in Reading section 3"
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "8 min Tokens and FLOPs calculator Any of the eleven at any size, text length, steps and guidance: tokens, FLOPs per pass and per image, time at a throughput you set.",
+  "label": "core",
+  "key": "min tokens and flops calculator any of the eleven",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "5 min The parent topic and its labs Topic: generative-and-multimodal The whole topic from zero; this page extends its Reading section 4.",
+  "label": "core",
+  "key": "5 min the parent topic and its labs topic:",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "Its Diffusion lab runs SD 1.5's samplers and guidance (timings reused here), its Latent lab the SD VAE and scaling factor, and its Model map sends one prompt through six real pipelines and lists every generator's release, licence and size. about 30 min Reading; each lab 15 to 25 min Sibling pages (children of the same topic) Autoencoders and VAEs: latents and image tokenizers The VAE half of latent diffusion: nine generator VAEs on the same images, scaling and shift factors, the SDXL float16 NaNs. about 33 min Diffusion from zero: DDPM, samplers and guidance The objective and the sampling loop this page's denoisers run in: schedules, ε/x 0 /v prediction, samplers, guidance, distillation. about 25 min Flow matching and rectified flow SD3's and FLUX's objective, timestep sampling and the resolution shift mentioned in section 8. about 32 min Vision encoders: ViT, CLIP and SigLIP Patch embeddings, position interpolation and CLIP's text-image training: the other side of the text encoders used here. about 26 min Native multimodal and any-to-any models Generating images with one transformer that also reads text: the alternative to a separate denoiser. about 33 min Video and audio generation The same denoisers over space-time patches: tokens per second of video. about 40 min Evaluating generative models: FID, CLIPScore, preference and VLM benchmarks FID, CLIPScore, preference: how the quality claims quoted here were measured. about 25 min Knowledge base pages this one leans on High-Resolution Image Synthesis with Latent Diffusion Models The LDM / Stable Diffusion paper page: the f sweep, cross-attention conditioning, a live toy of latent against pixel diffusion, and a recipe card from LDM to FLUX.1. about 19 min DDPM paper page The U-Net denoiser's origin in diffusion and the ε objective. about 18 min ViT paper page Patchify, position embeddings and why transformers need data: DiT's starting point. about 20 min CLIP paper page The text encoder of SD 1.5 and SDXL. about 22 min T5 paper page The text encoder of Imagen, PixArt, SD3 and FLUX.1. about 18 min Positional Encodings Sinusoidal, learned and rotary encodings in depth; the 2-D and 3-D split in section 7 builds on it. about 34 min RoFormer paper page Rotary position embedding from the source. about 19 min FlashAttention paper page Why attention's FLOP share and its time share differ on a datacenter GPU. about 20 min Variational inference and generative-model maths The maths of VAEs and diffusion behind the objectives. about 41 min Topic: inference-and-serving Serving, batching and kernels for language models; much of it applies to serving a denoiser. about 43 min, plus its labs Papers Peebles and Xie 2022, DiT maker Patchify, adaLN-Zero, Gflops against FID; Table 4 is reproduced in section 4.",
+  "label": "core",
+  "key": "its diffusion lab runs sd 1.5's samplers and guidance",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "45 min Esser et al.",
+  "label": "core",
+  "key": "45 min esser et al.",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "2024, SD3 maker MMDiT, QK-normalisation, flexible text encoders, resolution-dependent shift.",
+  "label": "core",
+  "key": "2024, sd3 maker mmdit, qk-normalisation, flexible text encoders, resolution-dependent",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "60 min Podell et al.",
+  "label": "core",
+  "key": "60 min podell et al.",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "2023, SDXL maker Redistributing a U-Net's blocks, micro-conditioning, multi-aspect training.",
+  "label": "core",
+  "key": "2023, sdxl maker redistributing a u-net's blocks, micro-conditioning, multi-aspect",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "30 min Chen et al.",
+  "label": "core",
+  "key": "30 min chen et al.",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "2023, PixArt-α maker Cross-attention DiT, adaLN-single, a cheap training recipe.",
+  "label": "core",
+  "key": "2023, pixart-α maker cross-attention dit, adaln-single, a cheap training",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "30 min Xie et al.",
+  "label": "core",
+  "key": "30 min xie et al.",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "2024, Sana maker 32× DC-AE, linear attention, a decoder LLM as text encoder.",
+  "label": "core",
+  "key": "2024, sana maker 32× dc-ae, linear attention, a decoder",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "30 min Labs et al.",
+  "label": "core",
+  "key": "30 min labs et al.",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "2025, FLUX.1 Kontext maker The only published description of FLUX.1's architecture (section 2).",
+  "label": "core",
+  "key": "2025, flux.1 kontext maker the only published description of",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "25 min Qwen-Image technical report maker A 20B MMDiT with a VLM text encoder and MSRoPE.",
+  "label": "core",
+  "key": "25 min qwen-image technical report maker a 20b mmdit",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "40 min Rombach et al.",
+  "label": "core",
+  "key": "40 min rombach et al.",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "2021, LDM maker The original; the paper page above walks it.",
+  "label": "core",
+  "key": "2021, ldm maker the original; the paper page above",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "60 min Ronneberger et al.",
+  "label": "core",
+  "key": "60 min ronneberger et al.",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "2015, U-Net maker The architecture's origin, in medical segmentation.",
+  "label": "core",
+  "key": "2015, u-net maker the architecture's origin, in medical segmentation.",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "20 min Saharia et al.",
+  "label": "core",
+  "key": "20 min saharia et al.",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "2022, Imagen maker Frozen T5-XXL as the text encoder; scaling the encoder over the denoiser.",
+  "label": "core",
+  "key": "2022, imagen maker frozen t5-xxl as the text encoder;",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "40 min Hertz et al.",
+  "label": "core",
+  "key": "min hertz et al.",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "2022, Prompt-to-Prompt third-party Editing images by controlling cross-attention maps, the idea behind the red/blue comparison.",
+  "label": "core",
+  "key": "2022, prompt-to-prompt third-party editing images by controlling cross-attention maps,",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "30 min Code (pinned) diffusers v0.41.0: unet_2d_condition.py maker SD's U-Net; read with its config beside it.",
+  "label": "core",
+  "key": "30 min code (pinned) diffusers v0.41.0: unet_2d_condition.py maker sd's",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "30 min diffusers v0.41.0: transformer_flux.py maker Double and single stream blocks, 3-D RoPE.",
+  "label": "core",
+  "key": "30 min diffusers v0.41.0: transformer_flux.py maker double and single",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "30 min facebookresearch/DiT models.py maker The whole DiT in about 370 lines.",
+  "label": "core",
+  "key": "30 min facebookresearch/dit models.py maker the whole dit in",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "20 min black-forest-labs/flux maker FLUX.1's reference code: model.py and modules/layers.py.",
+  "label": "core",
+  "key": "20 min black-forest-labs/flux maker flux.1's reference code: model.py and",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "20 min Best outside explanations The Illustrated Stable Diffusion (Jay Alammar) third-party The three-network picture drawn step by step.",
+  "label": "core",
+  "key": "20 min best outside explanations the illustrated stable diffusion",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "20 min Stable Diffusion with Diffusers (Hugging Face blog) maker The pipeline written out by hand: text encoder, U-Net loop, VAE.",
+  "label": "core",
+  "key": "20 min stable diffusion with diffusers (hugging face blog)",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "20 min What are Diffusion Models?",
+  "label": "core",
+  "key": "20 min what are diffusion models?",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "(Lilian Weng) third-party The maths with the architectures in context; updated over time.",
+  "label": "core",
+  "key": "(lilian weng) third-party the maths with the architectures in",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "45 min Scripts, recorded outputs and source references: src/ in this page's folder ( README.md first; inputs/source_lines.json lists every file and line quoted, located by pattern).",
+  "label": "core",
+  "key": "45 min scripts, recorded outputs and source references: src/",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "flops per pass against image size, all eleven",
+  "text": "Built 17 October 2026.",
+  "label": "core",
+  "key": "built 17 october",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "One-screen table: six designs (U-Net, DiT, DiT + cross-attention, MMDiT, double + single stream, single stream) with examples, how image and text are held, parameters and FLOPs at 1024",
+  "label": "core",
+  "key": "six denoiser designs on one screen",
+  "where": "",
+  "note": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Section 2 bars: parameters by kind, parameters and FLOPs by level, measured time by kind for SD 1.5",
+  "label": "core",
+  "key": "the two 64 × 64 levels do 38% of the work with 3.4% of the weights",
+  "where": "",
+  "note": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Section 9 cost table: tokens, FLOPs per pass, steps x passes and denoiser FLOPs per 1024 image for twelve pipelines at their defaults",
+  "label": "core",
+  "key": "steps × passes moves the total as much as model size",
+  "where": "",
+  "note": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Section 4 tiny DiT table and strips: every run with parameters, tokens, FLOPs, training compute, FD and accuracy",
+  "label": "depth",
+  "key": "training compute = 3 × flops per pass × 128 × steps",
+  "where": "",
+  "note": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "new",
+  "text": "Hero: SD 1.5 one image, text encoder once, U-Net 50 passes on the latent, VAE decode once; 25 x 0.610 = 15.3 s of denoising against 0.488 s decode",
+  "label": "core",
+  "key": "the denoiser runs 50 times, everything else once",
+  "where": "",
+  "note": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "new",
+  "text": "DiT paper Figure 3 (CC BY 4.0) beside adaLN-Zero",
+  "label": "core",
+  "key": "figure 3 of peebles and xie",
+  "where": "",
+  "note": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "10. few steps: distillation",
+  "text": "Below about 8 steps no solver suffices; distillation trains a student to do in few passes what the teacher sampler does in many",
+  "label": "core",
+  "key": "below about 8 steps you need a second model trained to jump",
+  "where": "",
+  "note": "absorbed from diffusion_from_zero section 7 (OWNERS: few-step distillation belongs to this page)"
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "10. few steps: distillation",
+  "text": "Guidance distillation: a student conditioned on w outputs the guided prediction in one call (Meng et al. 2022); FLUX.1 [dev]",
+  "label": "core",
+  "key": "remove the second pass per step: guidance distillation",
+  "where": "",
+  "note": "absorbed from diffusion_from_zero section 7 (OWNERS: few-step distillation belongs to this page)"
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "10. few steps: distillation",
+  "text": "Progressive distillation halves steps per round (Salimans and Ho 2022), CIFAR-10 FID 9.12 / 4.51 / 3.00 / 2.57",
+  "label": "depth",
+  "key": "9.12 / 4.51 / 3.00 / 2.57",
+  "where": "",
+  "note": "absorbed from diffusion_from_zero section 7 (OWNERS: few-step distillation belongs to this page)"
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "10. few steps: distillation",
+  "text": "Consistency models: map any point on the path to its end; CD CIFAR-10 3.55 / 2.93",
+  "label": "depth",
+  "key": "3.55 / 2.93",
+  "where": "",
+  "note": "absorbed from diffusion_from_zero section 7 (OWNERS: few-step distillation belongs to this page)"
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "10. few steps: distillation",
+  "text": "LCM in SD latent with guidance baked in; FID 35.36 / 13.31 / 11.10 / 11.84 vs DDIM; about 32 A100 GPU hours",
+  "label": "depth",
+  "key": "35.36 / 13.31 / 11.10 / 11.84",
+  "where": "",
+  "note": "absorbed from diffusion_from_zero section 7 (OWNERS: few-step distillation belongs to this page)"
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "10. few steps: distillation",
+  "text": "LCM-LoRA: 67.5M trainable parameters on SD 1.5",
+  "label": "core",
+  "key": "67.5m-parameter lora",
+  "where": "",
+  "note": "absorbed from diffusion_from_zero section 7 (OWNERS: few-step distillation belongs to this page)"
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "10. few steps: distillation",
+  "text": "ADD: GAN loss with frozen DINOv2 discriminator; ADD-M 1 step FID-5k 19.7; ADD-XL 4 steps preferred over SDXL 50 steps",
+  "label": "depth",
+  "key": "add-m (sd 1.5 backbone)",
+  "where": "",
+  "note": "absorbed from diffusion_from_zero section 7 (OWNERS: few-step distillation belongs to this page)"
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "10. few steps: distillation",
+  "text": "DMD / DMD2: distribution matching with two score models; ImageNet 64 one-step FID 2.62 / 1.28; SDXL DMD2 4 steps 19.32 vs teacher 19.36",
+  "label": "depth",
+  "key": "19.32 against the 100-call teacher",
+  "where": "",
+  "note": "absorbed from diffusion_from_zero section 7 (OWNERS: few-step distillation belongs to this page)"
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "10. few steps: distillation",
+  "text": "Measured LCM-LoRA vs DPM-Solver++ on SD 1.5 (stays on Diffusion from zero, quoted here)",
+  "label": "core",
+  "key": "lcm-lora is sharp at 1 to 4 steps but drops the lighthouse",
+  "where": "",
+  "note": "absorbed from diffusion_from_zero section 7 (OWNERS: few-step distillation belongs to this page)"
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "10. few steps: distillation",
+  "text": "LADD: adversarial distillation in the latent with generative features of a pretrained LDM; SD3-Turbo four unguided steps; FLUX.1 [schnell] per card",
+  "label": "core",
+  "key": "four unguided sampling steps",
+  "where": "",
+  "note": "new 2026-10-24, sourced inline"
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "10. few steps: distillation",
+  "text": "SDXL-Turbo card: ADD, 1 to 4 steps, guidance_scale=0.0",
+  "label": "core",
+  "key": "guidance_scale=0.0",
+  "where": "",
+  "note": "new 2026-10-24, sourced inline"
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "10. few steps: distillation",
+  "text": "Passes per image teacher vs student: SD 1.5 50 to 4, SDXL 100 to 1, SD3 56 to 4, FLUX.1 28 to 4; FLUX 2,083 vs 298 TFLOP",
+  "label": "core",
+  "key": "28 passes are 2,083 tflop, 4 are 298",
+  "where": "",
+  "note": "new 2026-10-24, sourced inline"
+ }
+]
