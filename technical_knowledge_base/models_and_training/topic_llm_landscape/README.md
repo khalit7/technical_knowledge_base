@@ -24,3 +24,5 @@ The page also carries a narrated video (not in this repository; its HyperFrames 
 - `zhipu_glm/`: Zhipu: GLM
 
 Folded into this page on 2026-10-01 (their Notion pages are marked for deletion): Mixture-of-Experts (MoE) models (then the "Deeper: inside an MoE" tab plus Axis 2 of the Reading tab; scripts in `src/moe/`; on 2026-10-18 the tab was replaced by a link card to the Mixture of experts child of Topic: llm-architecture, which carries its content), Reasoning models and test-time compute (the "Deeper: test-time compute" tab plus Axis 1; `src/ttc/`), and LLM release history (the "Release history" tab plus "How we got here"; `src/history/`).
+
+2026-10-24 (topic close): the Reading tab was rebuilt to the teaching contract as a map (core idea, a hero of each lab's best model with its answer on the three axes, comparisons, child cards); the interactive lab map and the Release history's Cadence view were retired; the old "Deeper: inside an MoE" tab is gone. See `src/README.md`.

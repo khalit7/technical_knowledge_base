@@ -23,20 +23,6 @@
   document.querySelectorAll('#thM button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#thM button').forEach(x=>x.classList.toggle('on',x===b));draw(b.dataset.m)}));
   draw('router');
 })();
-// ---- Choosing ----
-(function(){
-  const $=id=>document.getElementById(id);
-  const C=[
-    ['A closed frontier model','Claude Opus 5.5 tops the index at 58, ahead of Meta\'s Muse Wonder Full (56, sold only inside Muse Code), GPT-6 Astra and Gemini 4 Argon (53) ('+A(AA,'AA')+', 19 October 2026), but each lab leads somewhere on its own table: Astra on Terminal-Bench-Science 0.1 ('+A('https://www-cdn.anthropic.com/fc1b44717c85dc068bc6ba5024219938094694bd/Claude%20Opus%205.5%20System%20Card.pdf','Anthropic')+'), Argon on AutomationBench at 51.3% ('+A('https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-4-argon/','Google')+'). Test on your own task.','The top of the range.','The most per task ($2 to $6 on the index), and the least view of the reasoning.'],
-    ['A cheaper closed tier','GPT-6.1 Sol scores 51.8 for $0.72 a task, Claude Haiku 5.5 at max effort 43 for $0.21, Claude Sonnet 5.5 at medium effort 40.7 for $0.59, Gemini 3.8 Flash 40.9 for $1.24 ('+A(AA,'AA')+').','Most of the capability at a fraction of the cost.','A gap on the hardest tasks; a model that takes more steps can erase its token-price advantage.'],
-    ['Open weights','MiMo-V2.6-Pro scores 46.3 for $0.13 a task through its API ('+A(AA,'AA')+'). To self-host, total parameters set the memory you buy and active parameters the speed you get. Check the licence of the exact checkpoint: MIT and Apache 2.0 sit beside custom and non-commercial licences.','Control, custody of your data, fine-tuning, and the lowest prices.','The serving work, and about 12 points to the top closed model on the index.'],
-    ['A fully open model','Ai2\'s OLMo and IFM\'s K2 Horizon publish the data and the recipe, which contamination audits, data ablations and training-dynamics studies need.','Reproducibility.','Distance from the capability frontier.'],
-    ['A small dense or heavily quantised model','Bonsai 2 27B fits in 5.9GB at 1.76 bits per weight ('+A('https://prismml.com/news/bonsai-2-27b','Prism ML')+'); gpt-oss-120b fits one 80GB card ('+A('https://www.infoq.com/news/2025/08/openai-gpt-oss/','InfoQ')+'); Gemma 4 and Muse Glimmer target local use.','Privacy and no per-token cost.','Capability.']
-  ];
-  function draw(i){const c=C[i];$('chD').innerHTML='<h3>'+c[0]+'</h3><p>'+c[1]+'</p><dl class="kv"><dt>Buys</dt><dd>'+c[2]+'</dd><dt>Costs</dt><dd>'+c[3]+'</dd></dl>'}
-  document.querySelectorAll('#chF button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#chF button').forEach(x=>x.classList.toggle('on',x===b));draw(+b.dataset.c)}));
-  draw(0);
-})();
 // ---- Nav highlight ----
 (function(){
   const links=[...document.querySelectorAll('#nav a')];
