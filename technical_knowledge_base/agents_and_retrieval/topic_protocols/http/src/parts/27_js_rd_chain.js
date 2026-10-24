@@ -89,7 +89,7 @@ window.TCHAIN=(function(){
     const got=res.b.tokens.filter(t=>t<=now+1e-9&&(!res.best||t<res.at-1e-9)).length;
     document.getElementById('ch-cnt').innerHTML=RD.stat('Tokens received',got+' / '+R.ntok,'')+RD.stat('Longest silence',fmt(maxGap(res.b)),'between bytes')+RD.stat('Generation would end at',fmt(res.end),'think + gaps');
   }
-  const A=RD.anim({card:'ch-svg',ctl:'ch-ctl',n:NSTEP,draw,ms:250,label:'Time',tab:'t-chain'});
+  const A=RD.anim({card:'ch-svg',ctl:'ch-ctl',n:NSTEP,draw,ms:250,label:'Time'});
   // validation against the measured runs (raw/timeouts.json)
   const NG=[{key:'ing',role:'proxy',n:'nginx idle 2 s',timers:[['idle',2]]}];
   const V=[

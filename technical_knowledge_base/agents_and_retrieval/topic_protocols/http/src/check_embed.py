@@ -49,6 +49,16 @@ ok(statistics.median([r["B_last"] for r in hol["h1_pipelined"]]) > 1100, "HOL: p
 pub = open(os.path.join(HERE, "raw/public_headers.txt")).read()
 ok("x-should-retry: false" in pub and pub.count("server accepted h2") == 3 and pub.count("alt-svc: h3") == 2, "public hosts: three h2, two alt-svc h3, Anthropic x-should-retry false")
 
+# 2b. the CORS figure's header lines and the cookie line are in the 24 October 2026 recording
+cors = open(os.path.join(HERE, "inputs/cors_cookies.txt"), encoding="utf-8").read()
+figs = open(os.path.join(HERE, "parts/28_js_rd_figs.js"), encoding="utf-8").read()
+for line in ["access-control-allow-methods: DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT", "access-control-allow-headers: content-type,x-api-key,anthropic-version",
+             "access-control-allow-origin: *", "access-control-max-age: 600", "access-control-max-age: 86400",
+             "set-cookie: __cf_bm=<redacted>; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com; Expires=<date>"]:
+    ok(line in cors and (line in figs or "max-age 86400" in txt or line.startswith("access-control-max-age: 86400")), "CORS recording: " + line[:60])
+ok(cors.count("< HTTP/2 400") == 1 and cors.count("< HTTP/2 200") == 2, "CORS: Anthropic 400 without the opt-in header, 200 with it; OpenAI 200")
+ok("access-control-allow-origin" not in cors.split("### ")[1], "CORS: no allow-origin on Anthropic's 400")
+
 # 3. nothing private or secret-looking in the page or src/
 pat = re.compile(alternation())
 ok(not pat.search(page), "no machine-specific patterns in index.html")
