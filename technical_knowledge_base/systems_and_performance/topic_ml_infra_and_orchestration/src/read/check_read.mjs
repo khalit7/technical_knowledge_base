@@ -1,36 +1,21 @@
-// Reading tab: the numbers the page prints come from the same simulators and formulas as recompute.py.
+// Reading tab: every derived number the prose prints equals recompute.py's out/expected.json.
+// Since the 2026-10-24 rebuild the Reading tab has no simulators; the derived numbers are static text.
 // Usage (repo root): node <this file> <index.html> <expected.json>
-import {createRequire} from 'module';
-import path from 'path';
 import fs from 'fs';
-const require=createRequire(path.resolve('html_utils/package.json'));
-const puppeteer=require('puppeteer');
-const page_path=path.resolve(process.argv[2]);const X=JSON.parse(fs.readFileSync(process.argv[3]));
-const b=await puppeteer.launch({headless:'shell'});
+const html=fs.readFileSync(process.argv[2],'utf8');const X=JSON.parse(fs.readFileSync(process.argv[3]));
+const a=html.indexOf('id="t-read"'),b=html.indexOf('id="t-sched"');
+const txt=html.slice(a,b).replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g,' ').replace(/<[^>]+>/g,' ').replace(/&times;/g,'×').replace(/&radic;/g,'√').replace(/\s+/g,' ');
 let fail=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)fail++};
-try{
-const p=await b.newPage();await p.setViewport({width:920,height:900});
-await p.goto('file://'+page_path,{waitUntil:'load'});
-const g=await p.evaluate(()=>({bf:window.RD_BF,ck:window.RD_CK,l3:window.RD_FAIL,words:window.RD_WORDS,
-  txt:id=>0,ids:Object.fromEntries(['rd-bf-m1','rd-bf-m2','rd-bf-u1','rd-bf-u2','rd-bf-w1','rd-bf-w2','rd-l3m','rd-m1k','rd-m100k','rd-ck70','rd-ck405','rd-time'].map(i=>[i,(document.getElementById(i)||{}).textContent]))}));
-for(const m of ['fifo','easy']){
-  ok(JSON.stringify(g.bf[m].sched)===JSON.stringify(Object.fromEntries(Object.entries(X[m].sched).map(([k,v])=>[k,v])))||Object.keys(X[m].sched).every(k=>g.bf[m].sched[k][0]===X[m].sched[k][0]&&g.bf[m].sched[k][1]===X[m].sched[k][1]),`${m} schedule matches recompute.py`);
-  ok(g.bf[m].makespan===X[m].makespan&&Math.abs(g.bf[m].util-X[m].util)<1e-9&&Math.abs(g.bf[m].meanWait-X[m].mean_wait)<1e-9,`${m} makespan ${g.bf[m].makespan}, util ${g.bf[m].util.toFixed(3)}, mean wait ${g.bf[m].meanWait}`);
-}
-ok(g.ids['rd-bf-m1']==String(X.fifo.makespan)&&g.ids['rd-bf-m2']==String(X.easy.makespan),'prose makespans');
-ok(g.ids['rd-bf-u1']==Math.round(X.fifo.util*100)+'%'&&g.ids['rd-bf-u2']==Math.round(X.easy.util*100)+'%','prose utilisation');
-ok(g.ids['rd-bf-w1']==X.fifo.mean_wait.toFixed(1)&&g.ids['rd-bf-w2']==X.easy.mean_wait.toFixed(1),'prose mean waits');
-ok(g.ids['rd-l3m']==X.llama3_mtbf_h.toFixed(1),'Llama 3 MTBF '+g.ids['rd-l3m']);
-ok(g.ids['rd-m1k']==String(Math.round(X.mtbf_1000)),'1,000-GPU MTBF '+g.ids['rd-m1k']+' h');
-ok(g.ids['rd-m100k']==String(Math.round(X.mtbf_100000*60)),'100,000-GPU MTBF '+g.ids['rd-m100k']+' min');
-ok(g.ids['rd-ck70']==X.ckpt_70B_TB.toFixed(2)&&g.ids['rd-ck405']==X.ckpt_405B_TB.toFixed(1),'checkpoint sizes');
-for(const m of ['none','ckpt'])ok(Math.abs(g.ck[m].end-X['tl_'+m].end)<1e-9&&Math.abs(g.ck[m].lost-X['tl_'+m].lost)<1e-9,`timeline ${m}: ends ${g.ck[m].end.toFixed(2)} h, lost ${g.ck[m].lost.toFixed(2)} h, goodput ${(g.ck[m].goodput*100).toFixed(1)}%`);
-// calculator against recompute.py's Young rows
-for(const n of [1000,16384,100000]){
-  const r=await p.evaluate(n=>{const s=(id,v)=>{const e=document.getElementById(id);e.value=String(v);e.dispatchEvent(new Event('change'))};s('rd-mt-n',n);s('rd-mt-c',60);s('rd-mt-r',600);return document.getElementById('rd-mt-out').innerText},n);
-  const y=X['young_'+n];const lossTxt=y.lost>=0.5?'over 50%':(y.lost*100).toFixed(1)+'%';
-  ok(r.includes(lossTxt),`calculator N=${n}: shows ${lossTxt}`);
-}
-ok(Math.abs(+g.ids['rd-time']-g.words/200)<0.6,`reading time ${g.ids['rd-time']} min from ${g.words} words`);
-}finally{await b.close()}
+const has=(s,m)=>ok(txt.includes(s),m+': "'+s+'"');
+has('every 3.1 hours','Llama 3 MTBF '+X.llama3_mtbf_h.toFixed(2)+' h');
+has(Math.round(X.mtbf_1000)+' h','1,000-GPU MTBF');
+has(Math.round(X.mtbf_100000*60)+' min','100,000-GPU MTBF');
+has(X.llama3_mtbf_h.toFixed(1)+' h × 16,384 / N','MTBF formula');
+has('about '+X.ckpt_70B_TB.toFixed(2)+' TB','70B checkpoint');
+has('about '+X.ckpt_405B_TB.toFixed(1)+' TB','405B checkpoint');
+has('about '+Math.round(X.young_1000.tau_min)+' minutes between checkpoints and about '+Math.round(X.young_1000.lost*100)+'% loss','Young at 1,000 GPUs');
+has('gives about '+Math.round(X.young_16384.tau_min)+' minutes for C = 1 minute','Young at 16,384 GPUs');
+// bar widths of the MTBF figure follow the derived values
+const w=[...html.slice(a,b).matchAll(/<span class="fill" style="width:([\d.]+)%/g)].slice(0,3).map(m=>+m[1]);
+ok(Math.abs(w[1]-X.mtbf_16384/X.mtbf_1000*100)<0.2&&Math.abs(w[2]-X.mtbf_100000/X.mtbf_1000*100)<0.2,'MTBF bar widths '+w.join(', '));
 console.log(fail?'FAILED '+fail:'all checks passed');process.exit(fail?1:0);

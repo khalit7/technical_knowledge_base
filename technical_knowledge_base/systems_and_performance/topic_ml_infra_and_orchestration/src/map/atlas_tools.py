@@ -286,7 +286,7 @@ T += [
       what="Deep health checks at creation, agents that detect faulty nodes, replace them and resume jobs from the last checkpoint; Slurm or EKS as the orchestrator.",
       when="Large reserved training clusters on AWS.",
       avoid="Small, bursty or multi-cloud work.",
-      verdict="The managed 'resilient cluster' pattern; its health checks are the feature.",
+      verdict="The managed 'resilient cluster' pattern; its health checks are the feature. Training jobs against a HyperPod cluster (lifecycle, billing, srun --auto-resume=1): ML platforms and workflows, section 10.",
       src=[["AWS News Blog: Introducing SageMaker HyperPod (2023-11-29)", "https://aws.amazon.com/blogs/aws/introducing-amazon-sagemaker-hyperpod-a-purpose-built-infrastructure-for-distributed-training-at-scale/"], ["AWS: EKS support in SageMaker HyperPod (2024-09)", "https://aws.amazon.com/about-aws/whats-new/2024/09/amazon-eks-sagemaker-hyperpod-scale-foundation-model-development/"]]),
  dict(id="gke", name="Google GKE and Cluster Toolkit", layer="cloud", owner="Google Cloud", repo="GoogleCloudPlatform/cluster-toolkit", relpick=r"^v\d+\.\d+\.\d+$", lic="GKE: proprietary (Google Cloud service); Cluster Toolkit Apache-2.0", status="commercial",
       why="GKE is Google's managed Kubernetes (Kueue, JobSet and DRA supported); Cluster Toolkit v1.106.0 on 2026-10-13 deploys Slurm or GKE clusters for AI and HPC.",

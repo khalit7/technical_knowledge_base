@@ -25,7 +25,7 @@
   $('tm-aseg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;setPlay(false);st.i=b.dataset.m==='1'?N-1:0;draw()});
   $('tm-aslots').addEventListener('click',e=>{const s=e.target.closest('[data-tm-tool]');if(s&&s.dataset.tmTool)open(s.dataset.tmTool)});
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-    if(st.vis&&!st.started&&live()){st.started=true;if(!RM){st.i=0;draw();setPlay(true)}}kick()},{threshold:.3}).observe($('tm-anim'))}else st.vis=true;
+    kick()},{threshold:.3}).observe($('tm-anim'))}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   draw();
 
