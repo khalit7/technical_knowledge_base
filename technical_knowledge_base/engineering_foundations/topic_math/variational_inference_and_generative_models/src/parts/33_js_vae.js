@@ -37,5 +37,5 @@
       row('ELBO with the encoder’s q; with q optimised per image',g.elbo_encoder.toFixed(2)+'; '+g.elbo_optimised.toFixed(2),'same 100 images')+
       row('Approximation gap; amortisation gap',g.approximation_gap.toFixed(2)+'; '+g.amortisation_gap.toFixed(2),'Cremer et al. 2018 split')+'</table></div>'}
   let drawn=false;function all(){map();grid();rec();if(!drawn){meas();drawn=true}}
-  RD.onRender(all,'t-vae');addEventListener('resize',()=>{if(!$('t-vae').hidden){map()}});
+  const det=$('vi-m-vae');if(det)det.addEventListener('toggle',()=>{if(det.open)all()});RD.onResize(()=>{if(det&&det.open)map()});
 })();

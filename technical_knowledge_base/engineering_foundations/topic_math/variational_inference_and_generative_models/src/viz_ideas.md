@@ -23,3 +23,14 @@ Scores 0 to 2 on: parameter to move, reproduces a stated figure (x2), computable
 | 13 | Normalising-flow toy (RealNVP on moons) | rejected | | one section of scope; two checked closed forms carry the idea |
 
 What the methodology lacked here: a rule for toy models whose measurements contradict a textbook claim (straightness). Done as for published figures: show the measurement, explain it, keep the claim only where it holds (conditional paths).
+
+## 2026-10-24 rebuild (teaching contract)
+| Idea | Placement | Status |
+|---|---|---|
+| **Hero**: model A's prior, posterior and a poor \(q\) beside \(\log p(x)\) split into ELBO plus gap | top | built (static, numbers from `numbers.json`) |
+| **ELBO lab moved inline** as section 3's widget; its optimiser moved to section 5 | Reading 3, 5 | moved (the lab explained one mechanism, so it belongs beside the claim) |
+| **IWAE bound against \(K\)** on model A, \(\log p(x)\) and the exact ELBO as reference lines | Reading 3 | built (the numbers were prose only) |
+| **Gap split** on the MNIST VAE: amortisation 8.15 against approximation 0.10 on one nats axis | Reading 4 | built (the numbers were a list) |
+| **VAE against diffusion**: the same bound with a learned one-step \(q\) and a fixed many-step \(q\) | Reading 6 | built (static diagram; the reappearance paragraph had no picture) |
+| Diffusion lab, VAE tab, forward-then-back animation, schedules, straightness | closed blocks M1, M3, D3 | moved out of the core: they show the generative models, owned by Topic: generative-and-multimodal's children; kept until an owner absorbs them |
+| Real images | none | rejected: a mathematics page; every figure is a mechanism drawn from the page's numbers |

@@ -30,6 +30,6 @@
   RD.seg($('df-s'),m=>{st.s=m;draw()});RD.seg($('df-c'),m=>{st.c=+m});
   $('df-w').addEventListener('input',()=>{$('df-wv').textContent=$('df-w').value});$('df-n').addEventListener('change',draw);
   $('df-go').addEventListener('click',go);
-  let first=true;RD.onRender(()=>{draw();if(first){first=false;go()}},'t-diff');addEventListener('resize',()=>{if(!$('t-diff').hidden)draw()});
+  let first=true;const det=$('vi-m-diff');if(det)det.addEventListener('toggle',()=>{if(det.open){draw();if(first){first=false;go()}}});RD.onResize(()=>{if(det&&det.open)draw()});
   window.VI_DFgo=go;
 })();

@@ -1,4 +1,4 @@
-// ---- ELBO lab ----
+// ---- The ELBO widget (Reading section 3) and the optimiser (section 5), formerly the ELBO lab tab ----
 (function(){
   const $=id=>document.getElementById(id);if(!$('el-svg'))return;
   let model='A',est='rep',trace=null;
@@ -23,6 +23,7 @@
     const tot=-r.elbo,a=Math.max(0,-r.logpx)/tot*100,g=r.gap/tot*100;
     $('el-gap').innerHTML=r.logpx<0?'<span style="width:'+a.toFixed(1)+'%;background:var(--c3)">−log p(x) = '+(-r.logpx).toFixed(3)+'</span><span style="width:'+g.toFixed(1)+'%;background:var(--c2)">gap '+r.gap.toFixed(3)+'</span>':'';
     $('el-out').innerHTML=RD.stat('log p(x)',r.logpx.toFixed(4),model==='A'?'closed form, N(0, 1 + s²)':'quadrature on 2,401 points')+RD.stat('ELBO',r.elbo.toFixed(4),'= reconstruction − KL to prior')+RD.stat('gap = KL(q ‖ posterior)',r.gap.toFixed(4),'log p(x) − ELBO')+RD.stat('reconstruction E_q log p(x|z)',r.recon.toFixed(4),'')+RD.stat('KL(q ‖ prior)',r.klp.toFixed(4),'closed form');
+    if($('el-opt-out'))$('el-opt-out').innerHTML=RD.stat('q now','N('+p.m.toFixed(2)+', '+p.sd.toFixed(2)+'²)','model '+model)+RD.stat('ELBO',r.elbo.toFixed(4),'exact, of the current q')+RD.stat('gap',r.gap.toFixed(4),'to log p(x) = '+r.logpx.toFixed(4));
     drawTrace()}
   function best(){const p=P();if(model==='A'){const r=VI.modelA(p.x,p.s2,0,1);$('el-m').value=r.pm;$('el-q').value=Math.sqrt(r.pv);draw();return}
     let bb=[-1e9,0,1];for(let m=-2.5;m<=2.5;m+=0.02)for(let sd=0.05;sd<=1.6;sd+=0.01){const e=VI.modelB(p.x,p.s2,m,sd*sd,801).elbo;if(e>bb[0])bb=[e,m,sd]}
@@ -47,6 +48,6 @@
   RD.seg($('el-model'),m=>{model=m;trace=null;if(m==='B'){$('el-x').value=2;$('el-m').value=0.5;$('el-q').value=0.5}else{$('el-x').value=1.5;$('el-m').value=0.5;$('el-q').value=0.5}$('el-s').value=0.5;draw()});
   RD.seg($('el-est'),m=>{est=m});
   $('el-run').addEventListener('click',run);$('el-best').addEventListener('click',best);
-  RD.onRender(draw,'t-elbo');addEventListener('resize',()=>{if(!$('t-elbo').hidden)draw()});
+  RD.onRender(draw);RD.onResize(draw);
   window.VI_ELBO={best,run,get trace(){return trace}};
 })();
