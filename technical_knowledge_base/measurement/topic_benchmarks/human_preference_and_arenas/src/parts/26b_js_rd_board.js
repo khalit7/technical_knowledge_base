@@ -1,5 +1,6 @@
-// ---- Tab: Today's board, three ways (ids bd-) ----
+// ---- Reading section 3: today's board, three ways (ids bd-, card rd-bd-card); moved from its own tab 2026-10-24 ----
 (function(){
+  if(!document.getElementById('bd-wrap'))return;
   const D=window.HPD.board,wrap=document.getElementById('bd-wrap'),sel=document.getElementById('bd-cat');
   const NAMES={overall:'Overall',hard_prompts:'Hard prompts',coding:'Coding',math:'Math',creative_writing:'Creative writing',instruction_following:'Instruction following',multi_turn:'Multi-turn',longer_query:'Longer query',expert:'Expert',industry_legal_and_government:'Legal and government',industry_medicine_and_healthcare:'Medicine and healthcare',non_english:'Non-English'};
   const LENS={raw:'without style control',sc:'style control',fact:'factuality-weighted'};
@@ -32,5 +33,5 @@
   }
   sel.addEventListener('change',()=>{cat=sel.value;Object.keys(els).forEach(k=>{els[k].remove();delete els[k]});draw()});
   RD.seg(document.getElementById('bd-lens'),m=>{lens=m;draw()});
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-board']=window.TAB_RENDER['t-board']||[]).push(draw);
+  RD.onRender(draw);draw();
 })();
