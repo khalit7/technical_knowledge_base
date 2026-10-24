@@ -74,7 +74,7 @@ YP = json.load(open(os.path.join(HERE, "out", "page_data_more.json")))
 for k, v in YP.items():
     if Yd.get(k) != v:
         bad.append(f"page_data_more mismatch: {k}")
-rs = open(os.path.join(HERE, "..", "..", "src", "parts", "33_js_fw_0data.js")).read()
+rs = open(os.path.join(HERE, "..", "..", "src", "retired", "parts", "33_js_fw_0data.js")).read()
 W = json.loads(rs[rs.index("{"):rs.rindex("}") + 1])
 for k in ["err", "he", "cfg"]:
     if Yd[k] != W[k]:
