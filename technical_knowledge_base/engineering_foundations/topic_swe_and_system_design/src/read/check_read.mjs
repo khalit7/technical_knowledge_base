@@ -1,5 +1,6 @@
 // Exercise every control of the Reading tab and Further reading at 390 px dark and 920 px light,
-// and compare the page's simulations (window.RDSIM) with recompute.py's output.
+// check that the estimate never moves before the reader acts, and compare it (window.RDSIM) with recompute.py's output.
+// Since the 2026-10-24 rebuild the Reading tab has one animation (the Step 6 estimate); the five retired ones are in retired/parts.
 // Run from the repo root: node technical_knowledge_base/engineering_foundations/topic_swe_and_system_design/src/read/check_read.mjs
 import { createRequire } from 'module'; import path from 'path'; import fs from 'fs'; import { execSync } from 'child_process';
 const require = createRequire(path.resolve('html_utils/package.json'));
@@ -34,21 +35,25 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await check('load');
   // compare simulations with recompute.py
   const js = await p.evaluate(() => {
-    const S = window.RDSIM, a3 = q => { const r = S.a3(q); return [r.rows.map(x => ({ waiting_chat: x.waiting_chat, threads_on_uploads: x.threads_on_uploads, queue: x.queue, workers_busy: x.workers_busy })), r.mean, r.max] };
-    const a4 = j => { const r = S.a4(j); return [r.rows.map(x => ({ load: x.load, good: x.good })), { attempts: r.attempts, ok: r.ok, gave_up: r.gave_up, peak: r.peak, last_over: r.last_over }] };
-    const a5 = c => { const r = S.a5(c); return { total_ticks: r.total_ticks, util_pct: r.util_pct, mean_done: r.mean_done, start: r.start, end: r.end } };
-    const a6 = S.a6(); delete a6._ta;
+    const S = window.RDSIM, a6 = S.a6(); delete a6._ta;
     const d = g => { const x = S.a6day(g); return { hours_over: x.hours_over, idle_gpu_hours: x.idle_gpu_hours } };
-    return { a1_one: S.a1(1).map(x => ({ arr: x.arr, served: x.served, waiting: x.waiting, wait_s: x.wait_s })), a1_lb: S.a1(3).map(x => ({ arr: x.arr, served: x.served, waiting: x.waiting, wait_s: x.wait_s })),
-      a2_db: S.a2(false), a2_cache: S.a2(true), a3_inline: a3(false), a3_queue: a3(true), a4_nojit: a4(false), a4_jit: a4(true), a5_static: a5(false), a5_cont: a5(true), a6, a6_day_avg: d(a6.gpu_avg), a6_day_peak: d(a6.gpu_peak) };
+    return { a6, a6_day_avg: d(a6.gpu_avg), a6_day_peak: d(a6.gpu_peak) };
   });
   if (w === 390) {
     const norm = o => JSON.stringify(o, (k, v) => typeof v === 'number' ? Math.round(v * 100) / 100 : v);
     const r2 = JSON.parse(JSON.stringify(ref)); delete r2.a6_day_avg.shape_mean; delete r2.a6_day_peak.shape_mean;
-    for (const k of Object.keys(r2)) { if (norm(r2[k]) !== norm(js[k])) problems.push('recompute mismatch ' + k + ': py ' + norm(r2[k]).slice(0, 200) + ' js ' + norm(js[k]).slice(0, 200)); else actions++ }
+    for (const k of ['a6', 'a6_day_avg', 'a6_day_peak']) { if (norm(r2[k]) !== norm(js[k])) problems.push('recompute mismatch ' + k + ': py ' + norm(r2[k]).slice(0, 200) + ' js ' + norm(js[k]).slice(0, 200)); else actions++ }
   }
+  // no autoplay: after scrolling the estimate into view and waiting, it is still on step 0
+  await p.$eval('#rd-est-card', e => e.scrollIntoView()); await sleep(2500);
+  const st0 = await p.$eval('#rd-est-ctl-s', e => +e.value); if (st0 !== 0) problems.push(w + ' estimate moved by itself to step ' + st0); actions++;
+  await p.$$eval('#rd-est-seg button', bs => bs[1].click()); await sleep(2500);
+  const st1 = await p.$eval('#rd-est-ctl-s', e => +e.value); if (st1 !== 0) problems.push(w + ' estimate moved by itself after a mode switch, step ' + st1); actions++;
+  await p.$$eval('#rd-est-seg button', bs => bs[0].click());
+  // closed blocks open without errors
+  await p.$$eval('#t-read details', ds => ds.forEach(d => d.open = true)); await check('details open');
   // every animation: both modes, step through every step, scrub, speed, play/pause
-  const cards = [['rd-lb', ['rd-lb-seg']], ['rd-ca', ['rd-ca-seg']], ['rd-q', ['rd-q-seg']], ['rd-rt', ['rd-rt-scn', 'rd-rt-seg']], ['rd-bt', ['rd-bt-seg']], ['rd-est', ['rd-est-seg']]];
+  const cards = [['rd-est', ['rd-est-seg']]];
   for (const [id, segs] of cards) {
     await p.$eval('#' + id + '-card', e => e.scrollIntoView()); await sleep(150);
     const combos = segs.length === 1 ? [[0], [1]] : [[0, 0], [0, 1], [1, 0], [1, 1]];
@@ -66,11 +71,9 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     }
   }
   for (const id of ['rd-one-a', 'rd-one-b']) await (await p.$('#' + id)).screenshot({ path: path.join(shots, id + '-' + w + '.png') });
-  // glossary anchors resolve
-  const missing = await p.evaluate(() => [...document.querySelectorAll('#rd-gloss a[href^="#"]')].map(a => a.getAttribute('href').slice(1)).filter(id => !document.getElementById(id)));
-  if (missing.length) problems.push('glossary anchors missing: ' + missing.join(','));
-  const nogl = await p.evaluate(() => { const g = new Set([...document.querySelectorAll('#rd-gloss a')].map(a => a.getAttribute('href').slice(1))); return [...document.querySelectorAll('#t-read dfn')].map(d => d.id).filter(id => !g.has(id)) });
-  if (nogl.length) problems.push('terms not in glossary: ' + nogl.join(','));
+  // every child card links to its page
+  const kids = await p.$$eval('#rd-kids .kids > div', ds => ds.map(d => d.querySelectorAll('a[href*="notion.com/p/"]').length));
+  if (kids.length !== 10 || kids.some(n => n !== 1)) problems.push('child cards: ' + JSON.stringify(kids)); actions++;
   // tab links from the Reading tab open their tabs
   for (const t of ['t-sim', 't-num', 't-cases']) {
     await p.click('#tabs button[data-t="t-read"]'); await sleep(100);

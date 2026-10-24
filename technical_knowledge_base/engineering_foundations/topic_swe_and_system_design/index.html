@@ -103,7 +103,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Topic: swe-and-system-design</h1>
-<div class="sub">How real software systems are built and kept running, taught from zero: follow one request to an LLM product as it grows from one user to ten million, and meet each building block at the moment the system needs it. Sources are linked inline; data as of October 2026.</div>
+<div class="sub">Reading: 21 min, plus 1 in closed details. A map of how production services are built and kept running: one LLM chat product followed from one user to ten million, six walls in the order they arrive, the building block that fixes each, what it costs, and the child page that owns it. Sources are linked inline; data as of October 2026.</div>
 <div class="tabs" role="tablist" id="tabs">
 <button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-sim" aria-selected="false">Scale simulator</button><button role="tab" data-t="t-num" aria-selected="false">Numbers to know</button><button role="tab" data-t="t-cases" aria-selected="false">Case files</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
@@ -149,219 +149,149 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-read .reason{counter-reset:rs}#t-read .reason>div{border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .reason>div b:before{counter-increment:rs;content:counter(rs) ". ";color:var(--mute)}
 @media (max-width:520px){#t-read .an-cap{min-height:9em}#t-read .flow>i{display:none}}
+#t-read .map td,#t-read .map th{vertical-align:top;text-align:left;padding:5px 6px;border-bottom:1px solid var(--line)}
+#t-read .map th{background:var(--soft);font-size:12.5px}
+#t-read .map td:first-child{white-space:nowrap}
+#t-read .tw{overflow-x:auto;max-width:100%}
+#t-read .terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:4px 14px;font-size:13.5px;margin:6px 0}
+#t-read .terms div{min-width:0;padding:3px 0;border-bottom:1px solid var(--line)}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px}
+#t-read .kids{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:8px;margin:10px 0}
+#t-read .kids>div{border:1px solid var(--line);border-left:4px solid var(--sc,var(--acc));border-radius:8px;padding:8px 10px;background:var(--soft);min-width:0;font-size:13.5px}
+#t-read .kids b{display:block;font-size:14px}#t-read .kids .rt{color:var(--mute);font-size:12.5px}
+@media (max-width:520px){#t-read table.map thead{display:none}#t-read table.map,#t-read table.map tbody,#t-read table.map tr,#t-read table.map td{display:block;width:auto}#t-read table.map tr{border:1px solid var(--line);border-radius:8px;margin:8px 0;padding:4px 8px;background:var(--soft)}#t-read table.map td{border:0;padding:2px 0;white-space:normal}#t-read table.map td:first-child{font-weight:600}#t-read table.map td:not(:first-child):before{content:attr(data-l) ": ";color:var(--mute);font-size:12px}}
 </style>
 <nav class="nav" id="rd-nav">
-<a href="#rd-one">One screen</a><a href="#rd-s1">1 One server</a><a href="#rd-s2">2 Database</a><a href="#rd-s3">3 Slow work</a><a href="#rd-s4">4 Failure</a><a href="#rd-s5">5 GPU layer</a><a href="#rd-s6">6 Method</a><a href="#rd-senior">Senior reasoning</a><a href="#rd-gloss">Glossary</a>
+<a href="#rd-one">The idea</a><a href="#rd-map">The map</a><a href="#rd-s1">1 One server</a><a href="#rd-s2">2 Database</a><a href="#rd-s3">3 Slow work</a><a href="#rd-s4">4 Failure</a><a href="#rd-s5">5 GPU layer</a><a href="#rd-s6">6 Method</a><a href="#rd-senior">Across the steps</a><a href="#rd-kids">Child pages</a>
 </nav>
 
 <section id="rd-one">
-<h2>The whole journey in one screen</h2>
-<p class="small mute">About 33 minutes to read (a little over the usual root page because it starts from zero), plus the optional animations; every term is explained where it first appears and collected in the <a href="#rd-gloss">Glossary</a>.</p>
-<p class="lead"><b>System design is the craft of keeping a product fast, correct and affordable as more people use it.</b> Nothing here has to be memorised as a list. Every building block you will meet exists because, at some number of users, something broke. So this page follows one product as it grows and lets each problem arrive before its fix.</p>
-<p><b>The running example.</b> A chat assistant powered by a large language model (LLM): people sign in, chat, and come back to their history. It starts on one machine with one user (you) and grows to ten million registered users. You have already served a model behind an API, so the first picture will look familiar; the second is where this page takes you.</p>
+<h2>The idea in one screen</h2>
+<p class="lead"><b>A production service is one request path through a few layers (servers, data, slow work, failure handling, the model), and every building block on that path fixes one bottleneck at a price you can name; add it only when its bottleneck has arrived.</b></p>
+<p>System design is the craft of keeping a product fast, correct and affordable as more people use it. <b>The running example.</b> A chat assistant powered by a large language model (LLM): people sign in, chat, upload documents and come back to their history. It starts on one machine with one user and grows to ten million registered users. Every child page of this topic uses the same product, so its numbers line up from page to page. The six steps below are the order in which its walls arrive; each names the building block that fixes it, what that block costs, and the child page that owns it.</p>
 <div class="two">
 <div><h4>1 user: everything on one machine</h4><div class="rd-svg" id="rd-one-a"></div></div>
-<div><h4>10 million users: the same product, grown</h4><div class="rd-svg" id="rd-one-b"></div></div>
+<div><h4>10 million users: each box has an owner</h4><div class="rd-svg" id="rd-one-b"></div></div>
 </div>
-<p class="small mute">Each box on the right is coloured by the step that introduces it. The names are explained in those steps; for now read only the plain-language line under each name.</p>
-<h3>The six problems, one line each</h3>
-<div class="prob">
-<a href="#rd-s1" style="--sc:var(--c1)"><b>One server runs out of room</b><span>Too many requests for one machine: add machines and a load balancer to spread the work.</span></a>
-<a href="#rd-s2" style="--sc:var(--c2)"><b>The database becomes the bottleneck</b><span>Every request reads it: add indexes, a cache, copies (replicas) and, last, split it (shards). You trade away some freshness.</span></a>
-<a href="#rd-s3" style="--sc:var(--c3)"><b>Slow work blocks fast work</b><span>Long jobs hold up quick requests: put them on a queue for background workers.</span></a>
-<a href="#rd-s4" style="--sc:var(--c4)"><b>Things fail, and retries make it worse</b><span>Timeouts, retries with backoff and jitter, idempotency keys, circuit breakers, and measuring reliability with SLOs.</span></a>
-<a href="#rd-s5" style="--sc:var(--c5)"><b>The model is not a normal backend</b><span>Seconds of GPU per request: batching, caching prompts, routing between models, rate limits per customer.</span></a>
-<a href="#rd-s6" style="--sc:var(--c6)"><b>Designing it on purpose</b><span>Requirements, numbers on the back of an envelope, then boxes: the method a senior engineer (and an interview) follows.</span></a>
+<p class="small mute">The number on each box is the step that introduces it; the last line names the page that owns it. A cache makes reads fast and data slightly stale; a queue makes requests fast and results late; a retry rescues one request and can sink the whole system: every box on the right is a fix with a price.</p>
+<p><b>You need</b>: nothing from other pages. The wire under Step 1 (DNS, TCP, TLS, HTTP) is <a href="https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02" target="_blank" rel="noopener noreferrer">Topic: protocols</a>, the database under Step 2 is <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a>, and the engine under Step 5 is <a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a>; this page needs only their one-line definitions, given where they are used.</p>
+<p><b>New terms</b> (each defined where it first appears, and only these):</p>
+<div class="terms">
+<div><b>Latency, throughput</b>: how long one request takes; how many finish per second.</div>
+<div><b>p50, p99</b>: the latency that 50% or 99% of requests beat.</div>
+<div><b>Stateless</b>: a server that keeps nothing another server would need.</div>
+<div><b>Replica, shard</b>: a full copy of the database; a slice of it.</div>
+<div><b>At-least-once, idempotent</b>: no job is lost, so one can run twice; running twice has the effect of once.</div>
+<div><b>SLO, error budget</b>: the reliability target; the failures it allows.</div>
+<div><b>Prefill, decode</b>: reading the prompt at once; writing the reply one token per step.</div>
+<div><b>Back-of-the-envelope estimate</b>: arithmetic accurate to a factor of two that finds the hard part.</div>
 </div>
-<div class="co key"><div class="t">The one idea to keep</div>Every building block is <b>a fix for a specific problem that has a price</b>. A cache makes reads fast and makes data slightly stale; a queue makes requests fast and makes results arrive later; a retry rescues one request and can sink the whole system. A senior engineer adds a block only when the problem it solves has actually arrived, and can say what it costs.</div>
-<p>Three data tabs sit beside this one. <a href="#" data-tab="t-sim">Scale simulator</a> lets you push traffic through the design and watch where it breaks. <a href="#" data-tab="t-num">Numbers to know</a> holds the latency and capacity figures used for estimates. <a href="#" data-tab="t-cases">Case files</a> tells real outages and redesigns, each mapped back to one of the six steps.</p>
+<p>Three tools on this page span every child: the <a href="#" data-tab="t-sim">Scale simulator</a> pushes traffic through the whole design and shows which part breaks first, <a href="#" data-tab="t-num">Numbers to know</a> holds the latency, throughput and price figures every page estimates with, and <a href="#" data-tab="t-cases">Case files</a> tells real outages and redesigns, each tagged with the step it belongs to.</p>
+</section>
+
+<section id="rd-map">
+<h2>The map: six walls, the fix for each, its price, and who owns it</h2>
+<p>Read across a row: what breaks, the blocks that fix it, what those blocks give up, and the page that teaches them in depth. The price column is the part that only shows when the pages are side by side: every fix moves the problem somewhere else.</p>
+<div class="tw"><table class="map">
+<thead><tr><th>Step</th><th>What breaks</th><th>Building blocks</th><th>What they cost</th><th>Owner</th></tr></thead>
+<tbody>
+<tr><td>1 One server</td><td>More requests arrive than one machine finishes</td><td>Bigger machine; more machines behind a load balancer; stateless servers</td><td>More machines; state moves to one shared database</td><td><a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a> (balancing, queueing); <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a> (the service itself)</td></tr>
+<tr><td>2 Database</td><td>Every server waits on one database</td><td>Index, cache, read replicas, shards</td><td>Stale reads, replication lag, cross-shard queries; consistency</td><td><a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a> (indexes, caching, replicas, sharding); <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a> (consistency, CAP)</td></tr>
+<tr><td>3 Slow work</td><td>Long jobs hold the slots quick requests need</td><td>Queue and background workers</td><td>Results arrive later; jobs run twice; backlogs hide overload</td><td><a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a></td></tr>
+<tr><td>4 Failure</td><td>Something is always failing; retries amplify it</td><td>Timeouts, retries with backoff and jitter, idempotency keys, breakers, shedding, SLOs, telemetry</td><td>Code that runs only when things are already wrong; extra load; storage for keys and signals</td><td><a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>; <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability</a></td></tr>
+<tr><td>5 GPU layer</td><td>A reply costs seconds of a GPU, not milliseconds of a CPU</td><td>Batching, prefix caching, model routing, token rate limits</td><td>Latency per user for throughput; wrong cached answers; GPUs slow to add</td><td><a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a>; <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a>; <a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a></td></tr>
+<tr><td>6 Method</td><td>A fix that takes months, or a design asked for before the system exists</td><td>Requirements, estimates, API, data model, boxes, deep dives</td><td>Time up front; estimates are only as good as their stated assumptions</td><td><a href="https://app.notion.com/p/3ef5c17b0d0d81c3b211d75127ef5ded" target="_blank" rel="noopener noreferrer">System design case studies</a>; <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a> (capacity planning)</td></tr>
+<tr><td>Every step</td><td>The code itself gets harder to change safely</td><td>Tests at the right layer; modules that hide their decisions</td><td>Time per change; a suite to keep fast and honest</td><td><a href="https://app.notion.com/p/3c65c17b0d0d81548848e2ebdd2f63ee" target="_blank" rel="noopener noreferrer">Testing and quality</a>; <a href="https://app.notion.com/p/3ef5c17b0d0d817b99a0ff9701ff30cd" target="_blank" rel="noopener noreferrer">Code design</a></td></tr>
+</tbody></table></div>
+<p class="small">Two splits that are easy to miss. <b>Idempotency</b> appears in three places: the HTTP key on one request is <a href="https://app.notion.com/p/3c65c17b0d0d81cb88a3f1f63e85f27b" target="_blank" rel="noopener noreferrer">Service APIs</a> (section 4), a consumer that ignores a second delivery is Queues, and why exactly-once can only be built end to end is Distributed systems fundamentals (section 9). <b>Pools and the GIL</b>: how many connections and cores a service needs is Capacity planning; how one Python service waits (async, threads, workers) and holds a connection inside a handler is Building a backend API; the pooler in front of Postgres is <a href="https://app.notion.com/p/3ef5c17b0d0d8149a0c9d3e2083ed0de" target="_blank" rel="noopener noreferrer">Running Postgres in production</a>.</p>
 </section>
 
 <section id="rd-s1">
 <h2 class="step-h"><span class="snum" style="--sc:var(--c1)">Step 1</span> One server, then too many requests for it</h2>
-<h3>What happens when someone sends a message</h3>
-<p>Before anything can scale, it helps to see one request whole. You type "summarise this" and press Enter. Your browser or phone app is the <dfn id="d-client">client</dfn>: the program that asks. Somewhere a <dfn id="d-server">server</dfn> answers: a program (and, loosely, the machine it runs on) that waits for requests and sends back responses. Between them, six things happen in order.</p>
-<div class="flow">
-<div><b>1. DNS</b>The name <code>chat.example.com</code> is looked up and turned into an IP address.</div><i>&rarr;</i>
-<div><b>2. TCP</b>A connection is opened to that address: one round trip.</div><i>&rarr;</i>
-<div><b>3. TLS</b>The connection is encrypted: one more round trip in TLS 1.3.</div><i>&rarr;</i>
-<div><b>4. HTTP request</b><code>POST /chats/42/messages</code> with your text.</div><i>&rarr;</i>
-<div><b>5. Server process</b>Code checks who you are, reads and writes the database, calls the model.</div><i>&rarr;</i>
-<div><b>6. HTTP response</b><code>200 OK</code> and the reply, often streamed word by word.</div>
-</div>
-<p><dfn id="d-dns">DNS</dfn> is the internet's phone book: it maps a name to an <dfn id="d-ip">IP address</dfn>, a machine's numeric address (<a href="https://www.rfc-editor.org/rfc/rfc1034" target="_blank" rel="noopener noreferrer">RFC 1034</a>). <dfn id="d-tcp">TCP</dfn> gives both sides a reliable, ordered stream of bytes, and opening it costs one network <dfn id="d-rtt">round trip</dfn> (there and back) (<a href="https://www.rfc-editor.org/rfc/rfc9293" target="_blank" rel="noopener noreferrer">RFC 9293</a>). <dfn id="d-tls">TLS</dfn> encrypts the stream (the "S" in HTTPS) for one more round trip (<a href="https://www.rfc-editor.org/rfc/rfc8446" target="_blank" rel="noopener noreferrer">RFC 8446</a>); reusing an open connection skips both. <dfn id="d-http">HTTP</dfn> is the request itself: a method (GET reads, POST creates, PUT replaces, DELETE removes), a path, a body, and in the answer a <dfn id="d-status">status code</dfn>: 2xx worked, 4xx the client's mistake, 5xx the server's (<a href="https://www.rfc-editor.org/rfc/rfc9110" target="_blank" rel="noopener noreferrer">RFC 9110</a>). An <dfn id="d-api">API</dfn> is the set of requests a server promises to understand; each method plus path is an <dfn id="d-endpoint">endpoint</dfn>, the thing you already built around a model.</p>
-<p>Behind the server sits the <dfn id="d-db">database</dfn>: a program that keeps data safe on disk and answers questions about it quickly. Users, chats and messages are rows in tables, fetched with <dfn id="d-sql">SQL</dfn>, a query language: <code>SELECT * FROM messages WHERE chat_id = 42</code>. A server can crash and restart; the data must never be lost. Postgres and MySQL are the usual first choices.</p>
-<p>Two words measure all of this. <dfn id="d-latency">Latency</dfn> is how long one request takes, from the user's point of view. <dfn id="d-throughput">Throughput</dfn> is how many requests the system finishes per second. A highway can carry many cars (throughput) while each still takes an hour (latency). Requests vary, so latency is quoted as <dfn id="d-pct">percentiles</dfn>: the <b>p50</b> (median) is the typical request, the <b>p99</b> the slowest 1 in 100. Averages hide the slow tail; Google's SRE book says to treat metrics "as distributions rather than averages" (<a href="https://sre.google/sre-book/service-level-objectives/" target="_blank" rel="noopener noreferrer">SRE book, ch. 4</a>). Typical latencies for each hop (a round trip, a disk read, a database query) are in <a href="#" data-tab="t-num">Numbers to know</a>.</p>
-
-<div class="wall"><div class="t">The problem appears</div>On launch day the app works. Then a post goes viral. Say your one server can answer <b>400 requests per second</b> and <b>600 per second</b> arrive (both numbers <span class="ill">illustrative</span>: real capacity depends entirely on what each request does). Every second, 200 more requests arrive than leave. They wait in line, the line grows, and every user's latency grows with it, without limit, until clients give up. This is the first law of capacity: <b>when work arrives faster than it is finished, waiting time does not rise a little, it rises without bound.</b></div>
-
-<p>There are two ways out. <dfn id="d-vertical">Vertical scaling</dfn> buys a bigger machine: more cores, more memory. It needs no code changes, so it is the right first move, but it has a ceiling and the one machine stays a <dfn id="d-spof">single point of failure</dfn>: when it reboots, the product is down. <dfn id="d-horizontal">Horizontal scaling</dfn> adds more machines of the same size. It has no hard ceiling and survives one machine dying, but something must now decide which machine gets each request.</p>
-<div class="fix"><div class="t">The building block: a load balancer</div>A <dfn id="d-lb">load balancer</dfn> is a small, fast program that sits in front of the servers and hands each incoming request to one of them: in turn (round robin), or to whichever has the fewest requests in progress. It also sends small <dfn id="d-health">health checks</dfn> to each server and stops sending traffic to one that fails them, so a crashed machine stops being a crashed product.</div>
-<p>Horizontal scaling has one precondition that changes how you write code. If server A remembers you signed in and your next request lands on server B, B has never heard of you. Servers must be <dfn id="d-stateless">stateless</dfn>: nothing another server would need stays on them between requests. That remembered state, the <dfn id="d-session">session</dfn>, moves out: into the database, a shared fast store (Step 2's cache), or a signed token the client sends with every request. Then any server can answer any request.</p>
-
-<div class="card" id="rd-lb-card">
-<b>Animation: the same traffic, one server against three behind a load balancer</b>
-<div class="seg" id="rd-lb-seg"><button data-m="one" class="on">Before: one server</button><button data-m="lb">After: load balancer and 3 servers</button></div>
-<div class="rd-svg" id="rd-lb-svg"></div>
-<div class="leg" id="rd-lb-leg"></div>
-<div class="an-cap" id="rd-lb-cap" aria-live="polite"></div>
-<div class="an-cnt" id="rd-lb-cnt"></div>
-<div class="an-ctl" id="rd-lb-ctl"></div>
-<p class="small mute"><span class="ill">Illustrative traffic</span>: one dot is 100 requests; each server finishes 4 dots (400 requests) per second; arrivals vary between 5 and 8 dots a second. Requests are handed out in turn (round robin). Numbers checked in <code>src/read/recompute.py</code>.</p>
-</div>
-
-<div class="cost"><div class="t">What it costs</div>More machines to pay for and run; the load balancer itself must not become the new single point of failure (in practice it is a managed service or a redundant pair); and every piece of state you moved out of the servers now lives in one shared place, the database. That is where the next wall is.</div>
-<div class="deepnote"><b>Go deeper (optional).</b> What a request carries (methods, status codes, validation, errors, versioning) and a real service built and measured in <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a>; load balancing algorithms, autoscaling and how many servers you need in <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>; push the arrival rate past one server's capacity yourself in the <a href="#" data-tab="t-sim">Scale simulator</a>; round-trip times in <a href="#" data-tab="t-num">Numbers to know</a>; HTTP, TLS and connection reuse in <a href="https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02" target="_blank" rel="noopener noreferrer">Topic: protocols</a>; how load balancers spread traffic inside a data centre in the <a href="https://sre.google/sre-book/load-balancing-datacenter/" target="_blank" rel="noopener noreferrer">SRE book, ch. 20</a> (about 40 min).</div>
+<p>One message is a short chain: <dfn id="d-dns">DNS</dfn> turns <code>chat.example.com</code> into an address, <dfn id="d-tcp">TCP</dfn> opens a connection (one round trip), <dfn id="d-tls">TLS</dfn> encrypts it (one more in TLS 1.3; reusing an open connection skips both), and an <dfn id="d-http">HTTP</dfn> request such as <code>POST /chats/42/messages</code> reaches a <dfn id="d-server">server</dfn> process, which checks who you are, reads and writes the <dfn id="d-db">database</dfn> (which keeps data safe on disk: the server can crash and restart, the data must never be lost), calls the model and streams the reply. Each hop's typical time is in <a href="#" data-tab="t-num">Numbers to know</a>; the wire itself is <a href="https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02" target="_blank" rel="noopener noreferrer">Topic: protocols</a>.</p>
+<p>Two words measure it all. <dfn id="d-latency">Latency</dfn> is how long one request takes; <dfn id="d-throughput">throughput</dfn> is how many finish per second. Latency is quoted as <dfn id="d-pct">percentiles</dfn> (p50 the typical request, p99 the slowest 1 in 100), because an average hides the slow tail.</p>
+<div class="wall"><div class="t">The wall</div>Say one server answers <b>400 requests a second</b> and <b>600</b> arrive (<span class="ill">illustrative</span>). Every second 200 more arrive than leave, the line grows, and every user's latency grows with it. <b>When work arrives faster than it is finished, waiting does not rise a little, it rises without bound.</b></div>
+<p><dfn id="d-vertical">Vertical scaling</dfn> (a bigger machine) needs no code change and is the right first move, but it has a ceiling and stays a <dfn id="d-spof">single point of failure</dfn>. <dfn id="d-horizontal">Horizontal scaling</dfn> adds machines behind a <dfn id="d-lb">load balancer</dfn>, which hands each request to one of them and stops sending to any that fails its <dfn id="d-health">health checks</dfn>. It has one precondition that changes how code is written: servers must be <dfn id="d-stateless">stateless</dfn>, so the <dfn id="d-session">session</dfn> moves into the database, a shared cache or a signed token, and any server can answer any request.</p>
+<div class="cost"><div class="t">The price, across pages</div>More machines to run, a balancer that must not become the new single point of failure, and every piece of state now in one shared place, the database: Step 2's wall.</div>
+<div class="deepnote"><b>Go deeper.</b> Why waiting explodes near full load, percentiles and the tail, and the load-balancing algorithms with a measured comparison: <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a> (Queueing theory you actually use; Load balancing). One request through a real FastAPI service, stage by stage, and its health checks and graceful shutdown: <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a> (sections 2 and 9). Push the arrival rate past one server yourself in the <a href="#" data-tab="t-sim">Scale simulator</a>.</div>
 </section>
 
 <section id="rd-s2">
 <h2 class="step-h"><span class="snum" style="--sc:var(--c2)">Step 2</span> The database becomes the bottleneck</h2>
-<div class="wall"><div class="t">The problem appears</div>App servers can be added forever; they all talk to one database. Opening a chat reads its history; sending a message writes two rows and reads the history again for the model. Say that at a few hundred thousand users the servers together send the database <b>1,000 reads per second</b> and it can answer about <b>600</b> (<span class="ill">illustrative</span>). Same law as Step 1, and now every server waits on it. Reads far outnumber writes here, so start with reads.</div>
-
-<h3>First, the cheap fix: an index</h3>
-<p>Asked for "all messages of chat 42" with no help, the database reads every row: a <i>full scan</i>, fine at a thousand rows, hopeless at a billion. An <dfn id="d-index">index</dfn> is a separate, sorted structure that maps a column's values to where the rows live, exactly like the index at the back of a book: look up "chat 42", jump to its pages (<a href="https://www.postgresql.org/docs/current/indexes-intro.html" target="_blank" rel="noopener noreferrer">Postgres docs</a>). <b>Cost:</b> every write also updates every index, and indexes take space, so index only the columns you search by. Many "the database is slow" incidents end with one missing index.</p>
-
-<h3>Then a cache: do not ask the same question twice</h3>
-<p>A <dfn id="d-cache">cache</dfn> is a small, fast store (usually in memory, such as Redis) holding copies of answers the system has already computed. Memory answers far faster than a database query (see <a href="#" data-tab="t-num">Numbers to know</a>). The usual pattern is <dfn id="d-cacheaside">cache-aside</dfn>: the server first asks the cache; on a <i>hit</i> it is done; on a <i>miss</i> it reads the database, then stores the answer in the cache for next time (<a href="https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside" target="_blank" rel="noopener noreferrer">Microsoft pattern guide</a>; Amazon calls it a "side cache", <a href="https://aws.amazon.com/builders-library/caching-challenges-and-strategies/" target="_blank" rel="noopener noreferrer">Builders' Library</a>). The share of reads answered by the cache is the <dfn id="d-hitrate">hit rate</dfn>; at a 90% hit rate the database sees one read in ten.</p>
-<p>A copy can go stale. A <dfn id="d-ttl">TTL</dfn> (time to live) makes each entry expire after a set time, bounding staleness ("at most 60 seconds old"). <dfn id="d-invalidation">Invalidation</dfn> deletes the cached copy when the data changes: rename a chat, and the server writes the database, then deletes that chat's cache entry. A cache of static files (images, the app's code) placed in many cities near users is a <dfn id="d-cdn">CDN</dfn> (content delivery network).</p>
-
-<div class="card" id="rd-ca-card">
-<b>Animation: the same reads, straight to the database against through a cache</b>
-<div class="seg" id="rd-ca-seg"><button data-m="db" class="on">Before: every read hits the database</button><button data-m="cache">After: cache-aside</button></div>
-<div class="rd-svg" id="rd-ca-svg"></div>
-<div class="leg" id="rd-ca-leg"></div>
-<div class="an-cap" id="rd-ca-cap" aria-live="polite"></div>
-<div class="an-cnt" id="rd-ca-cnt"></div>
-<div class="an-ctl" id="rd-ca-ctl"></div>
-<p class="small mute"><span class="ill">Illustrative traffic</span>: one square is 50 reads per second (20 squares, 1,000 reads/s); the database answers 12 squares (600 reads/s). The hit rate warming from 0% to 90% is an assumption: real hit rates depend on how often the same data is read again.</p>
-</div>
-<div class="cost"><div class="t">What a cache costs</div>Stale reads (bounded by the TTL, or fixed by invalidation, which is easy to forget in one code path); one more system to run; and a dangerous dependency. If the cache empties (a restart, a new server with a cold cache), the full read load lands on a database sized for 10% of it. Amazon's engineers name this risk and the usual fix, letting only one request fetch a missing key while the others wait for it ("request coalescing", <a href="https://aws.amazon.com/builders-library/caching-challenges-and-strategies/" target="_blank" rel="noopener noreferrer">Brinkley and Chhabra</a>).</div>
-
-<h3>Copies of the database: read replicas</h3>
-<p>Some reads cache badly (every chat list differs and changes constantly). Next comes a <dfn id="d-replica">read replica</dfn>: a full copy of the database. All writes go to one <dfn id="d-primary">primary</dfn>, which streams every change to the replicas; reads spread over them (<a href="https://www.postgresql.org/docs/current/hot-standby.html" target="_blank" rel="noopener noreferrer">Postgres hot standby</a>), and a replica can take over if the primary dies. <b>Cost:</b> copying takes time, the <dfn id="d-lag">replication lag</dfn>, sometimes seconds. A user sends a message, the page refreshes, the read hits a replica that has not caught up, and the message has vanished; the usual fix is to read your own recent writes from the primary.</p>
-
-<h3>Splitting the database: sharding</h3>
-<p>Replicas multiply reads, but every write still goes through one primary. When writes or data outgrow one machine, split the data: <dfn id="d-shard">sharding</dfn> (or <i>partitioning</i>) gives each of several databases a slice, chosen by a <dfn id="d-shardkey">shard key</dfn>. Shard by user: user 17's chats live on shard 17 mod 8. <b>Cost:</b> anything across users (global search, weekly totals) must ask every shard; adding shards means moving data; one very busy user still lands on one shard. It is usually the last resort.</p>
-
-<h3>What you give up: consistency</h3>
-<p>Caches and replicas keep several copies, and copies disagree for a moment after every change. <dfn id="d-strong">Strong consistency</dfn> (linearizability, in the precise vocabulary) means every read sees the latest write, as if there were only one copy. <dfn id="d-eventual">Eventual consistency</dfn> means copies may differ for a while but converge once writes stop. Strong costs coordination: waiting for copies to agree. Jepsen keeps a map of the many levels in between (<a href="https://jepsen.io/consistency" target="_blank" rel="noopener noreferrer">Jepsen consistency models</a>).</p>
-<p>Two well-known statements make the trade explicit. <dfn id="d-cap">CAP</dfn>: when the network between copies breaks (a <i>partition</i>), a system must choose to stay <b>c</b>onsistent (refuse some requests) or stay <b>a</b>vailable (answer, possibly with stale data); it cannot have both during the partition (<a href="https://users.ece.cmu.edu/~adrian/731-sp04/readings/GL-cap.pdf" target="_blank" rel="noopener noreferrer">Gilbert and Lynch, 2002</a>). Partitions are rare, so Abadi's <dfn id="d-pacelc">PACELC</dfn> adds the everyday half: "else (E), when the system is running normally ... how does the system trade off latency (L) and consistency (C)?" (<a href="https://www.cs.umd.edu/~abadi/papers/abadi-pacelc.pdf" target="_blank" rel="noopener noreferrer">Abadi, IEEE Computer 2012</a>). In practice you choose per piece of data: a user's paid credit balance must be strongly consistent (never spend the same credit twice); the order of chats in the sidebar can be a second stale and nobody will notice.</p>
-<div class="deepnote"><b>Go deeper (optional).</b> Replicas, sharding, consistency models and consensus in <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a>; caching patterns, hit rates and stampedes in <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>; database families and indexes in <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a>; change the cache hit rate, replicas and shards in the <a href="#" data-tab="t-sim">Scale simulator</a>; memory, disk and query timings in <a href="#" data-tab="t-num">Numbers to know</a>.</div>
+<div class="wall"><div class="t">The wall</div>App servers can be added forever; they all talk to one database. Say the servers together send it <b>1,000 reads a second</b> and it answers about <b>600</b> (<span class="ill">illustrative</span>): Step 1's law again, and now every server waits on it. Reads far outnumber writes here, so the fixes start with reads, cheapest first.</div>
+<div class="tw"><table class="map">
+<thead><tr><th>Fix</th><th>What it does</th><th>What it costs</th><th>Owner</th></tr></thead>
+<tbody>
+<tr><td><dfn id="d-index">Index</dfn></td><td>A sorted structure from a column's values to its rows, so "messages of chat 42" skips the full scan</td><td>Every write updates every index; but many "the database is slow" incidents end with one missing index</td><td><a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a></td></tr>
+<tr><td><dfn id="d-cache">Cache</dfn></td><td>Copies of answers in memory; <dfn id="d-cacheaside">cache-aside</dfn> checks it first and fills it on a miss. At a 90% <dfn id="d-hitrate">hit rate</dfn> the database sees one read in ten</td><td>Stale reads, bounded by a <dfn id="d-ttl">TTL</dfn> or fixed by <dfn id="d-invalidation">invalidation</dfn>; a cold cache sends the full load to a database sized for a tenth of it</td><td><a href="https://app.notion.com/p/3cd5c17b0d0d817ebd6ccadd4750c23a" target="_blank" rel="noopener noreferrer">Caching</a>; hit-rate maths and stampedes in Capacity planning</td></tr>
+<tr><td><dfn id="d-replica">Read replica</dfn></td><td>A full copy fed by the <dfn id="d-primary">primary</dfn>, which takes every write; reads spread over the copies</td><td><dfn id="d-lag">Replication lag</dfn>: a user's own message can vanish on refresh unless recent writes are read from the primary</td><td><a href="https://app.notion.com/p/3ef5c17b0d0d81f0aaceee1e21b972be" target="_blank" rel="noopener noreferrer">Scaling a database</a></td></tr>
+<tr><td><dfn id="d-shard">Sharding</dfn></td><td>Each of several databases holds a slice, chosen by a <dfn id="d-shardkey">shard key</dfn> (shard by user)</td><td>Queries across users ask every shard; resharding moves data; one hot user stays on one shard. Usually the last resort</td><td>Scaling a database; partitioning in Distributed systems fundamentals</td></tr>
+</tbody></table></div>
+<p><b>What every copy gives up: consistency.</b> Caches and replicas keep several copies, and copies disagree for a moment after every change. <dfn id="d-strong">Strong consistency</dfn> (linearisability) means every read sees the latest write, as if there were one copy; <dfn id="d-eventual">eventual consistency</dfn> means copies converge once writes stop. <dfn id="d-cap">CAP</dfn>: while the network between copies is broken, a system either refuses some requests or answers with possibly stale data. <dfn id="d-pacelc">PACELC</dfn> adds the everyday half: when nothing is broken, it trades latency against consistency. In practice the choice is made per piece of data: a paid credit balance must be strongly consistent (never spend the same credit twice); the order of chats in the sidebar can be a second stale.</p>
+<div class="deepnote"><b>Go deeper.</b> Database families, indexes, transactions, replicas and sharding: <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a>. Cache patterns, hit-rate arithmetic and stampedes: <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a> (Caching strategy). Replication styles, the consistency ladder, CAP read correctly and PACELC, consensus: <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a> (sections 3, 5 and 6). Change the hit rate, replicas and shards in the <a href="#" data-tab="t-sim">Scale simulator</a>.</div>
 </section>
 
 <section id="rd-s3">
 <h2 class="step-h"><span class="snum" style="--sc:var(--c3)">Step 3</span> Slow work leaves the request path</h2>
-<div class="wall"><div class="t">The problem appears</div>A new feature: upload a PDF and chat with it. The server must extract the text, cut it into pieces and compute an <dfn id="d-embed">embedding</dfn> for each (a list of numbers representing its meaning, used later to find the passages relevant to a question). For a long document that takes tens of seconds, and done inside the request it holds one of the server's few request slots (threads) the whole time. A handful of uploads fill every slot and quick chat messages queue behind them. In the animation below, 5 uploads among 30 chat messages make chat messages wait up to 3 seconds that should have waited none (<span class="ill">illustrative</span>).</div>
-<p>The insight: <b>the user does not need the result now; they need to know it is being done.</b> Separate "accept the work" from "do the work".</p>
-<div class="fix"><div class="t">The building block: a queue and background workers</div>A <dfn id="d-queue">message queue</dfn> is a durable list of jobs that sits between the part of the system that creates work and the part that does it (Amazon SQS, RabbitMQ, Kafka and Redis streams are common ones). The request handler writes "process document 981" to the queue and immediately answers <code>202 Accepted</code>. Separate <dfn id="d-worker">workers</dfn>, processes whose only job is to take jobs off the queue, do the slow work in the background, then mark the document ready; the app shows a spinner until then. This is <dfn id="d-async">asynchronous</dfn> processing: the response does not wait for the work.</div>
-
-<div class="card" id="rd-q-card">
-<b>Animation: the same uploads, processed inside the request against put on a queue</b>
-<div class="seg" id="rd-q-seg"><button data-m="inline" class="on">Before: work inside the request</button><button data-m="queue">After: queue and 2 workers</button></div>
-<div class="rd-svg" id="rd-q-svg"></div>
-<div class="leg" id="rd-q-leg"></div>
-<div class="an-cap" id="rd-q-cap" aria-live="polite"></div>
-<div class="an-cnt" id="rd-q-cnt"></div>
-<div class="an-ctl" id="rd-q-ctl"></div>
-<p class="small mute"><span class="ill">Illustrative traffic</span>: one server with 4 request slots; 3 chat messages a second (each needs a slot for one second); 5 uploads in the first 6 seconds, each needing 4 seconds of work. Checked in <code>src/read/recompute.py</code>.</p>
-</div>
-
-<h3>Three things a queue makes you think about</h3>
-<p><b>Jobs can run twice.</b> A worker can crash halfway through a job. So that nothing is lost, the queue deletes a job only when a worker confirms it (an <i>acknowledgement</i>) and hands unconfirmed jobs out again: <dfn id="d-alo">at-least-once delivery</dfn>, whose other face is that a job can run twice. So make jobs <dfn id="d-idem">idempotent</dfn>: running one twice has the same effect as running it once ("set document 981's embeddings to X", not "append embeddings"). HTTP defines idempotent the same way: "the intended effect on the server of multiple identical requests ... is the same as the effect for a single such request" (<a href="https://www.rfc-editor.org/rfc/rfc9110#section-9.2.2" target="_blank" rel="noopener noreferrer">RFC 9110 §9.2.2</a>). A job that keeps failing is moved aside to a <dfn id="d-dlq">dead-letter queue</dfn> for a human to look at, so it does not block the rest.</p>
-<p><b>A queue can hide overload.</b> If jobs arrive faster than workers finish them, the queue grows and nothing looks broken; results just arrive later and later. Amazon's David Yanacek describes queue systems as having two modes: with no backlog "the system's latency is low", and once a backlog forms, "end-to-end latency grows higher and higher" and it can take a long time to recover (<a href="https://builder.aws.com/content/3EuRcgkTP1MI0c7zM8W6HL3WIqA/avoiding-insurmountable-queue-backlogs" target="_blank" rel="noopener noreferrer">Avoiding insurmountable queue backlogs</a>). So you watch the age of the oldest job, not just errors, and you apply <dfn id="d-backpressure">backpressure</dfn>: when the queue is too long, tell the producers to slow down or refuse new work (for example with HTTP <code>429 Too Many Requests</code>, <a href="https://www.rfc-editor.org/rfc/rfc6585" target="_blank" rel="noopener noreferrer">RFC 6585</a>) instead of accepting work you cannot finish.</p>
-<p><b>How many workers you need is arithmetic.</b> <dfn id="d-little">Little's law</dfn> says that, on average, the number of things in a system equals the rate they arrive times the time each one stays: <b>L = &lambda;W</b> (<a href="https://people.cs.umass.edu/~emery/classes/cmpsci691st/readings/OS/Littles-Law-50-Years-Later.pdf" target="_blank" rel="noopener noreferrer">Little, 50th-anniversary paper</a>). If 5 documents arrive per second and each takes 20 seconds of work (<span class="ill">illustrative</span>), then on average 5 &times; 20 = 100 documents are being processed at once, so you need at least 100 worker slots; with fewer, the queue grows without bound. The same law sizes the model layer in Steps 5 and 6.</p>
-<div class="cost"><div class="t">What it costs</div>The result arrives later and the product must show progress; failures happen out of sight and need their own alerts; jobs must be idempotent; and the queue is one more system to run. Use it for slow work that can be late, not for the reply the user is staring at.</div>
-<div class="deepnote"><b>Go deeper (optional).</b> Delivery guarantees, Kafka, consumer groups, the outbox pattern and backpressure in <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>; turn the queue on and off and watch the backlog in the <a href="#" data-tab="t-sim">Scale simulator</a>; queue throughput figures in <a href="#" data-tab="t-num">Numbers to know</a>; how pipelines and job orchestration are deployed in <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a>.</div>
+<div class="wall"><div class="t">The wall</div>Uploading a PDF to chat with it means extracting text, cutting it into pieces and computing an <dfn id="d-embed">embedding</dfn> for each (a list of numbers standing for its meaning): tens of seconds. Done inside the request, it holds one of the server's few request slots the whole time, and quick messages queue behind it. On a server with 4 slots, 5 uploads among 30 chat messages made chat messages wait up to 3 seconds that should have waited none (<span class="ill">illustrative</span>, checked in <code>src/read/recompute.py</code>).</div>
+<p>The user does not need the result now; they need to know it is being done. So the handler writes "process document 981" to a <dfn id="d-queue">message queue</dfn> and answers <code>202 Accepted</code> at once, and separate <dfn id="d-worker">workers</dfn> do the work in the background: <dfn id="d-async">asynchronous</dfn> processing.</p>
+<p>Three consequences follow, and each has an owner. <b>Jobs can run twice</b>: so that nothing is lost, the queue deletes a job only when a worker confirms it (<dfn id="d-alo">at-least-once delivery</dfn>), so jobs must be <dfn id="d-idem">idempotent</dfn>, and a job that keeps failing goes to a <dfn id="d-dlq">dead-letter queue</dfn>. <b>A queue can hide overload</b>: the backlog grows while nothing looks broken, so watch the age of the oldest job and apply <dfn id="d-backpressure">backpressure</dfn> (slow producers down, or refuse work with <code>429</code>). <b>Workers are sized by arithmetic</b>: <dfn id="d-little">Little's law</dfn>, L = &lambda;W, says 5 documents a second at 20 seconds each keeps 5 &times; 20 = 100 jobs in progress, so at least 100 worker slots (<span class="ill">illustrative</span>); the same law sizes the model layer in Steps 5 and 6.</p>
+<div class="cost"><div class="t">The price, across pages</div>Results arrive later and the product must show progress; failures happen out of sight and need their own alerts; every job must survive running twice. A queue is for work that can be late, never for the reply the user is staring at.</div>
+<div class="deepnote"><b>Go deeper.</b> Queues against logs, Kafka, delivery semantics, idempotent consumers, visibility timeouts, dead letters, backpressure, the outbox and sagas, with a nightly batch LLM job as the worked example: <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>. Handing work to a background task inside one service, and what that loses when the process dies: <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a> (section 8). Turn the queue on in the <a href="#" data-tab="t-sim">Scale simulator</a>.</div>
 </section>
 
 <section id="rd-s4">
 <h2 class="step-h"><span class="snum" style="--sc:var(--c4)">Step 4</span> Things fail, and the fixes can make it worse</h2>
-<div class="wall"><div class="t">The problem appears</div>The system is now dozens of machines and several outside services. At this size something is always failing: a server reboots, a link drops packets, the model provider has a slow hour. Say 1 request in 100 to the model provider hangs for a minute during that hour (<span class="ill">illustrative</span>). Each hung call holds a request slot (Step 3) for a minute, slots run out, and one dependency's problem takes down your whole product.</div>
-
-<h3>Timeouts: never wait forever</h3>
-<p>A <dfn id="d-timeout">timeout</dfn> is a deadline on every call to another system: if no answer comes within it, give up and free the slot. Too long and slots pile up; too short and you abandon calls that would have succeeded. Marc Brooker of AWS describes the usual way to choose: pick an acceptable rate of false timeouts, "such as 0.1%", then set the timeout at the matching latency percentile of the service you call, "p99.9 in this example" (<a href="https://builder.aws.com/content/3EumjoZascWd1oZiEgL8ORlv3qE/timeouts-retries-and-backoff-with-jitter" target="_blank" rel="noopener noreferrer">Timeouts, retries and backoff with jitter</a>).</p>
-
-<h3>Retries, and why they need backoff and jitter</h3>
-<p>Many failures are momentary, so the natural fix is a <dfn id="d-retry">retry</dfn>. Retries rescue single requests and can sink the system: each is extra load arriving exactly when it struggles. Brooker's example: if each of five layers of a system retries three times, "the load on the database will increase 243x" (3<sup>5</sup>), "making it unlikely to ever recover". A flood of retries that keeps a recovering system down is a <dfn id="d-storm">retry storm</dfn>, and the general pattern, a system that stays broken after its trigger is gone because something (often retries) sustains the overload, is what Bronson and colleagues called a <dfn id="d-metastable">metastable failure</dfn> (<a href="https://sigops.org/s/conferences/hotos/2021/papers/hotos21-s11-bronson.pdf" target="_blank" rel="noopener noreferrer">HotOS 2021</a>).</p>
-<p>Two habits fix it. <dfn id="d-backoff">Exponential backoff</dfn> waits longer after each failure (1, 2, 4, 8 seconds, up to a cap), so retries thin out. <dfn id="d-jitter">Jitter</dfn> makes each wait random, because clients that failed together and back off by the same amounts retry together again, in synchronised waves. Brooker's simulation compared the variants and found that backoff without jitter "is the clear loser"; his recommended "full jitter" waits a random time between zero and the backoff (<a href="https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/" target="_blank" rel="noopener noreferrer">AWS Architecture Blog, 2015</a>). Know what jitter does and does not do: it spreads retries out in time, so they can fit into spare capacity, but every retry still arrives eventually; it does not remove work. When new requests keep coming (an "open" system) and there is no spare capacity left, backoff with jitter alone does not end a retry storm. <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a> measured exactly this on a laptop service ("A retry storm, measured"): with backoff and full jitter success stayed at 25%, the same as retrying at once, while a <b>retry budget</b> (retries capped at a share of requests) reached 72% and a <b>bounded queue</b> that rejects the excess at once reached 87%. So cap the number of attempts, keep a retry budget, retry at one layer only, and retry only requests that are safe to repeat, which is the second half of the animation.</p>
-
-<h3>The double charge, and idempotency keys</h3>
-<p>A user buys 1,000 credits for $20. The server charges the card and the response is lost (the phone went into a tunnel). To the client, a failure before the charge and one after it look identical. Retry, and the user may pay twice; don't, and they may get nothing. Brandur Leach of Stripe lays out the cases (<a href="https://stripe.com/blog/idempotency" target="_blank" rel="noopener noreferrer">Stripe, 2017</a>). The fix is an <dfn id="d-idemkey">idempotency key</dfn>: the client invents a unique ID for this one purchase and sends it with every attempt. The server records the key together with the result; a retry with the same key gets the stored result back instead of a second charge. AWS does the same with "client request tokens", and returns an error if the same token arrives with different parameters (<a href="https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/" target="_blank" rel="noopener noreferrer">Featonby, Builders' Library</a>). This is how a request that is not naturally idempotent (Step 3) is made safe to retry.</p>
-
-<div class="card" id="rd-rt-card">
-<b>Animation: two failures, before and after the fix</b>
-<div class="seg" id="rd-rt-scn"><button data-m="storm" class="on">Retry storm</button><button data-m="charge">Double charge</button></div>
-<div class="seg" id="rd-rt-seg"><button data-m="before" class="on">Before</button><button data-m="after">After</button></div>
-<div class="rd-svg" id="rd-rt-svg"></div>
-<div class="leg" id="rd-rt-leg"></div>
-<div class="an-cap" id="rd-rt-cap" aria-live="polite"></div>
-<div class="an-cnt" id="rd-rt-cnt"></div>
-<div class="an-ctl" id="rd-rt-ctl"></div>
-<p class="small mute" id="rd-rt-note"></p>
-</div>
-
-<h3>Failing well: circuit breakers, load shedding, degradation</h3>
-<p>A <dfn id="d-breaker">circuit breaker</dfn> wraps calls to a dependency and counts failures; past a threshold it "opens" and fails calls immediately for a while, without calling, then lets a few test calls through to see whether the dependency has recovered (<a href="https://martinfowler.com/bliki/CircuitBreaker.html" target="_blank" rel="noopener noreferrer">Fowler</a>). <dfn id="d-shed">Load shedding</dfn> is the same reflex applied to your own service: when nearly overloaded, reject the excess quickly so the requests you accept still succeed (<a href="https://builder.aws.com/content/3Eun1EEyX6p2e3VYNyRLSJzLuMV/using-load-shedding-to-avoid-overload" target="_blank" rel="noopener noreferrer">Yanacek, Builders' Library</a>). <dfn id="d-degrade">Graceful degradation</dfn> decides in advance what a worse-but-working product looks like: if the large model is down, answer with a smaller one; if search is slow, answer without it; and only then show an honest error.</p>
-
-<h3>How reliable is reliable enough: SLOs and error budgets</h3>
-<p>"Never fail" is impossible, so reliability gets a number. An <dfn id="d-sli">SLI</dfn> (service level indicator) is "a carefully defined quantitative measure" of service, such as the share of chat requests answered successfully within 10 seconds; an <dfn id="d-slo">SLO</dfn> (objective) is "a target value ... for a service level that is measured by an SLI"; an <dfn id="d-sla">SLA</dfn> (agreement) is the contract, with consequences, built on them (<a href="https://sre.google/sre-book/service-level-objectives/" target="_blank" rel="noopener noreferrer">SRE book, ch. 4</a>). The gap between the SLO and perfection is the <dfn id="d-budget">error budget</dfn>: Google's SRE teams treat it as "the 'budget' of how much 'unreliability' is remaining", and "as long as there is error budget remaining ... new releases can be pushed" (<a href="https://sre.google/sre-book/embracing-risk/" target="_blank" rel="noopener noreferrer">SRE book, ch. 3</a>). For our product: an SLO of 99.9% of messages succeeding, at 10 million messages a day (Step 6's estimate), allows 10,000 failures a day, about 300,000 in a 30-day month. Spend it on shipping; when it is gone, slow down and fix.</p>
-
-<h3>Seeing inside: observability</h3>
-<p><dfn id="d-obs">Observability</dfn>, seeing inside a running system, rests on three kinds of signal (<a href="https://opentelemetry.io/docs/concepts/signals/" target="_blank" rel="noopener noreferrer">OpenTelemetry</a>): <dfn id="d-logs">logs</dfn> (a timestamped line per event: "request 7f3 failed: provider timeout"), <dfn id="d-metrics">metrics</dfn> (numbers over time: requests per second, p99 latency, error rate), and <dfn id="d-traces">traces</dfn> (one request followed across every service it touched, with the time spent in each, which is how you find which of twelve hops was slow). Google's starting set of metrics is the four golden signals: latency, traffic, errors and saturation, "how 'full' your service is" (<a href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener noreferrer">SRE book, ch. 6</a>).</p>
-<div class="cost"><div class="t">What it costs</div>Each adds code that only runs when something is already wrong, the least tested code you own. Retries add load; idempotency keys need storage and an expiry; observability costs money per log line. Name the failure each mechanism defends against, and test it on purpose.</div>
-<div class="deepnote"><b>Go deeper (optional).</b> Timeouts, retry budgets, circuit breakers, load shedding, SLOs and incidents, with a measured retry storm, in <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>; idempotency keys implemented and tested in a real service in <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a>; logs, metrics, traces and alerting on SLOs in <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability</a>; real outages where retries, caches and timeouts did the damage in <a href="#" data-tab="t-cases">Case files</a>; shipping model changes safely (shadow traffic, canaries, A/B tests) in <a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a>.</div>
+<div class="wall"><div class="t">The wall</div>At dozens of machines and several outside services, something is always failing. Say 1 request in 100 to the model provider hangs for a minute during a slow hour (<span class="ill">illustrative</span>): each hung call holds a slot, slots run out, and one dependency's problem takes the whole product down.</div>
+<p>The defences, each a fix with a price, in the order a request meets them:</p>
+<div class="tw"><table class="map">
+<thead><tr><th>Defence</th><th>What it does</th><th>How it backfires</th></tr></thead>
+<tbody>
+<tr><td><dfn id="d-timeout">Timeout</dfn></td><td>A deadline on every call; give up and free the slot</td><td>Too long and slots pile up; too short and calls that would have succeeded are abandoned</td></tr>
+<tr><td><dfn id="d-retry">Retry</dfn> with <dfn id="d-backoff">exponential backoff</dfn> and <dfn id="d-jitter">jitter</dfn></td><td>Tries again after a growing, randomised wait</td><td>Retries add load exactly when the system struggles: five layers that each try three times multiply the load on the bottom one 243 times (3<sup>5</sup>), a <dfn id="d-storm">retry storm</dfn>. Jitter spreads retries out but removes no work; a retry budget or a bounded queue does</td></tr>
+<tr><td><dfn id="d-idemkey">Idempotency key</dfn></td><td>A client-chosen ID per action, so a retried charge returns the stored result instead of charging twice</td><td>Needs storage, an expiry and an atomic claim</td></tr>
+<tr><td><dfn id="d-breaker">Circuit breaker</dfn>, <dfn id="d-shed">load shedding</dfn>, <dfn id="d-degrade">graceful degradation</dfn></td><td>Stop calling what is broken; reject excess early; fall back to a smaller model or no search</td><td>The least-tested code you own: it runs only when something is already wrong</td></tr>
+</tbody></table></div>
+<p>A failure that sustains itself after its trigger is gone, usually because retries keep the overload going, is a <dfn id="d-metastable">metastable failure</dfn>. Reliability engineering measured one on a laptop service: with backoff and full jitter, success stayed at 25%, the same as retrying at once; a retry budget reached 72% and a bounded queue that rejects the excess at once 87%.</p>
+<p><b>How reliable is enough</b> gets a number. An <dfn id="d-sli">SLI</dfn> measures the service (the share of messages answered within 10 seconds), an <dfn id="d-slo">SLO</dfn> is its target, an <dfn id="d-sla">SLA</dfn> the contract built on it, and the gap to perfection is the <dfn id="d-budget">error budget</dfn>, spent on shipping. An SLO of 99.9% at 10 million messages a day (Step 6's estimate) allows 10,000 failures a day, about 300,000 in a 30-day month. Seeing whether it holds is <dfn id="d-obs">observability</dfn>: <dfn id="d-logs">logs</dfn> (one line per event), <dfn id="d-metrics">metrics</dfn> (numbers over time) and <dfn id="d-traces">traces</dfn> (one request followed across every service), joined by one trace ID.</p>
+<div class="deepnote"><b>Go deeper.</b> Timeouts and deadlines, retries, the measured retry storm, breakers, bulkheads and shedding, rate-limit algorithms, safe deploys, SLOs and burn rates, incidents, LLM calls and chaos testing: <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a> (sections 3 to 5 and 12). Building the idempotency key on one API: <a href="https://app.notion.com/p/3c65c17b0d0d81cb88a3f1f63e85f27b" target="_blank" rel="noopener noreferrer">Service APIs</a> (section 4); why exactly-once is end to end: <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a> (section 9). Logs, metrics, percentiles, traces, OpenTelemetry and alerting on burn rates: <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability</a>. Real outages where retries, caches and timeouts did the damage: <a href="#" data-tab="t-cases">Case files</a>.</div>
 </section>
 
 <section id="rd-s5">
 <h2 class="step-h"><span class="snum" style="--sc:var(--c5)">Step 5</span> The GPU layer: a backend unlike the others</h2>
-<div class="wall"><div class="t">The problem appears</div>Everything so far assumed a request costs milliseconds of an ordinary processor. A chat reply costs <b>seconds of a <dfn id="d-gpu">GPU</dfn></b> (the graphics processor that models run on, with its own fast memory). A model generates text one <dfn id="d-token">token</dfn> (a word or piece of a word) at a time, and for every token it must read all of its weights from GPU memory. For an 8-billion-parameter model in 16-bit numbers that is 16 GB per token; an NVIDIA H100 reads memory at 3.35 TB/s (<a href="https://www.nvidia.com/en-us/data-center/h100/" target="_blank" rel="noopener noreferrer">NVIDIA</a>), so one conversation can get at most about 210 tokens a second, and a 500-token reply takes at least 2.4 seconds (derived: 16 GB &divide; 3.35 TB/s = 4.8 ms per token). One user at a time per GPU will not serve ten million.</div>
-
-<h3>Why a model is not a normal backend</h3>
+<div class="wall"><div class="t">The wall</div>A chat reply costs <b>seconds of a <dfn id="d-gpu">GPU</dfn></b>. A model writes one <dfn id="d-token">token</dfn> at a time and reads all its weights for each: an 8-billion-parameter model in 16-bit numbers is 16 GB per token, and an H100 reads 3.35 TB/s (<a href="https://www.nvidia.com/en-us/data-center/h100/" target="_blank" rel="noopener noreferrer">NVIDIA</a>), so one conversation gets at most about 210 tokens a second and a 500-token reply takes at least 2.4 seconds (derived: 16 GB &divide; 3.35 TB/s = 4.8 ms per token).</div>
+<p>Four properties break the web playbook of Steps 1 to 4:</p>
 <ul>
-<li><b>Two phases.</b> Reading the prompt (<dfn id="d-prefill">prefill</dfn>) handles all its tokens at once and is limited by arithmetic; writing the answer (<dfn id="d-decode">decode</dfn>) makes one token per step and is limited by memory bandwidth, as above.</li>
-<li><b>Long-lived responses.</b> Replies are <dfn id="d-stream">streamed</dfn> token by token over one open connection (commonly server-sent events, SSE), so each reply holds a connection open for seconds (Little's law counts them in Step 6).</li>
-<li><b>Capacity comes in big, slow blocks.</b> A 70-billion-parameter model in 16-bit numbers is 140 GB of weights, more than one 80 GB H100 holds, so one copy of the model (a <dfn id="d-replicam">model replica</dfn>) spans several GPUs. You add capacity a replica at a time, and a new replica must load its weights before serving: 140 GB at an <span class="ill">illustrative</span> 2 GB/s is 70 seconds, before starting the packaged program (the container) and warming up. These <dfn id="d-cold">cold starts</dfn> take minutes, so GPUs cannot be added the moment a spike arrives.</li>
-<li><b>Memory per conversation.</b> To avoid recomputing the conversation for every new token, the model keeps intermediate results for every token so far: the <dfn id="d-kv">KV cache</dfn>. It grows with the conversation in scarce GPU memory, so it often limits how many users a GPU serves at once (<a href="https://app.notion.com/p/3c65c17b0d0d81bf8b90ca93fee19f5f" target="_blank" rel="noopener noreferrer">PagedAttention, KB paper page</a>).</li>
+<li><b>Two phases.</b> <dfn id="d-prefill">Prefill</dfn> reads the whole prompt at once and is limited by arithmetic; <dfn id="d-decode">decode</dfn> writes one token per step and is limited by memory bandwidth, as above.</li>
+<li><b>Long-lived responses.</b> Replies are <dfn id="d-stream">streamed</dfn> token by token, so each holds a connection open for seconds; Little's law counts them in Step 6.</li>
+<li><b>Capacity in big, slow blocks.</b> A 70-billion-parameter model in 16-bit numbers is 140 GB, more than one 80 GB GPU, so one <dfn id="d-replicam">model replica</dfn> spans several; loading 140 GB at an <span class="ill">illustrative</span> 2 GB/s takes 70 seconds before the server even starts, so <dfn id="d-cold">cold starts</dfn> take minutes and GPUs cannot be added the moment a spike arrives.</li>
+<li><b>Memory per conversation.</b> The <dfn id="d-kv">KV cache</dfn> keeps intermediate results for every token so far, in scarce GPU memory, and often limits how many users one GPU serves.</li>
 </ul>
-
-<h3>Batching: one read of the weights, many users</h3>
-<p>Since each decode step reads all the weights anyway, the same read can produce the next token for many conversations at once: <dfn id="d-batch">batching</dfn>. With 64 conversations in a batch, the 4.8 ms weight read yields 64 tokens instead of one, a ceiling of about 13,000 tokens a second (derived, ignoring KV cache reads and arithmetic). Real engines go further with bigger batches and smaller number formats: NVIDIA's published performance overview (v0.21 data) reports about 15,000 output tokens a second for Llama 3.1 8B in 8-bit on one H100, 1,000 input and 1,000 output tokens per request, at maximum load (vendor benchmark; see <a href="#" data-tab="t-num">Numbers to know</a>). The catch is that replies have different lengths. In <i>static</i> batching the batch runs until its longest reply finishes, and slots whose reply ended early sit idle. <dfn id="d-cbatch">Continuous batching</dfn> (iteration-level scheduling, introduced by Orca, <a href="https://www.usenix.org/conference/osdi22/presentation/yu" target="_blank" rel="noopener noreferrer">OSDI 2022</a>) lets a new request take a slot the moment one frees up, at every step. Anyscale's benchmark reported up to 23x the throughput of naive static batching when combined with vLLM's memory management (<a href="https://www.anyscale.com/blog/continuous-batching-llm-inference" target="_blank" rel="noopener noreferrer">Anyscale, 2023</a>; a single benchmark by an interested party, so read it as "large", not as a constant).</p>
-
-<div class="card" id="rd-bt-card">
-<b>Animation: the same ten requests, static against continuous batching</b>
-<div class="seg" id="rd-bt-seg"><button data-m="static" class="on">Before: static batches of 4</button><button data-m="cont">After: continuous batching</button></div>
-<div class="rd-svg" id="rd-bt-svg"></div>
-<div class="leg" id="rd-bt-leg"></div>
-<div class="an-cap" id="rd-bt-cap" aria-live="polite"></div>
-<div class="an-cnt" id="rd-bt-cnt"></div>
-<div class="an-ctl" id="rd-bt-ctl"></div>
-<p class="small mute"><span class="ill">Illustrative requests</span>: a GPU with 4 batch slots; ten waiting requests needing 3, 8, 2, 5, 4, 7, 2, 3, 6 and 2 decode steps. Real engines run hundreds of slots; the shape of the gain is the same. Checked in <code>src/read/recompute.py</code>.</p>
-</div>
-
-<h3>Do less work: caching prompts, routing, limits</h3>
-<p><b>Prefix caching.</b> Requests in a conversation start with the same system prompt and history; engines can keep the KV cache of that shared beginning and skip its prefill: <dfn id="d-prefix">prefix caching</dfn> (<a href="https://docs.vllm.ai/en/latest/features/automatic_prefix_caching.html" target="_blank" rel="noopener noreferrer">vLLM docs</a>). Model providers sell the same idea: Anthropic says prompt caching reduces "costs by up to 90% and latency by up to 85% for long prompts" (<a href="https://claude.com/blog/prompt-caching" target="_blank" rel="noopener noreferrer">Anthropic</a>; vendor figure), and OpenAI applies it automatically to long prompts and advises putting "stable developer instructions and shared reference material first" (<a href="https://developers.openai.com/api/docs/guides/prompt-caching" target="_blank" rel="noopener noreferrer">OpenAI docs</a>). Lesson: what never changes goes first in the prompt. A riskier cousin, the <dfn id="d-semcache">semantic cache</dfn>, returns a stored answer when a new question merely looks similar to an old one; it is cheap and wrong whenever the answer should depend on who is asking or when.</p>
-<p><b>Routing across models.</b> A <dfn id="d-router">model router</dfn> sends easy requests to a small, cheap model and hard ones to the large model, and doubles as Step 4's degradation path.</p>
-<p><b>Rate limits per customer.</b> A <dfn id="d-ratelimit">rate limit</dfn> caps how much each user or tenant (a customer organisation) may send per minute; past it they get <code>429 Too Many Requests</code>. The common algorithm is the <dfn id="d-bucket">token bucket</dfn>: each customer has a bucket that refills at a steady rate, and each request takes from it, which allows short bursts but caps the average (Stripe: "We use the token bucket algorithm", <a href="https://stripe.com/blog/rate-limiters" target="_blank" rel="noopener noreferrer">Stripe, 2017</a>). For a model, limit tokens per minute as well as requests, because one request with a 100,000-token document costs as much as a thousand short ones.</p>
-<div class="cost"><div class="t">What it costs</div>Batching trades a little latency per user for much more throughput per GPU. Output caches can serve the wrong answer to the wrong person; routers misjudge difficulty. And GPUs are expensive idle and slow to add, so fleet size is a bet on tomorrow's traffic, which Step 6 estimates.</div>
-<div class="deepnote"><b>Go deeper (optional).</b> The LLM service around the model (tenancy, the caching layers, rollouts, degradation) in <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a>; LLM gateways, token rate limits and budgets in <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a>; replica routing and GPU autoscaling in <a href="https://app.notion.com/p/3f35c17b0d0d818aa406da1f7a784c62" target="_blank" rel="noopener noreferrer">LLM serving in production</a>; GPU throughput and memory figures in <a href="#" data-tab="t-num">Numbers to know</a>; the KV cache, paging and batching simulated on the <a href="https://app.notion.com/p/3c65c17b0d0d81bf8b90ca93fee19f5f" target="_blank" rel="noopener noreferrer">PagedAttention paper page</a>; serving engines in depth in <a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a>.</div>
+<p>The fixes all do less work per reply. <dfn id="d-batch">Batching</dfn> uses one read of the weights for many conversations: with 64 in a batch, the 4.8 ms read yields 64 tokens, a ceiling of about 13,000 tokens a second (derived); <dfn id="d-cbatch">continuous batching</dfn> refills a freed slot at every step instead of waiting for the longest reply. <dfn id="d-prefix">Prefix caching</dfn> keeps the KV cache of a shared prompt beginning, so what never changes goes first in the prompt; a <dfn id="d-semcache">semantic cache</dfn> returns a stored answer for a question that merely looks similar, cheap and wrong whenever the answer depends on who asks. A <dfn id="d-router">model router</dfn> sends easy requests to a small model and doubles as Step 4's degradation path. A <dfn id="d-ratelimit">rate limit</dfn> per customer, usually a <dfn id="d-bucket">token bucket</dfn>, must count tokens as well as requests, because one 100,000-token document costs as much as a thousand short questions.</p>
+<div class="cost"><div class="t">The price, across pages</div>Batching trades a little latency per user for much more throughput per GPU; caches can serve the wrong answer to the wrong person; routers misjudge difficulty; and GPUs are expensive idle and slow to add, so the fleet size is a bet on tomorrow's traffic, which Step 6 estimates.</div>
+<details class="dp"><summary>Published throughput figures behind these ceilings <span class="mute">(depth)</span></summary><div class="b">
+<p>NVIDIA's published performance overview (v0.21 data) reports about 15,000 output tokens a second for Llama 3.1 8B in 8-bit on one H100, 1,000 input and 1,000 output tokens per request, at maximum load (vendor benchmark; see <a href="#" data-tab="t-num">Numbers to know</a>). Continuous batching was introduced by Orca (<a href="https://www.usenix.org/conference/osdi22/presentation/yu" target="_blank" rel="noopener noreferrer">OSDI 2022</a>); Anyscale's benchmark reported up to 23x the throughput of naive static batching when combined with vLLM's memory management (<a href="https://www.anyscale.com/blog/continuous-batching-llm-inference" target="_blank" rel="noopener noreferrer">Anyscale, 2023</a>; a single benchmark by an interested party, so read it as "large", not as a constant).</p>
+</div></details>
+<div class="deepnote"><b>Go deeper.</b> Designing the service around a model (framing, the data loop, serving shape and latency budgets, drift, the LLM design ladder and its cost) and what running an LLM service adds: <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a> (sections 4, 6 and 7). LLM gateways, routing, fallbacks, token rate limits and budgets: <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a>. Continuous batching, paged KV caches and prefix caching in the engine: <a href="https://app.notion.com/p/3c65c17b0d0d819db53bd2c48909e5b2" target="_blank" rel="noopener noreferrer">Batching, KV cache and scheduling in depth</a>; replica routing, autoscaling and cold starts: <a href="https://app.notion.com/p/3f35c17b0d0d818aa406da1f7a784c62" target="_blank" rel="noopener noreferrer">LLM serving in production</a>; the whole engine layer: <a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a>. Capacity for an LLM-backed service from the client's side (provider limits, open streams): Capacity planning.</div>
 </section>
 
 <section id="rd-s6">
 <h2 class="step-h"><span class="snum" style="--sc:var(--c6)">Step 6</span> Designing it on purpose: the method</h2>
-<div class="wall"><div class="t">The problem appears</div>Steps 1 to 5 were reactive. That works until a fix takes months (sharding a live database, buying GPUs), or someone asks for the design before the system exists. How many GPUs do ten million users mean, and what breaks first? Without numbers, a design is a guess drawn in boxes.</div>
-<p>The method below is what experienced engineers do, in roughly this order, and it is also the structure that system design interviews expect (Alex Xu's <i>System Design Interview</i> compresses it into four phases for a 45-minute interview: understand the problem and establish design scope, 3 to 10 minutes; propose a high-level design, 10 to 15; deep dive, 10 to 25; wrap up, 3 to 5; <a href="https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews" target="_blank" rel="noopener noreferrer">ByteByteGo</a>). Each step narrows the next.</p>
+<div class="wall"><div class="t">The wall</div>Steps 1 to 5 were reactive. That works until a fix takes months (sharding a live database, buying GPUs), or someone asks for the design before the system exists. Without numbers, a design is a guess drawn in boxes.</div>
+<p>The method experienced engineers follow, in roughly this order, which is also what system design interviews expect (Alex Xu compresses it into four phases for 45 minutes: scope 3 to 10 minutes, high-level design 10 to 15, deep dive 10 to 25, wrap-up 3 to 5; <a href="https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews" target="_blank" rel="noopener noreferrer">ByteByteGo</a>):</p>
 <div class="reason">
-<div><b>Requirements.</b> <dfn id="d-func">Functional requirements</dfn> say what the system does: sign in, chat, keep history, upload documents. <dfn id="d-nonfunc">Non-functional requirements</dfn> say how well: how many users, how fast (time to first token under 1 second at p99, say), how reliable (an SLO), how cheap, what privacy rules. The non-functional ones decide the architecture; ask them first.</div>
-<div><b>Back-of-the-envelope estimates.</b> <dfn id="d-envelope">Rough arithmetic</dfn>, accurate to a factor of two or so, that turns users into requests per second, tokens per second, GPUs and storage. It tells you which part is the hard part. The animation below does it for our product.</div>
-<div><b>API.</b> The endpoints the clients will call: <code>POST /chats</code>, <code>POST /chats/{id}/messages</code> (streams the reply), <code>GET /chats/{id}/messages?cursor=...</code>, <code>POST /documents</code> (returns 202, Step 3). Writing them forces decisions: what is idempotent, what streams.</div>
-<div><b>Data model.</b> The tables and how they are found: <i>users</i>, <i>chats</i> (owned by a user), <i>messages</i> (in a chat, in order), <i>documents</i>. Every query should hit an index and carry the likely shard key (user).</div>
-<div><b>High-level design.</b> The boxes and arrows: the right-hand picture at the top of this page. Each box should be justified by a requirement or an estimate.</div>
-<div><b>Deep dives.</b> The two or three parts the estimates flagged as hard. For this product: the GPU fleet (Step 5) and the message store (Step 2). Go into those, not into everything.</div>
-<div><b>Bottlenecks and trade-offs.</b> What breaks at ten times the traffic, what fails when a dependency fails (Step 4), and what each choice cost.</div>
+<div><b>Requirements.</b> <dfn id="d-func">Functional</dfn> ones say what the system does; <dfn id="d-nonfunc">non-functional</dfn> ones say how well (users, time to first token at p99, the SLO, cost, privacy). The non-functional ones decide the architecture; ask them first.</div>
+<div><b>Estimates.</b> <dfn id="d-envelope">Back-of-the-envelope arithmetic</dfn> that turns users into requests, tokens, GPUs and bytes, and says which part is hard (below).</div>
+<div><b>API and data model.</b> The endpoints (what is idempotent, what streams, what returns 202) and the tables, each query on an index and carrying the likely shard key.</div>
+<div><b>High-level design, deep dives, trade-offs.</b> The boxes, each justified by a requirement or an estimate; then the two or three parts the estimates flagged; then what breaks at ten times the traffic and what each choice cost.</div>
 </div>
 
 <div class="card" id="rd-est-card">
-<b>Animation: the estimate, step by step, sized for the average day against the busy hour</b>
+<b>The estimate step by step: a fleet sized for the average day is short every evening</b>
+<p class="small"><b>Predict</b> before you step: if the busy hour runs at twice the average, how many hours of the day does a fleet sized for the average fall short? Then switch to the peak-sized fleet and look at the night.</p>
 <div class="seg" id="rd-est-seg"><button data-m="avg" class="on">Before: size the fleet for the average</button><button data-m="peak">After: size for the peak, plus headroom</button></div>
 <div id="rd-est-list"></div>
 <div class="rd-svg" id="rd-est-svg"></div>
@@ -369,134 +299,44 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div class="an-cap" id="rd-est-cap" aria-live="polite"></div>
 <div class="an-cnt" id="rd-est-cnt"></div>
 <div class="an-ctl" id="rd-est-ctl"></div>
-<p class="small mute"><span class="ill">Every input is an assumption, labelled as such</span>: 10% of users active each day, 10 messages each, 1,000 input and 400 output tokens per reply (the same request shape as the <a href="#" data-tab="t-sim">Scale simulator</a>), a busy hour twice the daily average (a fair figure for a product used in one region: <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a> measured Wikipedia's busy hour against its day's average for September 2026 at 1.92 for German, 1.63 for Japanese and 1.24 for the worldwide English site; per second, peaks are much sharper, as Twitter's busiest second in August 2013 ran at 25 times its average, see <a href="#" data-tab="t-cases">Case files</a>), 2,000 output tokens per second per GPU (a round planning number, a little below NVIDIA's maximum-load benchmark row for Llama 3.3 70B in FP8 on two H100s with 1,000 input and 1,000 output tokens per request: 2,209 output tokens/s per GPU (<a href="https://github.com/NVIDIA/TensorRT-LLM/blob/8a9c66ce086594054d3722307cfed2d658d25e60/docs/source/developer-guide/perf-overview.md" target="_blank" rel="noopener noreferrer">TensorRT-LLM perf overview, commit 8a9c66c</a>, vendor figure, the same row the Scale simulator uses); a service holding latency targets gets less, so measure your own; more figures in <a href="#" data-tab="t-num">Numbers to know</a>), replies streaming for 10 seconds, 2 KB of text per message. The daily traffic shape is invented to average exactly 1. Changing any input changes the answer in proportion, which is the point: the method, not the numbers, is what carries over. Checked in <code>src/read/recompute.py</code>.</p>
-</div>
-
-<p>Two lessons fall out of the arithmetic. First, the model layer dominates: 115 requests per second is a small load for app servers and a database, while the same traffic needs tens of GPUs. Second, the peak sets the size, not the average: a fleet sized for the average day is short of capacity for 14 hours of it, and a fleet sized for the peak sits more than half idle overnight. Closing that gap is why <dfn id="d-autoscale">autoscaling</dfn> (adding and removing model replicas automatically as traffic moves; slow for GPUs because of cold starts), cheaper batch work at night and routing to smaller models matter so much in practice (Step 5).</p>
-<div class="co"><div class="t">How this maps to interviews</div>A general system design interview (45 to 60 minutes) is this method out loud: clarify requirements, estimate, sketch the API and data model, draw the high-level design, then let the interviewer pick a deep dive. Machine learning system design interviews swap part of the middle for ML-specific steps: the metrics that define success offline and online, the data, the model choice, then serving and monitoring (Chip Huyen's free <a href="https://huyenchip.com/machine-learning-systems-design/toc.html" target="_blank" rel="noopener noreferrer">Machine Learning Systems Design</a> booklet uses this framing). In both, what is judged is whether you quantify and name trade-offs, not how many component names you know.</div>
-<div class="deepnote"><b>Go deeper (optional).</b> The method applied end to end to worked designs, from requirements to bottlenecks, in <a href="https://app.notion.com/p/3ef5c17b0d0d81c3b211d75127ef5ded" target="_blank" rel="noopener noreferrer">System design case studies</a>; peak factors, queueing and load testing in <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>; run this estimate with your own inputs in the <a href="#" data-tab="t-sim">Scale simulator</a>; the figures to estimate with in <a href="#" data-tab="t-num">Numbers to know</a>; real designs and post-mortems in <a href="#" data-tab="t-cases">Case files</a>.</div>
+<p class="small mute"><span class="ill">Every input is an assumption, labelled as such</span>: 10% of users active each day, 10 messages each, 1,000 input and 400 output tokens per reply (the same request shape as the <a href="#" data-tab="t-sim">Scale simulator</a>), a busy hour twice the daily average, 2,000 output tokens per second per GPU, replies streaming for 10 seconds, 2 KB of text per message. The daily traffic shape is invented to average exactly 1. Checked in <code>src/read/recompute.py</code>. The results the child pages reuse: 10 million messages a day, about 116 requests a second on average and 231.5 in the busy hour, 56 GPUs for the busy hour with 20% headroom, 2,315 streams open at once.</p>
+<details class="dp"><summary>Where the peak factor and the GPU figure come from <span class="mute">(depth)</span></summary><div class="b">
+<p>The busy hour at twice the daily average is a fair figure for a product used in one region: <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a> measured Wikipedia's busy hour against its day's average for September 2026 at 1.92 for German, 1.63 for Japanese and 1.24 for the worldwide English site; per second, peaks are much sharper, as Twitter's busiest second in August 2013 ran at 25 times its average (see <a href="#" data-tab="t-cases">Case files</a>). The 2,000 output tokens per second per GPU is a round planning number, a little below NVIDIA's maximum-load benchmark row for Llama 3.3 70B in FP8 on two H100s with 1,000 input and 1,000 output tokens per request: 2,209 output tokens/s per GPU (<a href="https://github.com/NVIDIA/TensorRT-LLM/blob/8a9c66ce086594054d3722307cfed2d658d25e60/docs/source/developer-guide/perf-overview.md" target="_blank" rel="noopener noreferrer">TensorRT-LLM perf overview, commit 8a9c66c</a>, vendor figure, the same row the Scale simulator uses); a service holding latency targets gets less, so measure your own; more figures in <a href="#" data-tab="t-num">Numbers to know</a>. Changing any input changes the answer in proportion, which is the point: the method, not the numbers, is what carries over.</p>
+</div></details>
+<p>Two lessons fall out of the arithmetic. The model layer dominates: 116 requests a second is a small load for app servers and a database, while the same traffic needs tens of GPUs. And the peak sets the size, not the average: a fleet sized for the average is short of capacity for 14 hours of the day, and one sized for the peak sits more than half idle overnight, which is why <dfn id="d-autoscale">autoscaling</dfn>, night-time batch work and routing to smaller models matter so much.</p>
+<p class="small">Machine learning design interviews keep this method and swap part of the middle for the metrics that define success offline and online, the data, the model choice, then serving and monitoring (Chip Huyen's free <a href="https://huyenchip.com/machine-learning-systems-design/toc.html" target="_blank" rel="noopener noreferrer">Machine Learning Systems Design</a> booklet uses this framing). In both, what is judged is whether you quantify and name trade-offs, not how many component names you know.</p>
+<div class="deepnote"><b>Go deeper.</b> Seven whole designs run through the method, from requirements and live estimates to bottlenecks, and a 45-minute Design drill: <a href="https://app.notion.com/p/3ef5c17b0d0d81c3b211d75127ef5ded" target="_blank" rel="noopener noreferrer">System design case studies</a>. Peak factors, headroom, N+1 and cost per request: <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a> (Capacity planning). The ML and LLM version of the interview: <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a> (section 8). Run this estimate with your own inputs in the <a href="#" data-tab="t-sim">Scale simulator</a>.</div>
 </section>
 
 <section id="rd-senior">
-<h2>How a senior engineer reasons</h2>
-<p>The habits of mind that use the six steps; each is a question asked before adding anything.</p>
+<h2>Across the steps: how a senior engineer reasons</h2>
+<p>The habits that use all six steps; each is a question asked before adding anything, and each is taught in depth by the page named.</p>
 <div class="reason">
-<div><b>Start from the invariant, not the component.</b> Write down what must never happen ("never charge twice", "never lose a message") and what may happen ("the sidebar is a second stale"). Then choose consistency and retries per invariant (Steps 2 and 4).</div>
-<div><b>Do the arithmetic first.</b> Requests per second, tokens, GPUs, bytes: the numbers say which part is hard (Step 6).</div>
+<div><b>Start from the invariant, not the component.</b> Write down what must never happen ("never charge twice", "never lose a message") and what may ("the sidebar is a second stale"), then choose consistency and retries per invariant (Distributed systems fundamentals, Reliability engineering).</div>
+<div><b>Do the arithmetic first.</b> Requests, tokens, GPUs, bytes: the numbers say which part is hard (Step 6, System design case studies).</div>
 <div><b>Add a block only when its problem has arrived.</b> A cache before reads hurt or sharding before one machine is full adds cost and failure modes for nothing. A bigger machine and one Postgres go a long way.</div>
 <div><b>Name the cost of every choice.</b> "We cache chat lists for 30 seconds; a renamed chat can show the old name for up to 30 seconds; acceptable." If you cannot say what a choice gives up, you do not yet understand it.</div>
-<div><b>Design for failure as the normal case.</b> Every call gets a timeout; retries get backoff, jitter and a cap; every retried write gets an idempotency key; every queue is bounded; there is a planned worse-but-working mode (Step 4). Test those paths on purpose.</div>
-<div><b>Measure before and after.</b> Percentiles, not averages; an SLO that says when reliability is good enough. Unmeasured "fixes" often move the problem.</div>
-<div><b>Prefer reversible decisions, and decide the irreversible ones late.</b> A function can be rewritten tomorrow; a public API, a schema and a shard key are very expensive to change later. Spend your care there.</div>
+<div><b>Design for failure as the normal case.</b> Every call gets a timeout; retries get backoff, jitter and a cap; every retried write gets an idempotency key; every queue is bounded; there is a planned worse-but-working mode; and those paths are tested on purpose (Reliability engineering, Testing and quality).</div>
+<div><b>Measure before and after.</b> Percentiles, not averages; an SLO that says when reliability is good enough. Unmeasured "fixes" often move the problem (Observability, Capacity planning).</div>
+<div><b>Prefer reversible decisions, and decide the irreversible ones late.</b> A function can be rewritten tomorrow; a public API, a schema and a shard key are very expensive to change later, so spend your care there (Code design, Service APIs).</div>
 </div>
-<p>In an interview, the same habits are what is assessed: clarify before drawing, estimate before choosing, and say the trade-off of every box.</p>
+<p><b>The code under every step.</b> Each fix above is code someone must change safely later. Two child pages own that: <a href="https://app.notion.com/p/3c65c17b0d0d81548848e2ebdd2f63ee" target="_blank" rel="noopener noreferrer">Testing and quality</a> (which layer of test catches which bug, contract tests for model output, flaky tests, CI gates, and static checks as gates) and <a href="https://app.notion.com/p/3ef5c17b0d0d817b99a0ff9701ff30cd" target="_blank" rel="noopener noreferrer">Code design</a> (cohesion and coupling, deep modules, dependency direction, refactoring in small tested steps, code review as a craft, and code an LLM agent can change safely). Where they meet: Code design owns static checks and review as craft; Testing and quality owns them as CI gates.</p>
 </section>
 
-<section id="rd-gloss">
-<h2>Glossary</h2>
-<p class="small mute">Every term this page introduces, in the order of the steps. Each name links back to where it is explained.</p>
-<h3>Step 1: one request, one server</h3>
-<div class="gl">
-<div><b><a href="#d-client">Client</a></b>: the program that sends a request (browser, app).</div>
-<div><b><a href="#d-server">Server</a></b>: the program (or machine) that answers requests.</div>
-<div><b><a href="#d-dns">DNS</a></b>: turns a name into an IP address.</div>
-<div><b><a href="#d-ip">IP address</a></b>: the numeric network address of a machine.</div>
-<div><b><a href="#d-tcp">TCP</a></b>: a reliable, ordered connection between two machines.</div>
-<div><b><a href="#d-rtt">Round trip</a></b>: a message there and its answer back.</div>
-<div><b><a href="#d-tls">TLS</a></b>: encryption of a connection (the S in HTTPS).</div>
-<div><b><a href="#d-http">HTTP</a></b>: the request and response format: method, path, headers, body.</div>
-<div><b><a href="#d-status">Status code</a></b>: the number saying how a request went (2xx, 4xx, 5xx).</div>
-<div><b><a href="#d-api">API</a></b>: the set of requests a server promises to understand.</div>
-<div><b><a href="#d-endpoint">Endpoint</a></b>: one method plus path of an API.</div>
-<div><b><a href="#d-db">Database</a></b>: the program that keeps data safe and answers queries.</div>
-<div><b><a href="#d-sql">SQL</a></b>: the query language for tables of rows.</div>
-<div><b><a href="#d-latency">Latency</a></b>: how long one request takes.</div>
-<div><b><a href="#d-throughput">Throughput</a></b>: how many requests finish per second.</div>
-<div><b><a href="#d-pct">Percentile (p50, p99)</a></b>: the latency that 50% or 99% of requests beat.</div>
-<div><b><a href="#d-vertical">Vertical scaling</a></b>: a bigger machine.</div>
-<div><b><a href="#d-spof">Single point of failure</a></b>: one part whose failure stops everything.</div>
-<div><b><a href="#d-horizontal">Horizontal scaling</a></b>: more machines of the same size.</div>
-<div><b><a href="#d-lb">Load balancer</a></b>: hands each request to one of several servers.</div>
-<div><b><a href="#d-health">Health check</a></b>: a probe that takes failing servers out of rotation.</div>
-<div><b><a href="#d-stateless">Stateless server</a></b>: keeps nothing between requests that another server would need.</div>
-<div><b><a href="#d-session">Session</a></b>: what the system remembers about a signed-in user between requests.</div>
-</div>
-<h3>Step 2: the database</h3>
-<div class="gl">
-<div><b><a href="#d-index">Index</a></b>: a sorted lookup structure that avoids scanning a whole table.</div>
-<div><b><a href="#d-cache">Cache</a></b>: a fast store of copies of answers already computed.</div>
-<div><b><a href="#d-cacheaside">Cache-aside</a></b>: check the cache; on a miss read the database and fill the cache.</div>
-<div><b><a href="#d-hitrate">Hit rate</a></b>: the share of reads the cache answers.</div>
-<div><b><a href="#d-ttl">TTL</a></b>: how long a cached copy lives before it expires.</div>
-<div><b><a href="#d-invalidation">Invalidation</a></b>: deleting a cached copy when the data changes.</div>
-<div><b><a href="#d-cdn">CDN</a></b>: caches of static files placed close to users.</div>
-<div><b><a href="#d-replica">Read replica</a></b>: a copy of the database that serves reads.</div>
-<div><b><a href="#d-primary">Primary</a></b>: the one database copy that takes writes.</div>
-<div><b><a href="#d-lag">Replication lag</a></b>: how far a replica is behind the primary.</div>
-<div><b><a href="#d-shard">Sharding</a></b>: splitting data across several databases.</div>
-<div><b><a href="#d-shardkey">Shard key</a></b>: the value that decides which shard holds a row.</div>
-<div><b><a href="#d-strong">Strong consistency</a></b>: every read sees the latest write.</div>
-<div><b><a href="#d-eventual">Eventual consistency</a></b>: copies may differ briefly, then converge.</div>
-<div><b><a href="#d-cap">CAP</a></b>: during a network partition, choose consistency or availability.</div>
-<div><b><a href="#d-pacelc">PACELC</a></b>: and otherwise, choose latency or consistency.</div>
-</div>
-<h3>Step 3: slow work</h3>
-<div class="gl">
-<div><b><a href="#d-embed">Embedding</a></b>: a list of numbers representing a text's meaning.</div>
-<div><b><a href="#d-queue">Message queue</a></b>: a durable list of jobs between producers and workers.</div>
-<div><b><a href="#d-worker">Worker</a></b>: a process that takes jobs off a queue and does them.</div>
-<div><b><a href="#d-async">Asynchronous</a></b>: the response does not wait for the work.</div>
-<div><b><a href="#d-alo">At-least-once delivery</a></b>: no job is lost, so a job can run twice.</div>
-<div><b><a href="#d-idem">Idempotent</a></b>: doing it twice has the same effect as once.</div>
-<div><b><a href="#d-dlq">Dead-letter queue</a></b>: where jobs that keep failing are set aside.</div>
-<div><b><a href="#d-backpressure">Backpressure</a></b>: telling producers to slow down when consumers cannot keep up.</div>
-<div><b><a href="#d-little">Little's law</a></b>: items in a system = arrival rate &times; time each stays.</div>
-</div>
-<h3>Step 4: failure</h3>
-<div class="gl">
-<div><b><a href="#d-timeout">Timeout</a></b>: a deadline after which a call is abandoned.</div>
-<div><b><a href="#d-retry">Retry</a></b>: trying a failed call again.</div>
-<div><b><a href="#d-storm">Retry storm</a></b>: retries that keep a struggling system overloaded.</div>
-<div><b><a href="#d-metastable">Metastable failure</a></b>: a failure that sustains itself after its trigger is gone.</div>
-<div><b><a href="#d-backoff">Exponential backoff</a></b>: waiting longer after each failed try.</div>
-<div><b><a href="#d-jitter">Jitter</a></b>: randomising the wait so clients do not retry in step.</div>
-<div><b><a href="#d-idemkey">Idempotency key</a></b>: a client-chosen ID that lets the server recognise a retry.</div>
-<div><b><a href="#d-breaker">Circuit breaker</a></b>: stops calling a failing dependency for a while.</div>
-<div><b><a href="#d-shed">Load shedding</a></b>: rejecting excess requests early to protect the rest.</div>
-<div><b><a href="#d-degrade">Graceful degradation</a></b>: a planned worse-but-working mode.</div>
-<div><b><a href="#d-sli">SLI</a></b>: a measured indicator of service quality.</div>
-<div><b><a href="#d-slo">SLO</a></b>: the target for an SLI.</div>
-<div><b><a href="#d-sla">SLA</a></b>: a contract built on SLOs, with consequences.</div>
-<div><b><a href="#d-budget">Error budget</a></b>: the failures an SLO allows; spent on change.</div>
-<div><b><a href="#d-obs">Observability</a></b>: being able to see inside a running system.</div>
-<div><b><a href="#d-logs">Logs</a></b>: a timestamped line per event.</div>
-<div><b><a href="#d-metrics">Metrics</a></b>: numbers over time.</div>
-<div><b><a href="#d-traces">Traces</a></b>: one request followed across every service.</div>
-</div>
-<h3>Step 5: the GPU layer</h3>
-<div class="gl">
-<div><b><a href="#d-gpu">GPU</a></b>: the processor models run on, with its own fast memory.</div>
-<div><b><a href="#d-token">Token</a></b>: a word or piece of a word; models read and write tokens.</div>
-<div><b><a href="#d-prefill">Prefill</a></b>: processing the whole prompt at once.</div>
-<div><b><a href="#d-decode">Decode</a></b>: generating the reply one token per step.</div>
-<div><b><a href="#d-stream">Streaming</a></b>: sending the reply token by token as it is generated.</div>
-<div><b><a href="#d-replicam">Model replica</a></b>: one running copy of a model, often over several GPUs.</div>
-<div><b><a href="#d-cold">Cold start</a></b>: the time a new replica needs before it can serve.</div>
-<div><b><a href="#d-kv">KV cache</a></b>: per-conversation results kept in GPU memory to avoid recomputation.</div>
-<div><b><a href="#d-batch">Batching</a></b>: serving many conversations with one read of the weights.</div>
-<div><b><a href="#d-cbatch">Continuous batching</a></b>: refilling a freed batch slot at every step.</div>
-<div><b><a href="#d-prefix">Prefix caching</a></b>: reusing the KV cache of a shared prompt beginning.</div>
-<div><b><a href="#d-semcache">Semantic cache</a></b>: reusing an answer for a similar-looking question.</div>
-<div><b><a href="#d-router">Model router</a></b>: sends each request to a small or large model.</div>
-<div><b><a href="#d-ratelimit">Rate limit</a></b>: a cap on what one user or tenant may send per minute.</div>
-<div><b><a href="#d-bucket">Token bucket</a></b>: a refilling allowance that permits bursts but caps the average.</div>
-</div>
-<h3>Step 6: the method</h3>
-<div class="gl">
-<div><b><a href="#d-func">Functional requirements</a></b>: what the system does.</div>
-<div><b><a href="#d-nonfunc">Non-functional requirements</a></b>: how well: scale, speed, reliability, cost.</div>
-<div><b><a href="#d-envelope">Back-of-the-envelope estimate</a></b>: rough arithmetic that finds the hard part.</div>
-<div><b><a href="#d-autoscale">Autoscaling</a></b>: adding and removing capacity automatically as traffic moves.</div>
+<section id="rd-kids">
+<h2>The child pages, in reading order</h2>
+<p class="small mute">Ten pages on the same chat product; each uses only what the pages before it taught. Times are the reading time each page's header states (core, plus closed details).</p>
+<div class="kids">
+<div style="--sc:var(--c1)"><b>1. <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API: HTTP design, validation, errors, versioning, idempotency</a></b>The service behind an API: the request lifecycle, middleware against dependencies, authorising the object in the query, the data layer in a handler, async against threads against workers (measured), configuration and secrets, background hand-off, health checks and graceful shutdown, and an LLM endpoint end to end. <span class="rt">27 min, plus 8 in closed details. Step 1.</span></div>
+<div style="--sc:var(--c2)"><b>2. <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals: replication, partitioning, consistency, consensus</a></b>What changes when data lives on more than one machine: partial failure, clocks, replication, quorums, the consistency ladder, CAP and PACELC, Raft, leases and fencing, exactly-once as an end-to-end property, partitioning. <span class="rt">40 min, plus 10. Step 2.</span></div>
+<div style="--sc:var(--c3)"><b>3. <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work: delivery semantics, Kafka, the outbox pattern</a></b>Taking work off the request path: queues against logs, Kafka, delivery semantics, idempotent consumers, visibility timeouts, dead letters, backpressure, the outbox, sagas, cron and workflow engines, a nightly batch LLM job. <span class="rt">33 min, plus 17. Step 3.</span></div>
+<div style="--sc:var(--c4)"><b>4. <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering: timeouts, retries, circuit breakers, SLOs, incidents</a></b>Staying up when dependencies fail: timeouts and deadlines, retries and budgets (a retry storm measured), breakers, shedding, rate-limit algorithms, safe deploys, SLOs and error budgets, incidents, LLM calls, chaos testing. <span class="rt">33 min, plus 8. Step 4.</span></div>
+<div style="--sc:var(--c4)"><b>5. <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability: logs, metrics, traces, alerting</a></b>Seeing inside a running service, on a real instrumented run: logs, metrics and percentiles, cardinality, traces and context propagation, OpenTelemetry, profiling, one incident debugged, burn-rate alerting. <span class="rt">35 min, plus 8. Step 4.</span></div>
+<div style="--sc:var(--c1)"><b>6. <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance: load balancing, caching, queueing, load testing</a></b>How fast and how much: percentiles and the tail, queueing and Little's law, load balancing, cache patterns and stampedes, pools and the GIL, load testing without coordinated omission, capacity planning and cost per request, an LLM-backed service's limits. <span class="rt">38 min, plus 21. Steps 1, 2 and 6.</span></div>
+<div style="--sc:var(--c5)"><b>7. <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design: LLM and ML services</a></b>Designing a system around a model: framing and the metric ladder, the data loop and training-serving skew, offline against online evaluation, serving shape and latency budgets, feedback loops and drift, the LLM design ladder and its cost. <span class="rt">23 min, plus 16. Step 5.</span></div>
+<div style="--sc:var(--mute)"><b>8. <a href="https://app.notion.com/p/3c65c17b0d0d81548848e2ebdd2f63ee" target="_blank" rel="noopener noreferrer">Testing and quality: unit, property-based, data and model tests, CI</a></b>Knowing code works while it changes, with real pytest runs: layers, doubles, integration against the real engine, property-based tests, LLM-calling code, data and ML tests, flaky tests, mutation testing, CI and static checks as gates. <span class="rt">40 min, plus 18. Every step.</span></div>
+<div style="--sc:var(--mute)"><b>9. <a href="https://app.notion.com/p/3ef5c17b0d0d817b99a0ff9701ff30cd" target="_blank" rel="noopener noreferrer">Code design: readable code, abstractions, review, library design</a></b>Keeping the next change cheap and safe: cohesion and coupling, deep modules, dependency direction, composition, a functional core, error design, refactoring in ten measured steps, code an agent can change, technical debt, library design, review. <span class="rt">37 min, plus 17. Every step.</span></div>
+<div style="--sc:var(--c6)"><b>10. <a href="https://app.notion.com/p/3ef5c17b0d0d81c3b211d75127ef5ded" target="_blank" rel="noopener noreferrer">System design case studies: worked designs from requirements to bottlenecks</a></b>The capstone: seven whole designs (URL shortener, rate limiter, chat, feed, LLM gateway, RAG service, job scheduler) through Step 6's method, and a 45-minute Design drill. <span class="rt">32 min, plus 28. Step 6, last.</span></div>
 </div>
 </section>
 </div>
@@ -816,7 +656,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <style>#t-more .sp .n{text-transform:none;font-size:13.5px;letter-spacing:0;color:var(--ink)}</style>
 <section id="s-more"><h2>Further reading</h2>
-<p class="small mute">Times are estimates for a careful first read (about 230 words a minute for prose, more for books with exercises). "When" says where in the path each one pays off. Links checked 2026-10-04.</p>
+<p class="small mute">Times for pages of this knowledge base are their headers (230 words a minute); times for outside resources are estimates for a careful first read. "When" says where in the path each one pays off. Outside links checked 2026-10-04; child times 2026-10-24.</p>
 
 <h3>On this page</h3>
 <div class="grid">
@@ -826,31 +666,31 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 </div>
 
 <h3>The child pages of this topic, in reading order</h3>
-<p class="small mute">Ten pages, each the depth behind part of this page, taught from zero on the same chat product. This order suits a beginner: each page uses only what the pages before it taught. About 8 h in all (times as each page states them).</p>
+<p class="small mute">What each covers is on the <a href="#" data-tab="t-read">Reading</a> tab's last section; times are each page's header (core, plus closed details): about 5 h 40 min of core reading in all.</p>
 <div class="grid">
-<div class="sp"><div class="n">1. <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a></div><p>Your first real service: HTTP byte by byte, a FastAPI service line by line, validation, errors, pagination, idempotency keys, authentication, streaming, versioning and OpenAPI, every exchange captured from a running service. <span class="rt">About 45 min. When: first; the depth behind Step 1.</span></p></div>
-<div class="sp"><div class="n">2. <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a></div><p>What changes when data lives on more than one machine: the network, replication, partitioning, consistency models, CAP and PACELC, quorums, clocks, consensus (Raft), leases and fencing tokens, with Postgres replication measured and Jepsen's findings. <span class="rt">About 48 min. When: after Step 2.</span></p></div>
-<div class="sp"><div class="n">3. <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a></div><p>Taking work off the request path: queues against logs, Kafka from zero, delivery semantics and what "exactly-once" really means, idempotent consumers, dead-letter queues, backpressure, the transactional outbox, sagas, Python job queues. <span class="rt">About 50 min. When: after Step 3.</span></p></div>
-<div class="sp"><div class="n">4. <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a></div><p>Staying up when dependencies fail: timeouts, retries and retry budgets (a retry storm measured), circuit breakers, bulkheads, load shedding, rate limits, safe deploys, SLOs and error budgets, incidents and postmortems. <span class="rt">About 45 min. When: after Step 4.</span></p></div>
-<div class="sp"><div class="n">5. <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability</a></div><p>Seeing inside a running service: structured logs, metrics and percentiles (Prometheus), distributed traces, OpenTelemetry, profiling, dashboards, alerting on SLO burn rates, on-call, and what the tools cost. <span class="rt">About 40 min. When: after Reliability engineering.</span></p></div>
-<div class="sp"><div class="n">6. <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a></div><p>How fast and how much: latency and percentiles, the queueing maths of "fine at 60%, down at 90%", load balancing, caching and stampedes, connection pools, profiling, load testing, and planning for the peak (measured peak factors). <span class="rt">About 48 min. When: with Step 6's estimate.</span></p></div>
-<div class="sp"><div class="n">7. <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design: LLM and ML services</a></div><p>Model services in production: where the LLM gateway, routing, token limits and GPU autoscaling fit (their depth is on Gateways and routing and LLM serving in production), tenancy, the batch path, caching layers, rollouts, failure ladders, observing an LLM service, classic ML serving, and the ML system design interview. <span class="rt">About 40 min. When: after Step 5.</span></p></div>
-<div class="sp"><div class="n">8. <a href="https://app.notion.com/p/3c65c17b0d0d81548848e2ebdd2f63ee" target="_blank" rel="noopener noreferrer">Testing and quality</a></div><p>Knowing your code works while you change it, with real pytest code: unit and property-based tests, tests against a real database, contract tests for model output, data and model tests, CI. <span class="rt">About 45 min. When: once you ship code others depend on.</span></p></div>
-<div class="sp"><div class="n">9. <a href="https://app.notion.com/p/3ef5c17b0d0d817b99a0ff9701ff30cd" target="_blank" rel="noopener noreferrer">Code design</a></div><p>Python that others can read, change and trust: one real handler refactored in ten measured steps, abstractions that pay, code review, library design. <span class="rt">About 40 min. When: after Testing and quality.</span></p></div>
-<div class="sp"><div class="n">10. <a href="https://app.notion.com/p/3ef5c17b0d0d81c3b211d75127ef5ded" target="_blank" rel="noopener noreferrer">System design case studies</a></div><p>The capstone and interview practice: seven complete designs (URL shortener, rate limiter, chat, news feed, LLM gateway, RAG service, job scheduler) run through Step 6's method, each technique linked to the page that teaches it. <span class="rt">About 53 min. When: last, as practice.</span></p></div>
+<div class="sp"><div class="n">1. <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API: HTTP design, validation, errors, versioning, idempotency</a></div><p><span class="rt">27 min, plus 8 in closed details. When: first; Step 1.</span></p></div>
+<div class="sp"><div class="n">2. <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals: replication, partitioning, consistency, consensus</a></div><p><span class="rt">40 min, plus 10 in closed details. When: after Step 2.</span></p></div>
+<div class="sp"><div class="n">3. <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work: delivery semantics, Kafka, the outbox pattern</a></div><p><span class="rt">33 min, plus 17 in closed details. When: after Step 3.</span></p></div>
+<div class="sp"><div class="n">4. <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering: timeouts, retries, circuit breakers, SLOs, incidents</a></div><p><span class="rt">33 min, plus 8 in closed details. When: after Step 4.</span></p></div>
+<div class="sp"><div class="n">5. <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability: logs, metrics, traces, alerting</a></div><p><span class="rt">35 min, plus 8 in closed details. When: after Reliability engineering.</span></p></div>
+<div class="sp"><div class="n">6. <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance: load balancing, caching, queueing, load testing</a></div><p><span class="rt">38 min, plus 21 in closed details. When: with Step 6's estimate.</span></p></div>
+<div class="sp"><div class="n">7. <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design: LLM and ML services</a></div><p><span class="rt">23 min, plus 16 in closed details. When: after Step 5.</span></p></div>
+<div class="sp"><div class="n">8. <a href="https://app.notion.com/p/3c65c17b0d0d81548848e2ebdd2f63ee" target="_blank" rel="noopener noreferrer">Testing and quality: unit, property-based, data and model tests, CI</a></div><p><span class="rt">40 min, plus 18 in closed details. When: once you ship code others depend on.</span></p></div>
+<div class="sp"><div class="n">9. <a href="https://app.notion.com/p/3ef5c17b0d0d817b99a0ff9701ff30cd" target="_blank" rel="noopener noreferrer">Code design: readable code, abstractions, review, library design</a></div><p><span class="rt">37 min, plus 17 in closed details. When: after Testing and quality.</span></p></div>
+<div class="sp"><div class="n">10. <a href="https://app.notion.com/p/3ef5c17b0d0d81c3b211d75127ef5ded" target="_blank" rel="noopener noreferrer">System design case studies: worked designs from requirements to bottlenecks</a></div><p><span class="rt">32 min, plus 28 in closed details. When: last, as practice.</span></p></div>
 </div>
 <p><b>A map from outside: Andrew Ng's five pillars.</b> In August 2026 Andrew Ng published an AI Engineering Skills Map for software engineering fundamentals (<a href="https://x.com/AndrewYNg/status/2093388974194872781" target="_blank" rel="noopener noreferrer">Andrew Ng on X, 2026-08-28</a>, about 10 min). His argument: even when a coding agent writes every line, you need the fundamentals to steer it, because without them the agent makes "bad tradeoffs in latency, availability, consistency, reliability, maintainability, simplicity, and/or cost", and "the developer didn't know such tradeoffs even existed and therefore did not steer the agent". He names five skills; here is where this knowledge base teaches each. <i>Building full-stack applications</i>: <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a>, <a href="https://app.notion.com/p/3c65c17b0d0d81548848e2ebdd2f63ee" target="_blank" rel="noopener noreferrer">Testing and quality</a> and <a href="https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02" target="_blank" rel="noopener noreferrer">Topic: protocols</a>. <i>Managing data</i>: <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a>, <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a> and <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a>. <i>Designing system architectures</i>: this page's method (Step 6), <a href="https://app.notion.com/p/3ef5c17b0d0d81c3b211d75127ef5ded" target="_blank" rel="noopener noreferrer">System design case studies</a> and <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a>. <i>Making systems secure and reliable</i>: <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a> and Testing and quality. <i>Scaling and operating in production</i>: <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>, <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability</a>, <a href="https://app.notion.com/p/3ef5c17b0d0d817b99a0ff9701ff30cd" target="_blank" rel="noopener noreferrer">Code design</a> (code review) and <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a>. Two gaps remain: <b>front-end work</b> (UI components, page rendering, accessibility) and <b>conventional application security</b> (dependency and supply-chain scanning, cloud configuration review) have no page here yet.</p>
 
 <h3>Related topics and pages in this knowledge base</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a></div><p>The engine layer under Step 5: serving engines, KV cache management, batching and routing in depth. <span class="rt">43 min. When: after Step 5.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a></div><p>The engine layer under Step 5: serving engines, KV cache management, batching and routing in depth. <span class="rt">28 min. When: after Step 5.</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a></div><p>Database families compared, indexes, replication, sharding and caching at every layer: the depth behind Step 2. <span class="rt">27 min. When: after Step 2.</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02" target="_blank" rel="noopener noreferrer">Topic: protocols</a></div><p>HTTP, gRPC, server-sent events, webhooks: the wire under Step 1 and the streaming in Step 5. <span class="rt">40 min. When: after Step 1.</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a></div><p>Kubernetes, Terraform, monitoring: how these designs are deployed and operated. <span class="rt">28 min. When: when you deploy your first service.</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a></div><p>Shipping model changes safely: eval gates, golden sets, shadow traffic, A/B tests. <span class="rt">About 26 min. When: after Step 4.</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">Topic: evaluation-and-llm-judges</a></div><p>How LLM systems are evaluated, the quality side of the SLOs in Step 4. <span class="rt">About 20 min. When: any time.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02" target="_blank" rel="noopener noreferrer">Topic: protocols</a></div><p>HTTP, gRPC, server-sent events, webhooks: the wire under Step 1 and the streaming in Step 5. <span class="rt">33 min. When: after Step 1.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a></div><p>Kubernetes, Terraform, monitoring: how these designs are deployed and operated. <span class="rt">26 min. When: when you deploy your first service.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a></div><p>Shipping model changes safely: eval gates, golden sets, shadow traffic, A/B tests. <span class="rt">About 24 min. When: after Step 4.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">Topic: evaluation-and-llm-judges</a></div><p>How LLM systems are evaluated, the quality side of the SLOs in Step 4. <span class="rt">About 15 min. When: any time.</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81bf8b90ca93fee19f5f" target="_blank" rel="noopener noreferrer">PagedAttention (paper page)</a></div><p>The KV cache managed like operating-system memory pages, with a simulator; the source of Step 5's KV cache facts. <span class="rt">About 25 min (estimated from length). When: after Step 5.</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a> and <a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a></div><p>How a model is split across GPUs, and how smaller number formats shrink it: why a replica spans several GPUs. <span class="rt">About 22 and 23 min (estimated from length). When: optional, after Step 5.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a> and <a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a></div><p>How a model is split across GPUs, and how smaller number formats shrink it: why a replica spans several GPUs. <span class="rt">27 and 25 min. When: optional, after Step 5.</span></p></div>
 </div>
 
 <h3>A path from beginner to pro</h3>
@@ -887,9 +727,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab (Topic: evaluation-and-llm-judges): shared helpers, copied from Topic: benchmarks and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -920,7 +760,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -952,7 +792,7 @@ RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button'
   Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
 </script>
 <script>/* 22_js_rd_one.js */
-// ---- Reading, One screen: the architecture at 1 user and at 10 million, drawn at the measured width ----
+// ---- Reading, the idea in one screen (hero): the architecture at 1 user and at 10 million, each box with its step and the page that owns it; drawn at the measured width ----
 (function(){
   const A=document.getElementById('rd-one-a'),B=document.getElementById('rd-one-b');if(!A||!B)return;
   const SC=['--mute','--c1','--c2','--c3','--c4','--c5','--c6'];
@@ -963,7 +803,7 @@ RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button'
     let y=4,body='',prev=null;
     rows.forEach(r=>{
       const n=r.length,bw=(W-gap*(n-1))/n,maxc=Math.max(8,Math.floor((bw-12)/cw));
-      const boxes=r.map((b,i)=>{const t=wrap(b[0],maxc),s=wrap(b[1],maxc);return {x:i*(bw+gap),t,s,step:b[2],h:10+t.length*(fs+2)+s.length*(fs+1)+6}});
+      const boxes=r.map((b,i)=>{const t=wrap(b[0],maxc),s=wrap(b[1],maxc),o=b[3]?wrap(b[3],maxc):[];return {x:i*(bw+gap),t,s,o,step:b[2],h:10+t.length*(fs+2)+s.length*(fs+1)+o.length*(fs+1)+6}});
       const h=Math.max(...boxes.map(b=>b.h));
       if(prev){// arrows from the previous row's centre band to this row
         const x1=W/2;body+='<line x1="'+x1+'" y1="'+(y-12)+'" x2="'+x1+'" y2="'+(y-2)+'" stroke="var(--mute)" stroke-width="1.2" marker-end="url(#rd1ar)"/>'}
@@ -971,6 +811,7 @@ RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button'
         body+='<rect x="'+(b.x+.5)+'" y="'+y+'" width="'+(bw-1)+'" height="'+h+'" rx="6" fill="var(--soft)" stroke="'+c+'" stroke-width="'+(b.step?1.6:1)+'"/>';
         let ty=y+fs+5;b.t.forEach(l=>{body+=RD.t(b.x+6,ty,RD.esc(l),{fs:fs,w:600});ty+=fs+2});
         b.s.forEach(l=>{body+=RD.t(b.x+6,ty,RD.esc(l),{fs:fs-1,fill:'var(--mute)'});ty+=fs+1});
+        b.o.forEach(l=>{body+=RD.t(b.x+6,ty,RD.esc(l),{fs:fs-1,fill:c,w:600});ty+=fs+1});
         if(b.step)body+='<circle cx="'+(b.x+bw-11)+'" cy="'+(y+10)+'" r="7.5" fill="'+c+'"/>'+RD.t(b.x+bw-11,y+13.5,b.step,{fs:10,a:'middle',fill:'var(--bg)',w:600});
       });
       y+=h+16;prev=r;
@@ -981,331 +822,21 @@ RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button'
   const one=[[['You','one user, a browser',0]],[['One machine','the app code, the database and a call to the model, all together',0]],[['A model API','one request at a time',0]]];
   const big=[
     [['10 million users','phones and browsers',0]],
-    [['DNS','name to address',1],['CDN','static files near users',2]],
-    [['Load balancer','spreads requests',1]],
-    [['App servers × N','identical, stateless',1]],
-    [['Cache','recent answers in memory',2],['Queue and workers','slow jobs in the background',3]],
-    [['Database','primary, replicas, shards by user',2],['LLM gateway','rate limits, timeouts, retries',4]],
-    [['Model router','small or large model',5]],
-    [['GPU pools','batched, prefix-cached models',5]],
-    [['Observability','logs, metrics, traces against SLOs',4],['Design method','the estimates that sized all this',6]]
+    [['DNS','name to address',1,'Topic: protocols'],['CDN','static files near users',2,'Caching']],
+    [['Load balancer','spreads requests',1,'Capacity planning']],
+    [['App servers × N','identical, stateless',1,'Building a backend API']],
+    [['Cache','recent answers in memory',2,'Caching, Capacity planning'],['Queue and workers','slow jobs in the background',3,'Queues and async work']],
+    [['Database','primary, replicas, shards by user',2,'Topic: databases, Distributed systems'],['LLM gateway','rate limits, timeouts, retries',4,'Gateways and routing, Reliability']],
+    [['Model router','small or large model',5,'ML system design']],
+    [['GPU pools','batched, prefix-cached models',5,'Topic: inference-and-serving']],
+    [['Observability','logs, metrics, traces against SLOs',4,'Observability'],['Design method','the estimates that sized all this',6,'System design case studies']]
   ];
-  function all(){draw(A,one,'The product at one user: everything on one machine');draw(B,big,'The product at ten million users: load balancer, stateless app servers, cache, database replicas and shards, queue and workers, LLM gateway, model router and GPU pools')}
+  function all(){draw(A,one,'The product at one user: everything on one machine');draw(B,big,'The product at ten million users: load balancer, stateless app servers, cache, database replicas and shards, queue and workers, LLM gateway, model router and GPU pools, each labelled with the page that owns it')}
   all();RD.onRender(all);RD.onResize(all);
 })();
-</script>
-<script>/* 23_js_rd_lb.js */
-// ---- Reading, Step 1: one server against a load balancer and three servers (illustrative traffic; src/read/recompute.py a1) ----
-window.RDSIM=window.RDSIM||{};
-RDSIM.A1_ARR=[6,7,5,8,6,7,6,5,7,6];RDSIM.A1_CAP=4;
-RDSIM.a1=function(ns){let q=new Array(ns).fill(0),rr=0;const rows=[];
-  RDSIM.A1_ARR.forEach(a=>{const add=new Array(ns).fill(0);for(let k=0;k<a;k++){q[rr%ns]++;add[rr%ns]++;rr++}
-    const served=q.map(x=>Math.min(x,RDSIM.A1_CAP));q=q.map((x,i)=>x-served[i]);
-    rows.push({arr:a,add:add,served:served.reduce((s,x)=>s+x,0),perServed:served,q:q.slice(),waiting:q.reduce((s,x)=>s+x,0),wait_s:Math.round(100*Math.max(...q)/RDSIM.A1_CAP)/100})});
-  return rows};
-(function(){
-  const svg=document.getElementById('rd-lb-svg');if(!svg)return;
-  const cap=document.getElementById('rd-lb-cap'),cnt=document.getElementById('rd-lb-cnt'),leg=document.getElementById('rd-lb-leg');
-  let mode='one';const R={one:RDSIM.a1(1),lb:RDSIM.a1(3)};
-  const L=(c,t)=>'<span style="--sw:var('+c+')">'+t+'</span>';
-  leg.innerHTML=L('--c1','arriving this second')+L('--bad','waiting in line')+L('--good','answered this second');
-  const fmt=n=>Math.round(n).toLocaleString('en-US');
-  function draw(i){
-    const rows=R[mode],ns=mode==='one'?1:3,r=i>0?rows[i-1]:null;
-    const W=Math.max(280,Math.min(820,RD.width(svg)));const D=8,G=2;
-    const xA=6,wA=2*(D+G)+4,xL=mode==='lb'?xA+wA+14:xA+wA+6,wL=mode==='lb'?Math.min(84,W*0.16):0;
-    const xS=W-Math.min(118,W*0.3),wS=W-xS-4,xQ=xL+wL+12,wQ=xS-xQ-8;
-    const rowH=ns===1?150:62,H=ns*rowH+(ns-1)*8+10;
-    let b='';
-    // arrivals column
-    const arr=r?r.arr:0;b+=RD.t(xA,11,'in',{fs:10,fill:'var(--mute)'});
-    for(let k=0;k<arr;k++){const cx=xA+(k%2)*(D+G),cy=18+Math.floor(k/2)*(D+G);b+='<rect x="'+cx+'" y="'+cy+'" width="'+D+'" height="'+D+'" rx="2" fill="var(--c1)"/>'}
-    if(mode==='lb'){b+='<rect x="'+xL+'" y="'+(H/2-24)+'" width="'+wL+'" height="48" rx="7" fill="var(--soft)" stroke="var(--c1)" stroke-width="1.6"/>'+RD.t(xL+wL/2,H/2-4,'Load',{fs:11,a:'middle',w:600})+RD.t(xL+wL/2,H/2+10,'balancer',{fs:11,a:'middle',w:600})}
-    const cols=Math.max(3,Math.floor(wQ/(D+G)));
-    for(let s=0;s<ns;s++){
-      const y0=5+s*(rowH+8),q=r?r.q[s]:0,served=r?r.perServed[s]:0,add=r?r.add[s]:0;
-      // arrow into this server's line
-      b+='<line x1="'+(mode==='lb'?xL+wL:xA+wA)+'" y1="'+(mode==='lb'?H/2:y0+rowH/2)+'" x2="'+xS+'" y2="'+(y0+rowH/2)+'" stroke="var(--mute)" stroke-width="1.2" opacity=".6"/>';
-      // waiting dots, filled from the server leftwards
-      for(let k=0;k<q;k++){const c=k%cols,rw=Math.floor(k/cols);const x=xS-8-(c+1)*(D+G),y=y0+6+rw*(D+G);
-        if(y<y0+rowH-18)b+='<rect x="'+x+'" y="'+y+'" width="'+D+'" height="'+D+'" rx="2" fill="var(--bad)"/>'}
-      // server box
-      const busy=r?Math.min(1,(served)/RDSIM.A1_CAP):0;
-      b+='<rect x="'+xS+'" y="'+y0+'" width="'+wS+'" height="'+rowH+'" rx="7" fill="var(--soft)" stroke="'+(q>0?'var(--bad)':'var(--line)')+'" stroke-width="1.5"/>';
-      b+=RD.t(xS+8,y0+15,'Server '+(ns>1?s+1:''),{fs:11,w:600})+RD.t(xS+8,y0+29,'400 req/s max',{fs:10,fill:'var(--mute)'});
-      for(let k=0;k<served;k++)b+='<rect x="'+(xS+8+k*(D+G))+'" y="'+(y0+36)+'" width="'+D+'" height="'+D+'" rx="2" fill="var(--good)"/>';
-      if(rowH>60)b+=RD.t(xS+8,y0+62,'busy '+Math.round(busy*100)+'%',{fs:10,fill:'var(--mute)'});
-      if(q>0)b+=RD.t(xQ,y0+rowH-4,(q*100).toLocaleString('en-US')+' waiting',{fs:10,fill:'var(--bad)'});
-    }
-    svg.innerHTML=RD.svg(W,H,b,mode==='one'?'One server with a growing line of waiting requests':'A load balancer spreading requests over three servers');
-    const tot=rows.slice(0,i).reduce((s,x)=>s+x.arr,0);
-    cnt.innerHTML=RD.stat('Second',i+' of 10','')+RD.stat('Arrived so far',fmt(tot*100),'requests')+RD.stat('Waiting now',r?fmt(r.waiting*100):'0','requests in line')+RD.stat('Wait for a new arrival',r?r.wait_s.toFixed(2)+' s':'0 s','before work starts');
-    let t,p;
-    if(i===0){t='Requests start arriving';p=mode==='one'?'About 600 requests a second arrive at a server that can finish 400. Press play and watch the line.':'The same arrivals, now handed out in turn by a load balancer to three identical servers, 1,200 a second of capacity in total.'}
-    else if(mode==='one'){t='Second '+i+': '+r.arr*100+' arrived, 400 answered';
-      p=r.waiting?'The line now holds '+fmt(r.waiting*100)+' requests; a request arriving now waits about '+r.wait_s.toFixed(2)+' s before the server even starts on it.':'The server keeps up this second.';
-      if(i===10)p='After 10 seconds '+fmt(r.waiting*100)+' requests are waiting and newcomers wait '+r.wait_s.toFixed(2)+' s. The line grows by about 230 a second on average and never shrinks: this is the wall.'}
-    else {t='Second '+i+': '+r.arr*100+' arrived, '+r.served*100+' answered';
-      p='Each server receives about a third ('+r.add.map(x=>x*100).join(', ')+') and finishes it within the second. Nothing waits'+(i===10?'. Capacity is now 1,200 a second, double the load: room for the next spike, or for one server to fail.':'.')}
-    cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
-  }
-  const an=RD.anim({card:'rd-lb-card',ctl:'rd-lb-ctl',n:11,ms:1100,draw,label:'Second'});
-  RD.seg(document.getElementById('rd-lb-seg'),m=>{mode=m;an.reset(11);an.play()});
-  RD.onResize(()=>an.redraw());
-})();
-</script>
-<script>/* 24_js_rd_cache.js */
-// ---- Reading, Step 2: every read to the database against cache-aside (illustrative traffic; src/read/recompute.py a2) ----
-window.RDSIM=window.RDSIM||{};
-RDSIM.A2_READS=20;RDSIM.A2_DBCAP=12;RDSIM.A2_HITS=[0,10,16,18,18,17,18,18,16,18];
-RDSIM.a2=function(cache){let backlog=0;const rows=[];
-  for(let t=0;t<10;t++){const hits=cache?RDSIM.A2_HITS[t]:0,miss=RDSIM.A2_READS-hits,load=miss+backlog,served=Math.min(load,RDSIM.A2_DBCAP);backlog=load-served;rows.push({hits,db:miss,backlog})}
-  return rows};
-(function(){
-  const svg=document.getElementById('rd-ca-svg');if(!svg)return;
-  const cap=document.getElementById('rd-ca-cap'),cnt=document.getElementById('rd-ca-cnt'),leg=document.getElementById('rd-ca-leg');
-  let mode='db';const R={db:RDSIM.a2(false),cache:RDSIM.a2(true)};
-  const L=(c,t)=>'<span style="--sw:var('+c+')">'+t+'</span>';
-  // fixed scatter of which reads are hits (arrangement illustrative)
-  const ord=(function(){const a=[...Array(20).keys()];let s=11;for(let i=19;i>0;i--){s=(s*1103515245+12345)%2147483648;const j=s%(i+1);[a[i],a[j]]=[a[j],a[i]]}return a})();
-  function draw(i){
-    const rows=R[mode],r=i>0?rows[i-1]:null;
-    leg.innerHTML=(mode==='cache'?L('--good','answered by the cache'):'')+L('--c2','sent to the database')+L('--c4','database backlog')+'<span style="--sw:var(--ink)">database capacity (600 reads/s)</span>';
-    const W=Math.max(280,Math.min(820,RD.width(svg)));
-    const per=W<420?10:20,sq=Math.min(22,Math.floor((W-20)/per)-4),g=4;
-    let b=RD.t(0,12,'This second: 1,000 reads (one square = 50)',{fs:11,fill:'var(--mute)'});
-    for(let k=0;k<20;k++){const hit=r&&ord.indexOf(k)<r.hits;const x=(k%per)*(sq+g),y=20+Math.floor(k/per)*(sq+g);
-      b+='<rect x="'+x+'" y="'+y+'" width="'+sq+'" height="'+sq+'" rx="3" fill="'+(!r?'var(--dim)':hit?'var(--good)':'var(--c2)')+'"/>'}
-    const y0=20+Math.ceil(20/per)*(sq+g)+22,ch=120,maxv=30,bw=(W-40)/10;
-    b+=RD.t(0,y0-6,'Database load each second (squares)',{fs:11,fill:'var(--mute)'});
-    const Y=v=>y0+ch-v/maxv*ch;
-    for(let t=0;t<10;t++){const x=34+t*bw;const rr=rows[t];const on=t<i;
-      const h1=rr.db/maxv*ch,h2=Math.min(maxv-rr.db,rr.backlog)/maxv*ch;
-      b+='<rect x="'+(x+3)+'" y="'+Y(rr.db)+'" width="'+(bw-6)+'" height="'+h1+'" fill="var(--c2)" opacity="'+(on?1:.15)+'"/>';
-      if(rr.backlog>0)b+='<rect x="'+(x+3)+'" y="'+(Y(rr.db)-h2)+'" width="'+(bw-6)+'" height="'+h2+'" fill="var(--c4)" opacity="'+(on?.8:.08)+'"/>'+(rr.db+rr.backlog>maxv&&on?RD.t(x+bw/2,y0+8,'+'+rr.backlog,{fs:9.5,a:'middle',fill:'var(--c4)'}):'');
-      b+=RD.t(x+bw/2,y0+ch+13,String(t+1),{fs:10,a:'middle',fill:t===i-1?'var(--ink)':'var(--mute)',w:t===i-1?600:400});
-    }
-    b+='<line x1="30" x2="'+W+'" y1="'+Y(12)+'" y2="'+Y(12)+'" stroke="var(--ink)" stroke-dasharray="4 3"/>'+RD.t(0,Y(12)+4,'12',{fs:10})+RD.t(0,Y(0)+4,'0',{fs:10})+RD.t(0,Y(30)+8,'30',{fs:10});
-    b+=RD.t(W/2,y0+ch+26,'second',{fs:10,a:'middle',fill:'var(--mute)'});
-    svg.innerHTML=RD.svg(W,y0+ch+30,b,'Reads per second split into cache hits and database reads, with database load per second against its capacity');
-    const hr=r?Math.round(100*r.hits/20):0;
-    cnt.innerHTML=RD.stat('Second',i+' of 10','')+RD.stat('Hit rate',r?hr+'%':'n/a',mode==='db'?'no cache':'share answered by the cache')+RD.stat('Database reads',r?(r.db*50).toLocaleString('en-US')+'/s':'n/a','capacity 600/s')+RD.stat('Database backlog',r?(r.backlog*50).toLocaleString('en-US'):'0','reads waiting');
-    let t,p;
-    if(i===0){t='1,000 reads a second, a database that answers 600';p=mode==='db'?'Every read goes straight to the database. Press play.':'The same reads, but the server asks the cache first (cache-aside). The cache starts empty.'}
-    else if(mode==='db'){t='Second '+i+': 1,000 reads sent, 600 answered';p='400 more reads join the database backlog every second; after '+i+' s it holds '+(r.backlog*50).toLocaleString('en-US')+'. Every server is now waiting on the database.'}
-    else{const k=i-1;t='Second '+i+': hit rate '+hr+'%';
-      p=k===0?'Cold cache: every read misses, goes to the database, and the answer is stored in the cache. The database falls behind for a moment.':
-        k===1?'Popular chats are now cached: half the reads are hits. The database clears its backlog.':
-        k===2?'Most repeated reads now hit. The database sees '+(r.db*50)+' reads a second, well under its capacity.':
-        k===5?'A user renamed a chat: the server wrote the database and deleted that chat\'s cache entry (invalidation), so its next reads miss once and refetch the new name.':
-        k===8?'A batch of entries reached their TTL together and expired; their next reads refetch them. Staleness is bounded, at the price of these misses.':
-        k===9?'At a 90% hit rate the database sees 100 reads a second instead of 1,000. The cache, not the database, is now carrying the read load; if it ever empties, all 1,000 land on the database again.':
-        'Steady state: about 90% hits, the database sees '+(r.db*50)+' reads a second.'}
-    cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
-  }
-  const an=RD.anim({card:'rd-ca-card',ctl:'rd-ca-ctl',n:11,ms:1300,draw,label:'Second'});
-  RD.seg(document.getElementById('rd-ca-seg'),m=>{mode=m;an.reset(11);an.play()});
-  RD.onResize(()=>an.redraw());
-})();
-</script>
-<script>/* 25_js_rd_queue.js */
-// ---- Reading, Step 3: slow uploads inside the request against a queue and workers (illustrative; src/read/recompute.py a3) ----
-window.RDSIM=window.RDSIM||{};
-RDSIM.A3={THREADS:4,CHAT:3,UP_AT:[1,2,2,4,5],UP_LEN:4,WORKERS:2,T:12};
-RDSIM.a3=function(queued){const C=RDSIM.A3;const th=new Array(C.THREADS).fill(null),wk=new Array(C.WORKERS).fill(null);
-  const fifo=[],wq=[],rows=[],waits=[];let upId=0;
-  for(let t=0;t<C.T;t++){
-    if(t<10){for(let i=0;i<C.CHAT;i++)fifo.push({k:'chat',r:1,t});
-      C.UP_AT.forEach(u=>{if(u===t){const j={k:'up',r:C.UP_LEN,t,id:++upId};if(queued)wq.push(j);else fifo.push(j)}})}
-    for(let i=0;i<C.THREADS;i++)if(!th[i]&&fifo.length){const j=fifo.shift();th[i]=j;if(j.k==='chat')waits.push(t-j.t)}
-    for(let i=0;i<C.WORKERS;i++)if(!wk[i]&&wq.length)wk[i]=wq.shift();
-    rows.push({th:th.map(x=>x?{k:x.k,id:x.id,r:x.r}:null),wk:wk.map(x=>x?{id:x.id,r:x.r}:null),
-      waiting_chat:fifo.filter(x=>x.k==='chat').length,waiting_up:fifo.filter(x=>x.k==='up').length,queue:wq.length,qids:wq.map(x=>x.id),
-      threads_on_uploads:th.filter(x=>x&&x.k==='up').length,workers_busy:wk.filter(x=>x).length,maxwait:waits.length?Math.max(...waits):0});
-    [th,wk].forEach(a=>a.forEach((x,i)=>{if(x){x.r--;if(x.r===0)a[i]=null}}));
-  }
-  const mean=Math.round(100*waits.reduce((s,x)=>s+x,0)/waits.length)/100;
-  return {rows,mean,max:Math.max(...waits)}};
-(function(){
-  const svg=document.getElementById('rd-q-svg');if(!svg)return;
-  const cap=document.getElementById('rd-q-cap'),cnt=document.getElementById('rd-q-cnt'),leg=document.getElementById('rd-q-leg');
-  let mode='inline';const R={inline:RDSIM.a3(false),queue:RDSIM.a3(true)};
-  const L=(c,t)=>'<span style="--sw:var('+c+')">'+t+'</span>';
-  leg.innerHTML=L('--c1','chat message (1 s of work)')+L('--c3','document upload (4 s of work)')+L('--bad','chat message waiting')+L('--dim','free slot');
-  function slot(x,y,w,h,j,lab){const f=!j?'var(--dim)':j.k==='chat'?'var(--c1)':'var(--c3)';
-    return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="5" fill="'+f+'" opacity="'+(j?1:.5)+'"/>'+(j&&j.k!=='chat'?RD.t(x+w/2,y+h/2+4,'doc '+j.id+(j.r>1?' ('+j.r+'s)':''),{fs:10,a:'middle',fill:'var(--bg)',w:600}):j?RD.t(x+w/2,y+h/2+4,'chat',{fs:10,a:'middle',fill:'var(--bg)'}):'')}
-  function draw(i){
-    const S=R[mode],r=i>0?S.rows[i-1]:null;
-    const W=Math.max(280,Math.min(820,RD.width(svg)));
-    const narrow=W<480;let b='';
-    // left: waiting line
-    const lw=narrow?W:W*0.32,D=10,G=3;
-    b+=RD.t(0,12,'Waiting for a slot',{fs:11,fill:'var(--mute)'});
-    const wc=r?r.waiting_chat:0,wu=r?r.waiting_up:0;
-    for(let k=0;k<wc+wu;k++){const x=(k%Math.floor((lw-10)/(D+G)))*(D+G),y=20+Math.floor(k/Math.floor((lw-10)/(D+G)))*(D+G);
-      b+='<rect x="'+x+'" y="'+y+'" width="'+D+'" height="'+D+'" rx="2" fill="'+(k<wu?'var(--c3)':'var(--bad)')+'"/>'}
-    if(!wc&&!wu)b+=RD.t(0,32,r?'nobody':'',{fs:11,fill:'var(--good)'});
-    // server slots
-    const sx=narrow?0:lw+14,sy=narrow?52:0,sw=narrow?W:W-sx;const n=RDSIM.A3.THREADS,g=6,w=(sw-g*(n-1))/n;
-    b+=RD.t(sx,sy+12,'App server: 4 request slots',{fs:11,fill:'var(--mute)'});
-    for(let k=0;k<n;k++)b+=slot(sx+k*(w+g),sy+20,w,30,r?r.th[k]:null);
-    let yb=sy+64;
-    if(mode==='queue'){
-      b+=RD.t(sx,yb+12,'Queue (uploads waiting)',{fs:11,fill:'var(--mute)'});
-      const q=r?r.qids:[];q.forEach((id,k)=>{b+='<rect x="'+(sx+k*52)+'" y="'+(yb+20)+'" width="46" height="24" rx="4" fill="var(--c3)" opacity=".55"/>'+RD.t(sx+k*52+23,yb+36,'doc '+id,{fs:10,a:'middle'})});
-      if(!q.length)b+=RD.t(sx,yb+36,'empty',{fs:11,fill:'var(--mute)'});
-      yb+=54;b+=RD.t(sx,yb+12,'Background workers: 2',{fs:11,fill:'var(--mute)'});
-      const ww=(sw-g)/2;for(let k=0;k<2;k++)b+=slot(sx+k*(ww+g),yb+20,ww,30,r&&r.wk[k]?{k:'up',id:r.wk[k].id,r:r.wk[k].r}:null);
-      yb+=56;
-    }
-    svg.innerHTML=RD.svg(W,yb+4,b,mode==='inline'?'Uploads processed inside requests occupy the server slots while chat messages wait':'Uploads go to a queue served by two background workers while chat messages use the server slots');
-    cnt.innerHTML=RD.stat('Second',i+' of 12','')+RD.stat('Chat messages waiting',r?r.waiting_chat:0,'for a free slot')+RD.stat('Slots held by uploads',r?r.threads_on_uploads+' of 4':'0 of 4','')+RD.stat(mode==='queue'?'Uploads in queue':'Longest chat wait so far',mode==='queue'?(r?r.queue:0):(r?r.maxwait+' s':'0 s'),mode==='queue'?'workers busy: '+(r?r.workers_busy:0):'');
-    let t,p;
-    if(i===0){t='Chat messages and a few uploads';p=mode==='inline'?'Three chat messages a second and five document uploads, all handled inside the request by the same 4 slots.':'Same traffic. The upload request now only puts a job on the queue and answers 202 Accepted; two background workers do the 4 seconds of work.'}
-    else if(mode==='inline'){t='Second '+i;
-      p=r.threads_on_uploads>=2?'Uploads hold '+r.threads_on_uploads+' of the 4 slots for 4 seconds each. '+(r.waiting_chat?r.waiting_chat+' chat messages are waiting behind them.':'Chat messages squeeze into what is left.'):r.waiting_chat?'The uploads have finished, but '+r.waiting_chat+' chat messages are still queued behind the backlog they left.':'Slots are free; chat messages are served at once.';
-      if(i===12)p='Done. On average a chat message waited '+S.mean.toFixed(2)+' s for a slot and the unluckiest waited '+S.max+' s, for work that takes a fraction of a second, because 5 uploads borrowed the slots.'}
-    else{t='Second '+i;
-      p=r.queue?r.queue+' upload'+(r.queue>1?'s wait':' waits')+' in the queue; the workers are busy and the chat slots are untouched.':r.workers_busy?'The workers finish the last uploads; their users see a spinner, then "ready".':'Queue empty, workers idle.';
-      if(i===12)p='Done. No chat message waited at all (mean '+S.mean.toFixed(2)+' s). Uploads still take their 4 seconds, plus any time spent in the queue, and their users wait for a "ready" signal: slow work waits so that fast work does not.'}
-    cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
-  }
-  const an=RD.anim({card:'rd-q-card',ctl:'rd-q-ctl',n:13,ms:1200,draw,label:'Second'});
-  RD.seg(document.getElementById('rd-q-seg'),m=>{mode=m;an.reset(13);an.play()});
-  RD.onResize(()=>an.redraw());
-})();
-</script>
-<script>/* 26_js_rd_retry.js */
-// ---- Reading, Step 4: retry storm (no backoff against backoff with full jitter) and the double charge (no key against idempotency key) ----
-// Storm model is illustrative; src/read/recompute.py a4 runs the same simulation.
-window.RDSIM=window.RDSIM||{};
-RDSIM.A4={NEW:12,CAP:20,DOWN:[3,5],T:22,MAXTRY:5,WASTE:0.3,FLOOR:0.4};
-// exact modulo 2^31 (a plain multiply would lose precision past 2^53); matches recompute.py's lcg
-RDSIM.lcg=function(seed){let s=seed;return ()=>{s=(Math.imul(s,1103515245)+12345)&0x7fffffff;return s/2147483648}};
-RDSIM.a4=function(jitter){const C=RDSIM.A4,rnd=RDSIM.lcg(42),due={},rows=[];let gave=0,att=0,ok=0;
-  for(let t=0;t<C.T;t++){const reqs=new Array(C.NEW).fill(1).concat(due[t]||[]);delete due[t];
-    const L=reqs.length;att+=L;let good;
-    if(t>=C.DOWN[0]&&t<=C.DOWN[1])good=0;else if(L<=C.CAP)good=L;else good=Math.max(Math.floor(C.CAP*C.FLOOR),C.CAP-Math.ceil(C.WASTE*(L-C.CAP)));
-    reqs.sort((a,b)=>b-a);const failed=reqs.slice(good);ok+=good;
-    failed.forEach(k=>{if(k>=C.MAXTRY){gave++;return}const d=jitter?1+Math.floor(rnd()*Math.pow(2,k)):1;(due[t+d]=due[t+d]||[]).push(k+1)});
-    rows.push({load:L,good,retries:L-C.NEW,cap:(t>=C.DOWN[0]&&t<=C.DOWN[1])?0:C.CAP,att,ok,gave});
-  }
-  let lastOver=-1;rows.forEach((r,t)=>{if(r.load>C.CAP)lastOver=t});
-  return {rows,attempts:att,ok,gave_up:gave,peak:Math.max(...rows.map(r=>r.load)),last_over:lastOver}};
-(function(){
-  const svg=document.getElementById('rd-rt-svg');if(!svg)return;
-  const cap=document.getElementById('rd-rt-cap'),cnt=document.getElementById('rd-rt-cnt'),leg=document.getElementById('rd-rt-leg'),note=document.getElementById('rd-rt-note');
-  let scn='storm',mode='before';const S={before:RDSIM.a4(false),after:RDSIM.a4(true)};
-  const L=(c,t)=>'<span style="--sw:var('+c+')">'+t+'</span>';
-  function drawStorm(i){
-    const s=S[mode],C=RDSIM.A4;const W=Math.max(280,Math.min(820,RD.width(svg)));
-    const H=190,x0=26,bw=(W-x0-4)/C.T,maxv=64,Y=v=>12+(H-40)*(1-v/maxv);let b='';
-    b+='<rect x="'+(x0+C.DOWN[0]*bw)+'" y="6" width="'+(bw*(C.DOWN[1]-C.DOWN[0]+1))+'" height="'+(H-34)+'" fill="var(--bad)" opacity=".12"/>'+RD.t(x0+C.DOWN[0]*bw+2,18,'outage',{fs:10,fill:'var(--bad)'});
-    s.rows.forEach((r,t)=>{const on=t<i,x=x0+t*bw+1,w=Math.max(2,bw-2);
-      b+='<rect x="'+x+'" y="'+Y(C.NEW)+'" width="'+w+'" height="'+(Y(0)-Y(C.NEW))+'" fill="var(--c1)" opacity="'+(on?1:.12)+'"/>';
-      if(r.retries>0)b+='<rect x="'+x+'" y="'+Y(r.load)+'" width="'+w+'" height="'+(Y(C.NEW)-Y(r.load))+'" fill="var(--c4)" opacity="'+(on?1:.12)+'"/>';
-      if(on)b+='<line x1="'+x+'" x2="'+(x+w)+'" y1="'+Y(r.good)+'" y2="'+Y(r.good)+'" stroke="var(--good)" stroke-width="2.5"/>';
-      if(t%2===0||bw>18)b+=RD.t(x+w/2,H-14,String(t+1),{fs:9.5,a:'middle',fill:t===i-1?'var(--ink)':'var(--mute)'});
-    });
-    b+='<line x1="'+x0+'" x2="'+W+'" y1="'+Y(C.CAP)+'" y2="'+Y(C.CAP)+'" stroke="var(--ink)" stroke-dasharray="4 3"/>'+RD.t(0,Y(C.CAP)+4,'20',{fs:10})+RD.t(0,Y(0)+4,'0',{fs:10})+RD.t(0,Y(60)+4,'60',{fs:10});
-    b+=RD.t((W+x0)/2,H-2,'second',{fs:10,a:'middle',fill:'var(--mute)'});
-    svg.innerHTML=RD.svg(W,H,b,'Requests per second to a dependency: new requests and retries against its capacity, with useful answers marked');
-    leg.innerHTML=L('--c1','new requests')+L('--c4','retries')+L('--good','useful answers')+'<span style="--sw:var(--ink)">capacity (20 per second)</span>';
-    const r=i>0?s.rows[i-1]:null;
-    cnt.innerHTML=RD.stat('Second',i+' of '+C.T,'')+RD.stat('Arriving this second',r?r.load:0,r?r.retries+' of them retries':'')+RD.stat('Useful answers',r?r.good:0,'this second')+RD.stat('Requests abandoned',r?r.gave:0,'after 5 tries');
-    let t,p;
-    if(i===0){t=mode==='before'?'Retry at once, no backoff, no jitter':'Exponential backoff with full jitter';p='12 new requests a second reach a dependency that handles 20. In seconds 4 to 6 it goes down. Every failed request is retried, up to 5 tries in all. '+(mode==='before'?'Here each failure is retried one second later, all together.':'Here try k waits a random 1 to 2<sup>k</sup> seconds, so the wait grows and the retries spread out.')}
-    else{const k=i-1;t='Second '+i+': '+r.load+' arriving, '+r.good+' useful';
-      if(k>=C.DOWN[0]&&k<=C.DOWN[1])p='The dependency is down: everything fails and is scheduled for retry.';
-      else if(k<C.DOWN[0])p='Normal: 12 a second against a capacity of 20.';
-      else if(r.load>C.CAP)p=mode==='before'?'The dependency is back, but new requests plus retries ('+r.load+') exceed its capacity. Overloaded, it wastes effort on requests whose clients already timed out, so only '+r.good+' useful answers come out, and every failure comes back next second.':'Retries spread over several seconds: '+r.retries+' arrive now. None was removed, they were moved in time into the spare capacity (20 minus 12 new a second), so the dependency stays close to its capacity and clears the backlog.';
-      else p=mode==='before'?'Below capacity.':'Recovered: only new requests remain.';
-      if(i===C.T)p=mode==='before'?'The outage lasted 3 seconds; the overload is still going at second '+C.T+', sustained only by retries ('+s.attempts+' attempts so far for '+(C.T*C.NEW)+' real requests, '+s.gave_up+' abandoned). This is a metastable failure: removing the trigger did not end it.':'Recovered by second '+(s.last_over+2)+'. All '+(C.T*C.NEW)+' requests eventually succeeded with '+s.attempts+' attempts and none abandoned; peak load '+s.peak+' against '+S.before.peak+' without backoff and jitter. Jitter worked here only because the dependency had spare capacity to absorb the moved retries; with none, every retry still lands and the overload stays (measured on Reliability engineering).'}
-    cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
-    note.innerHTML='<span class="ill">Illustrative model</span>: when overloaded, each request above capacity costs 0.3 of a request\'s worth of useful work (wasted on callers that have already timed out, the effect Yanacek describes), with a floor of 8 useful answers a second. The numbers are made up; the shape (a short outage turning into a lasting overload without backoff and jitter) is the one Brooker and Bronson et al. describe. Jitter spreads retries, it does not remove them: in an open system with no spare capacity, <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a> measured backoff with jitter at 25% success, the same as immediate retries, against 72% with a retry budget and 87% with a bounded queue. Checked in <code>src/read/recompute.py</code>.';
-  }
-  // the double charge, step by step
-  const CH=[
-    ['The user taps "Buy 1,000 credits for $20"','The app is about to send POST /purchases.','The app first invents a unique idempotency key for this one purchase, say 7f3a, and will send it with every attempt.'],
-    ['Request 1 reaches the server','POST /purchases, amount $20.','POST /purchases, amount $20, Idempotency-Key: 7f3a.'],
-    ['The server charges the card','$20 charged, 1,000 credits added.','$20 charged, 1,000 credits added, and the result is stored under key 7f3a in the same database transaction.'],
-    ['The response is lost','The phone enters a tunnel; after its timeout the app has no answer. Charged or not? It cannot tell.','Same loss, same uncertainty on the phone.'],
-    ['The app retries','Request 2: an identical POST /purchases, $20.','Request 2: the same body with the same key 7f3a.'],
-    ['The server handles request 2','It looks like a new purchase: the card is charged again.','Key 7f3a is already stored: the server returns the stored result and charges nothing.'],
-    ['Outcome','The user paid $40 for one purchase and will call support.','The user paid $20 once and sees one purchase. Retrying was safe.']];
-  function drawCharge(i){
-    const W=Math.max(280,Math.min(820,RD.width(svg)));const lanes=['Phone app','API server','Payments and database'];
-    const lx=[W*0.12,W*0.5,W*0.86],H=40+6*30+10;let b='';
-    lanes.forEach((l,k)=>{b+=RD.t(lx[k],14,l,{fs:W<400?10:11,a:'middle',w:600})+'<line x1="'+lx[k]+'" x2="'+lx[k]+'" y1="22" y2="'+(H-4)+'" stroke="var(--line)" stroke-width="2"/>'});
-    const after=mode==='after';
-    const arrows=[[1,0,1,'POST /purchases'+(after?' key 7f3a':''),'--c1'],[2,1,2,'charge $20','--c2'],[3,1,0,'response lost','--bad',1],[4,0,1,'retry'+(after?' key 7f3a':''),'--c4'],[5,1,2,after?'key found: no charge':'charge $20 again',after?'--good':'--bad']];
-    arrows.forEach(a=>{if(a[0]>i)return;const y=40+a[0]*30,x1=lx[a[1]],x2=lx[a[2]],dir=x2>x1?1:-1;
-      b+='<line x1="'+x1+'" x2="'+(x2-dir*6)+'" y1="'+y+'" y2="'+y+'" stroke="var('+a[4]+')" stroke-width="2"'+(a[5]?' stroke-dasharray="5 4"':'')+'/>';
-      b+='<path d="M'+(x2-dir*8)+','+(y-4)+'L'+x2+','+y+'L'+(x2-dir*8)+','+(y+4)+'z" fill="var('+a[4]+')"/>';
-      if(a[5])b+=RD.t((x1+x2)/2,y+4,'✕',{fs:14,a:'middle',fill:'var(--bad)'});
-      b+=RD.t((x1+x2)/2,y-5,a[3],{fs:W<400?9.5:10.5,a:'middle'})});
-    if(i>=2&&after)b+='<rect x="'+(lx[2]-W*0.12)+'" y="'+(40+2*30+8)+'" width="'+(W*0.24)+'" height="18" rx="4" fill="var(--soft)" stroke="var(--good)"/>'+RD.t(lx[2],40+2*30+21,'7f3a → result',{fs:10,a:'middle'});
-    svg.innerHTML=RD.svg(W,H,b,'Sequence of a purchase whose response is lost and is retried, with and without an idempotency key');
-    leg.innerHTML=after?L('--good','duplicate recognised by its key'):L('--bad','duplicate charge');
-    const charged=(i>=2?20:0)+(!after&&i>=5?20:0);
-    cnt.innerHTML=RD.stat('Requests sent',i>=4?2:i>=1?1:0,'')+RD.stat('Card charged','$'+charged,'')+RD.stat('Purchases the user made',1,'');
-    cap.innerHTML='<div class="t">'+(i+1)+'. '+CH[i][0]+'</div><p>'+CH[i][after?2:1]+'</p>';
-    note.innerHTML='A scenario, not a measurement: the pattern is Stripe\'s (Leach, 2017) and Amazon\'s client request tokens (Featonby).';
-  }
-  function draw(i){scn==='storm'?drawStorm(i):drawCharge(i)}
-  const n=()=>scn==='storm'?RDSIM.A4.T+1:CH.length;
-  const an=RD.anim({card:'rd-rt-card',ctl:'rd-rt-ctl',n:n(),ms:900,draw,label:'Step'});
-  RD.seg(document.getElementById('rd-rt-scn'),m=>{scn=m;an.reset(n());an.play()});
-  RD.seg(document.getElementById('rd-rt-seg'),m=>{mode=m;an.reset(n());an.play()});
-  RD.onResize(()=>an.redraw());
-})();
-</script>
-<script>/* 27_js_rd_batch.js */
-// ---- Reading, Step 5: static against continuous batching on one GPU with 4 slots (illustrative; src/read/recompute.py a5) ----
-window.RDSIM=window.RDSIM||{};
-RDSIM.A5_LEN=[3,8,2,5,4,7,2,3,6,2];RDSIM.A5_SLOTS=4;
-RDSIM.a5=function(continuous){const Ln=RDSIM.A5_LEN,n=Ln.length,S=RDSIM.A5_SLOTS,start=[],end=[],slot=[];let total;
-  if(!continuous){let t=0;for(let b=0;b<n;b+=S){const batch=[];for(let i=b;i<Math.min(n,b+S);i++)batch.push(i);
-      batch.forEach((i,k)=>{start[i]=t;end[i]=t+Ln[i];slot[i]=k});t+=Math.max(...batch.map(i=>Ln[i]))}total=t}
-  else{const free=new Array(S).fill(0);for(let i=0;i<n;i++){let s=0;for(let j=1;j<S;j++)if(free[j]<free[s])s=j;start[i]=free[s];end[i]=free[s]+Ln[i];slot[i]=s;free[s]=end[i]}total=Math.max(...end)}
-  const busy=Ln.reduce((a,b)=>a+b,0);
-  return {total_ticks:total,util_pct:Math.round(1000*busy/(total*S))/10,mean_done:Math.round(100*end.reduce((a,b)=>a+b,0)/n)/100,start,end,slot}};
-(function(){
-  const svg=document.getElementById('rd-bt-svg');if(!svg)return;
-  const cap=document.getElementById('rd-bt-cap'),cnt=document.getElementById('rd-bt-cnt'),leg=document.getElementById('rd-bt-leg');
-  let mode='static';const R={static:RDSIM.a5(false),cont:RDSIM.a5(true)};
-  const COL=['--c1','--c2','--c3','--c4','--c5','--c6','--c1','--c2','--c3','--c4'];
-  leg.innerHTML='<span style="--sw:var(--c1)">a request generating (one colour each; the letter names it)</span><span style="--sw:var(--dim)">slot idle</span>';
-  const name=k=>String.fromCharCode(65+k);
-  function draw(i){
-    const r=R[mode],S=RDSIM.A5_SLOTS,T=R.static.total_ticks,Ln=RDSIM.A5_LEN;
-    const W=Math.max(280,Math.min(820,RD.width(svg)));const x0=44,cw=(W-x0-4)/T,ch=24,g=4;let b='';
-    for(let s=0;s<S;s++){const y=8+s*(ch+g);b+=RD.t(0,y+ch/2+4,'slot '+(s+1),{fs:10,fill:'var(--mute)'});
-      for(let t=0;t<Math.min(i,r.total_ticks);t++){let who=-1;for(let k=0;k<Ln.length;k++)if(r.slot[k]===s&&r.start[k]<=t&&t<r.end[k])who=k;
-        b+='<rect x="'+(x0+t*cw+.5)+'" y="'+y+'" width="'+Math.max(1,cw-1)+'" height="'+ch+'" fill="var('+(who<0?'--dim':COL[who])+')" opacity="'+(who<0?.5:1)+'"/>';
-        if(who>=0&&r.start[who]===t&&cw>9)b+=RD.t(x0+t*cw+cw/2,y+ch/2+4,name(who),{fs:10.5,a:'middle',fill:'var(--bg)',w:600})}}
-    const yA=8+S*(ch+g)+4;
-    for(let t=0;t<=T;t+=(cw<14?5:2))b+=RD.t(x0+t*cw,yA+10,String(t),{fs:9.5,a:'middle',fill:'var(--mute)'});
-    b+=RD.t(x0,yA+24,'decode steps →',{fs:10,fill:'var(--mute)'});
-    if(i>0&&i<=r.total_ticks)b+='<line x1="'+(x0+i*cw)+'" x2="'+(x0+i*cw)+'" y1="4" y2="'+(yA)+'" stroke="var(--ink)" stroke-width="1.5"/>';
-    // waiting requests
-    const now=Math.min(i,r.total_ticks),wait=Ln.map((_,k)=>k).filter(k=>r.start[k]>=now&&now<r.total_ticks);
-    b+=RD.t(0,yA+44,'Waiting: '+(wait.length?wait.map(name).join(' '):'none'),{fs:11});
-    svg.innerHTML=RD.svg(W,yA+50,b,'Four GPU batch slots over time, showing which request occupies each slot and idle slots');
-    const done=Ln.filter((_,k)=>r.end[k]<=now).length,busy=Ln.reduce((s,l,k)=>s+Math.max(0,Math.min(now,r.end[k])-r.start[k]),0);
-    cnt.innerHTML=RD.stat('Decode step',now+' of '+r.total_ticks,'')+RD.stat('Requests finished',done+' of 10','')+RD.stat('Slots in use',now?Math.round(100*busy/(now*S))+'%':'n/a','so far')+RD.stat('Mean finish time',now>=r.total_ticks?r.mean_done+' steps':'...','over 10 requests');
-    let t,p;
-    if(i===0){t='Ten requests waiting for one GPU';p='A ('+Ln[0]+' steps), B ('+Ln[1]+'), C ('+Ln[2]+'), D ('+Ln[3]+') and six more. Each decode step produces one token for every request in a slot. '+(mode==='static'?'Static batching: take 4, run until all 4 are done, then take the next 4.':'Continuous batching: whenever a slot frees up, the next request takes it at the very next step.')}
-    else if(now>=r.total_ticks){t='All done after '+r.total_ticks+' steps';p=mode==='static'?'Slots were in use '+r.util_pct+'% of the time: each batch waited for its longest request (B, F, I) while finished slots sat idle. Mean finish time '+r.mean_done+' steps.':'Slots were in use '+r.util_pct+'% of the time, and all ten finished in '+r.total_ticks+' steps instead of '+R.static.total_ticks+'; mean finish time '+r.mean_done+' steps instead of '+R.static.mean_done+'. Same GPU, same requests, more done per second. The only idle cells are at the end, when no work is left.'}
-    else{const fin=Ln.map((_,k)=>k).filter(k=>r.end[k]===now),st=Ln.map((_,k)=>k).filter(k=>r.start[k]===now);
-      t='Step '+now;p=(fin.length?fin.map(name).join(', ')+' finished. ':'')+(st.length?st.map(name).join(', ')+(st.length>1?' start':' starts')+' now. ':'')+(mode==='static'&&!st.length&&fin.length?'Their slots stay empty until the whole batch is done.':'')+(!fin.length&&!st.length?'Every running request gets one more token.':'')}
-    cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
-  }
-  const n=()=>R[mode].total_ticks+1;
-  const an=RD.anim({card:'rd-bt-card',ctl:'rd-bt-ctl',n:n(),ms:800,draw,label:'Decode step'});
-  RD.seg(document.getElementById('rd-bt-seg'),m=>{mode=m;an.reset(n());an.play()});
-  RD.onResize(()=>an.redraw());
-})();
+// ---- Reading: comparison tables become labelled cards at phone width (each cell carries its column name) ----
+(function(){document.querySelectorAll('#t-read table.map').forEach(t=>{const h=[...t.querySelectorAll('thead th')].map(th=>th.textContent);
+  t.querySelectorAll('tbody tr').forEach(tr=>[...tr.children].forEach((td,i)=>td.setAttribute('data-l',h[i]||'')))})})();
 </script>
 <script>/* 28_js_rd_est.js */
 // ---- Reading, Step 6: a back-of-the-envelope estimate, fleet sized for the average against the busy hour (every input illustrative; src/read/recompute.py a6) ----
@@ -1361,7 +892,7 @@ RDSIM.a6day=function(g){const r=RDSIM.a6(),E=RDSIM.E,capT=g*E.tok_per_gpu,dem=RD
     cap.innerHTML='<div class="t">'+(i+1)+'. '+C[i][0]+'</div><p>'+C[i][1]+'</p>';
   }
   const an=RD.anim({card:'rd-est-card',ctl:'rd-est-ctl',n:10,ms:1700,draw,label:'Estimate step'});
-  RD.seg(document.getElementById('rd-est-seg'),m=>{mode=m;an.reset(10);an.play()});
+  RD.seg(document.getElementById('rd-est-seg'),m=>{mode=m;an.reset(10)});
   RD.onResize(()=>an.redraw());
 })();
 </script>

@@ -51,6 +51,6 @@ RDSIM.a6day=function(g){const r=RDSIM.a6(),E=RDSIM.E,capT=g*E.tok_per_gpu,dem=RD
     cap.innerHTML='<div class="t">'+(i+1)+'. '+C[i][0]+'</div><p>'+C[i][1]+'</p>';
   }
   const an=RD.anim({card:'rd-est-card',ctl:'rd-est-ctl',n:10,ms:1700,draw,label:'Estimate step'});
-  RD.seg(document.getElementById('rd-est-seg'),m=>{mode=m;an.reset(10);an.play()});
+  RD.seg(document.getElementById('rd-est-seg'),m=>{mode=m;an.reset(10)});
   RD.onResize(()=>an.redraw());
 })();

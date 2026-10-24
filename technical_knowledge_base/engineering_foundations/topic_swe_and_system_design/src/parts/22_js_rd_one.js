@@ -1,4 +1,4 @@
-// ---- Reading, One screen: the architecture at 1 user and at 10 million, drawn at the measured width ----
+// ---- Reading, the idea in one screen (hero): the architecture at 1 user and at 10 million, each box with its step and the page that owns it; drawn at the measured width ----
 (function(){
   const A=document.getElementById('rd-one-a'),B=document.getElementById('rd-one-b');if(!A||!B)return;
   const SC=['--mute','--c1','--c2','--c3','--c4','--c5','--c6'];
@@ -9,7 +9,7 @@
     let y=4,body='',prev=null;
     rows.forEach(r=>{
       const n=r.length,bw=(W-gap*(n-1))/n,maxc=Math.max(8,Math.floor((bw-12)/cw));
-      const boxes=r.map((b,i)=>{const t=wrap(b[0],maxc),s=wrap(b[1],maxc);return {x:i*(bw+gap),t,s,step:b[2],h:10+t.length*(fs+2)+s.length*(fs+1)+6}});
+      const boxes=r.map((b,i)=>{const t=wrap(b[0],maxc),s=wrap(b[1],maxc),o=b[3]?wrap(b[3],maxc):[];return {x:i*(bw+gap),t,s,o,step:b[2],h:10+t.length*(fs+2)+s.length*(fs+1)+o.length*(fs+1)+6}});
       const h=Math.max(...boxes.map(b=>b.h));
       if(prev){// arrows from the previous row's centre band to this row
         const x1=W/2;body+='<line x1="'+x1+'" y1="'+(y-12)+'" x2="'+x1+'" y2="'+(y-2)+'" stroke="var(--mute)" stroke-width="1.2" marker-end="url(#rd1ar)"/>'}
@@ -17,6 +17,7 @@
         body+='<rect x="'+(b.x+.5)+'" y="'+y+'" width="'+(bw-1)+'" height="'+h+'" rx="6" fill="var(--soft)" stroke="'+c+'" stroke-width="'+(b.step?1.6:1)+'"/>';
         let ty=y+fs+5;b.t.forEach(l=>{body+=RD.t(b.x+6,ty,RD.esc(l),{fs:fs,w:600});ty+=fs+2});
         b.s.forEach(l=>{body+=RD.t(b.x+6,ty,RD.esc(l),{fs:fs-1,fill:'var(--mute)'});ty+=fs+1});
+        b.o.forEach(l=>{body+=RD.t(b.x+6,ty,RD.esc(l),{fs:fs-1,fill:c,w:600});ty+=fs+1});
         if(b.step)body+='<circle cx="'+(b.x+bw-11)+'" cy="'+(y+10)+'" r="7.5" fill="'+c+'"/>'+RD.t(b.x+bw-11,y+13.5,b.step,{fs:10,a:'middle',fill:'var(--bg)',w:600});
       });
       y+=h+16;prev=r;
@@ -27,15 +28,18 @@
   const one=[[['You','one user, a browser',0]],[['One machine','the app code, the database and a call to the model, all together',0]],[['A model API','one request at a time',0]]];
   const big=[
     [['10 million users','phones and browsers',0]],
-    [['DNS','name to address',1],['CDN','static files near users',2]],
-    [['Load balancer','spreads requests',1]],
-    [['App servers × N','identical, stateless',1]],
-    [['Cache','recent answers in memory',2],['Queue and workers','slow jobs in the background',3]],
-    [['Database','primary, replicas, shards by user',2],['LLM gateway','rate limits, timeouts, retries',4]],
-    [['Model router','small or large model',5]],
-    [['GPU pools','batched, prefix-cached models',5]],
-    [['Observability','logs, metrics, traces against SLOs',4],['Design method','the estimates that sized all this',6]]
+    [['DNS','name to address',1,'Topic: protocols'],['CDN','static files near users',2,'Caching']],
+    [['Load balancer','spreads requests',1,'Capacity planning']],
+    [['App servers × N','identical, stateless',1,'Building a backend API']],
+    [['Cache','recent answers in memory',2,'Caching, Capacity planning'],['Queue and workers','slow jobs in the background',3,'Queues and async work']],
+    [['Database','primary, replicas, shards by user',2,'Topic: databases, Distributed systems'],['LLM gateway','rate limits, timeouts, retries',4,'Gateways and routing, Reliability']],
+    [['Model router','small or large model',5,'ML system design']],
+    [['GPU pools','batched, prefix-cached models',5,'Topic: inference-and-serving']],
+    [['Observability','logs, metrics, traces against SLOs',4,'Observability'],['Design method','the estimates that sized all this',6,'System design case studies']]
   ];
-  function all(){draw(A,one,'The product at one user: everything on one machine');draw(B,big,'The product at ten million users: load balancer, stateless app servers, cache, database replicas and shards, queue and workers, LLM gateway, model router and GPU pools')}
+  function all(){draw(A,one,'The product at one user: everything on one machine');draw(B,big,'The product at ten million users: load balancer, stateless app servers, cache, database replicas and shards, queue and workers, LLM gateway, model router and GPU pools, each labelled with the page that owns it')}
   all();RD.onRender(all);RD.onResize(all);
 })();
+// ---- Reading: comparison tables become labelled cards at phone width (each cell carries its column name) ----
+(function(){document.querySelectorAll('#t-read table.map').forEach(t=>{const h=[...t.querySelectorAll('thead th')].map(th=>th.textContent);
+  t.querySelectorAll('tbody tr').forEach(tr=>[...tr.children].forEach((td,i)=>td.setAttribute('data-l',h[i]||'')))})})();
