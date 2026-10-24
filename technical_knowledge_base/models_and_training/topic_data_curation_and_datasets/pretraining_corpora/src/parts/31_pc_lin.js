@@ -1,4 +1,4 @@
-// ---- Lineage tab: every corpus as a row (oldest first), lanes by kind, edges to parents, replay animation ----
+// ---- Reading section 3 (moved from the old Lineage tab, 2026-10-24): every corpus as a row (oldest first), lanes by kind, edges to parents, replay animation ----
 (function(){
   const C=(window.PC&&PC.corpora)||[],esc=RD.esc;if(!C.length)return;
   const LANES=[['raw','Raw crawl'],['web','English web'],['mix','Mixtures, pools'],['code','Code'],['math','Math'],['papers','Papers, books, PDFs'],['multi','Multilingual'],['open','Openly licensed']];
@@ -16,12 +16,12 @@
     const el=document.getElementById('pl-svg');if(!el)return;
     const W=RD.width(el),narrow=W<560;
     const lw=narrow?Math.min(22,(W*.42)/LANES.length):Math.min(36,(W*.4)/LANES.length);
-    const x0=8,lx=x0+lw*LANES.length+8,RH=narrow?30:26,T=62,H=T+rows.length*RH+8;
+    const x0=8,lx=x0+lw*LANES.length+8,RH=narrow?30:26,T=narrow?78:68,H=T+rows.length*RH+8;
     const fs=narrow?11:12;
     const line=new Set([sel,...anc(sel)]);
     let s='';
     LANES.forEach((l,i)=>{const x=x0+lw*(i+.5);s+='<line x1="'+x+'" x2="'+x+'" y1="'+(T-6)+'" y2="'+(H-4)+'" stroke="var(--line)"/>';
-      s+='<text x="'+x+'" y="'+(T-10)+'" font-size="9.5" fill="var(--mute)" text-anchor="start" transform="rotate('+(narrow?-60:-35)+' '+x+' '+(T-10)+')">'+(narrow?l[1].split(/[ ,]/)[0]:l[1].split(',')[0])+'</text>'});
+      s+='<text x="'+x+'" y="'+(T-10)+'" font-size="11" fill="var(--mute)" text-anchor="start" transform="rotate('+(narrow?-60:-35)+' '+x+' '+(T-10)+')">'+(narrow?l[1].split(/[ ,]/)[0]:l[1].split(',')[0])+'</text>'});
     const Y=i=>T+i*RH+RH/2,X=c=>x0+lw*(laneOf(c.kind)+.5);
     let yr='';
     rows.forEach((c,i)=>{const y=c.date.slice(0,4);if(y!==yr){yr=y;s+='<line x1="'+lx+'" x2="'+(W-4)+'" y1="'+(T+i*RH)+'" y2="'+(T+i*RH)+'" stroke="var(--line)" stroke-dasharray="2 3"/>'+RD.t(W-6,T+i*RH+11,y,{a:'end',fs:10,fill:'var(--mute)'})}});
@@ -66,8 +66,8 @@
     const c=rows[step];document.getElementById('pl-cap').innerHTML='<b>'+esc(c.date)+': '+esc(c.name)+'.</b> '+esc(c.idea||'');
   }
   const an=RD.anim({card:'pl-card',ctl:'pl-ctl',n:rows.length,ms:1300,label:'Corpus',start:rows.length-1,noAuto:true,draw(i){step=i;draw();counters()}});
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-pclin']=window.TAB_RENDER['t-pclin']||[]).push(()=>{an.redraw();det()});
-  addEventListener('resize',()=>{const t=document.getElementById('t-pclin');if(t&&!t.hidden)draw()});
-  window.PC_SELECT=id=>{if(!C.find(x=>x.id===id))return;sel=id;const b=document.querySelector('#tabs button[data-t="t-pclin"]');if(b)b.click();draw();det();const d=document.getElementById('pl-det');if(d)d.scrollIntoView({block:'start'})};
+  RD.onRender(()=>{an.redraw();det()});
+  RD.onResize(draw);
+  window.PC_SELECT=id=>{if(!C.find(x=>x.id===id))return;sel=id;draw();det();const d=document.getElementById('pl-det');if(d)d.scrollIntoView({block:'start'})};
   det();
 })();

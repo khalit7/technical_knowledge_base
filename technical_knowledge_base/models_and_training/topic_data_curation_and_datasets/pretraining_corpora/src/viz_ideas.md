@@ -22,6 +22,10 @@ The question the page keeps returning to: **for a given training run, which corp
 | PC13 | Corpus comparer tab | Seven metrics across 19 samples (length spans, tokens per tokenizer, language mix, domains, duplicates, rule pass matrix, edu score histograms), per-sample detail with failure reasons and two scrubbed excerpts | Opens the corpora instead of describing them | data/measured.json | Own tab |
 | PC14 | What to train on tab | Size, token budget, goal and licence -> a mix from published recipes, epochs per corpus with spill-over to larger corpora past 4 epochs, nearest published recipe | Turns the page's advice into a checkable plan; the epochs check is the common error | data/corpora.json, data/mixes.json | Own tab |
 
+| PC15 | Hero: what each published mix was made of | Static stacked bars, seven mixes (The Pile 2020 to Olmo 3 2025) by eight kinds of source, filtered Common Crawl highlighted | The whole subject on one picture: web went from a fifth to nearly all of the mix, and the rest is code, maths, papers | data/composition.json (make_composition.py, from each table) | Reading top (2026-10-24) |
+
+2026-10-24: PC12 moved from its own tab into Reading section 3; PC6 (DCLM Table 4 bars) removed because Quality classifiers and data selection owns and draws every row; PC5 moved into a closed block.
+
 ## Rejected
 
 | Idea | Why rejected |

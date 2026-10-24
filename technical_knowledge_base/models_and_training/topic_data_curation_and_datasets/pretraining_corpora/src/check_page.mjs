@@ -9,8 +9,8 @@ const puppeteer = require('puppeteer');
 const [file, shots] = process.argv.slice(2); fs.mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell' });
 let bad = 0;
-const TABS = ['t-read', 't-pclin', 't-pccmp', 't-pcpick', 't-more'];
-const PIECES = ['pc-s0', 'pc-files-card', 'pc-crawl-card', 'pc-rb-card', 'pc-tok-card', 'pc-dclm-card', 'pc-gen-tab', 'pc-kp-card', 'pc-st', 'pc-lic-card', 'pc-ms-tab', 'pl-card', 'pl-det', 'cm-card', 'cm-detail', 'pk-mix', 'pk-near', 'pc-rec-out'];
+const TABS = ['t-read', 't-pccmp', 't-pcpick', 't-more'];
+const PIECES = ['pc-s0', 'pc-files-card', 'pc-crawl-card', 'pc-rb-card', 'pc-tok-card', 'pc-hero-card', 'pc-gen-tab', 'pc-kp-card', 'pc-st', 'pc-lic-card', 'pc-ms-tab', 'pl-card', 'pl-det', 'cm-card', 'cm-detail', 'pk-mix', 'pk-near', 'pc-rec-out'];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
