@@ -20,3 +20,14 @@ Scores 0 to 2 on: parameter to move, reproduces a figure (x2), computable from p
 | SL13 | Loader trace (GPU idle while waiting for data) | | | | | rejected: owned by Making training fast (PyTorch topic) |
 
 What the methodology lacked here: a rule for "real library, recorded output" vs "page mirror of the algorithm": both were used, the mirror labelled illustrative and checked to reproduce the recorded count where they overlap.
+
+## 2026-10-24 rebuild (teaching contract)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| SL2, SL3, SL4, SL6 | Packing lab, shuffle visualiser, resume panel, throughput calculator | moved from their tabs into Reading sections 6, 8, 11 and 12, beside the claims they prove | moved |
+| SL5 | Format comparer | stays a tab: it spans sections 2 to 5 and every format at once | kept |
+| SL14 | Hero: bytes per token of every stored form to scale, then the computed order and the checkpoint loop | Reading, top | built (static annotated diagram) |
+| SL15 | One tar member to scale (PAX header, header, mean payload, padding), the whole tar's payload share, an MDS shard and index.json | Reading, section 4 | built (static, derived from the tar format and measured totals) |
+| SL16 | Index-based slice of a global batch against shard-based dealing of 11 shards to 2 ranks x 4 workers | Reading, section 7 | built (static, illustrative) |
+| SL17 | Prefetch before/after on the same 16 steps (measured on the ML infra Storage lab), plus a fetch-time slider on a stated model | Reading, section 10 | built; absorbed from Storage and data movement, which should now link here |
+| SL18 | A real photo or paper figure | | rejected: nothing physical to show; the Ding et al. figure is not openly licensed and the stepper shows the same packing |

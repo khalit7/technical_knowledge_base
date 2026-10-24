@@ -20,7 +20,7 @@ window.SLPACK=(function(){
   return {pad,trunc,concat,bfd,stats};
 })();
 (function(){
-  const U=SLU,$=U.$,P=SLPACK;if(!$('t-pack'))return;
+  const U=SLU,$=U.$,P=SLPACK;if(!$('sl-p-card'))return;
   const lens=SL.lens2k,demo=lens.slice(0,12),PAL=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)'];
   let S='concat',L=2048,mask=false,sel=0,cur=null;
   const NAMES={pad:'Pad',trunc:'Truncate',concat:'Concatenate',bfd:'Best-fit packing'};
@@ -40,7 +40,7 @@ window.SLPACK=(function(){
     $('sl-p-plot').innerHTML=RD.svg(W,r.W*(rowH+4)+8,body,'Windows');
     const fin=i>=r.pl.length;
     const p=shown[shown.length-1];
-    $('sl-p-cap').innerHTML=i===0?'<b>'+NAMES[S]+', L = '+U.f0(L)+'.</b> '+({pad:'Each document gets its own window(s); the rest is padding.',trunc:'One window per document; anything past L is thrown away.',concat:'Documents are laid end to end, each followed by an end-of-document token, and cut every L tokens.',bfd:'Documents longer than L are split into L-sized pieces first; then pieces are placed longest first, each into the window with the least room that still fits it (Best-Fit Decreasing).'})[S]+' Press play.':
+    $('sl-p-cap').innerHTML=i===0?'<b>'+NAMES[S]+', L = '+U.f0(L)+'.</b> '+({pad:'Each document gets its own window(s); the rest is padding.',trunc:'One window per document; anything past L is thrown away.',concat:'Documents are laid end to end, each followed by an end-of-document token, and cut every L tokens.',bfd:'Documents longer than L are split into L-sized pieces first; then pieces are placed longest first, each into the window with the least room that still fits it (Best-Fit Decreasing).'})[S]+' Press play or step.':
       (fin?'<b>Done.</b> ':'')+'Placed document '+(p[1]+1)+' ('+U.f0(demo[p[1]]+(r.eos?1:0))+' tokens'+(p[2]>0||p[3]<demo[p[1]]+(r.eos?1:0)?', piece from token '+U.f0(p[2])+' of length '+U.f0(p[3]):'')+') in window '+(p[0]+1)+'.'+(p[4]?' This document is cut.':'');
     const fs=P.stats(r,demo,L);
     $('sl-p-out').innerHTML=RD.stat('Windows',String(fin?fs.windows:nW),'for 12 documents')+RD.stat('Real tokens',fin?U.pc(fs.fill):'...','of window positions')+RD.stat('Documents cut',fin?String(fs.docs_cut):'...','or truncated')+
@@ -57,7 +57,7 @@ window.SLPACK=(function(){
     el.innerHTML=RD.svg(Wd,sz+20,body,'Attention pattern of one window');
     const tot=m*(m+1)/2,same=segs.reduce((a,p)=>a+p[3]*(p[3]+1)/2,0);
     $('sl-p-attcap').innerHTML='<b>Window '+(w+1)+'</b> (final layout): '+segs.length+' piece'+(segs.length>1?'s':'')+', '+U.f0(m)+' real tokens. Rows are queries, columns keys (to scale, L = '+U.f0(L)+'); coloured triangles are attention within a document, red blocks attention across documents'+(mask?' (dashed: removed by the document mask)':'')+', grey is padding. Cross-document pairs: '+(tot?U.pc((tot-same)/tot,0):'0%')+(mask&&tot>same?', all masked':'')+'. Click another window above.'}
-  const A=RD.anim({card:'sl-p-card',ctl:'sl-p-ctl',n:run().pl.length+1,ms:700,label:'Placement',draw,tab:'t-pack'});
+  const A=RD.anim({card:'sl-p-card',ctl:'sl-p-ctl',n:run().pl.length+1,ms:700,label:'Placement',draw});
   $('sl-p-plot').addEventListener('click',e=>{const t=e.target.closest('[data-w]');if(!t)return;sel=+t.dataset.w;A.redraw()});
   function restart(){sel=0;A.reset(run().pl.length+1);table()}
   RD.seg($('sl-p-s'),v=>{S=v;restart()});RD.seg($('sl-p-l'),v=>{L=+v;restart()});$('sl-p-mask').addEventListener('change',e=>{mask=e.target.checked;A.redraw();table()});
@@ -77,5 +77,5 @@ window.SLPACK=(function(){
     const xL=10+(Math.log10(L)-lo)/(hi-lo)*(W-20);body+='<line x1="'+xL.toFixed(1)+'" x2="'+xL.toFixed(1)+'" y1="6" y2="'+(H-20)+'" stroke="var(--bad)" stroke-width="2"/>'+RD.t(xL+(xL>W-90?-4:4),16,'L = '+U.f0(L),{fs:11,fill:'var(--bad)',a:xL>W-90?'end':null});
     [10,100,1000,10000].forEach(v=>{const x=10+(Math.log10(v)-lo)/(hi-lo)*(W-20);body+=RD.t(x,H-6,U.f0(v),{fs:10,a:'middle',fill:'var(--mute)'})});
     el.innerHTML=RD.svg(W,H,body,'Length histogram')}
-  RD.onRender(()=>{A.redraw();table()},'t-pack');RD.onResize(()=>{A.redraw();hist()},'t-pack');table();
+  RD.onRender(()=>{A.redraw();table()});RD.onResize(()=>{A.redraw();hist()});table();
 })();

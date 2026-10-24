@@ -35,6 +35,14 @@ S["resume"] = {k: {kk: vv for kk, vv in v.items() if kk != "state"} for k, v in 
 S["resume_versions"] = rs["versions"]
 S["loader"] = ls
 S["meg"] = mg
+# absorbed 2026-10-24 from Storage and data movement (its Storage lab's prefetch run, copied unchanged into data/raw):
+# one 4 MiB shard per step, 100 ms compute, 16 steps; the page's model (fetch + compute, or max(fetch, compute) with prefetch)
+# must land near both measured S3 totals at the measured mean fetch.
+pf = J("prefetch_storage_lab.json")["runs"]
+S["prefetch"] = pf
+fe = sum(pf["s3|none"]["wait_ms"]) / len(pf["s3|none"]["wait_ms"])
+m_none, m_pf = 16 * (100 + fe) / 1000, (fe + 16 * 100) / 1000
+assert abs(m_none / pf["s3|none"]["total_s"] - 1) < 0.013 and abs(m_pf / pf["s3|prefetch2"]["total_s"] - 1) < 0.013, (m_none, m_pf)
 # Llama 3 405B (arXiv 2407.21783, Table 4 and section 3.3): 16,384 GPUs at 400 TFLOPs/GPU (BF16 MFU 41%), 16M tokens per batch,
 # 128K vocabulary (so 4-byte ids), 466 interruptions in a 54-day snapshot. Derived with the 6N approximation (no attention FLOPs).
 g, fl, n = 16384, 400e12, 405e9
