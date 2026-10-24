@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Seq vs Seq: An Open Suite of Paired Encoders and Decoders (Ettin)","Takeaway":"Compute-matched paired training (same data, recipe, 17M-1B) shows encoders beat decoders an order of magnitude larger on classification/retrieval and vice versa for generation, and 50B tokens of cross-objective adaptation cannot close either gap.","Topics":["llm-training-and-post-training","rag-and-retrieval"],"Year":"2025","url":"https://app.notion.com/p/3c65c17b0d0d81139cffea35080afe2b"}
+{"Paper":"Seq vs Seq: An Open Suite of Paired Encoders and Decoders (Ettin)","Takeaway":"Paired training with size, data and recipe held fixed (17M to 1B, single runs) shows encoders beat their paired decoders on classification and retrieval and decoders win generation at every size; a native encoder beats a decoder at most about 2.7x its size, not an order of magnitude. 50B tokens (2.5% of pretraining) of cross-objective adaptation leaves the classification gap and, from 150M up, the generation gap open; on retrieval the converted decoder ends within noise of the encoder at 17M and 1B.","Topics":["llm-training-and-post-training","rag-and-retrieval"],"Year":"2025","url":"https://app.notion.com/p/3c65c17b0d0d81139cffea35080afe2b"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

@@ -23,5 +23,6 @@ Scores: changes with a reader-controlled parameter / reproduces a published figu
 | P-seq_vs_seq.15 | Checkpoint-dynamics explorer using Ettin's 236 released checkpoints | none | | rejected: needs the real models (no network in the sandbox; far over 300 KB) and the paper reports no checkpoint-level results |
 | P-seq_vs_seq.16 | Then and now tab | none | | rejected: a 2025 result paper; follow-ups (mmBERT, the concurrent MLM study) are a paragraph in Why it matters |
 | P-seq_vs_seq.17 | Training-bill tab from the 4xH100 days | none | | rejected: a pattern Khalid removed; one derived utilisation line sits in "What it takes" |
+| P-seq_vs_seq.18 | **Hero: the paper's Figure 1** (CC BY 4.0, `img/ettin_fig1_enc_vs_dec.webp`) at the top with a what-to-notice caption; the interactive rebuild stays in Results 2 (light pass 2026-10-25) | Reading, top | 4 | 5 | 1 | the paper's own figure, rendered from its arXiv SVG |
 
 What the methodology lacked here: a rule for a paper whose figure has a table version in the appendix (decode the figure anyway: here it confirmed Table 9 and exposed the mismatched axis labels), and a rule to cross-check two tables that share rows (it found the Table 8 column swap behind one of the paper's sentences).

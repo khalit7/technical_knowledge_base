@@ -9,7 +9,7 @@ txt = html.unescape(re.sub(r'<[^>]+>', ' ', raw))
 txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
- ('Reading time line "8 min read, +~1h 30m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "8 min read, +~1h 30m resources"', 'dropped: replaced by the measured reading time in the header (since 2026-10-25 "Reading: N min, plus M in closed details.")', ['Reading:', 'in closed details']),
  ('Authors: Weller, Ricci, Marone, Lawrie, Van Durme (JHU CLSP) with Chaffin (LightOn)', R + ', headline card', ['Orion Weller, Kathryn Ricci, Marc Marone, Antoine Chaffin, Dawn Lawrie, Benjamin Van Durme', 'Johns Hopkins University (CLSP) with LightOn (Antoine Chaffin)']),
  ('Date July 2025, arXiv 2507.11412, ICLR 2026', R + ', headline card', ['July 2025', 'arXiv 2507.11412', 'ICLR 2026']),
  ('Link arXiv (~45 min)', 'card and Further reading', ['https://arxiv.org/abs/2507.11412', '(45 min)']),
@@ -62,7 +62,7 @@ C = [
  ('Related KB papers: BERT, GPT-3, OLMo 2, RoFormer, Chinchilla (and Pythia)', 'Connections; Further reading', ['3c65c17b0d0d81e5ad9bd09cbf18ad7c', '3c65c17b0d0d8193ac92c7648cfaca12', '3c65c17b0d0d81fb9857fb956165ae1c', '3c65c17b0d0d81cfa5e9f54459720098', '3c65c17b0d0d8116b7ddffba5c599f3f', 'https://arxiv.org/abs/2304.01373']),
  ('External anchors: ModernBERT (Warner 2024), LLM2Vec (BehnamGhader 2024), Pythia (Biderman 2023)', 'Connections; Further reading', ['https://arxiv.org/abs/2412.13663', 'https://arxiv.org/abs/2404.05961', 'Biderman et al. 2023']),
  ('Topics: llm-training-and-post-training, rag-and-retrieval', 'Connections; Further reading', ['3c65c17b0d0d81b6876ee72b7056793b', '3c65c17b0d0d81b89145c37dfe8a3b0b']),
- ('Database property Takeaway', 'stays in the database; also shown in the headline card (its "order of magnitude" corrected in the verdict and Results 2)', ['Compute-matched paired training (same data, recipe, 17M-1B)']),
+ ('Database property Takeaway', 'stays in the database; the headline card carries a softened one-line takeaway (2026-10-25: "order of magnitude" corrected to 2.7x; the conversion gaps scoped: generation level up to 68M, retrieval within noise at 17M and 1B)', ['With size, data, data order and recipe held fixed']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)
 out, miss = [], []
