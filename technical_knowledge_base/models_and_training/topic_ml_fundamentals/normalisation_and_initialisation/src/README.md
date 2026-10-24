@@ -40,3 +40,5 @@ Why 19 minutes is right: the core now carries what this page owns (scaling, the 
 
 ## Older history
 Overlap fix (19 October 2026): the transformer side moved to "Normalisation, residuals and stability" (3fd5c17b0d0d8163b50dc5e9d9240e89). The placement toy (`parts/21_js_toy.js`, `checks/toy_*`) and `real/real_streams.py` were started by an earlier agent and reused after checking. `live.md` is the old Notion text; `coverage.json` maps every fact in it (it predates the ledger); `inputs/extracts.txt` holds verbatim source quotes; `viz_ideas.md` the scored choices.
+
+- 2026-10-24, topic close: Further reading times set to headers (root 23 min, plus 1; Classical ML, Kimi).
