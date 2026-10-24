@@ -95,6 +95,14 @@ for l in rd("job.txt").splitlines():
     m = re.search(r"allocator=(\S+) seconds=([\d.]+) main_VmHWM_kib=(\d+) main_VmRSS_kib=(\d+)", l)
     if m: J.setdefault(m[1], []).append([float(m[2]), int(m[3]), int(m[4])])
 D["job"] = J
+# reference counting against the cycle collector (src/exp/gc_cycles.py, Apple M1 Pro, macOS, 2026-10-24)
+G = {k: json.loads(rd(f)) for k, f in (("py311", "gc_cycles.json"), ("py314", "gc_cycles_py314.json"))}
+D["gc"] = G
+r11 = {(r["cyclic"], r["gc_enabled"]): r for r in G["py311"]["runs"]}; r14 = {(r["cyclic"], r["gc_enabled"]): r for r in G["py314"]["runs"]}
+K["gc.acyc"] = f"{r11[(False, True)]['peak_kib']:.1f}"
+K["gc.thr311"] = ", ".join(map(str, G["py311"]["threshold"])); K["gc.thr314"] = ", ".join(map(str, G["py314"]["threshold"]))
+K["gc.cyc.peak"] = f"{r11[(True, True)]['peak_kib'] / 1024:.1f}"; K["gc.off.peak"] = f"{r11[(True, False)]['peak_kib'] / 1024:.1f}"
+K["gc.off.found"] = f"{r11[(True, False)]['collect_found']:,}"; K["gc.314.peak"] = f"{r14[(True, True)]['peak_kib'] / 1024:.1f}"
 # checks
 D["fl_check"] = subprocess.run(["node", "check_freelist.mjs"], cwd=os.path.join(H, "sim"), capture_output=True, text=True).stdout.strip().splitlines()[-1]
 D["cache_check"] = subprocess.run(["node", "check_js.mjs"], cwd=os.path.join(H, "sim"), capture_output=True, text=True).stdout.strip().splitlines()[-1]

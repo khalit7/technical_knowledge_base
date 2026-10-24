@@ -1,6 +1,6 @@
-// ---- Free-list lab UI (tab t-fl): presets from OSTEP ch. 17's homework, the heap drawn to scale, compare mode.
+// ---- Free-list lab UI (inline in Reading section 1, #fl-lab): presets from OSTEP ch. 17's homework, the heap drawn to scale, compare mode.
 (function(){
-  const $=id=>document.getElementById(id),root=$('t-fl');if(!root||!window.FREELIST)return;
+  const $=id=>document.getElementById(id),root=$('fl-lab');if(!root||!window.FREELIST)return;
   const PRE=[
     ['Q1 best fit','-n 10 -H 0 -p BEST -s 0','Predict each return value and the free list. Notice how the list fills with small pieces over time.'],
     ['Q2 worst fit','-n 10 -H 0 -p WORST -s 0','Same operations, worst fit: it always splits the biggest chunk, so the big chunk is eaten first.'],
@@ -24,14 +24,14 @@
   function opts(coal){return {seed:num('fl-s',0,4294967295,0),size:num('fl-S',10,2000,100),base:1000,header:num('fl-H',0,16,0),align:(()=>{const a=num('fl-a',-1,64,-1);return a===0?-1:a})(),
     policy:$('fl-pol').value,order:$('fl-ord').value,coalesce:coal,numOps:num('fl-n',1,2000,10),range:num('fl-r',1,500,10),pAlloc:num('fl-P',1,100,50),list:$('fl-A').value.replace(/\s+/g,'')}}
   let runs=[],A=null;
-  const COL=['--c1','--c2','--c3','--c4','--c5','--c6'];
+  const COL=['--c1','--c3','--c4','--c5','--c6'];  // --c2 is the page's highlight: free but held
   function laneHTML(k){return '<div class="lane"><h4 id="fl-h'+k+'"></h4><div id="fl-svg'+k+'"></div><div class="flist" id="fl-l'+k+'"></div><div class="an-cnt" id="fl-c'+k+'"></div></div>'}
   function rebuild(){
     const cmp=$('fl-cmp').checked,c=$('fl-C').checked;
     runs=cmp?[{t:'Coalescing off',r:FREELIST.run(opts(false))},{t:'Coalescing on (-C)',r:FREELIST.run(opts(true))}]:[{t:c?'Coalescing on (-C)':'Coalescing off',r:FREELIST.run(opts(c))}];
     $('fl-lanes').innerHTML=runs.map((_,k)=>laneHTML(k)).join('');
     const n=Math.max(1,...runs.map(x=>x.r.steps.length));
-    if(!A)A=RD.anim({card:'fl-lanes',ctl:'fl-ctl',n:n+1,ms:900,tab:'t-fl',label:'Operation',draw:draw});else A.reset(n+1);
+    if(!A)A=RD.anim({card:'fl-lanes',ctl:'fl-ctl',n:n+1,ms:900,tab:'t-read',label:'Operation',draw:draw});else A.reset(n+1);
     draw(0);
   }
   function draw(i){
@@ -47,12 +47,12 @@
       const steps=x.r.steps,s=i===0?{free:[[1000,o.size]],used:[]}:(steps[Math.min(i,steps.length)-1]||{free:[[1000,o.size]],used:[]});
       const sc=W/o.size,H=34;let b='';
       b+='<rect x="0" y="4" width="'+W+'" height="'+H+'" fill="var(--soft)" stroke="var(--line)"/>';
-      s.used.forEach(u=>{const x0=(u[0]-1000)*sc,w=Math.max(1,u[1]*sc),c='var('+COL[(u[2]||0)%6]+')';
+      s.used.forEach(u=>{const x0=(u[0]-1000)*sc,w=Math.max(1,u[1]*sc),c='var('+COL[(u[2]||0)%5]+')';
         b+='<rect x="'+x0.toFixed(1)+'" y="4" width="'+w.toFixed(1)+'" height="'+H+'" fill="'+c+'" fill-opacity=".75" stroke="var(--bg)"/>';
         if(o.header>0)b+='<rect x="'+x0.toFixed(1)+'" y="4" width="'+Math.max(1,o.header*sc).toFixed(1)+'" height="'+H+'" fill="var(--ink)" fill-opacity=".35"/>';
         if(w>22)b+='<text x="'+(x0+w/2).toFixed(1)+'" y="'+(4+H/2+4)+'" text-anchor="middle" font-size="11" fill="var(--bg)">p'+u[2]+'</text>'});
-      s.free.forEach(f=>{const x0=(f[0]-1000)*sc,w=Math.max(1,f[1]*sc);b+='<rect x="'+x0.toFixed(1)+'" y="4" width="'+w.toFixed(1)+'" height="'+H+'" fill="var(--bg)" stroke="var(--mute)" stroke-dasharray="3 2"/>';
-        if(w>26)b+='<text x="'+(x0+w/2).toFixed(1)+'" y="'+(4+H/2+4)+'" text-anchor="middle" font-size="10.5" fill="var(--mute)">'+f[1]+'</text>'});
+      s.free.forEach(f=>{const x0=(f[0]-1000)*sc,w=Math.max(1,f[1]*sc);b+='<rect x="'+x0.toFixed(1)+'" y="4" width="'+w.toFixed(1)+'" height="'+H+'" fill="var(--bg)" stroke="var(--c2)" stroke-dasharray="3 2"/>';
+        if(w>26)b+='<text x="'+(x0+w/2).toFixed(1)+'" y="'+(4+H/2+4)+'" text-anchor="middle" font-size="11" fill="var(--c2)">'+f[1]+'</text>'});
       b+='<text x="0" y="'+(H+18)+'" font-size="10.5" fill="var(--mute)">1000</text><text x="'+W+'" y="'+(H+18)+'" font-size="10.5" text-anchor="end" fill="var(--mute)">'+(1000+o.size)+'</text>';
       $('fl-svg'+k).innerHTML='<svg viewBox="0 0 '+W+' '+(H+22)+'" width="'+W+'" height="'+(H+22)+'" role="img" aria-label="Heap layout">'+b+'</svg>';
       $('fl-h'+k).textContent=x.t+(i>steps.length&&steps.length?' (finished at step '+steps.length+')':'');
@@ -72,7 +72,7 @@
   $('fl-hide').addEventListener('change',()=>A&&A.redraw());
   if(window.FL_CHECK)$('fl-chk').textContent='(checked: '+FL_CHECK+')';
   pre.querySelector('button').classList.add('on');apply(PRE[0][1]);note=PRE[0][2];
-  RD.onRenderTab('t-fl',()=>{if(!runs.length)rebuild();else A.redraw()});
-  let rt=0;addEventListener('resize',()=>{if(root.hidden)return;clearTimeout(rt);rt=setTimeout(()=>A&&A.redraw(),80)});
+  RD.onRenderTab('t-read',()=>{if(!runs.length)rebuild();else A.redraw()});
+  let rt=0;addEventListener('resize',()=>{if(root.offsetParent===null)return;clearTimeout(rt);rt=setTimeout(()=>A&&A.redraw(),80)});
   rebuild();
 })();

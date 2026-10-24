@@ -1,5 +1,5 @@
-// ---- Caching-allocator view: two lanes, same requests, two configurations. Used in the t-cache tab (full)
-// and in the Reading tab (compact, fixed scenario). Data: window.CACHE_SCEN (scenarios), CACHESIM (model).
+// ---- Caching-allocator view: two lanes, same requests, two configurations, inline in Reading section 9
+// (full controls: scenario, both lanes' configuration, capacity, own requests). Data: window.CACHE_SCEN (scenarios), CACHESIM (model).
 window.CacheView=function(el,o){
   if(!el||!window.CACHESIM||!window.CACHE_SCEN)return;
   const MiB=CACHESIM.MiB,uid=el.id;
@@ -14,13 +14,13 @@ window.CacheView=function(el,o){
     '<label>Left lane '+sel('ca',Object.keys(CFG),o.a)+'</label><label>Right lane '+sel('cb',Object.keys(CFG),o.b)+'</label>'+
     '<label>Device capacity, MiB <input id="'+uid+'cap" type="number" min="64" max="81920" step="64"></label></div>'+
     '<div class="cvc"><label style="grid-column:1/-1">Or your own requests, sizes in MiB (+tag size allocates, -tag frees), e.g. <code>+a 300, +b 30, -a, +c 310</code> <input id="'+uid+'own" type="text" autocomplete="off" placeholder="+a 300, +b 30, -a, +c 310"></label></div>'}
-  h+='<div class="leg"><span style="--sw:var(--c1)">weights</span><span style="--sw:var(--c3)">kept activations</span><span style="--sw:var(--c2)">temporaries</span><span style="--sw:var(--c4)">other tensors</span><span style="--sw:var(--bg)">cached, free</span></div>'+
+  h+='<div class="leg"><span style="--sw:var(--c1)">weights</span><span style="--sw:var(--c3)">kept activations</span><span style="--sw:var(--c5)">temporaries</span><span style="--sw:var(--c4)">other tensors</span><span style="--sw:var(--c2)">cached, free (hatched)</span></div>'+
     '<div class="an-ctl" id="'+uid+'ctl"></div><div class="jump"><button data-j="seg">next new segment or map</button><button data-j="free">next release</button><button data-j="oom">first OOM</button><button data-j="end">end</button></div>'+
     '<div class="an-cap" id="'+uid+'cap2"></div><div class="lanes"><div class="lane" id="'+uid+'L0"></div><div class="lane" id="'+uid+'L1"></div></div>';
   el.innerHTML=h;
   const $=s=>document.getElementById(uid+s);
   let ops=[],lanes=[],A=null,cap=0,title='';
-  function kind(t){t=String(t);return t==='w'?'c1':/(a|kv)\d+$/.test(t)?'c3':/(t|mlp)\d+$/.test(t)?'c2':'c4'}
+  function kind(t){t=String(t);return t==='w'?'c1':/(a|kv)\d+$/.test(t)?'c3':/(t|mlp)\d+$/.test(t)?'c5':'c4'}
   function parseOwn(s){const out=[];s.split(',').forEach(p=>{const m=p.trim().match(/^([+-])\s*([A-Za-z0-9_]+)\s*([\d.]+)?$/);if(!m)return;
     if(m[1]==='+'&&m[3])out.push(['+',m[2],Math.max(1,Math.round(parseFloat(m[3])*MiB))]);else if(m[1]==='-')out.push(['-',m[2]])});return out}
   function build(){
@@ -50,7 +50,7 @@ window.CacheView=function(el,o){
         else if(op[0]==='-')ev='freed: the block goes back to the cache (no cudaFree)'+(e.length?'':'');
         else if(!e.length)ev='served from the cache: no driver call';
         else ev=e.map(x=>x[0]==='cudaMalloc'?'new segment: cudaMalloc('+mib(x[1])+')':x[0]==='map'?'expanded: mapped '+mib(x[1])+' more':x[0]==='cudaFree'?'released a cached segment: cudaFree('+mib(x[1])+')':x[0]==='unmap'?'unmapped '+mib(x[1])+' of free pages':x[0]==='OOM'?'no block fits':'').filter(Boolean).join('; ')}
-      const H=30,sc=W/cap;let b='<defs><pattern id="'+uid+'h'+k+'" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="var(--bg)"/><line x1="0" y1="0" x2="0" y2="5" stroke="var(--mute)" stroke-width="1.2"/></pattern></defs>';
+      const H=30,sc=W/cap;let b='<defs><pattern id="'+uid+'h'+k+'" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="var(--bg)"/><line x1="0" y1="0" x2="0" y2="5" stroke="var(--c2)" stroke-width="1.4"/></pattern></defs>';
       b+='<rect x="0" y="2" width="'+W+'" height="'+H+'" fill="var(--soft)" stroke="var(--line)"/>';
       let x=0;
       if(s){let cur=-1;
@@ -84,6 +84,5 @@ window.CacheView=function(el,o){
 };
 (function(){
   if(window.CACHE_CHECK){const c=document.getElementById('cv-chk');if(c)c.textContent=CACHE_CHECK}
-  CacheView(document.getElementById('cv-tab'),{full:true,scen:'batch',a:'default',b:'expandable_segments:True',tab:'t-cache',ms:220});
-  CacheView(document.getElementById('cv-read'),{full:false,scen:'batch',a:'default',b:'expandable_segments:True',tab:'t-read',ms:240});
+  CacheView(document.getElementById('cv-read'),{full:true,scen:'batch',a:'default',b:'expandable_segments:True',tab:'t-read',ms:240});
 })();

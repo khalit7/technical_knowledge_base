@@ -1,0 +1,3061 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Memory allocators: malloc, arenas, fragmentation, and PyTorch's caching allocator Memory allocators: malloc, arenas, fragmentation, and PyTorch's caching allocator Child of Topic: operating-systems .",
+  "label": "core",
+  "key": "Memory allocators: malloc, arenas, fragmentation",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Who hands out a training job's memory, from Python's pymalloc and glibc's malloc to jemalloc, tcmalloc, mimalloc and PyTorch's CPU and CUDA allocators: taught from zero with OSTEP chapters 14 and 17, measured on a Linux kernel, and read in the source.",
+  "label": "core",
+  "key": "Who hands out a training job's memory",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Free-list lab Caching allocator Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar; the two lab tabs moved into Reading"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "One screen 1 Free space 2 The C API 3 Inside glibc 4 Arenas 5 Fragmentation 6 jemalloc, tcmalloc, mimalloc 7 Python 8 NumPy and torch CPU 9 CUDA caching allocator 10 Playbook Interview OSTEP map",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old section nav"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "In one screen: who hands out your memory The kernel gives a process memory in whole pages (4 KiB here), and only through system calls that cost hundreds of nanoseconds.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the core sentence and hero carry it (rarely, in big pieces)"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "A training job asks for memory millions of times: a 32-byte Python tuple, a 600-byte string, a 1 MiB NumPy batch, a 64 MiB tensor, a 300 MiB activation on the GPU.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "illustrative list of request sizes; the hero shows the kinds"
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "In between sits a stack of allocators , user-space libraries that get big regions from the kernel rarely, cut them into pieces quickly, and keep freed pieces to hand out again.",
+  "label": "core",
+  "key": "buys memory from the kernel",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "This page follows the root's running training job down that stack, measures each layer on a real Linux kernel, and reads the source where it explains a number.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "page-intro wind-up"
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "Python objects tuples, ints, small strings: CPython's pymalloc (objects up to 512 bytes), else malloc NumPy arrays a small-buffer cache, then malloc; madvise(MADV_HUGEPAGE) from 4 MiB torch CPU tensors c10's alloc_cpu: mimalloc inside libc10.so on Linux arm64 and Windows, posix_memalign (glibc) elsewhere torch CUDA tensors the caching allocator: blocks cut from segments got with cudaMalloc or mapped with cuMemMap ▼ most of these end in malloc / free (glibc's ptmalloc, or jemalloc, tcmalloc, mimalloc via LD_PRELOAD) chunks with a header, per-thread caches (tcache), bins of free chunks, one arena per group of threads ▼ system calls, rarely the kernel: brk, mmap, munmap, madvise whole pages, mapped on first touch; the kernel's own allocators (buddy, slab) underneath.",
+  "label": "core",
+  "key": "Python objects up to 512 B",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "Pages, faults, THP and the OOM killer belong to the virtual memory page free() rarely gives memory back.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card restating section 5 and the virtual memory link (kept in You need)"
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "Freeing 98% of 400,000 small blocks left resident memory (RSS) at 110,524 KiB for 1,562 KiB of live data under glibc; malloc_trim(0) brought it to 29,404 KiB.",
+  "label": "core",
+  "key": "110,524",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "RSS is not live data (section 5).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card restated by the core sentence"
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "One live object pins a page, or an arena.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card restated by sections 5 and 7"
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "The 6,250 surviving 272-byte chunks still pinned about 24 MiB of pages after the trim; 2,000 surviving Python tuples kept all 158 of CPython's 1 MiB arenas (sections 5 and 7).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card restating sections 5 and 7 numbers"
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "Free one big block and the next ones change path. glibc serves a 1 MiB request with its own mmap, but freeing it raises the threshold, and the same request then comes from the heap and stays resident (section 3, traced).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card restating section 3"
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "No allocator wins everything.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card restating sections 5 and 6"
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "On one data-loader-like workload, the allocator with the least memory was 4 times slower, and the fastest held the most (section 6, measured).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card restating section 5 numbers (42.83 against 10.43 s)"
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "On the GPU, \"reserved\" is not \"allocated\".",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card restating section 9"
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "PyTorch caches freed GPU blocks; when tensor sizes vary, free memory ends up in pieces no request fits, and you get \"out of memory\" with gigabytes free. expandable_segments:True is the fix (section 9, simulated from source).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card restating section 9"
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "Where the running job meets each layer.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "The root's job (a 256-128-10 MLP on 8 MiB of memory-mapped data, two DataLoader workers) touches all of them: its Python objects and the DataLoader's bookkeeping go through pymalloc; each batch NumPy builds goes through glibc's malloc; the model's weights and every activation go through mimalloc inside libc10.so , which is why building the model made the 1 GiB address-space reservation the root's Syscall tracer tab found; its threads (OpenMP, the DataLoader's) get their own glibc arenas, the 64 MiB reservations the root's section 5 saw in the memory map.",
+  "label": "core",
+  "key": "256-128-10",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "On a GPU, the same tensors would go through the caching allocator.",
+  "label": "core",
+  "key": "On a GPU the tensors would go through the caching allocator",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "Section 6 runs the job under four allocators.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer"
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "Layer Gets memory from Unit it hands out Gives memory back See it with pymalloc mmap, 1 MiB arenas 16-byte size classes up to 512 B, in 16 KiB pools an arena when every object in it is dead sys._debugmallocstats() , tracemalloc glibc malloc brk (main heap), mmap (big blocks, thread arenas) chunks: request + 8 bytes, rounded to 16, at least 32 the heap's top past 128 KiB (trim threshold); mmapped chunks at once; malloc_trim malloc_info , malloc_stats , /proc/<pid>/smaps jemalloc, tcmalloc, mimalloc mmap size classes in per-size runs, slabs, spans or pages after a delay or rate (decay, release rate, purge delay) their stats calls and environment options CUDA caching allocator cudaMalloc, or cuMemCreate plus cuMemMap blocks: 512-byte multiples in 2 MiB or 20 MiB-plus segments only on OOM retry or torch.cuda.empty_cache() memory_summary() , memory snapshots kernel physical memory 4 KiB pages (buddy allocator for runs of pages, slab caches for its own objects) munmap, madvise(MADV_DONTNEED) /proc/buddyinfo , /proc/slabinfo , /proc/meminfo Measured in Docker Desktop's Linux VM (Linux 5.10.104-linuxkit, arm64, 4 KiB pages, 5 CPUs; glibc 2.36, Python 3.11.2, torch 2.14.1+cpu, NumPy 2.4.6; jemalloc 5.3.0, gperftools tcmalloc 2.10, mimalloc 2.0.9 from Debian 12), image kb-os-alloc:1 , 2026-10-05; scripts and raw outputs in src/ .",
+  "label": "core",
+  "key": "16-byte size classes up to 512 B, in 16 KiB pools",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "in one screen: who hands out your memory",
+  "text": "Each container was capped at 1 or 2 CPUs and 1,500 MiB, on a VM shared with other experiments, so times carry some noise; repeated runs are shown where it matters.",
+  "label": "depth",
+  "key": "1,500 MiB",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Free space from zero: headers, free lists, splitting, coalescing ch.",
+  "label": "core",
+  "key": "Free space from zero",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "17 Free-Space Management The problem.",
+  "label": "core",
+  "key": "Free-Space Management",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "An allocator owns a region of bytes (the heap ) and answers two calls: malloc(n) returns the address of at least n free bytes, free(p) gives them back.",
+  "label": "core",
+  "key": "at least n free bytes",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Requests come in any size and any order, and once the allocator hands out an address it can never move that block, because the program holds raw pointers into it.",
+  "label": "core",
+  "key": "a block can never move once handed out",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Everything below follows from those two facts.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "The header. free(p) passes only the address, not the size, so the allocator writes a small header just before every block it hands out, holding at least the size.",
+  "label": "core",
+  "key": "passes only the address",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "OSTEP's example header has a size and a \"magic\" number used to catch corruption; glibc's holds the size and three flag bits in 8 bytes (section 3). header: size the bytes the program uses (the pointer malloc returned points here) The free list, stored in the free space itself.",
+  "label": "core",
+  "key": "magic",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Free regions are linked into a free list , and the links live inside the free regions (there is nowhere else to put them): each free chunk starts with its size and a pointer to the next free chunk.",
+  "label": "core",
+  "key": "links live inside the free regions",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "A fresh heap is one free chunk.",
+  "label": "core",
+  "key": "A fresh heap is one free chunk",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "When a request is smaller than the chunk chosen for it, the allocator splits it: the front goes to the program, the rest stays on the list.",
+  "label": "core",
+  "key": "splits",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "When a chunk is freed next to another free chunk, a good allocator coalesces them into one, otherwise the heap fills with free slivers too small for anything.",
+  "label": "core",
+  "key": "coalesced",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Fragmentation, the two kinds.",
+  "label": "core",
+  "key": "Fragmentation, the two kinds",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "External fragmentation : free memory exists but in pieces, so a request fails (or the allocator grows the heap) although the total free is enough.",
+  "label": "core",
+  "key": "enough memory is free in total, but in pieces",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Internal fragmentation : a block handed out is larger than what was asked for (rounding, size classes, headers), and the excess is wasted inside it.",
+  "label": "core",
+  "key": "wasted inside it",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "The classic survey measures it as the memory the allocator uses at its peak against the peak of live data ( Wilson et al.",
+  "label": "core",
+  "key": "peak memory against the peak of live data",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "1995 ); this page uses the same idea with RSS against live bytes.",
+  "label": "core",
+  "key": "RSS against live bytes",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Which free chunk to pick.",
+  "label": "core",
+  "key": "Which free chunk to pick",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Best fit takes the smallest chunk that fits (little waste, but a full search, and it leaves tiny leftovers); worst fit takes the largest (leaves big leftovers, full search, fragments badly in practice); first fit takes the first that fits (fast, but the front of the list fills with small pieces); next fit continues from where the last search stopped.",
+  "label": "core",
+  "key": "next fit",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Keeping the list sorted by address makes coalescing cheap; sorting by size turns first fit into best or worst fit.",
+  "label": "core",
+  "key": "sorted by size, first fit becomes best or worst fit",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Predict: a 100-byte heap, ten requests of 10 bytes (it is now full), then free every other one.",
+  "label": "core",
+  "key": "a 100-byte heap",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "50 bytes are free.",
+  "label": "core",
+  "key": "50 bytes are free",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Can a request for 15 bytes succeed, with coalescing on? yes, coalescing joins the free pieces no only with best fit No.",
+  "label": "core",
+  "key": "Can a request for 15 bytes succeed",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "The five free pieces are 10 bytes each and none are next to each other, so coalescing has nothing to join: 50 bytes free, largest piece 10.",
+  "label": "core",
+  "key": "largest piece 10",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "That is external fragmentation, and no search policy fixes it, because a C allocator cannot move live blocks to close the gaps (a compacting garbage collector can; malloc cannot).",
+  "label": "core",
+  "key": "a compacting garbage collector can",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Run it in the Free-list lab tab, preset Q7.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed tab; now 'Run it below: preset Q7'"
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Better than one list: segregated lists and size classes.",
+  "label": "core",
+  "key": "Better than one list",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Most real programs allocate a few sizes over and over.",
+  "label": "core",
+  "key": "Most programs allocate a few sizes over and over",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "A segregated list allocator keeps a separate list per size class (16, 32, 48, ... bytes), so a request is a pop from the right list with no search, and objects of one size sit together.",
+  "label": "core",
+  "key": "pop with no search",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "The kernel's own version is the slab allocator (Bonwick, USENIX 1994 ): a cache per object type (a task_struct , an inode), each cache made of slabs of pages pre-cut into objects.",
+  "label": "core",
+  "key": "pre-cut objects per type",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "You can read this kernel's caches directly: measured here /proc/slabinfo in a container (excerpt).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lead-in to a recorded output, now in a closed block"
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "A task_struct , the kernel's record of one thread, is 3,712 bytes, one per slab page; dentries (cached path components) are 200 bytes, 20 per page.",
+  "label": "depth",
+  "key": "3,712 bytes",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "The nonzero \"tunables\" columns are printed only by the older SLAB implementation (SLUB, the default in most distribution kernels, prints zeros), so this linuxkit kernel uses SLAB: an inference from the format, not checked against its config.",
+  "label": "depth",
+  "key": "SLUB",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "For runs of whole pages the kernel uses a buddy allocator : free memory is kept in blocks of 2 k pages (order k); a request takes the smallest order that fits, splitting a bigger block into two \"buddies\" as needed; when a block is freed and its buddy is free too, they merge back.",
+  "label": "core",
+  "key": "buddy allocator",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Coalescing is a cheap address calculation, at the price of internal fragmentation (a 9-page request takes 16).",
+  "label": "core",
+  "key": "9-page request takes 16",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "This kernel's free blocks per order, 0 (4 KiB) to 10 (4 MiB): measured here cat /proc/buddyinfo .",
+  "label": "depth",
+  "key": "order, 0 (4 KiB) to 10 (4 MiB)",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Each column is the number of free blocks of that order; a huge page (2 MiB, order 9) can be found only while order-9 or order-10 blocks remain, which is why huge pages get harder to find on a long-running, fragmented machine (the virtual memory page owns THP).",
+  "label": "depth",
+  "key": "order-9 or order-10",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "1. free space from zero: headers, free lists, splitting, coalescing",
+  "text": "Hands on: the Free-list lab tab runs OSTEP's homework simulator with every policy, list order and coalescing switch, animated, with the same random operations as the book's malloc.py .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed tab; the lab is now inline"
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "The C API, and the bugs it makes possible ch.",
+  "label": "core",
+  "key": "What one request really costs",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "14 Interlude: Memory API The calls ( malloc(3) , posix_memalign(3) , malloc_usable_size(3) ): Call Does Worth knowing malloc(n) n bytes, contents not initialised aligned for any type: 16 bytes on 64-bit Linux calloc(k, n) k × n bytes, zeroed checks k × n for overflow; fresh pages from mmap are already zero, so glibc skips the memset for them (malloc.c line 3707) realloc(p, n) resize, maybe moving a large mmapped block can grow with mremap without copying ( mremap_chunk , line 3068) free(p) give back free(NULL) does nothing; everything else must be a pointer malloc returned, freed once posix_memalign , aligned_alloc n bytes at a chosen alignment what PyTorch's CPU allocator calls on x86-64 Linux, with 64-byte alignment (section 8) malloc_usable_size(p) how many bytes the block really has shows the rounding; below, measured What a request really costs in glibc.",
+  "label": "depth",
+  "key": "posix_memalign(3)",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "A chunk is the request plus an 8-byte size field, rounded up to a multiple of 16, at least 32 bytes: request2size (malloc.c line 1326, glibc 2.36 ).",
+  "label": "core",
+  "key": "request2size",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "Measured with two back-to-back mallocs, whose distance is the chunk size: measured here src/exp/sizes.c .",
+  "label": "core",
+  "key": "two back-to-back mallocs",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "Usable is what malloc_usable_size reports; the stride is the chunk size.",
+  "label": "core",
+  "key": "the stride is the chunk size",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "Formula: chunk = max(32, (request + 8 + 15) rounded down to a multiple of 16); a 1-byte request costs 32 bytes, a 25-byte one 48.",
+  "label": "core",
+  "key": "a 25-byte one 48",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "Next to a 256-byte request the 8-byte header is 3% overhead; next to a 16-byte one it is half the chunk, which is why allocating millions of tiny objects one by one is expensive in memory as well as time.",
+  "label": "core",
+  "key": "3% overhead",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "C trusts the program completely, and each mistake corrupts the allocator's own data, often far from where it happened: Leak : memory never freed.",
+  "label": "core",
+  "key": "C trusts the program completely",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "Harmless in a short process, fatal in a server or a long training run.",
+  "label": "depth",
+  "key": "fatal in a server or a long training run",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "Use after free : writing through a pointer after free , into a chunk that may already belong to someone else or whose first bytes now hold the free list's links.",
+  "label": "depth",
+  "key": "whose first bytes now hold the free list's links",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "Double free : glibc catches the common case and aborts with free(): double free detected in tcache 2 .",
+  "label": "depth",
+  "key": "double free detected in tcache 2",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "Overflow : writing past the end tramples the next chunk's header; glibc notices later with messages such as malloc(): corrupted top size .",
+  "label": "depth",
+  "key": "corrupted top size",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "Tools: AddressSanitizer ( gcc -fsanitize=address , which puts poisoned red zones around every block and keeps freed memory in quarantine), Valgrind's memcheck, and glibc's own checks.",
+  "label": "depth",
+  "key": "AddressSanitizer",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. the c api, and the bugs it makes possible",
+  "text": "In ML work these bugs live in C and C++ extensions; from Python they surface as a segmentation fault or a malloc(): ... abort with no Python traceback, and the root's Debug lab shows how to get a native stack.",
+  "label": "core",
+  "key": "no Python traceback",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "Inside glibc's malloc: chunks, bins, the heap's top, and two thresholds ch.",
+  "label": "core",
+  "key": "Inside glibc's malloc",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "17 (real allocators), beyond OSTEP glibc's allocator (called ptmalloc, descended from Doug Lea's dlmalloc) is what malloc means on Debian, Ubuntu and most Linux machines a training job runs on.",
+  "label": "core",
+  "key": "ptmalloc",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "Its source is one file, malloc/malloc.c , plus arena.c ; line numbers below are glibc 2.36 , the version in the lab image, and glibc's own MallocInternals page is the best tour.",
+  "label": "core",
+  "key": "MallocInternals",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "A chunk. struct malloc_chunk (line 1148) starts with the previous chunk's size (used only while that one is free) and this chunk's size.",
+  "label": "core",
+  "key": "malloc_chunk",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "Sizes are multiples of 16, so the three low bits of the size are free for flags: P (PREV_INUSE, line 1366: the chunk before me is in use, so do not merge with it), M (IS_MMAPPED, line 1373: I came from my own mmap) and A (NON_MAIN_ARENA, line 1382: I belong to a thread arena, section 4).",
+  "label": "core",
+  "key": "PREV_INUSE",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "A free chunk reuses its first user bytes for the list links fd and bk (large free chunks also fd_nextsize , bk_nextsize ). prev_size (8) size | A M P (8) user data (or, when free: fd, bk, ...) Where a freed chunk goes, and where malloc looks first.",
+  "label": "core",
+  "key": "fd",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "In order: Bin Holds How it works Source tcache chunks up to 1,032 bytes, 7 per size per thread, no lock, last in first out: the fast path for most small requests since glibc 2.26 TCACHE_MAX_BINS 64, TCACHE_FILL_COUNT 7, lines 309 to 328 fastbins chunks up to 128 bytes per arena, single-linked, not merged with neighbours until a consolidation DEFAULT_MXFAST = 64 × 8 / 4, line 852 unsorted bin any freed chunk, first one list; the next malloc sorts its chunks into the right bins as it walks it, taking an exact fit on the way _int_malloc , line 3765 small bins below 1,024 bytes, one size each 62 double-linked lists, exact size NSMALLBINS 64, MIN_LARGE_SIZE, lines 1571 to 1574 large bins 1,024 bytes and up, size ranges sorted by size, best fit within the bin NBINS 128, line 1570 top chunk the free space at the end of the heap split when no bin fits; the heap grows with brk when top is too small sysmalloc , line 2541 Freeing merges a chunk with free neighbours (except into tcache and fastbins, which keep chunks whole for speed) and, if the merged chunk touches the top, grows the top.",
+  "label": "depth",
+  "key": "TCACHE_FILL_COUNT 7",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "That cost shows in a measurement: a malloc plus free of the same small size, repeated, is a tcache push and pop, 11.1 ns here; a thousand mallocs followed by a thousand frees overflow the 7-entry tcache and go through the bins, still cheap for 256 bytes ( 28.9 ns a pair) but 899.1 ns for 4 KiB.",
+  "label": "core",
+  "key": "tcache push and pop",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "That jump is the second threshold below.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "rephrased as 'That jump is the trim threshold, below'"
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "Where the bytes come from: brk, mmap, and the dynamic threshold glibc gets memory from the kernel two ways.",
+  "label": "core",
+  "key": "Where the bytes come from",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "The main heap sits after the program's data and grows by moving its end, the \"program break\", with brk ( brk(2) ): cheap, but only the top can ever be given back.",
+  "label": "core",
+  "key": "program break",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "A request at or above M_MMAP_THRESHOLD gets its own anonymous mmap instead, given back with munmap the moment it is freed.",
+  "label": "core",
+  "key": "unmapped the moment it is freed",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "The threshold starts at 128 KiB (DEFAULT_MMAP_THRESHOLD_MIN, line 961) and is dynamic : when you free an mmapped chunk larger than the current threshold, glibc raises the threshold to that chunk's size and the trim threshold to twice that (lines 3366 to 3371), up to 32 MiB on 64-bit ( 4 * 1024 * 1024 * sizeof(long) , line 972).",
+  "label": "core",
+  "key": "DEFAULT_MMAP_THRESHOLD_MIN",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "The reasoning, from mallopt(3) : a program that frees a big block probably allocates blocks that size again, and serving them from the heap avoids an mmap, a munmap and fresh page faults each time.",
+  "label": "core",
+  "key": "fresh page faults each time",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "Predict: malloc 1 MiB, touch it, free it, then malloc 1 MiB again and free it.",
+  "label": "core",
+  "key": "malloc 1 MiB, touch it, free it",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "Which system calls does the second malloc make? mmap again, and munmap on free a brk to grow the heap, and nothing on free none: glibc reuses the old mapping The first free raised the threshold to about 1 MiB, so the second request is below it and comes from the heap (one brk ), and freeing it gives nothing back: the trim threshold is now about 2 MiB.",
+  "label": "core",
+  "key": "Which system calls does the second malloc make",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "Step through both traces below, the default and with the threshold pinned.",
+  "label": "core",
+  "key": "Step through both traces below",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "Default (dynamic threshold) MALLOC_MMAP_THRESHOLD_=131072 (fixed) measured here strace -e trace=brk,mmap,munmap,write ./threshold ( src/exp/threshold.c ); the \"---\" lines are the program's own markers.",
+  "label": "core",
+  "key": "trace=brk,mmap,munmap,write",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "Setting any of M_MMAP_THRESHOLD , M_TRIM_THRESHOLD , M_TOP_PAD or M_MMAP_MAX turns the dynamic adjustment off (mallopt(3)).",
+  "label": "core",
+  "key": "M_MMAP_MAX",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "The trim threshold, and the 899 ns.",
+  "label": "core",
+  "key": "the 899 ns",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "When the top chunk grows past M_TRIM_THRESHOLD (128 KiB to start, line 919), free shrinks the heap with brk ( systrim , line 2971).",
+  "label": "core",
+  "key": "systrim",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "In the batch benchmark, a thousand 4 KiB blocks freed together merge into a 4 MiB top, glibc trims it, and the next round grows the heap again and takes a page fault on every new page: 899.1 ns a pair.",
+  "label": "core",
+  "key": "a thousand 4 KiB blocks freed together",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "With MALLOC_TRIM_THRESHOLD_=67108864 the heap is kept and the same loop costs 28.4 ns.",
+  "label": "core",
+  "key": "MALLOC_TRIM_THRESHOLD_=67108864",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "The price moves elsewhere: the setting also pins the mmap threshold, so 1 MiB blocks now take an mmap and munmap every time ( 4,723.3 ns a pair, against 2,142.4 by default).",
+  "label": "core",
+  "key": "4,723.3",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "Every knob here trades memory held against system calls and page faults.",
+  "label": "core",
+  "key": "Every knob here trades memory held",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "The knobs and the views.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, now a closed block's summary"
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "Each tunable can be set three ways: mallopt() in C; an environment variable with a trailing underscore ( MALLOC_ARENA_MAX , MALLOC_MMAP_THRESHOLD_ , MALLOC_TRIM_THRESHOLD_ , MALLOC_TOP_PAD_ ); or GLIBC_TUNABLES=glibc.malloc.trim_threshold=...:glibc.malloc.arena_max=2 ( glibc manual, memory allocation tunables ).",
+  "label": "depth",
+  "key": "GLIBC_TUNABLES",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "To look inside a running process: malloc_stats() prints per-arena totals, malloc_info(0, stdout) prints XML with every bin, mallinfo2() returns the totals as a struct ( mallinfo(3) ).",
+  "label": "depth",
+  "key": "mallinfo2()",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "From Python, ctypes.CDLL(\"libc.so.6\").malloc_stats() works in any process; gdb -p <pid> -batch -ex 'call (void)malloc_stats()' works in one you did not write. malloc_trim. malloc_trim(0) ( malloc_trim(3) ) does more than its name says: it consolidates every arena and then calls madvise(MADV_DONTNEED) on every whole free page inside free chunks anywhere in the heap, not just at the top ( mtrim , lines 5035 to 5089).",
+  "label": "core",
+  "key": "mtrim",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "The kernel drops those pages from RSS while the addresses stay valid.",
+  "label": "core",
+  "key": "while the addresses stay valid",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "3. inside glibc's malloc: chunks, bins, the heap's top, and two thresholds",
+  "text": "Section 5 measures what that recovers, and what it cannot.",
+  "label": "core",
+  "key": "Section 5 measures what that recovers",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "Arenas: one heap per group of threads ch.",
+  "label": "core",
+  "key": "Arenas: one heap per group of threads",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "28 Locks (why a shared heap needs one) The problem.",
+  "label": "core",
+  "key": "why a shared heap needs one",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "One heap shared by every thread needs a lock around every malloc and free, and a training process has many threads: PyTorch's intra-op pool, the DataLoader's pin-memory thread, the main thread, sometimes a gRPC or logging thread. glibc's answer is several arenas , each a separate heap with its own lock and bins.",
+  "label": "core",
+  "key": "pin-memory thread",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "A thread sticks to the arena it last used; if that arena's lock is taken it moves to a free one, and while there are fewer arenas than the limit it creates a new one ( arena_get2 , arena.c line 924).",
+  "label": "core",
+  "key": "arena_get2",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "The limit is 8 per CPU on 64-bit ( NARENAS_FROM_NCORES , malloc.c line 1935), so 40 on this 5-CPU VM and 1,024 on a 128-core training host, unless MALLOC_ARENA_MAX says otherwise.",
+  "label": "core",
+  "key": "NARENAS_FROM_NCORES",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "Every thread arena reserves a 64 MiB heap ( HEAP_MAX_SIZE , arena.c line 31) and commits pages as it grows: the root's section 5 saw exactly these, 132 KiB used and 65,404 KiB reserved, appear when the DataLoader started.",
+  "label": "core",
+  "key": "65,404",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "Each arena keeps its own free chunks, and a chunk freed by another thread goes back to the arena it came from, so memory freed in one arena cannot serve a request in another.",
+  "label": "core",
+  "key": "A chunk freed by another thread goes back to the arena it came from",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "With many threads each holding some free memory, the total held grows with the number of arenas.",
+  "label": "core",
+  "key": "grows with the number of arenas",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "That is the documented reason behind the common MALLOC_ARENA_MAX=2 advice for multi-threaded servers.",
+  "label": "core",
+  "key": "MALLOC_ARENA_MAX=2",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "Eight producer threads allocate buffers of random size (64 B to 64 KiB) and hand them to one consumer thread that frees them, at most 4,096 in flight: the shape of a data pipeline.",
+  "label": "core",
+  "key": "at most 4,096 in flight",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "Three runs each on 2 CPUs (median shown): measured here src/exp/arenas.c , 2,000,000 buffers.",
+  "label": "core",
+  "key": "2,000,000 buffers",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "Bars are peak RSS; end RSS (everything freed) and time are in the labels. glibc used 10 arenas by default (main, eight producers, the consumer), counted from malloc_stats() .",
+  "label": "core",
+  "key": "main, eight producers, the consumer",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "What this run says, and does not.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "With one arena glibc held the least at peak ( 136.4 MiB against 220.8 ) but took 9.37 s instead of 5.88 : the lock was the bottleneck it was designed away.",
+  "label": "core",
+  "key": "136.4",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "And glibc gave almost everything back when the work ended ( 2.3 MiB), while jemalloc, tcmalloc and mimalloc still held about 125 to 235 MiB at that moment, because they return memory on a timer or a rate rather than at once (section 6).",
+  "label": "core",
+  "key": "125 to 235 MiB",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "Arena bloat is real in long-running servers with many threads and long-lived objects mixed with short-lived ones; this workload frees everything it allocates, so it does not show it.",
+  "label": "core",
+  "key": "arena bloat",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. arenas: one heap per group of threads",
+  "text": "The lesson is the method: measure peak and steady RSS and time for your own pattern before setting a knob.",
+  "label": "core",
+  "key": "the lesson is the method",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "17 Test 1: free 98% of a heap.",
+  "label": "core",
+  "key": "Test 1: free 98% of a heap",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "400,000 blocks of 256 bytes (272-byte chunks, 100,000 KiB of data) are allocated and touched; then all but every 64th are freed, leaving 1,562 KiB live, spread evenly over the whole heap. measured here src/exp/frag.c , 1 CPU.",
+  "label": "core",
+  "key": "100,000 KiB of data",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "Each allocator: RSS after the frees, then after malloc_trim(0) (glibc only; the others do not provide it), then after freeing the rest and waiting 3 s.",
+  "label": "core",
+  "key": "glibc only; the others do not provide it",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "The \"purging\" rows: jemalloc with MALLOC_CONF=background_thread:true,dirty_decay_ms:1000,muzzy_decay_ms:0 , tcmalloc with TCMALLOC_RELEASE_RATE=10 , mimalloc with MIMALLOC_PAGE_RESET=1 MIMALLOC_RESET_DELAY=0 (option names of these versions).",
+  "label": "core",
+  "key": "dirty_decay_ms:1000",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "Read it in three steps.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "(1) Every allocator keeps about 105 to 110 MiB resident for 1.6 MB of live data: freed memory stays in the process.",
+  "label": "core",
+  "key": "105 to 110 MiB resident for 1.6 MB",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "(2) glibc's malloc_trim(0) returns the whole free pages in the middle of the heap, down to 29,404 KiB, but not further: the 6,250 survivors sit one every 17,408 bytes (64 × 272), so every gap still has a partly used page at each end.",
+  "label": "core",
+  "key": "17,408",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "Those pinned pages are about 24 MiB (29,404 minus the 4,436 KiB the process holds once everything is freed): a few bytes of live data pin a whole 4 KiB page.",
+  "label": "core",
+  "key": "about 24 MiB of pinned pages",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "The same test with jemalloc keeps all 107 MiB even with purging on, because its 256-byte objects live in slabs that each still hold one survivor: purging can only return pages with nothing live on them.",
+  "label": "core",
+  "key": "each of its 256-byte slabs still holds one survivor",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "(3) Once everything is freed, glibc is back near its start at once ( 4,436 KiB: the top was trimmed).",
+  "label": "core",
+  "key": "the top was trimmed",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "The others keep about 105 to 110 MiB by default, and give it back only when told to: jemalloc with its background purging thread ( 9,624 KiB 3 s later), mimalloc with MIMALLOC_PAGE_RESET=1 ( 4,828 KiB); this tcmalloc kept everything even with TCMALLOC_RELEASE_RATE=10 in the 3 s window.",
+  "label": "core",
+  "key": "9,624",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "Predict: a process allocated 2 GB of small objects, then freed all but 1% of them, scattered.",
+  "label": "core",
+  "key": "freed all but 1% of them",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "RSS stays near 2 GB.",
+  "label": "core",
+  "key": "RSS stays near 2 GB",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "Will malloc_trim(0) bring it near 20 MB? yes, trim returns all free memory no, it can only return whole pages with nothing live on them no, trim only shrinks the top of the heap It returns every whole free page, anywhere in the heap (glibc's mtrim calls MADV_DONTNEED inside free chunks, not only at the top), but a page holding even one live chunk stays.",
+  "label": "core",
+  "key": "bring it near 20 MB",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "With 1% of objects alive and spread out, many pages still hold one: here 1.5% live left RSS at 27% of its peak after the trim.",
+  "label": "core",
+  "key": "27% of its peak",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "The real fix is to not interleave long-lived and short-lived objects in the same memory (separate arenas or pools, or allocate the long-lived ones first), or to restart worker processes periodically.",
+  "label": "core",
+  "key": "not interleave long-lived and short-lived objects",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "Test 2: long-run growth in a data loader.",
+  "label": "core",
+  "key": "long-run growth in a data loader",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "Four threads \"decode\" 120,000 samples into NumPy arrays of 64 KiB to 8 MiB (log-uniform, fixed seed); a prefetch window keeps the last 8 arrays; and for every sample the loader also keeps a 600-byte record forever (per-sample metadata, a cache entry, a log line), so live memory grows by a known 600 bytes a sample, 68.7 MiB in total.",
+  "label": "core",
+  "key": "600-byte record",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "The question is how much RSS each allocator holds on top of that.",
+  "label": "core",
+  "key": "how much RSS each allocator holds on top of that",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "RSS over the run RSS and time at the end measured here src/exp/loader_growth.py , 4 threads on 2 CPUs, 3 runs per configuration (the curve is run 1; the end figures are medians).",
+  "label": "core",
+  "key": "loader_growth.py",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "RSS is sampled every 250 samples; the dashed line is live data (window plus kept records).",
+  "label": "core",
+  "key": "every 250 samples",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "What it shows: glibc's default holds about 211.1 MiB at the end against 68.7 MiB live.",
+  "label": "core",
+  "key": "211.1",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "The arrays straddle the mmap threshold, the dynamic threshold soon moves them onto the heap (section 3), and the small records made right after each array land between them and pin the heap.",
+  "label": "core",
+  "key": "land between them and pin it",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "Pinning the threshold ( MALLOC_MMAP_THRESHOLD_=131072 ) keeps every array in its own mmap and holds the least, 106.5 MiB, but every array then costs an mmap, a munmap and a page fault per page: 42.83 s against 10.43 s. jemalloc holds less than glibc here ( 148.4 MiB), tcmalloc and mimalloc more but finish fastest.",
+  "label": "core",
+  "key": "42.83",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "5. fragmentation, measured",
+  "text": "No setting wins both columns.",
+  "label": "core",
+  "key": "wins both memory and time",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs ch.",
+  "label": "core",
+  "key": "the same job, other designs",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "17 (segregated lists), beyond OSTEP All three replace glibc's one-heap-with-bins design by size classes in their own runs of pages : every object of a given class lives in a block of memory that holds only that class, so finding a free object is a pop from a short list and fragmentation is bounded per class.",
+  "label": "core",
+  "key": "size classes in their own runs of pages",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "They differ in how threads are kept apart and in when memory goes back to the kernel. jemalloc tcmalloc mimalloc Origin Jason Evans, FreeBSD's libc (2005), then Meta Google; the gperftools version (here) and a newer one in Google's tcmalloc repository Microsoft Research, Leijen, Zorn, de Moura (2019) Small objects size classes in slabs; a per-thread cache (tcache) in front size classes in spans; a per-thread cache (gperftools) or a per-CPU cache using restartable sequences (newer tcmalloc) in front of central free lists size classes in 64 KiB \"pages\"; each page has its own free lists (\"free list sharding\"): one for the owning thread, one for frees from other threads Threads several arenas, 4 per CPU by default, threads spread over them caches per thread or per CPU, shared central lists and page heap a heap per thread; cross-thread frees go onto the page's thread-free list with one atomic operation Gives memory back \"decay\": dirty pages purged over dirty_decay_ms (10 s default), only on allocator activity unless background_thread:true gradually, at TCMALLOC_RELEASE_RATE (default 1); MallocExtension::ReleaseFreeMemory() forces it after a delay (option names differ by version) Sources jemalloc(3) gperftools tcmalloc , tcmalloc design mimalloc tech report , repository Switching needs no code change. malloc is resolved by the dynamic linker, so preloading another library replaces it for the whole process: LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2 python train.py (the path differs per distribution and architecture; here it is under aarch64-linux-gnu ).",
+  "label": "core",
+  "key": "free list sharding",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "PyTorch's performance tuning guide recommends exactly this for CPU workloads (\"Jemalloc or TCMalloc can get better performance by reusing memory as much as possible\").",
+  "label": "core",
+  "key": "reusing memory as much as possible",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "Check it took: grep -c jemalloc /proc/<pid>/maps is nonzero.",
+  "label": "core",
+  "key": "grep -c jemalloc",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "Child processes inherit the environment, so DataLoader workers get it too.",
+  "label": "core",
+  "key": "inherit the environment",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "Three caveats: memory allocated by one allocator must be freed by the same one (preloading guarantees that; loading an allocator later with dlopen does not); a library with its own allocator built in is unaffected (section 8: this wheel's tensors); and container images often lack the library, so a missing path silently does nothing but print a loader warning.",
+  "label": "core",
+  "key": "Three caveats",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "Cost of one malloc and free, measured.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, now the figure title"
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "Nanoseconds per pair, one thread, best of 5 runs: measured here src/exp/bench.c . \"Pairs\": malloc, touch one byte, free, repeated, the allocator's fast path. \"Batch\": 1,000 mallocs then 1,000 frees.",
+  "label": "core",
+  "key": "best of 5 runs",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "Two-thread figures are in src/raw/bench.txt .",
+  "label": "core",
+  "key": "bench.txt",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "Microbenchmarks flatter the fast paths; real code mixes sizes and threads.",
+  "label": "core",
+  "key": "Microbenchmarks flatter the fast paths",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "Read across a row, not down: each allocator has a size where it falls off a cliff. glibc's is the 4 KiB batch (the trim churn of section 3); jemalloc's and mimalloc's are the large sizes, which they hand to the kernel with their own mappings (mimalloc's 1 MiB pair costs 789.3 ns); tcmalloc's fast path is the quickest at every small size ( 5.4 ns).",
+  "label": "core",
+  "key": "789.3",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "The running job under four allocators.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "The root's job, 40 steps with two DataLoader workers, three runs each: measured here src/exp/job_alloc.sh and job_wrap.py : peak and final RSS of the main process from /proc/self/status , wall time from start to exit (including import torch ).",
+  "label": "core",
+  "key": "job_alloc.sh",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "The differences are a few MiB and within the run-to-run spread of time.",
+  "label": "core",
+  "key": "within the run-to-run spread",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "That is the honest result for this job: most of its memory is the PyTorch and NumPy libraries themselves and the tensors, and on this arm64 wheel the tensors do not go through malloc at all (section 8), so swapping malloc changes only the Python and NumPy side.",
+  "label": "core",
+  "key": "on this arm64 wheel tensors do not go through",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "6. jemalloc, tcmalloc, mimalloc: the same job, other designs",
+  "text": "Allocator choice matters for processes that allocate and free a lot of native memory from many threads for a long time: data loading with decoding, tokenization services, inference servers, and CPU training on x86-64, where tensors do use malloc .",
+  "label": "core",
+  "key": "tokenization services",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "Python's own layer: pymalloc, free lists, and memory that does not come back ch.",
+  "label": "core",
+  "key": "Python's own layer",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "17 (segregated lists, again) Why Python has its own allocator.",
+  "label": "core",
+  "key": "Why Python has its own allocator",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "A Python program creates and destroys small objects constantly: every integer result, every tuple, every frame.",
+  "label": "core",
+  "key": "every integer result, every tuple, every frame",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "CPython routes requests of 512 bytes or less to pymalloc : \"a pymalloc allocator optimized for small objects (smaller or equal to 512 bytes) with a short lifetime.",
+  "label": "core",
+  "key": "optimized for small objects",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "It uses memory mappings called arenas with a fixed size of either 256 KiB on 32-bit platforms or 1 MiB on 64-bit platforms\" ( Python 3.11 memory management ).",
+  "label": "core",
+  "key": "256 KiB on 32-bit platforms",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "Larger requests go to malloc .",
+  "label": "core",
+  "key": "Larger requests go to",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "Three levels ( Objects/obmalloc.c at v3.11.2 ): arenas of 1 MiB got with mmap (ARENA_BITS 20, line 958; _PyObject_ArenaMmap , line 149), cut into pools of 16 KiB (POOL_BITS 14, line 973), each pool serving one size class in steps of 16 bytes (ALIGNMENT 16, line 879) up to 512 (SMALL_REQUEST_THRESHOLD, line 904).",
+  "label": "core",
+  "key": "SMALL_REQUEST_THRESHOLD",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "A 1-element tuple (48 bytes) and an int (28 bytes, class 32) come from different pools.",
+  "label": "core",
+  "key": "28 bytes, class 32",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "Pymalloc returns an arena to the kernel only when every object in all 64 of its pools is dead.",
+  "label": "core",
+  "key": "all 64 pools is dead",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "On top of that, several types keep free lists of recently freed objects for instant reuse, and small integers from -5 to 256 are preallocated once.",
+  "label": "core",
+  "key": "from -5 to 256",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "Measured : 2,000,000 one-element tuples of fresh ints (about 160 MB of objects), then keep every 1,000th and drop the rest, then drop those too. measured here src/exp/pymalloc_demo.py , run as is and with PYTHONMALLOC=malloc (which sends every object to glibc).",
+  "label": "core",
+  "key": "keep every 1,000th",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "Arena counts from sys._debugmallocstats() .",
+  "label": "core",
+  "key": "_debugmallocstats()",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "With 2,000 survivors (0.1% of the objects) pymalloc still held all 158 arenas, 163.1 MiB: one live object pins its pool and therefore its arena, the Python version of section 5's pinned pages.",
+  "label": "core",
+  "key": "163.1",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "This is why the memory of a long-running Python process rarely drops after del of a big structure if anything from it survives (a cached element, a reference in a log, an exception traceback).",
+  "label": "core",
+  "key": "rarely shrinks after",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "And when everything died, pymalloc gave its arenas back at once ( 12.3 MiB), while glibc kept 222.3 MiB until malloc_trim(0) ( 9.3 MiB): its freed chunks sat below a live chunk near the top of the heap, which blocks trimming.",
+  "label": "core",
+  "key": "222.3",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "Seeing it. tracemalloc records the Python line that allocated every block still alive: tracemalloc.start(25) , then tracemalloc.take_snapshot().statistics(\"lineno\")[:10] , or compare two snapshots with snapshot2.compare_to(snapshot1, \"lineno\") to find what grows between two points of a training loop ( tracemalloc ).",
+  "label": "core",
+  "key": "tracemalloc.start(25)",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "It sees only memory allocated through Python's allocators, which includes NumPy array data (NumPy reports it to tracemalloc) but not memory allocated inside other C libraries.",
+  "label": "core",
+  "key": "NumPy reports it",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "For those, compare RSS with what tracemalloc reports: the gap is native memory or allocator overhead.",
+  "label": "core",
+  "key": "native memory: a C library, or allocator overhead",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "Python objects matter most in DataLoader workers: a dataset held as millions of Python objects (lists of strings, dicts of ints) is touched by reference counting on every access, which copies the shared pages after fork into every worker.",
+  "label": "core",
+  "key": "touched by reference counting on every access",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "The root measured 7,880 copied pages for 1M Python ints against 38 to 67 for a NumPy array of the same data, and the virtual memory page owns copy-on-write in depth.",
+  "label": "core",
+  "key": "7,880",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "7. python's own layer: pymalloc, free lists, and memory that does not come back",
+  "text": "The fix is the same one: keep large datasets in NumPy arrays, Arrow buffers or memory-mapped files, not in Python objects.",
+  "label": "core",
+  "key": "Arrow buffers",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "NumPy and PyTorch on the CPU: who calls whom NumPy allocates array data with malloc , plus two tricks ( numpy/_core/src/multiarray/alloc.c at v2.4.6 ): a small cache of freed buffers under 1,024 bytes, 7 per size (NBUCKETS and NCACHE, lines 45 to 47), and, for arrays of 4 MiB or more on Linux, madvise(MADV_HUGEPAGE) on the data ( indicate_hugepages , lines 99 to 112), so with THP in \"madvise\" mode large arrays may get 2 MiB pages.",
+  "label": "core",
+  "key": "indicate_hugepages",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "PyTorch's CPU tensors go through c10::alloc_cpu ( c10/core/impl/alloc_cpu.cpp at v2.14.1 ).",
+  "label": "core",
+  "key": "c10::alloc_cpu",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "Which allocator that is depends on the build: mi_malloc_aligned when PyTorch is built with mimalloc (lines 111 to 117), which its CMakeLists turns on \"on Windows and AArch64\" Linux (lines 451 to 468 of CMakeLists.txt ); otherwise posix_memalign from glibc (line 126) with 64-byte alignment, \"enough for computation up to AVX512\" (c10/core/alignment.h, line 15).",
+  "label": "core",
+  "key": "mi_malloc_aligned",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "On Linux, THP_MEM_ALLOC_ENABLE=1 makes buffers of 2 MiB or more page-aligned and madvised for huge pages (lines 58 to 70 and 136 to 147).",
+  "label": "core",
+  "key": "THP_MEM_ALLOC_ENABLE=1",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "So the same Python code allocates tensors with glibc on an x86-64 Linux box and with mimalloc on a Graviton or Grace host, and LD_PRELOAD=libjemalloc.so changes tensor allocation only on the first.",
+  "label": "core",
+  "key": "Graviton or Grace",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "The root's 1 GiB reservation, explained.",
+  "label": "core",
+  "key": "The root's 1 GiB reservation, explained",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "Traced here, the first CPU tensor in a process makes mimalloc reserve 1 GiB of address space and mark it for huge pages: measured here strace -s 200 -e trace=mmap,munmap,madvise,brk,write python src/exp/torch_cpu.py ; each marker prints RSS before the action; thread-stack mmaps from the first multi-threaded fill are cut.",
+  "label": "depth",
+  "key": "trace=mmap,munmap,madvise,brk,write",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "The root's gdb stack (its src/trace/raw/hugepage_stack.txt ) shows the caller is mimalloc inside libc10.so .",
+  "label": "depth",
+  "key": "hugepage_stack.txt",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "The source agrees: the vendored mimalloc ( commit 30ac9d5, version 2.4.1 ) reserves arenas \"N KiB at a time (=1GiB)\" ( MI_DEFAULT_ARENA_RESERVE , src/options.c lines 69 to 75 and 152), with MAP_NORESERVE , and calls madvise(MADV_HUGEPAGE) on it (src/prim/unix/prim.c lines 391 to 400).",
+  "label": "depth",
+  "key": "MI_DEFAULT_ARENA_RESERVE",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "It costs nothing until touched (overcommit; the virtual memory page ).",
+  "label": "core",
+  "key": "costs nothing until touched",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "Then: a 64 MiB tensor made no system call at all, it was carved from the reservation and its pages faulted in on first touch (RSS 228.1 to 294.1 MiB), and after del RSS stayed at 294.1 MiB to the end: mimalloc keeps freed memory for reuse.",
+  "label": "core",
+  "key": "made no system call at all",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "NumPy's 64 MiB array, by contrast, took its own mmap (above glibc's threshold), got its huge-page hint, and went back with munmap on del .",
+  "label": "core",
+  "key": "got its huge-page hint",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "Pinned host memory from source; not run here . pin_memory() and DataLoader(pin_memory=True) allocate page-locked host memory through PyTorch's CachingHostAllocator, which calls cudaHostAlloc ( CachingHostAllocator.cpp line 77 at v2.14.1 ), caches freed blocks like its GPU counterpart, and rounds each request up to the next power of two \"to improve reuse\" ( CachingHostAllocator.h lines 339 to 347 ; no upper limit on the rounding by default, pinned_max_round_threshold in AllocatorConfig.h line 360).",
+  "label": "core",
+  "key": "pinned_max_round_threshold",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "A 600 MB pinned buffer therefore takes 1 GiB of locked RAM, which the kernel can never swap or reclaim.",
+  "label": "core",
+  "key": "A 600 MB pinned buffer therefore takes 1 GiB",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "8. numpy and pytorch on the cpu: who calls whom",
+  "text": "Why pinning exists and what it costs the kernel belongs to the virtual memory page .",
+  "label": "core",
+  "key": "Why pinning exists",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "PyTorch's CUDA caching allocator, and \"out of memory\" with memory free ch.",
+  "label": "core",
+  "key": "out of memory\" with memory free",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "17 again, one level up from source and docs; not run here: no GPU Line numbers are c10/cuda/CUDACachingAllocator.cpp at v2.14.1 unless named; constants are in c10/core/AllocatorConfig.h .",
+  "label": "core",
+  "key": "AllocatorConfig.h",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Zach DeVito's guide to the caching allocator is the best walkthrough by one of its authors.",
+  "label": "core",
+  "key": "Zach DeVito",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "GPU memory comes from the CUDA driver, and asking it is slow; PyTorch's notes give the reason for caching: \"This allows fast memory deallocation without device synchronizations\" ( CUDA semantics, memory management ).",
+  "label": "core",
+  "key": "without device synchronizations",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "A training step allocates and frees hundreds of tensors, so PyTorch keeps every freed block and reuses it, which is the same idea as glibc's bins, with the GPU's own constraints.",
+  "label": "core",
+  "key": "glibc's bins again",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "The docs warn about the visible consequence: \"the unused memory managed by the allocator will still show as if used in nvidia-smi \".",
+  "label": "core",
+  "key": "will still show as if used in",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "The rules , from the comment at the top of the file (lines 93 to 122) and the code: Rounding.",
+  "label": "core",
+  "key": "lines 93 to 122",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Every request is rounded up to a multiple of 512 bytes ( round_size , lines 3060 to 3072; kMinBlockSize 512).",
+  "label": "depth",
+  "key": "kMinBlockSize 512",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "With roundup_power2_divisions:N large requests are instead rounded to one of N steps between powers of two (lines 3036 to 3058), which makes sizes repeat and blocks reusable.",
+  "label": "depth",
+  "key": "lines 3036 to 3058",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Requests up to 1 MiB (kSmallSize) go to the small pool, packed into 2 MiB segments (kSmallBuffer); larger ones to the large pool ( get_pool , lines 3640 to 3667).",
+  "label": "depth",
+  "key": "kSmallBuffer",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "When nothing cached fits, a new segment comes from cudaMalloc : 2 MiB for small requests, 20 MiB for requests from 1 to 10 MiB (so several share one), and the request rounded up to 2 MiB above that ( get_allocation_size , lines 3695 to 3703).",
+  "label": "depth",
+  "key": "get_allocation_size",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "The free blocks of a pool are kept sorted by stream, size, segment age and address; a request takes the smallest one that fits ( get_free_block , lines 3705 to 3762).",
+  "label": "depth",
+  "key": "get_free_block",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "If the chosen block is bigger, the front is handed out and the rest stays cached, in the small pool if at least 512 bytes remain, in the large pool only if more than 1 MiB remains ( should_split , lines 3675 to 3693).",
+  "label": "depth",
+  "key": "should_split",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Freeing never calls the driver: the block goes back to its pool and merges with free neighbours in the same segment ( free_block and try_merge_blocks , lines 3502 to 3612).",
+  "label": "depth",
+  "key": "try_merge_blocks",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "A block is tied to the stream it was allocated on; using it on another stream needs tensor.record_stream(s) , or it may be reused too early.",
+  "label": "depth",
+  "key": "record_stream(s)",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Out of memory: the retry chain.",
+  "label": "depth",
+  "key": "the retry chain",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "If cudaMalloc fails, the allocator frees cached blocks and tries again: first just enough oversize blocks (only when max_split_size_mb is set), then every cached segment that is not split, then raises ( malloc , lines 1720 to 1792).",
+  "label": "depth",
+  "key": "lines 1720 to 1792",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "A segment with even one live block cannot be returned.",
+  "label": "core",
+  "key": "A segment with even one live block cannot be returned",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Segments are created at the sizes of the first requests that needed them.",
+  "label": "core",
+  "key": "sized by the first requests",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "When later requests are a little bigger (batch 9 after batch 8, a longer sequence), they do not fit the free holes, new segments are made, and the leftover slivers at the ends of old segments are stranded inside segments that still hold something live.",
+  "label": "core",
+  "key": "batch 9 after batch 8",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Eventually cudaMalloc fails with hundreds of megabytes free in total.",
+  "label": "core",
+  "key": "hundreds of megabytes free in total",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "The error message says so in its own words (lines 1927 to 1953): torch.OutOfMemoryError: CUDA out of memory.",
+  "label": "core",
+  "key": "lines 1927 to 1953",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Tried to allocate <segment size>.",
+  "label": "core",
+  "key": "Tried to allocate",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "GPU 0 has a total capacity of <total> of which <free> is free. ...",
+  "label": "core",
+  "key": "has a total capacity of",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Of the allocated memory <a> is allocated by PyTorch, and <r> is reserved by PyTorch but unallocated.",
+  "label": "core",
+  "key": "is reserved by PyTorch but unallocated",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation. \"Tried to allocate\" reports the segment size the allocator asked the driver for ( alloc_size ), so a 3 MiB tensor can fail as \"Tried to allocate 20.00 MiB\". \"Reserved but unallocated\" is the fragmentation: cached memory no request fit.",
+  "label": "core",
+  "key": "Tried to allocate 20.00 MiB",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "The fix: expandable segments.",
+  "label": "core",
+  "key": "The fix: expandable segments",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "The file's Note [Expandable Segments] (lines 311 to 401) tells the batch-size story and the cure: \"Instead of making one segment per allocation, it tries to make one segment (per stream) that grows as necessary\".",
+  "label": "core",
+  "key": "lines 311 to 401",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "It reserves a range of GPU virtual addresses as large as the device memory ( cuMemAddressReserve ) and maps physical memory into it in pages, 2 MiB for the small pool and 20 MiB for the large one, with cuMemCreate and cuMemMap , so new memory lands right after the old and free space at the end of the segment joins with what is mapped next.",
+  "label": "core",
+  "key": "cuMemAddressReserve",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Virtual memory (the virtual memory page ), applied by a user-space allocator to the GPU.",
+  "label": "core",
+  "key": "applied by a user-space allocator to the GPU",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "The limits the note lists: slightly slower first allocations, and no CUDA IPC of such memory (sharing GPU tensors between processes).",
+  "label": "core",
+  "key": "no CUDA IPC",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Below, one request stream (a toy training loop whose batch goes 8, 9, 10, 8, 10 on a 2,560 MiB device; the peak of live tensors is 2,400 MiB) through the default allocator and through expandable_segments:True , by the model of the source the Caching allocator tab runs: Illustrative sizes; the allocator's rules are the source's, simplified to one stream (the tab lists every simplification).",
+  "label": "core",
+  "key": "8, 9, 10, 8, 10",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "The model is checked step by step against a Python reference written from the source.",
+  "label": "core",
+  "key": "checked against it step by step",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Every knob, and what to look at PYTORCH_ALLOC_CONF option Does Use when expandable_segments:True one growing segment per stream and pool, mapped in pages \"reserved but unallocated\" is large; varying batch or sequence sizes.",
+  "label": "core",
+  "key": "one growing segment per stream and pool",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "The first thing to try max_split_size_mb:N blocks of N MiB or more are never split, and are released first on OOM the older fix for big fragmenting tensors; helps when large and medium requests mix roundup_power2_divisions:N rounds large sizes to N steps per power of two many slightly different sizes garbage_collection_threshold:0.8 with a memory fraction set, frees old cached blocks once usage passes the fraction, before an OOM avoiding the full release at OOM time large_segment_size_mb , max_non_split_rounding_mb the 20 MiB segment size, and how much bigger an unsplit block may be than the request rarely Option names from c10/core/AllocatorConfig.cpp lines 17 to 24 ; PYTORCH_ALLOC_CONF is the current variable and PYTORCH_CUDA_ALLOC_CONF is still read (lines 46 to 52).",
+  "label": "core",
+  "key": "max_non_split_rounding_mb",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Descriptions follow the CUDA notes .",
+  "label": "core",
+  "key": "Descriptions follow",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "What to look at. torch.cuda.memory_allocated() (live tensors) against torch.cuda.memory_reserved() (what the cache holds); torch.cuda.memory_stats()[\"inactive_split_bytes.all.current\"] , the free space stranded in split segments, the fragmentation number; torch.cuda.memory_summary() for all of it in a table.",
+  "label": "core",
+  "key": "inactive_split_bytes.all.current",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "For the full story, record a snapshot: torch.cuda.memory._record_memory_history(max_entries=100000) , run a few steps, torch.cuda.memory._dump_snapshot(\"snap.pickle\") , and drop the file on pytorch.org/memory_viz , which draws every segment and block over time with the Python stack that allocated it ( Understanding CUDA memory usage ). torch.cuda.empty_cache() returns cached, unused segments to the driver: useful when another process needs the GPU, useless against fragmentation, and slower afterwards because the cache must refill.",
+  "label": "core",
+  "key": "_dump_snapshot(\"snap.pickle\")",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "Every process has its own cache: two processes on one GPU (a trainer and an evaluator) each hold reserved memory the other cannot use.",
+  "label": "core",
+  "key": "Every process has its own cache",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "9. pytorch's cuda caching allocator, and \"out of memory\" with memory free",
+  "text": "And CUDA graphs capture fixed addresses, so captured work allocates from a private pool kept until the graph is destroyed (the Note at lines 126 to 156).",
+  "label": "core",
+  "key": "lines 126 to 156",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "10. playbook: memory that grows, and choosing an allocator",
+  "text": "Playbook: memory that grows, and choosing an allocator \"RSS keeps growing\" in a training or data process: find which layer first.",
+  "label": "core",
+  "key": "Find which layer first",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "10. playbook: memory that grows, and choosing an allocator",
+  "text": "Look at If it says Then it is Fix tracemalloc snapshots, compared over steps one Python line's total grows a real leak in Python objects (a list of losses kept as tensors with their graphs, a cache with no bound) keep loss.item() , bound the cache RSS against tracemalloc's total RSS grows, tracemalloc flat native memory: a C library, or allocator overhead next row malloc_stats() or malloc_info() in the process (ctypes or gdb) large \"system bytes\" with small \"in use\", many arenas glibc holding freed memory (sections 4, 5) malloc_trim(0) as a test, then MALLOC_ARENA_MAX=2 , a pinned mmap threshold, or jemalloc with background_thread:true ; measure each /proc/<pid>/smaps_rollup of each DataLoader worker: Pss, Private_Dirty workers' private memory grows over the first epoch copy-on-write of a Python-object dataset, not the allocator NumPy or Arrow storage ( virtual memory page ) torch.cuda.memory_stats() reserved far above allocated, OOM with memory free caching-allocator fragmentation (section 9) expandable_segments:True , then max_split_size_mb the container's memory.current against your processes' RSS the cgroup's total far above RSS page cache or /dev/shm counted against the limit the root's Debug lab cases Choosing an allocator for a training host.",
+  "label": "core",
+  "key": "smaps_rollup",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "10. playbook: memory that grows, and choosing an allocator",
+  "text": "The measurements above give the rule: start with the defaults, find out whether allocation is a problem at all (the running job did not care), and change one thing at a time with peak RSS, steady RSS and step time recorded.",
+  "label": "core",
+  "key": "change one thing at a time",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "10. playbook: memory that grows, and choosing an allocator",
+  "text": "When a change is needed: jemalloc is the common choice for long-running multi-threaded data and serving processes whose RSS drifts (enable its background thread, or it may never give memory back); tcmalloc for the fastest small-object paths; glibc with MALLOC_ARENA_MAX=2 when you cannot ship a library.",
+  "label": "core",
+  "key": "enable its background thread",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "10. playbook: memory that grows, and choosing an allocator",
+  "text": "On x86-64 CPU training, PyTorch's tuning guide suggests jemalloc or tcmalloc via LD_PRELOAD ; on arm64 the tensors already use mimalloc.",
+  "label": "core",
+  "key": "on arm64 the tensors already use mimalloc",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "10. playbook: memory that grows, and choosing an allocator",
+  "text": "Remember that a container's memory limit counts RSS: memory an allocator keeps \"for reuse\" is memory the OOM killer counts.",
+  "label": "core",
+  "key": "memory the OOM killer counts",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "10. playbook: memory that grows, and choosing an allocator",
+  "text": "Common mistakes \"I deleted the big object, so memory should drop.\" Freed memory usually stays in the allocator (glibc keeps anything below the heap's top, pymalloc keeps arenas with one survivor, jemalloc waits for decay, PyTorch's caches keep everything).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake restating the core sentence and section 5"
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "10. playbook: memory that grows, and choosing an allocator",
+  "text": "RSS measures what the process holds, not what it uses.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the core sentence"
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "10. playbook: memory that grows, and choosing an allocator",
+  "text": "Measured: 1.6 MB live in 110 MB of RSS. \"nvidia-smi says the GPU is full, so my model needs that much.\" nvidia-smi shows what the caching allocator reserved plus the CUDA context.",
+  "label": "core",
+  "key": "plus the CUDA context",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "10. playbook: memory that grows, and choosing an allocator",
+  "text": "Compare torch.cuda.memory_allocated() with memory_reserved() . \"torch.cuda.empty_cache() in the training loop prevents OOM.\" It returns only unused, unsplit segments; it cannot fix fragmentation inside segments that still hold live tensors, and it makes the next step pay for cudaMalloc again.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake restating section 9 (empty_cache, memory_allocated against memory_reserved)"
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "10. playbook: memory that grows, and choosing an allocator",
+  "text": "Use it when handing the GPU to another process. \"MALLOC_ARENA_MAX=2 is always good.\" It trades memory for lock contention: one arena cut peak RSS by 38% here but made the run 59% slower (section 4: 136.4 against 220.8 MiB, 9.37 against 5.88 s). \"LD_PRELOAD=libjemalloc.so changed nothing, so allocation is not the problem.\" Check the library loaded ( grep jemalloc /proc/<pid>/maps ) and whether the memory goes through malloc at all: tensors on an arm64 PyTorch wheel use mimalloc inside libc10, GPU memory uses the caching allocator.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake restating section 4's numbers (38% and 59% follow from 136.4 against 220.8 MiB and 9.37 against 5.88 s)"
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Interview questions Why doesn't free() return memory to the operating system?",
+  "label": "depth",
+  "key": "Why doesn't free() return memory to the operating system?",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The kernel works in pages and only gives memory back by unmapping or advising whole pages.",
+  "label": "depth",
+  "key": "only gives memory back by unmapping or advising whole pages",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A freed chunk is usually a small piece of a page that also holds live chunks, or sits below other live chunks in the heap, which can only shrink from its top.",
+  "label": "depth",
+  "key": "sits below other live chunks in the heap",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Allocators keep freed memory to serve the next request without a system call. glibc returns big blocks (above the mmap threshold) at once, trims the top of the heap past the trim threshold, and malloc_trim releases whole free pages anywhere; others return memory after a delay.",
+  "label": "depth",
+  "key": "Allocators keep freed memory to serve the next request",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Internal against external fragmentation, with an example of each.",
+  "label": "depth",
+  "key": "Internal against external fragmentation, with an example of each",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Internal: waste inside handed-out blocks, such as glibc's 32-byte chunk for a 1-byte request, a buddy allocator giving 16 pages for 9, PyTorch rounding to 512 bytes or a pinned buffer to a power of two.",
+  "label": "depth",
+  "key": "a buddy allocator giving 16 pages for 9",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "External: free memory in pieces too small for the request, such as ten 10-byte blocks with every other one freed (50 free, none fits 15), or GPU segments with free slivers no new tensor fits.",
+  "label": "depth",
+  "key": "ten 10-byte blocks",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Compaction fixes external fragmentation only where blocks can move (garbage-collected runtimes); C allocators and PyTorch's cannot move them, so they prevent it with size classes, splitting rules and, on the GPU, virtual memory (expandable segments).",
+  "label": "depth",
+  "key": "Compaction fixes external fragmentation",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What does the CUDA OOM message's \"reserved but unallocated\" mean, and what do you do?",
+  "label": "depth",
+  "key": "OOM message's",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Memory the caching allocator holds in segments but no live tensor uses: after it already released every fully free segment, what remains is free space inside segments that still contain live blocks, so it is fragmentation.",
+  "label": "depth",
+  "key": "after it already released every fully free segment",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Try PYTORCH_ALLOC_CONF=expandable_segments:True ; check with a memory snapshot which allocations straddle; make sizes regular (pad or bucket sequence lengths, fixed batch sizes, roundup_power2_divisions ); then reduce the peak (activation checkpointing, smaller micro-batches).",
+  "label": "depth",
+  "key": "pad or bucket sequence lengths",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How does glibc decide between brk and mmap for a request, and why is the threshold dynamic?",
+  "label": "depth",
+  "key": "decide between brk and mmap",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Requests at or above M_MMAP_THRESHOLD (128 KiB to start) get their own mmap; smaller ones come from the heap.",
+  "label": "depth",
+  "key": "smaller ones come from the heap",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Freeing an mmapped chunk raises the threshold to that size (up to 32 MiB on 64-bit) and the trim threshold to twice it, on the guess that the program will allocate that size again and should not pay mmap, munmap and page faults every time.",
+  "label": "depth",
+  "key": "on the guess that the program will allocate that size again",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The cost is that later big blocks live in the heap and can stay resident; setting the threshold explicitly turns the adjustment off.",
+  "label": "depth",
+  "key": "later big blocks live in the heap",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why do multi-threaded programs on glibc sometimes use far more memory than single-threaded ones? glibc creates up to 8 arenas per CPU, each with its own free chunks; memory freed in one arena cannot serve requests in another, and a chunk freed by another thread returns to its own arena.",
+  "label": "depth",
+  "key": "sometimes use far more memory",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Free memory spread over many arenas adds up.",
+  "label": "depth",
+  "key": "Free memory spread over many arenas adds up",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "MALLOC_ARENA_MAX caps it at the cost of lock contention; jemalloc and mimalloc handle cross-thread frees differently (mimalloc with a per-page thread-free list).",
+  "label": "depth",
+  "key": "per-page thread-free list",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A Python service's memory never goes down after a large request.",
+  "label": "depth",
+  "key": "never goes down after a large request",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why, and how do you confirm?",
+  "label": "depth",
+  "key": "Why, and how do you confirm",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Likely pymalloc arenas pinned by a few surviving objects, or glibc chunks below a live chunk at the heap's top.",
+  "label": "depth",
+  "key": "Likely pymalloc arenas pinned",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Confirm: tracemalloc's current total is low while RSS is high; sys._debugmallocstats() shows many arenas with few used pools; malloc_trim(0) from ctypes drops RSS if it is glibc.",
+  "label": "depth",
+  "key": "shows many arenas with few used pools",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Fixes: avoid keeping references to per-request objects, move bulk data to arrays, or recycle worker processes.",
+  "label": "depth",
+  "key": "recycle worker processes",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "ostep chapter map for this page",
+  "text": "OSTEP chapter map for this page Chapter On this page Beyond the chapter here 13 Address Spaces the heap as a region of the address space (section 1) brk and mmap traced (section 3) 14 Interlude: Memory API malloc, free, calloc, realloc, common errors (section 2) chunk sizes measured; glibc's error messages 17 Free-Space Management headers, free lists, splitting, coalescing, policies, segregated lists, slab, buddy (section 1; Free-list lab ) glibc's bins, arenas, thresholds (3, 4); fragmentation measured (5); jemalloc, tcmalloc, mimalloc (6); pymalloc (7); the CUDA caching allocator (9) 21 and 22 Swapping why memory an allocator keeps still costs (RSS and limits) the virtual memory page 26 to 28 Concurrency and locks why arenas and thread caches exist (section 4) the concurrency page OSTEP: ch.",
+  "label": "depth",
+  "key": "13 Address Spaces",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "ostep chapter map for this page",
+  "text": "14 Memory API , ch.",
+  "label": "depth",
+  "key": "ch. 14 Memory API",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "ostep chapter map for this page",
+  "text": "17 Free-Space Management .",
+  "label": "depth",
+  "key": "ch. 17 Free-Space Management",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-fl",
+  "section": "free-list lab: ostep's malloc simulator, animated",
+  "text": "Free-list lab: OSTEP's malloc simulator, animated A heap of a few hundred bytes, one free list, and the three classic ways to search it.",
+  "label": "core",
+  "key": "ported line for line",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-fl",
+  "section": "free-list lab: ostep's malloc simulator, animated",
+  "text": "This is OSTEP's chapter 17 homework simulator, malloc.py , ported line for line: the same options produce the same random operations from the same seed and the same printed answers .",
+  "label": "core",
+  "key": "same seed, same printed answers",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-fl",
+  "section": "free-list lab: ostep's malloc simulator, animated",
+  "text": "Each step draws the heap to scale (allocated chunks coloured by pointer, free chunks white) and the free list in its order.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "superseded: free chunks are now drawn dashed orange"
+ },
+ {
+  "id": 284,
+  "tab": "t-fl",
+  "section": "free-list lab: ostep's malloc simulator, animated",
+  "text": "Turn on Compare to run the same operations twice, with coalescing off and on: the before/after of the mechanism that keeps free space usable.",
+  "label": "core",
+  "key": "Compare coalescing off and on",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-fl",
+  "section": "free-list lab: ostep's malloc simulator, animated",
+  "text": "Try: preset Q5 (1,000 random operations) with Compare on: without coalescing the free list grows to dozens of slivers and later large requests fail although plenty of bytes are free in total; with it the list stays short.",
+  "label": "core",
+  "key": "grows to dozens of slivers",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-fl",
+  "section": "free-list lab: ostep's malloc simulator, animated",
+  "text": "Then Q7 and switch the policy between BEST, WORST and FIRST.",
+  "label": "core",
+  "key": "Q1 to Q4 vary policy and order",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-fl",
+  "section": "free-list lab: ostep's malloc simulator, animated",
+  "text": "Policy BEST WORST FIRST List order ADDRSORT SIZESORT+ SIZESORT- INSERT-FRONT INSERT-BACK Heap size (-S) Header (-H) Alignment (-a, -1 = none) Seed (-s) Operations (-n) Max size (-r) Percent allocs (-P) Explicit operations (-A, overrides the random ones; +size allocates, -i frees ptr[i]) Coalesce (-C) Compare: same ops with coalescing off and on Predict mode (hide each answer until the next step) The printed output, as malloc.py -c prints it, up to this step External fragmentation here is 1 minus (largest free chunk / total free bytes): 0 when all free space is one chunk, near 1 when it is many slivers. \"Searched\" is how many list elements the search looked at, OSTEP's measure of search cost.",
+  "label": "core",
+  "key": "INSERT-FRONT",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-fl",
+  "section": "free-list lab: ostep's malloc simulator, animated",
+  "text": "Port checked by src/sim/check_freelist.mjs against src/inputs/ostep_malloc.py ( ostep-homework vm-freespace ).",
+  "label": "core",
+  "key": "check_freelist.mjs",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-cache",
+  "section": "pytorch's cuda caching allocator, simulated from its source",
+  "text": "PyTorch's CUDA caching allocator, simulated from its source not run here: no GPU A model of c10/cuda/CUDACachingAllocator.cpp at v2.14.1, written in Python from the source ( src/sim/cache_ref.py , every rule with its line numbers) and ported to this page, which is checked against it step by step ( ).",
+  "label": "core",
+  "key": "cache_ref.py",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-cache",
+  "section": "pytorch's cuda caching allocator, simulated from its source",
+  "text": "Two lanes run the same requests under two configurations: each bar is the device memory, drawn to scale; segments (what the allocator got from cudaMalloc , or mapped pages of an expandable segment) are laid side by side, live tensors filled, cached free blocks hatched.",
+  "label": "core",
+  "key": "live tensors filled",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-cache",
+  "section": "pytorch's cuda caching allocator, simulated from its source",
+  "text": "Try: the batch-size scenario with the default on the left and expandable_segments:True on the right: the left lane fails with hundreds of MiB \"reserved by PyTorch but unallocated\", the right one finishes.",
+  "label": "core",
+  "key": "default runs out of memory with hundreds of MiB reserved but unallocated",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-cache",
+  "section": "pytorch's cuda caching allocator, simulated from its source",
+  "text": "Then set the right lane to max_split_size_mb:200 , the older fix, and watch it return whole segments to the driver (cudaFree) to make room.",
+  "label": "core",
+  "key": "max_split_size_mb:200",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-cache",
+  "section": "pytorch's cuda caching allocator, simulated from its source",
+  "text": "Model simplifications (the real allocator does more): one device and one stream (no cross-stream reuse, CUDA events or record_stream ), no CUDA graph pools, no garbage_collection_threshold ; cudaMalloc succeeds exactly when reserved plus the request fits the capacity (the driver's own 2 MiB granularity is ignored); an expandable segment reserves address space equal to the capacity rounded up to its page (2 MiB small pool, 20 MiB large pool), and releasing it unmaps the whole pages inside free blocks.",
+  "label": "core",
+  "key": "the driver's own 2 MiB granularity is ignored",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-cache",
+  "section": "pytorch's cuda caching allocator, simulated from its source",
+  "text": "Scenario sizes and capacities are illustrative; the rules are the source's.",
+  "label": "core",
+  "key": "the rules are the source's",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 5 October 2026.",
+  "label": "core",
+  "key": "Links checked on 5 October 2026",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-more",
+  "section": "",
+  "text": "Times are estimates for the part worth reading.",
+  "label": "core",
+  "key": "Times are estimates for the part worth reading",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-more",
+  "section": "",
+  "text": "Suggested order: this page's Reading tab with OSTEP chapters 14 and 17 and their homework (the Free-list lab); then glibc's MallocInternals page; then Zach DeVito's guide before your next CUDA OOM.",
+  "label": "core",
+  "key": "Suggested order",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's other tabs Free-list lab 15 to 30 min OSTEP's malloc.py homework simulator, ported line for line and animated: best, worst and first fit, five list orders, coalescing on and off side by side.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "the lab tabs were moved into Reading"
+ },
+ {
+  "id": 299,
+  "tab": "t-more",
+  "section": "",
+  "text": "Caching allocator 15 min PyTorch's CUDA caching allocator modelled from its source, two configurations on the same requests, with the OOM message filled in.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "the lab tabs were moved into Reading"
+ },
+ {
+  "id": 300,
+  "tab": "t-more",
+  "section": "",
+  "text": "The parent topic and the sibling pages Topic: operating-systems about 50 min; tabs Reading, OS simulators, Syscall tracer, Debug lab The running training job followed through the whole OS.",
+  "label": "core",
+  "key": "The running training job followed through the whole OS",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-more",
+  "section": "",
+  "text": "Its section 5 is the short version of this page; its Syscall tracer shows the 1 GiB reservation; its Debug lab has the CUDA OOM, OOM-kill and copy-on-write cases.",
+  "label": "core",
+  "key": "Its section 5 is the short version of this page",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-more",
+  "section": "",
+  "text": "Processes and the system-call API 46 min System calls (what brk and mmap cost), fork and the DataLoader's workers.",
+  "label": "core",
+  "key": "what brk and mmap cost",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-more",
+  "section": "",
+  "text": "Scheduling and CPU time 40 min The context switch measured, CFS read live from /proc, EEVDF as a simulator, affinity, NUMA and cgroup CPU quotas and throttling.",
+  "label": "core",
+  "key": "EEVDF as a simulator",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-more",
+  "section": "",
+  "text": "Virtual memory 36 min The layer under this one: pages, faults, mmap, THP, overcommit, pinned memory, RSS and PSS, memory cgroups and the OOM killer.",
+  "label": "core",
+  "key": "The layer under this one",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-more",
+  "section": "",
+  "text": "Concurrency 37 min Why arenas and thread caches exist: locks, contention, atomics.",
+  "label": "core",
+  "key": "locks, contention, atomics",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-more",
+  "section": "",
+  "text": "Storage and file systems 42 min Devices and the block layer, the VFS, readahead and writeback measured, fsync and atomic replace, journaling, and checkpoints that survive a crash.",
+  "label": "core",
+  "key": "readahead and writeback measured",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-more",
+  "section": "",
+  "text": "Containers and isolation 45 min Namespaces and cgroups v2 built by hand, PID 1 and docker stop, memory.max against memory.high, seccomp, rootless, gVisor and Firecracker.",
+  "label": "core",
+  "key": "memory.max against memory.high",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-more",
+  "section": "",
+  "text": "Virtualization and the GPU driver stack 51 min VM exits measured, nested paging, why cross-CPU wake-ups are slow here, virtio, the IOMMU, MIG, and one CUDA call down to the driver.",
+  "label": "core",
+  "key": "VM exits measured",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-more",
+  "section": "",
+  "text": "Related pages in the knowledge base Topic: pytorch-ecosystem varies PyTorch beyond the allocator: compilation, CUDA graphs, profiling.",
+  "label": "core",
+  "key": "PyTorch beyond the allocator",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-more",
+  "section": "",
+  "text": "C++ page Part 2, 30 min new and delete, RAII, caches and memory layout from the language side.",
+  "label": "core",
+  "key": "RAII",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-more",
+  "section": "",
+  "text": "Python page 20 min for the memory parts Reference counting, the garbage collector and the object model behind pymalloc.",
+  "label": "core",
+  "key": "The object model behind pymalloc",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-more",
+  "section": "",
+  "text": "Rust page 20 min Ownership as compile-time memory management, and the global allocator trait.",
+  "label": "core",
+  "key": "global allocator trait",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-more",
+  "section": "",
+  "text": "Distributed Training varies Where GPU memory goes at scale: sharding, activation checkpointing, the memory budget per GPU.",
+  "label": "core",
+  "key": "Where GPU memory goes at scale",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-more",
+  "section": "",
+  "text": "Primary sources OSTEP ch.",
+  "label": "core",
+  "key": "OSTEP ch. 17, Free-Space Management",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-more",
+  "section": "",
+  "text": "17, Free-Space Management and ch.",
+  "label": "core",
+  "key": "ch. 14, Memory API",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-more",
+  "section": "",
+  "text": "14, Memory API 40 min together The foundations of section 1 and 2, with the homework the Free-list lab runs. glibc MallocInternals 30 min The glibc maintainers' own tour of chunks, bins, arenas and tcache, with diagrams. glibc malloc/malloc.c at 2.36 dip in; the comments at the top are 20 min The source every glibc number on this page cites.",
+  "label": "core",
+  "key": "The glibc maintainers' own tour",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-more",
+  "section": "",
+  "text": "A guide to PyTorch's CUDA caching allocator Zach DeVito, 2022; 20 min Segments, blocks, streams and the reasons for each rule, by one of its authors.",
+  "label": "core",
+  "key": "Segments, blocks, streams and the reasons for each rule",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-more",
+  "section": "",
+  "text": "Understanding CUDA memory usage and CUDA semantics: memory management 20 min Memory snapshots and the visualizer; every PYTORCH_ALLOC_CONF option.",
+  "label": "core",
+  "key": "Memory snapshots and the visualizer",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-more",
+  "section": "",
+  "text": "CUDACachingAllocator.cpp at v2.14.1 the Notes: 15 min; the rest, dip in The Note [Expandable Segments] and the malloc retry chain are worth reading in full.",
+  "label": "core",
+  "key": "the malloc retry chain are worth reading in full",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-more",
+  "section": "",
+  "text": "Dynamic Storage Allocation: A Survey and Critical Review Wilson, Johnstone, Neely, Boles, 1995; 1 to 2 h The classic survey: policies against mechanisms, and why real programs fragment less than random tests suggest.",
+  "label": "core",
+  "key": "Dynamic Storage Allocation: A Survey and Critical Review",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-more",
+  "section": "",
+  "text": "The Slab Allocator Bonwick, USENIX 1994; 45 min Object caches for the kernel; the idea behind every size-class allocator since.",
+  "label": "core",
+  "key": "Object caches for the kernel",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-more",
+  "section": "",
+  "text": "Mimalloc: Free List Sharding in Action Leijen, Zorn, de Moura, 2019; 40 min The design of the allocator inside PyTorch's arm64 and Windows wheels. jemalloc(3) and TCMalloc design 20 min each The options (decay, background threads, arenas) and the per-CPU cache design.",
+  "label": "core",
+  "key": "Free List Sharding in Action",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-more",
+  "section": "",
+  "text": "Python memory management and tracemalloc 15 min each pymalloc, PYTHONMALLOC, the debug hooks and the snapshot API.",
+  "label": "core",
+  "key": "the debug hooks and the snapshot API",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-more",
+  "section": "",
+  "text": "PyTorch performance tuning guide 20 min Its CPU section recommends jemalloc or tcmalloc through LD_PRELOAD.",
+  "label": "core",
+  "key": "recommends jemalloc or tcmalloc through LD_PRELOAD",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "7. python's own layer (added 2026-10-24)",
+  "text": "CPython frees an object the moment its reference count reaches zero; cycles wait for the cycle collector, which runs when allocations minus deallocations pass threshold0.",
+  "label": "core",
+  "key": "allocations minus deallocations",
+  "where": "",
+  "note": "added in the 2026-10-24 rebuild"
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "7 (added)",
+  "text": "Measured on Python 3.11.9: no cycle 0.2 KiB held; cycles with the collector on up to 6.7 MiB; gc.disable() 38.5 MiB until gc.collect() found 4,000 objects; default threshold 700, 10, 10.",
+  "label": "core",
+  "key": "gc_cycles.py",
+  "where": "",
+  "note": "added in the 2026-10-24 rebuild"
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "7 (added)",
+  "text": "Python 3.14.8 reports a threshold of 2000, 10, 10 and held up to 19.2 MiB in the same cycle run.",
+  "label": "core",
+  "key": "2000, 10, 10",
+  "where": "",
+  "note": "added in the 2026-10-24 rebuild"
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "7 (added)",
+  "text": "gc.freeze recipe: gc.disable() early in the parent, gc.freeze() right before fork(), gc.enable() in the child; avoids copy-on-write from the collector, but reference counting still writes.",
+  "label": "core",
+  "key": "reference counting still writes",
+  "where": "",
+  "note": "added in the 2026-10-24 rebuild"
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "7 (added)",
+  "text": "A cycle that holds a tensor keeps its CPU or GPU memory until the collector runs (a stored exception with its traceback, an object with a closure over itself).",
+  "label": "core",
+  "key": "a stored exception with its traceback",
+  "where": "",
+  "note": "added in the 2026-10-24 rebuild"
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "7 (added)",
+  "text": "pymalloc diagram: one live object keeps its 16 KiB pool and the whole 1 MiB arena of 64 pools.",
+  "label": "core",
+  "key": "One live object keeps its pool",
+  "where": "",
+  "note": "added in the 2026-10-24 rebuild"
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "3 (added)",
+  "text": "glibc malloc lookup order: tcache, fastbin, small bin, unsorted bin, large bin, top chunk, sysmalloc (brk or mmap); simplified.",
+  "label": "core",
+  "key": "tries the cheapest place first",
+  "where": "",
+  "note": "added in the 2026-10-24 rebuild"
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "10 (added)",
+  "text": "heaptrack traces all memory allocations with stack traces, from the start or attached by pid, and lists leaks, hotspots and temporary allocations; it does not see mimalloc tensors or GPU memory.",
+  "label": "core",
+  "key": "heaptrack --pid",
+  "where": "",
+  "note": "added in the 2026-10-24 rebuild"
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "9 (added)",
+  "text": "Real snapshot image: Allocator State History, one row per segment, white gaps are cached free memory.",
+  "label": "core",
+  "key": "Allocator State History",
+  "where": "",
+  "note": "added in the 2026-10-24 rebuild"
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "10 (added)",
+  "text": "Real snapshot image: Active Memory Timeline, tensors stacked over time; the visualiser runs locally and does not upload the snapshot.",
+  "label": "core",
+  "key": "does not upload the snapshot",
+  "where": "",
+  "note": "added in the 2026-10-24 rebuild"
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "top (added)",
+  "text": "You need: the virtual memory page; GPU memory budgets on Making training fast; the GPU memory hierarchy on its CUDA page.",
+  "label": "core",
+  "key": "this page is the allocator in between",
+  "where": "",
+  "note": "added in the 2026-10-24 rebuild"
+ }
+]

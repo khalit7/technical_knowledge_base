@@ -24,6 +24,10 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await tab('t-read');
   await clickAll('#t-read .drill .opts button:first-child');
   await clickAll('#rd-loader-seg button'); await clickAll('#rd-loader-seg button:first-child');
+  // no autoplay: scroll every animation into view, wait, and check each is still on step 0
+  for (const id of ['rd-thr-card', 'fl-lanes', 'cv-read']) { await p.evaluate(id => document.getElementById(id).scrollIntoView(), id); await sleep(1200) }
+  const moved = await p.evaluate(() => ['rd-thr-ctl-s', 'fl-ctl-s', 'cv-readctl-s'].filter(id => +document.getElementById(id).value !== 0));
+  if (moved.length) { bad++; console.log('AUTOPLAY', scheme, w, moved) }
   for (const c of ['rd-thr-ctl', 'cv-read']) {
     const ctl = c === 'cv-read' ? 'cv-readctl' : c;
     for (let k = 0; k < 8; k++) await p.evaluate(id => document.getElementById(id + '-f').click(), ctl);
@@ -37,8 +41,8 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     const l = await p.$('#rd-loader'); await l.screenshot({path: out + '/loader.png'});
     const f = await p.$('#rd-frag'); await f.screenshot({path: out + '/frag.png'});
     const c = await p.$('#cv-read'); await c.screenshot({path: out + '/cvread-' + w + '.png'}) }
-  // Free-list lab
-  await tab('t-fl');
+  await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true)); await check('read, details open');
+  // Free-list lab (inline, section 1)
   const presets = await p.$$eval('#fl-pre button', e => e.length);
   for (let i = 0; i < presets; i++) {
     await p.evaluate(i => document.querySelectorAll('#fl-pre button')[i].click(), i); await sleep(60);
@@ -50,27 +54,26 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     await p.evaluate((id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('change')) }, id, v); await sleep(40);
     await p.evaluate(() => { const s = document.getElementById('fl-ctl-s'); s.value = Math.floor(s.max / 2); s.dispatchEvent(new Event('input')) }); }
   for (const id of ['fl-C', 'fl-cmp', 'fl-hide', 'fl-cmp']) { await p.evaluate(id => document.getElementById(id).click(), id); await sleep(40) }
-  await p.evaluate(() => document.querySelector('#t-fl details').open = true);
+  await p.evaluate(() => document.querySelectorAll('#fl-lab details').forEach(d => d.open = true));
   await p.evaluate(() => document.querySelectorAll('#fl-pre button')[4].click()); await sleep(60);
   await p.evaluate(() => { const s = document.getElementById('fl-ctl-s'); s.value = 600; s.dispatchEvent(new Event('input')) });
   await check('fl controls');
-  await (await p.$('#t-fl')).screenshot({path: out + '/fl-' + w + '.png'});
-  // Caching allocator
-  await tab('t-cache');
+  await (await p.$('#fl-lab')).screenshot({path: out + '/fl-' + w + '.png'});
+  // Caching allocator (inline, section 9)
   for (const sc of ['batch', 'seqlen', 'small']) for (const [a, bb] of [['default', 'expandable_segments:True'], ['max_split_size_mb:200', 'roundup_power2_divisions:4'], ['max_split_size_mb:200,roundup_power2_divisions:4', 'default']]) {
-    await p.evaluate((sc, a, bb) => { const s = document.getElementById('cv-tabsc'); s.value = sc; s.dispatchEvent(new Event('change'));
-      const x = document.getElementById('cv-tabca'); x.value = a; x.dispatchEvent(new Event('change'));
-      const y = document.getElementById('cv-tabcb'); y.value = bb; y.dispatchEvent(new Event('change')) }, sc, a, bb); await sleep(80);
-    await clickAll('#cv-tab .jump button'); await check('cache ' + sc + ' ' + a + ' | ' + bb) }
-  await p.evaluate(() => { const c = document.getElementById('cv-tabcap'); c.value = '1024'; c.dispatchEvent(new Event('change'));
-    const o = document.getElementById('cv-tabown'); o.value = '+a 300, +b 30, -a, +c 310, +d 2, +e 0.4'; o.dispatchEvent(new Event('change')) }); await sleep(80);
-  await clickAll('#cv-tab .jump button'); await check('cache own');
-  await p.evaluate(() => { const o = document.getElementById('cv-tabown'); o.value = ''; o.dispatchEvent(new Event('change'));
-    const s = document.getElementById('cv-tabsc'); s.value = 'batch'; s.dispatchEvent(new Event('change'));
-    const x = document.getElementById('cv-tabca'); x.value = 'default'; x.dispatchEvent(new Event('change'));
-    const y = document.getElementById('cv-tabcb'); y.value = 'expandable_segments:True'; y.dispatchEvent(new Event('change')) }); await sleep(80);
-  await p.evaluate(() => document.querySelector('#cv-tab .jump button[data-j=oom]').click()); await sleep(80);
-  await (await p.$('#t-cache')).screenshot({path: out + '/cache-' + w + '.png'});
+    await p.evaluate((sc, a, bb) => { const s = document.getElementById('cv-readsc'); s.value = sc; s.dispatchEvent(new Event('change'));
+      const x = document.getElementById('cv-readca'); x.value = a; x.dispatchEvent(new Event('change'));
+      const y = document.getElementById('cv-readcb'); y.value = bb; y.dispatchEvent(new Event('change')) }, sc, a, bb); await sleep(80);
+    await clickAll('#cv-read .jump button'); await check('cache ' + sc + ' ' + a + ' | ' + bb) }
+  await p.evaluate(() => { const c = document.getElementById('cv-readcap'); c.value = '1024'; c.dispatchEvent(new Event('change'));
+    const o = document.getElementById('cv-readown'); o.value = '+a 300, +b 30, -a, +c 310, +d 2, +e 0.4'; o.dispatchEvent(new Event('change')) }); await sleep(80);
+  await clickAll('#cv-read .jump button'); await check('cache own');
+  await p.evaluate(() => { const o = document.getElementById('cv-readown'); o.value = ''; o.dispatchEvent(new Event('change'));
+    const s = document.getElementById('cv-readsc'); s.value = 'batch'; s.dispatchEvent(new Event('change'));
+    const x = document.getElementById('cv-readca'); x.value = 'default'; x.dispatchEvent(new Event('change'));
+    const y = document.getElementById('cv-readcb'); y.value = 'expandable_segments:True'; y.dispatchEvent(new Event('change')) }); await sleep(80);
+  await p.evaluate(() => document.querySelector('#cv-read .jump button[data-j=oom]').click()); await sleep(80);
+  await (await p.$('#cv-read')).screenshot({path: out + '/cache-' + w + '.png'});
   await tab('t-more'); await check('more');
   await p.close();
 }

@@ -1,57 +1,93 @@
+<section id="rd-s1">
+<h2>1. Free space from zero: headers, free lists, splitting, coalescing</h2>
+<p class="ostep">ch. 17 Free-Space Management</p>
+<p><b>The problem.</b> An allocator owns a region of bytes (the <dfn id="g-heap">heap</dfn>) and answers <code>malloc(n)</code> with the address of at least <i>n</i> free bytes and <code>free(p)</code> by taking them back. Requests come in any size and order, and a block can never move once handed out, because the program holds raw pointers into it.</p>
+<p><b>The header and the free list.</b> <code>free(p)</code> passes only the address, so the allocator writes a <dfn id="g-header">header</dfn> just before every block, holding at least the size (OSTEP's example adds a "magic" number to catch corruption; glibc's header is the size and three flag bits in 8 bytes, section 3). Free regions are linked into a <dfn id="g-freelist">free list</dfn> whose links live inside the free regions themselves: there is nowhere else to put them. A fresh heap is one free chunk.</p>
+<div class="chunk" aria-label="One allocated chunk"><div class="h">header: size</div><div class="u">the bytes the program uses (the pointer malloc returned points here)</div></div>
+<p><b>Splitting and coalescing.</b> A request smaller than the chosen chunk <i>splits</i> it: the front goes to the program, the rest stays on the list. A freed chunk next to another free chunk is <i>coalesced</i> with it into one; without that the heap fills with free slivers too small for anything.</p>
+<p><b>Fragmentation, the two kinds.</b> <dfn id="g-extfrag">External fragmentation</dfn>: enough memory is free in total, but in pieces, so a request fails (or the heap grows). <dfn id="g-intfrag">Internal fragmentation</dfn>: a block is larger than asked for (rounding, size classes, headers), and the excess is wasted inside it. The classic survey measures it as the allocator's peak memory against the peak of live data ({{Wilson et al. 1995|https://www.cs.hmc.edu/~oneill/gc-library/Wilson-Alloc-Survey-1995.pdf}}); this page uses RSS against live bytes.</p>
+<p><b>Which free chunk to pick.</b> <i>Best fit</i> takes the smallest chunk that fits (little waste, a full search, tiny leftovers); <i>worst fit</i> the largest (big leftovers, a full search, fragments badly in practice); <i>first fit</i> the first that fits (fast, but the front of the list fills with small pieces); <i>next fit</i> continues from where the last search stopped. A list sorted by address makes coalescing cheap; sorted by size, first fit becomes best or worst fit.</p>
+<div class="drill"><div class="q">Predict: a 100-byte heap, ten requests of 10 bytes (it is now full), then free every other one. 50 bytes are free. Can a request for 15 bytes succeed, with coalescing on?</div>
+<div class="opts"><button>yes, coalescing joins the free pieces</button><button data-right>no</button><button>only with best fit</button></div>
+<div class="ans" hidden>No. The five free pieces are 10 bytes each and none are next to each other, so coalescing has nothing to join: 50 bytes free, largest piece 10. That is external fragmentation, and no search policy fixes it, because a C allocator cannot move live blocks to close the gaps (a compacting garbage collector can; malloc cannot). Run it below: preset Q7.</div></div>
 <style>
-#t-read .stack{display:flex;flex-direction:column;gap:4px;margin:10px 0}
-#t-read .stack .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:4px}
-#t-read .stack .bx{border:1px solid var(--line);border-left:4px solid var(--sc,var(--acc));border-radius:6px;padding:4px 9px;font-size:12.5px;background:var(--bg);min-width:0;overflow-wrap:anywhere}
-#t-read .stack .bx b{display:block;font-size:13px}#t-read .stack .bx span{color:var(--mute)}
-#t-read .stack .arr{text-align:center;color:var(--mute);font-size:12px;line-height:1}
-#t-read .stack .k{background:var(--soft)}
-#t-read .five{counter-reset:fv;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:8px;margin:10px 0}
-#t-read .five>div{border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13.5px;min-width:0}
-#t-read .five>div b:first-child:before{counter-increment:fv;content:counter(fv) ". ";color:var(--mute)}
-#t-read .hbar{margin:8px 0}#t-read .hbar .r{display:grid;grid-template-columns:minmax(0,10.5em) minmax(0,1fr) 7.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
-#t-read .hbar .tr{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
-#t-read .hbar .f{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
-#t-read .hbar .v{text-align:right;font-variant-numeric:tabular-nums}
-#t-read .hbar .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media (max-width:520px){#t-read .hbar .r{grid-template-columns:minmax(0,7.4em) minmax(0,1fr) 6.2em;font-size:12px}}
-#t-read .chunk{display:flex;margin:8px 0;font:11.5px ui-monospace,Menlo,monospace;flex-wrap:wrap}
-#t-read .chunk div{border:1px solid var(--mute);padding:4px 6px;min-width:0;text-align:center}
-#t-read .chunk .h{background:var(--acc2)}#t-read .chunk .u{flex:1 1 120px;background:var(--soft)}
-#t-read .lanes2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:8px}
-#t-read .lanes2>div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
-#t-read .lanes2 h4{margin:0 0 4px;font-size:13px}
-#t-read .sys{font:11.5px/1.5 ui-monospace,Menlo,monospace;min-height:6.2em;overflow-wrap:anywhere;color:var(--mute)}
-#t-read .sys .now{color:var(--ink);background:var(--hl)}
+#fl-lab .flc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px 12px;margin:8px 0}
+#fl-lab .flc label{font-size:12.5px;display:block;min-width:0}#fl-lab .flc input,#fl-lab .flc select{width:100%;font-size:13px;padding:3px 6px}
+#fl-lab .flc input[type=checkbox]{width:auto}
+#fl-lab .pre{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}#fl-lab .pre button{font-size:12.5px;padding:3px 9px}
+#fl-lab .pre button.on{background:var(--acc2);border-color:var(--acc);color:var(--ink);font-weight:600}
+#fl-lab .an-cap{min-height:3.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px}
+#fl-lab .lane{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;min-width:0}
+#fl-lab .lane h4{margin:0 0 4px;font-size:13px}
+#fl-lab .flist{font:12px/1.5 ui-monospace,Menlo,monospace;overflow-wrap:anywhere;color:var(--mute);margin:4px 0}
+#fl-lab .flist b{color:var(--ink);font-weight:600}
+#fl-lab .an-cnt{grid-template-columns:repeat(auto-fit,minmax(min(100%,120px),1fr))}
+#fl-lab pre.out{background:var(--bg);border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font:12px/1.45 ui-monospace,Menlo,monospace;max-height:16em;overflow:auto;white-space:pre;margin:6px 0}
+#fl-lab .hide{filter:blur(4px)}
+#fl-lab .ok{color:var(--good);font-weight:600}
+#fl-lab details.xc pre{margin:0 8px 8px}
 </style>
-<nav class="nav" id="rd-nav">
-<a href="#rd-one">One screen</a><a href="#rd-s1">1 Free space</a><a href="#rd-s2">2 The C API</a><a href="#rd-s3">3 Inside glibc</a><a href="#rd-s4">4 Arenas</a><a href="#rd-s5">5 Fragmentation</a><a href="#rd-s6">6 jemalloc, tcmalloc, mimalloc</a><a href="#rd-s7">7 Python</a><a href="#rd-s8">8 NumPy and torch CPU</a><a href="#rd-s9">9 CUDA caching allocator</a><a href="#rd-s10">10 Playbook</a><a href="#rd-s11">Interview</a><a href="#rd-s12">OSTEP map</a>
-</nav>
-<section id="rd-one">
-<h2>In one screen: who hands out your memory</h2>
-<p class="lead">The kernel gives a process memory in whole pages (4 KiB here), and only through system calls that cost hundreds of nanoseconds. A training job asks for memory millions of times: a 32-byte Python tuple, a 600-byte string, a 1 MiB NumPy batch, a 64 MiB tensor, a 300 MiB activation on the GPU. In between sits a stack of <dfn id="g-alloc">allocators</dfn>, user-space libraries that get big regions from the kernel rarely, cut them into pieces quickly, and keep freed pieces to hand out again. This page follows the {{root's running training job|n:3f05c17b0d0d81c5a97ce991644af140}} down that stack, measures each layer on a real Linux kernel, and reads the source where it explains a number.</p>
-<div class="stack" aria-label="The allocator stack">
-<div class="row"><div class="bx" style="--sc:var(--c4)"><b>Python objects</b><span>tuples, ints, small strings: CPython's pymalloc (objects up to 512 bytes), else malloc</span></div><div class="bx" style="--sc:var(--c3)"><b>NumPy arrays</b><span>a small-buffer cache, then malloc; madvise(MADV_HUGEPAGE) from 4 MiB</span></div><div class="bx" style="--sc:var(--c1)"><b>torch CPU tensors</b><span>c10's alloc_cpu: mimalloc inside libc10.so on Linux arm64 and Windows, posix_memalign (glibc) elsewhere</span></div><div class="bx" style="--sc:var(--c2)"><b>torch CUDA tensors</b><span>the caching allocator: blocks cut from segments got with cudaMalloc or mapped with cuMemMap</span></div></div>
-<div class="arr">&#9660; most of these end in</div>
-<div class="row"><div class="bx" style="--sc:var(--c5)"><b>malloc / free (glibc's ptmalloc, or jemalloc, tcmalloc, mimalloc via LD_PRELOAD)</b><span>chunks with a header, per-thread caches (tcache), bins of free chunks, one arena per group of threads</span></div></div>
-<div class="arr">&#9660; system calls, rarely</div>
-<div class="row"><div class="bx k" style="--sc:var(--bad)"><b>the kernel: brk, mmap, munmap, madvise</b><span>whole pages, mapped on first touch; the kernel's own allocators (buddy, slab) underneath. Pages, faults, THP and the OOM killer belong to the {{virtual memory page|n:3f05c17b0d0d81a48892cea154ce950b}}</span></div></div>
+<div class="card" id="fl-lab">
+<h4 class="vt">Coalescing keeps free space in one piece: the same random operations with it off and on</h4>
+<p class="small">OSTEP's chapter 17 homework simulator, <code>malloc.py</code>, ported line for line (same seed, same printed answers <span class="ok" id="fl-chk"></span>). Each lane draws the heap to scale: allocated chunks coloured by pointer, <span class="hl">free chunks dashed orange</span>. <b>Predict</b>, then step: with preset Q5 (1,000 random operations), how long does each free list get, and do requests start failing?</p>
+<div class="pre" id="fl-pre"></div>
+<div class="flc">
+<label>Policy <select id="fl-pol"><option>BEST</option><option>WORST</option><option>FIRST</option></select></label>
+<label>List order <select id="fl-ord"><option>ADDRSORT</option><option>SIZESORT+</option><option>SIZESORT-</option><option>INSERT-FRONT</option><option>INSERT-BACK</option></select></label>
+<label><input id="fl-cmp" type="checkbox" checked> Compare coalescing off and on</label>
+<label><input id="fl-hide" type="checkbox"> Predict mode (blur each answer)</label>
 </div>
-<div class="five">
-<div><b>free() rarely gives memory back.</b> Freeing 98% of 400,000 small blocks left resident memory (RSS) at <span data-k="frag.glibc.freed">110,524</span> KiB for <span data-k="frag.live">1,562</span> KiB of live data under glibc; <code>malloc_trim(0)</code> brought it to <span data-k="frag.glibc.trim">29,404</span> KiB. RSS is not live data (section 5).</div>
-<div><b>One live object pins a page, or an arena.</b> The 6,250 surviving 272-byte chunks still pinned about 24 MiB of pages after the trim; 2,000 surviving Python tuples kept all 158 of CPython's 1 MiB arenas (sections 5 and 7).</div>
-<div><b>Free one big block and the next ones change path.</b> glibc serves a 1 MiB request with its own mmap, but freeing it raises the threshold, and the same request then comes from the heap and stays resident (section 3, traced).</div>
-<div><b>No allocator wins everything.</b> On one data-loader-like workload, the allocator with the least memory was 4 times slower, and the fastest held the most (section 6, measured). Measure yours.</div>
-<div><b>On the GPU, "reserved" is not "allocated".</b> PyTorch caches freed GPU blocks; when tensor sizes vary, free memory ends up in pieces no request fits, and you get "out of memory" with gigabytes free. <code>expandable_segments:True</code> is the fix (section 9, simulated from source).</div>
+<details class="xc"><summary>All of malloc.py's options</summary><div class="flc">
+<label>Heap size (-S) <input id="fl-S" type="number" min="10" max="2000" value="100"></label>
+<label>Header (-H) <input id="fl-H" type="number" min="0" max="16" value="0"></label>
+<label>Alignment (-a, -1 = none) <input id="fl-a" type="number" min="-1" max="64" value="-1"></label>
+<label>Seed (-s) <input id="fl-s" type="number" min="0" value="0"></label>
+<label>Operations (-n) <input id="fl-n" type="number" min="1" max="2000" value="10"></label>
+<label>Max size (-r) <input id="fl-r" type="number" min="1" max="500" value="10"></label>
+<label>Percent allocs (-P) <input id="fl-P" type="number" min="1" max="100" value="50"></label>
+<label><input id="fl-C" type="checkbox"> Coalesce (-C), when not comparing</label>
+<label style="grid-column:1/-1">Explicit operations (-A, overrides the random ones; +size allocates, -i frees ptr[i]) <input id="fl-A" type="text" placeholder="+10,+10,+10,-0,-2" autocomplete="off"></label>
+</div></details>
+<div class="an-ctl" id="fl-ctl"></div>
+<div class="an-cap" id="fl-cap"></div>
+<div id="fl-lanes"></div>
+<details class="xc"><summary>The printed output, as <code>malloc.py -c</code> prints it, up to this step</summary><pre class="out" id="fl-out"></pre></details>
+<p class="small mute">External fragmentation here is 1 minus (largest free chunk / total free bytes): 0 when all free space is one chunk, near 1 when it is many slivers. "Searched" is how many list elements the search looked at, OSTEP's measure of search cost. Port checked by <code>src/sim/check_freelist.mjs</code> against <code>src/inputs/ostep_malloc.py</code> ({{ostep-homework vm-freespace|https://github.com/remzi-arpacidusseau/ostep-homework/tree/master/vm-freespace}}).</p>
 </div>
-<p><b>Where the running job meets each layer.</b> The root's job (a 256-128-10 MLP on 8 MiB of memory-mapped data, two DataLoader workers) touches all of them: its Python objects and the DataLoader's bookkeeping go through pymalloc; each batch NumPy builds goes through glibc's malloc; the model's weights and every activation go through mimalloc inside <code>libc10.so</code>, which is why building the model made the 1 GiB address-space reservation the root's {{Syscall tracer|n:3f05c17b0d0d81c5a97ce991644af140}} tab found; its threads (OpenMP, the DataLoader's) get their own glibc arenas, the 64 MiB reservations the root's section 5 saw in the memory map. On a GPU, the same tensors would go through the caching allocator. Section 6 runs the job under four allocators.</p>
+<p class="small">Q5: without coalescing the free list grows to dozens of slivers and later large requests fail although plenty of bytes are free in total; with it the list stays short. Q1 to Q4 vary policy and order; Q7 is the drill above.</p>
+<p><b>Better than one list: size classes.</b> Most programs allocate a few sizes over and over. A <dfn id="g-segl">segregated list</dfn> allocator keeps one list per size class (16, 32, 48, ... bytes), so a request is a pop with no search and objects of one size sit together: every allocator below does this. The kernel's own are the <dfn id="g-slab">slab allocator</dfn> (a cache of pre-cut objects per type; Bonwick, {{USENIX 1994|https://www.usenix.org/legacy/publications/library/proceedings/bos94/full_papers/bonwick.a}}) and, for runs of whole pages, the <dfn id="g-buddy">buddy allocator</dfn>: blocks of 2<sup>k</sup> pages that split in halves and merge with their "buddy", cheap to coalesce at the price of internal fragmentation (a 9-page request takes 16).</p>
+<details class="dp"><summary>The kernel's slab caches and buddy lists, read live <span class="mute">(recorded outputs)</span></summary><div class="b">
+<pre class="cd out" id="rd-slab"></pre>
+<p class="small mute"><span class="meas">measured here</span> <code>/proc/slabinfo</code> in a container (excerpt). A <code>task_struct</code>, the kernel's record of one thread, is 3,712 bytes, one per slab page. Dentries (cached path components) are 200 bytes, 20 per page. The nonzero "tunables" columns are printed only by the older SLAB implementation (SLUB, the default in most distribution kernels, prints zeros), so this linuxkit kernel uses SLAB: an inference from the format, not checked against its config.</p>
+<pre class="cd out" id="rd-buddy"></pre>
+<p class="small mute"><span class="meas">measured here</span> <code>cat /proc/buddyinfo</code>: the number of free blocks of each order, 0 (4 KiB) to 10 (4 MiB). A huge page (2 MiB, order 9) can be found only while order-9 or order-10 blocks remain, which is why huge pages get harder to find on a long-running, fragmented machine (the {{virtual memory page|n:3f05c17b0d0d81a48892cea154ce950b}} owns THP).</p>
+</div></details>
+</section>
+<section id="rd-s2">
+<h2>2. What one request really costs</h2>
+<p class="ostep">ch. 14 Interlude: Memory API</p>
+<p>In glibc a chunk is the request plus an 8-byte size field, rounded up to a multiple of 16, at least 32 bytes: <code>request2size</code> (malloc.c line 1326, {{glibc 2.36|https://sourceware.org/git/?p=glibc.git;a=blob;f=malloc/malloc.c;hb=refs/tags/glibc-2.36#l1326}}). Measured with two back-to-back mallocs, whose distance is the chunk size:</p>
+<div class="rd-chart" id="rd-sizes"></div>
+<p class="small mute"><span class="meas">measured here</span> <code>src/exp/sizes.c</code>. Usable is what <code>malloc_usable_size</code> reports; the stride is the chunk size. Formula: chunk = max(32, (request + 8 + 15) rounded down to a multiple of 16); a 1-byte request costs 32 bytes, a 25-byte one 48. Next to a 256-byte request the 8-byte header is 3% overhead; next to a 16-byte one it is half the chunk, which is why allocating millions of tiny objects one by one is expensive in memory as well as time.</p>
+<p>C trusts the program completely: a use after free, a double free or an overflow corrupts the allocator's own data, often far from where it happened. In ML work these bugs live in C and C++ extensions, and from Python they surface as a segmentation fault or a <code>malloc(): ...</code> abort with no Python traceback; the {{root's Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}} shows how to get a native stack.</p>
+<details class="dp"><summary>The C API, the bugs and the tools <span class="mute">(reference)</span></summary><div class="b">
+<p>The calls ({{malloc(3)|https://man7.org/linux/man-pages/man3/malloc.3.html}}, {{posix_memalign(3)|https://man7.org/linux/man-pages/man3/posix_memalign.3.html}}, {{malloc_usable_size(3)|https://man7.org/linux/man-pages/man3/malloc_usable_size.3.html}}):</p>
 <div class="tw"><table class="tbl-sm">
-<thead><tr><th>Layer</th><th>Gets memory from</th><th>Unit it hands out</th><th>Gives memory back</th><th>See it with</th></tr></thead>
+<thead><tr><th>Call</th><th>Does</th><th>Worth knowing</th></tr></thead>
 <tbody>
-<tr><td>pymalloc</td><td>mmap, 1 MiB arenas</td><td>16-byte size classes up to 512 B, in 16 KiB pools</td><td>an arena when every object in it is dead</td><td><code>sys._debugmallocstats()</code>, <code>tracemalloc</code></td></tr>
-<tr><td>glibc malloc</td><td>brk (main heap), mmap (big blocks, thread arenas)</td><td>chunks: request + 8 bytes, rounded to 16, at least 32</td><td>the heap's top past 128 KiB (trim threshold); mmapped chunks at once; <code>malloc_trim</code></td><td><code>malloc_info</code>, <code>malloc_stats</code>, <code>/proc/&lt;pid&gt;/smaps</code></td></tr>
-<tr><td>jemalloc, tcmalloc, mimalloc</td><td>mmap</td><td>size classes in per-size runs, slabs, spans or pages</td><td>after a delay or rate (decay, release rate, purge delay)</td><td>their stats calls and environment options</td></tr>
-<tr><td>CUDA caching allocator</td><td>cudaMalloc, or cuMemCreate plus cuMemMap</td><td>blocks: 512-byte multiples in 2 MiB or 20 MiB-plus segments</td><td>only on OOM retry or <code>torch.cuda.empty_cache()</code></td><td><code>memory_summary()</code>, memory snapshots</td></tr>
-<tr><td>kernel</td><td>physical memory</td><td>4 KiB pages (buddy allocator for runs of pages, slab caches for its own objects)</td><td>munmap, madvise(MADV_DONTNEED)</td><td><code>/proc/buddyinfo</code>, <code>/proc/slabinfo</code>, <code>/proc/meminfo</code></td></tr>
+<tr><td><code>malloc(n)</code></td><td>n bytes, contents not initialised</td><td>aligned for any type: 16 bytes on 64-bit Linux</td></tr>
+<tr><td><code>calloc(k, n)</code></td><td>k &times; n bytes, zeroed</td><td>checks k &times; n for overflow; fresh pages from mmap are already zero, so glibc skips the memset for them (malloc.c line 3707)</td></tr>
+<tr><td><code>realloc(p, n)</code></td><td>resize, maybe moving</td><td>a large mmapped block can grow with <code>mremap</code> without copying (<code>mremap_chunk</code>, line 3068)</td></tr>
+<tr><td><code>free(p)</code></td><td>give back</td><td>free(NULL) does nothing; everything else must be a pointer malloc returned, freed once</td></tr>
+<tr><td><code>posix_memalign</code>, <code>aligned_alloc</code></td><td>n bytes at a chosen alignment</td><td>what PyTorch's CPU allocator calls on x86-64 Linux, with 64-byte alignment (section 8)</td></tr>
+<tr><td><code>malloc_usable_size(p)</code></td><td>how many bytes the block really has</td><td>shows the rounding (the chart above)</td></tr>
 </tbody></table></div>
-<p class="small mute">Measured in Docker Desktop's Linux VM (Linux 5.10.104-linuxkit, arm64, 4 KiB pages, 5 CPUs; glibc 2.36, Python 3.11.2, torch 2.14.1+cpu, NumPy 2.4.6; jemalloc 5.3.0, gperftools tcmalloc 2.10, mimalloc 2.0.9 from Debian 12), image <code>kb-os-alloc:1</code>, 2026-10-05; scripts and raw outputs in <code>src/</code>. Each container was capped at 1 or 2 CPUs and 1,500 MiB, on a VM shared with other experiments, so times carry some noise; repeated runs are shown where it matters.</p>
+<ul class="tight">
+<li><b>Leak</b>: memory never freed. Harmless in a short process, fatal in a server or a long training run.</li>
+<li><b>Use after free</b>: writing through a pointer after <code>free</code>, into a chunk that may already belong to someone else or whose first bytes now hold the free list's links.</li>
+<li><b>Double free</b>: glibc catches the common case and aborts with <code>free(): double free detected in tcache 2</code>.</li>
+<li><b>Overflow</b>: writing past the end tramples the next chunk's header; glibc notices later with messages such as <code>malloc(): corrupted top size</code>.</li>
+</ul>
+<p>Tools: AddressSanitizer (<code>gcc -fsanitize=address</code>, which puts poisoned red zones around every block and keeps freed memory in quarantine), Valgrind's memcheck, and glibc's own checks.</p>
+</div></details>
 </section>

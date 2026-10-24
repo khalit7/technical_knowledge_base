@@ -1,7 +1,7 @@
 // ---- Reading tab: measured outputs, charts, the threshold stepper, drills. Data: window.AD (22_js_data.js).
 (function(){
   const D=window.AD,$=id=>document.getElementById(id),esc=RD.esc;if(!D)return;
-  const COL={glibc:'--c1',jemalloc:'--c3',tcmalloc:'--c2',mimalloc:'--c4',fixed_threshold:'--c5',arena_max_2:'--c6'};
+  const COL={glibc:'--c1',jemalloc:'--c3',tcmalloc:'--mute',mimalloc:'--c4',fixed_threshold:'--c5',arena_max_2:'--c6'};
   const NAME={glibc:'glibc (default)',fixed_threshold:'glibc, MALLOC_MMAP_THRESHOLD_=131072',arena_max_2:'glibc, MALLOC_ARENA_MAX=2',jemalloc:'jemalloc',tcmalloc:'tcmalloc',mimalloc:'mimalloc'};
   const med=a=>{const s=a.slice().sort((x,y)=>x-y),n=s.length;return n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2};
   const f1=v=>v.toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1});
@@ -30,7 +30,7 @@
     const mx=Math.max(...rows.map(r=>r[1]['allocated 400,000 x 256 B']));
     const cell=(v,c)=>v==null?'<td class="mute">n/a</td>':'<td><div style="display:flex;align-items:center;gap:6px"><div style="flex:1 1 40px;height:10px;background:var(--soft);border-radius:2px;position:relative;min-width:30px"><div style="position:absolute;left:0;top:0;bottom:0;width:'+(100*v/mx).toFixed(1)+'%;background:var('+c+');border-radius:2px"></div></div><span style="white-space:nowrap">'+fk(v)+'</span></div></td>';
     $('rd-frag').innerHTML='<div class="tw"><table class="tbl-sm"><thead><tr><th>Allocator</th><th>RSS after freeing 98%, KiB</th><th>after malloc_trim(0) (glibc&#39;s own; the others are untouched by it)</th><th>all freed, 3 s later</th></tr></thead><tbody>'+
-      rows.map(r=>{const c=COL[r[0].split(',')[0]],o=r[1],tk=Object.keys(o).find(k=>/^malloc_trim/.test(k));return '<tr><td>'+r[0]+'</td>'+cell(o[P[0]],c)+cell(o[tk],c)+cell(o[P[2]],c)+'</tr>'}).join('')+'</tbody></table></div><div class="small mute">Live data after the frees: 1,562 KiB. Start of each run: 756 to 5,572 KiB.</div>'}
+      rows.map(r=>{const c=COL[r[0].split(',')[0]],o=r[1],tk=Object.keys(o).find(k=>/^malloc_trim/.test(k));return '<tr><td>'+r[0]+'</td>'+cell(o[P[0]],c)+cell(o[tk],c)+cell(o[P[2]],c)+'</tr>'}).join('')+'</tbody></table></div>'}
   // bench table
   if($('rd-bench')){const B=D.bench,cols=[['1/pairs/16','16 B'],['1/pairs/256','256 B'],['1/pairs/4096','4 KiB'],['1/pairs/65536','64 KiB'],['1/pairs/1048576','1 MiB'],['1/batch1000/256','batch 256 B'],['1/batch1000/4096','batch 4 KiB'],['1/batch1000/1048576','batch 1 MiB']];
     $('rd-bench').innerHTML='<table class="tbl-sm"><thead><tr><th>ns per pair</th>'+cols.map(c=>'<th class="num">'+c[1]+'</th>').join('')+'</tr></thead><tbody>'+
@@ -74,6 +74,11 @@
       $('rd-thr-cap').innerHTML='<p>'+CAP[Math.min(i,CAP.length-1)]+'</p>'}
     RD.anim({card:'rd-thr-card',ctl:'rd-thr-ctl',n:6,ms:1800,label:'Step',draw:draw});
   }
+  // reference counts against the cycle collector (section 7)
+  if($('rd-gc')&&D.gc){const R=D.gc.py311.runs,g=(c,e)=>R.find(r=>r.cyclic===c&&r.gc_enabled===e);
+    const rows=[['no cycle',g(false,true)],['cycles, gc on',g(true,true)],['cycles, gc off',g(true,false)]];
+    const mx=Math.max(...rows.map(r=>r[1].peak_kib));
+    hbar($('rd-gc'),rows.map((r,i)=>({nm:r[0],v:Math.max(r[1].peak_kib,mx*0.004),col:i?'--c2':'--c1',lab:r[1].peak_kib<1024?f1(r[1].peak_kib)+' KiB':f1(r[1].peak_kib/1024)+' MiB'})),mx)}
   // drills
   document.querySelectorAll('#t-read .drill').forEach(d=>{const opts=d.querySelectorAll('.opts button'),ans=d.querySelector('.ans');
     opts.forEach(b=>b.addEventListener('click',()=>{opts.forEach(o=>{o.disabled=true;if(o.hasAttribute('data-right'))o.classList.add('right')});if(!b.hasAttribute('data-right'))b.classList.add('wrong');if(ans)ans.hidden=false}))});
