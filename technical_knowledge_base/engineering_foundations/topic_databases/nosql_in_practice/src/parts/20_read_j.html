@@ -1,11 +1,26 @@
 <section id="rd-pro">
-<h2>Choosing, and running them in production</h2>
-<h3>How pros decide</h3>
+<h2>Choosing: Postgres with jsonb, or another store</h2>
+<div class="card"><h4 class="vt">Each section's measurement names the problem that justifies a second store; without one, Postgres does the job</h4>
+<div class="tw"><table>
+<tr><th>The measured problem</th><th>Postgres first</th><th>The store it justifies</th></tr>
+<tr><td>Exact ranks for 100,000 players on every page view cost 9 ms each (section 3)</td><td>top-N from an index; ranks recomputed every minute</td><td>Redis sorted set</td></tr>
+<tr><td>Thousands of atomic checks a second (rate limits, counters)</td><td><code>UPDATE ... SET n = n + 1</code>; <code>SKIP LOCKED</code> queues</td><td>Redis, with a Lua script</td></tr>
+<tr><td>Writes exceed one primary, or must survive a data-centre loss with no failover pause (sections 4 and 6)</td><td>replicas, partitioning by time, then {{Scaling a database|n:3ef5c17b0d0d81f0aaceee1e21b972be}}</td><td>Cassandra, ScyllaDB or DynamoDB, keys from the access patterns</td></tr>
+<tr><td>Records of varying shape, read and written whole (section 5)</td><td>columns plus a <code>jsonb</code> column, GIN index</td><td>MongoDB, when most data is document-shaped</td></tr>
+<tr><td>Every dashboard query scans 30 days (section 7)</td><td>daily partitions, a rollup table, BRIN</td><td>Prometheus for metrics; a column store for events</td></tr>
+<tr><td>Variable-depth paths and patterns are the product (section 8)</td><td>a join per hop; recursive CTE for hierarchies</td><td>Neo4j</td></tr>
+</table></div></div>
 <ol>
 <li><b>Start with Postgres as the source of truth</b> and write down the access patterns (section 1). Most of the families' tricks exist in Postgres in smaller form: a composite index (section 2), <code>jsonb</code> (section 5), partitions and rollups (section 7), a join per hop (section 8), <code>SKIP LOCKED</code> queues.</li>
 <li><b>Add a store only for a measured problem</b>, named in one sentence: "ranks for 100,000 players on every page view cost 9 ms each" (Redis); "message writes exceed one primary" (Cassandra, ScyllaDB or DynamoDB); "every dashboard query scans 30 days" (a rollup, then a time-series or column store).</li>
 <li><b>Treat every extra store as a copy</b> that can be rebuilt from the source of truth, fed by an outbox or change data capture ({{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}), with its own backups, monitoring and on-call knowledge. "Polyglot persistence" (several stores, each for what it does best) is real at scale and an expensive habit before it.</li>
 </ol>
+<p class="small mute">Backups, replication and failover for Postgres itself are {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}'s; sharding Postgres and distributed SQL are {{Scaling a database|n:3ef5c17b0d0d81f0aaceee1e21b972be}}'s.</p>
+</section>
+
+<section id="rd-depth">
+<h2>Depth</h2>
+<details class="dp"><summary>Settings pros check first, per system <span class="mute">(a checklist)</span></summary><div class="b">
 <div class="tw"><table>
 <tr><th>System</th><th>Settings pros check first (each explained on this page)</th></tr>
 <tr><td>Redis / Valkey</td><td><code>maxmemory</code> and an eviction policy when it is a cache, <code>noeviction</code> when it holds data you need; <code>appendonly yes</code> with <code>appendfsync everysec</code> if losing a minute matters; replicas plus Sentinel or Cluster for failover, knowing that failover can drop acknowledged writes; no <code>KEYS *</code> in production (use <code>SCAN</code>); short scripts.</td></tr>
@@ -14,28 +29,39 @@
 <tr><td>Cassandra / ScyllaDB</td><td>replication factor 3 across racks or zones, <code>LOCAL_QUORUM</code> for reads and writes that must agree; partitions bounded by a time bucket; repair run more often than <code>gc_grace_seconds</code>; alerts on tombstone warnings and large partitions; compaction chosen per table.</td></tr>
 <tr><td>Prometheus and friends</td><td>no unbounded label values; retention and rollups set on purpose; long-term storage (Thanos, Mimir, VictoriaMetrics) only when one server's retention is not enough.</td></tr>
 </table></div>
-<p class="small mute">These are configuration names and documented behaviours from the sources linked in each section; they are a checklist, not a complete production guide. Backups, replication and failover for Postgres itself are on {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}; sharding Postgres and distributed SQL on {{Scaling a database|n:3ef5c17b0d0d81f0aaceee1e21b972be}}; consistency models and quorums in general on {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}}.</p>
-</section>
+<p class="small mute">Configuration names and documented behaviours from the sources linked in each section; a checklist, not a complete production guide.</p></div></details>
 
-<section id="rd-mist">
-<h2>Common mistakes</h2>
-<details class="mist"><summary>Choosing the database before listing the questions</summary><div class="b">The family follows from the access patterns. A store chosen for its reputation, before the list exists, leaves the questions nobody planned for as scans (section 4) or new tables (section 6).</div></details>
-<details class="mist"><summary>Read, decide, write in the application</summary><div class="b">Measured: 188 requests passed a limit of 20. Use the store's atomic operation (<code>INCR</code>, a Lua script, a conditional write, <code>UPDATE ... SET n = n - 1 WHERE n &gt; 0</code>).</div></details>
-<details class="mist"><summary>Redis as the only copy</summary><div class="b">A failover lost 4,947 of 5,000 acknowledged writes here; an RDB-only server lost every write since its last snapshot. Keep the source of truth in a database.</div></details>
-<details class="mist"><summary>Believing a filter makes a scan cheap</summary><div class="b">DynamoDB charges for items read, not returned: a Scan that returned nothing still read 1,000 items in its first page.</div></details>
-<details class="mist"><summary>A partition key that concentrates traffic</summary><div class="b">The current date, a tenant with most of the traffic, one celebrity chat. Every partition has a ceiling (1,000 writes a second in DynamoDB); spread with a suffix or rethink the key.</div></details>
-<details class="mist"><summary>Partitions or documents that grow forever</summary><div class="b">A chat document hit the 16 MB limit at 15,220 messages; a Cassandra partition per chat grows without limit. Bucket by time or count.</div></details>
-<details class="mist"><summary>Using Cassandra as a queue, or deleting in bulk</summary><div class="b">5,000 tombstones made a read about nine times slower; 101,000 made it fail. Prefer TTLs on time-ordered tables with TimeWindow compaction, and never a read-and-delete queue.</div></details>
-<details class="mist"><summary>"Schemaless" without validation</summary><div class="b">Without a validator, every reader must handle every shape ever written. Add <code>$jsonSchema</code> or keep the fixed fields as Postgres columns.</div></details>
-<details class="mist"><summary>Reading your own write from an index or replica</summary><div class="b">DynamoDB GSIs, MongoDB secondaries, Redis replicas and Cassandra at <code>ONE</code> can all return data from before your write. Read from the primary, or use a strong read where one exists, for the request right after a write.</div></details>
-<details class="mist"><summary>User ids as metric labels</summary><div class="b">One label with 100,000 values multiplies every metric's series by 100,000 (the calculator in section 7). Per-user detail goes in logs or an events table.</div></details>
-<details class="mist"><summary>Deleting old time-series rows with DELETE</summary><div class="b">Measured: 1.9 s and 65 MB of log for 7 days, and the table did not shrink; dropping 7 daily partitions took 0.06 s.</div></details>
-<details class="mist"><summary>A graph database for two hops</summary><div class="b">Friends of friends was faster in Postgres than in either graph engine here. Graph databases pay off for paths and variable-depth patterns.</div></details>
-</section>
+<details class="dp"><summary>Mistakes with a measured cost <span class="mute">(each points back to its section)</span></summary><div class="b"><ul class="tight">
+<li><b>Read, decide, write in the application</b>: 188 requests passed a limit of 20. Use the store's atomic operation (<code>INCR</code>, a Lua script, a conditional write, <code>UPDATE ... SET n = n - 1 WHERE n &gt; 0</code>).</li>
+<li><b>Redis as the only copy</b>: a failover lost 4,947 of 5,000 acknowledged writes here; an RDB-only server lost every write since its last snapshot.</li>
+<li><b>A partition key that concentrates traffic</b>: the current date, a tenant with most of the traffic, one celebrity chat. Every partition has a ceiling (1,000 writes a second in DynamoDB).</li>
+<li><b>Partitions or documents that grow forever</b>: a chat document hit the 16 MB limit at 15,220 messages; a Cassandra partition per chat grows without limit. Bucket by time or count.</li>
+<li><b>Cassandra as a queue, or bulk deletes</b>: 5,000 tombstones made a read about nine times slower; 101,000 made it fail.</li>
+<li><b>Reading your own write from an index or replica</b>: DynamoDB GSIs, MongoDB secondaries, Redis replicas and Cassandra at <code>ONE</code> can all return data from before your write. Read from the primary, or use a strong read where one exists, for the request right after a write.</li>
+<li><b>Deleting old time-series rows with DELETE</b>: Measured: 1.9 s and 65 MB of log for 7 days, and the table did not shrink.</li>
+</ul></div></details>
 
-<section id="rd-gloss">
-<h2>Glossary</h2>
-<div class="gl" id="rd-gl"></div>
+<details class="dp"><summary>Embedded key-value engines: RocksDB and LMDB <span class="mute">(the libraries under other systems)</span></summary><div class="b">
+<p>Every database above sits on a storage engine: the library that turns "put this key and value" into bytes on disk. <b>RocksDB</b> is an embedded LSM-tree: a write-ahead log and a memtable, sorted files, background compaction; fast writes, tunable read, write and space amplification, many knobs. It is inside CockroachDB (via Pebble, its Go port), TiKV, Kafka Streams' state stores and many others; by default its WAL is not flushed to disk on every write, so a machine crash can lose the last writes (root atlas). {{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}} measures its amplification against Postgres. <b>LMDB</b> is a copy-on-write B+tree in one memory-mapped file: no WAL, no compaction, readers never block and see a consistent snapshot, but one writer at a time; very fast reads from many threads or processes; commits are flushed by default.</p>
+<p>Reach for one directly only when building a storage component (a queue, a persistent cache, an index) inside one process and you want neither a server nor SQL. Otherwise SQLite (rows, SQL, one writer) and DuckDB (columns, analytics), on the root page, are the embedded databases to use.</p></div></details>
+
+<details class="dp"><summary>Versions, licences and prices, dated <span class="mute">(volatile: checked 4 and 5 October 2026)</span></summary><div class="b">
+<div class="tw"><table>
+<tr><th>System</th><th>Version used or current</th><th>Licence and dated facts</th></tr>
+<tr><td>Redis</td><td>8.8.0 measured</td><td>BSD until 7.2; dual source-available licence (RSALv2 or SSPLv1) from 7.4 on 20 March 2024; Redis 8 added AGPLv3 as a third option on 1 May 2025. Redis 8-only features (built-in JSON, vector sets, the query engine) do not exist in Valkey under those names.</td></tr>
+<tr><td>Valkey</td><td>fork of Redis 7.2.4</td><td>BSD, launched by the Linux Foundation on 28 March 2024, backed by AWS, Google Cloud, Oracle and others</td></tr>
+<tr><td>DynamoDB</td><td>DynamoDB Local 3.3.1 measured</td><td>US East (N. Virginia), standard table class, read 4 October 2026: on-demand $0.625 per million write units and $0.125 per million read units ({{on-demand pricing|https://aws.amazon.com/dynamodb/pricing/on-demand/}}); provisioned $0.00065 per write unit-hour and $0.00013 per read unit-hour ({{provisioned pricing|https://aws.amazon.com/dynamodb/pricing/provisioned/}}); storage $0.25 per GB-month</td></tr>
+<tr><td>MongoDB</td><td>8.0.23 measured; 9.0 generally available 28 September 2026</td><td>server under the SSPL (source-available) since 16 October 2018</td></tr>
+<tr><td>Cassandra</td><td>5.0.9 measured; 6.0 in alpha (Accord transactions)</td><td>Apache 2.0</td></tr>
+<tr><td>ScyllaDB</td><td>2025.1 onward</td><td>AGPL open-source edition ended with 6.2; one source-available product, free only within 10 TB and 50 vCPUs (licence v1.1, April 2026)</td></tr>
+<tr><td>Neo4j</td><td>Community 2026.09.0 measured</td><td>Community is GPLv3; clustering is Enterprise-only</td></tr>
+<tr><td>Kuzu</td><td>0.11.3 measured (last release)</td><td>GitHub repository archived by its owners on 10 October 2025; still works, receives no fixes ({{kuzudb/kuzu|https://github.com/kuzudb/kuzu}})</td></tr>
+<tr><td>Time-series systems</td><td>TimescaleDB 2.30, Prometheus 3.15, InfluxDB 3.11, ClickHouse 26.9</td><td>TimescaleDB compression and continuous aggregates under the Timescale License</td></tr>
+<tr><td>Embedded engines</td><td>RocksDB 11.8; LMDB 1.0.0 released 30 June 2026 after the long 0.9 line</td><td></td></tr>
+</table></div>
+<p class="small mute">From the root page's Database atlas (sources there) unless linked.</p></div></details>
+
+<details class="dp"><summary>Glossary <span class="mute">(every term, linked to where it is explained)</span></summary><div class="b"><div class="gl" id="rd-gl"></div></div></details>
 </section>
 <div class="foot">Measured on 4 and 5 October 2026 on an Apple M1 Pro laptop (16 GB, macOS) with Redis 8.8.0, MongoDB 8.0.23, OpenJDK 17 and 25 (conda-forge, installed in a scratch directory), DynamoDB Local 3.3.1, Apache Cassandra 5.0.9, Neo4j Community 2026.09.0, Kuzu 0.11.3, PostgreSQL 16.2 (pgserver wheel) and DuckDB 1.5.6. Every run is under 10 minutes; the scripts and raw outputs are in the page's <code>src/measure</code> and <code>src/inputs</code> folders. Facts about other systems come from the root page's Database atlas (checked on 4 October 2026) unless linked.</div>
 </div>

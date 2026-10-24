@@ -136,11 +136,11 @@
       RD.stat('Provisioned, a month',usd(prW+prR),'sized for a peak 3x the average (assumed)')+
       (cur.gsi2==='on'?RD.stat('GSI2 busiest partition',fmt(gsi2)+'/s',gsi2>1000?'<span style="color:var(--bad)">hot: over 1,000 writes a second</span>':'under the limit at this volume'):'');
     el('lab-cost-note').innerHTML='Prices for US East (N. Virginia), standard table class, read on '+P.date+': on-demand $'+P.od_wru*1e6+' per million write units and $'+P.od_rru*1e6+' per million read units; provisioned $'+P.pr_wcu_h+' per write unit-hour and $'+P.pr_rcu_h+' per read unit-hour; storage $'+P.storage_gb_month+' per GB-month (not included above). '+
-      'Each message costs '+wpm+' write units here: DynamoDB Local charged that for the transaction that puts the message and moves the chat to the top of the chat list (Reading section 4.4); by the documented rules, each transactional write costs 2 units per KB and moving an index entry costs 2 more. Each read of "latest 50" costs '+rpm+' read units: 50 messages of about '+B.msg+' bytes is '+Math.ceil(50*B.msg/1024)+' KB, rounded up to 4 KB blocks, halved for eventual consistency. A month is 30 days for requests and 730 hours for capacity. '+
+      'Each message costs '+wpm+' write units here: DynamoDB Local charged that for the transaction that puts the message and moves the chat to the top of the chat list (section 4, closed block on writes); by the documented rules, each transactional write costs 2 units per KB and moving an index entry costs 2 more. Each read of "latest 50" costs '+rpm+' read units: 50 messages of about '+B.msg+' bytes is '+Math.ceil(50*B.msg/1024)+' KB, rounded up to 4 KB blocks, halved for eventual consistency. A month is 30 days for requests and 730 hours for capacity. '+
       'Write sharding spreads one hot key over N keys but every reader must query all N.';
   }
   ['lab-w','lab-s','lab-md','lab-rr'].forEach(id=>el(id).addEventListener('input',hot));
   el('lab-data').textContent=fmt(N.users)+' users, '+fmt(N.chats)+' chats and '+fmt(N.messages)+' messages ('+fmt(TOTAL)+' items in all), chat 7 holding '+fmt(longMsgs)+' messages';
   keysUI();draw();
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-lab']=window.TAB_RENDER['t-lab']||[]).push(draw);
+  RD.onRender(draw);
 })();

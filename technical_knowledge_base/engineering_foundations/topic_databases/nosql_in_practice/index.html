@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>NoSQL in practice: key-value, document, wide-column, time-series, graph</h1>
-<div class="sub">The databases that are not relational, taught from zero on the chat product: what problem forces you to each one, how it models data, how you design for it, what it costs, and when Postgres would still do. Every system on this page was run for real on a laptop (Redis, DynamoDB Local, MongoDB, Cassandra, Neo4j, Kuzu, PostgreSQL, DuckDB); sources are linked inline. Child page of <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a>; data as of October 2026.</div>
+<div class="sub">What each non-relational family makes cheap or hard, how to design for it from the access patterns, and when Postgres with jsonb still does the job, with every system run for real on a laptop (Redis, DynamoDB Local, MongoDB, Cassandra, Neo4j, Kuzu, PostgreSQL, DuckDB). A child page of <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a>. Data as of October 2026. <span id="rd-time">Reading: 42 min, plus 16 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-lab" aria-selected="false">Single-table lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -174,41 +174,80 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-read .calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:6px 16px;margin:8px 0}
 #t-read .calc label{font-size:13px}
 #t-read .ring{display:flex;justify-content:center}
+#t-read p.core{font-size:15.5px;line-height:1.55;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hl2{background:var(--hl);border-radius:3px;padding:0 2px}
+#t-read .herog{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:8px;margin:8px 0}
+#t-read .herog>div{border:1px solid var(--line);border-radius:10px;padding:7px 10px;min-width:0;font-size:13px}
+#t-read .herog h4{margin:0 0 2px;font-size:13.5px}#t-read .herog .sys{color:var(--mute);font-size:12px}
+#t-read .herog .hs{width:100%;min-height:84px}
+#t-read .herog p{margin:3px 0}#t-read .herog .ok b{color:var(--good)}#t-read .herog .no b{color:var(--bad)}#t-read .herog .pg b{color:var(--acc)}
+#t-read dl.terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 12px;font-size:13.5px;margin:8px 0}
+#t-read dl.terms dt{font-weight:600}#t-read dl.terms dd{margin:0}
+#t-read h4.vt{margin:0 0 6px;font-size:14px}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0}
+#t-read details.dp>summary{cursor:pointer;padding:7px 11px;font-size:13.5px;font-weight:600}
+#t-read details.dp>.b{padding:2px 12px 8px;border-top:1px solid var(--line)}
+@media (max-width:520px){#t-read dl.terms{grid-template-columns:minmax(0,1fr)}#t-read dl.terms dd{margin:0 0 4px}}
 </style>
 <nav class="nav" id="rd-nav">
-<a href="#rd-one">One screen</a><a href="#rd-s1">1 Queries first</a><a href="#rd-s2">2 Latest 50</a><a href="#rd-s3">3 Redis</a><a href="#rd-s4">4 DynamoDB</a><a href="#rd-s5">5 Documents</a><a href="#rd-s6">6 Wide-column</a><a href="#rd-s7">7 Time series</a><a href="#rd-s8">8 Graph</a><a href="#rd-s9">9 Embedded engines</a><a href="#rd-pro">Choosing</a><a href="#rd-mist">Mistakes</a><a href="#rd-gloss">Glossary</a>
+<a href="#rd-one">The idea</a><a href="#rd-s1">1 Queries first</a><a href="#rd-s2">2 Latest 50</a><a href="#rd-s3">3 Redis</a><a href="#rd-s4">4 DynamoDB</a><a href="#rd-s5">5 Documents</a><a href="#rd-s6">6 Wide-column</a><a href="#rd-s7">7 Time series</a><a href="#rd-s8">8 Graph</a><a href="#rd-pro">Choosing</a><a href="#rd-depth">Depth</a>
 </nav>
 <section id="rd-one">
-<h2>The whole page in one screen</h2>
-<p class="lead">About 45 minutes to read, plus the optional animations and the <a href="#" data-tab="t-lab">Single-table lab</a>. It starts from zero: every term is explained where it first appears and collected in the <a href="#rd-gloss">Glossary</a>. Results marked <span class="meas">measured</span> were recorded for this page on a laptop (an Apple M1 Pro, 16 GB) on 4 October 2026 against real servers running locally; anything marked <span class="ill">illustrative</span> is made up to show a shape. A laptop has no network between client and server, so its absolute timings are best cases; the counts (pages, rows, items, partitions) are what carries over to production.</p>
-<p>"NoSQL" is not one thing. It is a name for databases that are not relational: they do not store your data as normalised tables joined at query time. Each family below gave up something relational databases offer (joins, ad hoc queries, multi-row transactions, a fixed schema) to get something one machine running Postgres cannot easily give: memory speed, writes spread over hundreds of machines, a record read as one unit, cheap time ranges, cheap hops between connected things. The trade is the same every time: <b>you design the storage around the questions you will ask</b>, and a question you did not plan for becomes slow or impossible.</p>
-<div class="tw"><table>
-<tr><th>Family (systems run here)</th><th>The problem that forces you there</th><th>How you design for it</th><th>What it costs</th><th>When Postgres would still do</th></tr>
-<tr><td><b>Key-value, in memory</b> (Redis 8.8)</td><td>Counters, rate limits, leaderboards, queues and session data hit thousands of times a second; a rank among 100,000 players asked on every page view</td><td>Pick the data structure that answers the question (a sorted set for ranks); make multi-step updates atomic with a Lua script</td><td>Data must fit in memory; replication is asynchronous, so a failover lost <span id="one-repl"></span> acknowledged writes here</td><td>Low rates: a counter row with <code>UPDATE ... SET n = n + 1</code>, a job queue with <code>SKIP LOCKED</code></td></tr>
-<tr><td><b>Key-value, managed and partitioned</b> (DynamoDB Local)</td><td>Any scale with no servers to run, when every request names its key</td><td>List the access patterns first, then choose partition and sort keys (often one table for everything) so each is one request</td><td>A question you did not plan becomes a scan of the whole table; one busy key is capped at 1,000 writes a second</td><td>You are not on AWS at that scale, or your questions still change every week</td></tr>
-<tr><td><b>Document</b> (MongoDB 8.0)</td><td>Records whose shape varies and that are read and written as one unit</td><td>Embed what is read together; reference what grows without bound</td><td>A document is capped at 16 MB; every append rewrites the document; cross-document invariants need transactions</td><td>Almost always: a <code>jsonb</code> column next to normal columns (measured in section 5)</td></tr>
-<tr><td><b>Wide-column</b> (Cassandra 5.0)</td><td>Writes beyond one machine, many regions, no single point of failure</td><td>One table per query; the partition key groups what one query reads, the clustering key sorts it</td><td>No joins, no ad hoc queries, deletes leave tombstones that later reads must skip</td><td>While one server keeps up with the writes: the root measured 2,133 to 9,212 small write transactions a second on this laptop, depending on whether each commit is really flushed to disk</td></tr>
-<tr><td><b>Time series</b> (Postgres partitions, DuckDB; Prometheus, InfluxDB, TimescaleDB, ClickHouse compared)</td><td>Measurements appended every second, queried by recent time range, deleted after a retention period</td><td>Partition by time, roll up old data, drop whole partitions for retention; keep label cardinality bounded</td><td>Poor at anything that is not a time range; high cardinality (a label per user) explodes memory</td><td>Native partitioning plus a rollup table, measured in section 7</td></tr>
-<tr><td><b>Graph</b> (Neo4j 2026.09, Kuzu 0.11)</td><td>Questions of unknown or large depth over connected data: friends of friends of friends, fraud rings, shortest paths</td><td>Nodes and relationships with properties; queries as patterns in Cypher</td><td>Another system to run; Neo4j runs at read committed; Kuzu's project was archived in October 2025</td><td>Fixed one or two hops: a join per hop is fast (measured in section 8)</td></tr>
-</table></div>
+<h2>The idea in one screen</h2>
+<p class="core"><b>Every non-relational family stores together, in the order wanted, what one <span class="hl2">planned question</span> reads, so that question stays one cheap read at any scale; the price is that a question you did not plan becomes a scan, a new table or impossible. That is why Postgres stays the default until a measurement says otherwise.</b></p>
+<div class="card" id="rd-hero-card"><h4 class="vt">Each family makes one shape of question cheap by how it lays data out, and pays for every other shape</h4>
+<div class="herog" id="rd-hero">
+<div><h4>Key-value in memory</h4><div class="sys">Redis 8.8, Valkey</div><div class="hs" data-h="kv"></div>
+<p class="ok"><b>Cheap:</b> counters, rate limits, leaderboards, queues hit thousands of times a second; pick the data structure that answers the question (a sorted set for ranks); every command is atomic.</p>
+<p class="no"><b>Hard:</b> data must fit in memory; replication is asynchronous, so a failover lost <span id="one-repl"></span> acknowledged writes here.</p>
+<p class="pg"><b>Postgres still does it:</b> a counter row with <code>UPDATE ... SET n = n + 1</code>, a job queue with <code>SKIP LOCKED</code>, at low rates.</p></div>
+<div><h4>Key-value, managed and partitioned</h4><div class="sys">DynamoDB</div><div class="hs" data-h="ddb"></div>
+<p class="ok"><b>Cheap:</b> any planned question is one request at any scale, with no servers to run; list the access patterns first, then choose partition and sort keys (often one table for everything).</p>
+<p class="no"><b>Hard:</b> a question you did not plan becomes a scan of the whole table; one busy key is capped at 1,000 writes a second.</p>
+<p class="pg"><b>Postgres still does it:</b> you are not on AWS at that scale, or your questions still change every week.</p></div>
+<div><h4>Document</h4><div class="sys">MongoDB 8.0</div><div class="hs" data-h="doc"></div>
+<p class="ok"><b>Cheap:</b> records whose shape varies, read and written as one unit; embed what is read together, reference what grows without bound.</p>
+<p class="no"><b>Hard:</b> a document is capped at 16 MB; appends grow the document; cross-document invariants need transactions.</p>
+<p class="pg"><b>Postgres still does it:</b> almost always: a <code>jsonb</code> column next to normal columns (measured in section 5).</p></div>
+<div><h4>Wide-column</h4><div class="sys">Cassandra 5.0, ScyllaDB</div><div class="hs" data-h="wide"></div>
+<p class="ok"><b>Cheap:</b> writes beyond one machine, many regions, no single point of failure; one table per query, the partition key groups what it reads, the clustering key sorts it.</p>
+<p class="no"><b>Hard:</b> no joins, no ad hoc queries; deletes leave tombstones that later reads must skip.</p>
+<p class="pg"><b>Postgres still does it:</b> while one server keeps up with the writes: the root measured 2,133 to 9,212 small write transactions a second on this laptop, depending on whether each commit is really flushed to disk.</p></div>
+<div><h4>Time series</h4><div class="sys">Postgres partitions, Prometheus, TimescaleDB, ClickHouse</div><div class="hs" data-h="ts"></div>
+<p class="ok"><b>Cheap:</b> appends in time order, recent time ranges, rollups, dropping whole partitions for retention.</p>
+<p class="no"><b>Hard:</b> anything that is not a time range; high cardinality (a label per user) explodes memory.</p>
+<p class="pg"><b>Postgres still does it:</b> native partitioning plus a rollup table, measured in section 7.</p></div>
+<div><h4>Graph</h4><div class="sys">Neo4j 2026.09, Kuzu 0.11</div><div class="hs" data-h="graph"></div>
+<p class="ok"><b>Cheap:</b> questions of unknown or large depth over connected data: paths, fraud rings, patterns written in Cypher.</p>
+<p class="no"><b>Hard:</b> another system to run; a fixed one or two hops is no faster than Postgres.</p>
+<p class="pg"><b>Postgres still does it:</b> fixed one or two hops: a join per hop is fast (measured in section 8).</p></div>
+</div>
+<p class="small mute">The highlighted part of each drawing is what one planned question reads. Systems named are the ones run for this page; their versions and licences are in one dated table in <a href="#rd-depth">Depth</a>.</p>
+</div>
+<p><b>You need:</b> the root <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a>, Reading sections 1 to 6 (the chat product, indexes, transactions, the families in one card each); its <b>Database atlas</b> tab compares about 60 systems on licence, consistency and scaling, with sources, and is cited here as "root atlas". Consistency models and quorums in general are <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a>; LSM-trees and compaction internals are <a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a>; Redis as a cache is <a href="https://app.notion.com/p/3cd5c17b0d0d817ebd6ccadd4750c23a" target="_blank" rel="noopener noreferrer">Caching</a>; search and vector stores are <a href="https://app.notion.com/p/3ef5c17b0d0d815eb4caef9b4cd4d732" target="_blank" rel="noopener noreferrer">Search and vector databases</a>; graphs as a retrieval method for LLMs (GraphRAG) are <a href="https://app.notion.com/p/3f85c17b0d0d81e2bb4cdbb749e48a5a" target="_blank" rel="noopener noreferrer">GraphRAG and structured retrieval</a>.</p>
+<dl class="terms">
+<dt>Access pattern</dt><dd>one question the app asks: what it knows, what it wants back, how often.</dd>
+<dt>Partition key</dt><dd>the part of a key that decides which group, and so which machine, a record lives in.</dd>
+<dt>Sort key</dt><dd>the part of a key that orders records inside their partition (clustering columns in Cassandra).</dd>
+<dt>Denormalisation</dt><dd>storing a fact more than once, on purpose, so each question reads one place.</dd>
+<dt>Hot partition</dt><dd>one key that gets so much traffic it hits its partition's ceiling.</dd>
+<dt>Tombstone</dt><dd>a delete marker in an LSM store, kept until every replica has seen it.</dd>
+<dt>Cardinality</dt><dd>the number of distinct values (of a label, a key).</dd>
+</dl>
+<p>Results marked <span class="meas">measured</span> were recorded for this page on a laptop (an Apple M1 Pro, 16 GB) on 4 and 5 October 2026 against real servers running locally; <span class="ill">illustrative</span> marks drawings made to explain a shape. A laptop has no network between client and server, so absolute timings are best cases; the counts (pages, rows, items, partitions) are what carries over to production.</p>
 <div class="co key"><div class="t">The five habits of a professional</div>
-<ol>
-<li><b>Write the access patterns down first</b>: every question the app will ask, with its inputs, its sort order and how often it runs. The schema is designed from that list, not from the shape of the data.</li>
+<ol class="tight">
+<li><b>Write the access patterns down first</b>: every question, with its inputs, sort order and frequency. The schema comes from that list, not from the shape of the data.</li>
 <li><b>Choose the partition key from the busiest question and check its spread</b>: no key may get a large share of the traffic, and no partition may grow without bound (add a time bucket).</li>
 <li><b>Count what a request reads, not what it returns</b>: a filter after a scan still reads, and pays for, every item.</li>
 <li><b>Know the durability and replication defaults</b>: Redis acknowledges before the replica has the write; Cassandra flushes its commit log every 10 seconds; MongoDB reads at "local" by default.</li>
 <li><b>Keep Postgres as the source of truth until a measurement says otherwise</b>, and treat every other store as a copy you can rebuild.</li>
 </ol></div>
-<p>This page owns the depth on each family. The root <a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a> (Reading tab, section 6) gives the one-card view of every family, and its <b>Database atlas</b> tab compares about 60 systems on licence, consistency and scaling, with sources; both are linked where they fit rather than repeated. Redis <i>as a cache</i> (cache-aside, eviction, invalidation) belongs to the <a href="https://app.notion.com/p/3cd5c17b0d0d817ebd6ccadd4750c23a" target="_blank" rel="noopener noreferrer">Caching</a> child page; search engines and vector stores to <a href="https://app.notion.com/p/3ef5c17b0d0d815eb4caef9b4cd4d732" target="_blank" rel="noopener noreferrer">Search and vector databases</a>.</p>
 </section>
 
 <section id="rd-s1">
 <h2>1. Queries first: the one idea behind every family</h2>
-<h3>The problem</h3>
-<p>In a relational database you design tables from the <i>data</i> (one table per kind of thing, each fact stored once: <dfn id="g-norm">normalisation</dfn>), and the database works out at query time how to answer any question, joining tables as needed. That is what makes it flexible, and it is why it lives on one machine: a join needs the rows of both tables in one place. When the data or the traffic outgrows one machine, the data must be split across machines, and a question that needs rows from many machines becomes slow.</p>
-<h3>The idea</h3>
-<p>The non-relational families turn the design around. You first write down the <dfn id="g-ap">access patterns</dfn>: each question the application asks, with what it knows (a user id, a chat id) and what it wants back (the newest 50 messages, sorted). Then you store the data so that each question reads one contiguous piece of storage, usually by giving every record a <dfn id="g-pk">partition key</dfn> (which group, and so which machine, it belongs to) and a <dfn id="g-sk">sort key</dfn> (its order inside the group). Data needed by two different questions is often stored twice, on purpose: <dfn id="g-denorm">denormalisation</dfn>.</p>
-<p>The chat product from the root page asks these questions, and they run through the whole page:</p>
+<p>A relational database is designed from the <i>data</i> (each fact stored once: <dfn id="g-norm">normalisation</dfn>) and answers any question by joining at query time. A join needs the rows of both tables in one place, which is why it lives on one machine. The non-relational families turn the design around: you write down the <dfn id="g-ap">access patterns</dfn> first, then store the data so that each question reads one contiguous piece of storage, by giving every record a <dfn id="g-pk">partition key</dfn> (which group, and so which machine) and a <dfn id="g-sk">sort key</dfn> (its order inside the group). Data needed by two questions is often stored twice: <dfn id="g-denorm">denormalisation</dfn>. The chat product's questions run through the whole page:</p>
 <div class="tw"><table>
 <tr><th>Access pattern</th><th>Knows</th><th>Wants</th><th>How often</th></tr>
 <tr><td>Open a chat</td><td>chat id</td><td>its newest 50 messages, newest first</td><td>every page view</td></tr>
@@ -220,30 +259,27 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>Operations</td><td>a time range</td><td>latency and tokens per model, per minute</td><td>dashboards, every few seconds</td></tr>
 <tr><td>Admin</td><td>a model, a day</td><td>every message of that model that day</td><td>rarely</td></tr>
 </table></div>
-<div class="cost"><div class="t">What it costs</div>Every question not on the list is a problem later: in DynamoDB or Cassandra it means a new table or index (written to on every write) and a backfill of all existing data. Relational databases are the right default precisely because they do not need this list in advance. The admin question in the last row is the typical one that no partitioned store answers well: it goes to an analytics copy (the <a href="https://app.notion.com/p/3ef5c17b0d0d8157814ec5dd8a0d4fb5" target="_blank" rel="noopener noreferrer">Analytics: columnar engines, DuckDB and the lakehouse</a> child).</div>
+<div class="cost"><div class="t">What it costs</div>Every question not on the list is a problem later: in DynamoDB or Cassandra it means a new table or index (written to on every write) and a backfill of all existing data. Relational databases are the right default precisely because they do not need this list in advance. The admin question is the typical one no partitioned store answers well: it goes to an analytics copy (the <a href="https://app.notion.com/p/3ef5c17b0d0d8157814ec5dd8a0d4fb5" target="_blank" rel="noopener noreferrer">Analytics: columnar engines, DuckDB and the lakehouse</a> child).</div>
 </section>
 <section id="rd-s2">
 <h2>2. One question, four storage layouts: "the latest 50 messages of a chat"</h2>
-<p>Opening a chat is the most frequent read of the chat product. The table below is the root page's 1M-message table (the same generator and seed) with one addition so that long chats exist: 2% of messages belong to 20 long-running chats, so chat 7 has <span class="meas">measured</span> <span id="s2-rows"></span> messages spread over <span id="s2-days"></span> days. Because messages are appended in time order, a long chat's messages end up scattered through the whole table: in this table they sit on <span id="s2-pages"></span> different 8 KB pages out of <span id="s2-heap"></span>.</p>
-<p>The animation runs the same request four ways. The first three are real <code>EXPLAIN (ANALYZE, BUFFERS)</code> runs on PostgreSQL 16.2; the fourth is the same rows loaded into Apache Cassandra 5.0.9 in a table designed for this question, read with tracing on. The strip is the table's data on disk drawn to scale: each cell is <span id="s2-cell"></span> pages, and the lit cells are the ones the request had to read.</p>
-<div class="card" id="rd-lat-card">
+<p>Opening a chat is the chat product's most frequent read. The table is the root page's 1M-message table (same generator and seed) plus 20 long-running chats holding 2% of the messages, so chat 7 has <span class="meas">measured</span> <span id="s2-rows"></span> messages over <span id="s2-days"></span> days. Messages are appended in time order, so a long chat's rows end up scattered: they sit on <span id="s2-pages"></span> different 8 KB pages out of <span id="s2-heap"></span>. Predict before you step: with an index on <code>(chat_id, created_at)</code>, how many table pages does Postgres read for 50 rows?</p>
+<div class="card" id="rd-lat-card"><h4 class="vt">An index finds the rows; only storing them together makes the read one page</h4>
 <div class="seg" id="rd-lat-mode"><button data-m="seq" class="on">Postgres, no index</button><button data-m="idx">+ index on (chat_id, created_at)</button><button data-m="clu">+ rows of a chat stored together (CLUSTER)</button><button data-m="cas">Cassandra partition</button></div>
 <div class="an-ctl" id="rd-lat-ctl"></div>
 <div class="an-cnt" id="rd-lat-cnt"></div>
 <div class="rd-svg" id="rd-lat-svg"></div>
 <div class="an-cap" id="rd-lat-cap"></div>
+<p class="small mute">The first three are real <code>EXPLAIN (ANALYZE, BUFFERS)</code> runs on PostgreSQL 16.2; the fourth is the same rows in Apache Cassandra 5.0.9 in a table designed for this question, read with tracing on. The strip is the table's data on disk to scale: each cell is <span id="s2-cell"></span> pages, lit cells were read. Measured: no index 19,347 page reads, 38 ms; index 57 page reads (49 table pages), 0.129 ms; after CLUSTER 9 page reads (1 table page), 0.043 ms.</p>
 <details class="raw"><summary>The real plans and the Cassandra trace</summary><pre id="rd-lat-raw"></pre></details>
 </div>
-<p>What changed between the second and third runs is only where rows live. An index tells the database <i>where</i> each of chat 7's rows is, but if they are scattered, it still reads one page per row: <span id="s2-idx"></span>. Putting a chat's rows next to each other (<code>CLUSTER</code> rewrites the table in index order) makes the same 50 rows one page. That is the whole idea of a <dfn id="g-partition">partition</dfn> in a wide-column store or DynamoDB: rows that one question reads together are <i>stored</i> together, sorted the way the question wants them, and the layout is maintained on every write instead of by an occasional rewrite.</p>
-<div class="cost"><div class="t">What each step costs</div>The index costs a little on every insert (the root and the <a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a> page measure it) and is the right fix in Postgres. <code>CLUSTER</code> took <span id="s2-cluster"></span> seconds here but locks the table and is not maintained: new rows land at the end again, so it is a one-off, not a design. The Cassandra table answers this question and no other: "every message by message id" needs another table.</div>
+<p>An index tells the database <i>where</i> each of chat 7's rows is, but if they are scattered it still reads one page per row: <span id="s2-idx"></span>. Putting a chat's rows next to each other (<code>CLUSTER</code> rewrites the table in index order) makes the same 50 rows one page. That is the whole idea of a <dfn id="g-partition">partition</dfn> in a wide-column store or DynamoDB: rows one question reads together are <i>stored</i> together, sorted the way the question wants, and the layout is maintained on every write instead of by an occasional rewrite.</p>
+<div class="cost"><div class="t">What each step costs</div>The index costs a little on every insert (<a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a> measures it) and is the right fix in Postgres. <code>CLUSTER</code> took <span id="s2-cluster"></span> seconds here but locks the table and is not maintained: new rows land at the end again, so it is a one-off, not a design. The Cassandra table answers this question and no other: "every message by message id" needs another table.</div>
 <div class="pg-when"><div class="t">When Postgres would still do</div>Almost always, for this question: with the composite index the 50 rows came back in <span id="s2-idxms"></span> ms on the server. A partitioned store earns its place when the <i>writes</i> outgrow one machine or must survive the loss of a whole data centre, not because one read is slow. Discord described its Cassandra message store at billions of messages in January 2017 and its move to ScyllaDB at trillions in March 2023 (the system design page's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Case files</a> tab, "Trillions of messages"); section 6 shows their table.</div>
 </section>
 <section id="rd-s3">
 <h2>3. Key-value in memory: Redis</h2>
-<h3>The problem</h3>
-<p>Some questions are tiny and asked constantly: "has this user sent more than 20 requests this minute?", "what rank is this player?", "is there a job waiting?". Each answer is a few bytes, but asked on every request it becomes most of the database's work, and some (a rank among 100,000 players) are expensive in SQL however you index them.</p>
-<h3>How it works</h3>
-<p><dfn id="g-redis">Redis</dfn> is a server that keeps every key and its value in memory. A value is not just a string: it is one of a handful of <b>data structures</b>, each with its own commands, and the server executes commands one at a time on a single thread, so <b>every command is atomic</b>: no other client's command runs halfway through it (the root's <b>Database atlas</b> tab has Redis's row with sources). The version measured here is Redis 8.8.0 (conda-forge build) in its default configuration unless stated.</p>
+<p>Some questions are tiny and asked constantly: "has this user sent more than 20 requests this minute?", "what rank is this player?", "is there a job waiting?". <dfn id="g-redis">Redis</dfn> keeps every key and value in memory, and a value is one of a handful of <b>data structures</b>, each with its own commands. The server executes commands one at a time on a single thread, so <b>every command is atomic</b>: no other client's command runs halfway through it. Measured here: Redis 8.8.0 in its default configuration unless stated.</p>
 <div class="tw"><table>
 <tr><th>Structure</th><th>What it holds</th><th>Commands</th><th>Real uses in the chat product</th></tr>
 <tr><td>String</td><td>bytes or a number</td><td><code>SET</code>, <code>GET</code>, <code>INCR</code>, <code>SET key val NX PX 30000</code></td><td>a counter; a short lock ("only one worker summarises chat 7")</td></tr>
@@ -253,144 +289,210 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>Sorted set</td><td>unique members, each with a score, kept in score order</td><td><code>ZADD</code>, <code>ZINCRBY</code>, <code>ZRANGE</code>, <code>ZREVRANK</code></td><td>leaderboards; sliding-window rate limits; delayed jobs scored by run time</td></tr>
 <tr><td>Stream</td><td>an append-only log of entries with ids</td><td><code>XADD</code>, <code>XREADGROUP</code>, <code>XACK</code>, <code>XAUTOCLAIM</code></td><td>jobs with acknowledgement and redelivery (summaries, embeddings)</td></tr>
 </table></div>
-<p class="small mute">Redis 8 also ships JSON documents, vector sets, time series and a query engine in the main server; HyperLogLog (approximate counts of unique items), bitmaps and geo indexes have existed for years. They are useful, but each one is a reason to keep more state in a store whose durability is weaker than your database's (below).</p>
-<h3>How fast, measured</h3>
+<p>Speed is mostly the round trip: one <code>GET</code> took a median <b>52.1 µs</b> (p99 121 µs) from Python, almost all of it client library and loopback, so one client does about 16,000 to 18,000 operations a second and 50 clients that <dfn id="g-pipeline">pipeline</dfn> 16 commands per round trip (send many, then read all replies) over 520,000. In production the network dominates (Jeff Dean's classic figure is 0.5 ms for a round trip inside one data centre, and Microsoft aims for under about 2 ms between availability zones: the system design page's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Numbers to know</a> tab), so the habit that matters is fewer round trips: pipelines, multi-key commands and scripts.</p>
+<details class="dp"><summary>Throughput measured with redis-benchmark, and what else Redis 8 ships <span class="mute">(depth)</span></summary><div class="b">
 <div class="nums" id="rd-redis-nums"></div>
-<p>On this laptop one <code>GET</code> took a median <b>52.1 µs</b> (p99 121 µs) over 20,000 calls from Python: almost all of it is the client library and the loopback network, not Redis. That is why one client does only about 16,000 to 18,000 operations a second, 50 clients about 33,000 to 35,000 (one request in flight each), and 50 clients that <dfn id="g-pipeline">pipeline</dfn> 16 commands per round trip (send many, then read all the replies) over 520,000 (<code>redis-benchmark</code>, the tool that ships with Redis). In production, the network between your app and Redis dominates (Jeff Dean's classic figure is 0.5 ms for a round trip inside one data centre, and Microsoft aims for under about 2 ms between availability zones: the system design page's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Numbers to know</a> tab), so the habits that matter are fewer round trips: pipelines, multi-key commands and scripts.</p>
-<h3>A leaderboard with a sorted set</h3>
-<p>A <dfn id="g-zset">sorted set</dfn> keeps members ordered by score. Redis implements it as two structures at once: a hash table (member to score) and a <dfn id="g-skiplist">skip list</dfn>, a sorted linked list with extra "express lane" links that let a search skip ahead, so finding a member's position takes about log<sub>2</sub>(N) steps (<a href="https://redis.io/docs/latest/develop/data-types/sorted-sets/" target="_blank" rel="noopener noreferrer">Redis sorted sets</a>: "most sorted set operations are O(log(n))"). Measured with 100,000 players:</p>
-<div class="vs">
-<div><h4>Redis sorted set</h4><ul class="tight"><li>100,000 members in <b>8.9 MB</b> (about 93 bytes each, <code>MEMORY USAGE</code>)</li><li>top 10 (<code>ZRANGE lb 0 9 REV WITHSCORES</code>): median 99 µs</li><li>one player's rank (<code>ZREVRANK</code>): median 91 µs, wherever the player stands</li><li>score update (<code>ZINCRBY</code>): about 10,500 a second from one client</li></ul></div>
-<div><h4>PostgreSQL 16.2, same scores, index on (score DESC)</h4><ul class="tight"><li>top 10: 3 page reads, 0.059 ms: as good as Redis</li><li>rank = count of players above you: <code>SELECT count(*) FROM scores WHERE score &gt; (SELECT score FROM scores WHERE user_id = $1)</code></li><li>rank 50,000: 142 page reads, 4.67 ms; rank 95,359: <b>266 page reads, 8.98 ms</b></li><li>the cost grows with the rank: the index visits one entry per player above</li></ul></div>
-</div>
-<div class="pg-when"><div class="t">When Postgres would still do</div>Top-N lists ("the 10 best") are an index read in Postgres. Exact ranks for everyone, asked on every page view, are what the sorted set is for; with only a few thousand players, or ranks shown as "top 5%", Postgres (or a rank recomputed every minute) is fine.</div>
+<p class="small">50 clients with one request in flight each did about 33,000 to 35,000 operations a second (<code>redis-benchmark</code>, the tool that ships with Redis). Redis 8 also ships JSON documents, vector sets, time series and a query engine in the main server; HyperLogLog (approximate counts of unique items), bitmaps and geo indexes have existed for years. Each is a reason to keep more state in a store whose durability is weaker than your database's (below).</p></div></details>
+
+<h3>A leaderboard: a sorted set against a count in SQL</h3>
+<p>A <dfn id="g-zset">sorted set</dfn> is a hash table (member to score) plus a <dfn id="g-skiplist">skip list</dfn>, a sorted linked list with "express lane" links, so a member's position takes about log<sub>2</sub>(N) steps (<a href="https://redis.io/docs/latest/develop/data-types/sorted-sets/" target="_blank" rel="noopener noreferrer">Redis sorted sets</a>: "most sorted set operations are O(log(n))"). In Postgres a rank is a count of the players above you, and the index visits one entry per player above. Measured with 100,000 players:</p>
+<div class="card" id="rd-lb-card"><h4 class="vt">A rank in SQL costs more the lower the player stands; in a sorted set it costs the same everywhere</h4>
+<div class="rd-svg" id="rd-lb-svg"></div>
+<p class="small mute"><span class="meas">measured</span> Postgres 16.2, index on (score DESC), <code>SELECT count(*) FROM scores WHERE score &gt; (SELECT score FROM scores WHERE user_id = $1)</code>: rank 3 took 6 page reads, rank 50,000 took 142 page reads, 4.67 ms; rank 95,359 took 266 page reads, 8.98 ms (server time). Redis <code>ZREVRANK</code>: median 91 µs wherever the player stands, from the client, so it includes the round trip. The top 10 is cheap in both: 3 page reads, 0.059 ms in Postgres, median 99 µs for <code>ZRANGE lb 0 9 REV WITHSCORES</code>. The set holds 100,000 members in 8.9 MB (about 93 bytes each, <code>MEMORY USAGE</code>) and takes score updates (<code>ZINCRBY</code>) at about 10,500 a second from one client.</p></div>
+<div class="pg-when"><div class="t">When Postgres would still do</div>Top-N lists are an index read in Postgres. Exact ranks for everyone on every page view are what the sorted set is for; with a few thousand players, or ranks shown as "top 5%", Postgres (or a rank recomputed every minute) is fine.</div>
+
 <h3>Rate limiting, and why it needs atomicity</h3>
-<p>A <dfn id="g-ratelimit">rate limiter</dfn> decides, on every request, whether a user may make another one. The obvious code reads the user's remaining allowance, decides in the application, and writes the new value back. Run by many servers at once, two requests read the same allowance before either writes, and both pass. Measured: 16 processes each made 50 attempts against an allowance of 20.</p>
-<div class="card" id="rd-rl-card">
+<p>A <dfn id="g-ratelimit">rate limiter</dfn> decides, on every request, whether a user may make another one. The obvious code reads the remaining allowance, decides in the application and writes back; run by many servers at once, two requests read the same allowance before either writes, and both pass. Predict: 16 processes each make 50 attempts against an allowance of 20; how many get through?</p>
+<div class="card" id="rd-rl-card"><h4 class="vt">Read, decide, write lets nine times the limit through; one atomic script lets exactly the limit through</h4>
 <div class="nums" id="rd-rl-nums"></div>
 <div class="rd-svg" id="rd-rl-svg"></div>
-<p class="small mute">"Read, decide, write" in the application let <b>188</b> of 800 attempts through a limit of 20. The same limit as one Lua script inside Redis let exactly <b>20</b> through, because a script runs atomically: "while executing the script, all server activities are blocked during its entire runtime" (<a href="https://redis.io/docs/latest/develop/programmability/eval-intro/" target="_blank" rel="noopener noreferrer">Redis docs, scripting with Lua</a>).</p>
+<p class="small mute">"Read, decide, write" in the application let 188 of 800 attempts through a limit of 20. The same limit as one Lua script inside Redis let exactly <b>20</b> through, because "while executing the script, all server activities are blocked during its entire runtime" (<a href="https://redis.io/docs/latest/develop/programmability/eval-intro/" target="_blank" rel="noopener noreferrer">Redis docs, scripting with Lua</a>).</p>
 </div>
-<p>The script below is the token bucket measured here, verbatim. A <dfn id="g-tokenbucket">token bucket</dfn> holds up to <i>capacity</i> tokens, refills at a steady rate, and each request takes one: it allows short bursts up to the capacity and a long-run average equal to the refill rate. It uses the server's clock (<code>TIME</code>) so that every app server agrees on "now", and it passes the bucket's name in <code>KEYS</code>, which Redis Cluster requires so it can route the script to the server that owns the key.</p>
+<p>The script is a <dfn id="g-tokenbucket">token bucket</dfn>: up to <i>capacity</i> tokens, refilled at a steady rate, one taken per request, so bursts up to the capacity and a long-run average equal to the refill rate. It uses the server's clock (<code>TIME</code>) so every app server agrees on "now", and passes the bucket's name in <code>KEYS</code>, which Redis Cluster needs to route the script to the server that owns the key. Choosing among limiter algorithms and where limits sit in a system is <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>'s and <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>'s.</p>
+<details class="dp"><summary>The script verbatim, and three limiter algorithms measured on Redis <span class="mute">(depth)</span></summary><div class="b">
 <pre class="sql" id="rd-rl-script"></pre>
 <div class="tw"><table>
 <tr><th>Algorithm</th><th>Redis implementation</th><th>Measured, one client</th><th>Behaviour</th></tr>
 <tr><td>Fixed window</td><td><code>INCR user:7:&lt;minute&gt;</code> plus <code>EXPIRE</code></td><td>7,623 checks/s</td><td>cheapest; a burst at the end of one minute and the start of the next can pass twice the limit</td></tr>
-<tr><td>Sliding window log</td><td>a sorted set of request times: trim older than 60 s, add, count (in <code>MULTI</code>)</td><td>4,645 checks/s</td><td>exact; stores one entry per request, so memory grows with the limit</td></tr>
+<tr><td>Sliding window log</td><td>a sorted set of request times: trim older than 60 s, add, count (in <code>MULTI</code>)</td><td>4,645 checks/s</td><td>exact; one entry per request, so memory grows with the limit</td></tr>
 <tr><td>Token bucket</td><td>the Lua script above, one hash per user</td><td>8,155 checks/s (21,147 with 8 clients)</td><td>smooth; bursts up to the capacity; two numbers per user</td></tr>
 </table></div>
-<p class="small mute">All three are round-trip bound on this laptop (one check per round trip). The <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a> page covers where rate limits sit in a system and how to choose the numbers.</p>
-<h3>Streams: a job queue that survives a crashed worker</h3>
-<p>A list makes a queue, but a worker that pops a job and crashes loses it. A <dfn id="g-stream">stream</dfn> is an append-only log; a <b>consumer group</b> hands each entry to one consumer and remembers it in a <b>pending entries list</b> until the consumer acknowledges it with <code>XACK</code>. Measured run, real ids:</p>
-<ol class="tight" id="rd-stream-steps"></ol>
-<p>That is <dfn id="g-alo">at-least-once delivery</dfn>: a job can run twice (the first worker may have done the work and died before acknowledging), so the job must be safe to repeat. Durable logs, the outbox pattern and Kafka are on <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>; a Redis stream is the small version, with Redis's durability.</p>
+<p class="small mute">All three are round-trip bound on this laptop (one check per round trip).</p></div></details>
+
 <h3>Durability: what survives a crash</h3>
-<p>Redis writes to disk in two optional ways (<a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/" target="_blank" rel="noopener noreferrer">Redis persistence</a>). An <dfn id="g-rdb">RDB snapshot</dfn> is a point-in-time copy written by a forked child every so often ("you should be prepared to lose the latest minutes of data"). The <dfn id="g-aof">append-only file</dfn> (AOF) logs every write; with <code>appendfsync everysec</code>, the default when AOF is on, the file is flushed to disk once a second, so a power cut loses about a second of writes; with <code>always</code> it is flushed before each reply. Measured (SET throughput from <code>redis-benchmark</code>, then a writer incrementing a counter for 3 seconds before <code>kill -9</code>):</p>
+<p>Redis writes to disk in two optional ways (<a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/" target="_blank" rel="noopener noreferrer">Redis persistence</a>). An <dfn id="g-rdb">RDB snapshot</dfn> is a point-in-time copy written by a forked child every so often ("you should be prepared to lose the latest minutes of data"). The <dfn id="g-aof">append-only file</dfn> (AOF) logs every write; with <code>appendfsync everysec</code>, the default when AOF is on, it is flushed once a second, so a power cut loses about a second of writes; with <code>always</code> it is flushed before each reply. Measured (SET throughput from <code>redis-benchmark</code>, then a writer incrementing a counter for 3 seconds before <code>kill -9</code>):</p>
 <div class="tw" id="rd-persist"></div>
-<p class="small mute">A <code>kill -9</code> is a process crash, not a power cut: the operating system still holds what Redis wrote, which is why AOF lost nothing here. A power cut loses whatever was not yet flushed, up to about a second with <code>everysec</code>. On macOS a flush does not force the drive's own cache (the transactions page measures the same caveat for Postgres), so <code>always</code> is cheaper here than on a Linux server with a real flush.</p>
+<p class="small mute">RDB only: 40,255 acknowledged, all lost (no snapshot had been taken yet); AOF everysec: 50,324 acknowledged, 0 lost. A <code>kill -9</code> is a process crash, not a power cut: the operating system still holds what Redis wrote, which is why AOF lost nothing. On macOS a flush does not force the drive's own cache, so <code>always</code> is cheaper here than on a Linux server with a real flush.</p>
+
 <h3>Replication: acknowledged writes that vanish</h3>
-<p>Redis copies writes to its replicas <i>after</i> replying to the client: replication is <b>asynchronous</b>. If the primary dies before a replica has a write and the replica is promoted, the write is gone even though the client was told "OK". Measured: a primary and a replica on this laptop; the replica is paused (as a long garbage-collection pause or a network problem would), the primary acknowledges 5,000 writes of 10 KB, the primary is killed, the replica resumes and is promoted.</p>
+<p>Redis copies writes to its replicas <i>after</i> replying to the client: replication is <b>asynchronous</b>. Step through the measured run: a primary and a replica on this laptop, the replica paused (as a long garbage-collection pause or a network problem would), 10 KB writes, the primary killed, the replica promoted.</p>
+<div class="card" id="rd-fo-card"><h4 class="vt">"OK" from the primary is not "on the replica": a failover lost 4,947 of 5,000 acknowledged writes</h4>
+<div class="an-ctl" id="rd-fo-ctl"></div>
+<div class="rd-svg" id="rd-fo-svg"></div>
+<div class="an-cap" id="rd-fo-cap"></div>
 <div class="nums" id="rd-repl-nums"></div>
-<p>The <code>WAIT 1 500</code> call made after the writes returned 0: it reports how many replicas confirmed, it does not make the writes safe, and Redis's own documentation says "WAIT does not make Redis a strongly consistent store" (<a href="https://redis.io/docs/latest/commands/wait/" target="_blank" rel="noopener noreferrer">Redis WAIT</a>). Jepsen measured the same with Sentinel failover in 2013 (56% of acknowledged writes lost; root atlas). So Redis must not be the only copy of anything you cannot rebuild.</p>
-<div class="co warn"><div class="t">Licence: Redis and Valkey</div>Redis moved from the BSD licence to a dual source-available licence (RSALv2 or SSPLv1) from version 7.4 on 20 March 2024; the Linux Foundation launched <b>Valkey</b>, a BSD fork of Redis 7.2.4, on 28 March 2024, backed by AWS, Google Cloud, Oracle and others; Redis 8 added AGPLv3 as a third option on 1 May 2025 (all in the root's <b>Database atlas</b>, with sources). Valkey speaks the same protocol and commands as Redis 7.2, so clients and the code on this page work unchanged; Redis 8-only features (built-in JSON, vector sets, the query engine) do not exist in Valkey under those names.</div>
-<div class="cost"><div class="t">What it costs</div>Memory: everything lives in RAM, plus overhead per key (93 bytes per sorted-set member above). One thread executes commands, so a slow command (a <code>KEYS *</code>, a long script, a <code>ZRANGE</code> returning a million members) stalls every client. Durability and replication are weaker than a database's by default, as measured above. Redis Cluster shards keys over 16,384 hash slots, and a multi-key command or script works only when all its keys are in one slot (use hash tags such as <code>{user:7}:bucket</code>).</div>
-<div class="pg-when"><div class="t">When Postgres would still do</div>A counter updated a few times a second (<code>UPDATE ... SET n = n + 1</code> is atomic); a job queue with <code>SELECT ... FOR UPDATE SKIP LOCKED</code> (measured on <a href="https://app.notion.com/p/3ef5c17b0d0d8155aa64ddeb09da144e" target="_blank" rel="noopener noreferrer">Transactions and concurrency</a>); a rate limit at tens of requests a second; top-N lists. Using Redis <i>as a cache</i> in front of Postgres (cache-aside, eviction, invalidation, stampedes) is the <a href="https://app.notion.com/p/3cd5c17b0d0d817ebd6ccadd4750c23a" target="_blank" rel="noopener noreferrer">Caching</a> page's subject.</div>
+</div>
+<p>The <code>WAIT 1 500</code> call after the writes returned 0: it reports how many replicas confirmed, it does not make the writes safe ("WAIT does not make Redis a strongly consistent store", <a href="https://redis.io/docs/latest/commands/wait/" target="_blank" rel="noopener noreferrer">Redis WAIT</a>). Jepsen measured the same with Sentinel failover in 2013 (56% of acknowledged writes lost; root atlas). So Redis must not be the only copy of anything you cannot rebuild.</p>
+
+<h3>Streams: a job queue that survives a crashed worker</h3>
+<p>A list makes a queue, but a worker that pops a job and crashes loses it. A <dfn id="g-stream">stream</dfn> is an append-only log; a <b>consumer group</b> hands each entry to one consumer and keeps it in a <b>pending entries list</b> until the consumer acknowledges it with <code>XACK</code>; another worker can claim an idle pending entry with <code>XAUTOCLAIM</code>. That is <dfn id="g-alo">at-least-once delivery</dfn>: a job can run twice, so it must be safe to repeat. Durable logs, the outbox pattern and Kafka are <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>'s; a Redis stream is the small version, with Redis's durability.</p>
+<details class="dp"><summary>The measured stream run with real ids <span class="mute">(depth)</span></summary><div class="b"><ol class="tight" id="rd-stream-steps"></ol></div></details>
+<div class="cost"><div class="t">What it costs</div>Memory: everything lives in RAM, plus overhead per key (93 bytes per sorted-set member above). One thread executes commands, so a slow command (a <code>KEYS *</code>, a long script, a <code>ZRANGE</code> returning a million members) stalls every client. Durability and replication are weaker than a database's by default, as measured. Redis Cluster shards keys over 16,384 hash slots, and a multi-key command or script works only when all its keys are in one slot (use hash tags such as <code>{user:7}:bucket</code>). The licence changed in 2024 and Valkey forked (dated table in <a href="#rd-depth">Depth</a>); Valkey speaks the same protocol and commands as Redis 7.2, so the code here works on both.</div>
+<div class="pg-when"><div class="t">When Postgres would still do</div>A counter updated a few times a second (<code>UPDATE ... SET n = n + 1</code> is atomic); a job queue with <code>SELECT ... FOR UPDATE SKIP LOCKED</code> (measured on <a href="https://app.notion.com/p/3ef5c17b0d0d8155aa64ddeb09da144e" target="_blank" rel="noopener noreferrer">Transactions and concurrency</a>); a rate limit at tens of requests a second; top-N lists. Redis <i>as a cache</i> in front of Postgres (cache-aside, eviction, invalidation, stampedes) is <a href="https://app.notion.com/p/3cd5c17b0d0d817ebd6ccadd4750c23a" target="_blank" rel="noopener noreferrer">Caching</a>'s subject.</div>
 </section>
 <section id="rd-s4">
 <h2>4. Key-value at any scale: DynamoDB and single-table design</h2>
-<h3>The problem</h3>
-<p>Redis is one machine's memory. Suppose the chat product needs a store that grows without limit, survives the loss of a data centre, and has no servers, upgrades or vacuum to manage, and every request already knows the key it wants (a user id, a chat id). That is what Amazon <dfn id="g-ddb">DynamoDB</dfn> sells: a managed, partitioned key-value and document store, billed per request or per reserved capacity.</p>
-<h3>4.1 The model</h3>
+<p>Suppose the chat product needs a store that grows without limit, survives the loss of a data centre, has no servers, upgrades or vacuum to manage, and every request already knows its key. That is what Amazon <dfn id="g-ddb">DynamoDB</dfn> sells: a managed, partitioned key-value and document store, billed per request or per reserved capacity.</p>
+<h3>The model</h3>
 <ul class="tight">
 <li>A <b>table</b> holds <b>items</b> (a map of attributes, at most 400 KB each). Each item has a <b>primary key</b>: a <b>partition key</b>, optionally with a <b>sort key</b>. Items with the same partition key form an <dfn id="g-collection">item collection</dfn>, stored together and sorted by sort key.</li>
 <li>DynamoDB hashes the partition key to pick a <b>partition</b>; each partition is a Multi-Paxos group of three replicas, each with a write-ahead log and a B-tree (root atlas; <a href="https://www.usenix.org/conference/atc22/presentation/elhemali" target="_blank" rel="noopener noreferrer">Elhemali et al., Amazon DynamoDB, USENIX ATC 2022</a>). Partitions split automatically as data and traffic grow.</li>
-<li>Reads: <code>GetItem</code> (the full key: one item), <code>Query</code> (one partition key, optionally a sort key condition such as <code>begins_with</code> or <code>between</code>; returns items in sort order, ascending or descending, up to 1 MB per page) and <code>Scan</code> (every item in the table). Nothing else: no joins, no query on a non-key attribute without an index.</li>
-<li>Consistency: reads are eventually consistent by default (they may miss a write from the last moment); a strongly consistent read costs twice as much and is not available on global secondary indexes. Single-item writes are atomic; transactions cover up to 100 items in one Region and cost double (root atlas, claim corrected).</li>
-<li>Capacity is counted in units: one <b>read unit</b> is a strongly consistent read of up to 4 KB (an eventually consistent read is half a unit); one <b>write unit</b> is a write of up to 1 KB. Each partition serves at most 3,000 read units and 1,000 write units a second (<a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-design.html" target="_blank" rel="noopener noreferrer">AWS, partition key design</a>).</li>
+<li>Reads: <code>GetItem</code> (the full key: one item), <code>Query</code> (one partition key, optionally a sort key condition such as <code>begins_with</code> or <code>between</code>; items in sort order, up to 1 MB per page) and <code>Scan</code> (every item in the table). Nothing else: no joins, no query on a non-key attribute without an index.</li>
+<li>Reads are eventually consistent by default; a strongly consistent read costs twice as much and is not available on global secondary indexes. Single-item writes are atomic; transactions cover up to 100 items in one Region and cost double (root atlas, claim corrected).</li>
+<li>One <b>read unit</b> is a strongly consistent read of up to 4 KB (eventually consistent: half a unit); one <b>write unit</b> is a write of up to 1 KB. Each partition serves at most 3,000 read units and 1,000 write units a second (<a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-design.html" target="_blank" rel="noopener noreferrer">AWS, partition key design</a>).</li>
 </ul>
-<h3>4.2 Single-table design, step by step on the chat product</h3>
-<p>Because there are no joins, a page that needs a user, their chats and a chat's messages would need several requests if each kind of item lived in its own table, keyed by its own id. <dfn id="g-singletable">Single-table design</dfn> puts every kind of item in one table and chooses keys so that the items one screen needs share a partition key and come back in one Query, sorted (<a href="https://www.alexdebrie.com/posts/dynamodb-single-table/" target="_blank" rel="noopener noreferrer">Alex DeBrie, The What, Why, and When of Single-Table Design, 2020-02-05</a>). The keys are generic strings (<code>PK</code>, <code>SK</code>) holding a type prefix and an id. Built step by step from the access patterns of section 1:</p>
-<ol>
-<li><b>Open a chat (latest 50 messages).</b> The request knows the chat id and wants messages newest first, so messages get <code>PK = CHAT#&lt;chatId&gt;</code> and <code>SK = MSG#&lt;createdAt&gt;#&lt;messageId&gt;</code>: an ISO timestamp sorts correctly as a string, and the id breaks ties. Query <code>PK = CHAT#7</code>, <code>SK begins_with MSG#</code>, descending, limit 50.</li>
-<li><b>Usage per day.</b> The request knows the user and a month: <code>PK = USER#&lt;userId&gt;</code>, <code>SK = USAGE#&lt;day&gt;</code>, one item per user per day updated with an atomic <code>ADD</code>. Query <code>SK begins_with USAGE#2025-09</code>.</li>
-<li><b>User profile.</b> <code>PK = USER#&lt;userId&gt;</code>, <code>SK = PROFILE</code>: it shares the user's partition with the usage items, so one Query could fetch the profile and the month together.</li>
-<li><b>Chat list, most recently active first.</b> Chats get <code>PK = USER#&lt;userId&gt;</code>, <code>SK = CHAT#&lt;chatId&gt;</code>, but that sorts by id, not by activity. A <b>global secondary index</b> (GSI1) re-keys the same items: <code>GSI1PK = USER#&lt;userId&gt;</code>, <code>GSI1SK = LAST#&lt;lastMessageAt&gt;#&lt;chatId&gt;</code>. Sending a message updates the chat's <code>GSI1SK</code>, and the index moves it to the top.</li>
-<li><b>Log in by email, emails unique.</b> A lookup item <code>PK = EMAIL#&lt;email&gt;</code> holds the user id. Registration writes the user and the lookup item in one transaction, each with the condition <code>attribute_not_exists(PK)</code>, so a second account with the same email fails.</li>
-<li><b>Admin: every message of one model on one day.</b> No key can serve this without a partition that receives a quarter of all writes; it goes to an analytics copy (DynamoDB exports a table to S3 in full or incrementally, every 15 minutes to 24 hours, <a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ServiceQuotas.html" target="_blank" rel="noopener noreferrer">AWS quotas</a>).</li>
+<h3>Single-table design on the chat product</h3>
+<p>With no joins, a screen that needs a user, their chats and a chat's messages would take several requests if each kind of item had its own table. <dfn id="g-singletable">Single-table design</dfn> puts every kind of item in one table, with generic key strings (<code>PK</code>, <code>SK</code>) holding a type prefix and an id, chosen so that the items one screen needs share a partition key and come back in one Query, sorted (<a href="https://www.alexdebrie.com/posts/dynamodb-single-table/" target="_blank" rel="noopener noreferrer">Alex DeBrie, The What, Why, and When of Single-Table Design, 2020-02-05</a>). From the access patterns of section 1:</p>
+<ol class="tight">
+<li><b>Open a chat:</b> messages get <code>PK = CHAT#&lt;chatId&gt;</code>, <code>SK = MSG#&lt;createdAt&gt;#&lt;messageId&gt;</code> (an ISO timestamp sorts correctly as a string; the id breaks ties). Query <code>PK = CHAT#7</code>, <code>SK begins_with MSG#</code>, descending, limit 50.</li>
+<li><b>Usage per day:</b> <code>PK = USER#&lt;userId&gt;</code>, <code>SK = USAGE#&lt;day&gt;</code>, updated with an atomic <code>ADD</code>; Query <code>SK begins_with USAGE#2025-09</code>. The profile (<code>SK = PROFILE</code>) shares the partition, so one Query can fetch both.</li>
+<li><b>Chat list, most recently active first:</b> chats sit under <code>PK = USER#&lt;userId&gt;</code>, <code>SK = CHAT#&lt;chatId&gt;</code>, sorted by id; a <b>global secondary index</b> (GSI1) re-keys them: <code>GSI1PK = USER#&lt;userId&gt;</code>, <code>GSI1SK = LAST#&lt;lastMessageAt&gt;#&lt;chatId&gt;</code>. Sending a message updates <code>GSI1SK</code>, and the chat moves to the top.</li>
+<li><b>Log in by email, emails unique:</b> a lookup item <code>PK = EMAIL#&lt;email&gt;</code> holds the user id; registration writes the user and the lookup item in one transaction, each with <code>attribute_not_exists(PK)</code>, so a duplicate email fails.</li>
+<li><b>Admin, every message of one model on one day:</b> no key serves it without a partition that takes a quarter of all writes; it goes to an analytics copy (DynamoDB exports a table to S3 in full or incrementally, every 15 minutes to 24 hours, <a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ServiceQuotas.html" target="_blank" rel="noopener noreferrer">AWS quotas</a>).</li>
 </ol>
-<p>Measured on DynamoDB Local 3.3.1 (AWS's downloadable version of the API) with the chat data: 400 users, 2,999 chats, 49,517 messages, 54,775 items in all. DynamoDB Local runs the real API, key rules and capacity accounting, but not the service's partitions, throughput limits or latency, so only counts are shown.</p>
+<p>Try it: start from <i>Relational habit</i> (one kind of item per table, keyed by its own id) and predict how many questions become scans; then switch to <i>Single-table design</i>. Change only the message key to <code>MSG#{messageId}</code> and watch "latest 50 messages" collapse into a scan.</p>
+<style>
+#rd-lab .lab2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:10px 0}
+@media (max-width:760px){#rd-lab .lab2{grid-template-columns:minmax(0,1fr)}}
+#rd-lab .pane{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+#rd-lab .pane h3{margin:0 0 6px;font-size:14.5px}
+#rd-lab .ap{border:1px solid var(--line);border-left:5px solid var(--dim);border-radius:8px;padding:6px 9px;margin:6px 0;font-size:13px;cursor:pointer;background:var(--bg)}
+#rd-lab .ap.sel{outline:2px solid var(--acc);outline-offset:1px}
+#rd-lab .ap .nm{font-weight:600;display:block}#rd-lab .ap .op{font-family:ui-monospace,Menlo,monospace;font-size:12px;display:block;overflow-wrap:anywhere}
+#rd-lab .ap .m{color:var(--mute);font-size:12px;display:block}
+#rd-lab .ap.k0{border-left-color:var(--good)}#rd-lab .ap.k1{border-left-color:var(--c6)}#rd-lab .ap.k2{border-left-color:var(--c5)}#rd-lab .ap.k3{border-left-color:var(--bad)}
+#rd-lab .ent{border-bottom:1px solid var(--line);padding:6px 0;font-size:13px}
+#rd-lab .ent:last-child{border-bottom:0}
+#rd-lab .ent b{display:block;font-size:13px}
+#rd-lab .ent label{display:block;margin:3px 0;font-size:12.5px}
+#rd-lab .ent select{max-width:100%;font-size:12.5px;padding:2px 6px}
+#rd-lab .ent .chk{white-space:normal;display:block;margin:3px 0}
+#rd-lab .presets{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#rd-lab .presets button{font-size:12.5px}
+#rd-lab .legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#rd-lab .legend span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#rd-lab .why{border-left:3px solid var(--acc);padding:4px 10px;margin:8px 0;font-size:13.5px;background:var(--soft);border-radius:0 6px 6px 0;min-height:4em}
+#rd-lab .items{overflow-x:auto;max-width:100%}
+#rd-lab table.it{font-size:12px;border-collapse:collapse;width:auto;min-width:100%}
+#rd-lab table.it td,#rd-lab table.it th{border:1px solid var(--line);padding:3px 6px;white-space:nowrap;font-family:ui-monospace,Menlo,monospace}
+#rd-lab table.it th{background:var(--soft);font-family:inherit}
+#rd-lab table.it tr.hit td{background:var(--hl)}
+#rd-lab table.it td.pk{font-weight:600}
+#rd-lab .score{font-size:14px;margin:6px 0}
+#rd-lab .hot{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px 16px}
+</style><div class="card" id="rd-lab"><h4 class="vt">The keys decide which questions are one request and which read the whole table</h4>
+<div class="presets" id="lab-presets"><button data-p="rel">Relational habit</button><button data-p="st" class="on">Single-table design</button><button data-p="bad">Messages keyed by id</button></div>
+<div class="legend"><span style="--sw:var(--good)">one request, reads only what it returns</span><span style="--sw:var(--c6)">one request on an index (eventually consistent)</span><span style="--sw:var(--c5)">works, but reads more than it returns or needs several requests</span><span style="--sw:var(--bad)">scan of the whole table</span></div>
+<div class="lab2">
+<div class="pane"><h3>Access patterns (what the app asks)</h3><div id="lab-aps"></div><div class="score" id="lab-score"></div></div>
+<div class="pane"><h3>Key design (how each item is keyed)</h3><div id="lab-keys"></div></div>
+</div>
+<div class="why" id="lab-why"></div>
+<p class="small mute">The table as DynamoDB stores it: a sample of items under the current design, grouped by partition key and sorted by sort key, the way a Query sees them; rows the selected question reads are highlighted. Rules are DynamoDB's own, checked on DynamoDB Local; item counts use the measured load: <span id="lab-data"></span>.</p>
+<div class="items" id="lab-items"></div>
+</div>
+<p>Every planned question is one request that reads only the items it returns. The wrong ways show what a missing key costs: a <code>Scan</code> with a filter for chat 7 read 1,000 items in its first page and returned none of them (the filter runs <i>after</i> the read, and you pay for every item read), and answering the admin question by scanning read all 54,775 items in 9 pages of 1 MB for 1,111.5 read units. At a billion items the same scan reads a billion items.</p>
+<details class="dp"><summary>Every access pattern measured on DynamoDB Local, the table definition and the errors <span class="mute">(depth)</span></summary><div class="b">
+<p>Measured on DynamoDB Local 3.3.1 (AWS's downloadable version of the API) with the chat data: 400 users, 2,999 chats, 49,517 messages, 54,775 items in all. Local runs the real API, key rules and capacity accounting, but not the service's partitions, throughput limits or latency, so only counts are shown.</p>
 <div class="tw" id="rd-ddb-ap"></div>
-<p>Every question on the list is one request that reads only the items it returns. The two wrong ways show what a missing key costs: a <code>Scan</code> with a filter for chat 7 read 1,000 items in its first page and returned none of them (the filter runs <i>after</i> the read, and you pay for every item read), and answering the admin question by scanning read all 54,775 items in 9 pages of 1 MB for 1,111.5 read units. At a billion items the same scan would read a billion items.</p>
-<details class="raw"><summary>The table definition and the errors DynamoDB Local returned</summary><pre id="rd-ddb-raw"></pre></details>
-<p>Try other key choices in the <a href="#" data-tab="t-lab">Single-table lab</a>: it scores every access pattern under any design and shows the items each one reads.</p>
-<h3>4.3 Secondary indexes</h3>
-<p>A <dfn id="g-gsi">global secondary index</dfn> is a second copy of chosen attributes under a different key, maintained by DynamoDB. It is updated asynchronously ("eventually consistent fashion ... within a fraction of a second, under normal conditions", <a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html" target="_blank" rel="noopener noreferrer">AWS, GSI</a>), so a chat list read right after sending a message can still show the old order; a strongly consistent read on it is refused (the error above). Each index is paid for on every write: changing an indexed key costs two index writes (delete the old entry, put the new one), and if an index lacks write capacity, writes to the <i>table</i> are throttled. A table has at most 20 GSIs by default and 5 <b>local</b> secondary indexes (same partition key, different sort key, strongly consistent, but they cap an item collection at 10 GB and stop adaptive capacity from splitting it).</p>
-<h3>4.4 Writes, conditions and transactions</h3>
-<p>Measured: one message put cost 1 write unit (a message item is about 173 bytes as DynamoDB counts size); the transaction that writes the message and moves the chat to the top of GSI1 cost 8 write units as DynamoDB Local accounted it. The documented rules give 6 (2 for each of the two transactional writes, 2 for moving the index entry), so Local appears to charge the index move at the transactional rate as well; <span class="ill">unconfirmed</span> against the real service. Registering a second account with an existing email failed with <code>TransactionCanceledException</code>, reasons <code>[None, ConditionalCheckFailed]</code>: the user item would have been fine, the email item already existed, so neither was written. An item over 400 KB was refused. Chat messages fit easily; a long document or a file does not, and goes to S3 with its key stored in the item.</p>
-<h3>4.5 Capacity, price and hot partitions</h3>
-<p>Two billing modes, priced for US East (N. Virginia), standard table class, as read on 4 October 2026: <b>on-demand</b> charges $0.625 per million write units and $0.125 per million read units (<a href="https://aws.amazon.com/dynamodb/pricing/on-demand/" target="_blank" rel="noopener noreferrer">AWS on-demand pricing</a>); <b>provisioned</b> charges for reserved units per hour, $0.00065 per write unit-hour and $0.00013 per read unit-hour, with auto scaling to follow load (<a href="https://aws.amazon.com/dynamodb/pricing/provisioned/" target="_blank" rel="noopener noreferrer">AWS provisioned pricing</a>); storage is $0.25 per GB-month. On-demand is simplest and right for spiky or unknown traffic; provisioned is cheaper for steady traffic you can predict. The lab's calculator prices the chat product's messages both ways from the units measured above.</p>
-<p>The limit that bites is per key, not per table. All of one chat's messages share a partition key, so one very busy group chat can take at most 1,000 one-KB writes a second. DynamoDB keeps up to 300 seconds of unused capacity for bursts, and <b>adaptive capacity</b> moves busy items onto partitions of their own, "provided that traffic does not exceed ... the partition maximum capacity" (<a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/burst-adaptive-capacity.html" target="_blank" rel="noopener noreferrer">AWS, burst and adaptive capacity</a>). Past that, the fix is <dfn id="g-writeshard">write sharding</dfn>: spread one hot key over <code>CHAT#7#0</code> to <code>CHAT#7#9</code> and have readers query all ten and merge. Discord hit the same wall in Cassandra with its busiest channels (section 6).</p>
-<div class="co"><div class="t">Single table or several?</div>DeBrie lists the costs of single-table design: a steep learning curve, new access patterns that need data migrations, and exports for analytics that are hard to read ("looks more like machine code than a simple spreadsheet", quoted there); he advises against it for early-stage applications that still need flexibility and for GraphQL back ends, whose resolvers issue separate requests anyway. AWS's own guidance makes the same trade (<a href="https://aws.amazon.com/blogs/compute/creating-a-single-table-design-with-amazon-dynamodb/" target="_blank" rel="noopener noreferrer">AWS Compute Blog, 2021-07-26</a>). A newer feature narrows the gap: GSIs can now use up to four attributes each for the partition and sort keys, so an index no longer needs a hand-built composite string (DynamoDB Local added it in January 2026).</div>
+<pre class="sql" id="rd-ddb-raw"></pre></div></details>
+<h3>Secondary indexes are copies, updated later</h3>
+<p>A <dfn id="g-gsi">global secondary index</dfn> is a second copy of chosen attributes under a different key, maintained by DynamoDB asynchronously ("eventually consistent fashion ... within a fraction of a second, under normal conditions", <a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html" target="_blank" rel="noopener noreferrer">AWS, GSI</a>): a chat list read right after sending a message can still show the old order, and a strongly consistent read on it is refused. Each index is paid on every write: changing an indexed key costs two index writes (delete the old entry, put the new one), and an index short of write capacity throttles writes to the <i>table</i>.</p>
+<details class="dp"><summary>Index limits, writes, conditions and transactions, measured <span class="mute">(depth)</span></summary><div class="b">
+<p>A table has at most 20 GSIs by default and 5 <b>local</b> secondary indexes (same partition key, different sort key, strongly consistent, but they cap an item collection at 10 GB and stop adaptive capacity from splitting it).</p>
+<p>Measured: one message put cost 1 write unit (a message item is about 173 bytes as DynamoDB counts size); the transaction that writes the message and moves the chat to the top of GSI1 cost 8 write units as DynamoDB Local accounted it. Registering a second account with an existing email failed with <code>TransactionCanceledException</code>, reasons <code>[None, ConditionalCheckFailed]</code>: the user item would have been fine, the email item already existed, so neither was written. An item over 400 KB was refused; a long document or file goes to S3 with its key stored in the item.</p>
+<div class="co warn"><div class="t">Unconfirmed: 8 write units against the documented 6</div>The documented rules give 6 (2 for each of the two transactional writes, 2 for moving the index entry), so Local appears to charge the index move at the transactional rate as well; <span class="ill">unconfirmed</span> against the real service.</div>
+</div></details>
+<h3>Hot partitions: the limit is per key, not per table</h3>
+<p>All of one chat's messages share a partition key, so one very busy group chat can take at most 1,000 one-KB writes a second. DynamoDB keeps up to 300 seconds of unused capacity for bursts, and <b>adaptive capacity</b> moves busy items onto partitions of their own, "provided that traffic does not exceed ... the partition maximum capacity" (<a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/burst-adaptive-capacity.html" target="_blank" rel="noopener noreferrer">AWS, burst and adaptive capacity</a>). Past that the fix is <dfn id="g-writeshard">write sharding</dfn>: spread one hot key over <code>CHAT#7#0</code> to <code>CHAT#7#9</code> and have readers query all ten and merge. Move the write rate past 1,000, then add shards:</p>
+<div class="card" id="rd-hot-card"><h4 class="vt">One busy chat crosses the 1,000 writes a second ceiling; shards divide the load and multiply the reads</h4>
+<div class="hot">
+<label class="small">Messages written per second to the busiest key: <b id="lab-w-v"></b><input type="range" id="lab-w" min="10" max="5000" step="10" value="1500"></label>
+<label class="small">Write shards (suffix #0 to #N-1 on the key): <b id="lab-s-v"></b><input type="range" id="lab-s" min="1" max="10" step="1" value="1"></label>
+<label class="small">Messages a day, whole product: <b id="lab-md-v"></b><input type="range" id="lab-md" min="4" max="9" step="0.1" value="7"></label>
+<label class="small">Reads per message written: <b id="lab-rr-v"></b><input type="range" id="lab-rr" min="1" max="50" step="1" value="10"></label>
+</div>
+<div class="out" id="lab-hot-out"></div>
+<details class="raw"><summary>How the monthly costs are computed, with the dated prices</summary><p class="small mute" id="lab-cost-note" style="padding:4px 10px"></p></details>
+</div>
+<p>Two billing modes: <b>on-demand</b> per request (simplest, right for spiky or unknown traffic) and <b>provisioned</b> reserved units per hour with auto scaling (cheaper for steady, predictable traffic); dated prices are in the calculator note above and the table in <a href="#rd-depth">Depth</a>. Discord hit the same per-key wall in Cassandra with its busiest channels (section 6).</p>
+<div class="co"><div class="t">Single table or several?</div>DeBrie lists the costs of single-table design: a steep learning curve, new access patterns that need data migrations, and exports for analytics that are hard to read ("looks more like machine code than a simple spreadsheet", quoted there); he advises against it for early-stage applications that still need flexibility and for GraphQL back ends, whose resolvers issue separate requests anyway. AWS's own guidance makes the same trade (<a href="https://aws.amazon.com/blogs/compute/creating-a-single-table-design-with-amazon-dynamodb/" target="_blank" rel="noopener noreferrer">AWS Compute Blog, 2021-07-26</a>). GSIs can now use up to four attributes each for the partition and sort keys, so an index no longer needs a hand-built composite string (DynamoDB Local added it in January 2026).</div>
 <div class="cost"><div class="t">What it costs</div>The schema is the list of access patterns: a new question means a new index (written on every write) or a migration. Ad hoc questions, joins and aggregates belong elsewhere (export to S3, then DuckDB, Athena or a warehouse). Indexes are eventually consistent. A busy key is capped. And it runs only on AWS (DynamoDB Local is for development).</div>
-<div class="pg-when"><div class="t">When Postgres would still do</div>Whenever one Postgres server (with replicas for reads) can carry the load and the team would rather keep SQL's flexibility: that covers most products for years. DynamoDB wins when you are on AWS, want no database to operate, and either traffic is huge and key-shaped or it is tiny and spiky (on-demand at near-zero cost when idle).</div>
+<div class="pg-when"><div class="t">When Postgres would still do</div>Whenever one Postgres server (with replicas for reads) can carry the load and the team would rather keep SQL's flexibility: that covers most products for years. DynamoDB wins when you are on AWS, want no database to operate, and traffic is either huge and key-shaped or tiny and spiky (on-demand costs near zero when idle).</div>
 </section>
 <section id="rd-s5">
 <h2>5. Documents: MongoDB, and Postgres jsonb beside it</h2>
-<h3>The problem</h3>
-<p>Some records do not have one fixed shape. A tool call in the chat product carries different arguments for each tool; a user's settings grow a new field every month. Splitting each shape into its own table, or adding a nullable column per field, gets clumsy. A <dfn id="g-document">document</dfn> stores the record as one nested JSON-like value, fields and arrays included, read and written as a unit.</p>
-<h3>How MongoDB models data</h3>
-<p><dfn id="g-mongo">MongoDB</dfn> stores documents in <b>collections</b>, in BSON (binary JSON with real dates and integers), each with a unique <code>_id</code>. You can index any field, including fields inside arrays, and query with a JSON query language or an <b>aggregation pipeline</b> (a list of stages: filter, group, sort, join). Underneath, the WiredTiger engine keeps B-trees with compression and a journal (a write-ahead log); a <b>replica set</b> has one primary and copies; <b>sharding</b> splits a collection over machines by a shard key you choose (root atlas). Measured here: MongoDB 8.0.23 (conda-forge) as a one-member replica set, because transactions need one; MongoDB 9.0 reached general availability on 28 September 2026 (root atlas), after these runs were set up. The server is under the SSPL, a source-available licence, since 16 October 2018.</p>
+<p>Some records have no fixed shape: a tool call carries different arguments per tool; a user's settings grow a field every month. A <dfn id="g-document">document</dfn> stores the record as one nested JSON-like value, read and written as a unit. <dfn id="g-mongo">MongoDB</dfn> keeps documents in <b>collections</b>, in BSON (binary JSON with real dates and integers), each with a unique <code>_id</code>; any field can be indexed, including fields inside arrays; queries use a JSON query language or an <b>aggregation pipeline</b> of stages. Underneath, WiredTiger keeps compressed B-trees and a journal; a <b>replica set</b> has one primary and copies; <b>sharding</b> splits a collection by a shard key you choose (root atlas). Measured here: MongoDB 8.0.23 as a one-member replica set, because transactions need one.</p>
 <h3>Embed or reference? Worked on chats and messages</h3>
-<p>The central design choice is whether related data lives <i>inside</i> a document (embedding) or in its own documents that point back (referencing). MongoDB's guidance: embed when you have a "contains" relationship, "query pieces of information together" and update them together; reference when "the child side of the relationship has high cardinality" or "your embedded data grows without bounds" (<a href="https://www.mongodb.com/docs/manual/data-modeling/concepts/embedding-vs-references/" target="_blank" rel="noopener noreferrer">MongoDB, embedding vs references</a>). A chat's messages are the textbook hard case: always read together, and growing without bound. Both shapes were loaded with the same 1M messages:</p>
+<p>MongoDB's guidance: embed when you "query pieces of information together" and update them together; reference when "the child side of the relationship has high cardinality" or "your embedded data grows without bounds" (<a href="https://www.mongodb.com/docs/manual/data-modeling/concepts/embedding-vs-references/" target="_blank" rel="noopener noreferrer">MongoDB, embedding vs references</a>). A chat's messages are the textbook hard case: always read together, and growing without bound. Both shapes were loaded with the same 1M messages. Predict: which shape reads fewer bytes to show chat 7's newest 50?</p>
+<div class="card" id="rd-doc-card"><h4 class="vt">Embedding reads the whole history to show 50 messages, and the document grows toward a hard 16 MB wall</h4>
+<div class="rd-svg" id="rd-doc-svg"></div>
+<p class="small mute"><span class="meas">measured</span> MongoDB 8.0.23. Referenced: 50 index keys and 50 documents of about 188 bytes, median <span class="nv" data-n="doc.mongo.latest50.ref.ms_p50" data-f="x2"></span> ms. Embedded: 1 document examined, but it is <span class="nv" data-n="doc.mongo.long_chat_doc_bytes" data-f="kb"></span> KB holding all <span class="nv" data-n="doc.mongo.long_chat_messages" data-f="int"></span> messages, median <span class="nv" data-n="doc.mongo.latest50.emb.ms_p50" data-f="x2"></span> ms. Bars are drawn to one scale per row; the lower row is the document-size limit (16 MiB) with real documents marked.</p>
+</div>
+<details class="dp"><summary>Both shapes in numbers: sizes, the read and the append <span class="mute">(depth)</span></summary><div class="b">
 <div class="vs">
 <div><h4>Referenced: one document per message</h4><pre class="sql">{ _id: 412345, chat_id: 7, role: "user", model: "large",
   tokens: 42, content: "...", created_at: ISODate(...) }
 index: { chat_id: 1, created_at: -1 }</pre>
 <ul class="tight"><li><span class="nv" data-n="doc.mongo.sizes.messages.count" data-f="int"></span> documents, average <span class="nv" data-n="doc.mongo.sizes.messages.avgObjSize" data-f="int"></span> bytes; <span class="nv" data-n="doc.mongo.sizes.messages.storageSize" data-f="mb"></span> MB on disk after compression, index <span class="nv" data-n="doc.mongo.sizes.messages.indexSize" data-f="mb"></span> MB</li>
-<li>latest 50 of chat 7: <span class="nv" data-n="doc.mongo.latest50.ref.keysExamined" data-f="int"></span> index keys and <span class="nv" data-n="doc.mongo.latest50.ref.docsExamined" data-f="int"></span> documents examined, median <span class="nv" data-n="doc.mongo.latest50.ref.ms_p50" data-f="x2"></span> ms</li>
 <li>send a message: insert one small document, median <span class="nv" data-n="doc.mongo.append.insert_new_doc_ms" data-f="x1"></span> ms</li></ul></div>
 <div><h4>Embedded: one document per chat</h4><pre class="sql">{ _id: 7, title: "Chat 7",
   messages: [ { id: ..., role: "user", ... }, ... ] }
 read: find({_id: 7}, {messages: {$slice: -50}})</pre>
 <ul class="tight"><li><span class="nv" data-n="doc.mongo.sizes.chats.count" data-f="int"></span> documents, average <span class="nv" data-n="doc.mongo.sizes.chats.avgObjSize" data-f="int"></span> bytes; <span class="nv" data-n="doc.mongo.sizes.chats.storageSize" data-f="mb"></span> MB on disk</li>
-<li>latest 50 of chat 7: 1 document examined, but it is <span class="nv" data-n="doc.mongo.long_chat_doc_bytes" data-f="kb"></span> KB holding all <span class="nv" data-n="doc.mongo.long_chat_messages" data-f="int"></span> messages; median <span class="nv" data-n="doc.mongo.latest50.emb.ms_p50" data-f="x2"></span> ms</li>
 <li>send a message: <code>$push</code> into the array: <span class="nv" data-n="doc.mongo.append.push_into_10_msg_doc_ms" data-f="x1"></span> ms into a 10-message chat, <span class="nv" data-n="doc.mongo.append.push_into_1000_msg_doc_ms" data-f="x1"></span> ms into chat 7, <span class="nv" data-n="doc.mongo.append.push_into_20000_msg_doc_ms" data-f="x1"></span> ms into a 20,000-message chat (<span class="nv" data-n="doc.mongo.append.big_doc_bytes" data-f="mb"></span> MB)</li></ul></div>
 </div>
-<p>Then the hard limit: a BSON document may not exceed 16 MiB (<a href="https://www.mongodb.com/docs/manual/reference/limits/" target="_blank" rel="noopener noreferrer">MongoDB limits</a>). Pushing messages of about 1 KB into one chat, the <span class="nv" data-n="doc.mongo.limit16.messages_fitted" data-f="int"></span>th fit (the document reached <span class="nv" data-n="doc.mongo.limit16.doc_bytes" data-f="int"></span> bytes) and the next failed with <code>Resulting document after update is larger than 16777216</code> (error 10334). A busy group chat would hit it in weeks, and long before that every read of the chat drags the whole history along.</p>
-<p><b>The design pros use:</b> the chat document holds its metadata and perhaps the last few messages for the chat list (embedding a bounded subset), and messages are referenced, one document each or grouped in fixed-size "buckets" of, say, 100 messages per document (MongoDB's <a href="https://www.mongodb.com/docs/manual/data-modeling/design-patterns/group-data/bucket-pattern/" target="_blank" rel="noopener noreferrer">bucket pattern</a>). Tool-call arguments, whose shape varies and which are always read with their message, are embedded in the message. Every write here took several milliseconds because the default write concern (<code>w: "majority"</code>, measured: <span class="nv" data-n="doc.mongo.defaults.writeConcern.w"></span>) waits for the journal to be flushed before acknowledging.</p>
-<h3>Indexes and the aggregation pipeline</h3>
-<p>Indexes work as in Postgres: B-trees on one or more fields, used for equality, ranges and sorts. For compound indexes MongoDB's rule of thumb is <b>ESR</b>: equality fields first, then sort fields, then range fields (<a href="https://www.mongodb.com/docs/manual/tutorial/equality-sort-range-guideline/" target="_blank" rel="noopener noreferrer">MongoDB, the ESR guideline</a>); the <code>{chat_id: 1, created_at: -1}</code> index above is equality then sort. An index on an array field indexes every element (a multikey index). Aggregations are a pipeline of stages; tokens per model per day over all 1M messages:</p>
+</div></details>
+<p>Then the hard limit: a BSON document may not exceed 16 MiB (<a href="https://www.mongodb.com/docs/manual/reference/limits/" target="_blank" rel="noopener noreferrer">MongoDB limits</a>). Pushing messages of about 1 KB into one chat, the <span class="nv" data-n="doc.mongo.limit16.messages_fitted" data-f="int"></span>th fit (the document reached <span class="nv" data-n="doc.mongo.limit16.doc_bytes" data-f="int"></span> bytes) and the next failed with <code>Resulting document after update is larger than 16777216</code> (error 10334): the limit was hit at 15,220 messages. Appends also slow as the array grows: a <code>$push</code> took 6.2 ms into a 10-message chat and 13.1 ms into a 20,000-message chat of 3.4 MB, against 6.0 ms to insert one referenced message. A busy group chat would hit it in weeks, and long before that every read drags the whole history along.</p>
+<p><b>The design pros use:</b> the chat document holds its metadata and perhaps the last few messages for the chat list (embedding a bounded subset); messages are referenced, one document each or grouped in fixed-size "buckets" of, say, 100 per document (MongoDB's <a href="https://www.mongodb.com/docs/manual/data-modeling/design-patterns/group-data/bucket-pattern/" target="_blank" rel="noopener noreferrer">bucket pattern</a>). Tool-call arguments, whose shape varies and which are always read with their message, are embedded in the message. Every write here took several milliseconds because the default write concern (<code>w: "majority"</code>, measured: <span class="nv" data-n="doc.mongo.defaults.writeConcern.w"></span>) waits for the journal to be flushed before acknowledging.</p>
+<details class="dp"><summary>Indexes (the ESR rule) and the aggregation pipeline, measured <span class="mute">(depth)</span></summary><div class="b">
+<p>Indexes are B-trees on one or more fields, used for equality, ranges and sorts. For compound indexes MongoDB's rule of thumb is <b>ESR</b>: equality fields first, then sort fields, then range fields (<a href="https://www.mongodb.com/docs/manual/tutorial/equality-sort-range-guideline/" target="_blank" rel="noopener noreferrer">MongoDB, the ESR guideline</a>); <code>{chat_id: 1, created_at: -1}</code> is equality then sort. An index on an array field indexes every element (a multikey index). Tokens per model per day over all 1M messages:</p>
 <pre class="sql" id="rd-doc-agg"></pre>
 <p>It took <span class="nv" data-n="doc.mongo.agg.ms" data-f="int"></span> ms and returned <span class="nv" data-n="doc.mongo.agg.groups" data-f="int"></span> groups; the same question in Postgres took <span class="nv" data-n="doc.pg.agg_all_ms.columns" data-f="int"></span> ms on plain columns and <span class="nv" data-n="doc.pg.agg_all_ms.jsonb_per_message" data-f="int"></span> ms on jsonb documents. Neither is the tool for analytics at scale (section 7 and the analytics child page).</p>
-<h3>Transactions and schema validation</h3>
-<p>A write to one document is atomic. Since version 4.0 (replica sets) and 4.2 (sharded clusters), multi-document transactions run with snapshot isolation, but the docs advise modelling so that most operations touch one document, and a transaction may run for at most 60 seconds by default (root atlas; <a href="https://www.mongodb.com/docs/manual/reference/limits/" target="_blank" rel="noopener noreferrer">MongoDB limits</a>). Measured: moving one credit from user 7 to user 12 in a transaction committed (<span class="nv" data-n="doc.mongo.txn_after.7"></span> and <span class="nv" data-n="doc.mongo.txn_after.12"></span> credits). Then two transactions updated user 7's document at once: the second failed <i>immediately</i> with <code>WriteConflict</code> (code <span class="nv" data-n="doc.mongo.txn_conflict.code"></span>), labelled <code><span class="nv" data-n="doc.mongo.txn_conflict.labels.0"></span></code>. MongoDB does not make the second writer wait as Postgres does; it aborts it and expects the client to retry the whole transaction, which the drivers' <code>with_transaction</code> helper does for that label. Defaults matter: reads use read concern <code>"<span class="nv" data-n="doc.mongo.defaults.readConcern.level"></span>"</code>, which can return data that a failover later rolls back, and Jepsen found in 2020 (4.2.6) that transactions did not give snapshot isolation at the default settings (root atlas).</p>
-<p>"Schemaless" is optional: a collection can carry a <code>$jsonSchema</code> validator. A collection requiring <code>chat_id</code> and <code>role</code> in <code>user</code>, <code>assistant</code> or <code>tool</code> refused <code>{role: "admin"}</code> with <code><span class="nv" data-n="doc.mongo.validation"></span></code>. Teams that skip validation tend to find, a year later, that "no schema" became several schemas that every reader must handle.</p>
+</div></details>
+<h3>Transactions abort on conflict; "schemaless" is optional</h3>
+<p>A write to one document is atomic; multi-document transactions run with snapshot isolation (since 4.0 on replica sets, 4.2 on sharded clusters), at most 60 seconds by default (root atlas; <a href="https://www.mongodb.com/docs/manual/reference/limits/" target="_blank" rel="noopener noreferrer">MongoDB limits</a>). Measured: two transactions updating user 7's document at once: the second failed <i>immediately</i> with <code>WriteConflict</code> (code <span class="nv" data-n="doc.mongo.txn_conflict.code"></span>), labelled <code><span class="nv" data-n="doc.mongo.txn_conflict.labels.0"></span></code>. MongoDB does not make the second writer wait as Postgres does; it aborts it and expects the client to retry the whole transaction, which the drivers' <code>with_transaction</code> helper does for that label. A collection can carry a <code>$jsonSchema</code> validator: one requiring <code>chat_id</code> and <code>role</code> in <code>user</code>, <code>assistant</code> or <code>tool</code> refused <code>{role: "admin"}</code> with <code><span class="nv" data-n="doc.mongo.validation"></span></code>. Without one, "no schema" becomes several schemas that every reader must handle.</p>
+<details class="dp"><summary>The committed transfer, and the read-concern caveat <span class="mute">(depth)</span></summary><div class="b"><p>Moving one credit from user 7 to user 12 in a transaction committed (<span class="nv" data-n="doc.mongo.txn_after.7"></span> and <span class="nv" data-n="doc.mongo.txn_after.12"></span> credits). Reads use read concern <code>"<span class="nv" data-n="doc.mongo.defaults.readConcern.level"></span>"</code> by default, which can return data that a failover later rolls back, and Jepsen found in 2020 (4.2.6) that transactions did not give snapshot isolation at the default settings (root atlas). The docs advise modelling so that most operations touch one document.</p></div></details>
 <h3>The same documents in Postgres</h3>
-<p>Postgres stores documents too: <code>jsonb</code> is a binary JSON column type you can index and query, next to ordinary columns, inside ordinary transactions. Measured on PostgreSQL 16.2 with the same messages three ways: plain columns, one <code>jsonb</code> document per message, and one <code>jsonb</code> document per chat holding its messages array.</p>
+<p><code>jsonb</code> is a binary JSON column type you can index and query next to ordinary columns, inside ordinary transactions. Measured on PostgreSQL 16.2 with the same messages three ways: plain columns, one <code>jsonb</code> document per message, one <code>jsonb</code> document per chat holding its messages array.</p>
 <div class="tw" id="rd-doc-pg"></div>
-<p>The jsonb-per-message table is <span class="nv" data-n="doc.pg.sizes.jsonb_per_message/doc.pg.sizes.columns"></span> times the size of the plain columns, because every row repeats its field names; a GIN index (an index of every key and value inside each document) answered a containment query (<code>doc @&gt; '{"model": "large", "role": "user", "tokens": 42}'</code>) in <span class="nv" data-n="doc.pg.gin.ms" data-f="x1"></span> ms for <span class="nv" data-n="doc.pg.gin.count" data-f="int"></span> matches, at a cost of a <span class="nv" data-n="doc.pg.gin.index_bytes" data-f="mb"></span> MB index. Appending to the jsonb-per-chat document has the same problem as MongoDB's embedded array, made visible by the write-ahead log: each append rewrites the whole value: <span class="nv" data-n="doc.pg.wal_per_append.jsonb_1000_msgs" data-f="int"></span> bytes of log per message appended to chat 7's document against <span class="nv" data-n="doc.pg.wal_per_append.jsonb_10_msgs" data-f="int"></span> bytes for a 10-message chat (averages over 200 appends), and <span class="nv" data-n="doc.pg.append_ms.jsonb_1000_msgs" data-f="x2"></span> ms against <span class="nv" data-n="doc.pg.append_ms.jsonb_10_msgs" data-f="x2"></span> ms. Inserting a message as its own row took <span class="nv" data-n="doc.pg.append_ms.insert_row" data-f="x2"></span> ms whatever the chat's size.</p>
-<div class="cost"><div class="t">What it costs</div>Documents move schema checks from the database into every reader; relationships across documents (a user's chats, a chat's messages) become application code or <code>$lookup</code> stages; growing arrays hit the 16 MB limit and make every write rewrite more. Multi-document invariants need transactions that abort on conflict and must be retried.</div>
+<p>The jsonb-per-message table is <span class="nv" data-n="doc.pg.sizes.jsonb_per_message/doc.pg.sizes.columns"></span> times the size of the plain columns, because every row repeats its field names; a GIN index (an index of every key and value inside each document) answered a containment query (<code>doc @&gt; '{"model": "large", "role": "user", "tokens": 42}'</code>) in <span class="nv" data-n="doc.pg.gin.ms" data-f="x1"></span> ms for <span class="nv" data-n="doc.pg.gin.count" data-f="int"></span> matches, with a <span class="nv" data-n="doc.pg.gin.index_bytes" data-f="mb"></span> MB index. Appending to the jsonb-per-chat document rewrites the whole value, which the write-ahead log makes visible: <span class="nv" data-n="doc.pg.wal_per_append.jsonb_1000_msgs" data-f="int"></span> bytes of log per message appended to chat 7's document against <span class="nv" data-n="doc.pg.wal_per_append.jsonb_10_msgs" data-f="int"></span> for a 10-message chat (averages over 200 appends). Inserting a message as its own row took <span class="nv" data-n="doc.pg.append_ms.insert_row" data-f="x2"></span> ms whatever the chat's size.</p>
+<div class="cost"><div class="t">What it costs</div>Documents move schema checks from the database into every reader; relationships across documents become application code or <code>$lookup</code> stages; growing arrays hit the 16 MB limit and make every write handle more; multi-document invariants need transactions that abort on conflict and must be retried.</div>
 <div class="pg-when"><div class="t">When Postgres would still do</div>Nearly always. Keep the columns you filter, join and aggregate on as columns, and put the genuinely variable part (tool arguments, settings, raw provider responses) in a <code>jsonb</code> column, with a GIN or expression index if you query inside it. MongoDB earns its place when most data really is document-shaped, read and written whole, and the team wants its built-in sharding or Atlas's managed service.</div>
 </section>
 <section id="rd-s6">
 <h2>6. Wide-column: Cassandra and ScyllaDB</h2>
-<h3>The problem</h3>
-<p>Suppose the chat product's messages arrive faster than one primary database can write them, users are on several continents, and losing a whole data centre must not stop anyone sending messages. A single-primary database cannot give all three. <dfn id="g-cassandra">Apache Cassandra</dfn> (and ScyllaDB, its C++ reimplementation) spreads every table over many equal machines, with no primary at all.</p>
-<h3>How it models data</h3>
+<p>Suppose messages arrive faster than one primary can write them, users are on several continents, and losing a whole data centre must not stop anyone sending. A single-primary database cannot give all three. <dfn id="g-cassandra">Apache Cassandra</dfn> (and ScyllaDB, its C++ reimplementation) spreads every table over many equal machines, with no primary at all.</p>
 <ul class="tight">
-<li>A table's <code>PRIMARY KEY ((a, b), c, d)</code> has two parts. The <b>partition key</b> <code>(a, b)</code> is hashed to a number called a <dfn id="g-token">token</dfn>; the machines (nodes) form a <b>ring</b> in which each owns ranges of tokens, so the token decides which nodes hold the partition. The <dfn id="g-clustering">clustering columns</dfn> <code>c, d</code> sort the rows inside the partition.</li>
-<li>Each partition is copied to <i>RF</i> nodes (the replication factor, usually 3, placed in different racks or data centres). Every node accepts reads and writes for any key and forwards them to the replicas: there is no leader (root atlas).</li>
-<li>Storage is an LSM-tree: a commit log and an in-memory table, flushed to immutable sorted files (SSTables) that background <b>compaction</b> merges (<a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a> measures LSM-trees on RocksDB).</li>
-<li>The query language, CQL, looks like SQL but has no joins, and a query must name the partition key: "data is modeled around specific queries", one table per query, with data duplicated across tables on purpose (<a href="https://cassandra.apache.org/doc/latest/cassandra/developing/data-modeling/intro.html" target="_blank" rel="noopener noreferrer">Cassandra data modelling</a>).</li>
+<li>A table's <code>PRIMARY KEY ((a, b), c, d)</code> has two parts. The <b>partition key</b> <code>(a, b)</code> is hashed to a <dfn id="g-token">token</dfn>; the nodes form a <b>ring</b> in which each owns ranges of tokens, so the token decides which nodes hold the partition. The <dfn id="g-clustering">clustering columns</dfn> <code>c, d</code> sort the rows inside it.</li>
+<li>Each partition is copied to <i>RF</i> nodes (the replication factor, usually 3, in different racks or data centres). Every node accepts reads and writes for any key and forwards them to the replicas: there is no leader (root atlas).</li>
+<li>Storage is an LSM-tree: a commit log and an in-memory table, flushed to immutable sorted files (SSTables) that background <b>compaction</b> merges (<a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a> owns how LSM-trees work).</li>
+<li>CQL looks like SQL but has no joins, and a query must name the partition key: "data is modeled around specific queries", one table per query, data duplicated across tables on purpose (<a href="https://cassandra.apache.org/doc/latest/cassandra/developing/data-modeling/intro.html" target="_blank" rel="noopener noreferrer">Cassandra data modelling</a>).</li>
 </ul>
 <h3>Designing the "latest 50" table</h3>
 <p>The table measured in section 2, as created on Cassandra <span class="nv" data-n="wide.cass_version"></span>:</p>
 <pre class="sql" id="rd-cass-ddl"></pre>
-<p>Why <code>bucket</code>? A partition that grows forever (every message of a busy chat since the beginning) becomes a problem: it lives on the same few nodes, and reading, repairing or compacting it gets slower. The data modelling guide says to keep partitions "below 100,000" values and "below 100MB". Discord's January 2017 design is exactly this table: <code>((channel_id, bucket), message_id)</code> with "about 10 days of messages within a bucket", to stay under 100 MB (<a href="https://discord.com/blog/how-discord-stores-billions-of-messages" target="_blank" rel="noopener noreferrer">Discord, How Discord Stores Billions of Messages</a>). Here the bucket is a 10-day window too: chat 7's <span class="nv" data-n="wide.pg.long_chat_rows" data-f="int"></span> messages fall into <span class="nv" data-n="wide.cass.long_chat_partitions.length"></span> partitions, the newest holding <span class="nv" data-n="wide.cass.rows_in_latest_partition" data-f="int"></span> rows. Opening the chat reads the newest bucket, and if that holds fewer than 50 messages, the one before it.</p>
-<p>Any other question is refused rather than run slowly. Asking for one message by id, which is not the partition key, returned: <code id="rd-cass-err"></code>. (CQL's <code>ALLOW FILTERING</code> forces such a query through by scanning, which on a real cluster means every node.) "Messages by id" or "messages by user" would each be another table, written at the same time as this one.</p>
-<h3>Tunable consistency, with the quorum arithmetic</h3>
-<p>Each request chooses how many of the <i>RF</i> replicas must answer: <code>ONE</code>, <code>QUORUM</code> (a majority: floor(<i>RF</i>/2) + 1), <code>LOCAL_QUORUM</code> (a majority inside the local data centre) or <code>ALL</code> (<a href="https://cassandra.apache.org/doc/5.0/cassandra/architecture/dynamo.html" target="_blank" rel="noopener noreferrer">Cassandra, Dynamo architecture</a>). If the replicas a write waited for (<i>W</i>) and the replicas a read asks (<i>R</i>) must overlap, <i>W</i> + <i>R</i> &gt; <i>RF</i>, every read meets at least one replica with the latest acknowledged write. The default is <code>ONE</code>, so by default a read can be stale (root atlas). Choose levels and knock nodes out:</p>
-<div class="card" id="rd-q-card">
+<p>Why <code>bucket</code>? A partition that grows forever lives on the same few nodes, and reading, repairing or compacting it gets slower; the modelling guide says to keep partitions "below 100,000" values and "below 100MB". Discord's January 2017 design is exactly this table: <code>((channel_id, bucket), message_id)</code> with "about 10 days of messages within a bucket" (<a href="https://discord.com/blog/how-discord-stores-billions-of-messages" target="_blank" rel="noopener noreferrer">Discord, How Discord Stores Billions of Messages</a>). Here the bucket is a 10-day window too: chat 7's <span class="nv" data-n="wide.pg.long_chat_rows" data-f="int"></span> messages fall into <span class="nv" data-n="wide.cass.long_chat_partitions.length"></span> partitions, the newest holding <span class="nv" data-n="wide.cass.rows_in_latest_partition" data-f="int"></span> rows. Opening the chat reads the newest bucket, and the one before if it holds fewer than 50. Any other question is refused rather than run slowly: asking for one message by id returned <code id="rd-cass-err"></code> (<code>ALLOW FILTERING</code> forces it through by scanning, on a real cluster every node).</p>
+<h3>The write path and tunable consistency</h3>
+<p>Each request chooses how many of the <i>RF</i> replicas must answer: <code>ONE</code>, <code>QUORUM</code> (a majority: floor(<i>RF</i>/2) + 1), <code>LOCAL_QUORUM</code> (a majority inside the local data centre) or <code>ALL</code> (<a href="https://cassandra.apache.org/doc/5.0/cassandra/architecture/dynamo.html" target="_blank" rel="noopener noreferrer">Cassandra, Dynamo architecture</a>). Step one write at <code>QUORUM</code> with one replica down:</p>
+<div class="card" id="rd-wp-card"><h4 class="vt">A write is acknowledged once enough replicas have it in their commit log and memtable; a down replica gets a hint, not a failure</h4>
+<div class="an-ctl" id="rd-wp-ctl"></div>
+<div class="rd-svg" id="rd-wp-svg"></div>
+<div class="an-cap" id="rd-wp-cap"></div>
+<p class="small mute"><span class="ill">illustrative</span> layout, RF = 3. Sources: the Dynamo architecture page above; commit log defaults from <code>cassandra.yaml</code> as measured here (<code>commitlog_sync: <span class="nv" data-n="wide.cass_defaults.commitlog_sync"></span></code>, period <span class="nv" data-n="wide.cass_defaults.commitlog_sync_period"></span>); hints from <a href="https://cassandra.apache.org/doc/5.0/cassandra/managing/operating/hints.html" target="_blank" rel="noopener noreferrer">Cassandra 5.0, hints</a> (<code>max_hint_window</code> "defaults to 3 h").</p>
+</div>
+<p>If the replicas a write waited for (<i>W</i>) and the replicas a read asks (<i>R</i>) must overlap, <i>W</i> + <i>R</i> &gt; <i>RF</i>, every read meets at least one replica with the latest acknowledged write. The default level is <code>ONE</code>, so by default a read can be stale (root atlas). Predict, then try: at RF 3 with one replica down, do QUORUM writes and reads still succeed and agree? Knock out a second.</p>
+<div class="card" id="rd-q-card"><h4 class="vt">W + R &gt; RF guarantees overlap; each node down eats into how many failures a level survives</h4>
 <div class="calc">
 <label>Replication factor RF <b id="rd-q-rf-v"></b><input type="range" id="rd-q-rf" min="1" max="7" value="3"></label>
 <label>Write level <select id="rd-q-w"><option>ONE</option><option selected>QUORUM</option><option>ALL</option></select></label>
@@ -400,12 +502,14 @@ read: find({_id: 7}, {messages: {$slice: -50}})</pre>
 <div class="rd-svg" id="rd-q-svg"></div>
 <div class="out" id="rd-q-out"></div>
 </div>
-<p>Three things this arithmetic does not say. Conflicting writes are resolved by timestamp, last write wins, so two clients updating the same cell lose one update silently (Jepsen showed acknowledged writes lost this way in 2013; root atlas). For compare-and-set ("insert only if absent") Cassandra has lightweight transactions, which run a Paxos consensus round among the replicas for each operation and so cost extra round trips. And multi-partition ACID transactions (Accord) arrive only with Cassandra 6.0, still in alpha (root atlas).</p>
+<p>What the arithmetic does not say: conflicting writes are resolved by timestamp, last write wins, so two clients updating the same cell lose one update silently (Jepsen showed acknowledged writes lost this way in 2013; root atlas). The theory of quorums and consistency models is <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a>'s.</p>
+<details class="dp"><summary>Compare-and-set and multi-partition transactions <span class="mute">(depth)</span></summary><div class="b"><p>For compare-and-set ("insert only if absent") Cassandra has lightweight transactions, which run a Paxos consensus round among the replicas for each operation and so cost extra round trips. Multi-partition ACID transactions (Accord) arrive only with Cassandra 6.0, still in alpha (root atlas). Durability: the default periodic commit log acknowledges writes before they are flushed, so one node can lose up to 10 seconds of writes in a power cut; replicas on other machines are what make the write safe.</p></div></details>
 <h3>Tombstones: why deleting slows reads</h3>
-<p>An LSM-tree cannot erase a row in place: the row may sit in several immutable files on several replicas. So a delete writes a <dfn id="g-tombstone">tombstone</dfn>, a marker that hides older data, and the tombstone is kept for <code>gc_grace_seconds</code> (default 864,000 seconds, 10 days) so that every replica learns of it; a replica that misses the delete for longer can bring the data back ("zombie" rows) (<a href="https://cassandra.apache.org/doc/5.0/cassandra/managing/operating/compaction/tombstones.html" target="_blank" rel="noopener noreferrer">Cassandra, tombstones</a>). Until compaction drops them, a read has to step over every tombstone in its way. Measured: a partition of 130,000 messages, the newest ones deleted one by one, then "the latest 50" read:</p>
+<p>An LSM-tree cannot erase a row in place: the row may sit in several immutable files on several replicas. So a delete writes a <dfn id="g-tombstone">tombstone</dfn>, a marker that hides older data, kept for <code>gc_grace_seconds</code> (default 864,000 seconds, 10 days) so every replica learns of it; a replica that misses the delete for longer can bring the data back ("zombie" rows) (<a href="https://cassandra.apache.org/doc/5.0/cassandra/managing/operating/compaction/tombstones.html" target="_blank" rel="noopener noreferrer">Cassandra, tombstones</a>). Until compaction drops them, a read steps over every tombstone in its way. Measured: a partition of 130,000 messages, the newest deleted one by one, then "the latest 50":</p>
 <div class="tw" id="rd-tomb"></div>
-<p>The two thresholds are in the default <code>cassandra.yaml</code>: <code>tombstone_warn_threshold: <span class="nv" data-n="wide.cass_defaults.tombstone_warn_threshold"></span></code> and <code>tombstone_failure_threshold: <span class="nv" data-n="wide.cass_defaults.tombstone_failure_threshold"></span></code>. Discord's 2017 post describes hitting this six months into production: a public channel with millions of deleted messages and one remaining message made Cassandra "scan millions of message tombstones", causing 10-second garbage-collection pauses; they cut the grace period from 10 days to 2 and stopped re-reading empty buckets (same Discord post). The lesson: a table used like a queue (insert, read, delete) is the classic anti-pattern; expire data with a TTL in time-ordered tables, and choose compaction to match.</p>
-<h3>Compaction strategy</h3>
+<p class="small mute"><span class="meas">measured</span>: 5,000 tombstones made the read about nine times slower; 101,000 made it fail, past the default <code>tombstone_warn_threshold: <span class="nv" data-n="wide.cass_defaults.tombstone_warn_threshold"></span></code> and <code>tombstone_failure_threshold: <span class="nv" data-n="wide.cass_defaults.tombstone_failure_threshold"></span></code>.</p>
+<p>Discord hit this six months into production: a public channel with millions of deleted messages and one remaining message made Cassandra "scan millions of message tombstones", causing 10-second garbage-collection pauses; they cut the grace period from 10 days to 2 and stopped re-reading empty buckets (same Discord post). The lesson: a table used like a queue (insert, read, delete) is the classic anti-pattern; expire data with a TTL in time-ordered tables, and choose compaction to match.</p>
+<details class="dp"><summary>Compaction strategies, and ScyllaDB, Bigtable and HBase <span class="mute">(depth)</span></summary><div class="b">
 <div class="tw"><table>
 <tr><th>Strategy</th><th>How it merges</th><th>Fits</th></tr>
 <tr><td>SizeTiered (STCS)</td><td>merges files of similar size once there are several (here <code>min_threshold</code> 4, <code>max_threshold</code> 32)</td><td>write-heavy tables; the default, and what this table got (<span class="nv" data-n="wide.cass_compaction.class"></span>)</td></tr>
@@ -413,38 +517,27 @@ read: find({_id: 7}, {messages: {$slice: -50}})</pre>
 <tr><td>TimeWindow (TWCS)</td><td>one bucket of files per time window, never merged across windows; a whole window is dropped when its TTL expires</td><td>"TTL'ed, mostly immutable time-series data"</td></tr>
 <tr><td>Unified (UCS, new in 5.0)</td><td>one tunable strategy that can behave like tiered or levelled</td><td>"recommended for new workloads"</td></tr>
 </table></div>
-<p class="small mute">Quotes from <a href="https://cassandra.apache.org/doc/5.0/cassandra/managing/operating/compaction/overview.html" target="_blank" rel="noopener noreferrer">Cassandra 5.0, compaction overview</a>. Durability: the default <code>commitlog_sync: <span class="nv" data-n="wide.cass_defaults.commitlog_sync"></span></code> with a period of <span class="nv" data-n="wide.cass_defaults.commitlog_sync_period"></span> acknowledges writes before they are flushed, so one node can lose up to 10 seconds of writes in a power cut; replicas on other machines are what make the write safe.</p>
-<h3>ScyllaDB and the others</h3>
-<p><b>ScyllaDB</b> reimplements Cassandra in C++ with one shard per CPU core and no garbage collector, speaks CQL (and a DynamoDB-compatible API), and is what Discord moved to: 177 Cassandra nodes became 72 ScyllaDB nodes (the system design page's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Case files</a>, "Trillions of messages", March 2023). Its licence changed: the AGPL open-source edition ended with 6.2 and since 2025.1 there is one source-available product, free only within 10 TB and 50 vCPUs (licence v1.1, April 2026; root atlas). <b>Google Bigtable</b> and <b>HBase</b> share the wide-column shape (row key to column families), with single-row atomicity and no multi-row transactions.</p>
+<p class="small mute">Quotes from <a href="https://cassandra.apache.org/doc/5.0/cassandra/managing/operating/compaction/overview.html" target="_blank" rel="noopener noreferrer">Cassandra 5.0, compaction overview</a>.</p>
+<p><b>ScyllaDB</b> reimplements Cassandra in C++ with one shard per CPU core and no garbage collector, speaks CQL (and a DynamoDB-compatible API), and is what Discord moved to: 177 Cassandra nodes became 72 ScyllaDB nodes (the system design page's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Case files</a>, "Trillions of messages", March 2023). Its licence terms are in the dated table in Depth. <b>Google Bigtable</b> and <b>HBase</b> share the wide-column shape (row key to column families), with single-row atomicity and no multi-row transactions.</p>
+</div></details>
 <div class="cost"><div class="t">What it costs</div>One table per question, written in step by your code; no joins; no ad hoc queries; deletes that slow reads for 10 days; last-write-wins conflicts; repairs and compaction to operate, on many machines.</div>
-<div class="pg-when"><div class="t">When Postgres would still do</div>Until write volume or the need to survive a data-centre loss with no failover pause actually exceeds what one primary (plus replicas, plus partitioning by time) can do. Most products never get there; Discord did at billions of messages.</div>
+<div class="pg-when"><div class="t">When Postgres would still do</div>Until write volume, or the need to survive a data-centre loss with no failover pause, exceeds what one primary (plus replicas, plus partitioning by time) can do. Most products never get there; Discord did at billions of messages.</div>
 </section>
 <section id="rd-s7">
 <h2>7. Time series: metrics, events and what makes them special</h2>
-<h3>The problem</h3>
-<p>The operations team wants a dashboard: requests per minute, median latency and tokens per model, for the last hour, refreshed every few seconds, and a 30-day trend. Every chat request produces one measurement. That data has a peculiar shape:</p>
-<ul class="tight">
-<li><b>Append-only, in time order</b>: rows are never updated, and new rows always have the newest timestamp.</li>
-<li><b>Read by time range</b>: almost every query says "the last hour" or "this month", grouped into time buckets.</li>
-<li><b>Old data matters less</b>: last hour at full detail, last month per minute, last year per hour (<dfn id="g-downsample">downsampling</dfn>), and then deleted (<dfn id="g-retention">retention</dfn>).</li>
-</ul>
-<p>Every time-series database exploits the same three facts: store data in <b>time-sliced chunks</b> so a time range touches few chunks; <b>precompute rollups</b>; and expire data by <b>dropping whole chunks</b> instead of deleting rows. All three can be done in plain Postgres, which is what was measured here (5,184,000 request rows over 30 days: 4 models, 8 servers, about 2 a second).</p>
-<h3>Measured in PostgreSQL 16.2 and DuckDB</h3>
+<p>The operations dashboard wants requests per minute, median latency and tokens per model for the last hour, refreshed every few seconds, and a 30-day trend; every chat request produces one measurement. That data is <b>append-only in time order</b>, <b>read by time range</b>, and <b>matters less as it ages</b>: last hour in full, last month per minute (<dfn id="g-downsample">downsampling</dfn>), then deleted (<dfn id="g-retention">retention</dfn>). Every time-series database exploits the same three facts: <b>time-sliced chunks</b> so a range touches few chunks, <b>precomputed rollups</b>, and expiry by <b>dropping whole chunks</b> instead of deleting rows. All three exist in plain Postgres, which is what was measured (5,184,000 request rows over 30 days: 4 models, 8 servers, about 2 a second).</p>
+<div class="card" id="rd-tsd-card"><h4 class="vt">Chunks by time turn a range into a few chunks, a chart into a rollup, and retention into a drop</h4>
+<div class="seg" id="rd-tsd-mode"><button data-m="hour" class="on">Last hour</button><button data-m="chart">30-day chart</button><button data-m="ret">Delete 7 oldest days</button></div>
+<div class="rd-svg" id="rd-tsd-svg"></div>
+<p class="small mute" id="rd-tsd-cap"></p>
+<p class="small mute"><span class="meas">measured</span> PostgreSQL 16.2, one big table against 30 daily partitions. A one-minute rollup table of 172,800 rows drew the 30-day hourly chart in 45.6 ms instead of 1,405 ms from the raw rows, with the same answer (checked with <code>EXCEPT</code>). Dropping 7 daily partitions took 0.06 s and 29,816 bytes of log; a <code>DELETE</code> of the same rows from one table took 1.9 s and 65 MB of log, and the table stayed 317 MB on disk even after <code>VACUUM</code> (the space is reused, not returned).</p>
+</div>
 <div class="tw" id="rd-ts"></div>
-<p>Three results to take away. First, dropping a day's partition is a metadata change: <span class="nv" data-n="ts.pg.retention_drop.s" data-f="x2"></span> s and <span class="nv" data-n="ts.pg.retention_drop.wal_bytes" data-f="kb"></span> KB of log for 7 days, against <span class="nv" data-n="ts.pg.retention_delete.s" data-f="x1"></span> s and <span class="nv" data-n="ts.pg.retention_delete.wal_bytes" data-f="mb"></span> MB of log to <code>DELETE</code> the same rows from one big table, which then stays <span class="nv" data-n="ts.pg.size_after_vacuum" data-f="mb"></span> MB on disk even after <code>VACUUM</code> (the space is reused, not returned). Second, a one-minute rollup table of <span class="nv" data-n="ts.pg.rollup_rows" data-f="int"></span> rows answered the 30-day hourly chart in <span class="nv" data-n="ts.pg.chart_rollup.ms" data-f="x1"></span> ms instead of <span class="nv" data-n="ts.pg.chart_raw.ms" data-f="int"></span> ms, with the same answer (checked with <code>EXCEPT</code>). Third, because rows arrive in time order, a <dfn id="g-brin">BRIN</dfn> index (one summary of the minimum and maximum timestamp per block range) on <code>ts</code> is <span class="nv" data-n="ts.pg.size.brin_ts" data-f="kb"></span> KB against <span class="nv" data-n="ts.pg.size.btree_ts" data-f="mb"></span> MB for a B-tree. The same rows as compressed Parquet are about a tenth of the size, and DuckDB drew the 30-day chart straight from the file in <span class="nv" data-n="ts.duckdb.chart_ms" data-f="x1"></span> ms: column stores are very good at this (the <a href="https://app.notion.com/p/3ef5c17b0d0d8157814ec5dd8a0d4fb5" target="_blank" rel="noopener noreferrer">Analytics</a> child).</p>
+<p>Because rows arrive in time order, a <dfn id="g-brin">BRIN</dfn> index (the minimum and maximum timestamp per block range) on <code>ts</code> is <span class="nv" data-n="ts.pg.size.brin_ts" data-f="kb"></span> KB against <span class="nv" data-n="ts.pg.size.btree_ts" data-f="mb"></span> MB for a B-tree. The same rows as compressed Parquet are about a tenth of the size, and DuckDB drew the 30-day chart straight from the file in <span class="nv" data-n="ts.duckdb.chart_ms" data-f="x1"></span> ms: column stores are very good at this (<a href="https://app.notion.com/p/3ef5c17b0d0d8157814ec5dd8a0d4fb5" target="_blank" rel="noopener noreferrer">Analytics</a> owns them).</p>
 <details class="raw"><summary>The partitioned table's plan for "the last hour" (only one day's partition is read)</summary><pre id="rd-ts-plan"></pre></details>
-<h3>The dedicated systems, compared</h3>
-<div class="tw"><table>
-<tr><th>System</th><th>How it stores data</th><th>Query language</th><th>Reach for it when</th></tr>
-<tr><td><b>TimescaleDB</b> (Postgres extension, 2.30)</td><td><b>Hypertables</b>: a table automatically split into time chunks, older chunks converted to compressed columns; continuous aggregates are rollups kept up to date for you</td><td>SQL, joins with your other tables</td><td>time-stamped data that must join your Postgres data; the two measured ideas above, automated. Compression and continuous aggregates are under the source-available Timescale License (root atlas)</td></tr>
-<tr><td><b>Prometheus</b> (3.15)</td><td>its own TSDB: recent samples in memory plus a WAL, cut into immutable two-hour blocks on local disk, compacted later; default retention 15 days; "1-2 bytes per sample" (<a href="https://prometheus.io/docs/prometheus/latest/storage/" target="_blank" rel="noopener noreferrer">Prometheus storage</a>)</td><td>PromQL</td><td>service metrics and alerting: it pulls ("scrapes") numbers from your services every few seconds. Deliberately one node; long-term storage goes to Thanos, Mimir or VictoriaMetrics (root atlas)</td></tr>
-<tr><td><b>InfluxDB 3</b> (3.11)</td><td>Arrow in memory, DataFusion as the query engine, Parquet files on object storage; a WAL flushed every second (root atlas)</td><td>SQL and InfluxQL</td><td>high-volume sensor and app metrics with many tag values, kept cheaply on object storage</td></tr>
-<tr><td><b>ClickHouse</b> (26.9)</td><td>MergeTree: sorted, compressed column parts merged in the background (root atlas); a table-level TTL drops old data (<a href="https://clickhouse.com/docs/engines/table-engines/mergetree-family/mergetree" target="_blank" rel="noopener noreferrer">ClickHouse MergeTree</a>)</td><td>SQL</td><td>events, logs and metrics at billions of rows when you want SQL over everything; often does a dedicated TSDB's job</td></tr>
-</table></div>
-<p class="small mute">Two corrections from the root atlas apply here: Thanos (sidecar mode) uploads Prometheus's own blocks, while Mimir and Cortex receive samples by remote write and build the blocks themselves; and InfluxDB 3 is a Parquet and DataFusion engine, unlike the 1.x and 2.x engines most tutorials describe.</p>
 <h3>Cardinality: the number that breaks metrics systems</h3>
-<p>In Prometheus-style systems, a <b>series</b> is one metric name plus one combination of label values, and every series costs memory in the head block and an entry in the index. "Every unique combination of key-value label pairs represents a new time series ... Do not use labels to store dimensions with high cardinality (many different label values), such as user IDs, email addresses, or other unbounded sets of values" (<a href="https://prometheus.io/docs/practices/naming/" target="_blank" rel="noopener noreferrer">Prometheus naming</a>). The number of series is the product of the label value counts:</p>
-<div class="card" id="rd-card-card">
+<p>In Prometheus-style systems a <b>series</b> is one metric name plus one combination of label values, and every series costs memory and an index entry. "Every unique combination of key-value label pairs represents a new time series ... Do not use labels to store dimensions with high cardinality (many different label values), such as user IDs, email addresses, or other unbounded sets of values" (<a href="https://prometheus.io/docs/practices/naming/" target="_blank" rel="noopener noreferrer">Prometheus naming</a>). Series multiply. Predict what one <code>user_id</code> label does, then tick it:</p>
+<div class="card" id="rd-card-card"><h4 class="vt">Series are the product of label counts: one unbounded label multiplies everything</h4>
 <div class="calc">
 <label>Servers <b id="rd-c-h-v"></b><input type="range" id="rd-c-h" min="1" max="200" value="8"></label>
 <label>Models <b id="rd-c-m-v"></b><input type="range" id="rd-c-m" min="1" max="20" value="4"></label>
@@ -453,50 +546,62 @@ read: find({_id: 7}, {messages: {$slice: -50}})</pre>
 <label class="chk"><input type="checkbox" id="rd-c-u"> add a <code>user_id</code> label (100,000 users)</label>
 </div>
 <div class="out" id="rd-c-out"></div>
-<p class="small mute">Series = product of the label value counts (an upper bound: only combinations that occur create series). Samples per day = series x 86,400 / scrape interval of 15 s. Disk per day uses Prometheus's "1-2 bytes per sample" (2 used here); head memory per series is not documented as a fixed figure, so none is shown.</p>
+<p class="small mute">Series = product of the label value counts (an upper bound: only combinations that occur create series). Samples per day = series x 86,400 / scrape interval of 15 s. Disk per day uses Prometheus's "1-2 bytes per sample" (<a href="https://prometheus.io/docs/prometheus/latest/storage/" target="_blank" rel="noopener noreferrer">Prometheus storage</a>; 2 used here); head memory per series is not documented as a fixed figure, so none is shown.</p>
 </div>
-<p>Per-user and per-request detail belongs in logs, traces or an events table in a column store, where a row per request is normal; metrics stay aggregate. Instrumenting these numbers in practice is on <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability</a>.</p>
+<p>Per-user and per-request detail belongs in logs, traces or an events table in a column store, where a row per request is normal; metrics stay aggregate. Instrumenting in practice is <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability</a>'s.</p>
+<details class="dp"><summary>The dedicated systems compared <span class="mute">(depth; versions in the dated table)</span></summary><div class="b">
+<div class="tw"><table>
+<tr><th>System</th><th>How it stores data</th><th>Query language</th><th>Reach for it when</th></tr>
+<tr><td><b>TimescaleDB</b> (Postgres extension)</td><td><b>Hypertables</b>: a table split automatically into time chunks, older chunks converted to compressed columns; continuous aggregates are rollups kept up to date for you</td><td>SQL, joins with your other tables</td><td>time-stamped data that must join your Postgres data; the two measured ideas above, automated. Compression and continuous aggregates are under the source-available Timescale License (root atlas)</td></tr>
+<tr><td><b>Prometheus</b></td><td>its own TSDB: recent samples in memory plus a WAL, cut into immutable two-hour blocks on local disk, compacted later; default retention 15 days</td><td>PromQL</td><td>service metrics and alerting: it pulls ("scrapes") numbers from your services every few seconds. Deliberately one node; long-term storage goes to Thanos, Mimir or VictoriaMetrics (root atlas)</td></tr>
+<tr><td><b>InfluxDB 3</b></td><td>Arrow in memory, DataFusion as the query engine, Parquet files on object storage; a WAL flushed every second (root atlas)</td><td>SQL and InfluxQL</td><td>high-volume sensor and app metrics with many tag values, kept cheaply on object storage</td></tr>
+<tr><td><b>ClickHouse</b></td><td>MergeTree: sorted, compressed column parts merged in the background (root atlas); a table-level TTL drops old data (<a href="https://clickhouse.com/docs/engines/table-engines/mergetree-family/mergetree" target="_blank" rel="noopener noreferrer">ClickHouse MergeTree</a>)</td><td>SQL</td><td>events, logs and metrics at billions of rows when you want SQL over everything; often does a dedicated TSDB's job</td></tr>
+</table></div>
+<p class="small mute">Two corrections from the root atlas: Thanos (sidecar mode) uploads Prometheus's own blocks, while Mimir and Cortex receive samples by remote write and build the blocks themselves; and InfluxDB 3 is a Parquet and DataFusion engine, unlike the 1.x and 2.x engines most tutorials describe.</p>
+</div></details>
 <div class="pg-when"><div class="t">When Postgres would still do</div>Up to hundreds of millions of rows on one server with native partitioning by day, a BRIN or B-tree index on time, a rollup table refreshed by a scheduled job, and <code>DROP</code> of old partitions; TimescaleDB automates exactly this. Service metrics with alerting belong in Prometheus (or a hosted equivalent) regardless; analytics over billions of events in a column store.</div>
 </section>
 <section id="rd-s8">
 <h2>8. Graph: Neo4j, Kuzu, and the recursive query</h2>
-<h3>The problem</h3>
-<p>Some questions are about connections: "people you may know" (friends of friends), "is this new account linked to a known fraud ring within four steps", "how is user A connected to user B". In tables, each step along a connection is a join, and the number of steps is not known when you write the query.</p>
-<h3>How graph databases model data</h3>
-<p>A <dfn id="g-propgraph">property graph</dfn> has <b>nodes</b> (a user, a chat) and <b>relationships</b> between them (FRIEND, OWNS), each with a type, a direction and properties. Queries are written as patterns in <dfn id="g-cypher">Cypher</dfn> (Neo4j also accepts GQL, the ISO graph query language that grew out of it): <code>MATCH (u:User {uid: $u})-[:FRIEND*1..3]-(v) RETURN count(DISTINCT v)</code> reads "from user u, follow one to three FRIEND relationships in either direction". Neo4j stores each relationship as a record that points directly at its two nodes and at the next relationship of each node, so following a relationship is a pointer lookup rather than an index search, a design its authors call <dfn id="g-ifa">index-free adjacency</dfn> (root atlas; Robinson, Webber and Eifrem, <a href="https://neo4j.com/graph-databases-book/" target="_blank" rel="noopener noreferrer">Graph Databases, 2nd edition, O'Reilly 2015, chapter 6</a>).</p>
+<p>Some questions are about connections: "people you may know" (friends of friends), "is this account linked to a known fraud ring within four steps", "how is user A connected to user B". In tables each step is a join, and the number of steps is not known when you write the query. A <dfn id="g-propgraph">property graph</dfn> has <b>nodes</b> (a user, a chat) and <b>relationships</b> (FRIEND, OWNS), each with a type, a direction and properties. Queries are patterns in <dfn id="g-cypher">Cypher</dfn> (Neo4j also accepts GQL, the ISO graph query language that grew out of it): <code>MATCH (u:User {uid: $u})-[:FRIEND*1..3]-(v) RETURN count(DISTINCT v)</code> reads "from user u, follow one to three FRIEND relationships in either direction". Neo4j stores each relationship as a record pointing directly at its two nodes and at the next relationship of each, so following one is a pointer lookup rather than an index search: <dfn id="g-ifa">index-free adjacency</dfn> (root atlas; Robinson, Webber and Eifrem, <a href="https://neo4j.com/graph-databases-book/" target="_blank" rel="noopener noreferrer">Graph Databases, 2nd edition, O'Reilly 2015, chapter 6</a>).</p>
 <h3>Measured: friends of friends, on the same graph</h3>
-<p>A synthetic social graph built the way real ones grow (each new user befriends 10 existing users, chosen in proportion to how many friends they already have): <span class="nv" data-n="graph.graph.users" data-f="int"></span> users, <span class="nv" data-n="graph.graph.friendships" data-f="int"></span> friendships, a median of <span class="nv" data-n="graph.graph.degree_median" data-f="int"></span> friends but a most-connected user with <span class="nv" data-n="graph.graph.degree_max" data-f="int"></span>. For 10 random users, count everyone within <i>k</i> hops, on PostgreSQL 16.2 (two ways), Neo4j Community <span class="nv" data-n="graph.neo4j_version"></span> and Kuzu <span class="nv" data-n="graph.kuzu.version"></span>, an embedded graph engine (a library, like DuckDB):</p>
-<div class="card" id="rd-g-card">
+<p>A synthetic social graph grown the way real ones grow (each new user befriends 10 existing users, chosen in proportion to how many friends they already have): <span class="nv" data-n="graph.graph.users" data-f="int"></span> users, <span class="nv" data-n="graph.graph.friendships" data-f="int"></span> friendships, a median of <span class="nv" data-n="graph.graph.degree_median" data-f="int"></span> friends but a most-connected user with <span class="nv" data-n="graph.graph.degree_max" data-f="int"></span>. For 10 random users, count everyone within <i>k</i> hops on PostgreSQL 16.2 (two ways), Neo4j Community <span class="nv" data-n="graph.neo4j_version"></span> and Kuzu <span class="nv" data-n="graph.kuzu.version"></span>, an embedded graph engine (a library, like DuckDB). Predict which engine wins at two hops.</p>
+<div class="card" id="rd-g-card"><h4 class="vt">For counting neighbours, the graph engines did not win: Postgres was fastest up to three hops</h4>
 <div class="rd-svg" id="rd-g-svg"></div>
 <div class="tw" id="rd-g-tab"></div>
 </div>
-<p>On this graph and this question, the graph engines did <i>not</i> win: all four agree on every count, Postgres was fastest up to three hops, and at four hops, where every engine touches nearly the whole graph, Neo4j was only <span id="rd-g-4"></span> than Postgres's better query. All times are measured from the client (Neo4j and Postgres over a local connection, Kuzu in the same process). The work is set by the answer: by 3 hops a typical user reaches about a third of the graph, by 4 hops nearly all of it, and every engine must touch those rows. Two details matter for writing it in SQL. A naive recursive query that carries no memory of where it has been (<code>UNION</code> removes only exact duplicate (user, depth) rows) still finished here, but on denser graphs it revisits the same users along many paths; writing one <code>DISTINCT</code> join per hop keeps each frontier small. Neo4j's planner made the same move by itself: its profile shows <code>VarLengthExpand(Pruning,BFS,All)</code>, a breadth-first expansion that drops nodes already seen.</p>
+<p>All four engines agree on every count. At four hops, where every engine touches nearly the whole graph, Neo4j was only <span id="rd-g-4"></span> than Postgres's better query. Times are measured from the client (Neo4j and Postgres over a local connection, Kuzu in process). The work is set by the answer: by 3 hops a typical user reaches about a third of the graph, by 4 nearly all of it, and every engine must touch those rows. In SQL, write one <code>DISTINCT</code> join per hop to keep each frontier small; a naive recursive query (whose <code>UNION</code> removes only exact duplicate (user, depth) rows) finished here but revisits users along many paths on denser graphs. Neo4j's planner made the same move by itself: <code>VarLengthExpand(Pruning,BFS,All)</code>, a breadth-first expansion that drops nodes already seen.</p>
 <details class="raw"><summary>The SQL and Cypher that ran, and the plans</summary><pre id="rd-g-raw"></pre></details>
 <h3>Where a graph database wins: paths and patterns</h3>
 <p>Ask for the <i>path</i> instead of a count. Neo4j's <code>shortestPath</code> connected user <span class="nv" data-n="graph.neo4j.shortest.a"></span> to user <span class="nv" data-n="graph.neo4j.shortest.b"></span> in <span class="nv" data-n="graph.neo4j.shortest.hops"></span> hops in <span class="nv" data-n="graph.neo4j.shortest.ms" data-f="x1"></span> ms with one line of Cypher. In Postgres:</p>
 <div class="tw" id="rd-g-sp"></div>
-<p>The SQL that carries the path is short but explores every path rather than every user, which is why it slows down sharply with depth; the version that keeps a visited set has to be driven from application code, one query per hop. Graph databases earn their place when such questions are the product (fraud rings, recommendation paths, permissions inherited through groups, knowledge graphs), when the depth is variable or large, and when patterns with several node and relationship types ("accounts that share a device with an account that shares a card with a flagged account") would be a page of SQL.</p>
-<div class="co warn"><div class="t">Caveats with dates</div>Neo4j runs transactions at <b>read committed</b>: "a transaction that reads a node/relationship does not block another transaction from writing" it, so lost updates are possible unless a write lock is taken; Cypher takes one automatically for <code>SET n.x = n.x + 1</code> (<a href="https://neo4j.com/docs/operations-manual/current/database-internals/concurrent-data-access/" target="_blank" rel="noopener noreferrer">Neo4j, concurrent data access</a>). Clustering is Enterprise-only (Community is GPLv3; root atlas). Kuzu's GitHub repository was archived by its owners on 10 October 2025; its last release, 0.11.3, still works but receives no fixes, so treat it as a demonstration, not a dependency (<a href="https://github.com/kuzudb/kuzu" target="_blank" rel="noopener noreferrer">kuzudb/kuzu</a>). Apache AGE adds Cypher inside Postgres, with traversals planned as joins (root atlas).</div>
+<p>The SQL that carries the path is short but explores every path rather than every user, so it slows sharply with depth; the version with a visited set must be driven from application code, one query per hop. Graph databases earn their place when such questions are the product (fraud rings, recommendation paths, permissions inherited through groups, knowledge graphs), when depth is variable or large, and when patterns over several node and relationship types ("accounts that share a device with an account that shares a card with a flagged account") would be a page of SQL. Building a graph from documents for LLM retrieval is <a href="https://app.notion.com/p/3f85c17b0d0d81e2bb4cdbb749e48a5a" target="_blank" rel="noopener noreferrer">GraphRAG and structured retrieval</a>'s.</p>
+<div class="co warn"><div class="t">Caveats</div>Neo4j runs transactions at <b>read committed</b>: "a transaction that reads a node/relationship does not block another transaction from writing" it, so lost updates are possible unless a write lock is taken; Cypher takes one automatically for <code>SET n.x = n.x + 1</code> (<a href="https://neo4j.com/docs/operations-manual/current/database-internals/concurrent-data-access/" target="_blank" rel="noopener noreferrer">Neo4j, concurrent data access</a>). Kuzu's repository was archived by its owners, so treat it as a demonstration, not a dependency (dated table in <a href="#rd-depth">Depth</a>). Apache AGE adds Cypher inside Postgres, with traversals planned as joins (root atlas).</div>
 <div class="pg-when"><div class="t">When Postgres would still do</div>Fixed one to three hops (friends, friends of friends, a group's members' chats): one join per hop with an index on both ends, measured above. Bounded hierarchies (an org chart, folders) with a recursive CTE. Move to a graph database when variable-depth path questions are central and frequent, or the pattern queries become unmaintainable in SQL.</div>
 </section>
-
-<section id="rd-s9">
-<h2>9. Embedded key-value engines: RocksDB and LMDB</h2>
-<p>Every database above sits on a storage engine: the library that turns "put this key and value" into bytes on disk. Two are worth knowing by name because you will meet them inside other systems, and occasionally use one directly.</p>
-<div class="vs">
-<div><h4>RocksDB (11.8)</h4><p>An embedded LSM-tree: writes go to a write-ahead log and a memtable, flush to sorted files, and compaction merges them in the background. Fast writes, tunable read, write and space amplification, and a lot of knobs. Inside CockroachDB (via Pebble, its Go port), TiKV, Kafka Streams' state stores and many others. By default its WAL is not flushed to disk on every write, so a machine crash can lose the last writes (root atlas). The <a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a> page measures its write, read and space amplification against Postgres.</p></div>
-<div><h4>LMDB (1.0)</h4><p>A copy-on-write B+tree in one memory-mapped file: no WAL, no compaction, readers never block and see a consistent snapshot, but only one writer at a time. Very fast reads from many threads or processes; commits are flushed by default. LMDB 1.0.0 arrived on 30 June 2026 after the long 0.9 line (root atlas).</p></div>
-</div>
-<p>Reach for one directly only when you are building a storage component (a queue, a cache with persistence, an index) inside one process and want neither a server nor SQL. Otherwise SQLite (rows, SQL, one writer) and DuckDB (columns, analytics), on the root page, are the embedded databases to use.</p>
-</section>
 <section id="rd-pro">
-<h2>Choosing, and running them in production</h2>
-<h3>How pros decide</h3>
+<h2>Choosing: Postgres with jsonb, or another store</h2>
+<div class="card"><h4 class="vt">Each section's measurement names the problem that justifies a second store; without one, Postgres does the job</h4>
+<div class="tw"><table>
+<tr><th>The measured problem</th><th>Postgres first</th><th>The store it justifies</th></tr>
+<tr><td>Exact ranks for 100,000 players on every page view cost 9 ms each (section 3)</td><td>top-N from an index; ranks recomputed every minute</td><td>Redis sorted set</td></tr>
+<tr><td>Thousands of atomic checks a second (rate limits, counters)</td><td><code>UPDATE ... SET n = n + 1</code>; <code>SKIP LOCKED</code> queues</td><td>Redis, with a Lua script</td></tr>
+<tr><td>Writes exceed one primary, or must survive a data-centre loss with no failover pause (sections 4 and 6)</td><td>replicas, partitioning by time, then <a href="https://app.notion.com/p/3ef5c17b0d0d81f0aaceee1e21b972be" target="_blank" rel="noopener noreferrer">Scaling a database</a></td><td>Cassandra, ScyllaDB or DynamoDB, keys from the access patterns</td></tr>
+<tr><td>Records of varying shape, read and written whole (section 5)</td><td>columns plus a <code>jsonb</code> column, GIN index</td><td>MongoDB, when most data is document-shaped</td></tr>
+<tr><td>Every dashboard query scans 30 days (section 7)</td><td>daily partitions, a rollup table, BRIN</td><td>Prometheus for metrics; a column store for events</td></tr>
+<tr><td>Variable-depth paths and patterns are the product (section 8)</td><td>a join per hop; recursive CTE for hierarchies</td><td>Neo4j</td></tr>
+</table></div></div>
 <ol>
 <li><b>Start with Postgres as the source of truth</b> and write down the access patterns (section 1). Most of the families' tricks exist in Postgres in smaller form: a composite index (section 2), <code>jsonb</code> (section 5), partitions and rollups (section 7), a join per hop (section 8), <code>SKIP LOCKED</code> queues.</li>
 <li><b>Add a store only for a measured problem</b>, named in one sentence: "ranks for 100,000 players on every page view cost 9 ms each" (Redis); "message writes exceed one primary" (Cassandra, ScyllaDB or DynamoDB); "every dashboard query scans 30 days" (a rollup, then a time-series or column store).</li>
 <li><b>Treat every extra store as a copy</b> that can be rebuilt from the source of truth, fed by an outbox or change data capture (<a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>), with its own backups, monitoring and on-call knowledge. "Polyglot persistence" (several stores, each for what it does best) is real at scale and an expensive habit before it.</li>
 </ol>
+<p class="small mute">Backups, replication and failover for Postgres itself are <a href="https://app.notion.com/p/3ef5c17b0d0d8149a0c9d3e2083ed0de" target="_blank" rel="noopener noreferrer">Running Postgres in production</a>'s; sharding Postgres and distributed SQL are <a href="https://app.notion.com/p/3ef5c17b0d0d81f0aaceee1e21b972be" target="_blank" rel="noopener noreferrer">Scaling a database</a>'s.</p>
+</section>
+
+<section id="rd-depth">
+<h2>Depth</h2>
+<details class="dp"><summary>Settings pros check first, per system <span class="mute">(a checklist)</span></summary><div class="b">
 <div class="tw"><table>
 <tr><th>System</th><th>Settings pros check first (each explained on this page)</th></tr>
 <tr><td>Redis / Valkey</td><td><code>maxmemory</code> and an eviction policy when it is a cache, <code>noeviction</code> when it holds data you need; <code>appendonly yes</code> with <code>appendfsync everysec</code> if losing a minute matters; replicas plus Sentinel or Cluster for failover, knowing that failover can drop acknowledged writes; no <code>KEYS *</code> in production (use <code>SCAN</code>); short scripts.</td></tr>
@@ -505,95 +610,45 @@ read: find({_id: 7}, {messages: {$slice: -50}})</pre>
 <tr><td>Cassandra / ScyllaDB</td><td>replication factor 3 across racks or zones, <code>LOCAL_QUORUM</code> for reads and writes that must agree; partitions bounded by a time bucket; repair run more often than <code>gc_grace_seconds</code>; alerts on tombstone warnings and large partitions; compaction chosen per table.</td></tr>
 <tr><td>Prometheus and friends</td><td>no unbounded label values; retention and rollups set on purpose; long-term storage (Thanos, Mimir, VictoriaMetrics) only when one server's retention is not enough.</td></tr>
 </table></div>
-<p class="small mute">These are configuration names and documented behaviours from the sources linked in each section; they are a checklist, not a complete production guide. Backups, replication and failover for Postgres itself are on <a href="https://app.notion.com/p/3ef5c17b0d0d8149a0c9d3e2083ed0de" target="_blank" rel="noopener noreferrer">Running Postgres in production</a>; sharding Postgres and distributed SQL on <a href="https://app.notion.com/p/3ef5c17b0d0d81f0aaceee1e21b972be" target="_blank" rel="noopener noreferrer">Scaling a database</a>; consistency models and quorums in general on <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a>.</p>
-</section>
+<p class="small mute">Configuration names and documented behaviours from the sources linked in each section; a checklist, not a complete production guide.</p></div></details>
 
-<section id="rd-mist">
-<h2>Common mistakes</h2>
-<details class="mist"><summary>Choosing the database before listing the questions</summary><div class="b">The family follows from the access patterns. A store chosen for its reputation, before the list exists, leaves the questions nobody planned for as scans (section 4) or new tables (section 6).</div></details>
-<details class="mist"><summary>Read, decide, write in the application</summary><div class="b">Measured: 188 requests passed a limit of 20. Use the store's atomic operation (<code>INCR</code>, a Lua script, a conditional write, <code>UPDATE ... SET n = n - 1 WHERE n &gt; 0</code>).</div></details>
-<details class="mist"><summary>Redis as the only copy</summary><div class="b">A failover lost 4,947 of 5,000 acknowledged writes here; an RDB-only server lost every write since its last snapshot. Keep the source of truth in a database.</div></details>
-<details class="mist"><summary>Believing a filter makes a scan cheap</summary><div class="b">DynamoDB charges for items read, not returned: a Scan that returned nothing still read 1,000 items in its first page.</div></details>
-<details class="mist"><summary>A partition key that concentrates traffic</summary><div class="b">The current date, a tenant with most of the traffic, one celebrity chat. Every partition has a ceiling (1,000 writes a second in DynamoDB); spread with a suffix or rethink the key.</div></details>
-<details class="mist"><summary>Partitions or documents that grow forever</summary><div class="b">A chat document hit the 16 MB limit at 15,220 messages; a Cassandra partition per chat grows without limit. Bucket by time or count.</div></details>
-<details class="mist"><summary>Using Cassandra as a queue, or deleting in bulk</summary><div class="b">5,000 tombstones made a read about nine times slower; 101,000 made it fail. Prefer TTLs on time-ordered tables with TimeWindow compaction, and never a read-and-delete queue.</div></details>
-<details class="mist"><summary>"Schemaless" without validation</summary><div class="b">Without a validator, every reader must handle every shape ever written. Add <code>$jsonSchema</code> or keep the fixed fields as Postgres columns.</div></details>
-<details class="mist"><summary>Reading your own write from an index or replica</summary><div class="b">DynamoDB GSIs, MongoDB secondaries, Redis replicas and Cassandra at <code>ONE</code> can all return data from before your write. Read from the primary, or use a strong read where one exists, for the request right after a write.</div></details>
-<details class="mist"><summary>User ids as metric labels</summary><div class="b">One label with 100,000 values multiplies every metric's series by 100,000 (the calculator in section 7). Per-user detail goes in logs or an events table.</div></details>
-<details class="mist"><summary>Deleting old time-series rows with DELETE</summary><div class="b">Measured: 1.9 s and 65 MB of log for 7 days, and the table did not shrink; dropping 7 daily partitions took 0.06 s.</div></details>
-<details class="mist"><summary>A graph database for two hops</summary><div class="b">Friends of friends was faster in Postgres than in either graph engine here. Graph databases pay off for paths and variable-depth patterns.</div></details>
-</section>
+<details class="dp"><summary>Mistakes with a measured cost <span class="mute">(each points back to its section)</span></summary><div class="b"><ul class="tight">
+<li><b>Read, decide, write in the application</b>: 188 requests passed a limit of 20. Use the store's atomic operation (<code>INCR</code>, a Lua script, a conditional write, <code>UPDATE ... SET n = n - 1 WHERE n &gt; 0</code>).</li>
+<li><b>Redis as the only copy</b>: a failover lost 4,947 of 5,000 acknowledged writes here; an RDB-only server lost every write since its last snapshot.</li>
+<li><b>A partition key that concentrates traffic</b>: the current date, a tenant with most of the traffic, one celebrity chat. Every partition has a ceiling (1,000 writes a second in DynamoDB).</li>
+<li><b>Partitions or documents that grow forever</b>: a chat document hit the 16 MB limit at 15,220 messages; a Cassandra partition per chat grows without limit. Bucket by time or count.</li>
+<li><b>Cassandra as a queue, or bulk deletes</b>: 5,000 tombstones made a read about nine times slower; 101,000 made it fail.</li>
+<li><b>Reading your own write from an index or replica</b>: DynamoDB GSIs, MongoDB secondaries, Redis replicas and Cassandra at <code>ONE</code> can all return data from before your write. Read from the primary, or use a strong read where one exists, for the request right after a write.</li>
+<li><b>Deleting old time-series rows with DELETE</b>: Measured: 1.9 s and 65 MB of log for 7 days, and the table did not shrink.</li>
+</ul></div></details>
 
-<section id="rd-gloss">
-<h2>Glossary</h2>
-<div class="gl" id="rd-gl"></div>
+<details class="dp"><summary>Embedded key-value engines: RocksDB and LMDB <span class="mute">(the libraries under other systems)</span></summary><div class="b">
+<p>Every database above sits on a storage engine: the library that turns "put this key and value" into bytes on disk. <b>RocksDB</b> is an embedded LSM-tree: a write-ahead log and a memtable, sorted files, background compaction; fast writes, tunable read, write and space amplification, many knobs. It is inside CockroachDB (via Pebble, its Go port), TiKV, Kafka Streams' state stores and many others; by default its WAL is not flushed to disk on every write, so a machine crash can lose the last writes (root atlas). <a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a> measures its amplification against Postgres. <b>LMDB</b> is a copy-on-write B+tree in one memory-mapped file: no WAL, no compaction, readers never block and see a consistent snapshot, but one writer at a time; very fast reads from many threads or processes; commits are flushed by default.</p>
+<p>Reach for one directly only when building a storage component (a queue, a persistent cache, an index) inside one process and you want neither a server nor SQL. Otherwise SQLite (rows, SQL, one writer) and DuckDB (columns, analytics), on the root page, are the embedded databases to use.</p></div></details>
+
+<details class="dp"><summary>Versions, licences and prices, dated <span class="mute">(volatile: checked 4 and 5 October 2026)</span></summary><div class="b">
+<div class="tw"><table>
+<tr><th>System</th><th>Version used or current</th><th>Licence and dated facts</th></tr>
+<tr><td>Redis</td><td>8.8.0 measured</td><td>BSD until 7.2; dual source-available licence (RSALv2 or SSPLv1) from 7.4 on 20 March 2024; Redis 8 added AGPLv3 as a third option on 1 May 2025. Redis 8-only features (built-in JSON, vector sets, the query engine) do not exist in Valkey under those names.</td></tr>
+<tr><td>Valkey</td><td>fork of Redis 7.2.4</td><td>BSD, launched by the Linux Foundation on 28 March 2024, backed by AWS, Google Cloud, Oracle and others</td></tr>
+<tr><td>DynamoDB</td><td>DynamoDB Local 3.3.1 measured</td><td>US East (N. Virginia), standard table class, read 4 October 2026: on-demand $0.625 per million write units and $0.125 per million read units (<a href="https://aws.amazon.com/dynamodb/pricing/on-demand/" target="_blank" rel="noopener noreferrer">on-demand pricing</a>); provisioned $0.00065 per write unit-hour and $0.00013 per read unit-hour (<a href="https://aws.amazon.com/dynamodb/pricing/provisioned/" target="_blank" rel="noopener noreferrer">provisioned pricing</a>); storage $0.25 per GB-month</td></tr>
+<tr><td>MongoDB</td><td>8.0.23 measured; 9.0 generally available 28 September 2026</td><td>server under the SSPL (source-available) since 16 October 2018</td></tr>
+<tr><td>Cassandra</td><td>5.0.9 measured; 6.0 in alpha (Accord transactions)</td><td>Apache 2.0</td></tr>
+<tr><td>ScyllaDB</td><td>2025.1 onward</td><td>AGPL open-source edition ended with 6.2; one source-available product, free only within 10 TB and 50 vCPUs (licence v1.1, April 2026)</td></tr>
+<tr><td>Neo4j</td><td>Community 2026.09.0 measured</td><td>Community is GPLv3; clustering is Enterprise-only</td></tr>
+<tr><td>Kuzu</td><td>0.11.3 measured (last release)</td><td>GitHub repository archived by its owners on 10 October 2025; still works, receives no fixes (<a href="https://github.com/kuzudb/kuzu" target="_blank" rel="noopener noreferrer">kuzudb/kuzu</a>)</td></tr>
+<tr><td>Time-series systems</td><td>TimescaleDB 2.30, Prometheus 3.15, InfluxDB 3.11, ClickHouse 26.9</td><td>TimescaleDB compression and continuous aggregates under the Timescale License</td></tr>
+<tr><td>Embedded engines</td><td>RocksDB 11.8; LMDB 1.0.0 released 30 June 2026 after the long 0.9 line</td><td></td></tr>
+</table></div>
+<p class="small mute">From the root page's Database atlas (sources there) unless linked.</p></div></details>
+
+<details class="dp"><summary>Glossary <span class="mute">(every term, linked to where it is explained)</span></summary><div class="b"><div class="gl" id="rd-gl"></div></div></details>
 </section>
 <div class="foot">Measured on 4 and 5 October 2026 on an Apple M1 Pro laptop (16 GB, macOS) with Redis 8.8.0, MongoDB 8.0.23, OpenJDK 17 and 25 (conda-forge, installed in a scratch directory), DynamoDB Local 3.3.1, Apache Cassandra 5.0.9, Neo4j Community 2026.09.0, Kuzu 0.11.3, PostgreSQL 16.2 (pgserver wheel) and DuckDB 1.5.6. Every run is under 10 minutes; the scripts and raw outputs are in the page's <code>src/measure</code> and <code>src/inputs</code> folders. Facts about other systems come from the root page's Database atlas (checked on 4 October 2026) unless linked.</div>
-</div>
-<div class="tab" id="t-lab" role="tabpanel" hidden>
-<style>
-#t-lab .lab2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:10px 0}
-@media (max-width:760px){#t-lab .lab2{grid-template-columns:minmax(0,1fr)}}
-#t-lab .pane{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
-#t-lab .pane h3{margin:0 0 6px;font-size:14.5px}
-#t-lab .ap{border:1px solid var(--line);border-left:5px solid var(--dim);border-radius:8px;padding:6px 9px;margin:6px 0;font-size:13px;cursor:pointer;background:var(--bg)}
-#t-lab .ap.sel{outline:2px solid var(--acc);outline-offset:1px}
-#t-lab .ap .nm{font-weight:600;display:block}#t-lab .ap .op{font-family:ui-monospace,Menlo,monospace;font-size:12px;display:block;overflow-wrap:anywhere}
-#t-lab .ap .m{color:var(--mute);font-size:12px;display:block}
-#t-lab .ap.k0{border-left-color:var(--good)}#t-lab .ap.k1{border-left-color:var(--c6)}#t-lab .ap.k2{border-left-color:var(--c5)}#t-lab .ap.k3{border-left-color:var(--bad)}
-#t-lab .ent{border-bottom:1px solid var(--line);padding:6px 0;font-size:13px}
-#t-lab .ent:last-child{border-bottom:0}
-#t-lab .ent b{display:block;font-size:13px}
-#t-lab .ent label{display:block;margin:3px 0;font-size:12.5px}
-#t-lab .ent select{max-width:100%;font-size:12.5px;padding:2px 6px}
-#t-lab .ent .chk{white-space:normal;display:block;margin:3px 0}
-#t-lab .presets{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
-#t-lab .presets button{font-size:12.5px}
-#t-lab .legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
-#t-lab .legend span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
-#t-lab .why{border-left:3px solid var(--acc);padding:4px 10px;margin:8px 0;font-size:13.5px;background:var(--soft);border-radius:0 6px 6px 0;min-height:4em}
-#t-lab .items{overflow-x:auto;max-width:100%}
-#t-lab table.it{font-size:12px;border-collapse:collapse;width:auto;min-width:100%}
-#t-lab table.it td,#t-lab table.it th{border:1px solid var(--line);padding:3px 6px;white-space:nowrap;font-family:ui-monospace,Menlo,monospace}
-#t-lab table.it th{background:var(--soft);font-family:inherit}
-#t-lab table.it tr.hit td{background:var(--hl)}
-#t-lab table.it td.pk{font-weight:600}
-#t-lab .score{font-size:14px;margin:6px 0}
-#t-lab .hot{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px 16px}
-</style>
-<section id="lab-top">
-<h2>Single-table lab: design DynamoDB keys for the chat product</h2>
-<p>DynamoDB answers only questions that name a key. You list the questions first (the <b>access patterns</b>), then choose how each kind of item is keyed so that every question becomes one request. Pick the keys on the right; the left side shows, for each access pattern, which request it becomes and how many items DynamoDB must read. The rules are DynamoDB's own (sections 4.2 to 4.4 of the Reading tab) and were checked on DynamoDB Local with the chat data; the item counts use that data: <span id="lab-data"></span>.</p>
-<div class="try"><b>Try:</b> start from <i>Relational habit</i> (one kind of item per table, keyed by its own id) and see how many questions turn into scans; then switch to <i>Single-table design</i>. Change only the message key to <code>MSG#{messageId}</code> and watch "latest 50 messages" collapse into a scan. Turn on the model-per-day index and read the hot-partition warning.</div>
-<div class="presets" id="lab-presets"><button data-p="rel">Relational habit</button><button data-p="st" class="on">Single-table design</button><button data-p="bad">Messages keyed by id</button></div>
-<div class="legend"><span style="--sw:var(--good)">one request, reads only what it returns</span><span style="--sw:var(--c6)">one request on an index (eventually consistent)</span><span style="--sw:var(--c5)">works, but reads more than it returns or needs several requests</span><span style="--sw:var(--bad)">scan of the whole table</span></div>
-<div class="lab2">
-<div class="pane"><h3>Access patterns (what the app asks)</h3><div id="lab-aps"></div><div class="score" id="lab-score"></div></div>
-<div class="pane"><h3>Key design (how each item is keyed)</h3><div id="lab-keys"></div></div>
-</div>
-<div class="why" id="lab-why"></div>
-<h3>The table, as DynamoDB stores it</h3>
-<p class="small mute">A sample of items under the current design, grouped by partition key and sorted by sort key, the way a Query sees them. Rows the selected access pattern reads are highlighted.</p>
-<div class="items" id="lab-items"></div>
-<h3>Hot partitions and what it costs</h3>
-<p>Every partition serves at most 3,000 read units and 1,000 write units a second (<a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-design.html" target="_blank" rel="noopener noreferrer">DynamoDB docs, partition key design</a>). A key that concentrates traffic, such as one very busy group chat or "all messages of model X today", hits that ceiling however large the table is. Adaptive capacity moves busy items onto their own partitions, but a single key still cannot pass the per-partition maximum (<a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/burst-adaptive-capacity.html" target="_blank" rel="noopener noreferrer">burst and adaptive capacity</a>).</p>
-<div class="hot">
-<label class="small">Messages written per second to the busiest key: <b id="lab-w-v"></b><input type="range" id="lab-w" min="10" max="5000" step="10" value="1500"></label>
-<label class="small">Write shards (suffix #0 to #N-1 on the key): <b id="lab-s-v"></b><input type="range" id="lab-s" min="1" max="10" step="1" value="1"></label>
-<label class="small">Messages a day, whole product: <b id="lab-md-v"></b><input type="range" id="lab-md" min="4" max="9" step="0.1" value="7"></label>
-<label class="small">Reads per message written: <b id="lab-rr-v"></b><input type="range" id="lab-rr" min="1" max="50" step="1" value="10"></label>
-</div>
-<div class="out" id="lab-hot-out"></div>
-<p class="small mute" id="lab-cost-note"></p>
-</section>
 </div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <section id="s-more"><h2>Further reading</h2>
 <p class="small mute">Every link opens in a new tab; times are estimates for a careful first read. Links checked on 4 and 5 October 2026.</p>
-<h3>On this page</h3>
-<div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-lab">Single-table lab</a></div><p>Choose DynamoDB keys for the chat product and see which of seven questions become one request, which scan, what the items look like, and what hot keys and capacity cost. <span class="rt">About 15 minutes.</span></p></div>
-</div>
 <h3>The parent topic and its siblings</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a></div><p>The root: one chat product's data from a file to a fleet. Reading section 6 gives each family in one card; the <b>Database atlas</b> tab compares about 60 systems (licence, consistency, Jepsen results, scaling, versions) with sources; <b>SQL playground</b> and <b>Query plans</b> run on the same chat data. <span class="rt">About 27 minutes, plus the tabs.</span></p></div>
@@ -635,9 +690,9 @@ read: find({_id: 7}, {messages: {$slice: -50}})</pre>
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab (NoSQL in practice): shared helpers copied from the Topic: databases root, with the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -668,7 +723,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -788,7 +843,7 @@ window.NQ={"redis":{"version":"8.8.0","get_us":{"p50":52.1,"p99":121.0,"n":20000
     capEl.innerHTML='<div class="t">'+(i+1)+'/'+M[mode].length+'. '+st.cap[0]+'</div><p>'+st.cap[1]+'</p>';
   }
   const A=RD.anim({card:'rd-lat-card',ctl:'rd-lat-ctl',n:M.seq.length,draw,ms:1700,label:'Step'});
-  RD.seg(el('rd-lat-mode'),m=>{mode=m;A.reset(M[m].length);A.play();raw()});
+  RD.seg(el('rd-lat-mode'),m=>{mode=m;A.reset(M[m].length);raw()});
   function raw(){
     const t=mode==='cas'?('-- CQL\n'+(W.cass_ddl||'')+'\n\nSELECT message_id, role, tokens, content, created_at FROM messages_by_chat\n WHERE chat_id = 7 AND bucket = '+C.latest_bucket+' LIMIT 50;\n\n-- trace (Cassandra '+(W.cass_version||'')+')\n'+tr.join('\n')):
       ('-- PostgreSQL '+W.pg_version+'\nSELECT id, role, tokens, content, created_at FROM messages\n WHERE chat_id = 7 ORDER BY created_at DESC LIMIT 50;\n\n'+R[{seq:0,idx:1,clu:2}[mode]].explain);
@@ -1138,13 +1193,13 @@ window.NQ={"redis":{"version":"8.8.0","get_us":{"p50":52.1,"p99":121.0,"n":20000
       RD.stat('Provisioned, a month',usd(prW+prR),'sized for a peak 3x the average (assumed)')+
       (cur.gsi2==='on'?RD.stat('GSI2 busiest partition',fmt(gsi2)+'/s',gsi2>1000?'<span style="color:var(--bad)">hot: over 1,000 writes a second</span>':'under the limit at this volume'):'');
     el('lab-cost-note').innerHTML='Prices for US East (N. Virginia), standard table class, read on '+P.date+': on-demand $'+P.od_wru*1e6+' per million write units and $'+P.od_rru*1e6+' per million read units; provisioned $'+P.pr_wcu_h+' per write unit-hour and $'+P.pr_rcu_h+' per read unit-hour; storage $'+P.storage_gb_month+' per GB-month (not included above). '+
-      'Each message costs '+wpm+' write units here: DynamoDB Local charged that for the transaction that puts the message and moves the chat to the top of the chat list (Reading section 4.4); by the documented rules, each transactional write costs 2 units per KB and moving an index entry costs 2 more. Each read of "latest 50" costs '+rpm+' read units: 50 messages of about '+B.msg+' bytes is '+Math.ceil(50*B.msg/1024)+' KB, rounded up to 4 KB blocks, halved for eventual consistency. A month is 30 days for requests and 730 hours for capacity. '+
+      'Each message costs '+wpm+' write units here: DynamoDB Local charged that for the transaction that puts the message and moves the chat to the top of the chat list (section 4, closed block on writes); by the documented rules, each transactional write costs 2 units per KB and moving an index entry costs 2 more. Each read of "latest 50" costs '+rpm+' read units: 50 messages of about '+B.msg+' bytes is '+Math.ceil(50*B.msg/1024)+' KB, rounded up to 4 KB blocks, halved for eventual consistency. A month is 30 days for requests and 730 hours for capacity. '+
       'Write sharding spreads one hot key over N keys but every reader must query all N.';
   }
   ['lab-w','lab-s','lab-md','lab-rr'].forEach(id=>el(id).addEventListener('input',hot));
   el('lab-data').textContent=fmt(N.users)+' users, '+fmt(N.chats)+' chats and '+fmt(N.messages)+' messages ('+fmt(TOTAL)+' items in all), chat 7 holding '+fmt(longMsgs)+' messages';
   keysUI();draw();
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-lab']=window.TAB_RENDER['t-lab']||[]).push(draw);
+  RD.onRender(draw);
 })();
 </script>
 <script>/* 32_js_gloss.js */
@@ -1191,8 +1246,194 @@ window.NQ={"redis":{"version":"8.8.0","get_us":{"p50":52.1,"p99":121.0,"n":20000
   if(missing.length&&window.__jsErr)window.__jsErr('glossary terms without a definition: '+missing.join(', '));
 })();
 </script>
+<script>/* 35_js_rd_hero.js */
+// ---- Top: the hero. One small drawing per family of what is stored together; the highlighted part is what one planned question reads (static) ----
+(function(){
+  const host=document.getElementById('rd-hero');if(!host)return;
+  const T=RD.t,A='var(--acc)',L='var(--line)',M='var(--mute)',S='var(--soft)',H='var(--hl)';
+  const box=(x,y,w,h,o)=>{o=o||{};return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(1,w).toFixed(1)+'" height="'+h+'" rx="'+(o.rx==null?3:o.rx)+'" fill="'+(o.on?H:(o.fill||S))+'" stroke="'+(o.on?A:L)+'" stroke-width="'+(o.on?1.6:1)+'"/>'};
+  const D={
+    kv(w){let s='';const kw=Math.min(118,w*0.42);
+      [['user:7:bucket','{tokens 14, ts}',1],['lb (sorted set)','85068 ... 4242',0],['jobs (stream)','1-0, 1-1, 1-2',0]].forEach((r,i)=>{const y=4+i*26;
+        s+=box(4,y,kw,20,{on:r[2]})+T(10,y+14,r[0],{fs:11})+'<line x1="'+(kw+6)+'" y1="'+(y+10)+'" x2="'+(kw+18)+'" y2="'+(y+10)+'" stroke="'+M+'"/>'+box(kw+20,y,w-kw-26,20,{on:r[2]})+T(kw+26,y+14,r[1],{fs:11,fill:M})});
+      return [s,82,'In memory: a key points at a data structure; one atomic command reads or changes it']},
+    ddb(w){let s=T(4,12,'PK = CHAT#7 (one partition, sorted by SK)',{fs:11,fill:M});
+      const n=6,bw=(w-8)/n;for(let i=0;i<n;i++){const on=i>=n-3;s+=box(4+i*bw,18,bw-3,22,{on})+T(4+i*bw+3,33,'MSG#'+(i+1),{fs:10.5})}
+      s+=T(w-4,56,'Query: newest first, Limit 50',{fs:11,a:'end',fill:A});s+=T(4,74,'PK = CHAT#8, CHAT#9 ... on other partitions',{fs:10.5,fill:M});
+      return [s,80,'DynamoDB item collection: the items of one partition key stored together in sort-key order; a Query reads the newest ones']},
+    doc(w){let s=box(4,4,w-8,74,{});s+=T(10,18,'{ _id: 7, title: "Chat 7",',{fs:11});s+=box(10,24,w-20,18,{on:1})+T(16,37,'last_3: [ ... ]  (read with the chat)',{fs:10.5});
+      s+=T(10,58,'messages: referenced, one document each',{fs:10.5,fill:M});s+=T(10,72,'}',{fs:11});
+      return [s,82,'A document read whole: the chat with a bounded subset embedded, the unbounded messages referenced']},
+    wide(w){let s='';const cx=34,cy=40,r=26;s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+L+'" stroke-width="2"/>';
+      for(let k=0;k<6;k++){const a=-Math.PI/2+k*Math.PI/3;s+='<circle cx="'+(cx+r*Math.cos(a)).toFixed(1)+'" cy="'+(cy+r*Math.sin(a)).toFixed(1)+'" r="6" fill="'+(k>=1&&k<=3?'var(--c4)':S)+'" stroke="'+M+'"/>'}
+      const x0=74,pw=w-x0-4;s+=T(x0,12,'partition (chat 7, bucket 3)',{fs:11,fill:M});
+      for(let i=0;i<4;i++)s+=box(x0,18+i*15,pw,12,{on:i<3,rx:2});s+=T(x0+4,28,'newest',{fs:10});s+=T(x0+pw-4,73,'3 replicas',{fs:10.5,a:'end',fill:M});
+      return [s,82,'Cassandra: a partition key hashed onto a ring of nodes, copied to three replicas, rows sorted newest first inside it']},
+    ts(w){let s=T(4,12,'one chunk per day, newest right',{fs:11,fill:M});const n=12,bw=(w-8)/n;
+      for(let i=0;i<n;i++)s+=box(4+i*bw,18,bw-2,30,{on:i===n-1,fill:i<3?'var(--bg)':S});
+      s+='<line x1="4" y1="56" x2="'+(4+3*bw-2).toFixed(1)+'" y2="56" stroke="var(--bad)" stroke-width="2"/>'+T(4,72,'DROP old chunks',{fs:10.5,fill:'var(--bad)'})+T(w-4,72,'last hour: one chunk',{fs:10.5,a:'end',fill:A});
+      return [s,80,'Time series: data cut into time chunks; a recent range reads one chunk and retention drops whole chunks']},
+    graph(w){const P=[[0.08,0.5],[0.3,0.2],[0.3,0.8],[0.55,0.45],[0.78,0.2],[0.92,0.62],[0.62,0.9]],E=[[0,1],[0,2],[1,3],[2,3],[3,4],[4,5],[3,6],[2,6]],on=new Set(['0-1','1-3','3-4','4-5']);
+      let s='';const X=p=>6+p[0]*(w-12),Y=p=>6+p[1]*64;
+      E.forEach(e=>{const k=e[0]+'-'+e[1],o=on.has(k);s+='<line x1="'+X(P[e[0]]).toFixed(1)+'" y1="'+Y(P[e[0]]).toFixed(1)+'" x2="'+X(P[e[1]]).toFixed(1)+'" y2="'+Y(P[e[1]]).toFixed(1)+'" stroke="'+(o?A:L)+'" stroke-width="'+(o?2.4:1.2)+'"/>'});
+      P.forEach((p,i)=>{s+='<circle cx="'+X(p).toFixed(1)+'" cy="'+Y(p).toFixed(1)+'" r="7" fill="'+([0,1,3,4,5].includes(i)?H:S)+'" stroke="'+M+'"/>'});
+      s+=T(4,80,'a path follows pointers, hop by hop',{fs:10.5,fill:M});
+      return [s,84,'A property graph: users joined by FRIEND relationships; a path query follows pointers from node to node']}
+  };
+  function draw(){host.querySelectorAll('.hs').forEach(el=>{const w=Math.max(200,RD.width(el)),r=D[el.dataset.h](w);el.innerHTML=RD.svg(w,r[1],r[0],r[2])})}
+  draw();RD.onRender(draw);RD.onResize(draw);
+})();
+</script>
+<script>/* 36_js_rd_lb.js */
+// ---- Section 3: leaderboard, rank lookup cost against the player's rank (measured points from inputs/rank.json and redis.json) ----
+(function(){
+  const el=document.getElementById('rd-lb-svg');if(!el||!window.NQ||!NQ.redis)return;
+  const RK=NQ.rank, LB=NQ.redis.leaderboard;if(!RK)return;
+  const T=RD.t;
+  const pts=RK.rank.slice().sort((a,b)=>a.rank-b.rank).map(r=>[r.rank,r.ms,r.buffers]);
+  const red=LB.rank_us_p50/1000;
+  function draw(){const w=RD.width(el),h=200,x0=44,x1=w-16,y0=12,y1=h-40,mx=100000,my=10;
+    const X=v=>x0+v/mx*(x1-x0),Y=v=>y1-v/my*(y1-y0);let s='';
+    [0,2,4,6,8,10].forEach(v=>{s+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+T(x0-5,Y(v)+4,v+' ms',{a:'end',fs:10.5,fill:'var(--mute)'})});
+    [0,25000,50000,75000,100000].forEach(v=>{s+=T(X(v),y1+15,v?(v/1000)+'k':'1',{a:v===100000?'end':v?'middle':'start',fs:10.5,fill:'var(--mute)'})});
+    s+=T((x0+x1)/2,h-6,"player's rank (1 = best)",{a:'middle',fs:11,fill:'var(--mute)'});
+    s+='<polyline fill="none" stroke="var(--c1)" stroke-width="2.2" points="'+pts.map(p=>X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)).join(' ')+'"/>';
+    pts.forEach((p,i)=>{s+='<circle cx="'+X(p[0]).toFixed(1)+'" cy="'+Y(p[1]).toFixed(1)+'" r="4" fill="var(--c1)"/>';
+      if(i>0)s+=T(X(p[0])-6,Y(p[1])-8,p[2]+' pages, '+p[1].toFixed(2)+' ms',{a:'end',fs:11,fill:'var(--c1)',w:600})});
+    s+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y(red)+'" y2="'+Y(red)+'" stroke="var(--c4)" stroke-width="2.4" stroke-dasharray="6 3"/>';
+    s+=T(x0+22,Y(red)-7,'Redis ZREVRANK: '+Math.round(LB.rank_us_p50)+' µs at any rank',{fs:11,fill:'var(--c4)',w:600});
+    s+=T(x0+6,Y(7.4),'Postgres count(*) of players above',{fs:11,fill:'var(--c1)',w:600});
+    el.innerHTML=RD.svg(w,h,s,'Time to find a player rank: Postgres grows with the rank, Redis stays flat')}
+  draw();RD.onRender(draw);RD.onResize(draw);
+})();
+</script>
+<script>/* 37_js_rd_fo.js */
+// ---- Section 3: Redis failover stepper, the measured run (inputs/redis.json replication) ----
+(function(){
+  const svgEl=document.getElementById('rd-fo-svg');if(!svgEl||!window.NQ||!NQ.redis)return;
+  const R=NQ.redis.replication,T=RD.t,f0=n=>Math.round(n).toLocaleString('en-US');
+  const tot=R.before_acked+R.during_acked;
+  // per step: primary count, replica count, replica paused, primary dead, replica promoted, caption
+  const S=[
+    {p:R.before_acked,r:R.before_on_replica,cap:['In sync',f0(R.before_acked)+' writes of 10 KB acknowledged; all '+f0(R.before_on_replica)+' reached the replica, and <code>WAIT</code> returned '+R.wait_before+'.']},
+    {p:R.before_acked,r:R.before_on_replica,paused:1,cap:['The replica stalls','The replica is paused, as a long garbage-collection pause or a network problem would stop it. The primary does not know or care.']},
+    {p:tot,r:R.before_on_replica+R.during_survived,paused:1,ok:1,cap:['The primary keeps saying OK',f0(R.during_acked)+' more writes, each acknowledged to the client before it is copied. <code>WAIT 1 500</code> returned '+R.wait_during+': no replica confirmed, and the writes are not made safer by asking.']},
+    {p:tot,r:R.before_on_replica+R.during_survived,paused:1,dead:1,cap:['The primary dies','<code>kill -9</code> on the primary. Its memory, holding every acknowledged write, is gone.']},
+    {p:tot,r:R.before_on_replica+R.during_survived,dead:1,promo:1,cap:['The replica is promoted','It resumes and becomes the primary with only '+R.during_survived+' of the '+f0(R.during_acked)+' acknowledged writes: '+f0(R.lost)+' are lost although every client was told OK.']}
+  ];
+  function draw(i){const st=S[i],w=RD.width(svgEl),h=150,col=Math.min(170,(w-40)/2.3);let s='';
+    const node=(x,lab,n,o)=>{let b='<rect x="'+x+'" y="22" width="'+col+'" height="94" rx="6" fill="'+(o.dead?'var(--soft)':'var(--bg)')+'" stroke="'+(o.dead?'var(--bad)':o.paused?'var(--c5)':'var(--line)')+'" stroke-width="'+(o.dead||o.paused?2:1)+'"'+(o.dead?' stroke-dasharray="5 3"':'')+'/>';
+      b+=T(x+8,16,lab,{fs:11.5,w:700});const fill=n/tot,bh=60;
+      b+='<rect x="'+(x+10)+'" y="'+(46)+'" width="'+(col-20)+'" height="'+bh+'" fill="var(--soft)" stroke="var(--line)"/>';
+      b+='<rect x="'+(x+10)+'" y="'+(46+bh*(1-fill)).toFixed(1)+'" width="'+(col-20)+'" height="'+(bh*fill).toFixed(1)+'" fill="'+(o.dead?'var(--dim)':'var(--c4)')+'"/>';
+      b+=T(x+col/2,40,f0(n)+' writes',{a:'middle',fs:11.5,w:600});
+      if(o.tag)b+=T(x+col/2,132,o.tag,{a:'middle',fs:11,fill:o.tc||'var(--mute)',w:600});return b};
+    const px=10,rx=w-col-10;
+    s+=node(px,st.promo?'old primary':'primary',st.p,{dead:st.dead,tag:st.dead?'killed':st.ok?'replies OK to each write':'',tc:st.dead?'var(--bad)':'var(--good)'});
+    s+=node(rx,st.promo?'replica, now primary':'replica',st.r,{paused:st.paused,tag:st.paused?'paused':st.promo?'has '+f0(st.r)+' of '+f0(tot):'',tc:st.promo?'var(--bad)':'var(--c5)'});
+    const ay=70,ax1=px+col+6,ax2=rx-6;
+    s+='<line x1="'+ax1+'" y1="'+ay+'" x2="'+ax2+'" y2="'+ay+'" stroke="'+(st.paused||st.dead?'var(--line)':'var(--mute)')+'" stroke-width="2" stroke-dasharray="'+(st.paused||st.dead?'4 4':'0')+'"/>';
+    if(ax2-ax1>60)s+=T((ax1+ax2)/2,ay-6,st.dead?'':'copy after OK',{a:'middle',fs:10.5,fill:'var(--mute)'});
+    svgEl.innerHTML=RD.svg(w,h,s,'Primary and replica write counts at step '+(i+1));
+    document.getElementById('rd-fo-cap').innerHTML='<div class="t">'+(i+1)+'/'+S.length+'. '+st.cap[0]+'</div><p>'+st.cap[1]+'</p>'}
+  RD.anim({card:'rd-fo-card',ctl:'rd-fo-ctl',n:S.length,draw,ms:1800,label:'Step'});
+  RD.onResize(()=>draw(+document.getElementById('rd-fo-ctl-s').value));
+})();
+</script>
+<script>/* 38_js_rd_docfig.js */
+// ---- Section 5: embedded against referenced, drawn to scale (inputs/doc.json) ----
+(function(){
+  const el=document.getElementById('rd-doc-svg');if(!el||!window.NQ||!NQ.doc)return;
+  const m=NQ.doc.mongo,T=RD.t,f0=n=>Math.round(n).toLocaleString('en-US');
+  const ref=50*m.sizes.messages.avgObjSize, emb=m.long_chat_doc_bytes, lim=m.limit16.limit_bytes;
+  const kb=b=>b<1048576?f0(b/1024)+' KB':(b/1048576).toFixed(1)+' MB';
+  function draw(){const w=RD.width(el),x0=8,bw=w-16;let s='',y=14;
+    s+=T(x0,y,'Bytes read to show chat 7\'s newest 50',{fs:11.5,w:600});y+=14;s+=T(x0,y,'scale: '+kb(emb)+' = full width',{fs:10.5,fill:'var(--mute)'});y+=8;
+    const row=(lab,b,c,max,sub)=>{const L=Math.max(2,bw*b/max);let r='<rect x="'+x0+'" y="'+y+'" width="'+L.toFixed(1)+'" height="18" rx="3" fill="'+c+'"/>';
+      const tx=L+x0+6, txt=lab+': '+kb(b)+(sub?' '+sub:'');
+      r+=(tx+txt.length*6<w)?T(tx,y+13,txt,{fs:11}):T(x0+4,y+13,txt,{fs:11,fill:'var(--bg)',w:600});y+=24;return r};
+    s+=row('referenced, 50 documents',ref,'var(--good)',emb,'');
+    s+=row('embedded, 1 document',emb,'var(--bad)',emb,'(all '+f0(m.long_chat_messages)+' messages)');
+    y+=12;s+=T(x0,y,'Document size against the 16 MiB limit',{fs:11.5,w:600});y+=14;s+=T(x0,y,'scale: 16 MiB = full width',{fs:10.5,fill:'var(--mute)'});y+=8;
+    s+='<rect x="'+x0+'" y="'+y+'" width="'+bw+'" height="22" rx="3" fill="var(--soft)" stroke="var(--line)"/>';
+    const mk=(b,lab,c,dy)=>{const x=x0+bw*b/lim;return '<line x1="'+x.toFixed(1)+'" y1="'+(y-2)+'" x2="'+x.toFixed(1)+'" y2="'+(y+24)+'" stroke="'+c+'" stroke-width="2.4"/>'+T(Math.min(x+4,w-4),y+36+dy,lab,{fs:11,fill:c,a:x>w*0.6?'end':'start'})};
+    s+=mk(emb,'chat 7: '+kb(emb),'var(--c1)',0);
+    s+=mk(m.append.big_doc_bytes,'20,000 messages: '+kb(m.append.big_doc_bytes),'var(--c5)',14);
+    s+=mk(m.limit16.doc_bytes,f0(m.limit16.messages_fitted)+' messages fit; the next is refused','var(--bad)',28);
+    el.innerHTML=RD.svg(w,y+70,s,'Bytes read for the newest 50 messages, referenced against embedded, and document sizes against the 16 MiB limit')}
+  draw();RD.onRender(draw);RD.onResize(draw);
+})();
+</script>
+<script>/* 40_js_rd_wp.js */
+// ---- Section 6: Cassandra write path at QUORUM with one replica down (stepper; layout illustrative, rules from the Cassandra docs) ----
+(function(){
+  const svgEl=document.getElementById('rd-wp-svg');if(!svgEl)return;
+  const T=RD.t,A='var(--acc)',L='var(--line)',M='var(--mute)',S='var(--soft)';
+  const CAP=[
+    ['The client sends one write to any node','<code>INSERT</code> of a message into partition (7, 3). Whichever node receives it becomes the <b>coordinator</b> for this request; there is no primary to find.'],
+    ['Hash the partition key','The coordinator hashes (7, 3) to a token; the ring says replicas A, B and C own it. C is down.'],
+    ['Each live replica logs, then buffers','A and B append the write to their <b>commit log</b> and insert it into their <b>memtable</b> (sorted, in memory). The default <code>commitlog_sync: periodic</code> flushes the log every 10 seconds, so the write is not yet on disk on either node.'],
+    ['Two of three is a QUORUM: reply OK','RF = 3, so QUORUM = floor(3/2) + 1 = 2. A and B answered, the coordinator replies OK. At <code>ONE</code> it would reply after the first answer; at <code>ALL</code> this write would fail, because C is down.'],
+    ['C gets a hint, not a failure','The coordinator stores a <b>hint</b> for C on its own disk and replays it when C comes back, if that is within <code>max_hint_window</code> (3 hours by default). After longer, C stays out of sync until read repair or a full repair copies the write.'],
+    ['Later: flush and compaction','Each memtable is flushed to an immutable SSTable and compaction merges files in the background (<a href="https://app.notion.com/p/3cd5c17b0d0d8102bc1fd11b22606e1a" target="_blank" rel="noopener noreferrer">Storage engines and indexes</a> owns how). A read at QUORUM asks two replicas and keeps the newest timestamp.']];
+  function draw(i){const w=RD.width(svgEl),narrow=w<520,h=narrow?250:200;let s='';
+    const bx=(x,y,bw,bh,lab,o)=>{o=o||{};return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh+'" rx="5" fill="'+(o.on?'var(--hl)':o.dead?'var(--soft)':S)+'" stroke="'+(o.dead?'var(--bad)':o.on?A:L)+'" stroke-width="'+(o.on||o.dead?1.8:1)+'"'+(o.dead?' stroke-dasharray="5 3"':'')+'/>'+(lab?T(x+bw/2,y+15,lab,{a:'middle',fs:11,w:600,fill:o.dead?'var(--bad)':'var(--ink)'}):'')};
+    const ar=(x1,y1,x2,y2,on,lab,ly)=>'<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="'+(on?A:L)+'" stroke-width="'+(on?2.2:1.2)+'"/>'+(lab?T((x1+x2)/2,ly!=null?ly:(y1+y2)/2-5,lab,{a:'middle',fs:10.5,fill:on?A:M}):'');
+    const cw=narrow?(w-20)*0.42:Math.min(130,w*0.2), rw=narrow?(w-20)*0.5:Math.min(250,w*0.42);
+    const cx=10, coX=narrow?10:cx+cw+30, rX=w-rw-10;
+    if(!narrow){s+=bx(cx,80,cw,32,'client',{on:i===0||i===3})}
+    else s+=bx(10,4,cw,26,'client',{on:i===0||i===3});
+    const coY=narrow?96:80;s+=bx(coX,coY,cw,32,'coordinator',{on:i<=1||i===3});
+    if(i>=4)s+=bx(coX,coY+40,cw,24,'hint for C',{on:i===4});
+    if(i>=1)s+=T(coX+cw/2,coY-6,'token(7, 3)',{a:'middle',fs:10.5,fill:i===1?A:M});
+    const R=['A','B','C'];R.forEach((r,k)=>{const y=(narrow?18:14)+k*58,dead=k===2;
+      s+=bx(rX,y,rw,48,'',{dead,on:!dead&&(i===2||i===3)});
+      s+=T(rX+8,y+16,'replica '+r+(dead?': down':''),{fs:11,w:600,fill:dead?'var(--bad)':'var(--ink)'});
+      if(!dead&&i>=2){const cl=(rw-24)/2;s+=bx(rX+8,y+22,cl,20,'commit log',{on:i===2});s+=bx(rX+16+cl,y+22,cl,20,i>=5?'SSTable':'memtable',{on:i===2||i===5})}
+      if(i>=1){const fx=coX+cw,fy=coY+16;s+=ar(fx,fy,rX,y+24,!dead&&(i===2),dead?'':'',null);
+        if(i===3&&!dead)s+=T(rX-6,y+38,'ack',{a:'end',fs:10.5,fill:A,w:600})}});
+    if(!narrow)s+=ar(cx+cw,96,coX,96,i===0||i===3,i===3?'OK':'write',90);
+    else s+=ar(10+cw/2,30,10+cw/2,coY,i===0||i===3,'',null)+T(16+cw/2,52,i===3?'OK':'write',{fs:10.5,fill:A});
+    svgEl.innerHTML=RD.svg(w,h,s,'Cassandra write path, step '+(i+1));
+    const c=CAP[i];document.getElementById('rd-wp-cap').innerHTML='<div class="t">'+(i+1)+'/'+CAP.length+'. '+c[0]+'</div><p>'+c[1]+'</p>';
+  }
+  RD.anim({card:'rd-wp-card',ctl:'rd-wp-ctl',n:CAP.length,draw,ms:1800,label:'Step'});
+  RD.onResize(()=>draw(+document.getElementById('rd-wp-ctl-s').value));
+})();
+</script>
+<script>/* 41_js_rd_tsd.js */
+// ---- Section 7: what each time-series question touches, one big table against 30 daily partitions (toggle; numbers from inputs/ts.json) ----
+(function(){
+  const svgEl=document.getElementById('rd-tsd-svg');if(!svgEl||!window.NQ||!NQ.ts)return;
+  const g=NQ.ts.pg,T=RD.t,f0=n=>Math.round(n).toLocaleString('en-US'),mb=b=>(b/1048576).toFixed(0)+' MB';
+  let mode='hour';
+  const CAP={
+    hour:'Last hour, per minute and model: the partitioned table reads only today\'s partition ('+f0(g.last_hour.part.buffers)+' page reads, '+g.last_hour.part.ms+' ms); the big table\'s B-tree on ts is just as quick here ('+f0(g.last_hour.plain.buffers)+' pages, '+g.last_hour.plain.ms+' ms). Partitions pay off for retention and for scans of a few days.',
+    chart:'30-day hourly chart: from raw rows every page is read ('+f0(g.chart_raw.buffers)+' page reads, '+f0(g.chart_raw.ms)+' ms); from the one-minute rollup table, '+f0(g.chart_rollup.buffers)+' page reads, '+g.chart_rollup.ms+' ms.',
+    ret:'Delete the 7 oldest days: DROP TABLE on 7 partitions is a metadata change ('+g.retention_drop.s+' s, '+f0(g.retention_drop.wal_bytes)+' bytes of log); DELETE in the big table rewrites pages and logs every row ('+g.retention_delete.s+' s, '+mb(g.retention_delete.wal_bytes)+' of log) and the file keeps its size.'};
+  function draw(){const w=RD.width(svgEl),n=30,x0=8,cw=(w-16)/n;let s='';const y1=26,y2=92,rh=26;
+    s+=T(x0,16,'one big table (pages in arrival order)',{fs:11,fill:'var(--mute)'});
+    s+=T(x0,y2-10,'30 daily partitions',{fs:11,fill:'var(--mute)'});
+    for(let i=0;i<n;i++){const x=x0+i*cw;
+      let a='var(--soft)',b='var(--soft)';
+      if(mode==='hour'){if(i===n-1){a='var(--c2)';b='var(--c2)'}}
+      if(mode==='chart'){a='var(--c2)';b='var(--c2)'}
+      if(mode==='ret'&&i<7){a='var(--bad)';b='var(--bad)'}
+      s+='<rect x="'+x.toFixed(1)+'" y="'+y1+'" width="'+Math.max(1,cw).toFixed(1)+'" height="'+rh+'" fill="'+a+'"/>';
+      s+='<rect x="'+(x+1).toFixed(1)+'" y="'+y2+'" width="'+Math.max(1,cw-2).toFixed(1)+'" height="'+rh+'" rx="2" fill="'+b+'" stroke="var(--line)"/>'}
+    s+='<rect x="'+x0+'" y="'+y1+'" width="'+(w-16).toFixed(1)+'" height="'+rh+'" fill="none" stroke="var(--line)"/>';
+    let y=y2+rh+18;
+    if(mode==='chart'){s+=T(x0,y,'rollup table: '+f0(g.rollup_rows)+' rows, one per minute and model',{fs:11,fill:'var(--c4)',w:600});
+      s+='<rect x="'+x0+'" y="'+(y+6)+'" width="'+((w-16)*g.size.rollup/g.size.plain_heap).toFixed(1)+'" height="14" fill="var(--c4)"/>'+T(x0+(w-16)*g.size.rollup/g.size.plain_heap+6,y+18,mb(g.size.rollup)+' against '+mb(g.size.plain_heap)+' raw, to scale',{fs:10.5,fill:'var(--mute)'});y+=26}
+    else s+=T(x0,y,mode==='hour'?'lit: what the last hour reads (today only)':'marked: the 7 oldest days removed',{fs:11,fill:'var(--mute)'});
+    svgEl.innerHTML=RD.svg(w,y+8,s,'Pages and partitions each time-series question touches');
+    document.getElementById('rd-tsd-cap').textContent=CAP[mode]}
+  RD.seg(document.getElementById('rd-tsd-mode'),m=>{mode=m;draw()});
+  draw();RD.onRender(draw);RD.onResize(draw);
+})();
+</script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace nq-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1210,6 +1451,8 @@ window.NQ={"redis":{"version":"8.8.0","get_us":{"p50":52.1,"p99":121.0,"n":20000
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('nq-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

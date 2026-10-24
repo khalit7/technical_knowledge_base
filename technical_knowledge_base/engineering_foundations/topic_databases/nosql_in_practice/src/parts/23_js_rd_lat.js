@@ -82,7 +82,7 @@
     capEl.innerHTML='<div class="t">'+(i+1)+'/'+M[mode].length+'. '+st.cap[0]+'</div><p>'+st.cap[1]+'</p>';
   }
   const A=RD.anim({card:'rd-lat-card',ctl:'rd-lat-ctl',n:M.seq.length,draw,ms:1700,label:'Step'});
-  RD.seg(el('rd-lat-mode'),m=>{mode=m;A.reset(M[m].length);A.play();raw()});
+  RD.seg(el('rd-lat-mode'),m=>{mode=m;A.reset(M[m].length);raw()});
   function raw(){
     const t=mode==='cas'?('-- CQL\n'+(W.cass_ddl||'')+'\n\nSELECT message_id, role, tokens, content, created_at FROM messages_by_chat\n WHERE chat_id = 7 AND bucket = '+C.latest_bucket+' LIMIT 50;\n\n-- trace (Cassandra '+(W.cass_version||'')+')\n'+tr.join('\n')):
       ('-- PostgreSQL '+W.pg_version+'\nSELECT id, role, tokens, content, created_at FROM messages\n WHERE chat_id = 7 ORDER BY created_at DESC LIMIT 50;\n\n'+R[{seq:0,idx:1,clu:2}[mode]].explain);

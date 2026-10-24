@@ -60,7 +60,7 @@ js('wide.cass.rows_in_latest_partition', f"{w['cass']['rows_in_latest_partition'
 p = ts['pg']; lit(f"Measured: {p['retention_delete']['s']} s and {round(p['retention_delete']['wal_bytes'] / 1048576)} MB of log for 7 days", 'mistakes: delete')
 lit(f"took {p['retention_drop']['s']:.2f} s", 'mistakes: drop'); assert p['part_rows_after'] == p['plain_rows_after'] and p['same_answer']
 per_pg, per_pq = p['size']['plain_heap'] / p['rows'], ts['duckdb']['parquet_bytes'] / ts['duckdb']['rows']; assert 9 < per_pg / per_pq < 12; lit('about a tenth of the size', f'{per_pg / per_pq:.1f}x')
-js('ts.pg.chart_rollup.ms', f"{p['chart_rollup']['ms']:.1f}"); js('ts.pg.size.brin_ts', f"{round(p['size']['brin_ts'] / 1024)}")
+lit(f"{p['chart_rollup']['ms']:.1f} ms instead of {f0(p['chart_raw']['ms'])} ms", 'rollup against raw'); lit(f"{round(p['size_after_vacuum'] / 1048576)} MB on disk even after", 'size after vacuum'); lit(f"{p['retention_drop']['wal_bytes']:,} bytes of log", 'drop WAL'); lit(f"{p['rollup_rows']:,} rows", 'rollup rows'); js('ts.pg.size.brin_ts', f"{round(p['size']['brin_ts'] / 1024)}")
 # graph (section 8)
 for k in '1234': assert g['pg']['counts'][k] == g['neo4j']['counts'][k] == g['kuzu']['counts'][k], k
 best4 = min(g['pg']['recursive_cte']['4']['ms_p50'], g['pg']['join_per_hop']['4']['ms_p50']); n4 = g['neo4j']['4']['ms_p50']

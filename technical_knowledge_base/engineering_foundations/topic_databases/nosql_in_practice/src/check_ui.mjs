@@ -69,13 +69,22 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       o['#lab-hot-out'] = ''; return o;
     }));
   }
-  // lab tab
-  await p.click('button[data-t=t-lab]'); await sleep(200); clicks++;
+  // new steppers and toggles (no autoplay: step 0 must still show after a wait)
+  for (const id of ['rd-fo-ctl', 'rd-wp-ctl']) {
+    await sleep(1500); const v0 = await p.$eval('#' + id + '-s', e => +e.value); if (v0 !== 0) { problems++; console.log('PROBLEM autoplay', id); }
+    const n = await p.$eval('#' + id + '-s', e => +e.max + 1);
+    for (let i = 0; i < n; i++) { await setRange(id + '-s', i); await shot('#' + id.replace('-ctl', '-card'), id + '-' + i); }
+    await bad(id);
+  }
+  for (const m of ['hour', 'chart', 'ret']) { await p.evaluate(m => document.querySelector(`#rd-tsd-mode button[data-m=${m}]`).click(), m); clicks++; await shot('#rd-tsd-card', 'tsd-' + m); }
+  await bad('tsd');
+  for (const id of ['rd-hero-card', 'rd-lb-card', 'rd-doc-card']) await shot('#' + id, id);
+  // the single-table lab, now inline in section 4
   for (const pr of ['rel', 'bad', 'st']) {
     await p.evaluate(pr => document.querySelector(`#lab-presets button[data-p=${pr}]`).click(), pr); clicks++;
     const n = await p.$$eval('#lab-aps .ap', es => es.length);
     for (let i = 0; i < n; i++) { await p.evaluate(i => document.querySelectorAll('#lab-aps .ap')[i].click(), i); clicks++; }
-    await shot('#lab-top', 'lab-' + pr); await bad('lab preset ' + pr);
+    await shot('#rd-lab', 'lab-' + pr); await bad('lab preset ' + pr);
   }
   const sels = await p.$$eval('#lab-keys select', es => es.map(e => [e.dataset.k, [...e.options].map(o => o.value)]));
   for (const [k, vals] of sels) for (const v of vals) {
@@ -86,7 +95,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (const [id, vals] of [['lab-w', [10, 999, 1001, 5000]], ['lab-s', [1, 2, 10]], ['lab-md', [4, 7, 9]], ['lab-rr', [1, 50]]]) for (const v of vals) await setRange(id, v);
   await p.evaluate(() => document.querySelector('#lab-presets button[data-p=st]').click());
   await p.evaluate(() => { const s = document.querySelector('#lab-keys select[data-k=gsi2]'); s.value = 'on'; s.dispatchEvent(new Event('change', { bubbles: true })); });
-  await setRange('lab-md', 9); await shot('#lab-top', 'lab-hot'); await bad('lab sliders');
+  await setRange('lab-md', 9); await shot('#rd-hot-card', 'lab-hot'); await bad('lab sliders');
   // further reading
   await p.click('button[data-t=t-more]'); await sleep(150); clicks++;
   await bad('more');
