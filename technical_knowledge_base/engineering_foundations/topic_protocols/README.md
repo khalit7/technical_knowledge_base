@@ -1,0 +1,8 @@
+# Topic: protocols
+
+Notion: https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02
+Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_protocols/
+
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`). A map of one LLM request on the wire (rebuilt to the teaching contract on 2026-10-24, see `src/README.md`): a stepper through the eight protocols the request crosses, each step naming the child page that owns it; the protocols in one screen; one short section per layer (layers and the toolbox, round trips, DNS, transport, TLS and SSH, HTTP, streaming, service APIs, auth, agent protocols) with the distinction that only shows across children and a Go deeper link; debugging and choosing; the ten child pages with their times. Tabs: Reading (`src/read/`), On the wire (`src/wire/`: a local stand-in LLM API over HTTP/1.1, 2 and 3, measured waterfalls, handshakes and one lost packet), Failure lab (`src/fail/`: 39 failures reproduced locally, drill mode), Protocol atlas (`src/atlas/`: 32 protocols checked against RFCs and specs), Further reading.
+Privacy: recordings are redacted of machine addresses and of the recording machine's DNS-filter vendor; the check scripts read machine-specific patterns from the git-ignored `src/.private_patterns` (see `src/private_patterns.py`). Private keys stay in the scratchpad. All runs on an Apple M1 Pro, 2026-10-05.
+The old written root and its ten children are saved verbatim in `src/read/old/`; their claims are checked in `src/read/coverage.md` and `src/atlas/corrections.md`. The Notion page keeps an old narrated video (to be deleted by Khalid) and the ten old child pages.

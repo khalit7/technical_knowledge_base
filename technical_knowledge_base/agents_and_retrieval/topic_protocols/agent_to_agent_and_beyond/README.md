@@ -1,6 +1,0 @@
-# Agent-to-agent and beyond: A2A, agent commerce, agents driving devices
-
-Notion: https://app.notion.com/p/3f05c17b0d0d81199373d4d0b18706d8 (child of Topic: protocols)
-Site: https://khalit7.github.io/technical_knowledge_base/agents_and_retrieval/topic_protocols/agent_to_agent_and_beyond/
-
-Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Rebuilt 2026-10-24 to the teaching contract: the core idea and a hero figure (MCP, A2A, UCP, AP2 or x402, MHS, with every approval outside the model marked), then A2A from zero (Agent Card and signing, tasks and parts, the eight states as a clickable diagram, four ways to hear back with recorded steppers, bindings and versions, recorded errors, auth and in-task authorization, security), A2A against MCP as a recorded before/after, one dated table of agent protocols, agent commerce (UCP negotiation and escalation labs against a real merchant profile, ACP), agent payments (AP2 mandates, x402), the Model Hardware Standard, and the trust boundary for irreversible actions; reference material in closed blocks. Tabs: Reading, Further reading. A new page (no old Notion page); carries the agent-protocol paragraphs of the old Topic: protocols overview; no child pages, databases or video.
