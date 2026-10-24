@@ -45,3 +45,5 @@ Why 35 minutes is right: the page owns two subjects (the MDP foundations and eve
 6. `python3 html_utils/ledger.py check <page folder>`: problems 0.
 
 `live.md` is the Notion page as fetched on 2026-10-04 (last edited 2026-09-30), saved verbatim; `inputs/old_embed_visible_text.txt` is the old embed's visible text.
+
+2026-10-24 (topic close of Topic: rl): Further reading quotes the root as "17 min, plus 2" and siblings and neighbours as their headers; the corridor script comment says section 8; ledger keys that quoted old times re-keyed.
