@@ -52,7 +52,10 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   }
   await p.$eval('#rd-bon-n', e => { e.value = 50; e.dispatchEvent(new Event('input')) }); await p.$eval('#rd-bon-v', e => { e.value = 3000; e.dispatchEvent(new Event('input')) });
   const bon = await p.evaluate(() => window.HP_CHECK.bon()); close(bon.emax50, R.bon.emax50, 0.002, 'E[max 50]'); close(bon.inf, R.bon.inflation_50_3000, 0.02, 'inflation');
-  await shot('#rd-bon-card', 'bon'); await shot('#rd-null-card', 'null');
+  await shot('#rd-bon-card', 'bon'); await shot('#rd-hero-card', 'hero'); await shot('#rd-lc-card', 'lc');
+  for (const g of [0, 100, 400]) { await p.$eval('#rd-gap', (e, g) => { e.value = g; e.dispatchEvent(new Event('input')) }, g); await noBad('#rd-gap-card', 'gap ' + g) }
+  if (!(await txt('#rd-gap-v')).includes('76.0%')) { await p.$eval('#rd-gap', e => { e.value = 200; e.dispatchEvent(new Event('input')) }); if (!(await txt('#rd-gap-v')).includes('76.0%')) bad('gap 200 not 76.0%') }
+  await p.$eval('#rd-gap', e => { e.value = 100; e.dispatchEvent(new Event('input')) }); if (!(await txt('#rd-gap-v')).includes('64.0%')) bad('gap 100 not 64.0%'); await shot('#rd-gap-card', 'gap'); await shot('#rd-null-card', 'null');
   for (const m of ['hp', 'r']) for (const same of [true, false]) {
     await clk(`#rd-cap-seg button[data-m=${m}]`); await p.$eval('#rd-cap-same', (e, s) => { e.checked = s; e.dispatchEvent(new Event('change')) }, same); await wait(60);
     await noBad('#rd-cap-card', 'cap'); const t = await txt('#rd-cap-out');
@@ -81,14 +84,24 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     L = await p.evaluate(() => window.HP_CHECK.lab); L.rating.forEach((v, i) => close(v, R.lab['elo_' + o][i] - 1000 + mb, 0.05, `lab elo ${o} ${i}`));
   }
   await p.$eval('#lb-k', e => { e.value = 32; e.dispatchEvent(new Event('input')) }); await clk('#lb-reshuf'); await wait(80); await noBad('#t-lab', 'lab elo k32'); await shot('#t-lab', 'lab-elo');
-  // Board
-  await tab('t-board');
+  // Board (Reading section 3 since 2026-10-24)
+  await tab('t-read');
   const cats = await p.$$eval('#bd-cat option', o => o.map(x => x.value));
-  for (const c of cats) { await p.select('#bd-cat', c); for (const l of ['raw', 'fact', 'sc']) { await clk(`#bd-lens button[data-m=${l}]`); await wait(40); await noBad('#t-board', `board ${c} ${l}`) } }
-  await p.select('#bd-cat', 'overall'); await clk('#bd-lens button[data-m=raw]'); await wait(1100); await shot('#t-board', 'board-raw');
+  for (const c of cats) { await p.select('#bd-cat', c); for (const l of ['raw', 'fact', 'sc']) { await clk(`#bd-lens button[data-m=${l}]`); await wait(40); await noBad('#rd-bd-card', `board ${c} ${l}`) } }
+  await p.select('#bd-cat', 'overall'); await clk('#bd-lens button[data-m=raw]'); await wait(1100); await shot('#rd-bd-card', 'board-raw');
   const sw = await p.evaluate(() => document.documentElement.scrollWidth > innerWidth); if (sw) bad('sideways scroll ' + scheme);
   const box = await p.evaluate(() => { const d = document.getElementById('jsErr'); return d && !d.hidden ? d.textContent : '' }); if (box) bad('error box: ' + box);
   if (errs.length) bad(scheme + ' errors ' + errs.join(' | '));
+  await p.close();
+}
+// Normal motion: nothing may move before the reader acts (2026-10-24)
+{
+  const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
+  await p.goto('file://' + page);
+  for (const sel of ['#rd-elo-card', '#rd-sty-card']) { await p.$eval(sel, e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 2500)) }
+  await p.$eval('#rd-sty-seg button[data-m=hard]', e => e.click()); await new Promise(r => setTimeout(r, 2500));
+  const st = await p.evaluate(() => [document.getElementById('rd-elo-ctl-s').value, document.getElementById('rd-sty-ctl-s').value]);
+  if (st.some(v => v !== '0')) bad('an animation moved before the reader acted: ' + st);
   await p.close();
 }
 await b.close();

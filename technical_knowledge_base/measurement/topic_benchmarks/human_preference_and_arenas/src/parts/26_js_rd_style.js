@@ -31,5 +31,5 @@
     document.getElementById('rd-sty-cap').innerHTML='<div class="t">'+STEPS[s].t+'</div><p>'+STEPS[s].c+'</p>';
   }
   const A=RD.anim({card:'rd-sty-card',ctl:'rd-sty-ctl',n:STEPS.length,draw,ms:2200,label:'Step'});
-  RD.seg(document.getElementById('rd-sty-seg'),m=>{board=m;Object.keys(els).forEach(k=>{els[k].remove();delete els[k]});A.reset(STEPS.length);A.play()});
+  RD.seg(document.getElementById('rd-sty-seg'),m=>{board=m;Object.keys(els).forEach(k=>{els[k].remove();delete els[k]});A.reset(STEPS.length)});
 })();

@@ -1,47 +1,48 @@
 
+<section id="rd-vote">
+<h2>1. From votes to a rating</h2>
+<p><b>The battle.</b> A user types a prompt; two models chosen by the platform answer side by side without names; the user votes <b>A is better</b>, <b>B is better</b>, <b>tie</b> or <b>both are bad</b>, and only then are the names revealed. Only anonymous votes count: FastChat's rating code keeps <code>battles[battles["anony"]]</code> before fitting ({{elo_analysis.py|https://github.com/lm-sys/FastChat/blob/main/fastchat/serve/monitor/elo_analysis.py}}). The first vote in the public log is dated 24 April 2023 <i class="nl d">derived</i>; by the Chatbot Arena paper (March 2024) there were "over 240K votes" ({{Chiang et al.|https://arxiv.org/abs/2403.04132}}). The prompts are whatever users ask: fresh and varied, with no fixed test set to leak, but the mix of prompts and of voters is whoever turns up.</p>
+<p><b>Concrete first.</b> On Arena's scale a 100-point gap means the stronger model wins 64.0% of their battles, 200 points 76.0% <i class="nl d">derived</i>; a 20-point lead, typical between neighbours at the top of the board, is 52.9%. Predict what a 10-point gap is worth, then drag.</p>
+<div class="card" id="rd-gap-card">
+<p class="ft">A rating gap is a win probability, and small gaps are nearly coin flips</p>
+<div class="ctl"><label>Score gap R<sub>A</sub> − R<sub>B</sub>: <b id="rd-gap-v"></b><input type="range" id="rd-gap" min="0" max="400" step="5" value="100"></label></div>
+<div class="rd-svg" id="rd-gap-svg"></div>
+<p class="small mute">The curve is the formula below; default 100 points lands on 64.0% <i class="nl d">derived</i>.</p>
+</div>
+<p><b>The formula.</b> The Bradley-Terry model gives each model a strength and says the chance that one beats another depends only on the gap:</p>
+<div class="fm"><div class="eq">P(A beats B) = 1 / (1 + 10<sup>(R<sub>B</sub> − R<sub>A</sub>) / 400</sup>)</div>
+<dl><dt>R</dt><dd>a model's Arena score; only differences mean anything, so the scale is pinned by an anchor (FastChat set Mixtral-8x7B-Instruct to 1114; {{rating_systems.py|https://github.com/lm-sys/FastChat/blob/main/fastchat/serve/monitor/rating_systems.py}})</dd><dt>400, 10</dt><dd>the chess Elo convention</dd></dl></div>
+<p>The ratings are the maximum-likelihood fit to all votes at once: a logistic regression with one column per model (+1 for the left model, −1 for the right) and the vote as the label. A tie counts as half a win for each side ("this form naturally counts a draw as half a win and half a loss", in the same file). Because the fit uses every vote together, the order in which votes arrive does not matter.</p>
+<p><b>It used to matter.</b> Until late 2023 the board used <b>online Elo</b>: after each vote R<sub>A</sub> moves by K × (result − expected), with K = 4 in FastChat. That treats models as players whose strength drifts, but a released model's weights do not change, and the final rating depends on the order of the votes. LMSYS moved to Bradley-Terry with bootstrap intervals, saying online Elo showed "considerable variability" and that "most models are static" ({{LMSYS, 7 Dec 2023|https://lmsys.org/blog/2023-12-07-leaderboard/}}); Arena's leaderboard dataset dates the switch to 9 January 2024 ({{leaderboard-dataset|https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset}}). The name "Elo" stayed for what is now a Bradley-Terry score: the scale is Elo-like, the method is not.</p>
+<div class="card" id="rd-elo-card">
+<p class="ft">Same votes, two raters: Elo's answer depends on the order, Bradley-Terry's does not</p>
+<p class="small">Press play: online Elo processes real 2024 votes one by one; Bradley-Terry (blue ticks) has used them all at once. Then switch the order.</p>
+<div class="seg" id="rd-elo-seg"><button data-m="time" class="on">Votes in time order</button><button data-m="rev">Same votes, reversed</button><button data-m="shuf">Same votes, shuffled</button></div>
+<div class="an-ctl" id="rd-elo-ctl"></div>
+<div class="rd-svg" id="rd-elo-svg"></div>
+<div class="an-cap" id="rd-elo-cap"></div>
+<div class="an-cnt" id="rd-elo-cnt"></div>
+<div class="leg"><span><i style="background:var(--c2)"></i>online Elo (K = 4), after the votes so far</span><span><i style="background:var(--c1)"></i>Bradley-Terry on all the sample's votes</span></div>
+<p class="small mute" id="rd-elo-note"></p>
+<p class="small mute">Across the three orders a model's final Elo lands up to 29.5 points apart on this sample <i class="nl d">derived</i>, while Bradley-Terry gives one answer.</p>
+</div>
+<div class="co key"><div class="t">The fit reproduces the published board</div><p>Running FastChat's Bradley-Terry code, reimplemented here, on the 1,762,122 anonymous, de-duplicated votes of the {{public log of 26 August 2024|https://storage.googleapis.com/arena_external_data/public/clean_battle_20240826_public.json}} (up to the board's last vote) gives LMArena's published board of 27 August 2024 for all 136 models to within 0.48 points, mean gap 0.03 <i class="nl r">reproduced</i>; the log of 14 August gives the board of 12 August within 2.97 points over 127 models. The de-duplication tag matters: without it the gaps reach 16.7 points. Ties were 34.7% of the votes used <i class="nl d">derived</i>.</p></div>
+<p class="small">To run the fit yourself (ties counted or dropped, K and order for Elo, fewer votes, style features, sandwich against bootstrap intervals) on 6,000 of these votes, open {{Fit the votes|#t-lab}}.</p>
+</section>
+
 <section id="rd-unc">
-<h2>How sure is a rating? Intervals and rank spreads</h2>
-<p>A rating is an estimate from a sample of votes, so every score comes with a 95% interval. The method has changed twice. From December 2023 the intervals came from a <b>bootstrap</b>: refit the model on votes resampled with replacement, many times ({{LMSYS|https://lmsys.org/blog/2023-12-07-leaderboard/}}). On 23 July 2025 Arena switched to intervals from the central limit theorem for M-estimators and added a reweighting for the platform's unequal sampling of models ({{leaderboard changelog|https://arena.ai/blog/leaderboard-changelog}}). That is the <b>sandwich</b> estimator, Var(θ̂) = H<sup>−1</sup>BH<sup>−1</sup> with H the Hessian of the loss and B the covariance of its gradients, as Arena writes it out in its factuality post ({{Arena, 14 Jul 2026|https://arena.ai/blog/factuality-in-arena}}).</p>
+<h2>2. How sure is a rating? Intervals and rank spreads</h2>
+<p>Every score comes with a 95% interval, and the method has changed twice. From December 2023 the intervals came from a <b>bootstrap</b>: refit on votes resampled with replacement, many times ({{LMSYS|https://lmsys.org/blog/2023-12-07-leaderboard/}}). On 23 July 2025 Arena switched to intervals from the central limit theorem for M-estimators and added a reweighting for the platform's unequal sampling of models ({{leaderboard changelog|https://arena.ai/blog/leaderboard-changelog}}). That is the <b>sandwich</b> estimator, Var(θ̂) = H<sup>−1</sup>BH<sup>−1</sup> with H the Hessian of the loss and B the covariance of its gradients, as Arena writes it in its factuality post ({{Arena, 14 Jul 2026|https://arena.ai/blog/factuality-in-arena}}). Interval width shrinks as 1/√votes: in {{Fit the votes|#t-lab}}, cutting 6,000 votes to 1,000 widens every interval about 2.5 times (√6).</p>
 <p>Two models whose intervals overlap may be in either order, so ranks are fuzzy too. Since 14 November 2025 each model shows a <b>raw rank</b> (its place by score, no ties) and a <b>rank spread</b> ({{Arena's ranking method|https://arena.ai/blog/ranking-method}}):</p>
 <div class="fm"><div class="eq">best = 1 + #{others with lower bound &gt; my upper bound} &nbsp; worst = 1 + #{others with upper bound &gt; my lower bound}</div>
 <dl><dt>spread</dt><dd>the ranks a model could hold if its true score were at the top of its interval and everyone else's at the bottom, and the reverse; two models are tied when their spreads overlap</dd></dl></div>
-<p>Applied to the text board of 2 October 2026 (style control, all 413 models) <i class="nl d">derived</i>: only the leader is alone. Gemini 4 Argon, a preliminary entry with 4,932 votes, sits at 1525 (1516 to 1534) with a spread of 1 to 1; the next twelve all have spreads that reach rank 2 and run to rank 7 or worse. Claude Opus 5.5 (high), fourth on raw rank, could be anywhere from 2nd to 13th. A preliminary tag, introduced on 18 September 2025, marks models tested anonymously before release ({{changelog|https://arena.ai/blog/leaderboard-changelog}}).</p>
 <div class="card" id="rd-sp-card">
+<p class="ft">Only the leader is alone: the next twelve all reach rank 2</p>
 <div class="seg" id="rd-sp-seg"><button data-m="sc" class="on">Style control (default)</button><button data-m="raw">Without style control</button></div>
 <div class="rd-svg" id="rd-sp-svg"></div>
 <div class="leg"><span><i style="background:var(--c1)"></i>score and 95% interval</span><span><i style="background:var(--c4)"></i>rank spread (right axis), computed with Arena's rule</span></div>
-<p class="small mute">The 15 models leading the style-controlled text board, overall, published 2 October 2026 (both lenses show the same 15), from Arena's {{leaderboard-dataset|https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset}} (CC-BY-4.0). Spreads are computed here over all 413 models <i class="nl d">derived</i>. More categories and the factuality lens are in {{Today's board, three ways|#t-board}}.</p>
+<p class="small mute">The 15 models leading the style-controlled text board, overall, published 2 October 2026, from Arena's {{leaderboard-dataset|https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset}} (CC-BY-4.0). Spreads computed here over all 413 models <i class="nl d">derived</i>.</p>
 </div>
-<p><b>Intervals cover sampling noise, not fragility.</b> A 2025 study asked how many votes must be dropped, chosen adversarially, to change the board's top model: "dropping just 0.003% of human preferences can change the top-ranked model on Chatbot Arena", while MT-Bench's expert-graded rankings were far more stable ({{arXiv 2508.11847|https://arxiv.org/abs/2508.11847}}). Intervals assume the votes are an honest random sample; the critiques <a href="#rd-crit">below</a> are about when they are not.</p>
-</section>
-
-<section id="rd-style">
-<h2>Style control: separating what is said from how</h2>
-<p>Voters like long, formatted answers. Is a model ahead because its answers are better, or because they are longer and bolder? Style control answers that inside the same regression: add columns for the <b>difference in style</b> between the two answers, so the style effect gets its own coefficient and each model's rating is what is left ({{Arena, 29 Aug 2024|https://arena.ai/blog/style-control}}).</p>
-<div class="fm"><div class="eq">logit P(A wins) = ln10 · (R<sub>A</sub> − R<sub>B</sub>) + γ · z</div>
-<dl><dt>z</dt><dd>four style features, each the difference over the sum, (x<sub>A</sub> − x<sub>B</sub>) / (x<sub>A</sub> + x<sub>B</sub> + 1), standardised over all votes: answer tokens, markdown headers, list items, bold spans (FastChat's STYLE_CONTROL_ELEMENTS_V1); the ratio makes 500 against 520 tokens nearly equal and 20 against 40 very different</dd><dt>γ</dt><dd>the style coefficients, fitted with the ratings; a small ridge penalty (0.5) as in FastChat</dd></dl></div>
-<p><b>Reproduced.</b> On the 1.76 million votes of the August 2024 public log this page's fit gives γ = 0.249 for length, 0.024 for headers, 0.031 for lists and 0.019 for bold, the values LMArena published (0.249, 0.024, 0.031, 0.019), and 0.268 for length alone (published 0.267) <i class="nl r">reproduced</i>. The ratings match LMArena's style-controlled board of 27 August 2024 to a mean of 1.1 points, and within 1.4 points for the top 20. Length dominates: one standard deviation of relative length is worth odds of e<sup>0.249</sup> = 1.28, a 56.2% win chance between otherwise equal answers <i class="nl d">derived</i>; markdown is second order.</p>
-<p>The animation runs the steps on those votes. Rows are the twenty leading models without style control; watch them move as length and then markdown are controlled.</p>
-<div class="card" id="rd-sty-card">
-<style>
-#rd-sty-wrap{position:relative;margin:8px 0}
-.sty-row{position:absolute;left:0;right:0;height:25px;display:grid;grid-template-columns:2em minmax(0,15em) minmax(0,1fr) 3.2em;gap:6px;align-items:center;font-size:12.5px;transition:top .9s ease}
-.sty-row .rk{text-align:right;font-weight:600}.sty-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sty-row .bar{position:relative;height:14px;background:var(--soft);border-radius:3px;overflow:hidden}
-.sty-row .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--acc2);border-right:2px solid var(--c1)}
-.sty-row .bar em{position:absolute;left:5px;top:-1px;font-style:normal;font-size:11px}
-.sty-row .mv{text-align:right;font-weight:600;white-space:nowrap}.sty-row .mv.up{color:var(--good)}.sty-row .mv.dn{color:var(--bad)}
-@media (max-width:560px){.sty-row{grid-template-columns:1.6em minmax(0,10em) minmax(0,1fr) 2.8em;font-size:11.5px}}
-@media (prefers-reduced-motion:reduce){.sty-row{transition:none}}
-</style>
-<div class="seg" id="rd-sty-seg"><button data-m="overall" class="on">Overall</button><button data-m="hard">Hard prompts</button></div>
-<div class="an-ctl" id="rd-sty-ctl"></div>
-<div class="an-cap" id="rd-sty-cap"></div>
-<div id="rd-sty-wrap"></div>
-<div class="an-cnt" id="rd-sty-cnt"></div>
-<p class="small mute">Ratings fitted here from the {{public battle log of 26 Aug 2024|https://storage.googleapis.com/arena_external_data/public/clean_battle_20240826_public.json}} (anonymous, de-duplicated votes up to the published board's last vote) with FastChat's {{rating code|https://github.com/lm-sys/FastChat/blob/main/fastchat/serve/monitor/rating_systems.py}}; the last step shows LMArena's published {{elo_results_20240828|https://huggingface.co/spaces/lmarena-ai/arena-leaderboard}}. Positions are within these twenty; bars start at the lowest rating shown. Arrows compare with the first step.</p>
-</div>
-<p>In the overall view eleven of the twenty move three places or more <i class="nl d">derived</i>: GPT-4o-mini falls from 6th to 15th, Grok-2-mini from 11th to 18th and Gemini 1.5 Pro (0409 preview) from 14th to 19th; Claude 3 Opus climbs from 20th to 11th, GPT-4 Turbo from 15th to 10th and Claude 3.5 Sonnet from 8th to 5th. On hard prompts Claude 3.5 Sonnet goes from 5th to 2nd. LMArena's post reported the same pattern ({{Arena|https://arena.ai/blog/style-control}}), with ranks counted the older way (one plus the number of models significantly ahead).</p>
-<p><b>Default since 16 May 2025.</b> Style control became the default for the text and vision boards, with the offset adjusted so both views share a scale ({{leaderboard-dataset|https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset}}). Its effect is still large: on 2 October 2026 Claude Opus 5 (max) reads 1507.0 without style control and 1489.5 with it, and GPT-6 Astra (max) is 29th with it and 71st without ({{Today's board, three ways|#t-board}}). Style control is observational: a longer answer may also be a better one (a worked derivation is both), and LMArena's post says as much ("possible unobserved confounders such as positive correlation between length and substantive quality").</p>
-<p>Try the regression yourself on six thousand of these votes in {{Fit the votes|#t-lab}}.</p>
+<p>On that board Gemini 4 Argon, a preliminary entry with 4,932 votes, sits at 1525 (1516 to 1534) with a spread of 1 to 1; the next twelve all have spreads that reach rank 2 and run to rank 7 or worse. Claude Opus 5.5 (high), fourth on raw rank, could be anywhere from 2nd to 13th. A one-place difference inside overlapping intervals is noise: quote the spread. The <b>preliminary</b> tag, introduced on 18 September 2025, marks models tested anonymously before release ({{changelog|https://arena.ai/blog/leaderboard-changelog}}).</p>
+<p><b>Intervals cover sampling noise, not fragility.</b> A 2025 study asked how many votes must be dropped, chosen adversarially, to change the top model: "dropping just 0.003% of human preferences can change the top-ranked model on Chatbot Arena", while MT-Bench's expert-graded rankings were far more stable ({{arXiv 2508.11847|https://arxiv.org/abs/2508.11847}}). Intervals assume the votes are an honest random sample; <a href="#rd-crit">section 4</a> is about when they are not.</p>
 </section>

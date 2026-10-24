@@ -14,3 +14,15 @@
 Rejected: an Elo-over-time history chart of the board (a release-history view, not a mechanism, and the history omits pre-release variants); a judge-bias demo (owned by the LLM-as-judge page); an AlpacaEval length-control toy on illustrative data (the real verbosity numbers in the text carry it); a vote-rigging simulator (the papers' own setups are not reproducible from released data at this size); the 140k 2025 dataset (the 2024 log reproduces published boards exactly, which the 2025 sample cannot).
 
 What the methodology lacked: guidance for a leaderboard whose published history is itself cleaned (pre-release variants removed); here the absence is reported as a finding and never filled from secondary sources.
+
+## Rebuild 2026-10-24 (teaching contract)
+| Idea | Kind | Placement | Data |
+|---|---|---|---|
+| Hero: one battle to a score, with four numbered bends | static annotated diagram | Reading top | board of 2 Oct 2026; derived 64%; published 0.249 |
+| Score gap to win probability, one slider (default 100 lands on 64.0%) | parameter slider | Reading section 1 | the Bradley-Terry formula |
+| Today's board, three ways | explorer, moved from its own tab | Reading section 3 | unchanged |
+| The Leaderboard Illusion, Figure 1 | the paper's own figure (CC BY-SA 4.0) | Reading section 4 | arXiv 2504.20879v2 |
+| What each arena changes from the text battle | table with highlighted cells | Reading section 5 | the arenas' posts and papers |
+| AlpacaEval raw against length-controlled range, Spearman 0.94 against 0.98 | before/after | Reading section 6 | Dubois et al. 2024 |
+
+Rejected in the rebuild: a Chatbot Arena UI screenshot (the Chatbot Arena paper is arXiv non-exclusive licence, arena.ai screenshots are not openly licensed); the Leaderboard Illusion's best-of-N figure (its own Figure 8; it repeats the best-of-N slider beside it); a drawn diagram per arena (the highlighted table says the difference completely).
