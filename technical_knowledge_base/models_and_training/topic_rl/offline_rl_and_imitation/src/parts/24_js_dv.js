@@ -21,16 +21,16 @@
     s+='<polyline fill="none" stroke="var(--ink)" stroke-width="1.8" points="'+pts.join(' ')+'"/>';
     const cx=E.SX(c.car[i]);s+='<circle cx="'+(l+(cx+4.5)*cw).toFixed(1)+'" cy="'+(H-b-(i+0.5)*rh).toFixed(1)+'" r="5" fill="var(--ink)"/>';
     s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+(H-b-(i+1)*rh).toFixed(1)+'" y2="'+(H-b-(i+1)*rh).toFixed(1)+'" stroke="var(--ink)" stroke-dasharray="3 3" opacity=".6"/>';
-    s+=RD.t(l+4.5*cw,H-6,'own lane',{a:'middle',fs:10,fill:'var(--mute)'})+RD.t(l+2,H-6,'left',{fs:10,fill:'var(--mute)'})+RD.t(W-r-2,H-6,'right',{a:'end',fs:10,fill:'var(--mute)'})+RD.t(l+2,t-4,'step '+T+' (top)',{fs:10,fill:'var(--mute)'});
+    s+=RD.t(l+4.5*cw,H-6,'own lane',{a:'middle',fs:11,fill:'var(--mute)'})+RD.t(l+2,H-6,'left',{fs:11,fill:'var(--mute)'})+RD.t(W-r-2,H-6,'right',{a:'end',fs:11,fill:'var(--mute)'})+RD.t(l+2,t-4,'step '+T+' (top)',{fs:11,fill:'var(--mute)'});
     A.innerHTML=RD.svg(W,H,s,'Probability of each lane at each step');
     // state grid: 9 lanes by 3 headings
     W=RD.width(S);const H2=186,l2=62,t2=20,b2=22,gw=(W-l2-8)/9,gh=(H2-t2-b2)/3,P=c.ex.dist[i],inD=new Set(c.data);s='';
-    for(let h=1;h>=-1;h--){const y=t2+(1-h)*gh;s+=RD.t(l2-6,y+gh/2+4,HEAD[h].replace('turning ',''),{a:'end',fs:10,fill:'var(--mute)'});
+    for(let h=1;h>=-1;h--){const y=t2+(1-h)*gh;s+=RD.t(l2-6,y+gh/2+4,HEAD[h].replace('turning ',''),{a:'end',fs:11,fill:'var(--mute)'});
       for(let x=-4;x<=4;x++){const k=E.SI(x,h),X=l2+(x+4)*gw,has=inD.has(k);
         s+='<rect x="'+(X+1).toFixed(1)+'" y="'+(y+1).toFixed(1)+'" width="'+(gw-2).toFixed(1)+'" height="'+(gh-2).toFixed(1)+'" rx="3" fill="'+(has?'var(--acc2)':'var(--bg)')+'" stroke="'+(has?'var(--acc)':'var(--line)')+'"/>';
         if(P[k]>1e-4){const rad=Math.max(1.5,Math.min(gw,gh)*0.45*Math.sqrt(P[k]));s+='<circle cx="'+(X+gw/2).toFixed(1)+'" cy="'+(y+gh/2).toFixed(1)+'" r="'+rad.toFixed(1)+'" fill="'+(has?'var(--c1)':'var(--bad)')+'" opacity=".85"/>'}
         if(k===c.car[i])s+='<rect x="'+(X+3).toFixed(1)+'" y="'+(y+3).toFixed(1)+'" width="'+(gw-6).toFixed(1)+'" height="'+(gh-6).toFixed(1)+'" rx="2" fill="none" stroke="var(--ink)" stroke-width="1.6"/>'}}
-    for(let x=-4;x<=4;x+=2)s+=RD.t(l2+(x+4.5)*gw,H2-b2+14,x===0?'own':(x<0?'L'+(-x):'R'+x),{a:'middle',fs:10,fill:'var(--mute)'});
+    for(let x=-4;x<=4;x+=2)s+=RD.t(l2+(x+4.5)*gw,H2-b2+14,x===0?'own':(x<0?'L'+(-x):'R'+x),{a:'middle',fs:11,fill:'var(--mute)'});
     S.innerHTML=RD.svg(W,H2,s,'States, labels and probability');
     // caption
     const name=mode==='bc'?'Behaviour cloning':'DAgger after '+st.R+' rounds',out=i>0?c.ex.per[i-1]:0,unl=i>0?c.ex.unl[i-1]:0;
@@ -56,9 +56,9 @@
   function hz(){if(!rows)rows=Ts.map(T=>{const ds=E.dagger(eps,T,8,5,7);return {T,bc:E.exact(ds[0],eps,T).J,dag:E.exact(ds[ds.length-1],eps,T).J}});
     const W=RD.width(HZ),H=250,l=44,r=12,t=12,b=34,lx0=Math.log10(4),lx1=Math.log10(400),ly0=-2,ly1=Math.log10(3000);
     const X=v=>l+(W-l-r)*(Math.log10(v)-lx0)/(lx1-lx0),Y=v=>t+(H-t-b)*(ly1-Math.max(ly0,Math.min(ly1,Math.log10(v))))/(ly1-ly0);let s='';
-    [0.01,0.1,1,10,100,1000].forEach(v=>{s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(v).toFixed(1)+'" y2="'+Y(v).toFixed(1)+'" stroke="var(--line)"/>'+RD.t(l-4,Y(v)+4,String(v),{a:'end',fs:10,fill:'var(--mute)'})});
-    Ts.forEach(T=>{s+=RD.t(X(T),H-b+14,String(T),{a:'middle',fs:10,fill:'var(--mute)'})});
-    s+=RD.t((l+W-r)/2,H-4,'horizon T (steps)',{a:'middle',fs:10.5,fill:'var(--mute)'})+RD.t(l+4,t+10,'expected cost J',{fs:10.5,fill:'var(--mute)'});
+    [0.01,0.1,1,10,100,1000].forEach(v=>{s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(v).toFixed(1)+'" y2="'+Y(v).toFixed(1)+'" stroke="var(--line)"/>'+RD.t(l-4,Y(v)+4,String(v),{a:'end',fs:11,fill:'var(--mute)'})});
+    Ts.forEach(T=>{s+=RD.t(X(T),H-b+14,String(T),{a:'middle',fs:11,fill:'var(--mute)'})});
+    s+=RD.t((l+W-r)/2,H-4,'horizon T (steps)',{a:'middle',fs:11,fill:'var(--mute)'})+RD.t(l+4,t+10,'expected cost J',{fs:11,fill:'var(--mute)'});
     const line=(f,col,dash,w)=>{const p=[];for(let k=0;k<=40;k++){const T=Math.pow(10,lx0+(lx1-lx0)*k/40);p.push(X(T).toFixed(1)+','+Y(f(T)).toFixed(1))}return '<polyline fill="none" stroke="'+col+'" stroke-width="'+(w||1.4)+'"'+(dash?' stroke-dasharray="'+dash+'"':'')+' points="'+p.join(' ')+'"/>'};
     s+=line(T=>eps*T*T,'var(--c2)','5 4')+line(T=>eps*T,'var(--c1)','5 4')+line(T=>T,'var(--mute)','2 3',1);
     const ser=(k,col)=>'<polyline fill="none" stroke="'+col+'" stroke-width="2.4" points="'+rows.map(o=>X(o.T).toFixed(1)+','+Y(o[k]).toFixed(1)).join(' ')+'"/>'+rows.map(o=>'<circle cx="'+X(o.T).toFixed(1)+'" cy="'+Y(o[k]).toFixed(1)+'" r="3.2" fill="'+col+'"><title>T = '+o.T+': J = '+RD.n(o[k],2)+'</title></circle>').join('');
