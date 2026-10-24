@@ -6,7 +6,7 @@ const require = createRequire(path.resolve('package.json'));
 const puppeteer = require('puppeteer');
 const page = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'index.html');
 const out = process.argv[2] || '/tmp';
-const b = await puppeteer.launch({ headless: 'shell' });
+const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let bad = 0;
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
@@ -19,6 +19,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       return { nan: /\bNaN\b/.test(t), und: /\bundefined\b/.test(t), side: document.documentElement.scrollWidth > innerWidth, box: !document.getElementById('jsErr').hidden } });
     if (r.nan || r.und || r.side || r.box) { bad++; console.log('PROBLEM', scheme, width, tag, JSON.stringify(r)) } };
   // reading: segments and animation controls
+  // nothing moves before the reader acts: scroll both steppers into view, wait, check they are still on step 0
+  for (const id of ['rd-walk', 'rd-wf']) { await (await p.$('#' + id + '-card')).scrollIntoView(); await sleep(1200);
+    const v = await p.$eval('#' + id + '-ctl-s', e => +e.value); if (v !== 0) { bad++; console.log('AUTOPLAY', id, v) } }
   for (const seg of ['rd-mcv-seg', 'rd-app-seg', 'rd-spill-seg', 'rd-gen-seg', 'rd-wf-mode']) {
     const n = await p.$$eval('#' + seg + ' button', x => x.length);
     for (let i = 0; i < n; i++) { await p.$eval('#' + seg, (e, i) => e.querySelectorAll('button')[i].click(), i); await sleep(80); await check(seg + i) } }
@@ -29,16 +32,21 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (let i = 0; i < 4; i++) await p.$eval('#rd-wf-ctl-f', e => e.click());
   await p.$eval('#rd-wf-ctl-p', e => e.click()); await sleep(300); await p.$eval('#rd-wf-ctl-p', e => e.click());
   await p.select('#rd-wf-ctl-v', '2');
-  for (const id of ['rd-wf-card', 'rd-gen-card', 'rd-geqo-card', 'rd-par-card', 'rd-spill-card', 'rd-mcv-card']) { const el = await p.$('#' + id); await el.scrollIntoView(); await el.screenshot({ path: `${out}/${id}-${scheme}-${width}.png` }) }
-  // cost tab
-  await p.$eval('button[data-t=t-cost]', e => e.click()); await sleep(200);
+  for (let i = 0; i < 8; i++) { await p.$eval('#rd-walk-ctl-f', e => e.click()); await sleep(30); await check('walk' + i) }
+  for (let i = 0; i < 8; i++) await p.$eval('#rd-walk-ctl-b', e => e.click());
+  await p.$eval('#rd-wf-mode', e => e.querySelectorAll('button')[1].click()); await (await p.$('#rd-wf-card')).scrollIntoView(); await sleep(1500);
+  if (await p.$eval('#rd-wf-ctl-s', e => +e.value) !== 0) { bad++; console.log('AUTOPLAY after mode switch') }
+  await p.$eval('#rd-wf-mode', e => e.querySelectorAll('button')[0].click());
+  for (const id of ['rd-hero-card', 'rd-err-card', 'rd-join-card', 'rd-walk-card', 'rd-page-card', 'rd-wf-card', 'rd-gen-card', 'rd-geqo-card', 'rd-par-card', 'rd-spill-card', 'rd-mcv-card']) { const el = await p.$('#' + id); await el.scrollIntoView(); await el.screenshot({ path: `${out}/${id}-${scheme}-${width}.png` }) }
+  // cost model calculator (Reading, section 2; moved from its own tab on 2026-10-24)
+  await p.$$eval('#cm-wrap details', ds => ds.forEach(d => d.open = true));
   for (const pre of [0, 1]) {
     await p.$eval('#cm-preset', (e, i) => e.querySelectorAll('button')[i].click(), pre); await sleep(80);
     for (const v of [0, 300, 600, 860, 1000]) { await p.$eval('#cm-n', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); await check('cm-n' + v) }
     for (const [id, v] of [['cm-rp', 1.1], ['cm-sp', 0.1], ['cm-cr', 1], ['cm-cr', -1], ['cm-rp', 10]]) { await p.$eval('#' + id, (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); await check(id + v) }
     for (const [id, v] of [['cm-ct', '0.05'], ['cm-co', '0.0005'], ['cm-ec', '16384'], ['cm-wm', '64']]) { await p.select('#' + id, v); await check(id + v) }
     await p.$eval('#cm-reset', e => e.click()); await check('reset');
-    await (await p.$('#t-cost')).screenshot({ path: `${out}/cost-${pre}-${scheme}-${width}.png` }) }
+    await (await p.$('#cm-wrap')).screenshot({ path: `${out}/cost-${pre}-${scheme}-${width}.png` }) }
   // lab: every exercise, wrong click, right answer, every option
   await p.$eval('button[data-t=t-lab]', e => e.click()); await sleep(200);
   const nx = await p.$$eval('#lb-pick button', x => x.length);

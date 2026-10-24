@@ -26,3 +26,16 @@ Scores: teaching value (T), real data (D), not done elsewhere (N), each 1 to 3.
 
 ## What the methodology lacked
 - A rule for noisy shared machines: here every timing is best of three, and page counts are presented as the stable measure; worth adding to the methodology.
+
+## 2026-10-24 rebuild to the teaching contract
+| Idea | Where | Kind | Notes |
+|---|---|---|---|
+| Hero: the title search's prediction path against EXPLAIN ANALYZE (100 estimated, 1 actual) | Top | Static annotated diagram | Horizontal at 700 px and wider, vertical on a phone. Real numbers from the workload's plan. |
+| Misestimate dumbbell, five causes, log scale | Section 4 | Static chart | Replaces the script table; values from stats.json, lab_plans and generic.json. |
+| Three join algorithms, each against its forced alternative | Section 5 | Static bars per algorithm | Data from the root's Query plans case 4 (c4.json), copied by import_inputs.py; the root's tab can now link here. |
+| Bottom-up walk through a real plan, then the fix | Section 6 | Stepper (no tweening, never autoplays) | lab_plans corr_before / corr_after; compact rendering on narrow screens, said on the card. |
+| Offset against keyset pagination by depth | Section 8 | Static log chart | Building a backend API's recording (pagination_pg.json). The 1M-deep offset row has 102 buffers against 17,544 at 500k, unexplained in the recording; the chart shows times only. |
+| pgbench with and without a new connection per transaction, direct and through PgBouncer | Section 8 | Static bars | Running Postgres in production's recording (connections.json). |
+| Cost model calculator moved inline | Section 2 | One slider plus closed settings | Was the Cost model tab. |
+
+Rejected in this pass: a throughput-against-active-connections curve (no measurement exists on this machine, and an illustrative curve would teach a shape we cannot source; the wiki rule is quoted instead); photographs (a mechanism page, nothing physical to show); schematic drawings of the three join algorithms (the measured bars plus one sentence each carry it).

@@ -1,4 +1,4 @@
-// ---- Cost model tab: UI ----
+// ---- Reading section 2: the cost model calculator (moved from its own tab on 2026-10-24) ----
 (function(){
 const Q=window.QPD,M=window.QPCM,E=RD.esc,$=id=>document.getElementById(id),F=window.QPF;
 const NM={seq:'Seq Scan',index:'Index Scan',bitmap:'Bitmap Heap Scan'},COL={seq:'var(--c2)',index:'var(--c1)',bitmap:'var(--c3)'};
@@ -51,7 +51,6 @@ function meas(){const d=P(),rs=d.rows.filter(r=>r.ms);
 ['cm-n','cm-rp','cm-sp','cm-cr'].forEach(id=>$(id).addEventListener('input',draw));['cm-ct','cm-co','cm-ec','cm-wm'].forEach(id=>$(id).addEventListener('change',draw));
 $('cm-reset').addEventListener('click',reset);
 RD.seg($('cm-preset'),m=>{pre=m;meas();reset()});
-(window.TAB_RENDER=window.TAB_RENDER||{})['t-cost']=[draw];
-addEventListener('resize',()=>{if(!$('t-cost').hidden)draw()});
+RD.onRender(draw);RD.onResize(draw);
 meas();reset();
 })();

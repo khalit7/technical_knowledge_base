@@ -1,4 +1,4 @@
-// ---- Reading tab, section 7: the slow-query workflow on the replayed workload (animation, two modes) ----
+// ---- Reading tab, section 7: the slow-query workflow on the replayed workload (stepper, two modes; waits for the reader) ----
 (function(){
 const Q=window.QPD,W=Q.workload,E=RD.esc,$=id=>document.getElementById(id),F=window.QPF;
 const short=q=>q.replace(/\s+/g,' ').replace(/^SELECT /,'').slice(0,74)+(q.length>80?'...':'');
@@ -34,5 +34,5 @@ function draw(i){const s=S[mode][Math.min(i,S[mode].length-1)];
   cnt.innerHTML=RD.stat('Throughput',F.f(s.c[0])+'<small> tx/s</small>')+RD.stat('Average latency',F.ms(s.c[1])+'<small> ms</small>')+RD.stat('Search, mean',F.ms(s.c[2])+'<small> ms</small>')+RD.stat('Search, share of DB time',s.c[3].toFixed(1)+'%');
   $('rd-wf-panel').innerHTML=s.panel();$('rd-wf-cap').innerHTML='<div class="t">'+E(s.t)+'</div><p>'+E(s.p)+'</p>'}
 const an=RD.anim({card:'rd-wf-card',ctl:'rd-wf-ctl',n:S.flow.length,draw,ms:3200,label:'Workflow step'});
-RD.seg($('rd-wf-mode'),m=>{mode=m;an.reset(S[m].length);an.play()});
+RD.seg($('rd-wf-mode'),m=>{mode=m;an.reset(S[m].length)});
 })();

@@ -33,7 +33,7 @@ for k, d in cm['presets'].items():
                  cpu_operator_cost=rnd.choice([0.0005, 0.0025, 0.01]), effective_cache_size=rnd.choice([16384, 131072, 524288, 2097152]), work_mem=rnd.choice([64, 1024, 4096, 65536]))
         corr = round(rnd.uniform(-1, 1), 2); m = costs(d, selectivity(d, d['a'], d['a'] + nn - 1), s, corr)
         cases.append({'k': k, 'n': nn, 's': s, 'corr': corr, 'want': [m['rows'], m['seq']['total'], m['index']['total'], m['bitmap']['total']]})
-js = open(os.path.join(H, 'parts', '30_js_cm_model.js')).read()
+js = open(os.path.join(H, 'parts', '22_js_cm_model.js')).read()
 node = js + '\nconst CM=' + json.dumps(cm) + ';const C=' + json.dumps(cases) + ''';
 let e=0,x=0;for(const d of Object.values(CM.presets)){const s={};for(const k in CM.settings)s[k]=+CM.settings[k];
  for(const r of d.rows){const m=QPCM.costs(d,QPCM.selectivity(d,d.a,d.a+r.n-1),s);[[m.rows,r.seq.rows],[m.seq.total,r.seq.total],[m.index.total,r.index.total],[m.bitmap.total,r.bitmap.total],[m.index.startup,r.index.startup],[m.bitmap.innerTotal,r.bitmap.inner.total]].forEach(([g,w])=>{x++;if(Math.abs(g-w)<=0.006+1e-9*w)e++})}}
@@ -78,5 +78,21 @@ fc = ge['force_custom']; hi = ge['hint']; ratio = (sum(r['ms'] for r in hi[:5]) 
 show('pinned plan slowdown for small organisations', round(ratio), 'about 180 times')
 cb = lp['corr_before']['text']; show('lab join estimate', '1580 / 22364', 'rows=1580' if 'rows=1580' in cb else 'IMPOSSIBLE')
 show('lab lossy pages', 'exact=873 lossy=37598', None if 'lossy=37598' in lp['lossy']['text'] else 'IMPOSSIBLE')
+# 4. measurements copied from the pages that recorded them (import_inputs.py): joins, pagination, connections
+jn = I('joins.json')['cases']
+for k in ['small', 'small_forced', 'large', 'large_forced', 'sorted', 'sorted_forced']:
+    show('join ' + k + ' pages', jn[k]['pages'], f(jn[k]['pages']))
+show('nested loop chosen ms', jn['small']['median_ms'], '0.227 ms'); show('hash forced ms', round(jn['small_forced']['median_ms']), '383 ms')
+show('hash chosen ms', round(jn['large']['median_ms'], 1), '95.4 ms'); show('nested loop forced ms', round(jn['large_forced']['median_ms']), '352 ms')
+show('merge chosen ms', round(jn['sorted']['median_ms'], 2), '1.53 ms'); show('merge forced ms', round(jn['sorted_forced']['median_ms'], 2), '2.18 ms')
+pgn = {r['depth']: r for r in I('pagination.json')['rows_by_depth']}
+show('offset at 500k', pgn[500000]['offset_ms'], 'OFFSET 98.1 ms and 17,544 pages'); show('keyset at 500k', pgn[500000]['keyset_ms'], 'keyset 0.032 ms and 4 pages')
+ks = [r['keyset_ms'] for r in pgn.values()]; show('keyset range', (min(ks), max(ks)), f'between {min(ks)} and {max(ks)} ms')
+show('offset per row (derived)', round(pgn[500000]['offset_ms'] / 500000 * 1000, 2), 'about 0.2 microseconds a row')
+pl = {(r['path'], r['reconnect']): r['tps'] for r in I('pooling.json')['pgbench']}
+show('pgbench direct', (pl[('direct', False)], pl[('direct', True)]), f"{f(pl[('direct', False)])} against {f(pl[('direct', True)])}")
+show('pgbench bouncer', (pl[('PgBouncer', False)], pl[('PgBouncer', True)]), f"{f(pl[('PgBouncer', False)])} against {f(pl[('PgBouncer', True)])}")
+show('reconnect penalty', round(pl[('direct', False)] / pl[('direct', True)]), f"costs {round(pl[('direct', False)] / pl[('direct', True)])} times")
+st2 = st['ext']['none']['and']; show('independence ratio', round(st2['act'] / st2['est'], 1), 'estimated 165, actual 2,294')
 print('\nall checks passed' if not fails else f'\n{fails} check(s) failed')
 sys.exit(1 if fails else 0)

@@ -5,9 +5,7 @@ const f=(x,d)=>Number(x).toLocaleString('en-GB',{minimumFractionDigits:d||0,maxi
 const ms=x=>x>=100?f(x):x>=10?f(x,1):x>=1?f(x,2):f(x,3);
 window.QPF={f,ms};
 // bars: rows [{nm,v,lab,c,hl}], log scale optional
-function bars(el,rows,o){o=o||{};const vs=rows.map(r=>r.v);const mx=Math.max(...vs),mn=Math.min(...vs.filter(v=>v>0));
-  const w=v=>o.log?Math.max(2,100*(Math.log10(v)-Math.log10(mn/3))/(Math.log10(mx)-Math.log10(mn/3))):Math.max(1,100*v/mx);
-  el.innerHTML=rows.map(r=>'<div class="row'+(r.hl?' hl':'')+'"><span class="nm" title="'+E(r.nm)+'">'+E(r.nm)+'</span><span class="track"><span class="fill" style="width:'+w(r.v).toFixed(1)+'%;background:'+(r.c||'var(--c1)')+'"></span></span><span class="val">'+r.lab+'</span></div>').join('')}
+function bars(el,rows,o){o=o||{};QPG.hbars(el,[{rows:rows.map(r=>({label:r.nm,v:r.v,txt:r.lab,col:r.c,hl:r.hl}))}],{log:o.log,label:o.label||''})}
 window.QPB=bars;
 // 1. MCV list against the truth, or the tokens histogram
 function mcv(m){const el=$('rd-mcv'),cap=$('rd-mcv-cap');
@@ -31,11 +29,22 @@ $('rd-target').innerHTML=Q.stats.target.map(r=>'<tr><td class="num">'+f(r.target
   const cell=(e,a)=>{const r=Math.max(e,1)/Math.max(a,1),ok=r<=1.5&&r>=1/1.5;return '<td class="num '+(ok?'ok':'bad')+'">'+f(e)+'</td>'};
   $('rd-ext').innerHTML='<thead><tr><th>Query on users</th><th class="num">Truth</th>'+ks.map(k=>'<th class="num">'+nm[k]+'</th>').join('')+'</tr></thead><tbody>'+
    qs.map(([k,l])=>'<tr><td><code>'+E(l)+'</code></td><td class="num"><b>'+f(x.none[k].act)+'</b></td>'+ks.map(s=>cell(x[s][k].est,x[s][k].act)).join('')+'</tr>').join('')+'</tbody>'})();
-// 4. where estimates went wrong on this page
-(function(){const x=Q.stats.ext.none.and,st=Q.stats.stale.after_load,g=Q.generic;
-  const rows=[['Independence','users in GB and London',x.est,x.act],['Pattern (LIKE)',"chats with title LIKE 'Chat 123456%'",100,1],['Stale statistics','after a bulk load, before ANALYZE',st.est,st.act],
-   ['Join (from independence)','London users joined to their chats (Plan reading lab)',1580,22364],['Unknown parameter','generic plan, org_id = the enterprise',290,g.rows_org1]];
-  $('rd-errs').innerHTML=rows.map(r=>{const k=r[2]>r[3]?r[2]/Math.max(1,r[3]):r[3]/Math.max(1,r[2]);return '<tr><td>'+r[0]+'</td><td>'+E(r[1])+'</td><td class="num">'+f(r[2])+'</td><td class="num">'+f(r[3])+'</td><td class="num bad">'+(k>=100?f(k):k.toFixed(1))+'&times; '+(r[2]>r[3]?'over':'under')+'</td></tr>'}).join('')})();
+// 4. where estimates went wrong on this page: estimated against actual rows, log scale (dumbbell)
+function errs(){const x=Q.stats.ext.none.and,st=Q.stats.stale.after_load,g=Q.generic,el=$('rd-err');
+  const rows=[['Independence','GB and London users',x.est,x.act],['Pattern (LIKE)','title LIKE prefix',100,1],['Stale statistics','after a bulk load',st.est,st.act],
+   ['Join','London users x their chats',1580,22364],['Unknown parameter','generic plan, enterprise org',290,g.rows_org1]];
+  const W=RD.width(el),narrow=W<560,L=narrow?8:170,R=14,rh=narrow?50:34,T0=22,H=T0+rows.length*rh+26,lo=0,hi=7;
+  const xs=v=>L+(W-L-R)*(Math.log10(Math.max(v,1))-lo)/(hi-lo);let b='';
+  for(let e=lo;e<=hi;e++){const xx=xs(Math.pow(10,e));b+='<line x1="'+xx+'" x2="'+xx+'" y1="'+(T0-6)+'" y2="'+(H-22)+'" stroke="var(--line)"/>'+QPG.T(xx,H-8,['1','10','100','1k','10k','100k','1M','10M'][e],{a:'middle',fs:10.5,fill:'var(--mute)'})}
+  b+=QPG.T(W-R,10,'rows (log scale)',{a:'end',fs:10.5,fill:'var(--mute)'});
+  rows.forEach((r,i)=>{const y=T0+i*rh+(narrow?30:14),xe=xs(r[2]),xa=xs(r[3]),k=r[2]>r[3]?r[2]/Math.max(1,r[3]):r[3]/Math.max(1,r[2]);
+    if(narrow)b+=QPG.T(L,y-18,r[0]+': '+r[1],{fs:11.5,w:600});else{b+=QPG.T(0,y-1,r[0],{fs:11.5,w:600})+QPG.T(0,y+12,r[1],{fs:10.5,fill:'var(--mute)'})}
+    b+='<line x1="'+xe+'" x2="'+xa+'" y1="'+y+'" y2="'+y+'" stroke="var(--bad)" stroke-width="3" opacity=".5"/>';
+    b+='<circle cx="'+xe+'" cy="'+y+'" r="6" fill="var(--bg)" stroke="var(--c1)" stroke-width="2.5"><title>estimated '+f(r[2])+'</title></circle><circle cx="'+xa+'" cy="'+y+'" r="6" fill="var(--c2)"><title>actual '+f(r[3])+'</title></circle>';
+    const lab=(k>=100?f(k):k.toFixed(1))+'x '+(r[2]>r[3]?'over':'under'),hiX=Math.max(xe,xa),loX=Math.min(xe,xa),right=hiX+12+7*lab.length<W;
+    b+=QPG.T(right?hiX+12:loX-12,y+4,lab,{a:right?'start':'end',fs:11,fill:'var(--bad)',w:600})});
+  el.innerHTML='<div class="hmleg"><span><svg width="14" height="14"><circle cx="7" cy="7" r="5" fill="none" stroke="var(--c1)" stroke-width="2.5"/></svg>estimated</span><span><svg width="14" height="14"><circle cx="7" cy="7" r="5.5" fill="var(--c2)"/></svg>actual</span></div>'+QPG.svg(W,H,b,'estimated against actual rows for five misestimates')}
+RD.onRender(errs);RD.onResize(errs);errs();
 // 5. GEQO planning time
 function geqo(){const el=$('rd-geqo'),rows=Q.geqo,W=RD.width(el),H=230,L=46,R=10,T=14,B=34;
   const xs=n=>L+(W-L-R)*(n-2)/14,lmin=-1,lmax=4,y=v=>T+(H-T-B)*(1-(Math.log10(v)-lmin)/(lmax-lmin));let b='';
@@ -60,7 +69,7 @@ function app(m){const a=Q.app,el=$('rd-app'),cap=$('rd-app-cap');
   else{const b=a.batch.ms,nm={autocommit_each:'one INSERT per row, each committed',one_tx_each:'one INSERT per row, one transaction',executemany:'executemany (pipelined)',multirow_1000:'INSERT of 1,000 rows at a time',unnest_arrays:'one INSERT from arrays (unnest)',copy:'COPY'};
     bars(el,Object.keys(nm).map(k=>({nm:nm[k],v:b[k],lab:ms(b[k])+' ms',c:k==='copy'?'var(--good)':k==='autocommit_each'?'var(--bad)':'var(--c1)'})),{log:true});
     cap.textContent='10,000 rows into a 6-column table, best of three, logarithmic bars. Committing each row waits for the log to be flushed every time (fsync on, synchronous_commit on); COPY streams all rows in one command: '+f(b.autocommit_each/b.copy)+' times faster than row by row.'}}
-RD.seg($('rd-app-seg'),app);app('nplus1');
+RD.seg($('rd-app-seg'),app);app('nplus1');const appCur=()=>(($('rd-app-seg').querySelector('.on')||{}).dataset||{}).m||'nplus1';RD.onRender(()=>app(appCur()));RD.onResize(()=>app(appCur()));
 // 8. spills
 function spill(m){const rows=Q.spill[m],el=$('rd-spill'),cap=$('rd-spill-cap');const best=Math.min(...rows.map(r=>r.ms));
   bars(el,rows.map(r=>{const sp=(r.temp_written||0)>0;return {nm:'work_mem '+r.work_mem,v:r.ms,lab:f(r.ms)+' ms',c:sp?'var(--bad)':'var(--good)',hl:r.work_mem==='4MB'}}));
@@ -68,7 +77,7 @@ function spill(m){const rows=Q.spill[m],el=$('rd-spill'),cap=$('rd-spill-cap');c
   const what=m==='sort'?'Sort Method: '+d.method+', '+f(d.space_kb)+' kB on disk at 4 MB; '+big.method+' using '+f(big.space_kb)+' kB of memory at '+big.work_mem+' (in memory the rows take more room than in the compact temporary files)':
     m==='hashjoin'?'Hash Batches '+d.batches+' at 4 MB, peak '+f(d.peak_kb)+' kB; 1 batch from '+mem.work_mem+', peak '+f(mem.peak_kb)+' kB':'HashAggregate Batches '+d.batches+' and '+f(d.disk_kb)+' kB of disk at 4 MB; 1 batch from '+mem.work_mem+', '+f(mem.peak_kb)+' kB of memory';
   cap.innerHTML='Red: spilled to temporary files. <code>'+E(Q.spill_sql[m])+'</code>. '+E(what)+'. Default 4 MB against the fastest setting: '+(d.ms/best).toFixed(2)+' times.'}
-RD.seg($('rd-spill-seg'),spill);spill('sort');
+RD.seg($('rd-spill-seg'),spill);spill('sort');const spCur=()=>(($('rd-spill-seg').querySelector('.on')||{}).dataset||{}).m||'sort';RD.onRender(()=>spill(spCur()));RD.onResize(()=>spill(spCur()));
 // 9. parallel workers
 function par(){const el=$('rd-par'),rows=Q.parallel,W=RD.width(el),H=200,L=46,R=12,T=14,B=34,t0=rows[0].ms;
   const xs=w=>L+(W-L-R)*w/8,ym=Math.max(...rows.map(r=>r.ms))*1.05,y=v=>T+(H-T-B)*(1-v/ym);let b='';

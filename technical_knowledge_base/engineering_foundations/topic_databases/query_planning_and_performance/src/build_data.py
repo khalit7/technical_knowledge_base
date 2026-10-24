@@ -44,8 +44,10 @@ d['lab'] = {k: v for k, v in lp.items()}
 d['lab']['limit_trap'] = {'sql': "SELECT id, title FROM chats WHERE title LIKE 'Chat 123456%' ORDER BY id LIMIT 10", 'text': wl['explain_before']}
 d['lab']['generic'] = {'sql': ge['sql'].replace('$1', '$1  -- executed with $1 = 1, the enterprise organisation'), 'text': ge['generic_text']}
 d['lab']['spill'] = {'sql': en['spill']['sort']['sql'], 'text': en['spill']['sort']['text_small']}
+for k in ['joins', 'pagination', 'pooling']:
+    d[k] = I(k + '.json')  # copied from the pages that recorded them by import_inputs.py
 d['meta'] = {'version': cm['version'].split(' on ')[0], 'date': '2026-10-04'}
 js = 'window.QPD=' + json.dumps(d, separators=(',', ':')) + ';\n'
-js = js.replace('—', '-')
+js = js.replace('\u2014', '-')
 open(os.path.join(H, 'parts', '22_js_data.js'), 'w').write(js)
 print(len(js), 'bytes')

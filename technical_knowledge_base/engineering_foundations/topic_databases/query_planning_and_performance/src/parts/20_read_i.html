@@ -1,3 +1,32 @@
+<section id="rd-s10">
+<h2>10. Prepared statements: one plan for every parameter</h2>
+<p>A <dfn id="g-prepared">prepared statement</dfn> is parsed once and then executed many times with different parameter values: <code>PREPARE q(int) AS SELECT ... WHERE org_id = $1;</code> then <code>EXECUTE q(42);</code> in SQL, or the same thing done invisibly by a driver over the protocol. It saves parsing and planning on every call and keeps values apart from SQL text (safe from injection). Postgres can make a <b>custom plan</b> for each call, knowing the value, or reuse one <b>generic plan</b> built without it. The rule, from the documentation: "the first five executions are done with custom plans and the average estimated cost of those plans is calculated. Then a generic plan is created and its estimated cost is compared to the average custom-plan cost", and the generic plan is used from then on if it is not much more expensive ({{PREPARE|https://www.postgresql.org/docs/current/sql-prepare.html}}).</p>
+<p>Drivers do it for you: psycopg 3 prepares a statement on the server after 5 runs on a connection (<code>prepare_threshold</code>, read from a live connection for this page; {{psycopg: prepared statements|https://www.psycopg.org/psycopg3/docs/advanced/prepare.html}}), PgJDBC at its <code>prepareThreshold</code> of 5 ({{PgJDBC|https://jdbc.postgresql.org/documentation/use/}}), and PgBouncer passes them through in transaction mode when <code>max_prepared_statements</code> is non-zero ({{PgBouncer configuration|https://www.pgbouncer.org/config.html}}). So the generic-plan switch happens in ordinary code, on the sixth call or later: "fast in testing, slow in production".</p>
+<h3>A regression, measured</h3>
+<p>The page adds one table to the chat product: <code>usage_events</code>, one row per model call billed to a customer organisation, 4,000,000 rows. One enterprise customer, organisation 1, owns half of them (2,000,231 rows); the other half is spread over 20,000 organisations of about 100 rows each <span class="ill">illustrative skew, real measurement</span>. The billing page runs, through a prepared statement, <code>SELECT c.model, count(*), sum(e.tokens) FROM usage_events e JOIN chats c ON c.id = e.chat_id WHERE e.org_id = $1 GROUP BY c.model</code>. Eight calls in one session: five small organisations, the enterprise twice, one small one.</p>
+<div class="fig" id="rd-gen-card"><h4>From call 7 Postgres reused one generic plan, and the enterprise call took 8.5 times longer</h4>
+<div class="seg" id="rd-gen-seg"><button data-m="auto" class="on">Default (plan_cache_mode = auto)</button><button data-m="force_custom">plan_cache_mode = force_custom_plan</button><button data-m="hint">Pinned with a hint</button></div>
+<div class="gseq" id="rd-gen"></div>
+<div class="gsl" id="rd-gen-lab"></div>
+<p class="small" id="rd-gen-cap"></p>
+</div>
+<p>What happened, from the plans: calls 1 to 5 got custom plans for about 100 rows each (an index lookup and a nested loop, cost 1,765, under 1 ms). Call 6, the enterprise, still got a custom plan, a parallel hash join priced at 94,481, which took 520 ms. That expensive call pulled the average custom cost up to 17,218, and the generic plan, which assumes a typical organisation has 290 rows, cost only 3,483. So from call 7 Postgres used the generic plan: a nested loop doing 2,000,231 index lookups into <code>chats</code>, <b>4,419 ms</b> for the enterprise, 8.5 times its custom plan. The generic plan is fine for everyone else (call 8: 0.53 ms), which is exactly why it looked cheap.</p>
+<div class="tech"><div><b>Fix 1: custom plans for this statement</b><code>SET plan_cache_mode = force_custom_plan</code> for the session or role that runs it; planning costs about a millisecond here, against seconds saved. Measured: enterprise 531 to 597 ms on every call.</div><div><b>Fix 2: do not prepare it</b>psycopg <code>prepare=False</code> on that call, or <code>prepare_threshold=None</code> on the connection.</div><div><b>Fix 3: separate the outlier</b>A separate code path or query for the few giant tenants, so one plan fits each group.</div><div><b>See it coming</b><code>EXPLAIN (GENERIC_PLAN)</code> (PostgreSQL 16+) shows the generic plan; <code>pg_prepared_statements</code> counts generic and custom plans per statement.</div></div>
+</section>
+
+<section id="rd-s11">
+<h2>11. Plan regressions, and pinning a plan</h2>
+<p>A <dfn id="g-regression">plan regression</dfn> is a query that was fast and became slow without its SQL changing. The plan changed because one of its inputs did: new statistics after ANALYZE, data growth crossing a cost crossover (section 2 shows how sharp they are), a setting, an index added or dropped, a parameter value (section 10), or a major-version upgrade that taught the planner something new (PostgreSQL 18 added B-tree skip scan, for example).</p>
+<p><b>Detecting them</b> is section 7's workflow run continuously: snapshot <code>pg_stat_statements</code> and alert when a statement's mean time jumps (same <code>queryid</code>, new timing; a rising <code>stddev_exec_time</code> means a plan that differs by parameter); keep auto_explain on with a threshold so the bad plan is in the log; before a major upgrade, compare the top statements' plans on a staging copy.</p>
+<p><b>Responding</b> follows section 8's order: fix the estimate (statistics), then the query or index, and only then pin. Core Postgres has no plan pinning, by design: the project's stated position is that it is "not interested in implementing hints in the exact ways they are commonly implemented on other databases" ({{PostgreSQL wiki: Optimizer Hints|https://wiki.postgresql.org/wiki/OptimizerHintsDiscussion}}). The tools are outside it, chiefly the pg_hint_plan extension, which forces scan methods, join methods and join order from a comment such as <code>/*+ HashJoin(e c) SeqScan(e) */</code>:</p>
+<details class="dp"><summary>The pinning tools: pg_hint_plan, Aurora's plan management, SQL Server's Query Store, Oracle's SQL Plan Management <span class="mute">(reference)</span></summary><div class="b"><ul>
+<li><dfn id="g-hint">pg_hint_plan</dfn>, an extension that reads hints from a comment at the start of the query, such as <code>/*+ HashJoin(e c) SeqScan(e) */</code>, or from a table of hints keyed by query text, and forces scan methods, join methods and join order ({{pg_hint_plan|https://github.com/ossc-db/pg_hint_plan}}; this page built its REL16_1_6_1 release).</li>
+<li>On Amazon Aurora PostgreSQL, <code>apg_plan_mgmt</code> ("query plan management") captures plans and enforces approved ones ({{AWS documentation|https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraPostgreSQL.Optimize.html}}). Other databases build this in: SQL Server's {{Query Store|https://learn.microsoft.com/en-us/sql/relational-databases/performance/monitoring-performance-by-using-the-query-store}} can force a plan, Oracle has {{SQL Plan Management|https://docs.oracle.com/en/database/oracle/oracle-database/19/tgsql/overview-of-sql-plan-management.html}}.</li>
+</ul></div></details>
+<p>The measured warning is section 10's third toggle: pinning the billing query to a hash join with a sequential scan, the right plan for the enterprise, made each small organisation's call take 105 to 124 ms instead of under 1 ms, about 180 times slower, because each now scans all 1,000,000 chats to probe a hash table of 100 rows; and the enterprise still took 1,133 ms, because the hint fixed the join method but not which side to hash, and the planner hashed the 2,000,231 usage rows instead of the 1,000,000 chats. A pinned plan is right for one range of data and parameters and stays pinned when they move. Keep pins few, written down, and reviewed after every upgrade.</p>
+</section>
+
+
 <section id="rd-pro">
 <h2>What professionals set up before anything is slow</h2>
 <p>The routine only works if the evidence is already being collected when the problem appears. A common starting point for a Postgres server, each line from the documentation linked above; the thresholds are judgement calls, not standards:</p>
@@ -15,54 +44,27 @@ log_temp_files = 0                    # log every spill to disk, with its size</
 <ul>
 <li><b>Look weekly, not only during incidents:</b> the top 10 statements by total time, and what changed since last week. Many teams keep snapshots of pg_stat_statements in a table or in their monitoring system, since its counters are cumulative and reset on restart or <code>pg_stat_statements_reset()</code>.</li>
 <li><b>Set a <code>statement_timeout</code></b> per application role, so one runaway query cannot hold a connection and its locks for an hour (operational detail on {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}).</li>
-<li><b>Test plans on production-sized data</b>, or at least with production statistics: a plan on a 1,000-row development table says nothing about the 10-million-row one.</li>
+<li><b>Test plans on production-sized data</b>, or at least with production statistics: a plan on a 1,000-row development table says nothing about the 10-million-row one (a Seq Scan is the right plan for a small table and the wrong one for a big one).</li>
 <li><b>Tie database time to requests</b>: tracing that shows how many queries each API request made and how long each took is how N+1 patterns get noticed ({{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}).</li>
 <li><b>Put the index next to the query in code review:</b> a new query on a large table comes with its EXPLAIN output, and a new index with the query that needs it.</li>
 </ul>
 </section>
 
-<section id="rd-mist">
-<h2>Common mistakes</h2>
-<div class="mist"><details><summary>Optimising the query someone complained about instead of the one using the most time</summary><div class="b">Sort pg_stat_statements by total time. In section 7 the noticed report was 2.4% of database time and the unnoticed search 78.6%.</div></details></div>
-<div class="mist"><details><summary>Reading EXPLAIN without ANALYZE, or without BUFFERS</summary><div class="b">Plain EXPLAIN shows only estimates, so it cannot show the misestimate that is usually the cause. Without BUFFERS you see time, which changes with the cache, instead of pages, which do not.</div></details></div>
-<div class="mist"><details><summary>Comparing a cold run with a warm one</summary><div class="b">The first run reads from disk, the second from memory. Run twice, compare page counts, and say which you measured (the parent's Query plans case 8).</div></details></div>
-<div class="mist"><details><summary>Testing plans on a small development database</summary><div class="b">Plans depend on table sizes and statistics; a Seq Scan is the right plan for a small table and the wrong one for a big one.</div></details></div>
-<div class="mist"><details><summary>One new index per slow query</summary><div class="b">Each index slows every write and takes space. Check whether an existing composite index can serve the query, and drop indexes that <code>pg_stat_user_indexes</code> shows unused.</div></details></div>
-<div class="mist"><details><summary>Switching off a plan type in production</summary><div class="b"><code>enable_nestloop = off</code> and its siblings are diagnostic switches for testing, not fixes: they make that plan type look absurdly expensive for every query.</div></details></div>
-<div class="mist"><details><summary>Raising work_mem for the whole server</summary><div class="b">It is per operation and per process; raise it for the role or session that needs it.</div></details></div>
-<div class="mist"><details><summary>Forgetting ANALYZE after a bulk load or (before PostgreSQL 18) a major upgrade</summary><div class="b">Section 3: the planner plans on the old picture of the data until statistics are refreshed.</div></details></div>
-<div class="mist"><details><summary>Trusting EXPLAIN ANALYZE's milliseconds as exact</summary><div class="b">Per-node timing has a cost (67% on one scan here). Use ratios, page counts and row counts; use TIMING OFF when counts are enough.</div></details></div>
-<div class="mist"><details><summary>Not seeing the ORM's queries</summary><div class="b">Turn on SQL logging in development and count queries per request; N+1 patterns are invisible in the code that causes them.</div></details></div>
-<div class="mist"><details><summary>Expecting an index to help <code>LIKE '%word%'</code></summary><div class="b">A B-tree helps only a prefix (<code>LIKE 'word%'</code>, with the C collation or <code>text_pattern_ops</code>). Substring search needs a trigram index or a full-text index.</div></details></div>
-<div class="mist"><details><summary>"Fast in testing, slow in production" with prepared statements</summary><div class="b">Drivers prepare after 5 executions and Postgres may switch to a generic plan after that (section 10). Check <code>EXPLAIN (GENERIC_PLAN)</code>.</div></details></div>
-<div class="mist"><details><summary>Copying configuration folklore</summary><div class="b">random_page_cost = 1.1, huge work_mem, JIT on or off: each is right for some workloads. Change one setting at a time with before and after numbers from your own workload.</div></details></div>
-</section>
 
-<section id="rd-gloss">
-<h2>Glossary</h2>
-<dl class="glo">
-<dt>auto_explain</dt><dd>An extension that logs the plans of statements slower than a threshold (section 7).</dd>
-<dt>Bitmap scan</dt><dd>Collects matching row addresses from an index, sorts them by page, then reads each page once (section 2).</dd>
-<dt>Cardinality</dt><dd>The number of rows a plan node outputs; the planner estimates it before running (section 1).</dd>
-<dt>Correlation</dt><dd>How closely a table's physical row order follows a column's order, from -1 to 1 (section 2).</dd>
-<dt>Cost</dt><dd>The planner's price for a plan in arbitrary units where one sequential page read is 1.0; startup cost is the price before the first row, total cost after the last (section 2).</dd>
-<dt>Custom and generic plan</dt><dd>For a prepared statement, a plan made for the actual parameter values, or one plan reused for all values (section 10).</dd>
-<dt>Dynamic programming</dt><dd>The join-order search that builds the cheapest plan for every subset of tables from the cheapest plans of smaller subsets (section 5).</dd>
-<dt>Extended statistics</dt><dd>Statistics over several columns created with CREATE STATISTICS: dependencies, ndistinct, mcv (section 3).</dd>
-<dt>GEQO</dt><dd>The genetic query optimizer, a randomised join-order search used from 12 FROM items (section 5).</dd>
-<dt>Histogram</dt><dd>Boundaries that split a column's values into buckets with equal numbers of rows (section 3).</dd>
-<dt>MCV list</dt><dd>A column's most common values with their frequencies (section 3).</dd>
-<dt>N+1 queries</dt><dd>One query for a list, then one query per item; usually caused by an ORM's lazy loading (section 8).</dd>
-<dt>Node</dt><dd>One step in a plan tree: a scan, a join, a sort, an aggregate (section 1).</dd>
-<dt>pg_hint_plan</dt><dd>An extension that forces parts of a plan from hints in comments (section 11).</dd>
-<dt>pg_stat_statements</dt><dd>An extension that keeps per-statement totals of calls, time, rows and pages (section 7).</dd>
-<dt>Plan, planner</dt><dd>The tree of steps that runs a query, and the component that chooses it by estimated cost (section 1).</dd>
-<dt>Plan regression</dt><dd>A query that became slow because its plan changed, not its SQL (section 11).</dd>
-<dt>Prepared statement</dt><dd>A statement parsed once and executed many times with parameters (section 10).</dd>
-<dt>Sargable</dt><dd>A condition an index can answer, typically with the indexed column left bare (section 4).</dd>
-<dt>Selectivity</dt><dd>The fraction of rows a condition keeps; estimated rows = selectivity &times; rows (section 3).</dd>
-<dt>Spill</dt><dd>A sort or hash that outgrows <code>work_mem</code> and writes temporary files (section 9).</dd>
-<dt>Statistics</dt><dd>What ANALYZE stores about each column from a sample: null fraction, distinct count, MCVs, histogram, correlation (section 3).</dd>
-<dt>Statistics target</dt><dd>The size of the MCV list and histogram, and the sample (300 rows per unit); 100 by default (section 3).</dd>
-</dl>
+<section id="rd-deep">
+<h2>Learned optimizers</h2>
+<details class="dp"><summary>Where research is (October 2026): Neo, Bao, Balsa and QORL, with a correction <span class="mute">(depth; none of it ships in PostgreSQL)</span></summary><div class="b">
+<p>Section 4's estimation errors are the motivation: a model trained on executed queries could correct the planner from experience instead of from a statistical model of the data. The main steps, dated:</p>
+<div class="tw"><table>
+<thead><tr><th>Year</th><th>System</th><th>Idea</th><th>Reported result</th></tr></thead>
+<tbody>
+<tr><td>2015</td><td>Join Order Benchmark ({{Leis et al., PVLDB|https://www.vldb.org/pvldb/vol9/p204-leis.pdf}})</td><td>113 hand-written queries over real IMDb data to expose estimation errors</td><td>The benchmark that Neo, Bao, Balsa and QORL all evaluate on, in its original or an extended form</td></tr>
+<tr><td>2019</td><td>Neo ({{Marcus et al., VLDB 2019|https://arxiv.org/abs/1904.03711}})</td><td>A deep network builds whole plans, bootstrapped from PostgreSQL's planner and learning from each execution</td><td>"similar performance to state-of-the-art commercial optimizers, and in some cases even surpass them"</td></tr>
+<tr><td>2021</td><td>Bao ({{Marcus et al., SIGMOD 2021|https://arxiv.org/abs/2004.03814}})</td><td>Keep the planner; learn which set of hints (switching off join or scan methods) to give it for each query, with Thompson sampling</td><td>Learns "an order of magnitude faster than previous approaches" and improves tail latency</td></tr>
+<tr><td>2022</td><td>Balsa ({{Yang et al., SIGMOD 2022|https://arxiv.org/abs/2201.01441}})</td><td>Reinforcement learning without copying an expert: a simple simulator first, then safe learning on real executions</td><td>Matches expert optimizers on JOB after two hours of learning, up to 2.8 times faster workload runtime after a few more</td></tr>
+<tr><td>2026</td><td>QORL ({{Bansal, 2026-09-16|https://rohanbansal.com/qorl}})</td><td>A 4-billion-parameter language model (a Qwen 3.8 4B distillation) writes pg_hint_plan hints, trained by distillation then reinforcement learning on 13,646 Cardinality Estimation Benchmark queries, tested on JOB's 113 (no shared join shapes)</td><td>See below</td></tr>
+</tbody></table></div>
+<div class="corr"><div class="t">QORL, corrected</div>The old page credited the model with "a 1.81x geometric mean speedup and a 44.7% latency reduction ... with zero regressions". The write-up's results table separates three ways of picking a plan. The <b>model's own choice</b>, per run: 1.40 times geometric-mean speedup over Postgres, with 119 wins and 7 regressions (more than 5% slower) over 339 runs (113 queries, three runs each). <b>Best measured candidate within a run</b>: 1.44 times, 1 regression. <b>Best measured candidate across all three runs</b> (up to 15 candidate plans per query, each executed and timed): 1.81 times, 44.7% lower latency, 0 regressions over the 113 queries. Untrained, the model produced no usable plan for 99 of the 113. Cost: about $1,200 ($800 of GPU rental, $400 of API fees). The 1.81 needs measured feedback on each candidate, which only makes sense for a heavy query that runs again and again; and JOB served as the validation set during development, so it is not a pristine held-out test. Note the method too: queries were warmed until page hits and reads were stable within 2% before timing, the cold-against-warm trap of the parent's case 8.</div>
+<p><b>In production today:</b> none of these ships in PostgreSQL, and the practical lesson from Bao and QORL is that steering an existing planner with hints is far easier to deploy than replacing it. For an application team the takeaway is the reverse direction: everything a learned optimizer learns is a correction to row estimates, and sections 3 and 8 are how a person makes the same corrections today.</p>
+</div></details>
 </section>
