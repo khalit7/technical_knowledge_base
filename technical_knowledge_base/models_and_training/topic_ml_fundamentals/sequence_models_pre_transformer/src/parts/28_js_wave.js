@@ -16,7 +16,7 @@
     const shown=Math.min(i,Lr);// layers of tracing revealed
     const X=t=>W-mr-(t+.5)*cw,Y=row=>24+(Lr-row)*rh;// row 0 = input, row Lr = output
     let s='';
-    for(let row=0;row<=Lr;row++){s+='<text x="'+ml+'" y="'+(Y(row)-8)+'" font-size="10" fill="var(--mute)">'+(row===0?'input':row===Lr?'output':'hidden '+row)+(row>0?', dilation '+d[row-1]:'')+'</text>'}
+    for(let row=0;row<=Lr;row++){s+='<text x="'+ml+'" y="'+(Y(row)-8)+'" font-size="11" fill="var(--mute)">'+(row===0?'input':row===Lr?'output':'hidden '+row)+(row>0?', dilation '+d[row-1]:'')+'</text>'}
     // edges of the revealed tracing
     for(let k=0;k<shown;k++){const lay=Lr-k,set=reach[k];set.forEach(t=>{[t,t+d[lay-1]].forEach(u=>{if(u<cols)s+='<line x1="'+X(t)+'" y1="'+Y(lay)+'" x2="'+X(u)+'" y2="'+Y(lay-1)+'" stroke="var(--c1)" stroke-width="1.3" opacity=".8"/>'})})}
     for(let row=0;row<=Lr;row++){const k=Lr-row,set=k<=shown?reach[k]:new Set();for(let t=0;t<cols;t++){const on=set.has(t);s+='<circle cx="'+X(t)+'" cy="'+Y(row)+'" r="'+Math.min(5,cw*.32)+'" fill="'+(on?'var(--c1)':'var(--bg)')+'" stroke="'+(on?'var(--c1)':'var(--dim)')+'"/>'}}
@@ -30,7 +30,7 @@
     $('wv-cnt').innerHTML=RD.stat('Receptive field',(i>Lr?R:part(i))+' samples',i>Lr?'1 + sum of dilations':'traced so far')+RD.stat('At 16 kHz',((i>Lr?R:part(i))/16).toFixed(2)+' ms','samples ÷ 16 per millisecond')+RD.stat('Layers',String(Lr),st.mode==='dil'?'dilations '+d.join(', '):'all dilation 1');
   }
   function reset(){build();if(anim)anim.reset(steps)}
-  $('wv-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.mode=b.dataset.m;[...$('wv-mode').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});reset();anim.play()});
+  $('wv-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.mode=b.dataset.m;[...$('wv-mode').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});reset()});
   $('wv-L').addEventListener('input',e=>{st.layers=+e.target.value;$('wv-Lv').textContent=st.layers;reset()});
   $('wv-Lv').textContent=st.layers;
   build();anim=RD.anim({card:'wv',ctl:'wv-ctl',n:steps,draw,ms:1300,label:'Layer traced'});

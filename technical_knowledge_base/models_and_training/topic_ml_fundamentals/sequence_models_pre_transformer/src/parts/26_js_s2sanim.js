@@ -15,7 +15,7 @@
     let y=2,s='';const cx=j=>ml+(j+.5)*cw;
     // input digits and encoder states
     s+='<text x="0" y="'+(y+14)+'" font-size="11" fill="var(--mute)">input</text>';
-    st.x.forEach((d,j)=>{const done=kind!=='e'||j<=k;s+='<rect x="'+(cx(j)-dg/2)+'" y="'+y+'" width="'+dg+'" height="20" rx="3" fill="var(--soft)" stroke="'+(kind==='e'&&j===k?'var(--ink)':'var(--line)')+'" opacity="'+(done?1:.4)+'"/>'+(cw>=10?'<text x="'+cx(j)+'" y="'+(y+14)+'" font-size="'+Math.min(12,cw-2)+'" text-anchor="middle">'+d+'</text>':'')});
+    st.x.forEach((d,j)=>{const done=kind!=='e'||j<=k;s+='<rect x="'+(cx(j)-dg/2)+'" y="'+y+'" width="'+dg+'" height="20" rx="3" fill="var(--soft)" stroke="'+(kind==='e'&&j===k?'var(--ink)':'var(--line)')+'" opacity="'+(done?1:.4)+'"/>'+(cw>=13?'<text x="'+cx(j)+'" y="'+(y+14)+'" font-size="'+Math.min(12,cw-2)+'" text-anchor="middle">'+d+'</text>':'')});
     y+=24;s+='<text x="0" y="'+(y+H*ch/2)+'" font-size="11" fill="var(--mute)">encoder</text><text x="0" y="'+(y+H*ch/2+12)+'" font-size="11" fill="var(--mute)">states</text>';
     R.hs.forEach((h,j)=>{if(kind==='e'&&j>k)return;const dim=!att&&kind!=='e'&&j<L-1;for(let u=0;u<H;u++)s+='<rect x="'+(cx(j)-dg/2)+'" y="'+(y+u*ch)+'" width="'+dg+'" height="'+(ch+.2)+'" fill="'+cs(h[u])+'" opacity="'+(dim?.25:1)+'"/>'});
     const ey=y+H*ch;y=ey+46;
@@ -25,10 +25,10 @@
       if(att){const a=R.atts[tcur];a.forEach((w,j)=>{if(w<.01)return;s+='<line x1="'+cx(j)+'" y1="'+(ey+1)+'" x2="'+tx+'" y2="'+(y-1)+'" stroke="var(--c3)" stroke-width="'+(0.6+5*w).toFixed(2)+'" opacity="'+(0.25+0.75*w).toFixed(2)+'"/>'})}
       else s+='<line x1="'+cx(L-1)+'" y1="'+(ey+1)+'" x2="'+tx+'" y2="'+(y-1)+'" stroke="var(--c2)" stroke-width="3"/>'}
     s+='<text x="0" y="'+(y+14)+'" font-size="11" fill="var(--mute)">output</text>';
-    for(let t=0;t<=L;t++){if(t>tcur)break;const ok=R.ok[t];s+='<rect x="'+(cx(t)-dg/2)+'" y="'+y+'" width="'+dg+'" height="20" rx="3" fill="'+(ok?'color-mix(in srgb,var(--good) 25%,var(--bg))':'color-mix(in srgb,var(--bad) 30%,var(--bg))')+'" stroke="'+(t===tcur&&kind==='d'?'var(--ink)':'none')+'"/>'+(cw>=10?'<text x="'+cx(t)+'" y="'+(y+14)+'" font-size="'+Math.min(t===L?9:12,cw-2)+'" text-anchor="middle">'+lab(R.out[t])+'</text>':'')}
+    for(let t=0;t<=L;t++){if(t>tcur)break;const ok=R.ok[t];s+='<rect x="'+(cx(t)-dg/2)+'" y="'+y+'" width="'+dg+'" height="20" rx="3" fill="'+(ok?'color-mix(in srgb,var(--good) 25%,var(--bg))':'color-mix(in srgb,var(--bad) 30%,var(--bg))')+'" stroke="'+(t===tcur&&kind==='d'?'var(--ink)':'none')+'"/>'+(cw>=13?'<text x="'+cx(t)+'" y="'+(y+14)+'" font-size="'+Math.min(t===L?11:12,cw-2)+'" text-anchor="middle">'+lab(R.out[t])+'</text>':'')}
     y+=26;
     // alignment matrix (attention) or the note for the fixed vector
-    if(att){const sz=Math.min(cw,12),top=y+4;s+='<text x="0" y="'+(top+10)+'" font-size="11" fill="var(--mute)">weights</text><text x="0" y="'+(top+23)+'" font-size="10" fill="var(--mute)">row: output</text><text x="0" y="'+(top+35)+'" font-size="10" fill="var(--mute)">col: input</text>';
+    if(att){const sz=Math.min(cw,12),top=y+4;s+='<text x="0" y="'+(top+10)+'" font-size="11" fill="var(--mute)">weights</text><text x="0" y="'+(top+23)+'" font-size="11" fill="var(--mute)">row: output</text><text x="0" y="'+(top+35)+'" font-size="11" fill="var(--mute)">col: input</text>';
       for(let t=0;t<=Math.min(tcur,L);t++){const a=R.atts[t];a.forEach((w,j)=>s+='<rect x="'+(cx(j)-cw/2+.3)+'" y="'+(top+t*sz)+'" width="'+(cw-.6)+'" height="'+(sz-.6)+'" fill="color-mix(in srgb,var(--c3) '+Math.round(w*95)+'%,var(--bg))"/>')}
       y=top+(L+1)*sz+6}
     else{s+='<text x="'+ml+'" y="'+(y+12)+'" font-size="11" fill="var(--mute)">'+(W<560?'Each output reads the same '+H+' numbers.':'Every output step reads the same '+H+' numbers: the last encoder state.')+'</text>';y+=20}
@@ -47,7 +47,7 @@
   }
   function reset(){build();if(anim)anim.reset(steps.length)}
   function setX(x){st.x=x;$('sa-in').value=x.join('');$('sa-msg').textContent='';reset()}
-  $('sa-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.mode=b.dataset.m;[...$('sa-mode').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});reset();anim.play()});
+  $('sa-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.mode=b.dataset.m;[...$('sa-mode').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});reset()});
   $('sa-in').addEventListener('change',e=>{const v=e.target.value.replace(/\s/g,'');if(!/^[0-9]{2,30}$/.test(v)){$('sa-msg').textContent='Type 2 to 30 digits.';return}setX(v.split('').map(Number))});
   let seed=12345;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647};
   $('sa-rand').addEventListener('click',()=>{const n=+$('sa-len').value;setX(Array.from({length:n},()=>Math.floor(rnd()*10)))});

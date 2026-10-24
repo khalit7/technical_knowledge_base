@@ -26,3 +26,10 @@ Scoring (0 to 2 each): parameter to move; reproduces a stated figure (counts dou
 | S12 | Character-level RNN text generation (Karpathy) | 6 | none | rejected | A live char-RNN worth reading needs far more weights than the page budget; linked as a resource |
 
 What the methodology lacked for this page: a rule for **toy tasks that isolate one capability** (memory only, copying only), where the toy's finding is qualitative and the page must say which published effect it mirrors (Bahdanau's length curve, Sutskever's reversal) and which it adds (attention not extrapolating past the training length). Also a rule for **"representable but not learnable"**: when a negative result could be read as "cannot", run the setting where it can (the short-trained plain RNN) and show both.
+
+## Rebuild of 2026-10-24 (teaching contract)
+| # | Idea | Placement | Status | Data, formulas, sources |
+|---|---|---|---|---|
+| S13 | **Hero: eight tokens under five designs**, the path from x1 to the output at position 8 and the steps that must run in order (RNN 8/8, LSTM 8 along an additive lane, RNN with attention 2/8, dilated convolution 3/none, self-attention 1/none) | Reading, top | built (`32_js_hero.js`) | Vaswani et al. 2017 Table 1 at n = 8; static annotated diagram, the structure of the whole argument |
+| S14 | **Gradient through time, before/after**: plain RNN against LSTM (and GRU) on the same 256 sequences, stepped back from the answer, per-step factor counters | Reading, gradient section | built (`33_js_grad.js`), replaces the second view of S2 | `grad_init` already recorded by `train_memory.py` (PyTorch autograd, untrained, seed 0); no new run. The trained-network version stays rejected (S8) |
+| S15 | Real image (Bahdanau's alignment figure, WaveNet's Figure 3, Olah's LSTM diagram) | none | rejected | not openly licensed; the page's own diagrams draw the same mechanisms in its notation |
