@@ -1,32 +1,75 @@
 
-<section id="mc-s6">
-<h2>6. Differentials and the trace trick: derive any matrix gradient without indices</h2>
-<p class="raise"><b>The question.</b> Index-by-index derivations work, but get long for expressions like \(\operatorname{tr}(X^\top A X B)\) or \(\log\det\Sigma\). Is there a way to stay with whole matrices?</p>
-<p>Yes: work with the <dfn>differential</dfn> \(dL\), the first-order change in \(L\) when every input changes by a small \(dX\). It obeys the familiar rules, applied to whole matrices (the order of factors must be kept, because matrix products do not commute):</p>
-<div class="tw"><table class="mini"><tr><th>rule</th><th>differential</th></tr>
-<tr><td>sum, constant</td><td>\(d(A + B) = dA + dB\), \(\ d(cA) = c\,dA\), \(\ dC = 0\) for a constant</td></tr>
-<tr><td>product</td><td>\(d(AB) = (dA)\,B + A\,(dB)\)</td></tr>
-<tr><td>transpose, trace</td><td>\(d(A^\top) = (dA)^\top\), \(\ d\operatorname{tr}(A) = \operatorname{tr}(dA)\)</td></tr>
-<tr><td>inverse</td><td>\(d(X^{-1}) = -X^{-1}\,(dX)\,X^{-1}\) (differentiate \(XX^{-1} = I\))</td></tr>
-<tr><td>log-determinant</td><td>\(d\ln\det X = \operatorname{tr}(X^{-1}\,dX)\)</td></tr>
-<tr><td>elementwise function</td><td>\(d\,\phi(X) = \phi'(X) \odot dX\)</td></tr></table></div>
-<p>Three facts about the <dfn>trace</dfn> (the sum of the diagonal, \(\operatorname{tr}\)) do the rest: a scalar is its own trace; the trace is unchanged by cycling a product, \(\operatorname{tr}(ABC) = \operatorname{tr}(CAB) = \operatorname{tr}(BCA)\); and \(\operatorname{tr}(G^\top dX) = \sum_{ij} G_{ij}\,dX_{ij}\), the entry-by-entry dot product of two matrices of the same shape. The last one gives the <b>identification rule</b>:</p>
-\[ dL = \operatorname{tr}\!\big(G^\top dX\big) \text{ for every } dX \quad\Longrightarrow\quad \nabla_X L = G \]
-<p class="plain">Because \(\sum_{ij} G_{ij}\,dX_{ij}\) is exactly the linear prediction of section 1 with slopes \(G_{ij}\). The recipe: take the differential, use the cyclic rule to move \(dX\) to the far right inside a trace, and read off what stands in front of it, transposed. Minka's classic note states the recipe as "1. compute the differential 2. massage the result into canonical form after which the derivative is immediately read off as the coefficient of dx, dx, or dX" ({{Minka 2000, Old and New Matrix Algebra Useful for Statistics, p. 2|https://tminka.github.io/papers/matrix/minka-matrix.pdf}}, based on Magnus and Neudecker). His canonical form is \(dy = \operatorname{tr}(A\,dX)\) with the derivative laid out by \(X^\top\), so his \(A\) is the transpose of the gradient \(G\) here: the same rule in the other layout.</p>
+<section id="mc-s11">
+<h2>11. Checking any gradient numerically</h2>
+<p>Compare the analytic gradient with a finite difference. A Taylor expansion, \(f(x \pm h) = f(x) \pm h f'(x) + \tfrac{h^2}{2} f''(x) \pm \tfrac{h^3}{6} f'''(x) + \cdots\), shows how differently the two common differences behave:</p>
+\[ \frac{f(x + h) - f(x)}{h} = f'(x) + \frac{h}{2} f''(x) + \cdots, \qquad \frac{f(x + h) - f(x - h)}{2h} = f'(x) + \frac{h^2}{6} f'''(x) + \cdots \]
+<div class="card"><h4 class="ft">The central difference's error falls a hundredfold per tenfold smaller step</h4>
+<div class="rd-svg" id="mc-fd"></div>
+<div class="tw"><table class="mini"><tr><th>\(h\)</th><th class="num">one-sided error</th><th class="num">central error</th></tr>
+<tr><td>0.1</td><td class="num">4.2e-3</td><td class="num">1.1e-4</td></tr><tr><td>0.01</td><td class="num">4.1e-4</td><td class="num">1.1e-6</td></tr><tr><td>0.001</td><td class="num">4.1e-5</td><td class="num">1.1e-8</td></tr><tr><td>0.0001</td><td class="num">4.1e-6</td><td class="num">1.1e-10</td></tr></table></div>
+<p class="small">On the tiny model's \(\partial L/\partial z_{\text{sat}} = -0.90997\), float64 (<code>src/recompute.py</code>): the one-sided error is proportional to \(h\), the central one to \(h^2\), as the expansion predicts. Too small an \(h\) loses again to rounding, because \(f(x + h) - f(x - h)\) subtracts two nearly equal numbers; the root's {{Gradient lab|n:3c65c17b0d0d81cdb851c0835b25a538}} plots the full V shape, where rounding takes over below about \(h = 10^{-6}\).</p></div>
+<ul>
+<li><b>Use float64.</b> In float32 the rounding floor is about \(10^{-7}\) relative, and a correct gradient can fail: the correct fused softmax cross-entropy below fails <code>gradcheck</code> in float32 with "Jacobian mismatch". The documentation warns: "The default values are designed for input of double precision" ({{torch.autograd.gradcheck|https://docs.pytorch.org/docs/stable/generated/torch.autograd.gradcheck.gradcheck.html}}; defaults eps \(10^{-6}\), atol \(10^{-5}\), rtol \(10^{-3}\)). Machine epsilon and catastrophic cancellation are sections 3 and 6 of {{Numerical computing for ML|n:3f05c17b0d0d81d6af0be4a9a2edba8d}}.</li>
+<li><b>Compare relatively</b>: \(|a - n| / \max(1, |a|, |n|)\), so that large and small gradients are judged alike.</li>
+<li><b>Check a VJP with one random probe.</b> To check a layer's backward without building its Jacobian, pick a random \(\bar y\) and differentiate the scalar \(\bar y \cdot f(x)\) numerically: its gradient is exactly \(J^\top \bar y\). The workbench in section 6 checks every layer this way.</li>
+<li><b>Avoid kinks</b>: ReLU at exactly 0, max-pooling ties and absolute values make finite differences straddle a corner. Check at points away from them.</li>
+</ul>
+<p><b>What a check catches.</b> The most common bug in a hand-written backward rule is forgetting that a VJP must multiply by the incoming gradient. It goes unnoticed when the function is the last thing before <code>.sum().backward()</code> (the incoming gradient is then 1) and breaks as soon as anything is downstream; <code>gradcheck</code> reports it at once.</p>
+<details class="dp"><summary>A custom backward for softmax cross-entropy, its gradcheck, and the buggy version, run for real <span class="mute">(2 min)</span></summary><div class="b">
+<p>Write your own backward when the composed rule is numerically poor (it divides by a tiny probability, as in 6d), when it saves more than needed (keep \(p\) instead of every intermediate), when a fused kernel hides its inside from the framework, or when you deliberately want a different "gradient" (a straight-through estimator for rounding in quantisation-aware training). PyTorch's recipe: "Subclass Function and implement the forward(), (optional) setup_context() and backward() methods"; "backward() (or vjp()) defines the gradient formula. It will be given as many Tensor arguments as there were outputs, with each of them representing gradient w.r.t. that output ... It should return as many tensors as there were inputs"; and "save_for_backward() should be used to save any tensors needed for the backward pass" ({{Extending PyTorch|https://docs.pytorch.org/docs/stable/notes/extending.html}}). The mechanics of <code>autograd.Function</code> are on {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}.</p>
+<pre>class SoftmaxCE(torch.autograd.Function):
+    @staticmethod
+    def forward(z, y):
+        logp = z - torch.logsumexp(z, dim=-1, keepdim=True)
+        return -logp.gather(-1, y[..., None]).squeeze(-1)
 
-<h3>Four derivations with the recipe</h3>
-<p><b>A linear layer again.</b> With \(y = Wx\) and \(\bar y\) the gradient at the output: \(dL = \bar y^\top dy = \bar y^\top (dW)\,x = \operatorname{tr}(\bar y^\top\, dW\, x) = \operatorname{tr}(x\,\bar y^\top\, dW)\), so \(G^\top = x\,\bar y^\top\) and \(\nabla_W L = \bar y\,x^\top\): section 5a in one line.</p>
-<p><b>A quadratic form</b> \(f = x^\top A x\): \(df = dx^\top A x + x^\top A\,dx = x^\top A^\top dx + x^\top A\,dx\) (a scalar equals its transpose), so \(\nabla_x f = (A + A^\top)\,x\), which is \(2Ax\) when \(A\) is symmetric. With \(A\) rows \((2, 1)\), \((0, 3)\) and \(x = (1, 2)\): \(f = 2x_1^2 + x_1x_2 + 3x_2^2\), and both routes give \((6, 13)\).</p>
-<p><b>A log-determinant</b> (it appears in every Gaussian log-likelihood and in normalising flows): \(d\ln\det X = \operatorname{tr}(X^{-1}dX)\), so \(\nabla_X \ln\det X = X^{-\top}\), the transpose of the inverse. With \(X\) rows \((2, 1)\), \((1, 3)\): \(\det X = 5\) and \(X^{-\top}\) has rows \((0.6, -0.2)\), \((-0.2, 0.4)\). Check one entry: raising \(X_{11}\) by \(h\) makes the determinant \(5 + 3h\), so \(\ln\det\) rises by about \(3h/5 = 0.6h\).</p>
-<p><b>Least squares</b> \(L = \lVert Xw - y \rVert^2 = (Xw - y)^\top (Xw - y)\), with \(X\) the data matrix (one row per example): \(dL = 2(Xw - y)^\top X\,dw\), so \(\nabla_w L = 2X^\top(Xw - y)\), and setting it to zero gives the normal equations \(X^\top X w = X^\top y\).</p>
-<div class="nums"><div class="t">Carried from the old Linear algebra page (checked)</div>Fit \(\hat y = w_0 + w_1 t\) to the points \((t, y) = (0, 1), (1, 2), (2, 2)\). With a column of ones, \(X\) has rows \((1, 0), (1, 1), (1, 2)\); \(X^\top X\) has rows \((3, 3)\), \((3, 5)\) and \(X^\top y = (5, 6)\), so \(w = \tfrac{1}{6}(7, 3) = (1.167, 0.5)\). The residuals (targets minus predictions) are \((-0.167, 0.333, -0.167)\): they add up to 0 and are orthogonal to \(t\), which is what \(\nabla_w L = 0\) says. Why solvers prefer a QR factorisation to forming \(X^\top X\) (it squares the condition number, here 2.92 to 8.55) is on the sibling page {{Linear algebra for ML|n:3c65c17b0d0d81d89c26e1dab2fcb701}}.</div>
-<p>The other identities the old page listed, all derivable the same way and each checked against PyTorch autograd in <code>src/recompute.py</code> (gradient layout: the result has the shape of the variable):</p>
-<div class="tw"><table class="mini"><tr><th>\(L\)</th><th>\(dL\)</th><th>gradient</th></tr>
-<tr><td>\(a^\top x\)</td><td>\(a^\top dx\)</td><td>\(\nabla_x = a\)</td></tr>
-<tr><td>\(x^\top A x\)</td><td>\(x^\top(A + A^\top)dx\)</td><td>\(\nabla_x = (A + A^\top)x\)</td></tr>
-<tr><td>\(\operatorname{tr}(AX)\)</td><td>\(\operatorname{tr}(A\,dX)\)</td><td>\(\nabla_X = A^\top\)</td></tr>
-<tr><td>\(\lVert X \rVert_F^2 = \operatorname{tr}(X^\top X)\)</td><td>\(2\operatorname{tr}(X^\top dX)\)</td><td>\(\nabla_X = 2X\)</td></tr>
-<tr><td>\(\ln\det X\)</td><td>\(\operatorname{tr}(X^{-1}dX)\)</td><td>\(\nabla_X = X^{-\top}\)</td></tr>
-<tr><td>\(\lVert Xw - y \rVert^2\)</td><td>\(2(Xw - y)^\top X\,dw\)</td><td>\(\nabla_w = 2X^\top(Xw - y)\)</td></tr></table></div>
-<p class="small">\(\lVert X \rVert_F\) is the Frobenius norm, the square root of the sum of squared entries. In numerator layout each gradient would be written transposed. For anything not here: the Matrix Cookbook (look up, do not memorise) or matrixcalculus.org, which derives and checks symbolic matrix derivatives (links in Further reading).</p>
+    @staticmethod
+    def setup_context(ctx, inputs, output):
+        z, y = inputs
+        ctx.save_for_backward(torch.softmax(z, dim=-1), y)   <span class="c"># keep p, not the logits</span>
+
+    @staticmethod
+    def backward(ctx, gL):
+        p, y = ctx.saved_tensors
+        gz = p.clone()
+        gz.scatter_add_(-1, y[..., None], -torch.ones_like(y, dtype=p.dtype)[..., None])  <span class="c"># p - onehot</span>
+        return gL[..., None] * gz, None                      <span class="c"># times the incoming gradient; y gets none</span>
+
+<span class="c"># on the rows (2, 1, 0) with target 2 and (0.5, -1, 3) with target 0, float64:</span>
+loss  [2.4076, 2.5957]
+grad  [[0.6652, 0.2447, -0.9100], [-0.9254, 0.0166, 0.9088]]
+gradcheck(SoftmaxCE.apply, (z, y))         -> True
+<span class="c"># the same backward without "gL[..., None] *":</span>
+gradcheck(SoftmaxCEBuggy.apply, (z, y))    -> GradcheckError: Jacobian mismatch for output 0 with respect to input 0</pre>
+<p class="src">Script and output: <code>src/inputs/measure/custom_fn.py</code>, <code>custom_fn.out</code>. The first row is the tiny model: loss 2.408, gradient \(p - y\). JAX's equivalent is <code>jax.custom_vjp</code> (forward returns the output and the residuals to save; backward maps residuals and cotangent to input cotangents).</p>
+</div></details>
+</section>
+
+<section id="mc-s12">
+<h2>12. What autograd records</h2>
+<p>PyTorch's autograd is reverse-mode AD run on a graph recorded afresh on every forward pass (which is what lets ordinary Python control flow decide the graph): each operation adds a backward node, which is that operation's VJP rule from section 6, and saves the tensors the rule needs (section 9). <code>loss.backward()</code> starts at the root with gradient 1 and runs each node once all its incoming gradients have arrived; a parameter's node adds the result into <code>.grad</code>. Here is the tiny model, run for real (PyTorch 2.14.1, <code>src/inputs/measure/tiny_autograd.py</code>):</p>
+<pre>x = torch.tensor([2., 1.], requires_grad=True)
+W = torch.tensor([[1., 0.], [0., 1.], [1., -2.]], requires_grad=True)
+L = F.cross_entropy((W @ x)[None], torch.tensor([2]))
+<span class="c"># walking L.grad_fn and each node's next_functions prints:</span>
+NllLossBackward0     -> LogSoftmaxBackward0   saved: self (1, 3), target (1,), total_weight ()
+LogSoftmaxBackward0  -> UnsqueezeBackward0    saved: result (1, 3)
+UnsqueezeBackward0   -> MvBackward0           saved: nothing
+MvBackward0          -> AccumulateGrad (W), AccumulateGrad (x)   saved: self (3, 2), vec (2,)
+<span class="c"># the saved tensors are the very objects W and x, not copies:</span>
+z.grad_fn._saved_self is W, z.grad_fn._saved_vec is x   ->  True True</pre>
+<p><code>MvBackward0</code> is rule 6a; <code>LogSoftmaxBackward0</code> and <code>NllLossBackward0</code> are the two halves of 6d. Saved tensors are references, so a saved weight costs nothing extra; a saved activation is the memory of section 9. How the engine schedules nodes, version counters for in-place safety, <code>retain_graph</code>, hooks and <code>no_grad</code> are {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}'s subject. JAX and <code>torch.func</code> do the same as function transforms (closed block below; {{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}}).</p>
+<details class="dp"><summary>JAX and torch.func: the same rules as function transforms <span class="mute">(1 min)</span></summary><div class="b">
+<p><b>JAX</b> traces the function into a jaxpr, applies forward mode with <code>jax.jvp</code>, extracts the linear map with <code>jax.linearize</code> and gets reverse mode by transposing it (<code>jax.vjp</code>; <code>jax.grad</code> is <code>vjp</code> with the cotangent 1); run on the tiny model in float64 it gives the same \(\bar W\) and \(\bar x\) as PyTorch to the last digit, and its backward <code>dot_general</code> contracts \(W\)'s rows where the forward one contracted its columns: the transpose of rule 6a, produced mechanically ({{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}}). <code>torch.func</code> offers the same function transforms on PyTorch's engine: <code>grad</code>, <code>vjp</code>, <code>jvp</code>, <code>jacrev</code>, <code>jacfwd</code>, <code>hessian</code> and <code>vmap</code>, which gives per-example gradients in one call.</p>
+</div></details>
+<details class="dp" id="mc-graph-dp"><summary>The real autograd graph of one transformer block: 71 nodes, what each saved, the engine's order <span class="mute">(explore)</span></summary><div class="b" id="mc-graph">
+<p>The graph PyTorch built, read back node by node: one pre-norm transformer block (layer norm, a 2-head causal self-attention written out as explicit matrix products and a softmax, a residual, layer norm, a GELU MLP, a residual), a final layer norm and a tied output layer, on the tokens [3, 1, 4, 1, 5] with width 8, MLP width 32 and a vocabulary of 16. The script walked <code>loss.grad_fn</code> through <code>next_functions</code>, read every <code>_saved_</code> attribute, and recorded the order the engine ran the nodes during <code>loss.backward()</code> with a pre-hook on each node (<code>src/inputs/measure/graph.py</code>). 13 of the 71 nodes are <code>AccumulateGrad</code>, one per parameter; the tied embedding's runs last, after both of its uses have sent their gradients.</p>
+<div class="out" id="gr-stats"></div>
+<div class="chips"><label class="chk"><input type="checkbox" id="gr-hide"> hide shape-only nodes (view, reshape, transpose, expand, split, clone, t)</label></div>
+<div class="leg" id="gr-leg"></div>
+<div class="chips"><button id="gr-play">&#9654; Play the backward pass in the engine's order</button><button id="gr-stop">Stop</button></div>
+<div class="det" id="gr-det"><b>Click a node</b> to see what it computes, what it saved and why.</div>
+<ol class="gl" id="gr-list"></ol>
+<p class="small mute">Nodes are listed in the order the engine executed them. Chips: <span class="chip act">activation saved</span> is memory held for the backward pass; <span class="chip par">weight</span> is a saved reference to a parameter, which costs nothing extra. Dimensions printed as <code>-1</code> and <code>-2</code> are stored by PyTorch as unsigned integers and converted here. Sizes in bytes (float32).</p>
+</div></details>
 </section>

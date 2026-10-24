@@ -1,6 +1,6 @@
-// ---- Derivative workbench (t-bench): forward, hand-derived VJP, finite-difference check, Jacobian built from VJPs ----
+// ---- Derivative workbench (Reading section 6, card #mc-wb): forward, hand-derived VJP, finite-difference check, Jacobian built from VJPs ----
 (function(){
-  const M=window.MC,D=window.MCD,root=document.getElementById('t-bench');if(!root)return;
+  const M=window.MC,D=window.MCD,root=document.getElementById('mc-wb');if(!root)return;
   const $=id=>document.getElementById(id);
   let layer='linear',act='gelu',seed=1,P=null,G=null;
   const SH={linear:{W:'m × n (3 × 2)',x:'n (2)',b:'m (3)',y:'m (3)'},act:{x:'n (4)',y:'n (4)'},softmax:{z:'K (3)',y:'K (3)'},sce:{z:'K (3)',y:'scalar'},
@@ -25,7 +25,6 @@
   function render(){
     if(layer==='act')P.fn=act;
     $('wb-actw').style.display=layer==='act'?'':'none';
-    root.querySelectorAll('#wb-steps>div').forEach(d=>d.classList.toggle('on',d.dataset.l===layer));
     const L=M.L[layer],h=+$('wb-h').value,y=L.fwd(P),chk=M.fdCheck(layer,P,G,h);
     // shapes
     const sh=SH[layer];
@@ -49,7 +48,7 @@
       for(let i=0;i<out.length;i++){const e=out.map((_,j)=>j===i?1:0);let g=e;if(Array.isArray(y[0])){const c=y[0].length;g=[];for(let r=0;r<y.length;r++)g.push(e.slice(r*c,r*c+c))}
         J.push(M.flat(L.bwd(P,g)[k0]))}
       const vj=out.map((_,i)=>0),gf=M.flat(G);const jt=Array.from({length:nin},(_,c)=>J.reduce((s,row,r)=>s+row[c]*gf[r],0));
-      $('wb-jac').innerHTML='<p class="small">∂y/∂'+NAME[k0]+': '+out.length+' outputs by '+nin+' input entries (numerator layout, '+(out.length*nin)+' numbers), built one row at a time by running the backward rule with ȳ set to each unit vector: a Jacobian is just '+out.length+' VJPs. Multiplying Jᵀ by the actual ȳ gives back the VJP above.</p>'+tbl(J)+'<div class="small" style="margin-top:4px">Jᵀ ȳ = </div>'+tbl(jt)+(layer==='linear'?'<p class="small">It equals W, as section 2 of the Reading says.</p>':'')+(layer==='softmax'?'<p class="small">Symmetric, and every row adds up to 0.</p>':'');
+      $('wb-jac').innerHTML='<p class="small">∂y/∂'+NAME[k0]+': '+out.length+' outputs by '+nin+' input entries (numerator layout, '+(out.length*nin)+' numbers), built one row at a time by running the backward rule with ȳ set to each unit vector: a Jacobian is just '+out.length+' VJPs. Multiplying Jᵀ by the actual ȳ gives back the VJP above.</p>'+tbl(J)+'<div class="small" style="margin-top:4px">Jᵀ ȳ = </div>'+tbl(jt)+(layer==='linear'?'<p class="small">It equals W, as section 1 says.</p>':'')+(layer==='softmax'?'<p class="small">Symmetric, and every row adds up to 0.</p>':'');
     }else $('wb-jac').innerHTML='<p class="small">Too large to show here ('+out.length*nin+' numbers).</p>';
   }
   RD.seg($('wb-layer'),m=>{layer=m;defaults();render()});

@@ -41,7 +41,7 @@
       RD.stat('Layer evaluations',String(e.fw+e.rc),e.fw+' forward + '+e.rc+' recomputed')+RD.stat('Backward steps',e.bw+' of '+(mode==='infer'?0:n),'');
   }
   const A=RD.anim({card:'mc-mem-card',ctl:'mc-mem-ctl',n:sch.ev.length,draw,ms:900,label:'Step'});
-  function rebuild(){build();A.reset(sch.ev.length);A.play()}
+  function rebuild(){build();A.reset(sch.ev.length)}
   RD.seg(document.getElementById('mc-mem-mode'),m=>{mode=m;rebuild()});
   const nr=document.getElementById('mc-mem-n'),sr=document.getElementById('mc-mem-s');
   nr.addEventListener('input',()=>{n=+nr.value;document.getElementById('mc-mem-nv').textContent=n;sr.max=Math.min(8,n);if(seg>n){seg=n;sr.value=n;document.getElementById('mc-mem-sv').textContent=n}rebuild()});

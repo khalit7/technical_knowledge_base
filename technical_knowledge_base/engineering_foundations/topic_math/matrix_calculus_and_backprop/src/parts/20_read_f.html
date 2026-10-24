@@ -1,46 +1,40 @@
 
-<section id="mc-s5">
-<h2>5. The layer gradients worth knowing cold, each derived</h2>
-<p class="raise"><b>The question.</b> Autograd computes these for you. Why derive them? Because reading a paper, writing a fused kernel, debugging a NaN or answering an interview question all start from them, and because each one teaches the same three moves: write one output entry with indices, differentiate, and recognise the result as a matrix product.</p>
-<p>Every derivation below gives the backward rule of one layer: given \(\bar y\) (the gradient arriving at the output, same shape as \(y\)), return the gradient for each input. The {{Derivative workbench|#t-bench}} runs each one on numbers you can change and checks it against finite differences.</p>
+<section id="mc-s7">
+<h2>7. Differentials and the trace trick: matrix gradients without indices</h2>
+<p>Index-by-index derivations get long for expressions like \(\operatorname{tr}(X^\top A X B)\) or \(\log\det\Sigma\). Instead, take the <dfn>differential</dfn> \(dL\), the first-order change in \(L\) when the input changes by a small \(dX\), with the familiar rules applied to whole matrices (keeping the order of factors). Since \(\operatorname{tr}(G^\top dX) = \sum_{ij} G_{ij}\,dX_{ij}\) is exactly the linear prediction with slopes \(G_{ij}\), the <b>identification rule</b> reads the gradient off:</p>
+\[ dL = \operatorname{tr}\!\big(G^\top dX\big) \text{ for every } dX \quad\Longrightarrow\quad \nabla_X L = G \]
+<p class="plain">The recipe: take the differential, use \(\operatorname{tr}(ABC) = \operatorname{tr}(CAB)\) to move \(dX\) to the far right inside a trace, and read off what stands in front of it, transposed. For a linear layer, \(dL = \bar y^\top (dW)\,x = \operatorname{tr}(x\,\bar y^\top\, dW)\), so \(\nabla_W L = \bar y\,x^\top\): section 6a in one line.</p>
+<details class="dp"><summary>The rules, four derivations and the identities table <span class="mute">(4 min)</span></summary><div class="b">
+<div class="tw"><table class="mini"><tr><th>rule</th><th>differential</th></tr>
+<tr><td>sum, constant</td><td>\(d(A + B) = dA + dB\), \(\ d(cA) = c\,dA\), \(\ dC = 0\) for a constant</td></tr>
+<tr><td>product</td><td>\(d(AB) = (dA)\,B + A\,(dB)\)</td></tr>
+<tr><td>transpose, trace</td><td>\(d(A^\top) = (dA)^\top\), \(\ d\operatorname{tr}(A) = \operatorname{tr}(dA)\)</td></tr>
+<tr><td>inverse</td><td>\(d(X^{-1}) = -X^{-1}\,(dX)\,X^{-1}\) (differentiate \(XX^{-1} = I\))</td></tr>
+<tr><td>log-determinant</td><td>\(d\ln\det X = \operatorname{tr}(X^{-1}\,dX)\)</td></tr>
+<tr><td>elementwise function</td><td>\(d\,\phi(X) = \phi'(X) \odot dX\)</td></tr></table></div>
+<p>Three facts about the <dfn>trace</dfn> (the sum of the diagonal) do the rest: a scalar is its own trace; the trace is unchanged by cycling a product, \(\operatorname{tr}(ABC) = \operatorname{tr}(CAB) = \operatorname{tr}(BCA)\); and \(\operatorname{tr}(G^\top dX) = \sum_{ij} G_{ij}\,dX_{ij}\). Minka's classic note states the recipe as "1. compute the differential 2. massage the result into canonical form after which the derivative is immediately read off as the coefficient of dx, dx, or dX" ({{Minka 2000, Old and New Matrix Algebra Useful for Statistics, p. 2|https://tminka.github.io/papers/matrix/minka-matrix.pdf}}, based on Magnus and Neudecker). His canonical form is \(dy = \operatorname{tr}(A\,dX)\) with the derivative laid out by \(X^\top\), so his \(A\) is the transpose of the gradient \(G\) here: the same rule in the other layout.</p>
+<p><b>A quadratic form</b> \(f = x^\top A x\): \(df = dx^\top A x + x^\top A\,dx = x^\top A^\top dx + x^\top A\,dx\) (a scalar equals its transpose), so \(\nabla_x f = (A + A^\top)\,x\), which is \(2Ax\) when \(A\) is symmetric. With \(A\) rows \((2, 1)\), \((0, 3)\) and \(x = (1, 2)\): \(f = 2x_1^2 + x_1x_2 + 3x_2^2\), and both routes give \((6, 13)\).</p>
+<p><b>A log-determinant</b> (in every Gaussian log-likelihood and in normalising flows): \(d\ln\det X = \operatorname{tr}(X^{-1}dX)\), so \(\nabla_X \ln\det X = X^{-\top}\). With \(X\) rows \((2, 1)\), \((1, 3)\): \(\det X = 5\) and \(X^{-\top}\) has rows \((0.6, -0.2)\), \((-0.2, 0.4)\). Check one entry: raising \(X_{11}\) by \(h\) makes the determinant \(5 + 3h\), so \(\ln\det\) rises by about \(3h/5 = 0.6h\).</p>
+<p><b>Least squares</b> \(L = \lVert Xw - y \rVert^2\), with \(X\) the data matrix: \(dL = 2(Xw - y)^\top X\,dw\), so \(\nabla_w L = 2X^\top(Xw - y)\), and setting it to zero gives the normal equations \(X^\top X w = X^\top y\). Carried from the old Linear algebra page (checked): fit \(\hat y = w_0 + w_1 t\) to \((t, y) = (0, 1), (1, 2), (2, 2)\); \(X^\top X\) has rows \((3, 3)\), \((3, 5)\) and \(X^\top y = (5, 6)\), so \(w = \tfrac{1}{6}(7, 3) = (1.167, 0.5)\). The residuals \((-0.167, 0.333, -0.167)\) add up to 0 and are orthogonal to \(t\), which is what \(\nabla_w L = 0\) says. Why solvers prefer QR to forming \(X^\top X\) (it squares the condition number, here 2.92 to 8.55) is on {{Linear algebra for ML|n:3c65c17b0d0d81d89c26e1dab2fcb701}}.</p>
+<p>The identities, each checked against PyTorch autograd in <code>src/recompute.py</code> (gradient layout):</p>
+<div class="tw"><table class="mini"><tr><th>\(L\)</th><th>\(dL\)</th><th>gradient</th></tr>
+<tr><td>\(a^\top x\)</td><td>\(a^\top dx\)</td><td>\(\nabla_x = a\)</td></tr>
+<tr><td>\(x^\top A x\)</td><td>\(x^\top(A + A^\top)dx\)</td><td>\(\nabla_x = (A + A^\top)x\)</td></tr>
+<tr><td>\(\operatorname{tr}(AX)\)</td><td>\(\operatorname{tr}(A\,dX)\)</td><td>\(\nabla_X = A^\top\)</td></tr>
+<tr><td>\(\lVert X \rVert_F^2 = \operatorname{tr}(X^\top X)\)</td><td>\(2\operatorname{tr}(X^\top dX)\)</td><td>\(\nabla_X = 2X\)</td></tr>
+<tr><td>\(\ln\det X\)</td><td>\(\operatorname{tr}(X^{-1}dX)\)</td><td>\(\nabla_X = X^{-\top}\)</td></tr>
+<tr><td>\(\lVert Xw - y \rVert^2\)</td><td>\(2(Xw - y)^\top X\,dw\)</td><td>\(\nabla_w = 2X^\top(Xw - y)\)</td></tr></table></div>
+<p class="small">\(\lVert X \rVert_F\) is the Frobenius norm. In numerator layout each gradient would be written transposed. For anything not here: the Matrix Cookbook (look up, do not memorise) or matrixcalculus.org, which derives symbolic matrix derivatives (Further reading).</p>
+</div></details>
+</section>
 
-<h3 id="mc-lin">5a. Linear layer: \(y = Wx + b\)</h3>
-<p>Shapes: \(x\) has \(n\) entries, \(W\) is \(m \times n\), \(b\) and \(y\) have \(m\).</p>
-<ol class="steps">
-<li>One output entry: \(y_k = \sum_j W_{kj}\,x_j + b_k\).</li>
-<li>The weight \(W_{ij}\) appears only in output \(k = i\), multiplied by \(x_j\), so \(\partial y_k/\partial W_{ij} = \delta_{ki}\,x_j\). The chain rule sums over outputs: \(\bar W_{ij} = \sum_k \bar y_k\,\delta_{ki}\,x_j = \bar y_i\,x_j\).</li>
-<li>The input \(x_j\) appears in every output, multiplied by \(W_{kj}\): \(\bar x_j = \sum_k \bar y_k\,W_{kj}\).</li>
-<li>The bias \(b_k\) appears once with slope 1: \(\bar b_k = \bar y_k\).</li>
-<li>Recognise the matrix forms:
-\[ \bar W = \bar y\,x^\top \;(m \times n), \qquad \bar x = W^\top \bar y \;(n), \qquad \bar b = \bar y \;(m) \]</li>
-</ol>
-<p><b>A batch.</b> PyTorch's <code>nn.Linear</code> stores \(W\) as (out, in) and computes \(Y = XW^\top + b\) for a batch \(X\) of shape \(B \times n\), one example per row. The same three moves give</p>
-\[ \bar W = \bar Y^\top X \;(m \times n), \qquad \bar X = \bar Y\,W \;(B \times n), \qquad \bar b = \textstyle\sum_{\text{rows}} \bar Y \;(m) \]
-<p class="plain">In plain words: a weight's gradient is (gradient coming in) times (input that went in), summed over the batch; an input's gradient is the gradient coming in sent back through the transposed weights; a bias that was added to every row collects the sum of every row's gradient. \(\bar Y^\top X\) is the sum over examples of one outer product each, so one example's weight gradient has rank 1 and a batch's has rank at most \(B\).</p>
-<div class="nums"><div class="t">The tiny model (\(b = 0\), \(\bar y = p - y\))</div>\(\bar W = (0.665, 0.245, -0.910)^\top (2, 1)\) has rows \((1.330, 0.665)\), \((0.489, 0.245)\), \((-1.820, -0.910)\); \(\bar x = (-0.245, 2.065)\); \(\bar b = (0.665, 0.245, -0.910)\). PyTorch autograd and <code>jax.grad</code> give the same to 15 digits (<code>src/recompute.py</code>).</div>
-<div class="nums"><div class="t">Carried from the old Calculus and optimisation page (checked): one logistic unit</div>\(x = (1, 2)\), \(w = (0.5, -0.25)\), \(b = 0.1\), label 1. Forward: \(z = w \cdot x + b = 0.1\), \(p = \sigma(0.1) = 0.525\), loss \(-\ln 0.525 = 0.644\). Backward: \(\bar z = p - 1 = -0.475\); the linear rule gives \(\bar w = \bar z\,x = (-0.475, -0.950)\), \(\bar b = -0.475\) and \(\bar x = \bar z\,w = (-0.2375, 0.1188)\). One step with learning rate 0.1: \(w = (0.5475, -0.155)\), \(b = 0.1475\), new \(z = 0.385\), \(p = 0.595\): the right answer became more likely.</div>
-<p><b>The real code.</b> PyTorch writes the backward rules of its built-in operators in one file, <code>tools/autograd/derivatives.yaml</code>. At v2.14.1, lines 1235 to 1238 hold the matrix product:</p>
-<pre>- name: mm(Tensor self, Tensor mat2) -> Tensor
-  self: mm_mat1_backward(grad, mat2, self.sym_sizes(), self.sym_strides(), self.layout(), 1)
-  mat2: mm_mat2_backward(grad, self, mat2.sym_sizes(), mat2.sym_strides(), mat2.layout(), 1)
-  result: at::mm(self_t, mat2_p) + at::mm(self_p, mat2_t)</pre>
-<p class="src">{{derivatives.yaml at v2.14.1, lines 1235-1238|https://github.com/pytorch/pytorch/blob/v2.14.1/tools/autograd/derivatives.yaml#L1235-L1238}}; the two helpers in {{torch/csrc/autograd/FunctionsManual.cpp, lines 1722-1758|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/autograd/FunctionsManual.cpp#L1722-L1758}}.</p>
-<p>For \(C = AB\) the helpers' general case is <code>grad.mm(mat2.t())</code> for \(A\) and <code>mat1.t().mm(grad)</code> for \(B\): \(\bar A = \bar C B^\top\) and \(\bar B = A^\top \bar C\), the rules above. The <code>result:</code> line is the forward-mode rule (section 7): the tangent of \(AB\) is \(\dot A B + A \dot B\), the product rule.</p>
-
-<h3 id="mc-act">5b. Elementwise nonlinearities: \(h = \phi(a)\)</h3>
-<p>Output \(i\) depends only on input \(i\), so the Jacobian is diagonal (section 2) and the VJP is an entry-by-entry product, written \(\odot\):</p>
-\[ \bar a = \bar h \odot \phi'(a) \]
-<div class="tw"><table class="mini"><tr><th>\(\phi\)</th><th>\(\phi'(a)\)</th><th>what PyTorch saves for it (derivatives.yaml, v2.14.1, lines 2132, 1788, 1550, 2160)</th></tr>
-<tr><td>ReLU, \(\max(0, a)\)</td><td>1 where \(a > 0\), else 0</td><td>its output: <code>threshold_backward(grad, result, 0)</code></td></tr>
-<tr><td>tanh</td><td>\(1 - \tanh^2 a = 1 - h^2\)</td><td>its output: <code>tanh_backward(grad, result)</code></td></tr>
-<tr><td>sigmoid \(\sigma(a) = 1/(1 + e^{-a})\)</td><td>\(\sigma(a)(1 - \sigma(a)) = h(1 - h)\)</td><td>its output: <code>sigmoid_backward(grad, result)</code></td></tr>
-<tr><td>GELU, \(a\,\Phi(a)\)</td><td>\(\Phi(a) + a\,\varphi(a)\)</td><td>its input: <code>gelu_backward(grad, self, approximate)</code></td></tr></table></div>
-<p class="small">\(\Phi\) is the standard normal cumulative distribution and \(\varphi\) its density. Functions whose derivative can be written from the output save the output; GELU's cannot, so it saves the input. Either way, one tensor the size of the layer stays in memory until the backward pass: section 9 measures how much that adds up to.</p>
-<div class="nums"><div class="t">Numbers (the workbench defaults)</div>At \(a = (-1.5, -0.2, 0.4, 2.0)\) with \(\bar h = (0.5, -1, 0.25, 1)\): ReLU passes \((0, 0, 0.25, 1)\), the negative inputs blocked; GELU's slopes are \((-0.1275, 0.3425, 0.8027, 1.0852)\), so \(\bar a = (-0.0637, -0.3425, 0.2007, 1.0852)\). GELU's slope is negative below about \(-0.75\) and above 1 near \(a = 2\): it is not a monotone function.</div>
-
-<h3 id="mc-sm">5c. Softmax: the VJP without the Jacobian</h3>
-<p>Multiply the Jacobian of section 2 by an incoming gradient \(\bar p\) and simplify; it is symmetric, so \(J^\top = J\):</p>
-\[ \bar z = \big(\operatorname{diag}(p) - p\,p^\top\big)\,\bar p = p \odot \bar p - p\,(p \cdot \bar p) = p \odot \big(\bar p - (p \cdot \bar p)\,\mathbf{1}\big) \]
-<p class="plain">In plain words: subtract from each incoming gradient the probability-weighted average of all of them, then scale by the probability. Cost: one dot product and one pass over the \(K\) entries, \(O(K)\), against \(O(K^2)\) to build the Jacobian. For a 128,000-word vocabulary that is the difference between a vector and a table of 16 billion numbers per token. PyTorch's softmax node saves only its output \(p\) (<code>_softmax_backward_data(grad, result, dim, ...)</code>, derivatives.yaml line 2237).</p>
-<div class="nums"><div class="t">Numbers</div>\(z = (2, 1, 0)\), \(p = (0.665, 0.245, 0.090)\), \(\bar p = (0.5, -1, 0.25)\): \(p \cdot \bar p = 0.1104\), so \(\bar z = (0.665 \times 0.3896,\) \(0.245 \times (-1.1104),\) \(0.090 \times 0.1396)\) \(= (0.2592, -0.2717, 0.0126)\). The entries add up to 0, as they must (section 2).</div>
-
+<section id="mc-s8">
+<h2>8. Why the backward pass costs about twice the forward pass</h2>
+<p>Count one linear layer. Forward computes \(Y = XW^\top\): one matrix product, \(B \times n \times m\) multiply-adds. Backward (6a) computes two of the same size: \(\bar X = \bar Y W\) and \(\bar W = \bar Y^\top X\). Almost all of a transformer's arithmetic is matrix products, and a multiply-add is 2 FLOPs, so a model with \(N\) weights spends about \(2N\) FLOPs per token forward and \(4N\) backward. Kaplan et al.: "Accounting for the backwards pass (approximately twice the compute as the forwards pass), we then define the estimated non-embedding compute as \(C \approx 6N\) floating point operators per training token" ({{Scaling Laws for Neural Language Models, section 2.1|https://arxiv.org/abs/2001.08361}}; {{paper page|n:3c65c17b0d0d81b08a1debb0c15cd252}}). Their forward count is \(2N + 2\,n_{\text{layer}}\,n_{\text{ctx}}\,d_{\text{model}}\) (Eq. 2.2); the second term, attention over the context, is left out of the 6N.</p>
+<div class="card" id="mc-cost-card"><h4 class="ft">Backward is exactly twice forward in FLOPs, less than twice in time</h4><div class="rd-svg" id="mc-cost-svg"></div><p class="small mute" id="mc-cost-cap"></p></div>
+<p>Measured on a small GPT-style stack: eight pre-norm blocks (width 512, 8 heads, MLP width 2048, vocabulary 8,192, tied embeddings, 29.4 million parameters, 25.2 million outside the embedding), a batch of 2 sequences of 512 tokens, float32, PyTorch 2.14.1; FLOPs from <code>torch.utils.flop_counter.FlopCounterMode</code> (matrix products only), times medians of 15 rounds on 2 CPU threads (<code>src/inputs/measure/</code>). <b>FLOPs: exactly 2.00</b>, forward 68.7 GFLOP and backward 137.4 GFLOP. <b>Time: 1.44</b>, 0.182 s backward against 0.126 s forward: the matrix products alone take 2.1 times as long backward (0.122 s against 0.057 s), but the forward pass also spends 0.026 s on softmax exponentials whose backward costs 0.006 s, and elementwise and memory-bound operations do not double.</p>
+<div class="co warn"><div class="t">So: "about twice" is a FLOP statement</div>It is exact for the matrix products, which is why FLOP budgets use 6N (and add the attention term at long context). Wall-clock time also depends on memory traffic and on the non-matmul operations, so measure it rather than assume it.</div>
+<details class="dp"><summary>Where 6N and the measured 206.2 GFLOP differ; the runs under load <span class="mute">(1 min)</span></summary><div class="b">
+<p>By kind of product: <code>mm</code> 60.1 against 120.3 GFLOP, the attention <code>bmm</code> 8.6 against 17.2. Kaplan's 6N with \(N\) = 25.2 million gives 154.9 GFLOP for the step; the counter's total is 206.2. The gap is the two things 6N leaves out on purpose: the tied output layer (25.8 GFLOP, because it reuses the embedding) and attention over the context (another 25.8 at 512 tokens); 0.2 GFLOP goes the other way, because 6N counts the biases and norm weights as if they were matrix weights. Two earlier timing runs on the same machine under load gave backward-to-forward ratios of 1.95 and 1.57: wall-clock ratios depend on the hardware and on how much of the work is matrix products.</p>
+</div></details>
+</section>

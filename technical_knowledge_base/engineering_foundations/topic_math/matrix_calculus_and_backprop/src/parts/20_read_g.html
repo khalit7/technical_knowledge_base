@@ -1,53 +1,55 @@
 
-<h3 id="mc-sce">5d. Softmax cross-entropy: two VJPs that collapse</h3>
-<p>The root page derives \(\nabla_z L = p - y\) by writing \(L = -z_y + \ln \sum_j e^{z_j}\) ({{Topic: math, Reading section 4|n:3c65c17b0d0d81cdb851c0835b25a538}}). Here is the same result as a composition, which shows why frameworks fuse the two layers.</p>
-<ol class="steps">
-<li>The loss \(L = -\ln p_y\) has \(\bar p_k = -1/p_y\) for the right word and 0 for the others: \(\bar p = -\mathbf{1}_y / p_y\), where \(\mathbf{1}_y\) is the one-hot vector of the right word. It divides by \(p_y\), which can be tiny.</li>
-<li>Its dot product with \(p\) is \(p \cdot \bar p = -p_y/p_y = -1\).</li>
-<li>Softmax's VJP (5c): \(\bar z = p \odot (\bar p + \mathbf{1}) = p \odot \mathbf{1} - p \odot \mathbf{1}_y / p_y = p - \mathbf{1}_y\).</li>
-</ol>
-<p class="plain">The division by \(p_y\) cancels exactly. Computed separately, a probability that underflows to 0 would give \(\bar p = -\infty\) and a NaN; fused, the gradient is just the probabilities minus the target. That is why <code>F.cross_entropy</code> takes logits, and why PyTorch's graph shows <code>LogSoftmaxBackward0</code> feeding <code>NllLossBackward0</code> (see the {{Real autograd graph|#t-graph}}): log-softmax is computed stably once and saved. For a batch averaged over \(B\) examples (<code>reduction="mean"</code>), each row's gradient is \((p - \mathbf{1}_y)/B\); with label smoothing or distillation targets \(q\), it is \(p - q\).</p>
+<section id="mc-s9">
+<h2>9. Memory: what the backward pass must keep, and checkpointing</h2>
+<p>Every rule in section 6 needs something from the forward pass: a linear layer's weight gradient needs its input \(x\); GELU needs its input; softmax and tanh need their outputs; layer norm needs its input and its statistics. These <dfn>activations</dfn> must be kept from the moment the forward pass computes them until the backward pass uses them, so at the turn from forward to backward almost all of them are alive at once. Inference keeps nothing: each value can be freed as soon as the next layer has read it.</p>
+<p><dfn>Activation checkpointing</dfn> (also gradient checkpointing or rematerialisation) keeps only some activations and recomputes the missing ones from the nearest checkpoint during the backward pass. Chen et al.: "we design an algorithm that costs \(O(\sqrt{n})\) memory to train a n layer network, with only the computational cost of an extra forward pass per mini-batch" ({{Chen et al. 2016, abstract|https://arxiv.org/abs/1604.06174}}). The argument (their section 4.3, Eq. 1): split \(n\) layers into \(k\) segments, keep the segment boundaries, and hold one segment's \(n/k\) activations at a time; memory is about \(n/k + k\), smallest at \(k = \sqrt n\), where it is \(2\sqrt n\) instead of \(n\), and each segment is recomputed once, so the extra work is at most one forward pass.</p>
+<div class="pred"><b>Predict:</b> with 9 layers, how many activations does store-everything hold at its peak, and how many does checkpointing every 3 layers hold? Step through both.</div>
+<div class="card" id="mc-mem-card"><h4 class="ft">One chain, four ways to run it: memory held against layers recomputed</h4>
+<div class="seg" id="mc-mem-mode" role="group" aria-label="Schedule"><button data-m="infer">Inference only</button><button data-m="all">Before: training, store everything</button><button data-m="ckpt" class="on">After: checkpoint every k layers</button><button data-m="none">Store nothing, recompute everything</button></div>
+<div class="ctl"><label>Layers, \(n\): <b id="mc-mem-nv">9</b><input type="range" id="mc-mem-n" min="4" max="16" step="1" value="9" aria-label="Number of layers"></label><label>Segment length, \(k\) (checkpoint mode): <b id="mc-mem-sv">3</b><input type="range" id="mc-mem-s" min="1" max="8" step="1" value="3" aria-label="Segment length"></label></div>
+<div class="rd-svg" id="mc-mem-svg"></div>
+<div class="mem-legend"><span><i style="background:var(--acc)"></i>held in memory</span><span><i style="background:var(--c2)"></i>recomputed now</span><span><i style="background:var(--c3)"></i>backward step now</span><span><i style="border:1px solid var(--line)"></i>freed or not yet computed</span></div>
+<div class="an-ctl" id="mc-mem-ctl"></div>
+<div class="an-cap" id="mc-mem-cap" aria-live="polite"></div>
+<div class="an-cnt" id="mc-mem-cnt"></div>
+<p class="small mute">A chain \(h_k = \tanh(w_k\,h_{k-1})\) with a squared-error loss <span class="ill">illustrative weights</span>; the backward step through layer \(k\) needs \(h_{k-1}\) (for the weight's gradient) and \(h_k\) (tanh's derivative is \(1 - h_k^2\)), exactly what PyTorch saves for <code>mul</code> and <code>tanh</code>. Memory is counted in activations (the input \(h_0\) included), compute in layer evaluations. Store-everything peaks at \(n + 1\); checkpointing with \(k = \sqrt n\) peaks near \(2\sqrt n\) and recomputes fewer than \(n\) layers; storing nothing needs only 4 but recomputes \(n(n-1)/2\) layers, quadratic in depth. Schedules are recomputed in <code>src/recompute.py</code>.</p>
+</div>
+<p><b>Measured on a real model.</b> The 8-block stack of section 8 on an Apple GPU (MPS), its allocator's count of allocated bytes read after every operation of one training step, each block run normally or wrapped in <code>torch.utils.checkpoint.checkpoint(..., use_reentrant=False)</code>:</p>
+<div class="card" id="mc-tl-card"><h4 class="ft">Checkpointing every block cuts the memory held at the turn from 422 to 52 MiB</h4><div class="rd-svg" id="mc-tl-svg"></div><p class="small mute" id="mc-tl-cap"></p></div>
+<p>Store-everything held 422.1 MiB at the turn and peaked at 486.1 MiB; checkpointing every block held 52.0 MiB and peaked at 172.6 MiB, for 42.9 GFLOP of recomputation (20.8% more) and a backward pass of 0.288 s instead of 0.182 s; inference peaked at 68 MiB. At scale, activation memory per layer, full against selective recomputation and how checkpointing combines with parallelism are on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}; how <code>torch.utils.checkpoint</code> works inside is on {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}.</p>
+<details class="dp"><summary>The measured table, where the 422 MiB go, and why the recompute is less than a forward pass <span class="mute">(2 min)</span></summary><div class="b">
+<div class="tw"><table class="mini" style="width:100%"><tr><th>run</th><th class="num">held at the turn, MiB</th><th class="num">peak, MiB</th><th class="num">extra FLOPs</th><th class="num">backward time (CPU), s</th></tr>
+<tr><td>inference (no grad)</td><td class="num">0</td><td class="num">68</td><td class="num">n/a</td><td class="num">n/a</td></tr>
+<tr><td>training, store everything</td><td class="num">422.1</td><td class="num">486.1</td><td class="num">0</td><td class="num">0.182</td></tr>
+<tr><td>checkpoint every other block</td><td class="num">237.1</td><td class="num">301.1</td><td class="num">21.5 G (10.4%, derived: half the blocks)</td><td class="num">0.235</td></tr>
+<tr><td>checkpoint every block</td><td class="num">52.0</td><td class="num">172.6</td><td class="num">+42.9 G (20.8%)</td><td class="num">0.288</td></tr></table></div>
+<ul>
+<li><b>Where the 422 MiB go.</b> Walking the autograd graph and adding up every saved tensor (each storage once, weights excluded) gives 442,646,596 bytes, within 444 bytes of the allocator's count. Per block: eight width-512 tensors (the inputs of both layer norms and of three matrix products, plus copies of \(q\), \(k\) and \(v\)) at 2 MiB each, the GELU input and output at 8 MiB each, and the attention probabilities at 16 MiB; 48.25 MiB a block, 386 MiB for eight, plus 36 MiB for the output layer's log-probabilities and its input. The attention probabilities alone are 128 MiB and grow with the square of the sequence length: the reason FlashAttention recomputes them (6f).</li>
+<li><b>Checkpointing every block</b> keeps only each block's input (2 MiB) until the backward pass reaches it, so the held memory falls by a factor of 8. The peak falls less, to 173 MiB, because one block's activations are rebuilt at a time on top of the gradients being accumulated.</li>
+<li><b>The extra compute is less than a forward pass.</b> The counted recompute is 42.9 GFLOP, not the blocks' full forward 60.1, because non-reentrant checkpointing "stops recomputation as soon as all needed intermediate activations have been recomputed" ({{torch.utils.checkpoint docs|https://docs.pytorch.org/docs/stable/checkpoint.html}}): each block's last matrix product is never redone, since its saved input is the GELU output, already rebuilt. In time, the whole step went from 0.31 to 0.42 s, about 35% more.</li>
+<li>The optimal schedule for a fixed number of checkpoints is Griewank and Walther's revolve, whose schedules are "provably optimal with regard to a primary and a secondary criterion" ({{ACM TOMS 26(1), 2000|https://doi.org/10.1145/347837.347846}}); recomputing attention inside the kernel is on the {{FlashAttention paper page|n:3c65c17b0d0d81e4a3e8e7a2c4771381}}.</li>
+</ul>
+</div></details>
+</section>
 
-<h3 id="mc-ln">5e. Layer norm, derived completely</h3>
-<p>Layer norm (Ba, Kiros and Hinton 2016) rescales each token's vector \(x\) (with \(N\) entries) to mean 0 and variance 1, then applies a learned scale \(\gamma\) and shift \(\beta\):</p>
-\[ \mu = \frac{1}{N}\sum_i x_i, \quad \sigma^2 = \frac{1}{N}\sum_i (x_i - \mu)^2, \quad r = \frac{1}{\sqrt{\sigma^2 + \epsilon}}, \quad \hat x_i = (x_i - \mu)\,r, \quad y_i = \gamma_i \hat x_i + \beta_i \]
-<dl class="sym"><dt>\(r\)</dt><dd>the reciprocal standard deviation (PyTorch calls it <code>rstd</code>); \(\epsilon\) (default \(10^{-5}\)) keeps it finite.</dd><dt>\(\hat x\)</dt><dd>the normalised vector.</dd></dl>
-<ol class="steps">
-<li>The easy ones: \(y_i = \gamma_i \hat x_i + \beta_i\) gives \(\bar\gamma = \bar y \odot \hat x\) and \(\bar\beta = \bar y\) (summed over the tokens of a batch), and passes \(\hat g := \bar{\hat x} = \bar y \odot \gamma\) to the normalisation.</li>
-<li>\(\hat x_i\) depends on \(x_j\) through three routes: directly, through \(\mu\) and through \(r\). The first two give \(r\,(\delta_{ij} - \tfrac{1}{N})\), because \(\partial \mu/\partial x_j = 1/N\).</li>
-<li>The variance: \(\partial \sigma^2/\partial x_j = \tfrac{2}{N}(x_j - \mu)\). (Its route through \(\mu\) contributes \(-\tfrac{2}{N^2}\sum_i (x_i - \mu) = 0\), because deviations from the mean add up to 0.)</li>
-<li>So \(\partial r/\partial x_j = -\tfrac{1}{2}(\sigma^2 + \epsilon)^{-3/2} \cdot \tfrac{2}{N}(x_j - \mu)\) \(= -\tfrac{r^3}{N}(x_j - \mu) = -\tfrac{r^2}{N}\hat x_j\).</li>
-<li>All three routes together:
-\[ \frac{\partial \hat x_i}{\partial x_j} = r\Big(\delta_{ij} - \frac{1}{N}\Big) + (x_i - \mu)\Big(-\frac{r^2}{N}\hat x_j\Big) = r\Big(\delta_{ij} - \frac{1}{N} - \frac{\hat x_i \hat x_j}{N}\Big) \]</li>
-<li>The VJP sums over \(i\): \(\bar x_j = \sum_i \hat g_i\,\frac{\partial \hat x_i}{\partial x_j}\), which gives
-\[ \bar x = r\Big(\hat g - \operatorname{mean}(\hat g) - \hat x \odot \operatorname{mean}(\hat g \odot \hat x)\Big), \qquad \hat g = \bar y \odot \gamma \]</li>
-</ol>
-<p class="plain">In plain words: take the incoming gradient, remove its average (the output cannot respond to adding a constant to every entry of \(x\)), remove its component along \(\hat x\) (nor to scaling \(x\) up), and scale by \(1/\sigma\). The result always adds up to 0 and is orthogonal to \(\hat x\).</p>
-<div class="nums"><div class="t">Numbers (workbench defaults)</div>\(x = (2, 1, 0, -1)\): \(\mu = 0.5\), \(\sigma^2 = 1.25\), \(r = 0.8944\), \(\hat x = (1.3416, 0.4472, -0.4472, -1.3416)\). With \(\gamma = (1, 0.5, -1, 2)\) and \(\bar y = (0.3, -0.6, 0.9, 0.1)\): \(\hat g = (0.3, -0.3, -0.9, 0.2)\), \(\operatorname{mean}(\hat g) = -0.175\), \(\operatorname{mean}(\hat g \odot \hat x) = 0.1006\), so \(\bar x = 0.8944 \times (0.340, -0.170, -0.680, 0.510)\) \(= (0.3041, -0.1521, -0.6082, 0.4562)\). It adds up to 0 and its dot product with \(\hat x\) is 0, as promised. PyTorch's <code>F.layer_norm</code> gives the same.</div>
-<p><b>The real kernel</b> writes the same thing in a form that needs only two sums per row. From PyTorch v2.14.1's CPU kernel (<code>scale</code> is \(1/N\), <code>a</code> is \(r\), <code>ds</code> \(= \sum_j \bar y_j x_j \gamma_j\), <code>db</code> \(= \sum_j \bar y_j \gamma_j\)):</p>
-<pre>const opmath_t a = rstd_data[i];
-const opmath_t b = (db * opmath_t(mean_data[i]) - ds) * a * a * a * scale;
-const opmath_t c = -b * opmath_t(mean_data[i]) - db * a * scale;
-// Scalar math:
-// for (const auto j : c10::irange(N)) {
-//   const T gamma_v = gamma_null ? T(1) : gamma_data[j];
-//   dX_ptr[j] = a * dY_ptr[j] * gamma_v + b * X_ptr[j] + c;
-// }</pre>
-<p class="src">{{aten/src/ATen/native/cpu/layer_norm_kernel.cpp at v2.14.1, lines 287-294|https://github.com/pytorch/pytorch/blob/v2.14.1/aten/src/ATen/native/cpu/layer_norm_kernel.cpp#L287-L294}}. On the defaults: \(a = 0.8944\), \(b = -0.0805\), \(c = 0.1968\), and \(a\,\bar y \odot \gamma + b\,x + c\) reproduces \(\bar x\) above (checked in <code>src/recompute.py</code>).</p>
-<p class="small">RMSNorm (used by Llama and most 2026 open models) drops the mean: \(y = \gamma \odot x / \text{rms}\), \(\text{rms} = \sqrt{\operatorname{mean}(x^2) + \epsilon}\), and the same steps give \(\bar x = (\hat g - \tilde x \odot \operatorname{mean}(\hat g \odot \tilde x))/\text{rms}\) with \(\tilde x = x/\text{rms}\): only the scaling direction is removed. On the same numbers, \(\bar x = (0.2177, -0.2586, -0.7348, 0.1769)\).</p>
-
-<h3 id="mc-attn">5f. Attention</h3>
-<p>One head, \(T\) queries, keys and values of width \(d\): \(Q\) (\(T_q \times d\)), \(K\) and \(V\) (\(T_k \times d\)).</p>
-\[ S = \frac{QK^\top}{\sqrt d}, \qquad A = \operatorname{softmax}_{\text{rows}}(S), \qquad O = AV \]
-<p>Backward, each line one of the rules above, given \(\bar O\):</p>
-<ol class="steps">
-<li>\(O = AV\) is a matrix product (5a): \(\bar V = A^\top \bar O\) and \(\bar A = \bar O V^\top\).</li>
-<li>Each row of \(A\) is a softmax of the same row of \(S\) (5c): \(\bar S_{ij} = A_{ij}\big(\bar A_{ij} - D_i\big)\) with \(D_i = \sum_j A_{ij}\bar A_{ij}\).</li>
-<li>\(S = QK^\top/\sqrt d\) is a matrix product again: \(\bar Q = \bar S K/\sqrt d\) and \(\bar K = \bar S^\top Q/\sqrt d\).</li>
-</ol>
-<p>One identity makes attention's backward pass cheap in memory. Substituting \(\bar A = \bar O V^\top\):</p>
-\[ D_i = \sum_j A_{ij} \sum_c \bar O_{ic} V_{jc} = \sum_c \bar O_{ic} \sum_j A_{ij} V_{jc} = \sum_c \bar O_{ic}\,O_{ic} \]
-<p class="plain">\(D\) can be computed from the output and its gradient alone, one number per query, without the \(T \times T\) matrix \(A\). FlashAttention's backward pass uses exactly this \(D_i\) and recomputes \(A\) block by block instead of storing it (Dao et al. 2022 define \(D_i = do_i^\top o_i\) in Eq. 4 of appendix B.2 and compute "\(D_i = \operatorname{rowsum}(dO_i \circ O_i)\)" in Algorithm 4, line 19; they describe recomputing the attention matrix as "a form of selective gradient checkpointing", section 3.1: {{arXiv 2205.14135|https://arxiv.org/abs/2205.14135}}; {{FlashAttention paper page|n:3c65c17b0d0d81e4a3e8e7a2c4771381}}). The stakes are measured in section 9: in the 8-layer stack measured there, the stored attention probabilities are 128 of the 422 MiB the backward pass keeps.</p>
-<div class="nums"><div class="t">Numbers (workbench defaults)</div>\(Q\) has rows \((2, 1)\) and \((0, 1)\); \(K = V = W\) of the tiny model; \(d = 2\). The first query is the root page's: scores \((1.414, 0.707, 0)\), weights \((0.576, 0.284, 0.140)\), output \((0.716, 0.004)\). With \(\bar O\) rows \((1, 0)\) and \((0, -1)\): \(D = (0.716, -0.471)\), \(\bar Q\) rows \((0.1438, -0.2000)\) and \((0.2318, -0.4915)\), \(\bar V\) rows \((0.576, -0.306)\), \((0.284, -0.620)\), \((0.140, -0.074)\). PyTorch's fused <code>scaled_dot_product_attention</code> gives the same.</div>
-<div class="use"><div class="t">What these six are used for</div>Reading the backward pass of any architecture (every block is made of them); writing fused kernels and custom <code>autograd.Function</code>s (section 11); memory planning, because each rule shows what it needs saved; interview questions, where "derive the softmax cross-entropy gradient" and "derive the layer norm backward" are classics.</div>
+<section id="mc-s10">
+<h2>10. Vanishing and exploding gradients: a property of the product</h2>
+<p>By the chain rule, the gradient that reaches layer 0 of an \(n\)-layer chain is a product of \(n\) transposed Jacobians, \(\bar h_0 = J_1^\top J_2^\top \cdots J_n^\top\, \bar h_n\), so its size is bounded by the product of their largest stretches (spectral norms):</p>
+\[ \lVert \bar h_0 \rVert \le \lVert J_1 \rVert\, \lVert J_2 \rVert \cdots \lVert J_n \rVert\; \lVert \bar h_n \rVert \]
+<p class="plain">If each layer scales a typical vector by a factor \(g\), thirty layers scale it by about \(g^{30}\): \(0.9^{30} = 0.042\) and \(1.1^{30} = 17.4\). The gradient vanishes or explodes geometrically with depth, and no single layer is to blame: a 10% shortfall per layer is enough. Below, 30 layers of width 64 with random weights of standard deviation \(g/\sqrt{64}\) <span class="ill">illustrative, seeded</span>, so each linear layer scales a typical vector by about \(g\).</p>
+<div class="pred"><b>Predict:</b> at \(g = 1\) the linear chain's gradient stays near 1. What happens to the tanh chain at \(g = 1\), and at what \(g\) does it stop vanishing? Then drag.</div>
+<div class="card" id="mc-van-card"><h4 class="ft">The gradient at layer 0 is a product of 30 factors: move the per-layer gain</h4>
+<div class="ctl"><label>Per-layer gain \(g\): <b id="mc-van-gv">1.00</b><input type="range" id="mc-van-g" min="0.5" max="2" step="0.05" value="1" aria-label="Per-layer gain"></label></div>
+<div class="rd-svg" id="mc-van-svg"></div>
+<div class="an-cnt" id="mc-van-cnt"></div>
+<p class="small mute">The loss's gradient enters at layer 30 as a random unit vector and is sent back through \(W_k^\top\) (linear) or through \(W_k^\top\) after multiplying by tanh's slope \(1 - h_k^2\). Log scale: each grid line is a factor of 100,000. Computed in the page (<code>parts/22c_js_new.js</code>), checked against <code>src/two_layer.py</code>.</p>
+</div>
+<p>Tanh's slope is at most 1, so at \(g = 1\) every factor shrinks a little and the gradient at layer 0 is 0.039 of what entered; raising \(g\) makes the weights larger but also pushes the units into saturation, where the slope is near 0. The cures all act on the factors: <b>initialisation</b> that sets \(g \approx 1\) for the activation used, and <b>normalisation</b> that keeps it there ({{Normalisation and initialisation|n:3c65c17b0d0d81369e1cc38ed4e11d48}}); <b>residual connections</b>, whose factor \(I + J_F\) keeps an identity path through every layer (section 3), with the branches scaled down at depth ({{Normalisation, residuals and stability|n:3fd5c17b0d0d8163b50dc5e9d9240e89}}); <b>gradient clipping</b> against the occasional explosion ({{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}}); and, in recurrent networks, where the same Jacobian is multiplied once per time step, gated cells ({{Sequence models: the pre-transformer lineage|n:3c65c17b0d0d818da4ded61ace6847ce}}, backpropagation through time).</p>
+<details class="dp"><summary>The toy's numbers at six gains <span class="mute">(under 1 min)</span></summary><div class="b">
+<div class="tw"><table class="mini"><tr><th>\(g\)</th><th class="num">0.5</th><th class="num">0.9</th><th class="num">1.0</th><th class="num">1.1</th><th class="num">1.5</th><th class="num">2.0</th></tr>
+<tr><td>gradient at layer 0, linear</td><td class="num">8.0e-10</td><td class="num">0.0365</td><td class="num">0.861</td><td class="num">15.0</td><td class="num">1.65e5</td><td class="num">9.24e8</td></tr>
+<tr><td>gradient at layer 0, tanh</td><td class="num">6.7e-10</td><td class="num">0.0105</td><td class="num">0.0393</td><td class="num">0.176</td><td class="num">3.47</td><td class="num">27.9</td></tr>
+<tr><td>\(g^{30}\)</td><td class="num">9.3e-10</td><td class="num">0.042</td><td class="num">1</td><td class="num">17.4</td><td class="num">1.92e5</td><td class="num">1.07e9</td></tr></table></div>
+<p class="small">The linear chain tracks \(g^{30}\) within the spread of one random draw (30 layers, width 64, seed 7); the tanh chain stays below it at every gain because each factor carries a slope \(1 - h^2 \le 1\).</p>
+</div></details>
 </section>

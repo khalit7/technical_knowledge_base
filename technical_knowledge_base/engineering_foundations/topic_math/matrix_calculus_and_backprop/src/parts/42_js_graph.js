@@ -1,21 +1,21 @@
-// ---- Real autograd graph tab (t-graph): the grad_fn graph PyTorch built for one tiny transformer block (data: MCD.graph, from src/inputs/measure/graph.json) ----
+// ---- Real autograd graph (Reading section 12, closed block #mc-graph): the grad_fn graph PyTorch built for one tiny transformer block (data: MCD.graph, from src/inputs/measure/graph.json) ----
 (function(){
-  const G=window.MCD&&window.MCD.graph,root=document.getElementById('t-graph');if(!G||!root)return;
+  const G=window.MCD&&window.MCD.graph,root=document.getElementById('mc-graph');if(!G||!root)return;
   const $=id=>document.getElementById(id),esc=RD.esc;
   const SHAPE=new Set(['ViewBackward0','UnsafeViewBackward0','ReshapeAliasBackward0','ExpandBackward0','TransposeBackward0','SplitBackward0','CloneBackward0','TBackward0']);
   const CAT=op=>op==='AccumulateGrad'?['acc','var(--c5)','accumulate into .grad']:/Mm|Bmm/.test(op)?['mm','var(--c1)','matrix product']:/LayerNorm/.test(op)?['norm','var(--c4)','layer norm']:
     /Softmax|Nll/.test(op)?['sm','var(--c2)','softmax and loss']:SHAPE.has(op)?['shape','var(--dim)','shape only']:['ew','var(--c3)','elementwise, add, index'];
   const INFO={
     NllLossBackward0:'Negative log-likelihood, averaged over the 4 positions: picks −log p of each target. Backward writes −1/4 at each target position and 0 elsewhere. It saved the log-probabilities it read from (self) and the targets.',
-    LogSoftmaxBackward0:'Log-softmax of each row of logits. Backward: ḡ − exp(result) × sum(ḡ), using only its saved output (result = log p, so exp(result) = p). Together with the node above it gives (p − onehot)/4: Reading section 5d.',
-    MmBackward0:'A matrix product C = A B (the 3-D activations are flattened to (4, width) by the view nodes around it). Backward: Ā = C̄ Bᵀ and B̄ = Aᵀ C̄, Reading section 5a; derivatives.yaml lines 1235-1238. It saves both inputs: the activation A costs memory, the weight B is a reference to the parameter.',
+    LogSoftmaxBackward0:'Log-softmax of each row of logits. Backward: ḡ − exp(result) × sum(ḡ), using only its saved output (result = log p, so exp(result) = p). Together with the node above it gives (p − onehot)/4: section 6d.',
+    MmBackward0:'A matrix product C = A B (the 3-D activations are flattened to (4, width) by the view nodes around it). Backward: Ā = C̄ Bᵀ and B̄ = Aᵀ C̄, section 6a; derivatives.yaml lines 1235-1238. It saves both inputs: the activation A costs memory, the weight B is a reference to the parameter.',
     BmmBackward0:'A batched matrix product, one per head (batch dimension 2 = 1 sequence × 2 heads): either q kᵀ or A v. Backward is 5a per head: grad.bmm(mat2ᵀ) and selfᵀ.bmm(grad) (derivatives.yaml lines 378-380). Both inputs are activations here, so both cost memory.',
     TBackward0:'The transpose Wᵀ used by x @ W.t(). Backward transposes the gradient back so it has W’s shape. Saves nothing.',
     AccumulateGrad:'A leaf: a parameter with requires_grad. It adds the arriving gradient into .grad (it does not overwrite, which is why zero_grad exists). A parameter used twice, like the tied embedding, receives two contributions and its accumulator runs only after both have arrived.',
-    NativeLayerNormBackward0:'Layer norm. Backward is Reading section 5e: r(ĝ − mean(ĝ) − x̂ ⊙ mean(ĝ ⊙ x̂)), plus γ̄ and β̄. It saved its input, the per-token mean (result1) and reciprocal standard deviation (result2, rstd), and references to γ and β.',
-    AddBackward0:'An addition (a residual connection or a bias). Backward passes the same gradient to both inputs unchanged (alpha = 1). This is the untouched identity path of Reading section 4.',
-    GeluBackward0:'GELU. Backward: ḡ ⊙ (Φ(u) + u φ(u)), Reading section 5b; it saved its input u because the derivative cannot be written from the output.',
-    SoftmaxBackward0:'Softmax over each row of attention scores. Backward: p ⊙ (ḡ − Σ ḡ p) per row, Reading section 5c; it saved only its output p, the (heads × T × T) attention weights, the term that grows with the square of the sequence length.',
+    NativeLayerNormBackward0:'Layer norm. Backward is section 6e: r(ĝ − mean(ĝ) − x̂ ⊙ mean(ĝ ⊙ x̂)), plus γ̄ and β̄. It saved its input, the per-token mean (result1) and reciprocal standard deviation (result2, rstd), and references to γ and β.',
+    AddBackward0:'An addition (a residual connection or a bias). Backward passes the same gradient to both inputs unchanged (alpha = 1). This is the untouched identity path of section 3.',
+    GeluBackward0:'GELU. Backward: ḡ ⊙ (Φ(u) + u φ(u)), section 6b; it saved its input u because the derivative cannot be written from the output.',
+    SoftmaxBackward0:'Softmax over each row of attention scores. Backward: p ⊙ (ḡ − Σ ḡ p) per row, section 6c; it saved only its output p, the (heads × T × T) attention weights, the term that grows with the square of the sequence length.',
     MaskedFillBackward0:'The causal mask: future positions set to −∞. Backward sets the gradient to 0 at the masked positions; it saved the mask.',
     DivBackward0:'Division of the scores by √(head width) = 2. Backward divides the gradient by the same number; it saved only that scalar (self is None: not needed).',
     IndexBackward0:'The embedding lookup emb[tokens]. Backward adds each position’s gradient into the row of the embedding table for that token: token 1 appears twice, so its row receives two contributions. Saved: the indices.',
@@ -45,7 +45,7 @@
   function stop(){if(timer){clearInterval(timer);timer=0}}
   $('gr-stop').addEventListener('click',()=>{stop();runK=-1;list()});
   $('gr-play').addEventListener('click',()=>{stop();runK=0;sel=order[0].i;detail(order[0]);list();
-    timer=setInterval(()=>{if(root.hidden||document.hidden){stop();return}runK++;if(runK>=order.length){stop();runK=-1;list();return}
+    timer=setInterval(()=>{if(root.offsetParent===null||document.hidden){stop();return}runK++;if(runK>=order.length){stop();runK=-1;list();return}
       if(hide&&CAT(order[runK].op)[0]==='shape')return;sel=order[runK].i;detail(order[runK]);list()},RD.RM?1400:650)});
   const nAct=N.reduce((a,n)=>a+n.sv.filter(s=>s[1]&&!s[3]).length,0);
   $('gr-stats').innerHTML=RD.stat('Nodes',String(N.length),N.filter(n=>n.op==='AccumulateGrad').length+' of them AccumulateGrad (one per parameter)')+

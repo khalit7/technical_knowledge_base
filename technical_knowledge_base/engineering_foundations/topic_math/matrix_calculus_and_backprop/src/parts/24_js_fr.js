@@ -1,4 +1,4 @@
-// ---- Reading section 7: forward mode (one tangent sweep per weight) against reverse mode (one backward sweep) on the tiny model ----
+// ---- Reading section 4: forward mode (one tangent sweep per weight) against reverse mode (one backward sweep) on the tiny model ----
 (function(){
   const M=window.MC, t=M.tinyAll(), jv=M.tinyJvps(), view=document.getElementById('mc-fr-view');
   if(!view)return;
@@ -59,5 +59,5 @@
       RD.stat('Slopes found',s.found.filter(v=>v!==null).length+' of 6',s.xbar?'plus the 2 of x':'')+RD.stat('Multiply-adds in the sweeps',String(s.macs),mode==='fwd'?'16 per sweep':'16 for W, 6 more for x');
   }
   const A=RD.anim({card:'mc-fr-card',ctl:'mc-fr-ctl',n:S.length,draw,ms:1700,label:'Step'});
-  RD.seg(document.getElementById('mc-fr-mode'),m=>{mode=m;S=steps();A.reset(S.length);A.play()});
+  RD.seg(document.getElementById('mc-fr-mode'),m=>{mode=m;S=steps();A.reset(S.length)});
 })();

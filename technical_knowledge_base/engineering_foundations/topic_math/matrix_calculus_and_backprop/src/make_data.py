@@ -33,7 +33,7 @@ for r in g["nodes"]:
     nodes.append(dict(i=r["i"], op=r["op"], lb=r["label"], nx=r["next"], sv=sv, seq=r.get("seq"), pm=r.get("param", ""), sh=r.get("shape")))
 
 D = dict(
-    tiny=E["tiny"], wb=E["wb"], chain9=E["chain9"],
+    tiny=E["tiny"], wb=E["wb"], chain9=E["chain9"], fd=E["fd_zsat"],
     flops=dict(fwd=E["flops"]["fwd"], bwd=E["flops"]["bwd"], fwd_by=E["flops"]["fwd_by"], bwd_by=E["flops"]["bwd_by"],
                ckpt1_extra=E["flops"]["ckpt1_extra"]),
     timing=E["timing"], prof=json.load(open(os.path.join(M, "prof.json"))),
