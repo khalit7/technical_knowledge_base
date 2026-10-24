@@ -25,7 +25,7 @@
      rm:'Without a document-to-shard index, removing this page means re-tokenising; with one, it means rebuilding one shard.',cap:'This is where provenance is usually lost. Keep an index from document id to shard and offset, and the curated documents beside the token files (the Storage and loading page explains why).'}];
   $('pv-chain').innerHTML=S.map((s,i)=>'<div class="pv-st" id="pv-'+i+'"><h4>'+E(s.h)+'</h4>'+kv(s.k)+(s.lic?'<div class="pv-lic">'+s.lic+'</div>':'')+'<div class="pv-rm">'+E(s.rm)+'</div></div>').join('');
   function draw(i){S.forEach((_,k)=>{const el=$('pv-'+k);el.classList.toggle('done',k<i);el.classList.toggle('cur',k===i)});$('pv-cap').textContent=S[i].cap}
-  RD.anim({card:'pv-chain',ctl:'pv-ctl',n:S.length,draw,ms:3000,label:'Step'});
+  RD.anim({card:'dg-prov',ctl:'pv-ctl',n:S.length,draw,ms:3000,label:'Step'});
   const ds=[['Motivation','Teach data curation on real data: one WARC through a FineWeb-style pipeline so every page of the topic measures the same documents.'],
     ['Composition','20,991 responses from one Common Crawl WARC (CC-MAIN-2024-30, file 00000); 2,617 English documents kept. Web pages of every kind; may contain personal data and offensive text.'],
     ['Collection','Common Crawl\'s July 2024 crawl (CCBot, robots.txt honoured at crawl time), downloaded 2026-10-14 with sha256 recorded.'],

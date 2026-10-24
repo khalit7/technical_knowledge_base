@@ -1,38 +1,54 @@
-<section id="dg-s3">
-<h2>3. What the running example contains</h2>
-<p><b>The test.</b> Every item of seven benchmarks (@@n_items@@ items: MMLU test 14,042, HellaSwag validation 10,042, ARC-Easy 2,376, GSM8K 1,319, ARC-Challenge 1,172, MATH-500 500, HumanEval 164), as question plus answer, against ten corpora: run0's pages before any filter and after the whole FineWeb-style pipeline, 50,000-row samples of FineWeb, FineWeb-Edu and DCLM-baseline, @@nemo_docs@@ documents from Nemotron-CC's real and synthetic buckets, and four post-training samples. Then, to make the web numbers solid, two whole FineWeb files of the same crawl: @@wide_line@@ One scan computes every rule at once (<code>src/scripts/dg_contam.py</code>, about @@scan_speed@@ on 4 CPU threads, rough: shared machine); datatrove's own decontamination filter ran separately on the samples.</p>
-<div class="pr" data-r="0" id="dg-pr3">
-<div class="q">Predict: across the 205,000 web documents sampled from FineWeb, FineWeb-Edu, DCLM and Nemotron-CC, GPT-3's rule (any shared 13-gram) flags a few dozen. How many of them contain a benchmark question?</div>
-<div class="opts"><button data-a="0">none</button><button data-a="1">about a quarter</button><button data-a="2">about half</button><button data-a="3">nearly all</button></div>
-<div class="ans" hidden>@@pr3_answer@@</div>
+<section id="dg-s2">
+<h2>2. Finding it in training data: n-gram rules</h2>
+<p><b>The idea.</b> Turn every test item and every training document into <dfn>tokens</dfn> (usually lower-cased words, punctuation stripped), then look for runs of <i>n</i> consecutive tokens, <dfn>n-grams</dfn>, that occur in both. A copied question shares almost all its n-grams with the page that copies it; an unrelated page shares none. The choice of <i>n</i> trades the two errors: short n-grams ("which of the following is") occur everywhere, long ones break on any small edit.</p>
+<div class="pr" data-r="3" id="dg-pr0">
+<div class="q">Predict, then move n: what share of FineWeb-Edu documents share at least one <b>5-gram</b> with some item of seven benchmarks?</div>
+<div class="opts"><button data-a="0">under 1%</button><button data-a="1">about 10%</button><button data-a="2">about 40%</button><button data-a="3">over 80%</button></div>
+<div class="ans" hidden>83.5% (41,762 of 50,000). At 8 tokens it is 2.2%, at 13 tokens 0.04%: the chart below has every corpus.</div>
 </div>
-<div class="rd-card">
-<h4>Documents flagged by each rule, per corpus</h4>
-<div class="tw" id="dg-meas-tab"></div>
-<p class="small mute"><span class="meas">measured</span> 5-, 8- and 13-gram columns: documents sharing at least one n-gram with any test item (the 13-gram column is GPT-3's rule without its frequency cut). Tulu 3: documents that cover more than 50% of some item's tokens by 8-grams. datatrove: documents its <code>NGramsDecontFilter</code> removes with default settings. Post-training rows are matched on their whole text (prompt and responses); Tulu 3 itself matches prompts only.</p>
+<div class="rd-card" id="dg-n-card">
+<h4>A 5-gram touches most of the web; a 13-gram almost none of it</h4>
+<div class="seg" id="dg-n-seg"><button data-m="5">n = 5</button><button data-m="8" class="on">n = 8 (Tulu 3, Llama 3)</button><button data-m="13">n = 13 (GPT-3)</button></div>
+<div class="vz" id="dg-n-view"></div>
+<p class="small mute"><span class="meas">measured</span> Share of each corpus's documents that share at least one n-gram with any of the @@n_items@@ test items (log scale). Sharing an n-gram is not containing a test question: section 3 reads what the flags are.</p>
 </div>
-<div class="rd-card">
-<h4>What the flagged pairs really are (every one read)</h4>
-<div id="dg-cat-bars"></div>
-<p class="small mute"><span class="meas">measured</span> All @@n_pairs@@ (document, item) pairs flagged by the 13-gram or the Tulu 3 rule, labelled by rules then checked by reading (every uncertain pair and at least ten per category; @@n_overrides@@ corrected by hand; the agent's reading, not a human annotator's). Categories as defined in section 1. The {{Contamination checker|#t-dgcc}} lists every pair.</p>
+<p><b>How it runs at scale.</b> The test side is small, so it becomes an index: hash every n-gram of every test item into a set (or a Bloom filter, a fixed-size bit array that answers "probably seen" or "certainly not seen"; the root's {{Dedup lab|n:3c65c17b0d0d811fa5ecda8d365ab00f}} measures one). The training side is streamed once: hash each document's n-grams and look each up. The cost is one pass over the corpus at roughly the speed of tokenising it; the index here, all seven benchmarks at once, holds @@idx13@@ distinct 13-grams and @@idx8@@ 8-grams. Llama 2 used suffix arrays instead (which find matches of any length) and reports the pass took "around seven hours ... utilizing an estimated 1,500 cores" (<a href="https://arxiv.org/abs/2307.09288" target="_blank" rel="noopener noreferrer">Appendix A.6</a>).</p>
+<p><b>The published rules</b> differ in four choices: the unit (words or model tokens), <i>n</i>, what is matched (the whole item, the question, or the answer), and the decision. Three cover most practice: <b>GPT-3</b>, any shared 13-gram of words, ignoring 13-grams that match more than 10 training documents; <b>Tulu 3</b> (Llama 3 and PaLM are similar), an item counts as matched when more than 50% of its tokens sit in 8-grams shared with one training example; <b>datatrove</b>'s default, any shared 12-gram from the answer, numbers replaced by 0. Singh et al. found the longest single matched span (<dfn>longest match</dfn>, their ConTAM) works better than the union of all matches. The stepper runs all four on one real pair.</p>
+<div class="rd-card" id="dg-ng-card">
+<h4>One real pair, four rules: the same marks, four verdicts</h4>
+<p class="small">A benchmark item (top) and the matched part of a training document (bottom), tokenised as the scripts here do. Step through: normalise, index the item's 8-grams, stream the document, mark the covered item tokens, apply each rule. Switch the pair to see a real copy, a shared famous passage, a question stem and shared diagram code go through the same steps.</p>
+<div class="seg" id="dg-ng-pair"></div>
+<div id="dg-ng-ctl" class="an-ctl"></div>
+<div class="an-cap" id="dg-ng-cap"></div>
+<div id="dg-ng-view"></div>
+<div class="an-cnt" id="dg-ng-cnt"></div>
+<p class="small mute"><span class="meas">measured</span> pairs from the running example (flagged by the scan in <code>src/scripts/dg_contam.py</code>, labelled by reading). Tokens: datatrove's <code>simplify_text</code> with numbers kept, split on spaces. The verdicts are computed in the page from these tokens and agree with the scan.</p>
 </div>
-<p><b>Web text: overlap without copies.</b> @@web_line@@</p>
-<p><b>At scale.</b> @@wide_find@@</p>
-<p><b>Post-training data: real copies.</b> @@rlvr_line@@</p>
-<p><b>The same copies travel to other mixtures.</b> The {{Post-training data|n:3f95c17b0d0d81318c3ec7e4564d7b42}} page ran this page's scanner, unchanged, over all 95,373 rows of IF_multi_constraints_upto5 (the instruction-following RL set used for OLMo 3) and read every flagged pair: 22 are copies, in 21 rows, of MMLU high-school-mathematics, ARC and HellaSwag items, mostly inside FLAN-style task templates with constraints appended, because its prompts come from the same Tulu 3 SFT pool. The same check of IFEval against instruction-following training sets flagged 26 items, every one shared constraint wording ("wrapped in double angular brackets"), never the request itself: strip the constraint text before decontaminating instruction-following data, or every row looks contaminated (measured 2026-10-15, that page's <code>src/notes/contam_read.md</code>).</p>
-<p><b>datatrove's default would not have caught them.</b> @@dt_line@@</p>
-<p><b>Variants are the grey zone.</b> @@variant_line@@</p>
-<p><b>The rules' own false positives</b> are the largest category. @@fp_line@@</p>
-</section>
-
-<section id="dg-s4">
-<h2>4. Paraphrases: what n-grams cannot see</h2>
-<p>A rewritten or translated test item shares few 8-grams with the original, so every rule in section 2 misses it; Yang et al.'s rephrased MMLU was invisible to 10-gram matching (F1 0) yet lifted a 13B model to 85.9 (<a href="https://arxiv.org/abs/2311.04850" target="_blank" rel="noopener noreferrer">Tables 2 and 5</a>). Their "LLM decontaminator" works in two stages: an embedding model proposes, for each test item, the most similar training examples, and a strong LLM judges whether each pair is the same question. Tulu 3 tried embeddings and dropped them: "we found it difficult to distinguish mere distributional similarity from actual paraphrasing" (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Section 3.2</a>).</p>
-<p><span class="meas">measured</span> Stage one here: <code>BAAI/bge-small-en-v1.5</code> (33M parameters, CPU) embedded @@emb_n_train@@ post-training prompts (the question part only) and the questions of @@emb_n_items@@ test items (GSM8K, MATH-500, ARC, MMLU). @@emb_line@@</p>
-<div class="rd-card">
-<h4>Nearest post-training prompt for each test item, by similarity</h4>
-<div id="dg-emb-view"></div>
-<p class="small mute"><span class="meas">measured</span> Cosine similarity of normalised CLS embeddings. Colour: what the pair is, by reading the top pairs (labels on @@emb_n_lab@@ pairs). Items whose best match is also flagged by n-grams are marked.</p>
+<p><b>Two details that decide the false-positive rate.</b></p>
+<ul class="tight">
+<li><b>Punctuation stripping erases mathematics.</b> Every rule removes punctuation before matching, and in maths the operators are punctuation: <code>z^4 + z^2 + 1</code> and <code>z^4 - z^2 + 1</code> become the same tokens. The scan here flagged a Tulu 3 RLVR prompt as a copy of a MATH-500 problem for exactly that reason (section 3). For maths and code, match on a normalisation that keeps operators and digits, or confirm matches by comparing answers.</li>
+<li><b>Number normalisation turns tables into matches.</b> datatrove replaces every number with 0 by default (<code>utils/text.py:185-193</code>), so a benchmark item containing twelve numbers in a row yields the 12-gram "0 0 0 0 0 0 0 0 0 0 0 0", and every training page with a table or a price list then matches it. On run0's 19,241 extracted pages that one n-gram fired on @@dt_zero_ex@@ of the @@dt_rm_ex@@ pages datatrove's default decontamination removed. GPT-3's "ignore n-grams that match more than 10 training documents" rule exists for exactly this.</li>
+</ul>
+<div class="pr" data-r="2" id="dg-pr1">
+<div class="q">Predict: datatrove's default decontamination (12-grams over the answer) against our seven benchmarks, on the Tulu 3 SFT sample (5,000 rows). How many rows does it remove?</div>
+<div class="opts"><button data-a="0">about 5</button><button data-a="1">about 50</button><button data-a="2">about 170</button><button data-a="3">about 1,000</button></div>
+<div class="ans" hidden>@@pr1_answer@@</div>
 </div>
-<p><span class="meas">measured</span> <b>Stage two, the judge.</b> @@judge_line@@</p>
+<details class="dp"><summary>Ten published rules, side by side <span class="mute">(unit, n, decision, what they act on, source)</span></summary><div class="b">
+<div class="tw"><table>
+<thead><tr><th>Who</th><th>Unit and n</th><th>Decision</th><th>Acts on</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>GPT-3 (2020)</td><td>words, 13</td><td>any shared 13-gram; ignore 13-grams that match more than 10 training documents ("common cultural phrases, legal boilerplate"); remove the 13-gram plus 200 characters around it, drop pieces under 200 characters, drop documents cut into more than 10 pieces</td><td>training data (a bug left long documents unfiltered)</td><td><a href="https://arxiv.org/abs/2005.14165" target="_blank" rel="noopener noreferrer">App. C</a></td></tr>
+<tr><td>PaLM (2022)</td><td>words, 8</td><td>an example is contaminated if at least 70% of its 8-grams were seen in training</td><td>analysis only (clean vs full scores)</td><td><a href="https://arxiv.org/abs/2204.02311" target="_blank" rel="noopener noreferrer">Section 8</a></td></tr>
+<tr><td>Llama 2 (2023)</td><td>model tokens, spans over 10 tokens, up to 4 mismatches allowed</td><td>per-item contamination share; "clean" under 20%, "dirty" 80% or more</td><td>analysis only</td><td><a href="https://arxiv.org/abs/2307.09288" target="_blank" rel="noopener noreferrer">App. A.6</a></td></tr>
+<tr><td>Llama 3 (2024)</td><td>tokens, 8</td><td>share of an item's tokens inside an 8-gram seen in pretraining; threshold chosen per benchmark</td><td>analysis; post-training data cleaned by exact prompt match</td><td><a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Section 5.1.4</a></td></tr>
+<tr><td>Tulu 3 (2024)</td><td>tokens, 8</td><td>a test item is matched by a training example if more than 50% of its tokens sit in 8-grams shared with that one example; a training set counts as contaminated above 2% of any evaluation's items</td><td>post-training prompts (user turns only)</td><td><a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Section 3.2</a></td></tr>
+<tr><td>DCLM (2024)</td><td>strings</td><td>a page with the question and at least one answer option (for MMLU, only the question's last sentence)</td><td>analysis and removal from the released baseline</td><td><a href="https://arxiv.org/abs/2406.11794" target="_blank" rel="noopener noreferrer">Section 4.6</a></td></tr>
+<tr><td>Dolma (2024)</td><td>paragraphs over 13 tokens</td><td>any paragraph that appears in the perplexity evaluation set (Paloma), via the Bloom filter</td><td>whole documents removed (at most 0.02%)</td><td><a href="https://arxiv.org/abs/2402.00159" target="_blank" rel="noopener noreferrer">App. L</a></td></tr>
+<tr><td>datatrove 0.10.1</td><td>words, 12, numbers replaced by 0</td><td>any shared 12-gram from the answer, or straddling question and answer (question-only n-grams off by default)</td><td>whole documents</td><td><code>pipeline/decont/n_grams.py:27-49</code></td></tr>
+<tr><td>Cosmopedia (2024)</td><td>words, 10</td><td>10-gram candidates, then difflib similarity: drop if matched text exceeds half the test item</td><td>synthetic documents</td><td><a href="https://huggingface.co/blog/cosmopedia" target="_blank" rel="noopener noreferrer">blog</a></td></tr>
+<tr><td>GPT-4 (2023)</td><td>characters, spaces and symbols removed</td><td>any of three random 50-character substrings of the item found in a training example</td><td>analysis</td><td><a href="https://arxiv.org/abs/2303.08774" target="_blank" rel="noopener noreferrer">App. C</a></td></tr>
+</tbody></table></div>
+<p class="small mute">Tulu 3 does not name the tokenizer it counts with; its Table 37 caption says "&gt;5% eval overlap" while Section 3.2 states 2% (both quoted, the paper does not reconcile them). Singh et al., whose method Llama 3 follows, found the longest single matched span works better than the union of all matches, and that n above 8 or requiring more than one occurrence causes misses (<a href="https://arxiv.org/abs/2411.03923" target="_blank" rel="noopener noreferrer">arXiv 2411.03923, Section 1</a>).</p>
+</div></details>
 </section>

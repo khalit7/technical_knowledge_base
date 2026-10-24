@@ -18,7 +18,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto('file://' + path.resolve(file));
   const problems = [];
-  for (const tab of ['t-read', 't-dgcc', 't-dgpii', 't-dgprov', 't-more']) {
+  for (const tab of ['t-read', 't-dgcc', 't-more']) {
     await p.click(`button[data-t=${tab}]`); await sleep(300);
     const check = async (what) => {
       const r = await p.evaluate(t => { const x = document.getElementById(t).innerText;
