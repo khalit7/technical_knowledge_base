@@ -7,7 +7,7 @@
   $('gb-q').innerHTML=B.questions.map((q,i)=>'<option value="'+i+'">'+(i+1)+'. '+E(q.q.length>60?q.q.slice(0,58)+'...':q.q)+'</option>').join('');
   const llmBtn=$('gb-src').querySelector('[data-m="llm"]');
   if(!B.llm){llmBtn.disabled=true;llmBtn.title='pending: no LLM extraction of the subset yet';llmBtn.textContent='LLM (pending)'}
-  else llmBtn.textContent=B.llm.source==='agt'?'LLM (Qwen3-1.7B, Agentic lab prompt)':'LLM (Qwen3-1.7B, graphrag prompt)';
+  else llmBtn.textContent=B.llm.source==='agt'?'LLM (Qwen3-1.7B, root agent runs\' prompt)':'LLM (Qwen3-1.7B, graphrag prompt)';
   const CAP=[
     'The ten paragraphs graphrag sees as ten text units: the question\'s two gold paragraphs (orange edge) and eight distractors that share its words (HotpotQA picked them by bigram TF-IDF).',
     'Extract: every text unit becomes a list of names. With the noun-phrase extractor this costs no model call; with an LLM it is one extraction call plus one gleaning call per unit.',
