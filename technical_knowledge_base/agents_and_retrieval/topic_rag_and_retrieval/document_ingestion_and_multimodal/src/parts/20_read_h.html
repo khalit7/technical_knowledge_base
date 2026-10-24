@@ -1,15 +1,20 @@
-<section id="ing-s7">
-<h2>7. Metadata: what every chunk must carry</h2>
-<p><b>The problem.</b> Retrieval returns chunks, not documents. Once a chunk is separated from its file, three later jobs need facts only the parser had: a <b>citation</b> ("page 4 of the 2020 annual report, section 3.2") the user can check, a <b>filter</b> ("only contracts signed after 2024", "only documents this user may read") applied inside the search, and an <b>update</b> (find and replace every chunk of a file that changed). If the ingestion stage throws these away, nothing downstream can recover them.</p>
-<p><b>How it works.</b> Store each chunk as a record, not as a string. A record that serves all three jobs, with the fields filled from the running example (a paragraph of QASPER paper 1909.00175 parsed by Docling; the field names are this page's choice, not a standard):</p>
-<pre class="fm" style="font-size:12.5px;white-space:pre-wrap;text-align:left" id="ing-rec"></pre>
-<p class="small mute">Real values from Docling 2.138.0's structured output for this PDF (page, bounding box in PDF points with the origin at the bottom left, heading, element type), hashes computed by <code>src/scripts/make_record.py</code>; the <code>acl</code> value is illustrative. Docling reported this paragraph's heading as "3.1 Datasets and Settings" without its parent "3"; rebuilding the full path from heading numbers is a small post-processing step.</p>
-<ul>
-<li><b>Source and version:</b> a stable document id, the URL or path, the version or content hash of the whole file and the time it was parsed. Without the version, a citation can point at text that no longer exists.</li>
-<li><b>Location:</b> page number and, where the parser gives it, the bounding box. A viewer can then open the page and highlight the passage, which is how a user checks a citation in seconds.</li>
-<li><b>Structure:</b> the heading path ("4 Experiments &gt; 4.2 Results") and the element type (paragraph, table, caption, list). Prepending the heading path to the text that is embedded is a cheap way to give a chunk its context; the {{retrieval pipeline page|n:3c65c17b0d0d819899fde889e1e8b782}} covers contextual prefixes.</li>
-<li><b>Filters and permissions:</b> dates, authors, document type, tenant and access-control list. These must be indexed fields so the vector store can filter inside the search; {{RAG in production|n:3f85c17b0d0d81aa9ba9c0ceac9e28c1}} shows why enforcing access in the prompt instead leaks.</li>
-<li><b>Ingestion facts:</b> parser name and version, whether OCR was used and its confidence. When a parser upgrade fixes a bug, these say which documents to re-parse.</li>
-</ul>
-<p><b>Cost.</b> A few hundred bytes per chunk, small next to a 1,024-dimension float32 vector (4,096 bytes). <b>How to check it:</b> sample twenty retrieved chunks and try to open each cited page from the metadata alone.</p>
+<section id="ing-s12">
+<h2>12. Choosing an ingestion pipeline</h2>
+<div class="tw"><table>
+<thead><tr><th>Your documents</th><th>Start with</th><th>Why (evidence on this page)</th></tr></thead>
+<tbody>
+<tr><td>Born-digital, single column, mostly prose (reports, contracts, editor exports)</td><td>A fast text-layer extractor (PyMuPDF, pdftotext), with de-hyphenation and ligature normalisation</td><td>Milliseconds per page; on LaTeX papers stream order was already close to reading order; hyphens and ligatures were the main damage (section 4)</td></tr>
+<tr><td>Born-digital with columns, tables, captions, running headers (papers, filings, manuals)</td><td>A layout-aware parser (Docling, Marker, MinerU), tables kept as HTML or Markdown with headers</td><td>Highest evidence survival and the only correct table grid here; about a second per page on CPU (sections 4 and 6)</td></tr>
+<tr><td>Scans and photos</td><td>OCR routed per page (Tesseract or a parser's OCR), or VLM OCR on a GPU for hard layouts</td><td>Text-layer tools return nothing on scans; published VLM OCR scores lead the full benchmark (sections 4 and 5)</td></tr>
+<tr><td>Charts, infographics, slides, figure-heavy pages</td><td>Page-image retrieval (ColPali family), alone or fused with text retrieval</td><td>Section 11 and the ColPali paper's Table 2</td></tr>
+<tr><td>A corpus that changes</td><td>Structure-aware or content-defined chunk boundaries, chunk hashes, vectors keyed by model version</td><td>Section 9: 49% or 44% of words re-embedded against 76% for fixed windows, with a 15% floor</td></tr>
+</tbody></table></div>
+<details class="qa"><summary>Interview rehearsal: ingest 5 million mixed documents for an enterprise assistant with citations and per-user permissions</summary><div><ol>
+<li><b>Intake:</b> a queue of (document id, version, ACL) events from each source; a file hash skips unchanged files.</li>
+<li><b>Triage per page:</b> text-layer quality check; born-digital pages to a fast layout-aware parser on CPU workers, broken or scanned pages to an OCR or VLM-OCR pool on GPUs; spreadsheets read natively, not as images.</li>
+<li><b>Elements, not strings:</b> keep type, page, bounding box and heading path; tables as HTML with a row serialisation; figures with captions, and VLM descriptions for figure-heavy collections.</li>
+<li><b>Chunk</b> by structure; hash chunks; embed only new hashes, keyed by model version; write vectors and metadata (ACL, tenant, dates) to a store that filters inside the search; delete chunks whose hashes vanished in the same transaction.</li>
+<li><b>Optional visual index</b> for slide decks and reports with charts: page-image embeddings (ColPali family) fused with text results, if you can afford about 30 times the vector storage and a multi-vector index.</li>
+<li><b>Evaluate</b> on a golden set built from the original files, per document type; track parse failures, OCR share and pages per second as production metrics; re-parse by parser version when a parser improves.</li>
+</ol><p>Latency and cost of serving belong to {{RAG in production|n:3f85c17b0d0d81aa9ba9c0ceac9e28c1}}.</p></div></details>
 </section>

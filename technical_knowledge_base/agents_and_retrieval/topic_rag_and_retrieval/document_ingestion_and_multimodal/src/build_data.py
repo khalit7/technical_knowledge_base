@@ -44,6 +44,8 @@ if have("results_auto.json"):
             ING["res"].update(j(extra))
 if have("record.json"):
     ING["rec"] = j("record.json")
+    if os.path.exists(os.path.join(DD, "img", "rec_1909.00175_p3.jpg")):
+        ING["recImg"] = img("rec_1909.00175_p3.jpg")  # page 3 of arXiv 1909.00175 v1, rendered by pdftoppm (grey, 400 px wide)
 s = json.dumps(ING, ensure_ascii=False, separators=(",", ":"))
 # house style: no em dashes anywhere on the page, including inside parser outputs shown verbatim (shown as en dashes)
 s = s.replace("\u2014", "\u2013")

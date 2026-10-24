@@ -1,20 +1,37 @@
 <section id="ing-s1">
 <h2>1. What a PDF page actually contains</h2>
-<p><b>The problem.</b> A retrieval system needs text in reading order, split into paragraphs, with headings, tables and captions marked. A PDF stores none of that. It is a <dfn>page description</dfn>: a list of drawing instructions that put glyphs (the shapes of characters) at coordinates, so that the page looks right on screen and on paper (ISO 32000-2:2020, the PDF 2.0 standard; <a href="https://en.wikipedia.org/wiki/PDF" target="_blank" rel="noopener noreferrer">overview</a>; section numbers below are the standard's). Everything a parser returns is a guess reconstructed from those instructions, or from pixels.</p>
-<h3>Four facts that cause most ingestion bugs</h3>
+<p>A PDF is a <dfn>page description</dfn>: drawing instructions that put glyphs at coordinates so the page looks right (ISO 32000-2:2020, PDF 2.0; <a href="https://en.wikipedia.org/wiki/PDF" target="_blank" rel="noopener noreferrer">overview</a>). Paragraphs, columns, tables and captions are not stored; every parser's output is rebuilt from those instructions, or from pixels. Four facts cause most ingestion bugs:</p>
 <ul>
-<li><b>Text is positioned, not flowing.</b> Each page has a <dfn>content stream</dfn>: operators such as <code>Tm</code> and <code>Td</code> move a text cursor and <code>Tj</code> or <code>TJ</code> draw a run of glyphs there (ISO 32000 section 9.4). Nothing says "this run continues the previous line" or "this is the second column". Spaces between words are often not characters at all, only a gap the parser must notice.</li>
-<li><b>The stream order is the producer's order, not the reader's.</b> A typesetter may draw the left column, then the right, then the running header, then the footnotes, or draw a table cell by cell; a Word export may draw text boxes in the order they were created. An extractor that follows the stream inherits that order.</li>
-<li><b>Glyphs are codes in a font, not letters.</b> A glyph becomes Unicode only through the font's encoding or a <dfn>ToUnicode map</dfn> (ISO 32000 section 9.10). If a producer embeds a subset font without one, the text layer decodes to garbage even though the page looks perfect. Typesetters also draw ligatures, one glyph for "fi" (U+FB01), and break words at line ends with a hyphen.</li>
-<li><b>A scan is a picture.</b> A scanned page is one image per page with no text at all, unless an earlier OCR run added an invisible text layer (text render mode 3) of whatever quality that OCR had.</li>
+<li><b>Text is positioned, not flowing.</b> In each page's <dfn>content stream</dfn>, <code>Tm</code> and <code>Td</code> move a text cursor and <code>Tj</code> or <code>TJ</code> draw glyphs there (section 9.4); nothing marks a line continuing or a second column, and spaces are often only a gap the parser must notice.</li>
+<li><b>Stream order is the producer's order</b>: a typesetter may draw the left column, the right, then the header and footnotes, or a table cell by cell; a Word export draws text boxes in creation order. An extractor that follows the stream inherits it.</li>
+<li><b>Glyphs are font codes, not letters</b>: they become Unicode only through the font's encoding or a <dfn>ToUnicode map</dfn> (section 9.10), and a subset font without one decodes to garbage although the page looks perfect. Ligatures (one glyph for "fi", U+FB01) and line-end hyphens add damage.</li>
+<li><b>A scan is a picture</b> with no text, unless an earlier OCR run added an invisible layer (text render mode 3) of whatever quality that OCR had.</li>
 </ul>
-<p>Some PDFs carry a <dfn>structure tree</dfn> (Tagged PDF, ISO 32000 section 14.8) that does record paragraphs, headings, tables and reading order, because accessibility rules such as <a href="https://en.wikipedia.org/wiki/PDF/UA" target="_blank" rel="noopener noreferrer">PDF/UA</a> (ISO 14289) require it. When it is present and correct, use it. None of the 38 arXiv PDF files downloaded for this page (24 papers, every version) has one (no <code>StructTreeRoot</code> in the catalogue, checked with PyMuPDF), and a plain scan has none to give, which is why the rest of this page exists.</p>
-<div class="card" id="ing-anat-card">
+<p>A <dfn>structure tree</dfn> (Tagged PDF, section 14.8, required by accessibility rules such as <a href="https://en.wikipedia.org/wiki/PDF/UA" target="_blank" rel="noopener noreferrer">PDF/UA</a>, ISO 14289) does record paragraphs, headings, tables and reading order; use it when present and correct. None of the 38 arXiv PDF files downloaded for this page (24 papers, every version) has one (no <code>StructTreeRoot</code>, checked with PyMuPDF).</p>
+<div class="fig" id="ing-anat-card">
+<h4>Same page, three reading orders: only the layout model reads the columns as a person does</h4>
 <div class="small mute" id="ing-anat-cap"></div>
 <div id="ing-anat"></div>
 <div class="an-ctl" id="ing-anat-ctl"></div>
 <div class="seg" id="ing-anat-mode"><button data-m="stream" class="on">Content stream</button><button data-m="plumber">pdfplumber</button><button data-m="read">Docling</button></div>
 <div class="small" id="ing-anat-step"></div>
+<p class="cap">Predict first: which reader runs lines across both columns? Switch modes, then press play to watch an order build. pdfplumber merges 34 of its 60 lines across the gutter; the stream is close to reading order except the arXiv stamp, drawn last; Docling reads left column then right and drops the stamp.</p>
 </div>
-<p class="try"><b>Try:</b> predict first: which of the three readers will produce lines that run across both columns? Then play each. Watch the gutter-crossing counter and where the arXiv stamp in the left margin ends up.</p>
+</section>
+<section id="ing-s2">
+<h2>2. Rule-based extractors: geometry and thresholds</h2>
+<p>A rule-based extractor rebuilds words, lines and blocks from glyph coordinates with no learned model. The steps are the same everywhere; only the thresholds and the final sort differ.</p>
+<div class="fig" id="ing-rules-card"><h4>Three thresholds and a sort: where two columns go wrong</h4>
+<div class="rd-svg" id="ing-rules"></div>
+<p class="cap">Glyphs to words and lines, lines to boxes, boxes to an order, with pdfminer.six's <code>LAParams</code> defaults on illustrative glyphs: <code>word_margin</code> 0.1, <code>char_margin</code> 2.0, <code>line_overlap</code> 0.5, <code>line_margin</code> 0.5. The final sort decides columns: top to bottom over the full width interleaves them.</p></div>
+<p>The tools differ mainly in the last step: <b>pypdf</b> (6.20.1) keeps content-stream order; <b>PyMuPDF</b> (1.28.2) too, unless <code>sort=True</code> sorts blocks by top then left (<a href="https://pymupdf.readthedocs.io/en/latest/recipes-text.html" target="_blank" rel="noopener noreferrer">recipes</a>); <b>pdfplumber</b> (0.11.10) clusters characters into lines (<code>x_tolerance</code> 3 points) and reads them across the full width; <b>pdftotext</b> (poppler 26.02) detects columns; <b>pymupdf4llm</b> (1.28.2) adds headings by font size, tables by ruling lines, Markdown, and here called RapidOCR on pages it judged to be images. Milliseconds per page and no model: the right first stage for clean single-column files; columns, headers, footnotes, tables and scans break the rules.</p>
+<details class="qa"><summary>pdfminer.six's parameters at the pinned version, and how it orders boxes</summary><div>
+<pre class="fm" style="font-size:12px;white-space:pre;text-align:left;overflow-x:auto">class LAParams:
+    line_overlap = 0.5  # overlap, relative to the smaller char height, to share a line
+    char_margin  = 2.0  # chars closer than 2 char widths join the same line
+    line_margin  = 0.5  # lines closer than 0.5 line heights join the same box
+    word_margin  = 0.1  # a gap over 0.1 char widths inserts a space
+    boxes_flow   = 0.5  # -1: order boxes by x only ... +1: by y only; None: no grouping</pre>
+<p class="small mute"><code>pdfminer/layout.py</code>, pdfminer.six 20260107, lines 48 to 90; comments condensed from the docstring at lines 50 to 74. With <code>boxes_flow</code> set, <code>LTLayoutContainer.analyze</code> (lines 907 to 937) merges the closest pair of boxes again and again into a tree (<code>group_textboxes</code>, line 814) and reads the tree in order; with <code>None</code> it sorts boxes top to bottom, left to right.</p>
+</div></details>
 </section>

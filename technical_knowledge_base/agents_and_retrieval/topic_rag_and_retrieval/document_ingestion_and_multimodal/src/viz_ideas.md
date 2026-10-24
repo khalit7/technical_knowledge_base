@@ -23,3 +23,16 @@ Scores: 0 to 2 per question (parameter the reader moves; reproduces a published 
 | 13 | Evidence survival bars with recall@3 beside them | 12 | Reading s3b | built (the finding that recall barely moves is the point) |
 
 What the methodology lacked for this page: a rule for a page whose "published figure" is a benchmark score measured on a different sample; here the sample score is shown beside the published one with sample size and interval, never as a reproduction.
+
+## Rebuild of 2026-10-24 (teaching contract)
+
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| 14 | **Hero: two routes from a file to an index** (parse route with each stage's measured loss or cost; page-image route), boxes link to sections | Reading top | built (static SVG, horizontal at 820 px and up, stacked below) |
+| 15 | **Rule-based thresholds**: glyphs to lines, lines to boxes, boxes to an order with LAParams defaults; good and interleaved orders on two columns | Reading s2 | built (static, illustrative glyphs) |
+| 16 | **OCR routing**: text-layer check, then extract, classic OCR or VLM OCR, with this page's times | Reading s5 | built (static) |
+| 17 | **Record beside its page**: page 3 of 1909.00175 rendered, the Docling bounding box drawn where the record says | Reading s8 | built (real data) |
+| 18 | **ColPali patches and cost to scale**: a ViDoRe page squeezed to 448 px with the 32 by 32 grid; storage and indexing bars to scale from paper Tables 4 and 5 | Reading s10 | built |
+| 19 | Docling pipeline figure (the report's Figure 1, CC BY 4.0) | Reading s3 | built (real image) |
+| 5, 6, 7 | Table lab, Re-indexing lab, Page-image retrieval moved from their tabs into Reading s6, s9 and s11 beside the claims they prove | Reading | moved |
+| 20 | DocLayNet example pages with layout boxes | none | rejected: arXiv non-exclusive licence |

@@ -26,7 +26,7 @@ RS, PAPERS, ING, OUT = sys.argv[1:5]
 sel = json.load(open(PAPERS))["papers"]
 q = pd.read_parquet(os.path.join(RS, "data", "raw", "qasper", "validation.parquet"))
 q = q[q["id"].isin(sel)]
-REP = {"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "—": "-", "−": "-",
+REP = {"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "\u2014": "-", "−": "-",
        "ﬁ": "fi", "ﬂ": "fl", "ﬀ": "ff", "ﬃ": "ffi", "ﬄ": "ffl"}
 
 
