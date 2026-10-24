@@ -41,32 +41,22 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     for (let i = 0; i < n; i++) { await p.$$eval('#' + segId + ' button', (bs, i) => bs[i].click(), i); await sleep(80); if (after) await after(); }
   };
 
-  // Reading
+  // Reading: nothing may move before the reader acts
   await p.click('button[data-t=t-read]'); await sleep(200);
-  await anim('hsec-g-ctl');
-  await clickSeg('hsec-sb-seg');
-  await anim('hsec-eg-ctl');
-  // trifecta checkboxes: toggle each
-  const cbs = await p.$$('#hsec-tri input[type=checkbox]');
+  const playing = await p.$$eval('#t-read .an-play', bs => bs.filter(b => /Pause/.test(b.textContent)).length);
+  if (playing) errs.push(scheme + ': an animation is playing before any input');
+  for (const c of ['hsec-pin-ctl', 'hsec-g-ctl', 'hsec-eg-ctl']) { await anim(c); await check('t-read', scheme + ' ' + c); }
+  await clickSeg('hsec-sb-seg', () => check('t-read', scheme + ' sandbox seg'));
+  const cbs = await p.$$('#hsec-tri-tog input[type=checkbox]');
+  for (const cb of cbs) { await cb.click(); await sleep(40); await check('t-read', scheme + ' trifecta'); }
   for (const cb of cbs) { await cb.click(); await sleep(40); }
-  for (const cb of cbs) { await cb.click(); await sleep(40); }
+  const outTxt = await p.$eval('#hsec-tri-out', e => e.textContent);
+  if (!/possible/.test(outTxt)) errs.push(scheme + ': trifecta verdict after toggling back should be "possible"');
   await p.$$eval('#t-read details', ds => ds.forEach(d => d.open = true));
+  const rows = await p.$$eval('#hsec-gt tbody tr', r => r.length);
+  if (rows !== 11) errs.push(scheme + ': gate table has ' + rows + ' rows, expected 11');
   await check('t-read', scheme + ' read');
   await (await p.$('#t-read')).screenshot({ path: `${out}/${scheme}_${width}_read.png` }).catch(() => {});
-
-  // Permission gate decisions
-  await p.click('button[data-t=t-hsgate]'); await sleep(200);
-  await clickSeg('hsgate-fam');
-  await check('t-hsgate', scheme + ' gate');
-  await (await p.$('#t-hsgate')).screenshot({ path: `${out}/${scheme}_${width}_gate.png` }).catch(() => {});
-
-  // Defence-in-depth simulator
-  await p.click('button[data-t=t-hsdef]'); await sleep(200);
-  const nDef = await p.$$eval('#hsdef-tog input[type=checkbox]', cs => cs.length);
-  for (let i = 0; i < nDef; i++) { await p.$$eval('#hsdef-tog input[type=checkbox]', (cs, i) => cs[i].click(), i); await sleep(50); await check('t-hsdef', scheme + ' def toggle'); }
-  for (let i = 0; i < nDef; i++) { await p.$$eval('#hsdef-tog input[type=checkbox]', (cs, i) => cs[i].click(), i); await sleep(50); }
-  await check('t-hsdef', scheme + ' def');
-  await (await p.$('#t-hsdef')).screenshot({ path: `${out}/${scheme}_${width}_def.png` }).catch(() => {});
 
   // Further reading
   await p.click('button[data-t=t-more]'); await sleep(150);

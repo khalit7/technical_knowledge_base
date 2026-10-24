@@ -133,7 +133,7 @@ def main():
     open(OUT, "w").write(js)
 
     # privacy grep: nothing identifying may enter the repo copy.
-    bad = [s for s in ("/Users/", "Users-", "khalid", "glpat", "sk-ant") if s in js]
+    bad = [s for s in ("/Users/", "Users-", __import__("getpass").getuser(), "glpat", "sk-ant") if s in js]
     if bad:
         print("PRIVACY LEAK:", bad)
         sys.exit(1)

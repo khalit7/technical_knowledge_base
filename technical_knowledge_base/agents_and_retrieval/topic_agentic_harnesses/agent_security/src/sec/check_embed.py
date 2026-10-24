@@ -35,7 +35,7 @@ try:
 except Exception:
     login = ""
 forbidden = [t for t in ["/Users/", "Users-", login, "glpat", "sk-ant", "scratchpad",
-                         "gmail.com", "khalidsulman", "—"] if t]
+                         "gmail.com", "\u2014"] if t]
 for tok in forbidden:
     req(tok not in html, "page is free of %r" % tok)
 

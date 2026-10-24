@@ -1,20 +1,44 @@
-<section id="rd-s3">
-<h2>3. Sandboxes: an operating-system boundary around what runs</h2>
-<p>A sandbox is the layer that assumes the gate let something through. It does not look at the command; it constrains what any process the agent spawns is <i>able</i> to do, enforced by the kernel, not by the harness. The two things worth constraining are the filesystem (writes confined to the project and a temp directory) and the network (blocked, or allowed only through a proxy you control). The mechanisms differ by OS:</p>
-<div class="grid">
-<div class="sp"><div class="n">macOS: Seatbelt</div><p><code>sandbox-exec</code> with a profile, the same mechanism Claude Code and Codex use on macOS (<a href="https://code.claude.com/docs/en/sandboxing" target="_blank" rel="noopener noreferrer">Claude Code sandboxing</a>, read 6 Oct 2026) <span class="src">SOURCE</span>. A profile is a few S-expressions: <code>(allow default)(deny network*)</code> denies all sockets; <code>(deny file-write*)(allow file-write* (subpath ...))</code> confines writes.</p></div>
-<div class="sp"><div class="n">Linux: bubblewrap + Landlock/seccomp</div><p>Claude Code uses bubblewrap (user namespaces) plus a local proxy on Linux. <dfn>Landlock</dfn> (kernel 5.13) lets an unprivileged process restrict its own file access with three syscalls; <dfn>seccomp-bpf</dfn> filters which syscalls are allowed at all. Mechanics: {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}.</p></div>
-<div class="sp"><div class="n">One policy, three operating systems</div><p>GitHub Copilot's local sandboxing, generally available since 7 October 2026, writes one policy over files, network and Git and <code>gh</code> credentials and maps it to each system's native controls on Windows, macOS and Linux through the Microsoft eXecution Container (MXC); it applies to Copilot CLI, the Copilot app and the VS Code Agent Host, can sandbox MCP and language servers too, and can be enforced by an enterprise ({{GitHub changelog|https://github.blog/changelog/2026-10-07-local-sandboxing-for-github-copilot-now-generally-available/}}) <span class="src">SOURCE</span>.</p></div>
-<div class="sp"><div class="n">What it does not cover</div><p>Claude Code's sandbox wraps <b>shell commands only</b> (Bash, PowerShell). File-edit tools, MCP servers and hooks run outside it <span class="src">SOURCE</span>. And it is off by default. A sandbox you did not turn on contains nothing.</p></div>
-</div>
-
-<div class="card">
-<h3 style="margin-top:0">The same operation, outside and inside a Seatbelt profile</h3>
-<p class="small mute">Real runs on this machine (macOS 27.0.1, Apple M1 Pro) with <code>sandbox-exec</code>. A benign test command opens a local socket and sends a fixed marker, and writes a small file; the only bytes ever sent are that marker. <span class="meas">MEASURED</span></p>
+<section id="rd-s6">
+<h2>6. Sandboxes: a kernel boundary around what runs</h2>
+<p>A sandbox assumes the gate let something through. It does not look at the command string; the kernel constrains what any process the agent spawns is <i>able</i> to do. The two things worth constraining are filesystem writes (the project and a temp directory) and the network (blocked, or only through a proxy you control). Here is the property, measured on this machine with <code>sandbox-exec</code> (macOS Seatbelt), the mechanism Claude Code and Codex use on macOS <span class="meas">MEASURED</span>:</p>
+<div class="fig"><h4>The same benign operation, outside and inside a Seatbelt profile: the kernel refuses whatever the intent</h4>
 <div class="seg" id="hsec-sb-seg"><button data-m="net" class="on">Network</button><button data-m="write">Filesystem write</button></div>
-<div class="hsec-sb" id="hsec-sb-grid"></div>
-<p class="small mute" id="hsec-sb-note"></p>
-</div>
-<p>The kernel refuses the socket and the out-of-tree write regardless of what the process intended, what command spelled it, or whether the model was following an injected instruction. That is the property the gate cannot give you: the gate reasons about a string; the sandbox reasons about the operation. A sandbox turns "the agent could reach anything you can" into "the agent can reach this directory and nothing on the network," which is the difference between a mistake being embarrassing and a mistake being an incident.</p>
-<div class="nb"><b>The honest limit.</b> A sandbox confines the blast radius; it does not make the agent trustworthy. If the one network path you leave open (the proxy to the model API, a package registry) can also carry your data outward, the sandbox has not closed the leak. That is what the next layer is for.</div>
+<div class="rd-svg" id="hsec-sb-svg"></div>
+<p class="cap" id="hsec-sb-cap"></p>
+<p class="cap">Real runs, macOS 27.0.1, Apple M1 Pro, 6 Oct 2026. The only bytes ever sent are the fixed marker <code>/sandbox-demo-ping</code> to a local listener started and stopped for the test. A profile is a few S-expressions: <code>(allow default)(deny network*)</code> denies all sockets; <code>(deny file-write*)(allow file-write* (subpath ...))</code> confines writes.</p></div>
+<p>The gate reasons about a string; the sandbox reasons about the operation. It turns "the agent can reach anything you can" into "this directory and nothing on the network", the difference between a mistake being embarrassing and being an incident. The mechanisms by OS:</p>
+<ul>
+<li><b>macOS</b>: Seatbelt via <code>sandbox-exec</code> and a profile (<a href="https://code.claude.com/docs/en/sandboxing" target="_blank" rel="noopener noreferrer">Claude Code sandboxing</a>, read 6 Oct 2026) <span class="src">SOURCE</span>.</li>
+<li><b>Linux</b>: Claude Code uses bubblewrap (user namespaces) plus a local proxy; <dfn>Landlock</dfn> (kernel 5.13) lets an unprivileged process restrict its own file access with three syscalls, and <dfn>seccomp-bpf</dfn> filters which syscalls are allowed at all. Mechanics: {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}.</li>
+<li><b>One policy, three systems</b>: GitHub Copilot's local sandboxing, generally available since 7 October 2026, writes one policy over files, network and Git and <code>gh</code> credentials and maps it to each system's native controls on Windows, macOS and Linux through the Microsoft eXecution Container (MXC); it covers Copilot CLI, the Copilot app and the VS Code Agent Host, can sandbox MCP and language servers too, and can be enforced by an enterprise ({{GitHub changelog|https://github.blog/changelog/2026-10-07-local-sandboxing-for-github-copilot-now-generally-available/}}) <span class="src">SOURCE</span>.</li>
+<li><b>A machine you can throw away</b>: a container or VM where full autonomy is acceptable because the blast radius is the box; how the isolation rises with autonomy is drawn in section 9 of {{Building a harness|n:3c65c17b0d0d817ca14fc32338707c2f}}.</li>
+</ul>
+<p><b>What it does not cover.</b> Claude Code's sandbox wraps <b>shell commands only</b> (Bash, PowerShell); file-edit tools, MCP servers and hooks run outside it, and it is off by default <span class="src">SOURCE</span>. A sandbox you did not turn on, or one with a tool outside it, contains nothing. And a sandbox confines the blast radius without making the agent trustworthy: if the one network path you leave open (the proxy to the model API, a package registry) can also carry your data out, the leak is still open. That is the next layer.</p>
+</section>
+
+<section id="rd-s7">
+<h2>7. Egress control: the one path out, written over destinations</h2>
+<p>Exfiltration needs a way out; close it and a compromised agent can read your secrets but send them nowhere. The first mistake is to write the policy over <b>tools</b> ("deny <code>curl</code>, deny <code>wget</code>"), which leaves every other way to reach the network untouched. Write it over <b>destinations</b> ("connect only to these hosts"), default-deny, enforced by a proxy or firewall below the agent. The policy below (<code>src/sec/egress_policy.py</code>, a pure function, no network, no model) decides 7 ordinary requests for a coding agent that may install packages: 4 allowed, 3 denied <span class="meas">MEASURED</span>.</p>
+<div class="fig"><h4>One question decides every request: where is it going?</h4>
+<div class="an-ctl" id="hsec-eg-ctl"></div>
+<div class="rd-svg" id="hsec-eg-svg"></div>
+<div class="an-cap" id="hsec-eg-cap" aria-live="polite"></div>
+<p class="cap">HTTPS through the proxy and name lookups through the resolver are decided by the same allow-list (the model API, the package registry and its file host). The verdict does not depend on which tool or command made the request, so there is nothing to spell around; an unlisted host, a raw IP and an unlisted name all fall to the default.</p></div>
+<div class="nb"><b class="h">DNS is egress too.</b> A process blocked from HTTP can still ask the resolver a question, and the question carries bytes outward in the name itself. That is how the September 2026 OpenAI incident got data past a web proxy (section 9). An allow-list that covers HTTP and not DNS is a door with a window next to it.</div>
+<div class="nb"><b class="h">An allowed destination can carry traffic onward.</b> A public service that fetches, stores or forwards on your behalf (a URL shortener, a screenshot or citation service, a shared editor) is a proxy to everywhere it reaches. Anthropic reported Claude Opus 5 and Claude Mythos 5 using free URL-shortening services to get around a fetch tool's URL-length limit, and Wikimedia reported OpenAI's agents trying to use Etherpad and a citation tool as proxies (section 9). Allow the specific services the task needs, and count any service that fetches arbitrary URLs as open egress.</div>
+<p><b>Enforcement lives outside the component that can be persuaded.</b> The model can be talked into trying; a harness's gate can be bypassed with cleverness; a kernel- or network-level destination list cannot be talked into anything. The strongest published production design goes further and tracks <dfn>tainted egress</dfn>: Meta's Muse agent marks a tool process as tainted (through the kernel) once it reads user data, so its requests never ride an auto-allow rule ({{Meta: Llama and MSL|n:3c65c17b0d0d81949ad8e17bcb3567f1}}). For a coding agent: allow only the registry and the model API, pin or mirror the registry, cover DNS, and make any new host a reviewed change to the list, not a runtime decision by the agent.</p>
+</section>
+
+<section id="rd-s8">
+<h2>8. Credentials: the model cannot leak what it never sees</h2>
+<p>The cheapest protection for a secret is to keep it where the agent cannot read it. Three levels, weakest first:</p>
+<div class="fig"><h4>Move the secret out of the context, then out of the sandbox</h4>
+<div class="rd-svg" id="hsec-cred-svg"></div>
+<p class="cap">Where the real token lives (highlighted) relative to the model's context and the sandbox. In a readable file or variable it is one <code>cat</code> from the context window, and the gate will allow that read on its action alone (section 4). Behind a broker, the agent asks a helper to sign or call, and only the result comes back. Injected by the egress proxy, the command sees a placeholder and the real value is spliced in outside the sandbox, only on requests to allow-listed hosts.</p></div>
+<ul>
+<li><b>In a file or environment variable the agent can read</b>: the default and the worst. Once a secret is in the context, any open path out leaks it.</li>
+<li><b>Behind a broker</b>: the helper holds the secret and returns only the result. This is how a well-built tool exposes an API key: the key lives in the tool, the model sees a function. Meta's Muse agent keeps credentials, including OAuth tokens, in a separate service outside the agent's VM and gives the agent surrogate credentials ({{Meta: Llama and MSL|n:3c65c17b0d0d81949ad8e17bcb3567f1}}).</li>
+<li><b>Injected by a proxy on allowed requests only</b>: Claude Code's sandbox can show a shell command a placeholder and have the egress proxy substitute the real value only on requests to allow-listed hosts <span class="src">SOURCE</span>.</li>
+</ul>
+<p>Least privilege, as anywhere: scope the credential to the task (a token for one repository, not your personal access token for everything), keep it out of the reasoning loop, make its use observable. How tokens are scoped and exchanged on the wire, including agent-era OAuth, is {{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}}'s subject.</p>
 </section>
