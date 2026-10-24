@@ -61,3 +61,9 @@ Why 28 minutes is right: the page owns two media, each with its own compression 
 
 ## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 375 units: core 249, depth 83, fat 42, owned 1 (the removed timeline's 34 model rows, owned by the root's Model map). 371 were drafted by `ledger.py init` (which also swept the tool tabs and Further reading into the last Reading section; their `tab` field was corrected by hand); 4 were added by hand for script-rendered content (the timeline's rows, the closed tables, the new cost slider). Fat units carry a `note`: section headings and bold lead-ins, citation fragments split off by the sentence splitter, wind-ups, the old reading-time line, and the removed timeline tab's controls and lead.
+
+## 2026-10-24, topic close
+- Section 9 no longer re-teaches FVD and FAD: Evaluating generative models (its section 9) owns them. Each keeps one sentence of what is specific to its medium (I3D scores a clip as a whole; a motionless video can score well; FAD on VGGish embeddings), with a link; VBench's dimensions, the Movie Gen Video Bench, MOS, MUSHRA, WER, speaker similarity and CLAP stay here. The stale pointer to the root's Reading section 9 is gone. Ledger: units 233, 234, 235 and 243 are `owned:` Evaluating generative models (keys on its built page); 237 stays core with the Movie Gen quote noted as moved.
+- Section 8's Moshi card links Native multimodal models' section 9 (the same frame against a cascade).
+- Further reading: the root card no longer names the retired Latent and Flow lab tabs or the root's Reading section 8 (the root is linked as a whole; its Model map tab stays); every sibling and neighbour time now matches its header (`html_utils/check_times.py`: 0 stale).
+- Reading time unchanged (measured 6,435 core and 3,846 closed words: 28 min, plus 17).
