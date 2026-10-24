@@ -34,3 +34,9 @@ Method: `.claude/skills/explainer-page/visuals/choosing.md`, and `.claude/skills
 ## What the methodology lacked here
 - Guidance for comparing designs whose runs vary a lot between repeats: shown here by listing every run's value rather than a mean alone.
 - Guidance on answer keys that are themselves imperfect: here the generator left two defensible kinds of "extra" report, so the page reports recall against the key and classifies extras instead of calling them false.
+
+## Added in the 2026-10-24 rebuild (teaching contract)
+- **Hero: pattern map** (`30_js_hero.js`): every pattern placed by who decides (your code, a model, nobody) and what each loop sees (its slice, or the shared history or store), each box carrying what it did here, green, red or amber. Static annotated diagram (structure); results computed from the recordings, not typed. Transposes to one band per decider below 600 px.
+- **MAST failure modes to scale** (`30_js_mast.js`, Reading 10): 14 modes in 3 categories, bar length = prevalence over 1,642 traces as printed in arXiv 2503.13657 v3 Figure 1 (redrawn, not embedded: the paper is CC BY-NC-ND), category totals derived; the nearest case among this page's runs outlined.
+- **Debate lab tab removed**: its content (methods table, vote-of-k bars, transitions, puzzle grid) explains one mechanism, so it moved into a closed block under the section 8 chart.
+- Rejected again: a real image. Nothing physical to show; the papers' figures are either under NC-ND licences or diagrams this page already draws from its own data.

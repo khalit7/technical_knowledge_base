@@ -3,10 +3,33 @@
 Builds `../index.html` (one self-contained page). Child of Topic: agentic-frameworks (`../../src/` is the parent's source; its Reading section 5 and Orchestration lab part "One agent or several" are this page's starting point and are linked, not repeated).
 
 ## Tabs
-- **Reading** (`parts/20_read_*.html`, JS `22_*` to `29_*`): sections 0 to 12. Every number in prose is a `<span class="fm-v" data-v="key">` filled from the data by `22_js_fm_common.js` (and a few keys by the section scripts), so the text cannot drift from the recordings.
-- **Audit lab** (`33_tab_audit.html`, `33_js_audit.js`): every audit run.
-- **Debate lab** (`34_tab_debate.html`, `34_js_debate.js`, methods in `28_js_debate_core.js`).
+- **Reading** (`parts/20_read_*.html`, JS `21_*` to `30_*`, `34_js_debate.js`): the idea in one screen (core sentence, hero, you need, new terms), sections 1 to 11, then closed depth. Every number in prose is a `<span class="fm-v" data-v="key">` filled from the data by `22_js_fm_common.js` (and a few keys by the section scripts), so the text cannot drift from the recordings.
+- **Audit lab** (`33_tab_audit.html`, `33_js_audit.js`): every audit run (a run explorer used by sections 3, 4, 5 and 9, so it stays a tab).
 - **Further reading** (`39_tab_more.html`).
+
+## The 2026-10-24 rebuild: what changed and why
+Rebuilt to the teaching contract (`.claude/skills/explainer-page/teaching/teaching-contract.md`), editing only; no new runs.
+- **Top**: the core idea in one sentence; a new hero (`30_js_hero.js`, static annotated diagram) placing every pattern by who decides and what each loop sees, coloured by what it did here, with results computed from the recordings; "You need"; a new-terms list (the definitions that section 1 used to carry in prose). The old "In one screen" table is a closed block under the hero, which now carries the same map.
+- **Visuals inline**: unchanged ones stay beside their claims (pattern picker, lanes replay, check-round bars, handoff stepper, two-halves viewer, debate scatter, accounting bars). New: the MAST failure modes drawn to scale in section 10 (`30_js_mast.js`; shares from arXiv 2503.13657 v3 Figure 1, checked 2026-10-24). The Debate lab tab explained one mechanism, so it is now a closed block under the section 8 chart (`34_js_debate.js` unchanged, CSS rescoped to `#fmd-lab`).
+- **Concrete first in section 9**: the measured bill comes before the formula; prices are a closed block.
+- **Closed depth**: the predict-then-reveal drills (now real `<details>`), the turn-cap note, the cache explanation of fan-out costs, blackboard history, why the board drifted, the SDK docstring quotes, what sibling pages measured about handoffs, the full evidence table and the dropped swarm claim, the framework mapping, three mistakes, four interview questions, the old-page claim table.
+- **Deleted as fat**: six mistakes and four interview answers that restated a section, wind-ups, nav and tab-bar strings.
+- **No autoplay**: `21_js_rd_common.js` and `99_js_tabs.js` are the skill templates (storage key `fmulti-tab`); the lanes replay opens on its last frame as a still and moves only on input. The Audit lab registers its own render hook, since the template's `RD.anim` and `RD.onRender` serve the Reading tab only.
+- **Links**: "Agent memory layers" (id `3f15c17b...8170`) is now an alias of Context engineering; the card points at that page's section 8.
+- `check_controls.mjs` (new) clicks every control in both themes and widths and fails if anything plays before input.
+
+## Length judgement
+| | Before (2026-10-23 audit) | After (2026-10-24) |
+|---|---|---|
+| Reading, core (230 words a minute) | 34 min | 26 min |
+| Reading, closed details | 3 min | 14 min |
+| Other tabs, core | Audit lab 4 + Debate lab 4 + Further reading 3.4 = 12 min | Audit lab 4 + Further reading 3.5 = 8 min |
+| SVG visuals drawn in Reading (`audit_pages.mjs`) | 3 | 5 (plus four HTML visuals the audit does not count: check-round bars, handoff stepper, two-halves viewer, accounting bars) |
+
+Why 26 minutes is right: the core carries eight measured experiments, each a claim, its picture and its numbers, plus the published evidence that frames them; every core unit in the ledger is needed to judge when several agents help. About a fifth of the core words are the captions, tables and code panes of the visuals. What made the old page long (restated mistakes and interview answers, provenance tables, the per-puzzle lab, quotes and history) is now closed or cut.
+
+## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
+365 units: core 248, depth 69, fat 48. 350 were drafted by `ledger.py init`; 15 were added by hand for evidence-table rows the draft merged, script-rendered visuals and the MAST figure. Fat units carry a `note` saying why.
 
 ## Pipeline
 1. Experiments ran in the scratchpad with the scripts in `code/` (kept as run; their paths assume the scratchpad layout `scratchpad/agents/fmulti/`, `scratchpad/agents/task_repo`, and the frameworks venv `scratchpad/agents/afsame/fwenv`):
@@ -17,7 +40,7 @@ Builds `../index.html` (one self-contained page). Child of Topic: agentic-framew
    - `cc.py`: the one `claude -p` wrapper every Claude run used (stream-json, `--no-session-persistence --setting-sources project --strict-mcp-config`, an appended "Never use the em-dash character.").
 2. `python3 code/redact.py <scratchpad>/agents/fmulti <this folder>/recordings` writes `recordings/` as gzipped JSONL (`*.jsonl.gz`, read with `gzip.open`; whitelisted init records, short labels for ids, no signatures or rate-limit events, paths to `/work`, git identity and e-mail addresses removed, em-dashes replaced by ", "; module text the model read or was pasted is replaced by a size placeholder because `gen_audit.py` regenerates it exactly) and fails on any leak. Calibration runs (`calib*`) are not copied.
 3. `python3 build_data.py` writes `parts/20_js_data.js` from `recordings/` (and the parent's `../../src/orch/recordings/{agent,multi}/summary.json`) only.
-4. `sh build.sh`; then dump the rendered page's prose values (`.fm-v` spans) to a JSON list of [key, text] and run `python3 check.py <that file>`: it recomputes 33 quoted values from the recordings independently of `build_data.py` and the page's JavaScript, checks the static summary rows, and checks that every recording folder is embedded and nothing else.
+4. `sh build.sh`; `node src/check_controls.mjs index.html` from the repository root; then dump the rendered page's prose values (`.fm-v` spans) to a JSON list of [key, text] and run `python3 check.py <that file>`: it recomputes 33 quoted values from the recordings independently of `build_data.py` and the page's JavaScript, checks the static summary rows, and checks that every recording folder is embedded and nothing else.
 
 ## Departures and caveats
 - One model (Claude Haiku 4.5) for every Claude comparison, plus one Sonnet 5.5 single-agent run; small numbers of runs (2 to 3 per design), every run listed.
