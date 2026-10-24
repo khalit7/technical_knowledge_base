@@ -45,17 +45,27 @@ function bench(){const B=window.HX.bench;if(!B){$('ex-out').textContent='(bench 
   [...marks].sort((a,b)=>b.length-a.length).forEach(v=>{const e=esc(v);const i=t.lastIndexOf(e);if(i>=0)t=t.slice(0,i)+'<mark>'+e+'</mark>'+t.slice(i+e.length)});
   $('ex-out').innerHTML=t;
   $('ex-tbl').querySelector('tbody').innerHTML=RULES.map(([k,n])=>{const v=r.extract[k];return '<tr><td>'+n+'</td><td><code>'+esc(String(v[0]).slice(0,40)||'(nothing)')+'</code></td><td class="r '+(v[1]?'y':'n')+'">'+(v[1]?'correct':'wrong')+'</td></tr>'}).join('');}
-function totals(){const B=window.HX.bench;if(!B)return;
+function totals(){const B=window.HX.bench;const el=$('ex-fig');if(!B||!el)return;
+  // grouped bars: correct out of 10 per rule, on the lm-eval outputs and on the Inspect outputs (SVG at the measured width)
   const rows=RULES.map(([k,n])=>{const a=B.filter(r=>r.run==='lmeval'&&r.extract[k][1]).length,b=B.filter(r=>r.run==='inspect'&&r.extract[k][1]).length;return [n,a,b]});
-  $('ex-tot').innerHTML='<div class="small mute">Correct out of 10, on the lm-eval outputs (blue) and the Inspect outputs (orange)</div>'+rows.map(r=>'<div class="row"><span class="nm">'+r[0]+'</span><span class="track"><span class="fill" style="width:'+(r[1]*10)+'%;background:var(--c1);height:50%"></span><span class="fill" style="width:'+(r[2]*10)+'%;background:var(--c2);top:50%"></span></span><span class="val">'+r[1]+' / '+r[2]+'</span></div>').join('');
-  const lo=Math.min(...rows.map(r=>r[1])),hi=Math.max(...rows.map(r=>r[1])),lo2=Math.min(...rows.map(r=>r[2])),hi2=Math.max(...rows.map(r=>r[2]));
-  $('ex-totnote').innerHTML='On identical text, the seven rules give between '+lo+' and '+hi+' correct out of 10 on the lm-eval outputs and between '+lo2+' and '+hi2+' on the Inspect outputs. Each harness only ever applies its own rule; the logged scores were lm-eval strict-match and flexible-extract, and Inspect match (tab Inside a run log).';}
+  const W=RD.width(el),narrow=W<520,lab=narrow?Math.min(150,W*0.42):190,right=narrow?34:44,bw=W-lab-right-8,rh=30,top=34,H=top+rows.length*rh+30;
+  const x=v=>lab+bw*v/10;
+  let g='';
+  for(let v=0;v<=10;v+=narrow?5:2){g+='<line x1="'+x(v)+'" x2="'+x(v)+'" y1="'+(top-6)+'" y2="'+(top+rows.length*rh)+'" stroke="var(--line)"/>'+RD.t(x(v),top+rows.length*rh+14,v,{a:'middle',fill:'var(--mute)'})}
+  g+=RD.t(lab,14,'lm-eval outputs',{fill:'var(--c1)',w:600})+RD.t(lab+(narrow?100:120),14,'Inspect outputs',{fill:'var(--c2)',w:600});
+  rows.forEach((r,i)=>{const y=top+i*rh;
+    g+=RD.t(lab-8,y+15,RD.esc(narrow?r[0].replace('flexible-extract','flexible').replace(' math_scorer','').replace(' final_number','').replace('(numeric)',''):r[0]),{a:'end'});
+    g+='<rect x="'+lab+'" y="'+(y+3)+'" width="'+Math.max(1.5,x(r[1])-lab)+'" height="10" fill="var(--c1)" rx="2"/><rect x="'+lab+'" y="'+(y+14)+'" width="'+Math.max(1.5,x(r[2])-lab)+'" height="10" fill="var(--c2)" rx="2"/>';
+    g+=RD.t(x(Math.max(r[1],r[2]))+6,y+18,r[1]+' / '+r[2],{fill:'var(--ink)'});});
+  g+=RD.t(lab+bw/2,H-2,'correct out of 10 (same 20 texts for every rule)',{a:'middle',fill:'var(--mute)'});
+  el.innerHTML=RD.svg(W,H,g,'Correct answers out of 10 under seven extraction rules on the same outputs');}
 function live(){const t=$('ex-in').value,g=$('ex-gold').value.trim();
   $('ex-live').querySelector('tbody').innerHTML=Object.keys(EX).map(k=>{const v=EX[k].f(t,g);return '<tr><td>'+EX[k].n+'</td><td><code>'+esc(String(v[0]).slice(0,40)||'(nothing)')+'</code></td><td class="r '+(v[1]?'y':'n')+'">'+(v[1]?'correct':'wrong')+'</td></tr>'}).join('')+'<tr><td>lighteval math_scorer</td><td colspan="2" class="mute">offline only (sympy)</td></tr>';}
 function all(){panel('a',pa);panel('b',pb)}
+if(window.RD)RD.onResize(()=>totals());
 let done=false;
 function init(){if(!window.HX)return;
-  if(!done){done=true;fieldChips();opts($('sx-a'),pa);opts($('sx-b'),pb);table();totals();
+  if(!done){done=true;fieldChips();opts($('sx-a'),pa);opts($('sx-b'),pb);table();
     $('sx-field').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;field=b.dataset.f;fieldChips();all()});
     $('sx-a').addEventListener('change',e=>{pa=e.target.value;panel('a',pa)});
     $('sx-b').addEventListener('change',e=>{pb=e.target.value;panel('b',pb)});
@@ -63,6 +73,8 @@ function init(){if(!window.HX)return;
     $('ex-in').addEventListener('input',live);$('ex-gold').addEventListener('input',live);
     const B=window.HX.bench;if(B){const j=B.findIndex(r=>{const v=RULES.map(([k])=>r.extract[k][1]);return v.some(x=>x)&&v.some(x=>!x)});if(j>=0)exI=j}
   }
-  all();bench();live();}
+  all();bench();live();totals();}
 (window.TAB_RENDER=window.TAB_RENDER||{})['t-same']=(window.TAB_RENDER['t-same']||[]).concat([init]);
+// the extraction bench now lives in Reading section 2
+(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(init);
 })();

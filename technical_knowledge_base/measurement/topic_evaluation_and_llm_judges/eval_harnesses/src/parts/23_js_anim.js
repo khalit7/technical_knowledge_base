@@ -69,7 +69,8 @@ function init(){if(!R()){$('an-cap').textContent='(run data missing)';return}
   $('an-speed').onchange=()=>tick();
   const S=r.summary;
   $('an-src').innerHTML='Runs by this page on 4 Oct 2026: lm-eval '+esc(S.lm.lm_eval_version)+' (wall time '+S.lm.wall_s+' s for 10 problems), inspect-ai 0.3.276 with inspect_evals 0.23.0 (wall time '+S['in'].wall_s+' s); scripts <code>src/run_harnesses.sh</code> and <code>src/mk_runs.py</code>. The default problem is the first where the two harnesses\' logged verdicts differ.';
-  try{new IntersectionObserver(es=>{onScreen=es[0].isIntersecting;if(onScreen&&!reduce&&!init.auto){init.auto=1;playing=true;tick()}},{threshold:0.25}).observe($('an'))}catch(e){onScreen=true}
+  // never autoplays (2026-10-23): the reader presses Play or steps
+  try{new IntersectionObserver(es=>{onScreen=es[0].isIntersecting},{threshold:0.25}).observe($('an'))}catch(e){onScreen=true}
   draw();}
 (window.TAB_RENDER=window.TAB_RENDER||{})['t-read']=(window.TAB_RENDER['t-read']||[]).concat([init]);
 })();

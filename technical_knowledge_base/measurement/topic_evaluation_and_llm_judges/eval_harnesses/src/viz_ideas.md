@@ -27,3 +27,7 @@ Question the page answers: what does each harness treat as the unit of work, and
 
 - A rule for logs that misreport: Inspect's local provider logs the padded batch's token usage; the page counts real tokens with the tokenizer and shows both, labelled.
 - Harness defaults (sampling on or off) change what a "real run" is; the departures from defaults are stated next to the run.
+
+## 2026-10-24 rebuild
+Built: hero chain with measured effects (static SVG, top); seven-rule extraction chart (SVG, section 2, moved from the tab); MMLU item read three ways (stepper, moved from the parent); ten-settings chart and eight-model rank chart (SVG, section 3, moved from the parent); tokens per problem to scale with the shared system message marked (SVG, section 5); Inspect View image (real UI, section 1).
+Rejected: a cost slider with prices (volatile; the formula and token counts are given instead); a sandbox diagram (the table and one paragraph say it; agent security owns sandboxes as a defence); re-running the MMLU reproduction on all 57 subjects (about 90 minutes of CPU for no change in the lesson; proposal only).

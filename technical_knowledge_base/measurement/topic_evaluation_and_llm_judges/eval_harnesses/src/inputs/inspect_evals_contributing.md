@@ -107,7 +107,7 @@ make lock-isolated
 
 This regenerates the affected lockfiles. `make check` will verify they are up to date (via `--check` mode), so CI will fail if you forget this step. You can also pass extra arguments to `uv lock` with `make lock-isolated LOCK_ARGS=--upgrade`.
 
-Their tests are also not part of the root `uv run pytest` suite, because the conflicting dependencies are not installed there. Each isolated eval has its own tox environment instead — see [`tox.ini`](tox.ini) for how to run them.
+Their tests are also not part of the root `uv run pytest` suite, because the conflicting dependencies are not installed there. Each isolated eval has its own tox environment instead -- see [`tox.ini`](tox.ini) for how to run them.
 
 KernelBench's published sandbox has a standalone uv project under `src/inspect_evals/kernelbench/sandbox/`. Updating its host lockfile does not require rebuilding the image. Update the sandbox lock only when publishing a new sandbox environment; see [Updating sandbox dependencies](src/inspect_evals/kernelbench/README.md#updating-sandbox-dependencies).
 
@@ -213,7 +213,7 @@ RUN_DATASET_DOWNLOAD_TESTS=1
 
 #### CI workflows
 
-- The template ships `.github/workflows/checks.yml` which runs ruff, mypy, the POSIX-code check, the unlisted-evals check, the package build, autolint, and a few advisory checks. By default this does not run pytest — the template assumes you run tests locally during development. If you want CI to run your tests, add a job to `checks.yml` (or a separate workflow) that calls `make test`.
+- The template ships `.github/workflows/checks.yml` which runs ruff, mypy, the POSIX-code check, the unlisted-evals check, the package build, autolint, and a few advisory checks. By default this does not run pytest -- the template assumes you run tests locally during development. If you want CI to run your tests, add a job to `checks.yml` (or a separate workflow) that calls `make test`.
 - The upstream `inspect_evals` registry has additional CI (a `build.yml` that runs the test suite with `RUN_SLOW_TESTS=no`, plus a nightly heavy-tests workflow that detects unmarked slow/docker tests). If your fork wants the same coverage, those workflows are good references but they aren't shipped here.
 
 #### Manual runs and eval reports

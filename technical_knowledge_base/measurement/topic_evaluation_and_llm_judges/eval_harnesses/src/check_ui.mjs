@@ -39,6 +39,18 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const shot = async (sel, name) => { const el = await pg.$(sel); if (el) { await el.scrollIntoView(); await wait(150); await el.screenshot({ path: path.join(shots, `${name}-${w}.png`) }) } };
   // Reading
   await pg.click('#tabs button[data-t="t-read"]'); await wait(200); await scan('read');
+  // never autoplay: both step animations still on step 0 after a few seconds on screen
+  for (const id of ['an', 'hn-s-anim']) { await pg.$eval('#' + id, e => e.scrollIntoView()); await wait(3000);
+    const v = await pg.$eval(id === 'an' ? '#an-scrub' : '#hn-scrub', e => +e.value); if (v !== 0) problems.push(`${w} ${id} moved by itself to step ${v}`); }
+  // MMLU item read three ways (Reading section 2)
+  for (const m of ['ll', 'gen', 'txt']) {
+    await pg.click(`#hn-mode button[data-m="${m}"]`);
+    const ni = await pg.$$eval('#hn-items button[data-i]', a => a.length);
+    for (let i = 0; i < ni; i++) { await pg.evaluate(i => document.querySelectorAll('#hn-items button[data-i]')[i].click(), i);
+      for (let s = 0; s < 5; s++) { await pg.click('#hn-next'); await wait(10); } await scan('hn ' + m + ' ' + i); }
+    await pg.evaluate(() => { const b = document.querySelector('#hn-items button[data-sh="0"]'); if (b && !b.disabled) b.click() }); await scan('hn shots');
+    await pg.click('#hn-prev'); await pg.$eval('#hn-scrub', e => { e.value = 2; e.dispatchEvent(new Event('input')) }); await scan('hn scrub');
+  }
   await pg.click('#an-play'); await wait(100); await pg.click('#an-play');
   for (const m of ['lm', 'in']) {
     await pg.click(`#an-mode button[data-m="${m}"]`);
@@ -62,7 +74,13 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     const ok = await pg.$('#dt-root .dt-ans'); if (!ok) problems.push(w + ' tree path without answer ' + p.join('>'));
   }
   await pg.evaluate(() => { document.querySelectorAll('#t-read details').forEach(d => d.open = true) }); await scan('details');
-  await shot('#rd-one', 'one'); await shot('#rd-choose', 'choose');
+  await shot('#rd-top', 'top'); await shot('#rd-choose', 'choose');
+  // published cases (closed block in section 3) and the extraction bench (closed block in section 2)
+  await clickAll('#hn-cases button', 'case', async () => { await clickAll('#hn-case-reads .hn-read', 'case read') });
+  await clickAll('#ex-pick button', 'bench');
+  await pg.evaluate(() => { const t = document.getElementById('ex-in'); t.value = 'So the answer is **1,234**.\nANSWER: $1,234'; t.dispatchEvent(new Event('input')); const g = document.getElementById('ex-gold'); g.value = '1234'; g.dispatchEvent(new Event('input')) });
+  await scan('live');
+  await shot('#ex-fig', 'bench'); await shot('#hn-chart', 'spread'); await shot('#sc-fig', 'scale');
   // One task, every harness
   await pg.click('#tabs button[data-t="t-same"]'); await wait(200); await scan('same');
   await clickAll('#sx-field button', 'field');
@@ -71,10 +89,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await pg.select('#sx-a', 'lmeval_gsm8k'); await pg.select('#sx-b', 'inspect_evals_gsm8k');
   await pg.evaluate(() => document.querySelector('#sx-field button[data-f="extract"]').click());
   await shot('#sx-files', 'files');
-  await clickAll('#ex-pick button', 'bench');
-  await pg.evaluate(() => { const t = document.getElementById('ex-in'); t.value = 'So the answer is **1,234**.\nANSWER: $1,234'; t.dispatchEvent(new Event('input')); const g = document.getElementById('ex-gold'); g.value = '1234'; g.dispatchEvent(new Event('input')) });
-  await scan('live');
-  await shot('#sx-ex', 'bench'); await shot('#sx-fields', 'fields');
+  await shot('#sx-fields', 'fields');
   // Inside a run log
   await pg.click('#tabs button[data-t="t-logs"]'); await wait(200); await scan('logs');
   for (const m of ['lmres', 'lmsmp', 'inhdr', 'insmp']) {
