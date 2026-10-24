@@ -58,3 +58,5 @@ Why 28 minutes is right: the page owns Ray Core (tasks, actors, objects, ownersh
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 382 units: core 236, depth 115, fat 31. 371 drafted by `ledger.py init` from the old page (including the three lab tabs); 11 added by hand for script-rendered visuals (fault table, node-loss replay, stats cards, spill chart, head bars, placement figure, Train replay) and the new Ray Serve section, each keyed to a phrase in static text. Fat units carry a `note`.
+
+2026-10-24 topic close: Further reading time for Alignment fixed (23 to 25); ledger key 350 updated.
