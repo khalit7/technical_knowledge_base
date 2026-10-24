@@ -64,7 +64,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     }
   }
   // restore defaults that the screenshots should show
-  await p.evaluate(() => { const s = document.getElementById('dd-sc-pre'); s.value = '14,8'; s.dispatchEvent(new Event('change')); });
+  await p.evaluate(() => { const s = document.getElementById('dd-sc-pre'); if (s) { s.value = '14,8'; s.dispatchEvent(new Event('change')); } });
   await p.evaluate(() => document.querySelectorAll('#t-dedup details').forEach(d => d.open = true));
   await check('opened');
   await new Promise(r => setTimeout(r, 900));

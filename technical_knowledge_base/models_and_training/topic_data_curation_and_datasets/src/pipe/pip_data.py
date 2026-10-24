@@ -174,7 +174,7 @@ def examples(rows):
 # ------------------------------------------------------------------ the three extraction pages
 PAGES = [("www.protectnmwater.org", "An advocacy campaign page: WET keeps the calendar widget"),
          ("mkwc.ifa.hawaii.edu", "A university weather-centre page: trafilatura merges the menu"),
-         ("www.railwaycodes.org.uk", "A railway reference page: resiliparse drops the data")]
+         ("www.railwaycodes.org.uk", "A railway reference page: a preformatted data list both extractors keep")]
 
 
 def norm(s):

@@ -1,5 +1,5 @@
 // ---- Dedup lab (t-dedup): shared helpers. Charts size from the measured width and redraw when the tab is shown or resized.
-// Animations run only while their card is on screen in the visible tab, start once on first view, never autoplay under reduced motion.
+// Animations run only while their card is on screen in the visible tab, never start by themselves: they wait on step 0 for the reader (2026-10-24).
 window.DDX=(function(){
   const TAB='t-dedup';
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -32,7 +32,7 @@ window.DDX=(function(){
     g('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
     g('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
     g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});show();
     return {go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},reset(n){setPlay(false);st.n=n;st.i=0;show()},redraw(){o.draw(st.i)},get i(){return st.i}};

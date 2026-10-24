@@ -1,20 +1,6 @@
-// ---- Reading tab, sections 7 and 8: OLMo 2 mid-training before/after, model-collapse simulation ----
+// ---- Reading tab, section 8: model-collapse simulation (in a closed block; redrawn when the block opens). The OLMo 2 mid-training bars were retired on 2026-10-24 (Data mixing, section 5, owns staging) ----
 (function(){
   const D=window.RDD,esc=RD.esc;
-  const mb=document.getElementById('rd-mid-bars');
-  if(mb){
-    const o=D.olmo;
-    mb.innerHTML=o.cols.map((c,i)=>'<div><span class="nm">'+esc(c)+'</span><span class="tr"><span id="rd-mid-b'+i+'"></span><i id="rd-mid-t'+i+'" style="position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink)"></i></span><span class="v" id="rd-mid-v'+i+'"></span></div>').join('');
-    const set=m=>o.cols.forEach((c,i)=>{const pre=o.pre[i],mid=o.mid[i],b=document.getElementById('rd-mid-b'+i),t=document.getElementById('rd-mid-t'+i),v=document.getElementById('rd-mid-v'+i);
-      const val=m==='pre'?pre:mid;b.style.width=val+'%';b.style.background=m==='pre'?'var(--dim)':'var(--c3)';
-      t.style.left=pre+'%';t.style.display=m==='both'?'block':'none';
-      v.textContent=m==='both'?(mid-pre>=0?'+':'')+(mid-pre).toFixed(1):val.toFixed(1)});
-    set('both');RD.seg(document.getElementById('rd-mid-mode'),set);
-    mb.insertAdjacentHTML('afterend','<p class="small mute" id="rd-mid-key">Bar: score after mid-training (scale 0 to 100); black tick: score after pretraining; number: the change in points.</p>');
-    document.getElementById('rd-mid-mode').addEventListener('click',()=>{const k=document.getElementById('rd-mid-key'),m=document.querySelector('#rd-mid-mode .on').dataset.m;
-      k.textContent=m==='both'?'Bar: score after mid-training (scale 0 to 100); black tick: score after pretraining; number: the change in points.':'Bar and number: the score '+(m==='pre'?'after pretraining':'after mid-training')+' (scale 0 to 100).'});
-  }
-
   // model collapse: Gaussian refit on own samples, replace vs accumulate (median of 400 seeded runs)
   const host=document.getElementById('rd-col-svg');if(!host)return;
   const G=40,M=20,RUNS=400;
@@ -52,4 +38,5 @@
   }
   const A=RD.anim({card:'rd-col-card',ctl:'rd-col-ctl',n:G+1,draw,ms:260,label:'Generation'});
   RD.onResize(()=>A.redraw());
+  const det=document.getElementById('rd-col-det');if(det)det.addEventListener('toggle',()=>{if(det.open)A.redraw()});
 })();

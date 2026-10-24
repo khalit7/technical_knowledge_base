@@ -61,7 +61,7 @@
       R.map(r=>'<tr><td>'+X.esc(r.name)+'</td><td class="n">'+r.total+'T</td><td class="n">'+r.unique+'T</td><td class="n">'+(r.synthetic==null?'none':r.synthetic+'T')+'</td><td class="n">'+(r.epochs<10?r.epochs.toFixed(2):r.epochs.toFixed(1))+'</td><td class="n">'+r.eff.toFixed(2)+'T ('+X.pct(r.eff_frac,0)+')</td></tr>').join('')}
   X.seg($('mx-hz-b'),m=>{HB=+m;drawHz()});X.onRender(drawHz);drawHz();
   // ---------- CMR
-  function drawCMR(){const el=$('mx-cmr'),C=D.cmr;const rows=Object.keys(C.finance).map(k=>['Finance, '+k,C.finance[k],'var(--c1)']).concat([['Academic papers, 460M',C.academic_460M,'var(--c4)']]);
+  function drawCMR(){const el=$('mx-cmr');if(!el)return;const C=D.cmr;const rows=Object.keys(C.finance).map(k=>['Finance, '+k,C.finance[k],'var(--c1)']).concat([['Academic papers, 460M',C.academic_460M,'var(--c4)']]);
     const w=X.width(el),lw=Math.min(150,w*.42),bw=w-lw-50,rh=24,h=rows.length*rh+18,x=v=>lw+bw*v/60;let b='';
     [0,20,40,60].forEach(v=>{b+='<line x1="'+x(v)+'" x2="'+x(v)+'" y1="0" y2="'+(h-14)+'" stroke="var(--line)"/>'+X.t(x(v),h-2,v+'%',{a:'middle',fs:10,fill:'var(--mute)'})});
     rows.forEach((r,i)=>{const y=i*rh+2;b+=X.t(lw-6,y+14,r[0],{a:'end',fs:11})+X.rect(lw,y+3,x(r[1])-lw,rh-9,r[2])+X.t(x(r[1])+4,y+14,r[1].toFixed(1)+'%',{fs:10.5,w:600})});

@@ -24,9 +24,9 @@
     $('dd-est-note').textContent='Of the '+nin+' pairs with Jaccard between 0.05 and 1 (exclusive), '+out+' ('+X.pct(out/nin)+') fall outside the band, close to the 5% a binomial estimate puts there. The '+low+' pairs below 0.05 sit above the diagonal by selection: they are embedded only because 2 or more of their values agree.';}
   est();X.onRender(est);
 
-  // ---- bands and rows explorer
-  const bS=$('dd-sc-b'),rS=$('dd-sc-r'),tS=$('dd-sc-t');
+  // ---- bands and rows explorer: the card was retired on 2026-10-24 (Deduplication section 3's Band designer draws the same curve over the same pairs); kept behind a guard
   const Pf=(s,b,r)=>1-Math.pow(1-Math.pow(s,r),b);
+  if($('dd-sc-b')){const bS=$('dd-sc-b'),rS=$('dd-sc-r'),tS=$('dd-sc-t');
   function cand(p,b,r){for(let k=0;k<b;k++){let ok=1;for(let q=0;q<r;q++)if(!p.m[k*r+q]){ok=0;break}if(ok)return 1}return 0}
   function clamp(src){let b=+bS.value,r=+rS.value;if(b*r>112){if(src==='b')r=Math.floor(112/b);else b=Math.floor(112/r)}r=Math.max(2,r);b=Math.max(1,b);bS.value=b;rS.value=r}
   function sc(){const b=+bS.value,r=+rS.value,tg=+tS.value;$('dd-sc-bv').textContent=b;$('dd-sc-rv').textContent=r;$('dd-sc-tv').textContent=tg.toFixed(2);
@@ -44,7 +44,7 @@
       X.stat('candidate pairs',X.fmt(nc),'of '+X.fmt(D.npairs)+' pairs')+X.stat('missed at ≥ '+tg.toFixed(2),miss+' of '+above,above?X.pct(miss/above)+' of those pairs':'')+X.stat('candidates below '+tg.toFixed(2),below,'pairs a Jaccard check would reject');}
   bS.addEventListener('input',()=>{clamp('b');$('dd-sc-pre').value='';sc()});rS.addEventListener('input',()=>{clamp('r');$('dd-sc-pre').value='';sc()});tS.addEventListener('input',sc);
   $('dd-sc-pre').addEventListener('change',e=>{if(!e.target.value)return;const v=e.target.value.split(',');bS.value=v[0];rS.value=v[1];sc()});
-  sc();X.onRender(sc);
+  sc();X.onRender(sc);}
 
   // ---- big settings table
   const G=D.big;const rowB=(nm,s,note)=>'<tr><td>'+nm+'</td><td class="num">'+s.b+' × '+s.r+'</td><td class="num">'+X.fmt(s.hashes)+'</td><td class="num">'+(100*Pf(0.75,s.b,s.r)).toFixed(1)+'%</td><td class="num">'+(100*Pf(0.8,s.b,s.r)).toFixed(1)+'%</td><td class="num">'+s.candidates+'</td><td class="num">'+s.cand_J_ge_08+' of '+s.pairs_J_ge_08+'</td><td class="num">'+s.cand_J_lt_08+'</td><td>'+note+'</td></tr>';

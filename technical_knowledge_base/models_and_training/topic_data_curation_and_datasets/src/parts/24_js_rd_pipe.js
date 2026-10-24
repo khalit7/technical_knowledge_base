@@ -1,15 +1,6 @@
-// ---- Reading tab, section 3: a real Common Crawl page through the pipeline (rules computed live, verdicts and scores measured) and the funnels ----
+// ---- Reading tab, section 3: a real Common Crawl page through the pipeline (rules computed live, verdicts and scores measured). The funnel bars were retired on 2026-10-24: the hero lists the counts, Extraction and filtering's hero draws them ----
 (function(){
-  const esc=RD.esc,P=window.RDP.page,F=window.RDP.funnel;
-  // funnels: FineWeb (published, tokens) and the running example (measured, documents, one WARC file)
-  const ff=document.getElementById('rd-fw-funnel');
-  if(ff){
-    const fw=[['Base filtered (URL, English, Gopher)',36,0],['After MinHash inside each crawl',20,0],['FineWeb (C4 and FineWeb rules)',15,1],['FineWeb-Edu (score 3 or more)',1.3,0,'var(--c3)']];
-    const d=F.docs,ours=[['HTML pages in the WARC file',d.html_pages,0,'var(--dim)'],['After the URL blocklist',d.after_url,0],['After extraction (trafilatura)',d.after_extraction,0],['After language ID (English, 0.65)',d.after_lid,0],['After Gopher rules',d.after_gopher,0],['After C4 and FineWeb rules',d.after_c4_and_fineweb_rules,0],['After MinHash inside the file',d.after_minhash_in_file,1,'var(--c3)']];
-    const set=m=>{if(m==='fw')RD.bars(ff,fw,36,v=>v+'T');else RD.bars(ff,ours,d.html_pages,v=>v.toLocaleString('en-US'))};
-    set('ours');RD.seg(document.getElementById('rd-fun-mode'),set);
-  }
-
+  const esc=RD.esc,P=window.RDP.page;
   const card=document.getElementById('rd-page-card');if(!card)return;
   const WET=P.wet_lines,KEEP={traf:P.keep_traf,res:P.keep_res};
   const TXT={traf:P.traf,res:P.res,wet:P.wet},NAME={traf:'trafilatura',res:'resiliparse',wet:'Common Crawl WET text'};

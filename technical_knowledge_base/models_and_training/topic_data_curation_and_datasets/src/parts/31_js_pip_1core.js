@@ -15,7 +15,7 @@ window.DCP=(function(){
   const n0=x=>x==null?'n/a':Math.round(x).toLocaleString('en-US');
   // segmented control: el holds <button data-v>; f(value)
   function seg(el,f){el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!el.contains(b))return;el.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});f(b.dataset.v)})}
-  // step animation: o {card, ctl, n, draw(i), ms, label}; plays once when first on screen (not under reduced motion)
+  // step animation: o {card, ctl, n, draw(i), ms, label}; waits on step 0 until the reader acts
   function anim(o){
     const card=$(o.card),ctl=$(o.ctl);
     const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
@@ -40,7 +40,7 @@ window.DCP=(function(){
     g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     g('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent&&visible()){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();

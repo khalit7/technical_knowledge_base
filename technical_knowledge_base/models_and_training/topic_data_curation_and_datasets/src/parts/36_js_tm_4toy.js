@@ -47,12 +47,12 @@
   // ---------------- storage sizes ----------------
   const S=D.storage;
   if(!S){$('tm-sizes').innerHTML=pend('the size of the same documents in each format, measured on the running example, waits for setup READY (script src/map/storage/storage_sizes.py).');
-    $('tm-pcard').innerHTML+=pend('the packing animation uses the running example\'s token counts (same script).');return}
+    if($('tm-pcard'))$('tm-pcard').innerHTML+=pend('the packing animation uses the running example\'s token counts (same script).');return}
   const mx=Math.max(...S.sizes.map(s=>s.bytes));
   $('tm-sizes').innerHTML='<div class="tm-box"><h3 style="margin-top:0">The same '+S.n_docs.toLocaleString('en-US')+' documents in each format <span class="tm-lbl m">measured</span></h3><p class="small">'+S.note+'</p><div class="tm-bars">'+
     S.sizes.map(s=>'<div><span class="nm">'+esc(s.label)+'</span><span class="tr"><span style="width:'+(100*s.bytes/mx).toFixed(1)+'%;background:'+(s.kind==='tok'?'var(--c4)':'var(--acc)')+'"></span></span><span class="v">'+fmtB(s.bytes)+'</span></div>').join('')+'</div><p class="small mute">'+S.reading+'</p></div>';
-  // ---------------- packing ----------------
-  const P=S.pack;let pm='pad';
+  // ---------------- packing: card retired 2026-10-24 (Storage and loading, section 6, owns it); kept behind a guard ----------------
+  if($('tm-pcard')){const P=S.pack;let pm='pad';
   function pdraw(step){
     const host=$('tm-pplot'),W=Math.max(300,Math.floor(width(host))),L=P.demo.L,lens=P.demo.lens;
     // build windows
@@ -77,6 +77,6 @@
   const nWin=m=>{const o=pm;pm=m;const n=pdraw(0);pm=o;return n};
   const PA=anim({card:'tm-pcard',ctl:'tm-pctl',n:nWin('pad'),ms:900,label:'Window',draw:pdraw});
   $('tm-pmode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pm=b.dataset.m;$('tm-pmode').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));PA.reset(nWin(pm))});
-  onRender(()=>PA.redraw());onResize(()=>PA.redraw());
+  onRender(()=>PA.redraw());onResize(()=>PA.redraw());}
   $('tm-loader').innerHTML='<div class="co"><div class="t">How a training loader reads the shards</div><p>'+S.loader+'</p></div>';
 })();
