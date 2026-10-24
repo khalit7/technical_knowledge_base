@@ -1,75 +1,22 @@
-
-<section id="rd-mist">
-<h2>Common mistakes</h2>
-<p class="small mute">Each one has caused real outages or data loss; open one to see why and what to do instead.</p>
-<details class="mist"><summary>Treating a timeout as "it failed"</summary><div class="b">A timeout means "unknown". In the "reply lost" case the write happened, and a blind retry does it twice. Make retried writes idempotent (an idempotency key, or "set to X" instead of "add X"); Jepsen found the official etcd Java client retrying non-idempotent requests in 2024. Retry policy itself: {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}.</div></details>
-<details class="mist"><summary>Reading from a replica right after a write</summary><div class="b">Measured above: 99.65% of immediate replica reads missed the write, on one laptop. Read the user's own recent changes from the leader, or wait for the replica to reach their write position.</div></details>
-<details class="mist"><summary>Assuming synchronous replication gives read-your-writes</summary><div class="b">Postgres <code>synchronous_commit = on</code> waits until the standby has <i>flushed</i> the WAL, not <i>applied</i> it: 1 stale read in 2,000 in the measurement. You need <code>remote_apply</code> (which waits for replay on every commit) or a client-side position wait.</div></details>
-<details class="mist"><summary>"We use quorums (R + W &gt; N), so we are strongly consistent"</summary><div class="b">Overlap is not linearizability: concurrent writes settled by timestamps, partial writes that are not rolled back and sloppy quorums all break it (Abadi). If you need linearizable behaviour, use a system built on consensus, or a compare-and-set that goes through one (Cassandra's lightweight transactions).</div></details>
-<details class="mist"><summary>Sharding with <code>hash(key) mod N</code></summary><div class="b">Adding one machine to four moves 79.6% of keys in the widget above. Use consistent hashing, or many fixed logical shards moved whole (Instagram, Notion).</div></details>
-<details class="mist"><summary>A shard key that sends new data to one place</summary><div class="b">Partitioning by time or by an increasing id sends every new write to the newest shard. Partition by something with many independent values that your queries also use (user, workspace, chat).</div></details>
-<details class="mist"><summary>A distributed lock without a fencing token</summary><div class="b">Leases expire during pauses; the old holder wakes up and writes. A longer TTL only makes it rarer. Have the storage check a monotonically increasing token (the lock key's revision in etcd, the zxid in ZooKeeper), or make the protected update a conditional write in the same store.</div></details>
-<details class="mist"><summary>Ordering events across machines by their wall clocks</summary><div class="b">Clocks drift and can step backwards; last-write-wins then keeps the write from the machine whose clock runs fast, not the latest. Use a single leader's log order, logical clocks, or a database that bounds clock error (TrueTime, CockroachDB's max offset). For durations and timeouts, always use the monotonic clock.</div></details>
-<details class="mist"><summary>"CAP: pick two", or calling a system "CA"</summary><div class="b">Partitions are not optional. The real choice applies only during a partition, and the everyday trade is latency against consistency (PACELC). Say what the system does when a partition happens.</div></details>
-<details class="mist"><summary>Four (or six) consensus nodes "for extra safety"</summary><div class="b">A majority of 4 is 3, so 4 nodes survive one failure, like 3, while every write waits for one more node. Use 3 or 5; more members also make every commit slower.</div></details>
-<details class="mist"><summary>Writing your own leader election or consensus</summary><div class="b">Jepsen has found bugs in nearly every implementation it tested, including Raft-based ones built by experts (Redis-Raft: 21 issues). Use etcd, ZooKeeper or Consul, or a database that does it internally.</div></details>
-<details class="mist"><summary>Putting bulk data or high write rates through a consensus store</summary><div class="b">etcd is for small, critical, rarely changing data (8 GB by default); every write is a majority round trip and a disk flush. Store data in a database; store the pointer, the leader or the configuration in etcd.</div></details>
-<details class="mist"><summary>Assuming the default isolation level is serializable</summary><div class="b">Postgres defaults to read committed, and "repeatable read" in Postgres is snapshot isolation, which allows write skew. Ask for <code>SERIALIZABLE</code> where an invariant spans rows, and be ready to retry aborted transactions.</div></details>
-<details class="mist"><summary>Automatic failover across regions with asynchronous replication</summary><div class="b">GitHub 2018: a 43-second partition became 24 hours of repair, because both sides took writes. Keep automatic failover inside a region (where synchronous replication is cheap) and make cross-region promotion a deliberate decision.</div></details>
-</section>
-
-<section id="rd-gloss">
-<h2>Glossary</h2>
-<div class="gl">
-<div><b><a href="#d-partial">Partial failure</a></b>: some machines or links work, others do not, and you cannot be sure which.</div>
-<div><b><a href="#d-timeout">Timeout</a></b>: giving up after a set wait; it does not tell you what failed.</div>
-<div><b><a href="#d-netpart">Network partition</a></b>: two groups of working machines that cannot reach each other.</div>
-<div><b><a href="#d-ntp">NTP</a></b>: the protocol machines use to correct their clocks; it can step a clock backwards.</div>
-<div><b><a href="#d-wall">Time-of-day clock</a></b>: the date and time; can jump; roughly comparable across machines.</div>
-<div><b><a href="#d-mono">Monotonic clock</a></b>: only moves forward; for durations on one machine.</div>
-<div><b><a href="#d-repl">Replication</a></b>, <b><a href="#d-replica">replica</a></b>: keeping copies of the same data on several machines; one copy.</div>
-<div><b><a href="#d-leader">Leader</a></b> / <b><a href="#d-follower">follower</a></b>: the replica that takes writes / the ones that replay its log.</div>
-<div><b><a href="#d-log">Log</a></b>: the ordered list of changes (Postgres: the WAL) that followers replay.</div>
-<div><b><a href="#d-async">Asynchronous</a></b> / <b><a href="#d-sync">synchronous</a></b> replication: confirm a write before / after a follower has it.</div>
-<div><b><a href="#d-lag">Replication lag</a></b>: how far a follower is behind the leader.</div>
-<div><b><a href="#d-ryw">Read-your-writes</a></b>: a user always sees their own writes.</div>
-<div><b><a href="#d-mono-r">Monotonic reads</a></b>: a user never sees an older state after a newer one.</div>
-<div><b><a href="#d-prefix">Consistent prefix reads</a></b>: writes are seen in the order they happened.</div>
-<div><b><a href="#d-failover">Failover</a></b>, <b><a href="#d-promote">promotion</a></b>: making a follower the new leader when the leader dies.</div>
-<div><b><a href="#d-splitbrain">Split brain</a></b>: two nodes both acting as leader.</div>
-<div><b><a href="#d-conflict">Write conflict</a></b>: two leaders accepted different changes to the same item.</div>
-<div><b><a href="#d-crdt">CRDT</a></b>: a data type whose copies merge automatically in any order.</div>
-<div><b><a href="#d-quorum">Quorum</a></b>: enough replicas that any two such sets overlap (R + W &gt; N, or a majority).</div>
-<div><b><a href="#d-cl">Consistency level</a></b>: Cassandra's per-query choice of R or W (ONE, QUORUM, ALL...).</div>
-<div><b><a href="#d-partition">Partitioning</a></b> (sharding): giving each machine a slice of the data.</div>
-<div><b><a href="#d-range">Key-range</a></b> / <b><a href="#d-hashp">hash partitioning</a></b>: slices by ranges of the key / by its hash.</div>
-<div><b><a href="#d-ch">Consistent hashing</a></b>: keys and machines on a hash circle; adding a machine moves about 1/(N+1) of keys.</div>
-<div><b><a href="#d-vnode">Virtual node</a></b>: one of many points a machine takes on the circle.</div>
-<div><b><a href="#d-hot">Hot key</a></b>: one key with far more traffic than others.</div>
-<div><b><a href="#d-rebal">Rebalancing</a></b>: moving data when machines are added or removed.</div>
-<div><b><a href="#d-shardkey">Shard key</a></b>: the value that decides which partition holds a row.</div>
-<div><b><a href="#d-cmodel">Consistency model</a></b>: the set of histories a system may produce.</div>
-<div><b><a href="#d-history">History</a></b>: the operations clients saw, with start, end and result.</div>
-<div><b><a href="#d-lin">Linearizability</a></b>: behaves like one copy; respects real-time order.</div>
-<div><b><a href="#d-seq">Sequential consistency</a></b>: one order everyone agrees on, not tied to real time.</div>
-<div><b><a href="#d-causal">Causal consistency</a></b>: causes are seen before effects; concurrent writes in any order.</div>
-<div><b><a href="#d-eventual">Eventual consistency</a></b>: copies agree once writes stop.</div>
-<div><b><a href="#d-session">Session guarantees</a></b>: read-your-writes, monotonic reads and writes, writes follow reads.</div>
-<div><b><a href="#d-serial">Serializability</a></b>: transactions behave as if run one at a time.</div>
-<div><b><a href="#d-strictser">Strict serializability</a></b>: serializable and in real-time order.</div>
-<div><b><a href="#d-pacelc">PACELC</a></b>: under partition, availability or consistency; else, latency or consistency.</div>
-<div><b><a href="#d-consensus">Consensus</a></b>: machines agreeing on one value or one log, tolerating failures.</div>
-<div><b><a href="#d-term">Term</a></b>: Raft's election number; a higher term always wins.</div>
-<div><b><a href="#d-etimeout">Election timeout</a></b>: how long a Raft follower waits for the leader before running.</div>
-<div><b><a href="#d-commit">Committed</a></b> (Raft): stored on a majority; never lost.</div>
-<div><b><a href="#d-lease">Lease</a></b>: permission that expires unless renewed.</div>
-<div><b><a href="#d-fence">Fencing token</a></b>: a number that grows with each lock grant; storage rejects older ones.</div>
-<div><b><a href="#d-tx">Transaction</a></b>: reads and writes that succeed or fail together, isolated from others.</div>
-<div><b><a href="#d-2pc">Two-phase commit</a></b>: prepare everywhere, then commit everywhere, via a coordinator.</div>
-<div><b><a href="#d-hb">Happened-before</a></b>, <b><a href="#d-concurrent">concurrent</a></b>: could have influenced / could not.</div>
-<div><b><a href="#d-lamport">Lamport clock</a></b>: one counter; respects happened-before but cannot detect concurrency.</div>
-<div><b><a href="#d-vector">Vector clock</a></b>: one counter per machine; detects concurrency.</div>
-<div><b><a href="#d-hlc">Hybrid logical clock</a></b>: wall time plus a logical counter.</div>
-<div><b><a href="#d-truetime">TrueTime</a></b>, <b><a href="#d-commitwait">commit wait</a></b>: time as a bounded interval; wait out the uncertainty before commit.</div>
+<section id="rd-once">
+<h2>9. Idempotency and exactly-once: an end-to-end property</h2>
+<p>Go back to the fourth silence: the database saved the charge and the reply was lost. The client cannot tell this from "request lost", so it has two choices. Never retry, and some charges silently never happen (<dfn id="d-amo">at-most-once</dfn>); or retry until it hears "done", and some charges happen twice (<dfn id="d-alo">at-least-once</dfn>). No protocol on the wire removes that choice, because the sender never learns which silence it got. What can happen exactly once is the <b>effect</b>: deliver at least once, and make the receiver recognise a repeat. An operation is <dfn id="d-idem">idempotent</dfn> when doing it twice has the same effect as doing it once ("set the title to Trip" is; "add 10 credits" is not).</p>
+<p>Where the repeat is recognised matters, and that is the <b>end-to-end argument</b> (Saltzer, Reed and Clark, ACM Transactions on Computer Systems, 1984): "The function in question can completely and correctly be implemented only with the knowledge and help of the application standing at the end points of the communication system." On duplicates specifically: "even if the network suppresses duplicates, the application itself may accidentally originate duplicate requests, in its own failure/retry procedures. These application level duplications look like different messages to the communication system, so it cannot suppress them" ({{Saltzer, Reed and Clark|https://web.mit.edu/Saltzer/www/publications/endtoend/endtoend.pdf}}).</p>
+<div class="card" id="rd-idem-card">
+<h4>One charge, one lost reply, one retry: only a key checked at the end stops the double charge</h4>
+<p class="try"><b>Predict:</b> the gateway in the middle drops duplicate messages. Does that save Ana from a double charge when her app retries? Compare the middle mode with the last one.</p>
+<div class="seg" id="rd-idem-seg"><button data-m="0" class="on">Before: blind retry</button><button data-m="1">Deduplicate in the middle</button><button data-m="2">After: key checked at the end</button></div>
+<div id="rd-idem-svg" class="rd-svg"></div>
+<div class="an-cnt" id="rd-idem-cnt"></div>
+<div class="an-cap" id="rd-idem-cap" aria-live="polite"></div>
+<div class="an-ctl" id="rd-idem-ctl"></div>
+<p class="small mute"><span class="ill">Illustrative</span> amounts and key.</p>
 </div>
+<p>The recipe, wherever the end is (a payment service, a database, a job handler):</p>
+<ul>
+<li><b>The originator names the operation.</b> The client generates a unique <dfn id="d-ikey">idempotency key</dfn> once, before the first attempt, and sends the same key on every retry. A key minted by a middle hop is a new key per attempt, which is the middle mode above.</li>
+<li><b>The end records the key with the effect, atomically.</b> Insert the key and apply the charge in one transaction (a unique constraint on the key does the checking). If they are separate steps, a crash between them leaves a charge with no key, or a key with no charge. On a repeat, return the stored result instead of running again.</li>
+<li><b>Or make the operation idempotent by shape</b>: "set to X" instead of "add X", a conditional write on a version number (compare-and-set), or a <a href="#rd-lease">fencing token</a>, which is the same idea applied to who may write.</li>
+</ul>
+<p>Read "exactly-once" claims with this in mind. Kafka's transactions give exactly-once only while input and output are both Kafka topics; any external side effect needs its own deduplication, which {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}} shows in detail. Retries done for you are the usual source of the duplicate: Jepsen found that the official etcd Java client "incorrectly retries non-idempotent requests which may have actually succeeded" ({{Jepsen, jetcd 0.8.2, 2024-08-08|https://jepsen.io/analyses/jetcd-0.8.2}}). How many times to retry, with what backoff, is {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}; the HTTP shape of an idempotency key (header, expiry, the stored response) is {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}.</p>
 </section>

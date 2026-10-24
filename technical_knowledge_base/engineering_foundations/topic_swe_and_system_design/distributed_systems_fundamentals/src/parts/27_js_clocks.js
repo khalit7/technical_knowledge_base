@@ -30,7 +30,7 @@ window.DSF_CLK=(function(){
     const r=sel.length===2?K.rel(sel[0],sel[1]):null;
     Object.keys(K.P).forEach(p=>K.P[p].forEach((e,k)=>{const x=X(K.T[e]),y=Y[p],on=sel.indexOf(e)>=0;
       g+='<g class="ck-ev" data-e="'+e+'" style="cursor:pointer"><circle cx="'+x+'" cy="'+y+'" r="13" fill="transparent"/><circle cx="'+x+'" cy="'+y+'" r="'+(on?7:5)+'" fill="'+(on?'var(--acc)':'var(--ink)')+'"/>'+
-        RD.t(x,y+(k%2?22:-11),fmt(e),{a:'middle',fs:mode==='lamport'?12:10.5,w:600,fill:on?'var(--acc)':'var(--ink)'})+RD.t(x,y+(k%2?-10:21),e,{a:'middle',fs:9.5,fill:'var(--mute)'})+'</g>'}));
+        RD.t(x,y+(k%2?22:-11),fmt(e),{a:'middle',fs:mode==='lamport'?12:11,w:600,fill:on?'var(--acc)':'var(--ink)'})+RD.t(x,y+(k%2?-10:21),e,{a:'middle',fs:11,fill:'var(--mute)'})+'</g>'}));
     el.innerHTML=RD.svg(W,H,g,'Three machines exchanging messages, with clock values');
     let c='';
     if(sel.length<2)c='Pick a second event.';

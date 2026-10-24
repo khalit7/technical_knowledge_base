@@ -19,3 +19,13 @@ Ranked by teaching value (T, 1 to 5), data reality (D: real, derived or illustra
 | Jepsen findings timeline chart | - | 2 | real | 1 | rejected | A dated table reads better than a chart for ten findings |
 
 What the methodology lacked: a rule for validating a simulator (here: fuzz the model for the algorithm's own published invariants, and say the simplifications on the page).
+
+## 2026-10-24 rebuild
+| Idea | Placement | Status | Notes |
+|---|---|---|---|
+| Hero: shards, leaders and followers, a stale read, an etcd group, numbered to the four jobs | Reading, top | built | static annotated diagram (`22_js_hero.js`) |
+| CAP and PACELC toggle: partition (stale answer or refusal), no partition (copy in flight or +69 ms) | Reading, section 6 | built | reverses the earlier rejection: CAP is core and had no picture; the Raft split shows only the C side |
+| Idempotency stepper: blind retry, dedupe in the middle by message id, key checked at the end | Reading, section 9 | built | before/after on one lost reply; illustrates the end-to-end argument |
+| Consistency ladder: the checker's verdicts as rungs with Jepsen's availability per rung | Reading, section 5 | built | the old Consistency lab tab, moved inline |
+| Raft lab | Reading, section 7 | moved inline | one mechanism, so it sits beside the steps it shows |
+| Real photo (TrueTime GPS or atomic clock hardware) | - | rejected | a photo would not teach the interval idea; the page is about mechanisms |

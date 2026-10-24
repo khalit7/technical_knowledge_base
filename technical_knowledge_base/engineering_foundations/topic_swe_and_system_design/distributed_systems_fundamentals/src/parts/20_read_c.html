@@ -1,48 +1,25 @@
-
-<section id="rd-net">
-<h2>What can go wrong across a network</h2>
-<h3>Partial failure: the new kind of failure</h3>
-<p>A program on one computer mostly either works or crashes. A distributed system has a third state: <dfn id="d-partial">partial failure</dfn>, where some machines or links work and others do not, and nobody can be sure which. Your app server sends "save hello" to the database and hears nothing back. Four very different things look exactly the same from where the app server sits:</p>
-<div class="widget" id="rd-net-card">
-<h4>Silence has four causes</h4>
-<div class="seg" id="rd-net-seg"><button data-m="0" class="on">Request lost</button><button data-m="1">Server crashed</button><button data-m="2">Server slow</button><button data-m="3">Reply lost</button></div>
-<div id="rd-net-svg" class="rd-svg"></div>
-<p class="small" id="rd-net-cap"></p>
+<section id="rd-clock">
+<h2>2. Time and order without a shared clock</h2>
+<p>Last-write-wins, leases and "which happened first?" all need an order of events across machines, and wall clocks cannot give it reliably. Two ways out: give up physical time and track cause and effect (<b>logical clocks</b>), or keep physical time but bound its error (<b>hybrid and bounded clocks</b>).</p>
+<p>Leslie Lamport (1978) defined <dfn id="d-hb">happened-before</dfn> (→): a → b if a came before b on the same machine, or a is sending a message and b is receiving it, or there is a chain of these. If neither a → b nor b → a, the events are <dfn id="d-concurrent">concurrent</dfn>: neither could have influenced the other.</p>
+<ul>
+<li>A <dfn id="d-lamport">Lamport clock</dfn> is one counter per machine: add one at every event; put the counter on every message; on receiving, set yours to max(yours, received) + 1. It satisfies Lamport's "Clock Condition. For any events a, b: if a→b then C(a) &lt; C(b)", and he points out the converse fails: "we cannot expect the converse condition to hold as well" ({{Lamport, CACM 1978|https://lamport.azurewebsites.net/pubs/time-clocks.pdf}}). A smaller number does not mean "happened before"; it may be concurrent.</li>
+<li>A <dfn id="d-vector">vector clock</dfn> keeps one counter <i>per machine</i>: add one to your own entry at every event; on receiving, take the element-wise maximum, then add one to your own. Now a → b exactly when a's vector is ≤ b's in every entry (and differs somewhere); if each is larger somewhere, they are concurrent. The cost is one number per participant on every message. Dynamo used vector clocks to keep concurrent versions of an item side by side for the application to merge (the shopping cart that keeps both additions); Cassandra chose last-write-wins timestamps instead.</li>
+</ul>
+<div class="widget" id="rd-clk-card">
+<h4>Lamport numbers order everything, so they cannot say "concurrent"; vectors can</h4>
+<p class="try"><b>Predict:</b> event b1 has Lamport number 3 and c1 has 1. Did c1 happen before b1? Tap the two events, then switch to vectors.</p>
+<div class="seg" id="rd-clk-seg"><button data-m="lamport" class="on">Before: Lamport clocks</button><button data-m="vector">After: vector clocks</button></div>
+<div id="rd-clk-svg" class="rd-svg"></div>
+<p class="small" id="rd-clk-cap"></p>
+<p class="small mute">Click (tap) two events to compare them. Three machines A, B, C; arrows are messages. The labels are computed by the rules above; <code>src/recompute.py</code> recomputes them.</p>
 </div>
-<p>The app server cannot tell these apart. The only tool it has is a <dfn id="d-timeout">timeout</dfn>: wait so long, then assume something failed. A timeout cannot say <i>what</i> failed, and in two of the four cases the write <b>did happen</b>. That single fact drives most of this page: it is why retries need idempotency (owned by {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}), why a "dead" leader may still be alive (<a href="#rd-lease">leases and fencing</a>), and why Kafka's documentation says of a producer that sees a network error: "it cannot be sure if this error happened before or after the message was committed" ({{Kafka 4.2 design docs|https://kafka.apache.org/42/design/design/}}).</p>
-<p>Choosing the timeout is a trade with no free answer. Too short, and a slow but healthy node is declared dead, a replacement takes over, and now two think they are in charge. Too long, and every real failure means a long wait. Systems that elect leaders make this explicit: etcd defaults to a 100 ms heartbeat and a 1,000 ms election timeout, and its docs say the election timeout "must be at least 10 times the round-trip time" ({{etcd v3.6 tuning|https://etcd.io/docs/v3.6/tuning/}}).</p>
-
-<h3>The eight fallacies</h3>
-<p>In the 1990s L. Peter Deutsch and others at Sun Microsystems listed the false assumptions that programmers new to distributed systems "invariably make" ({{Wikipedia, with the original list|https://en.wikipedia.org/wiki/Fallacies_of_distributed_computing}}). Each still causes outages; here is what each one breaks:</p>
-<div class="tw"><table>
-<thead><tr><th>The false belief</th><th>What actually happens, and what you do about it</th></tr></thead>
-<tbody>
-<tr><td>1. The network is reliable</td><td>Packets are dropped, links are cut, switches are misconfigured. Every call needs a timeout and a plan for "unknown outcome".</td></tr>
-<tr><td>2. Latency is zero</td><td>A round trip is about 0.5 ms inside a data centre and 69 ms across the US ({{Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}}). Ten sequential calls across regions is most of a second: batch, parallelise, keep chatty calls local.</td></tr>
-<tr><td>3. Bandwidth is infinite</td><td>Copying a big table to a new replica, or rebalancing shards, can saturate links and slow live traffic. Throttle background copies.</td></tr>
-<tr><td>4. The network is secure</td><td>Anything on the wire can be read or forged unless encrypted and authenticated (TLS between services, not only at the edge).</td></tr>
-<tr><td>5. Topology does not change</td><td>Machines come and go, IP addresses move, autoscaling adds nodes. Discover peers dynamically; never hard-code addresses.</td></tr>
-<tr><td>6. There is one administrator</td><td>Your system spans a cloud provider, a DNS provider, other teams' services. Their changes are your outages (the parent's Case files hold several).</td></tr>
-<tr><td>7. Transport cost is zero</td><td>Serialising data costs CPU, and cross-zone and cross-region traffic is billed per GB (egress prices in Numbers to know).</td></tr>
-<tr><td>8. The network is homogeneous</td><td>Different hardware, kernels, MTUs and client versions behave differently. Test across the mix you really run.</td></tr>
-</tbody></table></div>
-
-<h3>Partitions are real, and short ones do long damage</h3>
-<p>A <dfn id="d-netpart">network partition</dfn> is a split: two groups of machines are each up but cannot reach each other. It is easy to think of it as rare and exotic. Two real records:</p>
 <ul>
-<li><b>GitHub, 21 October 2018:</b> maintenance cut the US East Coast data centre off for 43 seconds. Automation promoted West Coast database replicas to leaders; both coasts then held writes the other lacked, and repair took 24 hours and 11 minutes ({{GitHub post-incident analysis|https://github.blog/news-insights/company-news/oct21-post-incident-analysis/}}; "gh-2018-10" in the parent's {{Case files|n:3c65c17b0d0d81048ae0dd14ac399b4d}}). You will see below why "automatic failover" is a consistency decision.</li>
-<li><b>Google, 2017:</b> Eric Brewer's analysis of Spanner incidents put the network category "under 8%", and "Nor was a Spanner quorum ever on the minority side of a partition", but "We did see individual data centers or regions get cut off from the rest of the network" ({{Brewer, Spanner, TrueTime and the CAP Theorem, 14 Feb 2017|https://storage.googleapis.com/gweb-research2023-media/pubtools/pdf/45855.pdf}}). Even with Google's private network, partitions happen; they are just not the most common failure.</li>
+<li><dfn id="d-hlc">Hybrid logical clocks</dfn> (Kulkarni et al., 2014) pair the wall-clock time with a small logical counter: they capture causality like a Lamport clock while staying close to real time, and fit in a 64-bit timestamp ("HLC captures the causality relationship like logical clocks ... Moreover HLC fits in to 64 bits NTP timestamp format", {{Kulkarni et al.|https://cse.buffalo.edu/tech-reports/2014-04.pdf}}). CockroachDB uses them.</li>
+<li><dfn id="d-truetime">TrueTime</dfn> (Google Spanner) returns not a time but an interval, [earliest, latest], guaranteed to contain the true time, from GPS receivers and atomic clocks in every data centre. In 2012 the uncertainty ε was "typically a sawtooth function of time, varying from about 1 to 7 ms over each poll interval" (the 6 ms climb is the drift budget above). Spanner then <b>waits out the uncertainty</b> before making a commit visible (<dfn id="d-commitwait">commit wait</dfn>), so any transaction that starts after another finished gets a larger timestamp. That is how it offers external consistency, under which "the system behaves as if all transactions run sequentially" ({{Spanner docs, TrueTime and external consistency|https://docs.cloud.google.com/spanner/docs/true-time-external-consistency}}). Better clocks mean shorter waits.</li>
 </ul>
-
-<h3>Pauses: a process can stop without knowing it stopped</h3>
-<p>A running program can freeze for seconds: a garbage collector's "stop the world" phase, a virtual machine being live-migrated, the OS swapping memory to disk, a laptop lid closing. When it resumes, its code continues from the next line as if no time passed. If it held a lock or a lease (permission that expires), that permission may have expired meanwhile and been given to someone else. This is the scenario behind <a href="#rd-lease">fencing tokens</a>, and Jepsen found that it breaks real lock services.</p>
-
-<h3>Clocks lie</h3>
-<p>Every machine has a quartz clock that drifts. Google's Spanner paper budgets a worst-case drift of "200 microseconds/second" between synchronisations every 30 seconds ({{Corbett et al., OSDI 2012|https://static.googleusercontent.com/media/research.google.com/en//archive/spanner-osdi2012.pdf}}), so even Google's machines can be 200 µs/s × 30 s = 6 ms apart before correction. Machines correct with <dfn id="d-ntp">NTP</dfn> (Network Time Protocol), which can step the clock <b>backwards</b>. A computer has two clocks for this reason:</p>
-<ul>
-<li>the <dfn id="d-wall">time-of-day clock</dfn> (wall clock): the date and time, comparable across machines only roughly, and it can jump;</li>
-<li>the <dfn id="d-mono">monotonic clock</dfn>: only ever moves forward, meaningless across machines, the right tool for measuring a duration or a timeout.</li>
-</ul>
-<p>Cloudflare learned this on 1 January 2017: at the leap second "a number went negative when it should always have been, at worst, zero", because Go's <code>time.Now()</code> "does not guarantee monotonicity", and DNS resolutions failed for some customers ({{Graham-Cumming, Cloudflare blog|https://blog.cloudflare.com/how-and-why-the-leap-second-affected-cloudflare-dns/}}). Go added "transparent monotonic time support" in version 1.9 later that year ({{Go 1.9 release notes|https://go.dev/doc/go1.9}}). The rule: <b>measure durations with the monotonic clock; never order events across machines by their wall clocks</b> unless the system bounds the error (see <a href="#rd-clock">Clocks</a>).</p>
-<div class="co"><div class="t">The models people reason in</div>Papers and docs state which failures they tolerate. <b>Crash-stop</b>: a node works correctly until it halts for good. <b>Crash-recovery</b>: it may halt and come back with what it saved to disk (most databases assume this). <b>Byzantine</b>: a node may lie or behave arbitrarily (blockchains; rarely inside one company). On timing: <b>synchronous</b> (delays have a known bound), <b>asynchronous</b> (no bound at all), and the realistic middle, <b>partially synchronous</b> (usually bounded, sometimes not). The consensus algorithms below are safe in the asynchronous model and make progress only when the network behaves for a while.</div>
+<details class="dp"><summary>Clock bounds in CockroachDB and on AWS <span class="mute">(optional)</span></summary><div>
+<p>CockroachDB still needs synchronised clocks: when a node's clock is off from at least half the others "by 80% of the maximum offset allowed, it spontaneously shuts down. This offset defaults to 500ms", with 250 ms recommended for new clusters ({{CockroachDB operational FAQs|https://docs.cockroachlabs.com/docs/stable/operational-faqs}}).</p>
+<p>In November 2023 AWS announced "microsecond-level clock accuracy on supported Amazon EC2 instances" and ClockBound, an open-source daemon that reports the time with an error bound, TrueTime-style ({{AWS Compute Blog, 16 Nov 2023|https://aws.amazon.com/blogs/compute/its-about-time-microsecond-accurate-clocks-on-amazon-ec2-instances/}}).</p>
+</div></details>
 </section>

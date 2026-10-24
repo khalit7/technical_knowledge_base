@@ -47,6 +47,6 @@
     cnt.innerHTML=RD.stat('Ana\'s last write','position 101','')+RD.stat('Followers replayed up to',s.f1+' and '+s.f2,'')+RD.stat('Reads that missed her write',String(stale),stale?'stale':'none')+RD.stat('Read waited for replay',waited,'');
   }
   const A=RD.anim({card:'rd-repl-card',ctl:'rd-repl-ctl',n:M[0].steps.length,draw:draw,ms:2600,label:'Replication step'});
-  RD.seg(document.getElementById('rd-repl-seg'),v=>{mode=+v;A.reset(M[mode].steps.length);A.play()});
+  RD.seg(document.getElementById('rd-repl-seg'),v=>{mode=+v;A.reset(M[mode].steps.length)});
   RD.onResize(()=>A.redraw());
 })();
