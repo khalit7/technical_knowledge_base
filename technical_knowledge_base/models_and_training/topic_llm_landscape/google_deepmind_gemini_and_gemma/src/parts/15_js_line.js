@@ -1,4 +1,4 @@
-// ---- Lineage tab ----
+// ---- Lineage timeline (Reading, "How the design got here"; cards in the closed lnDet block) ----
 (function(){
   const E=[
     ['2023-12-06','g','Gemini 1.0','Ultra, Pro and Nano (1.8B and 3.25B on device); natively multimodal from pretraining.','{{Wikipedia|@wgem}}'],
@@ -55,8 +55,8 @@
       s+='<line x1="'+xx+'" x2="'+xx+'" y1="'+mid+'" y2="'+(up?y+4:y-10)+'" stroke="'+c+'" stroke-opacity=".5"/>';
       s+='<g class="lnd" data-id="'+e.id+'" style="cursor:pointer"><circle cx="'+xx+'" cy="'+mid+'" r="5" fill="'+c+'"/><text x="'+(xx+(end?-3:3))+'" y="'+y+'" font-size="11"'+(end?' text-anchor="end"':'')+'>'+sn(e)+'</text><title>'+dlab(e)+': '+e.n+'</title></g>'});
     $('lnSvg').innerHTML=svgEl(W,H,s,'Gemini and Gemma releases on a time axis');
-    $('lnSvg').querySelectorAll('.lnd').forEach(g=>g.addEventListener('click',()=>{const c=$(g.dataset.id);document.querySelectorAll('.tl-item').forEach(x=>x.classList.toggle('sel',x===c));c.scrollIntoView({block:'center',behavior:'smooth'})}));
+    $('lnSvg').querySelectorAll('.lnd').forEach(g=>g.addEventListener('click',()=>{const c=$(g.dataset.id);$('lnDet').open=true;document.querySelectorAll('.tl-item').forEach(x=>x.classList.toggle('sel',x===c));c.scrollIntoView({block:'center',behavior:'smooth'})}));
     $('lnCards').innerHTML=ev.map(e=>'<div class="tl-item '+(e.k==='o'?'o':'c')+'" id="'+e.id+'"><h3>'+e.n+'</h3><div class="dt">'+dlab(e)+' · '+(e.k==='o'?'Gemma, open':'Gemini, closed')+' · '+e.src+'</div><p style="margin:4px 0 0;font-size:14px">'+e.t+'</p></div>').join('');
   }
-  segBind('lnR',m=>{range=m;draw()});onTab('t-line',draw);
+  segBind('lnR',m=>{range=m;draw()});onTab('t-read',draw);
 })();
