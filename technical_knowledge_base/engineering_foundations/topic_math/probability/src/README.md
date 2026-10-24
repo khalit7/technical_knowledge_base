@@ -33,3 +33,6 @@ What changed and why (`.claude/skills/explainer-page/teaching/teaching-contract.
 
 ## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 583 units: core 358, depth 165, fat 60 (headings, wind-up questions, plain-words restatements, the stale reading time, the removed tab card and nav; each fat unit has a `note`). 570 were drafted by `ledger.py init` from the old page; 13 were added by hand for the new visuals and sections (section "added in the 2026-10-24 rebuild"), with keys written into static captions where the numbers are drawn by script. No unit is labelled `owned:`: everything not fat still lives on this page.
+
+## Topic close (2026-10-24)
+A closed block in section 3 now carries two results from the root's retired Practice drills that no child had: birthday collisions (0.5073 for 23 people; about 77,163 items for even odds of a collision among \(2^{32}\) ids) and the coupon collector (\(10 H_{10} = 29.29\) draws), both recomputed in Python at the close. Header: 42 min, plus 31 in closed details. Stale pointers to the root's old sections and to Numerical computing's old section 9 were updated.
