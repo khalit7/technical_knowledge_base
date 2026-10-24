@@ -39,7 +39,7 @@
     $('ix-cnt').innerHTML=RD.stat('Best guess at the cause',S.k[0])+RD.stat('Signals in use',S.k[1])+RD.stat('Slow requests explained',S.k[2],'successful requests over 800 ms');
   }
   const an=RD.anim({card:'ix-card',ctl:'ix-ctl',n:6,draw,ms:4200,label:'Incident step'});
-  RD.seg($('ix-seg'),m=>{mode=m;an.reset(6);an.play()});
+  RD.seg($('ix-seg'),m=>{mode=m;an.reset(6)});
   $('ix-r3n').textContent=r3.n;$('ix-r3m').textContent=fmt(r3.median_ms);
   RD.onResize(()=>an.redraw());
 })();

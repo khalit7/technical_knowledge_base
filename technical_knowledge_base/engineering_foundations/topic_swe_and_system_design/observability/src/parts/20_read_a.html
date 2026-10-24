@@ -1,40 +1,98 @@
 <div class="tab" id="t-read" role="tabpanel">
-<p class="small mute">About 40 minutes to read. Every section can be read alone; terms are defined at first use (in bold) and collected in the glossary at the end. This page owns the depth on seeing inside a running system; the parent root's Step 4 gives the two-paragraph version. LLM-specific signals (time to first token, tokens per second, KV cache use, cost per request) live on the sibling {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} (its section 12); traces of LLM calls and agent runs (the OpenTelemetry GenAI conventions, Langfuse, cost per span) on {{LLM observability|n:3c65c17b0d0d81fe82c0c6e9360afec4}}; GPU counters, goodput and GPU-hour accounting for ML clusters on {{Observability and cost|n:3c65c17b0d0d818ebf79d1af4532f3ee}}; SLO definitions, error budgets and incident response live on the sibling {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}.</p>
+<style>
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4{margin:0 0 4px;font-size:14.5px}
+#t-read .hero .req{font-size:13px;background:var(--soft);border-radius:6px;padding:6px 10px;margin:4px 0 8px;overflow-wrap:anywhere}
+#t-read .hcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px}
+#t-read .hcol{border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+#t-read .hcol .nm{font-weight:700;font-size:14px}
+#t-read .hcol .q{font-size:13px;margin:2px 0 4px}
+#t-read .hcol .c{font-size:12px;color:var(--mute);margin-top:4px}
+#t-read .hcol .hpic{min-height:84px;margin:4px 0}
+#t-read .hcol .hlog{font:11.5px/1.45 ui-monospace,Menlo,monospace;background:var(--soft);border-radius:6px;padding:6px 8px;overflow-wrap:anywhere}
+#t-read .tid{background:var(--hl);border-radius:3px;padding:0 2px}
+#t-read .hjoin{font-size:13px;margin:8px 0 2px;border-left:3px solid var(--bad);padding:2px 0 2px 10px}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px}
+#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-play{min-width:6.4em}
+#t-read figure{margin:10px 0}#t-read figure img{width:100%;height:auto;border:1px solid var(--line);border-radius:6px}
+#t-read figcaption{font-size:13px;margin-top:4px}#t-read figcaption .cr{display:block;font-size:12px;color:var(--mute)}
+#t-read code{overflow-wrap:anywhere}
+#t-read #al-table{min-width:600px}
+#t-read #al-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px}
+@media (max-width:520px){#t-read #al-sum{grid-template-columns:1fr 1fr}}
+</style>
+<p class="small mute">This page owns observability in general. LLM-specific signals (time to first token, tokens per second, KV cache, cost per request) are on the sibling {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} (section 12); traces of model calls and agent runs and the OpenTelemetry GenAI conventions on {{LLM observability|n:3c65c17b0d0d81fe82c0c6e9360afec4}}; GPU counters, DCGM, goodput and GPU-hour accounting on {{Observability and cost|n:3c65c17b0d0d818ebf79d1af4532f3ee}}; SLO definitions, error budgets as policy and incident response on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}.</p>
+
+<p class="core"><b>The idea in one sentence.</b> Count every request into a histogram (metrics), follow a sample of requests across services (traces), write one structured line per event (logs), tie the three together with one trace ID, and page a human only when users' error budget is burning fast.</p>
+
+<div class="hero" id="hd-card">
+<h4>One slow request, recorded three ways, joined by one ID</h4>
+<div class="req">A real request from the demo's incident: <code>POST /v1/chat</code>, trace ID <code><span class="tid">abb78623</span>4a7345e9a0ff1bb9fd531735</code>, <b>1,497 ms</b> where a normal one takes about 320 ms, status 200 (so no error counter saw it).</div>
+<div class="hcols">
+<div class="hcol"><div class="nm" style="color:var(--c1)">Metrics: how many, how slow, across all requests</div>
+<div class="hpic" id="hd-met"></div>
+<div class="q">It is one count in the 1.0 to 1.5 s bucket of the latency histogram (about 63 of that minute's 481 requests). Cheap enough to record every request; the ringed dot is an <b>exemplar</b>, its trace ID kept with the bucket.</div>
+<div class="c">Cost: per time series (name &times; label values).</div></div>
+<div class="hcol"><div class="nm" style="color:var(--c3)">Traces: where this request's time went</div>
+<div class="hpic" id="hd-tr"></div>
+<div class="q">912 ms of it was the call to retrieval, almost all inside "vector index lookup" on replica r3-cold, in another process; the model call took a normal 579 ms.</div>
+<div class="c">Cost: per span; usually sampled.</div></div>
+<div class="hcol"><div class="nm" style="color:var(--c4)">Logs: what exactly happened</div>
+<div class="hpic"><div class="hlog">{"ts":"19:37:32.140Z",<br>"level":"INFO",<br>"service":"chat-api",<br>"msg":"request served",<br>"trace_id":"<span class="tid">abb78623</span>...",<br>"status":200,<br>"duration_ms":1496.7}</div></div>
+<div class="q">One JSON line per event, with named fields; it says the request was slow but not why.</div>
+<div class="c">Cost: per gigabyte stored and per line indexed.</div></div>
+</div>
+<div class="hjoin"><b>The join:</b> the same trace ID sits in the exemplar, in every span and in every log line, so a spike on a graph leads to a trace, and a trace to its logs. <b>The alert</b> sits on the metrics: the share of failing requests divided by the error budget (the <b>burn rate</b>) pages a human when it is high enough to matter (section 15).</div>
+</div>
+
+<p><b>You need</b>: nothing beyond running an HTTP service. The parent root's Step 4 is the two-paragraph version of this page.</p>
+<dl class="terms">
+<dt>Signal</dt><dd>A kind of telemetry: logs, metrics, traces, profiles.</dd>
+<dt>Time series, label</dt><dd>A metric's (time, value) pairs for one combination of labels (key="value" dimensions); <b>cardinality</b> is how many such series exist.</dd>
+<dt>Percentile (p99)</dt><dd>The latency that 99% of requests beat.</dd>
+<dt>Span, trace</dt><dd>One timed operation; the tree of spans for one request across services.</dd>
+<dt>traceparent</dt><dd>The W3C header that carries the trace ID across a network call.</dd>
+<dt>Exemplar</dt><dd>A trace ID stored with one histogram observation.</dd>
+<dt>Head, tail sampling</dt><dd>Keeping a trace decided at its start, or after it finishes.</dd>
+<dt>SLO, burn rate</dt><dd>A reliability target (99.9% of messages succeed over 30 days); how fast failures spend the allowed 0.1%.</dd>
+</dl>
+
 <nav class="nav" id="rd-nav">
-<a href="#s-one">In one screen</a><a href="#s-why">Why</a><a href="#s-demo">The demo</a><a href="#s-logs">Logs</a><a href="#s-met">Metrics</a><a href="#s-pct">Percentiles</a><a href="#s-prom">PromQL</a><a href="#s-card">Cardinality</a><a href="#s-meth">RED, USE, golden</a><a href="#s-tr">Traces</a><a href="#s-tp">traceparent</a><a href="#s-samp">Sampling</a><a href="#s-otel">OpenTelemetry</a><a href="#s-prof">Profiling</a><a href="#s-inc">One incident, two ways</a><a href="#s-dash">Dashboards</a><a href="#s-al">Alerting</a><a href="#s-oc">On-call</a><a href="#s-tools">Tools and cost</a><a href="#s-pro">In production</a><a href="#s-mist">Mistakes</a><a href="#s-gl">Glossary</a>
+<a href="#s-why">1. Why</a><a href="#s-logs">2. Logs</a><a href="#s-met">3. Metrics</a><a href="#s-pct">4. Percentiles</a><a href="#s-prom">5. PromQL</a><a href="#s-card">6. Cardinality</a><a href="#s-meth">7. RED, USE</a><a href="#s-tr">8. Traces</a><a href="#s-tp">9. traceparent</a><a href="#s-samp">10. Sampling</a><a href="#s-otel">11. OpenTelemetry</a><a href="#s-prof">12. Profiling</a><a href="#s-inc">13. One incident</a><a href="#s-dash">14. Dashboards</a><a href="#s-al">15. Alerting</a><a href="#s-deep">More</a>
 </nav>
 
-<section id="s-one">
-<h2>In one screen</h2>
-<p class="lead">Our running example is the parent topic's chat assistant. A user sends a message; <b>chat-api</b> (the program we run) loads the conversation history from a database, asks a <b>retrieval</b> service for relevant documents, calls a model, saves the reply and answers. One day replies get slower for some users. <dfn id="g-obs">Observability</dfn> is whatever lets you answer "what is wrong, for whom, and where" from the outside, without adding new code and redeploying first. It rests on a few kinds of recorded data, called <dfn id="g-signal">signals</dfn>:</p>
-<div class="tw"><table class="onescreen">
-<thead><tr><th>Signal</th><th>What one record is</th><th>The question it answers</th><th>What it costs</th><th>Typical tools (2026)</th></tr></thead>
-<tbody>
-<tr><td><a href="#s-logs">Logs</a></td><td>One line per event, best as JSON: <code>{"level":"ERROR","msg":"retrieval timed out","trace_id":"01fc..."}</code></td><td>What exactly happened to this one request?</td><td>Per gigabyte stored and per line indexed; grows with traffic times verbosity</td><td>Loki, Elasticsearch or OpenSearch, Datadog Logs</td></tr>
-<tr><td><a href="#s-met">Metrics</a></td><td>A number per time step per label combination: <code>http_requests_total{status="503"} 12</code></td><td>How much, how fast, how many failed, across all requests? Is it getting worse?</td><td>Per <a href="#s-card">time series</a>; cheap per request, explodes with label values</td><td>Prometheus, Grafana, Datadog, cloud monitoring</td></tr>
-<tr><td><a href="#s-tr">Traces</a></td><td>A tree of timed steps (spans) for one request across services</td><td>Where did the time go for this request, and which service failed?</td><td>Per span; usually <a href="#s-samp">sampled</a></td><td>Tempo, Jaeger, Honeycomb, Datadog APM</td></tr>
-<tr><td><a href="#s-prof">Profiles</a></td><td>Which code lines were on the CPU, sampled continuously</td><td>Which function is burning the CPU or memory?</td><td>A few percent of CPU or less, per process</td><td>Pyroscope, Parca, Datadog profiler; OpenTelemetry Profiles (alpha, 2026)</td></tr>
-<tr><td><a href="#s-al">Alerts</a></td><td>A rule over metrics that notifies a human</td><td>Should someone stop what they are doing, now?</td><td>Human attention: the scarcest resource on the list</td><td>Prometheus rules and Alertmanager, Grafana, PagerDuty</td></tr>
-</tbody></table></div>
-<div class="co key"><div class="t">The five ideas that matter most</div>
-<ol class="tight">
-<li><b>Percentiles, not averages.</b> In our real run the average latency rose 37% while 85% of requests were unchanged and the slowest 1% got 2.5 times slower (<a href="#s-pct">Percentiles</a>).</li>
-<li><b>One ID through everything.</b> Put the trace ID in every log line and pass it in the <code>traceparent</code> header to every service you call; then a metric spike leads to a trace, and a trace to its logs (<a href="#s-tp">traceparent</a>).</li>
-<li><b>Labels are a budget.</b> Every distinct label combination is a new time series; a user ID in a label can multiply your bill by a million (<a href="#s-card">Cardinality</a>).</li>
-<li><b>Page on symptoms users feel, measured against an SLO</b>, using burn-rate alerts; investigate causes with dashboards and traces (<a href="#s-al">Alerting</a>; try the {{Alert lab|#t-alab}}).</li>
-<li><b>Instrument with OpenTelemetry</b> so the data is vendor-neutral, then choose storage by cost (<a href="#s-otel">OpenTelemetry</a>, <a href="#s-tools">Tools and cost</a>).</li>
-</ol></div>
-</section>
-
 <section id="s-why">
-<h2>1. Why observability: known failures and unknown ones</h2>
-<p>Start from what you already know. When you served a model behind an API, you probably watched whether it was up and how long requests took. That is <dfn id="g-mon">monitoring</dfn>, which Google's SRE book defines as "collecting, processing, aggregating, and displaying real-time quantitative data about a system, such as query counts and types, error counts and types, processing times, and server lifetimes" ({{SRE book, ch. 6|https://sre.google/sre-book/monitoring-distributed-systems/}}). Monitoring answers questions you thought of in advance: is the error rate above 1%? Is the disk 90% full?</p>
-<p>Production keeps producing failures nobody predicted: one replica with a cold cache, one tenant whose documents are huge, one client library that retries too fast. For those you need to ask new questions of data you already have. Honeycomb, whose founders popularised the term in software, puts it this way: "Observability is the ability to investigate a system by asking any question about its behavior without needing to predict those questions in advance" ({{Honeycomb, What is observability|https://www.honeycomb.io/what-is-observability}}). The word comes from control theory, where a system is observable if its internal state can be worked out from its outputs.</p>
+<h2>1. Monitoring, observability, and the running example</h2>
+<p><dfn id="g-mon">Monitoring</dfn> answers questions decided in advance: is the error rate above 1%, is the disk 90% full? Google's SRE book defines it as "collecting, processing, aggregating, and displaying real-time quantitative data about a system, such as query counts and types, error counts and types, processing times, and server lifetimes" ({{SRE book, ch. 6|https://sre.google/sre-book/monitoring-distributed-systems/}}). Production keeps producing failures nobody predicted (one replica with a cold cache, one tenant whose documents are huge), and for those you need <dfn id="g-obs">observability</dfn>: "the ability to investigate a system by asking any question about its behavior without needing to predict those questions in advance" ({{Honeycomb, What is observability|https://www.honeycomb.io/what-is-observability}}): slice requests by any field, follow one request across services, without new code and a redeploy first.</p>
 <div class="two">
-<div><h4>Monitoring: the known failures</h4><p class="small">Fixed questions, decided in advance: dashboards and alert rules over a few metrics. Cheap, fast, reliable. Tells you <i>that</i> something is wrong.</p></div>
-<div><h4>Observability: the unknown ones</h4><p class="small">Open questions, asked after the fact: slice requests by any field (route, tenant, replica, model version), follow one request across services. Tells you <i>where and why</i>. Costs more data.</p></div>
+<div><h4>Monitoring: the known failures</h4><p class="small">Fixed questions: dashboards and alert rules over a few metrics. Cheap, fast, reliable. Tells you <i>that</i> something is wrong.</p></div>
+<div><h4>Observability: the unknown ones</h4><p class="small">Open questions, asked after the fact, by route, tenant, replica, model version. Tells you <i>where and why</i>. Costs more data.</p></div>
 </div>
-<p>The SRE book draws a second line that this page uses throughout. <dfn id="g-bb">Black-box monitoring</dfn> is "testing externally visible behavior as a user would see it"; <dfn id="g-wb">white-box monitoring</dfn> is "based on metrics exposed by the internals of the system, including logs" and HTTP endpoints. Black-box tells you users are hurting now; white-box tells you why, and can warn before users notice. Both books say to page humans on the first and debug with the second (<a href="#s-al">Alerting</a>).</p>
-<div class="cost"><div class="t">What it costs</div><p class="small">Observability is a second data system beside your product: code to emit the data (about 96 microseconds of CPU per request in our real measurement, <a href="#s-prof">Profiling</a>), pipelines to move it, storage to keep it, and people to look at it. The SRE book notes that a Google SRE team of 10 to 12 "typically has one or sometimes two members whose primary assignment is to build and maintain monitoring systems". The money side is in <a href="#s-tools">Tools and cost</a>.</p></div>
-<p class="when"><b>Two real outages where observability itself was the problem</b> (from the parent root's {{Case files tab|n:3c65c17b0d0d81048ae0dd14ac399b4d}}): "73 hours down: the service directory everything depends on choked" (Roblox, 2021: the monitoring depended on the system that failed, so keep it outside) and "A monitoring tool overloaded the cluster brains, and DNS went with them" (OpenAI, December 2024: a new telemetry agent on every node made expensive Kubernetes API calls that overloaded the control plane). A third, "Three serving bugs quietly made Claude's answers worse" (Anthropic, 2025), shows a failure no error counter sees.</p>
+<p>A second line from the SRE book runs through this page. <dfn id="g-bb">Black-box monitoring</dfn> is "testing externally visible behavior as a user would see it": it shows symptoms happening now. <dfn id="g-wb">White-box monitoring</dfn> is "based on metrics exposed by the internals of the system, including logs": it shows causes, and can warn before users notice. Page humans on the first; debug with the second (section 15).</p>
+<p><b>The running example, instrumented for real.</b> The parent topic's chat assistant, built small on a laptop and broken on purpose on 2026-10-04 (code in <code>src/demo/</code>):</p>
+<div class="flow">
+<div><b>load generator</b>4 clients in a loop, about 10 requests a second</div><i>&rarr;</i>
+<div><b>chat-api</b> (port 8701)<span class="small mute"> auth, load history (real SQLite), call retrieval, model call (<span class="ill">simulated: a sleep</span>), save</span></div><i>&rarr;</i>
+<div><b>retrieval</b> (port 8702)<span class="small mute"> a separate process; normally about 15 ms</span></div>
+</div>
+<div class="flow">
+<div><b>Prometheus 3.15.0</b> scrapes <code>/metrics</code> on both every second</div>
+<div><b>OpenTelemetry SDK 1.45.0</b> writes every span to a file</div>
+<div><b>JSON log lines</b> carry the trace ID</div>
+</div>
+<p><b>The incident.</b> 90 seconds normal, 90 seconds of incident, 45 seconds of recovery. During the incident one retrieval replica went cold: 15% of retrieval calls took 900 ms and 2% hung for 1.5 s, past chat-api's 1-second timeout, so those requests failed with HTTP 503. The model call and the database were unchanged. One dependency, some of the time, for some users: the classic shape of a real slowdown, debugged twice in section 13. The incident shape is chosen; its numbers are measured. All of it is browsable in the {{Real telemetry|#t-real}} tab.</p>
+<details class="dp"><summary>Versions, the cost of the second data system, and three real outages <span class="mute">(1 min)</span></summary><div class="b">
+<p class="small">Versions: Python 3.12.11, opentelemetry-sdk 1.45.0 (released 2026-09-25), prometheus-client 0.26.0 (2026-07-24), Prometheus 3.15.0 (2026-09-25). The word observability comes from control theory, where a system is observable if its internal state can be worked out from its outputs.</p>
+<p class="small">Observability is a second data system beside your product: code to emit the data (about 96 microseconds of CPU per request in our measurement, section 12), pipelines, storage and people. The SRE book notes that a Google SRE team of 10 to 12 "typically has one or sometimes two members whose primary assignment is to build and maintain monitoring systems".</p>
+<p class="small">Three outages from the parent root's {{Case files tab|n:3c65c17b0d0d81048ae0dd14ac399b4d}}: "73 hours down: the service directory everything depends on choked" (Roblox, 2021: the monitoring depended on the system that failed, so keep it outside); "A monitoring tool overloaded the cluster brains, and DNS went with them" (OpenAI, December 2024: a new telemetry agent on every node made expensive Kubernetes API calls that overloaded the control plane); and "Three serving bugs quietly made Claude's answers worse" (Anthropic, 2025), a failure no error counter sees.</p>
+</div></details>
 </section>
