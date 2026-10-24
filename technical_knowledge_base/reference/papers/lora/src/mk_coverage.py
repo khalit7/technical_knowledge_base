@@ -9,7 +9,7 @@ txt = html.unescape(re.sub(r'<[^>]+>', ' ', raw))
 txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
- ('Reading time line "9 min read, +3h 20m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "9 min read, +3h 20m resources"', 'replaced by the measured subtitle (src/reading.json, 2026-10-24)', ['Reading: ', 'in closed details']),
  ('Authors: Hu*, Shen*, Wallis, Allen-Zhu, Li, Wang, Wang, Chen (Microsoft)', R + ', headline card', ['Edward J. Hu*', 'Yelong Shen*', 'Phillip Wallis', 'Zeyuan Allen-Zhu', 'Yuanzhi Li', 'Shean Wang', 'Lu Wang', 'Weizhu Chen', 'Microsoft']),
  ('Date: June 2021 (v1), v2 October 2021, ICLR 2022', R + ', headline card', ['June 2021 (arXiv v1); v2 October 2021', 'ICLR 2022']),
  ('Link arXiv:2106.09685 (~45 min); code microsoft/LoRA (loralib), ~15 min README', 'card and Further reading', ['https://arxiv.org/abs/2106.09685', '(45 min)', 'https://github.com/microsoft/LoRA', 'loralib', '(15 min)']),

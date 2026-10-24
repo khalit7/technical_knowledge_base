@@ -78,7 +78,7 @@ function drawF2(W){const H=300,o={W,H,pl:48,pr:14,pt:28,pb:40,x:[2e5,1e9],y:f2==
     s+='<path d="'+d+'" fill="none" stroke="'+c+'" stroke-width="1.8"/>';P.forEach(p=>{const v=f2==='w'?p.w:p.n;s+='<circle cx="'+lx(p.p).toFixed(1)+'" cy="'+ly(v).toFixed(1)+'" r="3.5" fill="'+c+'"><title>'+nm+' '+p.h+': '+(p.p/1e6).toFixed(1)+'M, '+v+'</title></circle>'})});
   const lg=legend(SER.map(([n,c])=>[n==='LoRA+PE'?'LoRA + prefix-embed':n,c]),o.pl,14,W-o.pl-o.pr);
   $('f2Svg').innerHTML=svgW(W,H+lg.h,'<g transform="translate(0,'+lg.h+')">'+s+'</g>'+lg.s,'Figure 2 rebuilt from Table 15')}
-PRED_REVEAL['pr-pre']=()=>fit($('f2Svg'),drawF2);
+fit($('f2Svg'),drawF2);
 segBind('f2M',m=>{f2=m;refit($('f2Svg'))});
 // ---------- 4. Table 7 bars ----------
 function drawT7(W){const t=PP.rc.table7;const rows=[['r = 4',[['along ΔW',t.r4.proj],['along W\'s top 4',t.r4.Wtop],['random',t.r4.rand],['‖ΔW_q‖',t.r4.dW]]],['r = 64',[['along ΔW',t.r64.proj],['along W\'s top 64',t.r64.Wtop],['random',t.r64.rand],['‖ΔW_q‖',t.r64.dW]]]];
@@ -87,7 +87,7 @@ function drawT7(W){const t=PP.rc.table7;const rows=[['r = 4',[['along ΔW',t.r4.
   rows.forEach(([nm,b])=>{s+=tx(4,y+4,nm,{fs:12,w:600});y+=10;b.forEach(([k,v],i)=>{const c=['var(--c3)','var(--c1)','var(--dim)','var(--c2)'][i];s+=tx(pl-6,y+bh-3,k,{fs:11,a:'end'})+rc(pl,y,lx(v)-pl,bh,c,{r:2})+tx(lx(v)+4,y+bh-3,String(v),{fs:11});y+=bh+5});y+=12});
   s+=tx(W/2,y+22,'Frobenius norm, log scale; ‖W_q‖_F = '+t.W,{fs:11,a:'middle',c:'var(--mute)'});
   $('t7Svg').innerHTML=svgW(W,y+30,s,'Table 7 as bars')}
-PRED_REVEAL['pr-amp']=()=>fit($('t7Svg'),drawT7);
+fit($('t7Svg'),drawT7);
 // ---------- 5. merge check on the toy model's trained adapters ----------
 function merge(){const E=window.LORA,LD=window.LORA_DATA;if(!E||!LD){$('mgO').textContent='(toy model not loaded)';return}
   const base=E.loadBase(LD.base);const ad=LD.adapters&&LD.adapters.v4&&LD.adapters.v4['1']&&LD.adapters.v4['1']['4'];if(!ad){$('mgO').textContent='(adapters not exported yet)';return}

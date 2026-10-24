@@ -33,7 +33,7 @@ node check_engine.mjs && uv run --with torch --with numpy python check_engine.py
 
 ## Files
 
-- `build.sh`, `mk_paper.py`, `parts/00_top`, `01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs`: copied from the reference folder (mk_paper adds the verdict line).
+- `build.sh`, `mk_paper.py`, `parts/00_top`, `01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`: copied from the reference folder (mk_paper adds the verdict line); `11_js_ui` is the no-autoplay copy (as on DDPM). `99_js_tabs.js`: the skill template (storage key `lora-tab`). `14_js_hero.js`: the hero. `reading.json`: the measured reading time the header prints. `label_ledger.py`: labels `ledger.json`.
 - `paper.json` (card, resources, connections); `tables.json` (written by `mk_tables.py` from `inputs/table_*.txt`, which `extract_paper.py` cut from the arXiv HTML v2); `recompute.py` (every derived number and the claim checks, writes `inputs/recompute.json`).
 - `parts/03_paper.html` + `13_js_read.js` (animation, calculator, merge check, Figure 2, Table 7); `04_run.html` + `23_js_run.js` (trainer and toy charts); `22_js_lora.js` (the engine: data, forward with split or merged LoRA, backward, Adam, Jacobi SVD, φ, amplification; also run by node); `05_tables.html` + `24_js_tables.js`; `06_then.html` + `25_js_then.js`; `20_model_data.js` (generated).
 - `check_engine.mjs` / `check_engine.py`: the browser engine replayed in PyTorch float64 (`model/check_engine.json`). `check_page.mjs`: every control in both themes and widths, a real 300-step training run of LoRA and of full fine-tuning, both animations stepped. `mk_coverage.py` writes `coverage.json` against `live.md` (saved by `save_live.py` from the session transcript).
@@ -46,3 +46,32 @@ node check_engine.mjs && uv run --with torch --with numpy python check_engine.py
 `sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 304,889 bytes (data 110 KB: base weights 28 KB, sweep summary 39 KB, adapters 33 KB, teachers 13 KB). `node .../src/check_page.mjs`: 286 actions, 0 problems, including a real 300-step LoRA run and full fine-tuning run in both themes and widths. `check_engine.py`: PASS (forward logits within 6.3e-13, three training traces within 2.6e-14 in loss and 1.6e-14 in weights, teacher labels 200/200, SVD within 4.4e-15). `mk_coverage.py`: 49 of 49 items verified. The Reading tab is about 19 minutes (the old page was 9): the paper page owns every detail, the evidence section is long, and nothing was folded away.
 
 CPU: pretraining 30 s; the sweep about 55 minutes on 2 threads in all (it was restarted twice: once stopped for an unknown reason, once by the background time limit; it resumes from `runs.jsonl`), above the brief's 40 minutes because each configuration's learning rate is tuned.
+
+## The 2026-10-24 light pass (teaching contract)
+
+What changed and why:
+- **Top**: the core sentence and a hero: the paper's Figure 1 redrawn with GPT-3's numbers (frozen 12,288 × 12,288 W0, 151M numbers; A and B at r = 4, 98,304 numbers, 0.065%), static (`14_js_hero.js`). The paper is not CC BY (arXiv non-exclusive licence), so no figure is embedded; it is redrawn. No photo would teach more. Then "You need" (nothing beyond attention matrices and Adam; the PEFT page for LoRA as practised) and the new terms (r, A and B, alpha, adapter layer, prefix tuning, phi).
+- **Visuals inline**: Figure 2 (rebuilt from Table 15) and Table 7's bars no longer hide inside predict reveals; each sits in its own card right after its predict question ("answer the question above before you look"). The GPT-3 adapter calculator left the 4.7M reveal and sits in Method, beside the savings it computes. The Train a LoRA tab stays a tab: it is a lab with several sections that the Merging, Inside and verdict sections all use.
+- **No autoplay**: `11_js_ui.js` replaced by the patched copy, so the LoRA-against-adapter animation and the Then and now card wait on their first step; `90_js_tabs.js` replaced by the template `99_js_tabs.js`. `check_page.mjs` now fails if `mx` or `tn` moves before a click, and opens every closed block.
+- **Owned elsewhere, linked with a sentence kept**: QLoRA's mechanics (NF4, double quantisation, paged optimisers), the fine-tuning memory calculator, DoRA in full and why 1/r makes the learning rate rank-independent (Parameter-efficient fine-tuning); how servers batch many adapters (LLM serving in production). The paper's own claims, numbers and evidence stay here.
+- **Closed**: the released code's different initialisation; LoRA plus prefix tuning (Appendix E); the results setup and baselines; the low-data result (Table 16 also stays charted in the tables tab); in the tables tab, the full Table 15 and the inconsistencies table (a one-line summary stays open).
+- **Volatile**: vLLM and SGLang support, Apple's on-device adapters and Tinker moved to one dated closed block, "Where LoRA runs now (checked 2 October 2026)".
+- Header: "Reading: 21 min, plus 1 in closed details.", read by `build.sh` from `reading.json`.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After |
+|---|---|---|
+| The paper, core | 19.6 min (4,512 words) | 20.6 min (4,746) |
+| The paper, closed | 0 | 1.2 min (283) |
+| Train a LoRA | 5.3 min, plus 1.5 closed | unchanged |
+| The paper's tables, rebuilt | 11.2 min | 9.8 min, plus 1.6 closed (tables drawn by script count) |
+| Then and now; Further reading | 1.3; 1.9 min | unchanged |
+| Visuals drawn in Reading (audit) | 1 | 4 |
+
+Why about 21 minutes is right: the minute added is the core sentence, the hero, the new terms and the captions of the visuals that came out of the reveals; what went out (Why it matters cut to what later work showed against this paper, setup and appendix detail closed) roughly paid for it. Everything still open is the paper's argument in its order (problem, idea, method and savings, merging, results, inside the update, how much to believe, using it, what followed); the evidence section is long because the paper page owns the judgement of its numbers.
+
+## Knowledge ledger (`ledger.json`, labelled by `label_ledger.py`)
+229 units: core 202, depth 17, owned 5, volatile 2, fat 3. 216 drafted by `ledger.py init`; 13 added (core sentence, hero, new terms, four owner links, six script-drawn tables and lists). `ledger.py check`: problems 0.
+
+## Checks (24 October 2026)
+`checkpage.sh`: tabs 5, 314 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems (including no movement before a click and every closed block opened). `mk_coverage.py`: 49 of 49 (the reading-time, rsLoRA and DoRA keys updated). The engine (`22_js_lora.js`) is unchanged, so `check_engine` was not rerun.

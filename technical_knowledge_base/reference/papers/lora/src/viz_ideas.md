@@ -23,3 +23,11 @@ The question the page keeps returning to: **how small can the update be, where m
 | P-lora.17 | Relabelled-symbol toy tasks with an exact rank-k Wq update | none | | | rejected after measuring: low-rank LoRA could not find the update (an optimisation barrier from sharp attention), so it could not test rank; log kept |
 
 What the methodology lacked here: a rule for **toys with a known answer**. When the paper's claim is "the needed update is low rank", a teacher built from a known low-rank edit tests whether the method finds it, but not whether real tasks are low rank; the page says both. Also: when a sweep tunes the learning rate on one seed, show every seed (here some tuned rates diverge on other seeds).
+
+## 2026-10-24 light pass
+| # | Idea | Placement | Status | Notes |
+|---|---|---|---|---|
+| P-lora.18 | **Hero: Figure 1 redrawn with GPT-3's numbers** (frozen d × d W0 beside A and B at r = 4, summed) | Reading, top | built | static; the paper is not CC BY, so redrawn, not embedded |
+| P-lora.19 | Figure 2 and Table 7 bars out of the predict reveals, each in a card after its question | Reading | moved | the strongest result visuals were hidden until a click |
+| P-lora.20 | GPT-3 adapter calculator out of the 4.7M reveal, into Method beside the savings | Reading | moved | |
+| P-lora.21 | Embed the paper's own Figure 1 image | none | rejected | arXiv non-exclusive licence; the redraw carries the same content with the page's colours |
