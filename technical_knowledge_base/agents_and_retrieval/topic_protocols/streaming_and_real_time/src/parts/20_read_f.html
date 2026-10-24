@@ -1,28 +1,80 @@
-<section id="rd-s9">
-<h2>9. WebSockets in production: proxies, heartbeats, scale, security</h2>
-<p>A WebSocket is a long-lived, stateful connection, and most of the work of running one is fighting the infrastructure built for short HTTP requests. <span class="meas">measured</span> Three things broke on purpose here, each through nginx 1.31.6 in front of the lab's <code>websockets</code> server, each seen by three clients.</p>
-<div class="tw"><table>
-<thead><tr><th>Failure</th><th>Python <code>websockets</code> 17.2</th><th>Node <code>ws</code></th><th>Chrome 148</th></tr></thead>
-<tbody id="wsp-rows"></tbody></table></div>
-<p class="small mute"><span class="meas">measured</span> src/lab/ws_proxy.py and ws_proxy_node.mjs; nginx_ws.conf.in has both proxy configurations. "Origin check" is the server refusing a page from another origin.</p>
-<p><b>1. A proxy that drops the upgrade.</b> Even with <code>proxy_http_version 1.1</code> (the default since nginx 1.29.7), nginx does not pass <code>Upgrade</code> and <code>Connection</code> on, because they are hop-by-hop headers, unless told to. The server then sees a plain GET and refuses it (<code>426 Upgrade Required</code> here). The fix is three lines in the location: <code>proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade";</code> ({{nginx: WebSocket proxying|https://nginx.org/en/docs/http/websocket.html}}). Note the browser column: JavaScript never sees the 426, only an error and close code 1006. To debug a failed browser handshake, look at the network panel or replay the request with curl:</p>
-<pre class="cd out" id="wsp-curl"></pre>
-<p><b>2. An idle timeout.</b> A proxy treats a WebSocket like any request: if no bytes arrive from the upstream for <code>proxy_read_timeout</code> (60 s by default; 2 s here to make it quick), it closes both sides. No close frame is sent, so every client reports <b>1006</b>. nginx logged it only at the <code>info</code> level, which the default <code>error</code> level hides:</p>
-<pre class="cd out" id="wsp-log"></pre>
-<p>The fix is a heartbeat more frequent than the shortest idle timeout on the path: with the client sending a ping every second (the pong comes back from the server, so the proxy sees upstream bytes), the same quiet 6 s survived and all seven messages arrived. The <code>websockets</code> library pings every 20 s by default; cloud load balancers and NAT gateways have their own idle limits (AWS's NAT gateway drops a connection idle for 350 s, per {{Networking foundations|n:3c65c17b0d0d8117b21dcb9041879564}}, section 9). Raise the proxy timeout for WebSocket routes as well, but never rely on that alone.</p>
-<p><b>3. Cross-site WebSocket hijacking (CSWSH).</b> Browsers do not apply the same-origin policy or CORS to WebSockets: a page on any site can open a socket to your server, and the browser attaches your cookies. If the server authenticates by cookie and does not check <code>Origin</code>, an attacker's page talks to your API as the logged-in user and reads the replies. <span class="meas">measured</span> The lab server without an origin list accepted <code>Origin: https://evil.example</code> and sent all seven messages; with <code>origins=["https://chat.example"]</code> it answered 403. Check <code>Origin</code> against a list during the handshake (it protects browser users; non-browser clients can send any Origin they like), prefer tickets to cookies, and remember that the handshake authenticates once: a socket can outlive a logout or a revoked permission, so re-check authorisation periodically and close with 1008 when it lapses.</p>
-<h3>Scale and lifecycle</h3>
+<section id="rd-s6">
+<h2>6. WebSockets: an HTTP request that becomes a two-way pipe</h2>
+<p>SSE flows one way. A voice agent must hear the user while it speaks (barge-in), a shared document sends each keystroke while receiving everyone else's, a game sends moves while receiving the world. With HTTP that means a POST per client message beside a stream: two channels, two sets of ordering and failure, a request's headers on every keystroke. A <b>WebSocket</b> gives one connection on which either side sends a message at any moment, with 2 to 14 bytes of framing. It is {{RFC 6455|https://www.rfc-editor.org/rfc/rfc6455}} (December 2011, a Proposed Standard, updated by RFC 7936, 8307 and 8441), with the browser API in the {{WHATWG WebSockets standard|https://websockets.spec.whatwg.org/}}.</p>
+<p><b>The opening handshake</b> is an ordinary HTTP/1.1 GET asking to switch protocols. <span class="meas">measured</span> The exact bytes this page's client sent to the lab's <code>websockets</code> 17.2 server, and its answer:</p>
+<pre class="cd out" id="ws-hs"></pre>
 <ul class="tight">
-<li><b>Backpressure.</b> <code>WebSocket.send()</code> in a browser never blocks: it queues, and <code>bufferedAmount</code> tells you how much is waiting. A producer that ignores it fills memory when the network is slow. <code>WebSocketStream</code> gives streams with automatic backpressure, but it is non-standard and, per MDN's compatibility data, shipped only in Chrome (since 124), not Firefox or Safari ({{MDN: WebSocketStream|https://developer.mozilla.org/en-US/docs/Web/API/WebSocketStream}}). Server libraries have their own limits (the <code>websockets</code> library queues at most 16 incoming messages by default, then stops reading).</li>
-<li><b>Reconnection is yours.</b> No browser reconnects a WebSocket. Write exponential backoff with random jitter and a cap, give messages sequence numbers, keep a short replay buffer on the server, and resume from the last number the client saw. Most of what Socket.IO, Phoenix Channels and hosted realtime services sell is this.</li>
-<li><b>Reconnect storms.</b> When a server with 50,000 sockets dies, 50,000 clients reconnect within seconds; without jitter they arrive together. During deploys, close connections in batches with 1001 or 1012 rather than all at once.</li>
-<li><b>Load balancing.</b> A socket is pinned to one server for its whole life, so round-robin balancing only applies to new connections, and adding servers does not move existing load. Keep servers stateless where possible: per-user state in a store, and a publish/subscribe backplane (Redis, NATS, Kafka) so a message for user X reaches whichever server holds X's socket.</li>
-<li><b>Cost per connection</b> is a file descriptor, kernel buffers and whatever state you keep, including compression contexts (section 8). Raise <code>ulimit -n</code>, cap message size, message rate and connections per IP: the protocol itself has no limits, so an unlimited reader is a denial-of-service.</li>
-<li><b>Serverless.</b> Request-scoped functions cannot hold a socket. Platforms offer a managed connection layer that calls your function per message (AWS API Gateway WebSocket APIs) or long-lived objects per room (Cloudflare Durable Objects); both change the cost model, so check per-message prices and limits before choosing them.</li>
-<li><b>Observability.</b> Count open connections per server, messages and bytes per second, close codes (a jump in 1006 is infrastructure, not your code), reconnect rate, and send-queue high-water marks.</li>
+<li><code>Upgrade: websocket</code> and <code>Connection: Upgrade</code> ask for the switch. Both are hop-by-hop, so proxies drop them unless told to pass them (<a href="#rd-s8">section 8</a>).</li>
+<li><code>Sec-WebSocket-Key</code> is 16 random bytes in base64, new per connection (this run used the sample key of RFC 6455 section 1.3). The server answers <code>Sec-WebSocket-Accept</code> = base64(SHA-1(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")): <span class="meas">measured</span> <code>s3pPLMBiTxaQ9kYGzzhZRbK+xOo=</code>, exactly the RFC's value and this page's own computation. It is not security (anyone can compute it); it ensures a server or cache that does not speak WebSocket can never appear to accept.</li>
+<li><code>101 Switching Protocols</code> ends HTTP on this connection; from the next byte both sides speak frames. <code>Sec-WebSocket-Version: 13</code> is the only version; there is no WebSocket 2.</li>
+<li><code>Origin</code> is sent by browsers and is the server's only defence against other sites opening sockets in the user's name (section 8).</li>
 </ul>
-<div class="drill" data-ans="b"><div class="t">Predict, then reveal</div>
-<p>A notebook's kernel keeps "disconnecting" every 60 s when idle, but only through the company proxy. The browser console shows close code 1006. What is the most likely cause?</p>
-<div class="opts"><button data-o="a">The Python kernel crashes after 60 s idle</button><button data-o="b">An idle timeout on the proxy closes quiet upgraded connections; nothing sends a heartbeat often enough</button><button data-o="c">The server sends close code 1006 to signal a timeout</button></div>
-<div class="rev" hidden>An idle timeout. 1006 is never sent by anyone: the browser reports it when the connection vanished without a close frame, which is what a proxy timer does. Jupyter's kernel and terminal channels are WebSockets; a round number of seconds and "only through the proxy" both point at the proxy. Fix the heartbeat interval or the proxy's timeout for that route.</div></div>
+<p><b>Two negotiations people confuse.</b> <code>Sec-WebSocket-Protocol</code> names the <i>application</i> protocol inside (<dfn>subprotocol</dfn>; the client offers a list, the server picks one): <code>graphql-transport-ws</code>, MQTT, your own <code>chat.v2</code>; version your messages this way. <code>Sec-WebSocket-Extensions</code> changes the <i>framing</i>; in practice the one extension is <code>permessage-deflate</code> (section 7).</p>
+<p><b>Authentication is awkward by design.</b> The handshake is the only moment HTTP headers exist, and the browser's <code>new WebSocket(url)</code> cannot set any. The options: a cookie (then check <code>Origin</code>); a short-lived single-use ticket fetched over HTTPS and passed in the URL (keep URLs out of logs, expire in seconds); or an authentication message as the first frame. Realtime LLM APIs use tickets: OpenAI's browser clients get an ephemeral client secret from your server, which created it with <code>POST /v1/realtime/client_secrets</code> ({{OpenAI Realtime guide|https://developers.openai.com/api/docs/guides/realtime}}), and Google recommends ephemeral tokens for client-side Gemini Live connections ({{Gemini Live API|https://ai.google.dev/gemini-api/docs/live}}). Server-side clients send the API key in the handshake header as usual ({{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}} covers token audience and lifetime).</p>
+</section>
+<section id="rd-s7">
+<h2>7. Frames: what travels after the 101</h2>
+<div class="card" id="fr-card">
+<div class="fig-t">Every frame starts with two bytes; length and mask decide how many more</div>
+<div class="svgbox" id="fr-svg"></div>
+<p class="small mute"><span class="meas">measured</span> The bits are the server's token "The": <code>81 53</code> then 83 bytes of JSON. Opcodes: 0 continuation, 1 text (UTF-8), 2 binary, 8 close, 9 ping, 10 pong; the rest unassigned ({{IANA registry|https://www.iana.org/assignments/websocket/websocket.xhtml}}). Length 0 to 125 fits in the 7 bits; 126 means the next 2 bytes hold it, 127 the next 8. RSV1 is set by permessage-deflate on compressed messages. A message may be split into fragments: the first carries the type, the rest are continuations, and only the last has FIN = 1.</p>
+</div>
+<p><span class="meas">measured</span> The client's message "Stop" went out as 10 bytes: <code>81 84</code> (FIN, text; MASK = 1, length 4), four bytes of masking key, and four XORed bytes. Seven messages of the running answer: 539 bytes of JSON plus 14 bytes of headers (2 per message). Pick any frame of the recorded session below.</p>
+<div id="wb-wrap">
+<div class="card" id="wb-card">
+<div class="fig-t">One recorded session, every byte: handshake, seven messages, a masked message, a ping, two fragments, the close</div>
+<div class="fl" id="wb-list"></div>
+<div id="wb-head"></div>
+<div class="bg" id="wb-bytes"></div>
+<div class="leg small" id="wb-leg"></div>
+<div id="wb-fields"></div>
+<div id="wb-mask" hidden>
+<p class="small"><b>Unmasking, byte by byte.</b> The server recovers each payload byte by XOR with the masking key, cycling through its four bytes.</p>
+<div class="xr" id="wb-xr"></div>
+<div class="an-ctl" id="wb-ctl"></div>
+<div class="an-cap" id="wb-cap"></div>
+</div>
+<p class="small mute"><span class="meas">measured</span> A client written on a bare TCP socket against the <code>websockets</code> 17.2 server, 5 October 2026 (src/lab/ws_bytes.py, raw src/raw/ws_bytes.json). Orange: client to server; blue: server to client.</p>
+</div>
+<div class="ctl"><label>Header size for a payload of <b id="wc-nv">83</b> bytes<input type="range" id="wc-n" min="0" max="9" value="3" step="1"></label>
+<label>Direction <select id="wc-d"><option value="s">server to client (no mask)</option><option value="c">client to server (masked)</option></select></label></div>
+<div class="out" id="wc-out"></div>
+<p class="small mute">The slider moves through 0, 1, 3, 83, 125, 126, 1,000, 65,535, 65,536 and 1,048,576 bytes; lengths up to 125 fit in 7 bits, up to 65,535 take 2 more bytes, larger ones 8 more (RFC 6455 section 5.2).</p>
+</div>
+<p><b>Why clients mask.</b> Not for secrecy: the key travels in clear beside the data. In 2011, researchers showed that some proxies, seeing an upgraded connection they did not understand, could be fed attacker-chosen bytes that looked like a second HTTP request and would cache the "response", poisoning the cache for everyone behind them. A fresh random key per frame means a script in a browser cannot choose the bytes on the wire (RFC 6455 section 10.3). It costs one XOR pass over every byte a client sends; servers never mask, every client frame must be masked, and a wrong MASK bit must fail the connection.</p>
+<p><b>Control frames.</b> Ping, pong and close carry at most 125 bytes and are never fragmented, so they slip between the fragments of a long message. A <dfn>ping</dfn> is answered by a <dfn>pong</dfn> with the same bytes, the built-in heartbeat (<span class="meas">measured</span>: the client's ping "hb" came back as <code>8a 02 68 62</code>). Browsers answer pings automatically, but JavaScript can neither send nor see one, so browser apps send their own heartbeat messages.</p>
+<p><b>Closing.</b> Each side sends a close frame with an optional 2-byte code and reason, the other echoes it, then TCP closes (<span class="meas">measured</span>: <code>1000</code> "bye", echoed). The code to know is <b>1006 Abnormal Closure: never sent, only reported locally when the connection died without a close frame</b>: idle timeouts, crashes, network loss and, in browsers, every failed handshake whatever the reason. 1000 is the intended end, 1001 Going Away a server shutting down or a page left, 1008 and 1011 "not allowed" and "we broke", and 4000 to 4999 are yours.</p>
+<div class="card" id="df-card">
+<div class="fig-t">permessage-deflate shrinks a token stream about eight times, but only if the compressor remembers earlier messages</div>
+<div class="svgbox" id="df-svg"></div>
+<p class="small mute"><span class="meas">measured</span> The <code>websockets</code> library's own encoder on a long answer: the <span data-k="defl_words">357</span> words of RFC 6455 section 1.1 sent one word per message in the running answer's JSON shape. Memory per connection is the library's documented measurement ({{websockets: compression|https://websockets.readthedocs.io/en/stable/topics/compression.html}}).</p>
+</div>
+<p><b>Compression</b> ({{RFC 7692|https://www.rfc-editor.org/rfc/rfc7692}}, December 2015) deflates each payload and sets RSV1. By default the compressor's state carries from message to message (<dfn>context takeover</dfn>), ideal for near-identical JSON (the figure: about eight times smaller). The price is memory per connection, 64 KiB to 316 KiB, so about 6 GiB against 30 GiB at 100,000 connections; and compressing a secret beside attacker-controlled text re-opens CRIME-style attacks, where the compressed size leaks the secret. Do not compress audio or images.</p>
+<details class="xc"><summary>Compression numbers, frame field reference, all close codes, and WebSockets over HTTP/2 and HTTP/3</summary><div>
+<p><b>Compression, the numbers.</b> <span class="meas">measured</span> the short running answer took <span data-k="defl_short_none">553</span> bytes uncompressed and <span data-k="defl_short_ctx">198</span> compressed; the long one <span data-k="defl_long_none" data-f="c">31,759</span>, <span data-k="defl_long_ctx" data-f="c">3,937</span> with zlib's defaults, <span data-k="defl_long_ws" data-f="c">4,250</span> with the library's smaller defaults and <span data-k="defl_long_nct" data-f="c">25,278</span> with no context takeover. The price is memory per connection: about 14 KiB without compression, 64 KiB with the library's defaults (window 2<sup>12</sup>, memLevel 5), 316 KiB with zlib's (window 2<sup>15</sup>, memLevel 8), from zlib's formula of 2<sup>windowBits+2</sup> + 2<sup>memLevel+9</sup> bytes to compress and 2<sup>windowBits</sup> to decompress. At 100,000 connections that is about 6 GiB against 30 GiB (derived: 100,000 &times; 64 KiB and &times; 316 KiB). Compressing a secret beside attacker-controlled text in one context re-opens CRIME-style attacks, where the compressed size leaks the secret; and compressing audio or images wastes CPU.</p>
+<div class="tw"><table>
+<thead><tr><th>Field</th><th>Size</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>FIN</td><td>1 bit</td><td>1 on the last frame of a message.</td></tr>
+<tr><td>RSV1 to RSV3</td><td>3 bits</td><td>0 unless an extension says otherwise.</td></tr>
+<tr><td>Opcode</td><td>4 bits</td><td>The frame type (see the figure's note).</td></tr>
+<tr><td>MASK</td><td>1 bit</td><td>1 on every client frame, 0 on every server frame.</td></tr>
+<tr><td>Payload length</td><td>7, 7+16 or 7+64 bits</td><td>126 and 127 are markers for the extended lengths.</td></tr>
+<tr><td>Masking key</td><td>0 or 4 bytes</td><td>Present only when MASK = 1; the payload is XORed with it, repeating.</td></tr>
+</tbody></table></div>
+<div class="tw"><table>
+<thead><tr><th>Code</th><th>Meaning (IANA name)</th><th>What it usually means in practice</th></tr></thead>
+<tbody>
+<tr><td>1000</td><td>Normal Closure</td><td>The intended end.</td></tr>
+<tr><td>1001</td><td>Going Away</td><td>A server shutting down, or a browser leaving the page.</td></tr>
+<tr><td>1002, 1003, 1007</td><td>Protocol error, Unsupported Data, Invalid frame payload data</td><td>A framing bug, binary sent where only text is accepted, text that is not UTF-8.</td></tr>
+<tr><td>1005</td><td>No Status Rcvd</td><td>Never sent: reported locally when a close frame had no code.</td></tr>
+<tr><td>1006</td><td>Abnormal Closure</td><td>Never sent: the connection died without any close frame.</td></tr>
+<tr><td>1008, 1011</td><td>Policy Violation, Internal Error</td><td>"Not allowed" and "we broke".</td></tr>
+<tr><td>1009</td><td>Message Too Big</td><td>A message above the receiver's limit (1 MiB by default in the <code>websockets</code> library, 17.2).</td></tr>
+<tr><td>1012, 1013, 1014</td><td>Service Restart, Try Again Later, a bad gateway</td><td>Registered later with IANA; useful for draining a server during a deploy and for shedding load.</td></tr>
+<tr><td>4000 to 4999</td><td>Reserved for Private Use</td><td>Your application's own codes.</td></tr>
+</tbody></table></div>
+<p><b>WebSockets over HTTP/2 and HTTP/3.</b> The upgrade above exists only in HTTP/1.1. {{RFC 8441|https://www.rfc-editor.org/rfc/rfc8441}} (September 2018) carries a WebSocket as one stream of an HTTP/2 connection through an "extended CONNECT" request with <code>:protocol: websocket</code>, and {{RFC 9220|https://www.rfc-editor.org/rfc/rfc9220}} (June 2022) does the same for HTTP/3. Both are Proposed Standards; which browsers, proxies and servers implement them was not checked for this page, so the HTTP/1.1 upgrade remains the safe assumption, and a load balancer may speak HTTP/2 to the client and HTTP/1.1 upgrade to your server.</p>
+</div></details>
 </section>
