@@ -33,7 +33,7 @@ if "refused at gpu-node-02" not in D["logs"]["agent_constrained"]: fails.append(
 if "\nsocket: /" in D["logs"]["agent_proxyjump"]: fails.append("a socket appeared under ProxyJump")
 r = D["reach"]
 if not r["alice on gpu-node-01 -> 127.0.0.1:8888 with the token"].startswith("200"): fails.append("loopback notebook not reached by alice")
-if "Permission denied" not in r["alice on gpu-node-01 -> Unix socket in khalid's 0700 directory"]: fails.append("unix socket not protected")
+if "Permission denied" not in r["alice on gpu-node-01 -> Unix socket in dev's 0700 directory"]: fails.append("unix socket not protected")
 # secrets and private strings in everything committed
 import private_patterns
 pat = re.compile(private_patterns.alternation()); sec = re.compile(r"glpat-|sk-ant-|Bearer [A-Za-z0-9]|BEGIN OPENSSH PRIVATE KEY|BEGIN [A-Z ]*PRIVATE KEY|/Users/")

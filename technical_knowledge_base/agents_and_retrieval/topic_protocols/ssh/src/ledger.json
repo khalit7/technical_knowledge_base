@@ -1,0 +1,4408 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "SSH: keys, certificates, jump hosts and tunnels for cluster work SSH: keys, certificates, jump hosts and tunnels for cluster work How SSH turns one TCP connection into an encrypted, authenticated pipe that carries shells, file copies and port forwards; how keys, agents, host keys and certificates decide who trusts whom; and the jump-host, multiplexing and tunnel patterns that make a GPU cluster behind a bastion pleasant to use.",
+  "label": "core",
+  "key": "ssh: keys, certificates, jump hosts and tunnels for cluster work",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Taught from zero, with every behaviour recorded on 5 October 2026 in a small container cluster (a bastion, two compute nodes, a notebook server) driven from a laptop with ssh -vvv .",
+  "label": "core",
+  "key": "in a small container cluster",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Child of Topic: protocols .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "location of the page in the tree; dropped by the brief (the topic moves)"
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Cluster lab Error decoder Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "the old tab bar"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "One screen 1 On the wire 2 Keys, agents 3 Host keys 4 Certificates 5 Jump hosts 6 Agent vs ProxyJump 7 Multiplexing 8 Tunnels, notebooks 9 Staying alive 10 Moving files 11 Post-quantum 12 Security 13 Cluster workflows 14 Debugging 15 Interview Recent changes Glossary",
+  "label": "core",
+  "key": "on the wire 2 keys, agents 3 host keys",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "SSH in one screen You want to run a training script on a GPU node.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "The node sits on a private network with no route from the internet; the only door is a bastion (also called a jump host : a hardened machine whose one job is to let authenticated people through).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the hero and the bastion definition carry it"
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Between your laptop and the bastion are Wi-Fi, an internet provider, maybe a VPN.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up (the path to the bastion)"
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "SSH (Secure Shell, protocol version 2) is what makes that path safe and usable: it encrypts everything, proves to you that you reached the real machine, proves to the machine that you are you, and then carries as many independent streams as you like (a shell, a file copy, a tunnel to a notebook) inside one connection.",
+  "label": "core",
+  "key": "a shell, a file copy, a tunnel",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "It runs on TCP, by default on port 22, and the implementation almost everyone uses is OpenSSH (client ssh , server sshd ); the current release is 10.5, of 11 August 2026 ( OpenSSH release notes ).",
+  "label": "depth",
+  "key": "runs on tcp, by default on port 22, and the",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Everything on this page was recorded in this small cluster, built with containers on one laptop.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the recording note carries it"
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "The laptop can reach only the bastion (published on 127.0.0.1:30922 ); the two compute nodes live on an internal network the laptop cannot route to, exactly like a real cluster. gpu-node-01 runs a stand-in for a Jupyter server (a token-protected Python web server, since installing Jupyter adds nothing to the protocol story); gpu-node-02 plays an old login node.",
+  "label": "core",
+  "key": "on an internal network the laptop cannot route to",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Three layers Transport : agree keys, encrypt, prove the server's identity with its host key .",
+  "label": "core",
+  "key": "transport (key exchange and host key), user authentication, connection (channels)",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "User authentication : you prove who you are, usually with a key pair.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 1 (the hero caption names the layers)"
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Connection : many channels (shell, command, port forward, file transfer) share the one encrypted pipe (section 1).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 1"
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Two kinds of key The server's host key answers \"is this really the bastion?\"; your user key answers \"is this really dev?\".",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates sections 2 and 3"
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Each side trusts a public key it already knows, or a certificate signed by a key it trusts (sections 2 to 4).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates sections 2 to 4"
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Cluster patterns ProxyJump reaches the node through the bastion without trusting it (5, 6); ControlMaster reuses one login for every later command (7); port forwarding brings the node's notebook to your browser (8).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by the core idea sentence"
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "What to remember The host key is SSH's only defence against a man in the middle (an attacker who sits on the path and pretends to be the server).",
+  "label": "core",
+  "key": "the host key is ssh's only defence against a man",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "SSH has no certificate authority by default: it trusts the key it saw the first time and stores it in known_hosts .",
+  "label": "core",
+  "key": "trust on first use",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Never click through \"REMOTE HOST IDENTIFICATION HAS CHANGED\"; when nodes are rebuilt often, use host certificates so there is nothing to click (section 3, recorded).",
+  "label": "core",
+  "key": "never click through a changed host key",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Use ProxyJump, not agent forwarding.",
+  "label": "core",
+  "key": "proxyjump, not agent forwarding",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "With ssh -A anyone who is root on the bastion can use your keys while you are logged in: recorded here, root on the bastion logged in to both compute nodes as dev.",
+  "label": "core",
+  "key": "root on the bastion logged in to both",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "With -J bastion the bastion only relays encrypted bytes (section 6).",
+  "label": "depth",
+  "key": "the bastion only relays",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Through a bastion 40 ms away, a fresh ssh gpu-node-01 true took 850 ms (median of 10); riding an existing master connection it took 114 ms, 7.5 times faster, and on a cluster with two-factor login it also means one prompt instead of one per command (section 7).",
+  "label": "core",
+  "key": "on a cluster with two-factor login it also means one",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "A notebook bound to 127.0.0.1 is still open to every other user on that node.",
+  "label": "core",
+  "key": "other user on that node",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Loopback is shared by all users of a machine; it only keeps other machines out.",
+  "label": "depth",
+  "key": "loopback is shared by all",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Keep the token, or serve on a Unix socket in a private directory and forward to it (section 8, recorded).",
+  "label": "depth",
+  "key": "serve on a unix socket in a",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Short-lived certificates beat authorized_keys at scale : the node trusts one CA key, a certificate expires by itself in hours, and the server log names the certificate.",
+  "label": "core",
+  "key": "short-lived certificates beat authorized_keys at scale",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "The client only ever says \"Permission denied\"; the reason is in the server log (section 4).",
+  "label": "core",
+  "key": "the client only ever says \"permission denied\"; the reason is",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Post-quantum key exchange is already the default ( mlkem768x25519-sha256 since OpenSSH 10.0; RFC 10042, August 2026).",
+  "label": "core",
+  "key": "post-quantum key exchange is already the default",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "It made the key-exchange messages 2512 bytes instead of 240 and cost no measurable time here; since 10.1 the client warns when a server cannot do it (section 11).",
+  "label": "core",
+  "key": "since 10.1 the client warns when a",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Patch, and do not expose port 22 to the internet if you can avoid it. regreSSHion (2024) was remote code execution as root before any authentication, so keys did not help (section 12).",
+  "label": "core",
+  "key": "code execution as root",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "How this page was recorded The laptop client is OpenSSH 10.3p1 (macOS); the bastion and gpu-node-01 run OpenSSH 10.5p1 (Alpine edge), gpu-node-02 runs Alpine 3.20's patched 9.7p1, configured with no post-quantum key exchange to play an old node.",
+  "label": "depth",
+  "key": "the laptop client is openssh 10.3p1 (macos); the bastion and",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Every ssh call used -F with the lab's own config, so no personal key or known_hosts was touched; private keys never left the lab directory.",
+  "label": "depth",
+  "key": "every ssh call used -f with the lab's own config",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "An observer was simulated with a small relay on the laptop that decodes the SSH packets until encryption starts (no packet capture tool was used, so nothing below the TCP payload is shown).",
+  "label": "depth",
+  "key": "an observer was simulated with a small relay on the",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Where a delay is stated, 40 ms was added to the bastion's outward link with tc netem .",
+  "label": "depth",
+  "key": "where a delay is stated, 40 ms was added to",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "Scripts and raw outputs: src/lab/ , src/raw/ ; rerun with src/run_all.sh .",
+  "label": "depth",
+  "key": "scripts and raw outputs: src/lab/ , src/raw/ ; rerun with",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "ssh in one screen",
+  "text": "The Cluster lab tab replays every recorded scenario on this picture, step by step with the real logs; the Error decoder tab starts from an error message you have just seen.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed Cluster lab tab"
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "One connection on the wire The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading with \"The problem.\" wind-up"
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Before SSH (1995) people logged in to remote machines with telnet and rlogin , which sent everything, passwords included, as readable text, and copied files with rcp and ftp .",
+  "label": "core",
+  "key": "sent everything, passwords included, as readable text, and",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "SSH replaced all of them with one protocol that encrypts and authenticates.",
+  "label": "core",
+  "key": "ssh replaced all of them with one protocol that encrypts",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Version 2, the only one in use, is four RFCs from January 2006: the architecture ( RFC 4251 ), user authentication ( RFC 4252 ), the transport layer ( RFC 4253 ) and the connection protocol ( RFC 4254 ), plus many later extensions.",
+  "label": "core",
+  "key": "version 2, the only one in use, is four rfcs",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "The three layers Transport ( RFC 4253 ).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "a heading"
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "After TCP connects, each side sends one text line, its identification string (here SSH-2.0-OpenSSH_10.3 and SSH-2.0-OpenSSH_10.5 : anyone on the path sees your software version).",
+  "label": "core",
+  "key": "after tcp connects, each side sends one text line, its",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Then both send KEXINIT , a list of what they support in ten categories (key exchange, host key type, cipher and MAC each way, compression, languages); for each category the winner is the first entry on the client's list that the server also supports (RFC 4253 section 7.1).",
+  "label": "core",
+  "key": "send kexinit , a list of what they support in",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Then a key exchange (a Diffie-Hellman style agreement: each side sends a fresh public value, both compute the same secret, an eavesdropper cannot), in which the server also signs a hash of everything exchanged so far with its host key.",
+  "label": "core",
+  "key": "each side sends a fresh public value, both compute the",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "That hash, H , becomes the session identifier .",
+  "label": "core",
+  "key": "that hash, h , becomes the session identifier",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Both send NEWKEYS and switch on encryption.",
+  "label": "core",
+  "key": "both send newkeys and switch on encryption",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "User authentication ( RFC 4252 ) runs inside the encrypted pipe.",
+  "label": "core",
+  "key": "user authentication ( rfc 4252",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "With a key, the client signs a message that includes the session identifier, so the signature is useless on any other connection: a malicious server cannot replay it elsewhere.",
+  "label": "core",
+  "key": "the client signs a message that includes the session identifier",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "OpenSSH goes further with publickey-hostbound-v00@openssh.com , which also binds the server's host key into the signature (seen in the log below).",
+  "label": "core",
+  "key": "also binds the server's host key into the signature (seen",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Connection ( RFC 4254 ) multiplexes channels over the one pipe: session (a shell, a command, or a subsystem such as SFTP), direct-tcpip (you asked to reach a host and port through the server: -L , -D , and ProxyJump), forwarded-tcpip (the server forwards a connection back to you: -R ), and channels for X11 and the agent.",
+  "label": "core",
+  "key": "session (a shell, a command, or a subsystem such as",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Each channel has its own flow-control window.",
+  "label": "core",
+  "key": "its own flow-control window",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "This is why one login can carry a shell, an rsync and three tunnels at once, and also why one dead TCP connection kills all of them together.",
+  "label": "core",
+  "key": "one login can carry a shell, an rsync and three",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Watch one login, packet by packet The relay below sat between the laptop and the bastion and decoded every SSH packet until encryption started; after NEWKEYS it could see only sizes.",
+  "label": "core",
+  "key": "until encryption started; after newkeys it could see only sizes",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "The command was ssh bastion true (log in, run nothing, leave).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated in the stepper intro"
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Pick a key exchange: the classic one, or the post-quantum hybrid that is now the default.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "a UI instruction"
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Bars are drawn to scale by bytes on the wire. curve25519 (classic) mlkem768x25519 (default) sntrup761x25519 ecdh nistp256 Recorded 5 October 2026, laptop OpenSSH 10.3p1 to bastion OpenSSH 10.5p1, one connection per key exchange (forced with -o KexAlgorithms= ).",
+  "label": "core",
+  "key": "curve25519 (classic) mlkem768x25519 (default) sntrup761x25519 ecdh nistp256 recorded 5 october",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Sizes are whole SSH packets (length field, padding included).",
+  "label": "core",
+  "key": "sizes are whole ssh packets (length field, padding included",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Time is the median of 15 fresh logins with no added delay; most of it is the container port proxy, not cryptography.",
+  "label": "core",
+  "key": "time is the median of 15 fresh logins with no",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "In the hybrid, the client's KEX_HYBRID_INIT carries an X25519 public key (32 bytes) and an ML-KEM-768 encapsulation key (1,184 bytes), the server's reply carries an X25519 key and a 1,088-byte ML-KEM ciphertext, plus the host key and signature (sizes from FIPS 203 ; message layout in RFC 10042 section 2.1).",
+  "label": "core",
+  "key": "in the hybrid, the client's kex_hybrid_init carries an x25519 public",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Payload arithmetic for the recorded init: 1 (message type) + 4 (length) + 32 + 1,184 = 1,221 bytes, exactly what the relay saw.",
+  "label": "core",
+  "key": "the recorded init: 1 (message type) + 4 (length) +",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "The two secrets are combined as K = HASH( K PQ || K CL ) (RFC 10042 section 2.4), so the result is safe if either half holds.",
+  "label": "core",
+  "key": "the two secrets are combined as k = hash( k",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "The rest of the login (authentication, one channel, exit status) was 888 encrypted bytes up and 2040 down, the same for every key exchange.",
+  "label": "core",
+  "key": "the rest of the login (authentication, one channel, exit status",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Predict, then reveal: what can the relay (or anyone on the Wi-Fi) learn from this login?",
+  "label": "depth",
+  "key": "predict, then reveal: what can the relay (or anyone on",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Both software versions (the identification strings), every algorithm each side supports and which ones were chosen (KEXINIT is plaintext), the server's host key (it is in the reply, so a passive observer can fingerprint the server), and then the sizes and timing of every encrypted packet.",
+  "label": "depth",
+  "key": "both software versions (the identification strings), every algorithm each side",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Not visible: the user name, which key was used, the command, its output.",
+  "label": "depth",
+  "key": "not visible: the user name, which key was used, the",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Keystroke timing in interactive shells is partly hidden since OpenSSH 9.5's ObscureKeystrokeTiming (on by default; OpenSSH 9.5 release notes ).",
+  "label": "depth",
+  "key": "keystroke timing in interactive shells is partly hidden since openssh",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "How many round trips a login costs With 40 ms added between laptop and bastion, the same login was replayed through the relay.",
+  "label": "core",
+  "key": "with 40 ms added between laptop and bastion, the",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Every arrow is a real packet group at its real time; the labels after NEWKEYS are inferred from order, size and the client's -vvv log, because the content is encrypted.",
+  "label": "core",
+  "key": "every arrow is a real packet group at its real",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "The server's banner arrived at 123 ms (TCP setup plus the first round trip, plus the container proxy), keys were in place at 176 ms, and the command finished at 480 ms: about eight round trips for one ssh host command , before any work is done.",
+  "label": "core",
+  "key": "the server's banner arrived at 123 ms (tcp setup plus",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Through a jump host you pay that twice, the second set inside the first (section 5).",
+  "label": "core",
+  "key": "through a jump host you pay that twice, the second",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "This is the cost that connection reuse removes (section 7).",
+  "label": "core",
+  "key": "the cost that connection reuse removes",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Reading ssh -vvv -v prints the client's view of each step; -vv and -vvv add detail.",
+  "label": "core",
+  "key": "-v prints the client's view of each step; -vv and",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "The lines worth finding, from the recorded log of this login (open it below): Line Tells you Reading configuration data ... , Applying options for ... which config file and which Host blocks matched.",
+  "label": "depth",
+  "key": "lines worth finding, from the recorded log of this login",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "For each option the first value obtained wins, so specific blocks go before Host * .",
+  "label": "core",
+  "key": "each option the first value obtained wins, so specific",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Connecting to 127.0.0.1 [127.0.0.1] port 30922. the address actually dialled (after HostName , DNS and any proxy) Remote protocol version 2.0, remote software version OpenSSH_10.5 the server's banner kex: algorithm: mlkem768x25519-sha256 , kex: host key algorithm: ssh-ed25519 what was negotiated (the cipher lines follow) Server host key: ssh-ed25519 SHA256:... , Host 'bastion' is known and matches the host key check (section 3) Authentications that can continue: publickey methods the server will accept Offering public key: ... , Server accepts key: ... each key tried, in order (section 2) Authenticated to ... using \"publickey\". login done; then channel 0: new [client-session] and the request The recorded ssh -vvv bastion true (trimmed of per-packet lines) Rekeying.",
+  "label": "depth",
+  "key": "connecting to 127.0.0.1 [127.0.0.1] port 30922. the address actually dialled",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "A long connection agrees new keys from time to time.",
+  "label": "depth",
+  "key": "a long connection agrees new keys from time to time",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "RFC 4253 section 9 recommends after each gigabyte or each hour; the log shows OpenSSH's default for ChaCha20-Poly1305, rekey out after 134217728 blocks (2 27 blocks), and RekeyLimit sets it.",
+  "label": "depth",
+  "key": "rfc 4253 section 9 recommends after each gigabyte or each",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "Since OpenSSH 10.4 a peer that sends non-key-exchange messages during a post-authentication rekey is disconnected ( 10.4 release notes ).",
+  "label": "depth",
+  "key": "since openssh 10.4 a peer that sends non-key-exchange messages during",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "The same ideas in TLS, with every record decrypted: TLS and certificates , section 1 (building blocks) and its Handshake tab.",
+  "label": "core",
+  "key": "the same ideas in tls, with every record decrypted: tls",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "1. one connection on the wire",
+  "text": "TCP itself (the connect, windows, why round trips dominate): Networking foundations .",
+  "label": "core",
+  "key": "tcp itself (the connect, windows, why round trips dominate): networking",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "Keys, agents and authentication The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading with \"The problem.\" wind-up"
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "Passwords sent to a server can be guessed, phished, reused and brute-forced, and they are the whole input of the internet's SSH-guessing botnets.",
+  "label": "core",
+  "key": "passwords sent to a server can be guessed, phished, reused",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "A key pair fixes that: a private key that never leaves your machine and a public key you can hand to anyone.",
+  "label": "core",
+  "key": "a key pair fixes that: a private key that never",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "To log in, the client proves it holds the private key by signing a message the server chooses (including the session identifier from section 1); the server checks the signature with the public key listed in ~/.ssh/authorized_keys .",
+  "label": "core",
+  "key": "the server checks the signature with the public key listed",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "Making and protecting a key ssh-keygen -t ed25519 -C \"dev@laptop\" # Ed25519 is the default type since OpenSSH 9.5 ssh-keygen -p -a 100 -f ~/.ssh/id_ed25519 # add or change the passphrase, with more KDF rounds Ed25519 ( RFC 8709 ): 32-byte public keys, fast, no parameters to get wrong and no random number needed per signature.",
+  "label": "core",
+  "key": "making and protecting a key ssh-keygen -t ed25519 -c \"dev@laptop\"",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "RSA still works (signed with rsa-sha2-512 ); DSA was removed entirely in OpenSSH 10.0 (9 April 2025), \"completing the deprecation process that began in 2015\" ( 10.0 release notes ).",
+  "label": "core",
+  "key": "rsa still works (signed with rsa-sha2-512 ); dsa was removed",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "The passphrase encrypts the private key file on disk, stretched with bcrypt_pbkdf; -a sets the rounds (the 10.3 manual gives a default of 16; the current OpenBSD manual says 32).",
+  "label": "core",
+  "key": "the passphrase encrypts the private key file on disk, stretched",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "It protects a stolen file, nothing else: once the key is loaded in an agent, anything that can talk to the agent can use it.",
+  "label": "core",
+  "key": "it protects a stolen file, nothing else: once the key",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "Hardware keys (FIDO tokens, OpenSSH 8.2, February 2020): ssh-keygen -t ed25519-sk keeps the private key inside the token and needs a touch per login; -O resident stores it on the token so you can load it on another machine, -O verify-required adds a PIN.",
+  "label": "core",
+  "key": "hardware keys (fido tokens, openssh 8.2, february 2020): ssh-keygen -t",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "The server must run OpenSSH 8.2 or newer to accept them.",
+  "label": "core",
+  "key": "the server must run openssh 8.2 or newer",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "On the server , each authorized_keys line can carry options that limit the key: restrict (no forwarding, no pty), from=\"10.0.0.0/8\" , command=\"...\" (this key may only run one command, useful for backup or CI keys).",
+  "label": "core",
+  "key": "command=\"...\" (this key may only run one command",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "See sshd(8) AUTHORIZED_KEYS FILE FORMAT .",
+  "label": "core",
+  "key": "see sshd(8) authorized_keys file format",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "The agent ssh-agent holds your decrypted keys in memory and signs on request; programs reach it through a Unix socket named by SSH_AUTH_SOCK .",
+  "label": "core",
+  "key": "the agent ssh-agent holds your decrypted keys in memory and",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "You type the passphrase once, and ssh , git and rsync use the key without seeing it.",
+  "label": "core",
+  "key": "you type the passphrase once, and ssh , git and",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "The agent protocol was standardised as RFC 9987 (Standards Track, May 2026); since OpenSSH 10.3 the IANA-assigned names are used when the server offers them, which is why the recorded server advertises an agent-forward extension in its EXT_INFO .",
+  "label": "depth",
+  "key": "rfc 9987 (standards track, may 2026); since openssh 10.3 the",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "Useful flags: ssh-add -t 8h (forget the key after 8 hours), ssh-add -c (ask for confirmation at every use), ssh-add -l (list).",
+  "label": "core",
+  "key": "useful flags: ssh-add -t 8h (forget the key after 8",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "Since 10.1 agent sockets live under ~/.ssh/agent/ instead of /tmp , so a sandboxed process that can read /tmp no longer reaches your keys; the forwarded socket on the bastion in section 6 is at /home/dev/.ssh/agent/s.… .",
+  "label": "core",
+  "key": "since 10.1 agent sockets live under ~/.ssh/agent/ instead of /tmp",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "Scripts that hard-coded /tmp/ssh-XXXX break.",
+  "label": "core",
+  "key": "scripts that hard-coded /tmp/ssh-xxxx break",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "Which key gets offered, and \"Too many authentication failures\" The client offers keys one at a time; each refusal counts against the server's MaxAuthTries , 6 by default (recorded with sshd -T below).",
+  "label": "core",
+  "key": "which key gets offered, and \"too many authentication failures\" the",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "An agent full of keys can exhaust it before the right key is tried.",
+  "label": "core",
+  "key": "it before the right key is tried",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "Recorded: an agent holding seven unrelated keys, the right key named in IdentityFile : The fix is IdentitiesOnly yes , which offers only the keys your config names.",
+  "label": "core",
+  "key": "the fix is identitiesonly yes , which offers only",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "To see the order without connecting, OpenSSH 10.5 added ssh -Z host ; recorded with the bastion's 10.5 client (the laptop's 10.3 lacks it).",
+  "label": "core",
+  "key": "to see the order without connecting, openssh 10.5 added ssh",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "It lists the default identity names, including the new id_mldsa44_ed25519 (section 11): A trap found while recording: IdentityFile lines add up For almost every keyword the first value obtained wins, which is why Host * goes last.",
+  "label": "core",
+  "key": "it lists the default identity names, including the new id_mldsa44_ed25519",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "IdentityFile is the exception: \"Multiple IdentityFile directives will add to the list of identities tried\" ( ssh_config(5) ).",
+  "label": "core",
+  "key": "identityfile is the exception: \"multiple identityfile directives will add to",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "The first certificate tests on this page all \"succeeded\", even the expired certificate, because the Host * block's ordinary key was also offered and accepted.",
+  "label": "core",
+  "key": "the first certificate tests on this page all \"succeeded\", even",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "If a test of one key must fail, give it a config where no other IdentityFile applies, and check ssh -G host | grep identityfile .",
+  "label": "core",
+  "key": "if a test of one key must fail, give it",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "Predict, then reveal: a malicious server you log in to receives your signature.",
+  "label": "depth",
+  "key": "predict, then reveal: a malicious server you log in to",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "Can it use it to log in to the bastion as you?",
+  "label": "depth",
+  "key": "can it use it to log in to the bastion",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "The signed data includes the session identifier of that connection (RFC 4252 section 7), and OpenSSH's hostbound variant also includes the host key.",
+  "label": "depth",
+  "key": "the signed data includes the session identifier of that connection",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "The bastion's session has a different identifier, so the signature fails there.",
+  "label": "depth",
+  "key": "the bastion's session has a different identifier, so the signature",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "What a malicious server can do is ask a forwarded agent for fresh signatures while you are connected (section 6).",
+  "label": "depth",
+  "key": "what a malicious server can do is ask a forwarded",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "2. keys, agents and authentication",
+  "text": "The bastion's effective server settings ( sshd -T , OpenSSH 10.5p1)",
+  "label": "depth",
+  "key": "the bastion's effective server settings ( sshd -t , openssh",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "Host keys, known_hosts and churn The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading with \"The problem.\" wind-up"
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "Encryption is worthless if you are encrypting to the attacker.",
+  "label": "core",
+  "key": "encryption is worthless if you are encrypting to the attacker",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "In the key exchange the server signs the exchange hash with its host key ; the client must decide whether that key really belongs to gpu-node-01 .",
+  "label": "core",
+  "key": "in the key exchange the server signs the exchange hash",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "TLS answers with certificate authorities; plain SSH answers with trust on first use (TOFU): the first time, it shows you the key's fingerprint and asks; after that it remembers the key in ~/.ssh/known_hosts and insists on the same one.",
+  "label": "core",
+  "key": "tls answers with certificate authorities; plain ssh answers with trust",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "The first connection is the weak moment; every later one is protected.",
+  "label": "core",
+  "key": "the first connection is the weak moment; every later one",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "Recorded, first contact with a new node (interactive, answered yes ), and the fingerprint read on the node itself, which is the comparison you are supposed to make through some other channel (the cloud console, the admin, a provisioning log): Note <no hostip for proxy command> : through a jump host the client never learns the node's address, so the entry is filed under the name only.",
+  "label": "core",
+  "key": "through a jump host the client never learns the",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "What StrictHostKeyChecking does Setting Unknown host Known host, changed key ask (default) shows the fingerprint, asks refuses accept-new adds silently refuses (recorded below) yes refuses (recorded: No ED25519 host key is known for gpu-node-02 and you have requested strict checking. ) refuses no adds silently connects , with some features disabled (recorded below) Behaviour from ssh_config(5) , each cell confirmed in the lab except \"ask, changed\".",
+  "label": "core",
+  "key": "unknown host known host, changed key ask (default) shows the",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "Churn: the node was rebuilt Cloud and cluster nodes are often rebuilt from an image that generates new host keys at first boot.",
+  "label": "core",
+  "key": "generates new host keys at first boot",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "The lab did exactly that to gpu-node-01 (a new container: new keys).",
+  "label": "core",
+  "key": "a new container, so new host keys",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "With accept-new : And with StrictHostKeyChecking no , asking for agent forwarding and a port forward too: It logged in and ran the command.",
+  "label": "core",
+  "key": "and with stricthostkeychecking no",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "OpenSSH blocks password and keyboard-interactive login (an impostor would capture the password), and agent and port forwarding when requested, but a public-key login proceeds and you are now typing into a machine you have not verified.",
+  "label": "core",
+  "key": "openssh blocks password and keyboard-interactive login (an impostor would capture",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "That is why no must never be a habit.",
+  "label": "core",
+  "key": "that is why no must never be a habit",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "The honest fix after a known rebuild: compare the new fingerprint out of band, then remove the stale line: The real risk of churn is habituation A team whose nodes change keys weekly learns to run ssh-keygen -R without looking, and the one day it is a real man in the middle it gets the same treatment.",
+  "label": "core",
+  "key": "the honest fix after a known rebuild: compare the new",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "Three ways out, best first: host certificates (section 4: nothing changes on the client when a node is rebuilt); a separate, throwaway known_hosts with accept-new scoped to the ephemeral nodes only ( Host gpu-node-* , never Host * , never the bastion); or distributing the keys (a managed /etc/ssh/ssh_known_hosts , or SSHFP below).",
+  "label": "core",
+  "key": "three ways out, best first: host certificates (section 4: nothing",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "Other knobs HashKnownHosts yes stores names as hashes so a stolen known_hosts does not list every machine you use (default no upstream; some distributions turn it on).",
+  "label": "depth",
+  "key": "hashknownhosts yes stores names as hashes so a stolen known_hosts",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "Lookups still work; ssh-keygen -F host finds an entry.",
+  "label": "depth",
+  "key": "lookups still work; ssh-keygen -f host finds an entry",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "UpdateHostKeys : after login the server can send all its host keys (signed), so the client learns the others before a key rotation (the \"hostkeys\" extension in PROTOCOL ).",
+  "label": "depth",
+  "key": "updatehostkeys : after login the server can send all its",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "SSHFP DNS records publish host key fingerprints; VerifyHostKeyDNS yes makes the client trust them.",
+  "label": "depth",
+  "key": "sshfp dns records publish host key fingerprints; verifyhostkeydns yes makes",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "Only meaningful if the answer is DNSSEC-validated (see DNS ), and it had a real bug: CVE-2025-26465 , an on-path attacker could impersonate any server when VerifyHostKeyDNS was on, OpenSSH 6.8p1 to 9.9p1, fixed in 9.9p2 (18 February 2025, found by Qualys; release notes ).",
+  "label": "depth",
+  "key": "only meaningful if the answer is dnssec-validated (see dns",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "Since 10.1 the release notes warn that SHA-1 SSHFP records will be ignored in a future release; publish SHA-256 ones ( ssh-keygen -r host ).",
+  "label": "depth",
+  "key": "since 10.1 the release notes warn that sha-1 sshfp records",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "Predict, then reveal: the bastion's key changed and you are sure nobody rebuilt it.",
+  "label": "depth",
+  "key": "predict, then reveal: the bastion's key changed and you are",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "What do you do?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "question fragment of a reveal"
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "Do not remove the entry.",
+  "label": "depth",
+  "key": "do not remove the entry",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "Read the fingerprint the warning printed, get the real one through another channel (console, admin, a colleague on a different network), and compare.",
+  "label": "depth",
+  "key": "read the fingerprint the warning printed, get the real one",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "If they differ, someone is on the path or the server was compromised; if they match, the key really changed and you can update known_hosts .",
+  "label": "depth",
+  "key": "if they differ, someone is on the path or the",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "3. host keys, known_hosts and churn",
+  "text": "On a cluster with host certificates this situation becomes rare and therefore alarming, which is the point.",
+  "label": "depth",
+  "key": "on a cluster with host certificates this situation becomes rare",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "SSH certificates: user and host The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading with \"The problem.\" wind-up"
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "With plain keys, trust is a list on every machine: N users' public keys in authorized_keys on M nodes, and M host keys in every user's known_hosts .",
+  "label": "core",
+  "key": "with plain keys, trust is a list on every machine",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Adding a person, removing a leaver, rebuilding a node all mean editing lists everywhere.",
+  "label": "core",
+  "key": "adding a person, removing a leaver, rebuilding a node all",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "SSH certificates replace the lists with one trusted certificate authority (CA) key: the CA signs a statement \"this public key belongs to dev , may log in as dev , until 01:15 tomorrow\", and every node trusts anything the CA signed.",
+  "label": "core",
+  "key": "ssh certificates replace the lists with one trusted certificate authority",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Not X.509 (the web's format from TLS and certificates ): OpenSSH's own simpler format, since OpenSSH 5.4 in 2010 ( PROTOCOL.certkeys ), with no chains: one CA signs, and the CA key is configured directly.",
+  "label": "core",
+  "key": "tls and certificates ): openssh's own simpler format, since openssh",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "A user certificate, made and used ssh-keygen -s user_ca -I dev@2026-10-05 -n dev -V +8h -z 42 id_cert_only.pub # writes id_cert_only-cert.pub # on every node, once: TrustedUserCAKeys /etc/ssh/user_ca.pub (sshd_config) -I is the key ID that appears in the server's log, -n the principals (the account names it may log in as), -V the validity window, -z a serial number for revocation.",
+  "label": "core",
+  "key": "a user certificate, made and used ssh-keygen -s user_ca -i",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Recorded: the certificate, the client's view, and the node's log, which names the certificate, its serial and the CA: Four ways a certificate is refused Each was signed and tried against gpu-node-01 .",
+  "label": "core",
+  "key": "names the certificate, its serial and the ca",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Pick one; the left is all the client ever says, the right is the server's log. expired wrong principal no principals revoked (KRL) The lesson for debugging: \"Permission denied (publickey)\" is all the client learns , deliberately, so an attacker learns nothing either.",
+  "label": "core",
+  "key": "the left is all the client ever says, the right",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Since OpenSSH 10.1 the server logs \"enough information to identify the certificate in addition to the reason\" ( 10.1 release notes ): that is the Refusing certificate ID ...",
+  "label": "core",
+  "key": "since openssh 10.1 the server logs \"enough information to identify",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Certificate invalid: expired line.",
+  "label": "core",
+  "key": "certificate invalid: expired line",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Ask whoever can read /var/log/auth.log or journalctl -u sshd .",
+  "label": "core",
+  "key": "ask whoever can read /var/log/auth.log or journalctl -u sshd",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Revocation uses a KRL (key revocation list), a compact file of revoked serials or keys: ssh-keygen -k -f revoked.krl -s user_ca.pub spec , pushed to nodes and named by RevokedKeys ; ssh-keygen -Q -f revoked.krl cert checks a certificate against it (recorded in the \"revoked\" case).",
+  "label": "core",
+  "key": "uses a krl (key revocation list), a compact file of",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Since 10.3 RevokedKeys accepts several files.",
+  "label": "core",
+  "key": "since 10.3 revokedkeys accepts several files",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Short lifetimes are the real revocation.",
+  "label": "core",
+  "key": "short lifetimes are the real revocation",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "An 8-hour certificate stolen today is useless tomorrow, and nobody has to remember to revoke it.",
+  "label": "core",
+  "key": "an 8-hour certificate stolen today is useless tomorrow, and nobody",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Since 10.1, ssh-add drops a certificate from the agent five minutes after it expires ( -N disables this).",
+  "label": "core",
+  "key": "since 10.1, ssh-add drops a certificate from the agent five",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Empty principals. ssh-keygen warns (\"certificate will contain no principals\"), and the node refused it (recorded).",
+  "label": "depth",
+  "key": "empty principals. ssh-keygen warns (\"certificate will contain no principals\"), and",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Before 10.3 a certificate with no principals matched any user when trusted through an authorized_keys line with cert-authority,principals=\"\" ; 10.3 made it match none.",
+  "label": "depth",
+  "key": "before 10.3 a certificate with no principals matched any user",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "CAs trusted through TrustedUserCAKeys , as here, never had that behaviour ( 10.3 release notes ).",
+  "label": "depth",
+  "key": "cas trusted through trustedusercakeys , as here, never had that",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Restrictions travel in the certificate : -O no-port-forwarding , -O force-command=... , -O source-address=10.0.0.0/8 .",
+  "label": "core",
+  "key": "restrictions travel in the certificate : -o no-port-forwarding , -o",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "The recorded certificate carries the default extensions ( permit-pty , permit-port-forwarding and so on).",
+  "label": "core",
+  "key": "the recorded certificate carries the default extensions ( permit-pty",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Correction to the old page It said 10.3 \"changed empty-principal certificates from matching any principal to matching none, which broke sloppy CA tooling in April 2026\".",
+  "label": "depth",
+  "key": "correction to the old page it said 10.3 \"changed empty-principal",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "The change is real but narrower: it applied only to CAs trusted via authorized_keys principals=\"\" , not via TrustedUserCAKeys .",
+  "label": "depth",
+  "key": "the change is real but narrower: it applied only to",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "That it \"broke CA tooling\" could not be confirmed from any primary source and is dropped.",
+  "label": "depth",
+  "key": "that it \"broke ca tooling\" could not be confirmed from",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Host certificates: the cure for churn The same idea in the other direction.",
+  "label": "core",
+  "key": "host certificates: the cure for churn the same idea in",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Provisioning signs each node's host key with a host CA ( ssh-keygen -s host_ca -h -I gpu-node-01-host -n gpu-node-01 -V +52w ssh_host_ed25519_key.pub ), the node presents it ( HostCertificate in sshd_config ), and clients carry one line instead of one per node: @cert-authority gpu-node-* ssh-ed25519 AAAAC3Nza... # in known_hosts Recorded: the client accepts the node with no prompt; then the node is rebuilt (new key, re-signed at boot, as an image or a cloud-init step would do) and the client still connects with nothing to edit; and a certificate issued for the wrong name is refused: Who runs the CA Signing by hand is fine for a lab; in practice a service signs after a single sign-on login: HashiCorp Vault's SSH secrets engine , Teleport (CA, short-lived certificates, session recording), Smallstep, or cloud equivalents; Netflix published BLESS , a Lambda-based CA.",
+  "label": "core",
+  "key": "provisioning signs each node's host key with a host ca",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "The CA private key becomes the most valuable secret you have: keep it offline or in an HSM or KMS, and ssh-keygen -s can sign with a CA key held in an agent ( -U ; 10.2 fixed a bug in exactly that path).",
+  "label": "core",
+  "key": "the ca private key becomes the most valuable secret you",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Predict, then reveal: a laptop with a valid 8-hour certificate is stolen at 09:00.",
+  "label": "depth",
+  "key": "predict, then reveal: a laptop with a valid 8-hour certificate",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "What can the thief do, and what do you do?",
+  "label": "depth",
+  "key": "what can the thief do, and what do you do?",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Until the certificate expires (and only if the private key is not passphrase-protected or the agent is unlocked), log in wherever its principals allow.",
+  "label": "depth",
+  "key": "until the certificate expires (and only if the private key",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Revoke its serial in the KRL and push it to the nodes for the remaining hours, and the stolen key cannot get a new certificate because the CA requires your single sign-on.",
+  "label": "depth",
+  "key": "revoke its serial in the krl and push it to",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "4. ssh certificates: user and host",
+  "text": "Compare with a stolen plain key: valid until someone finds and deletes it from every authorized_keys .",
+  "label": "depth",
+  "key": "compare with a stolen plain key: valid until someone finds",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "Jump hosts and ProxyJump The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading with \"The problem.\" wind-up"
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "Compute nodes are not routable from your laptop; only the bastion is.",
+  "label": "core",
+  "key": "compute nodes are not routable from your laptop; only the",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "You could log in to the bastion and run ssh again from there, but then the second login uses keys on (or forwarded to) the bastion, and every tool ( rsync , git , VS Code) would have to do the same dance.",
+  "label": "core",
+  "key": "keys on (or forwarded to) the bastion, and every tool",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "ProxyJump (OpenSSH 7.3, August 2016) does it properly: your laptop asks the bastion for a raw TCP stream to gpu-node-01:22 and then runs a second, complete SSH session from the laptop to the node through that stream. ssh -J bastion gpu-node-01 # one hop ssh -J bastion,login gpu-node-07 # two hops, in order # or in ~/.ssh/config, so every tool gets it: Host gpu-node-* ProxyJump bastion Recorded with -vvv : the client turns ProxyJump into a helper ssh -W '[gpu-node-01]:22' bastion (a \"stdio forward\": its standard input and output become the TCP stream), and the bastion's server log shows only a direct-tcpip channel to port 22 of the node: What the bastion sees.",
+  "label": "core",
+  "key": "proxyjump (openssh 7.3, august 2016) does it properly: your laptop",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "The node's session is encrypted end to end between laptop and node; the bastion relays ciphertext.",
+  "label": "core",
+  "key": "the node's session is encrypted end to end between laptop",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "The relay on the laptop's path, during a ProxyJump session that pulled about 27 KB of output, decoded the bastion's handshake and nothing else: the node's banner, its key exchange and everything after travelled inside the outer encryption, 5116 bytes up and 6732 down, unreadable to the observer and to the bastion alike.",
+  "label": "core",
+  "key": "the relay on the laptop's path, during a proxyjump session",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "Two full logins, the second inside the first.",
+  "label": "core",
+  "key": "two full logins, the second inside the first",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "Without added delay, ssh bastion true took 57 ms and ssh gpu-node-01 true through it 112 ms (medians of 10); with 40 ms between laptop and bastion, 429 ms against 850 ms.",
+  "label": "core",
+  "key": "without added delay, ssh bastion true took 57 ms and",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "Section 7 removes most of that.",
+  "label": "core",
+  "key": "section 7 removes most of that",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "Before 7.3 the same thing was written ProxyCommand ssh -W %h:%p bastion , and before 5.4, ProxyCommand ssh bastion nc %h %p .",
+  "label": "depth",
+  "key": "before 7.3 the same thing was written proxycommand ssh -w",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "ProxyCommand still matters for non-SSH transports: AWS Session Manager, for example, provides one so that plain ssh , -J and rsync work over it ( AWS docs ).",
+  "label": "depth",
+  "key": "proxycommand still matters for non-ssh transports: aws session manager, for",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "Untrusted input in command lines.",
+  "label": "depth",
+  "key": "untrusted input in command lines",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "CVE-2025-61984 (fixed in 10.1, 6 October 2025): control characters in a user name from the command line or a % -expansion could lead to code execution when a ProxyCommand using %r was configured ( CVE record ); the scenario is a crafted ssh:// or git URL.",
+  "label": "depth",
+  "key": "cve-2025-61984 (fixed in 10.1, 6 october 2025): control characters in",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "10.3 added validation of user and host names given to -J on the command line (not in config files).",
+  "label": "depth",
+  "key": "10.3 added validation of user and host names given to",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "OpenSSH's own advice: never build ssh command lines from untrusted input.",
+  "label": "depth",
+  "key": "openssh's own advice: never build ssh command lines from untrusted",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "Each hop's options come from its own Host block , so the bastion can use a hardware key and long multiplexing while nodes use a throwaway known_hosts .",
+  "label": "core",
+  "key": "each hop's options come from its own host block",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "5. jump hosts and proxyjump",
+  "text": "ProxyJump none disables an inherited jump.",
+  "label": "core",
+  "key": "proxyjump none disables an inherited jump",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "Agent forwarding against ProxyJump Agent forwarding ( ssh -A , ForwardAgent yes ) solves the same problem the old way: you log in to the bastion, and the bastion's sshd creates a socket there that relays signing requests back to the agent on your laptop, so ssh gpu-node-01 typed on the bastion can authenticate as you.",
+  "label": "core",
+  "key": "agent forwarding against proxyjump agent forwarding ( ssh -a",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "The cost: anyone who can open that socket while you are connected can authenticate as you , to any server that trusts your key.",
+  "label": "core",
+  "key": "the cost: anyone who can open that socket while you",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "That is the bastion's root, or any process running as your user there.",
+  "label": "core",
+  "key": "that is the bastion's root, or any process running as",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "Your private key never leaves the laptop, but it does not need to.",
+  "label": "core",
+  "key": "your private key never leaves the laptop, but it does",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "Recorded, three ways to reach the nodes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "In each, while the session was open, the lab played a malicious root on the bastion: look for agent sockets, list the keys, and try to log in to both nodes as dev. ssh -A bastion -A with ssh-add -h ssh -J bastion The three results, from src/raw/agent_*.txt : with plain forwarding root found /home/dev/.ssh/agent/s.… , listed the laptop's key, and logged in to both nodes as dev.",
+  "label": "core",
+  "key": "in each, while the session was open, the lab played",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "With a destination-constrained key ( ssh-add -h bastion -h 'bastion>gpu-node-01' , OpenSSH 8.9 and later) root could still use it, but only for the hop you allowed: gpu-node-01 worked, gpu-node-02 was refused, because the agent checks each request against the host keys bound into the session ( session-bind@openssh.com ).",
+  "label": "core",
+  "key": "with a destination-constrained key ( ssh-add -h bastion -h 'bastion>gpu-node-01'",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "With ProxyJump there was no socket to find.",
+  "label": "core",
+  "key": "with proxyjump there was no socket to find",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "If a workflow truly needs a key on a remote machine (pushing to GitHub from a login node), prefer a separate deploy key there (section 13) over forwarding; if you must forward, forward a constrained key, add ssh-add -c so every use asks you, and never put ForwardAgent yes under Host * .",
+  "label": "core",
+  "key": "if a workflow truly needs a key on a remote",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "Agent locking. ssh-add -x locks the agent with a password.",
+  "label": "depth",
+  "key": "agent locking. ssh-add -x locks the agent with a password",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "10.5 fixed a bug where a locked agent refused the session-bind messages that identify forwarded use, so operations meant to be local-only (adding PKCS#11 tokens, using destination-restricted keys) could be done remotely ( 10.5 release notes ).",
+  "label": "depth",
+  "key": "10.5 fixed a bug where a locked agent refused the",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "AllowAgentForwarding no on a bastion is reasonable when everyone uses ProxyJump; it was enabled here to record the attack.",
+  "label": "core",
+  "key": "allowagentforwarding no on a bastion is reasonable when everyone uses",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "10.0 fixed DisableForwarding , which had failed to disable agent and X11 forwarding.",
+  "label": "depth",
+  "key": "10.0 fixed disableforwarding , which had failed to disable agent",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "Predict, then reveal: with ProxyJump, can a malicious bastion do anything at all?",
+  "label": "depth",
+  "key": "predict, then reveal: with proxyjump, can a malicious bastion do",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "It cannot read or alter the node session (encrypted end to end, and the node's host key is checked by your laptop), cannot use your keys, and cannot replay your signature (bound to the node session).",
+  "label": "depth",
+  "key": "it cannot read or alter the node session (encrypted end",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "It can refuse to relay, delay traffic, see when and how much you send, and see which node you asked for.",
+  "label": "depth",
+  "key": "it can refuse to relay, delay traffic, see when and",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "6. agent forwarding against proxyjump",
+  "text": "If your laptop accepts the node's host key blindly ( StrictHostKeyChecking no ), the bastion could itself pretend to be the node, which is why host key checking still matters behind a bastion.",
+  "label": "depth",
+  "key": "if your laptop accepts the node's host key blindly",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "Multiplexing: one login, many commands The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading with \"The problem.\" wind-up"
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "Every ssh , scp , rsync -e ssh , git pull and every VS Code helper starts from zero: TCP, key exchange, authentication, through the bastion and then again to the node, plus a two-factor prompt if the cluster has one.",
+  "label": "core",
+  "key": "every ssh , scp , rsync -e ssh , git",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "Connection multiplexing keeps the first connection (the master ) open and lets later clients ask it, over a local Unix socket, for a new channel on the already-authenticated connection.",
+  "label": "core",
+  "key": "connection multiplexing keeps the first connection (the master ) open",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "Host gpu-node-* bastion ControlMaster auto # use a master if one exists, otherwise become one ControlPath ~/.ssh/cm/%C # where the socket lives; %C hashes local host, host, port, user and jump host ControlPersist 4h # keep the master in the background after the first session ends both side by side fresh each time through the master Recorded: ten ssh gpu-node-01 true in a row through the bastion, 40 ms added between laptop and bastion; each bar is one real run, drawn to scale.",
+  "label": "core",
+  "key": "host gpu-node-* bastion controlmaster auto # use a master if",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "The first multiplexed run creates the master (821 ms), the next nine ride it.",
+  "label": "core",
+  "key": "the first multiplexed run creates the master (821 ms), the",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "Ten commands: 8.4 s fresh against 1.9 s multiplexed.",
+  "label": "core",
+  "key": "ten commands: 8.4 s fresh against 1.9 s multiplexed",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "A reused channel needs one round trip to the bastion and back for the channel open and request (the node hop is inside the cluster), against roughly eight per hop for a login (section 1).",
+  "label": "core",
+  "key": "a reused channel needs one round trip to the bastion",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "Recorded -vvv of a reuse, and the control commands: ssh -O check host says whether a master is running; -O exit stops it; -O conninfo and -O channels are new in 10.3 (above: the negotiated algorithms and traffic, and the open channels).",
+  "label": "core",
+  "key": "ssh -o check host says whether a master is running",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "What it costs and how it fails One master, one fate.",
+  "label": "core",
+  "key": "what it costs and how it fails one master, one",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "When the master dies, every session on it dies at once.",
+  "label": "core",
+  "key": "the master dies, every session on it dies at",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "Recorded: a session running sleep 20 on the master ended with exit status 255 within milliseconds of -O exit .",
+  "label": "core",
+  "key": "recorded: a session running sleep 20 on the master ended",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "A laptop that sleeps and wakes on another network often leaves a master that looks alive but is not: -O check , then -O exit , or a short ServerAliveInterval (section 9) so it notices.",
+  "label": "core",
+  "key": "a laptop that sleeps and wakes on another network often",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "The socket is a key.",
+  "label": "core",
+  "key": "the socket is a key",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "Anyone who can open the control socket can open sessions as you without authenticating.",
+  "label": "core",
+  "key": "anyone who can open the control socket can open sessions",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "Keep ControlPath in a directory only you can read ( mkdir -m 700 ~/.ssh/cm ); never in /tmp on a shared machine.",
+  "label": "core",
+  "key": "keep controlpath in a directory only you can read",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "A Unix socket path is limited (108 bytes on Linux, unix(7) ; 104 on macOS, sun_path[104] in its sys/un.h ). %C is a fixed 40-character hash, which is why it is preferred to the older %r@%h:%p pattern.",
+  "label": "depth",
+  "key": "a unix socket path is limited (108 bytes on linux",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "The lab hit the limit: its working directory alone was 120 characters, so it used the relative path ControlPath cm/%C .",
+  "label": "depth",
+  "key": "the lab hit the limit: its working directory alone was",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "One TCP connection carries everything: a large rsync on the master slows your interactive shell, and one connection's congestion window caps total throughput.",
+  "label": "core",
+  "key": "one tcp connection carries everything: a large rsync on the",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "For bulk copies, a separate connection ( -o ControlMaster=no -o ControlPath=none ) can be faster.",
+  "label": "core",
+  "key": "a separate connection ( -o controlmaster=no -o controlpath=none ) can",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "Since 10.0 , scp and sftp pass ControlMaster no : they use an existing master but no longer silently create one ( 10.0 release notes ).",
+  "label": "depth",
+  "key": "since 10.0 , scp and sftp pass controlmaster no",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "10.2 fixed a 10.1 bug that made sessions unusable with ControlPersist active, so avoid 10.1 with multiplexing.",
+  "label": "depth",
+  "key": "10.2 fixed a 10.1 bug that made sessions unusable with",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "Authentication happens once , so a revoked key or an expired certificate does not end a master already running; ControlPersist bounds how long that lasts.",
+  "label": "core",
+  "key": "authentication happens once , so a revoked key or an",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "Predict, then reveal: you changed User in your config for a host, but ssh host whoami still prints the old name.",
+  "label": "depth",
+  "key": "predict, then reveal: you changed user in your config for",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "A master from before the change is still running and serving the request: the new client never authenticated. ssh -O exit host and try again.",
+  "label": "depth",
+  "key": "a master from before the change is still running and",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "7. multiplexing: one login, many commands",
+  "text": "The same trap catches changed forwarding options and agent forwarding: options of the original master apply.",
+  "label": "depth",
+  "key": "the same trap catches changed forwarding options and agent forwarding",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "Port forwarding, tunnels and notebooks The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading with \"The problem.\" wind-up"
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "The notebook, TensorBoard or MLflow you want runs on a node your browser cannot reach.",
+  "label": "core",
+  "key": "the notebook, tensorboard or mlflow you want runs on a",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "SSH can carry TCP connections through its encrypted pipe as channels, in three directions: Flag Listens on Connects to Use -L 30988:127.0.0.1:8888 your laptop, port 30988 127.0.0.1:8888 as seen from the server a notebook or dashboard on the node in your browser -L 30986:/home/dev/.nb/nb.sock your laptop a Unix socket on the server the safest way to serve a notebook (below) -D 30989 your laptop: a SOCKS5 proxy whatever each request names, from the server browse every internal service (Grafana, MLflow, Ray dashboard) with one tunnel -R 30991:127.0.0.1:30990 the server, port 30991 your laptop's 127.0.0.1:30990 let the cluster reach something on your laptop (a license server, a local API) Recorded: the notebook on gpu-node-01 through the bastion with one command, ssh -N -L 30988:127.0.0.1:8888 gpu-node-01 ( -N : no remote command, just forward; add -f to go to the background): Who else can reach your notebook?",
+  "label": "core",
+  "key": "tcp connections through its encrypted pipe as channels, in three",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "The node ran the same notebook three ways: bound to loopback 127.0.0.1:8888 , bound to all interfaces 0.0.0.0:8889 , and on a Unix socket inside ~/.nb (mode 700).",
+  "label": "core",
+  "key": "the node ran the same notebook three ways: bound to",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "Then another user on the same node ( alice ) and another node tried to connect: Correction to the old page: loopback is not private to you The old page said to bind to 127.0.0.1 \"or any other user on that node reaches your kernel\".",
+  "label": "core",
+  "key": "then another user on the same node ( alice",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "Binding to 127.0.0.1 keeps other machines out (the second node was refused), but every user on the same node shares its loopback : alice reached the loopback-bound notebook and, with the token, would have run code as dev.",
+  "label": "core",
+  "key": "binding to 127.0.0.1 keeps other machines out (the second node",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "What protects you on a shared login or compute node is the token (Jupyter's default; never disable it) or, better, a Unix socket in a directory only you can enter: alice got Permission denied .",
+  "label": "core",
+  "key": "what protects you on a shared login or compute node",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "Jupyter Server can listen on a Unix socket ( --ServerApp.sock , created with mode 0600 by default, Jupyter Server config ), and ssh -L port:/path/to/socket forwards straight to it (recorded: fwd_L_unix ).",
+  "label": "core",
+  "key": "jupyter server can listen on a unix socket ( --serverapp.sock",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "One proxy for everything: -D Two lessons in three lines.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "Name resolution must happen on the far side: --socks5-hostname (or the URL scheme socks5h:// , as in ALL_PROXY=socks5h://127.0.0.1:30989 ) sends the name to the bastion, which knows gpu-node-01 ; plain --socks5 resolves on the laptop and fails.",
+  "label": "core",
+  "key": "--socks5-hostname (or the url scheme socks5h:// , as in all_proxy=socks5h://127.0.0.1:30989",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "And the proxy connects from the bastion , so a service bound to the node's loopback is unreachable through it; use -L to the node for that one.",
+  "label": "core",
+  "key": "and the proxy connects from the bastion , so a",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "The other direction: -R The forwarded port opened on the bastion's loopback only, because the server's GatewayPorts defaults to no .",
+  "label": "core",
+  "key": "the forwarded port opened on the bastion's loopback only, because",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "Setting it to yes would expose your laptop's service to the whole network behind the bastion.",
+  "label": "core",
+  "key": "setting it to yes would expose your laptop's service to",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "When forwarding fails silently By default a forward that cannot listen is a warning and the session carries on, so a script believes its tunnel is up.",
+  "label": "core",
+  "key": "by default a forward that cannot listen is a warning",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "With ExitOnForwardFailure yes it exits 255.",
+  "label": "core",
+  "key": "with exitonforwardfailure yes it exits 255",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "One subtlety recorded here: -L 30985:... with no bind address listens on localhost in both IPv4 and IPv6; when only 127.0.0.1:30985 was taken, the IPv6 listener on [::1]:30985 still succeeded, so even ExitOnForwardFailure was satisfied, and http://127.0.0.1:30985 reached the other program.",
+  "label": "core",
+  "key": "-l 30985:... with no bind address listens on localhost in",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "Bind explicitly ( -L 127.0.0.1:30985:... ) and pick ports nobody else uses: deriving the port from your user id ( PORT=$((10000 + $(id -u) % 10000)) ) avoids collisions on shared nodes.",
+  "label": "core",
+  "key": "bind explicitly ( -l 127.0.0.1:30985:... ) and pick ports nobody",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "Escape sequences at the start of a line in an interactive session: ~C opens a command line to add or cancel forwards, ~. kills a frozen session, ~I (10.3) prints connection information, ~? lists them.",
+  "label": "depth",
+  "key": "escape sequences at the start of a line in an",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "Kubernetes. kubectl port-forward pod/nb 8888:8888 is the same idea through the API server ( Kubernetes docs ).",
+  "label": "depth",
+  "key": "kubernetes. kubectl port-forward pod/nb 8888:8888 is the same idea through",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "Server controls : AllowTcpForwarding , PermitOpen (which destinations), PermitListen (which -R ports), AllowStreamLocalForwarding , and per-key restrict or permitopen= .",
+  "label": "depth",
+  "key": "server controls : allowtcpforwarding , permitopen (which destinations), permitlisten (which",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "10.4 and 10.5 fixed cases where DisableForwarding and restrict did not cover tunnel forwarding, which is off by default.",
+  "label": "depth",
+  "key": "10.4 and 10.5 fixed cases where disableforwarding and restrict did",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "Predict, then reveal: you run ssh -L 8888:localhost:8888 gpu-node-01 and the browser shows a different notebook from the one you started.",
+  "label": "depth",
+  "key": "predict, then reveal: you run ssh -l 8888:localhost:8888 gpu-node-01 and",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "Something else on your laptop was already listening on 8888 (another tunnel, a local Jupyter), so ssh's listener failed with only a warning and the browser reached the other program; or the address family trap above.",
+  "label": "depth",
+  "key": "something else on your laptop was already listening on 8888",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "8. port forwarding, tunnels and notebooks",
+  "text": "Check with lsof -nP -iTCP:8888 -sTCP:LISTEN , use a unique port, bind 127.0.0.1 explicitly, and set ExitOnForwardFailure yes .",
+  "label": "depth",
+  "key": "check with lsof -np -itcp:8888 -stcp:listen , use a unique",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "Keeping sessions alive, and noticing when they are dead The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading with \"The problem.\" wind-up"
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "A VPN, a NAT gateway or a firewall between you and the cluster forgets idle connections after a few minutes (AWS's NAT gateway after 350 seconds, as recorded on Networking foundations ); a laptop sleeps; a server freezes.",
+  "label": "core",
+  "key": "a vpn, a nat gateway or a firewall between you",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "TCP alone will not tell you: with nothing to send, a dead connection looks exactly like a quiet one, and your terminal just hangs.",
+  "label": "core",
+  "key": "tcp alone will not tell you: with nothing to send",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "Recorded: a session to gpu-node-01 ; three seconds in, the bastion was frozen ( docker pause ), so packets vanished without any refusal, as with a dead VPN.",
+  "label": "core",
+  "key": "recorded: a session to gpu-node-01 ; three seconds in, the",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "ServerAliveInterval 30 with ServerAliveCountMax 3 (client): after 30 s of silence ssh sends a request inside the encrypted connection and expects an answer; after 3 unanswered it disconnects (about 90 s).",
+  "label": "core",
+  "key": "after 30 s of silence ssh sends a request inside",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "The probes also keep NAT and firewall state alive.",
+  "label": "core",
+  "key": "the probes also keep nat and firewall state alive",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "Recorded with 2 and 2: exit after 5.0 s.",
+  "label": "core",
+  "key": "recorded with 2 and 2: exit after 5.0 s",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "Without it (the default is 0, off): still hanging after 30 s.",
+  "label": "core",
+  "key": "without it (the default is 0, off): still hanging after",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "TCPKeepAlive (on by default) asks the kernel for TCP keepalives, which on Linux start only after 2 hours idle (derived on Networking foundations : 7,200 s, then 9 probes 75 s apart).",
+  "label": "depth",
+  "key": "tcpkeepalive (on by default) asks the kernel for tcp keepalives",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "It is spoofable, does not go through the SSH layer, and is far too slow for a VPN that drops flows in minutes; ssh_config(5) itself points to ServerAliveInterval as the more robust mechanism.",
+  "label": "depth",
+  "key": "it is spoofable, does not go through the ssh layer",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "ClientAliveInterval is the server's mirror image (default 0, recorded in sshd -T ): it reaps sessions whose client vanished.",
+  "label": "depth",
+  "key": "clientaliveinterval is the server's mirror image (default 0, recorded in",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "ChannelTimeout and UnusedConnectionTimeout (both none by default) close idle channels or connections without channels.",
+  "label": "depth",
+  "key": "channeltimeout and unusedconnectiontimeout (both none by default) close idle channels",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "Keepalives do not keep a job alive.",
+  "label": "core",
+  "key": "keepalives do not keep a job alive",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "When the connection dies, the shell and whatever runs in its foreground get a hangup.",
+  "label": "core",
+  "key": "the connection dies, the shell and whatever runs in",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "9. keeping sessions alive, and noticing when they are dead",
+  "text": "Run long work as a batch job ( sbatch ), and keep your interactive orchestration in tmux on the login node (section 13).",
+  "label": "core",
+  "key": "run long work as a batch job ( sbatch",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "10. moving files: scp, sftp, rsync, tar",
+  "text": "Moving files: scp, sftp, rsync, tar All of these run over an SSH session channel; they differ in how many round trips each file costs and whether they can resume.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading with \"The problem.\" wind-up"
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "10. moving files: scp, sftp, rsync, tar",
+  "text": "Recorded through the bastion with 40 ms added (the same link as section 7), copying to gpu-node-01 : Many small files : scp -r took 193.3 s for 1,000 files of 4 KiB (one run), rsync -a 1.6 s, and tar -cf - small | ssh node 'tar -xf -' 1.3 s (medians of 3).",
+  "label": "core",
+  "key": "recorded through the bastion with 40 ms added (the same",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "10. moving files: scp, sftp, rsync, tar",
+  "text": "Since OpenSSH 9.0, scp speaks the SFTP protocol underneath ( 9.0 release notes ), which pays several request round trips per file; rsync and tar stream.",
+  "label": "core",
+  "key": "since openssh 9.0, scp speaks the sftp protocol underneath",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "10. moving files: scp, sftp, rsync, tar",
+  "text": "One large file (64 MiB): scp 4.5 s, rsync -a 4.1 s: similar, both bounded by one encrypted TCP stream.",
+  "label": "core",
+  "key": "one large file (64 mib): scp 4.5 s, rsync -a",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "10. moving files: scp, sftp, rsync, tar",
+  "text": "Resuming : an rsync --partial of the 64 MiB file was interrupted after 1.5 s, leaving 10,321,920 bytes on the node; rerunning it matched 10,320,136 of them and sent only the rest, in 4.4 s against 4.1 s for a full copy.",
+  "label": "core",
+  "key": "resuming : an rsync --partial of the 64 mib file",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "10. moving files: scp, sftp, rsync, tar",
+  "text": "On this fast link resuming saved bytes, not time (rsync still reads and checksums both sides); it pays off on slow, metered or flaky links, which is exactly when checkpoints get interrupted.",
+  "label": "core",
+  "key": "on this fast link resuming saved bytes, not time (rsync",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "10. moving files: scp, sftp, rsync, tar",
+  "text": "Use rsync -avhP --partial ( -P is --partial --progress ).",
+  "label": "core",
+  "key": "use rsync -avhp --partial ( -p is --partial --progress",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "10. moving files: scp, sftp, rsync, tar",
+  "text": "The laptop's rsync was macOS's openrsync (protocol 29); the node ran rsync 3.5.1.",
+  "label": "core",
+  "key": "the laptop's rsync was macos's openrsync (protocol 29); the node",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "10. moving files: scp, sftp, rsync, tar",
+  "text": "Legacy scp ( scp -O ) asks the remote shell to expand file names, which has produced a series of bugs; 10.3 fixed one where legacy-mode downloads as root kept setuid bits, and 10.4 fixed two cases where a malicious server could make sftp or a remote-to-remote scp write outside the intended directory ( release notes ). sshfs mounts a remote directory over SFTP: handy for editing, slow for anything with many small reads (each is a round trip), so never point a data loader at it.",
+  "label": "depth",
+  "key": "legacy scp ( scp -o ) asks the remote shell",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "10. moving files: scp, sftp, rsync, tar",
+  "text": "The project is maintained for fixes but has \"no active, regular contributors\" ( sshfs README ; latest release 3.7.6, May 2026).",
+  "label": "depth",
+  "key": "is maintained for fixes but has \"no active, regular contributors\"",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "10. moving files: scp, sftp, rsync, tar",
+  "text": "For editing remote code, VS Code Remote-SSH runs the editor's server on the node instead (section 13).",
+  "label": "core",
+  "key": "editing remote code, vs code remote-ssh runs the editor's",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "10. moving files: scp, sftp, rsync, tar",
+  "text": "Correction to the old page \"sshfs is effectively unmaintained\": its README says the maintainer still applies pull requests and makes regular releases, with no development beyond high-impact issues.",
+  "label": "depth",
+  "key": "correction to the old page \"sshfs is effectively unmaintained\": its",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "Post-quantum SSH The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading with \"The problem.\" wind-up"
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "A large enough quantum computer would break the elliptic-curve Diffie-Hellman behind every key exchange in section 1.",
+  "label": "core",
+  "key": "a large enough quantum computer would break the elliptic-curve diffie-hellman",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "None exists yet; OpenSSH's own estimate quotes \"5-20 years, with many observers expecting them to arrive in the mid-2030s\" ( OpenSSH, Post-Quantum Cryptography ).",
+  "label": "core",
+  "key": "none exists yet; openssh's own estimate quotes \"5-20 years, with",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "The danger is already real because of store now, decrypt later : someone who records your session today can decrypt it once they have such a machine.",
+  "label": "core",
+  "key": "the danger is already real because of store now, decrypt",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "Signatures are different: a forged signature needs the quantum computer at the moment of the login, so there is no urgency for host and user keys yet.",
+  "label": "core",
+  "key": "signatures are different: a forged signature needs the quantum computer",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "When What OpenSSH 9.0, 8 April 2022 Hybrid sntrup761x25519-sha512@openssh.com (Streamlined NTRU Prime plus X25519) becomes the default: SSH was one of the first mainstream protocols with post-quantum key exchange on by default.",
+  "label": "depth",
+  "key": "what openssh 9.0, 8 april 2022 hybrid sntrup761x25519-sha512@openssh.com (streamlined",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "OpenSSH 9.9, 19 September 2024 Adds mlkem768x25519-sha256 : ML-KEM-768 (NIST FIPS 203 ) plus X25519.",
+  "label": "depth",
+  "key": "openssh 9.9, 19 september 2024 adds mlkem768x25519-sha256",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "OpenSSH 10.0, 9 April 2025 mlkem768x25519-sha256 becomes the default, \"considerably faster than the previous default\".",
+  "label": "depth",
+  "key": "openssh 10.0, 9 april 2025 mlkem768x25519-sha256 becomes the default",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "OpenSSH 10.1, 6 October 2025 The client warns when a connection uses a non-post-quantum key exchange; WarnWeakCrypto controls it, on by default.",
+  "label": "core",
+  "key": "the client warns when a connection uses a non-post-quantum key",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "April 2026 RFC 9941 documents sntrup761x25519-sha512 (Informational).",
+  "label": "depth",
+  "key": "april 2026 rfc 9941 documents sntrup761x25519-sha512 (informational",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "OpenSSH 10.4, 6 July 2026 Experimental composite signature mldsa44-ed25519 (ML-DSA-44 plus Ed25519), off by default; keys with ssh-keygen -t mldsa44-ed25519 .",
+  "label": "depth",
+  "key": "openssh 10.4, 6 july 2026 experimental composite signature mldsa44-ed25519 (ml-dsa-44",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "August 2026 RFC 10042 specifies mlkem768x25519-sha256 , mlkem768nistp256-sha256 and mlkem1024nistp384-sha384 (Informational).",
+  "label": "depth",
+  "key": "august 2026 rfc 10042 specifies mlkem768x25519-sha256 , mlkem768nistp256-sha256 and mlkem1024nistp384-sha384",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "Dates from the OpenSSH release notes and the RFC Editor.",
+  "label": "depth",
+  "key": "dates from the openssh release notes and the rfc editor",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "What it cost here.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "a heading"
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "The hybrid's key-exchange messages were 2512 bytes against 240 for classic X25519 (section 1), and the median login took 61 ms against 56 ms: no difference worth measuring on a link where a round trip costs more than the arithmetic.",
+  "label": "core",
+  "key": "worth measuring on a link where a round trip costs",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "(sntrup761 took 67 ms, consistent with OpenSSH calling ML-KEM faster.) Unlike TLS, where large post-quantum certificates threaten handshake size ( TLS and certificates , section 8), SSH sends one host key and one signature, so even future post-quantum signatures add little.",
+  "label": "core",
+  "key": "unlike tls, where large post-quantum certificates threaten handshake size",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "The warning, recorded against gpu-node-02 , an OpenSSH 9.7p1 server configured to offer only classic key exchange, as an old login node would: The fix is to upgrade the server or re-enable its post-quantum algorithms (9.0 and later support sntrup761, 9.9 and later ML-KEM).",
+  "label": "core",
+  "key": "the warning, recorded against gpu-node-02 , an openssh 9.7p1 server",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "If you cannot, silence it for that host only, as the OpenSSH page recommends: Match host gpu-node-02 then WarnWeakCrypto no-pq-kex .",
+  "label": "core",
+  "key": "if you cannot, silence it for that host only, as",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "Do not hand-write KexAlgorithms or Ciphers lists copied from old hardening guides: frozen lists are how servers end up without the post-quantum default, exactly as this node was configured.",
+  "label": "core",
+  "key": "do not hand-write kexalgorithms or ciphers lists copied from old",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "Correction to the old page \"The IETF hybrid key exchange draft is in the RFC Editor queue rather than published\": it was published as RFC 10042 in August 2026.",
+  "label": "core",
+  "key": "correction to the old page \"the ietf hybrid key exchange",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "11. post-quantum ssh",
+  "text": "The sntrup761 method is RFC 9941 (April 2026).",
+  "label": "core",
+  "key": "the sntrup761 method is rfc 9941 (april 2026",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Security: the bugs worth understanding, and a baseline regreSSHion (CVE-2024-6387): keys do not protect you from a pre-authentication bug Disclosed by Qualys on 1 July 2024 ( advisory ).",
+  "label": "core",
+  "key": "security: the bugs worth understanding, and a baseline regresshion (cve-2024-6387",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "If a client has not authenticated within LoginGraceTime (120 s by default), sshd gets a SIGALRM whose handler logs a message; on glibc-based Linux, syslog() calls malloc() and free() , which are not safe inside a signal handler, so an alarm arriving in the middle of an allocation leaves the heap inconsistent, and a patient attacker turns that into code execution as root, before authentication .",
+  "label": "core",
+  "key": "if a client has not authenticated within logingracetime (120 s",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "It is a regression of CVE-2006-5051, reintroduced in October 2020 (OpenSSH 8.5p1).",
+  "label": "depth",
+  "key": "a regression of cve-2006-5051, reintroduced in october 2020 (openssh 8.5p1",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Affected: portable OpenSSH below 4.4p1 (unless patched) and 8.5p1 up to but not including 9.8p1; fixed in 9.8 (1 July 2024).",
+  "label": "depth",
+  "key": "affected: portable openssh below 4.4p1 (unless patched) and 8.5p1 up",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "OpenBSD was not vulnerable (its handler uses syslog_r() ).",
+  "label": "depth",
+  "key": "openbsd was not vulnerable (its handler uses syslog_r",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "How hard: Qualys needed about 10,000 tries on average to win the race; on 32-bit Linux with ASLR that took about 6 to 8 hours on average ( 9.8 release notes ); 64-bit exploitation was \"believed to be possible\" but not demonstrated at disclosure.",
+  "label": "depth",
+  "key": "how hard: qualys needed about 10,000 tries on average to",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "The stop-gap if you could not upgrade was LoginGraceTime 0 , trading the exploit for a denial of service.",
+  "label": "core",
+  "key": "the stop-gap if you could not upgrade was logingracetime 0",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "The lesson stands: an internet-facing sshd is attack surface no matter how good your keys are .",
+  "label": "core",
+  "key": "an internet-facing sshd is attack surface no matter how good",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Correction to the old page It said \"roughly one attempt in ten thousand ... glibc-Linux only\".",
+  "label": "depth",
+  "key": "correction to the old page it said \"roughly one attempt",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "The advisory's figure is about 10,000 tries on average to win the race (6 to 8 hours on 32-bit glibc with ASLR); exploitation was shown on glibc Linux, other C libraries were not examined rather than ruled out, and OpenBSD is not vulnerable.",
+  "label": "depth",
+  "key": "the advisory's figure is about 10,000 tries on average to",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Terrapin (CVE-2023-48795): an attack on the protocol itself Disclosed 18 December 2023 ( terrapin-attack.com ).",
+  "label": "core",
+  "key": "terrapin (cve-2023-48795): an attack on the protocol itself disclosed 18",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "An attacker on the path inserts an ignorable message during the plaintext handshake and deletes one right after encryption starts; sequence numbers still line up, so the integrity check passes.",
+  "label": "depth",
+  "key": "inserts an ignorable message during the plaintext handshake and deletes",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "It works against chacha20-poly1305@openssh.com and against CBC ciphers with encrypt-then-MAC MACs; AES-GCM is not affected.",
+  "label": "depth",
+  "key": "it works against chacha20-poly1305@openssh.com and against cbc ciphers with encrypt-then-mac",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Against OpenSSH the practical impact was small: deleting the EXT_INFO message, which disabled some keystroke-timing protections (OpenSSH 9.6 notes); some other implementations were hurt more.",
+  "label": "depth",
+  "key": "against openssh the practical impact was small: deleting the ext_info",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "The fix, strict key exchange in OpenSSH 9.6, aborts on any unexpected handshake message and resets sequence numbers after each key exchange, and only works when both sides support it.",
+  "label": "core",
+  "key": "the fix, strict key exchange in openssh 9.6, aborts on",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "You can see it in the recorded handshake: the client lists kex-strict-c-v00@openssh.com in its KEXINIT, and the log says will use strict KEX ordering and resetting send seqnr 3 .",
+  "label": "core",
+  "key": "you can see it in the recorded handshake: the client",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "The researchers found at least 77% of internet SSH servers supported an exploitable mode at disclosure.",
+  "label": "depth",
+  "key": "the researchers found at least 77% of internet ssh servers",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Since then Fixed in What 9.9p2 (2025-02-18) CVE-2025-26465: client impersonation with VerifyHostKeyDNS on (6.8p1 to 9.9p1).",
+  "label": "depth",
+  "key": "fixed in what 9.9p2 (2025-02-18) cve-2025-26465: client impersonation with verifyhostkeydns",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "CVE-2025-26466: pre-authentication memory and CPU exhaustion through PING packets (9.5p1 to 9.9p1).",
+  "label": "depth",
+  "key": "cve-2025-26466: pre-authentication memory and cpu exhaustion through ping packets (9.5p1",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Both found by Qualys.",
+  "label": "depth",
+  "key": "both found by qualys",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "10.0 (2025-04-09) DisableForwarding did not disable agent and X11 forwarding.",
+  "label": "depth",
+  "key": "10.0 (2025-04-09) disableforwarding did not disable agent and x11 forwarding",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Also: authentication code moved into its own sshd-auth binary, so the pre-authentication attack surface has a separate address space.",
+  "label": "depth",
+  "key": "also: authentication code moved into its own sshd-auth binary, so",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "10.1 (2025-10-06) CVE-2025-61984: control characters in user names and ProxyCommand (section 5).",
+  "label": "depth",
+  "key": "10.1 (2025-10-06) cve-2025-61984: control characters in user names and proxycommand",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "10.3 (2026-04-02) Shell metacharacters in user names validated too late for some %u uses; a certificate-principal matching bug with commas ( authorized_keys path only); legacy scp setuid bits; PubkeyAcceptedAlgorithms not fully applied to ECDSA.",
+  "label": "depth",
+  "key": "10.3 (2026-04-02) shell metacharacters in user names validated too late",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "10.4 (2026-07-06) sftp and remote-to-remote scp writing outside the target directory; DisableForwarding did not override PermitTunnel ; a client use-after-free if the server changes its host key during rekeying; minimum authentication delay not always enforced.",
+  "label": "depth",
+  "key": "10.4 (2026-07-06) sftp and remote-to-remote scp writing outside the target",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "10.5 (2026-08-11) Agent locking against session-bind (section 6); a client use-after-free with multiplexed remote forwards; restrict now also covers tunnel forwarding.",
+  "label": "depth",
+  "key": "10.5 (2026-08-11) agent locking against session-bind (section 6); a client",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "From the OpenSSH release notes and the CVE record for CVE-2025-61984 .",
+  "label": "depth",
+  "key": "from the openssh release notes and the cve record for",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "10.5's notes say the team is \"making more frequent releases\" because many recent reports came from AI-assisted research and bugs found that way were being independently rediscovered by others: patch cadence matters more than it used to.",
+  "label": "depth",
+  "key": "10.5's notes say the team is \"making more frequent releases\"",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "The version banner is not the patch level A scanner reading OpenSSH_9.7 would flag this node for regreSSHion; Alpine's package 9.7_p1-r4 and later carries the fix, and -r5 also fixes the two 2025 CVEs ( Alpine APKBUILD secfixes ).",
+  "label": "core",
+  "key": "the version banner is not the patch level a scanner",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Distributions backport; check the package, not the banner.",
+  "label": "core",
+  "key": "distributions backport; check the package, not the banner",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "PerSourcePenalties: rate limiting built in Since OpenSSH 9.8, sshd penalises source addresses that fail authentication, connect without authenticating, or crash it, and refuses them for a while, with no log-parsing daemon such as fail2ban.",
+  "label": "core",
+  "key": "since openssh 9.8, sshd penalises source addresses that fail authentication",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Recorded on gpu-node-01 with the default policy: six failed logins one second apart, all arriving from the bastion's address.",
+  "label": "core",
+  "key": "recorded on gpu-node-01 with the default policy: six failed logins",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "After four failures the address was refused for 16.563 s, and attempts 5 and 6 were dropped before authentication.",
+  "label": "core",
+  "key": "attempts 5 and 6 were dropped before authentication",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Note who got blocked: the bastion .",
+  "label": "core",
+  "key": "note who got blocked: the bastion",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Every user behind it shares that source address, so one broken script locks out the whole team.",
+  "label": "core",
+  "key": "every user behind it shares that source address, so one",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "On nodes reached through a bastion or a NAT gateway, list those addresses in PerSourcePenaltyExemptList (and rate-limit on the bastion instead), or the protection becomes a self-inflicted outage.",
+  "label": "core",
+  "key": "on nodes reached through a bastion or a nat gateway",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "A hardening baseline for a cluster PasswordAuthentication no and KbdInteractiveAuthentication no (unless your two-factor login uses keyboard-interactive), PermitRootLogin no , AllowGroups for who may log in at all.",
+  "label": "depth",
+  "key": "passwordauthentication no and kbdinteractiveauthentication no (unless your two-factor login uses",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Keep the defaults for algorithms (recorded sshd -T in section 2): post-quantum first, ChaCha20-Poly1305 then AES-GCM; no CBC, no DSA, no finite-field Diffie-Hellman in sshd's defaults since 10.0.",
+  "label": "depth",
+  "key": "keep the defaults for algorithms (recorded sshd -t in section",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "(The old page said non-EtM MACs are off by default: the recorded 10.5 default list still contains them, after the encrypt-then-MAC ones; with ChaCha20-Poly1305 or AES-GCM no separate MAC is used anyway.) MaxAuthTries (6), MaxStartups (10:30:100: start refusing 30% of unauthenticated connections at 10, all at 100), LoginGraceTime (120 s), PerSourcePenalties (on): defaults recorded above; tighten LoginGraceTime and MaxAuthTries on the internet-facing host.",
+  "label": "depth",
+  "key": "the old page said non-etm macs are off by default",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Forwarding off by default and enabled per Match Group ; AllowAgentForwarding no on the bastion if people use ProxyJump.",
+  "label": "depth",
+  "key": "forwarding off by default and enabled per match group",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "User certificates with short lifetimes and host certificates (section 4); a KRL for emergencies.",
+  "label": "depth",
+  "key": "user certificates with short lifetimes and host certificates (section 4",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Moving sshd to port 2222 reduces log noise from scanners; it is not a security control (reasoning, not a measured claim).",
+  "label": "depth",
+  "key": "moving sshd to port 2222 reduces log noise from scanners",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "Not exposing port 22 at all The strongest move is to have no internet-facing sshd : AWS Session Manager (no inbound port, IAM-authorised, audited; a ProxyCommand keeps ssh , -J and rsync working: AWS docs ), a WireGuard or Tailscale overlay network (devices authenticate before any SSH packet flows), or Teleport (a certificate-issuing proxy with single sign-on and session recording).",
+  "label": "core",
+  "key": "aws session manager (no inbound port, iam-authorised, audited; a",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "12. security: the bugs worth understanding, and a baseline",
+  "text": "On a university cluster you rarely choose; ProxyJump plus ControlMaster is what makes a VPN plus two-factor login bearable.",
+  "label": "core",
+  "key": "on a university cluster you rarely choose; proxyjump plus controlmaster",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "Cluster workflows A config that encodes all of the above Click a line to see what it does and which recorded result backs it.",
+  "label": "core",
+  "key": "cluster workflows a config that encodes all of the above",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "Host names are placeholders; the lab's own config is src/lab/laptop.conf .",
+  "label": "core",
+  "key": "host names are placeholders; the lab's own config is src/lab/laptop.conf",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "A notebook on a Slurm compute node # inside the batch job (sbatch), on the compute node PORT=$((10000 + $(id -u) % 10000)) mkdir -m 700 -p ~/.nb jupyter lab --no-browser --ServerApp.sock=$HOME/.nb/nb-$SLURM_JOB_ID.sock & echo \"on your laptop: ssh -N -L 127.0.0.1:$PORT:$HOME/.nb/nb-$SLURM_JOB_ID.sock $(hostname)\" # on the laptop (ProxyJump in the config does the hops) ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8888:/home/you/.nb/nb-123.sock gpu-node-07 The pieces: a Unix socket in a private directory so other users on the node cannot reach the kernel (section 8), a port derived from your user id so you do not collide with colleagues, the exact command printed into the job's log so you can paste it, ExitOnForwardFailure so a taken port is an error.",
+  "label": "core",
+  "key": "# inside the batch job (sbatch), on the compute node",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "If the site does not allow SSH to compute nodes at all, use the scheduler's own route (Open OnDemand, or srun with a port forward through the login node).",
+  "label": "core",
+  "key": "if the site does not allow ssh to compute nodes",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "Getting onto a node where your job runs srun --overlap --jobid=ID --pty bash starts a shell as a new step inside your running job; --overlap lets it share the job's resources with the steps already running ( srun ).",
+  "label": "core",
+  "key": "getting onto a node where your job runs srun --overlap",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "Plain ssh to the node works where the site runs pam_slurm_adopt : it refuses SSH to nodes where you have no running job and \"adopts\" your connection into the job's external step, so its processes are accounted and cleaned up with the job ( pam_slurm_adopt ).",
+  "label": "core",
+  "key": "plain ssh to the node works where the site runs",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "Keep work in batch jobs.",
+  "label": "core",
+  "key": "keep work in batch jobs",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "An interactive srun --pty dies with your connection.",
+  "label": "core",
+  "key": "an interactive srun --pty dies with your connection",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "Run tmux on the login node for the shell you orchestrate from, so a closed laptop or dropped VPN loses nothing; avoid leaving it on compute nodes, where job cleanup kills stray processes.",
+  "label": "core",
+  "key": "run tmux on the login node for the shell you",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "Editors, Git and containers VS Code Remote-SSH installs a server on the remote and runs extensions there.",
+  "label": "core",
+  "key": "editors, git and containers vs code remote-ssh installs a server",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "It needs glibc 2.28 or later and libstdc++ 3.4.25 on the remote ( VS Code docs ), which excludes CentOS 7 era login nodes.",
+  "label": "core",
+  "key": "it needs glibc 2.28 or later and libstdc++ 3.4.25 on",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "It opens several channels, so pair it with ControlMaster and a long ControlPersist to avoid repeated two-factor prompts.",
+  "label": "core",
+  "key": "it opens several channels, so pair it with controlmaster and",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "GitHub from a cluster.",
+  "label": "core",
+  "key": "github from a cluster",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "Use a per-repository deploy key (read-only by default) on the cluster rather than your personal key or a forwarded agent: a compromised login node then exposes one repository ( GitHub deploy keys ).",
+  "label": "core",
+  "key": "use a per-repository deploy key (read-only by default) on the",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "If outbound port 22 is blocked: Host github.com , Hostname ssh.github.com , Port 443 , User git ( GitHub docs ).",
+  "label": "core",
+  "key": "if outbound port 22 is blocked: host github.com , hostname",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "Signing commits with SSH keys : git config gpg.format ssh and user.signingkey ; GitHub has verified SSH signatures since 23 August 2022 ( GitHub changelog ).",
+  "label": "core",
+  "key": "signing commits with ssh keys : git config gpg.format ssh",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "An -sk key makes every signature need a touch.",
+  "label": "core",
+  "key": "an -sk key makes every signature need a touch",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "Containers : do not run sshd inside a container to get a shell; use docker exec , kubectl exec or apptainer shell , and kubectl port-forward instead of -L .",
+  "label": "core",
+  "key": "containers : do not run sshd inside a container to",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-read",
+  "section": "13. cluster workflows",
+  "text": "(This page's lab runs sshd in containers only because SSH is the subject.)",
+  "label": "core",
+  "key": "this page's lab runs sshd in containers only because ssh",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "Debugging, in order Most SSH failures are found by asking, in order: did TCP connect, did the key exchange agree, did the host key check pass, which keys were offered and why were they refused, and did the channel or forward open. ssh -v answers the first four from your side; the server log answers the \"why\" of authentication.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading with \"The problem.\" wind-up"
+ },
+ {
+  "id": 369,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "Every message below was recorded in the lab; the Error decoder tab starts from the message and shows the log.",
+  "label": "core",
+  "key": "every message below was recorded in the lab; the error",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "You see First command Usual cause and fix Connection timed out / Connection refused ssh -v (the Connecting to line), nc -vz host 22 Wrong address or port, firewall, no route (a compute node without ProxyJump), sshd not running.",
+  "label": "core",
+  "key": "you see first command usual cause and fix connection timed",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "Connection closed by ... port 22 right after connecting, or Connection reset before the banner server log PerSourcePenalties or MaxStartups refusing your address (section 12), TCP wrappers, a firewall.",
+  "label": "core",
+  "key": "connection closed by ... port 22 right after connecting, or",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "Unable to negotiate ... no matching key exchange method ssh -vv (both KEXINIT lists), ssh -Q kex An old server or a hand-written algorithm list; upgrade, or enable one algorithm for that host only.",
+  "label": "core",
+  "key": "unable to negotiate ... no matching key exchange method ssh",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "WARNING: connection is not using a post-quantum key exchange ssh -v | grep kex: Server without PQ key exchange (section 11).",
+  "label": "core",
+  "key": "warning: connection is not using a post-quantum key exchange ssh",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "REMOTE HOST IDENTIFICATION HAS CHANGED compare the printed fingerprint out of band Rebuilt node or attack (section 3).",
+  "label": "core",
+  "key": "remote host identification has changed compare the printed fingerprint out",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "Host certificates remove the routine case.",
+  "label": "core",
+  "key": "host certificates remove the routine case",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "Host key verification failed. ssh -v , ssh-keygen -F host Unknown host under StrictHostKeyChecking yes or BatchMode , or a changed key.",
+  "label": "core",
+  "key": "host key verification failed. ssh -v , ssh-keygen -f host",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "Permission denied (publickey). ssh -v (Offering lines), ssh -G host | grep identityfile , then the server log Wrong key, wrong user, key not in authorized_keys , file permissions on ~/.ssh , or a certificate that is expired, for another principal, or revoked (section 4).",
+  "label": "core",
+  "key": "permission denied (publickey). ssh -v (offering lines), ssh -g host",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "Too many authentication failures ssh -v , ssh -Z (10.5) Agent holds too many keys: IdentitiesOnly yes . stdio forwarding failed / channel 0: open failed: connect failed ssh -v on the jump; can the bastion resolve and reach the node?",
+  "label": "core",
+  "key": "too many authentication failures ssh -v , ssh -z (10.5",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "Node down or renamed, DNS on the bastion, AllowTcpForwarding no or PermitOpen on the bastion. bind [127.0.0.1]:8888: Address already in use lsof -nP -iTCP:8888 -sTCP:LISTEN Port taken; the session continues unless ExitOnForwardFailure yes (section 8).",
+  "label": "core",
+  "key": "node down or renamed, dns on the bastion, allowtcpforwarding no",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "Terminal frozen, no error ~. to kill it Path died silently: set ServerAliveInterval (section 9).",
+  "label": "core",
+  "key": "terminal frozen, no error ~. to kill it path died",
+  "where": ""
+ },
+ {
+  "id": 381,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "Old user, old options after editing the config ssh -O check host A multiplexing master predates the change: ssh -O exit host (section 7).",
+  "label": "core",
+  "key": "old user, old options after editing the config ssh -o",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-read",
+  "section": "14. debugging, in order",
+  "text": "Server side: sshd -T prints the effective configuration (with -C user=dev,host=...,addr=... to evaluate Match blocks), sshd -t checks the file before a reload, LogLevel VERBOSE logs key fingerprints and certificate IDs, and a second sshd -d -p 2222 runs one debug connection in the foreground without touching the real service.",
+  "label": "core",
+  "key": "server side: sshd -t prints the effective configuration (with -c",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Interview questions Walk me through what happens when you type ssh gpu-node-01 through a bastion.",
+  "label": "depth",
+  "key": "walk me through what happens when you type ssh gpu-node-01",
+  "where": ""
+ },
+ {
+  "id": 384,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "The client reads its config, finds ProxyJump bastion , and starts a helper ssh -W gpu-node-01:22 bastion .",
+  "label": "depth",
+  "key": "the client reads its config, finds proxyjump bastion , and",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "That helper opens TCP to the bastion, exchanges version strings and KEXINIT lists, runs the key exchange (by default the hybrid ML-KEM-768 plus X25519), verifies the bastion's host key signature against known_hosts or a host CA, switches on encryption, authenticates with a key or certificate whose signature covers the session identifier, and opens a direct-tcpip channel to the node's port 22.",
+  "label": "depth",
+  "key": "that helper opens tcp to the bastion, exchanges version strings",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Through that channel the main client runs a second, independent handshake and authentication with the node, opens a session channel and requests a shell.",
+  "label": "depth",
+  "key": "through that channel the main client runs a second, independent",
+  "where": ""
+ },
+ {
+  "id": 387,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "The bastion only relays ciphertext.",
+  "label": "depth",
+  "key": "the bastion only relays ciphertext",
+  "where": ""
+ },
+ {
+  "id": 388,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "About eight round trips per login, doubled by the hop, which is why ControlMaster matters.",
+  "label": "depth",
+  "key": "about eight round trips per login, doubled by the hop",
+  "where": ""
+ },
+ {
+  "id": 389,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Why is agent forwarding dangerous, and what do you use instead?",
+  "label": "depth",
+  "key": "why is agent forwarding dangerous, and what do you use",
+  "where": ""
+ },
+ {
+  "id": 390,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "The remote sshd exposes a socket that forwards signing requests to your local agent.",
+  "label": "depth",
+  "key": "the remote sshd exposes a socket that forwards signing requests",
+  "where": ""
+ },
+ {
+  "id": 391,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Anyone with root on that machine, or running as your user, can use it while you are connected to authenticate as you anywhere your key is accepted; your private key never leaves your laptop but it does not need to.",
+  "label": "depth",
+  "key": "anyone with root on that machine, or running as your",
+  "where": ""
+ },
+ {
+  "id": 392,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Use ProxyJump, which relays an encrypted stream and never gives the bastion signing ability.",
+  "label": "depth",
+  "key": "use proxyjump, which relays an encrypted stream and never gives",
+  "where": ""
+ },
+ {
+  "id": 393,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "If forwarding is unavoidable, use destination-constrained keys ( ssh-add -h ) and confirmation ( ssh-add -c ).",
+  "label": "depth",
+  "key": "if forwarding is unavoidable, use destination-constrained keys ( ssh-add -h",
+  "where": ""
+ },
+ {
+  "id": 394,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "How does SSH prevent a man in the middle, and where is it weak?",
+  "label": "depth",
+  "key": "how does ssh prevent a man in the middle, and",
+  "where": ""
+ },
+ {
+  "id": 395,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "The server signs the key exchange hash with its host key, and the client checks that key against what it knows.",
+  "label": "depth",
+  "key": "the server signs the key exchange hash with its host",
+  "where": ""
+ },
+ {
+  "id": 396,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "The weak points are the first connection (trust on first use: the user must verify the fingerprint) and habituation to \"host key changed\" warnings on rebuilt machines.",
+  "label": "depth",
+  "key": "the weak points are the first connection (trust on first",
+  "where": ""
+ },
+ {
+  "id": 397,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Host certificates fix both: the client trusts a CA key, and any properly signed host key for that name is accepted without a prompt.",
+  "label": "depth",
+  "key": "host certificates fix both: the client trusts a ca key",
+  "where": ""
+ },
+ {
+  "id": 398,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "SSHFP records with DNSSEC are an alternative.",
+  "label": "depth",
+  "key": "sshfp records with dnssec are an alternative",
+  "where": ""
+ },
+ {
+  "id": 399,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "What are SSH certificates and why would a company use them?",
+  "label": "depth",
+  "key": "what are ssh certificates and why would a company use",
+  "where": ""
+ },
+ {
+  "id": 400,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "A CA signs a user's public key together with a key ID, principals, a validity window, a serial and options.",
+  "label": "depth",
+  "key": "a ca signs a user's public key together with a",
+  "where": ""
+ },
+ {
+  "id": 401,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Servers trust the CA key instead of per-user authorized_keys .",
+  "label": "depth",
+  "key": "servers trust the ca key instead of per-user authorized_keys",
+  "where": ""
+ },
+ {
+  "id": 402,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Onboarding and offboarding become CA policy, certificates expire on their own (hours), logs name the certificate, and a KRL handles emergencies.",
+  "label": "depth",
+  "key": "onboarding and offboarding become ca policy, certificates expire on their",
+  "where": ""
+ },
+ {
+  "id": 403,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Host certificates do the same for server identity.",
+  "label": "depth",
+  "key": "host certificates do the same for server identity",
+  "where": ""
+ },
+ {
+  "id": 404,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "The CA key becomes the crown jewel, usually behind single sign-on (Vault, Teleport).",
+  "label": "depth",
+  "key": "the ca key becomes the crown jewel, usually behind single",
+  "where": ""
+ },
+ {
+  "id": 405,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Your notebook tunnel works but a colleague says they can reach your notebook too.",
+  "label": "depth",
+  "key": "your notebook tunnel works but a colleague says they can",
+  "where": ""
+ },
+ {
+  "id": 406,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "They are on the same node: loopback is shared by all local users, so binding to 127.0.0.1 does not isolate you from them, only from other machines.",
+  "label": "depth",
+  "key": "they are on the same node: loopback is shared by",
+  "where": ""
+ },
+ {
+  "id": 407,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Or the notebook was bound to 0.0.0.0 .",
+  "label": "depth",
+  "key": "the notebook was bound to 0.0.0.0",
+  "where": ""
+ },
+ {
+  "id": 408,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Keep a token, and preferably serve on a Unix socket in a mode-700 directory and forward to it with -L port:/path/socket .",
+  "label": "depth",
+  "key": "keep a token, and preferably serve on a unix socket",
+  "where": ""
+ },
+ {
+  "id": 409,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "What does post-quantum key exchange protect against in SSH today, and what does it not?",
+  "label": "depth",
+  "key": "what does post-quantum key exchange protect against in ssh today",
+  "where": ""
+ },
+ {
+  "id": 410,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "It protects recorded sessions against future decryption (store now, decrypt later), which is why OpenSSH made a hybrid the default in 2022 and ML-KEM in 2025.",
+  "label": "depth",
+  "key": "it protects recorded sessions against future decryption (store now, decrypt",
+  "where": ""
+ },
+ {
+  "id": 411,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "It does not protect authentication against a future quantum attacker, but that attack would have to happen live, so there is time; experimental ML-DSA composite signatures arrived in 10.4.",
+  "label": "depth",
+  "key": "it does not protect authentication against a future quantum attacker",
+  "where": ""
+ },
+ {
+  "id": 412,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "The hybrid construction means it is no weaker than X25519 even if ML-KEM were broken.",
+  "label": "depth",
+  "key": "the hybrid construction means it is no weaker than x25519",
+  "where": ""
+ },
+ {
+  "id": 413,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Explain regreSSHion in two minutes.",
+  "label": "depth",
+  "key": "explain regresshion in two minutes",
+  "where": ""
+ },
+ {
+  "id": 414,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "An async-signal-safety bug in sshd's login-grace-time alarm handler, which called syslog (and through it malloc) from a signal handler on glibc Linux.",
+  "label": "depth",
+  "key": "an async-signal-safety bug in sshd's login-grace-time alarm handler, which called",
+  "where": ""
+ },
+ {
+  "id": 415,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Interrupting an allocation at the right moment corrupts the heap; winning the race about one time in 10,000 led to root code execution before authentication.",
+  "label": "depth",
+  "key": "interrupting an allocation at the right moment corrupts the heap",
+  "where": ""
+ },
+ {
+  "id": 416,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "A 2006 bug reintroduced in 8.5p1 (2020), fixed in 9.8 (July 2024).",
+  "label": "depth",
+  "key": "a 2006 bug reintroduced in 8.5p1 (2020), fixed in 9.8",
+  "where": ""
+ },
+ {
+  "id": 417,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Mitigation without patching: LoginGraceTime 0 .",
+  "label": "depth",
+  "key": "mitigation without patching: logingracetime 0",
+  "where": ""
+ },
+ {
+  "id": 418,
+  "tab": "t-read",
+  "section": "15. interview questions",
+  "text": "Lesson: pre-auth bugs bypass key-only authentication, so limit exposure of sshd.",
+  "label": "depth",
+  "key": "lesson: pre-auth bugs bypass key-only authentication, so limit exposure of",
+  "where": ""
+ },
+ {
+  "id": 419,
+  "tab": "t-read",
+  "section": "recent changes worth knowing",
+  "text": "Recent changes worth knowing Version and date Change that affects you 9.8 (2024-07-01) regreSSHion fixed; PerSourcePenalties on by default; sshd split into listener and per-session binaries.",
+  "label": "depth",
+  "key": "version and date change that affects you 9.8 (2024-07-01) regresshion",
+  "where": ""
+ },
+ {
+  "id": 420,
+  "tab": "t-read",
+  "section": "recent changes worth knowing",
+  "text": "9.9 (2024-09-19) mlkem768x25519-sha256 added.",
+  "label": "depth",
+  "key": "9.9 (2024-09-19) mlkem768x25519-sha256 added",
+  "where": ""
+ },
+ {
+  "id": 421,
+  "tab": "t-read",
+  "section": "recent changes worth knowing",
+  "text": "10.0 (2025-04-09) ML-KEM hybrid default; DSA removed; finite-field DH out of sshd defaults; sshd-auth binary; scp and sftp no longer create multiplexing masters; version string OpenSSH_10.0 confuses naive OpenSSH_1* matching.",
+  "label": "depth",
+  "key": "10.0 (2025-04-09) ml-kem hybrid default; dsa removed; finite-field dh out",
+  "where": ""
+ },
+ {
+  "id": 422,
+  "tab": "t-read",
+  "section": "recent changes worth knowing",
+  "text": "10.1 (2025-10-06) Warning for non-PQ key exchange ( WarnWeakCrypto ); agent sockets under ~/.ssh/agent ; ssh-add expires certificates; server logs refused certificates in detail; RefuseConnection config option; XMSS keys removed.",
+  "label": "depth",
+  "key": "10.1 (2025-10-06) warning for non-pq key exchange ( warnweakcrypto",
+  "where": ""
+ },
+ {
+  "id": 423,
+  "tab": "t-read",
+  "section": "recent changes worth knowing",
+  "text": "10.2 (2025-10-10) Bug-fix release for the ControlPersist breakage in 10.1.",
+  "label": "depth",
+  "key": "10.2 (2025-10-10) bug-fix release for the controlpersist breakage in 10.1",
+  "where": ""
+ },
+ {
+  "id": 424,
+  "tab": "t-read",
+  "section": "recent changes worth knowing",
+  "text": "10.3 (2026-04-02) Agent forwarding uses the IANA names of the agent standard; ~I , -O conninfo , -O channels ; -J name validation; empty-principal certificate change; invaliduser penalty.",
+  "label": "depth",
+  "key": "10.3 (2026-04-02) agent forwarding uses the iana names of the",
+  "where": ""
+ },
+ {
+  "id": 425,
+  "tab": "t-read",
+  "section": "recent changes worth knowing",
+  "text": "RFC 9987 (May 2026) The SSH agent protocol, Standards Track.",
+  "label": "depth",
+  "key": "rfc 9987 (may 2026) the ssh agent protocol, standards track",
+  "where": ""
+ },
+ {
+  "id": 426,
+  "tab": "t-read",
+  "section": "recent changes worth knowing",
+  "text": "10.4 (2026-07-06) Experimental mldsa44-ed25519 signatures; stricter transport during rekey; sshd -G prints mixed-case names.",
+  "label": "depth",
+  "key": "10.4 (2026-07-06) experimental mldsa44-ed25519 signatures; stricter transport during rekey; sshd",
+  "where": ""
+ },
+ {
+  "id": 427,
+  "tab": "t-read",
+  "section": "recent changes worth knowing",
+  "text": "RFC 10042 (August 2026) ML-KEM hybrid key exchange for SSH.",
+  "label": "depth",
+  "key": "rfc 10042 (august 2026) ml-kem hybrid key exchange for ssh",
+  "where": ""
+ },
+ {
+  "id": 428,
+  "tab": "t-read",
+  "section": "recent changes worth knowing",
+  "text": "10.5 (2026-08-11) ssh -Z ; low-friction FIDO keys tried first; requires ECC with NIST P-521 in libcrypto when built (matters for custom container builds); agent-lock fix.",
+  "label": "depth",
+  "key": "10.5 (2026-08-11) ssh -z ; low-friction fido keys tried first",
+  "where": ""
+ },
+ {
+  "id": 429,
+  "tab": "t-read",
+  "section": "recent changes worth knowing",
+  "text": "All from the OpenSSH release notes and the RFC Editor, checked 5 October 2026.",
+  "label": "depth",
+  "key": "from the openssh release notes and the rfc editor",
+  "where": ""
+ },
+ {
+  "id": 430,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Glossary bastion, jump host The one machine reachable from outside, through which you reach the private network. host key The server's long-term key pair; proves the server's identity in every key exchange. known_hosts The client's list of host keys it trusts (trust on first use), or @cert-authority lines.",
+  "label": "depth",
+  "key": "bastion, jump host the one machine reachable from outside, through",
+  "where": ""
+ },
+ {
+  "id": 431,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "TOFU Trust on first use: accept a key the first time, insist on it afterwards. authorized_keys The server-side list of user public keys allowed to log in to an account. agent ssh-agent : holds decrypted private keys and signs on request over a Unix socket. certificate (SSH) A public key plus key ID, principals, validity and options, signed by a CA key; not X.509. principal A name a certificate is valid for: a user account (user certificates) or a host name (host certificates).",
+  "label": "depth",
+  "key": "tofu trust on first use: accept a key the first",
+  "where": ""
+ },
+ {
+  "id": 432,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "KRL Key revocation list: a compact file of revoked keys and certificate serials. channel One independent stream inside an SSH connection: session, direct-tcpip, forwarded-tcpip, agent, X11.",
+  "label": "depth",
+  "key": "krl key revocation list: a compact file of revoked keys",
+  "where": ""
+ },
+ {
+  "id": 433,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "ProxyJump Reach a host through another by tunnelling a second, end-to-end SSH session through a direct-tcpip channel.",
+  "label": "depth",
+  "key": "proxyjump reach a host through another by tunnelling a second",
+  "where": ""
+ },
+ {
+  "id": 434,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "ControlMaster Connection multiplexing: later clients reuse one authenticated connection through a control socket. session identifier The hash of the first key exchange; signatures in user authentication cover it, binding them to one connection. strict KEX OpenSSH 9.6's fix for Terrapin: no unexpected handshake messages, sequence numbers reset at each key exchange. hybrid key exchange A classic and a post-quantum exchange run together, the secret derived from both, so it is at least as strong as either.",
+  "label": "depth",
+  "key": "controlmaster connection multiplexing: later clients reuse one authenticated connection through",
+  "where": ""
+ },
+ {
+  "id": 435,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Recorded and checked on 5 October 2026.",
+  "label": "core",
+  "key": "recorded and checked on 5 october 2026",
+  "where": ""
+ },
+ {
+  "id": 436,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Lab scripts, raw outputs and the build are in this page's src/ folder in the knowledge base repository.",
+  "label": "core",
+  "key": "lab scripts, raw outputs and the build are in this",
+  "where": ""
+ },
+ {
+  "id": 437,
+  "tab": "t-lab",
+  "section": "cluster lab",
+  "text": "Cluster lab Every scenario on the Reading tab, replayed on the lab's topology one step at a time, with the real log of that step highlighted.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Cluster lab tab intro; the tab is gone, its scenarios are inline steppers"
+ },
+ {
+  "id": 438,
+  "tab": "t-lab",
+  "section": "cluster lab",
+  "text": "The lab: a laptop (OpenSSH 10.3p1), a bastion published on 127.0.0.1:30922 , and two compute nodes on an internal network ( gpu-node-01 with a notebook, gpu-node-02 an old 9.7p1 node), all recorded on 5 October 2026.",
+  "label": "core",
+  "key": "a bastion published on 127.0.0.1:30922 , and two compute nodes",
+  "where": ""
+ },
+ {
+  "id": 439,
+  "tab": "t-lab",
+  "section": "cluster lab",
+  "text": "Pick a scenario, then step or play.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "UI instruction of the removed tab"
+ },
+ {
+  "id": 440,
+  "tab": "t-lab",
+  "section": "cluster lab",
+  "text": "Logs are verbatim except that the lab directory is written $LAB and the laptop's name laptop ; -vvv logs are trimmed of per-packet lines.",
+  "label": "depth",
+  "key": "the lab directory is written $lab",
+  "where": ""
+ },
+ {
+  "id": 441,
+  "tab": "t-lab",
+  "section": "cluster lab",
+  "text": "Addresses such as 172.21.0.2 are the containers' private network.",
+  "label": "depth",
+  "key": "the containers' private network",
+  "where": ""
+ },
+ {
+  "id": 442,
+  "tab": "t-lab",
+  "section": "cluster lab",
+  "text": "Rerun everything with src/run_all.sh .",
+  "label": "depth",
+  "key": "rerun with src/run_all.sh",
+  "where": ""
+ },
+ {
+  "id": 443,
+  "tab": "t-err",
+  "section": "error decoder",
+  "text": "Error decoder Start from what SSH printed.",
+  "label": "core",
+  "key": "error decoder start from what ssh printed",
+  "where": ""
+ },
+ {
+  "id": 444,
+  "tab": "t-err",
+  "section": "error decoder",
+  "text": "Each message below was produced on purpose in the lab and is shown with its recorded log, what it means, the command that tells you more, and the fix.",
+  "label": "core",
+  "key": "each message below was produced on purpose in the lab",
+  "where": ""
+ },
+ {
+  "id": 445,
+  "tab": "t-err",
+  "section": "error decoder",
+  "text": "Type part of your message to filter.",
+  "label": "core",
+  "key": "type part of your message to filter",
+  "where": ""
+ },
+ {
+  "id": 446,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading This page Cluster lab Every recorded scenario as steps on the topology, with logs.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading card for the removed Cluster lab tab"
+ },
+ {
+  "id": 447,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min Error decoder From an SSH error message to its cause and fix.",
+  "label": "core",
+  "key": "error decoder from an ssh error message to its cause",
+  "where": ""
+ },
+ {
+  "id": 448,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "5 min, or when stuck Topic: protocols and siblings Topic: protocols The overview: one LLM request on the wire; its Protocol atlas has the SSH entry and timeline, its Failure lab the shared failures.",
+  "label": "core",
+  "key": "topic: protocols the overview: one llm request on the wire",
+  "where": ""
+ },
+ {
+  "id": 449,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min TLS and certificates X.509 certificates and CAs (the web's version of section 4), post-quantum key exchange and signatures in TLS.",
+  "label": "core",
+  "key": "tls and certificates x.509 certificates and cas (the web's version",
+  "where": ""
+ },
+ {
+  "id": 450,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "43 min Networking foundations TCP, round trips, keepalives and NAT idle timeouts behind section 9; moving big checkpoints.",
+  "label": "core",
+  "key": "networking foundations tcp, round trips, keepalives and nat",
+  "where": ""
+ },
+ {
+  "id": 451,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Auth API keys, OAuth, mTLS and short-lived credentials: the same ideas as SSH certificates for services and agents.",
+  "label": "core",
+  "key": "auth api keys, oauth, mtls and short-lived credentials",
+  "where": ""
+ },
+ {
+  "id": 452,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "39 min DNS DNSSEC, which SSHFP needs to mean anything; resolution on the bastion versus the laptop (socks5h).",
+  "label": "core",
+  "key": "dns dnssec, which sshfp needs to mean anything",
+  "where": ""
+ },
+ {
+  "id": 453,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Primary sources OpenSSH release notes Every version, default and fix on this page traces here.",
+  "label": "core",
+  "key": "primary sources openssh release notes every version, default",
+  "where": ""
+ },
+ {
+  "id": 454,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Read 9.8 to 10.5.",
+  "label": "core",
+  "key": "read 9.8 to 10.5",
+  "where": ""
+ },
+ {
+  "id": 455,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "1 h OpenSSH: Post-Quantum Cryptography Why hybrid key exchange, the 10.1 warning, how to silence it per host.",
+  "label": "core",
+  "key": "openssh: post-quantum cryptography why hybrid key exchange, the",
+  "where": ""
+ },
+ {
+  "id": 456,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min ssh_config(5) and sshd_config(5) Every keyword; search rather than read. reference ssh-keygen(1) Sections CERTIFICATES and KEY REVOCATION LISTS.",
+  "label": "core",
+  "key": "ssh_config(5) and sshd_config(5) every keyword; search rather than",
+  "where": ""
+ },
+ {
+  "id": 457,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min RFC 4251 to 4254 The protocol: architecture, authentication, transport, connection.",
+  "label": "core",
+  "key": "rfc 4251 to 4254 the protocol: architecture, authentication",
+  "where": ""
+ },
+ {
+  "id": 458,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "RFC 4253 sections 6 to 8 first.",
+  "label": "core",
+  "key": "rfc 4253 sections 6 to 8 first",
+  "where": ""
+ },
+ {
+  "id": 459,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "3 h for all four RFC 10042 , RFC 9941 The ML-KEM and sntrup761 hybrid key exchanges.",
+  "label": "core",
+  "key": "rfc 10042 , rfc 9941",
+  "where": ""
+ },
+ {
+  "id": 460,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min RFC 9987 The SSH agent protocol, including destination constraints and forwarding.",
+  "label": "core",
+  "key": "rfc 9987 the ssh agent protocol, including destination",
+  "where": ""
+ },
+ {
+  "id": 461,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min PROTOCOL.certkeys The certificate format, field by field.",
+  "label": "core",
+  "key": "protocol.certkeys the certificate format, field by field",
+  "where": ""
+ },
+ {
+  "id": 462,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min Security write-ups Qualys: regreSSHion A signal-handler race turned into root, step by step.",
+  "label": "core",
+  "key": "security write-ups qualys: regresshion a signal-handler race turned",
+  "where": ""
+ },
+ {
+  "id": 463,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min terrapin-attack.com Prefix truncation on the SSH handshake, and strict key exchange.",
+  "label": "core",
+  "key": "terrapin-attack.com prefix truncation on the ssh handshake, and",
+  "where": ""
+ },
+ {
+  "id": 464,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min Cluster practice Slurm: pam_slurm_adopt , srun SSH to nodes where your job runs; --overlap .",
+  "label": "core",
+  "key": "cluster practice slurm: pam_slurm_adopt , srun ssh to",
+  "where": ""
+ },
+ {
+  "id": 465,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min VS Code Remote-SSH requirements What the remote needs (glibc 2.28+).",
+  "label": "core",
+  "key": "vs code remote-ssh requirements what the remote needs",
+  "where": ""
+ },
+ {
+  "id": 466,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min Vault signed SSH certificates A production CA for user and host certificates.",
+  "label": "core",
+  "key": "vault signed ssh certificates a production ca for",
+  "where": ""
+ },
+ {
+  "id": 467,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "25 min AWS Session Manager with SSH SSH with no inbound port.",
+  "label": "core",
+  "key": "aws session manager with ssh ssh with no",
+  "where": ""
+ },
+ {
+  "id": 468,
+  "tab": "t-read",
+  "section": "reach table (script-rendered)",
+  "text": "alice on gpu-node-01 reached the loopback notebook (403 without token, 200 with it); gpu-node-02 refused on loopback; 0.0.0.0 reachable from the other node; Unix socket refused alice",
+  "label": "core",
+  "key": "alice got permission denied",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 469,
+  "tab": "t-read",
+  "section": "reach table (script-rendered)",
+  "text": "the second node was refused on the loopback-bound notebook",
+  "label": "core",
+  "key": "the second node was refused",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 470,
+  "tab": "t-read",
+  "section": "packet stepper (script)",
+  "text": "the recorded hybrid init payload is 1,221 bytes, matching the arithmetic",
+  "label": "core",
+  "key": "1,221 bytes, exactly what the relay saw",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 471,
+  "tab": "t-read",
+  "section": "round-trip ladder (script)",
+  "text": "nine packet groups, about eight round trips per login",
+  "label": "core",
+  "key": "about eight round trips",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 472,
+  "tab": "t-read",
+  "section": "multiplexing bars (script)",
+  "text": "ten commands 8.4 s fresh against 1.9 s multiplexed",
+  "label": "core",
+  "key": "8.4 s fresh against 1.9 s multiplexed",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 473,
+  "tab": "t-read",
+  "section": "transfer bars (script)",
+  "text": "scp -r of 1,000 small files took 193.3 s, rsync 1.6 s, tar 1.3 s",
+  "label": "core",
+  "key": "193.3",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 474,
+  "tab": "t-read",
+  "section": "agent animation (script)",
+  "text": "plain forwarding let root log in to both nodes; constrained key refused at gpu-node-02; ProxyJump left no socket",
+  "label": "core",
+  "key": "logged in to both nodes as dev",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 475,
+  "tab": "t-read",
+  "section": "certificate cases (script)",
+  "text": "client prints Permission denied; node logs Refusing certificate ID with the reason",
+  "label": "core",
+  "key": "refusing certificate id",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 476,
+  "tab": "t-read",
+  "section": "hero (new, script)",
+  "text": "the bastion carries the node session as one channel and reads none of it",
+  "label": "core",
+  "key": "reads none of it",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 477,
+  "tab": "t-read",
+  "section": "CA figure (new, script)",
+  "text": "20 users x 50 nodes: 1,000 authorized_keys entries against 50 CA lines (illustrative)",
+  "label": "core",
+  "key": "20 × 50 = 1,000",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 478,
+  "tab": "t-read",
+  "section": "keepalive figure (new, script)",
+  "text": "with ServerAliveInterval 2 and CountMax 2 the client exited 5.0 s after the freeze; without, still hanging at 30 s",
+  "label": "core",
+  "key": "still hanging after 30 s",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 479,
+  "tab": "t-read",
+  "section": "penalties figure (new, script)",
+  "text": "four failures, then the address refused for 16.563 s; attempts 5 and 6 dropped before authentication",
+  "label": "core",
+  "key": "attempts 5 and 6 were dropped before authentication",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 480,
+  "tab": "t-read",
+  "section": "debugging ladder (new, script)",
+  "text": "walk the layers bottom-up: TCP, key exchange, host key, user authentication, channel",
+  "label": "core",
+  "key": "walk the layers from the bottom",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 481,
+  "tab": "t-read",
+  "section": "scenario steppers (moved from the Cluster lab tab, script)",
+  "text": "host-key churn, host certificates, ProxyJump and tunnels as steps with highlighted log lines; full logs closed",
+  "label": "core",
+  "key": "highlighted lines only; full logs below",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 482,
+  "tab": "t-read",
+  "section": "config explainer (script)",
+  "text": "annotated ssh_config lines with their meaning and recorded result",
+  "label": "core",
+  "key": "addkeystoagent",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 483,
+  "tab": "t-read",
+  "section": "error decoder (script)",
+  "text": "Killed by signal 1 is harmless, printed by the ProxyJump helper",
+  "label": "core",
+  "key": "killed by signal 1",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ },
+ {
+  "id": 484,
+  "tab": "t-read",
+  "section": "error decoder (script)",
+  "text": "Permission denied for a non-existent user, so accounts cannot be enumerated",
+  "label": "core",
+  "key": "so accounts cannot be enumerated",
+  "where": "",
+  "note": "added by hand: script-rendered visual or table"
+ }
+]

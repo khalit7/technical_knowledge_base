@@ -1,19 +1,54 @@
 # src: SSH page
 
-`sh build.sh` writes `../index.html` from `parts/` (numbers written `[[key]]` in the text are filled from `numbers.json` by `fill_numbers.py`). `python3 check_embed.py` confirms the page carries exactly the data rebuilt from `raw/`, that the prose's qualitative claims hold in the recording, and that nothing committed contains a private key, token or private string. `node check_ui.mjs <dir>` (from the repo root) clicks every control at 390 px dark and 920 px light.
+`sh build.sh` writes `../index.html` from `parts/` (numbers written `[[key]]` in the text are filled from `numbers.json` by `fill_numbers.py`). `python3 check_embed.py` confirms the page carries exactly the data rebuilt from `raw/`, that the prose's qualitative claims hold in the recording, and that nothing committed contains a private key, token or private string. `node check_ui.mjs <dir>` (from the repo root) clicks every control and steps every animation at 390 px dark and 920 px light, and, with normal motion, confirms that no animation moves before the reader acts.
 
 ## The lab
 `sh run_all.sh [WORKDIR]` re-records everything (about 12 minutes; Docker, OpenSSH 10.x, Python 3, curl):
 
-- `lab/Dockerfile.edge` (Alpine edge, OpenSSH 10.5p1) for the bastion and `gpu-node-01`; `lab/Dockerfile.legacy` (Alpine 3.20, patched OpenSSH 9.7p1) for `gpu-node-02`. `lab/entry.sh` generates fresh host keys at every start (a rebuilt node), creates users `khalid` and `alice`, and on `gpu-node-01` starts `lab/notebook.py`, a token-protected stand-in for Jupyter, three ways (loopback, all interfaces, Unix socket in a 0700 directory).
+- `lab/Dockerfile.edge` (Alpine edge, OpenSSH 10.5p1) for the bastion and `gpu-node-01`; `lab/Dockerfile.legacy` (Alpine 3.20, patched OpenSSH 9.7p1) for `gpu-node-02`. `lab/entry.sh` generates fresh host keys at every start (a rebuilt node), creates users `dev` and `alice`, and on `gpu-node-01` starts `lab/notebook.py`, a token-protected stand-in for Jupyter, three ways (loopback, all interfaces, Unix socket in a 0700 directory).
 - `lab/up.sh`, `lab/down.sh`: containers `proto-ssh-*` with `--rm --cpus 1 --memory 1g`; the bastion is on an edge network published on `127.0.0.1:30922` and on an `--internal` cluster network with the nodes.
 - `lab/laptop.conf`, `lab/cert.conf`: the client configs, always used with `-F`; the user's `~/.ssh` is never read. Private keys, `known_hosts`, the agent socket and control sockets stay in WORKDIR; only public keys and certificates are copied to `raw/`.
 - `lab/wire_relay.py`: a TCP relay that decodes SSH packets until `NEWKEYS` (banner, message types, sizes, KEXINIT lists) and then records encrypted sizes and times. No packet capture was possible (no sudo), so nothing below TCP payload is shown.
 - `lab/exp_*.py`: one script per experiment (kex, jump, agent, mux, certs, hostkeys, fwd, misc, penalty, extra, xfer); `lab/common.py` runs commands and redacts paths, the laptop's host name and the parent's private patterns.
 - `make_data.py` turns `raw/` into `parts/21_js_data.js` and `numbers.json`.
 
-## Shape
-Child page method (`.claude/skills/explainer-page/page-kinds/topic-child.md`): Reading organised by the protocol's own logic (wire, keys, host keys, certificates, jump hosts, agent, multiplexing, tunnels, keepalives, files, post-quantum, security, cluster workflows, debugging, interview), one standalone lab tab, an error decoder tab for the debugging goal, Further reading. The old page is `../../src/read/old/ssh.md`; every fact is mapped in `coverage.json` (verified, corrected with a visible box, or measured in the lab).
+The lab account was renamed from the owner's login name to `dev` on 2026-10-24, in `lab/`, `run_all.sh`, `check_embed.py` and every file of `raw/` (a plain text substitution of the recorded logs; nothing else in them changed), so no personal user name is on the page or in the repo.
+
+## Tabs and parts (rebuilt 2026-10-24 to the teaching contract)
+| Tab | Parts | What |
+|---|---|---|
+| Reading `t-read` | `20_read_a` (nav; core idea, hero, you need, seven rules, new terms and recording note closed) to `20_read_m` (debugging; Reference: interview rehearsal and recent changes, closed), `20_read_z`; JS: `21_js_rd_common.js` (skill template, never autoplays), `22_js_hero.js` (hero), `23_js_topo.js` (lab topology, log filling, layers and forwarding diagrams), `24_js_hs.js` (packet stepper, round-trip ladder), `25_js_agent.js` (agent forwarding against ProxyJump), `26_js_mux.js` (multiplexing bars), `27_js_bits.js` (certificate cases, who reaches the notebook, transfer bars), `28_js_cfg.js` (annotated config), `29_js_steps.js` (inline scenario steppers), `30_js_figs.js` (CA, keepalive, penalties, debugging ladder) | sections 1 to 14 |
+| Error decoder `t-err` | `32_tab_err.html`, `32_js_err.js` | from an error message to meaning, command, fix and recorded log |
+| Further reading `t-more` | `39_tab_more.html` | |
+
+`21_js_data.js` is generated by `make_data.py`; `99_js_tabs.js` is the skill template (storage key `ssh-page-tab`).
+
+## The 2026-10-24 rebuild: what changed and why
+- **Top**: the core idea in one sentence (one encrypted pipe; the server proves itself with its host key, you with a key or certificate; channels share the pipe; every cluster pattern nests or reuses channels) and a new **hero** (`22_js_hero.js`): the outer session laptop to bastion carrying the inner, end-to-end session to the node as one channel, which carries a shell, rsync and a port forward, with the ControlMaster socket on the laptop. "You need" links Networking foundations, TLS and certificates, Cluster anatomy and Slurm. The old "What to remember" list became seven one-line rules; the glossary became "New terms" (closed, every term is also defined at first use). The header no longer says where the page sits in the tree (the topic will move).
+- **Cluster lab tab removed; its scenarios are inline.** Four scenario steppers (`29_js_steps.js`, the lab tab's engine) sit beside the claims they prove: host-key churn (section 3), host certificates (4), ProxyJump (5), tunnels (8). Each step shows the topology and only the matching lines of its recorded log; the full logs moved to closed blocks. The lab's login, agent, multiplexing, old-node and penalty scenarios were already drawn in Reading or are now (penalties figure); its keepalive scenario is the new keepalive figure.
+- **New visuals for mechanisms that had none**: the fields a user signature covers (section 2), plain keys against one CA for an illustrative 20 users by 50 nodes (4), time until ssh noticed a dead path with and without keepalives (9), the six PerSourcePenalties attempts on a time axis (12), the debugging ladder (14). The certificate cases gained the accepted case beside the four refusals.
+- **Moved to closed blocks (depth)**: every full log; the `-vvv` line table; rekeying; KDF rounds and the agent RFC; HashKnownHosts, UpdateHostKeys, SSHFP and CVE-2025-26465; CA services, `-U` signing and empty principals with their correction; ProxyCommand history and CVE-2025-61984; agent locking and server-side forwarding fixes; socket path length and the 10.0 to 10.2 multiplexing changes; escape sequences, Kubernetes and server forwarding controls; TCPKeepAlive and server timers; legacy scp and sshfs with their correction; the post-quantum timeline; regreSSHion's version range and difficulty with its correction; Terrapin's mechanics; the hardening baseline; fixes since 2025; Git commit signing; interview rehearsal; recent changes.
+- **Privacy and examples**: the lab user is `dev`; example addresses use 198.51.100.0/24 and host names `example.com`. The 172.x addresses in logs are the containers' private Docker networks, not a LAN.
+- **No autoplay**: `22_js_common.js` (which played each animation when it first scrolled into view) was replaced by the skill template `21_js_rd_common.js`; `check_ui.mjs` checks all seven animations stay on step 1 with normal motion.
+- **Corrections kept visible**: loopback is shared by local users (section 8), empty principals (closed, section 4), sshfs maintenance (closed, 10), RFC 10042 published (11), regreSSHion's odds (closed, 12); the interview answer that said "about one time in 10,000" now says "about 10,000 tries on average", as the correction does.
+- **Links**: Slurm, Cluster anatomy, Storage and data movement and Containers and isolation added by id; Auth linked from certificates.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After (2026-10-24) |
+|---|---|---|
+| Reading, core (230 words a minute, `html_utils/audit_pages.mjs`) | 57.8 min (13,305 words) | 38.3 min (8,806) |
+| Reading, closed details | 8.2 min | 33.4 min |
+| Other tabs, core | Cluster lab 4.1 + Error decoder 1.0 + Further reading 1.5 | Error decoder 1.0 + Further reading 1.6 |
+| Visuals drawn in Reading (audit) | 8 inline, 1 in a tab | 16 inline, 0 in tabs |
+
+Why about 38 minutes is right: the page is the sole owner of SSH end to end (transport and host keys, user keys and agents, certificates, ProxyJump, agent forwarding, multiplexing, three kinds of forwarding, keepalives, file transfer, post-quantum key exchange, security, cluster workflows and debugging), fourteen mechanisms each with its recorded evidence and a visual. About a sixth of the core words are figure titles, step captions and the highlighted log lines that are the evidence. What made the old page long (full logs inline, provenance, version histories, CVE detail, reference tables, interview answers) is now closed and optional, which is why the closed time grew.
+
+## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
+484 units: core 281, depth 170, fat 33. 467 were drafted from the old page by `ledger.py init` and kept at sentence level; keys are phrases of at least 22 characters (or distinctive tokens) found on the rebuilt page, a few set by hand. 17 were added by hand for script-rendered visuals and tables (the reach table, packet stepper, ladder, multiplexing and transfer bars, agent animation, certificate cases, the new figures, steppers, config explainer, error decoder), each keyed to a static caption or row that carries the fact. Fat units carry a `note` saying why (wind-ups, "The problem." headings, restatements of a section, the removed lab tab's intro and UI text, the tree location the brief asked to drop).
+
+## Departures from the page-kind shape, and why
+- **No lab tab.** Every lab scenario explains one mechanism, so it moved beside that mechanism; the Error decoder stays a tab because it is a tool used across the whole page (start from a message).
+- **Logs as excerpts.** Steppers show only the lines that prove the step; the verbatim logs are one click away in closed blocks, so the evidence is complete without making the core long.
 
 ## Sources
-`inputs/` holds extracts fetched on 2026-10-05: OpenSSH release notes 9.0 to 10.5, the OpenSSH post-quantum page, RFC 10042 sections 2.1 to 2.4, the head of Qualys's regreSSHion advisory.
+`inputs/` holds extracts fetched on 2026-10-05: OpenSSH release notes 9.0 to 10.5, the OpenSSH post-quantum page, RFC 10042 sections 2.1 to 2.4, the head of Qualys's regreSSHion advisory. The old page is `../../src/read/old/ssh.md`; `coverage.json` maps its facts (2026-10-05); `ledger.json` is the current accounting.

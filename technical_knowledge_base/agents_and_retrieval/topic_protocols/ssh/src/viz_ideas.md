@@ -26,3 +26,17 @@ Scores: teaching value x data quality x novelty against the parent and siblings 
 
 ## What the methodology lacked
 Protocol pages have no published figures to reproduce; the equivalent check is that every number and log on the page comes from one recorded run (`check_embed.py` regenerates the data from `raw/` and compares, and asserts the qualitative claims the prose makes: the agent attack reached both nodes, the constrained key was refused at the second, the Unix socket refused the other user).
+
+## Rebuild of 2026-10-24 (teaching contract)
+| Idea | Kind | Placement | Status |
+|---|---|---|---|
+| Hero: outer session carrying the inner end-to-end session as one channel, channels inside, ControlMaster socket | static annotated diagram | top | built |
+| Fields a user signature covers (session identifier, hostbound host key) | static strip | s2 | built |
+| Host-key churn, host certificates, ProxyJump, tunnels as steppers with highlighted log lines (the old Cluster lab's scenarios) | stepper | s3, s4, s5, s8 | moved inline; Cluster lab tab removed |
+| Plain keys against one CA, illustrative 20 users by 50 nodes | before/after, static | s4 | built (labelled illustrative) |
+| Time until ssh noticed a dead path, keepalives on and off | static bars from the recording | s9 | built |
+| PerSourcePenalties: six attempts on a time axis, the penalty window | static timeline from the recording | s12 | built |
+| Debugging ladder: TCP, key exchange, host key, authentication, channel | static annotated diagram | s14 | built |
+| Accepted certificate beside the four refusals | toggle | s4 | added to the existing toggle |
+
+Rejected: a stepper for the login scenario (the packet stepper and round-trip ladder already show it; the `-vvv` table is closed reference); a Terrapin step-by-step (attack-route drawings are a rejected pattern; text only); a multiplexing scenario stepper (the to-scale bars carry the claim; logs closed).

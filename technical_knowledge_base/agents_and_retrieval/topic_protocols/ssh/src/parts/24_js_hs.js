@@ -46,10 +46,10 @@
     const xl=narrow?40:90,xr=narrow?w*0.36:w*0.42;let s='';
     s+='<line x1="'+xl+'" y1="'+top+'" x2="'+xl+'" y2="'+H+'" stroke="var(--line)" stroke-width="2"/><line x1="'+xr+'" y1="'+top+'" x2="'+xr+'" y2="'+H+'" stroke="var(--line)" stroke-width="2"/>';
     s+=RD.t(xl,14,'laptop',{a:'middle',fs:11.5,w:600})+RD.t(xr,14,'bastion',{a:'middle',fs:11.5,w:600});
-    for(let t=0;t<=T;t+=100){s+=RD.t(xl-6,ys(t)+4,t+' ms',{a:'end',fs:10,fill:'var(--mute)'})}
+    for(let t=0;t<=T;t+=100){s+=RD.t(xl-6,ys(t)+4,t+' ms',{a:'end',fs:10.5,fill:'var(--mute)'})}
     E.forEach(e=>{const t=e.t;if(e.dir==='c2s'){s+='<line x1="'+xl+'" y1="'+ys(t)+'" x2="'+xr+'" y2="'+ys(t+3)+'" stroke="var(--c1)" stroke-width="1.6" marker-end="url(#ah1)"/>'}
       else{s+='<line x1="'+xr+'" y1="'+ys(Math.max(0,t-40))+'" x2="'+xl+'" y2="'+ys(t)+'" stroke="'+(e.ev==='encrypted'?'var(--acc)':'var(--c2)')+'" stroke-width="1.6" marker-end="url(#ah2)"/>'}});
-    rounds.forEach((r,i)=>{const t0=r.ev[0].t,txt=(i+1)+'. '+(LBL[i]||'encrypted exchange'),fs=narrow?9.5:10.5,maxc=Math.floor((w-xr-12)/(fs*0.56));
+    rounds.forEach((r,i)=>{const t0=r.ev[0].t,txt=(i+1)+'. '+(LBL[i]||'encrypted exchange'),fs=narrow?10.5:11,maxc=Math.floor((w-xr-12)/(fs*0.56));
       const words=txt.split(' ');let line='',ly=ys(t0)+4;words.forEach(wd=>{if((line+' '+wd).trim().length>maxc&&line){s+=RD.t(xr+8,ly,RD.esc(line.trim()),{fs});ly+=fs+2;line=wd}else line+=' '+wd});s+=RD.t(xr+8,ly,RD.esc(line.trim()),{fs})});
     s='<defs><marker id="ah1" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--c1)"/></marker><marker id="ah2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--acc)"/></marker></defs>'+s;
     el.innerHTML=RD.svg(w,H+6,s,'Round trips of one SSH login with 40 ms added')+'<p class="small mute">'+rounds.length+' groups of packets, one round trip each (the first includes TCP setup). Laptop-to-bastion arrows are drawn at the time the relay saw them; bastion-to-laptop arrows start 40 ms earlier, where the added delay began. Labels 3 to 9 are inferred from order, sizes and the client\u2019s -vvv log, since that traffic is encrypted; the last group is one way.</p>';

@@ -1,4 +1,4 @@
-// ---- The lab topology drawer (used by the one-screen picture, the agent animation and the Cluster lab tab),
+// ---- The lab topology drawer (used by the agent animation and the inline scenario steppers),
 // the static diagrams, recorded logs (pre[data-log]) and small tables built from SSHD.
 window.TOPO=(function(){
   const esc=RD.esc;
@@ -24,7 +24,7 @@ window.TOPO=(function(){
     // nodes
     Object.keys(NODES).forEach(id=>{const [x,y]=p[id],w=L.bw,h=L.bh,cls=(o.hl&&o.hl[id])||'';
       s+='<g class="tp-node '+cls+'"><rect x="'+(x-w/2)+'" y="'+(y-h/2)+'" width="'+w+'" height="'+h+'" rx="8"/>'+
-        RD.t(x,y-4,NODES[id].t,{a:'middle',fs:12.5,w:600})+RD.t(x,y+12,NODES[id].s,{a:'middle',fs:10,fill:'var(--mute)'})+'</g>';
+        RD.t(x,y-4,NODES[id].t,{a:'middle',fs:12.5,w:600})+RD.t(x,y+12,NODES[id].s,{a:'middle',fs:10.5,fill:'var(--mute)'})+'</g>';
       const bd=o.badges&&o.badges[id];if(bd){const bw=Math.min(w+30,bd.length*6+14);s+='<g><rect x="'+(x-bw/2)+'" y="'+(y+h/2+3)+'" width="'+bw+'" height="17" rx="8" fill="'+(o.bc&&o.bc[id]||'var(--hl)')+'"/>'+RD.t(x,y+h/2+15,esc(bd),{a:'middle',fs:10.5,w:600})+'</g>'}});
     el.innerHTML=RD.svg(L.W,L.H,s,o.label||'Lab topology');
   }
@@ -35,11 +35,8 @@ window.TOPO=(function(){
   document.querySelectorAll('pre[data-log]').forEach(pre=>{const k=pre.dataset.log;const t=SSHD.logs[k];
     pre.classList.add('log');pre.textContent=t==null?'(log '+k+' missing)':t;});
 })();
-// the one-screen topology and the static diagrams
+// the static diagrams
 (function(){
-  const one=document.getElementById('one-topo');
-  const d1=()=>TOPO.draw(one,{paths:[{a:'lap',b:'bas',label:'SSH (TCP 22)'},{a:'bas',b:'n1',label:'ProxyJump',dash:1}],badges:{n1:'notebook 127.0.0.1:8888'}});
-  d1();RD.onResize(d1);RD.onRender(d1);
   // three layers
   const lf=document.getElementById('layers-fig');
   function layers(){const w=Math.min(RD.width(lf),760),rows=[['Connection (RFC 4254)','channels: session (shell, exec, sftp) | direct-tcpip (-L, -D, ProxyJump) | forwarded-tcpip (-R) | agent | x11','var(--c3)'],
