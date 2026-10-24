@@ -1,4 +1,4 @@
-// ---- Guidance explorer tab, and the Reading tab's SD image cards (rescale, zero terminal SNR, LCM) ----
+// ---- Section 6: the guidance cards (moved from the Guidance explorer tab on 2026-10-24), and the SD image cards of sections 2 and 7 ----
 (function(){
   const D=window.DZ;if(!D)return;
   const $=id=>document.getElementById(id);
@@ -6,7 +6,7 @@
   const fig=(r,cap)=>'<figure><img alt="'+RD.esc(cap)+'" src="'+D.img[r.key]+'"><figcaption>'+cap+'</figcaption></figure>';
   const stats=r=>'saturation '+DZC.f(r.mean_saturation,2)+', clipped '+DZC.pct(r.clipped_frac,1)+', mean '+DZC.f(r.mean,2)+(r.sec!=null?', '+DZC.f(r.sec,1)+' s':'');
   // ---------- Guidance explorer: SD sets ----------
-  const SETS=D.sdsets;
+  const SETS=D.sdsets.slice(0,4);   // guidance sets; zero terminal SNR and few steps have their own cards (sections 2 and 7)
   if($('dz-gx-set')){
     $('dz-gx-set').innerHTML=SETS.map((s,i)=>'<button data-m="'+i+'"'+(i?'':' class="on"')+'>'+RD.esc(s.label)+'</button>').join('');
     const show=i=>{const s=SETS[i];$('dz-gx-ims').innerHTML=s.keys.map(k=>fig(byKey[k],RD.esc(byKey[k].cap)+'<br>'+stats(byKey[k]))).join('');$('dz-gx-note').textContent=s.note};
@@ -30,8 +30,7 @@
     $('dz-gx-kind').innerHTML=KINDS.filter(k=>G[k.k]&&G[k.k].length).map((k,i)=>'<button data-m="'+k.k+'"'+(i?'':' class="on"')+'>'+RD.esc(k.label)+'</button>').join('');
     RD.seg($('dz-gx-kind'),m=>{gk=m;gi=0;gstrip()});
     $('dz-gx-scale').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;gi=+b.dataset.m;gstrip()});
-    RD.onRender(()=>{gchart();gstrip()},'t-dzguide');
-    addEventListener('resize',()=>{if(!$('t-dzguide').hidden)gchart()});
+    RD.onRender(()=>{gchart();gstrip()});RD.onResize(gchart);
   }
   // ---------- Reading: CFG rescale before/after ----------
   if($('dz-resc-s')){

@@ -1,4 +1,4 @@
-// ---- Schedule designer tab (all computed in the browser) ----
+// ---- Section 2: the schedule designer (moved from its own tab into the Reading flow on 2026-10-24; all computed in the browser) ----
 (function(){
   const D=window.DZ;if(!D||!document.getElementById('dz-sd-chart'))return;
   const $=id=>document.getElementById(id);
@@ -48,6 +48,5 @@
   $('dz-sd-res').addEventListener('input',e=>{st.side=2**+e.target.value;render()});
   $('dz-sd-shift').addEventListener('input',e=>{st.shift=+e.target.value;render()});
   $('dz-sd-t').addEventListener('input',e=>{st.t=+e.target.value;render()});
-  RD.onRender(render,'t-dzsched');
-  addEventListener('resize',()=>{if(!$('t-dzsched').hidden)chart(abar())});
+  RD.onRender(render);RD.onResize(()=>chart(abar()));
 })();

@@ -1,4 +1,4 @@
-// ---- Sampler workbench tab ----
+// ---- Section 5: the sampler workbench (moved from its own tab into the Reading flow on 2026-10-24) ----
 (function(){
   const D=window.DZ;if(!D||!document.getElementById('dz-sw-cv'))return;
   const S=D.samplers,model={m4:D.samp.m4,m8:D.samp.m8};
@@ -31,6 +31,5 @@
   segN.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.n=+b.dataset.m;all()});
   RD.seg(document.getElementById('dz-sw-model'),m=>{st.m=m;if(!model[m][st.s])st.s='ddpm';all()});
   RD.seg(document.getElementById('dz-sw-metric'),m=>{st.metric=m;chart()});
-  walks();RD.onRender(all,'t-dzsamp');
-  addEventListener('resize',()=>{if(!document.getElementById('t-dzsamp').hidden)chart()});
+  walks();RD.onRender(all);RD.onResize(chart);
 })();

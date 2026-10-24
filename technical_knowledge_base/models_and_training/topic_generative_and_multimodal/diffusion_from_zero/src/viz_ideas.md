@@ -28,3 +28,19 @@ Scores 0 to 2 on: parameter the reader controls / reproduces a published or lab 
 
 ## What the methodology lacked
 A rule for toys that stand in for a real model: here the exact-score toy is only useful because it reproduces the measured pattern of the real model (plateau of the ODE sampler under hedging). The page says which parts transfer and checks the toy's JS against Python.
+
+## 2026-10-24 rebuild to the teaching contract (this page now owns diffusion from zero)
+Placement changed, not the evidence: every visual above is kept, and the three tabs became inline cards beside the claims they prove.
+| Visual | Where now | Kind (contract) | Notes |
+|---|---|---|---|
+| **Hero**: one Fashion-MNIST dress noised in closed form at t = 0, 250, 500, 750, 999, the denoiser between, and a recorded 20-call DDIM run showing the model's guess after 2, 4, 8 and 20 calls | The idea in one screen | static annotated diagram | New. Top row computed in the browser; bottom row from the root lab's recorded trajectory. |
+| **Forward-process slider** (ten test images, one noise draw, one t slider, signal/noise/SNR counters) | Section 1 | slider, one variable | Absorbed from the root lab (it drew two schedules side by side; the comparison lives in the designer now). Predict prompt before it (t = 500). |
+| Schedule designer | Section 2 (was a tab) | slider and toggles over one schedule | Moved inline beside the brightness-leak prediction. |
+| **Error by timestep** (noise error, clean-image error; epsilon- and v-models) | Section 3 | static chart with a toggle | Absorbed from the root lab (recorded validation errors). |
+| **One step, epsilon against v**: four strips (eps 1 step, v 1 step, v 50 steps, v sampled as eps) | Section 3 | before/after on the same noise | Absorbed from the root lab. |
+| **Recorded trajectories** (1, 4, 20, 50 DDIM steps, 20 DDPM steps; x_t or the model's guess) | Section 5 | stepper (RD.anim, never autoplays) | Absorbed from the root lab; the mode switch resets to step 0 instead of playing. |
+| Sampler workbench | Section 5 (was a tab) | parameter picker over recorded runs | Replaces the six-sampler mini chart (same data, more of it). The timestep walks table is a closed block inside the card. |
+| Guidance strips and accuracy-against-FD curves | Section 6 (were the Guidance explorer tab) | parameter picker over recorded runs | Plain CFG sweep first, behind a predict prompt. |
+| SD 1.5 guidance sets | Section 6 | before/after on one prompt and seed | Four sets (scale, rescale, interval, negative prompts); the zero-terminal-SNR and few-step sets have their own cards in sections 2 and 7. The separate rescale before/after card was merged into this one. |
+
+Rejected in the rebuild: a separate SD steps gallery and time split (the root lab's; the leading-spacing result is stated with its numbers in section 5); a real photograph or paper figure (no physical object to show; the SD 1.5 outputs are this page's real images, and the DDPM paper's figures are not openly licensed).
