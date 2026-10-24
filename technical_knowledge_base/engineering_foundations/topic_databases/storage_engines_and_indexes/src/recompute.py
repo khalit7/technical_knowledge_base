@@ -26,7 +26,7 @@ check('bloom_k', k); check('bloom_fp_pct', round(100 * p, 2), 'p = 0.82%')
 # pages (section 1)
 h = m1['page0_header'][0]
 check('page0_lp', (h['lower'] - 24) // 4, '52 line pointers'); check('page0_free', h['upper'] - h['lower'], 'Free, 88 bytes'); check('page0_tuples', h['special'] - h['upper'], '7,872 bytes')
-check('heap_pages', m1['sizes'][0]['heap'] // 8192, '19,235 pages'); check('fsm_kb', m1['sizes'][0]['fsm'] // 1024, 'it is 56 KB')
+check('heap_pages', m1['sizes'][0]['heap'] // 8192, '19,235 pages'); check('fsm_kb', m1['sizes'][0]['fsm'] // 1024, '56 KB for our 19,235 pages')
 # WAL (section 3)
 own = lambda rs: sum(r['len'] for r in rs if r['rm'] != 'Heap2')
 check('insert_wal_off', own(m2['one_insert']['off']['first']), '<td class="num">299</td>'); check('insert_wal_on', own(m2['one_insert']['on']['first']), '17,638 bytes')
@@ -54,5 +54,34 @@ check('pg_update_amp', round((on['first_bytes'] + on['fpi_records_first'] * 8192
 # RocksDB
 for r in m5['runs']:
     check(f"rocks_{r['style']}_{r['bloom']}_wa", [ph['write_amp'] for ph in r['phases']])
+
+# static captions written on 2026-10-24 (numbers the scripts also draw; checked here so prose and data agree)
+fb = lambda v: (f"{v/1e9:.2f} GB" if v >= 1e9 else f"{v/1e6:.{0 if v >= 1e8 else 1}f} MB" if v >= 1e6 else f"{v/1e3:.{0 if v >= 1e5 else 1}f} kB")
+lines = [l for l in m1['crash']['log']]
+redo = next(l for l in lines if 'redo starts at' in l).split('redo starts at ')[1].strip()
+end = next(l for l in lines if 'invalid record length at' in l).split('invalid record length at ')[1].split(':')[0]
+check('crash_redo', redo, f'redo starts at {redo}'); check('crash_end', end, f'invalid record length at {end}')
+sp = {x['order']: x for x in m3['splits']}
+check('splits_more_pct', round((sp['random']['leaf_pages'] / sp['ascending']['leaf_pages'] - 1) * 100), f"{round((sp['random']['leaf_pages'] / sp['ascending']['leaf_pages'] - 1) * 100)}% more leaf pages")
+check('splits_fill', round(sp['random']['avg_leaf_density']), f"{round(sp['random']['avg_leaf_density'])}% full on average")
+check('splits_time', round(sp['random']['insert_s'] / sp['ascending']['insert_s'], 1), f"{round(sp['random']['insert_s'] / sp['ascending']['insert_s'], 1)} times as long")
+pk = m4['pk']; p4 = next(x for x in pk if 'v4' in x['key']); p7 = next(x for x in pk if 'v7' in x['key'])
+check('pk_fill', [round(p4['avg_leaf_density']), round(p7['avg_leaf_density'])], f"ended {round(p4['avg_leaf_density'])}% full against {round(p7['avg_leaf_density'])}% for v7")
+check('pk_size', round(p4['index_size'] / p7['index_size'], 2), f"{round(p4['index_size'] / p7['index_size'], 2)} times the size")
+check('pk_wal', round((p4['wal_bytes'] / p7['wal_bytes'] - 1) * 100), f"{round((p4['wal_bytes'] / p7['wal_bytes'] - 1) * 100)}% more WAL")
+check('pk_time', round(p4['seconds'] / p7['seconds'], 1), f"took {round(p4['seconds'] / p7['seconds'], 1)} times as long")
+B = m3['brin']; check('brin_ratio', round(B['btree'] / B['brin']), f"{round(B['btree'] / B['brin']):,} times smaller")
+check('brin_shuffled', B['shuffled_hour_brin']['hit'], f"{B['shuffled_hour_brin']['hit']:,} pages")
+K = m3['kinds']; check('hash_size', fb(K['hash_chat']), fb(K['hash_chat'])); check('partial_rows', K['partial_rows'], f"{K['partial_rows']:,} of 1M rows")
+check('partial_size', fb(K['partial_long']), fb(K['partial_long'])); check('cover_size', fb(K['covering']), fb(K['covering']))
+check('cover_pages', [K['q_plain']['hit'], K['q_covering']['hit']], f"touched {K['q_plain']['hit']} pages with the plain index and {K['q_covering']['hit']}")
+dd = m3['dedup']; check('dedup', [fb(dd['on']), fb(dd['off'])], f"{fb(dd['on'])} with deduplication and {fb(dd['off'])} without")
+r = {(x['style'], x['bloom']): x for x in m5['runs']}; lv = r[('leveled', True)]; un = r[('universal', True)]; nb = r[('leveled', False)]
+check('rocks_lv_wa', [f"{ph['write_amp']:.1f}x" for ph in lv['phases']], f"wrote {lv['phases'][0]['write_amp']:.1f}x on load and {lv['phases'][1]['write_amp']:.1f}x on overwrite")
+base = lv['phases'][0]['sst_bytes']
+check('rocks_space', [round(lv['phases'][1]['sst_bytes'] / base, 2), round(un['phases'][1]['sst_bytes'] / base, 2)], f"held {un['phases'][1]['sst_bytes'] / base:.2f}x")
+check('rocks_absent', [round(lv['reads'][1]['data_blocks_per_get'], 2), round(nb['reads'][1]['data_blocks_per_get'], 2)], f"read {lv['reads'][1]['data_blocks_per_get']:.2f} data blocks on average with them and {nb['reads'][1]['data_blocks_per_get']:.2f} without")
+rr = lv['reads'][1]; check('rocks_fp', round(100 * rr['bloom_full_positive'] / (rr['bloom_full_positive'] + rr['bloom_useful']), 2), f"{100 * rr['bloom_full_positive'] / (rr['bloom_full_positive'] + rr['bloom_useful']):.2f}% per filter checked")
+check('wc_wal', [fb(w[0]['median_wal']), fb(w[6]['median_wal'])], f"WAL grew from {fb(w[0]['median_wal'])} with no index to {fb(w[6]['median_wal'])} with six")
 json.dump(out, open(os.path.join(H, 'recompute_out.json'), 'w'), indent=1)
 print(json.dumps(out)); print('MISMATCHES:', len(bad)); [print(' ', x) for x in bad]

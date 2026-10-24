@@ -11,7 +11,7 @@
     $('rd-fo-nv').textContent=F.n(n);
     $('rd-fo-out').innerHTML=RD.stat('Entry size',ENTRY(k)+' bytes','header, key, alignment, pointer')+RD.stat('Keys per leaf',F.n(r.leaf),'at 90% fill')+RD.stat('Fan-out',F.n(r.inner),'internal pages at 70%')+RD.stat('Levels',r.levels)+RD.stat('Index size',F.b(r.bytes),'approximate');
     const m=SE.m3.depth.find(d=>d.key==='bigint'&&d.rows===1e6);
-    $('rd-fo-note').innerHTML='Defaults reproduce the measurement independently: for bigint the formula gives '+FANOUT(8,1e6).leaf+' keys per leaf and '+FANOUT(8,1e6).levels+' levels at 1M rows; Postgres reported '+m.leaf_items_first+' keys on the first leaf and '+m.levels+' levels. Text keys are counted as 1 length byte plus the characters (short-string header); real indexes on text also depend on collation and compression.'}
+    if($('rd-fo-note'))$('rd-fo-note').innerHTML='Defaults reproduce the measurement independently: for bigint the formula gives '+FANOUT(8,1e6).leaf+' keys per leaf and '+FANOUT(8,1e6).levels+' levels at 1M rows; Postgres reported '+m.leaf_items_first+' keys on the first leaf and '+m.levels+' levels. Text keys are counted as 1 length byte plus the characters (short-string header); real indexes on text also depend on collation and compression.'}
   if($('rd-fo-n')){$('rd-fo-n').addEventListener('input',fo);$('rd-fo-k').addEventListener('change',fo);fo()}
   // ---- bloom calculator
   function bf(){const b=+$('rd-bf-b').value,k=Math.max(1,Math.round(b*Math.LN2)),p=LAB.bloomFP(b);$('rd-bf-bv').textContent=b;
@@ -39,7 +39,7 @@
   const dd=SE.m3.dedup;if(dd&&$('rd-dedup'))$('rd-dedup').textContent=F.b(dd.on)+' with deduplication and '+F.b(dd.off)+' without ('+(dd.off/dd.on).toFixed(1)+' times larger)';
   const k16=SE.m4.skip_16,k18=SE.m4.skip_18,leaf=x=>x.nodes.find(n=>/Scan/.test(n.node));
   if($('rd-skip')){const a=leaf(k16.default),b=leaf(k18.default),f=leaf(k16.forced_index);
-    $('rd-skip').innerHTML='Postgres 16 chose a '+a.node+' reading '+F.n(k16.default.nodes[0].buffers)+' pages ('+k16.default.ms.toFixed(1)+' ms); forced onto the index it read '+F.n(k16.forced_index.nodes[0].buffers)+' pages ('+k16.forced_index.ms.toFixed(1)+' ms), the whole index. Postgres 18 used an '+b.node+' with '+b.index_searches+' index searches, '+F.n(k18.default.nodes[0].buffers)+' pages, '+k18.default.ms.toFixed(2)+' ms.'}
+    $('rd-skip').innerHTML='Postgres 16 chose an '+a.node+' reading '+F.n(k16.default.nodes[0].buffers)+' pages ('+k16.default.ms.toFixed(1)+' ms); forced onto the index it read '+F.n(k16.forced_index.nodes[0].buffers)+' pages ('+k16.forced_index.ms.toFixed(1)+' ms), the whole index. Postgres 18 used an '+b.node+' with '+b.index_searches+' index searches, '+F.n(k18.default.nodes[0].buffers)+' pages, '+k18.default.ms.toFixed(2)+' ms.'}
   // ---- RocksDB
   const R5=SE.m5,lv=R5.runs.find(r=>r.style==='leveled'&&r.bloom),un=R5.runs.find(r=>r.style==='universal'),nb=R5.runs.find(r=>!r.bloom);
   if($('rd-rocks-setup'))$('rd-rocks-setup').innerHTML=F.n(R5.N)+' unique random 16-byte keys with 100-byte values ('+F.b(R5.N*116)+' of data), then '+F.n(R5.N)+' overwrites of random existing keys; memtable '+R5.config.write_buffer_size+', level 1 '+R5.config.max_bytes_for_level_base+', ratio 10, no compression, bloom filters 10 bits per key; '+F.n(lv.reads[0].n)+' lookups of present and of absent keys.';

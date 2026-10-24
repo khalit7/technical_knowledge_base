@@ -26,3 +26,6 @@ Methodology followed: `.claude/skills/explainer-page/visuals/choosing.md`. Score
 
 ## What the methodology lacked
 Nothing for scoring; a note that measurement scripts should save after each section (one long run lost its last step and was recovered from printed output).
+
+## 2026-10-24 rebuild (teaching contract)
+Built: hero (one insert through both engines, static); crash recovery stepper; RUM triangle (qualitative); heap against clustered diagram; composite index order toggle (illustrative); B-tree path drawing from real pageinspect entries. Moved inline: the Inside real pages tab (page strip, HOT before/after, path). Rejected: a real image (mechanism page; no licensed figure beats the drawings); a separate LSM read-path animation (the lab's lookups show it).

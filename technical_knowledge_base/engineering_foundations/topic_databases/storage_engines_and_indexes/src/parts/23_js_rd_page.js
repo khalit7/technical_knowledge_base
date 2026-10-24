@@ -1,14 +1,10 @@
-// ---- Reading sections 1, 3, 4: the page drawn to scale, WAL bars, commit bars, crash log (all from SE, the measured data) ----
+// ---- Reading section 3: WAL bars and commit bars (from SE, the measured data); BARS and FMT are shared helpers ----
 window.BARS=function(el,rows,o){o=o||{};const mx=o.max||Math.max(...rows.map(r=>r.v));
   el.innerHTML=(o.title?'<div class="small" style="font-weight:600;margin:4px 0">'+o.title+'</div>':'')+rows.map(r=>'<div class="row'+(r.hl?' hl':'')+'"><span class="nm" title="'+RD.esc(r.n)+'">'+r.n+'</span><span class="track"><span class="fill" style="width:'+Math.max(0.6,100*r.v/mx).toFixed(2)+'%;background:'+(r.c||'var(--acc)')+'"></span></span><span class="val">'+r.l+'</span></div>').join('')};
 window.FMT={
   b:v=>v>=1e9?(v/1e9).toFixed(2)+' GB':v>=1e6?(v/1e6).toFixed(v>=1e8?0:1)+' MB':v>=1e3?(v/1e3).toFixed(v>=1e5?0:1)+' kB':v+' B',
   n:v=>Math.round(v).toLocaleString('en-US')};
 (function(){
-  const h=SE.m1.page0_header,el=document.getElementById('rd-pg0');
-  if(el){const lp=h.lower-24,free=h.upper-h.lower,tup=h.special-h.upper,P=h.pagesize;
-    const seg=(w,c,t)=>'<span style="width:'+(100*w/P).toFixed(3)+'%;background:'+c+'" title="'+t+'">'+(w/P>0.08?t:'')+'</span>';
-    el.innerHTML=seg(24,'var(--c4)','header')+seg(lp,'var(--c1)','line pointers')+seg(free,'var(--dim)','free')+seg(tup,'var(--c3)','tuples ('+FMT.n(tup)+' bytes)')}
   const w=SE.m2,one=w.one_insert,ru=w.random_updates.runs;
   const own=x=>x.filter(r=>r.rm!=='Heap2').reduce((a,r)=>a+r.len,0); // the insert's own records (the Heap2 PRUNE records were catalog housekeeping)
   const fb=document.getElementById('rd-fpw-bars');
@@ -21,6 +17,4 @@ window.FMT={
   const cb=document.getElementById('rd-commit-bars');
   if(cb){const R=w.commit.runs,g=(s,c)=>R.find(r=>r.synchronous_commit===s&&r.clients===c);
     BARS(cb,[['on',1],['on',32],['off',1],['off',32]].map(([s,c])=>({n:'sync '+s+', '+c+' client'+(c>1?'s':''),v:g(s,c).tps,l:FMT.n(g(s,c).tps)+'/s',c:s==='on'?'var(--c2)':'var(--c3)'})),{title:'Committed write transactions per second'})}
-  const cl=document.getElementById('rd-crashlog');
-  if(cl){cl.innerHTML=SE.m1.crash.log.filter(l=>!/listening on|starting PostgreSQL/.test(l)).map(l=>{l=RD.esc(l.replace(/^LOG:\s+/,''));return /redo starts|invalid record|redo done|end-of-recovery/.test(l)?'<span class="on">'+l+'</span>':l}).join('\n')}
 })();

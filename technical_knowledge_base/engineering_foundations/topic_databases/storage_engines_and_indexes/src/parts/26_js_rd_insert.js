@@ -37,6 +37,6 @@
       RD.stat('Log appends',s.wal)+RD.stat('Random writes',0)+RD.stat('Keys written by flush',s.seq,'sequential')+RD.stat('Keys rewritten by compaction',s.comp,'background');
     cap.innerHTML='<div class="t">'+s.t+'</div><p>'+s.p+'</p>'}
   const A=RD.anim({card:'rd-ins-card',ctl:'rd-ins-ctl',n:BT.length,draw,ms:2200,label:'Step'});
-  RD.seg(document.getElementById('rd-ins-mode'),m=>{mode=m;A.reset(seq().length);A.play()});
+  RD.seg(document.getElementById('rd-ins-mode'),m=>{mode=m;A.reset(seq().length)});
   RD.onResize(()=>A.redraw());
 })();

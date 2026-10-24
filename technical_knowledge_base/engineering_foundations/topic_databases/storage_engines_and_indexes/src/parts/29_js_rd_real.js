@@ -1,6 +1,6 @@
-// ---- Inside real pages tab: heap page 0, an update, the B-tree path (all data from SE.m1, printed by pageinspect) ----
+// ---- Reading sections 1 and 5 (moved from the old Inside real pages tab): heap page 0, an update, the B-tree path (all data from SE.m1, printed by pageinspect) ----
 (function(){
-  const $=id=>document.getElementById(id);if(!$('t-page'))return;const M=SE.m1,esc=RD.esc;
+  const $=id=>document.getElementById(id);if(!$('pg-strip'))return;const M=SE.m1,esc=RD.esc;
   // t_infomask and t_infomask2 bits (src/include/access/htup_details.h)
   const IM=[[0x0001,'has nulls'],[0x0002,'has variable-width columns'],[0x0004,'has TOASTed values'],[0x0100,'xmin committed'],[0x0200,'xmin invalid (aborted)'],[0x0400,'xmax committed'],[0x0800,'xmax invalid (no deleter)'],[0x2000,'this is an updated version']];
   const im=v=>IM.filter(([b])=>v&b).map(x=>x[1]).join(', ')||'none';
@@ -43,9 +43,7 @@
   function pathOut(){let h='';const p=pages.find(x=>String(x.id)===String(cur));
     if(cur==='meta')h='<p>The metapage (page 0) records where the root is (page '+meta.root+'), the tree level of the root ('+meta.level+', so '+(meta.level+1)+' levels), and a "fast root" used after many deletions. <code>allequalimage = '+meta.allequalimage+'</code> means deduplication is safe for this index.</p>';
     else if(cur==='heap')h='<p>The leaf entry for chat 42000 holds 6 ctids, and each points into a different table page: '+esc(M.chat_42000_ctids)+'. Six more page reads; a covering index (Reading section 10) or a table clustered by chat (section 8) would avoid most of them.</p>';
-    else{const its=itemsOf(cur),st=p.st;let hlIdx=-1;
-      const hk=it=>st.btpo_next!==0&&it.itemoffset===1;
-      its.forEach((it,i)=>{if(hk(it))return;const k=key(it.data);if(k===null||k<42000||(st.type==='l'&&k===42000)){if(st.type==='l'){if(k===42000)hlIdx=i}else hlIdx=i}});
+    else{const its=itemsOf(cur),st=p.st,hk=it=>st.btpo_next!==0&&it.itemoffset===1,hlIdx=hlOf(cur);
       const show=its.length>40?its.filter((it,i)=>i<5||Math.abs(i-hlIdx)<=4||i>=its.length-3):its;
       h='<p>'+p.t+' '+cur+': '+st.live_items+' entries, average entry '+st.avg_item_size+' bytes, '+st.free_size+' bytes free, left neighbour '+st.btpo_prev+', right neighbour '+st.btpo_next+'. '+(st.type==='l'?'Each entry is a key and the ctid of its row, or (after deduplication) a key and a list of ctids.':'Each entry is a separator key and the page number of a child; the first downlink has no key ("minus infinity").')+(st.btpo_next!==0?' Entry 1 is the page\'s high key.':'')+(its.length>40?' Showing the first 5, the ones around the path, and the last 3 of '+its.length+'.':'')+'</p>';
       h+='<div class="items"><table><thead><tr><th class="num">#</th><th class="num">Key</th><th>'+(st.type==='l'?'Points to':'Child page')+'</th><th class="num">Bytes</th></tr></thead><tbody>'+
@@ -53,6 +51,23 @@
           if(hk(it))return '<tr><td class="num">1</td><td class="num">'+(k===null?'':k.toLocaleString('en-US'))+'</td><td>high key: every key on this page is at most this; larger keys are to the right</td><td class="num">'+it.itemlen+'</td></tr>';
           return '<tr'+(i===hlIdx?' class="hl"':'')+'><td class="num">'+it.itemoffset+'</td><td class="num">'+(k===null?'(minus infinity)':k.toLocaleString('en-US'))+'</td><td>'+(st.type==='l'?(it.ntids>1?it.ntids+' rows (posting list)':esc(it.tid||it.ctid||'')):'page '+child)+'</td><td class="num">'+it.itemlen+'</td></tr>'}).join('')+'</tbody></table></div>'}
     $('pg-path-out').innerHTML=h}
-  $('pg-chain').addEventListener('click',e=>{const b=e.target.closest('button[data-p]');if(!b)return;cur=isNaN(+b.dataset.p)?b.dataset.p:+b.dataset.p;chain();pathOut()});
-  pick(1);upd('full');chain();pathOut();
+  function hlOf(id){const its=itemsOf(id),st=(pages.find(x=>String(x.id)===String(id))||{}).st;if(!st)return -1;let h=-1;const hk=it=>st.btpo_next!==0&&it.itemoffset===1;
+    its.forEach((it,i)=>{if(hk(it))return;const k=key(it.data);if(k===null||k<42000||(st.type==='l'&&k===42000)){if(st.type==='l'){if(k===42000)h=i}else h=i}});return h}
+  // the path drawn: one row per page, one tick per entry, the followed entry highlighted; then the 6 table pages among all 19,235
+  function pathSvg(){const el=$('pg-path-svg');if(!el)return;const W=RD.width(el),lab=W<480?92:150,x0=lab,bw=W-lab-6,rh=34;let b='';
+    const rows=path.map(p=>({p,its:itemsOf(p.blkno),h:hlOf(p.blkno)}));
+    rows.forEach((r,i)=>{const y=6+i*rh,n=Math.max(1,r.its.length),on=String(r.p.blkno)===String(cur);
+      b+=RD.t(0,y+12,(r.p.type==='r'?'root':r.p.type==='i'?'internal':'leaf')+' '+r.p.blkno,{fs:11.5,w:600,fill:on?'var(--acc)':'var(--ink)'});
+      if(lab>100)b+=RD.t(0,y+25,r.p.live_items+' entries',{fs:11,fill:'var(--mute)'});
+      b+='<rect x="'+x0+'" y="'+y+'" width="'+bw+'" height="22" rx="3" fill="var(--soft)" stroke="'+(on?'var(--acc)':'var(--line)')+'" stroke-width="'+(on?2:1)+'"/>';
+      const tw=bw/n;r.its.forEach((it,j)=>{const x=x0+j*tw,hl=j===r.h;if(tw>=1.6||hl)b+='<rect x="'+x.toFixed(2)+'" y="'+(y+3)+'" width="'+Math.max(hl?3:0.8,tw-0.6).toFixed(2)+'" height="16" fill="'+(hl?'var(--acc)':'var(--c1)')+'" opacity="'+(hl?1:0.45)+'"/>'});
+      if(tw<1.6)b+='<rect x="'+x0+'" y="'+(y+3)+'" width="'+bw+'" height="16" fill="var(--c1)" opacity=".25"/>'+(r.h>=0?'<rect x="'+(x0+r.h*tw-1).toFixed(2)+'" y="'+(y+3)+'" width="3" height="16" fill="var(--acc)"/>':'');
+      if(i<rows.length-1&&r.h>=0){const nx=x0+(r.h+0.5)*tw;b+='<line x1="'+nx.toFixed(1)+'" y1="'+(y+22)+'" x2="'+nx.toFixed(1)+'" y2="'+(y+rh)+'" stroke="var(--acc)" stroke-width="1.6"/>'}});
+    const y=6+rows.length*rh,on=cur==='heap',NP=SE.m1.sizes[0].heap/8192,ct=(M.chat_42000_ctids||'').match(/\((\d+),/g)||[];
+    b+=RD.t(0,y+12,'table',{fs:11.5,w:600,fill:on?'var(--acc)':'var(--ink)'});if(lab>100)b+=RD.t(0,y+25,FMT.n(NP)+' pages',{fs:11,fill:'var(--mute)'});
+    b+='<rect x="'+x0+'" y="'+y+'" width="'+bw+'" height="22" rx="3" fill="var(--soft)" stroke="'+(on?'var(--acc)':'var(--line)')+'" stroke-width="'+(on?2:1)+'"/>';
+    ct.forEach(c=>{const pg=+c.slice(1,-1),x=x0+bw*pg/NP;b+='<rect x="'+(x-1.5).toFixed(1)+'" y="'+(y+3)+'" width="3" height="16" fill="var(--acc)"/>'});
+    el.innerHTML=RD.svg(W,y+30,b,'The path to chat 42000: the root, internal and leaf pages with one tick per entry, then the six table pages among all table pages')}
+  $('pg-chain').addEventListener('click',e=>{const b=e.target.closest('button[data-p]');if(!b)return;cur=isNaN(+b.dataset.p)?b.dataset.p:+b.dataset.p;chain();pathOut();pathSvg()});
+  pick(1);upd('full');chain();pathOut();pathSvg();RD.onRender(pathSvg);RD.onResize(pathSvg);
 })();

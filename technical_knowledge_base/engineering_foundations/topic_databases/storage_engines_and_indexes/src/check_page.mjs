@@ -27,7 +27,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const scan = async tag => { const t = await p.evaluate(() => { const v = [...document.querySelectorAll('.tab')].find(x => !x.hidden); return v ? v.innerText : '' });
     if (bad(t)) probs.push(tag + ': bad text ' + (t.match(/.{0,40}(NaN|undefined|Infinity|\[object).{0,40}/) || [''])[0]);
     const sw = await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1); if (sw) probs.push(tag + ': sideways scroll') };
-  // Reading: animations
+  // Nothing may move before the reader acts: wait, then every step slider must still be at 0
+  for (const id of await p.$$eval('#t-read .an-ctl', es => es.map(e => e.id))) { await p.evaluate(id => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await sleep(900) }
+  await sleep(1500); const moved = await p.$$eval('#t-read .an-ctl input[type=range]', es => es.filter(e => +e.value !== 0).map(e => e.id));
+  if (moved.length) probs.push('autoplay: ' + moved.join(' '));
+    // Reading: animations
   const cards = await p.$$eval('#t-read .an-ctl', es => es.map(e => e.id.replace(/-ctl$/, '')));
   for (const c of cards) {
     const modes = await p.$$eval('#' + c + '-mode button', es => es.map(e => e.dataset.m)).catch(() => []);
@@ -62,14 +66,15 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (const [id, v] of [['lb-cap', '4'], ['lb-cap', '16'], ['lb-ck', '20'], ['lb-ck', '500'], ['lb-mem', '4'], ['lb-mem', '16'], ['lb-T', '2'], ['lb-T', '10']]) { await p.select('#' + id, v); await p.click('#lb-i1000'); await scan('lab ' + id + v) }
   await p.click('#lb-reset'); await p.click('#lb-wl button[data-m=rnd]'); await p.click('#lb-i1000');
   await p.screenshot({ path: `${shots}/lab-${scheme}-${width}.png`, fullPage: true });
-  // Inside real pages
-  await p.click('button[data-t=t-page]'); await sleep(200);
+  // Real pages, now inline in Reading (sections 1 and 5), and the static figures' toggles
+  await p.click('button[data-t=t-read]'); await sleep(200);
   for (const i of [0, 10, 30, 51]) { await p.evaluate(i => document.querySelectorAll('#pg-slots tr[data-lp]')[i].click(), i); await scan('page slot ' + i) }
   await p.evaluate(() => document.querySelectorAll('#pg-strip [data-lp]')[5].click()); await scan('page strip');
-  for (const m of ['hot', 'full']) { await p.click(`#pg-upd button[data-m=${m}]`); await scan('page upd ' + m) }
+  for (const m of ['hot', 'full']) { await p.evaluate(m => document.querySelector(`#pg-upd button[data-m=${m}]`).click(), m); await scan('page upd ' + m) }
   const nb = await p.$$eval('#pg-chain button', es => es.length);
   for (let i = 0; i < nb; i++) { await p.evaluate(i => document.querySelectorAll('#pg-chain button')[i].click(), i); await scan('page chain ' + i) }
-  await p.screenshot({ path: `${shots}/page-${scheme}-${width}.png`, fullPage: true });
+  for (const m of ['bad', 'good']) { await p.evaluate(m => document.querySelector(`#rd-cmp-mode button[data-m=${m}]`).click(), m); await scan('composite ' + m) }
+  await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true)); await sleep(150); await scan('read, all details open');
   await p.click('button[data-t=t-more]'); await sleep(100); await scan('more');
   const links = await p.$$eval('#t-more a[href^=http]', es => es.filter(a => a.target !== '_blank').length); if (links) probs.push(links + ' links without target');
   console.log(scheme, width, 'errors', JSON.stringify(errs), 'problems', probs.length); probs.slice(0, 15).forEach(x => console.log('  ' + x));

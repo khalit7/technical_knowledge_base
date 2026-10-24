@@ -18,7 +18,7 @@
   const name=p=>p==='R'?'index root':p==='I'?'inner page':'table page '+p.slice(1);
   const svg=document.getElementById('rd-clk-svg'),cap=document.getElementById('rd-clk-cap'),cnt=document.getElementById('rd-clk-cnt');
   function draw(k){
-    const s=steps[k],W=RD.width(svg),H=W<480?250:230,cx=W/2,cy=H/2,R=Math.min(cx-46,cy-34);
+    const s=steps[k],W=RD.width(svg),H=300,cx=W/2,cy=H/2,R=Math.min(cx-40,cy-26);
     let b='';
     for(let i=0;i<N;i++){const a=-Math.PI/2+i*2*Math.PI/N,x=cx+R*Math.cos(a),y=cy+R*Math.sin(a),bb=s.buf[i];
       const hot=bb.p==='R'||bb.p==='I',on=i===s.slot,sw=s.swept.includes(i);
@@ -34,7 +34,7 @@
     if(s.ev==='start'){t='Eight empty buffers';p='Green dots are the usage count (0 to 5). The hand (red) points at the next buffer to examine.'}
     else if(s.ev==='hit'){t='Request: '+name(s.req)+'. Hit';p='Already in buffer '+(s.slot+1)+': no disk read. Its usage count rises to '+s.buf[s.slot].u+(s.buf[s.slot].u===CAP?' (the cap)':'')+'.'}
     else if(s.ev==='free'){t='Request: '+name(s.req)+'. Miss, free buffer';p='Read from disk into an empty buffer with usage count 1.'}
-    else{t='Request: '+name(s.req)+'. Miss, sweep and evict';p='The pool is full. The hand passed '+s.swept.length+' buffer'+(s.swept.length===1?'':'s')+' (red outline), taking one point from each, and evicted '+(s.victim?name(s.victim):'')+' at usage 0. The index root and inner page keep surviving: they are used often.'}
+    else{t='Request: '+name(s.req)+'. Miss, sweep and evict';p='The pool is full. '+(s.swept.length?'The hand passed '+s.swept.length+' buffer'+(s.swept.length===1?'':'s')+' (red outline), taking one point from each, and evicted ':'The hand found a buffer at usage 0 straight away and evicted ')+(s.victim?name(s.victim):'')+' at usage 0. The index root and inner page keep surviving: they are used often.'}
     cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
   }
   RD.anim({card:'rd-clk-card',ctl:'rd-clk-ctl',n:steps.length,draw,ms:1500,label:'Request'});
