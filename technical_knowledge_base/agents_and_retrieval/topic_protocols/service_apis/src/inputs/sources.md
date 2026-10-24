@@ -30,3 +30,14 @@ Primary sources fetched read-only; quotes on the page are verbatim from these.
 
 Release versions and dates for grpc, protobuf, OpenAPI and the GraphQL spec are the root atlas's (`../../src/atlas/atlas.json`).
 Not confirmed and not carried: AWS API Gateway and Lambda gRPC statements, Ray internals and Milvus using gRPC, SageMaker async as an LRO example.
+
+## Added 2026-10-24 (sections 2 to 7, concepts absorbed from Building a backend API)
+
+| Topic | Source | Used for |
+|---|---|---|
+| LLM API designs | https://developers.openai.com/api/docs/guides/migrate-to-responses (read 2026-10-24) | items, "Responses are stored by default", previous_response_id, function_call / function_call_output, tagging and strict defaults, "Chat Completions remains supported" |
+| Tool-call shapes | https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls ; OpenAI function calling guide (as recorded by Building a harness, read 2026-10-06) | tool_use / tool_result, arguments as a JSON string |
+| Rate limits | https://platform.claude.com/docs/en/api/rate-limits (read 2026-10-24) | RPM, ITPM, OTPM per model, token bucket, cache-aware ITPM, max_tokens not counted in OTPM, spend-cap 429 without retry-after and its error_code, anthropic-ratelimit-* headers |
+| Errors, idempotency, pagination, webhooks, versioning, OpenAPI | as cited by Building a backend API (read 2026-10-04): RFC 9457, Claude API errors and versioning, AIP-158, AIP-180, draft-ietf-httpapi-idempotency-key-header-07 and its datatracker entry, Stripe idempotent requests, advanced error handling, webhooks and API versioning posts, brandur.org/idempotency-keys, RateLimit header draft-11, Standard Webhooks spec, OpenAPI 3.2.0 | the facts of sections 2 to 6 |
+| SDK retries | the HTTP page's measured reading of the Anthropic 1.11.0 and OpenAI 3.24.0 Python SDK base client | connection errors, 408, 409, 429, 5xx retried without a key |
+| Postgres pagination cost | `inputs/pagination_pg.json`, copied from Building a backend API's `src/inputs/` (its `service/measure_pagination.py`, Postgres 16.2, 1M rows, 2026-10-04) | offset 98.142 ms against cursor 0.032 ms at depth 500,000 |

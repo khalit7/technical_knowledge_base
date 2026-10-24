@@ -1,29 +1,57 @@
-<section id="rd-s4">
-<h2>4. gRPC on the wire</h2>
-<p><b>The problem.</b> Protobuf gives you bytes; you still need a way to name the method, carry a deadline and credentials, stream messages both ways, and report how the call ended, all over connections that stay open for hours. gRPC (open-sourced by Google in 2015 from its internal Stubby; the root's atlas entry) answers by mapping every call onto one HTTP/2 stream ({{gRPC over HTTP/2 spec|https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md}}). If HTTP/2 streams, frames and HPACK are new, read {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}} section 5 first; here is what gRPC adds on top.</p>
-<h3>One server-streaming call, as recorded</h3>
-<p>The lab ran the running request as a gRPC call through a logging proxy that decodes every HTTP/2 frame (no packet capture needed: the proxy sits between client and server on the socket). The client asked for 5 tokens with a 2-second deadline. What crossed the wire, in order:</p>
-<div class="card" id="rd-grpcwire"></div>
-<p>Four things in that list are gRPC's own:</p>
-<ol>
-<li><b>The method is the path.</b> <code>:path /llm.v1.Inference/Generate</code> is <code>/package.Service/Method</code>; every call is a POST. Proxies can route on it like any URL.</li>
-<li><b><code>te: trailers</code> and <code>content-type: application/grpc</code>.</b> The first tells any proxy in between that the client understands <dfn id="g-trailer">trailers</dfn> (header fields sent <i>after</i> the body); the spec uses it "to detect incompatible proxies". A server that gets a non-gRPC content type should answer 415.</li>
-<li><b>A 5-byte prefix on every message.</b> The request DATA frame is <code>00 00 00 00 31</code> then 49 bytes of protobuf: one byte "compressed?" (0 = no), four bytes of length (0x31 = 49), then the message from section 3. Each token arrives the same way, 10 to 14 bytes in all. DATA frame boundaries need not match message boundaries, so a reader must parse by these prefixes, never by frames.</li>
-<li><b>The outcome comes last.</b> HTTP status is 200 even for failures; the real result is the trailer <code>grpc-status</code> (0 = OK) with <code>grpc-message</code>. When the call fails before any message, the server sends a single <dfn id="g-trailersonly">trailers-only</dfn> HEADERS frame: the recorded call to a method the server does not have came back as <code>:status 200</code>, <code>grpc-status 12</code>, <code>grpc-message Method not found!</code>, all in one frame.</li>
-</ol>
-<p>The other frames are HTTP/2 housekeeping: SETTINGS (both sides advertised a 4 MB window and frame size), WINDOW_UPDATE (flow control), and PINGs that gRPC sends to estimate the bandwidth-delay product and grow its windows (BDP probing; the root's Failure lab case "One stream's throughput is capped at window / round trip" shows why that matters on long links). The {{One gRPC call|#t-call}} tab steps through all three recorded connections frame by frame with every byte decoded.</p>
-<h3>Against REST and SSE, on the same request</h3>
-<div class="tw"><table id="rd-vsrest"><thead><tr><th>Part</th><th class="num">REST + SSE (root page)</th><th class="num">gRPC (this lab)</th><th>Why</th></tr></thead><tbody></tbody></table></div>
-<p class="small mute">REST figures are the root page's HTTP/1.1 recording (277-byte request, 771 bytes of SSE payload for the same five tokens). gRPC figures count HTTP/2 frame payloads on this page's recording; the first HEADERS on a fresh connection is large because HPACK's table is still empty, and later calls on the same connection shrink it (HTTP page, section 5).</p>
-<h3>Four shapes of call</h3>
-<div class="grid">
-<div class="sp"><div class="n">Unary</div><p>One request, one response: <code>rpc Who(WhoRequest) returns (WhoReply)</code>. Most calls.</p></div>
-<div class="sp"><div class="n">Server streaming</div><p>One request, many responses: the token stream above. The LLM case.</p></div>
-<div class="sp"><div class="n">Client streaming</div><p>Many requests, one response: upload audio chunks, get one transcript.</p></div>
-<div class="sp"><div class="n">Bidirectional</div><p>Both sides send whenever they like on one stream: realtime voice, Triton's sequence models, Envoy talking to an external processor (section 12).</p></div>
+<section id="rd-s7">
+<h2>7. LLM provider APIs: one design problem, three answers</h2>
+<p>Every LLM provider faces the same design problem: a conversation that grows each turn, model output that is sometimes text and sometimes a request to run a tool, and a result that has to come back paired with the call that asked for it. OpenAI's Chat Completions, OpenAI's Responses API, which replaced it as the recommended API ("While Chat Completions remains supported, Responses is recommended for all new projects"), and Anthropic's Messages API answer it differently. Same input in all three, one tool-call round trip: the user asks for the weather in Paris, the model calls <code>get_weather</code>, your code sends back "18 C, clear".</p>
+<div class="fig fmt" id="rd-llm">
+<div class="ft">Where the conversation lives, and what a tool call is, differ more than the field names</div>
+<div class="seg" id="rd-llmseg"><button data-m="cc" class="on">Before: Chat Completions</button><button data-m="re">After: Responses</button><button data-m="me">Anthropic Messages</button></div>
+<div data-f="cc">
+<h5>1. Request</h5><pre>POST /v1/chat/completions
+{"model": "...", "messages": [{"role": "user", "content": "Weather in Paris?"}],
+ "tools": [{"type": "function", <span class="x">"function": {"name": "get_weather", "parameters": {...}}</span>}]}</pre>
+<h5>2. The model asks for a tool</h5><pre>"choices": [{"message": {"role": "assistant",
+   <span class="x">"tool_calls": [{"id": "call_1", "type": "function",
+     "function": {"name": "get_weather", "arguments": "{\"city\":\"Paris\"}"}}]</span>},
+  "finish_reason": "tool_calls"}]</pre>
+<h5>3. Your code sends the result</h5><pre>POST /v1/chat/completions
+{"messages": [ <span class="x">...the whole history again...</span>,
+  {"role": "tool", "tool_call_id": "call_1", "content": "18 C, clear"}], "tools": [...]}</pre>
+<p class="small">The call is a field on an assistant message; <code>arguments</code> is a JSON <i>string</i> the model wrote, so your code parses it and must handle invalid JSON. The client resends the whole conversation every turn; tool definitions are externally tagged (<code>{"type":"function","function":{...}}</code>) and "non-strict by default".</p>
 </div>
-<p>All four are one HTTP/2 stream; the shape only changes how many length-prefixed messages each side sends before closing its half. That is why gRPC needs HTTP/2: HTTP/1.1 cannot carry a request body and a response body at the same time on one connection, and has no trailers that every client honours.</p>
-<h3>Channels, stubs and the connection underneath</h3>
-<p>In client code you create a <dfn id="g-channel">channel</dfn> to a target (<code>grpc.insecure_channel("127.0.0.1:30500")</code>) and a stub on it. The channel resolves the name, opens a connection per backend address (a <dfn id="g-subchannel">subchannel</dfn>), keeps them alive, reconnects with backoff, and multiplexes every call as a new stream. Creating a channel is expensive (TCP, maybe TLS, SETTINGS); a call is cheap. So: one channel per target, shared and reused, never one per call. gRPC's {{performance guide|https://grpc.io/docs/guides/performance/}} says the same. The flip side of reuse is that a channel's connection lives a long time, which is exactly what confuses load balancers (section 8). Cross-cutting work (attaching credentials, logging, metrics, tracing) goes in <b>interceptors</b>, gRPC's middleware that wraps every call on a channel or server; credentials themselves (per-call tokens, TLS and mTLS on the channel) are on the {{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}} page.</p>
-<div class="deepnote"><b>Go deeper (optional).</b> The wire spec, {{PROTOCOL-HTTP2.md|https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md}}, is 300 lines and readable. Inspect a live service with {{grpcurl|https://github.com/fullstorydev/grpcurl}} (needs server reflection, section 7) or with plain curl, as the root's atlas recording does for a health check.</div>
+<div data-f="re" hidden>
+<h5>1. Request</h5><pre>POST /v1/responses
+{"model": "...", "input": "Weather in Paris?",
+ "tools": [{"type": "function", <span class="x">"name": "get_weather", "parameters": {...}</span>}]}</pre>
+<h5>2. The model asks for a tool</h5><pre>{"id": "resp_1", "output": [
+  <span class="x">{"type": "function_call", "call_id": "call_1", "name": "get_weather",
+   "arguments": "{\"city\":\"Paris\"}"}</span>]}</pre>
+<h5>3. Your code sends the result</h5><pre>POST /v1/responses
+{<span class="x">"previous_response_id": "resp_1"</span>,
+ "input": [{"type": "function_call_output", "call_id": "call_1", "output": "18 C, clear"}]}</pre>
+<p class="small">Everything is a typed <b>item</b> ("Items are distinct from one another and better represent the basic unit of model context"): messages, function calls, their outputs and reasoning are siblings in one list. The server can hold the conversation: "Responses are stored by default", and <code>previous_response_id</code> lets OpenAI "manage prior response context", so step 3 sends only the new item. Definitions are internally tagged, and "omitting <code>strict</code> attempts strict mode". Arguments are still a JSON string.</p>
+</div>
+<div data-f="me" hidden>
+<h5>1. Request</h5><pre>POST /v1/messages        anthropic-version: 2023-06-01
+{"model": "...", "max_tokens": 1024, "messages": [{"role": "user", "content": "Weather in Paris?"}],
+ "tools": [{<span class="x">"name": "get_weather", "input_schema": {...}</span>}]}</pre>
+<h5>2. The model asks for a tool</h5><pre>{"content": [
+  <span class="x">{"type": "tool_use", "id": "toolu_1", "name": "get_weather", "input": {"city": "Paris"}}</span>],
+ "stop_reason": "tool_use"}</pre>
+<h5>3. Your code sends the result</h5><pre>POST /v1/messages
+{"messages": [ <span class="x">...the whole history again...</span>,
+  {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_1", "content": "18 C, clear"}]}],
+ "tools": [...]}</pre>
+<p class="small">A turn's content is a list of typed <b>blocks</b> (text, <code>tool_use</code>, thinking), so text and calls interleave in one message. <code>input</code> is a parsed JSON <i>object</i>; the result goes back as a <code>tool_result</code> block in the next user message. Stateless: the client resends the history (prompt caching makes the repeated prefix cheap). The version is a date header, and <code>max_tokens</code> is required.</p>
+</div>
+<p class="cap">Shapes from OpenAI's {{migration guide|https://developers.openai.com/api/docs/guides/migrate-to-responses}} (quotes read 2026-10-24) and function-calling guide, and Anthropic's {{handle tool calls|https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls}} page; model names omitted, ids and values illustrative. Highlighted: what differs.</p>
+</div>
+<div class="tw"><table>
+<thead><tr><th>Design choice</th><th>Chat Completions</th><th>Responses</th><th>Messages</th><th>What it costs or buys</th></tr></thead>
+<tbody>
+<tr><td>Where the conversation lives</td><td>Client resends it</td><td>Server can hold it (<code>store</code>, <code>previous_response_id</code>)</td><td>Client resends it</td><td>Stateless: any replica can answer, nothing to delete, but the payload grows every turn. Stateful: small requests and hidden reasoning can carry over, but data retention, region and a provider-held state you cannot replay elsewhere</td></tr>
+<tr><td>Unit of output</td><td>One message with optional <code>tool_calls</code></td><td>A list of typed items</td><td>A list of typed content blocks</td><td>Typed parts let text, calls and reasoning interleave and let streams name what is arriving</td></tr>
+<tr><td>Tool arguments</td><td>JSON string</td><td>JSON string</td><td>JSON object</td><td>A string preserves exactly what the model wrote; an object means the server parsed it for you</td></tr>
+<tr><td>Pairing call and result</td><td><code>tool_call_id</code></td><td><code>call_id</code></td><td><code>tool_use_id</code></td><td>Ids let several calls run in parallel and return in any order</td></tr>
+<tr><td>Versioning</td><td>Path <code>/v1</code></td><td>Path <code>/v1</code></td><td>Path plus <code>anthropic-version</code> date</td><td>Section 2</td></tr>
+</tbody></table></div>
+<p>The pattern to take away is the stateless-against-stateful choice (section 2's REST constraint, bought or given up), and typed parts over bare strings. Translation between formats loses whatever one has and the other lacks (cache breakpoints, thinking blocks and their signatures, reasoning items): {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}} records a gateway sending the same request as Responses or Chat Completions depending on a prefix. How these formats become tokens inside the model, and the open-model template that has no ids at all, is {{Building a harness|n:3c65c17b0d0d817ca14fc32338707c2f}}'s; their streaming events are {{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}'s.</p>
 </section>

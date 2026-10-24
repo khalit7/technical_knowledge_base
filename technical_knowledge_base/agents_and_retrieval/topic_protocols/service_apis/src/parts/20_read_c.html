@@ -1,20 +1,43 @@
-<section id="rd-s2">
-<h2>2. REST: the front door's style</h2>
-<p><b>The problem it solves.</b> A public LLM API is called by curl, by Python and TypeScript SDKs, by browsers, by no-code tools, through corporate proxies you have never seen. The only thing they all share is HTTP. REST says: use HTTP's own vocabulary and nothing else, and every one of those clients already knows how to call you.</p>
-<p><b>What REST actually is.</b> Not a protocol and not a spec: an architectural style Roy Fielding described in chapter 5 of his 2000 dissertation to explain why the web scaled ({{Fielding, chapter 5|https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm}}). Its constraints, each with the property it buys:</p>
-<ul class="tight">
-<li><b>Resources, not functions.</b> Anything nameable gets a URL (<code>/v1/models/claude-x</code>); you transfer <i>representations</i> of it (JSON) rather than calling a procedure.</li>
-<li><b>A uniform interface.</b> A small fixed set of verbs with universal meaning: GET is safe and cacheable, PUT and DELETE are idempotent, POST is neither. This, not JSON, is the deepest difference from RPC: every intermediary knows what a GET may do.</li>
-<li><b>Statelessness.</b> Each request carries everything needed (the API key, the full conversation); the server keeps no session between requests, which is what lets any replica answer any request.</li>
-<li><b>Cacheable and layered.</b> Because meaning is visible in the method and headers, proxies and caches can sit in between without understanding your app.</li>
-<li><b>Hypermedia</b> (HATEOAS: responses carry links to the next actions). The least followed constraint; the human web of HTML links and forms is its one mass deployment.</li>
-</ul>
-<p><b>REST as practised</b> is resource-shaped HTTP with JSON, not Fielding-complete REST; "HTTP API" is the honest name. Martin Fowler's write-up of Leonard Richardson's maturity levels is the usual yardstick ({{Fowler, 2010|https://martinfowler.com/articles/richardsonMaturityModel.html}}): level 0 is one endpoint taking POSTs (RPC in JSON), level 1 adds resources with their own URLs, level 2 uses the HTTP verbs and status codes properly, level 3 adds hypermedia links. Level 2 is where almost every good API stops. The running request is level 2 with one twist: <code>POST /v1/messages</code> creates nothing you can GET later; it is really a function call wearing a resource's URL, which is fine. For actions that are not create, read, update or delete, Google's API rules use a <code>:verb</code> suffix on the resource, such as <code>POST /v1/{name=publishers/*/books/*}:archive</code> ({{AIP-136|https://google.aip.dev/136}}).</p>
-<div class="grid">
-<div class="sp"><div class="n">Long-running work</div><p>When a call takes minutes, answer at once with a handle to poll: Google returns an <code>Operation</code> resource ({{AIP-151|https://google.aip.dev/151}}); plain HTTP says <code>202 Accepted</code> (accepted, not done). Anthropic's Message Batches API is this pattern: a batch starts <code>in_progress</code>, you poll until <code>ended</code>, results stay for 29 days ({{Claude docs, batch processing|https://docs.claude.com/en/docs/build-with-claude/batch-processing}}).</p></div>
-<div class="sp"><div class="n">Describing it: OpenAPI</div><p>A machine-readable list of paths, parameters, schemas and auth schemes, from which docs, SDKs and tests are generated. Current version 3.2.1 (10 September 2026; the root's {{Protocol atlas|n:3c65c17b0d0d81ec9355f4eecd6eed02}} entry). FastAPI writes one for you; the {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}} page walks through it.</p></div>
-<div class="sp"><div class="n">Errors and the QUERY method</div><p>RFC 9457 problem details is the standard JSON error shape. RFC 10008 (June 2026) adds <code>QUERY</code>: a safe, idempotent request that carries a body, so a search or a GraphQL query no longer has to choose between a huge URL and a non-cacheable POST (atlas entry, checked against the RFC).</p></div>
+<section id="rd-s3">
+<h2>3. OpenAPI and schema-first design: the contract as data</h2>
+<p>Without a written contract, clients and servers drift apart silently: a renamed field is found by a customer, not a compiler. A schema turns the contract into data that tools check. For REST that is an <b>OpenAPI</b> document (paths, methods, parameters, request and response schemas, auth schemes); for gRPC it is the <code>.proto</code> file (section 8); for GraphQL its SDL. Everything else is generated from it:</p>
+<div class="fig" id="rd-schema">
+<div class="ft">One schema, five things that can no longer drift from it</div>
+<div id="rd-schemasvg"></div>
+<p class="cap">The fan-out is the same for an OpenAPI document and a <code>.proto</code> file; only the tools differ (OpenAPI Generator and commercial generators, oasdiff; <code>protoc</code>, buf breaking).</p>
 </div>
-<p><b>What REST does not give you</b>, and the rest of this page supplies for internal calls: a required contract (clients and servers drift apart silently), compact encoding (section 3 measures JSON at 2.4 times protobuf for the running request), a deadline that travels with the call (section 5), and streaming in both directions (the LLM APIs add SSE for one direction; {{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}} owns that).</p>
-<div class="deepnote"><b>Go deeper (optional).</b> Designing a REST API well (resource names, pagination, filtering, versioning, idempotency keys, rate-limit headers) is the whole of {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}; Stripe's {{API reference|https://docs.stripe.com/api}} is the best example to copy. Status codes, caching and retries at the protocol level: {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}}.</div>
+<p><b>Code-first</b> writes the server and exports the spec (FastAPI serves one at <code>/openapi.json</code>); <b>schema-first</b> writes the spec, reviews it like code, and generates server stubs and clients from it. Larger organisations with many teams tend to the second, because the review happens before anyone depends on the shape, and a CI job that diffs the new spec against the published one fails the build when a field disappears. Several API companies, LLM providers among them, generate their official SDKs from an OpenAPI spec with commercial generators. OpenAPI 3.1 aligned its schemas with JSON Schema; 3.2.0 (19 September 2025) added sequential and streaming media types such as <code>text/event-stream</code>, so SSE endpoints can finally be described; the current release is 3.2.1 (10 September 2026, the root's {{Protocol atlas|n:3c65c17b0d0d81ec9355f4eecd6eed02}} entry).</p>
+</section>
+<section id="rd-s4">
+<h2>4. Idempotency keys and retries across services</h2>
+<p>The user presses Send; after 30 seconds nothing has come back. Either the request never arrived, or it arrived, the model answered, the credits were charged and the reply was lost. The client sees the same timeout in both cases: retrying risks paying twice, not retrying risks losing the message. GET, PUT and DELETE may be retried because they are idempotent; generation is a POST. An <dfn id="g-ikey2">idempotency key</dfn> makes one POST idempotent: the client generates a unique value per logical action, sends it on every retry of that action, and the server answers repeats from what it stored the first time. Same input, with and without the key:</p>
+<div class="fig" id="rd-idem">
+<div class="ft">The retry is harmless only when the server remembers the key</div>
+<div class="seg" id="rd-idemseg"><button data-m="0" class="on">Before: no key</button><button data-m="1">After: Idempotency-Key</button></div>
+<div id="rd-idemsvg"></div>
+<div class="an-ctl" id="rd-idemctl"></div>
+<div class="an-cap" id="rd-idemcap"></div>
+<p class="cap">The mechanism follows Stripe's design ({{Stripe, idempotent requests|https://docs.stripe.com/api/idempotent_requests}}; {{Brandur Leach, 2017|https://brandur.org/idempotency-keys}}); credits, ids and timings are illustrative.</p>
+</div>
+<p><b>The server side, in three steps.</b> (1) <b>Claim the key atomically</b>: insert (user, key, request fingerprint, status <code>started</code>) under a unique constraint, so exactly one of two simultaneous attempts wins; never "select, and if absent insert", which races. (2) <b>If it exists, compare and replay</b>: a different fingerprint means the client reused a key for a different action (422); <code>started</code> means the first attempt is still running (409, retry later); <code>done</code> means return the stored status and body (Stripe marks it <code>Idempotent-Replayed: true</code>). (3) <b>Do the work and store the result in one transaction</b>, so the message, the charge and the stored response commit together. Then release the claim on every exit that did not store a response, and give claims an expiry, or a crash between steps 1 and 3 leaves the key stuck at <code>started</code> and every retry gets 409 forever ({{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}} found and measured exactly that bug in the Building a backend API demo).</p>
+<details class="xc"><summary>Depth: what the IETF draft and Stripe each specify</summary><div>
+<div class="tw"><table>
+<thead><tr><th>Question</th><th>IETF draft (draft-07, 2025-10-15)</th><th>Stripe (docs, read 2026-10-04)</th></tr></thead>
+<tbody>
+<tr><td>Key format</td><td>"It is RECOMMENDED that a UUID or a similar random identifier be used"</td><td>V4 UUIDs suggested; up to 255 characters; never personal data</td></tr>
+<tr><td>Same key, different request</td><td>422</td><td>An error</td></tr>
+<tr><td>Retry while the first runs</td><td>409</td><td>409</td></tr>
+<tr><td>What is stored</td><td>The resource's choice; fingerprint the request</td><td>Status code and body of the first request, "regardless of whether it succeeds or fails", 500s included</td></tr>
+<tr><td>Expiry</td><td>"SHOULD define such expiration policy and publish it"</td><td>Keys pruned after at least 24 hours</td></tr>
+</tbody></table></div>
+<p class="small mute">The Idempotency-Key header is not an RFC: the IETF draft reached revision 07 and is listed as expired ({{datatracker|https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/}}, checked 2026-10-04), though its implementation list names Stripe, Adyen, PayPal, Square, Twilio and others. Use the header name; do not cite it as a standard.</p>
+</div></details>
+<h3>Across services: one retry layer, one deadline, one key</h3>
+<p>Behind the front door the same request crosses a router and an inference service, and each hop has a client that could retry. Three rules keep that safe:</p>
+<ul class="tight">
+<li><b>Retry at one layer.</b> If three layers each make 3 attempts, one failing call becomes 3 &times; 3 &times; 3 = <b>27 attempts</b> at the bottom, arriving exactly when the bottom is already failing (attempts multiply: <i>a</i><sup><i>L</i></sup> for <i>a</i> attempts at each of <i>L</i> layers). Retry at the edge, or in the client closest to the failure, and let the others fail fast. Retry budgets and circuit breakers that cap this system-wide are {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}'s.</li>
+<li><b>Every attempt shares the original deadline.</b> gRPC's deadline "applies across all attempts" (section 11); a retry that resets the clock outlives the user who asked.</li>
+<li><b>Pass the key down.</b> A retried front-door request must not become a second charge two hops down, so the service that owns the side effect (the billing call, the outbox row) receives a key derived from the caller's, and dedupes on it. When the side effect leaves your database (a payment provider, a message queue), store the intent and the key first and send later: the outbox pattern on {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}.</li>
+</ul>
+<p>The official Anthropic and OpenAI Python SDKs retry connection errors, 408, 409, 429 and 5xx themselves, with no idempotency key; {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}} section 10 measures their attempts, and is the owner of retry safety at the protocol level.</p>
 </section>

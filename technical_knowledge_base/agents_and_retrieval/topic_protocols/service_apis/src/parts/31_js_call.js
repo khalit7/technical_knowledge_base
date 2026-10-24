@@ -1,6 +1,6 @@
-// ---- Tab "One gRPC call": step through every recorded HTTP/2 frame, decode gRPC messages ----
+// ---- Reading section 9, "One gRPC call" (moved from its own tab on 2026-10-24): step through every recorded HTTP/2 frame, decode gRPC messages ----
 (function(){
-  const S=window.SA,esc=RD.esc;if(!document.getElementById('t-call'))return;
+  const S=window.SA,esc=RD.esc;if(!document.getElementById('rd-call'))return;
   const CONNS=S.frames.conns.map(c=>c.filter(f=>f.type!=='TCP_OPEN'));
   const SCHEMA={req:{1:['model','s'],2:['messages','m',{1:['role','s'],2:['content','s']}],3:['max_tokens','v'],4:['stream','v']},
     tok:{1:['text','s'],2:['index','v']},hreq:{1:['service','s']},hres:{1:['status','v']}};
@@ -43,7 +43,7 @@
   function draw(i){const c=CONNS[conn],f=c[i];
     document.getElementById('cl-det').innerHTML=detail(f);
     [...list.children].forEach((r,k)=>{r.classList.toggle('cur',k===i);r.classList.toggle('fut',k>i)});
-    const cur=list.children[i];if(cur&&list.offsetParent){const top=cur.offsetTop-list.offsetTop;if(top<list.scrollTop||top>list.scrollTop+list.clientHeight-30)list.scrollTop=Math.max(0,top-60)}}
+    const cur=list.children[i];if(cur&&list.offsetParent&&list.scrollHeight>list.clientHeight){const top=cur.offsetTop-list.offsetTop;if(top<list.scrollTop||top>list.scrollTop+list.clientHeight-30)list.scrollTop=Math.max(0,top-60)}}
   function build(){const c=CONNS[conn];
     list.innerHTML=c.map((f,k)=>'<div class="fr '+(f.dir==='c>s'?'c':f.dir==='s>c'?'s':'x')+'" data-k="'+k+'"><span class="ms">'+f.ms.toFixed(1)+'</span><span>'+(f.dir==='c>s'?'&rarr;':f.dir==='s>c'?'&larr;':'&middot;')+'</span><span class="ty"><b>'+f.type+'</b>'+(f.stream?' s'+f.stream:'')+(f.flags&&f.flags.length?' '+f.flags.join(','):'')+(f.type==='HEADERS'?' '+esc((f.headers.find(x=>x[0]===':path'||x[0]===':status'||x[0]==='grpc-status')||[''])[0]+' '+(f.headers.find(x=>x[0]===':path'||x[0]===':status'||x[0]==='grpc-status')||['',''])[1]):'')+(f.type==='DATA'?' '+f.len+' B':'')+'</span></div>').join('');
     const a=S.frames.app[conn];
@@ -51,6 +51,6 @@
       '<div><b>On the wire</b><br>'+c.filter(f=>f.stream!==undefined).length+' frames, '+c.filter(f=>f.dir==='c>s').reduce((x,f)=>x+(f.len||0),0)+' payload bytes sent, '+c.filter(f=>f.dir==='s>c').reduce((x,f)=>x+(f.len||0),0)+' received (plus 9 bytes of frame header each)</div>'}
   list.addEventListener('click',e=>{const r=e.target.closest('.fr');if(r&&A)A.go(+r.dataset.k)});
   build();
-  A=RD.anim({card:'cl-det',ctl:'cl-ctl',n:CONNS[0].length,ms:900,draw,label:'Frame',tab:'t-call'});
+  A=RD.anim({card:'cl-det',ctl:'cl-ctl',n:CONNS[0].length,ms:900,draw,label:'Frame'});
   RD.seg(document.getElementById('cl-seg'),m=>{conn=+m;build();A.reset(CONNS[conn].length)});
 })();

@@ -1,4 +1,4 @@
-// ---- Reading, part B: the deadline animation, failures, retries, pings, balancing tables, GraphQL, drills, glossary ----
+// ---- Reading, part B: the deadline animation, failures, retries, pings, balancing tables, GraphQL, drills ----
 (function(){
   const S=window.SA,esc=RD.esc,set=(id,h)=>{const e=document.getElementById(id);if(e)e.innerHTML=h};
   // ---- deadlines: one abandoned request, four endings ----
@@ -37,7 +37,7 @@
   let A=null;
   if(document.getElementById('rd-dl')){
     A=RD.anim({card:'rd-dl',ctl:'rd-dlctl',n:N,ms:420,draw,label:'Time step'});
-    RD.seg(document.getElementById('rd-dlseg'),m=>{mode=+m;A.reset(N);A.play()});
+    RD.seg(document.getElementById('rd-dlseg'),m=>{mode=+m;A.reset(N)});
   }
   // ---- failures as the client sees them ----
   const ft=document.getElementById('rd-fails');
@@ -75,23 +75,4 @@
     d.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
       d.querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.o===d.dataset.ans)x.classList.add('right')});
       if(b.dataset.o!==d.dataset.ans)b.classList.add('wrong');rev.hidden=false}))});
-  // ---- glossary from the terms defined in the text ----
-  const G={'g-schema':'A machine-readable description of the messages and operations an API accepts.','g-idl':'Interface definition language: the language a schema is written in (.proto files, OpenAPI, GraphQL SDL).',
-    'g-ser':'Turning an in-memory object into bytes and back (JSON, protobuf).','g-stream':'A sequence of messages in one call, instead of exactly one each way.',
-    'g-deadline':'The time after which the caller no longer wants an answer; gRPC sends it as grpc-timeout and every hop passes on what is left.',
-    'g-rpc':'Remote procedure call: calling a function in another process as if it were local.','g-stub':'Generated client code that turns a method call into a network request.',
-    'g-servicer':'The server-side class you implement; generated code routes calls to it.','g-idem':'Doing it twice has the same effect as doing it once.',
-    'g-replica':'One running copy of a service.','g-lb':'Choosing which replica handles a connection or a call.',
-    'g-protobuf':'Protocol Buffers: Google\'s schema language and binary encoding.','g-fieldnum':'The number that identifies a protobuf field on the wire; never reuse one.',
-    'g-wiretype':'The 3 low bits of a protobuf tag saying how to read the value: VARINT, LEN, I32, I64.','g-varint':'An integer in 7-bit groups, low first, top bit set on every byte but the last.',
-    'g-trailer':'HTTP fields sent after the body; gRPC puts grpc-status there.','g-trailersonly':'A gRPC response with no messages: status, content type and grpc-status in one HEADERS frame.',
-    'g-channel':'A gRPC client\'s handle on a target: resolves names, holds connections, multiplexes calls.','g-subchannel':'One connection from a channel to one backend address.',
-    'g-svcconfig':'JSON configuration for a gRPC client: retry policy, load-balancing policy, timeouts per method.',
-    'g-keepalive':'An HTTP/2 PING on a quiet connection to detect that it died.','g-resolver':'The GraphQL function that produces one field\'s value.',
-    'g-n1':'One query for a list, then one per item: N+1 backend calls.','g-dataloader':'A per-request helper that batches and caches the keys resolvers ask for.',
-    'g-persisted':'GraphQL queries registered in advance and sent by hash; the server rejects anything else.'};
-  const gl=document.getElementById('rd-gl');
-  if(gl){const items=[...document.querySelectorAll('#t-read dfn[id]')].map(d=>[d.textContent.trim(),d.id]).filter(x=>G[x[1]]);
-    items.sort((a,b)=>a[0].localeCompare(b[0],'en',{sensitivity:'base'}));
-    gl.innerHTML=items.map(x=>'<div><b><a href="#'+x[1]+'">'+esc(x[0])+'</a></b>: '+G[x[1]]+'</div>').join('')}
 })();

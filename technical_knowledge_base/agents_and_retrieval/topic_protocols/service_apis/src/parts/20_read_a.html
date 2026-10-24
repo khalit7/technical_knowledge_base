@@ -1,31 +1,41 @@
-<section id="rd-one">
-<h2>Service APIs in one screen</h2>
-<p class="lead">When you send the root page's request, <code>POST /v1/messages</code> with "What colour is the sky?", one program does not answer it. The front door checks your key, a router picks a GPU replica, an inference server generates tokens, and telemetry goes to a collector. Each arrow between those programs is an <b>API call</b>: an agreed way for one program to ask another to do something over the network. This page is about the arrows: what goes on the wire, how a call gives up, what its errors mean, and how calls get spread over many copies of a service.</p>
-<div class="card" id="rd-path">
-<div class="band">The running example, behind the front door</div>
-<div class="path" id="rd-pathbox"></div>
-<p class="small mute">Outside: REST and SSE, because anyone with curl must be able to call it. Inside: gRPC, because both ends are yours and the calls are many, typed and streaming. The labels are the ports and protocols real systems use (sources in section 12); the lab on this page builds the middle two hops and records every byte.</p>
+<section id="rd-top">
+<h2>The idea in one screen</h2>
+<p class="core">A service API is a contract for a call that can fail halfway. REST, gRPC and GraphQL write that contract down and put it on the wire differently, but every good API answers the same questions: <span class="em">what may be sent, how long the caller waits, what each failure means, whether a retry is safe, and which copy of the service answers</span>.</p>
+<div class="fig" id="rd-hero">
+<div class="ft">One LLM request crosses three API styles before a token comes back</div>
+<div id="rd-herosvg"></div>
+<p class="cap">The running example is the root page's request, <code>POST /v1/messages</code> with "What colour is the sky?". Outside the front door it is REST with SSE, because anyone with curl must be able to call it; inside it is gRPC, because both ends are yours and the calls are many, typed and streaming. Each label names the section that teaches it.</p>
 </div>
+<p><b>You need</b>: HTTP methods, status codes and HTTP/2 streams ({{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}}, sections 2 and 6), and what an SSE stream is ({{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}). Credentials on these calls are {{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}}'s; MCP's own use of JSON-RPC is {{MCP|n:3c65c17b0d0d813f9695dc4175c44cbb}}'s.</p>
+<p><b>New terms</b></p>
+<div class="terms">
+<div><dfn id="g-idem">Idempotent</dfn>: doing it twice has the same effect as once.</div>
+<div><dfn id="g-ikey">Idempotency key</dfn>: a client-chosen id that makes one POST safe to retry.</div>
+<div><dfn id="g-cursor">Cursor</dfn>: an opaque token meaning "the rows after the last one you saw".</div>
+<div><dfn id="g-schema">Schema</dfn> or <dfn id="g-idl">IDL</dfn>: a machine-readable description of messages and operations (OpenAPI, <code>.proto</code>, GraphQL SDL).</div>
+<div><dfn id="g-webhook">Webhook</dfn>: your server POSTs to a URL the client registered when an event happens.</div>
+<div><dfn id="g-fieldnum">Field number</dfn>: the integer that names a protobuf field on the wire; names never travel.</div>
+<div><dfn id="g-deadline">Deadline</dfn>: the moment after which the caller no longer wants the answer; gRPC passes what is left to each hop.</div>
+<div><dfn id="g-trailer">Trailers</dfn>: header fields sent after the body; gRPC puts its result there.</div>
+<div><dfn id="g-channel">Channel</dfn>: a gRPC client's long-lived handle on a target: names, connections, calls.</div>
+<div><b>L4 / L7 balancer</b>: chooses a replica once per TCP connection / once per call.</div>
+<div><dfn id="g-resolver">Resolver</dfn>: the GraphQL function that produces one field's value.</div>
+<div><dfn id="g-replica">Replica</dfn>: one running copy of a service.</div>
+</div>
+</section>
+<section id="rd-s1">
+<h2>1. What an API style decides</h2>
+<p>Two programs written by different teams must agree on what a request contains, how it becomes bytes, how the bytes travel, what shape a call has, and how it fails. An API style is a bundle of answers. Put the four styles you will meet side by side on those questions:</p>
 <div class="tw"><table>
-<thead><tr><th>Style</th><th>What travels</th><th>Contract</th><th>Best at</th><th>Costs</th></tr></thead>
+<thead><tr><th></th><th>REST (JSON over HTTP)</th><th>gRPC</th><th>GraphQL</th><th>JSON-RPC 2.0</th></tr></thead>
 <tbody>
-<tr><td><b>REST</b> (JSON over HTTP)</td><td>Resources with URLs, HTTP verbs, JSON bodies</td><td>Optional (OpenAPI)</td><td>Public APIs any client can call; caches and proxies understand it</td><td>Text is bulky to parse; no deadlines; streaming is an add-on (SSE)</td></tr>
-<tr><td><b>gRPC</b></td><td>Protobuf messages in HTTP/2 streams</td><td>Required <code>.proto</code> file, code generated</td><td>Internal calls you own at both ends; streaming; deadlines</td><td>Browsers cannot call it directly; L4 balancers pin it; binary is harder to read</td></tr>
-<tr><td><b>GraphQL</b></td><td>A query naming exactly the fields wanted, JSON back</td><td>Required typed schema</td><td>Many front ends reading overlapping data</td><td>N+1 backend calls, query cost limits, HTTP caching mostly lost</td></tr>
-<tr><td><b>JSON-RPC 2.0</b></td><td>A method name, params and an id, in JSON</td><td>None of its own</td><td>A tiny call format for any channel (MCP, A2A, editors)</td><td>Everything else (schema, streaming, transport) left to the protocol using it</td></tr>
+<tr><td><b>Contract</b></td><td>Optional: OpenAPI if you write one</td><td>A <code>.proto</code> file, required; code generated</td><td>A typed schema, required</td><td>None of its own</td></tr>
+<tr><td><b>Encoding</b></td><td>JSON text</td><td>Protobuf binary</td><td>JSON (a query names the fields)</td><td>JSON</td></tr>
+<tr><td><b>Transport</b></td><td>HTTP/1.1, 2 or 3</td><td>HTTP/2 only</td><td>Usually one HTTP POST endpoint</td><td>Any channel: stdio, WebSocket, HTTP</td></tr>
+<tr><td><b>Call shape</b></td><td>Request and response; SSE for a stream of events</td><td>Unary and three streaming shapes, native</td><td>Query, mutation, subscription</td><td>Request, response, notification</td></tr>
+<tr><td><b>Failure</b></td><td>HTTP status plus a JSON error body; no deadline</td><td>17 status codes in a trailer; deadlines built in</td><td>Usually 200 with an <code>errors</code> array</td><td>An <code>error</code> object with a numeric code</td></tr>
+<tr><td><b>Best at</b></td><td>Public APIs any client can call; caches and proxies understand it</td><td>Internal calls you own at both ends; streaming</td><td>Many front ends reading overlapping data</td><td>A tiny call format for MCP, A2A and editors</td></tr>
+<tr><td><b>Costs</b></td><td>Bulky text; contract drift if there is no spec</td><td>Browsers cannot call it directly; L4 balancers pin it</td><td>N+1 backend calls, query cost limits, HTTP caching mostly lost</td><td>Schema, streaming and transport left to whoever adopts it</td></tr>
 </tbody></table></div>
-<div class="co key"><div class="t">The ten things to remember</div>
-<ol>
-<li>gRPC is HTTP/2 underneath: every call is a <code>POST /package.Service/Method</code> stream, each message has a 5-byte prefix, and the result arrives in <b>trailers</b> (<code>grpc-status</code>) after the body. Section 4 shows the recorded frames.</li>
-<li>Protobuf sends field <i>numbers</i>, not names: the running request is 49 bytes against 117 in JSON (<span class="meas">measured</span>). Never reuse a field number: an old reader silently misreads it (section 3, measured).</li>
-<li>gRPC sets <b>no deadline by default</b>. Set one on every call and pass the remaining time on; without that, a GPU kept generating <span data-sa="deadline.3.inference.tokens_made"></span> tokens for a user who left after <span data-sa="deadline.3.client.tokens_received"></span> (section 5, measured).</li>
-<li>Status codes say who failed and whether a retry is safe. Retries are off unless a service config turns them on, and the deadline covers every attempt (section 6).</li>
-<li>One gRPC channel keeps one long-lived connection. An <b>L4</b> balancer chooses once per connection, so all 30 calls went to one replica; an <b>L7</b> balancer chose per call, 10/10/10 (section 8, measured).</li>
-<li>The default client policy, <code>pick_first</code>, also sends everything to one address even when it knows three. Ask for <code>round_robin</code> or use a proxy (section 8, measured).</li>
-<li>New replicas stay idle behind an L4 balancer until clients reconnect; <code>MAX_CONNECTION_AGE</code> forces that (section 8 and the {{Balancer lab|#t-lb}}).</li>
-<li>Browsers cannot speak gRPC's trailers: gRPC-Web, Connect and HTTP/JSON transcoding exist for that (section 9).</li>
-<li>GraphQL turns one query into many backend calls: 141 database calls for one innocent query, 4 with batching (section 10, measured).</li>
-<li>ML serving speaks all of these: OpenAI-compatible REST at the edge, gRPC into Triton, vLLM's new gRPC mode, OTLP telemetry, and a gRPC side channel that lets a gateway route by KV cache (section 12).</li>
-</ol></div>
-<p class="small mute">Neighbours own the rest: {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}} (HTTP/2 frames, flow control, proxies, timeouts and idempotency keys), {{Networking foundations|n:3c65c17b0d0d8117b21dcb9041879564}} (TCP underneath; gRPC sets TCP_NODELAY), {{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}} (credentials on these calls, mTLS), {{MCP|n:3c65c17b0d0d813f9695dc4175c44cbb}} (JSON-RPC as MCP uses it). API design (pagination, versioning, error envelopes) is on {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}; balancing algorithms and queueing on {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}.</p>
+<p><dfn id="g-rpc">RPC</dfn> (remote procedure call) makes a call on another machine look like a local one, <code>stub.Generate(request)</code>: a generated <dfn id="g-stub">stub</dfn> turns it into bytes, a server-side <dfn id="g-servicer">servicer</dfn> you fill in answers it. Its old trap is that a network call can be slow, half-done or lost in ways a local call never is, which is why sections 4, 10 and 11 exist. REST takes the other road: named things (resources) and a fixed set of verbs whose meaning (safe, idempotent, cacheable) every proxy already knows.</p>
 </section>
