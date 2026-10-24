@@ -23,3 +23,8 @@ The question the paper keeps returning to: does dropping PPO's critic for a grou
 | P-deepseekmath.17 | Long outputs in the toy (λ, length bias) | | | | rejected: enumerating outputs exactly needs 3 tokens; the GAE widget carries the length argument instead |
 
 What the methodology lacked here: a rule for when the paper's comparison is confounded (Rule against Model reward): the toy removes the confound by design and says so, rather than reproducing it.
+
+## 2026-10-25 light pass
+- P-deepseekmath.h1 (built): the hero, MATH at each stage (Base, Instruct, RL) against GPT-4 and the best earlier open model, beside PPO's four models against GRPO's three and one group's normalised rewards; static.
+- Moved, not new: the arXiv ablation chart and Figure 7 out of predict reveals into cards after their questions; the GAE reach and k3 gradient widgets into closed blocks (their mechanisms are owned by Policy gradients and actor-critic and are beyond the paper).
+- Rejected: embedding the paper's Figure 4 (arXiv non-exclusive licence); a real image (nothing physical to show).

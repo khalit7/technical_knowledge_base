@@ -75,7 +75,7 @@ fit($('mixSvg'),w=>{const parts=[['DeepSeekMath Corpus',56,'var(--c1)'],['GitHub
   let s='',x=0;const H=26;parts.forEach(([n,v,c])=>{const ww=w*v/100;s+=rc(x,0,ww-1,H,c,{r:3});if(ww>34)s+=tx(x+ww/2,H/2+4,v+'%',{fs:11,a:'middle',c:'#fff',w:'700'});x+=ww});
   let lx=0,ly=H+18;parts.forEach(([n,v,c])=>{const t=n+' '+v+'% = '+(v*5)+'B',lw=t.length*6.2+18;if(lx+lw>w){lx=0;ly+=16}s+=rc(lx,ly-9,10,10,c,{r:2})+tx(lx+14,ly,t,{fs:11});lx+=lw});
   $('mixSvg').innerHTML=svgW(w,ly+6,s,'500B-token data mix')});
-PRED_REVEAL['pr-arxiv']=()=>fit($('arxSvg'),w=>{const T=TB.T8,cols=[0,1,3,4],nm=['GSM8K','MATH','SAT','MMLU-STEM'];let s='';
+/* inline after its predict question since 2026-10-25 */ fit($('arxSvg'),w=>{const T=TB.T8,cols=[0,1,3,4],nm=['GSM8K','MATH','SAT','MMLU-STEM'];let s='';
   const groups=['DeepSeek-LLM 1.3B','DeepSeek-Coder-Base-v1.5 7B'],C={'No Math Training':'var(--dim)','MathPile':'var(--c4)','ArXiv-RedPajama':'var(--c2)'};
   const pw=w<520?w:(w-16)/2,ph=150;let out='';
   groups.forEach((g,gi)=>{const rows=T.rows.filter(r=>r.group===g);let t=tx(0,12,g,{fs:12,w:'700'});const bw=(pw-10)/(cols.length*4);
@@ -234,6 +234,6 @@ function figChart(el,fig,bench,o){o=o||{};fit(el,w=>{const P=FIGS[fig].panels[be
   names.forEach(n=>{s+=lineS(ser[n].map(p=>[xv(p[0]),p[1]]),f.X,f.Y,FCOL[n],{sw:1.8,da:n.startsWith('Pass')?'5 3':null});if(cat)ser[n].forEach(p=>{s+=dotS(f.X(xv(p[0])),f.Y(p[1]),3,FCOL[n],{t:n+' K='+p[0]+': '+p[1].toFixed(1)+'%'})})});
   el.innerHTML=svgW(w,H+lg.h,s,FIGS[fig].figure+' '+bench)})}
 (function(){let b5='GSM8K',b6='GSM8K',b7='MATH';const d5=()=>figChart($('f5Svg'),'combined_figure_rl',b5,{band:'GRPO+OS'}),d6=()=>figChart($('f6Svg'),'iter_rl',b6),d7=()=>figChart($('f7Svg'),'combined_MAJ_PASS',b7,{cat:true});
-  segOn('f5M',m=>{b5=m;d5()});segOn('f6M',m=>{b6=m;d6()});segOn('f7M',m=>{b7=m;d7()});d5();d6();PRED_REVEAL['pr-pass']=d7})();
+  segOn('f5M',m=>{b5=m;d5()});segOn('f6M',m=>{b6=m;d6()});segOn('f7M',m=>{b7=m;d7()});d5();d6();d7()})();  // Figure 7 sits inline after its predict question since 2026-10-25
 // compute the toy runs the PPO animation and the coefficient widget need, after first paint
 setTimeout(()=>{try{READTOY();refit($('ppoSvg'));window.__gcDraw()}catch(e){__jsErr(e.message)}},60);

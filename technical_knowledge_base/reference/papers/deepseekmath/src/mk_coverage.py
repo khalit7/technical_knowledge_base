@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "14 min read, +~4h 15m resources"', 'dropped: replaced by the build-computed reading time and resources total of the new page', ['min to read', 'of resources']),
+ ('Reading time line "14 min read, +~4h 15m resources"', 'replaced on 2026-10-25 by the standard subtitle, measured by audit_pages.mjs (reading.json)', ['Reading:', 'in closed details']),
  ('Authors/lab: Shao, Wang, Zhu, Xu, Song, et al. (DeepSeek-AI, with Tsinghua and Peking University)', R + ', headline card (full author list)', ['Zhihong Shao', 'Peiyi Wang', 'Qihao Zhu', 'Runxin Xu', 'Junxiao Song', 'DeepSeek-AI, with Tsinghua University and Peking University']),
  ('Date: February 2024 (arXiv v1; v3 April 2024)', R + ', headline card, with what each version changed', ['February 2024 (arXiv v1)', 'v3 April 2024']),
  ('Link arXiv 2402.03300 (~1h 30m, long paper)', 'card; Further reading', ['https://arxiv.org/abs/2402.03300', '(1h 30m)']),
