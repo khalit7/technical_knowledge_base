@@ -94,3 +94,6 @@ detection belongs to the decontamination page, and this page keeps only what ded
 ### Departures from the page-kind shape
 - No real image: the page is about algorithms; diagrams carry every mechanism, and no paper figure is the reference people cite here.
 - The Method comparer stays a tab because it runs every method of the page together.
+
+## Topic close (2026-10-24)
+The root was rebuilt as a map; this page's Further reading now quotes the root as "31 min, plus 7" and siblings as their headers, and its ledger keys that quoted old times were re-keyed. Card times were inline; all set to headers (the root's Dedup lab is 32 min).
