@@ -48,3 +48,6 @@ All in containers named `os-proc-*`, capped with `--cpus` and `--memory`, `--rm`
 - `node check_sim.mjs`: the tree simulator reproduces all 36 recorded fork.py trees and Linux's reparenting run; every descriptor script runs and ends as described.
 - `node .../src/check_ui.mjs <outdir>` (from the repo root): no animation moves before the reader acts; every control at 390 dark and 920 light, no errors, NaN, undefined or sideways scroll; screenshots.
 - `sh html_utils/checkpage.sh <folder>`.
+
+## Topic close (2026-10-24)
+Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.
