@@ -1,6 +1,6 @@
-// ---- Cache lab: a block-level simulator of Anthropic's documented prompt-caching rules ----
+// ---- Reading section 2: a block-level simulator of Anthropic's documented prompt-caching rules ----
 (function(){
-const root=document.getElementById('t-cache');if(!root)return;
+if(!document.getElementById('hcc-card'))return;
 const H=window.HCTX,E=RD.esc,$=id=>document.getElementById(id);
 const fmt=n=>Math.round(n).toLocaleString('en-US');
 const MODELS={haiku:{name:'Haiku 4.5',min:4096,inp:1,out:5,read:0.1},sonnet:{name:'Sonnet 5.5',min:512,inp:2,out:10,read:0.1}};
@@ -57,7 +57,7 @@ function drawReq(c){
 function drawChart(upto){
   const el=$('hcc-chart'),W=RD.width(el),h=200,pl=48,pr=48,pt=12,pb=22,iw=W-pl-pr,ih=h-pt-pb,C=st.calls,n=C.length;
   const max=Math.max(...C.map(c=>c.total))*1.05,bw=Math.max(3,Math.min(26,iw/n*0.7)),x=i=>pl+iw*(i+0.5)/n,y=v=>pt+ih*(1-v/max);
-  let cum=0,cb=0;const cums=C.map(c=>{cum+=c.usd;cb+=c.base;return [cum,cb]});const cmax=cums[n-1][1]*1.05||1,yc=v=>pt+ih*(1-v/cmax);
+  let cum=0,cb=0;const cums=C.map(c=>{cum+=c.usd;cb+=c.base;return [cum,cb]});const cmax=Math.max(cums[n-1][0],cums[n-1][1])*1.05||1,yc=v=>pt+ih*(1-v/cmax);
   let g='';
   [0,0.5,1].forEach(f=>{g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(max/1.05*f)+'" y2="'+y(max/1.05*f)+'" stroke="var(--line)"/>'+RD.t(pl-4,y(max/1.05*f)+4,Math.round(max/1.05*f/1000)+'k',{a:'end',fs:10,fill:'var(--mute)'})+RD.t(W-pr+4,yc(cmax/1.05*f)+4,'$'+(cmax/1.05*f).toFixed(3),{fs:10,fill:'var(--mute)'})});
   C.forEach((c,i)=>{if(i>upto)return;let y0=y(0);[['read','var(--c1)'],['write','var(--c5)'],['fresh','var(--c2)']].forEach(([k2,col])=>{const v=c[k2];if(!v)return;const hh=ih*v/max;g+='<rect x="'+(x(i)-bw/2)+'" y="'+(y0-hh)+'" width="'+bw+'" height="'+hh+'" fill="'+col+'"/>';y0-=hh})});
@@ -76,7 +76,7 @@ function draw(i){
   $('hcc-out').innerHTML=RD.stat('Cost so far','$'+cum.toFixed(4),'API-price equivalent, '+M.name)+RD.stat('Without caching','$'+cb.toFixed(4),'every input token at the base price')+RD.stat('Read from cache',(inp?Math.round(100*rd/inp):0)+'%','of input tokens so far');
 }
 let A=null;
-function run(){labels();st.o=opts();st.calls=simulate(st.o);if(A){A.reset(st.calls.length);A.go(RD.RM?st.calls.length-1:0);if(!RD.RM)A.play()}}
+function run(){labels();st.o=opts();st.calls=simulate(st.o);if(A){A.reset(st.calls.length);A.go(st.calls.length-1)}}
 ['hcc-vol','hcc-bp','hcc-model','hcc-ttl'].forEach(id=>$(id).addEventListener('change',()=>{st.extra=null;run()}));
 ['hcc-gap','hcc-xb','hcc-rs','hcc-n'].forEach(id=>$(id).addEventListener('input',()=>{run()}));
 const PRE={
@@ -87,8 +87,8 @@ const PRE={
 $('hcc-pre').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const p=PRE[b.dataset.p];
   $('hcc-vol').value=p.vol;$('hcc-bp').value=p.bp;$('hcc-model').value=p.model;$('hcc-ttl').value=p.ttl;$('hcc-gap').value=p.gap;$('hcc-xb').value=p.xb;$('hcc-rs').value=p.rs;$('hcc-n').value=p.n;st.extra=p.extra;run()});
 labels();st.o=opts();st.calls=simulate(st.o);
-A=RD.anim({tab:'t-cache',card:'hcc-card',ctl:'hcc-ctl',n:st.calls.length,start:RD.RM?st.calls.length-1:0,ms:1100,label:'Call',draw});
-RD.onResize(()=>A.redraw(),'t-cache');
+A=RD.anim({card:'hcc-card',ctl:'hcc-ctl',n:st.calls.length,ms:1100,label:'Call',draw});
+RD.onResize(()=>A.redraw());
 // check table: where the cached read stops, predicted by the rules against the recordings (first two calls of each variant)
 (function(){
   const el=$('hcc-check');if(!el)return;
