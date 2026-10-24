@@ -15,7 +15,7 @@ window.SeqMatch=function(a,b){
 window.MRCRgrade=function(resp,answer,prefix){if(!resp.startsWith(prefix))return {score:0,gate:false};
   const r=SeqMatch(resp.slice(prefix.length),answer.slice(prefix.length));return {score:r.ratio,gate:true,r}};
 (function(){
-const D=window.LD.mrcr,esc=RD.esc;if(!document.getElementById('t-mrcr'))return;
+const D=window.LD.mrcr,esc=RD.esc;if(!document.getElementById('mr-map'))return;
 const P=D.prefix,T=D.texts,ans=P+T.target;
 const ask='write a short scene in a play about blueberries';
 const PY={correct:1.0,other_needle:0.032376,no_prefix:0,same_format_other_topic:0.02684,first_half:0.666667,with_preamble:0.992184};
@@ -34,7 +34,7 @@ function build(){if(built)return;built=true;
   document.getElementById('mr-cands').innerHTML=C.map((c,k)=>'<button data-k="'+k+'">'+esc(c[1])+'</button>').join('');
   document.getElementById('mr-cands').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;load(+b.dataset.k)});
   document.getElementById('mr-resp').addEventListener('input',()=>grade(null));
-  show(D.needles[0]+1);load(0)}
+  show(D.needles[0]);load(0)}
 function show(i){const m=D.msgs[i];const el=document.getElementById('mr-detail');document.querySelectorAll('#mr-map span').forEach(s=>s.classList.toggle('on',+s.dataset.i===i));
   let t='Message '+i+' ('+(m[1]==='u'?'user':'assistant')+', '+m[2].toLocaleString('en-US')+' characters)\n\n';
   if(i===0)t+='Worked examples of the task, shown before the conversation (not embedded here).';
@@ -49,5 +49,5 @@ function grade(k){const v=document.getElementById('mr-resp').value;if(k===null){
   document.getElementById('mr-out').innerHTML=RD.stat('Score',g.score.toFixed(4),g.gate?'similarity ratio':'prefix '+P+' missing: 0')+RD.stat('Prefix gate',g.gate?'passed':'failed',P)+
     RD.stat('Matching characters',g.gate?g.r.M.toLocaleString('en-US'):'n/a',g.gate?g.r.blocks+(g.r.blocks===1?' block':' blocks'):'')+RD.stat('Lengths',g.gate?g.r.la.toLocaleString('en-US')+' vs '+g.r.lb.toLocaleString('en-US'):'n/a','reply vs target, prefix removed');
   document.getElementById('mr-py').textContent=cur!=null?('Python difflib on this preset: '+PY[C[cur][0]].toFixed(6)+' (recompute.py); this page: '+g.score.toFixed(6)+'.'):'Edited reply: graded live in the page.'}
-(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-mrcr']=window.TAB_RENDER['t-mrcr']||[]).push(build);
+build();
 })();

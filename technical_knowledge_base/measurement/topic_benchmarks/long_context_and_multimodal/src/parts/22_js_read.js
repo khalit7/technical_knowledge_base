@@ -1,4 +1,4 @@
-// ---- Reading tab: needle pair, lost in the middle, NoLiMa animation, MMMU animation, half-widths ----
+// ---- Reading tab: needle pair, lost in the middle, NoLiMa stepper, MMMU stepper ----
 (function(){
 const D=window.LD, esc=RD.esc;
 const C=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim()||'#888';
@@ -135,7 +135,5 @@ function mark(text,hitSet,missSet){return text.replace(/[A-Za-z0-9]+/g,w=>{const
   RD.onResize(()=>A.redraw());
 })();
 
-// 5. half-widths list
-(function(){const el=document.getElementById('hw-list');if(!el)return;
-  el.textContent=D.sizes.map(([b,n,p])=>b+' (n = '+n.toLocaleString('en-US')+', top '+p+'%): ±'+(1.96*Math.sqrt(p/100*(1-p/100)/n)*100).toFixed(1)).join('; ')})();
+
 })();

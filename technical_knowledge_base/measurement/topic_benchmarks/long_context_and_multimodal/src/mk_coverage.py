@@ -37,7 +37,7 @@ M = [
  ('atlas gdp_pdf', '100 tasks, 100 PDFs, 4,592 pages, 1,275 criteria; all-pass', ['4,592 pages', '1,275', 'every criterion passes']),
  ('atlas aa_lcr', 'AA-LCR v1.1, ~100K token document sets, judge', ['v1.1', '10K to 100K tokens', 'an LLM judges']),
  ('atlas ruler', 'dormant since Oct 2025, 128K max, vendors use MRCR', ['October 2025', 'vendors moved to MRCR']),
- ('atlas ruler', '13 tasks', ['13 in four categories']),
+ ('atlas ruler', '13 tasks', ['13 tasks in four categories']),
  ('atlas longbench_v2', '503 questions, 8K to 2M words, human 53.7, top 63.3 Gemini 2.5 Pro, no 2026 entries', ['503', '8K to 2M words', '53.7%', '63.3%', 'no 2026 model has been added']),
  ('atlas niah', 'no current frontier card reports it; MRCR replaced it', ['no 2026 card reports it']),
  ('atlas mrcr', '2,400 rows, 2/4/8 needles, 8 bins 4K to 1M, 100 each', ['2,400 rows', '2, 4 or 8', '100 per bin']),
