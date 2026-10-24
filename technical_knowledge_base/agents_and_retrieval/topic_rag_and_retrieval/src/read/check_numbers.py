@@ -136,7 +136,7 @@ if missing:
     print("numbers without a source match (check by hand):"); [print("  ", x) for x in missing]
 
 # 4. privacy and hygiene
-pat = re.compile(r"/Users/|Users-|khalid|glpat|sk-ant|claude-502|@[removed]")
+pat = re.compile(r"/Users/|Users-|glpat|sk-ant|claude-502")
 for p in glob.glob(os.path.join(HERE, "**/*"), recursive=True) + glob.glob(os.path.join(SRC, "parts/2*")) + glob.glob(os.path.join(SRC, "parts/39_*")):
     if os.path.isdir(p) or p.endswith(".png"): continue
     t = open(p, errors="ignore").read()

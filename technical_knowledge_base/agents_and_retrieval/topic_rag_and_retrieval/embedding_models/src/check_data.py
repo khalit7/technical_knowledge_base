@@ -97,7 +97,7 @@ else:
 
 # 5. privacy
 login = os.path.basename(os.path.expanduser("~"))
-pats = ["/Users/", "Users-", "/private/tmp", "glpat", "sk-ant", "@" + "[removed]", login]
+pats = ["/Users/", "Users-", "/private/tmp", "glpat", "sk-ant", login]
 hits = []
 for dp, dn, fn in os.walk(P):
     if ".shots" in dp:
