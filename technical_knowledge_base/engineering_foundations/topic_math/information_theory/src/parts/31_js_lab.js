@@ -54,6 +54,6 @@
   $('lab-u').addEventListener('change',e=>{base=e.target.value==='2'?2:Math.E;update()});
   $('lab-pre').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;root.querySelectorAll('#lab-pre button').forEach(x=>x.classList.toggle('on',x===b));preset(b.dataset.k)});
   preset('weather');
-  RD.onRender(update,'t-lab');
+  ((window.TAB_RENDER=window.TAB_RENDER||{})['t-lab']=window.TAB_RENDER['t-lab']||[]).push(update);
   addEventListener('resize',()=>{if(!root.hidden)update()});
 })();

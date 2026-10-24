@@ -35,6 +35,6 @@
   function all(){table();bars();toks();pref()}
   RD.seg($('re-txt'),m=>{txt=m;table();bars();toks()});
   RD.seg($('re-mod'),m=>{mi=+m;toks()});
-  RD.onRender(all,'t-real');
+  ((window.TAB_RENDER=window.TAB_RENDER||{})['t-real']=window.TAB_RENDER['t-real']||[]).push(all);
   addEventListener('resize',()=>{if(!root.hidden){bars();pref()}});
 })();

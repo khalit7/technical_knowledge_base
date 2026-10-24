@@ -249,3 +249,17 @@ OUT['ac_width'] = round(0.090 * 0.665 * 0.665, 4); OUT['ac_bits'] = round(-math.
 OUT['rl_r_cat'] = round(ref[0] / piq[0], 4); OUT['rl_r_sat'] = round(ref[2] / piq[2], 4)
 json.dump(OUT, open(os.path.join(HERE, 'inputs', 'numbers.json'), 'w'), indent=0)
 print({k: OUT[k] for k in ('fgan_js_generator','gpt2_tok_per_byte','ws_code','fr_bpc_qwen_conv','gpt2_params_fp16_ratio','ac_width','ac_bits','rl_r_cat','rl_r_sat','hb_0.99', 'hb_0.95', 'hb_0.7', 'hb_0.6', 'h_gauss01_nats', 'infogain')})
+
+# ---- additions (2026-10-24 rebuild): temperature (section 5), Pinsker on the tiny policy (section 10), hero ----
+def tempH(T, base=2): return H(softmax([2 / T, 1 / T, 0]), base)
+OUT['temp'] = {str(T): {'q': [round(x, 3) for x in softmax([2 / T, 1 / T, 0])], 'H_bits': round(tempH(T), 3)} for T in (0.5, 1, 2)}
+q1 = softmax([2, 1, 0]); m1 = sum(a * z for a, z in zip(q1, [2, 1, 0]))
+OUT['temp_var_T1'] = round(sum(a * (z - m1) ** 2 for a, z in zip(q1, [2, 1, 0])), 4)
+OUT['temp_dHdT_numeric_T1'] = round((tempH(1.0001, math.e) - tempH(0.9999, math.e)) / 0.0002, 4)
+OUT['temp_eff_choices_T1'] = round(2 ** tempH(1), 2)
+pi1 = [ref[i] * math.exp([0, 0, 1][i]) for i in range(3)]; Z1 = sum(pi1); pi1 = [v / Z1 for v in pi1]
+OUT['pinsker_tv'] = round(sum(abs(a - b) for a, b in zip(pi1, ref)) / 2, 4)
+OUT['pinsker_bound'] = round(math.sqrt(KL(pi1, ref, math.e) / 2), 4)
+OUT['hero_gap_bpb'] = round(M['texts']['en']['models']['openai-community/gpt2']['bpb'] - M['texts']['en']['models']['Qwen/Qwen2.5-0.5B']['bpb'], 4)
+json.dump(OUT, open(os.path.join(HERE, 'inputs', 'numbers.json'), 'w'), indent=0)
+print({k: OUT[k] for k in ('temp', 'temp_var_T1', 'temp_dHdT_numeric_T1', 'temp_eff_choices_T1', 'pinsker_tv', 'pinsker_bound', 'hero_gap_bpb')})

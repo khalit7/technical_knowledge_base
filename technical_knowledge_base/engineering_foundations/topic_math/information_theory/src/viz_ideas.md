@@ -1,5 +1,7 @@
 # Visualisation ideas: Information theory for ML
 
+Updated 2026-10-24 (rebuild to the teaching contract): section numbers below are the old ones; the Reading tab is now sections 1 to 12. IT13 and IT14 added; IT7 moved from old section 4 to section 11 (its point is the estimator collapse).
+
 Central question: what does a log-loss number mean, and which part of it can a model remove?
 
 | # | Idea | Score /16 | Data and formulas | Placement | Status |
@@ -16,6 +18,9 @@ Central question: what does a log-loss number mean, and which part of it can a m
 | IT10 | Real text tab: 4 models x 3 texts (tokens, PPL, BPB, BPC, whitespace tokens), PPL vs BPB ranks, first 40 tokens, prefix chart against compressors | 15 | score.py, comp.py | own tab | built |
 | IT11 | Same model, four perplexities (token, word, token pair, byte) | 13 | exact chain-rule construction | Reading s10 table | built |
 | IT12 | KL-regularised optimum table on the tiny model for 4 betas; k1/k2/k3 estimators | 11 | DPO App. A.1; Schulman 2020 | Reading s13 | built |
+| IT13 | Hero: cross-entropy split into floor and KL, two codes (exact) and GPT-2 against Qwen2.5 on one passage (the 0.153 bits per byte gap is all KL) | 14 | IT1 numbers; measured.json | top of Reading (static) | built 2026-10-24 |
+| IT14 | Temperature slider on z = (2, 1, 0): bars, entropy curve against T, dH/dT = Var(z)/T^3 | 12 | derived; recompute.py temp | Reading s5 (slider) | built 2026-10-24 |
+| R5 | Real photo or paper figure | | the subject is abstract; diagrams carry every mechanism | none | rejected |
 | R1 | Token-by-token perplexity strip under three tokenizers | | already on Evaluation metrics (EM7) | linked | rejected |
 | R2 | Sampler temperature/entropy explorer | | Sampling and Decoding's Sampler lab | linked | rejected |
 | R3 | Toy CLIP batch with temperature | | CLIP paper page | linked | rejected |

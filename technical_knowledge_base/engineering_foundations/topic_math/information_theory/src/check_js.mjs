@@ -58,5 +58,8 @@ for (const [beta, v] of Object.entries(N.rl)) {
   const o = IT.rlopt([0.665, 0.245, 0.090].map((x, i) => p[i]), [0, 0, 1], +beta);
   near('rl_pi_' + beta, o.pi.map(x => r(x, 3)), v.pi, 1e-3); near('rl_KL_' + beta, o.KL, v.KL); near('rl_obj_' + beta, o.obj, v.obj); near('rl_betalogZ_' + beta, +beta * Math.log(o.Z), v.betalogZ);
 }
+// temperature (section 5)
+for (const [T, v] of Object.entries(N.temp)) { const q = IT.softmax([2 / +T, 1 / +T, 0]); near('temp_q_' + T, q.map(x => r(x, 3)), v.q, 1e-3); near('temp_H_' + T, IT.H(q, 2), v.H_bits, 1e-3); }
+{ const q = IT.softmax([2, 1, 0]), m = q.reduce((s, v, i) => s + v * [2, 1, 0][i], 0); near('temp_var_T1', q.reduce((s, v, i) => s + v * ([2, 1, 0][i] - m) ** 2, 0), N.temp_var_T1); }
 console.log('check_js: ok', ok, 'mismatch', bad);
 process.exit(bad ? 1 : 0);

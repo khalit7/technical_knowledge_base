@@ -1,53 +1,27 @@
-<section id="it-s6">
-<h2>6. KL divergence: the bits you waste</h2>
-<p class="raise"><b>The question.</b> Cross-entropy mixes two things: how unpredictable the data is, and how wrong the model is. How do you separate them, and why can the second never be negative?</p>
+<section id="it-s7">
+<h2>7. The loss floor, and compression as prediction</h2>
+<p>A language model predicts each token given the ones before it, and the chain rule of entropy (section 8) says the uncertainty of a whole text is exactly the sum of those conditional uncertainties:</p>
+\[ H(X_1, \dots, X_n) = \sum_{t=1}^{n} H(X_t \mid X_1, \dots, X_{t-1}) \]
+<p>That is the shape of the loss: the model pays \(-\log q(x_t \mid x_{\lt t})\) at each position, and the per-token average over a long text estimates the <dfn>entropy rate</dfn>, the uncertainty per symbol once all the past is known. That rate is the floor \(H(p)\) of section 3; a loss that levels off is the KL shrinking towards a floor that is not zero. Context is worth a lot: Shannon measured, for a 26-letter alphabet, \(F_0 = \log_2 26 = 4.70\) bits per letter with no context, \(F_1 = 4.14\) with letter frequencies and \(F_2 = 3.56\) with pairs, and from people guessing the next letter with 100 letters of context (27 symbols, counting the space) bounded the entropy between about 0.6 and 1.3 bits per letter, "of the order of one bit per letter" ({{"Prediction and Entropy of Printed English", 1951|https://www.princeton.edu/~wbialek/rome/refs/shannon_51.pdf}}). Longer context lowers loss because it lowers the conditional entropy a model can reach.</p>
+<p><b>Chinchilla's fit</b> puts a number on the floor: in \(\hat L(N, D) = E + A/N^{\alpha} + B/D^{\beta}\), the constant \(E\), which the paper calls "the entropy of natural text" (Hoffmann et al. 2022, §D.2), is fitted as 1.69 nats per token (2.44 bits; perplexity 5.4) on its own data and tokenizer; a refit of the same form by Besiroglu et al. (2024) gives 1.82 (2.63 bits). Both are extrapolations of a fitted curve to infinite model and data, not measurements, and both are per token under one tokenizer ({{Chinchilla page|n:3c65c17b0d0d8116b7ddffba5c599f3f}}). Read the terms as this page's split: \(A/N^\alpha\) and \(B/D^\beta\) are the KL that more parameters and more data remove; \(E\) is the entropy, which nothing removes. The floor of a classifier is the same idea, \(H(Y \mid X)\): zero only when every input has exactly one correct label.</p>
 
-<h3>The picture: one stream, two codes</h3>
-<p>Sixteen symbols drawn from \(p\) = (A 1/2, B 1/4, C 1/8, D 1/8), in exactly those proportions. The top strip encodes them with the code built for \(p\) (A <span class="codew">0</span>, B <span class="codew">10</span>, C <span class="codew">110</span>, D <span class="codew">111</span>); the bottom strip encodes the same symbols with a code built for a wrong guess \(q\) = (A 1/8, B 1/2, C 1/4, D 1/8) (A <span class="codew">110</span>, B <span class="codew">0</span>, C <span class="codew">10</span>, D <span class="codew">111</span>). Every bit is drawn to the same scale. Watch the gap per symbol settle.</p>
-<div class="card" id="it-kl-card">
-<div id="it-kl" class="an-svg"></div>
-<div class="an-ctl" id="it-kl-ctl"></div>
-<div class="an-cap" id="it-kl-cap"></div>
-<div class="an-cnt" id="it-kl-cnt"></div>
+<h3>Compression is prediction: arithmetic coding</h3>
+<p>Start with \([0, 1)\). For each symbol, split the current interval in proportion to the model's probabilities and keep the slice of the symbol that occurred; at the end, send just enough bits to name a number inside the final slice. Here the tiny model's bet, used as a fixed predictor, encodes "sat cat cat":</p>
+<div class="card" id="it-ac-card">
+<p class="vt">The final interval's width is the product of the probabilities, so its bits are the total surprise</p>
+<div id="it-ac" class="an-svg"></div>
+<div class="an-ctl" id="it-ac-ctl"></div>
+<div class="an-cap" id="it-ac-cap"></div>
+<div class="an-cnt" id="it-ac-cnt"></div>
 </div>
-<div class="nums"><div class="t">The numbers</div>Own code: \(8 \times 1 + 4 \times 2 + 2 \times 3 + 2 \times 3 = 28\) bits, 1.75 bits per symbol \(= H(p)\). Wrong code: \(8 \times 3 + 4 \times 1 + 2 \times 2 + 2 \times 3 = 38\) bits, 2.375 bits per symbol \(= H(p, q)\). The difference, \(0.625\) bits per symbol, is exactly \(D_{\mathrm{KL}}(p \Vert q)\). Every probability here is a power of one half, so the code lengths are exactly \(-\log_2\) of them and the equality is exact, not approximate.</div>
-
-<h3>The words, then the formula</h3>
-<p>The <dfn>Kullback-Leibler divergence</dfn> (or <dfn>relative entropy</dfn>) from \(q\) to \(p\) is the average extra surprise, or extra code length, paid for using \(q\) when the truth is \(p\):</p>
-\[ D_{\mathrm{KL}}(p \,\Vert\, q) = \sum_x p(x) \log \frac{p(x)}{q(x)} = \mathbb{E}_{x \sim p}\!\left[\log \frac{p(x)}{q(x)}\right] \]
-<dl class="sym">
-<dt>\(\frac{p(x)}{q(x)}\)</dt><dd>the <dfn>likelihood ratio</dfn>: how many times more probable the truth makes \(x\) than the model does.</dd>
-<dt>\(\Vert\)</dt><dd>a separator, read "from \(q\) to \(p\)" or "of \(p\) from \(q\)". The order matters.</dd>
-<dt>the sum</dt><dd>runs over outcomes with \(p(x) > 0\); if \(q(x) = 0\) for any of them, the divergence is infinite.</dd>
-</dl>
-<div class="der"><b>Cross-entropy = entropy + KL, in three lines.</b><ol>
-<li>Split the log of a ratio: \(\log \frac{p(x)}{q(x)} = -\log q(x) - \big(-\log p(x)\big)\).</li>
-<li>Average both sides under \(p\): \(D_{\mathrm{KL}}(p \Vert q) = \mathbb{E}_p[-\log q(x)] - \mathbb{E}_p[-\log p(x)]\) \(= H(p, q) - H(p)\).</li>
-<li>Rearranged: \(H(p, q) = H(p) + D_{\mathrm{KL}}(p \Vert q)\). Weather: \(1.75 = 1.5 + 0.25\). Stream above: \(2.375 = 1.75 + 0.625\).</li>
-</ol></div>
-
-<h3>Why KL is never negative: Gibbs' inequality, via Jensen</h3>
-<p>Jensen's inequality says: for a <dfn>convex</dfn> function \(f\) (curving upwards, like \(-\log u\)), the average of \(f\) is at least \(f\) of the average, \(\mathbb{E}[f(U)] \ge f(\mathbb{E}[U])\). Picture two points on a bowl-shaped curve: the straight chord between them lies above the curve, and the average of the two heights is a point on the chord. Equality needs \(U\) to be constant (or \(f\) to be straight there).</p>
-<div class="der"><b>Proof that \(D_{\mathrm{KL}}(p \Vert q) \ge 0\)</b> (the same proof as MacKay's solution to exercise 2.26):<ol>
-<li>Let \(U = q(x)/p(x)\) with \(x \sim p\), and \(f(u) = -\log u\), which is convex.</li>
-<li>Then \(D_{\mathrm{KL}}(p \Vert q) = \mathbb{E}_p\big[-\log \tfrac{q(x)}{p(x)}\big] = \mathbb{E}[f(U)]\).</li>
-<li>Jensen: \(\mathbb{E}[f(U)] \ge f(\mathbb{E}[U]) = -\log \mathbb{E}_p\big[\tfrac{q(x)}{p(x)}\big]\).</li>
-<li>The average inside: \(\mathbb{E}_p\big[\tfrac{q(x)}{p(x)}\big] = \sum_{x: p(x) > 0} p(x) \tfrac{q(x)}{p(x)}\) \(= \sum_{x: p(x) > 0} q(x) \le 1\).</li>
-<li>So \(D_{\mathrm{KL}}(p \Vert q) \ge -\log(\text{something} \le 1) \ge 0\). Equality needs \(q(x)/p(x)\) constant and \(\sum q = 1\) over the support of \(p\): that is, \(q = p\).</li>
-</ol></div>
-<p class="plain">In plain words: you cannot, on average, beat the truth's own code. MacKay calls this "probably the most important inequality in this book" (§2.6, eq. 2.46). Every "\(\ge\)" on this page (entropy below \(\log K\), conditioning reduces entropy, mutual information is non-negative, the data processing inequality, the ELBO) comes from it.</p>
-
-<h3>Not a distance: the order matters</h3>
-<div class="nums"><div class="t">Worked examples</div>
-<ul class="tight">
-<li>Weather: \(D_{\mathrm{KL}}(p \Vert q) = 0.5 \log_2 \tfrac{0.5}{0.25} + 0.25 \log_2 \tfrac{0.25}{0.5} + 0.25 \log_2 1\) \(= 0.5 - 0.25 + 0 = 0.25\) bits. The reverse direction is also 0.25, but only because \(q\) is \(p\) with two outcomes swapped.</li>
-<li>A fair coin \(p = (0.5, 0.5)\) against a model \(q = (0.9, 0.1)\): \(D_{\mathrm{KL}}(p \Vert q) = 0.737\) bits but \(D_{\mathrm{KL}}(q \Vert p) = 0.531\) bits.</li>
-<li>The stream above: \(D_{\mathrm{KL}}(p \Vert q) = 0.625\) bits; \(D_{\mathrm{KL}}(q \Vert p) = 0.5\) bits.</li>
-</ul></div>
-<p>KL is not symmetric and has no triangle inequality, so it is not a metric, despite the occasional name "KL distance" (MacKay notes it "is not strictly a distance"). Section 7 shows that the direction you minimise changes the answer, and section 12 gives symmetric relatives.</p>
-<div class="co warn"><div class="t">Zero probability means infinite cost</div>If the model gives probability exactly 0 to something that happens, \(-\log 0 = \infty\): infinite cross-entropy and infinite forward KL. A softmax never outputs an exact 0 in exact arithmetic, but \(\log(\mathrm{softmax}(z))\) computed in floating point can underflow to \(\log 0\). That is why frameworks compute <code>log_softmax</code> directly as \(z_i - \log \sum_j e^{z_j}\) with the max subtracted ({{Numerical computing|n:3f05c17b0d0d81d6af0be4a9a2edba8d}}).</div>
-
-<h3>The loss floor, in one line</h3>
-<p>Write the training loss as \(H(p, q_\theta) = H(p) + D_{\mathrm{KL}}(p \Vert q_\theta)\). \(H(p)\) does not depend on \(\theta\). So <b>minimising cross-entropy over the parameters is exactly minimising \(D_{\mathrm{KL}}(\text{data} \Vert \text{model})\)</b>, and the loss can never go below the data's own entropy. For the tiny model with the one-hot target sat, \(H(p) = 0\) and all 2.408 nats are KL: all of it could be removed. On real text it cannot (section 11).</p>
-<div class="use"><div class="t">What it is used for in ML</div>The removable part of every log-loss; KL penalties that keep a fine-tuned model near its reference (section 13); the ELBO of VAEs and diffusion models (section 13 and {{Variational inference and generative-model maths|n:3f05c17b0d0d81aa9857eb5fa1bac530}}); trust regions in RL (TRPO constrains a KL between old and new policies); knowledge distillation (KL from teacher to student). Try your own pairs in the {{Entropy and KL lab|#t-lab}}.</div>
+<p>Final width \(0.090 \times 0.665 \times 0.665 = 0.0398\), and \(-\log_2 0.0398 = 4.65\) bits \(= 3.473 + 0.588 + 0.588\); a real coder adds at most about two bits for the whole message (MacKay §6.2). A language model plugs in \(q(x_t \mid x_{\lt t})\) at each step instead of a fixed bet, and the decoder runs the same model to rebuild the same intervals. <b>So a model's total loss on a text, in bits, is the size of the file it would compress that text to.</b></p>
+<div class="card" id="it-lad-card">
+<p class="vt">Four small language models need about 1 bit per byte or less; the best general compressor needs 2.57</p>
+<div id="it-lad" class="an-svg"></div>
+<p class="small mute">Bits per byte on the 10,376-byte Darwin passage (lower is better). Compressors are real runs (src/data/comp.py: Apple gzip 487.0.1, bzip2 1.0.8, xz 5.8.2, zstd 1.5.7, brotli 1.1.0, each at its strongest setting); models are total loss in bits over bytes. Order-0 Huffman codes each byte on its own, with no context.</p></div>
+<p>The models reach about 1 bit per byte or less; the best general-purpose compressor, brotli, needs 2.57, and brotli already ships a built-in dictionary of 122,784 bytes of common words and phrases ({{RFC 7932, Appendix A|https://www.rfc-editor.org/rfc/rfc7932}}), a tiny frozen prior, the same idea as a pretrained model. Classical compressors learn only from the text in front of them, so they improve with length: on the whole 953,697-byte book bzip2 reaches 1.92 bits per byte and xz 2.09, still about twice what the models achieve on a 10 KB excerpt ({{Real text, measured|#t-real}} plots it against length).</p>
+<p><b>"Language Modeling Is Compression"</b> ({{Delétang et al.|https://arxiv.org/abs/2309.10668}}, ICLR 2024) feeds models' predictions to an arithmetic coder on 1 GB of text (enwik9), image patches (ImageNet) and audio (LibriSpeech), each in 2,048-byte chunks. Table 1, raw rates (compressed over raw size): Chinchilla 70B compresses enwik9 to 8.3% (0.66 bits per byte), against 32.3% for gzip on the whole file (2.58 bits per byte); on images and audio, which it was not trained on, it reaches 48.0% and 21.0%, against PNG's 58.5% (whole file) and FLAC's 30.3% (in chunks).</p>
+<div class="cx"><div class="t">Correction: the headline numbers are not in the paper's table</div>The abstract and introduction say Chinchilla 70B "compresses ImageNet patches to 43.4% and LibriSpeech samples to 16.4% of their raw size". Table 1 of the same paper, in both arXiv versions (v1 of 19 September 2023 and v2 of 18 March 2024), gives 48.0% and 21.0% for Chinchilla 70B; we found 43.4% nowhere else in the paper, and 16.4% only as an unrelated cell of Table 2 (a 6.4M-parameter model with a 20K BPE vocabulary on enwik9). The abstract also sets the model's chunked rate against PNG's whole-file rate (58.5%; PNG in chunks is 61.7%) and FLAC's chunked rate (30.3%; whole-file 30.9%). The conclusion survives either way: the model beats both domain compressors. Quote the table, and say whether the rate counts the model's size. The old version of this page quoted the abstract's numbers.</div>
+<p><b>Counting the model.</b> The decoder needs the model too. Delétang et al.'s "adjusted" rate adds the parameters to the compressed size: Chinchilla 70B's enwik9 rate becomes 14,008.3%, and their Figure 2 shows an optimal model size for each dataset size, past which a bigger model compresses worse once its own size is counted. Here, GPT-2's about 124 million parameters are roughly 250 MB in 16-bit floats, some 24,000 times the 10 KB passage it compresses so well <span class="ill">derived</span>. Prediction and compression are the same thing; whether a model is a <i>practical</i> compressor depends on how much data it is amortised over (see also {{Pretraining|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}} for loss curves against data).</p>
+<details class="mist"><summary>Tokenization is compression too (Delétang et al., Table 2)</summary><div class="b">The paper trains small Transformers on enwik8 with different tokenizers and measures raw rates on enwik9. The best choice depends on model size: at 200K parameters a 20K-token BPE vocabulary wins (19.3% against 22.9% with plain ASCII bytes), at 38M parameters ASCII wins (6.4% against 9.0%). The paper's reading: a bigger vocabulary packs more text into the context but makes each prediction harder.</div></details>
 </section>
