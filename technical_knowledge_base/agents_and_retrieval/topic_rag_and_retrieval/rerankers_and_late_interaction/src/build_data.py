@@ -167,11 +167,20 @@ else:
         F[k] = P
 json.dump(F, open(os.path.join(H, "facts.json"), "w"), indent=0, sort_keys=True)
 
+# ---- learned sparse retrieval: the sibling Retrieval pipeline page's run, copied into inputs/ (not rerun here)
+spr = json.load(open(os.path.join(H, "inputs", "sparse_rp.json")))
+SS = spr["scifact"]
+F["sp_ndcg"] = f3(SS["sparse"]["ndcg10"]); F["sp_rrf"] = f3(SS["rrf(sparse, qwen3)"]["ndcg10"])
+F["sp_nnz_d"] = "%d" % round(SS["doc_nonzeros_mean"]); F["sp_nnz_q"] = "%d" % round(SS["query_nonzeros_mean"])
+F["sp_bytes_doc"] = comma(8 * SS["doc_nonzeros_mean"])  # derived: 4-byte term id + 4-byte float32 weight per non-zero
+F["sp_dps"] = "%.0f" % spr["timing"]["scifact"]["docs_per_s"]
+F["sp_nexp"] = "%d" % sum(1 for t in SS["example_doc"]["top_terms"] if not t[2])
+
 # ---------------------------------------------------------------- data for the JavaScript
 R = {"depth": dep, "colbert_rerank": cb["rerank"], "colbert": {k: cb[k] for k in ("exhaustive", "tok_mean", "n_tokens")},
      "hist": sc["hist"], "calib": {n: {"raw": sc["calib"][n]["raw"], "platt": sc["calib"][n]["platt"]} for n in names},
      "abstain": sc["abstain"], "tokens": M, "timings": tm, "plaid": {nb: pl["indexes"][nb]["grid"] for nb in ("2", "4")},
-     "ce_view": cm["view"], "ce_checks": cm["checks"], "bi": cm["bi"], "train": tr, "llm": llm}
+     "ce_view": cm["view"], "sparse": {"ex": SS["example_doc"], "model": spr["model"]}, "ce_checks": cm["checks"], "bi": cm["bi"], "train": tr, "llm": llm}
 # MaxSim pairs: similarities as integers (x100)
 R["mx"] = [{k: v for k, v in p.items() if k != "sim"} | {"sim": [[int(round(100 * x)) for x in row] for row in p["sim"]]} for p in mx["pairs"]]
 # examples: drop per-list first-stage scores (not shown), keep everything else

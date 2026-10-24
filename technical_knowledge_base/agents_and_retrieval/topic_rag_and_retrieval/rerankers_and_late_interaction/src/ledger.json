@@ -1,0 +1,2776 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Rerankers and late interaction: cross-encoders, ColBERT, LLM rerankers Rerankers and late interaction: cross-encoders, ColBERT, LLM rerankers The second stage of retrieval, taught from zero: why a slower model reads only the top K candidates, how a cross-encoder scores a pair (read in the sentence-transformers code), how it is trained, how deep to rerank, what its scores mean and when to abstain, LLMs as rerankers (pointwise, pairwise, listwise), distillation, and late interaction (ColBERT's MaxSim, PLAID compression).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "title and subtitle; the new subtitle says the same"
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Measured on the topic's SciFact running example on an Apple M1 Pro, with published results kept apart and labelled.",
+  "label": "core",
+  "key": "published results kept apart",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Before/after lab MaxSim lab Depth chooser Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab names; labs moved into Reading"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 Why a second stage 2 Cross-encoders 3 Training 4 Depth K 5 Scores 6 LLM rerankers 7 Distillation 8 Late interaction 9 PLAID 10 Choosing 11 Mistakes 12 Interview",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old nav"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "In one screen A reranker is a second, slower and more accurate model that re-orders the short list a first retriever returns.",
+  "label": "core",
+  "key": "re-orders the first stage's top k",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The first stage (BM25 or a vector search, often both) looks at the whole corpus and keeps the top K candidates, say 30 out of 5,183 abstracts; the reranker reads each candidate together with the query and gives it a new score; the top few go to the language model.",
+  "label": "core",
+  "key": "top k (3 to 10)",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The idea is old (search engines have used two-stage ranking for decades) and the reason is cost: a model that reads query and document together cannot precompute anything, so it can afford to look at only a few candidates per query. corpus (5,183 abstracts) → first stage: BM25, vectors, hybrid → top K (10 to 100) → reranker : score each (query, candidate) → top k (3 to 10) → LLM Six ideas that carry the page 1.",
+  "label": "core",
+  "key": "nothing can be precomputed",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Cost per pair, not per query A vector search pays one model pass per query; a reranker pays one per candidate.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "bet restates section 1"
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Measured here, reranking all 5,183 abstracts for one claim would take 22 s with the 22 M MiniLM cross-encoder and 17 minutes with Qwen3-Reranker-0.6B.",
+  "label": "core",
+  "key": "22 s with the 22 m minilm",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "That is why K is small (sections 1 and 4).",
+  "label": "core",
+  "key": "that is why k is small",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "A reranker only helps if it is stronger On SciFact the small MiniLM cross-encoder lifts BM25 (0.679 to 0.688) but lowers the hybrid list (0.724 to 0.689 at K = 100), while Qwen3-Reranker-0.6B lifts it to 0.783 (section 4).",
+  "label": "core",
+  "key": "lifts bm25 from 0.679 to 0.688",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Depth has a ceiling and a sweet spot A reranker cannot surface what the first stage did not return: recall@K of the hybrid list is 0.862 at K = 10 and 0.921 at K = 30.",
+  "label": "core",
+  "key": "0.862 at k = 10",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Past about K = 20 to 30 quality stops rising here while cost keeps rising linearly (section 4, Depth chooser tab).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 4"
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Scores are not probabilities The three rerankers here return three different things (a raw logit, a sigmoid, a yes-minus-no log-odds).",
+  "label": "core",
+  "key": "three scales from one function",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Thresholds do not transfer between models or domains, but a reranker's top score is a better \"nothing relevant here\" signal than the retriever's: AUROC 0.80 against 0.72 for the cosine (section 5).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 6; AUROC numbers there"
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "A general LLM is a weak, expensive reranker Prompted Qwen3-4B (pointwise, pairwise or listwise) against the trained Qwen3-Reranker-0.6B on the same 100 claims: nDCG@10 0.681 pointwise and 0.668 listwise, against 0.743 for the trained reranker and 0.671 for BM25 alone, at about 20.3 and 13.9 seconds per claim against 4.83; pairwise comparisons on 50 claims did best of the three (0.764 against 0.747 for BM25 and 0.782 for Qwen3-Reranker on the same claims, top 10) (section 6).",
+  "label": "core",
+  "key": "0.681 pointwise and 0.668 listwise",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Late interaction sits in between ColBERT keeps one small vector per token (45 KB per abstract, 29 times bge-small's single vector) and scores with MaxSim: 0.743 nDCG@10 on its own, 0.758 reranking the hybrid top 20, at a cost of a few milliseconds of dot products (sections 8 and 9).",
+  "label": "core",
+  "key": "45 kb per abstract",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Neighbours: the parent Topic: rag-and-retrieval places reranking in the whole pipeline (its Pipeline lab tab shows the same depth sweep and one claim's funnel); first-stage retrieval, hybrid fusion and prompt assembly belong to The retrieval pipeline ; how bi-encoders are trained to Embedding models ; page-image late interaction (ColPali) to Document ingestion and multimodal retrieval ; judged answer metrics to RAG and retrieval evaluation ; latency budgets and costs in production to RAG in production .",
+  "label": "core",
+  "key": "places reranking in the whole pipeline",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "How to read the numbers Labels: measured here means run on an Apple M1 Pro (16 GB, shared with other jobs) on the topic's running example, with the script named in the page's src/scripts ; published means a paper, model card or vendor page, dated, and marked vendor or independent.",
+  "label": "core",
+  "key": "shared with other jobs",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Quality numbers (nDCG@10, recall) are deterministic and transfer to any machine running the same model; milliseconds and pairs per second are this laptop's, and only their ratios transfer.",
+  "label": "core",
+  "key": "only their ratios transfer",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The running example is SciFact (BEIR): 5,183 abstracts, 300 test claims, binary labels; most claims have exactly one relevant abstract, so nDCG@10 (normalised discounted cumulative gain over the top 10: 1.0 when the relevant abstract is first, about 0.63 when it is second, 0 when it is missing) mostly measures \"how high is the right abstract\".",
+  "label": "core",
+  "key": "about 0.63 when second",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "Why a second stage The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "A first-stage retriever must look at every document for every query, so it can only afford a cheap comparison.",
+  "label": "core",
+  "key": "can only afford a cheap comparison",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "A bi-encoder (the usual \"embedding model\") encodes the query and each document separately into one vector each; documents are encoded once, offline, and a query costs one model pass plus N dot products.",
+  "label": "core",
+  "key": "documents once, offline",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "Encoding separately is also its weakness: the document vector was fixed before the query existed, so it has to summarise everything the document might be asked about in about a thousand numbers.",
+  "label": "core",
+  "key": "fixed before the query existed",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "BM25 is cheaper still and only counts shared words.",
+  "label": "core",
+  "key": "only counts shared words",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "How a reranker fixes it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "A cross-encoder puts the query and one document into the same transformer input, so every query token can attend to every document token in every layer, and the model outputs one relevance score for that pair.",
+  "label": "core",
+  "key": "every query token attends to every document token",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "It sees \"MDA5\" in the claim next to \"RIG-I, MDA5, and LGP2\" in the abstract, rather than two summaries of them.",
+  "label": "core",
+  "key": "rig-i, mda5, and lgp2",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "Nothing can be precomputed, so it is run only on the first stage's top K.",
+  "label": "core",
+  "key": "runs only on the top k",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "Bi-encoder (before) Cross-encoder (after) One real pair: claim 1180 of the SciFact test set and its relevant abstract (PubMed 31272411).",
+  "label": "core",
+  "key": "pubmed 31272411",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "Bi-encoder side: Qwen3-Embedding-0.6B vectors stored by the setup, cosine 0.572, rank 7 among that claim's top 10.",
+  "label": "core",
+  "key": "cosine 0.572",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "Cross-encoder side: ms-marco-MiniLM-L6-v2 on CPU, 231 tokens, score 5.68 (rank 1 of the same 10); the lines are the model's real last-layer attention (mean of its 12 heads) from each claim token to its strongest abstract tokens, final [SEP] excluded; on average 49% of a claim token's attention goes to abstract tokens. measured here ( e_ce_manual.py ).",
+  "label": "core",
+  "key": "score 5.68",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "What it costs Per query, SciFact, this laptop (MPS) Model passes Time Source Bi-encoder: encode the claim (Qwen3-Embedding-0.6B) + exact search over 5,183 vectors 1 51 ms + under 1 ms measured here (setup, query p50) Cross-encoder MiniLM-L6 on the top 30 30 157 ms measured here , one batch of 30 ( e_time.py ) bge-reranker-v2-m3 on the top 30 30 2,442 ms measured here Qwen3-Reranker-0.6B on the top 30 30 7,499 ms measured here MiniLM-L6 cross-encoder on all 5,183 abstracts 5,183 22 s derived: 5,183 / 236.8 pairs/s Qwen3-Reranker-0.6B on all 5,183 abstracts 5,183 17 min derived: 5,183 / 5.0 pairs/s The root's Pipeline lab timed the same models on 40 other claims (p50): MiniLM 155 ms at K = 30 and 590 ms at K = 100, bge-reranker-v2-m3 2,179 ms and Qwen3-Reranker 6,618 ms at K = 30.",
+  "label": "core",
+  "key": "one batch of 30",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "The K = 100 MiniLM batch varied most between repeats here (946, 994, 736 ms per-repeat medians).",
+  "label": "depth",
+  "key": "946, 994, 736",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "The cost of one pair is close to a formula: a transformer forward pass costs about 2 × (parameters outside the embedding table) × tokens floating-point operations, plus an attention term that grows with tokens squared.",
+  "label": "core",
+  "key": "parameters outside the embedding table",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "A SciFact pair is about 354 tokens for MiniLM, so 8.9 GFLOP ; Qwen3-Reranker reads its chat template too (425 tokens) through 0.44 B non-embedding parameters: 416 GFLOP per pair , 47 times more.",
+  "label": "core",
+  "key": "0.44 b non-embedding parameters",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "The measured pairs per second turn into an achieved throughput of 2.1, 3.7 and 2.1 TFLOP/s for the three models on this GPU (third-party estimates put the M1 Pro 16-core GPU's peak at about 5.2 TFLOP/s in float32; Apple does not publish it), which is why the formula transfers: divide by your hardware's achieved FLOP/s to estimate rerank time anywhere. measured here ( e_tokens.py ) Predict: a vendor reranker reads the query plus each candidate.",
+  "label": "core",
+  "key": "about 5.2 tflop/s",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "You rerank K = 50 candidates of about 400 tokens with a 0.6 B reranker on a GPU that sustains 200 TFLOP/s.",
+  "label": "core",
+  "key": "sustains 200 tflop/s",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "About 1 ms About 0.1 s About 3 s 2 × 0.44 × 10 9 × 400 ≈ 0.35 TFLOP per pair, × 50 = 17.6 TFLOP, / 200 TFLOP/s ≈ 0.09 s (derived; real servers lose some of that to padding and batching, and gain from fp8 or int8).",
+  "label": "core",
+  "key": "17.6 tflop",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "On this laptop, at the measured 2.1 TFLOP/s, the same arithmetic gives 6.0 s for K = 30; the timing above measured 7.5 s, because one query's 30 pairs in one batch pad to the longest pair, while the bulk run sorted 15,076 pairs by length.",
+  "label": "core",
+  "key": "sorted 15,076 pairs by length",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "Cross-encoders, read in the code The architecture.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "A BERT-style cross-encoder takes one sequence, [CLS] query [SEP] document [SEP] , with a segment id of 0 on the query part and 1 on the document part, runs it through the encoder (6 layers for MiniLM-L6, 24 for bge-reranker-v2-m3), takes the final vector of the [CLS] token, and maps it to one number with a small head.",
+  "label": "core",
+  "key": "segment id",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "That number is the relevance logit (an unbounded score; higher means more relevant).",
+  "label": "core",
+  "key": "unbounded; higher is more relevant",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "This is exactly the 2019 recipe of Nogueira and Cho : \"we feed the query as sentence A and the passage text as sentence B\", the query cut to 64 tokens and the pair to 512, and \"the [CLS] vector as input to a single layer neural network\".",
+  "label": "core",
+  "key": "query cut to 64 tokens",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "They reranked BM25's top 1,000 on MS MARCO and moved MRR@10 on the dev set from 16.7 (BM25) to 36.5 (BERT Large) (Table 1; published, independent academic , 2019).",
+  "label": "core",
+  "key": "16.7 (bm25) to 36.5",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "What MiniLM sees for the pair above (the first 60 of 231 tokens; segment 0 in blue).",
+  "label": "core",
+  "key": "the first 60 of 231 tokens",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "SciFact pairs average 354 tokens, and 12% of them hit the 512 cap, losing the end of the abstract; Qwen3-Reranker's 1,024 cap cuts 0.5%. transformers 5.19.0, models/bert/modeling_bert.py , lines 457-463 (BertPooler) and 1104-1107 (BertForSequenceClassification.forward) def forward(self, hidden_states): first_token_tensor = hidden_states[:, 0] # the [CLS] position pooled_output = self.dense(first_token_tensor) # 384 x 384 for MiniLM pooled_output = self.activation(pooled_output) # tanh return pooled_output ... pooled_output = outputs[1] pooled_output = self.dropout(pooled_output) logits = self.classifier(pooled_output) # nn.Linear(hidden, num_labels=1) XLM-RoBERTa (inside bge-reranker-v2-m3) does the same with its own head ( modeling_xlm_roberta.py lines 895-902: first token, dense, tanh, out_proj).",
+  "label": "core",
+  "key": "1,024 cap cuts 0.5%",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "The library around it is sentence-transformers' CrossEncoder .",
+  "label": "core",
+  "key": "sentence-transformers' crossencoder",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "Three things in its code decide what the number you get back means. sentence-transformers 6.1.0, cross_encoder/model.py , lines 245-274 (abridged) if (... config.architectures[0].endswith(\"ForCausalLM\")): # a decoder LLM, e.g.",
+  "label": "depth",
+  "key": "lines 245-274",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "Qwen3-Reranker transformer_model = Transformer(..., transformer_task=\"text-generation\", ...) true_token_id = transformer_model.tokenizer.convert_tokens_to_ids(\"yes\") false_token_id = transformer_model.tokenizer.convert_tokens_to_ids(\"no\") post_processing = LogitScore(true_token_id=true_token_id, false_token_id=false_token_id) return [transformer_model, post_processing], {} # Otherwise, assume sequence-classification transformer_model = Transformer(..., transformer_task=\"sequence-classification\", ...) same file, lines 704-736 (predict, abridged) and 425-426 (default activation) activation_fn = activation_fn or self.activation_fn length_sorted_idx = np.argsort([-self._input_length(pair) for pair in inputs]) # longest first: little padding ... scores = activation_fn(scores) pred_scores = [pred_scores[idx] for idx in np.argsort(length_sorted_idx)] # back to input order ... if self.num_labels == 1: return nn.Sigmoid() # used only when the model's config names no activation Length sorting. predict sorts pairs by length before batching, so a batch of 16 pads to similar lengths; the measured pairs/s depend on it.",
+  "label": "depth",
+  "key": "lines 704-736",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "The activation. ms-marco-MiniLM-L6-v2's config sets Identity , so it returns raw logits (here from -11.5 to 10.1). bge-reranker-v2-m3's config names none and has one label, so the library applies Sigmoid and returns a probability-shaped number in 0 to 1.",
+  "label": "core",
+  "key": "from -11.5 to 10.1",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "Same function, same call, two different scales.",
+  "label": "core",
+  "key": "three scales from one function",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "A causal language model is turned into a reranker by reading the next-token logits at the last position and returning logit(\"yes\") - logit(\"no\") (section 6).",
+  "label": "core",
+  "key": "logit(\"yes\") - logit(\"no\")",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "How to check it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "The script e_ce_manual.py scores ten real pairs four ways on CPU: CrossEncoder.predict , the transformers model, the three lines above written out by hand, and the score the setup recorded on the GPU.",
+  "label": "depth",
+  "key": "scores ten real pairs four ways",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. cross-encoders, read in the code",
+  "text": "All four agree to within 0.0001 on every pair (scores from -0.16 to 5.68). measured here",
+  "label": "depth",
+  "key": "within 0.0001",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "How cross-encoders are trained The data.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "Almost every open English reranker starts from MS MARCO passage ranking: 8,841,823 passages from Bing results and 1,010,916 anonymised questions ( Bajaj et al., v3 ), with 532,761 training relevance labels and official training triples (query, positive, negative): 39,780,811 in the small file ( dataset page , read 2026-10-14).",
+  "label": "depth",
+  "key": "8,841,823 passages",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "Labels are sparse: usually one marked passage per question, so many \"negatives\" are relevant passages nobody marked ( false negatives ).",
+  "label": "core",
+  "key": "false negatives",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "Three losses, in the order they appeared.",
+  "label": "core",
+  "key": "three training signals",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "Pointwise : binary cross-entropy on each (query, passage, label), as Nogueira and Cho did: the model learns \"is this passage relevant\", one pair at a time.",
+  "label": "core",
+  "key": "binary cross-entropy on each",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "Hard negatives : negatives taken from a retriever's top results (BM25's top 1,000 in 2019, a dense retriever's later) rather than at random.",
+  "label": "depth",
+  "key": "bm25's top 1,000",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "A random abstract about cardiology is trivially irrelevant to a claim about MDA5; the abstract about RIG-I signalling that mentions MDA5 but does not support the claim is what the model must learn to rank second.",
+  "label": "core",
+  "key": "trivially irrelevant",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "Distillation (section 7): the student learns a stronger teacher's scores instead of 0/1 labels.",
+  "label": "core",
+  "key": "teacher's scores",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "The sentence-transformers MS MARCO cross-encoders were trained this way: \"we use knowledge distillation with a small & fast model and learn the logits scores from the teacher ensemble\" (BERT-base, BERT-large, ALBERT-large, from Hofstätter et al., 2020 ); the training script's loss is a pointwise mean squared error on the ensemble's logits ( examples/training/ms_marco/train_cross-encoder_kd.py in sentence-transformers v2.2.2).",
+  "label": "depth",
+  "key": "train_cross-encoder_kd.py",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "The model card itself only says it \"was trained on the MS Marco Passage Ranking task\", so which script produced the released checkpoint is not stated: unconfirmed.",
+  "label": "depth",
+  "key": "unconfirmed",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "The model card's own table ( published, vendor , read 2026-10-14) shows the size trade: MiniLM-L6-v2 74.30 nDCG@10 on TREC DL 2019 and 39.01 MRR@10 on MS MARCO dev at 1,800 documents/s on a V100, against 74.31 and 39.02 at 960 documents/s for the 12-layer version: half the layers cost nothing measurable there.",
+  "label": "depth",
+  "key": "74.30 ndcg@10",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "A tiny real run: does in-domain training help, and do hard negatives matter?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading reworded"
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "Fine-tuning that same MS MARCO cross-encoder on SciFact's 809 training claims, one epoch, binary cross-entropy, 1 relevant : 7 negatives per claim, then reranking the 300 test claims' top 30. measured here on MPS, bench lock, 2 seeds each ( e_train.py ); labelled tiny: one learning rate, one epoch.",
+  "label": "core",
+  "key": "809 training claims",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "Zero-shot (the MS MARCO model as released, scored in this run): 0.687 on BM25's top 30, 0.702 on the hybrid top 30 (the recorded-score sweep gives 0.687 and 0.702).",
+  "label": "core",
+  "key": "0.687 on bm25",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "Fine-tuned with hard negatives: 0.726 and 0.738; with random negatives: 0.734 and 0.750 (means of 2 seeds).",
+  "label": "core",
+  "key": "0.734 and 0.750",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "Training took about 182 s per run on MPS.",
+  "label": "core",
+  "key": "182 s per run",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "Both fine-tunes beat the released model: three minutes of in-domain training bring the 22 M model on the hybrid top 30 level with the 568 M bge-reranker-v2-m3 (0.749), though not with Qwen3-Reranker (0.778).",
+  "label": "core",
+  "key": "level with the 568 m bge-reranker-v2-m3",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "Hard negatives did not beat random ones here.",
+  "label": "core",
+  "key": "hard negatives did not beat random ones",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. how cross-encoders are trained",
+  "text": "Likely reasons, not tested here: SciFact's labels are sparse, so some BM25 'hard negatives' are unlabelled relevant abstracts (false negatives, which RocketQA-style denoising and teacher scores address), and the MS MARCO starting point already ranks near misses; at one epoch and one learning rate the comparison is tiny.",
+  "label": "core",
+  "key": "rocketqa-style denoising",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "How deep to rerank: K against quality and time The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "The reranker sees only the first stage's top K.",
+  "label": "core",
+  "key": "it sees only the top k",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "Too small a K and the relevant abstract is never shown to it; too large and you pay for pairs that almost never matter, and give a weak reranker more chances to promote a wrong abstract.",
+  "label": "core",
+  "key": "confident mistake",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "Two curves decide K: the first stage's recall@K (the share of relevant abstracts inside the top K: the ceiling), and the reranker's quality as K grows.",
+  "label": "core",
+  "key": "two curves decide k",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "Predict: the hybrid list (BM25 and Qwen3-Embedding fused) scores 0.724 nDCG@10 on its own.",
+  "label": "core",
+  "key": "scores 0.724 ndcg@10 on its own",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "You rerank its top 100 with the small MiniLM cross-encoder, which lifts BM25 from 0.679 to 0.688.",
+  "label": "core",
+  "key": "which lifts bm25 from 0.679 to 0.688",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "It rises, as it did for BM25 It falls No change It falls, to 0.689 .",
+  "label": "core",
+  "key": "it falls, to 0.689",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "The cross-encoder is a weaker judge of SciFact than the fused list it reorders: the deeper it reranks, the more wrong abstracts it promotes (0.725 at K = 3, 0.702 at K = 30, 0.689 at K = 100).",
+  "label": "core",
+  "key": "0.725 at k = 3",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "Qwen3-Reranker on the same list reaches 0.783.",
+  "label": "core",
+  "key": "reaches 0.783",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "A reranker is a model with its own errors, not a free improvement.",
+  "label": "core",
+  "key": "not a free improvement",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "BM25 Qwen3-Embedding Hybrid (RRF) nDCG@10 after reranking the top K (log scale), the rest of the list left in first-stage order; the grey dashed line is the first stage's recall@K (same axis; from K = 3), the most a reranker could ever surface.",
+  "label": "core",
+  "key": "the most a reranker could ever surface",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "300 SciFact test claims, recorded scores. measured here ( e_depth.py ; the 62 cells the root's Pipeline lab also reports are identical).",
+  "label": "core",
+  "key": "62 cells",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "The two large rerankers were scored to K = 100 on the hybrid list only (24,418 extra pairs, e_rerank_deep.py ).",
+  "label": "core",
+  "key": "24,418 extra pairs",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "What the curves say.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "Qwen3-Reranker-0.6B rises fastest and highest on every first stage; bge-reranker-v2-m3 (568 M parameters, multilingual) lands between; the MiniLM cross-encoder helps BM25 a little, helps dense retrieval only at small K, and hurts the hybrid list.",
+  "label": "core",
+  "key": "568 m, multilingual",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "On the hybrid list, scored to K = 100, Qwen3-Reranker reaches 0.782 at K = 20 and then stays flat (0.782 at K = 100), while bge-reranker-v2-m3 peaks at K = 20 (0.757) and slides to 0.738, although recall keeps rising from 0.912 to 0.953: the extra relevant abstracts deep in the list are rare (most claims have one), and the extra candidates are extra chances for a confident mistake.",
+  "label": "core",
+  "key": "slides to 0.738",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "Past K = 20 the strong reranker gains nothing and the weaker ones lose.",
+  "label": "core",
+  "key": "a strong reranker flattens past k = 20",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "Per claim, not on average.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading reworded"
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "At K = 30 on the hybrid list Qwen3-Reranker improves 68 claims and worsens 34 (the rest unchanged); the MiniLM cross-encoder improves 48 and worsens 67.",
+  "label": "core",
+  "key": "improves 68 claims and worsens 34",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "An average gain of a few points hides many individual losses, which is why the Before/after lab shows single claims.",
+  "label": "core",
+  "key": "averages hide losses",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "How to choose K on your data.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "Plot recall@K of your first stage on a labelled sample (a few hundred queries is enough), pick the smallest K where it flattens, measure the reranker's quality at a few K around it, and check the latency at that K on your hardware (Depth chooser tab).",
+  "label": "core",
+  "key": "a few hundred queries is enough",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. how deep to rerank: k against quality and time",
+  "text": "The root's Pipeline lab tab shows the same sweep inside the whole pipeline, with generation.",
+  "label": "core",
+  "key": "same sweep inside the whole pipeline",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "What a reranker score means: calibration, thresholds, abstaining The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "A RAG system often has to decide whether anything relevant was found (to say \"I could not find it\" instead of answering from the wrong abstract), and a natural idea is a threshold on the reranker score.",
+  "label": "core",
+  "key": "i could not find it",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "That needs the score to mean the same thing across queries.",
+  "label": "core",
+  "key": "mean the same thing across queries",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "The setup stored each model's default output, and they are different quantities: MiniLM's raw logit, bge's sigmoid of its logit, and Qwen3's log-odds of \"yes\" over \"no\".",
+  "label": "core",
+  "key": "log-odds of \"yes\" over \"no\"",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "Mapped back to one logit scale (bge: log(p / (1 - p))), their distributions on the same 15,076 (claim, candidate) pairs look like this: MiniLM-L6 CE bge-reranker-v2-m3 Qwen3-Reranker-0.6B Pool: each test claim's BM25 top 30 plus Qwen3-Embedding top 30 (15,076 pairs, 323 labelled relevant). \"Unlabelled\" includes some relevant abstracts nobody marked: SciFact is sparsely judged. measured here ( e_scores.py ) Calibration means that among pairs scored 0.7, about 70% are relevant.",
+  "label": "core",
+  "key": "15,076 pairs, 323 labelled relevant",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "Reading each logit through a sigmoid, the expected calibration error (ECE: the average gap between predicted and observed relevance over ten score bins) is 0.070, 0.042 and 0.040 for the three models; after Platt scaling (fitting p = sigmoid(a · score + b) on half the claims and testing on the other half) it drops to 0.011, 0.002 and 0.002.",
+  "label": "depth",
+  "key": "0.070, 0.042 and 0.040",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "Those ECEs look small because only 2.1% of the pairs are relevant; the top bin tells the real story: of the pairs whose raw sigmoid is above 0.9, only 35%, 66% and 57% are labelled relevant (some unlabelled ones are relevant, so the truth is somewhat higher).",
+  "label": "core",
+  "key": "35%, 66% and 57%",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "Raw scores are over-confident at the top; the reliability bars in the chart above show it bin by bin.",
+  "label": "core",
+  "key": "over-confident",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "Thresholds do not transfer.",
+  "label": "core",
+  "key": "thresholds do not transfer",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "The same MiniLM cross-encoder on NFCorpus (medical questions, graded labels) puts its relevant pairs at a median logit of -1.1, against 2.6 on SciFact: 41% of NFCorpus relevant pairs score above 0, against 69% on SciFact.",
+  "label": "core",
+  "key": "median logit of 2.6 on scifact and -1.1",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "A threshold tuned on one corpus, or on one model, is wrong on the next.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the previous sentence"
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "Recalibrate on a labelled sample from the target data.",
+  "label": "core",
+  "key": "recalibrate on a labelled sample",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "Abstaining when nothing relevant was retrieved A constructed test, labelled as such: each test claim is ranked twice, once with its candidate pool as is (285 claims have a relevant abstract in it) and once with every relevant abstract removed, so the best remaining candidate is a near miss.",
+  "label": "core",
+  "key": "285 claims",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "A good \"nothing here\" signal gives the top candidate a lower score in the second case.",
+  "label": "core",
+  "key": "gives the top candidate a lower score",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "Area under the ROC curve (AUROC: the chance that a random answerable claim's top score beats a random unanswerable one's) for each signal: MiniLM-L6 CE bge-reranker-v2-m3 Qwen3-Reranker-0.6B Abstain when the top score is below Thresholds on each model's logit scale. measured here ( e_scores.py ) The two large rerankers are better abstention signals than the first stage's scores (cosine 0.72, BM25 0.66), and the strongest is the best (0.80); the small MiniLM cross-encoder (0.71) is no better than the cosine.",
+  "label": "core",
+  "key": "auroc: qwen3-reranker 0.80",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "None is close to clean: at a threshold that keeps 90% of answerable claims, 65% of the \"nothing relevant\" claims are still answered (Qwen3-Reranker).",
+  "label": "core",
+  "key": "65% of the \"nothing relevant\" claims",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "5. what a reranker score means: calibration, thresholds, abstaining",
+  "text": "Use the score as one input to abstaining, together with the generator checking whether the passage actually supports the answer ( RAG and retrieval evaluation owns groundedness).",
+  "label": "core",
+  "key": "one input to abstaining",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "LLM rerankers: pointwise, pairwise, listwise A decoder language model can rerank in three ways, which differ in what one call sees.",
+  "label": "core",
+  "key": "differ in what one call sees",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Pointwise : one call per candidate, \"is this document relevant? yes or no\", read the probability of \"yes\".",
+  "label": "core",
+  "key": "read p(yes)",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Scores are independent, so calls run in parallel and the scores can be thresholded.",
+  "label": "core",
+  "key": "thresholdable",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Pairwise : one call per pair of candidates, \"which of A and B is more relevant?\", used inside a sort.",
+  "label": "core",
+  "key": "which of a and b is more relevant",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Robust to score scale, but many calls: all pairs is K(K-1), a sliding bubble sort is about 2 x passes x K with both orders asked.",
+  "label": "core",
+  "key": "2 × passes × k",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Listwise : one call sees many candidates and writes an order, \"[3] > [1] > [2]\".",
+  "label": "core",
+  "key": "[3] > [1] > [2]",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Sees the competition, but long prompts, a parseable output to hope for, and position bias; long lists go through a sliding window.",
+  "label": "core",
+  "key": "position bias; long lists go through a sliding window",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Pointwise done properly: Qwen3-Reranker Qwen3-Reranker-0.6B is a Qwen3 decoder fine-tuned to answer one question.",
+  "label": "core",
+  "key": "fine-tuned to answer one question",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Its chat template (shipped with the model, chat_template.jinja ) puts the task in a fixed frame and pre-fills an empty thinking block, so the very next token must be the answer: <|im_start|>system Judge whether the Document meets the requirements based on the Query and the Instruct provided.",
+  "label": "core",
+  "key": "empty thinking block pre-filled",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Note that the answer can only be \"yes\" or \"no\".<|im_end|> <|im_start|>user <Instruct>: {{ instruction }} <Query>: {{ query_text }} <Document>: {{ document_text }}<|im_end|> <|im_start|>assistant <think> </think> sentence-transformers 6.1.0, cross_encoder/modules/logit_score.py , lines 42-54 (abridged) def forward(self, features, **kwargs): logits = features[self.module_input_name][:, -1] # next-token logits at the last position if self.false_token_id is None: scores = logits[:, self.true_token_id] else: scores = logits[:, self.true_token_id] - logits[:, self.false_token_id] # \"yes\" (9693) minus \"no\" (2152) features[\"scores\"] = scores.unsqueeze(1) Why the difference of two logits: a softmax restricted to the two tokens gives P(yes) = e y / (e y + e n ) = sigmoid(y - n), so the stored score is the log-odds of \"yes\" against \"no\", and sigmoid(score) is that probability.",
+  "label": "depth",
+  "key": "\"yes\" (9693) minus \"no\" (2152)",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "The idea is from monoT5 (Nogueira et al., 2020) , which trained T5 to emit \"true\" or \"false\" and ranked by the softmax over only those two logits.",
+  "label": "core",
+  "key": "monot5's",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "The Qwen3 report says the reranker gets supervised fine-tuning and model merging, with no weakly supervised pre-training stage, unlike the embedding models ( Qwen3 Embedding report : \"the reranking model's training process does not include a first-stage weakly supervised training phase\").",
+  "label": "depth",
+  "key": "no weakly supervised pre-training stage",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "A general LLM, prompted: measured The same three styles with a general model that was never trained to rerank: Qwen3-4B (Q4_K_M, llama-server on this laptop's GPU, temperature 0, thinking off).",
+  "label": "core",
+  "key": "q4_k_m",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Pointwise uses Qwen3-Reranker's exact template and reads the \"yes\" and \"no\" log-probabilities; pairwise uses the PRP prompt ( Qin et al., 2023 ) asked in both orders, swapping two passages only when both orders agree, 2 bubble passes over the top 10; listwise uses the RankGPT prompt ( Sun et al., 2023 ) with a window of 10 sliding by 5 from the back of the top 20 to the front.",
+  "label": "core",
+  "key": "window of 10 sliding by 5",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Passages in the pairwise and listwise prompts are cut to 80 words.",
+  "label": "core",
+  "key": "cut to 80 words",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "First stage: BM25. measured here ( e_llm.py , bench lock) Same 100 claims (every third test claim), same BM25 candidates.",
+  "label": "core",
+  "key": "every third test claim",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Pointwise: 100 of the 2000 calls lacked a yes or no log-probability among the top 20 and were scored at the floor.",
+  "label": "depth",
+  "key": "100 of the 2000 calls",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Listwise: 0 identifiers missing over 300 calls (0 calls had to be repaired); 5 of 300 calls returned the input order unchanged.",
+  "label": "depth",
+  "key": "5 of 300 calls returned the input order",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Pairwise: the two orders disagreed on 338 of 850 comparisons (position bias), kept as ties.",
+  "label": "depth",
+  "key": "338 of 850 comparisons",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Seconds are wall time on this laptop with llama-server's prompt cache on (the shared system prompt and claim are reused between calls); the trained rerankers' seconds are one batch of 20 on MPS.",
+  "label": "depth",
+  "key": "prompt cache on",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "A 4 B general model, about seven times the trained reranker's parameters, ranks worse than the 0.6 B model fine-tuned for the job, in every style, and costs several times more time per claim.",
+  "label": "core",
+  "key": "about seven times the trained reranker",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Listwise with a 10-candidate window did not beat BM25 here; pointwise yes/no, the trained reranker's own format, gained little without the training; pairwise comparisons were the best prompted style but disagreed with themselves when the two passages swapped places in about 40% of comparisons (position bias), which is why PRP asks both orders.",
+  "label": "core",
+  "key": "about 40% of comparisons",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "The training, not the architecture or the size, is what makes Qwen3-Reranker good.",
+  "label": "core",
+  "key": "the training, not the architecture or the size",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "The listwise sliding window on one real claim (324): each step is one call to Qwen3-4B with ten candidates; the bars are the BM25 order going in and the model's returned order coming out, the relevant abstract highlighted.",
+  "label": "core",
+  "key": "one real claim (324)",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Back to front, so a good candidate near the bottom can climb one window at a time. measured here Published at scale.",
+  "label": "core",
+  "key": "climb one window at a time",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "In RankGPT's Table 1, GPT-4 listwise reranking of BM25's top 100 reached 75.59 nDCG@10 on TREC DL 2019 against 71.83 for the trained monoT5-3B and 50.58 for BM25; gpt-3.5-turbo reached 65.80, below monoT5 ( published, academic, 2023 ).",
+  "label": "core",
+  "key": "75.59 ndcg@10",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "PRP with the open FLAN-UL2 (20 B) reached 72.42 to 72.65 depending on the variant.",
+  "label": "depth",
+  "key": "72.42 to 72.65",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "So a frontier LLM can beat a trained reranker, and a mid-size one usually does not; the trained small reranker is far cheaper per pair either way.",
+  "label": "core",
+  "key": "a frontier llm can beat a trained reranker",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "6. llm rerankers: pointwise, pairwise, listwise",
+  "text": "Two later ideas cut LLM reranking cost: Setwise ( Zhuang et al. ) picks the best of three per call inside a sort (about 62% fewer inferences than pairwise heapsort in their Table 2), and FIRST ( Reddy et al., 2024 ) reads the order from the logits of the first generated identifier instead of generating the whole permutation (\"accelerates inference by 50%\").",
+  "label": "depth",
+  "key": "62% fewer inferences",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "7. distillation: how small rerankers get good",
+  "text": "Distillation: how small rerankers get good The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "7. distillation: how small rerankers get good",
+  "text": "The best judge (a large cross-encoder ensemble, GPT-4) is too slow for production; labelled data is sparse and full of false negatives.",
+  "label": "core",
+  "key": "smooths over missing labels",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "7. distillation: how small rerankers get good",
+  "text": "Distillation trains a small student to reproduce a strong teacher's scores or orderings on many unlabelled (query, candidate) pairs, which also smooths over missing labels: the teacher says \"this unmarked passage is quite relevant\".",
+  "label": "core",
+  "key": "many unlabelled pairs",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "7. distillation: how small rerankers get good",
+  "text": "Student Teacher and signal Loss Reported result BERT-dot, ColBERT, TK, PreTT (6-layer DistilBERT students) ensemble of BERT-base, BERT-large and ALBERT-large cross-encoders (scores averaged) Margin-MSE : (s(q, d + ) - s(q, d - )) of the student should equal that of the teacher \"significantly improves re-ranking effectiveness without compromising their efficiency\"; teacher scores released ( Hofstätter et al., 2020 ) MiniLM cross-encoders (sentence-transformers) the same teacher ensemble's logits pointwise MSE on logits (training script) MiniLM-L6-v2 74.30 DL19 at 1,800 docs/s (model card, vendor) ColBERTv2 a 22 M MiniLM cross-encoder reranking ColBERT's own top k, 64 passages per example KL divergence between score distributions, plus in-batch negatives MS MARCO dev MRR@10 39.7 ( Santhanam et al. , Table 4) DeBERTa 70 M to 435 M GPT permutations of BM25's top 20 for 10,000 MS MARCO queries listwise ranking losses on the teacher's order 435 M student 53.03 BEIR average against 51.36 for monoT5-3B (RankGPT, Table 13) RankVicuna 7 B, RankZephyr 7 B RankGPT-3.5 orders (about 100 K queries), then RankGPT-4 (up to 5 K) for RankZephyr next-token loss on the permutation text, shuffled inputs RankZephyr 0.7420 / 0.7086 nDCG@10 on DL19 / DL20 over BM25's top 100 ( Pradeep et al. , Table 5) answerai-colbert-small-v1 (33 M) BGE-M3 reranker scores (JaColBERTv2.5 recipe), three runs averaged score distillation BEIR average 53.79 against 50.02 for the 110 M ColBERTv2 ( Answer.AI blog ; ColBERTv2 is still ahead on Touche2020) All rows published by the authors (academic or vendor); none of these trainings were run here.",
+  "label": "depth",
+  "key": "0.7420 / 0.7086",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "7. distillation: how small rerankers get good",
+  "text": "The Qwen3 report's own reranker table (MTEB-R, the authors' runs over Qwen3-Embedding-0.6B's top 100) puts Qwen3-Reranker-0.6B at 65.80 against 57.03 for bge-reranker-v2-m3; on SciFact here, independently, the two score 0.778 and 0.749 at K = 30 on the hybrid list: the same order, a smaller gap.",
+  "label": "depth",
+  "key": "65.80 against 57.03",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "Late interaction: ColBERT and MaxSim The idea.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "A bi-encoder squeezes a document into one vector; a cross-encoder reads query and document together and precomputes nothing.",
+  "label": "core",
+  "key": "a cross-encoder precomputes nothing",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "Late interaction keeps the document side precomputable but much richer: the encoder outputs one small vector per token , stored offline, and the query and document only \"interact\" at the end, through a cheap score.",
+  "label": "core",
+  "key": "one small vector per token",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "ColBERT (Khattab and Zaharia, 2020) defines that score as MaxSim : for each query token, take its highest dot product with any document token, then add those maxima up. score(q, d) = ∑ i ∈ query tokens max j ∈ document tokens q i · d j Each query token looks for its own best match: \"md ##a ##5\" in claim 1180 finds the same three word pieces in the abstract (similarities 0.96, 0.97 and 0.96), \"sensor\" finds \"sensing\" (0.92), \"rna\", \"virus\" and \"infection\" find themselves.",
+  "label": "core",
+  "key": "similarities 0.96, 0.97 and 0.96",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "Watch it token by token, against the single-vector cosine on the same pair, in the MaxSim lab tab. pylate 1.6.0, scores/colbert.py , lines 189-200 (the plain torch path) scores = torch.einsum(\"ash,bth->abst\", queries_embeddings, documents_embeddings) # every query token x every doc token if queries_mask is not None: scores = scores * queries_mask.unsqueeze(1).unsqueeze(3) if documents_mask is not None: scores = scores * documents_mask.unsqueeze(0).unsqueeze(2) scores = scores.max(axis=-1).values.sum(axis=-1) # max over doc tokens, sum over query tokens Three details that matter , all from the paper and visible in pylate's models/colbert.py : Markers.",
+  "label": "depth",
+  "key": "lines 189-200",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "A query starts [CLS] [Q] , a document [CLS] [D] (here the unused vocabulary slots [unused0] and [unused1] ), so one encoder can embed both differently.",
+  "label": "core",
+  "key": "[cls] [q]",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "Queries are padded with [MASK] tokens to a fixed 32 (pylate sets the pad token to the mask token, lines 411-412, and pads queries to max_length , lines 1173-1178).",
+  "label": "depth",
+  "key": "lines 411-412",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "The [MASK] vectors are kept and scored like real tokens: a learned soft query expansion.",
+  "label": "core",
+  "key": "learned soft expansion",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "SciFact claims have 22.7 real tokens on average, so about 29% of each query is [MASK].",
+  "label": "core",
+  "key": "22.7 real tokens",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "Measured here: dropping them at search time moves nDCG@10 from 0.744 to 0.739, and they contribute 30% of the top abstract's score.",
+  "label": "core",
+  "key": "from 0.744 to 0.739",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "Most of that share is nearly the same for every abstract (they all match the document's [CLS] at about 0.97), which is why MaxSim totals sit close together (30.25 to 30.91 for claim 1180's top 10) and the ranking is decided by the real tokens.",
+  "label": "core",
+  "key": "30.25 to 30.91",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "Document vectors for punctuation are dropped (the skiplist mask, lines 750-757), so an abstract stores fewer vectors than it has tokens.",
+  "label": "core",
+  "key": "skiplist",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "What it costs: storage and compute SciFact, 5,183 abstracts Vectors Bytes per abstract Corpus Source bge-small, one 384-d float32 vector 5,183 1,536 8.0 MB 384 × 4 Qwen3-Embedding, one 1,024-d float32 vector 5,183 4,096 21.2 MB 1,024 × 4 ColBERT-small, 96-d float16 per token 1,221,388 45,245 234.5 MB measured here : 235.7 vectors per abstract × 192 bytes ColBERT-small in a PLAID index, 2 bits per dimension 1,221,388 9,202 47.7 MB measured here (section 9) Compute is the other way round.",
+  "label": "core",
+  "key": "234.5 mb",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "MaxSim for one abstract is 32 × 236 × 96 multiply-adds, about 1.4 MFLOP; the MiniLM cross-encoder spends 8.9 GFLOP on the same pair, 6,168 times more.",
+  "label": "core",
+  "key": "6,168 times more",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "The ColBERT paper reports the same shape on MS MARCO: reranking BERT-base's 1,000 candidates took 10,700 ms and 97 TFLOP per query, ColBERT 61 ms and 7 GFLOP (Table 1, a 13,900-fold FLOP reduction; published, academic, 2020 ).",
+  "label": "core",
+  "key": "13,900-fold",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "Measured here on one CPU thread, MaxSim over the hybrid top 100 takes 1.0 ms per claim, and over all 5,183 abstracts the setup measured 62 ms per claim on the GPU.",
+  "label": "core",
+  "key": "62 ms per claim",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "ColBERT as a first stage or as a reranker Because document vectors are precomputed, ColBERT can do both.",
+  "label": "core",
+  "key": "does both jobs",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "Measured on SciFact ( e_colbert.py , stored vectors): nDCG@10, 300 test claims.",
+  "label": "core",
+  "key": "e_colbert.py",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "Exhaustive = MaxSim against every abstract (no index; recomputed in float32 from the stored float16 vectors: 0.744, the setup's GPU run 0.743).",
+  "label": "core",
+  "key": "the setup's gpu run 0.743",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "Rerank = MaxSim over a first stage's top K. measured here Reranking BM25's top 100 with MaxSim (0.745) matches exhaustive late interaction (0.744), because BM25's top 100 already holds 0.913 of the relevant abstracts; reranking the hybrid top 20 is the best ColBERT setting here (0.758), and the cross-encoder Qwen3-Reranker still beats it (0.782).",
+  "label": "core",
+  "key": "reranking bm25's top 100 (0.745)",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "8. late interaction: colbert and maxsim",
+  "text": "As a first stage ColBERT-small (0.743, 33 M parameters) beats Qwen3-Embedding-0.6B (0.700) on this set; the price is the 29-fold storage above, and an index built for many vectors per document: section 9.",
+  "label": "core",
+  "key": "33 m parameters",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "PLAID: compressing and searching token vectors The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "One vector per token multiplies storage by the number of tokens (236 here), and exhaustive MaxSim reads all of them.",
+  "label": "core",
+  "key": "multiplies storage by the tokens per document",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "ColBERTv2 compresses each token vector as the id of its nearest k-means centroid plus the residual (vector minus centroid) quantised to 1 or 2 bits per dimension: \"this total of 20 or 36 bytes per vector\" at 128 dimensions against 256 bytes in float16, a 6 to 10 times smaller index.",
+  "label": "core",
+  "key": "20 or 36 bytes per vector",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "PLAID then searches without decompressing everything: (1) each query token picks its nearest centroids and the documents with tokens in them become candidates; (2) and (3) candidates are scored with centroid interaction , MaxSim with every token replaced by its centroid, pruning centroids that score low for every query token; (4) only the survivors are decompressed and scored exactly.",
+  "label": "core",
+  "key": "centroid interaction",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "PLAID's Table 3 reports 39.8 MRR@10 on MS MARCO at k = 100 in 222 ms on one CPU core and 20 ms on a GPU, against 4,569 ms on 8 cores for vanilla ColBERTv2 ( published, academic, 2022 ).",
+  "label": "core",
+  "key": "4,569 ms on 8 cores",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "Measured here with fast-plaid 1.4.6 (the PLAID engine pylate uses) on the stored SciFact vectors, CPU, seed 42 ( e_plaid.py ): 2 bits per dimension 4 bits Rows: centroids probed per query token (n_ivf_probe); columns: candidates decompressed and fully scored (n_full_scores).",
+  "label": "core",
+  "key": "fast-plaid 1.4.6",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "Cell: nDCG@10 and the share of the exhaustive top 10 recovered.",
+  "label": "core",
+  "key": "share of the exhaustive top 10 recovered",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "Index: 16,384 centroids of 96 dimensions (fast-plaid picks 2 floor(log2(16 √tokens)) ). measured here What it shows.",
+  "label": "core",
+  "key": "16,384 centroids",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "The quality cost of compression is small: nDCG@10 0.740 at 2 bits and 0.742 at 4 bits against 0.744 exhaustive, though only 89% (2 bits) and 95% (4 bits) of the exact top 10 are reproduced exactly.",
+  "label": "core",
+  "key": "89% and 95%",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "Of the two search knobs, the number of candidates fully scored is the one that matters here: with 32, nDCG@10 drops to 0.729 and only 66% of the exact top 10 survive; from 256 on it is back.",
+  "label": "core",
+  "key": "drops to 0.729",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "The number of centroids probed barely matters on 5,183 abstracts, because even one centroid per query token, times 32 query tokens, already reaches most of the relevant candidates; on millions of passages it does.",
+  "label": "core",
+  "key": "centroids probed barely matter",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "Storage per token falls from 192 bytes to 24 bytes of residual codes plus a centroid id (fast-plaid stores the id as an 8-byte integer; ColBERTv2's paper counts 4 bytes): 47.7 MB for the corpus with centroids and inverted lists, 4.9 times less than float16. fast-plaid also keeps a merged second copy of codes and residuals for search, so its folder is 86.8 MB.",
+  "label": "core",
+  "key": "4.9 times less than float16",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "On 5,183 abstracts none of this is needed (exhaustive MaxSim is already fast); PLAID is for millions of passages.",
+  "label": "depth",
+  "key": "plaid is for millions of passages",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "9. plaid: compressing and searching token vectors",
+  "text": "ColPali applies the same machinery to page-image patches: see the ingestion page's ColPali section .",
+  "label": "core",
+  "key": "colpali",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "10. choosing, and what is in production",
+  "text": "Choosing, and what is in production Situation Choice Why (evidence on this page) CPU only, tight latency, English small cross-encoder (MiniLM-L6) on the top 10 to 20, or none 157 ms for 30 pairs on this laptop's GPU; but measure: it hurt the hybrid list here (section 4) A GPU, quality matters a 0.6 B reranker (Qwen3-Reranker, bge-reranker-v2-m3) on the top 20 to 30 +0.06 nDCG@10 over hybrid here; about 416 GFLOP per pair Many languages a multilingual reranker (bge-reranker-v2-m3, Qwen3-Reranker, hosted ones) MiniLM-L6 was trained on English MS MARCO only Need a \"nothing found\" decision a reranker score, recalibrated on your data, plus an answer-support check abstention AUROC 0.80 at best (section 5) Large corpus, want better first-stage recall late interaction (ColBERT with PLAID) as first stage or reranker 0.743 alone here, at about 29 times the storage before compression Hard reasoning queries, budget for it an LLM listwise reranker on a short list after a cross-encoder GPT-4 class models beat trained rerankers on TREC DL; a 4 B model did not here (section 6) Hosted rerankers (vendor documentation read 2026-10-14; vendor ): Cohere rerank-v4.0-pro and rerank-v4.0-fast (32 K tokens context; older rerank-v3.5 4,096), priced per search of one query and up to 100 documents (the price page did not load from here: unconfirmed); Voyage rerank-3 and rerank-3-lite (query plus one document up to 32,000 tokens), $0.05 and $0.02 per million tokens, billed as query tokens × documents + all document tokens; Jina reranker v3.5 (from the topic's shared facts).",
+  "label": "core",
+  "key": "a gpu, quality matters",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "10. choosing, and what is in production",
+  "text": "None were run here (the topic runs local models only).",
+  "label": "core",
+  "key": "none run here",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "10. choosing, and what is in production",
+  "text": "Libraries. sentence-transformers CrossEncoder (section 2) runs every open model on this page; pylate (ColBERT training and PLAID through fast-plaid); RAGatouille and the Stanford colbert-ai package are older ColBERT front ends; some vector databases can now store several vectors per document for late interaction; the parent's Tool map tab lists stores, versions and status (not checked here per store).",
+  "label": "core",
+  "key": "ragatouille",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Common mistakes Reranking a list that does not contain the answer The reranker's ceiling is the first stage's recall@K.",
+  "label": "core",
+  "key": "recall@k is the reranker's ceiling",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Measure recall@K first; if it is low, fix retrieval (hybrid, query rewriting, chunking), not the reranker.",
+  "label": "core",
+  "key": "fix retrieval (hybrid, query rewriting, chunking)",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Assuming any reranker helps The MiniLM cross-encoder lowered the hybrid list from 0.724 to 0.689 here.",
+  "label": "core",
+  "key": "0.724 to 0.689",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Evaluate the reranker against your first stage on your data, at the K you will use.",
+  "label": "core",
+  "key": "rerank at the k you will use",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Skipping in-domain fine-tuning, or mining hard negatives from sparse labels without care Three minutes of fine-tuning on 809 SciFact training claims lifted the 22 M cross-encoder on the hybrid top 30 from 0.702 to 0.74 to 0.75 (section 3).",
+  "label": "core",
+  "key": "0.74 to 0.75",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "In that run BM25-mined hard negatives did worse than random ones, plausibly because some of them were relevant abstracts nobody labelled: filter mined negatives with a stronger model, or distil from its scores.",
+  "label": "core",
+  "key": "filter mined negatives with a stronger model",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Thresholding raw scores across models or corpora MiniLM returns logits, bge-reranker a sigmoid, Qwen3-Reranker log-odds; the same model's relevant pairs sit at a median of 2.6 on SciFact and -1.1 on NFCorpus.",
+  "label": "core",
+  "key": "never compare raw scores across models",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Recalibrate on labelled target data.",
+  "label": "core",
+  "key": "recalibrate on a labelled sample",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Forgetting the instruction or template of an instruction-tuned reranker Qwen3-Reranker expects its chat template with an instruction; a raw (query, document) pair through a generic causal-LM path gives different scores.",
+  "label": "core",
+  "key": "without the instruction and template",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Load it as its model card says (sentence-transformers CrossEncoder with prompts ).",
+  "label": "core",
+  "key": "crossencoder with prompts",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Silent truncation 12% of SciFact pairs exceed MiniLM's 512 tokens and lose the end of the abstract.",
+  "label": "core",
+  "key": "silently lose the end of the abstract",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "With long chunks, rerank shorter chunks or use a long-context reranker.",
+  "label": "core",
+  "key": "use a long-context reranker",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Timing one pair and multiplying Per-query latency depends on batching (all K pairs in one batch), padding and length sorting.",
+  "label": "core",
+  "key": "batching, padding and length sorting",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Measure a whole query's batch at your K, several times, under realistic load.",
+  "label": "core",
+  "key": "several repeats, under realistic load",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Parsing LLM listwise output without a fallback Models skip or repeat identifiers.",
+  "label": "core",
+  "key": "models skip or repeat identifiers",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Deduplicate, append missing candidates in their original order, and count how often it happens (0 identifiers missing over 300 calls here).",
+  "label": "core",
+  "key": "append missing candidates in input order",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "11. common mistakes",
+  "text": "Storing ColBERT vectors uncompressed at scale 192 bytes per token in float16 is 29 times a single 384-d vector per abstract; use residual compression (PLAID) or token pooling, and check the quality cost on your data.",
+  "label": "core",
+  "key": "never store colbert vectors uncompressed",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Interview questions Why not run the cross-encoder over the whole corpus?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating section 1"
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "It needs one forward pass per (query, document) pair and nothing can be precomputed: 5,183 passes per query here (22 s with a 22 M model).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 1"
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "A bi-encoder precomputes document vectors, so a query costs one pass plus dot products.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 1"
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Bi-encoder, cross-encoder, late interaction: one line each on what is precomputed.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by the hero"
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Bi-encoder: one vector per document.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "hero"
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Late interaction: one vector per document token, scored with MaxSim at query time.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "hero"
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "How do you pick the rerank depth K?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 4"
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "From first-stage recall@K (the ceiling), the reranker's quality at a few K on labelled queries, and the latency budget, which grows linearly in K.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 4"
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Here quality flattened at K about 20 to 30.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 4"
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "What does Qwen3-Reranker's score mean? logit(\"yes\") minus logit(\"no\") at the answer position; sigmoid of it is P(yes) among {yes, no}.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7"
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Why is MaxSim cheaper than cross-attention but better than one vector?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 8"
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "It is only dot products between precomputed token vectors (about 1.4 MFLOP per abstract here against 8.9 GFLOP for a small cross-encoder), yet each query token can match a different part of the document instead of one pooled summary.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 8"
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "What is query augmentation in ColBERT?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 8"
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Padding the query with [MASK] tokens to 32 and keeping their vectors: a learned expansion.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 8"
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Removing them cost 0.005 nDCG@10 here.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "0.744 - 0.739 shown in section 8"
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Pointwise, pairwise, listwise LLM reranking: costs?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7"
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Pointwise K calls (parallel, thresholdable); pairwise up to K(K-1) calls, or about 2 x passes x K with sliding bubble sort and both orders; listwise a few long calls with a sliding window, output to parse, position bias.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7"
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "A distillation loss: the student's score difference between a positive and a negative should equal the teacher's, so the student learns relative judgements without matching the teacher's scale.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 3"
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "System design: add reranking to a RAG service handling 200 queries per second, p95 under 300 ms end to end.",
+  "label": "depth",
+  "key": "200 queries per second",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Budget each stage (query embedding about 10 to 50 ms, ANN search a few ms, generation's first token separately).",
+  "label": "depth",
+  "key": "query embedding about 10 to 50 ms",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Rerank the hybrid top 20 to 30 with a 0.6 B cross-encoder on GPUs: about 0.4 TFLOP per pair, so 200 × 30 × 0.4 = 2.4 PFLOP/s of work; at a realistic 100 to 200 TFLOP/s achieved per GPU that is 12 to 24 GPUs, so consider a smaller distilled reranker, fewer candidates (K 10 to 20 after measuring the quality curve), shorter chunks, int8 or fp8, and dynamic batching across concurrent queries with a batch timeout.",
+  "label": "depth",
+  "key": "2.4 pflop/s",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Cache scores for repeated (query, chunk) pairs.",
+  "label": "depth",
+  "key": "cache scores for repeated",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Fall back to the first-stage order if the reranker times out.",
+  "label": "depth",
+  "key": "fall back to the first-stage order",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Log scores to recalibrate thresholds; evaluate offline on a golden set before each model change.",
+  "label": "depth",
+  "key": "golden set before each model change",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Derived arithmetic; the throughput figure is an assumption to replace with a measurement.",
+  "label": "depth",
+  "key": "an assumption to replace with a measurement",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Every measured number on this page comes from the scripts in this page's src/scripts folder, run on an Apple M1 Pro (10 CPU cores, 16 GB) on 2026-10-14 against the running example of Topic: rag-and-retrieval (its src/data/load.py); results in src/data.",
+  "label": "core",
+  "key": "10 cpu cores, 16 gb",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Versions: sentence-transformers 6.1.0, transformers 5.19.0, torch 2.14.1 (MPS) for the cross-encoders; pylate 1.6.0 and fast-plaid 1.4.6 (torch 2.11.0) for ColBERT; llama.cpp build 11146 for Qwen3-4B.",
+  "label": "core",
+  "key": "llama.cpp build 11146",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Models at the revisions in the parent's src/data/manifest.json.",
+  "label": "core",
+  "key": "manifest.json",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Source quoted from those installed versions.",
+  "label": "core",
+  "key": "source quoted from those installed versions",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "12. interview questions",
+  "text": "Published numbers are labelled and kept apart.",
+  "label": "core",
+  "key": "published numbers are labelled and kept apart",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-rrba",
+  "section": "before/after lab: one candidate list, reranked",
+  "text": "Before/after lab: one candidate list, reranked Pick a real SciFact claim, a first stage and a reranker.",
+  "label": "core",
+  "key": "one real candidate list, reranked",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-rrba",
+  "section": "before/after lab: one candidate list, reranked",
+  "text": "The rows are that first stage's real top 30 for the claim; press After (or let it play) and the top K are re-sorted by the reranker's recorded score while the rest keep their place.",
+  "label": "core",
+  "key": "re-sorts the top k by the reranker's recorded score",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-rrba",
+  "section": "before/after lab: one candidate list, reranked",
+  "text": "Relevant abstracts are green.",
+  "label": "core",
+  "key": "relevant abstracts are green",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-rrba",
+  "section": "before/after lab: one candidate list, reranked",
+  "text": "Click a row for its text.",
+  "label": "core",
+  "key": "click a row to read",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-rrba",
+  "section": "before/after lab: one candidate list, reranked",
+  "text": "Claim K BM25 Qwen3-Embedding Hybrid (RRF) MiniLM-L6 CE bge-reranker-v2-m3 Qwen3-Reranker-0.6B ColBERT MaxSim Before After Click a row to read the abstract's opening.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "control labels"
+ },
+ {
+  "id": 242,
+  "tab": "t-rrba",
+  "section": "before/after lab: one candidate list, reranked",
+  "text": "Scores: MiniLM raw logit, bge-reranker sigmoid (0 to 1), Qwen3-Reranker log-odds of yes over no, ColBERT MaxSim sum (stored float16 vectors); bars are scaled within the list.",
+  "label": "core",
+  "key": "colbert maxsim sum",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-rrba",
+  "section": "before/after lab: one candidate list, reranked",
+  "text": "The red dashed line marks K.",
+  "label": "core",
+  "key": "red dashed line marks k",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-rrba",
+  "section": "before/after lab: one candidate list, reranked",
+  "text": "Claims chosen by fixed rules (written in e_examples.py ), not by hand: the first claim in id order where Qwen3-Reranker rescues a relevant abstract from BM25 rank 10 or lower, where it demotes BM25's correct first result, where MiniLM and Qwen3-Reranker disagree, where no first stage finds anything, one with three or more relevant abstracts, and claim 1180 from the Reading tab. measured here",
+  "label": "depth",
+  "key": "rescues a relevant abstract from bm25 rank 10",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-rrmax",
+  "section": "maxsim lab: one claim and one abstract, token by token",
+  "text": "MaxSim lab: one claim and one abstract, token by token A real pair from SciFact with the real ColBERT vectors (answerai-colbert-small-v1, 96 dimensions per token, stored by the setup).",
+  "label": "core",
+  "key": "answerai-colbert-small-v1, 96 dimensions per token",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-rrmax",
+  "section": "maxsim lab: one claim and one abstract, token by token",
+  "text": "Before : a single-vector model compares one vector per text (Qwen3-Embedding's cosine).",
+  "label": "core",
+  "key": "qwen3-embedding's cosine",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-rrmax",
+  "section": "maxsim lab: one claim and one abstract, token by token",
+  "text": "After : late interaction, where each of the claim's 32 token vectors finds its best match among the abstract's token vectors and the maxima are added up.",
+  "label": "core",
+  "key": "each claim token finds its own best match",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-rrmax",
+  "section": "maxsim lab: one claim and one abstract, token by token",
+  "text": "Shading is the dot product of the current claim token with every abstract token; the red outline is its maximum.",
+  "label": "core",
+  "key": "red outline: its maximum",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-rrmax",
+  "section": "maxsim lab: one claim and one abstract, token by token",
+  "text": "Pair count the [MASK] expansion tokens Single vector (before) MaxSim (after) Claim tokens Abstract tokens (punctuation dropped, as stored) Similarities are dot products of unit vectors (cosines), from the stored float16 vectors; re-encoding the pair on CPU in float32 reproduces them (minimum cosine between the two encodings 0.9999).",
+  "label": "core",
+  "key": "0.9999",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-rrmax",
+  "section": "maxsim lab: one claim and one abstract, token by token",
+  "text": "The ranking table is the claim's Qwen3-Embedding top 10 rescored both ways. measured here ( e_maxsim_pair.py )",
+  "label": "core",
+  "key": "rescored both ways",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-rrdepth",
+  "section": "depth chooser: quality, latency and compute for every reranker and k",
+  "text": "Depth chooser: quality, latency and compute for every reranker and K Every point is a real measurement on SciFact's 300 test claims: nDCG@10 after reranking the top K (recorded scores), against the time to rerank one claim's K candidates in one batch on this laptop (bench lock, 3 repeats).",
+  "label": "core",
+  "key": "every point is a real measurement",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-rrdepth",
+  "section": "depth chooser: quality, latency and compute for every reranker and k",
+  "text": "Choose the first stage and a point; the cards say what it buys and what it costs, and what the same work would take on faster hardware.",
+  "label": "core",
+  "key": "what the same work would take on faster hardware",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-rrdepth",
+  "section": "depth chooser: quality, latency and compute for every reranker and k",
+  "text": "BM25 Qwen3-Embedding Hybrid (RRF) MiniLM-L6 CE bge-reranker-v2-m3 Qwen3-Reranker-0.6B ColBERT MaxSim K Hardware, achieved TFLOP/s x: milliseconds per claim to rerank K candidates (log scale; measured where a timing exists, otherwise interpolated linearly in K from the measured points and drawn hollow). y: nDCG@10.",
+  "label": "core",
+  "key": "interpolated linearly in k",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-rrdepth",
+  "section": "depth chooser: quality, latency and compute for every reranker and k",
+  "text": "The first stage alone is the dashed line; ColBERT times are MaxSim on one CPU thread over stored vectors. measured here ( e_depth.py , e_time.py , e_colbert.py ) The hardware slider rescales only the cross-encoders' compute: time = K × GFLOP per pair / achieved TFLOP/s, with GFLOP per pair from the token counts (section 1 of the Reading tab).",
+  "label": "core",
+  "key": "colbert times are maxsim on one cpu thread",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-rrdepth",
+  "section": "depth chooser: quality, latency and compute for every reranker and k",
+  "text": "The first position is this laptop's measured throughput for each model.",
+  "label": "core",
+  "key": "this laptop's measured throughput",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-rrdepth",
+  "section": "depth chooser: quality, latency and compute for every reranker and k",
+  "text": "Higher positions are assumptions for illustration, labelled derived: real servers add batching, padding and transfer overheads, and gain from lower precision.",
+  "label": "core",
+  "key": "higher positions are assumptions",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading On this page Before/after lab Real claims, real candidate lists, four rerankers, any depth.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab tab card; lab moved into section 4"
+ },
+ {
+  "id": 258,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min MaxSim lab One pair token by token, single vector against late interaction.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab tab card; lab moved into section 8"
+ },
+ {
+  "id": 259,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "5 min Depth chooser Quality against measured latency for every reranker and K.",
+  "label": "core",
+  "key": "rescaled to faster hardware",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "5 min The parent and its siblings Topic: rag-and-retrieval The whole pipeline; its Pipeline lab tab has the same rerank depth sweep, one claim's funnel and the end-to-end answers; its Tool map tab lists rerankers and vector stores with status.",
+  "label": "depth",
+  "key": "its pipeline lab tab has the same rerank depth sweep",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min The retrieval pipeline The first stage this page reranks: chunking, BM25, hybrid fusion, query rewriting, prompt assembly.",
+  "label": "depth",
+  "key": "the first stage this page reranks",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "43 min Embedding models Bi-encoders from the inside: pooling, contrastive training, hard negatives.",
+  "label": "depth",
+  "key": "bi-encoders from the inside",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Vector indexes from the inside IVF and product quantization, the ideas PLAID reuses for token vectors.",
+  "label": "depth",
+  "key": "the ideas plaid reuses for token vectors",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "39 min Document ingestion and multimodal retrieval ColPali: MaxSim over page-image patches, measured on ViDoRe.",
+  "label": "depth",
+  "key": "measured on vidore",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "28 min Agentic retrieval, long context and memory When an agent decides to search again instead of trusting one reranked list.",
+  "label": "depth",
+  "key": "decides to search again",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min RAG in production Latency budgets, caching and cost per query, the rerank stage included.",
+  "label": "depth",
+  "key": "the rerank stage included",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "32 min Neighbouring topics RAG and retrieval evaluation Judged metrics, faithfulness and groundedness beyond nDCG.",
+  "label": "depth",
+  "key": "faithfulness and groundedness beyond ndcg",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "22 min Evaluation metrics nDCG, MRR, recall, calibration and AUROC defined.",
+  "label": "depth",
+  "key": "calibration and auroc defined",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "18 min LLM-as-judge Position bias and calibration of LLM judgements, the same problems LLM rerankers have.",
+  "label": "depth",
+  "key": "the same problems llm rerankers have",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Contrastive and self-supervised learning The losses behind bi-encoders and ColBERT training.",
+  "label": "depth",
+  "key": "the losses behind bi-encoders",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min Search and vector databases The database-engine view of BM25 and ANN indexes.",
+  "label": "depth",
+  "key": "the database-engine view of bm25",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "37 min Topic: inference-and-serving Batching and serving, which set a reranker's real latency.",
+  "label": "depth",
+  "key": "set a reranker's real latency",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "43 min Papers (primary sources) Nogueira and Cho: Passage Re-ranking with BERT The cross-encoder recipe in four pages.",
+  "label": "depth",
+  "key": "the cross-encoder recipe in four pages",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min Nogueira et al.: monoT5 Relevance as the probability of a \"true\" token.",
+  "label": "depth",
+  "key": "probability of a \"true\" token",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min Khattab and Zaharia: ColBERT MaxSim, query augmentation, reranking against end-to-end retrieval.",
+  "label": "depth",
+  "key": "reranking against end-to-end retrieval",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Santhanam et al.: ColBERTv2 Residual compression and denoised distillation.",
+  "label": "depth",
+  "key": "denoised distillation",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Santhanam et al.: PLAID Centroid interaction and pruning; the four-stage search.",
+  "label": "depth",
+  "key": "the four-stage search",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Hofstätter et al.: Margin-MSE distillation Cross-architecture knowledge distillation for rankers.",
+  "label": "depth",
+  "key": "cross-architecture knowledge distillation",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "35 min Sun et al.: RankGPT Listwise LLM reranking with a sliding window, and permutation distillation.",
+  "label": "depth",
+  "key": "permutation distillation",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Qin et al.: Pairwise Ranking Prompting Pairwise prompts, sorting variants, position bias.",
+  "label": "depth",
+  "key": "sorting variants, position bias",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "35 min Pradeep et al.: RankZephyr A distilled open listwise reranker.",
+  "label": "depth",
+  "key": "a distilled open listwise reranker",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Qwen3 Embedding technical report How Qwen3-Reranker is trained and evaluated.",
+  "label": "depth",
+  "key": "how qwen3-reranker is trained and evaluated",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Thakur et al.: BEIR The benchmark the running example comes from, with BM25+CE rows.",
+  "label": "depth",
+  "key": "with bm25+ce rows",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Code and documentation sentence-transformers: CrossEncoder usage Loading, predict, rank, prompts.",
+  "label": "depth",
+  "key": "loading, predict, rank, prompts",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min sentence-transformers: training cross-encoders on MS MARCO BCE, listwise and distillation losses, hard-negative mining.",
+  "label": "depth",
+  "key": "hard-negative mining",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "25 min pylate ColBERT models, training and PLAID indexes in one library.",
+  "label": "depth",
+  "key": "plaid indexes in one library",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min Qwen3-Reranker-0.6B model card Template, instruction and usage.",
+  "label": "depth",
+  "key": "template, instruction and usage",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min Answer.AI: a small but mighty ColBERT How the 33 M ColBERT used here was trained.",
+  "label": "depth",
+  "key": "how the 33 m colbert used here was trained",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "10. learned sparse retrieval: splade",
+  "text": "SPLADE: MLM head scores 30,522 vocabulary entries per position; weight = max over positions of log(1+ReLU)",
+  "label": "core",
+  "key": "30,522 vocabulary entries",
+  "where": "",
+  "note": "new 2026-10-24; absorbed from retrieval_pipeline section 3 and SPLADE papers"
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "10. learned sparse retrieval: splade",
+  "text": "v1 summed over positions, v2 max pooling, almost 2 points better",
+  "label": "core",
+  "key": "almost 2 points",
+  "where": "",
+  "note": "new; SPLADE v2 section 4.1"
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "10. learned sparse retrieval: splade",
+  "text": "FLOPS regulariser: squared mean activation per term; separate lambda for queries and documents",
+  "label": "core",
+  "key": "flops regulariser",
+  "where": "",
+  "note": "new; SPLADE v1 section 3.2"
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "10. learned sparse retrieval: splade",
+  "text": "Real sparse vector for SciFact abstract 4983, 2 expansion terms (baby, fibre)",
+  "label": "core",
+  "key": "abstract 4983",
+  "where": "",
+  "note": "from retrieval_pipeline out/sparse.json"
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "10. learned sparse retrieval: splade",
+  "text": "Inference-free: query cost is a tokenizer call plus a weight table",
+  "label": "core",
+  "key": "inference-free",
+  "where": "",
+  "note": "absorbed from retrieval_pipeline"
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "10. learned sparse retrieval: splade",
+  "text": "SciFact: sparse 0.708 vs BM25 0.679 and Qwen3 0.700; RRF with Qwen3 0.724; 239 and 20 non-zeros; in-domain caveat",
+  "label": "core",
+  "key": "0.708",
+  "where": "",
+  "note": "absorbed from retrieval_pipeline"
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "10. learned sparse retrieval: splade",
+  "text": "About 1,910 bytes per abstract, derived 239 x 8 bytes",
+  "label": "core",
+  "key": "1,910 bytes",
+  "where": "",
+  "note": "derived here"
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "10. learned sparse retrieval: splade",
+  "text": "SPLADE v1 MS MARCO dev MRR@10 0.322 vs BM25 0.184, doc2query-T5 0.277, ANCE 0.330; FLOPS 0.73 vs 0.13",
+  "label": "core",
+  "key": "0.73 flops",
+  "where": "",
+  "note": "SPLADE v1 Table 1"
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "10. learned sparse retrieval: splade",
+  "text": "DistilSPLADE-max 0.368 MRR@10; BEIR zero-shot 0.506 vs 0.456 BM25 and 0.457 ColBERT; SciFact 0.693 vs 0.665",
+  "label": "core",
+  "key": "0.506",
+  "where": "",
+  "note": "SPLADE v2 Tables 1 and 2"
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "10. learned sparse retrieval: splade",
+  "text": "Strongly regularised: 0.296 at 0.05 FLOPS, 18 and 6 non-zeros, index under 1.4 GB; log-saturation buys sparsity (ST exp 2.83 FLOPS)",
+  "label": "depth",
+  "key": "0.05 flops",
+  "where": "",
+  "note": "SPLADE v1"
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "10. learned sparse retrieval: splade",
+  "text": "opensearch inference-free model 0.517 average on 13 BEIR sets vs 0.524; BGE-M3 gives dense, sparse and multi-vector outputs",
+  "label": "depth",
+  "key": "0.517",
+  "where": "",
+  "note": "absorbed from retrieval_pipeline"
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "1. why a second stage",
+  "text": "Hero: four scorers by stored bytes, per-candidate work and SciFact nDCG@10",
+  "label": "core",
+  "key": "the more a scorer lets the query meet the document",
+  "where": "",
+  "note": "new hero"
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "7. llm rerankers",
+  "text": "Script-rendered LLM table: calls, tokens, seconds per claim; summary in the static caption",
+  "label": "core",
+  "key": "20.3 and 13.9 seconds per claim",
+  "where": "",
+  "note": "script table, summary written statically"
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "3. training",
+  "text": "Script-rendered training table: zero-shot, random, hard negatives, 2 seeds",
+  "label": "core",
+  "key": "0.726 and 0.738",
+  "where": "",
+  "note": "script table, tr_note static"
+ }
+]

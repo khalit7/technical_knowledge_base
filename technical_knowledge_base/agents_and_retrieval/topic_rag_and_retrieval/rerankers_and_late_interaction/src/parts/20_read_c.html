@@ -1,41 +1,63 @@
-
+<style>
+#rr-ba-box .ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+#rr-ba-box select{max-width:100%}#rr-ba-box .ctl label{max-width:100%}
+#rr-ba-box #rr-ba-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+#rr-ba-box .lst{position:relative;margin:8px 0;overflow:hidden}
+#rr-ba-box .row{position:absolute;left:0;right:0;height:28px;display:grid;grid-template-columns:2.2em minmax(0,1fr) minmax(60px,32%);gap:6px;align-items:center;font-size:12.5px;border-bottom:1px solid var(--line);transition:transform .9s ease;cursor:pointer;background:var(--bg)}
+#rr-ba-box .row.rel{background:var(--open2)}
+#rr-ba-box .row.out{opacity:.45}
+#rr-ba-box .row .rk{font-variant-numeric:tabular-nums;color:var(--mute);text-align:right}
+#rr-ba-box .row .tt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#rr-ba-box .row .bar{height:10px;background:var(--acc2);border-radius:3px;position:relative}
+#rr-ba-box .row .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--acc);border-radius:3px}
+#rr-ba-box .row .bar b{position:absolute;right:2px;top:-3px;font-size:10.5px;font-weight:500;color:var(--ink)}
+#rr-ba-box .cut{position:absolute;left:0;right:0;border-top:2px dashed var(--bad);pointer-events:none;transition:transform .9s ease}
+#rr-ba-box .snip{font-size:13px;min-height:3em;border-left:3px solid var(--acc);padding:4px 10px;background:var(--soft);border-radius:0 6px 6px 0}
+@media (prefers-reduced-motion:reduce){#rr-ba-box .row,#rr-ba-box .cut{transition:none}}
+</style>
 <section id="rr-s4">
-<h2>4. How deep to rerank: K against quality and time</h2>
-<p><b>The problem.</b> The reranker sees only the first stage's top K. Too small a K and the relevant abstract is never shown to it; too large and you pay for pairs that almost never matter, and give a weak reranker more chances to promote a wrong abstract. Two curves decide K: the first stage's <dfn>recall@K</dfn> (the share of relevant abstracts inside the top K: the ceiling), and the reranker's quality as K grows.</p>
+<h2>4. Where the reranker goes, and how deep</h2>
+<p>The reranker sits after the first stage (BM25, vectors, or their fusion) and before prompt assembly: corpus (5,183) &rarr; first stage &rarr; top K (10 to 100) &rarr; <span class="hl">reranker</span> &rarr; top k (3 to 10) &rarr; LLM. It sees only the top K. Too small a K and the relevant abstract never reaches it; too large and you pay for pairs that almost never matter and give a weak reranker more chances to promote a wrong abstract. Two curves decide K: the first stage's <dfn>recall@K</dfn> (the ceiling: @@hy_rec10@@ at K = 10 and @@hy_rec30@@ at K = 30 for the hybrid list), and the reranker's quality as K grows.</p>
 <div class="prd" data-ans="b"><div class="q">Predict: the hybrid list (BM25 and Qwen3-Embedding fused) scores @@hy_ndcg@@ nDCG@10 on its own. You rerank its top 100 with the small MiniLM cross-encoder, which lifts BM25 from @@bm25_ndcg@@ to @@bm25_ce100@@. What happens?</div>
 <div class="opts"><button data-k="a">It rises, as it did for BM25</button><button data-k="b">It falls</button><button data-k="c">No change</button></div>
 <div class="ans" hidden><span class="verdict"></span>It falls, to <b>@@hy_ce100@@</b>. The cross-encoder is a weaker judge of SciFact than the fused list it reorders: the deeper it reranks, the more wrong abstracts it promotes (@@hy_ce_k3@@ at K = 3, @@hy_ce_k30@@ at K = 30, @@hy_ce100@@ at K = 100). Qwen3-Reranker on the same list reaches @@hy_qw_best@@. A reranker is a model with its own errors, not a free improvement.</div></div>
 <div class="card" id="rr-depth-card">
+<h4>A strong reranker flattens past K = 20; a weak one gets worse the deeper it reads</h4>
 <div class="seg" id="rr-depth-fs"><button data-m="bm25">BM25</button><button data-m="dense">Qwen3-Embedding</button><button data-m="hybrid" class="on">Hybrid (RRF)</button></div>
 <div class="rr-leg" id="rr-depth-leg"></div>
 <div class="rr-chart" id="rr-depth-svg"></div>
-<p class="small mute">nDCG@10 after reranking the top K (log scale), the rest of the list left in first-stage order; the grey dashed line is the first stage's recall@K (same axis; from K = 3), the most a reranker could ever surface. 300 SciFact test claims, recorded scores. <span class="meas">measured here</span> (<code>e_depth.py</code>; the @@root_cells@@ cells the root's Pipeline lab also reports are identical). The two large rerankers were scored to K = 100 on the hybrid list only (@@deep_pairs@@ extra pairs, <code>e_rerank_deep.py</code>).</p>
+<p class="small mute">nDCG@10 after reranking the top K (log scale), the rest of the list left in first-stage order; the grey dashed line is the first stage's recall@K (same axis; from K = 3), the most a reranker could ever surface. 300 test claims, recorded scores. <span class="meas">measured here</span> (<code>e_depth.py</code>; the @@root_cells@@ cells the root's Pipeline lab also reports are identical). The two large rerankers were scored to K = 100 on the hybrid list only (@@deep_pairs@@ extra pairs, <code>e_rerank_deep.py</code>).</p>
 </div>
-<p><b>What the curves say.</b> Qwen3-Reranker-0.6B rises fastest and highest on every first stage; bge-reranker-v2-m3 (568 M parameters, multilingual) lands between; the MiniLM cross-encoder helps BM25 a little, helps dense retrieval only at small K, and hurts the hybrid list. On the hybrid list, scored to K = 100, Qwen3-Reranker reaches @@hy_qw_k20@@ at K = 20 and then stays flat (@@hy_qw_k100@@ at K = 100), while bge-reranker-v2-m3 peaks at K = 20 (@@hy_bge_k20@@) and slides to @@hy_bge_k100@@, although recall keeps rising from @@hy_rec20@@ to @@hy_rec100@@: the extra relevant abstracts deep in the list are rare (most claims have one), and the extra candidates are extra chances for a confident mistake. Past K = 20 the strong reranker gains nothing and the weaker ones lose.</p>
-<p><b>Per claim, not on average.</b> At K = 30 on the hybrid list Qwen3-Reranker improves @@win_qw@@ claims and worsens @@loss_qw@@ (the rest unchanged); the MiniLM cross-encoder improves @@win_ce@@ and worsens @@loss_ce@@. An average gain of a few points hides many individual losses, which is why the Before/after lab shows single claims.</p>
-<p><b>How to choose K on your data.</b> Plot recall@K of your first stage on a labelled sample (a few hundred queries is enough), pick the smallest K where it flattens, measure the reranker's quality at a few K around it, and check the latency at that K on your hardware (Depth chooser tab). The root's {{Pipeline lab|n:3c65c17b0d0d81b89145c37dfe8a3b0b}} tab shows the same sweep inside the whole pipeline, with generation.</p>
+<p>On the hybrid list Qwen3-Reranker-0.6B reaches @@hy_qw_k20@@ at K = 20 and stays flat (@@hy_qw_k100@@ at K = 100); bge-reranker-v2-m3 (568 M, multilingual) peaks at K = 20 (@@hy_bge_k20@@) and slides to @@hy_bge_k100@@, although recall keeps rising from @@hy_rec20@@ to @@hy_rec100@@: extra relevant abstracts deep in the list are rare (most claims have one), and extra candidates are extra chances for a confident mistake. The MiniLM cross-encoder helps BM25 a little, helps dense retrieval only at small K, and hurts the hybrid list.</p>
+<p><b>Averages hide losses.</b> At K = 30 on the hybrid list Qwen3-Reranker improves @@win_qw@@ claims and worsens @@loss_qw@@ (the rest unchanged); MiniLM improves @@win_ce@@ and worsens @@loss_ce@@. Watch single claims reranked: pick a case, then press <b>After</b>.</p>
+<div class="card" id="rr-ba-box">
+<h4>One real candidate list, reranked: rows slide to their new places</h4>
+<div class="ctl">
+<label class="small">Claim <select id="rr-ba-claim"></select></label>
+<label class="small">K <input type="range" id="rr-ba-k" min="5" max="30" step="5" value="30" style="width:120px" aria-label="Rerank depth K"> <b id="rr-ba-kv"></b></label>
+</div>
+<div class="seg" id="rr-ba-fs"><button data-m="bm25">BM25</button><button data-m="dense">Qwen3-Embedding</button><button data-m="hybrid" class="on">Hybrid (RRF)</button></div>
+<div class="seg" id="rr-ba-rr"><button data-m="0">MiniLM-L6 CE</button><button data-m="1">bge-reranker-v2-m3</button><button data-m="2" class="on">Qwen3-Reranker-0.6B</button><button data-m="3">ColBERT MaxSim</button></div>
+<div class="seg" id="rr-ba-ph"><button data-m="before" class="on">Before</button><button data-m="after">After</button></div>
+<div class="small" id="rr-ba-why"></div>
+<div class="grid" id="rr-ba-stats"></div>
+<div class="lst" id="rr-ba-list"></div>
+<div class="snip" id="rr-ba-snip">Click a row to read the abstract's opening.</div>
+<p class="small mute">Rows: the first stage's real top 30 for the claim; After re-sorts the top K by the reranker's recorded score (the red dashed line marks K), the rest keep their place; relevant abstracts are green. Scores: MiniLM raw logit, bge-reranker sigmoid (0 to 1), Qwen3-Reranker log-odds of yes over no, ColBERT MaxSim sum; bars scaled within the list. <span class="meas">measured here</span></p>
+<details class="dp"><summary>How the six claims were chosen <span class="mute">(fixed rules, not by hand)</span></summary><div class="b"><p class="small">Written in <code>e_examples.py</code>: the first claim in id order where Qwen3-Reranker rescues a relevant abstract from BM25 rank 10 or lower, where it demotes BM25's correct first result, where MiniLM and Qwen3-Reranker disagree, where no first stage finds anything, one with three or more relevant abstracts, and claim 1180.</p></div></details>
+</div>
+<p><b>How to choose K on your data.</b> Plot your first stage's recall@K on a labelled sample (a few hundred queries is enough), take the smallest K where it flattens, measure the reranker's quality at a few K around it, and check the latency at that K on your hardware ({{Depth chooser|#t-rrdepth}} tab). If recall@K is low, fix retrieval (hybrid, query rewriting, chunking), not the reranker. The root's {{Pipeline lab|n:3c65c17b0d0d81b89145c37dfe8a3b0b}} shows the same sweep inside the whole pipeline, with generation.</p>
 </section>
 
 <section id="rr-s5">
-<h2>5. What a reranker score means: calibration, thresholds, abstaining</h2>
-<p><b>The problem.</b> A RAG system often has to decide <i>whether</i> anything relevant was found (to say "I could not find it" instead of answering from the wrong abstract), and a natural idea is a threshold on the reranker score. That needs the score to mean the same thing across queries.</p>
-<p><b>Three scales.</b> The setup stored each model's default output, and they are different quantities: MiniLM's raw logit, bge's sigmoid of its logit, and Qwen3's log-odds of "yes" over "no". Mapped back to one logit scale (bge: log(p / (1 - p))), their distributions on the same @@pool_pairs@@ (claim, candidate) pairs look like this:</p>
-<div class="card" id="rr-hist-card">
-<div class="seg" id="rr-hist-m"><button data-m="ce-minilm-l6">MiniLM-L6 CE</button><button data-m="bge-reranker-v2-m3">bge-reranker-v2-m3</button><button data-m="qwen3-reranker-0.6b" class="on">Qwen3-Reranker-0.6B</button></div>
-<div class="rr-chart" id="rr-hist-svg"></div>
-<div class="small" id="rr-hist-txt"></div>
-<p class="small mute">Pool: each test claim's BM25 top 30 plus Qwen3-Embedding top 30 (@@pool_pairs@@ pairs, @@pool_rel@@ labelled relevant). "Unlabelled" includes some relevant abstracts nobody marked: SciFact is sparsely judged. <span class="meas">measured here</span> (<code>e_scores.py</code>)</p>
-</div>
-<p><b>Calibration</b> means that among pairs scored 0.7, about 70% are relevant. Reading each logit through a sigmoid, the expected calibration error (ECE: the average gap between predicted and observed relevance over ten score bins) is @@ece_ce@@, @@ece_bge@@ and @@ece_qw@@ for the three models; after <dfn>Platt scaling</dfn> (fitting p = sigmoid(a &middot; score + b) on half the claims and testing on the other half) it drops to @@ece_ce_p@@, @@ece_bge_p@@ and @@ece_qw_p@@. Those ECEs look small because only @@base_rate@@% of the pairs are relevant; the top bin tells the real story: of the pairs whose raw sigmoid is above 0.9, only @@top_ce@@%, @@top_bge@@% and @@top_qw@@% are labelled relevant (some unlabelled ones are relevant, so the truth is somewhat higher). Raw scores are over-confident at the top; the reliability bars in the chart above show it bin by bin.</p>
-<p><b>Thresholds do not transfer.</b> The same MiniLM cross-encoder on NFCorpus (medical questions, graded labels) puts its relevant pairs at a median logit of @@nf_rel_med@@, against @@sf_rel_med@@ on SciFact: @@nf_above0@@% of NFCorpus relevant pairs score above 0, against @@sf_above0@@% on SciFact. A threshold tuned on one corpus, or on one model, is wrong on the next. Recalibrate on a labelled sample from the target data.</p>
-<h3>Abstaining when nothing relevant was retrieved</h3>
-<p>A constructed test, labelled as such: each test claim is ranked twice, once with its candidate pool as is (@@n_ans@@ claims have a relevant abstract in it) and once with every relevant abstract removed, so the best remaining candidate is a near miss. A good "nothing here" signal gives the top candidate a lower score in the second case. Area under the ROC curve (AUROC: the chance that a random answerable claim's top score beats a random unanswerable one's) for each signal:</p>
-<div class="card" id="rr-abst-card">
-<div class="rr-chart" id="rr-abst-bars"></div>
-<div class="seg" id="rr-abst-m"><button data-m="ce-minilm-l6">MiniLM-L6 CE</button><button data-m="bge-reranker-v2-m3">bge-reranker-v2-m3</button><button data-m="qwen3-reranker-0.6b" class="on">Qwen3-Reranker-0.6B</button></div>
-<label class="small">Abstain when the top score is below <b id="rr-abst-tv"></b> <input type="range" id="rr-abst-t" min="0" max="44" step="1" value="24" aria-label="Threshold"></label>
-<div class="small" id="rr-abst-out"></div>
-<p class="small mute">Thresholds on each model's logit scale. <span class="meas">measured here</span> (<code>e_scores.py</code>)</p>
-</div>
-<p>The two large rerankers are better abstention signals than the first stage's scores (cosine @@abst_cos@@, BM25 @@abst_bm25@@), and the strongest is the best (@@abst_qw@@); the small MiniLM cross-encoder (@@abst_ce@@) is no better than the cosine. None is close to clean: at a threshold that keeps 90% of answerable claims, @@abst_at90@@% of the "nothing relevant" claims are still answered (Qwen3-Reranker). Use the score as one input to abstaining, together with the generator checking whether the passage actually supports the answer ({{RAG and retrieval evaluation|n:3ef5c17b0d0d8194a914d1843ee26f13}} owns groundedness).</p>
+<h2>5. Evaluating a reranker, and timing it</h2>
+<p>Everything above is one evaluation, and the same recipe works on any corpus:</p>
+<ol>
+<li><b>Freeze the first stage</b> and score it alone: nDCG@10 and recall@K on a labelled sample from your own data. Recall@K is the reranker's ceiling.</li>
+<li><b>Rerank at the K you will use</b> and compare with the first stage alone, not with nothing. A reranker can lower quality (MiniLM on the hybrid list: @@hy_ndcg@@ to @@hy_ce100@@).</li>
+<li><b>Count wins and losses per query</b>, not only the mean (@@win_qw@@ better and @@loss_qw@@ worse for Qwen3-Reranker above), and read a few losses.</li>
+<li><b>Time a whole query's batch</b>, all K pairs together, several repeats, under realistic load. Per-query latency depends on batching, padding and length sorting: timing one pair and multiplying by K is wrong both ways (section 1's predict box: @@qw30_pred_s@@ s predicted, @@t_qw30_s@@ s measured).</li>
+<li><b>Check the scores you will threshold</b> on target data (section 6), and the instruction or template the reranker expects (section 7).</li>
+</ol>
+<p class="small">Sparse labels make every number here a lower bound: an unlabelled relevant abstract promoted to first counts as a miss. Judged answer metrics (faithfulness, groundedness) belong to {{RAG and retrieval evaluation|n:3ef5c17b0d0d8194a914d1843ee26f13}}; nDCG, MRR and AUROC are defined on {{Evaluation metrics|n:3c65c17b0d0d81a29acef722e842a29b}}.</p>
 </section>
