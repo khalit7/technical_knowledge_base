@@ -101,3 +101,6 @@ answers) is now closed; the closed time grew because those blocks now hold it.
 383 units drafted by `ledger.py init` from the old page: core 249, depth 115, fat 19, owned 0, volatile 0. Keys were
 chosen as the first distinctive phrase of each unit found on the rebuilt page (labelled core or depth by whether it now
 sits inside a closed block), then the 39 units without one were labelled by hand.
+
+## Topic close (2026-10-24)
+The root was rebuilt as a map; this page's Further reading now quotes the root as "31 min, plus 7" and siblings as their headers, and its ledger keys that quoted old times were re-keyed.
