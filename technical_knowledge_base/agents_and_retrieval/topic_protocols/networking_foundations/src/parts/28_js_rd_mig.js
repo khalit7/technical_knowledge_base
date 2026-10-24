@@ -55,6 +55,6 @@
   }
   function note(){$('rd-mig-note').innerHTML=mode==='quic'?'<span class="meas">measured</span> aioquic '+esc(Q.aioquic)+', loopback, '+esc(Q.recorded)+': '+L.length+' datagrams, both replies received ("'+esc(Q.steps[1].reply)+'", "'+esc(Q.steps[3].reply)+'") on one connection. Rows are in time order; spacing is not to scale (each datagram\'s times are in its caption).':'<span class="ill">illustrative</span> the same move on TCP over TLS 1.3, drawn from RFC 9293 and RFC 9846; message order, not timing.'}
   const h=RD.anim({card:'rd-mig-card',ctl:'rd-mig-ctl',n:S.length,draw,ms:1700,label:'Datagram'});
-  RD.seg($('rd-mig-seg'),m=>{mode=m;S=m==='quic'?quicSteps():TCP;note();h.reset(S.length);h.play()});
+  RD.seg($('rd-mig-seg'),m=>{mode=m;S=m==='quic'?quicSteps():TCP;note();h.reset(S.length)});
   note();RD.onResize(()=>h.redraw());
 })();

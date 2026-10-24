@@ -1,20 +1,90 @@
 
-<section id="rd-gpu">
-<h2>14. Why GPU clusters avoid TCP for the heavy traffic</h2>
-<p><b>The problem.</b> An allreduce moves gigabytes between GPUs every training step, and every microsecond of latency and every CPU copy shows up as idle accelerators. Kernel TCP copies each byte from the NIC into kernel memory and then into the application, takes CPU interrupts, and backs off on any loss. At hundreds of gigabits per second per node, that is too slow and too expensive.</p>
-<p><b>RDMA</b> (remote direct memory access) lets one machine's network card read and write another machine's memory directly, with no kernel stack copying on either side; with GPUDirect RDMA, straight into GPU memory. It runs on three kinds of fabric in practice:</p>
-<ul>
-<li><b>InfiniBand</b>: a separate network built for RDMA, with its own adapters and switches ({{InfiniBand Trade Association|https://www.infinibandta.org/}}).</li>
-<li><b>RoCEv2</b> (RDMA over Converged Ethernet): the same RDMA operations carried in UDP datagrams to port 4791 over ordinary routed Ethernet and IP (IANA registered 4791/udp to the InfiniBand Trade Association in 2014, {{IANA port registry|https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml?search=4791}}). This is where UDP meets your training job; the UDP header is only an envelope, and the reliability lives in the RDMA transport and the fabric's configuration.</li>
-<li><b>AWS EFA</b>: an OS-bypass interface whose transport is AWS's <b>Scalable Reliable Datagram</b> (SRD) protocol, with built-in congestion control, reached through the Libfabric API; ML applications use it through NCCL and NIXL ({{EFA documentation|https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa.html}}).</li>
-</ul>
-<p><b>NCCL</b>, the library behind PyTorch's GPU collectives, picks the fastest path it finds: NVLink and shared memory inside a server, the IB/RoCE transport across servers, and plain TCP sockets when nothing better exists (<code>NCCL_IB_DISABLE=1</code> forces that fallback, {{NCCL environment variables|https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html}}). Even on an InfiniBand cluster, NCCL sets up its connections over TCP sockets first (the same page describes the "InfiniBand connection bootstrap sockets"), and PyTorch's rendezvous is a TCP store on <code>MASTER_PORT</code> (29500 unless set, {{torchrun source|https://github.com/pytorch/pytorch/blob/main/torch/distributed/run.py}}). So the interface NCCL chooses for its sockets decides whether a job starts at all. When NCCL does fall back to sockets, it uses several per peer precisely because one TCP connection cannot fill a fast NIC (sections 5 and 13): <code>NCCL_SOCKET_NTHREADS</code> helper threads with <code>NCCL_NSOCKS_PERTHREAD</code> sockets each, defaulting on AWS to 2 and 8, so 16 TCP connections for each network connection between two ranks, with the product capped at 64 (same page).</p>
-<div class="co key"><div class="t">When a distributed job hangs at start-up or on its first big collective</div><ol class="tight">
-<li><b>Wrong interface.</b> NCCL picked <code>docker0</code>, a loopback or a management NIC. <code>NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET</code> prints the choice; set <code>NCCL_SOCKET_IFNAME</code>, and <code>GLOO_SOCKET_IFNAME</code> for Gloo, which is a separate variable ({{PyTorch distributed docs|https://docs.pytorch.org/docs/stable/distributed.html}}).</li>
-<li><b>Firewall or security group.</b> Only <code>MASTER_PORT</code> has a fixed number; NCCL's environment-variable reference names no fixed port range for its own sockets, so rules that open one port between nodes are not enough. A silent hang in <code>init_process_group</code> is usually a dropped SYN (section 3).</li>
-<li><b>MTU mismatch</b> between nodes: small messages pass, the first large one hangs (section 10).</li>
-<li><b>Accept queue or file descriptors</b> at the rendezvous rank with thousands of ranks (section 8).</li>
-<li><b>Not the network at all.</b> One straggler rank (a slow GPU, a data-loading stall) makes every other rank wait inside the collective, which looks exactly like a network hang. Compare per-rank progress and GPU utilisation before blaming the fabric.</li>
-</ol></div>
-<div class="deepnote"><b>Go deeper.</b> Parallelism schemes and what each collective moves: {{Distributed training|n:3c65c17b0d0d8103a916c4824abbd82e}}. Failure rates, timeouts and checkpointing at scale: {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}}. NVLink, NICs and the hardware itself: {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}}.</div>
+<section id="rd-dbg">
+<h2>15. Debugging a connection: from symptom to mechanism</h2>
+<p>Four tools answer most questions, each at a different layer. <b>ping</b> asks whether a host answers and what the round trip is (ICMP echo; some networks drop it, so silence is not proof the host is down). <b>traceroute</b> and <b>mtr</b> show the path and where loss starts (TTL, section 1). <b>ss</b> (Linux; <code>netstat</code> and <code>lsof</code> on macOS) shows every socket's state, queue, window, RTT and retransmissions as the kernel sees them. <b>tcpdump</b> shows the packets themselves (needs root): SYNs resent with no answer, RSTs, window sizes, segments waiting for ACKs, for example <code>tcpdump -ni any 'tcp port 443 and host 203.0.113.5'</code>. Start from what you see:</p>
+<div class="tw"><table class="symp">
+<thead><tr><th>Symptom</th><th>Most likely mechanism</th><th>Command that shows it</th></tr></thead>
+<tbody>
+<tr><td>"Connection refused" in under a millisecond</td><td>nothing listens there, or it listens on another address (section 2)</td><td><code>lsof -nP -iTCP:PORT -sTCP:LISTEN</code>; <code>ss -ltnp</code></td></tr>
+<tr><td>Connect hangs, then times out</td><td>SYN dropped by a firewall or security group (section 3)</td><td><code>nc -vz -w 3 host port</code>; <code>mtr host</code></td></tr>
+<tr><td>Connects take 1 s or 3 s instead of milliseconds</td><td>full accept queue or lost SYNs (section 8)</td><td><code>ss -lnt</code> (Recv-Q against Send-Q); <code>nstat -az TcpExtListenOverflows</code></td></tr>
+<tr><td>"Cannot assign requested address" under load</td><td>ephemeral ports exhausted by TIME_WAIT (section 3)</td><td><code>ss -tan state time-wait | wc -l</code>; fix with pooling</td></tr>
+<tr><td>Many CLOSE_WAIT sockets that never go away</td><td>your code does not close connections the peer closed (section 3)</td><td><code>ss -tan state close-wait</code>; find the leak</td></tr>
+<tr><td>Transfer far below link speed, no retransmissions</td><td>window over RTT (section 5)</td><td><code>ss -ti</code> (<code>rtt</code>, <code>cwnd</code>, <code>rcv_space</code>); <code>iperf3 -P 1</code> against <code>-P 8</code></td></tr>
+<tr><td>Transfer slow with growing retransmissions</td><td>loss (sections 4, 6)</td><td><code>nstat -az TcpRetransSegs</code>; <code>ethtool -S eth0</code> for NIC drops</td></tr>
+<tr><td>Everything slows while one big transfer runs</td><td>queue at the bottleneck: bufferbloat (section 6)</td><td><code>ping</code> during the transfer: idle against loaded RTT</td></tr>
+<tr><td>Each request about 40 ms slower than it should be</td><td>Nagle plus delayed ACK (section 7)</td><td>check <code>TCP_NODELAY</code> on both ends</td></tr>
+<tr><td>Fails after idle periods with "connection reset"</td><td>NAT or load-balancer idle timeout (section 9)</td><td>time since last use against the middlebox's timer; <code>ss -to</code></td></tr>
+<tr><td>Small requests work, big ones hang</td><td>MTU black hole or mismatch (section 10)</td><td><code>ping -M do -s 1472</code> (Linux), <code>ping -D -s 1472</code> (macOS); <code>tracepath</code></td></tr>
+<tr><td>HTTP/3 slow or falling back on one network</td><td>UDP blocked or UDP buffer drops (sections 11, 12)</td><td><code>nstat -az UdpRcvbufErrors</code>; test UDP 443</td></tr>
+<tr><td>Distributed job hangs at <code>init_process_group</code></td><td>wrong interface, firewall, MTU (section 14)</td><td><code>NCCL_DEBUG=INFO</code>; <code>NCCL_SOCKET_IFNAME</code></td></tr>
+</tbody></table></div>
+<details class="dp"><summary>Linux settings you will meet, and reading <code>ss -ti</code> <span class="mute">(reference)</span></summary><div class="b">
+<p class="small mute">Defaults from the current kernel documentation ({{ip-sysctl|https://docs.kernel.org/networking/ip-sysctl.html}}, {{net.core sysctls|https://docs.kernel.org/admin-guide/sysctl/net.html}}) and {{include/net/tcp.h|https://github.com/torvalds/linux/blob/master/include/net/tcp.h}}, read 5 October 2026; distributions may override them. This Mac's equivalents are in <code>src/meas/out/env.txt</code>.</p>
+<div class="tw"><table>
+<thead><tr><th>Setting</th><th>Default</th><th>What it does, and when to change it</th></tr></thead>
+<tbody>
+<tr><td><code>net.ipv4.tcp_congestion_control</code></td><td>chosen when the kernel is built (CUBIC is the default named in RFC 9438 s1); read it, do not assume</td><td>sender's algorithm; try <code>bbr</code> on long lossy paths (section 6)</td></tr>
+<tr><td><code>net.core.somaxconn</code></td><td>4096 (128 before 5.4)</td><td>cap on any <code>listen()</code> backlog (section 8)</td></tr>
+<tr><td><code>net.ipv4.tcp_rmem</code> / <code>tcp_wmem</code></td><td>4K, 131072, up to 32 MB / 4K, 16K, up to 4 MB (depends on RAM)</td><td>min, initial, autotuning maximum; raise the third value to the BDP for long fat paths (section 5)</td></tr>
+<tr><td><code>net.core.rmem_max</code> / <code>wmem_max</code></td><td>4194304 since 6.18 (212992 before)</td><td>caps explicit <code>SO_RCVBUF</code>/<code>SO_SNDBUF</code> only, not autotuning; matters for UDP and QUIC (section 11)</td></tr>
+<tr><td><code>net.ipv4.ip_local_port_range</code></td><td>32768 60999</td><td>ephemeral ports (section 3)</td></tr>
+<tr><td><code>net.ipv4.tcp_tw_reuse</code></td><td>2 (loopback only)</td><td>1 allows reuse of TIME_WAIT for outgoing connections; pooling is the real fix</td></tr>
+<tr><td><code>net.ipv4.tcp_mtu_probing</code></td><td>0</td><td>1 probes when a black hole is detected, 2 always (section 10)</td></tr>
+<tr><td><code>net.ipv4.tcp_slow_start_after_idle</code></td><td>1</td><td>0 keeps the congestion window across idle periods on long-lived connections</td></tr>
+<tr><td><code>net.ipv4.tcp_syn_retries</code></td><td>6 (about 131 s to give up)</td><td>shorter connect failure; better: set a connect timeout in the client</td></tr>
+<tr><td>keepalive time / interval / probes</td><td>7200 s / 75 s / 9 (tcp.h)</td><td>set per socket below the NAT idle timeout (section 9)</td></tr>
+<tr><td>TIME_WAIT length</td><td>60 s, fixed (tcp.h)</td><td>not tunable; reuse connections</td></tr>
+</tbody></table></div>
+<p><b>Reading <code>ss -ti</code>.</b> One line per connection: <code>cubic</code> or <code>bbr</code> (algorithm), <code>wscale</code> (send and receive window-scale shifts), <code>rto:</code> (current timer, ms), <code>rtt:x/y</code> (smoothed RTT / variance, ms), <code>mss:</code>, <code>cwnd:</code> (segments), <code>ssthresh:</code>, <code>bytes_acked:</code>, <code>retrans:</code> (in flight / total), <code>pacing_rate</code>, <code>rcv_space:</code> (autotuning's estimate); field list in {{man 8 ss|https://man7.org/linux/man-pages/man8/ss.8.html}}. Small <code>cwnd</code> with climbing <code>retrans</code>: loss-limited. Large <code>cwnd</code> and a throughput equal to window / RTT: window-limited. The macOS counterpart is <code>netstat -s -p tcp</code> for totals; per-connection detail needs <code>getsockopt(TCP_CONNECTION_INFO)</code>, which this page's scripts use.</p>
+</div></details>
+</section>
+
+<section id="rd-ref">
+<h2>Reference: drills, interview questions, glossary</h2>
+<details class="dp"><summary>Eight predict-then-reveal drills <span class="mute">(each from a real situation on this page)</span></summary><div class="b"><div id="rd-drills"></div></div></details>
+<details class="dp"><summary>Interview questions, with model answers <span class="mute">(optional rehearsal)</span></summary><div class="b">
+<details class="mist qa"><summary>What happens, at the transport level, when you call <code>requests.post()</code> to an HTTPS API for the first time?</summary><div class="b">DNS resolves the name (the {{DNS|n:3c65c17b0d0d812387d8f92b546f07af}} page). The kernel picks an ephemeral port and sends a SYN; SYN-ACK and ACK complete the handshake in one round trip, negotiating MSS, window scaling, SACK and timestamps. TLS 1.3 takes one more round trip. The request goes out in one or more segments; the response comes back under flow control (receive window) and congestion control (slow start from 10 segments). The connection is returned to the pool; if it is never reused, whoever closes first holds TIME_WAIT. Total before the first response byte: about three round trips plus server time.</div></details>
+<details class="mist qa"><summary>Why can a single TCP connection not use a 10 Gbit/s link across an ocean, and how do you fix it?</summary><div class="b">Throughput is at most window / RTT. 10 Gbit/s &times; 100 ms needs 125 MB in flight; a typical autotuning ceiling of a few MB gives tens to hundreds of Mbit/s. Loss caps it further (Mathis: about 45 Mbit/s at one loss in 100,000 with 1,460-byte segments), and clouds cap single flows (5 Gbit/s on AWS outside placement groups). Fixes: raise <code>tcp_rmem</code>/<code>tcp_wmem</code> maxima to the BDP, never pin <code>SO_RCVBUF</code>, consider BBR for lossy paths, and above all use parallel streams (multipart upload, sharded checkpoints).</div></details>
+<details class="mist qa"><summary>TCP versus UDP versus QUIC: when do you pick each?</summary><div class="b">TCP by default for request/response and bulk data between services: reliable, ordered, in the kernel, understood by every middlebox. UDP when late data is useless (media, games), when one packet answers one question (DNS), or as the substrate for your own transport; you must add congestion control. QUIC when you want TCP's guarantees without head-of-line blocking across streams, a combined one-round-trip handshake, and connection migration, typically HTTP/3 to clients on mobile or lossy networks; it costs more CPU and needs a TCP fallback where UDP is blocked.</div></details>
+<details class="mist qa"><summary>A service sees thousands of sockets in TIME_WAIT and occasional "Cannot assign requested address". Explain and fix.</summary><div class="b">The client side closes connections first, so it holds TIME_WAIT for 60 s on Linux; with 28,232 ephemeral ports that allows about 470 new connections per second to one destination address and port. The client is opening a connection per request. Fix: connection pooling with keep-alive (also saves a round trip or two per request). <code>tcp_tw_reuse=1</code> helps outgoing connections; <code>tcp_tw_recycle</code> no longer exists (removed in 4.12, broke NAT).</div></details>
+<details class="mist qa"><summary>Small API calls work but a large upload hangs forever. What do you suspect and how do you prove it?</summary><div class="b">A path MTU black hole: a smaller-MTU link on the path drops full-size packets, and the ICMP "fragmentation needed" or "packet too big" message is filtered. Prove it with don't-fragment pings of increasing size (<code>ping -M do -s 1472</code> on Linux): success below a size and silence above it, with no ICMP reply. Fix: allow those ICMP messages, clamp MSS on the tunnel, or enable <code>tcp_mtu_probing</code>.</div></details>
+<details class="mist qa"><summary>Why does a streaming endpoint set <code>TCP_NODELAY</code>?</summary><div class="b">Nagle's algorithm holds a small write while earlier data is unacknowledged. Tokens are small writes 20 to 100 ms apart, so on a real round trip each token after the first would wait for the previous token's ACK (and possibly a 40 ms delayed ACK), turning a smooth stream into bursts. <code>TCP_NODELAY</code> sends each write at once.</div></details>
+<details class="mist qa"><summary>How does QUIC survive a phone switching from Wi-Fi to mobile data when TCP does not?</summary><div class="b">TCP identifies a connection by its 5-tuple, so a new client address matches no socket and the connection is dead; the app must reconnect and redo the handshakes. QUIC identifies it by connection IDs carried in each packet; the server sees the known ID from a new address, validates the new path with PATH_CHALLENGE/PATH_RESPONSE, and continues. This page records exactly that on loopback (section 12).</div></details>
+<details class="mist qa"><summary>A pooled HTTP connection fails with "connection reset" only when it was idle for a few minutes. Why?</summary><div class="b">A NAT gateway or load balancer between the hosts dropped the idle mapping (AWS NAT: 350 s) and answers the next packet with a reset. Neither end was told. Fix: keepalive probes (or application pings) more often than the shortest idle timer, or a pool that discards connections idle longer than it; and retry idempotent requests once on a reset of a reused connection.</div></details>
+</div></details>
+<details class="dp"><summary>Glossary <span class="mute">(every term, with its section)</span></summary><div class="b">
+<dl class="kv">
+<dt>ACK</dt><dd>acknowledgement: "I have every byte up to n" (section 4)</dd>
+<dt>BDP</dt><dd>bandwidth-delay product, link rate &times; RTT: the bytes that must be in flight to fill a path (section 5)</dd>
+<dt>BBR</dt><dd>congestion control that models bottleneck bandwidth and minimum RTT instead of reacting to loss (section 6)</dd>
+<dt>CIDR, prefix</dt><dd><code>10.0.0.0/16</code>: all addresses sharing the first 16 bits (section 1)</dd>
+<dt>Congestion window (cwnd)</dt><dd>the sender's estimate of what the network can carry; grows on ACKs, shrinks on loss (section 6)</dd>
+<dt>Connection ID</dt><dd>QUIC's name for a connection, independent of addresses (section 12)</dd>
+<dt>CUBIC</dt><dd>the default congestion control in Linux, Windows and Apple stacks (RFC 9438)</dd>
+<dt>Delayed ACK</dt><dd>a receiver waiting briefly before acknowledging, up to 40 to 200 ms on Linux (section 7)</dd>
+<dt>Ephemeral port</dt><dd>the temporary port the client's kernel picks for its end (section 2)</dd>
+<dt>FIN, RST</dt><dd>orderly close of one direction; abrupt "this connection does not exist" (section 3)</dd>
+<dt>Head-of-line blocking</dt><dd>bytes that arrived waiting behind a missing earlier byte (section 4)</dd>
+<dt>ICMP</dt><dd>IP's control messages: errors such as "time exceeded" and "packet too big", and ping (sections 1, 10)</dd>
+<dt>MSS</dt><dd>maximum segment size: the largest TCP payload per segment, announced in the SYN (section 10)</dd>
+<dt>MTU</dt><dd>maximum transmission unit: the largest IP packet a link carries (section 10)</dd>
+<dt>Nagle's algorithm</dt><dd>holding small writes while data is unacknowledged; off with <code>TCP_NODELAY</code> (section 7)</dd>
+<dt>NAT</dt><dd>network address translation: rewriting private addresses and ports to a public one, with a table of mappings (section 9)</dd>
+<dt>Packet, segment, datagram</dt><dd>an IP unit; a TCP unit inside it; a UDP unit inside it</dd>
+<dt>PMTUD</dt><dd>path MTU discovery, by ICMP "too big" messages or by probing (section 10)</dd>
+<dt>RDMA, RoCEv2, InfiniBand, EFA</dt><dd>direct memory access over the network, and the fabrics that carry it (section 14)</dd>
+<dt>Receive window</dt><dd>free space in the receiver's buffer, advertised in every ACK (section 5)</dd>
+<dt>RTO</dt><dd>retransmission timeout: how long the sender waits before resending (section 4)</dd>
+<dt>RTT</dt><dd>round-trip time: a packet there and the answer back</dd>
+<dt>SACK</dt><dd>selective acknowledgement: which later blocks have arrived (section 4)</dd>
+<dt>Slow start</dt><dd>doubling the congestion window every round trip from 10 segments (section 6)</dd>
+<dt>Socket</dt><dd>the kernel's handle for one end of a conversation (section 2)</dd>
+<dt>SYN</dt><dd>the first segment of a TCP connection, carrying the initial sequence number and options (section 3)</dd>
+<dt>TIME_WAIT</dt><dd>the closed-first side remembering a connection for 2 MSL (60 s on Linux) (section 3)</dd>
+<dt>TTL, hop limit</dt><dd>a per-packet counter each router decrements; at zero the packet is dropped (section 1)</dd>
+<dt>Window scaling</dt><dd>the SYN option that multiplies the 16-bit window field, up to 1 GiB (section 5)</dd>
+<dt>5-tuple</dt><dd>protocol, source address and port, destination address and port: a connection's name (section 2)</dd>
+</dl>
+</div></details>
 </section>

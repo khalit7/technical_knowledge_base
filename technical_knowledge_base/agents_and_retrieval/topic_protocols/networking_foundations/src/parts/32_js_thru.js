@@ -1,4 +1,4 @@
-// ---- Throughput lab: per-connection ceilings, parallel streams, time to move a payload ----
+// ---- Reading section 13, throughput calculator: per-connection ceilings, parallel streams, time to move a payload ----
 window.THRU=(function(){
   const MATHIS=Math.sqrt(1.5);
   // all rates in bit/s; rtt in s; win and mss in bytes
@@ -13,7 +13,7 @@ window.THRU=(function(){
   return {limits,MATHIS};
 })();
 (function(){
-  const $=id=>document.getElementById(id);if(!$('t-thru'))return;const F=NFC.fmt,esc=RD.esc;
+  const $=id=>document.getElementById(id);if(!$('rd-thru-card'))return;const F=NFC.fmt,esc=RD.esc;
   const PRE={home:{link:0.046,rtt:19,win:'4194304',loss:'0',cap:'0',mss:'1448',n:1},az:{link:25,rtt:1,win:'33554432',loss:'0',cap:'5',mss:'1448',n:1},
     pg:{link:100,rtt:0.05,win:'33554432',loss:'0',cap:'10',mss:'8949',n:1},xr:{link:10,rtt:100,win:'33554432',loss:'1e-5',cap:'5',mss:'1448',n:1}};
   const rate=b=>b>=1e9?F(b/1e9,b>=1e10?0:2)+' Gbit/s':b>=1e6?F(b/1e6,b>=1e8?0:1)+' Mbit/s':F(b/1e3,0)+' kbit/s';
@@ -38,15 +38,8 @@ window.THRU=(function(){
       marks:[{x:p.n,y:L.total/1e9,col:'var(--c2)',label:rate(L.total),dx:8,dy:14}]});
     $('th-note').innerHTML='Mathis bound uses C = &radic;(3/2) = 1.22 (the paper\'s constant for periodic loss with delayed ACKs off; with delayed ACKs it is smaller). Real flows on one link also compete with each other and with other traffic; this is the ceiling, not a forecast.';
   }
-  function meas(){
-    const runs=NF.path.runs.filter(r=>!r.error);const rtt=runs.reduce((a,r)=>a+r.srtt_ms,0)/runs.length/1000;const top=Math.max(...runs.map(r=>r.goodput_mbps));
-    const xs=[];for(let w=8;w<=1500;w*=1.15)xs.push(w);const line=xs.map(w=>[w,Math.min(w*1024*8/rtt/1e6,top)]);
-    NFC.plot({el:$('th-meas'),h:220,x:[0,1500],y:[0,60],xl:'receive window reported by the kernel (KB)',yl:'Mbit/s',
-      series:[{pts:line,col:'var(--c4)',label:'window / '+F(rtt*1000,1)+' ms, capped at '+F(top,1)+' Mbit/s'},{pts:runs.map(r=>[r.rcv_wnd/1024,r.goodput_mbps]),col:'var(--c1)',dots:true,dotsOnly:true,r:3.5,label:'measured runs'}]});
-  }
   ['th-link','th-rtt','th-n'].forEach(id=>$(id).addEventListener('input',upd));['th-win','th-loss','th-cap','th-mss','th-size'].forEach(id=>$(id).addEventListener('change',upd));
   $('th-pre').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$('th-pre').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));setPre(b.dataset.p)});
   setPre('xr');
-  const all=()=>{upd();meas()};(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-thru']=window.TAB_RENDER['t-thru']||[]).push(all);
-  addEventListener('resize',()=>{if(!$('t-thru').hidden)all()});
+  RD.onRender(upd);RD.onResize(upd);
 })();

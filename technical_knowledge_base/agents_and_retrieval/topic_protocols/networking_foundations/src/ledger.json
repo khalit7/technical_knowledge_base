@@ -1,0 +1,4223 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Networking foundations: IP, TCP, UDP and QUIC Networking foundations: IP, TCP, UDP and QUIC The transport layer from zero to production depth: addresses and ports, TCP's handshake, retransmission, windows and congestion control, small-write stalls, accept queues, NAT and idle timeouts, MTU black holes, UDP, QUIC as a transport, moving big checkpoints, and why GPU clusters use RDMA.",
+  "label": "core",
+  "key": "foundations: IP, TCP, UDP and QUIC Networking foundations",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Measured on a real path and on loopback; data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Child of Topic: protocols.",
+  "label": "core",
+  "key": "Child of Topic: protocols",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading TCP timeline Throughput lab Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "One screen 1 IP 2 Sockets 3 Connection life 4 Reliability 5 Windows 6 Congestion 7 Small writes 8 Servers 9 Idle and NAT 10 MTU 11 UDP 12 QUIC 13 Big transfers 14 GPU fabrics 15 Debugging 16 Drills Glossary",
+  "label": "core",
+  "key": "6 Congestion 7 Small writes 8 Servers 9",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "networking foundations in one screen",
+  "text": "Networking foundations in one screen About 45 minutes for the prose, about 55 with the tables, glossary and interview answers; recordings and animations can be skimmed.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "networking foundations in one screen",
+  "text": "It starts from zero and defines each term where it first appears (all of them are in the Glossary ); every section can be read on its own.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "networking foundations in one screen",
+  "text": "This page is the depth behind section 3 of Topic: protocols , which gives the overview; read that first if \"IP\", \"TCP\" and \"port\" are new words.",
+  "label": "core",
+  "key": "section 3 of Topic: protocols",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "networking foundations in one screen",
+  "text": "Everything marked measured was run for this page on 5 October 2026 on an Apple M1 Pro laptop (macOS 27.0.1, Python 3.13.5, aioquic 1.3.0) on a home broadband line, either on loopback or against public test endpoints (read-only, a few tens of megabytes in all); illustrative marks a picture of a shape rather than data, and derived numbers show their formula.",
+  "label": "depth",
+  "key": "27.0.1, Python 3.13.5, aioquic 1.3.0) on",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "networking foundations in one screen",
+  "text": "Four protocols carry almost every byte you send: IP moves packets between machines, TCP turns them into a reliable byte stream, UDP hands them to programs with nothing added, and QUIC rebuilds TCP's guarantees (plus encryption) on top of UDP.",
+  "label": "core",
+  "key": "reliable, ordered, flow- and congestion-controlled byte stream",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "networking foundations in one screen",
+  "text": "When an LLM call is slow, a checkpoint upload crawls or a training job hangs at start-up, the cause is usually one of a dozen mechanisms in these four, and each leaves a fingerprint you can see with one command.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "networking foundations in one screen",
+  "text": "The root page follows one streaming request to an LLM API: a 277-byte HTTP request, answered with a stream of Server-Sent Events, one small write per token about 50 ms apart ( the recorded request is replayed segment by segment in the TCP timeline tab).",
+  "label": "core",
+  "key": "small write per token about 50 ms apart",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "networking foundations in one screen",
+  "text": "Here we follow what TCP, UDP and IP do with those bytes, then scale up to the transfer that hurts most in ML work: moving a checkpoint of hundreds of gigabytes across a long path.",
+  "label": "core",
+  "key": "checkpoint of hundreds of gigabytes across a long",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "networking foundations in one screen",
+  "text": "IP TCP UDP QUIC Gives you an address for every machine; packets forwarded hop by hop a reliable, ordered, flow- and congestion-controlled byte stream between two sockets ports and a checksum on single messages reliable, encrypted, independent streams in one connection, plus unreliable datagrams if wanted Costs nothing guaranteed: loss, reordering, duplicates one round trip to open; head-of-line blocking; one stream capped at window / round trip you write reliability and pacing yourself user-space CPU; UDP blocked on some networks Header 20 bytes (IPv4, no options), 40 (IPv6) 20 bytes, usually 32 with timestamps 8 bytes after the first packets, a short header (1 flag byte, a 0 to 20 byte connection ID, a 1 to 4 byte packet number, RFC 9000 s17.3.1 ), inside UDP's 8 Defined in RFC 791 (1981), RFC 8200 (2017) RFC 9293 (2022, replaces RFC 793) RFC 768 (1980) RFC 9000 , 9001, 9002 (2021); v2 RFC 9369 Where you meet it VPC subnets, pod IPs, MTU limits every HTTP/1.1 and HTTP/2 call, gRPC, torch.distributed rendezvous, S3 uploads DNS, NTP, RoCEv2 between GPUs HTTP/3 to browsers and CDNs Twelve numbers worth remembering Each card links to the section that explains it.",
+  "label": "core",
+  "key": "and HTTP/2 call, gRPC, torch.distributed",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "networking foundations in one screen",
+  "text": "The ones marked measured were recorded on this page's laptop; the others are defaults from the Linux source or the specifications, with the link in the section.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "networking foundations in one screen",
+  "text": "What is not here.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "networking foundations in one screen",
+  "text": "Name lookup is the DNS page, encryption the TLS and certificates page, request and response semantics the HTTP page, and the measured head-of-line blocking of HTTP/2 against HTTP/3 is in the root's On the wire tab.",
+  "label": "core",
+  "key": "the root's On the wire",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "networking foundations in one screen",
+  "text": "This page owns everything from the IP address up to the transport: addresses, ports, TCP's machinery, UDP, QUIC as a transport, NAT, MTU, and moving big files.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "IP: addresses, prefixes and the path The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading or one-line lead-in"
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "Two machines on different networks, run by different organisations, need to exchange data with no central switchboard.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "The Internet Protocol solves only this: give every network interface an address , put the source and destination addresses on every packet (a block of bytes with a header in front), and let each router (a machine joining two or more networks) forward the packet one hop closer to its destination.",
+  "label": "core",
+  "key": "every network interface an address",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "That is the whole promise.",
+  "label": "core",
+  "key": "That is the whole promise",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "A packet can be dropped, duplicated, delayed or overtaken by a later one, and IP says nothing ( RFC 791 s1.2 calls it a datagram service with no reliability mechanisms).",
+  "label": "core",
+  "key": "and IP says nothing ( RFC 791 s1.2",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "Addresses and prefixes An IPv4 address is 32 bits, written as four bytes in decimal ( 10.0.12.7 ); an IPv6 address is 128 bits, written as eight groups of four hex digits with the longest run of zero groups shortened to :: ( 2606:4700:4700::1111 is Cloudflare's public resolver).",
+  "label": "core",
+  "key": "); an IPv6 address is 128",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "Addresses are handed out in blocks written as prefixes in CIDR notation ( RFC 4632 ): 10.0.0.0/16 means \"every address whose first 16 bits match\", which is 2 32−16 = 65,536 addresses.",
+  "label": "core",
+  "key": "prefixes in CIDR notation ( RFC 4632 )",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "A VPC is a prefix, its subnets are longer prefixes inside it, and a router's table is a list of prefixes with the next hop for each; the longest matching prefix wins.",
+  "label": "core",
+  "key": "prefix, its subnets are longer prefixes inside it",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "Type an IPv4 prefix (a VPC, a pod range, a peer's subnet) and see its range, size and which reserved block it falls in.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "Try 100.64.0.0/10 , 172.31.0.0/16 (the AWS default VPC) or 10.0.0.0/8 against 10.100.0.0/16 .",
+  "label": "core",
+  "key": "172.31.0.0/16 (the AWS default VPC)",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "Some blocks are reserved, and three of them cause most address incidents in ML infrastructure: Private ranges 10.0.0.0/8 , 172.16.0.0/12 , 192.168.0.0/16 ( RFC 1918 ) are reused inside every company, cloud VPC, Docker bridge and Kubernetes cluster.",
+  "label": "core",
+  "key": "192.168.0.0/16 ( RFC 1918 ) are reused",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "Two networks that both picked 10.0.0.0/16 cannot be peered or joined by VPN without renumbering one of them: the router cannot tell which 10.0.3.4 you mean.",
+  "label": "core",
+  "key": "both picked 10.0.0.0/16 cannot be peered",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "Shared address space 100.64.0.0/10 ( RFC 6598 ) is reserved for carrier-grade NAT (an ISP translating many customers behind one public address) and is also used as a secondary range by some Kubernetes and overlay setups, so it collides with them.",
+  "label": "core",
+  "key": "Shared address space 100.64.0.0/10 ( RFC",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "Link-local 169.254.0.0/16 ( RFC 3927 ) never leaves the local link; clouds put their instance metadata service at 169.254.169.254 ( AWS IMDS ), which is why an agent that can fetch arbitrary URLs from a cloud VM can read that VM's credentials (server-side request forgery; the DNS page covers the rebinding variant).",
+  "label": "core",
+  "key": "Link-local 169.254.0.0/16 ( RFC 3927 )",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "IPv6 has its own private block, unique local addresses fc00::/7 ( RFC 4193 ), but its main idea is that addresses are plentiful enough that every device can have a global one, and NAT (section 9) is not needed.",
+  "label": "core",
+  "key": "addresses fc00::/7 ( RFC 4193 ), but its",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "Hop by hop: TTL, ICMP and how traceroute works Every IPv4 packet carries a time to live (TTL; in IPv6 the hop limit ) that each router decrements; at zero the router drops the packet and sends back an ICMP \"time exceeded\" message (ICMP is IP's control-message protocol: errors and echo, that is, ping).",
+  "label": "core",
+  "key": "IPv4 packet carries a time to live (TTL",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "This stops a routing loop from circulating a packet forever, and it is how traceroute and mtr map a path: they send packets with TTL 1, 2, 3 and so on, and each router that drops one names itself in the ICMP reply.",
+  "label": "core",
+  "key": "TTL 1, 2, 3 and",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "ICMP also carries the \"packet too big\" signal that section 10 depends on, which is why \"block all ICMP\" is a firewall rule that breaks things.",
+  "label": "core",
+  "key": "10 depends on, which is why \"block all",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "IPv4 and IPv6 side by side IPv4 ( RFC 791 ) IPv6 ( RFC 8200 ) Address 32 bits, about 4.3 billion, exhausted 128 bits Header 20 bytes without options, with a header checksum 40 bytes fixed, no header checksum, options moved to extension headers Fragmentation routers may split a packet unless the Don't Fragment bit is set routers never fragment; only the sender may, so path MTU discovery is mandatory in practice Smallest MTU every link must carry 68 bytes (RFC 791) 1,280 bytes ( RFC 8200 s5 ) Dual stack is the normal case now.",
+  "label": "depth",
+  "key": "every link must carry 68 bytes (RFC 791)",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "Google's measurement of the share of its users reaching it over IPv6 first crossed 50 percent on 28 March 2026 (50.10 percent) and stood at 51.69 percent on 3 October 2026, the latest point in its published data (fetched 5 October 2026; weekends run higher than weekdays).",
+  "label": "depth",
+  "key": "percent) and stood at 51.69 percent on 3",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "When a name has both an IPv6 ( AAAA ) and an IPv4 ( A ) address, clients race them with Happy Eyeballs ( RFC 8305 ): prefer IPv6, but if its connection has not succeeded within a short delay (250 ms is the recommended default) start IPv4 in parallel and keep whichever connects first.",
+  "label": "core",
+  "key": "with Happy Eyeballs ( RFC 8305 ): prefer",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "A broken IPv6 path therefore costs a quarter of a second per connection rather than a failure, which is a latency mystery worth knowing about.",
+  "label": "core",
+  "key": "IPv6 path therefore costs a quarter of a",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "Overlapping prefixes (peering refused, or traffic silently going to the wrong network): compare route tables with ip route (Linux) or netstat -rn (macOS), and plan VPC ranges before the first cluster.",
+  "label": "depth",
+  "key": "prefixes (peering refused, or traffic silently going to",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "No route at all: \"Network is unreachable\" instantly.",
+  "label": "depth",
+  "key": "No route at all: \"Network is unreachable\" instantly",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. ip: addresses, prefixes and the path",
+  "text": "A path that loses packets at one hop: mtr host shows loss per hop (loss that starts at one hop and continues to the end is real; loss at one hop only is usually that router de-prioritising ICMP).",
+  "label": "depth",
+  "key": "one hop only is usually that router de-prioritising",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "Ports, sockets and the 5-tuple The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading or one-line lead-in"
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "An address picks a machine, but a machine runs many programs.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "A port (a 16-bit number, 0 to 65,535) picks the program.",
+  "label": "core",
+  "key": "0 to 65,535) picks the program",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "A socket is the operating system's handle for one end of a conversation: your code reads and writes the socket, the kernel does the protocol.",
+  "label": "core",
+  "key": "socket is the operating system's handle for one",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "Servers listen on a well-known port (443 for HTTPS, 22 for SSH, 29500 by convention for torch.distributed 's rendezvous); the client's kernel picks a temporary ephemeral port for its end.",
+  "label": "core",
+  "key": "a well-known port (443 for HTTPS, 22 for",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "A TCP connection is named by its 5-tuple : protocol, source address, source port, destination address, destination port.",
+  "label": "core",
+  "key": "A TCP connection is named by its 5-tuple",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "Every packet of the connection carries the four addresses and ports, and the kernel at each end uses them to find the socket.",
+  "label": "core",
+  "key": "the kernel at each end uses",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "Three consequences you will meet: One client address can only have so many connections to one server address and port , because only the source port varies.",
+  "label": "core",
+  "key": "Only the client's port varies",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "The ephemeral range is 32,768 to 60,999 on Linux, 28,232 ports ( ip-sysctl docs ), and 49,152 to 65,535 on this Mac, 16,384 ports ( measured : sysctl net.inet.ip.portrange , the IANA dynamic range of RFC 6335 ).",
+  "label": "core",
+  "key": "( ip-sysctl docs ), and 49,152 to 65,535",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "Section 3 shows how TIME_WAIT turns that into a rate limit.",
+  "label": "core",
+  "key": "Section 3 shows how TIME_WAIT turns",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "Anything that rewrites addresses or ports (NAT, section 9; a load balancer) must keep a table keyed on the 5-tuple, and the table is a resource that fills and forgets.",
+  "label": "core",
+  "key": "section 9; a load balancer) must keep a",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "Changing any element ends a TCP connection.",
+  "label": "core",
+  "key": "Changing any element ends a TCP connection",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "A laptop moving from Wi-Fi to a phone hotspot gets a new address, so every TCP connection on it dies.",
+  "label": "core",
+  "key": "laptop moving from Wi-Fi to a phone hotspot",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "QUIC names connections differently and survives this; section 12 records it happening.",
+  "label": "core",
+  "key": "QUIC survives the move",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "The calls behind every server and client Server socket() → bind(addr, port) → listen(backlog) → loop: accept() returns a new socket per client → recv / send → close() Client socket() → connect(addr, port) (the kernel picks the ephemeral port and runs the handshake) → send / recv → close() Which address the server binds matters.",
+  "label": "core",
+  "key": "bind(addr, port) → listen(backlog) → loop: accept() returns",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "127.0.0.1 (loopback) accepts connections only from the same machine; 0.0.0.0 (or :: ) accepts on every interface.",
+  "label": "core",
+  "key": "from the same machine; 0.0.0.0 (or :: )",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "A model server started on 127.0.0.1 inside a container is unreachable from outside the container even with the port published, and the client sees \"connection refused\" (the root's Failure lab case \"Connection refused\" shows the exact error text of curl, requests, httpx and Node).",
+  "label": "core",
+  "key": "127.0.0.1 inside a container is",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "The reverse mistake, a notebook or debug server on 0.0.0.0 on a machine with a public address, exposes it to the internet.",
+  "label": "core",
+  "key": "on 0.0.0.0 on a machine with a public",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "A TCP socket is a stream, not a list of messages TCP promises the bytes and their order, not where your writes started and ended.",
+  "label": "core",
+  "key": "messages TCP promises the bytes and their order",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "Three writes of 10 bytes can arrive as one read of 30, or as reads of 7 and 23; UDP keeps each datagram whole. measured on loopback, three writes of token-000n each, reader started after the writes: This is why every protocol on TCP has framing : HTTP/1.1 uses Content-Length or chunk sizes, Server-Sent Events use blank lines, gRPC and HTTP/2 put a length in front of each frame.",
+  "label": "core",
+  "key": "on loopback, three writes of token-000n",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "Code that assumes \"one recv equals one message\" passes every test on loopback and fails under load or on a real network, where segments split and merge differently.",
+  "label": "core",
+  "key": "real network, where segments split and merge differently",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. ports, sockets and the 5-tuple",
+  "text": "See it yourself. lsof -nP -iTCP -sTCP:ESTABLISHED (macOS and Linux) or ss -tnp (Linux) lists each connection's 5-tuple and owning process; lsof -nP -iTCP:8000 -sTCP:LISTEN shows who listens on a port and on which address.",
+  "label": "depth",
+  "key": "connection's 5-tuple and owning process",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "A TCP connection's life: open, talk, close, wait Opening: the three-way handshake.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "TCP numbers every byte.",
+  "label": "core",
+  "key": "TCP numbers every byte",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "Each side picks a random starting number (the initial sequence number; random so that an attacker off the path cannot guess it and inject data, RFC 9293 s3.4.1 ), and the handshake exchanges them: the client sends SYN (\"my bytes start at x\"), the server answers SYN-ACK (\"mine start at y; I expect your x+1\"), the client sends ACK .",
+  "label": "core",
+  "key": "and inject data, RFC 9293 s3.4.1",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "Data may ride on the third segment, so a new connection costs exactly one round trip before the request leaves. measured : connect() to Cloudflare's speed-test host took 14.1 to 19.4 ms over twelve connections, against a ping round trip of 14.0 to 18.4 ms to Cloudflare's resolver: one round trip, as predicted.",
+  "label": "core",
+  "key": "19.4 ms over twelve connections, against",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "The SYN also negotiates options that can never be added later ( RFC 9293 s3.2 , RFC 7323 , RFC 2018 ): the MSS (maximum segment size, the largest payload each side will accept in one segment), window scaling (section 5), SACK permitted (section 4) and timestamps .",
+  "label": "depth",
+  "key": "(section 5), SACK permitted (section 4)",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "On every one of this page's connections to Cloudflare the kernel reported all four plus ECN (explicit congestion notification, section 6) as agreed ( TCP_CONNECTION_INFO options = 15).",
+  "label": "depth",
+  "key": "as agreed ( TCP_CONNECTION_INFO options",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "A middlebox that strips an option from the SYN removes that feature for the life of the connection, silently.",
+  "label": "depth",
+  "key": "feature for the life of the connection, silently",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "Each direction closes separately: a side that has finished sending sends FIN , and the other acknowledges; the connection is gone when both have.",
+  "label": "core",
+  "key": "side that has finished sending sends FIN",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "That allows a half-close (a client sends its whole request, shuts its sending side, and keeps reading the answer).",
+  "label": "core",
+  "key": "half-close",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "RST (reset) is the abrupt alternative: \"this connection does not exist for me, stop\".",
+  "label": "core",
+  "key": "\"this connection does not exist for",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "A kernel sends RST for a segment that matches no socket (a refused connection, or a NAT that forgot the mapping), and an application can force one by closing with unread data.",
+  "label": "core",
+  "key": "segment that matches no socket (a refused connection",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "The states, on one connection.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "Step through the eleven states the two kernels pass through for the running request: ss -tan (Linux) or netstat -an -p tcp (macOS) prints these names.",
+  "label": "core",
+  "key": "netstat -an -p tcp (macOS) prints these names",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "Two of them cause most production tickets: CLOSE_WAIT piling up means your program received the peer's FIN but never called close() (a leak in your code, not the network), and TIME_WAIT piling up means you open and close connections faster than you should.",
+  "label": "core",
+  "key": "CLOSE_WAIT piling up means your program",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "TIME_WAIT, and why closing fast runs out of ports The side that closes first does not forget the connection at once: it holds it in TIME_WAIT for twice the maximum segment lifetime (2 MSL), so that a delayed duplicate of an old segment cannot be mistaken for data in a new connection that reuses the same 5-tuple, and so that it can resend the final ACK if that was lost ( RFC 9293 s3.6 ).",
+  "label": "core",
+  "key": "TIME_WAIT for twice the maximum segment",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "Linux fixes TIME_WAIT at 60 seconds ( TCP_TIMEWAIT_LEN (60*HZ) in include/net/tcp.h ; it is not a sysctl).",
+  "label": "core",
+  "key": "60 seconds ( TCP_TIMEWAIT_LEN (60*HZ) in",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "This Mac uses an MSL of 15 s, so 30 s ( measured net.inet.tcp.msl: 15000 ); its netstat did not list a single TIME_WAIT entry after twenty closed loopback connections, so the state itself could not be seen here and the numbers below are Linux's. new connections per second to one destination ≤ ephemeral ports / TIME_WAIT = 28,232 / 60 s ≈ 470 per second 28,232 ports in Linux's default range 32,768 to 60,999 60 s Linux TIME_WAIT; the limit applies per (source address, destination address, destination port) A client that opens a fresh connection per request (an HTTP client without a connection pool, a script calling an embedding API in a tight loop, a health checker) hits that wall and gets EADDRNOTAVAIL (\"Cannot assign requested address\").",
+  "label": "core",
+  "key": "≈ 470 per second 28,232 ports in Linux's",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "The fix is reuse : a connection pool and keep-alive, which also saves the handshake round trip and, over TLS, a second one.",
+  "label": "core",
+  "key": "keep-alive, which also saves the",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "The kernel knobs are a last resort: tcp_tw_reuse lets outgoing connections reuse a TIME_WAIT port when timestamps prove it is safe (default 2, loopback only, ip-sysctl ), and tcp_tw_recycle , still recommended by old blog posts, was removed in Linux 4.12 because it broke clients behind NAT ( commit 4396e46187ca ).",
+  "label": "depth",
+  "key": "clients behind NAT ( commit 4396e46187ca",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "Which side holds TIME_WAIT is whichever closed first, so a server that closes idle client connections collects them too.",
+  "label": "core",
+  "key": "server that closes idle client connections collects them",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "When the handshake gets no answer If the SYN is dropped (a firewall, a security group, a host that is down), the client retries it with exponential backoff.",
+  "label": "core",
+  "key": "(a firewall, a security group, a host that",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "Linux's default of 6 retries gives up after about 131 seconds ( tcp_syn_retries ).",
+  "label": "core",
+  "key": "about 131 seconds ( tcp_syn_retries )",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "So a connect with no timeout of its own can hang for two minutes, which is why every client needs an explicit connect timeout, separate from (and much shorter than) its read timeout.",
+  "label": "core",
+  "key": "client needs an explicit connect timeout",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. a tcp connection's life: open, talk, close, wait",
+  "text": "The Failure lab's \"Connect timeout\" case records the error text of five clients against an address that never answers, and \"Connection refused\" the contrast: an RST comes back in under a millisecond.",
+  "label": "core",
+  "key": "\"Connection refused\" the contrast: an RST",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "Reliability: acknowledgements, timers and retransmission The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "TCP must notice which bytes did not arrive and send them again, without waiting too long (the application stalls) or resending too eagerly (wasting the network and confusing itself).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "The receiver keeps telling the sender \"I have every byte up to n\" (the ACK number).",
+  "label": "core",
+  "key": "\"I have every byte up to n\"",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "A segment the sender has sent but not seen acknowledged is in flight .",
+  "label": "core",
+  "key": "acknowledged is in flight",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "If segment 5 of 10 is lost, segments 6 to 10 still arrive, but the receiver can only keep acknowledging \"up to the end of 4\": these repeats are duplicate ACKs , and the bytes of 6 to 10 wait in the receive buffer, invisible to the application, until 5 is repaired.",
+  "label": "core",
+  "key": "to 10 still arrive, but the receiver can",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "That wait is head-of-line blocking , and it is the reason HTTP/2's many streams on one TCP connection all stall on one loss while HTTP/3's do not (measured in the root's On the wire tab: one lost packet delayed all three HTTP/2 streams and only one HTTP/3 stream).",
+  "label": "core",
+  "key": "stall on one loss while HTTP/3's do not",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "Two ways to decide a segment is lost, both still in use: Retransmission timeout (RTO).",
+  "label": "core",
+  "key": "Retransmission timeout (RTO)",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "The sender measures round trips, keeps a smoothed average and a variance, and sets RTO = smoothed RTT + 4 × variance ( RFC 6298 ).",
+  "label": "core",
+  "key": "smoothed RTT + 4 × variance ( RFC",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "Nothing acknowledged before the timer fires means resend, and double the timer for the next try (exponential backoff).",
+  "label": "core",
+  "key": "Nothing acknowledged before the timer fires means resend",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "RFC 6298 says the RTO should never go below 1 second; Linux uses a 200 ms floor ( TCP_RTO_MIN (HZ / 5) ), a 1 s initial value and a 120 s ceiling ( tcp.h ).",
+  "label": "core",
+  "key": "the RTO should never go below 1 second",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "A timeout is expensive: the pipe sits idle for at least 200 ms, and the congestion window collapses to one segment (section 6).",
+  "label": "core",
+  "key": "collapses to one segment (section 6)",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "Three duplicate ACKs mean later segments are arriving, so the missing one is probably lost rather than delayed: resend it at once, one round trip after the loss instead of a timer later ( RFC 5681 s3.2 ).",
+  "label": "core",
+  "key": "loss instead of a timer later ( RFC",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "SACK (selective acknowledgement, RFC 2018 ) lets the receiver also say which later blocks it holds, so several holes can be repaired in one round trip.",
+  "label": "core",
+  "key": "(selective acknowledgement, RFC 2018 )",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "Why this matters for streaming LLM responses.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "Fast retransmit needs later segments to generate duplicate ACKs.",
+  "label": "core",
+  "key": "needs later segments to generate duplicate",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "A token stream sends one small segment every 50 ms or so; if the last segments of a burst are lost there is nothing behind them, and only a timer can notice.",
+  "label": "core",
+  "key": "sends one small segment every 50 ms or",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "Linux's answer is RACK-TLP ( RFC 8985 ): detect loss by time (a segment is lost if one sent after it has been acknowledged and a reordering window has passed) and, when the tail goes quiet, send a tail loss probe after about two round trips to provoke an ACK that reveals the hole.",
+  "label": "core",
+  "key": "Linux's answer is RACK-TLP ( RFC 8985 )",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "The TCP timeline tab replays the running request with one lost segment recovered each way, to scale.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "Loss and reordering on a real path.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "In two of this page's twelve downloads the receiver reported out-of-order bytes held for repair (36,608 and 254,880 bytes, tcpi_rxoutoforderbytes , measured ); the other ten saw none.",
+  "label": "depth",
+  "key": "tcpi_rxoutoforderbytes , measured ); the",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "The application never noticed: TCP repaired the holes and delivered the bytes in order, which is the point, and the cost (a pause of about a round trip, a smaller window) is invisible unless you look at the per-connection counters.",
+  "label": "depth",
+  "key": "application never noticed: TCP repaired the holes and",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "How it shows up and the command that shows it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "Retransmissions inside a data centre should be near zero; growth there is a real fabric or NIC problem.",
+  "label": "depth",
+  "key": "Retransmissions inside a data centre should be near",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "Linux: nstat -az TcpRetransSegs before and after a test, and ss -ti per connection ( retrans: current/total, lost: , rto: ). macOS: netstat -s -p tcp | grep -i retrans .",
+  "label": "depth",
+  "key": "retrans: current/total, lost: , rto: ). macOS: netstat",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. reliability: acknowledgements, timers and retransmission",
+  "text": "A connection whose RTO has backed off to tens of seconds looks hung; it is waiting for its timer.",
+  "label": "depth",
+  "key": "connection whose RTO has backed off to tens",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "Windows: why one connection is capped at window over round trip The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "A fast sender can overrun a slow reader.",
+  "label": "core",
+  "key": "flow control",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "TCP's flow control stops it: every ACK carries the receiver's receive window , the free space left in its buffer, and the sender never has more unacknowledged bytes in flight than that.",
+  "label": "core",
+  "key": "buffer, and the sender never has more unacknowledged",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "The congestion window (section 6) is a second, separate cap that protects the network.",
+  "label": "core",
+  "key": "The congestion window (section 6)",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "The sender may have at most min(receive window, congestion window) bytes unacknowledged.",
+  "label": "core",
+  "key": "min(receive window, congestion window)",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "The rule that explains most slow transfers follows directly.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "The sender can put one window's worth of bytes in flight, then must wait for acknowledgements, which take one round trip to come back.",
+  "label": "core",
+  "key": "at most one window arrives per round trip",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "So at most one window arrives per round trip, however fast the link: throughput ≤ window / RTT and to fill a link: window ≥ bandwidth × RTT (the bandwidth-delay product, BDP) window bytes allowed in flight without acknowledgement RTT round-trip time; under load it includes queueing (section 6) BDP 10 Gbit/s × 100 ms = 125 MB; 25 Gbit/s × 1 ms = 3.1 MB; 100 Gbit/s × 50 µs = 625 KB (derived) Window scaling.",
+  "label": "core",
+  "key": "queueing (section 6) BDP 10 Gbit/s × 100",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "The window field in the TCP header is 16 bits, so the largest window it can state is 65,535 bytes; over a 100 ms path that caps one connection at 65,535 × 8 / 0.1 = 5.2 Mbit/s whatever the link (derived).",
+  "label": "core",
+  "key": "5.2 Mbit/s whatever the link (derived)",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "The window-scale option ( RFC 7323 s2 ) multiplies the field by 2 shift , with the shift (at most 14, so windows up to 1 GiB) agreed once, in the SYN.",
+  "label": "core",
+  "key": "The window-scale option ( RFC 7323 s2 )",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "A middlebox that strips it, or a socket whose buffer was small when it connected, is stuck with a small window for the life of the connection.",
+  "label": "core",
+  "key": "socket whose buffer was small when it connected",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "Measured: the buffer you set is the speed you get Twelve downloads from Cloudflare's speed-test endpoint over one TCP connection each, the receive buffer fixed with SO_RCVBUF before connect() or left to the kernel, goodput measured over the second half of each transfer.",
+  "label": "core",
+  "key": "fixed with SO_RCVBUF before connect() or",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "The prediction is the measured window over the measured smoothed RTT; the link itself tops out near 46 Mbit/s.",
+  "label": "core",
+  "key": "tops out near 46 Mbit/s",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "Defaults reproduce the window-over-RTT rule independently: for the two window-limited buffers the measured goodput is within about 10 percent of window / RTT (the RTT is reported in whole milliseconds, so the prediction itself is only that precise); at 256 KB and with autotuning the prediction exceeds the link, and the link wins.",
+  "label": "core",
+  "key": "within about 10 percent of window / RTT",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "The kernel advertised 28,728 to 29,776 bytes for a 16 KB request: macOS sizes the buffer above what you ask for, so read the window the kernel reports ( tcpi_rcv_wnd ), not the number you passed.",
+  "label": "core",
+  "key": "kernel advertised 28,728 to 29,776 bytes",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "Raw runs: src/meas/out/tcp_path.json .",
+  "label": "core",
+  "key": "Raw runs: src/meas/out/tcp_path.json",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "Modern kernels grow the receive buffer as the connection proves it needs one.",
+  "label": "core",
+  "key": "kernels grow the receive buffer as the connection",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "In the autotuned runs the advertised window grew from 128 KB to about 0.9 to 1.4 MB within a few hundred milliseconds ( measured , first run below), with a window-scale shift of 6 against 3 when the buffer was fixed small: the kernel picks the shift at connect() from the buffer size at that moment.",
+  "label": "core",
+  "key": "with a window-scale shift of 6 against 3",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "The trap: setting a buffer can make you slower Linux documents that calling setsockopt(SO_RCVBUF) disables receive autotuning for that socket ( tcp_rmem in ip-sysctl ).",
+  "label": "core",
+  "key": "autotuning for that socket ( tcp_rmem",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "A client \"tuned\" with a 256 KB buffer is capped at 256 KB / RTT: on a 100 ms cross-region path that is 21 Mbit/s (derived), far below an untuned client whose window grows to tcp_rmem 's maximum (default between 128 KB and 32 MB depending on memory).",
+  "label": "core",
+  "key": "tcp_rmem 's maximum (default between 128",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "Two separate knobs: net.ipv4.tcp_rmem 's third value caps autotuning; net.core.rmem_max caps only explicit setsockopt calls, and its default rose from 212,992 bytes to 4 MB in Linux 6.18 ( commit a6d4f25888b8 , so guides that quote \"208 KB\" describe older kernels).",
+  "label": "core",
+  "key": "Two separate knobs: net.ipv4.tcp_rmem 's",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "For a 10 Gbit/s, 100 ms path the third value of tcp_rmem and tcp_wmem must be at least the 125 MB BDP.",
+  "label": "core",
+  "key": "100 ms path the third value of tcp_rmem",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "How it shows up.",
+  "label": "depth",
+  "key": "How it shows up",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "A transfer far below the link speed with no retransmissions, and a throughput that changes with distance rather than with load. ss -ti on Linux shows rcv_space , snd_wnd and cwnd ; iperf3 -c host -P 1 against -P 8 demonstrates the per-connection cap to anyone who doubts it.",
+  "label": "depth",
+  "key": "8 demonstrates the per-connection cap to",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. windows: why one connection is capped at window over round trip",
+  "text": "The Throughput lab tab computes which limit binds for a path you describe.",
+  "label": "depth",
+  "key": "which limit binds for a path you describe",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Congestion control: sharing a link nobody owns The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading or one-line lead-in"
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "The receive window protects the receiver; nothing in it protects the routers in between.",
+  "label": "core",
+  "key": "window protects the receiver; nothing in it protects",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "If every sender transmitted as fast as its window allowed, router queues would overflow, packets would be dropped and resent, and throughput would collapse (this happened to the internet in October 1986, the first of a series of \"congestion collapses\" described by Jacobson and Karels, 1988 ).",
+  "label": "core",
+  "key": "Jacobson and Karels, 1988 )",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "So each sender also keeps a congestion window (cwnd), its own estimate of what the path can carry, and probes for more while watching for signs of overload.",
+  "label": "core",
+  "key": "congestion window (cwnd), its own estimate of what",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "A new connection starts with 10 segments ( RFC 6928 ; TCP_INIT_CWND 10 in Linux) and adds one segment per ACK, which doubles the window every round trip, until a loss or until it reaches the slow-start threshold.",
+  "label": "core",
+  "key": "( RFC 6928 ; TCP_INIT_CWND 10 in Linux)",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Reaching a 125 MB window from 14.6 KB takes about log 2 (125 MB / 14.6 KB) ≈ 13 round trips, 1.3 s on a 100 ms path (derived); a 100 KB BDP like this page's home line is filled in about 3 round trips.",
+  "label": "core",
+  "key": "MB window from 14.6 KB takes about log",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Short transfers (a 2 KB API response) finish inside slow start, so for them latency, not bandwidth, is everything.",
+  "label": "core",
+  "key": "2 KB",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Linux also drops back to slow start after a connection has been idle for one RTO ( tcp_slow_start_after_idle , default on), so a long-lived connection that sends a burst after a pause starts small again.",
+  "label": "core",
+  "key": "for one RTO ( tcp_slow_start_after_idle",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Congestion avoidance, Reno style.",
+  "label": "core",
+  "key": "additive increase, multiplicative decrease",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "After slow start, grow by one segment per round trip and halve on loss: additive increase, multiplicative decrease ( RFC 5681 ).",
+  "label": "core",
+  "key": "increase, multiplicative decrease ( RFC",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "It is fair and stable, and hopeless on long fat paths: after one loss at a 10,000-segment window, adding one segment per 100 ms round trip needs 5,000 round trips, over 8 minutes, to get back (derived).",
+  "label": "core",
+  "key": "round trips, over 8 minutes, to get back",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "CUBIC , the default in the Linux, Windows and Apple stacks ( RFC 9438 s1 , the 2023 standard; this Mac reports net.inet.tcp.use_newreno: 0 and 209 sockets on CUBIC when recorded), replaces the straight line with a cubic curve in time since the last loss: W(t) = C (t − K) 3 + W max , with C = 0.4, a decrease to 0.7 of the window on loss instead of 0.5, and K the time to climb back to the window where the loss happened.",
+  "label": "core",
+  "key": "Windows and Apple stacks ( RFC 9438 s1",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "It returns quickly to the old level, creeps carefully past it, then accelerates.",
+  "label": "core",
+  "key": "back fast, careful past the old level",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Because it depends on time, not on round trips, long-RTT flows recover as fast as short ones.",
+  "label": "core",
+  "key": "trips, long-RTT flows recover as fast as short",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Reno (before) CUBIC (after) Both on one axis illustrative, computed from the RFC formulas One flow, one step per 100 ms round trip, on a path that holds 1,000 segments in flight (about 117 Mbit/s with 1,460-byte segments): a window above that overflows the bottleneck buffer and loses a packet, and both flows also lose one packet the queue did not cause, at 25 s.",
+  "label": "core",
+  "key": "flight (about 117 Mbit/s with 1,460-byte",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Reno follows RFC 5681 (halve, then one segment per round trip); CUBIC follows RFC 9438 s4 (C = 0.4, β = 0.7, with its Reno-friendly floor; fast convergence not modelled).",
+  "label": "core",
+  "key": "0.7, with its Reno-friendly floor; fast",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Both start in slow start; queueing delay and timeouts are left out.",
+  "label": "core",
+  "key": "start in slow start; queueing delay and timeouts",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "The cost of filling the pipe: queues.",
+  "label": "core",
+  "key": "The cost of filling the pipe: queues",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Loss-based algorithms such as Reno and CUBIC only learn they went too fast when a queue overflows, so they keep the bottleneck's buffer full. measured on this page's home line: ping to Cloudflare's resolver every 100 ms, with one download of 25 MB in the middle.",
+  "label": "core",
+  "key": "bottleneck's buffer full. measured on this page's home",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "The download ran at 44.1 Mbit/s and the round trip went from a 14.4 ms median at idle to 37.0 ms while it ran: about 23 ms of queue, roughly 125 KB of packets waiting at the bottleneck (44.1 Mbit/s × 22.6 ms, derived).",
+  "label": "core",
+  "key": "44.1 Mbit/s and the round trip went from",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "The same effect is in section 5's runs: the window-limited downloads saw a current RTT of 17 to 22 ms at the end, the ones that filled the link 35 to 49 ms.",
+  "label": "core",
+  "key": "the ones that filled the link 35 to",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Any interactive traffic sharing that link (a video call, the next token of a streamed answer) waits in the same queue; this is bufferbloat .",
+  "label": "core",
+  "key": "link (a video call, the next",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "BBR (Bottleneck Bandwidth and Round-trip propagation time, from Google) models the path instead of reacting to loss: it estimates the bottleneck bandwidth and the minimum RTT and paces packets at that rate, aiming to keep the queue near empty.",
+  "label": "core",
+  "key": "Round-trip propagation time, from Google) models the path",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "It shines on long paths with random, non-congestive loss (where CUBIC would back off for nothing) and is in Linux since 4.9 ( commit 0f8782ea1497 ).",
+  "label": "core",
+  "key": "Linux since 4.9 ( commit 0f8782ea1497",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Its current version is still an IETF draft, draft-ietf-ccwg-bbr-06 (6 July 2026), not an RFC; which version a given kernel ships is a question for that kernel, so check with sysctl net.ipv4.tcp_available_congestion_control rather than a blog post.",
+  "label": "core",
+  "key": "an IETF draft, draft-ietf-ccwg-bbr-06 (6",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "The sender alone chooses: on a download, the server's algorithm decides, not yours.",
+  "label": "core",
+  "key": "a download, the server's algorithm decides, not yours",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Signals other than loss.",
+  "label": "depth",
+  "key": "Signals other than loss",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "ECN ( RFC 3168 ) lets a router mark a packet \"congestion experienced\" instead of dropping it, and the receiver echoes the mark; this Mac negotiated it on every connection recorded here.",
+  "label": "depth",
+  "key": "3168 ) lets a router mark a packet",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "L4S ( RFC 9330 , 2023) builds on it for very low queueing delay; it is something ISPs deploy, not something you tune on a cluster.",
+  "label": "depth",
+  "key": "2023) builds on it for very low queueing",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "When not to touch it.",
+  "label": "depth",
+  "key": "When not to touch it",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Inside one data centre on a clean network, the default is almost always right; the wins from switching to BBR are on long, lossy paths (cross-region replication, uploads from a home line).",
+  "label": "depth",
+  "key": "on long, lossy paths (cross-region replication, uploads from",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "6. congestion control: sharing a link nobody owns",
+  "text": "Fairness: one BBR flow can take more than its share from CUBIC flows on a shallow-buffer link, so test before switching a fleet.",
+  "label": "depth",
+  "key": "shallow-buffer link, so test before switching a fleet",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "Small writes: Nagle, delayed ACKs and streamed tokens The problem, 1984 edition.",
+  "label": "core",
+  "key": "1984",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "A terminal user typing one character at a time sent one 41-byte packet per keystroke (40 bytes of headers, 1 of data), which flooded slow links.",
+  "label": "core",
+  "key": "per keystroke (40 bytes of headers, 1 of",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "Nagle's algorithm ( RFC 896 , January 1984; RFC 9293 s3.7.4 ) fixed it: while any sent data is still unacknowledged, hold new small writes and send them together when the ACK arrives or a full segment's worth has accumulated.",
+  "label": "core",
+  "key": "algorithm ( RFC 896 , January 1984; RFC",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "A receiver may wait before acknowledging, hoping to piggyback the ACK on a reply: a delayed ACK , which must be under 0.5 s, with an ACK for at least every second full-sized segment ( RFC 1122 s4.2.3.2 ).",
+  "label": "core",
+  "key": "full-sized segment ( RFC 1122 s4.2.3.2",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "Linux delays between 40 ms and 200 ms ( TCP_DELACK_MIN (HZ/25) , TCP_DELACK_MAX (HZ/5) in tcp.h ).",
+  "label": "core",
+  "key": "(HZ/25) , TCP_DELACK_MAX (HZ/5) in tcp.h",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "Together they deadlock for a while.",
+  "label": "core",
+  "key": "Together they stall",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "A client writes a request in two pieces (headers, then body): the first piece goes out; Nagle holds the second until the first is acknowledged; the server, which has only half a request, has nothing to reply with, so its delayed ACK waits its 40 ms or more.",
+  "label": "core",
+  "key": "its 40 ms or more",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "Every request pays that stall.",
+  "label": "core",
+  "key": "Every request pays it",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "The same rule bites a token stream: the server writes token 1, then token 2 while token 1 is still unacknowledged, so Nagle holds token 2 until the ACK for token 1 returns, a full round trip later (plus any delayed-ACK wait).",
+  "label": "core",
+  "key": "a full round trip later",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "On a 100 ms path tokens that left the model 50 ms apart arrive in clumps, one clump per round trip.",
+  "label": "core",
+  "key": "the model 50 ms apart arrive in clumps",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "The TCP timeline tab plays the running request both ways.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "The fix is one socket option.",
+  "label": "core",
+  "key": "The fix is one socket option",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "TCP_NODELAY turns Nagle off: every write goes out at once.",
+  "label": "core",
+  "key": "every write goes out at once",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "Latency-sensitive stacks set it by default: gRPC's C core calls grpc_set_socket_low_latency(fd, 1) on its client and server sockets ( tcp_client_posix.cc ), and Go's TCP connections start with no delay ( SetNoDelay: \"The default is true\" ).",
+  "label": "core",
+  "key": "and server sockets ( tcp_client_posix.cc",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "TCP_CORK (Linux) is the deliberate opposite, for when you want to assemble a response from several writes and release it as full segments.",
+  "label": "core",
+  "key": "TCP_CORK (Linux) is the deliberate",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "Measured: who sets TCP_NODELAY for you Python's asyncio sets TCP_NODELAY on every TCP transport, but only when the socket reports its protocol as TCP ( sock.proto == IPPROTO_TCP in asyncio/base_events.py , read in the 3.13.5 source).",
+  "label": "core",
+  "key": "sets TCP_NODELAY on every TCP transport",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "On this Mac a socket returned by accept() reports protocol 0, so the server side of an asyncio connection was left with Nagle on while the client side had it off.",
+  "label": "core",
+  "key": "returned by accept() reports protocol 0",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "Whether your server framework sets the option explicitly is worth one getsockopt call; do not assume.",
+  "label": "core",
+  "key": "Whether your server framework sets the",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "The root's Failure lab tried to reproduce the Nagle and delayed-ACK stall on this Mac's loopback and could not (case \"Nagle plus delayed ACK (not reproduced on macOS loopback)\"): on loopback the ACK returns in microseconds, so there is nothing to wait for.",
+  "label": "core",
+  "key": "\"Nagle plus delayed ACK (not reproduced on macOS loopback)\"",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "The stall needs a real round trip.",
+  "label": "core",
+  "key": "The stall needs a real round trip",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "How it shows up.",
+  "label": "depth",
+  "key": "How it shows up",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "Latency per request of almost exactly 40 ms (or 200 ms) more than the work takes, independent of payload size; streamed tokens that arrive in bursts rather than evenly.",
+  "label": "depth",
+  "key": "per request of almost exactly 40 ms (or",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "Check with getsockopt(IPPROTO_TCP, TCP_NODELAY) on both ends, or a packet capture ( tcpdump , needs root) showing small segments waiting for ACKs.",
+  "label": "depth",
+  "key": "TCP_NODELAY) on both ends, or a",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "7. small writes: nagle, delayed acks and streamed tokens",
+  "text": "Fix: set TCP_NODELAY on both ends, and write each logical message in one call.",
+  "label": "depth",
+  "key": "TCP_NODELAY on both ends, and write",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "The server side: accept queues, ports shared by workers, file descriptors The accept queue.",
+  "label": "core",
+  "key": "The server side: accept queues",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "The kernel completes the handshake on its own; accept() only hands your program a connection that is already established.",
+  "label": "core",
+  "key": "your program a connection that is already established",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "Finished connections wait in an accept queue whose length is the backlog you passed to listen() , capped by somaxconn : 4,096 on Linux since 5.4 and 128 before ( ip-sysctl ; many tuning guides predate the change), and 128 on this Mac ( measured kern.ipc.somaxconn ).",
+  "label": "core",
+  "key": "somaxconn : 4,096 on Linux since 5.4 and",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "A server that accepts more slowly than clients arrive (a single-threaded process busy loading a model, a rendezvous rank before it calls accept ) fills it.",
+  "label": "core",
+  "key": "server that accepts more slowly than clients arrive",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "What happens when it is full differs by kernel.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "Linux drops new SYNs while the queue is full ( tcp_conn_request in tcp_input.c counts a ListenOverflow and drops), so the client retransmits its SYN after its 1 s initial timeout, then 2 s later: connects that take 1 s or 3 s instead of a millisecond.",
+  "label": "core",
+  "key": "tcp_conn_request in tcp_input.c counts a",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "A handshake that completes while the queue is full has its final ACK ignored, unless tcp_abort_on_overflow is on, in which case the client gets a reset ( tcp_minisocks.c ; off by default). measured on this Mac with listen(2) and a server that does not call accept() until all eight clients have tried: Seven of eight connect() calls succeeded in under a millisecond, yet only the first two clients were ever served; the others learned they had been dropped only when they wrote (broken pipe) or read (reset).",
+  "label": "core",
+  "key": "on this Mac with listen(2) and a server",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "A successful connect is not a server that will answer.",
+  "label": "core",
+  "key": "successful connect is not a server that will",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "That is why a client needs a read timeout as well as a connect timeout, and why a health check should send a request, not just open a socket.",
+  "label": "core",
+  "key": "health check should send a request, not just",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "See it on Linux. ss -lnt : for a listening socket, Recv-Q is the current accept-queue length and Send-Q its limit ( idiag_rqueue = sk_ack_backlog , idiag_wqueue = sk_max_ack_backlog in tcp_diag.c ). nstat -az TcpExtListenOverflows TcpExtListenDrops counts the drops.",
+  "label": "depth",
+  "key": "limit ( idiag_rqueue = sk_ack_backlog",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "Fix: accept faster (more workers, an event loop), raise the backlog in the code and somaxconn , and have clients retry with jitter.",
+  "label": "depth",
+  "key": "accept faster (more workers, an event loop), raise",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "Many workers, one port SO_REUSEPORT lets several sockets, typically one per worker process, bind the same address and port; the kernel spreads incoming connections across them, so N workers accept in parallel without fighting over one queue (see SO_REUSEPORT in man 7 socket ).",
+  "label": "core",
+  "key": "SO_REUSEPORT",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "SO_REUSEADDR is a different, older option: it lets a restarted server bind its port while old connections on it are still in TIME_WAIT, which is why almost every server sets it.",
+  "label": "core",
+  "key": "it are still in TIME_WAIT, which is why",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "Every connection is a file descriptor Each socket uses one file descriptor, and processes have a limit ( ulimit -n ).",
+  "label": "core",
+  "key": "and processes have a limit ( ulimit -n",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "A server with thousands of streaming clients, or a dataloader with many workers each holding connections, hits it with EMFILE (\"Too many open files\"); compare ls /proc/PID/fd | wc -l with the limit.",
+  "label": "core",
+  "key": "EMFILE (\"Too many open files\"); compare ls /proc/PID/fd",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "On Slurm clusters the job inherits the soft limits of the shell it was submitted from, unless the administrator configured otherwise ( PropagateResourceLimits , whose default is to propagate all limits, slurm.conf ); check inside the job with srun bash -c 'ulimit -n' rather than trusting the login node.",
+  "label": "depth",
+  "key": "administrator configured otherwise ( PropagateResourceLimits",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "Correction to the old page The old page said that on Slurm \"limits are inherited from slurmd's environment rather than your login shell, so ulimit -n in your .bashrc will not help a job\".",
+  "label": "depth",
+  "key": "Slurm \"limits are inherited from slurmd's environment rather",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "The current slurm.conf documentation says the opposite by default: slurmd reads the soft limits from the user's environment on the submit node and applies them to the job, unless PropagateResourceLimits or PropagateResourceLimitsExcept is configured.",
+  "label": "depth",
+  "key": "and applies them to the job, unless PropagateResourceLimits",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "8. the server side: accept queues, ports shared by workers, file descriptors",
+  "text": "What is true: a cluster can be configured not to propagate, and a job cannot raise a limit above what the node allows.",
+  "label": "depth",
+  "key": "cluster can be configured not to propagate, and",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "Idle connections, NAT tables and dead peers NAT in one paragraph.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "A machine with a private address (section 1) reaching the internet goes through network address translation : a NAT device (a home router, a cloud NAT gateway, a Kubernetes node doing SNAT for its pods) rewrites the source address and port of each outgoing packet to its own public address and a port it allocates, and remembers the mapping in a table so it can rewrite the replies back.",
+  "label": "core",
+  "key": "with a private address (section 1)",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "The table entry is the connection, as far as the NAT is concerned.",
+  "label": "core",
+  "key": "is the connection",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "Two limits follow: the table has a size, and entries for connections that look idle are thrown away.",
+  "label": "core",
+  "key": "follow: the table has a size, and entries",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "Idle timeouts are shorter than you think.",
+  "label": "core",
+  "key": "Idle timeouts are shorter than you think",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "The IETF's NAT requirements ask that an established TCP mapping survive at least 2 hours 4 minutes of idleness ( RFC 5382 REQ-5 ) and a UDP mapping at least 2 minutes ( RFC 4787 REQ-5 ), but real devices choose their own: an AWS NAT gateway times out a connection idle for 350 seconds and answers later packets with a reset, not a FIN ( AWS NAT troubleshooting ).",
+  "label": "core",
+  "key": "TCP mapping survive at least 2 hours 4",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "Load balancers do the same with their own idle timers.",
+  "label": "core",
+  "key": "Load balancers have their own idle timers",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "Neither end is told.",
+  "label": "core",
+  "key": "Neither end is told",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "The next write fails with \"connection reset by peer\", or, if the middlebox drops silently, hangs until a retransmission timer gives up.",
+  "label": "core",
+  "key": "middlebox drops silently, hangs until a retransmission timer",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "No keepalive (before) Keepalive every 300 s (after) illustrative, with AWS's documented 350 s idle timeout A pod in a private subnet holds one connection to an external API through a NAT gateway; the client streams one request, then the connection sits idle in its pool for 6 minutes before being reused.",
+  "label": "core",
+  "key": "keepalive (before) Keepalive every 300 s",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "TCP keepalive is not a heartbeat by default.",
+  "label": "core",
+  "key": "TCP keepalive is not a heartbeat by default",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "With SO_KEEPALIVE on, Linux waits 7,200 s of idleness, then probes 9 times 75 s apart: 2 hours 11 minutes before it declares a silent peer dead ( TCP_KEEPALIVE_TIME (120*60*HZ) , TCP_KEEPALIVE_PROBES 9 , TCP_KEEPALIVE_INTVL (75*HZ) in tcp.h ; derived 7,200 + 9 × 75 = 7,875 s).",
+  "label": "core",
+  "key": "9 , TCP_KEEPALIVE_INTVL (75*HZ) in tcp.h",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "This Mac uses 7,200 s, 75 s and 8 probes ( measured sysctl).",
+  "label": "core",
+  "key": "75 s and 8 probes ( measured sysctl)",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "Both are far longer than a 350 s NAT timeout, so to keep a pooled connection alive through NAT set the per-socket options ( TCP_KEEPIDLE , TCP_KEEPINTVL , TCP_KEEPCNT on Linux; TCP_KEEPALIVE on macOS) below the shortest idle timer on the path, as AWS's own fix says, or have the pool discard connections idle longer than that.",
+  "label": "core",
+  "key": "TCP_KEEPCNT on Linux; TCP_KEEPALIVE on",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "Keepalive cannot see a wedged peer.",
+  "label": "core",
+  "key": "Keepalive cannot see a wedged peer",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "A process that is alive but stuck (a training rank deadlocked in a collective, a server stuck in garbage collection) still has a kernel that answers keepalive probes.",
+  "label": "core",
+  "key": "garbage collection) still has a kernel that answers",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "For data you have sent, TCP_USER_TIMEOUT bounds how long it may stay unacknowledged before the connection is dropped (Linux 2.6.37 and later, man 7 tcp ; standardised as an option in RFC 5482 ).",
+  "label": "core",
+  "key": "standardised as an option in RFC 5482 )",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "For everything else you need an application-level heartbeat and a deadline: NCCL's watchdog timeout in PyTorch, gRPC deadlines, an SSE stream's ping events.",
+  "label": "core",
+  "key": "NCCL's watchdog timeout in PyTorch, gRPC deadlines, an",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "The Failure lab's \"Reused keep-alive connection closed by the server\" and \"Read timeout: connected, then nothing\" cases show both shapes with real client errors.",
+  "label": "depth",
+  "key": "the server\" and \"Read timeout: connected, then nothing\"",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "NAT tables fill up Every connection through a NAT uses one of its source ports.",
+  "label": "depth",
+  "key": "Every connection through a NAT uses one of",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "An AWS NAT gateway supports up to 55,000 simultaneous connections per public IPv4 address to each unique destination (destination address, port and protocol), 5 Gbit/s scaling to 100 Gbit/s, and 1 to 10 million packets per second; beyond the connection limit its ErrorPortAllocation metric counts the connections it could not open ( NAT gateway basics , CloudWatch metrics ).",
+  "label": "depth",
+  "key": "An AWS NAT gateway supports up to 55,000",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "A fleet of dataloader workers opening fresh connections to the same storage endpoint can reach it.",
+  "label": "depth",
+  "key": "fleet of dataloader workers opening fresh connections to",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "Fixes in order: reuse connections; add addresses to the NAT gateway; and for S3 or DynamoDB, take NAT out of the path with a gateway VPC endpoint , which has no additional charge and needs no NAT device ( gateway endpoints ).",
+  "label": "depth",
+  "key": "and for S3 or DynamoDB, take NAT out",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "Failures only after idle periods, at a suspiciously round interval (350 s, 600 s, 3,600 s): a middlebox idle timer; compare the timestamps of failures with the time each connection was last used.",
+  "label": "depth",
+  "key": "600 s, 3,600 s): a middlebox idle timer",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "New connections failing while old ones work: a full NAT table (check the gateway's port-allocation metric; on a Linux NAT, conntrack -S ). ss -to (Linux) shows each socket's keepalive timer.",
+  "label": "depth",
+  "key": "gateway's port-allocation metric; on a Linux NAT, conntrack",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "9. idle connections, nat tables and dead peers",
+  "text": "SSH sessions to a cluster hit exactly these idle timers; the SSH page (its section 9) records ServerAliveInterval detecting a dead path in seconds where TCP keepalive would take two hours.",
+  "label": "depth",
+  "key": "SSH page (its section 9) records",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "MTU: the largest packet, and the hang it causes The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading or one-line lead-in"
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "Every link has a maximum transmission unit (MTU), the largest IP packet it carries: 1,500 bytes on standard Ethernet, less on links that wrap packets in extra headers.",
+  "label": "core",
+  "key": "1,500 bytes on standard Ethernet, less",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "A packet that is too big for the next link must be split ( fragmented ) or dropped.",
+  "label": "core",
+  "key": "fragmentation is fragile",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "Fragmentation is costly and fragile (lose one fragment and the whole packet is lost), so TCP avoids it: each side announces an MSS in its SYN, the MTU minus the IP and TCP headers (1,500 − 20 − 20 = 1,460 for IPv4; 1,440 for IPv6), and the timestamp option then takes 12 bytes of every segment.",
+  "label": "core",
+  "key": "1,460 for IPv4; 1,440 for IPv6), and the",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "The sender's own link may be 1,500 while a link further on is smaller.",
+  "label": "core",
+  "key": "1,500",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "So TCP sends with the Don't Fragment bit set, and a router that cannot forward a packet drops it and returns an ICMP message, \"fragmentation needed\" with the next link's MTU (IPv4, RFC 1191 ) or \"packet too big\" (IPv6, RFC 8201 ); the sender lowers its packet size for that destination. measured from this laptop (interface MTU 1,500) with don't-fragment pings to Cloudflare's resolver: the home router answered the oversized probes with exactly that message, naming an MTU of 1,492, and a binary search found the largest ping payload that gets through, 1,464 bytes (+ 28 bytes of IP and ICMP headers = 1,492).",
+  "label": "core",
+  "key": "gets through, 1,464 bytes (+ 28 bytes of",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "1,492 is the classic signature of PPPoE, which carries IP over a DSL or fibre line inside an 8-byte header ( RFC 2516 : \"the PPP MTU MUST NOT be greater than 1492\").",
+  "label": "depth",
+  "key": "fibre line inside an 8-byte header ( RFC",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "On this path the TCP connections to Cloudflare used a segment size of 1,388 bytes ( tcpi_maxseg ), below the 1,492 − 40 − 12 = 1,440 this link allows (derived), so the smaller limit came from the server's side of the negotiation, which cannot be seen without a packet capture.",
+  "label": "depth",
+  "key": "− 12 = 1,440 this link allows (derived)",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "IPv6 could not be probed the same way: ping6 -D needs root on macOS (\"IPV6_DONTFRAG: Operation not permitted\").",
+  "label": "depth",
+  "key": "root on macOS (\"IPV6_DONTFRAG: Operation",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "The black hole Path MTU discovery depends on that ICMP message coming back.",
+  "label": "core",
+  "key": "discovery depends on that ICMP message coming back",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "A firewall or security group that drops all ICMP breaks it, and the failure has a signature worth memorising: the handshake and small requests work, then the first full-size packet vanishes and the transfer hangs .",
+  "label": "core",
+  "key": "signature worth memorising: the handshake and small requests",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "A TLS handshake whose certificate chain needs a full-size packet, a large POST, a big model download, or an allreduce over a VPN all stall while curl to a health endpoint passes.",
+  "label": "core",
+  "key": "handshake whose certificate chain needs a full-size packet",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "The fixes: allow ICMP \"fragmentation needed\" / \"packet too big\" through; clamp the MSS on the tunnel or router; or let TCP find the size by probing ( packetization-layer PMTUD , RFC 4821 ; Linux net.ipv4.tcp_mtu_probing=1 turns it on when a black hole is detected, 2 always, default 0, ip-sysctl ).",
+  "label": "core",
+  "key": "detected, 2 always, default 0, ip-sysctl",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "QUIC and other datagram protocols probe the same way ( RFC 8899 ).",
+  "label": "core",
+  "key": "protocols probe the same way ( RFC 8899",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "Jumbo frames in the cloud and the mixed-MTU trap Inside an AWS VPC every current-generation instance supports 9,001-byte jumbo frames , about six times fewer packets per byte than 1,500 (derived: 8,949 / 1,448 payload bytes per segment with timestamps).",
+  "label": "core",
+  "key": "supports 9,001-byte jumbo frames , about",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "Traffic through an internet gateway, over a VPN, or between regions (unless through a transit gateway) is limited to 1,500, and inter-region VPC peering to 8,500 ( EC2 network MTU ).",
+  "label": "core",
+  "key": "to 1,500, and inter-region VPC peering",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "Within one cluster placement group AWS recommends jumbo frames.",
+  "label": "core",
+  "key": "Within one cluster placement group",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "Two failure modes follow.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "Traffic leaving the VPC at 9,001 depends entirely on path MTU discovery working.",
+  "label": "core",
+  "key": "9,001 depends entirely on path MTU",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "And nodes in one job with different MTUs (one image sets 9,001, another 1,500) pass every small message and hang on the first large one: a training job whose small collectives succeed and whose first large allreduce never completes.",
+  "label": "core",
+  "key": "another 1,500) pass every small message",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "Check every node: ip link show (the mtu field), then ping -M do -s 8973 peer (Linux; 8,973 + 28 = 9,001) between each pair.",
+  "label": "core",
+  "key": "(Linux; 8,973 + 28 = 9,001) between each",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "Correction to the old page The old page said NAT gateways cap at 8,500 bytes.",
+  "label": "core",
+  "key": "old page said NAT gateways cap at 8,500",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "The current EC2 MTU documentation (fetched 5 October 2026) lists 8,500 only for inter-region VPC peering, and 1,500 for internet gateways, VPN and inter-region traffic; it gives no NAT gateway figure, so this page does not repeat one.",
+  "label": "core",
+  "key": "current EC2 MTU documentation (fetched 5",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "Commands. macOS: ping -D -s 1472 host (1,472 + 28 = 1,500); Linux: ping -M do -s 1472 host , and tracepath host , which reports the path MTU hop by hop without root.",
+  "label": "depth",
+  "key": "1,500); Linux: ping -M do -s 1472 host",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "10. mtu: the largest packet, and the hang it causes",
+  "text": "A reply of \"frag needed and DF set (MTU n)\" tells you the limit; silence at one size and success just below it, with no ICMP message, is a black hole.",
+  "label": "depth",
+  "key": "success just below it, with no ICMP message",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "11. udp: a thin wrapper, and everything else is your problem",
+  "text": "UDP: a thin wrapper, and everything else is your problem What it is.",
+  "label": "core",
+  "key": "thin wrapper, and everything else is your problem",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "11. udp: a thin wrapper, and everything else is your problem",
+  "text": "UDP adds an 8-byte header to IP: source port, destination port, length, checksum ( RFC 768 ).",
+  "label": "core",
+  "key": "destination port, length, checksum ( RFC",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "11. udp: a thin wrapper, and everything else is your problem",
+  "text": "No connection, no handshake, no acknowledgement, no retransmission, no ordering, no flow or congestion control.",
+  "label": "core",
+  "key": "No connection, handshake, acknowledgement",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "11. udp: a thin wrapper, and everything else is your problem",
+  "text": "What it does keep is message boundaries : each sendto is one datagram, delivered whole or not at all (the recording in section 2 shows three sends arriving as three reads, where TCP merged them).",
+  "label": "core",
+  "key": "boundaries : each sendto is one datagram, delivered",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "11. udp: a thin wrapper, and everything else is your problem",
+  "text": "When a late packet is worthless (voice, video, game state), when a question and its answer each fit in one packet (DNS), or when you want to build your own transport in user space without waiting for every operating system and middlebox to change (QUIC).",
+  "label": "core",
+  "key": "worthless (voice, video, game state), when a question",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "11. udp: a thin wrapper, and everything else is your problem",
+  "text": "The price is that you must do the rest yourself, including congestion control: an application that blasts UDP at a fixed rate harms everyone sharing the link, which is why the IETF's UDP usage guidelines ask UDP applications to control their rate.",
+  "label": "core",
+  "key": "guidelines ask UDP applications to control their rate",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "11. udp: a thin wrapper, and everything else is your problem",
+  "text": "Sizes that matter Size (UDP payload) Where it comes from 1,472 / 1,452 largest payload in one 1,500-byte packet over IPv4 / IPv6 (1,500 − 20 or 40 − 8, derived); larger datagrams are fragmented, and losing one fragment loses the datagram 1,232 the EDNS buffer size DNS Flag Day 2020 recommends as the default: IPv6's 1,280 minimum MTU minus 48 bytes of IPv6 and UDP headers ( dnsflagday.net/2020 ); larger DNS answers fall back to TCP 1,200 the smallest maximum datagram size QUIC requires a path to carry, and the size a client pads its first datagram to ( RFC 9000 s14 ; measured in section 12) 9,216 the largest datagram this Mac's kernel accepts at all ( measured : 9,216 bytes sent, 9,217 refused with \"Message too long\", net.inet.udp.maxdgram ); the protocol itself allows up to 65,507 over IPv4 (65,535 − 20 − 8, derived) No autotuning: the receive buffer drops what it cannot hold TCP's receive buffer grows and its window tells the sender to slow down.",
+  "label": "depth",
+  "key": "1,200 the smallest maximum datagram size",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "11. udp: a thin wrapper, and everything else is your problem",
+  "text": "A UDP socket has a fixed buffer and no way to push back: datagrams that arrive while it is full are discarded by the kernel, and only a counter records it. measured on loopback: 5,000 datagrams of 1,200 bytes sent in one burst at a socket that reads only after the burst: A QUIC implementation treats those drops as network loss and slows down, so an undersized UDP buffer silently caps HTTP/3 throughput. quic-go's documentation recommends raising the Linux limits to about 7.5 MB ( net.core.rmem_max and wmem_max = 7,500,000, quic-go wiki ); Linux's default limit was 212,992 bytes until 6.18 raised it to 4 MB (section 5).",
+  "label": "core",
+  "key": "measured on loopback: 5,000 datagrams of",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "11. udp: a thin wrapper, and everything else is your problem",
+  "text": "HTTP/3 is no longer niche: W3Techs counted it on 40.8 percent of websites on 5 October 2026 ( W3Techs ).",
+  "label": "core",
+  "key": "on 40.8 percent of websites on 5 October",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "11. udp: a thin wrapper, and everything else is your problem",
+  "text": "Linux: nstat -az | grep -i udp , where a growing UdpRcvbufErrors means the buffer overflowed; ss -uam shows each socket's buffer use. macOS: netstat -s -p udp , \"dropped due to full socket buffers\" (the counter this page's measurement read before and after).",
+  "label": "depth",
+  "key": "growing UdpRcvbufErrors means the buffer overflowed; ss -uam",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "11. udp: a thin wrapper, and everything else is your problem",
+  "text": "Where you meet UDP in ML: DNS on port 53 (its packets, truncation and TCP fallback are recorded on the DNS page), HTTP/3 on 443, NTP for clocks (TLS and token validity depend on them), and RoCEv2 between GPUs (section 14).",
+  "label": "depth",
+  "key": "DNS page), HTTP/3 on 443, NTP for clocks",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "QUIC: TCP's job, rebuilt on UDP The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section heading or one-line lead-in"
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "TCP plus TLS has three costs that could not be fixed inside TCP.",
+  "label": "core",
+  "key": "three costs that could not be fixed inside",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "A new connection pays a round trip for TCP and another for TLS 1.3 before the request leaves.",
+  "label": "core",
+  "key": "TCP and another for TLS 1.3 before the",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "All streams of an HTTP/2 connection share one ordered byte stream, so one loss stalls them all (section 4).",
+  "label": "core",
+  "key": "one loss stalls them all (section",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "And TCP is ossified : firewalls, NATs and load balancers parse its headers and drop what they do not recognise, and it lives in operating-system kernels that update slowly, so new TCP features take a decade to deploy, if ever.",
+  "label": "core",
+  "key": "kernels that update slowly, so new TCP features",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "QUIC ( RFC 9000 , May 2021, started at Google) moves the transport into a library on top of UDP and encrypts almost everything so middleboxes cannot ossify it again.",
+  "label": "core",
+  "key": "May 2021, started at Google) moves the",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "How it works One handshake for transport and encryption.",
+  "label": "core",
+  "key": "One handshake for transport and encryption",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "TLS 1.3 runs inside QUIC's own packets ( RFC 9001 ), so the connection is ready after one round trip.",
+  "label": "core",
+  "key": "9001 ), so the connection is ready after",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "A client returning to a server can send its request in the very first flight ( 0-RTT ), but that data can be replayed by an attacker who records it ( RFC 9001 s9.2 ): use it only for requests that are safe to repeat.",
+  "label": "core",
+  "key": "attacker who records it ( RFC 9001 s9.2",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "The root's On the wire tab measured cold, resumed and 0-RTT connections.",
+  "label": "depth",
+  "key": "tab measured cold, resumed and 0-RTT",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "Streams, each with its own order and flow control.",
+  "label": "core",
+  "key": "Streams, each with its own order and flow",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "A lost packet holds up only the streams whose data it carried; other streams keep delivering.",
+  "label": "core",
+  "key": "packet holds up only the streams whose data",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "Packet numbers are never reused.",
+  "label": "core",
+  "key": "Packet numbers are never reused",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "A retransmission goes in a new packet with a new number, so an acknowledgement is never ambiguous about which copy arrived, which makes RTT samples clean ( RFC 9002 s4.2 ).",
+  "label": "core",
+  "key": "clean ( RFC 9002 s4.2 )",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "ACK frames list ranges of received packets, like SACK without a size limit.",
+  "label": "core",
+  "key": "like SACK without a size limit",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "A packet is declared lost when three later packets are acknowledged, or after 9/8 of an RTT ( RFC 9002 s6.1 ), and the congestion controller the RFC describes is close to TCP's NewReno ( RFC 9002 s7 ); implementations may plug in others.",
+  "label": "core",
+  "key": "congestion controller the RFC describes",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "Connections are named by connection IDs, not addresses , so they survive a change of address or port ( connection migration , RFC 9000 s9 ).",
+  "label": "core",
+  "key": "connection migration , RFC 9000 s9",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "The peer checks that the new path really reaches you (PATH_CHALLENGE and PATH_RESPONSE) before trusting it.",
+  "label": "core",
+  "key": "PATH_CHALLENGE",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "Until it has validated the client's address, a server may send at most three times the bytes it has received ( RFC 9000 s8.1 ), which is one reason the client pads its first datagram to 1,200 bytes: it buys the server room for its certificate.",
+  "label": "core",
+  "key": "1,200 bytes: it buys the server room for",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "TCP: the address changes (before) QUIC: the same move, recorded (after) The QUIC run is real: aioquic 1.3.0 on loopback, a client and a small echo server, every UDP datagram logged with its size and source port, and both endpoints' qlog (QUIC's standard event log) recording the packet types and frames inside ( src/meas/quic_migrate.py ).",
+  "label": "core",
+  "key": "1.3.0 on loopback, a client and a small",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "Midway the client moves to a new UDP socket, which is what a NAT rebinding or a switch from Wi-Fi to mobile looks like to the server.",
+  "label": "core",
+  "key": "rebinding or a switch from Wi-Fi to mobile",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "The TCP side is drawn from the specification, not recorded: changing the source port means a different 5-tuple, which matches no socket at the server.",
+  "label": "core",
+  "key": "The TCP side is drawn from the specification",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "Costs, and when not to use it QUIC runs in user space, encrypting and acknowledging every packet itself, so it spends more CPU per byte than kernel TCP with its offloads; some networks block or throttle UDP 443, so every client keeps a TCP fallback (it learns a server speaks HTTP/3 from an alt-svc header or a DNS HTTPS record, then races or falls back).",
+  "label": "core",
+  "key": "HTTP/3 from an alt-svc header or a DNS",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "And it hides its headers from network operators who used to read TCP's to debug ( RFC 9312 discusses what remains visible).",
+  "label": "depth",
+  "key": "TCP's to debug ( RFC 9312 discusses what",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "Inside a data centre on a clean network, kernel TCP is usually cheaper and simpler; between your own services, gRPC and most inference servers still use HTTP/2 over TCP.",
+  "label": "core",
+  "key": "inference servers still use HTTP/2 over",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "QUIC v2 ( RFC 9369 , 2023) changes nothing functional; it exists so that middleboxes do not hard-code version 1.",
+  "label": "depth",
+  "key": "9369 , 2023) changes nothing functional",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "RFC 9221 adds unreliable datagrams inside a QUIC connection, for media and tunnels.",
+  "label": "depth",
+  "key": "9221 adds unreliable datagrams inside a",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "Packet captures show only encrypted payloads; use the endpoints' logs instead: qlog files (aioquic, quic-go, Chrome's chrome://net-export ) or SSLKEYLOGFILE to decrypt a capture in Wireshark.",
+  "label": "depth",
+  "key": "Chrome's chrome://net-export ) or SSLKEYLOGFILE to decrypt a",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "Symptom \"HTTP/3 fast at home, slow or falling back in the office\": UDP 443 blocked.",
+  "label": "depth",
+  "key": "or falling back in the office\": UDP 443",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "12. quic: tcp's job, rebuilt on udp",
+  "text": "This laptop's curl 8.7.1 has no HTTP/3 support at all, which the root page also notes.",
+  "label": "depth",
+  "key": "no HTTP/3 support at all, which the root",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Moving big things: checkpoints, datasets, weights The arithmetic first.",
+  "label": "core",
+  "key": "Moving big things: checkpoints, datasets, weights",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "A 70-billion-parameter model in bf16 (2 bytes per parameter) is 140 GB of weights.",
+  "label": "core",
+  "key": "model in bf16 (2 bytes per parameter) is",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "A full training checkpoint with Adam in mixed precision usually also holds an fp32 master copy and two fp32 moments, 4 + 4 + 4 more bytes per parameter: 14 bytes per parameter, 980 GB (derived; layouts vary by framework).",
+  "label": "core",
+  "key": "parameter, 980 GB (derived; layouts vary",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Over one connection capped at 5 Gbit/s that is 140 × 8 / 5 = 224 s for the weights and 980 × 8 / 5 = 1,568 s, 26 minutes, for the full state (derived), per checkpoint, during which the GPUs may be waiting.",
+  "label": "core",
+  "key": "1,568 s, 26 minutes, for the full state",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Four separate ceilings on one connection , and the lowest one wins: Window over RTT (section 5): a 16 MB window over a 100 ms cross-region path is 1.3 Gbit/s (derived).",
+  "label": "core",
+  "key": "a 100 ms cross-region path is 1.3 Gbit/s",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Loss : for loss-based congestion control the long-run rate is about (MSS / RTT) × 1.22 / √p ( Mathis et al., 1997 ): 1,460-byte segments, 100 ms, one loss in 100,000 packets gives 45 Mbit/s (derived), whatever the link.",
+  "label": "core",
+  "key": "ms, one loss in 100,000 packets gives 45",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "(The old page said 37 Mbit/s: it left out the constant √(3/2) = 1.22.) Per-flow policy : AWS limits one flow (one 5-tuple) to 5 Gbit/s between instances outside a cluster placement group, up to 10 Gbit/s inside one, and up to 25 Gbit/s between instances in one Availability Zone with ENA Express ( EC2 instance network bandwidth ).",
+  "label": "core",
+  "key": "it left out the constant √(3/2) = 1.22.)",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "The NIC and the instance's own bandwidth , shared by all flows.",
+  "label": "core",
+  "key": "instance's own bandwidth , shared by all flows",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "The fix is always parallel streams.",
+  "label": "core",
+  "key": "The fix is always parallel streams",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Each of the first three ceilings applies per connection, so N connections get up to N times as much until the NIC is full.",
+  "label": "core",
+  "key": "parallel connections multiply them until the link is full",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "That is what S3 multipart upload is for (an object split into up to 10,000 parts of 5 MiB to 5 GiB, uploaded concurrently, S3 multipart limits ); what PyTorch's Distributed Checkpoint does by having every rank write its own shard (\"saving models from multiple ranks in parallel\", DCP docs ); what tools such as s5cmd and rclone do with many concurrent transfers; and why NCCL opens several sockets per peer (section 14).",
+  "label": "core",
+  "key": "(an object split into up to 10,000 parts",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "AWS's own documentation lists Multipath TCP and ENA Express as ways past the single-flow cap.",
+  "label": "core",
+  "key": "ENA Express as ways past the single-flow cap",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "The Throughput lab tab works out, for a checkpoint size and a path you choose, which ceiling binds and how many streams it takes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Request rates, not bytes, bound small objects.",
+  "label": "core",
+  "key": "Request rates, not bytes, bound small objects",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "S3 supports at least 3,500 PUT/COPY/POST/DELETE and 5,500 GET/HEAD requests per second per partitioned prefix ( S3 performance ).",
+  "label": "core",
+  "key": "per partitioned prefix ( S3 performance",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Ten million small image files are a request-rate and latency problem (each GET pays at least a round trip, plus a handshake if the connection is not reused), not a bandwidth one.",
+  "label": "core",
+  "key": "request-rate and latency problem (each GET pays at",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Pack them into large sequential shards (WebDataset tar files, Parquet, MosaicML's MDS) so each request moves megabytes, spread keys across prefixes, keep connections alive, and prefetch with several workers, which is the parallel-streams trick again.",
+  "label": "core",
+  "key": "into large sequential shards (WebDataset tar files, Parquet",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "A checklist for a slow transfer Is it one connection?",
+  "label": "depth",
+  "key": "for a slow transfer Is it one connection?",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Count with ss -tn dst HOST (Linux) or lsof -nP -iTCP .",
+  "label": "depth",
+  "key": "-tn dst HOST (Linux) or lsof -nP -iTCP",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Divide the observed rate into window / RTT: if they match, the window binds; raise buffers (and do not set SO_RCVBUF by hand) or add streams.",
+  "label": "depth",
+  "key": "(and do not set SO_RCVBUF by hand) or",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Retransmissions growing ( nstat , ss -ti )?",
+  "label": "depth",
+  "key": "Retransmissions growing ( nstat , ss -ti )?",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Loss binds: find it ( mtr , NIC counters with ethtool -S ) or use more streams.",
+  "label": "depth",
+  "key": "counters with ethtool -S ) or use more",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Does it stop at a round number (5, 10, 25 Gbit/s)?",
+  "label": "depth",
+  "key": "at a round number (5, 10, 25 Gbit/s)?",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "A per-flow policy cap.",
+  "label": "depth",
+  "key": "A per-flow policy cap",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Is it going through a NAT gateway or out of the region?",
+  "label": "depth",
+  "key": "it going through a NAT gateway or out",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Use a gateway endpoint for S3, and keep data in the region where it is used.",
+  "label": "depth",
+  "key": "a gateway endpoint for S3, and keep data",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Recent kernel work worth a line.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Linux 6.15 added io_uring zero-copy receive (the iou-zcrx documentation was merged then), and devmem TCP lets a NIC place received payloads directly in device memory such as a GPU's.",
+  "label": "depth",
+  "key": "io_uring zero-copy receive (the iou-zcrx",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "13. moving big things: checkpoints, datasets, weights",
+  "text": "Both cut the CPU cost of receiving at high rates; they matter for ingest and serving rather than for NCCL, which already bypasses the kernel when it uses RDMA.",
+  "label": "depth",
+  "key": "serving rather than for NCCL, which already bypasses",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "Why GPU clusters avoid TCP for the heavy traffic The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "An allreduce moves gigabytes between GPUs every training step, and every microsecond of latency and every CPU copy shows up as idle accelerators.",
+  "label": "core",
+  "key": "allreduce moves gigabytes between GPUs every",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "Kernel TCP copies each byte from the NIC into kernel memory and then into the application, takes CPU interrupts, and backs off on any loss.",
+  "label": "core",
+  "key": "kernel memory and then into the application, takes",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "At hundreds of gigabits per second per node, that is too slow and too expensive.",
+  "label": "core",
+  "key": "hundreds of gigabits per second per",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "RDMA (remote direct memory access) lets one machine's network card read and write another machine's memory directly, with no kernel stack copying on either side; with GPUDirect RDMA, straight into GPU memory.",
+  "label": "core",
+  "key": "with no kernel stack copying",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "It runs on three kinds of fabric in practice: InfiniBand : a separate network built for RDMA, with its own adapters and switches ( InfiniBand Trade Association ).",
+  "label": "depth",
+  "key": "runs on three kinds of fabric",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "RoCEv2 (RDMA over Converged Ethernet): the same RDMA operations carried in UDP datagrams to port 4791 over ordinary routed Ethernet and IP (IANA registered 4791/udp to the InfiniBand Trade Association in 2014, IANA port registry ).",
+  "label": "depth",
+  "key": "Association in 2014, IANA port registry",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "This is where UDP meets your training job; the UDP header is only an envelope, and the reliability lives in the RDMA transport and the fabric's configuration.",
+  "label": "depth",
+  "key": "reliability lives in the RDMA transport and the",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "AWS EFA : an OS-bypass interface whose transport is AWS's Scalable Reliable Datagram (SRD) protocol, with built-in congestion control, reached through the Libfabric API; ML applications use it through NCCL and NIXL ( EFA documentation ).",
+  "label": "depth",
+  "key": "with built-in congestion control, reached through",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "NCCL , the library behind PyTorch's GPU collectives, picks the fastest path it finds: NVLink and shared memory inside a server, the IB/RoCE transport across servers, and plain TCP sockets when nothing better exists ( NCCL_IB_DISABLE=1 forces that fallback, NCCL environment variables ).",
+  "label": "core",
+  "key": "better exists ( NCCL_IB_DISABLE=1 forces",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "Even on an InfiniBand cluster, NCCL sets up its connections over TCP sockets first (the same page describes the \"InfiniBand connection bootstrap sockets\"), and PyTorch's rendezvous is a TCP store on MASTER_PORT (29500 unless set, torchrun source ).",
+  "label": "core",
+  "key": "store on MASTER_PORT (29500 unless set",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "So the interface NCCL chooses for its sockets decides whether a job starts at all.",
+  "label": "owned:systems_and_performance/topic_ml_infra_and_orchestration/launching_distributed_training",
+  "key": "NCCL_SOCKET_IFNAME",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "When NCCL does fall back to sockets, it uses several per peer precisely because one TCP connection cannot fill a fast NIC (sections 5 and 13): NCCL_SOCKET_NTHREADS helper threads with NCCL_NSOCKS_PERTHREAD sockets each, defaulting on AWS to 2 and 8, so 16 TCP connections for each network connection between two ranks, with the product capped at 64 (same page).",
+  "label": "core",
+  "key": "sockets each, defaulting on AWS to 2 and",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "When a distributed job hangs at start-up or on its first big collective Wrong interface.",
+  "label": "core",
+  "key": "When a distributed job hangs at start-up or",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "NCCL picked docker0 , a loopback or a management NIC.",
+  "label": "core",
+  "key": "NCCL picked docker0 , a loopback or a",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET prints the choice; set NCCL_SOCKET_IFNAME , and GLOO_SOCKET_IFNAME for Gloo, which is a separate variable ( PyTorch distributed docs ).",
+  "label": "core",
+  "key": "the choice; set NCCL_SOCKET_IFNAME , and",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "Firewall or security group.",
+  "label": "core",
+  "key": "Firewall or security group",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "Only MASTER_PORT has a fixed number; NCCL's environment-variable reference names no fixed port range for its own sockets, so rules that open one port between nodes are not enough.",
+  "label": "core",
+  "key": "MASTER_PORT has a fixed number; NCCL's",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "A silent hang in init_process_group is usually a dropped SYN (section 3).",
+  "label": "core",
+  "key": "init_process_group is usually a dropped",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "MTU mismatch between nodes: small messages pass, the first large one hangs (section 10).",
+  "label": "core",
+  "key": "first large one hangs (section 10)",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "Accept queue or file descriptors at the rendezvous rank with thousands of ranks (section 8).",
+  "label": "core",
+  "key": "with thousands of ranks (section 8)",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "Not the network at all.",
+  "label": "core",
+  "key": "Not the network at all",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "One straggler rank (a slow GPU, a data-loading stall) makes every other rank wait inside the collective, which looks exactly like a network hang.",
+  "label": "core",
+  "key": "data-loading stall) makes every other rank wait inside",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "Compare per-rank progress and GPU utilisation before blaming the fabric.",
+  "label": "core",
+  "key": "Compare per-rank progress and GPU utilisation before blaming",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "Parallelism schemes and what each collective moves: Distributed training .",
+  "label": "core",
+  "key": "what each collective moves is",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "Failure rates, timeouts and checkpointing at scale: Fault tolerance at scale .",
+  "label": "core",
+  "key": "Fault tolerance at scale",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-read",
+  "section": "14. why gpu clusters avoid tcp for the heavy traffic",
+  "text": "NVLink, NICs and the hardware itself: Topic: hardware .",
+  "label": "core",
+  "key": "NVLink, NICs and the hardware",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-read",
+  "section": "15. debugging: from symptom to mechanism",
+  "text": "Debugging: from symptom to mechanism Symptom Most likely mechanism Command that shows it \"Connection refused\" in under a millisecond nothing listens there, or it listens on another address (section 2) lsof -nP -iTCP:PORT -sTCP:LISTEN ; ss -ltnp Connect hangs, then times out SYN dropped by a firewall or security group (section 3) nc -vz -w 3 host port ; mtr host Connects take 1 s or 3 s instead of milliseconds full accept queue or lost SYNs (section 8) ss -lnt (Recv-Q against Send-Q); nstat -az TcpExtListenOverflows \"Cannot assign requested address\" under load ephemeral ports exhausted by TIME_WAIT (section 3) ss -tan state time-wait | wc -l ; fix with pooling Many CLOSE_WAIT sockets that never go away your code does not close connections the peer closed (section 3) ss -tan state close-wait ; find the leak Transfer far below link speed, no retransmissions window over RTT (section 5) ss -ti ( rtt , cwnd , rcv_space ); iperf3 -P 1 against -P 8 Transfer slow with growing retransmissions loss (sections 4, 6) nstat -az TcpRetransSegs ; ethtool -S eth0 for NIC drops Everything slows while one big transfer runs queue at the bottleneck: bufferbloat (section 6) ping during the transfer: idle against loaded RTT Each request about 40 ms slower than it should be Nagle plus delayed ACK (section 7) check TCP_NODELAY on both ends Fails after idle periods with \"connection reset\" NAT or load-balancer idle timeout (section 9) time since last use against the middlebox's timer; ss -to Small requests work, big ones hang MTU black hole or mismatch (section 10) ping -M do -s 1472 (Linux), ping -D -s 1472 (macOS); tracepath HTTP/3 slow or falling back on one network UDP blocked or UDP buffer drops (sections 11, 12) nstat -az UdpRcvbufErrors ; test UDP 443 Distributed job hangs at init_process_group wrong interface, firewall, MTU (section 14) NCCL_DEBUG=INFO ; NCCL_SOCKET_IFNAME Linux settings you will actually meet Defaults from the current kernel documentation ( ip-sysctl , net.core sysctls ) and include/net/tcp.h , read 5 October 2026; distributions may override them.",
+  "label": "core",
+  "key": "bottleneck: bufferbloat (section 6) ping",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-read",
+  "section": "15. debugging: from symptom to mechanism",
+  "text": "This Mac's equivalents are in src/meas/out/env.txt .",
+  "label": "depth",
+  "key": "This Mac's equivalents are in src/meas/out/env.txt",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-read",
+  "section": "15. debugging: from symptom to mechanism",
+  "text": "Setting Default What it does, and when to change it net.ipv4.tcp_congestion_control chosen when the kernel is built (CUBIC is the default named in RFC 9438 s1); read it, do not assume sender's algorithm; try bbr on long lossy paths (section 6) net.core.somaxconn 4096 (128 before 5.4) cap on any listen() backlog (section 8) net.ipv4.tcp_rmem / tcp_wmem 4K, 131072, up to 32 MB / 4K, 16K, up to 4 MB (depends on RAM) min, initial, autotuning maximum; raise the third value to the BDP for long fat paths (section 5) net.core.rmem_max / wmem_max 4194304 since 6.18 (212992 before) caps explicit SO_RCVBUF / SO_SNDBUF only, not autotuning; matters for UDP and QUIC (section 11) net.ipv4.ip_local_port_range 32768 60999 ephemeral ports (section 3) net.ipv4.tcp_tw_reuse 2 (loopback only) 1 allows reuse of TIME_WAIT for outgoing connections; pooling is the real fix net.ipv4.tcp_mtu_probing 0 1 probes when a black hole is detected, 2 always (section 10) net.ipv4.tcp_slow_start_after_idle 1 0 keeps the congestion window across idle periods on long-lived connections net.ipv4.tcp_syn_retries 6 (about 131 s to give up) shorter connect failure; better: set a connect timeout in the client keepalive time / interval / probes 7200 s / 75 s / 9 (tcp.h) set per socket below the NAT idle timeout (section 9) TIME_WAIT length 60 s, fixed (tcp.h) not tunable; reuse connections Reading ss -ti .",
+  "label": "depth",
+  "key": "(section 5) net.core.rmem_max / wmem_max",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-read",
+  "section": "15. debugging: from symptom to mechanism",
+  "text": "One line per connection: cubic or bbr (algorithm), wscale (send and receive window-scale shifts), rto: (current timer, ms), rtt:x/y (smoothed RTT / variance, ms), mss: , cwnd: (segments), ssthresh: , bytes_acked: , retrans: (in flight / total), pacing_rate , rcv_space: (autotuning's estimate); field list in man 8 ss .",
+  "label": "depth",
+  "key": "ssthresh: , bytes_acked: , retrans: (in",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-read",
+  "section": "15. debugging: from symptom to mechanism",
+  "text": "Small cwnd with climbing retrans : loss-limited.",
+  "label": "depth",
+  "key": "Small cwnd with climbing retrans : loss-limited",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-read",
+  "section": "15. debugging: from symptom to mechanism",
+  "text": "Large cwnd and a throughput equal to window / RTT: window-limited.",
+  "label": "depth",
+  "key": "a throughput equal to window / RTT: window-limited",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-read",
+  "section": "15. debugging: from symptom to mechanism",
+  "text": "The macOS counterpart is netstat -s -p tcp for totals; per-connection detail needs getsockopt(TCP_CONNECTION_INFO) , which this page's scripts use.",
+  "label": "depth",
+  "key": "getsockopt(TCP_CONNECTION_INFO) , which this page's scripts",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Drills and interview questions Predict first, then reveal.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 371,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Each drill is a real situation from this page; the answer says which number or mechanism decides it, and links the section.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 372,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Interview questions, with model answers What happens, at the transport level, when you call requests.post() to an HTTPS API for the first time?",
+  "label": "depth",
+  "key": "at the transport level, when you call requests.post()",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "DNS resolves the name (the DNS page).",
+  "label": "depth",
+  "key": "DNS resolves the name (the DNS page)",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "The kernel picks an ephemeral port and sends a SYN; SYN-ACK and ACK complete the handshake in one round trip, negotiating MSS, window scaling, SACK and timestamps.",
+  "label": "depth",
+  "key": "trip, negotiating MSS, window scaling, SACK and timestamps",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "TLS 1.3 takes one more round trip.",
+  "label": "depth",
+  "key": "1.3 takes one more round trip",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "The request goes out in one or more segments; the response comes back under flow control (receive window) and congestion control (slow start from 10 segments).",
+  "label": "depth",
+  "key": "control (slow start from 10 segments)",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "The connection is returned to the pool; if it is never reused, whoever closes first holds TIME_WAIT.",
+  "label": "core",
+  "key": "whoever closes first holds TIME_WAIT",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Total before the first response byte: about three round trips plus server time.",
+  "label": "depth",
+  "key": "response byte: about three round trips plus server",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Why can a single TCP connection not use a 10 Gbit/s link across an ocean, and how do you fix it?",
+  "label": "depth",
+  "key": "10 Gbit/s link across an ocean, and how",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Throughput is at most window / RTT.",
+  "label": "depth",
+  "key": "Throughput is at most window / RTT",
+  "where": ""
+ },
+ {
+  "id": 381,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "10 Gbit/s × 100 ms needs 125 MB in flight; a typical autotuning ceiling of a few MB gives tens to hundreds of Mbit/s.",
+  "label": "depth",
+  "key": "ms needs 125 MB in flight; a typical",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Loss caps it further (Mathis: about 45 Mbit/s at one loss in 100,000 with 1,460-byte segments), and clouds cap single flows (5 Gbit/s on AWS outside placement groups).",
+  "label": "depth",
+  "key": "clouds cap single flows (5 Gbit/s on AWS",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Fixes: raise tcp_rmem / tcp_wmem maxima to the BDP, never pin SO_RCVBUF , consider BBR for lossy paths, and above all use parallel streams (multipart upload, sharded checkpoints).",
+  "label": "depth",
+  "key": "maxima to the BDP, never pin SO_RCVBUF",
+  "where": ""
+ },
+ {
+  "id": 384,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "TCP versus UDP versus QUIC: when do you pick each?",
+  "label": "depth",
+  "key": "versus UDP versus QUIC: when do you pick",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "TCP by default for request/response and bulk data between services: reliable, ordered, in the kernel, understood by every middlebox.",
+  "label": "depth",
+  "key": "default for request/response and bulk data between services",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "UDP when late data is useless (media, games), when one packet answers one question (DNS), or as the substrate for your own transport; you must add congestion control.",
+  "label": "depth",
+  "key": "(media, games), when one packet answers one question",
+  "where": ""
+ },
+ {
+  "id": 387,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "QUIC when you want TCP's guarantees without head-of-line blocking across streams, a combined one-round-trip handshake, and connection migration, typically HTTP/3 to clients on mobile or lossy networks; it costs more CPU and needs a TCP fallback where UDP is blocked.",
+  "label": "depth",
+  "key": "migration, typically HTTP/3 to clients",
+  "where": ""
+ },
+ {
+  "id": 388,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "A service sees thousands of sockets in TIME_WAIT and occasional \"Cannot assign requested address\".",
+  "label": "depth",
+  "key": "TIME_WAIT and occasional \"Cannot assign",
+  "where": ""
+ },
+ {
+  "id": 389,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "The client side closes connections first, so it holds TIME_WAIT for 60 s on Linux; with 28,232 ephemeral ports that allows about 470 new connections per second to one destination address and port.",
+  "label": "depth",
+  "key": "TIME_WAIT for 60 s on Linux; with 28,232",
+  "where": ""
+ },
+ {
+  "id": 390,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "The client is opening a connection per request.",
+  "label": "depth",
+  "key": "The client is opening a connection per request",
+  "where": ""
+ },
+ {
+  "id": 391,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Fix: connection pooling with keep-alive (also saves a round trip or two per request). tcp_tw_reuse=1 helps outgoing connections; tcp_tw_recycle no longer exists (removed in 4.12, broke NAT).",
+  "label": "depth",
+  "key": "trip or two per request). tcp_tw_reuse=1",
+  "where": ""
+ },
+ {
+  "id": 392,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Small API calls work but a large upload hangs forever.",
+  "label": "depth",
+  "key": "calls work but a large upload hangs forever",
+  "where": ""
+ },
+ {
+  "id": 393,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "What do you suspect and how do you prove it?",
+  "label": "depth",
+  "key": "you suspect and how do you prove it?",
+  "where": ""
+ },
+ {
+  "id": 394,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "A path MTU black hole: a smaller-MTU link on the path drops full-size packets, and the ICMP \"fragmentation needed\" or \"packet too big\" message is filtered.",
+  "label": "depth",
+  "key": "drops full-size packets, and the ICMP \"fragmentation needed\"",
+  "where": ""
+ },
+ {
+  "id": 395,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Prove it with don't-fragment pings of increasing size ( ping -M do -s 1472 on Linux): success below a size and silence above it, with no ICMP reply.",
+  "label": "depth",
+  "key": "1472 on Linux): success below a size and",
+  "where": ""
+ },
+ {
+  "id": 396,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Fix: allow those ICMP messages, clamp MSS on the tunnel, or enable tcp_mtu_probing .",
+  "label": "depth",
+  "key": "on the tunnel, or enable tcp_mtu_probing",
+  "where": ""
+ },
+ {
+  "id": 397,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Why does a streaming endpoint set TCP_NODELAY ?",
+  "label": "depth",
+  "key": "a streaming endpoint set TCP_NODELAY ?",
+  "where": ""
+ },
+ {
+  "id": 398,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Nagle's algorithm holds a small write while earlier data is unacknowledged.",
+  "label": "depth",
+  "key": "a small write while earlier data is unacknowledged",
+  "where": ""
+ },
+ {
+  "id": 399,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Tokens are small writes 20 to 100 ms apart, so on a real round trip each token after the first would wait for the previous token's ACK (and possibly a 40 ms delayed ACK), turning a smooth stream into bursts.",
+  "label": "depth",
+  "key": "possibly a 40 ms delayed ACK), turning a",
+  "where": ""
+ },
+ {
+  "id": 400,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "TCP_NODELAY sends each write at once.",
+  "label": "depth",
+  "key": "TCP_NODELAY sends each write at once",
+  "where": ""
+ },
+ {
+  "id": 401,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "How does QUIC survive a phone switching from Wi-Fi to mobile data when TCP does not?",
+  "label": "depth",
+  "key": "does QUIC survive a phone switching from Wi-Fi",
+  "where": ""
+ },
+ {
+  "id": 402,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "TCP identifies a connection by its 5-tuple, so a new client address matches no socket and the connection is dead; the app must reconnect and redo the handshakes.",
+  "label": "depth",
+  "key": "by its 5-tuple, so a new client address",
+  "where": ""
+ },
+ {
+  "id": 403,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "QUIC identifies it by connection IDs carried in each packet; the server sees the known ID from a new address, validates the new path with PATH_CHALLENGE/PATH_RESPONSE, and continues.",
+  "label": "depth",
+  "key": "new path with PATH_CHALLENGE/PATH_RESPONSE, and continues",
+  "where": ""
+ },
+ {
+  "id": 404,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "This page records exactly that on loopback (section 12).",
+  "label": "depth",
+  "key": "exactly that on loopback (section 12)",
+  "where": ""
+ },
+ {
+  "id": 405,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "A pooled HTTP connection fails with \"connection reset\" only when it was idle for a few minutes.",
+  "label": "depth",
+  "key": "pooled HTTP connection fails with \"connection reset\" only",
+  "where": ""
+ },
+ {
+  "id": 406,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "A NAT gateway or load balancer between the hosts dropped the idle mapping (AWS NAT: 350 s) and answers the next packet with a reset.",
+  "label": "depth",
+  "key": "mapping (AWS NAT: 350 s) and answers the",
+  "where": ""
+ },
+ {
+  "id": 407,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Neither end was told.",
+  "label": "depth",
+  "key": "Neither end was told",
+  "where": ""
+ },
+ {
+  "id": 408,
+  "tab": "t-read",
+  "section": "16. drills and interview questions",
+  "text": "Fix: keepalive probes (or application pings) more often than the shortest idle timer, or a pool that discards connections idle longer than it; and retry idempotent requests once on a reset of a reused connection.",
+  "label": "depth",
+  "key": "Fix: keepalive probes (or application pings) more often",
+  "where": ""
+ },
+ {
+  "id": 409,
+  "tab": "t-read",
+  "section": "glossary",
+  "text": "Glossary ACK acknowledgement: \"I have every byte up to n\" (section 4) BDP bandwidth-delay product, link rate × RTT: the bytes that must be in flight to fill a path (section 5) BBR congestion control that models bottleneck bandwidth and minimum RTT instead of reacting to loss (section 6) CIDR, prefix 10.0.0.0/16 : all addresses sharing the first 16 bits (section 1) Congestion window (cwnd) the sender's estimate of what the network can carry; grows on ACKs, shrinks on loss (section 6) Connection ID QUIC's name for a connection, independent of addresses (section 12) CUBIC the default congestion control in Linux, Windows and Apple stacks (RFC 9438) Delayed ACK a receiver waiting briefly before acknowledging, up to 40 to 200 ms on Linux (section 7) Ephemeral port the temporary port the client's kernel picks for its end (section 2) FIN, RST orderly close of one direction; abrupt \"this connection does not exist\" (section 3) Head-of-line blocking bytes that arrived waiting behind a missing earlier byte (section 4) ICMP IP's control messages: errors such as \"time exceeded\" and \"packet too big\", and ping (sections 1, 10) MSS maximum segment size: the largest TCP payload per segment, announced in the SYN (section 10) MTU maximum transmission unit: the largest IP packet a link carries (section 10) Nagle's algorithm holding small writes while data is unacknowledged; off with TCP_NODELAY (section 7) NAT network address translation: rewriting private addresses and ports to a public one, with a table of mappings (section 9) Packet, segment, datagram an IP unit; a TCP unit inside it; a UDP unit inside it PMTUD path MTU discovery, by ICMP \"too big\" messages or by probing (section 10) RDMA, RoCEv2, InfiniBand, EFA direct memory access over the network, and the fabrics that carry it (section 14) Receive window free space in the receiver's buffer, advertised in every ACK (section 5) RTO retransmission timeout: how long the sender waits before resending (section 4) RTT round-trip time: a packet there and the answer back SACK selective acknowledgement: which later blocks have arrived (section 4) Slow start doubling the congestion window every round trip from 10 segments (section 6) Socket the kernel's handle for one end of a conversation (section 2) SYN the first segment of a TCP connection, carrying the initial sequence number and options (section 3) TIME_WAIT the closed-first side remembering a connection for 2 MSL (60 s on Linux) (section 3) TTL, hop limit a per-packet counter each router decrements; at zero the packet is dropped (section 1) Window scaling the SYN option that multiplies the 16-bit window field, up to 1 GiB (section 5) 5-tuple protocol, source address and port, destination address and port: a connection's name (section 2)",
+  "label": "depth",
+  "key": "GiB (section 5) 5-tuple protocol, source",
+  "where": ""
+ },
+ {
+  "id": 410,
+  "tab": "t-tcp",
+  "section": "tcp timeline: the running request, segment by segment",
+  "text": "TCP timeline: the running request, segment by segment The root page's streaming request (277 bytes up; a 244-byte response head, then seven Server-Sent Events written at the times the root's recording measured: 2.4, 123.8, 175.1, 226.5, 278.0, 329.1 and 330.1 ms after the request arrived) replayed over a TCP connection with a round trip you choose.",
+  "label": "core",
+  "key": "2.4, 123.8, 175.1, 226.5, 278.0, 329.1",
+  "where": ""
+ },
+ {
+  "id": 411,
+  "tab": "t-tcp",
+  "section": "tcp timeline: the running request, segment by segment",
+  "text": "Time runs down the page, to scale.",
+  "label": "core",
+  "key": "Time runs down, to scale",
+  "where": ""
+ },
+ {
+  "id": 412,
+  "tab": "t-tcp",
+  "section": "tcp timeline: the running request, segment by segment",
+  "text": "Each preset is a before/after pair: pick one, then flip between its two settings and watch the same input take a different path.",
+  "label": "core",
+  "key": "Then flip Recovery",
+  "where": ""
+ },
+ {
+  "id": 413,
+  "tab": "t-tcp",
+  "section": "tcp timeline: the running request, segment by segment",
+  "text": "Scenario Clean Token 2 lost Last token lost Recovery Timer only (before) Fast retransmit + tail probe (after) Small writes Nagle on (before) TCP_NODELAY (after) Client ACKs Delayed ACK (40 ms) ACK every segment Round-trip time 100 ms illustrative model with recorded inputs Rules: one-way delay is half the round trip; segments up to 1,448 bytes; the receiver ACKs every second segment or after 40 ms (Linux's minimum delayed ACK) and at once for out-of-order data ( RFC 5681 s4.2 ); the sender retransmits on three duplicate ACKs ( s3.2 ), after a tail-loss probe at two round trips ( RFC 8985 s7 ), or when its timer fires at RTT + 200 ms, doubling after each expiry (Linux's 200 ms floor); Nagle holds a small write while data is unacknowledged ( RFC 9293 s3.7.4 ).",
+  "label": "depth",
+  "key": "ACKs every second segment or after 40 ms",
+  "where": ""
+ },
+ {
+  "id": 414,
+  "tab": "t-tcp",
+  "section": "tcp timeline: the running request, segment by segment",
+  "text": "No TLS (as on the root's plain port), no congestion window limits (seven small segments never reach the initial window of 10), no queueing.",
+  "label": "depth",
+  "key": "initial window of 10), no queueing",
+  "where": ""
+ },
+ {
+  "id": 415,
+  "tab": "t-tcp",
+  "section": "tcp timeline: the running request, segment by segment",
+  "text": "Real stacks differ in detail (Linux uses RACK time-based detection, SACK and more); the order of events and the size of each wait are the point.",
+  "label": "depth",
+  "key": "the size of each wait are the point",
+  "where": ""
+ },
+ {
+  "id": 416,
+  "tab": "t-tcp",
+  "section": "tcp timeline: the running request, segment by segment",
+  "text": "Try. \"Token 2 lost\" with the timer only, then with fast retransmit: the duplicate ACKs from tokens 3, 4 and 5 trigger the repair, but tokens 3 onwards still wait in the client's buffer until it arrives (head-of-line blocking). \"Last token lost\": no later segments, no duplicate ACKs, so only the probe or the timer can notice.",
+  "label": "core",
+  "key": "\"Token 2 lost\"",
+  "where": ""
+ },
+ {
+  "id": 417,
+  "tab": "t-tcp",
+  "section": "tcp timeline: the running request, segment by segment",
+  "text": "Nagle on at 100 ms: tokens leave in pairs, one pair per round trip.",
+  "label": "core",
+  "key": "100 ms: tokens leave in pairs, one pair",
+  "where": ""
+ },
+ {
+  "id": 418,
+  "tab": "t-tcp",
+  "section": "tcp timeline: the running request, segment by segment",
+  "text": "Set the round trip to 10 ms and Nagle barely matters, which is why it hides on fast networks and in tests.",
+  "label": "core",
+  "key": "Set the round trip to 10",
+  "where": ""
+ },
+ {
+  "id": 419,
+  "tab": "t-thru",
+  "section": "throughput lab: which ceiling binds, and how many streams to move a checkpoint",
+  "text": "Throughput lab: which ceiling binds, and how many streams to move a checkpoint One TCP connection is capped by four separate limits (Reading section 13): window over RTT, loss (the Mathis bound), a per-flow policy cap, and the link.",
+  "label": "core",
+  "key": "four separate ceilings",
+  "where": ""
+ },
+ {
+  "id": 420,
+  "tab": "t-thru",
+  "section": "throughput lab: which ceiling binds, and how many streams to move a checkpoint",
+  "text": "Parallel connections multiply the first three until the link is full.",
+  "label": "core",
+  "key": "parallel connections multiply them until the link is full",
+  "where": ""
+ },
+ {
+  "id": 421,
+  "tab": "t-thru",
+  "section": "throughput lab: which ceiling binds, and how many streams to move a checkpoint",
+  "text": "Choose a path and a payload; the lab names the binding limit and the time to move it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 422,
+  "tab": "t-thru",
+  "section": "throughput lab: which ceiling binds, and how many streams to move a checkpoint",
+  "text": "Formulas: window / RTT; (MSS / RTT) × √(3/2) / √p ( Mathis et al., 1997 ); per-flow caps from AWS . illustrative inputs The path presets are typical shapes, not measurements, except the home line, which is this page's measured one.",
+  "label": "core",
+  "key": "window / RTT; (MSS / RTT) × √(3/2)",
+  "where": ""
+ },
+ {
+  "id": 423,
+  "tab": "t-thru",
+  "section": "throughput lab: which ceiling binds, and how many streams to move a checkpoint",
+  "text": "Home line (measured) Same AZ, no placement group Cluster placement group Cross-region, lossy Link (NIC) speed Round-trip time Window ceiling per connection 65,535 B (no window scaling) 256 KB (pinned SO_RCVBUF) 4 MB 6 MB 16 MB 32 MB (largest Linux default) 128 MB (tuned for a long fat path) Packet loss rate none 1 in 1,000,000 1 in 100,000 1 in 10,000 1 in 1,000 Per-flow cap none 5 Gbit/s (AWS, outside a placement group) 10 Gbit/s (AWS, inside one) 25 Gbit/s (AWS ENA Express, same AZ) Segment payload (MSS) 1,448 B (1,500 MTU, timestamps) 8,949 B (9,001 jumbo frames) Parallel connections Payload 7B model weights, bf16 (14 GB) 70B model weights, bf16 (140 GB) 70B full training state, 14 B/param (980 GB) 405B model weights, bf16 (810 GB) 405B full training state (5.67 TB) This page's measurements against the formula measured The twelve downloads of Reading section 5: each dot is one run's goodput against the receive window the kernel reported; the line is window / RTT at the runs' mean smoothed RTT, capped by the link's measured top speed.",
+  "label": "core",
+  "key": "timestamps) 8,949 B (9,001 jumbo frames)",
+  "where": ""
+ },
+ {
+  "id": 424,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Every link was checked on 5 October 2026.",
+  "label": "core",
+  "key": "was checked on 5 October 2026",
+  "where": ""
+ },
+ {
+  "id": 425,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Times are reading times for the part worth reading; times for this knowledge base's pages are estimated from the word count of their Reading tab at about 220 words a minute.",
+  "label": "core",
+  "key": "worth reading; times for this knowledge base's pages",
+  "where": ""
+ },
+ {
+  "id": 426,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "This page's other tabs TCP timeline The running request segment by segment: losses, timers, Nagle and delayed ACKs, before and after.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 427,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min to play.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 428,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Throughput lab Which ceiling binds a transfer and how many streams a checkpoint needs; this page's measurements against the formula.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, wind-up, instruction for a removed tab, or a restatement now carried by a visual or the section text"
+ },
+ {
+  "id": 429,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The parent and its siblings Topic: protocols The overview this page deepens: one LLM request through every layer.",
+  "label": "core",
+  "key": "siblings Topic: protocols The overview this page deepens",
+  "where": ""
+ },
+ {
+  "id": 430,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Its On the wire tab measures HTTP/1.1, 2 and 3 under delay and loss; its Failure lab reproduces 39 failures, including connection refused, connect and read timeouts, resets and the window cap.",
+  "label": "core",
+  "key": "Its On the wire tab measures HTTP/1.1, 2",
+  "where": ""
+ },
+ {
+  "id": 431,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "About 40 min (its own estimate), plus the tabs.",
+  "label": "core",
+  "key": "About 40 min (its own estimate)",
+  "where": ""
+ },
+ {
+  "id": 432,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "DNS Turning names into the addresses of section 1; UDP's best-known user, recorded packet by packet with real glibc and musl resolvers (its Pod resolver lab).",
+  "label": "core",
+  "key": "addresses of section 1; UDP's best-known",
+  "where": ""
+ },
+ {
+  "id": 433,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "TLS and certificates The handshake that sits on top of TCP and inside QUIC.",
+  "label": "core",
+  "key": "and certificates The handshake that sits on top",
+  "where": ""
+ },
+ {
+  "id": 434,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "HTTP Semantics, HTTP/1.1, 2 and 3 framing, proxies and timeouts: what rides on this page's transports.",
+  "label": "core",
+  "key": "3 framing, proxies and timeouts: what",
+  "where": ""
+ },
+ {
+  "id": 435,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Streaming and real-time SSE, WebSockets and long-lived connections: where idle timeouts and keepalive (section 9) bite most.",
+  "label": "core",
+  "key": "timeouts and keepalive (section 9) bite",
+  "where": ""
+ },
+ {
+  "id": 436,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "SSH Keepalives that notice a dead path in seconds (its section 9, the SSH side of this page's section 9), and tunnels and port forwarding on clusters: TCP inside TCP.",
+  "label": "core",
+  "key": "dead path in seconds (its section 9, the",
+  "where": ""
+ },
+ {
+  "id": 437,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Related pages in this knowledge base Distributed training What NCCL's collectives move between GPUs under each parallelism scheme (section 14).",
+  "label": "core",
+  "key": "each parallelism scheme (section 14)",
+  "where": ""
+ },
+ {
+  "id": 438,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Fault tolerance at scale Failure rates, detection timeouts and checkpointing at cluster scale (sections 13 and 14).",
+  "label": "core",
+  "key": "cluster scale (sections 13 and 14)",
+  "where": ""
+ },
+ {
+  "id": 439,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Topic: hardware NVLink, NICs and the hardware under RDMA.",
+  "label": "core",
+  "key": "Topic: hardware NVLink, NICs and the hardware under",
+  "where": ""
+ },
+ {
+  "id": 440,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Reliability engineering Timeouts, retries, backoff and idempotency as a system: what to do with the resets and timeouts this page explains.",
+  "label": "core",
+  "key": "engineering Timeouts, retries, backoff and idempotency as a",
+  "where": ""
+ },
+ {
+  "id": 441,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Building a backend API The service on top of the socket: connection pooling, timeouts and idempotency at the API level.",
+  "label": "core",
+  "key": "of the socket: connection pooling, timeouts and idempotency",
+  "where": ""
+ },
+ {
+  "id": 442,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The best resources High Performance Browser Networking: Building Blocks of TCP Ilya Grigorik's free chapter: handshake cost, slow start, window over RTT, head-of-line blocking, with clear diagrams (2013, so before QUIC was standardised).",
+  "label": "core",
+  "key": "(2013, so before QUIC was standardised)",
+  "where": ""
+ },
+ {
+  "id": 443,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Its UDP chapter covers NAT traversal well.",
+  "label": "core",
+  "key": "Its UDP chapter covers NAT traversal well",
+  "where": ""
+ },
+ {
+  "id": 444,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "ESnet fasterdata: Linux host tuning Buffer sizing for long fat paths from the people who run a 100 Gbit/s science network.",
+  "label": "core",
+  "key": "the people who run a 100 Gbit/s science",
+  "where": ""
+ },
+ {
+  "id": 445,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The reference for section 13.",
+  "label": "core",
+  "key": "The reference for section 13",
+  "where": ""
+ },
+ {
+  "id": 446,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Jacobson and Karels, Congestion Avoidance and Control (1988) The paper that introduced slow start and RTT variance estimation after the 1986 collapses; still the best explanation of why.",
+  "label": "core",
+  "key": "Control (1988) The paper that introduced",
+  "where": ""
+ },
+ {
+  "id": 447,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "About 45 min. man 7 tcp and ip-sysctl The exact meaning and default of every Linux knob in section 15.",
+  "label": "core",
+  "key": "min. man 7 tcp and ip-sysctl The exact",
+  "where": ""
+ },
+ {
+  "id": 448,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "About 45 min, as a reference.",
+  "label": "core",
+  "key": "About 45 min, as a reference",
+  "where": ""
+ },
+ {
+  "id": 449,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "RFC 9293: TCP The 2022 consolidation of TCP's specification; sections 3.4 to 3.8 cover everything on this page.",
+  "label": "core",
+  "key": "specification; sections 3.4 to 3.8 cover",
+  "where": ""
+ },
+ {
+  "id": 450,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "About 2 h 30 min.",
+  "label": "core",
+  "key": "About 2 h 30 min",
+  "where": ""
+ },
+ {
+  "id": 451,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "RFC 9000: QUIC and RFC 9002 Readable for specifications; read sections 5 (connections), 8 (address validation), 9 (migration) and 12 to 14 of RFC 9000, then RFC 9002's loss detection.",
+  "label": "core",
+  "key": "(connections), 8 (address validation), 9",
+  "where": ""
+ },
+ {
+  "id": 452,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "EC2 instance network bandwidth and EC2 network MTU The per-flow caps and jumbo-frame rules that decide real transfer speeds on AWS.",
+  "label": "core",
+  "key": "EC2 instance network bandwidth and EC2",
+  "where": ""
+ },
+ {
+  "id": 453,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "NCCL environment variables What NCCL_SOCKET_IFNAME, the socket thread knobs and the IB settings do.",
+  "label": "core",
+  "key": "environment variables What NCCL_SOCKET_IFNAME, the socket",
+  "where": ""
+ },
+ {
+  "id": 454,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "About 30 min for the socket and network parts.",
+  "label": "core",
+  "key": "30 min for the socket and network parts",
+  "where": ""
+ },
+ {
+  "id": 455,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "RFC 8985: RACK-TLP How modern Linux detects loss by time and probes a silent tail, the mechanism behind section 4's streaming caveat.",
+  "label": "core",
+  "key": "8985: RACK-TLP How modern Linux detects",
+  "where": ""
+ },
+ {
+  "id": 456,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Built from measurements recorded on 5 October 2026 ( src/meas/ , rerun with run_all.sh ) and the primary sources linked inline.",
+  "label": "core",
+  "key": "recorded on 5 October 2026 ( src/meas/",
+  "where": ""
+ },
+ {
+  "id": 457,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Replaces the old page \"TCP, UDP, and IP: the transport foundations\"; corrections to it are in boxes in sections 8 and 10, inline in sections 5 and 13, and all listed in src/coverage.json .",
+  "label": "core",
+  "key": "13, and all listed in src/coverage.json",
+  "where": ""
+ },
+ {
+  "id": 458,
+  "tab": "t-read",
+  "section": "rd-srv",
+  "text": "backlog table (script-rendered): seven of eight connect() calls succeeded, two clients served",
+  "label": "core",
+  "key": "Seven of eight connects succeeded",
+  "where": "",
+  "note": "added by hand for a script-rendered visual"
+ },
+ {
+  "id": 459,
+  "tab": "t-read",
+  "section": "rd-small",
+  "text": "TCP_NODELAY table (script-rendered): asyncio client on, asyncio accepted server socket off, plain socket off",
+  "label": "core",
+  "key": "the asyncio server side was left with Nagle on",
+  "where": "",
+  "note": "added by hand for a script-rendered visual"
+ },
+ {
+  "id": 460,
+  "tab": "t-read",
+  "section": "rd-win",
+  "text": "per-run table (script-rendered) of the twelve downloads: window, smoothed RTT, predicted and measured goodput",
+  "label": "core",
+  "key": "All twelve runs",
+  "where": "",
+  "note": "added by hand for a script-rendered visual"
+ },
+ {
+  "id": 461,
+  "tab": "t-read",
+  "section": "rd-top",
+  "text": "twelve numbers cards (script-rendered), each linking to its section",
+  "label": "core",
+  "key": "Twelve numbers worth remembering",
+  "where": "",
+  "note": "added by hand for a script-rendered visual"
+ },
+ {
+  "id": 462,
+  "tab": "t-read",
+  "section": "rd-ref",
+  "text": "eight predict-then-reveal drills (script-rendered)",
+  "label": "core",
+  "key": "Eight predict-then-reveal drills",
+  "where": "",
+  "note": "added by hand for a script-rendered visual"
+ },
+ {
+  "id": 463,
+  "tab": "t-read",
+  "section": "rd-udp",
+  "text": "UDP overflow bars (script-rendered): 64 KB buffer kept 53 of 5,000",
+  "label": "core",
+  "key": "kept 53 of 5,000 datagrams",
+  "where": "",
+  "note": "added by hand for a script-rendered visual"
+ },
+ {
+  "id": 464,
+  "tab": "t-read",
+  "section": "rd-cc",
+  "text": "Reno against CUBIC animation captions (script-rendered): Reno climbs one segment per round trip, CUBIC returns in K seconds",
+  "label": "core",
+  "key": "about 9 s (K, derived)",
+  "where": "",
+  "note": "added by hand for a script-rendered visual"
+ }
+]

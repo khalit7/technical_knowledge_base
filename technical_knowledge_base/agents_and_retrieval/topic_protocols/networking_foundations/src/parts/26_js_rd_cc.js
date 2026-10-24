@@ -47,6 +47,6 @@ window.NFCC=(function(){
     $('rd-cc-cap').innerHTML='<div class="t">t = '+t+' s ('+(mode==='both'?'both':nm[mode])+')</div><p>'+txt+'</p>';
   }
   const h=RD.anim({card:'rd-cc-card',ctl:'rd-cc-ctl',n:N,draw,ms:900,label:'Time step'});
-  RD.seg($('rd-cc-seg'),m=>{mode=m;h.reset(N);h.play()});
+  RD.seg($('rd-cc-seg'),m=>{mode=m;h.reset(N)});
   RD.onResize(()=>h.redraw());
 })();
