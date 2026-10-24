@@ -5,15 +5,6 @@
   H.pred('ef-pred-1','jusText: '+H.n(E.chain.justext&&E.chain.justext.kept)+' documents survive the filters, against '+H.n(E.chain.traf111.kept)+' from trafilatura, '+H.n(E.chain.res.kept)+' from resiliparse and '+H.n(E.chain.wet.kept)+' from WET. But only '+H.n(E.chain.justext&&E.chain.justext.kept_in_fineweb)+' of jusText\'s are documents FineWeb kept: it keeps different text, not just more.');
   H.pred('ef-pred-2','The curly-bracket rule drops the whole document, so code in C-family languages, CSS, JSON and every LaTeX formula with an argument ("\\frac{a}{b}") disappears; in FineWeb\'s 50,000-document sample not one document contains "{".');
 
-  // trafilatura branches
-  (function(){const t=E.traf;if(!t||!$('ef-path'))return;const N=Object.values(t.paths).reduce((a,b)=>a+b,0);
-    const order=[['own','Its own XPath rules'],['baseline','The "baseline" last resort'],['readability','readability-lxml fallback'],['justext','jusText rescue'],['none','No text at all']];
-    const draw=()=>H.bars($('ef-path'),order.map(([k,nm],i)=>({name:nm,v:t.paths[k]||0,color:['var(--c1)','var(--c2)','var(--c4)','var(--c5)','var(--dim)'][i],txt:H.p(t.paths[k]||0,N)})),{max:N});
-    draw();
-    const x=t.own_by_body_xpath||{};
-    $('ef-path-note').innerHTML='Share of the '+H.n(N)+' pages whose final text came from each branch (trafilatura 1.11.0, favor_precision=True, deduplicate=False, no timeout) <span class="ef-lbl meas">measured</span>. Within "its own rules", the first BODY_XPATH expression (class names such as "entry-content") found the body on '+H.n(x['0'])+' pages, the first &lt;article&gt; on '+H.n(x['1'])+', the later class lists on '+H.n((x['2']||0)+(x['3']||0))+', a "main" element on '+H.n(x['4'])+', and none matched on '+H.n(x['None'])+' (trafilatura then scavenges loose paragraphs, recover_wild_text, which it tried on '+H.n(t.wild_text_recovery)+' pages in all).';
-  })();
-
   // jusText animation
   (function(){const J=E.jt;if(!J||!$('ef-jt-card'))return;
     const P=J.paras,S=J.snaps,np=P.length;let mode='jt';
@@ -51,7 +42,7 @@
       $('ef-jt-cnt').innerHTML=H.stat('Blocks',np,'on '+H.esc(J.host))+H.stat(mode==='jt'?'Good now':'Kept',good,'blocks')+H.stat('Characters kept',H.n(chars),'')+(mode==='jt'?H.stat('Changed at this step',chg,''):H.stat('Extractor',['jusText','trafilatura 1.11','resiliparse'][s],''));
     }
     const A=RD.anim({card:'ef-jt-card',ctl:'ef-jt-ctl',n:capJ.length,draw,ms:2600,label:'jusText step'});
-    H.chips($('ef-jt-mode'),m=>{mode=m;A.reset(m==='jt'?capJ.length:capC.length);A.play()});
+    H.chips($('ef-jt-mode'),m=>{mode=m;A.reset(m==='jt'?capJ.length:capC.length)});
   })();
 
   // six extractors, same filters

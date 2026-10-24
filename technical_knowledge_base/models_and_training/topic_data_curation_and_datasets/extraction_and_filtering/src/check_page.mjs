@@ -2,6 +2,7 @@
 //   node technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/extraction_and_filtering/src/check_page.mjs
 // 1. clicks every control in every tab at 390 px dark and 920 px light (reduced motion), failing on JS errors, NaN,
 //    undefined or Infinity in visible text, or sideways page scroll; steps both animations to their ends;
+//    checks that nothing plays before the reader acts (no animation advances on its own, normal motion);
 //    saves element screenshots to ../.shots/el-*.png;
 // 2. checks the page embeds exactly the data make_data.py wrote, that every prose fact was filled, that the rule
 //    workbench at its defaults reproduces run0 (2,692 kept), and that numbers quoted in the prose match the data.
@@ -40,6 +41,12 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
   }
   ok(errs.length===0&&!(await p.evaluate(()=>!document.getElementById('jsErr').hidden)),scheme+' '+width+': no JS errors ('+clicks+' controls exercised)'+(errs.length?' '+errs.slice(0,3).join(' | '):''));
   await p.reload({waitUntil:'load'});
+  if(scheme==='light'){const p2=await b.newPage();await p2.setViewport({width,height:900});await p2.goto('file://'+page_path,{waitUntil:'load'});
+    const s0=await p2.evaluate(()=>['ef-jt-ctl-s','ef-ln-ctl-s'].map(i=>document.getElementById(i).value));
+    for(const sel of ['#ef-jt-card','#ef-ln-card']){await p2.$eval(sel,e=>e.scrollIntoView());await new Promise(r=>setTimeout(r,3500))}
+    await p2.evaluate(()=>document.querySelectorAll('#ef-jt-mode button')[1].click());await new Promise(r=>setTimeout(r,3000));
+    const s1=await p2.evaluate(()=>['ef-jt-ctl-s','ef-ln-ctl-s'].map(i=>document.getElementById(i).value));
+    ok(JSON.stringify(s0)===JSON.stringify(s1)&&s1.every(v=>v==='0'),'no animation plays before the reader acts (normal motion, after scrolling to each and switching mode) '+JSON.stringify(s1));await p2.close()}
   const last=async(ctl)=>{await p.evaluate(c=>{const s=document.getElementById(c+'-s');s.value=s.max;s.dispatchEvent(new Event('input'))},ctl)};
   for(const [t,sel,prep,tag] of [
       ['t-read','#ef-jt-card',async()=>{await last('ef-jt-ctl')},'final'],
@@ -49,7 +56,7 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
       ['t-read','#ef-ln-card',async()=>{await p.click('#ef-ln-mode button[data-m=c4]');await last('ef-ln-ctl')},'c4'],
       ['t-read','#ef-path-card',null,''],['t-read','#ef-x-bars',null,''],['t-read','#ef-wceb',null,''],['t-read','#ef-st-bars',null,''],
       ['t-read','#ef-rt',null,''],['t-read','#ef-traps',null,''],['t-read','#ef-lid-mini',null,''],['t-read','#ef-tox',null,''],['t-read','#ef-cost',null,''],['t-read','#ef-cache',null,''],['t-read','#ef-url',null,''],
-      ['t-ext','#t-ext',null,''],['t-lid','#t-lid',null,''],['t-rules','#t-rules',null,''],['t-labels','#ef-b-sum',null,'']]){
+      ['t-read','#ef-hero-card',null,''],['t-read','#ef-ft-card',null,''],['t-read','#ef-lid-card',async()=>{await p.click('#ef-l-pre button[data-m="30"]')},'030'],['t-ext','#t-ext',null,''],['t-rules','#t-rules',null,''],['t-labels','#ef-b-sum',null,'']]){
     await p.click('#tabs button[data-t="'+t+'"]');if(prep)await prep();const el=await p.$(sel);
     if(el)await el.screenshot({path:path.join(shots,'el-'+scheme+'-'+sel.slice(1)+(tag?'-'+tag:'')+'.png')})}
   if(scheme==='light'){
