@@ -1,22 +1,109 @@
-<section id="s-what">
-<h2>2. What fails: eleven published tables, read carefully</h2>
-<p class="lead">Llama 3's Table 5 is the failure table everyone quotes, and the {{Failure taxonomies|#t-tax}} tab shows it row by row with its misprint (148 interruptions printed as 30.1%; 148 / 419 is 35.3%). It is one of eleven. Read together, they say different things depending on what they count, and two of them disagree with their own text.</p>
-<div class="ft-pr" id="pr-acme"><div class="q">Predict: in the Shanghai AI Lab's LLM clusters (4,704 A100s, six months of 2023), user script errors (a missing file, a type error, a bad import) were what share of failed jobs, and what share of the GPU time lost to failures?</div>
-<div class="opts"><button data-r="0">About 10% of jobs, 10% of GPU time</button><button data-r="0">About 40% of jobs, 40% of GPU time</button><button data-r="1">About 73% of jobs, 3% of GPU time</button><button data-r="0">About 5% of jobs, 60% of GPU time</button></div>
-<div class="ans">73.4% of the 2,575 failed jobs and 3.2% of the GPU time <span class="ft-pub">published</span> (Hu et al., {{NSDI 2024, Table 3|https://arxiv.org/abs/2403.07648}}; the table's arithmetic reproduces exactly). Script errors fail in the first minutes of small jobs. Infrastructure failures were 10.9% of failed jobs but 82.1% of the GPU time: they hit long, big jobs, after hours of work. Count failures to fix your users' tooling; weight them by GPU time to fix your platform.</div></div>
-<div class="ft-card" id="wf-card"><h4>The same company, two years apart: Llama 3 (2024) against a recurring 32K-GPU job (2026) <span class="ft-pub">published</span></h4>
-<div class="ft-seg" id="wf-mode"><button data-m="l3" class="on">Llama 3 405B, 419 interruptions</button><button data-m="m32">32K-GPU job, 678 interruptions</button></div>
-<div id="wf-chart" class="ft-svg"></div>
-<div class="ft-anc" id="wf-cap"></div>
-<p class="ft-cap">Both are Meta's counts of unexpected interruptions of one job, so they compare directly; categories as printed, coloured by this page's common scheme <span class="ft-ours">our mapping</span>. Sources: {{Llama 3, Table 5|https://arxiv.org/html/2407.21783v3#S3.SS3.SSS4}}; {{Training LLMs with Fault Tolerant HSDP on 100,000 GPUs, Table 1|https://arxiv.org/abs/2602.00277}} (arXiv v1, 30 Jan 2026).</p>
+<section id="s-modes">
+<h2>2. Five ways to fail, and the clock each one starts</h2>
+<p class="lead">Sorting failures by cause (GPU, network, software) tells you what to fix in the fleet. Sorting them by <b>how they look to the job</b> tells you how they are noticed, and that decides what each one costs.</p>
+<div class="tw"><table class="ft-tbl"><thead><tr><th>Shape</th><th>What the job sees</th><th>Example</th><th>Who can notice first</th></tr></thead><tbody>
+<tr><td><b>Fail-stop: a process dies</b></td><td>A rank exits with an error code; its sockets close at once.</td><td>An uncorrectable ECC error kills the CUDA context; a Python exception; out of memory.</td><td>The launcher (exit code), and the peers ("Connection reset by peer") within a second.</td></tr>
+<tr><td><b>A machine is lost</b></td><td>Every process on one host vanishes; if the host is frozen rather than off, its sockets stay open.</td><td>Power supply, kernel panic, a host taken for maintenance, a NIC that drops off the bus.</td><td>The peers if the sockets close; otherwise only the scheduler, when heartbeats stop.</td></tr>
+<tr><td><b>Fail-hang</b></td><td>Every rank waits in a collective that never completes; nothing exits.</td><td>A GPU or NVLink fault that stalls a kernel "without returning a clear error code" (Llama 3); a rank stuck in a deadlock.</td><td>Only a timeout: the collective's, the NCCL watchdog's, or your own.</td></tr>
+<tr><td><b>Fail-slow</b></td><td>Steps take longer; nothing fails.</td><td>A throttled GPU, a flapping link, a slow disk, a noisy neighbour.</td><td>Nobody, unless per-rank timings are compared (section 8).</td></tr>
+<tr><td><b>Fail-silent</b></td><td>The numbers are wrong; everything runs.</td><td>Silent data corruption in a multiplier or a register.</td><td>Nobody, unless something recomputes and compares (section 7).</td></tr>
+</tbody></table></div>
+<div class="ft-card" id="dt-card"><h4>The further down the table, the longer until anything notices</h4>
+<div class="ft-seg" id="dt-mode"><button data-m="def" class="on">Defaults</button><button data-m="lab">This topic's lab clusters (measured)</button><button data-m="tuned">Tuned, as published systems report</button></div>
+<div id="dt-chart" class="ft-svg"></div>
+<div class="ft-anc" id="dt-cap"></div>
 </div>
-<p>Three findings across all eleven, each detailed in the {{Failure taxonomies|#t-tax}} tab:</p>
-<ul>
-<li><b>Big jobs fail on hardware; clusters fail on code.</b> In one long job on thousands of GPUs, GPUs and their memory dominate (64% of Llama 3's interruptions by count). In a multi-tenant cluster most failed jobs are user errors (Philly 2019, Acme 2024, ByteRobust 2025), while the hardware failures cost most of the GPU time: at Meta's research clusters hardware ended 0.2% of jobs but 18.7% of GPU runtime <span class="ft-pub">published</span> (Kokolis et al., {{HPCA 2025, Fig. 3|https://arxiv.org/abs/2410.21680}}).</li>
-<li><b>The leading cause moves.</b> In Meta's 2026 table "'Faulty GPU Compute' used to be the top cause, but is now reduced to the fourth (7.4%) ... HBM issues rose to become the top issue" (22.9%), and PCIe devices are second (18.0%). Fleet work pays off cause by cause; the total does not go to zero.</li>
-<li><b>A large share is never attributed.</b> Watchdog timeouts and "unknown" are 10% of the 2026 table; job hangs 9.9% of ByteRobust's incidents; NODE_FAIL with no cause is the largest hardware signal at Meta's research clusters. For these the cost is mostly detection time (section 4).</li>
-</ul>
-<p><b>The same order of magnitude in older and smaller records.</b> Meta's OPT-175B ran on <b>992</b> 80GB A100s, and "hardware failures contributed to at least 35 manual restarts and the cycling of over 100 hosts over the course of 2 months", plus an estimated "70+ automatic restarts" ({{OPT, section 2.5|https://arxiv.org/html/2205.01068v4#S2.SS5}}) <span class="ft-pub">published</span>. Per GPU that is at least <span id="fl-opt-rate">1.8e-3</span> restarts per GPU-day against Llama 3's <span id="fl-l3-rate">4.7e-4</span> interruptions per GPU-day, roughly <span id="fl-opt-x">3.7</span> times as often <span class="ft-der">calculation</span>; the two count different things (restarts against interruptions, "2 months" taken as 60 days) on different hardware two years apart, so read it as "the order of magnitude is stable", not as a trend. The Gemini checkpointing paper (Rice and AWS, SOSP 2023) puts OPT-175B's failures at about 178,000 GPU-hours wasted ({{Wang et al., section 1|https://www.cs.rice.edu/~eugeneng/papers/SOSP23.pdf}}) <span class="ft-pub">published</span>, about 12% of 992 GPUs for 61 days <span class="ft-der">calculation</span>.</p>
-<p><b>Real jobs fail more often than independent servers predict.</b> If servers fail independently, a job on N servers fails N times as often as one: at Meta's research-cluster rate of 6.50 failures per thousand node-days, a 1,024-GPU job (128 servers) should run 28.8 hours between failures <span class="ft-der">calculation</span>, yet the same paper measured <b>7.9 hours</b> for 1,024-GPU jobs ({{Kokolis et al., HPCA 2025|https://arxiv.org/abs/2410.21680}}) <span class="ft-pub">published</span>. Jobs also fail for reasons that are not one server breaking (software, the network between servers, the job's own code); the 1/N law is a floor on the failure rate, not a forecast.</p>
-<div class="ft-chk"><b>Checks on the tables' own arithmetic</b> <span class="ft-der">calculation</span>. Llama 3: one printed percentage is wrong (Faulty GPU), and the text's "58.7%" GPU share inherits it (64.0% by counts). ByteRobust (SOSP 2025): its text says 38,236 explicit and 5,948 implicit failures, its Table 1 sums to 39,687 and 6,096 (the implicit gap is exactly its 148 NaN incidents). Meta 2026: every percentage matches its count, but "with 100K GPUs, there is a failure every 18 minutes" does not follow from its own 2.3 interruptions per 1,000 servers per day, which gives one about every 50 minutes; 18 minutes matches Meta's older RSC-1 rate of 6.50. Microsoft Philly (ATC 2019): "top-8 cover 88.9%" computes to 87.6%. Acme, C4, Fire-Flyer and Lablup reproduce. Scripts: <code>src/scripts/tax_build.py</code>.</div>
+<p>With every default untouched, a crash is caught in a fraction of a second (the root's {{Failure lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} measured about 0.15 s on all three systems), but a frozen GPU is caught by the NCCL watchdog only after 10 minutes, during which every other GPU in the job does nothing; a dead node on Slurm costs 5 minutes before the controller acts; and no layer at all watches for a slow rank or a wrong number. Switch to "Tuned": published systems cut hangs and lost hosts to 10 to 30 seconds with their own inspections.</p>
+</section>
+
+<section id="s-detect">
+<h2>3. Detection: every layer has a timer, set for safety</h2>
+<p class="lead">Each layer of the stack watches with its own timer, and the defaults were chosen so that a slow checkpoint or a long first compilation does not kill a healthy job: torchrun polls its workers every 0.1 s, the NCCL watchdog waits 10 min, gloo 30 min, Slurm 300 s, Kubernetes 50 s plus 300 s, Ray about 30 s. Shorten each to just above your longest legitimate pause.</p>
+<details class="dp"><summary>Every timer, its default at the pinned versions, and the source line <span class="mute">(reference)</span></summary><div class="b">
+<div class="tw"><table class="ft-tbl"><thead><tr><th>Layer</th><th>Watches</th><th>Default</th><th>Source</th></tr></thead><tbody>
+<tr><td>torchrun's agent</td><td>its own worker processes (exit codes)</td><td>every <b>0.1 s</b>; restarts the group up to <code>--max-restarts</code>, default <b>0</b></td><td><span class="ft-src">source</span> <code>torch/distributed/run.py</code> lines 572-578 and 564-569 @ v2.14.1</td></tr>
+<tr><td>A collective (gloo)</td><td>its peers, inside one all-reduce</td><td><b>30 min</b></td><td><span class="ft-src">source</span> <code>Backend.hpp</code> line 37 (<code>kBackendDefaultTimeout</code>) @ v2.14.1</td></tr>
+<tr><td>NCCL watchdog thread</td><td>every in-flight NCCL collective against its timeout</td><td><b>10 min</b>; on timeout it dumps the flight recorder and kills the process without cleaning up NCCL (<code>TORCH_NCCL_ASYNC_ERROR_HANDLING=3</code>, SkipCleanUp)</td><td><span class="ft-src">source</span> <code>ProcessGroupNCCL.hpp</code> lines 159-160 and 162-174, <code>ProcessGroupNCCL.cpp</code> lines 975-976 @ v2.14.1</td></tr>
+<tr><td>NCCL heartbeat monitor</td><td>the watchdog itself (a CUDA or NCCL call can wedge it)</td><td><b>8 min</b> without a heartbeat, then abort (<code>TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC</code>, on by default)</td><td><span class="ft-src">source</span> <code>ProcessGroupNCCL.cpp</code> lines 1775 and 1787 @ v2.14.1</td></tr>
+<tr><td>Flight recorder</td><td>records the last collectives on every rank, for the post-mortem</td><td><b>2,000</b> entries, on (<code>TORCH_FR_BUFFER_SIZE</code>); dumped on timeout, with <b>15 s</b> allowed for the dump</td><td><span class="ft-src">source</span> <code>FlightRecorder.hpp</code> lines 109-113, <code>ProcessGroupNCCL.cpp</code> line 1777 @ v2.14.1</td></tr>
+<tr><td>Slurm controller</td><td>slurmd heartbeats from every node</td><td><code>SlurmdTimeout</code> <b>300 s</b> (the lab cluster uses 30 s)</td><td><span class="ft-src">source</span> <code>read_config.h</code> @ slurm-24-11-5-1 (the {{Slurm|n:3c65c17b0d0d81889c32cd050bbbadd3}} child page)</td></tr>
+<tr><td>Kubernetes node controller</td><td>kubelet heartbeats (node leases)</td><td>node NotReady after <b>50 s</b>; pods evicted after a further <b>300 s</b> of <code>unreachable</code> toleration</td><td><span class="ft-src">source</span> <code>--help</code> of the v1.37.0 binaries (root's Failure lab)</td></tr>
+<tr><td>Ray GCS</td><td>health checks of every raylet</td><td>first check after 5 s, every 3 s, 10 s timeout, dead after <b>5</b> failures: about 30 s measured</td><td><span class="ft-src">source</span> <code>ray_config_def.h</code> lines 1058-1064 @ ray-2.59.0 (the {{Ray|n:3fc5c17b0d0d811cba13f3aeccf8724b}} child page)</td></tr>
+</tbody></table></div>
+<p>The two NCCL messages that end a hang on GPUs are different events in PyTorch 2.14.1: <code>Watchdog caught collective operation timeout: ... ran for ... milliseconds before timing out.</code> means a collective exceeded its timeout; <code>ProcessGroupNCCL's watchdog got stuck for ... seconds without making progress in monitoring enqueued collectives.</code> means the watchdog thread itself hung and the heartbeat monitor (the 8-minute row above) ended it (<code>ProcessGroupNCCL.cpp</code> lines 735-739 and 1954 @ v2.14.1) <span class="ft-src">source</span>.</p>
+</div></details>
+<h3>A hang, measured: the log names the wrong rank</h3>
+<p>A frozen rank is worse than a dead one: nothing exits and every other rank sits in an all-reduce doing nothing. The root page's lab made one on its Slurm cluster: <code>SIGSTOP</code> to rank 3's process after step 120 (it stays alive and holds its sockets open), with the process-group timeout set to 30 s <span class="ft-meas">measured</span>.</p>
+<div class="ft-err">[rank0]: RuntimeError: [.../gloo/transport/tcp/unbound_buffer.cc:129] Timed out waiting 30000ms for send operation to complete
+[rank1]: RuntimeError: [.../gloo/transport/tcp/unbound_buffer.cc:78] Timed out waiting 30000ms for recv operation to complete
+...
+Root Cause (first observed failure):
+[0]:
+  host      : c1
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 1972)</div>
+<p class="ft-cap"><span class="ft-meas">measured</span>: job 51 (root page, <code>src/fail/runs/fl-hang/job51.out</code>, trimmed). The three healthy ranks errored <span id="fl-hg-s">30.8</span> s after the freeze, and the job failed.</p>
+<div class="ft-pr">
+<div class="q">Predict: which rank does torchrun's "Root Cause (first observed failure)" name?</div>
+<div class="opts"><button>Rank 3, the frozen one</button><button data-r="1">A healthy rank</button><button>None: a hang has no root cause line</button></div>
+<div class="ans">A healthy one: rank 0 on c1. "First observed failure" means the first process to exit with an error, and in a hang that is a victim that timed out first; the frozen rank never errors, it only received SIGTERM during clean-up. In a hang, read the timeout messages for which rank everyone was waiting on (the one that did not time out), and get stacks from the stuck processes (<code>py-spy dump</code>, the root's Launch lab hang drills) or PyTorch's flight recorder, which in torch 2.14.1 records gloo collectives too (the Launch lab dumped it from a stalled rank on CPUs and found that rank one collective behind).</div>
+</div>
+<h3>Health checks: keep bad machines out of the next restart</h3>
+<p>Timeouts catch a failure after it has stopped a job; health checks catch the machine before it is given one. Three moments matter: <b>before a node joins</b> (burn-in; OpenAI's nodes join Kubernetes with a "preflight" taint that only passing GPU tests remove, per the root page), <b>before or between jobs</b> (Ai2's Beaker multiplies two tensors on every GPU before each workload and cordons the host on failure; Slurm's <code>HealthCheckProgram</code>), and <b>after a failure</b>, to decide whether the machine goes back into the pool. NVIDIA's DCGM diagnostics run in "&lt; 2.5 Seconds" at level 1 (fits before every job), minutes at level 2 (between jobs or after a failure) and tens of minutes to hours at levels 3 and 4 (burn-in). A drain or taint after a failed check is what keeps the next restart from landing on the same bad machine, the trap OPT-175B's logbook records when its cloud replacement returned the same bad host.</p>
+<p><b>Restarting onto the same broken machine just fails again</b>, so every system has a way to say "schedule nothing new here": on Slurm a node is <dfn>drained</dfn> (running jobs finish, nothing new starts); on Kubernetes it is <dfn>cordoned</dfn> (unschedulable) or <dfn>tainted</dfn> (a taint repels every pod that does not tolerate it; a <code>NoExecute</code> taint also evicts running ones). Slurm runs <code>HealthCheckProgram</code> as root every <code>HealthCheckInterval</code> seconds and ignores its exit code: the script must drain the node itself; the lab's drained its node within <span id="fl-hc-v">1.4 to 7.3</span> s in four tries <span class="ft-meas">measured</span>.</p>
+<p><b>The Kubernetes trap.</b> A node that goes silent becomes NotReady after 50 s and gets the taint <code>node.kubernetes.io/unreachable:NoExecute</code>; pods tolerate it for 300 s by default, then are marked for deletion. But a pod is only gone when its kubelet confirms it, and a dead kubelet never does, so the pod stays <code>Terminating</code> and anything waiting for it waits forever. The fix is to tell the cluster the node is really down:</p>
+<pre>kubectl taint node mi-kind-worker2 node.kubernetes.io/out-of-service=nodeshutdown:NoExecute</pre>
+<p class="ft-cap"><span class="ft-meas">measured</span>: 2 s after this taint the stuck pod was force-deleted, the JobSet restarted on two healthy workers and the run resumed from step 100 (root page, <code>src/fail/runs/fl-k3</code>). Remove the taint once the node is repaired. Clusters automate this with a node-health controller rather than a person.</p>
+<details class="dp"><summary>DCGM levels, the Xid actions, and the drain, cordon and health-check transcripts <span class="mute">(depth)</span></summary><div class="b">
+<div class="tw"><table class="ft-tbl"><thead><tr><th>NVIDIA DCGM diagnostic</th><th>Runs</th><th>Time (Hopper, per the docs)</th></tr></thead><tbody>
+<tr><td><code>dcgmi diag -r 1</code></td><td>software and deployment checks</td><td>"&lt; 2.5 Seconds"</td></tr>
+<tr><td><code>-r 2</code></td><td>+ PCIe and NVLink, memory, memory bandwidth</td><td>"&lt; 2.5 mins on 4 GPU systems, &lt; 10.5 mins on 8 GPU systems"</td></tr>
+<tr><td><code>-r 3</code></td><td>+ diagnostic, targeted stress and power, nvbandwidth, NCCL tests</td><td>"&lt; 10 mins on 4 GPU systems, &lt; 35 mins on 8 GPU systems"</td></tr>
+<tr><td><code>-r 4</code></td><td>+ memtest, pulse</td><td>"&lt; 45 mins on 4 GPU systems, &lt; 2.25 hours on 8 GPU systems"</td></tr>
+</tbody></table></div>
+<p class="ft-cap">Source: {{DCGM diagnostics documentation|https://docs.nvidia.com/datacenter/dcgm/latest/user-guide/dcgm-diagnostics.html}}, read 2026-10-16 <span class="ft-ven">vendor</span>. "Higher numbered tests include all beneath"; active diagnostics need exclusive use of the GPUs, while DCGM's health watches (<code>dcgmi health</code>: PCIe, memory, InfoROM, thermal and power, NVLink, driver) are passive and run beside jobs. Not run here: there are no GPUs on this machine.</p>
+<p>The cost structure decides where each check goes: level 1 fits before every job, level 2 between jobs or after a failure, levels 3 and 4 in burn-in or when a node keeps failing. NVIDIA's Xid catalogue pairs each driver error with an action, and the action is the useful part for automation: Xid 13 and 31 (an out-of-bounds access, a page fault: "Typically these are application-level bugs") say restart the application, not the node; Xid 48 (double-bit ECC) a GPU reset; Xid 79 ("GPU has fallen off the bus") a reboot of the machine; Xid 74 (NVLink) needs care, because "if a GPU fails, another GPU connected to it over NVLink may report an Xid 74 simply because the link went down" ({{Xid catalogue|https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html}} <span class="ft-ven">vendor</span>). The hardware side of these errors is on the {{hardware reliability page|n:3f05c17b0d0d8143851cfc3ae14c3c22}}. A drain or taint after a failed check is what keeps the next restart from landing on the same bad machine, the trap OPT-175B's logbook records when its cloud replacement returned the same bad host.</p>
+
+
+<p><b>Measured on the lab clusters</b> <span class="ft-meas">measured</span>: drain on Slurm, cordon on kind, and a health check that drains its own node.</p>
+<div class="ft-two">
+<div>
+<pre>$ scontrol update nodename=c2 state=drain reason="fl: failed GPU burn-in"
+$ sinfo -N
+NODELIST STATE REASON
+c1 idle none
+c2 drained fl: failed GPU burn-in
+c3 idle none
+$ squeue
+JOBI PARTITION     NAME   USER    STATE  NODES NODELIST(REASON)
+  58     batch fl-train  alice  PENDING      3 (Nodes required for job are DOWN, DRAINED or reserved for jobs in higher priority partitions)
+  57     batch fl-train  alice  RUNNING      2 c[1,3]</pre>
+<p class="ft-cap"><span class="ft-meas">measured</span> on the Slurm cluster (root page, <code>src/fail/runs/fl-drain/drain.txt</code>): the 2-node job ran around the drained node, the 3-node job waited with that reason.</p>
+</div>
+<div>
+<pre>$ kubectl cordon mi-kind-worker3
+$ kubectl get nodes
+NAME                    STATUS                     ROLES
+mi-kind-control-plane   Ready                      control-plane
+mi-kind-worker          Ready                      &lt;none&gt;
+mi-kind-worker2         Ready                      &lt;none&gt;
+mi-kind-worker3         Ready,SchedulingDisabled   &lt;none&gt;
+$ kubectl get node mi-kind-worker3 -o jsonpath={.spec.taints}
+[{"effect":"NoSchedule","key":"node.kubernetes.io/unschedulable",...}]</pre>
+<p class="ft-cap"><span class="ft-meas">measured</span> on kind (root page, <code>src/fail/runs/fl-cordon/cordon.txt</code>): cordon is itself a taint; a JobSet submitted next landed on worker and worker2.</p>
+</div>
+</div>
+
+<pre>#!/bin/sh
+NODE=$(hostname)
+missing=""
+for i in 0 1 2 3; do [ -e /dev/mi_gpu$i ] || missing="$missing mi_gpu$i"; done
+if [ -n "$missing" ]; then
+  scontrol update nodename="$NODE" state=drain reason="healthcheck: missing$missing"
+  exit 1
+fi
+exit 0</pre>
+<p class="ft-cap"><code>src/fail/scripts/fl_healthcheck.sh</code>, with <code>HealthCheckProgram=/shared/jobs/fl/fl_healthcheck.sh</code>, <code>HealthCheckInterval=10</code>, <code>HealthCheckNodeState=ANY</code> added to <code>slurm.conf</code> for the test, then removed. Moving one device file away drained the node within 1.4 to 7.3 s in four tries <span class="ft-meas">measured</span>: anywhere up to one interval, depending on where in the cycle the fault lands.</p>
+
+</div></details>
 </section>

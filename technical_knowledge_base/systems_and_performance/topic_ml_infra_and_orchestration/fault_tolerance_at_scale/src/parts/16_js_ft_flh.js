@@ -1,7 +1,7 @@
 // ---- Charts moved from the root's Failure lab (2026-10-19): its helpers, bound to the tab each chart lives in ----
 // FLH(tabId) returns the root lab's helper set (step-animation controller, SVG helpers, render registration) for one tab.
-// Animations run only while their card is on screen in the visible tab, play once the first time they scroll into view,
-// and never autoplay under prefers-reduced-motion. window.FL_DATA is the root lab's recorded data (window.FT.fl, written
+// Animations run only while their card is on screen in the visible tab and never autoplay: they wait on their first
+// frame until the reader presses play or steps (2026-10-24, the teaching contract). window.FL_DATA is the root lab's recorded data (window.FT.fl, written
 // by scripts/make_data.py from ../src/fail/fl_data.json and fl_recompute.json).
 window.FL_DATA=window.FT&&window.FT.fl;
 window.FLH=function(TAB){
@@ -42,7 +42,7 @@ window.FLH=function(TAB){
     g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     g('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&tabVisible()){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+      kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();

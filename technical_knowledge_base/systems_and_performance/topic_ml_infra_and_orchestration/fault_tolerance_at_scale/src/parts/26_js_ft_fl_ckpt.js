@@ -9,12 +9,12 @@
     const X=t=>L+(W-L-R)*t/tmax,Y=s=>T+(h-T-B)*(1-s/200);
     const tnow=tmax*i/(N-1);
     let b='';
-    [0,50,100,150,200].forEach(s=>{b+=H.line(L,Y(s),W-R,Y(s),'var(--line)');b+=H.t(L-6,Y(s)+4,String(s),{a:'end',fs:10,fill:'var(--mute)'})});
-    for(let t=0;t<=tmax;t+=10){const x=X(t);b+=H.t(x,h-12,t+' s',{a:'middle',fs:10,fill:'var(--mute)'})}
-    b+=H.t(L,T-2+0,'step',{fs:10,fill:'var(--mute)'});
+    [0,50,100,150,200].forEach(s=>{b+=H.line(L,Y(s),W-R,Y(s),'var(--line)');b+=H.t(L-6,Y(s)+4,String(s),{a:'end',fs:11,fill:'var(--mute)'})});
+    for(let t=0;t<=tmax;t+=10){const x=X(t);b+=H.t(x,h-12,t+' s',{a:'middle',fs:11,fill:'var(--mute)'})}
+    b+=H.t(L,T-2+0,'step',{fs:11,fill:'var(--mute)'});
     const poly=(pts,col,o)=>pts.length>1?'<polyline fill="none" stroke="'+col+'" stroke-width="'+((o&&o.sw)||2)+'"'+(o&&o.dash?' stroke-dasharray="'+o.dash+'"':'')+' points="'+pts.map(p=>X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)).join(' ')+'"/>':'';
     b+=poly(base.pts,'var(--mute)',{dash:'4 3',sw:1.5});
-    b+=H.t(X(base.end_t)-4,Y(200)-4,'no failure',{a:'end',fs:10,fill:'var(--mute)'});
+    b+=H.t(X(base.end_t)-4,Y(200)-4,'no failure',{a:'end',fs:11,fill:'var(--mute)'});
     const sg=segs(run);let done=0,lastStep=0,redone=0;
     sg.forEach((s,k)=>{const vis=s.filter(p=>p[0]<=tnow);if(vis.length){b+=poly(vis,k===0?'var(--acc)':'var(--good)',{sw:2.5});lastStep=vis[vis.length-1][1]}});
     if(run.crash_t!=null&&tnow>=run.crash_t){const cy=Y(120);b+='<circle cx="'+X(run.crash_t).toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="6" fill="var(--bad)"/>';b+=H.t(X(run.crash_t),cy-10,'crash',{a:'middle',fs:11,w:600,fill:'var(--bad)'})}

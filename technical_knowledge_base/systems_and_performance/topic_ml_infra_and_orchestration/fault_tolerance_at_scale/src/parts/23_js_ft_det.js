@@ -12,7 +12,7 @@ const ROWS=[
  ['Host lost, on Ray',{s:30,w:'GCS health checks: 5 s delay, every 3 s, 10 s timeout, 5 failures (ray_config_def.h @ ray-2.59.0)'},{s:sc('r-node').detect_s,w:'measured: node declared dead '+sc('r-node').detect_s.toFixed(1)+' s after the kill (root Failure lab)'},{s:30,w:'already the default'}],
  ['Hang in a collective',{s:600,w:'NCCL watchdog: 10 min (ProcessGroupNCCL.hpp lines 159-160 @ v2.14.1); gloo: 30 min'},{s:sc('s-hang').detect_s,w:'measured: gloo timeout set to 30 s, healthy ranks errored at '+sc('s-hang').detect_s.toFixed(1)+' s (root Failure lab, fl-hang)'},{s:10,w:'published: ByteRobust detects a GPU driver hang or a lost GPU in 10 s (Wan et al., Table 3), against "the timeout threshold (~30 minutes)" without inspection'}],
  ['Watchdog itself wedged',{s:480,w:'NCCL heartbeat monitor: 8 min (ProcessGroupNCCL.cpp line 1775 @ v2.14.1)'},{s:null,w:'not run here (no NCCL on CPU)'},{s:480,w:'no published tuning found'}],
- ['Straggler',{s:INF,w:'no default detector in torch, Slurm, Kubernetes or Ray'},{s:null,w:'see the Straggler replay tab: flagged within 4 to 5 steps with a 10-step window'},{s:60,w:'NVIDIA Resiliency Extension straggler reports every 60 s by default (v0.7.0 docs)'}],
+ ['Straggler',{s:INF,w:'no default detector in torch, Slurm, Kubernetes or Ray'},{s:null,w:'see section 8: flagged within 4 to 5 steps with a 10-step window'},{s:60,w:'NVIDIA Resiliency Extension straggler reports every 60 s by default (v0.7.0 docs)'}],
  ['Silent data corruption',{s:INF,w:'no default detector'},{s:null,w:'see section 7: caught only by checksums (weight flips) and replay'},{s:8*3600,w:'published: ByteRobust needed "more than 8 hours of offline stress testing" to find a GPU SDC (Wan et al.)'}]];
 let MODE='def';
 function draw(){

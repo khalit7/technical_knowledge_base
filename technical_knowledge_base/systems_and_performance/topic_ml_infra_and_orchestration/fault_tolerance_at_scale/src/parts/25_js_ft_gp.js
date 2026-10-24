@@ -14,7 +14,7 @@ function draw(){
     s+=RD.t(lw+acc/mx*bw+4,y+14,x.r.measured_s.toFixed(1)+' s',{fs:11,fill:'var(--mute)'});
   });
   el.innerHTML=RD.svg(w,rows.length*rowH+8,s,'Wall-clock of three measured runs split into useful time, wasted progress, recovery and remainder');
-  $('gp-cap').innerHTML=rows.map(x=>'<b>'+E(x.r.label)+'</b>: goodput '+(100*x.useful/x.r.measured_s).toFixed(1)+'% ('+x.useful.toFixed(1)+' s useful of '+x.r.measured_s.toFixed(1)+' s); wasted progress '+x.waste.toFixed(1)+' s ('+x.r.redone+' steps), detection and recovery '+x.rec.toFixed(1)+' s, remainder '+x.rem.toFixed(1)+' s.').join('<br>')+'<br>At this toy scale the recovery dominates and the rework is seconds; at 16,384 GPUs the same three buckets are minutes to tens of minutes each, which is the {{Recovery designs|#t-rec}} tab\'s subject.';
+  $('gp-cap').innerHTML=rows.map(x=>'<b>'+E(x.r.label)+'</b>: goodput '+(100*x.useful/x.r.measured_s).toFixed(1)+'% ('+x.useful.toFixed(1)+' s useful of '+x.r.measured_s.toFixed(1)+' s); wasted progress '+x.waste.toFixed(1)+' s ('+x.r.redone+' steps), detection and recovery '+x.rec.toFixed(1)+' s, remainder '+x.rem.toFixed(1)+' s.').join('<br>')+'<br>At this toy scale the recovery dominates and the rework is seconds; at 16,384 GPUs the same three buckets are minutes to tens of minutes each, which is what section 5 models.';
 }
 RD.onRender(draw);RD.onResize(draw);draw();RD.tabLinks($('gp-card'));
 })();

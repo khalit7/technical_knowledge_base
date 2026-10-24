@@ -1,21 +1,44 @@
 <section id="s-strag">
-<h2>8. Stragglers: how common, and how production systems find them</h2>
-<p class="lead">A straggler costs no restart and raises no alarm, so it is easy to underestimate. The one large published study says it is the common case: in ByteDance's clusters, "42.5% of the jobs are at least 10% slower" than they would be without stragglers, and "10.4% of the allocated GPU hours are wasted" <span class="ft-pub">published</span> (Lin et al., {{arXiv 2505.05713v2|https://arxiv.org/abs/2505.05713}}, five months of 2024, 3,079 jobs of 128 GPUs or more).</p>
-<h3>The simplest case, measured on Slurm: one slow rank sets the pace</h3>
-<p>The root page's lab made rank 3 sleep 50 ms or 200 ms after every step of the running example (2 nodes x 2 ranks) <span class="ft-meas">measured</span>; the {{Straggler replay|#t-str}} tab then plants harder patterns and tries detection rules.</p>
-<div class="ft-card" id="fl-st-card">
-<h4>One slow rank sets the pace of all four</h4>
-<div class="ft-seg" id="fl-st-mode" role="group" aria-label="Slow rank delay"><button data-m="0" class="on">No straggler</button><button data-m="1">Rank 3 +50 ms</button><button data-m="2">Rank 3 +200 ms</button></div>
-<div class="ft-svg" id="fl-st-svg"></div>
-<div class="ft-ctl" id="fl-st-ctl"></div>
-<div class="ft-anc" id="fl-st-cap" aria-live="polite"></div>
-<p class="small mute"><span class="ft-meas">measured</span>: step time per rank from logged timestamps, steps 10 to 100 (runs <code>fl-strag0</code>, <code>fl-strag50</code>, <code>fl-strag200</code> on Slurm, 2 nodes x 2 ranks). The split of each step into compute and waiting is drawn from the measured totals and the probe below <span class="ft-ours">illustrative split</span>.</p>
-</div>
-<p>Every rank reports the same step time (<span id="fl-st-v">22.1, 70.5 and 221.8</span> ms), so a step-time log cannot tell you who is slow. Time spent <i>inside</i> the gradient all-reduce can. We wrapped <code>loss.backward()</code> (which contains DDP's all-reduce) with a timer on every rank:</p>
+<h2>8. Stragglers: the slow rank waits least</h2>
+<p class="lead">A straggler costs no restart and raises no alarm, so it is easy to underestimate. Every synchronous step waits for the slowest rank, so a rank that is 10% slow makes the whole job about 10% slower. The one large published study says it is the common case: in ByteDance's clusters, "42.5% of the jobs are at least 10% slower" than they would be without stragglers, and "10.4% of the allocated GPU hours are wasted" <span class="ft-pub">published</span> (Lin et al., {{arXiv 2505.05713v2|https://arxiv.org/abs/2505.05713}}, five months of 2024, 3,079 jobs of 128 GPUs or more).</p>
+<p>The root page's lab made rank 3 of the running example (2 nodes x 2 ranks, Slurm) sleep 50 ms or 200 ms after every step <span class="ft-meas">measured</span>. Every rank then reported the same step time (<span id="fl-st-v">22.1, 70.5 and 221.8</span> ms), so a step-time log cannot tell you who is slow. Time spent <i>inside</i> the gradient all-reduce can, but backwards: we wrapped <code>loss.backward()</code> (which contains DDP's all-reduce) with a timer on every rank:</p>
 <div class="ft-svg" id="fl-pb-svg"></div>
 <p class="ft-cap"><span class="ft-meas">measured</span>: median <code>backward()</code> time per rank, steps 11 to 100 (runs <code>fl-probe0</code>, <code>fl-probe50</code>; probe in the root page's <code>src/fail/scripts/fl_wrap.py</code>, <code>FL_PROBE=1</code>).</p>
 <p>With rank 3 sleeping 50 ms, ranks 0 to 2 spent about 62.6 ms in backward and rank 3 only 12.2 ms: it arrives last, so it never waits. That is the inversion every detector below works around.</p>
-<h3>What the studies found</h3>
+
+<div class="ft-card" id="st-anim-card"><h4>Watch the steps: each rank computes, then waits for the slowest <span class="ft-meas">measured</span></h4>
+<div class="ft-seg" id="st-run"><button data-m="strag_mix" class="on">Stragglers planted</button><button data-m="strag_none">No straggler (same job)</button><button data-m="strag_mix2">Stragglers, repeat run</button></div>
+<div id="st-anim-ctl" class="ft-ctl"></div>
+<div id="st-anim" class="ft-svg"></div>
+<div class="ft-leg"><span><i style="background:var(--c1)"></i>compute (forward + backward)</span><span><i style="background:var(--line)"></i>wait in the all-reduce</span><span><i style="background:var(--bad)"></i>planted slowness on this rank</span><span>each step lasts as long as its slowest rank</span></div>
+<div class="ft-anc" id="st-anim-cap"></div>
+<div class="ft-out" id="st-anim-out"></div>
+<p class="ft-cap">The running example (4 ranks, gloo, 1 thread each), 300 steps, run natively by <code>src/scripts/ft_lab.py --mode strag</code> on 2026-10-16 (Apple M1 Pro, natively (macOS), shared machine). A DDP communication hook records on every rank and step when its gradients were ready (end of <b>compute</b>) and when the all-reduce finished (<b>wait</b>). Planted: rank 2 slow on every step 80 to 159 (+6 ms requested), rank 0 slow on every 25th step (+20 ms: work only rank 0 does, such as logging or evaluation), rank 3 mildly slow on every step 200 to 300 (+2 ms). macOS oversleeps, so the measured extra compute is larger than requested (about +8.3 ms and +2.6 ms). Data: <code>src/runs/strag_none.json</code>, <code>strag_mix.json</code>, <code>strag_mix2.json</code>.</p>
+</div>
+<p><b>Predict, then try it:</b> which rule names rank 2 soonest without accusing anyone else: the longest wait in the all-reduce, or the longest compute against the other ranks? Start with "Long waits" in the rule menu, then switch.</p>
+<div class="ft-card" id="st-det-card"><h4>Rank by compute, not by wait: try a detector on the same timings</h4>
+<div class="ft-ctl"><label>Rule <select id="st-rule">
+<option value="wait">Long waits in the all-reduce</option>
+<option value="comp">Longest compute, against the other ranks</option>
+<option value="rel" selected>Relative score: best rank's compute / this rank's</option>
+<option value="ind">Individual score: this rank's own baseline / now</option>
+<option value="step">Step time against the job's baseline (no rank)</option>
+</select></label>
+<label>Statistic <select id="st-stat"><option value="med" selected>median of the window</option><option value="max">maximum of the window</option></select></label></div>
+<div class="ft-ctl"><label for="st-win">Window</label><input type="range" id="st-win" min="1" max="50" value="10" step="1"><span id="st-win-v" class="ft-num"></span></div>
+<div class="ft-ctl"><label for="st-thr">Threshold</label><input type="range" id="st-thr" min="0" max="90" value="25" step="1"><span id="st-thr-v" class="ft-num"></span></div>
+<div id="st-det" class="ft-svg"></div>
+<div class="ft-leg"><span><i style="background:var(--bad)"></i>planted (truth)</span><span><i style="background:var(--c4)"></i>flagged by the rule</span></div>
+<div id="st-det-tbl"></div>
+<div class="ft-anc" id="st-det-cap"></div>
+</div>
+<ul>
+<li><b>The slow rank waits least.</b> "Long waits in the all-reduce" flags the three innocent ranks hundreds of times and never rank 2 or rank 3: tools that rank collectives by duration find the victims. And the "Step time" rule flags the whole job, never a rank.</li>
+<li><b>Compute time, compared across ranks, names it.</b> With a 10-step median window, "Longest compute" and the relative score both flag rank 2 at step 84, four steps after its slowness began, and rank 3's mild slowness at step 204 or 205, with no false alarm on any of the three runs; with the median they ignore rank 0's periodic spike, which is a code path, not a slow machine. With the maximum, rank 0 is flagged on all twelve of its spikes: decide which of the two you want to page someone about.</li>
+<li><b>Comparing a rank with its own past is noisier.</b> The individual score raised 4 false alarms on the run with no straggler at the same settings, and with the maximum it raises dozens. A 1-step window reacts at once and flags noise; a longer one is quieter and later. The relative score's default cutoff of 0.75 here is NVIDIA Resiliency Extension's; real systems also require a minimum duration before acting.</li>
+</ul>
+<p><b>Production detectors do the same</b>: NVIDIA's NVRx scores each rank's compute against the fastest rank (relative) and against its own best (individual), flagging below <b>0.75</b>; MegaScale times every rank's forward and backward with CUDA events and draws a heat map; FALCON times communication groups with CUDA events and confirms with GEMM and link tests. Lin et al. find stragglers mostly in compute, FALCON's cases at four nodes were mostly network congestion (42 of 43): different clusters and job mixes, and a job's own imbalance (pipeline stages, sequence lengths) looks like a straggler to a detector that only compares ranks. So a detector that names a rank still needs a second step that tells a slow machine (drain it) from a slow role in the job (fix the code). The dashboards and alerts that carry these scores belong to the {{Observability and cost|n:3c65c17b0d0d818ebf79d1af4532f3ee}} child page.</p>
+<details class="dp"><summary>What the studies found, with scale and method <span class="mute">(evidence)</span></summary><div class="b">
 <div class="tw"><table class="ft-tbl"><thead><tr><th>Source</th><th>Scale</th><th>Finding</th></tr></thead><tbody>
 <tr><td>MegaScale (ByteDance, {{NSDI 2024 sec. 5.1|https://arxiv.org/abs/2402.15627}})</td><td>production LLM jobs</td><td>CUDA-event timing of every rank's forward and backward, averaged over steps and drawn as a heat map: "approximately 0.5%" of machines were "substantially slower" (about 10% more time on the forward); removing them gave "approximately 0.7% improvement in MFU". A person reads the heat map; no threshold is given.</td></tr>
 <tr><td>Lin et al. (ByteDance, {{arXiv 2505.05713v2|https://arxiv.org/abs/2505.05713}})</td><td>3,079 jobs, 128+ GPUs, Jan to May 2024</td><td>What-if replay of each job's trace with every operation set to its ideal duration (mean for compute, median for communication): slowdown S = T / T<sub>ideal</sub>, a job straggles if S &ge; 1.1. Most slowdown came from <b>compute, not communication</b>; a faulty worker explained more than half the slowdown in "only 1.7%" of straggling jobs. The usual causes were the job's own structure: the last pipeline stage (2.07 times slower on forward, dominant in 39.3% of jobs), sequence-length imbalance (21.4% of jobs), garbage collection every 500 steps.</td></tr>
@@ -23,7 +46,5 @@
 <tr><td>NVIDIA Resiliency Extension ({{v0.7.0 docs|https://github.com/NVIDIA/nvidia-resiliency-ext}})</td><td>a library, not a study</td><td>Times user-marked code sections and CUDA kernels on every rank and computes two scores: <b>relative</b> = fastest rank's median / this rank's median, and <b>individual</b> = this rank's own best / its current median. A rank is flagged when a score falls below <b>0.75</b> (the default threshold); reports every 60 s; overhead "generally is expected to be &lt;1%" <span class="ft-ven">vendor</span>.</td></tr>
 <tr><td>Llama 3 ({{sec. 3.3.4|https://arxiv.org/html/2407.21783v3#S3.SS3.SSS4}})</td><td>16,384 H100s</td><td>"a single straggler can slow down thousands of other GPUs"; Meta built tools to rank suspect communications by process group. No method details or rates published.</td></tr>
 </tbody></table></div>
-<p><b>Two disagreements worth knowing.</b> Lin et al. find stragglers mostly in compute; FALCON's production cases at four nodes were mostly network congestion (42 of 43). Both can be right: they measure different clusters and different job mixes, and a job's own imbalance (pipeline stages, sequence lengths) looks like a straggler to a detector that only compares ranks. That is the practical point: a detector that names a rank still needs a second step that tells a slow machine (drain it) from a slow role in the job (fix the code).</p>
-<p><b>Every one of these detectors compares compute time across ranks or across time, never collective time alone.</b> The reason is the inversion measured in the root's Failure lab and replayed in the {{Straggler replay|#t-str}} tab: the slow rank arrives last and waits least, so ranking ranks by time spent in the all-reduce names its victims. On the replay's real timings, the relative score at NVIDIA's 0.75 flags the planted sustained straggler after 4 steps with a 10-step median window and raises no false alarm on the run without stragglers <span class="ft-meas">measured</span>; the wait-based rule never names it.</p>
-<p>The cost needs no model: every synchronous step waits for the slowest rank, so a rank that is 10% slow makes the whole job about 10% slower, which is what Lin et al.'s slowdown S measures. The dashboards and alerts that carry these scores belong to the {{Observability and cost|n:3c65c17b0d0d818ebf79d1af4532f3ee}} child page.</p>
+</div></details>
 </section>
