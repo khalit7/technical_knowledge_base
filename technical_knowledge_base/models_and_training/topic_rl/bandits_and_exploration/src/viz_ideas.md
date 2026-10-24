@@ -16,5 +16,11 @@ Scores follow `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 per qu
 | BE8 | Combination-lock chain, random walk against deep exploration | 2^N attempts | Derived | 7 | none | rejected: one sentence with the derivation says it; the gridworld shows the same failure with a trap |
 | BE9 | Re-plotting RND or Go-Explore learning curves | | | | none | rejected: values exist only as figure images (method forbids reading curves); the table carries printed numbers |
 | BE10 | Agent57 meta-controller bandit replay | | | | none | rejected: no released per-episode arm choices; quoted instead |
+| BE11 | **Hero: same evidence, three choices; same arms, four bills** (static) | Greedy, UCB and Thompson on three arms after 65 pulls; regret over 10,000 pulls, linear axis | Derived on the engine; far preset | 13 | Reading, top | built 2026-10-24 |
+| BE12 | **A/B test against Thompson sampling, same visitors** (static before/after) | Traffic to the worse version and conversions lost; the interval cost of adaptivity | ETC regret by Lattimore and Szepesvari's eq. 6.4 with the exact binomial probability (46.9) against the simulation (45.4) | 13 | Reading, section 5 | built 2026-10-24 |
+| BE13 | Weights of 20 rewards, 1/n against constant alpha, one slider | Forgetting and the initial-value bias | Formula (eq. 2.6) | 9 | Reading, section 2 | built 2026-10-24 (BE7 revived: the contract asks every mechanism for a visual; cheap) |
+| BE14 | Bandit, contextual bandit, MDP ladder (static HTML) | What each step adds | Sutton and Barto §2.9 | 8 | Reading, section 5 | built 2026-10-24 |
+| BE15 | Replay evaluation table (illustrative) | One event in k kept, unbiased under uniform logging | Li et al. 2011's method | 8 | Reading, section 5 | built 2026-10-24 |
+| BE16 | pass@k crossover or entropy-law sketch for section 7 | | | | none | rejected: owned and drawn by RL for LLMs |
 
 What the methodology lacked for this page: a rule for asymptotic bounds drawn next to finite-time simulations (the page draws the bound and states plainly that it constrains a slope, not a level), and a rule for runs computed in the browser (the page shows progress, computes only when the tab or card is visible, and checks its engine value for value against Python).

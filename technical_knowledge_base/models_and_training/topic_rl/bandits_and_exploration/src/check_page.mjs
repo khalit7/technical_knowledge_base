@@ -17,6 +17,14 @@ await p.goto('file://' + file);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const bad = async (where) => { const t = await p.evaluate(() => document.body.innerText); const m = t.match(/.{0,40}(NaN|undefined|Infinity).{0,40}/g); if (m) errs.push(where + ': ' + m.slice(0, 3).join(' | ')) };
 const shot = async (sel, name) => { const el = await p.$(sel); if (el) await el.screenshot({ path: path.join(out, name + '-' + scheme + '-' + width + '.png') }) };
+// nothing moves before the reader acts: scroll to each animation, wait, and check it is still on step 0
+for (const [card, sl] of [['bd', 'bd-C-s'], ['gx', 'gx-C-s']]) { await p.evaluate(c => document.getElementById(c).scrollIntoView(), card); await wait(2500);
+  const v = await p.evaluate(id => document.getElementById(id).value, sl); if (v !== '0') errs.push(card + ' moved by itself to step ' + v) }
+// static figures: hero, A/B card, weights slider over its range
+for (const id of ['hr-A', 'hr-R', 'ab-S', 'ab-R']) { const n = await p.evaluate(i => document.querySelectorAll('#' + i + ' svg').length, id); if (!n) errs.push(id + ' not drawn') }
+await p.evaluate(() => document.getElementById('wt').scrollIntoView());
+for (const v of ['0.02', '0.1', '0.33', '0.5']) { await p.evaluate(v => { const s = document.getElementById('wt-a'); s.value = v; s.dispatchEvent(new Event('input')) }, v); await bad('wt ' + v) }
+await shot('#hr', 'hero'); await shot('#ab', 'ab'); await shot('#wt', 'wt');
 // Reading: bandit animation, every mode at several steps
 await p.evaluate(() => document.getElementById('bd').scrollIntoView()); await wait(400);
 for (const k of ['greedy', 'eps', 'opt', 'ucb', 'ts']) { await p.click(`#bd-M button[data-k=${k}]`);
@@ -28,6 +36,7 @@ await p.evaluate(() => document.getElementById('rg').scrollIntoView()); await p.
 await bad('rg close'); await shot('#rg', 'rg-close'); const rgN = await p.evaluate(() => document.getElementById('rg-N').innerText.replace(/\n+/g, ' / '));
 await p.click('#rg-pre button[data-p=far]'); await p.waitForFunction(() => /0\.9, 0\.8/.test(document.getElementById('rg-X').textContent), { timeout: 120000 }); await bad('rg far');
 const rgF = await p.evaluate(() => document.getElementById('rg-N').innerText.replace(/\n+/g, ' / '));
+await p.select('#rg-runs', '50'); await p.waitForFunction(() => /50 runs/.test(document.getElementById('rg-X').textContent), { timeout: 120000 }); await bad('rg far 50');
 // gridworld
 await p.evaluate(() => document.getElementById('gx').scrollIntoView()); await wait(300);
 for (const m of ['eps', 'cnt', 'opt']) { await p.click(`#gx-M button[data-m=${m}]`); for (const v of [0, 1, 30, 200, 500]) { await p.evaluate(v => { const s = document.getElementById('gx-C-s'); s.value = v; s.dispatchEvent(new Event('input')) }, v); await bad('gx ' + m + ' ' + v) } await shot('#gx', 'gx-' + m) }
