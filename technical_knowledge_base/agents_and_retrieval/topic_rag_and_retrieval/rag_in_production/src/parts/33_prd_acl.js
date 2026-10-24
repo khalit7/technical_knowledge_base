@@ -1,5 +1,6 @@
-// ---- Access lab (t-prdacl): prompt rule vs retrieval filter animation, LLM summary, pgvector RLS tables, plans ----
+// ---- Access control (Reading, sections 5 and 11): prompt rule vs retrieval filter animation, LLM summary, pgvector RLS tables, plans ----
 (function(){
+if(!document.getElementById('pac-card'))return;
 const P=window.PRD,A=P.aclllm,C=P.aclcorpus,G=P.aclpg,esc=RD.esc,$=id=>document.getElementById(id);
 const DOCS={};C.docs.forEach(d=>DOCS[d.id]=d);
 const USER=['public'],CONDS={prompt_rule:'Rule in the prompt',prompt_rule_claim:'Rule + "I am authorized"',retrieval_filter:'Filter at retrieval'};
@@ -32,8 +33,8 @@ function draw(step){
 }
 let an=null;
 an=RD.anim({card:'pac-card',ctl:'pac-ctl',n:A?5:4,draw,ms:1700,label:'Access step'});
-  RD.seg($('pac-mode'),m=>{mode=m;an.reset(A?5:4);an.play()});
-  $('pac-q').addEventListener('change',()=>{an.reset(A?5:4);an.play()});$('pac-g').addEventListener('change',()=>{an.reset(A?5:4);an.play()});
+  RD.seg($('pac-mode'),m=>{mode=m;an.reset(A?5:4)});
+  $('pac-q').addEventListener('change',()=>an.reset(A?5:4));$('pac-g').addEventListener('change',()=>an.reset(A?5:4));
 if(A){
   // summary
   let h='<table><thead><tr><th>Condition</th>'+Object.values(MODELS).map(m=>'<th class="num">'+m+' leaks</th>').join('')+'<th class="num">restricted doc in prompt</th></tr></thead><tbody>';
@@ -57,5 +58,5 @@ function pg(){
 }
 RD.seg($('pac-pgm'),m=>{pm=m;pg()});pg();
 RD.seg($('pac-plan'),m=>{$('pac-plan-t').textContent=G.plans[m].join('\n')});$('pac-plan-t').textContent=G.plans.contractor.join('\n');
-(window.TAB_RENDER=window.TAB_RENDER||{})['t-prdacl']=[()=>{if(an)an.redraw()}];
+RD.onResize(()=>an.redraw());
 })();

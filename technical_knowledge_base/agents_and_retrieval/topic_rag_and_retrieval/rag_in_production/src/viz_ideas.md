@@ -7,7 +7,7 @@ Scores 0 to 2 on: a quantity that moves with a reader's knob; reproduces a state
 | # | Idea | Score | Placement | Status | Notes |
 |---|---|---|---|---|---|
 | 1 | Backfill trap: the same 300 claims through an in-place backfill (MiniLM to bge-small, 10% steps) against a dual index with an atomic switch | 13 | Reading, section 3 | built | Before/after animation on the same input; real nDCGs at every step; the misconception is "same dimensions, so it works". |
-| 2 | Access lab: one question through rule-in-prompt, rule + claimed authority, and filter-at-retrieval, with the real model answer and the leaked fact highlighted | 12 | own tab | built | Step animation (question, retrieval, prompt, answer, verdict); constructed corpus, labelled. |
+| 2 | Access stepper: one question through rule-in-prompt, rule + claimed authority, and filter-at-retrieval, with the real model answer and the leaked fact highlighted | 12 | Reading, section 5 (was the Access lab tab; moved 2026-10-24) | built | Step animation (question, retrieval, prompt, answer, verdict); constructed corpus, labelled. |
 | 3 | pgvector RLS matrix: 5 users x 8 modes (rows returned, recall, empty results, forbidden rows) plus the two query plans | 11 | Access lab | built | Shows "secure but incomplete" (reused plan) and owner bypass; data from a real database. |
 | 4 | Semantic-cache replay with threshold and model knobs, stacked hit kinds, result-cache nDCG, worst examples | 11 | own tab | built | Differs from the Caching page's Quora/PAWS lab: RAG claims with opposite verdicts; result cache vs answer cache. |
 | 5 | Similarity histogram of opposite-verdict vs same-verdict claim pairs | 9 | Reading, section 8 | built | One picture of "no threshold separates them". |
@@ -25,3 +25,14 @@ Scores 0 to 2 on: a quantity that moves with a reader's knob; reproduces a state
 | R5 | Freshness lag measured in Qdrant with wait=false | 4 | | rejected | A small-collection timing on Docker for Mac would mostly measure the VM; docs quoted instead. |
 
 What the methodology lacked for this page: operational failures have no published figure to reproduce, so most visuals are measured demonstrations of a failure and its fix on the running example; "reproduces a stated figure" was replaced by "reproduces the page's own end-to-end measurement" (waterfall) or "the Reading's worked example" (cost).
+
+## 2026-10-24 rebuild to the teaching contract
+| # | Idea | Placement | Status | Notes |
+|---|---|---|---|---|
+| H | Hero: the write path and the read path sharing one index, the access filter highlighted inside the search, one request's time (end-to-end p50) and cost (worked example) as bars to scale | Reading, top | built | Static annotated diagram (`25_prd_hero.js`); the whiteboard picture the page elaborates. |
+| 13 | Freshness lag as a stacked bar of its terms | Reading, section 2 (inside the existing calculator) | built | Shows which term dominates as the knobs move. |
+| 14 | Every copy of one passage, the forgotten ones marked | Reading, section 4 | built | Static grid; structure, so no motion. |
+| 15 | Worked-example cost per query by stage, to scale | Reading, section 9 | built | From `cost_model.py`'s defaults; the calculator tab keeps every knob. |
+| moved | Access stepper (2, 3), latency waterfall and TTFT chart (6, 7), semantic-cache replay (4) | Reading, sections 5, 7, 8 | moved | Each explains one mechanism, so it sits beside its claim; tables of every case are in closed blocks. Animations no longer start on a mode or question switch. |
+| kept | Cost calculator (8) | own tab | kept | A tool for the reader's own system, used by sections 7 and 9. |
+| R6 | A real image (dashboard or hardware photo) | | rejected | The page is about operations and mechanisms; no physical object or canonical figure would teach more than the diagrams. |

@@ -1,5 +1,6 @@
-// ---- Latency waterfall (t-prdlat): recorded timings, each stage with its source and load average ----
+// ---- Latency waterfall (Reading, section 7): recorded timings, each stage with its source and load average ----
 (function(){
+if(!document.getElementById('pla-card'))return;
 const P=window.PRD,LT=P.lat,PG=P.pipgen,esc=RD.esc,$=id=>document.getElementById(id);
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#888';
 // Qwen3-1.7B time to first token: prompt tokens / the prefill rate the Pipeline lab recorded for that prompt-length band (derived)
@@ -61,8 +62,7 @@ function ttChart(){
   $('pla-tt-cap').textContent=(P.ttft?'Solid lines: measured here with ttft.py (median of 3 streamed requests per length, cache_prompt off; load '+P.ttft.loadavg_start.join('/')+' to '+P.ttft.loadavg_end.join('/')+'). Dashed: ':'')+'Qwen3-1.7B Q4_K_M: prompt tokens divided by the median prefill rate of each prompt-length band in the Pipeline lab\'s records ('+PG.rows.map(b=>b.tokens[0]+' to '+b.tokens[1]+' tokens: '+b.prefill_tps_p50+' tokens/s over '+b.n+' calls').join('; ')+'); dots at each band\'s median prompt length. The band above 2,000 tokens rests on '+PG.rows[PG.rows.length-1].n+' calls.'+(P.ttft?'':' Not recorded yet: prompt caching, Qwen3-4B prefill, a single end-to-end timing.');
 }
 $('pla-src').innerHTML='Sources: query embedding p50 on MPS and on CPU from '+esc(LT.embed.src)+'; reranker time = K &divide; pairs per second ('+esc(LT.rerank_pairs_per_s.src)+'; MiniLM: mean of its SciFact and NFCorpus runs), a derived figure; search on Quora from the '+esc(LT.search_other.src)+'; exact search on SciFact derived from that page\'s measured scan rate; the generator from the root Pipeline lab\'s llama-server records (median prefill '+PG.run.prompt_tps_median+' and decode '+PG.run.gen_tps_median+' tokens/s over '+PG.run.answers+' answers). Prompt = '+BASE+' tokens of instructions and claim (assumed) + k &times; '+AT+' tokens (SciFact\'s mean abstract length in Qwen3 tokens). A server GPU is much faster for every model stage (not run here); the shape transfers.';
-$('t-prdlat').querySelectorAll('input,select').forEach(el=>{el.addEventListener('input',draw);el.addEventListener('change',draw)});
-(window.TAB_RENDER=window.TAB_RENDER||{})['t-prdlat']=[draw];
-addEventListener('resize',()=>{if(!$('t-prdlat').hidden)draw()});
+$('pla-card').querySelectorAll('input,select').forEach(el=>{el.addEventListener('input',draw);el.addEventListener('change',draw)});
+RD.onRender(draw);RD.onResize(draw);
 draw();
 })();

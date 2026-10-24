@@ -24,5 +24,6 @@ h=re.sub(r'@@(\\w+)@@',lambda m:F.get(m.group(1),m.group(0)),h)
 open('../index.html','w').write(h)
 print('MISSING FACTS',miss) if miss else None"
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
-if grep -q '—' ../index.html; then echo "EM DASH FOUND"; grep -n -o '.\{30\}—.\{30\}' ../index.html | head; fi
+ED=$(printf '\342\200\224')  # the em-dash character, written as bytes so this file contains none
+if grep -q "$ED" ../index.html; then echo "EM DASH FOUND"; grep -n -o ".\{30\}$ED.\{30\}" ../index.html | head; fi
 wc -c ../index.html
