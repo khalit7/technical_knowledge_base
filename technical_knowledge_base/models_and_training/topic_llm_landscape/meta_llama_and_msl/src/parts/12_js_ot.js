@@ -5,7 +5,7 @@
   const C=7.2e23,T=15e12,STEPS=5,DUR=3000,MOVE=0.8;
   const MO={meta:{N:8e9,D:15e12,n:'Llama 3 8B'},chin:{N:Math.sqrt(C/120),n:'compute-optimal twin'}};MO.chin.D=20*MO.chin.N;
   const FIT=[1.69,406.4,410.7,0.336,0.283],loss=(N,D)=>FIT[0]+FIT[1]/Math.pow(N,FIT[3])+FIT[2]/Math.pow(D,FIT[4]);
-  const st={m:'meta',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
+  const st={m:'meta',k:0,t:RM?1:0,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
   const cl=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v);
   const B=v=>(v/1e9).toFixed(v<1e10?0:1)+'B',Tt=v=>(v/1e12).toFixed(2).replace(/\.?0+$/,'')+'T';
   function caps(m){const o=MO[m],me=m==='meta',tr=6*o.N*o.D,sv=2*o.N*T,lo=loss(o.N,o.D),lx=loss(MO[me?'chin':'meta'].N,MO[me?'chin':'meta'].D);
@@ -59,7 +59,7 @@
   $('otScrub').addEventListener('input',e=>{pause();const v=+e.target.value;st.k=Math.min(STEPS-1,Math.floor(v/100));st.t=cl(v/100-st.k);draw()});
   $('otSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   const seg=$('otM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;st.lk=-1;if(!RM)st.play=true;draw();kick()}));
+    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;st.lk=-1;pause();draw()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});
