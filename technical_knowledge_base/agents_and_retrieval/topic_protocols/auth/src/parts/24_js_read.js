@@ -89,7 +89,7 @@
     $('rdXchg').innerHTML += '<p class="small">The mail API then decoded the exchanged token as: <code>sub=' + E(fin.sub) + '</code>, <code>client_id=' + E(fin.client_id) + '</code>, <code>act=' + E(JSON.stringify(fin.act)) + '</code>, <code>aud=' + E(fin.aud) + '</code>, <code>scope=' + E(fin.scope) + '</code> (recorded).</p>';
   }
   // s9: mix-up and passthrough
-  $('rdMixErr').textContent = D.sdk.phases.E.error;
+  if ($('rdMixErr')) $('rdMixErr').textContent = D.sdk.phases.E.error;
   const ph = D.sdk.phases, who = b => b && b.upstream_believes_caller_is;
   const rows = [['Passthrough to a careful upstream (checks aud)', ph.C_strict], ['Passthrough to a careless upstream (signature only)', ph.C_naive], ['Token exchange, then the careful upstream', ph.D]];
   if ($('rdPass')) $('rdPass').innerHTML = table(rows, [['Tool call', r => r[0]], ['Upstream status', r => st(r[1].upstream_status)], ['Who the upstream believes is calling', r => { const x = who(r[1].upstream_body); return x ? 'sub <code>' + E(x.sub) + '</code>, client <code>' + E(x.client_id) + '</code>, act <code>' + (x.act ? E(JSON.stringify(x.act)) : '(none)') + '</code>, aud <code>' + E(x.aud) + '</code>' : brief(r[1].upstream_body); }]]);
