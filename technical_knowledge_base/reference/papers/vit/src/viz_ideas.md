@@ -17,6 +17,9 @@ Scores: teaches (0 to 3), sourced or real (0 to 3), cost (3 cheap to 0 expensive
 | P-vit.11 | Position-embedding interpolation demo (7 × 7 table bilinearly resized to 10 × 10, similarity kept) | none | 2+3+2+1 = 8 | rejected for now: the toy's table has too little grid structure to show it convincingly | |
 | P-vit.12 | Patch-filter principal components (Figure 7 left) of the toy's E | none | 1+3+2+1 = 7 | rejected: with 4 × 4 grey patches the components are trivial and teach little | |
 | P-vit.13 | Hybrid (ResNet stem + ViT) variant in the toy | none | 1+2+0+1 = 4 | rejected: CPU budget on a shared machine | |
+| P-vit.14 | Hero: Figure 1 redrawn on the toy image, patches cropped from the real image, the toy model's real prediction (2026-10-24) | The paper, top | static diagram | built (`14_js_hero.js`); the arXiv licence is not CC BY, so no copy of the original figure | |
+| P-vit.15 | Results at a glance: Table 2 gaps to BiT-L per benchmark plus the compute bars (2026-10-24) | The paper, Results | static chart from `PAPER.tables.t2` | built: Results had no visual | |
+| P-vit.16 | Table 6 / Figure 5 chart moved from the tables tab into Reading, beside the compute claim (2026-10-24) | The paper, Performance against compute | moved | built (same code, drawn on `t-read`) | |
 
 ## Inspiration
 

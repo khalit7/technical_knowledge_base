@@ -8,7 +8,7 @@ def txt(x):
     x = re.sub(r'</(p|h\d|div|tr|li|figcaption)>', '\n', x)
     x = re.sub(r'</t[dh]>', '\t', x)
     x = re.sub(r'<[^>]+>', '', x)
-    x = html.unescape(x).replace('—', ' -- ')  # the repository allows no em-dashes, even in extracts
+    x = html.unescape(x).replace('\u2014', ' -- ')  # the repository allows no em-dashes, even in extracts
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
 a = s.index('<article'); b = s.index('</article>')
 open('inputs/paper_v2.txt', 'w').write('Source: https://arxiv.org/html/2010.11929v2 (extracted by extract_paper.py)\n\n' + txt(s[a:b]))

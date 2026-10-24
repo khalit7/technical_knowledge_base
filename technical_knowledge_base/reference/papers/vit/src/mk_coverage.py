@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "8 min read, +~3h 20m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "8 min read, +~3h 20m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['Reading: ', 'of resources']),
  ('Authors (12) and lab Google Research, Brain Team', R + ', headline card', ['Alexey Dosovitskiy', 'Lucas Beyer', 'Alexander Kolesnikov', 'Dirk Weissenborn', 'Xiaohua Zhai', 'Thomas Unterthiner', 'Mostafa Dehghani', 'Matthias Minderer', 'Georg Heigold', 'Sylvain Gelly', 'Jakob Uszkoreit', 'Neil Houlsby', 'Google Research, Brain Team']),
  ('Date: October 2020 (ICLR 2021)', R + ', headline card', ['October 2020', 'ICLR 2021']),
  ('Link arXiv (~1h)', 'card and Further reading', ['https://arxiv.org/abs/2010.11929', '(1h)']),
@@ -68,12 +68,12 @@ C = [
  ('Ended CNN dominance in vision at scale', R + ', Why it matters', ['ended CNN dominance in vision at scale']),
  ('Lesson: inductive bias is a substitute for data; with enough data a generic architecture wins', R + ', Why it matters (softened to "catches up", with the CNN counter-evidence in How much to believe)', ['hand-designed inductive bias stands in for data']),
  ('Aligned vision with the NLP scaling playbook; unified both fields on one architecture', R + ', Why it matters', ["NLP's scaling playbook and one architecture under both"]),
- ('CLIP, ALIGN, SigLIP use ViT image encoders', R + ', Why it matters (corrected: ALIGN uses EfficientNet, sourced)', ['ALIGN, often listed with them, uses an EfficientNet, not a ViT', 'SigLIP']),
+ ('CLIP, ALIGN, SigLIP use ViT image encoders', R + ', Why it matters (corrected: ALIGN uses EfficientNet, sourced)', ['ALIGN, often listed with CLIP and SigLIP, uses an EfficientNet, not a ViT', 'SigLIP']),
  ('VLMs (LLaVA, Qwen-VL, InternVL, Gemini-class) bolt a ViT-derived tower onto an LLM', R + ', Why it matters (each sourced; Gemini marked unconfirmed)', ['the pre-trained CLIP visual encoder ViT-L/14', "OpenCLIP's ViT-bigG", 'InternViT', 'Gemini-class closed models', '(unconfirmed)']),
  ('Masked patch prediction foreshadowed MAE and BEiT; DINO/DINOv2 built self-distillation on ViT', R + ', Why it matters', ['BEiT', 'MAE', 'DINO and DINOv2 built self-distillation on ViT backbones']),
  ('DiT replaced U-Nets with ViT-style backbones on latent patches; behind SD3, Flux, Sora-style generators', R + ', Why it matters (SD3 sourced; Sora cited but not re-checked; Flux unconfirmed)', ['Diffusion Transformer (DiT)', 'Stable Diffusion 3', 'Sora', 'Flux']),
  ('Patchify-then-Transformer default for grid modalities (images, video, audio spectrograms)', R + ', Why it matters', ['Patchify-then-Transformer became the default', 'ViViT', 'audio spectrograms']),
- ('Fine-tuning tricks (resolution increase, position-embedding interpolation) still standard', R + ', Why it matters', ['a higher resolution with interpolated position embeddings, are still standard']),
+ ('Fine-tuning tricks (resolution increase, position-embedding interpolation) still standard', R + ', Why it matters', ['a higher resolution with interpolated position embeddings, is still standard']),
  # connections
  ('Attention Is All You Need (2017-06): the encoder ViT reuses', 'Connections; Further reading', ['3c65c17b0d0d81999af7f16f8ed8ee9e', 'the encoder ViT reuses nearly unchanged']),
  ('BERT (2018-10): class token, model sizing, masked-prediction idea', 'Connections; Further reading', ['3c65c17b0d0d81e5ad9bd09cbf18ad7c', 'the [class] token, the model sizing and the masked-prediction pre-training idea']),

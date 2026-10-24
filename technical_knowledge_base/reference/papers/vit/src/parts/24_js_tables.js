@@ -50,5 +50,7 @@ function tb8(){fit($('tb8Svg'),w=>{const W=Math.min(w,360),rows=T.t8.rows,items=
   $('tb7T').innerHTML=tbl(T.t7.cols,T.t7.rows);$('tb7O').textContent=RC.t7_avg.join(', ')+' against printed '+RC.t7_avg_printed.join(', ')}
 function nr(){const p=RC.params;$('nrL').textContent=(p.L/1e6).toFixed(1)+'M';$('nrBH').textContent='Base '+(p.B/1e6).toFixed(1)+'M against 86M, Huge '+(p.H/1e6).toFixed(1)+'M against 632M';
   const d=RC.t5_vs_t6['ViT-H/14'];$('nr56').textContent=Object.keys(d).map(k=>k+' '+d[k][0]+' (Table 5) against '+d[k][1]+' (Table 6)').join('; ')}
-onTab('t-tables',()=>{try{tb1();tb2();tb5();tb6();tb6F();tb8();nr()}catch(e){__jsErr('tables: '+e.message)}});
+onTab('t-tables',()=>{try{tb1();tb2();tb5();tb8();nr()}catch(e){__jsErr('tables: '+e.message)}});
+// Table 6 and Figure 5 sit in The paper tab, beside the compute claim (2026-10-24)
+onTab('t-read',()=>{try{if(!tb6.done){tb6.done=1;tb6F()}tb6()}catch(e){__jsErr('tb6: '+e.message)}});
 })();
