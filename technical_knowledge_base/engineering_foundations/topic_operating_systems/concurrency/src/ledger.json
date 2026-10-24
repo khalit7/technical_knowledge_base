@@ -1,0 +1,3154 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Concurrency: threads, locks, futexes, deadlock, and event-driven I/O Concurrency: threads, locks, futexes, deadlock, and event-driven I/O How many things happen at once inside one training job, and what keeps them from corrupting each other: threads and what the kernel gives each one, races and atomics, locks and the futex underneath every lock on Linux, condition variables, deadlock, the GIL, and the event loops (select, poll, epoll, io_uring) that async servers are built on.",
+  "label": "core",
+  "key": "threads, locks, futexes, deadlock, and event-driven i/o",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Taught from zero to OSTEP depth, with the Linux, glibc and CPython source at pinned tags and real runs on Linux 5.10.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "subtitle restated by the new subtitle"
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "A child page of Topic: operating-systems .",
+  "label": "core",
+  "key": "a child page of",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Interleaving lab Event loop lab Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "One screen 1 Threads 2 Races, atomics 3 Locks 4 The futex 5 Waiting 6 Deadlock 7 Lock-free 8 The GIL 9 Event-driven I/O 10 In a training job 11 Mistakes, questions",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section nav"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "In one screen Concurrency means several activities in progress at the same time inside one program; parallelism means some of them really run at the same instant, on different CPU cores.",
+  "label": "core",
+  "key": "several activities in progress at once",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "A training job is concurrent everywhere: the training loop, a pool of math threads inside PyTorch, DataLoader worker processes and the threads that feed their queues, a checkpoint writer, and on a GPU node NCCL's communication threads and PyTorch's watchdog.",
+  "label": "depth",
+  "key": "queuefeederthread x2",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "This page is about the machinery that lets those activities share memory and wait for each other without corrupting data or wasting CPUs.",
+  "label": "core",
+  "key": "share memory and wait for each other",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The running example is the training job of the root page (a CPU-only PyTorch run with a memory-mapped dataset and two DataLoader workers).",
+  "label": "depth",
+  "key": "the running example is the training job",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Seen as threads, while it trains (measured in section 10): main process (the training loop) ├─ MainThread runs forward, backward, optimizer step; holds the GIL while in Python ├─ QueueFeederThread x2 pickles batch indices into each worker's pipe └─ native threads OpenMP's pool for PyTorch's math; asleep in futex_wait between operators worker process x2 (fork of main) ├─ pt_data_worker reads samples, builds a batch, puts it on the result queue └─ helper threads queue feeder, file-descriptor server; asleep in poll or futex_wait Almost every one of those threads is asleep at any instant, and nearly all of them are asleep in the same kernel function, futex_wait .",
+  "label": "depth",
+  "key": "seen as threads, while it trains (measured",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The rest of the page explains why.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Mechanism The problem it solves Cost measured here Where it bites in ML work See it with Thread Several flows of control sharing one address space create + join 136.0 µs in this VM; 8 MiB of address space each, almost none of it touched Thread pools sized from the machine, not the container (the root's Debug lab) ls /proc/<pid>/task , top -H Atomic instruction A read-modify-write no other core can split 8.3 ns per update, uncontended Reference counts, counters, lock words the assembly ( ldadd , ldaxr / stlxr ) Lock (mutex) Only one thread at a time in a critical section 10.1 ns uncontended; a spinlock wastes whole time slices when the holder is preempted Logging, metrics, allocator and queue locks under many threads perf lock , strace -f -e futex Futex Sleep in the kernel only when a lock is really taken 0 system calls uncontended; a wake-up costs 1.7 µs on one CPU, 23.5 µs across CPUs in this VM Every PyTorch, NCCL and Python lock and queue /proc/<pid>/task/*/wchan shows futex_wait_queue_me Condition variable, semaphore Sleep until something is true (\"a batch is ready\") Mesa semantics: woken is not \"true\"; one shared condition variable hangs Producer/consumer queues in loaders and servers py-spy, gdb Deadlock A cycle of threads each waiting for the next Hangs forever at 0% CPU Fork with a held lock; lock-order bugs in callbacks py-spy dump , wchan GIL CPython's one lock for all Python bytecode An I/O thread wakes 8.0 ms late next to one busy Python thread Latency of a data or serving thread next to Python work sys.getswitchinterval() , py-spy epoll, io_uring One thread waiting on thousands of connections or I/Os poll on 10,000 descriptors 650 µs per call, epoll_wait 352 ns Async model servers, data streaming clients, asyncio strace -e epoll_pwait All numbers on this page were measured in Docker Desktop's Linux VM on an Apple M1 Pro (Linux 5.10.104, arm64, 5 CPUs, glibc 2.36, Python 3.11.2, torch 2.14.1 CPU), 2026-10-05, with other experiments sharing the VM: measured here marks them, from source marks what is read from code at a pinned tag, not run here marks what needs a GPU or a newer kernel.",
+  "label": "depth",
+  "key": "mechanism the problem it solves cost measured",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Raw outputs are in the page's src/runs/out/ .",
+  "label": "depth",
+  "key": "raw outputs are in the page's src/runs/out/",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "How to read this page.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Sections 1 to 6 follow OSTEP's concurrency chapters (26 to 32) and add the Linux interfaces; section 4 (the futex) and section 9 (event-driven I/O) go furthest beyond the book.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "reading order: replaced by the OSTEP map in depth"
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Every section stands on its own.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The Interleaving lab lets you be the scheduler and break locks yourself; the Event loop lab animates one set of connections through threads, poll, epoll and io_uring.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to removed lab tabs (now inline)"
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "Threads: several flows of control, one address space ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "26 Concurrency: an introduction, ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "27 Thread API The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "A process (the sibling page Processes and the system-call API owns it) is one running program with one flow of control: one program counter (the address of the next instruction) and one stack (the memory holding local variables and return addresses of the functions in progress).",
+  "label": "core",
+  "key": "one flow of control: one program counter",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "To use several cores on one shared data structure, a program needs several flows of control that see the same memory.",
+  "label": "core",
+  "key": "to use several cores on one shared",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "That is a thread : its own registers, program counter and stack, and everything else (heap, globals, open files, signal handlers) shared with the other threads of its process.",
+  "label": "core",
+  "key": "that is a thread : its own",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "How Linux makes one.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "The kernel has no separate thread object: a thread is a task (the kernel's schedulable unit, a task_struct ) that shares its parent's memory and tables because of the flags it was created with. pthread_create in glibc 2.36 asks for exactly this sharing ( nptl/pthread_create.c L277-281 ), and strace shows the whole recipe for one thread measured here : CLONE_VM, CLONE_FILES, CLONE_FS, CLONE_SIGHAND share the address space, the file-descriptor table, the working directory, and the signal handlers CLONE_THREAD same thread group: same process id for getpid() , a new thread id ( gettid() ) CLONE_SETTLS point the thread-pointer register ( tpidr_el0 on arm64, fs on x86-64) at this thread's thread-local storage CLONE_CHILD_CLEARTID when the thread exits, the kernel writes 0 to its id word and does a futex wake on it: that is how pthread_join learns it ended Before the clone , glibc maps the new thread's stack: 8 MiB (the default comes from the stack resource limit, ulimit -s = 8192 KiB) plus a guard region mapped PROT_NONE so that a stack overflow faults instead of silently overwriting a neighbour.",
+  "label": "core",
+  "key": "the kernel has no separate thread object:",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "The guard is 64 KiB here although pthread_attr_getguardsize reports 4096 bytes: glibc rounds it up to the architecture minimum on arm64 ( sysdeps/aarch64/nptl/pthreaddef.h L23 , nptl/allocatestack.c L345-346 ).",
+  "label": "depth",
+  "key": "the guard is 64 kib here although",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "Newer glibc versions try clone3 first and fall back to clone ( clone-internal.c L52-55 ); glibc 2.36 on arm64 has no clone3 wrapper, so the trace shows plain clone .",
+  "label": "depth",
+  "key": "newer glibc versions try clone3 first and",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "Thread-local storage (TLS) is a variable declared __thread (C) or thread_local (C++): one copy per thread, found through the thread pointer. errno is one, which is why two threads can make failing system calls at once without overwriting each other's error code.",
+  "label": "depth",
+  "key": "thread-local storage (tls) is a variable declared",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "The same program printed its variables' addresses from three threads: Thread 0 is the main thread.",
+  "label": "depth",
+  "key": "the same program printed its variables' addresses",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "The shared global has one address; tls_var and the stack differ between the main thread and the others.",
+  "label": "depth",
+  "key": "the shared global has one address; tls_var",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "Threads 1 and 2 print the same addresses because the program joins thread 1 before creating thread 2, and glibc reuses the cached stack and TLS block.",
+  "label": "depth",
+  "key": "threads 1 and 2 print the same",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "Cost measured here : creating and joining an empty thread took 136.0 µs with 4 CPUs available and 12.0 µs pinned to one CPU (best of 5 × 2000).",
+  "label": "core",
+  "key": "cost measured here : creating and joining",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "The difference is the cross-CPU wake-up, which is unusually expensive in this VM (section 4 measures it).",
+  "label": "core",
+  "key": "unusually expensive in this vm (section 4",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "The 8 MiB stack costs address space, not memory: 2,000 idle threads in section 9 reserved 18683 MiB of virtual memory but added only 13 MiB of resident memory, because untouched stack pages are never allocated (copy-on-write and demand paging: the sibling Virtual memory page).",
+  "label": "core",
+  "key": "address space, not memory: 2,000 idle threads",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "A thread is cheaper to create and shares memory for free; a process gets a separate address space, so a crash or a corrupted heap in one cannot touch the other, and in CPython each process has its own GIL (section 8).",
+  "label": "core",
+  "key": "a crash or a corrupted heap in",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "PyTorch's DataLoader uses processes for that reason, and pays with pickling and shared memory to move batches.",
+  "label": "core",
+  "key": "uses worker processes for exactly that trade",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "On Linux both are tasks, so a container's pids.max limit counts threads too: the root's Debug lab case \"BlockingIOError on fork: the pids limit counts threads too\" shows it.",
+  "label": "core",
+  "key": "\"blockingioerror on fork: the pids limit counts",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "Predict: one thread of a training process calls exit(1) from a background thread.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "drill question; the answer is kept in depth"
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "What happens to the other threads?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "drill question"
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "Only that thread ends The whole process ends The others end when they next make a system call exit calls exit_group , which ends every thread in the thread group.",
+  "label": "depth",
+  "key": "exit calls exit_group , which ends every",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "To end only the calling thread, return from its function or call pthread_exit .",
+  "label": "depth",
+  "key": "to end only the calling thread, return",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. threads: several flows of control, one address space",
+  "text": "The same holds for a signal whose default action is to terminate: it kills the whole process, whichever thread it was delivered to.",
+  "label": "depth",
+  "key": "the same holds for a signal whose",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Races, atomic instructions and memory order ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "26.3 to 26.5, ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "28.6 to 28.11 The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "When two threads update the same memory and nothing orders them, the result depends on timing: a race condition .",
+  "label": "core",
+  "key": "when two threads update the same memory",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "The classic one, count = count + 1 on two threads, is three instructions (load, add, store); if both threads load the same old value, one increment is lost.",
+  "label": "core",
+  "key": "the classic one, count = count +",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "The root page measured it (two threads, 10 million increments each, about half lost) and its OS simulators tab steps the three instructions one at a time.",
+  "label": "core",
+  "key": "(two threads, 10 million increments each, about",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "A piece of code that touches shared data and must not run in two threads at once is a critical section ; the guarantee that at most one thread is inside is mutual exclusion .",
+  "label": "core",
+  "key": "code that touches shared data and must",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "The hardware fix is an instruction that reads, modifies and writes one memory word as one indivisible step, which no other core can split.",
+  "label": "core",
+  "key": "one read-modify-write of one word as one indivisible step",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Three families matter: Fetch-and-add old = *p; *p = old + v in one step. arm64 v8.1 has ldadd ; x86-64 has lock xadd .",
+  "label": "core",
+  "key": "three families matter: fetch-and-add old = *p;",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Counters and reference counts.",
+  "label": "core",
+  "key": "counters and reference counts",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Exchange (test-and-set) old = *p; *p = v .",
+  "label": "core",
+  "key": "exchange (test-and-set) old = *p; *p =",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "The simplest lock: while (xchg(&l, 1) == 1) ; Compare-and-swap (CAS) if *p == expected then *p = new , and say whether it did.",
+  "label": "core",
+  "key": "the simplest lock: while (xchg(&l, 1) ==",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Everything lock-free is built on it. arm64 v8.1 cas ; x86-64 lock cmpxchg .",
+  "label": "core",
+  "key": "everything lock-free is built on it. arm64",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Load-linked / store-conditional the older arm64 form ( ldaxr then stlxr ): the store fails if anyone wrote the word in between, and the code loops.",
+  "label": "depth",
+  "key": "the older arm64 form ( ldaxr then",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "GCC's \"outline atomics\" pick LSE or LL/SC at run time (the root's assembly shows a call to __aarch64_ldadd8_acq_rel ).",
+  "label": "depth",
+  "key": "gcc's \"outline atomics\" pick lse or ll/sc",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "An atomic update is not free: on one thread it cost 8.3 ns here against well under a nanosecond for a plain add, and with four threads updating one counter the cache line holding it bounces between cores (the C++ page's false-sharing measurement shows the same effect for neighbouring variables).",
+  "label": "core",
+  "key": "an atomic update is not free: on",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "A second, subtler problem: cores do not make their writes visible to each other in program order.",
+  "label": "core",
+  "key": "do not make their writes visible to",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Each core puts stores in a private store buffer and lets later loads run ahead of them.",
+  "label": "core",
+  "key": "each core puts stores in a private",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "On x86-64 only that one reordering (a later load passing an earlier store) is allowed; arm64 allows more.",
+  "label": "core",
+  "key": "only that one reordering (a later load",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Part 2 of the C++ page measures the message-passing reordering on this same chip and explains acquire, release and sequentially consistent orders; here is what it does to a lock.",
+  "label": "core",
+  "key": "part 2 of the c++ page measures",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Peterson's algorithm (OSTEP 28.6) is a correct lock for two threads using only loads and stores, proved in 1981 on the assumption that memory is sequentially consistent: void lock( int me) { int other = 1 - me; flag[me] = 1; // I want in turn = other; // but you go first if you also want in while (flag[other] && turn == other) ; // wait while you want in and it is your turn } void unlock( int me) { flag[me] = 0; } If the store flag[me] = 1 is still in this core's store buffer when the load flag[other] runs, both threads can read the other's flag as 0 and both enter.",
+  "label": "core",
+  "key": "peterson's algorithm (ostep 28.6) is a correct",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Two threads, each entering 20 million times, with a non-atomic count = count + 1 inside measured here ( src/runs/c/peterson.c ): The fix is to declare the order you need: with sequentially consistent atomics the compiler emits the ordering instructions ( stlr and ldar on arm64, or a full barrier dmb ish ), and the lock is correct.",
+  "label": "core",
+  "key": "two threads, each entering 20 million times,",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Real locks never rely on plain loads and stores; they use an atomic exchange or CAS, which carry the ordering with them (acquire on lock, release on unlock).",
+  "label": "core",
+  "key": "real locks never rely on plain loads",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Predict: a volatile int counter, incremented by two threads.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "drill question; the answer is now prose in section 2"
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Does volatile make count++ safe?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "drill question"
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Yes, volatile makes each access atomic No Only on x86-64 No. volatile only stops the compiler from removing or merging the accesses; the load, add and store are still three steps, and nothing orders them across cores.",
+  "label": "core",
+  "key": "only stops the compiler from removing or",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "The root's race measurement used a volatile counter and lost about half the increments.",
+  "label": "core",
+  "key": "the root's race measurement used a volatile",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. races, atomic instructions and memory order",
+  "text": "Use an atomic ( std::atomic , __atomic_fetch_add ) or a lock.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the fix sentence"
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Locks: spin, yield, or sleep ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "29 Lock-based concurrent data structures A lock (or mutex , for mutual exclusion) is a word in memory plus two operations: lock() returns only when the caller owns it, unlock() gives it up.",
+  "label": "core",
+  "key": "29 lock-based concurrent data structures a lock",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "OSTEP judges a lock on three things: correctness (mutual exclusion), fairness (does every waiter eventually get it, or can one starve?) and performance (with no contention, with contention on many CPUs, and with contention on one CPU).",
+  "label": "core",
+  "key": "ostep judges a lock on correctness",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "The design question is what a thread does when the lock is taken: Spin keep retrying the atomic exchange.",
+  "label": "core",
+  "key": "the design question is what a thread",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Best when the holder is running on another core and will release within nanoseconds.",
+  "label": "core",
+  "key": "on another core and will release within",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Terrible when the holder is not running: the spinner burns its whole time slice.",
+  "label": "core",
+  "key": "the spinner burns its whole time slice.",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Yield retry, and call sched_yield() after each failure to give the CPU away (OSTEP 28.13).",
+  "label": "core",
+  "key": "sched_yield() after each failure",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "A system call per failed attempt, and no promise about who runs next.",
+  "label": "core",
+  "key": "a system call per failed attempt, and",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Sleep ask the kernel to put the thread on a wait queue and wake it when the lock is released.",
+  "label": "core",
+  "key": "sleep ask the kernel to put the",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Costs two system calls and a wake-up when contended, nothing else.",
+  "label": "core",
+  "key": "two system calls and a wake-up when",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Spin, then sleep (two-phase or adaptive locks) spin briefly in case the holder is about to release, then sleep. glibc's PTHREAD_MUTEX_ADAPTIVE_NP spins at most 100 rounds by default, with exponential backoff ( nptl/pthread_mutex_lock.c L139-158 ; tunable glibc.pthread.mutex_spin_count ).",
+  "label": "core",
+  "key": "spin briefly in case the holder is",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Seven ways to protect one shared counter, measured in four situations measured here ( src/runs/c/locks.c ; \"work\" is a loop of about 0.3 ns per iteration; median of 3 runs; per-run values in the raw output): 1 thread, no contention 4 threads on 4 CPUs, short critical section 4 threads hammering 4 threads on 1 CPU, long critical section Wall time per acquisition CPU time per acquisition What to take from it: Uncontended, a good lock costs about as much as one atomic instruction ( 9.2 ns for the hand-built futex lock, 10.1 ns for pthread_mutex_t ), because it never enters the kernel.",
+  "label": "core",
+  "key": "in four situations measured here ( src/runs/c/locks.c",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "A lock that makes a system call on every unlock costs 288.6 ns: about thirty times more, for nothing.",
+  "label": "core",
+  "key": "a lock that makes a system call",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Contended on enough CPUs, spinning burns CPU: with a short critical section the spinlock used 910.3 ns of CPU per acquisition against 437.2 ns for the mutex, and was slower in wall time too, because four cores fighting over one cache line slow each other down.",
+  "label": "core",
+  "key": "contended on enough cpus, spinning burns cpu:",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "With more threads than CPUs, a spinner can wait for a thread that is not running.",
+  "label": "core",
+  "key": "with more threads than cpus, a spinner",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "On one CPU with a long critical section, the holder is often preempted inside it; each spinner then burns a whole time slice before the holder runs again: 1492.5 ns per acquisition against 815.9 ns for the mutex and 791.5 ns for one thread doing the same work alone.",
+  "label": "core",
+  "key": "on one cpu with a long critical",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Hammering a lock rewards unfairness.",
+  "label": "core",
+  "key": "hammering a lock rewards unfairness",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "In the no-work scenario the yield lock looks fastest, because a thread that just released the lock usually takes it again while its cache line is still hot and the others are yielding; the work is done, but by one thread at a time in long runs.",
+  "label": "core",
+  "key": "one thread at a time in",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Fairness costs throughput; a ticket lock (OSTEP 28.11: fetch-and-add a ticket, wait for your number) is fair and slower.",
+  "label": "core",
+  "key": "a ticket lock (ostep 28.11: fetch-and-add a",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Never use a spinlock in user space unless every thread has its own CPU (as with pinned threads in a low-latency system).",
+  "label": "core",
+  "key": "in user space unless every thread has",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "This is why the Linux kernel spins (kernel code can disable preemption while holding a spinlock) and user space sleeps.",
+  "label": "core",
+  "key": "code can disable preemption while holding a",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Predict: a container with a one-CPU limit runs a job whose 8 threads take a spinlock around a 50 µs critical section.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "drill question; answer kept in section 3"
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "Roughly how long can one waiter spin before the holder runs again?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "drill question"
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "About 50 µs Milliseconds: a whole scheduler time slice, or a whole cgroup period It cannot spin: the kernel detects it The holder can be descheduled inside the critical section; then every spinner that runs uses its full slice (a few milliseconds under CFS) doing nothing, and under a CPU quota the whole cgroup can be throttled until the next 100 ms period (the root's Debug lab, \"CPU limit\" cases).",
+  "label": "core",
+  "key": "and under a cpu quota the whole",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. locks: spin, yield, or sleep",
+  "text": "The measured one-CPU case above shows the effect at small scale.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the bullet"
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "The futex: how every Linux lock sleeps ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "28.14 to 28.16 (Linux futex, two-phase locks) from source measured here The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Sleeping needs the kernel (only the kernel can take a thread off the CPU and put it back), but entering the kernel costs about 300 ns, thirty times an uncontended lock.",
+  "label": "core",
+  "key": "costs about 300 ns, thirty times an",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Before futexes, user-space locks paid for a system call either on every operation or on none (and then spun).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "history the problem statement already carries"
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "The futex (\"fast user-space mutex\", Linux 2.6, 2003) splits the job: the lock word lives in ordinary user memory and is changed with atomic instructions; the kernel is asked only to sleep on that word or to wake sleepers on it ( futex(2) ; Drepper, Futexes Are Tricky , 2011).",
+  "label": "core",
+  "key": "the futex (\"fast user-space mutex\", linux 2.6,",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Two operations do almost all the work: futex_wait(addr, val) \"if *addr still equals val , put me to sleep on addr ; otherwise return at once with EAGAIN\".",
+  "label": "core",
+  "key": "two operations do almost all the work:",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "The comparison and the going to sleep happen together inside the kernel, under a lock no waker can slip past. futex_wake(addr, n) \"wake up to n threads sleeping on addr \".",
+  "label": "core",
+  "key": "the comparison and the going to sleep",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "It does not change *addr ; the user-space code changed it already. glibc's mutex protocol uses three values for the lock word: 0 free, 1 locked with nobody waiting, 2 locked and someone may be waiting.",
+  "label": "core",
+  "key": "it does not change *addr ; the",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Simplified from sysdeps/nptl/lowlevellock.h L94-106 and L145-160 and nptl/lowlevellock.c L38-50 : void lock( int *w) { if (CAS(w, 0, 1)) return ; // fast path: free, now mine, no system call if (*w == 2) goto wait; while (xchg(w, 2) != 0) // mark \"waiters\"; if it was 0 I own it now (as 2) wait: futex_wait(w, 2); // sleep, but only if it is still 2 } void unlock( int *w) { if (xchg(w, 0) > 1) // was 2: someone may be asleep futex_wake(w, 1); // wake one; it retries the xchg } Uncontended, lock is one CAS and unlock one exchange: no system call.",
+  "label": "core",
+  "key": "simplified from sysdeps/nptl/lowlevellock.h l94-106 and l145-160 and",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Only a thread that finds the lock taken calls futex_wait , and only an unlock that sees 2 calls futex_wake .",
+  "label": "core",
+  "key": "was 2: someone may be asleep",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "A thread that takes the lock after a wait sets it to 2, not 1, because it cannot know whether others are still asleep: an occasional unneeded wake-up is the price of never missing one.",
+  "label": "core",
+  "key": "a thread that takes the lock after",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "The hand-built version in locks.c counts its own system calls: with four threads and short critical sections it made 208840 futex waits in 2 million acquisitions (about one acquisition in ten had to sleep).",
+  "label": "core",
+  "key": "the hand-built version in locks.c counts its",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Why the kernel must compare: the lost wake-up Why not check the lock word in user space and then call a plain \"sleep\"?",
+  "label": "core",
+  "key": "why the kernel must compare: the lost",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Because between the check and the sleep, the holder can unlock and send its wake-up to a thread that is not asleep yet; the wake-up is lost, and the waiter then sleeps forever.",
+  "label": "core",
+  "key": "the holder can unlock and send its",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "The kernel source states the rule ( kernel/futex.c L2633-2648, v5.10 ): * The basic logical guarantee of a futex is that it blocks ONLY * if cond(var) is known to be true at the time of blocking, for * any cond.",
+  "label": "core",
+  "key": "the kernel source states the rule (",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "If we locked the hash-bucket after testing *uaddr, that * would open a race condition where we could block indefinitely with * cond(var) false, which would violate the guarantee.",
+  "label": "core",
+  "key": "if we locked the hash-bucket after testing",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "So futex_wait_setup locks the wait queue first, then reads *uaddr , and returns EAGAIN if it changed ( L2650-2678 ).",
+  "label": "core",
+  "key": "so futex_wait_setup locks the wait queue first,",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "The Interleaving lab lets you produce the lost wake-up yourself in the \"check, then sleep\" lock (54 of its 376 possible schedules leave a thread asleep forever) and shows that the futex version has none.",
+  "label": "core",
+  "key": "of its 376 possible schedules leave a",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Where the sleepers are kept The kernel does not allocate anything per futex while nobody waits.",
+  "label": "depth",
+  "key": "the kernel does not allocate anything per",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Sleepers go into one global hash table of wait queues, indexed by a key for the address: for a private futex (threads of one process; glibc passes FUTEX_PRIVATE_FLAG ) the key is the address space and the virtual address; for a shared futex (a lock in memory mapped by several processes) it is the underlying page and offset, so different virtual addresses in different processes meet in the same queue ( get_futex_key, kernel/futex.c L487-653 ).",
+  "label": "depth",
+  "key": "sleepers go into one global hash table",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "The table has roundup_pow_of_two(256 × CPUs) buckets ( L4050 ), 2,048 on this 5-CPU VM.",
+  "label": "depth",
+  "key": "the table has roundup_pow_of_two(256 × cpus) buckets",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Python's multiprocessing.Lock is a POSIX semaphore in a /dev/shm/sem.* file mapped by both processes, so its futex is shared: no _PRIVATE in the trace measured here : One contended lock, four ways: before and after the futex The animation runs one input through four lock designs: threads A and B each need the lock twice (a critical section of 2 µs, 1 µs of other work between), while thread C has 8 µs of unrelated work and no lock, all on 2 CPUs.",
+  "label": "depth",
+  "key": "python's multiprocessing.lock is a posix semaphore in",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Costs are this VM's measured ones where they exist: a futex system call 0.3 µs (the \"wake on every unlock\" lock's 288.6 ns per pair), and a wake-up of 1.7 µs (same CPU) or 23.5 µs (across CPUs in this VM; switch below), half a ping-pong round trip.",
+  "label": "core",
+  "key": "a futex system call 0.3 µs (the",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "The time slice is shortened to 3 µs so that preemption shows up at this scale illustrative slice .",
+  "label": "core",
+  "key": "the time slice is shortened to 3",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Spinlock Kernel on every unlock Futex (glibc) Spin, then futex Wake-up on the same CPU Wake-up across CPUs (this VM) What to try: run the spinlock, then the futex: the futex frees the CPU for thread C but each hand-off now pays a wake-up.",
+  "label": "core",
+  "key": "spinlock kernel on every unlock futex (glibc)",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Switch to the cross-CPU wake-up: the futex's hand-offs become far slower than spinning, which is exactly why glibc offers an adaptive mutex and why the kernel and NCCL spin when they expect the wait to be short.",
+  "label": "core",
+  "key": "switch to the cross-cpu wake-up: the futex's",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "What a wake-up costs Two threads passing a turn back and forth 200,000 times measured here ( pingpong.c ; round trip = two hand-offs; median of 5): On one CPU a hand-off is a context switch: 1.7 µs, in line with the root's 1.33 µs pipe ping-pong.",
+  "label": "core",
+  "key": "two threads passing a turn back and",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Across CPUs it is slower here because the sleeping CPU has gone idle and must be woken by an inter-processor interrupt, which a virtual machine turns into a trip through the hypervisor (here a GICv2 emulated in QEMU, with the idle vCPU a host thread that must itself be woken: Virtualization and the GPU driver stack , section 5, measures each step); how much lower it is on bare metal was not measured here not run here .",
+  "label": "core",
+  "key": "must be woken by an inter-processor interrupt,",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Spinning across two CPUs never sleeps ( 0.09 µs per round trip, median of 5; one run took 44.8 µs when another workload took one of the CPUs), but on one CPU each spin waits for a whole time slice: 19.8 ms per round trip, about 220,000 times slower.",
+  "label": "core",
+  "key": "spinning across two cpus never sleeps (",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "The rest of the futex family FUTEX_WAIT_BITSET with FUTEX_CLOCK_REALTIME : a wait with an absolute deadline; glibc uses it for timed waits and POSIX semaphores (the trace above).",
+  "label": "depth",
+  "key": "futex_wait_bitset with futex_clock_realtime : a wait with",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "FUTEX_CMP_REQUEUE : wake one waiter and move the rest from a condition variable's futex to the mutex's, so a broadcast does not wake a herd that would immediately fight for the mutex (the thundering herd ). glibc 2.25 (2017) replaced its condition variables with an algorithm based on groups of waiters that never requeues (no requeue call appears in nptl/pthread_cond_wait.c, glibc 2.36 ); the operation remains in use for priority-inheritance locks.",
+  "label": "depth",
+  "key": "futex_cmp_requeue : wake one waiter and move",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "FUTEX_LOCK_PI : priority inheritance ; the kernel knows the owner (its thread id is in the word) and boosts it while a higher-priority thread waits.",
+  "label": "depth",
+  "key": "futex_lock_pi : priority inheritance ; the kernel",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "It fixes priority inversion , the bug that kept resetting NASA's Mars Pathfinder in 1997 ( account by Glenn Reeves ).",
+  "label": "depth",
+  "key": "it fixes priority inversion , the bug",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Robust futexes : the kernel walks a per-thread list at exit and marks locks held by a dead thread ( EOWNERDEAD ), for locks in memory shared between processes. futex_waitv (Linux 5.16) waits on several futexes at once, added for Wine and game engines ( futex2 docs ); not on this 5.10 kernel .",
+  "label": "depth",
+  "key": "robust futexes : the kernel walks a",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "In ML work Every lock and queue in the stack sleeps on a futex: Python's threading.Lock and queue.Queue , PyTorch's thread pools, libgomp's barriers, NCCL's proxy thread when idle.",
+  "label": "core",
+  "key": "python's threading.lock and queue.queue , pytorch's thread",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "So when a training process hangs, cat /proc/<pid>/task/*/wchan shows futex_wait_queue_me (5.10; futex_wait_queue on 6.x) for nearly every thread, and the question becomes which address each one waits on and who should have woken it: py-spy dump for Python frames, gdb -p <pid> -ex \"thread apply all bt\" for native ones (section 6).",
+  "label": "core",
+  "key": "/task/*/wchan shows futex_wait_queue_me (5.10; futex_wait_queue on 6.x)",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Predict: under strace, a busy training process shows futex(..., FUTEX_WAIT_PRIVATE, 2, NULL) = -1 EAGAIN thousands of times.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "drill question; answer kept in the ML box"
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "Yes: EAGAIN means the lock is broken No: the lock word changed between the user-space check and the kernel's check The futex table is full EAGAIN from futex_wait is the futex working as designed: by the time the kernel compared, the holder had released (or someone changed the word), so sleeping would have been wrong.",
+  "label": "core",
+  "key": "the word changed before the kernel compared",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "The caller simply retries.",
+  "label": "core",
+  "key": "the caller retries",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "4. the futex: how every linux lock sleeps",
+  "text": "In the job's trace in section 10, about a fifth of all futex calls return an error ( strace -c counts errors without naming them; for these waits the usual ones are EAGAIN and, for timed waits, ETIMEDOUT).",
+  "label": "core",
+  "key": "for these waits the usual ones are",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "Waiting for something: condition variables, semaphores, reader-writer locks, barriers ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "30 Condition variables, ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "31 Semaphores The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "A lock says \"one at a time\"; it cannot say \"wait until a batch is ready\" or \"wait until there is room in the queue\".",
+  "label": "core",
+  "key": "a lock says \"one at a time\";",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "Checking a flag in a loop (spinning) wastes a CPU; a thread needs to sleep until another thread says the condition may now hold.",
+  "label": "core",
+  "key": "sleep until another thread says",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "A condition variable is a queue of sleeping threads attached to a condition the program tracks in its own variables, always used with a mutex: wait(cv, m) atomically releases m and sleeps, and re-takes m before returning; signal(cv) wakes one sleeper, broadcast(cv) wakes all.",
+  "label": "core",
+  "key": "a condition variable is a queue of",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "The atomic \"release and sleep\" is the same lost-wake-up problem as in section 4, solved the same way (glibc builds it on futexes).",
+  "label": "core",
+  "key": "solved the same way (glibc builds it",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "Rule 1: re-check the condition in a while loop.",
+  "label": "core",
+  "key": "rule 1: re-check the condition in a",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "POSIX and Linux use Mesa semantics : a woken thread is only told that the condition was true at some moment; another thread may have run in between and made it false again (and implementations may wake a thread spuriously).",
+  "label": "core",
+  "key": "posix and linux use mesa semantics :",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "OSTEP's producer/consumer with one slot, one producer and two consumers, run for 200,000 items measured here ( condvar.c ): With if , a consumer woke up to an empty slot 45 to 88 times per run: in real code that is reading garbage or an exception from an empty queue, rarely enough to pass every test.",
+  "label": "core",
+  "key": "ostep's producer/consumer with one slot, one producer",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "With while , the same situations happen ( 37 to 70 re-checks per run) and are harmless.",
+  "label": "core",
+  "key": "with while , the same situations happen",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "Rule 2: one condition variable per condition.",
+  "label": "core",
+  "key": "rule 2: one condition variable per condition.",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "With one variable shared by \"slot full\" and \"slot empty\", a consumer's signal can wake the other consumer instead of the producer; then all three sleep, and the program hangs at 0% CPU.",
+  "label": "core",
+  "key": "with one variable shared by \"slot full\"",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "It hung in 3 of 3 runs, after a handful of items.",
+  "label": "core",
+  "key": "it hung in 3 of 3 runs,",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "Use two condition variables (or broadcast, which is correct but wakes everyone).",
+  "label": "core",
+  "key": "use two condition variables (or broadcast, which",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "The Interleaving lab counts every possible schedule of a two-item version: with if , 64,228 of 42,827,788 schedules make a consumer read an empty slot; with while , none of 91,732,872 do.",
+  "label": "core",
+  "key": "schedule of a two-item version: with if",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "A semaphore (Dijkstra, 1960s) is a counter with two operations: wait (also P, down) decrements it and sleeps while it would go below zero; post (V, up) increments it and wakes a sleeper.",
+  "label": "core",
+  "key": "a semaphore (dijkstra, 1960s) is a counter",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "Initialised to 1 it is a lock; to N it admits at most N holders at once (\"at most 2 prefetched batches per worker\" is this idea: the DataLoader's prefetch_factor ); to 0 it is a \"wait until done\" signal.",
+  "label": "core",
+  "key": "initialised to 1 it is a lock;",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "POSIX sem_t is a futex word; multiprocessing 's locks, semaphores and queues are sem_t in /dev/shm (section 4's trace).",
+  "label": "core",
+  "key": "posix sem_t is a futex word; multiprocessing",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "Semaphores are easy to misuse because, unlike a mutex, any thread can post them: nothing records an owner.",
+  "label": "core",
+  "key": "unlike a mutex, any thread can post",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "A reader-writer lock lets many readers in at once or one writer alone; good for data read far more than written (a model registry, a config).",
+  "label": "depth",
+  "key": "a reader-writer lock lets many readers in",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "The catch is starvation: glibc's pthread_rwlock_t prefers readers by default, so a steady stream of readers can keep a writer waiting indefinitely ( PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP changes it; pthread_rwlockattr_setkind_np(3) ).",
+  "label": "depth",
+  "key": "the catch is starvation: glibc's pthread_rwlock_t prefers",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "For short critical sections an rwlock is often slower than a mutex, since even readers write the shared reader count.",
+  "label": "depth",
+  "key": "for short critical sections an rwlock is",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "A barrier makes N threads wait until all N arrive.",
+  "label": "core",
+  "key": "a barrier makes n threads wait until",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "OpenMP puts one at the end of every parallel region, which is where PyTorch's math threads sit between operators: libgomp spins at the barrier for a while ( do_spin in libgomp/config/linux/wait.h ; tuned by GOMP_SPINCOUNT and OMP_WAIT_POLICY ) and then sleeps on a futex.",
+  "label": "core",
+  "key": "openmp puts one at the end of",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "The gdb snapshots in section 10 find the pool threads asleep in futex_wait inside gomp_barrier_wait_end .",
+  "label": "core",
+  "key": "in futex_wait inside gomp_barrier_wait_end .",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "5. waiting for something: condition variables, semaphores, reader-writer locks, barriers",
+  "text": "In ML work NCCL's proxy thread sleeps on a C++ condition variable when it has nothing to progress, with the predicate the comment calls out: \"Predicate avoids lost wakeups and guarantees we observe stop after ncclProxyProgressDestroy\" ( src/proxy.cc L849-851, NCCL v2.32.3-1 ). pool->cond.wait(lock, predicate) is exactly rule 1, the while loop written as a lambda.",
+  "label": "core",
+  "key": "\"predicate avoids lost wakeups and guarantees we",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "Deadlock, and the other concurrency bugs ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "32 Common concurrency problems Lu et al. studied 105 concurrency bugs in MySQL, Apache, Mozilla and OpenOffice: 74 were not deadlocks and 31 were; 97% of the non-deadlock bugs were of two kinds (as summarised in OSTEP ch.",
+  "label": "depth",
+  "key": "lu et al. studied 105 concurrency bugs",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "32, from Learning from Mistakes, ASPLOS 2008 ): Atomicity violation code assumed two steps happen together, and another thread ran between them: if (p) use(p); while another thread sets p = NULL .",
+  "label": "depth",
+  "key": "32, from learning from mistakes, asplos 2008",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "Fix: one lock around both steps.",
+  "label": "depth",
+  "key": "fix: one lock around both steps.",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "Order violation code assumed A happens before B, and nothing enforced it: a thread uses an object before its creator finished initialising it.",
+  "label": "depth",
+  "key": "order violation code assumed a happens before",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "Fix: a condition variable or semaphore that B waits on.",
+  "label": "depth",
+  "key": "fix: a condition variable or semaphore that",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "A deadlock is a set of threads each waiting for something another member of the set holds, so none can move.",
+  "label": "core",
+  "key": "a deadlock is a set of threads",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "It needs four conditions at once (Coffman, 1971): mutual exclusion (resources are held exclusively), hold and wait (a thread holds one while waiting for another), no preemption (nobody can take a held lock away), and a circular wait .",
+  "label": "core",
+  "key": "it needs four conditions at once (coffman,",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "Remove any one and deadlock is impossible.",
+  "label": "core",
+  "key": "remove any one and deadlock is impossible.",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "In practice: Break How Cost Circular wait A global lock order: every thread takes locks in the same order (by level, or by address).",
+  "label": "core",
+  "key": "break how cost circular wait a global",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "The Linux kernel checks it at run time with lockdep , which records the order every lock class was ever taken in and warns at the first inversion, before any deadlock happens ( lockdep design ) Discipline; hard across libraries and callbacks Hold and wait Take all locks at once (behind one outer lock), or hold none while calling out Less concurrency No preemption trylock , and on failure release everything and retry, with random backoff Can livelock : threads keep backing off and retrying without progress Mutual exclusion Lock-free data structures (section 7) Much harder to write Seeing one.",
+  "label": "core",
+  "key": "the linux kernel checks it at run",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "Two Python threads take two locks in opposite orders ( deadlock.py ), then are inspected from outside measured here : The signature of a deadlock: every thread in state S (sleeping), every wait channel futex_wait_queue_me , 0% CPU, and py-spy pointing at the two with lines.",
+  "label": "core",
+  "key": "two python threads take two locks in",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "A busy-looping bug looks the opposite (state R, 100% CPU).",
+  "label": "core",
+  "key": "a busy-looping bug looks the opposite (state",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "With --ordered the same program finishes.",
+  "label": "core",
+  "key": "--ordered",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "Fixes and tools One lock order per program, written down; never call unknown code (callbacks, logging handlers, __del__ ) while holding a lock; lock.acquire(timeout=...) in Python turns a silent hang into an error you can log; faulthandler.dump_traceback_later(timeout) prints every thread's stack if the job stops progressing; glibc's PTHREAD_MUTEX_ERRORCHECK returns EDEADLK when a thread re-locks a mutex it holds; ThreadSanitizer ( -fsanitize=thread ) reports lock-order inversions as well as data races.",
+  "label": "core",
+  "key": "fixes and tools one lock order per",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "The training-job deadlock everyone meets is not two locks but fork while another thread holds one: the child gets a copy of the locked lock and no thread to release it.",
+  "label": "core",
+  "key": "the training-job deadlock everyone meets is not",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "The root's Debug lab reproduces it (\"A worker hangs forever: fork while another thread holds a lock\") and the sibling Processes page covers start methods; it is why Python 3.14 made forkserver the default on Linux.",
+  "label": "core",
+  "key": "the root's debug lab reproduces it (\"a",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "Database transactions face the same four conditions with a different cure (detect the cycle and abort a victim): Transactions and concurrency .",
+  "label": "core",
+  "key": "face the same four conditions with a",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "Predict: thread A holds lock L and calls logging.info() ; a logging handler, on another thread B, holds the handler's lock and calls a function that takes L.",
+  "label": "core",
+  "key": "each call is safe on its own",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "Nothing: logging is thread-safe A deadlock: A waits for the handler lock, B waits for L A RuntimeError \"Thread-safe\" only means each call is safe on its own.",
+  "label": "core",
+  "key": "each call is safe on its own",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "A holds L and wants the handler's lock; B holds the handler's lock and wants L: a circular wait.",
+  "label": "core",
+  "key": "is a circular wait",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "6. deadlock, and the other concurrency bugs",
+  "text": "The rule \"never call out while holding a lock\" exists for this case.",
+  "label": "core",
+  "key": "never call unknown code",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "7. lock-free, briefly",
+  "text": "Lock-free, briefly A lock-free data structure guarantees that some thread always makes progress, even if others are paused at any instruction, because nobody ever holds a lock.",
+  "label": "depth",
+  "key": "a lock-free data structure guarantees that some",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "7. lock-free, briefly",
+  "text": "The building block is a CAS loop: read the current value, compute the new one, and CAS it in; if another thread changed it meanwhile, the CAS fails and you retry.",
+  "label": "depth",
+  "key": "the building block is a cas loop:",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "7. lock-free, briefly",
+  "text": "A stack push: do { n->next = head; } while (!CAS(&head, n->next, n)); The traps: the ABA problem (the head was A, became B, became A again; the CAS succeeds although the list changed underneath; fixed with version counters or safe memory reclamation), and freeing memory another thread may still be reading (fixed by hazard pointers, epochs, or RCU , read-copy-update, which the Linux kernel uses so that readers take no lock at all: What is RCU ).",
+  "label": "depth",
+  "key": "a stack push: do { n->next =",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "7. lock-free, briefly",
+  "text": "The common, safe case in practice is a single-producer single-consumer ring buffer : one thread only advances the tail, the other only the head, and each reads the other's index with acquire order. io_uring's two rings (section 9) are exactly that, shared between a program and the kernel.",
+  "label": "depth",
+  "key": "the common, safe case in practice is",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "7. lock-free, briefly",
+  "text": "Use lock-free structures from a library (the C++ page's atomics, Rust's crossbeam, std::atomic counters); a lock is usually fast enough (section 3: 10 ns uncontended) and far easier to get right.",
+  "label": "depth",
+  "key": "use lock-free structures from a library (the",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "8. the gil, seen as an operating-system lock",
+  "text": "The GIL, seen as an operating-system lock from source measured here CPython's global interpreter lock lets one thread at a time run Python bytecode.",
+  "label": "core",
+  "key": "from source measured here cpython's global interpreter",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "8. the gil, seen as an operating-system lock",
+  "text": "The Python page covers what it means for your code and how the free-threaded build (3.13t, 3.14t) removes it; this section is about how it is built and what it does to latency.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer replaced by the new free-threaded section"
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "8. the gil, seen as an operating-system lock",
+  "text": "In CPython 3.11 it is the textbook construction of section 5: \"The GIL is just a boolean variable (locked) whose access is protected by a mutex (gil_mutex), and whose changes are signalled by a condition variable (gil_cond)\" ( Python/ceval_gil.h L13-16, v3.11.2 ).",
+  "label": "core",
+  "key": "5: \"the gil is just a boolean",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "8. the gil, seen as an operating-system lock",
+  "text": "A thread that wants the GIL waits on the condition variable for at most the switch interval (5 ms by default, DEFAULT_INTERVAL 5000 µs, L91 ); if the wait times out, it sets gil_drop_request , which the running thread checks between bytecodes, and the running thread then releases the GIL and waits until someone else has taken it (so it cannot grab it straight back).",
+  "label": "core",
+  "key": "a thread that wants the gil waits",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "8. the gil, seen as an operating-system lock",
+  "text": "A thread that blocks in a system call ( sleep , recv , read ) or in C code that releases the GIL (NumPy, PyTorch operators) lets others run meanwhile.",
+  "label": "core",
+  "key": "in a system call ( sleep ,",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "8. the gil, seen as an operating-system lock",
+  "text": "The consequence for latency: a thread that wakes up from I/O must get the GIL back, and if another thread is busy in Python it waits up to a whole switch interval.",
+  "label": "core",
+  "key": "if another thread is busy in python",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "8. the gil, seen as an operating-system lock",
+  "text": "An \"I/O\" thread sleeping 2 ms, 300 times, next to 0, 1 or 2 threads doing pure-Python arithmetic, on 2 CPUs ( gil_latency.py ; median of 3 runs): Next to one busy thread the I/O thread wakes 8.0 ms late (the 5 ms interval plus the wake-ups on both sides); next to two, 17.5 ms, with a 99th percentile of 86.9 ms, because the I/O thread competes with another waiter for each hand-over. sys.setswitchinterval(0.0005) brings it to 1.4 ms, at the price of more switching.",
+  "label": "core",
+  "key": "an \"i/o\" thread sleeping 2 ms, 300",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "8. the gil, seen as an operating-system lock",
+  "text": "This is the convoy effect David Beazley measured in 2010 for the GIL that 3.2 introduced ( Understanding the Python GIL ).",
+  "label": "core",
+  "key": "this is the convoy effect david beazley",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "8. the gil, seen as an operating-system lock",
+  "text": "In ML work A thread in the training process that must react quickly (a heartbeat to the cluster scheduler, a metrics sender, an asyncio loop serving requests next to Python preprocessing) is delayed by milliseconds whenever other Python threads compute.",
+  "label": "core",
+  "key": "heartbeat to the cluster scheduler, a metrics",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "8. the gil, seen as an operating-system lock",
+  "text": "Move the CPU work to processes or into GIL-releasing native code, or use a free-threaded build; the Python page measures free-threaded scaling and the lost updates it brings back.",
+  "label": "core",
+  "key": "parallel for native code that releases the gil",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Event-driven I/O: one thread, thousands of waits ch.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "33 Event-based concurrency from source measured here The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading or chapter tag"
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "A server with thousands of open connections (an inference server streaming tokens, a data service) spends almost all its time waiting.",
+  "label": "core",
+  "key": "a server with thousands of open connections",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "One thread per connection works but each thread is a stack, a kernel task and a context switch per event.",
+  "label": "core",
+  "key": "but each thread is a stack, a",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "2,000 connections, each a Unix socket pair, served by one thread each or by one asyncio loop ( conns.py ; median of 3): Threads reserve 8 MiB of address space each but touch little of it; the real costs are start-up and a context switch per message.",
+  "label": "core",
+  "key": "2,000 connections, each a unix socket pair,",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "The alternative is to ask the kernel one question, \"which of these file descriptors are ready?\", and handle only those.",
+  "label": "core",
+  "key": "\"which of these file descriptors are",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "A file descriptor is the small integer naming an open file, pipe or socket (the sibling Processes page owns them); it is ready when a read or write on it would not block.",
+  "label": "core",
+  "key": "integer naming an open file, pipe or",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Put it in non-blocking mode ( O_NONBLOCK ) and a read that would block returns EAGAIN instead. select and poll: the whole list, every time select (BSD, 1983) passes three bitmaps of descriptor numbers; poll (System V) passes an array of {fd, events} .",
+  "label": "core",
+  "key": "put it in non-blocking mode ( o_nonblock",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "On every call the kernel copies the list in, checks every descriptor's state, registers a wait on each, sleeps, and on wake-up checks them all again ( fs/select.c L512-534 and L909, v5.10 ); the program then scans the whole list again for the ready ones.",
+  "label": "core",
+  "key": "on every call the kernel copies the",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Cost grows with the number watched, not the number ready. select also has a hard limit: FD_SETSIZE is 1024, so it cannot watch descriptor 1024 or higher at all ( select(2) ). epoll: the list lives in the kernel epoll (Linux 2.6, 2002) splits registration from waiting: epoll_ctl(ADD) registers a descriptor once, and the kernel keeps the interest list in a red-black tree and a separate ready list ( fs/eventpoll.c L195-204 ).",
+  "label": "core",
+  "key": "cannot watch descriptor 1024 or higher at",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "When data arrives on a socket, the socket's wait-queue callback ep_poll_callback appends that one item to the ready list ( L1244-1248 ); epoll_wait just takes items off the ready list.",
+  "label": "core",
+  "key": "the socket's wait-queue callback ep_poll_callback appends that",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Its cost depends on the number ready, not the number watched.",
+  "label": "core",
+  "key": "cost follows the number ready",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "With N pipes watched and exactly one readable ( evloop.c , one call returning one ready descriptor): Level-triggered and edge-triggered By default epoll is level-triggered : a descriptor is reported on every epoll_wait while data remains, because after reporting it the kernel puts it back on the ready list ( L1758-1771 ).",
+  "label": "core",
+  "key": "with n pipes watched and exactly one",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "With EPOLLET it is edge-triggered : reported once per change (new data arriving), and not put back.",
+  "label": "core",
+  "key": "with epollet it is edge-triggered : reported",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Write 10 bytes to a pipe, read only 4, and ask again measured here : Edge-triggered is cheaper (no re-reporting) but has one rule: after an edge, read (or accept, or write) until EAGAIN , or the remaining 6 bytes sit there unreported until more data happens to arrive, which on a quiet connection is never.",
+  "label": "core",
+  "key": "write 10 bytes to a pipe, read",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Tokio's I/O layer, mio, registers every descriptor edge-triggered ( let mut kind = EPOLLET; , mio src/sys/unix/selector/epoll.rs L115, v1.0.4 ) and its readiness tracking enforces the read-until-EAGAIN rule; Python's asyncio and libuv use level-triggered mode. macOS and the BSDs have the same idea under another name, kqueue ( kqueue(2) ), with filters for sockets, files, processes, signals and timers in one call; Python's selectors module prefers it where it exists ( Lib/selectors.py L610-618 ).",
+  "label": "core",
+  "key": "tokio's i/o layer, mio, registers every descriptor",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "How the runtimes are built on it Runtime Waits with Its loop, in one line Python asyncio epoll (level), via selectors.EpollSelector _run_once : compute a timeout from the earliest timer, event_list = self._selector.select(timeout) , queue the ready callbacks, run them ( base_events.py L1884, v3.11.2 ).",
+  "label": "depth",
+  "key": "its loop, in one line python asyncio",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "The root's trace shows its epoll_pwait calls Node.js (libuv), uvloop epoll_pwait ; a thread pool for file I/O and DNS; io_uring optional uv__io_poll calls epoll_pwait(epollfd, events, ..., timeout, sigmask) ( src/unix/linux.c L1432, v1.48.0 ).",
+  "label": "depth",
+  "key": "the root's trace shows its epoll_pwait calls",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Since 1.45 libuv can batch through io_uring; the SQPOLL ring for file operations is opt-in ( UV_USE_IO_URING=1 ) and refused on kernels older than 5.10.186 because \"the sqpoll thread uses 100% CPU\" there ( v1.51.0 L480-497 ).",
+  "label": "depth",
+  "key": "since 1.45 libuv can batch through io_uring;",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "The JS/TS page covers the event loop's phases Rust tokio epoll, edge-triggered, via mio A work-stealing pool of threads; when a task's read returns WouldBlock its waker is parked until mio reports the descriptor.",
+  "label": "depth",
+  "key": "when a task's read returns wouldblock its",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "The Rust page (Part 3) measures what blocking the runtime does All three follow the same readiness model : the kernel says \"you can now read without blocking\", and the program then makes the read itself.",
+  "label": "depth",
+  "key": "the rust page (part 3) measures what",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "One cost remains: a system call per read and write, plus one per wait. io_uring: the completion model io_uring (Linux 5.1, 2019) changes the question to \"do these operations and tell me when they are done\".",
+  "label": "core",
+  "key": "system call per read and write, plus",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "The program and the kernel share two ring buffers in memory: the program writes submission queue entries (SQEs: read this fd at this offset into this buffer) into one, and the kernel writes completion queue entries (CQEs: result, user tag) into the other ( io_uring(7) ).",
+  "label": "core",
+  "key": "the program writes submission queue entries",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "One io_uring_enter call submits a whole batch and can wait for completions; with IORING_SETUP_SQPOLL a kernel thread polls the submission ring and the program makes no system call at all.",
+  "label": "core",
+  "key": "one io_uring_enter call submits a whole batch",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "The rings are single-producer single-consumer queues (section 7).",
+  "label": "core",
+  "key": "the rings are single-producer single-consumer queues (section",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "On this lab's kernel 5.10 measured here : Three lessons from those lines.",
+  "label": "core",
+  "key": "on this lab's kernel 5.10 measured here",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "First , io_uring_setup failed in a default Docker container: Linux 5.10 charges the rings to the user's locked-memory limit ( RLIMIT_MEMLOCK , 64 KiB in Docker) unless the process has CAP_IPC_LOCK ( fs/io_uring.c L7869-7876 and L9274, v5.10 ), and the counter is per user, shared by every container running as root; the run passed --ulimit memlock=-1 .",
+  "label": "depth",
+  "key": "first , io_uring_setup failed in a default",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Linux 5.12 moved the rings to memory-cgroup accounting from source (the ring_pages charge is gone from fs/io_uring.c at v5.12).",
+  "label": "depth",
+  "key": "linux 5.12 moved the rings to memory-cgroup",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Second , SQPOLL needs CAP_SYS_ADMIN before 5.11 ( L7786 ).",
+  "label": "depth",
+  "key": "second , sqpoll needs cap_sys_admin before 5.11",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Third , reading 16,384 cached 4 KiB blocks, io_uring at depth 32 made 512 system calls instead of 16384 , and the time per block fell from 1171 to 908 ns ( 22 % less; medians of 3 noisy runs, which overlap): with the data already in memory, the 4 KiB copy and the per-request bookkeeping remain, and only the system-call entries are saved. io_uring pays off when operations really wait (disk, network) and many are in flight, when operations are tiny, or with SQPOLL and registered buffers on newer kernels not run here . io_uring and security Google reported that 60% of the Linux kernel exploits submitted to its kCTF bug bounty in the year to June 2023 used io_uring, and disabled it in ChromeOS and on its production servers ( Google security blog, 2023-06-14 ).",
+  "label": "core",
+  "key": ", reading 16,384 cached 4 kib blocks,",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Docker 25.0 blocks the io_uring system calls in its default seccomp profile ( moby #46762 ); this lab's Docker 20.10 still allows them.",
+  "label": "core",
+  "key": "docker 25.0 blocks the io_uring system calls",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Expect io_uring to be unavailable in many containers.",
+  "label": "core",
+  "key": "io_uring is often unavailable in containers",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "In ML work Model servers are event loops: vLLM's OpenAI-compatible server is a uvicorn server started with uvloop.run(run_server(args)) ( vllm/entrypoints/launchers/api_server/entry.py L222, v0.31.0 ) and SGLang passes loop=\"uvloop\" to uvicorn ( http_server.py L2713, v0.5.21 ): uvloop is libuv underneath, so one thread streams tokens to many clients while the GPU work runs in an engine loop.",
+  "label": "core",
+  "key": "in ml work model servers are event",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "A blocking call inside an async handler (a synchronous tokenizer call, requests.get , a big JSON encode) stalls every connection on that loop: the Rust page's \"blocking the runtime\" experiment measures it.",
+  "label": "core",
+  "key": "an async handler (a synchronous tokenizer call,",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Data clients that stream shards from object storage use the same machinery (aiohttp, or Rust/C++ readers on tokio or io_uring).",
+  "label": "core",
+  "key": "data clients that stream shards",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "Predict: an asyncio server is moved from 100 to 10,000 idle WebSocket clients.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "drill question; answer kept in the scale paragraph"
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "How does the cost of each epoll_wait call change?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "drill question"
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "About 100 times more About the same It fails above 1024 About the same: epoll's cost follows the number of ready descriptors.",
+  "label": "core",
+  "key": "at 10,000 idle clients",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "The measurement above: 393 ns with 100 watched, 352 ns with 10,000.",
+  "label": "core",
+  "key": "against 393 ns at 100",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "With poll it would grow about a hundredfold; with select it would fail, since descriptors above 1023 cannot be watched at all.",
+  "label": "core",
+  "key": "poll grows about a hundredfold",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "9. event-driven i/o: one thread, thousands of waits",
+  "text": "(The open-file limit, ulimit -n , still has to allow 10,000 sockets.)",
+  "label": "core",
+  "key": "open-file limit, ulimit -n ,",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "In a training job: every thread, and what it waits on measured here from source GPU parts not run here The root's job (2 DataLoader workers, fork, torch.set_num_threads(n) ), stopped while stepping and looked at three ways: /proc/<pid>/task/* (name, state, wait channel), py-spy dump (the Python threads), and gdb backtraces of every thread classified by the functions on their stacks ( job_threads.sh , classify_threads.py ): torch threads 1 2 4 Reading it: The main process runs the training loop in its main thread.",
+  "label": "core",
+  "key": "in a training job: every thread, and",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "Its other threads are PyTorch's OpenMP pool (libgomp; between operators they wait at a barrier, spinning briefly in do_spin and then sleeping in futex_wait ), two Python QueueFeederThread s (each multiprocessing.Queue has one: put() appends to an in-process buffer and the feeder thread pickles it into the pipe to the worker), and a libtorch_cpu thread asleep on a futex.",
+  "label": "core",
+  "key": "its other threads are pytorch's openmp pool",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "Each worker (named pt_data_worker by PyTorch) waits in poll for the next indices, plus a feeder thread for its result queue and a _serve thread: multiprocessing's resource sharer, which hands file descriptors for shared-memory tensors to the main process over a Unix socket (the recvmsg calls below).",
+  "label": "core",
+  "key": "each worker (named pt_data_worker by pytorch) waits",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "Nearly every thread is asleep on a futex.",
+  "label": "core",
+  "key": "nearly every thread is asleep on a",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "Attached for 3 seconds with strace, the job made about 59 futex calls per training step with 2 torch threads ( 39 with 1, 86 with 4), about a fifth of them EAGAIN (section 4): barrier wake-ups for each parallel operator and the queues' locks and semaphores.",
+  "label": "core",
+  "key": "attached for 3 seconds with strace, the",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "Strace slows the job about tenfold, so count, do not time, under it.",
+  "label": "core",
+  "key": "count, do not time, under it.",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "The thread count is a design input.",
+  "label": "core",
+  "key": "the thread count is a design input.",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "Each worker runs its own copy of every thread pool a library creates (PyTorch sets torch.set_num_threads(1) in workers, but tokenizers, OpenCV and NumPy's BLAS have their own), and in a container every thread counts against pids.max and shares the CPU quota (the root's Debug lab , \"Too many threads for the CPUs you have\"; scheduling is the sibling Scheduling and CPU time page).",
+  "label": "core",
+  "key": "each worker runs its own copy of",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "On a GPU node: the threads you do not see Thread Who starts it What it does, and how it waits pin_memory thread DataLoader with pin_memory=True ( dataloader.py L1198, v2.14.1 ) Takes batches from the workers' result queue, copies them into page-locked host memory so the copy to the GPU can be asynchronous, puts them on the queue the loop reads.",
+  "label": "depth",
+  "key": "thread who starts it what it does,",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "It calls torch.set_num_threads(1) and polls its queue with a timeout so it notices shutdown ( pin_memory.py L18-30 ) NCCL watchdog ProcessGroupNCCL ( ProcessGroupNCCL.cpp L2152-2155 ) Wakes every 100 ms ( kWatchdogThreadSleepMillis , L493 ) to check whether collectives have finished or timed out; on a timeout it aborts the communicator so a hung rank fails instead of waiting forever NCCL heartbeat monitor same ( L1772-1790 ) Watches the watchdog: if it has not beaten for TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC (8 minutes by default), kills the process.",
+  "label": "depth",
+  "key": "it calls torch.set_num_threads(1) and polls its queue",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "A deadlock detector for the deadlock detector NCCL Progress thread NCCL, one per GPU and communicator ( src/proxy.cc L1030-1035, v2.32.3-1 ) Drives network transfers (InfiniBand, sockets) for the GPU's kernels.",
+  "label": "depth",
+  "key": "a deadlock detector for the deadlock detector",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "While operations are in flight it busy-polls and calls std::this_thread::yield() when nothing progressed ( L986-1006 ); when idle it sleeps on a condition variable (section 5).",
+  "label": "depth",
+  "key": "while operations are in flight it busy-polls",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "A spinning thread per GPU is why NCCL performance is sensitive to CPU affinity and to CPU quotas NCCL Service, UDS threads NCCL ( L2157-2163 ) Answer setup requests from other ranks over sockets, asleep in poll otherwise When a distributed job hangs The usual cause is not a lock but a collective that one rank never reaches (one rank skipped an all-reduce, or is stuck in its data loader).",
+  "label": "depth",
+  "key": "a spinning thread per gpu is why",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "Every other rank's main thread sits in a CUDA synchronisation or a futex while the GPU kernel spins waiting for the missing peer; the watchdog fires after the process group's timeout. py-spy dump --pid on every rank (or PyTorch's flight recorder, TORCH_NCCL_TRACE_BUFFER_SIZE ) shows which rank is somewhere else.",
+  "label": "core",
+  "key": "every other rank's main thread sits in",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "10. in a training job: every thread, and what it waits on",
+  "text": "Distributed Training covers the collectives themselves.",
+  "label": "core",
+  "key": "distributed training covers the collectives",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Common mistakes, interview questions, and the OSTEP map Common mistakes Checking a condition with if before wait() Mesa semantics: re-check in a while loop (section 5 measured the failure 45 to 88 times in 200,000 items).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake restating section 5"
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Spinning in user space A spinlock with more runnable threads than CPUs, or under a CPU quota, wastes whole time slices (section 3).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 3"
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Use a mutex; glibc's adaptive mutex if you have measured that spinning helps.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 3 (adaptive mutex)"
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Holding a lock while calling out Callbacks, logging, I/O and __del__ inside a critical section create lock-order cycles and long hold times.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the fix box"
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Copy what you need, release, then call.",
+  "label": "core",
+  "key": "copy what you need, release, then call",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Forking a process that has threads The child gets the memory, including locked locks, but only the forking thread.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 6"
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Use spawn or forkserver, or fork before starting threads.",
+  "label": "core",
+  "key": "or fork before starting threads",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Trusting volatile or plain variables between threads No atomicity and no ordering (section 2: Peterson's lock failed on this CPU).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 2"
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Use atomics with the order you need, or a lock.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 2"
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Blocking inside an event loop A synchronous call in an async handler stops every connection on that loop; use asyncio.to_thread or a process pool for blocking and CPU work.",
+  "label": "core",
+  "key": "every connection on that loop; use asyncio.to_thread",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Edge-triggered epoll without draining Read until EAGAIN after every edge, or the rest of the data waits forever (section 9).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 8"
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Sizing thread pools from os.cpu_count() in a container It reports the machine, not the quota; multiply by the number of worker processes and every library's own pool.",
+  "label": "core",
+  "key": "multiply by the number of worker processes",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Interview questions, with model answers What is the difference between a process and a thread on Linux?",
+  "label": "depth",
+  "key": "what is the difference between a process",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Both are tasks the scheduler runs.",
+  "label": "depth",
+  "key": "both are tasks the scheduler runs.",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "A thread is created with clone flags that share the address space, file table and signal handlers with its creator (CLONE_VM, CLONE_FILES, CLONE_SIGHAND, CLONE_THREAD); a process gets copies (copy-on-write for memory).",
+  "label": "depth",
+  "key": "a thread is created with clone flags",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Threads communicate through memory for free and need synchronisation; processes need IPC but are isolated from each other's crashes, and in CPython each has its own GIL.",
+  "label": "depth",
+  "key": "threads communicate through memory for free and",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "How does a mutex work, down to the kernel?",
+  "label": "depth",
+  "key": "how does a mutex work, down to",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "A word in user memory.",
+  "label": "depth",
+  "key": "a word in user memory.",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Lock: CAS 0 to 1; if that fails, exchange in 2 (\"contended\") and call futex_wait(word, 2) , which sleeps only if the word is still 2, checked in the kernel under the wait-queue lock.",
+  "label": "depth",
+  "key": "lock: cas 0 to 1; if that",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Unlock: exchange in 0; if the old value was 2, futex_wake(word, 1) .",
+  "label": "depth",
+  "key": "unlock: exchange in 0; if the old",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Uncontended: two atomic instructions, no system call.",
+  "label": "depth",
+  "key": "uncontended: two atomic instructions, no system call.",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Why must the kernel re-check the value in futex_wait?",
+  "label": "depth",
+  "key": "why must the kernel re-check the value",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "To avoid the lost wake-up: between a user-space check and going to sleep, the holder could release and send a wake-up to a thread not yet asleep.",
+  "label": "depth",
+  "key": "to avoid the lost wake-up: between a",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Comparing under the hash-bucket lock makes \"check and sleep\" atomic with respect to wakers.",
+  "label": "depth",
+  "key": "comparing under the hash-bucket lock makes \"check",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Spin only if the expected wait is shorter than a sleep and wake-up (a few microseconds) and the holder is guaranteed to be running (its own CPU, preemption disabled: kernel code).",
+  "label": "depth",
+  "key": "spin only if the expected wait is",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Adaptive locks spin briefly then sleep.",
+  "label": "depth",
+  "key": "adaptive locks spin briefly then sleep.",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "What are the four conditions for deadlock, and how do you prevent it in practice?",
+  "label": "depth",
+  "key": "what are the four conditions for deadlock,",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Mutual exclusion, hold and wait, no preemption, circular wait.",
+  "label": "depth",
+  "key": "mutual exclusion, hold and wait, no preemption,",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "In practice: a global lock order (break the circle), checked with tools such as lockdep or TSan; trylock with backoff; not holding locks across calls into unknown code.",
+  "label": "depth",
+  "key": "in practice: a global lock order (break",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Why must you wait on a condition variable in a while loop?",
+  "label": "depth",
+  "key": "why must you wait on a condition",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Mesa semantics: wake-up means \"the condition may have changed\", and other threads can run between the signal and your return from wait; spurious wake-ups are also allowed.",
+  "label": "depth",
+  "key": "mesa semantics: wake-up means \"the condition may",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Re-check under the mutex. select, poll, epoll: what is the difference, and when would you use io_uring? select and poll pass the whole interest list on every call and the kernel checks each entry: O(watched); select is also capped at descriptor 1023. epoll keeps the list in the kernel and a ready list filled by callbacks: O(ready). io_uring is a completion model with shared submission and completion rings: batch many operations per system call or none (SQPOLL); worth it for many small or truly asynchronous operations (disk I/O at high queue depth), and often disabled in containers for security.",
+  "label": "depth",
+  "key": "re-check under the mutex. select, poll, epoll:",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Level-triggered vs edge-triggered epoll?",
+  "label": "depth",
+  "key": "level-triggered vs edge-triggered epoll?",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Level: reported on every wait while ready.",
+  "label": "depth",
+  "key": "level: reported on every wait while ready.",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Edge: reported once per new event; you must drain to EAGAIN.",
+  "label": "depth",
+  "key": "edge: reported once per new event; you",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Edge avoids repeated reports and thundering herds with several waiters; level is harder to misuse.",
+  "label": "depth",
+  "key": "edge avoids repeated reports and thundering herds",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Why does a Python I/O thread get slow when another thread computes?",
+  "label": "depth",
+  "key": "why does a python i/o thread get",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "It must re-take the GIL after its I/O completes; the computing thread releases it only when asked, after the 5 ms switch interval.",
+  "label": "depth",
+  "key": "it must re-take the gil after its",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "Measured: a 2 ms sleep came back about 8 ms late next to one busy thread.",
+  "label": "depth",
+  "key": "measured: a 2 ms sleep came back",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "A training job hangs with 0% CPU.",
+  "label": "core",
+  "key": "when a job hangs at 0% cpu",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "How do you find out why? top -H or ps -L to confirm all threads sleep; /proc/<pid>/task/*/wchan (futex waits mean locks, queues or condition variables; poll or read means waiting for data); py-spy dump --pid for Python stacks on every rank and worker; gdb -p with thread apply all bt for native threads; then find who should have released or sent what each one waits for.",
+  "label": "core",
+  "key": "top -h or ps -l to confirm",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "11. common mistakes, interview questions, and the ostep map",
+  "text": "OSTEP reading map for this page Chapter Here 26 Concurrency: an introduction ( pdf ) sections 1, 2 27 Interlude: thread API ( pdf ) section 1 28 Locks ( pdf ) sections 2, 3, 4 (Peterson, spin, yield, futex) 29 Lock-based concurrent data structures ( pdf ) section 3 (contention), section 7 30 Condition variables ( pdf ) section 5, Interleaving lab 31 Semaphores ( pdf ) section 5 32 Common concurrency problems ( pdf ) section 6 33 Event-based concurrency ( pdf ) section 9, Event loop lab OSTEP's homework simulators for these chapters ( x86.py for races and locks, the deadlock and condition-variable programs) are covered by the root's OS simulators tab and this page's Interleaving lab .",
+  "label": "depth",
+  "key": "chapter here 26 concurrency: an introduction (",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-lock",
+  "section": "interleaving lab: you are the scheduler",
+  "text": "Interleaving lab: you are the scheduler A concurrency bug needs a particular order of steps, which is why it passes tests and fails in production.",
+  "label": "core",
+  "key": "which is why it passes tests and fails in production",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-lock",
+  "section": "interleaving lab: you are the scheduler",
+  "text": "Here you choose the order.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab instruction (UI)"
+ },
+ {
+  "id": 301,
+  "tab": "t-lock",
+  "section": "interleaving lab: you are the scheduler",
+  "text": "Each line below is one indivisible step; press a thread's button to run its next step, and watch the shared memory, the kernel's wait queues and the threads' states.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab instruction (UI)"
+ },
+ {
+  "id": 302,
+  "tab": "t-lock",
+  "section": "interleaving lab: you are the scheduler",
+  "text": "The lab stops when two threads are in the critical section, when a consumer reads an empty slot, or when every thread that is not done is asleep with nobody left to wake it (the lost wake-up, or a hang).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab stop conditions are shown by the verdict line"
+ },
+ {
+  "id": 303,
+  "tab": "t-lock",
+  "section": "interleaving lab: you are the scheduler",
+  "text": "Every possible schedule How this is checked.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 304,
+  "tab": "t-lock",
+  "section": "interleaving lab: you are the scheduler",
+  "text": "The page explores every interleaving in your browser (a depth-first search over states, counting the distinct schedules that lead to each ending). src/recompute.py does the same search with an independent Python implementation of the same programs ( src/inputs/lab_programs.json ); the counts above say whether the two agree.",
+  "label": "core",
+  "key": "the page explores every interleaving in your",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-lock",
+  "section": "interleaving lab: you are the scheduler",
+  "text": "Races and lock ordering for OSTEP's own programs are in the root's OS simulators tab.",
+  "label": "core",
+  "key": "the root's os simulators",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-ev",
+  "section": "event loop lab: one set of connections, five ways to wait",
+  "text": "Event loop lab: one set of connections, five ways to wait Eight open connections; data arrives on four of them, one after another (on connection 2, then 5, then 2 again, then 7).",
+  "label": "core",
+  "key": "on connection 2, then 5, then 2 again, then 7",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-ev",
+  "section": "event loop lab: one set of connections, five ways to wait",
+  "text": "The same input runs through five designs: a thread per connection, select , poll , epoll , and io_uring .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab tab intro: mode buttons say it"
+ },
+ {
+  "id": 308,
+  "tab": "t-ev",
+  "section": "event loop lab: one set of connections, five ways to wait",
+  "text": "Count what each one makes the kernel and the program do.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab tab intro"
+ },
+ {
+  "id": 309,
+  "tab": "t-ev",
+  "section": "event loop lab: one set of connections, five ways to wait",
+  "text": "Then scale the measured costs up to thousands of connections below.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab tab intro"
+ },
+ {
+  "id": 310,
+  "tab": "t-ev",
+  "section": "event loop lab: one set of connections, five ways to wait",
+  "text": "Mechanisms are explained in Reading, section 9 .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to Reading (lab is now inside it)"
+ },
+ {
+  "id": 311,
+  "tab": "t-ev",
+  "section": "event loop lab: one set of connections, five ways to wait",
+  "text": "Thread per connection select poll epoll io_uring Scale it up: measured costs at N connections One readiness question with N descriptors watched and one ready, from the measured curve (log-log interpolation between the measured points: 1, 10, 100, 300, 500, 1,000, 3,000 and 10,000; raw: src/runs/out/evloop.txt ).",
+  "label": "core",
+  "key": "log-log interpolation between the measured points",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-ev",
+  "section": "event loop lab: one set of connections, five ways to wait",
+  "text": "Thread memory uses the measured 2,000-thread run.",
+  "label": "core",
+  "key": "thread memory from the measured 2,000-thread run",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-ev",
+  "section": "event loop lab: one set of connections, five ways to wait",
+  "text": "Connections watched: 1,000 Messages per second (one ready connection each): 10,000",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "control labels"
+ },
+ {
+  "id": 314,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading This page's tabs Reading Threads, races, locks, the futex, condition variables, deadlock, the GIL, event-driven I/O, and the training job's threads. about 40 minutes Interleaving lab Be the scheduler: glibc's futex mutex, the lost wake-up and its fix, condition variables with if and while; every schedule counted.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card for the removed lab tabs"
+ },
+ {
+  "id": 315,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 to 15 minutes Event loop lab Eight connections through threads, select, poll, epoll and io_uring, then the measured costs at thousands.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card for the removed lab tabs"
+ },
+ {
+  "id": 316,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "5 to 10 minutes The parent topic and the sibling pages Topic: operating-systems The whole OS for one training job.",
+  "label": "core",
+  "key": "the parent topic and the sibling pages",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Its OS simulators tab steps the lost update, locks, atomics and deadlock; its Debug lab reproduces the fork-with-a-held-lock hang. about 50 minutes, plus labs Processes and the system-call API 46 min fork, exec, signals, file descriptors, start methods: the process side of section 1 and the descriptors of section 9.",
+  "label": "core",
+  "key": "its debug lab reproduces the fork-with-a-held-lock hang.",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Scheduling and CPU time 40 min Context switches, CFS and EEVDF, CPU quotas: what decides which of your threads runs.",
+  "label": "core",
+  "key": "min context switches, cfs and eevdf, cpu",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Virtual memory 36 min Why 2,000 thread stacks reserve 18 GB and use 13 MiB; shared memory between processes.",
+  "label": "core",
+  "key": "min why 2,000 thread stacks reserve 18",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Memory allocators 34 min malloc's per-thread arenas, a concurrency design.",
+  "label": "core",
+  "key": "memory allocators 34 min malloc's per-thread arenas,",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Storage and file systems 42 min Where io_uring and asynchronous checkpoint writes pay off.",
+  "label": "core",
+  "key": "storage and file systems 42 min where",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Containers and isolation 45 min pids.max counting threads, seccomp profiles that block io_uring.",
+  "label": "core",
+  "key": "containers and isolation 45 min pids.max counting",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Virtualization and the GPU driver stack 51 min Why cross-CPU wake-ups cost more in a virtual machine.",
+  "label": "core",
+  "key": "virtualization and the gpu driver stack 51",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Related pages in this knowledge base C++: the language, the machine underneath Part 2: the memory model with a measured reordering, false sharing; Part 3: llama.cpp's thread barriers.",
+  "label": "core",
+  "key": "related pages in this knowledge base c++:",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Part 2 about 30 minutes Python: the language in depth Threads, the GIL and processes in practice; asyncio from the event loop up; free-threaded 3.14t scaling. two sections, about 25 minutes Rust Threads without data races, Send and Sync, tokio, and blocking the runtime measured. about 30 minutes JavaScript and TypeScript libuv's event loop phases, one step at a time; worker threads. about 20 minutes Transactions and concurrency Locks, deadlock detection and MVCC in databases: the same problems at another layer. about 38 minutes Queues, streams and async work Producer/consumer between services. about 50 minutes Topic: protocols Sockets and the networking the event loops serve. about 45 minutes Distributed Training The collectives that NCCL's threads progress. about 22 minutes Fault tolerance at scale Failures around the job: detection timeouts at every layer and the recovery designs. about 40 minutes Topic: pytorch-ecosystem DataLoader, thread settings and the libraries whose threads section 10 counts. about 40 minutes Best resources OSTEP, the concurrency piece (ch.",
+  "label": "core",
+  "key": "part 2 about 30 minutes python: the",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "26 to 33) Arpaci-Dusseau and Arpaci-Dusseau; free.",
+  "label": "core",
+  "key": "26 to 33) arpaci-dusseau and arpaci-dusseau; free.",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The spine of sections 1 to 6. about 5 hours Futexes Are Tricky Ulrich Drepper, 2011: three mutex designs on futexes, two of them broken, and why.",
+  "label": "core",
+  "key": "the spine of sections 1 to 6.",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The source of section 4's protocol.",
+  "label": "core",
+  "key": "the source of section 4's protocol.",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 minutes futex(2) , epoll(7) , io_uring(7) The interfaces, with the edge-triggered pitfalls spelled out in epoll(7).",
+  "label": "core",
+  "key": "45 minutes futex(2) , epoll(7) , io_uring(7)",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 minutes each Efficient IO with io_uring Jens Axboe, 2019: why io_uring exists and how the rings work.",
+  "label": "core",
+  "key": "20 minutes each efficient io with io_uring",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 minutes Is Parallel Programming Hard, And, If So, What Can You Do About It?",
+  "label": "core",
+  "key": "40 minutes is parallel programming hard, and,",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Paul McKenney: locking, memory barriers and RCU from the Linux kernel's point of view; the pro-level follow-up. a book; chapters of 1 to 2 hours The Little Book of Semaphores Allen Downey: synchronisation puzzles with semaphores; good practice for interviews. puzzles, 15 minutes each Understanding the Python GIL David Beazley, 2010: the GIL's switching and the convoy effect, measured.",
+  "label": "core",
+  "key": "paul mckenney: locking, memory barriers and rcu",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 minutes Learning from Mistakes Lu, Park, Seo and Zhou, ASPLOS 2008: 105 real concurrency bugs classified.",
+  "label": "core",
+  "key": "30 minutes learning from mistakes lu, park,",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 minutes Learnings from kCTF VRP's 42 Linux kernel exploits Why io_uring is disabled in many production environments.",
+  "label": "core",
+  "key": "40 minutes learnings from kctf vrp's 42",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 minutes Sources at pinned tags: Linux v5.10 (and v5.12, v5.16, v6.12 where stated), glibc 2.36, CPython v3.11.2, libuv v1.48.0 and v1.51.0, mio v1.0.4, PyTorch v2.14.1, NCCL v2.32.3-1, vLLM v0.31.0, SGLang v0.5.21; excerpts with line numbers in src/inputs/source_lines.txt .",
+  "label": "core",
+  "key": "10 minutes sources at pinned tags: linux",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Measurements: Docker Desktop Linux VM (5.10.104-linuxkit, arm64, 5 CPUs) on an Apple M1 Pro, 2026-10-05, image kb-os-conc:1 ( src/runs/Dockerfile ); rerun everything with sh src/run_all.sh .",
+  "label": "core",
+  "key": "measurements: docker desktop linux vm (5.10.104-linuxkit, arm64,",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "script-rendered (added by hand)",
+  "text": "Seven locks, four situations: the lock chart (script-rendered)",
+  "label": "core",
+  "key": "seven ways to protect one shared counter",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "script-rendered (added by hand)",
+  "text": "Ping-pong table: futex, condvar and spin round trips on one and two CPUs (script-rendered)",
+  "label": "core",
+  "key": "two threads passing a turn back and forth 200,000 times",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "script-rendered (added by hand)",
+  "text": "Connections table: 2,000 connections, threads against one asyncio loop (script-rendered); 5 MiB added, 22 ms to serve for asyncio",
+  "label": "core",
+  "key": "2,000 connections added 5 mib and started serving in 22 ms",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "script-rendered (added by hand)",
+  "text": "GIL latency chart: wake-up delay against busy threads and switch interval (script-rendered)",
+  "label": "core",
+  "key": "next to busy python threads, a 2 ms sleep comes back",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "script-rendered (added by hand)",
+  "text": "select, poll, epoll cost chart (script-rendered)",
+  "label": "core",
+  "key": "poll's cost grows with every descriptor watched",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "script-rendered (added by hand)",
+  "text": "Training job threads by torch thread count (script-rendered recorded output)",
+  "label": "core",
+  "key": "torch threads 1",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "script-rendered (added by hand)",
+  "text": "Interleaving lab counts for all five programs (script-rendered), checked against recompute.py",
+  "label": "core",
+  "key": "54 of its 376",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "script-rendered (added by hand)",
+  "text": "Event loop lab: five designs on one input (script-rendered animation)",
+  "label": "core",
+  "key": "select and poll check every connection on every event",
+  "where": ""
+ }
+]

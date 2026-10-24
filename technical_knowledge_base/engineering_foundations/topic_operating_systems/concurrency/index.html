@@ -139,24 +139,73 @@ details.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}details.q
 .ml{border:1px solid var(--line);border-left:4px solid var(--c4);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:14px;background:var(--soft)}
 </style></head><body><div class="w">
 <h1>Concurrency: threads, locks, futexes, deadlock, and event-driven I/O</h1>
-<div class="sub">How many things happen at once inside one training job, and what keeps them from corrupting each other: threads and what the kernel gives each one, races and atomics, locks and the futex underneath every lock on Linux, condition variables, deadlock, the GIL, and the event loops (select, poll, epoll, io_uring) that async servers are built on. Taught from zero to OSTEP depth, with the Linux, glibc and CPython source at pinned tags and real runs on Linux 5.10. A child page of <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Topic: operating-systems</a>. Data as of October 2026.</div>
+<div class="sub">What lets the many threads of one training job share memory and wait for each other without corrupting data or wasting CPUs: threads, races and atomics, locks and the futex under every Linux lock, condition variables, deadlock, the GIL and free-threaded Python, and the event loops (epoll, kqueue, io_uring) that async servers are built on. Linux, glibc and CPython source at pinned tags; real runs on Linux 5.10. A child page of <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Topic: operating-systems</a>. Data as of October 2026. <span id="rd-time">Reading: 34 min, plus 14 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-lock" aria-selected="false">Interleaving lab</button><button role="tab" data-t="t-ev" aria-selected="false">Event loop lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
 #t-read .lanes{font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--soft);overflow-x:auto;white-space:pre;margin:8px 0}
 #t-read .lanes .p{color:var(--c1);font-weight:600}#t-read .lanes .t{color:var(--c4)}#t-read .lanes .w{color:var(--c3);font-weight:600}#t-read .lanes .m{color:var(--mute)}
-#t-read .kq{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:8px;margin:8px 0}
-#t-read .kq>div{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13.5px;min-width:0}
-#t-read .kq>div b{display:block;font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4,#t-read .card h4{margin:0 0 4px;font-size:14.5px}
+#t-read .rd-svg{width:100%;overflow:hidden;margin:6px 0}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px;overflow-wrap:anywhere}
+#t-read .nrh{font-size:11.5px;color:var(--mute);font-weight:600}
+#t-read .src{font-size:11.5px;color:var(--c4);font-weight:600}
+#t-read code{overflow-wrap:anywhere}
+#t-read .tw table{min-width:560px}#t-read .tw table.nar{min-width:0}
+#rd-il .il-code{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:8px;margin:8px 0}
+#rd-il .il-code>div{min-width:0}
+#rd-il .il-code h5{margin:2px 0;font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+#rd-il .il-ln{display:grid;grid-template-columns:4.6em minmax(0,1fr);gap:6px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;border-bottom:1px dotted var(--line);padding:1px 4px}
+#rd-il .il-ln .mk{white-space:nowrap}#rd-il .il-ln .tx{overflow-wrap:anywhere}
+#rd-il .il-ln.on{background:var(--acc2)}
+#rd-il .tk{display:inline-block;font:600 11px ui-sans-serif,-apple-system,Helvetica,Arial,sans-serif;border-radius:4px;padding:0 4px;margin-right:2px;color:var(--bg)}
+#rd-il .il-btns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#rd-il .il-btns button.th{font-weight:600}
+#rd-il .il-state{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:8px 0}
+#rd-il .il-state>div{border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;min-width:0;overflow-wrap:anywhere}
+#rd-il .il-state b{display:block;font-size:11.5px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+#rd-il .il-log{font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;max-height:12em;overflow-y:auto;border:1px dashed var(--line);border-radius:8px;padding:6px 10px;white-space:pre-wrap;overflow-wrap:anywhere}
+#rd-il .il-verdict{font-weight:600;margin:6px 0;min-height:1.5em}
+#rd-il .il-verdict.bad{color:var(--bad)}#rd-il .il-verdict.ok{color:var(--good)}
+#t-read .choose{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px;margin:8px 0}
+#t-read .choose>div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13.5px;min-width:0}
+#t-read .choose>div h4{margin:0 0 4px;font-size:14px;color:var(--acc)}
+#t-read .choose ul{margin:0;padding-left:1.1em}
 </style>
 <nav class="nav" id="rd-nav">
-<a href="#rd-one">One screen</a><a href="#rd-s1">1 Threads</a><a href="#rd-s2">2 Races, atomics</a><a href="#rd-s3">3 Locks</a><a href="#rd-s4">4 The futex</a><a href="#rd-s5">5 Waiting</a><a href="#rd-s6">6 Deadlock</a><a href="#rd-s7">7 Lock-free</a><a href="#rd-s8">8 The GIL</a><a href="#rd-s9">9 Event-driven I/O</a><a href="#rd-s10">10 In a training job</a><a href="#rd-s11">11 Mistakes, questions</a>
+<a href="#rd-one">The idea</a><a href="#rd-s1">1 Threads</a><a href="#rd-s2">2 Races</a><a href="#rd-s3">3 Locks</a><a href="#rd-s4">4 The futex</a><a href="#rd-s5">5 Waiting</a><a href="#rd-s6">6 Deadlock</a><a href="#rd-s7">7 The GIL</a><a href="#rd-s8">8 Event-driven I/O</a><a href="#rd-s9">9 Choosing</a><a href="#rd-s10">10 A training job</a><a href="#rd-s11">Depth</a>
 </nav>
 <section id="rd-one">
-<h2>In one screen</h2>
-<p class="lead"><dfn>Concurrency</dfn> means several activities in progress at the same time inside one program; <dfn>parallelism</dfn> means some of them really run at the same instant, on different CPU cores. A training job is concurrent everywhere: the training loop, a pool of math threads inside PyTorch, DataLoader worker processes and the threads that feed their queues, a checkpoint writer, and on a GPU node NCCL's communication threads and PyTorch's watchdog. This page is about the machinery that lets those activities share memory and wait for each other without corrupting data or wasting CPUs.</p>
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">Threads share one address space, so <b>every shared update needs an atomic instruction that orders it</b>, and <b>a wait should cost nothing until it is real</b>: an uncontended lock is one atomic instruction (about 10 ns), and only a thread that truly has to wait asks the kernel to put it to sleep, on a <span class="hl">futex</span> when it waits for another thread, on <span class="hl">epoll</span> or <span class="hl">io_uring</span> when it waits for I/O.</p>
+<div class="hero" id="rd-hero-card"><h4>Every wait on Linux ends in one of two kernel queues</h4>
+<div class="rd-svg" id="rd-hero"></div>
+<p class="small">Threads: a lock, condition variable, queue, barrier or the GIL is a word in your memory; the kernel is involved only when the word says someone must sleep. I/O: an event loop registers its sockets once and is woken only with the ready ones. In the root's training job (section 10), the main thread, PyTorch's OpenMP pool and the queue feeder threads sleep on futexes; the DataLoader workers sleep in <code>poll</code>. Numbers <span class="meas">measured here</span> (sections 3, 4, 8).</p></div>
+<p><b>You need:</b> what a process, a system call and a file descriptor are (<a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes and the system-call API</a>) and what a context switch and a time slice are (<a href="https://app.notion.com/p/3f05c17b0d0d81ed9c18cc47c6bfdf76" target="_blank" rel="noopener noreferrer">Scheduling and CPU time</a>). Language-level async (asyncio's API, the JavaScript event loop's phases) is on the <a href="https://app.notion.com/p/3c65c17b0d0d81a2bb1ac0bc8aeb6aa9" target="_blank" rel="noopener noreferrer">programming-languages pages</a>; database concurrency control on <a href="https://app.notion.com/p/3ef5c17b0d0d8155aa64ddeb09da144e" target="_blank" rel="noopener noreferrer">Transactions and concurrency</a>; GPU streams on <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU programming</a>.</p>
+<dl class="terms">
+<dt>Thread</dt><dd>a flow of control (registers, stack) that shares its process's memory and files.</dd>
+<dt>Race, data race</dt><dd>a result that depends on timing; a data race is two unordered accesses to one location, at least one a write.</dd>
+<dt>Critical section</dt><dd>code on shared data that at most one thread may run at a time (<dfn>mutual exclusion</dfn>).</dd>
+<dt>Atomic instruction</dt><dd>a read-modify-write of one word that no other core can split (CAS, exchange, fetch-and-add).</dd>
+<dt>Memory order</dt><dd>which of a core's writes other cores see, and in what order; acquire and release say what must not be reordered.</dd>
+<dt>Futex</dt><dd>a lock word in user memory plus two kernel calls: sleep if the word still equals v, wake n sleepers.</dd>
+<dt>Condition variable, semaphore</dt><dd>sleep until another thread says a condition may hold; a counter that blocks at zero.</dd>
+<dt>Deadlock</dt><dd>a cycle of threads each holding what the next one waits for.</dd>
+<dt>GIL</dt><dd>CPython's single lock around bytecode; the free-threaded build replaces it with per-object locks.</dd>
+<dt>Readiness, completion</dt><dd>"this descriptor can be read now" (epoll, kqueue) against "this read is done" (io_uring).</dd>
+</dl>
+<details class="dp"><summary>The page in one table: each mechanism, its cost here, where it bites <span class="mute">(reference)</span></summary><div class="b">
 <p>The running example is the training job of the <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">root page</a> (a CPU-only PyTorch run with a memory-mapped dataset and two DataLoader workers). Seen as threads, while it trains (measured in section 10):</p>
 <div class="lanes"><span class="p">main process</span>  <span class="m">(the training loop)</span>
  ├─ <span class="t">MainThread</span>            runs forward, backward, optimizer step; holds the GIL while in Python
@@ -165,29 +214,28 @@ details.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}details.q
 <span class="w">worker process</span> x2  <span class="m">(fork of main)</span>
  ├─ <span class="t">pt_data_worker</span>        reads samples, builds a batch, puts it on the result queue
  └─ <span class="t">helper threads</span>        queue feeder, file-descriptor server; asleep in poll or futex_wait</div>
-<p>Almost every one of those threads is asleep at any instant, and nearly all of them are asleep in the same kernel function, <code>futex_wait</code>. The rest of the page explains why.</p>
 <div class="tw"><table class="tbl-sm">
 <thead><tr><th>Mechanism</th><th>The problem it solves</th><th>Cost measured here</th><th>Where it bites in ML work</th><th>See it with</th></tr></thead>
 <tbody>
-<tr><td><a href="#rd-s1">Thread</a></td><td>Several flows of control sharing one address space</td><td>create + join <b data-k="thr.create_us">136.0</b> µs in this VM; 8 MiB of address space each, almost none of it touched</td><td>Thread pools sized from the machine, not the container (the root's Debug lab)</td><td><code>ls /proc/&lt;pid&gt;/task</code>, <code>top -H</code></td></tr>
-<tr><td><a href="#rd-s2">Atomic instruction</a></td><td>A read-modify-write no other core can split</td><td><b data-k="lk.S1.atomic.wall">8.3</b> ns per update, uncontended</td><td>Reference counts, counters, lock words</td><td>the assembly (<code>ldadd</code>, <code>ldaxr</code>/<code>stlxr</code>)</td></tr>
-<tr><td><a href="#rd-s3">Lock (mutex)</a></td><td>Only one thread at a time in a critical section</td><td><b data-k="lk.S1.mutex.wall">10.1</b> ns uncontended; a spinlock wastes whole time slices when the holder is preempted</td><td>Logging, metrics, allocator and queue locks under many threads</td><td><code>perf lock</code>, <code>strace -f -e futex</code></td></tr>
-<tr><td><a href="#rd-s4">Futex</a></td><td>Sleep in the kernel only when a lock is really taken</td><td>0 system calls uncontended; a wake-up costs <b data-k="pp.1cpu.futex.half">1.7</b> µs on one CPU, <b data-k="pp.2cpu.futex.half">23.5</b> µs across CPUs in this VM</td><td>Every PyTorch, NCCL and Python lock and queue</td><td><code>/proc/&lt;pid&gt;/task/*/wchan</code> shows <code>futex_wait_queue_me</code></td></tr>
+<tr><td><a href="#rd-s1">Thread</a></td><td>Several flows of control sharing one address space</td><td>create + join 136.0 µs in this VM; 8 MiB of address space each, almost none of it touched</td><td>Thread pools sized from the machine, not the container</td><td><code>ls /proc/&lt;pid&gt;/task</code>, <code>top -H</code></td></tr>
+<tr><td><a href="#rd-s2">Atomic instruction</a></td><td>A read-modify-write no other core can split</td><td>8.3 ns per update, uncontended</td><td>Reference counts, counters, lock words</td><td>the assembly (<code>ldadd</code>, <code>ldaxr</code>/<code>stlxr</code>)</td></tr>
+<tr><td><a href="#rd-s3">Lock (mutex)</a></td><td>Only one thread at a time in a critical section</td><td>10.1 ns uncontended; a spinlock wastes whole time slices when the holder is preempted</td><td>Logging, metrics, allocator and queue locks under many threads</td><td><code>perf lock</code>, <code>strace -f -e futex</code></td></tr>
+<tr><td><a href="#rd-s4">Futex</a></td><td>Sleep in the kernel only when a lock is really taken</td><td>0 system calls uncontended; a wake-up costs 1.7 µs on one CPU, 23.5 µs across CPUs in this VM</td><td>Every PyTorch, NCCL and Python lock and queue</td><td><code>/proc/&lt;pid&gt;/task/*/wchan</code></td></tr>
 <tr><td><a href="#rd-s5">Condition variable, semaphore</a></td><td>Sleep until something is true ("a batch is ready")</td><td>Mesa semantics: woken is not "true"; one shared condition variable hangs</td><td>Producer/consumer queues in loaders and servers</td><td>py-spy, gdb</td></tr>
 <tr><td><a href="#rd-s6">Deadlock</a></td><td>A cycle of threads each waiting for the next</td><td>Hangs forever at 0% CPU</td><td>Fork with a held lock; lock-order bugs in callbacks</td><td><code>py-spy dump</code>, wchan</td></tr>
-<tr><td><a href="#rd-s8">GIL</a></td><td>CPython's one lock for all Python bytecode</td><td>An I/O thread wakes <b data-k="gil.1.5.med">8.0</b> ms late next to one busy Python thread</td><td>Latency of a data or serving thread next to Python work</td><td><code>sys.getswitchinterval()</code>, py-spy</td></tr>
-<tr><td><a href="#rd-s9">epoll, io_uring</a></td><td>One thread waiting on thousands of connections or I/Os</td><td><code>poll</code> on 10,000 descriptors <b data-k="ev.10000.poll_us">650</b> µs per call, <code>epoll_wait</code> <b data-k="ev.10000.epoll">352</b> ns</td><td>Async model servers, data streaming clients, asyncio</td><td><code>strace -e epoll_pwait</code></td></tr>
+<tr><td><a href="#rd-s7">GIL</a></td><td>CPython's one lock for all Python bytecode</td><td>An I/O thread wakes 8.0 ms late next to one busy Python thread</td><td>Latency of a data or serving thread next to Python work</td><td><code>sys.getswitchinterval()</code>, py-spy</td></tr>
+<tr><td><a href="#rd-s8">epoll, io_uring</a></td><td>One thread waiting on thousands of connections or I/Os</td><td><code>poll</code> on 10,000 descriptors 650 µs per call, <code>epoll_wait</code> 352 ns</td><td>Async model servers, data streaming clients, asyncio</td><td><code>strace -e epoll_pwait</code></td></tr>
 </tbody></table></div>
-<p class="small mute">All numbers on this page were measured in Docker Desktop's Linux VM on an Apple M1 Pro (Linux 5.10.104, arm64, 5 CPUs, glibc 2.36, Python 3.11.2, torch 2.14.1 CPU), 2026-10-05, with other experiments sharing the VM: <span class="meas">measured here</span> marks them, <span class="src">from source</span> marks what is read from code at a pinned tag, <span class="nrh">not run here</span> marks what needs a GPU or a newer kernel. Raw outputs are in the page's <code>src/runs/out/</code>.</p>
-<p class="small"><b>How to read this page.</b> Sections 1 to 6 follow OSTEP's concurrency chapters (26 to 32) and add the Linux interfaces; section 4 (the futex) and section 9 (event-driven I/O) go furthest beyond the book. Every section stands on its own. The <a href="#" data-tab="t-lock">Interleaving lab</a> lets you be the scheduler and break locks yourself; the <a href="#" data-tab="t-ev">Event loop lab</a> animates one set of connections through threads, poll, epoll and io_uring.</p>
+<p class="small mute">All numbers on this page were measured in Docker Desktop's Linux VM on an Apple M1 Pro (Linux 5.10.104, arm64, 5 CPUs, glibc 2.36, Python 3.11.2, torch 2.14.1 CPU), 2026-10-05, with other experiments sharing the VM: <span class="meas">measured here</span> marks them, <span class="src">from source</span> marks what is read from code at a pinned tag, <span class="nrh">not run here</span> marks what needs a GPU or a newer kernel. Raw outputs are in the page's <code>src/runs/out/</code>. Sections 1 to 6 follow OSTEP's concurrency chapters (26 to 32) and add the Linux interfaces; the reading map is in the depth section.</p>
+</div></details>
 </section>
 
 <section id="rd-s1">
 <h2>1. Threads: several flows of control, one address space</h2>
 <p><span class="ostep">ch. 26 Concurrency: an introduction, ch. 27 Thread API</span></p>
-<p><b>The problem.</b> A process (the sibling page <a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes and the system-call API</a> owns it) is one running program with one flow of control: one <dfn>program counter</dfn> (the address of the next instruction) and one <dfn>stack</dfn> (the memory holding local variables and return addresses of the functions in progress). To use several cores on one shared data structure, a program needs several flows of control that see the same memory. That is a <dfn>thread</dfn>: its own registers, program counter and stack, and everything else (heap, globals, open files, signal handlers) shared with the other threads of its process.</p>
-<svg id="rd-thr-svg" viewBox="0 0 640 210" width="640" height="210" role="img" aria-label="One process with three threads: shared code, globals, heap and files; each thread has its own registers, stack and thread-local storage"></svg>
-<p><b>How Linux makes one.</b> The kernel has no separate thread object: a thread is a <dfn>task</dfn> (the kernel's schedulable unit, a <code>task_struct</code>) that shares its parent's memory and tables because of the flags it was created with. <code>pthread_create</code> in glibc 2.36 asks for exactly this sharing (<a href="https://github.com/bminor/glibc/blob/glibc-2.36/nptl/pthread_create.c#L277-L281" target="_blank" rel="noopener noreferrer">nptl/pthread_create.c L277-281</a>), and strace shows the whole recipe for one thread <span class="meas">measured here</span>:</p>
+<p>A process (owned by <a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes and the system-call API</a>) has one flow of control: one <dfn>program counter</dfn> and one <dfn>stack</dfn>. To use several cores on one shared data structure, a program needs several flows of control that see the same memory. That is a <dfn>thread</dfn>: its own registers, program counter and stack; everything else (heap, globals, open files, signal handlers) shared with the other threads of its process. <dfn>Concurrency</dfn> is several activities in progress at once; <dfn>parallelism</dfn> is some of them running at the same instant on different cores.</p>
+<div class="rd-svg" id="rd-thr-svg" role="img" aria-label="One process with three threads: shared code, globals, heap and files; each thread has its own registers, stack and thread-local storage"></div>
+<p><b>How Linux makes one.</b> The kernel has no separate thread object: a thread is a <dfn>task</dfn> (a <code>task_struct</code>, the kernel's schedulable unit) created with flags that make it share its parent's memory and tables. <code>pthread_create</code> in glibc 2.36 asks for exactly this sharing (<a href="https://github.com/bminor/glibc/blob/glibc-2.36/nptl/pthread_create.c#L277-L281" target="_blank" rel="noopener noreferrer">nptl/pthread_create.c L277-281</a>); strace shows the recipe <span class="meas">measured here</span>:</p>
 <pre class="cd res" id="rd-clone"></pre>
 <div class="mech">
 <div><b>CLONE_VM, CLONE_FILES, CLONE_FS, CLONE_SIGHAND</b>share the address space, the file-descriptor table, the working directory, and the signal handlers</div>
@@ -195,76 +243,83 @@ details.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}details.q
 <div><b>CLONE_SETTLS</b>point the thread-pointer register (<code>tpidr_el0</code> on arm64, <code>fs</code> on x86-64) at this thread's thread-local storage</div>
 <div><b>CLONE_CHILD_CLEARTID</b>when the thread exits, the kernel writes 0 to its id word and does a futex wake on it: that is how <code>pthread_join</code> learns it ended</div>
 </div>
-<p>Before the <code>clone</code>, glibc maps the new thread's stack: <b data-k="thr.stack_mib">8</b> MiB (the default comes from the stack resource limit, <code>ulimit -s</code> = 8192 KiB) plus a guard region mapped <code>PROT_NONE</code> so that a stack overflow faults instead of silently overwriting a neighbour. The guard is 64 KiB here although <code>pthread_attr_getguardsize</code> reports 4096 bytes: glibc rounds it up to the architecture minimum on arm64 (<a href="https://github.com/bminor/glibc/blob/glibc-2.36/sysdeps/aarch64/nptl/pthreaddef.h#L23" target="_blank" rel="noopener noreferrer">sysdeps/aarch64/nptl/pthreaddef.h L23</a>, <a href="https://github.com/bminor/glibc/blob/glibc-2.36/nptl/allocatestack.c#L345-L346" target="_blank" rel="noopener noreferrer">nptl/allocatestack.c L345-346</a>). Newer glibc versions try <code>clone3</code> first and fall back to <code>clone</code> (<a href="https://github.com/bminor/glibc/blob/glibc-2.36/sysdeps/unix/sysv/linux/clone-internal.c#L52-L55" target="_blank" rel="noopener noreferrer">clone-internal.c L52-55</a>); glibc 2.36 on arm64 has no <code>clone3</code> wrapper, so the trace shows plain <code>clone</code>.</p>
+<div class="cost"><span class="t">Cost</span> <span class="meas">measured here</span>: creating and joining an empty thread took <b data-k="thr.create_us">136.0</b> µs with 4 CPUs available and <b data-k="thr.create1_us">12.0</b> µs pinned to one CPU (best of 5 × 2000); the difference is the cross-CPU wake-up, unusually expensive in this VM (section 4). Each thread's stack reserves <b data-k="thr.stack_mib">8</b> MiB (from <code>ulimit -s</code> = 8192 KiB) of address space, not memory: 2,000 idle threads in section 8 reserved <b data-k="cn.threads.vsz">18683</b> MiB of virtual memory but added only <b data-k="cn.threads.rss_added">13</b> MiB of resident memory, because untouched stack pages are never allocated (demand paging: <a href="https://app.notion.com/p/3f05c17b0d0d81a48892cea154ce950b" target="_blank" rel="noopener noreferrer">Virtual memory</a>). On Linux threads and processes are both tasks, so a container's <code>pids.max</code> counts threads too (the root's <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Debug lab</a>, "BlockingIOError on fork: the pids limit counts threads too").</div>
+<details class="dp"><summary>Stack guard, clone3, thread-local storage, and what exit() does <span class="mute">(depth)</span></summary><div class="b">
+<p>Before the <code>clone</code>, glibc maps the stack plus a guard region mapped <code>PROT_NONE</code>, so that a stack overflow faults instead of silently overwriting a neighbour. The guard is 64 KiB here although <code>pthread_attr_getguardsize</code> reports 4096 bytes: glibc rounds it up to the architecture minimum on arm64 (<a href="https://github.com/bminor/glibc/blob/glibc-2.36/sysdeps/aarch64/nptl/pthreaddef.h#L23" target="_blank" rel="noopener noreferrer">sysdeps/aarch64/nptl/pthreaddef.h L23</a>, <a href="https://github.com/bminor/glibc/blob/glibc-2.36/nptl/allocatestack.c#L345-L346" target="_blank" rel="noopener noreferrer">nptl/allocatestack.c L345-346</a>). Newer glibc versions try <code>clone3</code> first and fall back to <code>clone</code> (<a href="https://github.com/bminor/glibc/blob/glibc-2.36/sysdeps/unix/sysv/linux/clone-internal.c#L52-L55" target="_blank" rel="noopener noreferrer">clone-internal.c L52-55</a>); glibc 2.36 on arm64 has no <code>clone3</code> wrapper, so the trace shows plain <code>clone</code>.</p>
 <p><b>Thread-local storage</b> (TLS) is a variable declared <code>__thread</code> (C) or <code>thread_local</code> (C++): one copy per thread, found through the thread pointer. <code>errno</code> is one, which is why two threads can make failing system calls at once without overwriting each other's error code. The same program printed its variables' addresses from three threads:</p>
 <pre class="cd res" id="rd-tls"></pre>
 <p class="small mute">Thread 0 is the main thread. The shared global has one address; <code>tls_var</code> and the stack differ between the main thread and the others. Threads 1 and 2 print the same addresses because the program joins thread 1 before creating thread 2, and glibc reuses the cached stack and TLS block.</p>
-<div class="cost"><span class="t">Cost</span> <span class="meas">measured here</span>: creating and joining an empty thread took <b data-k="thr.create_us">136.0</b> µs with 4 CPUs available and <b data-k="thr.create1_us">12.0</b> µs pinned to one CPU (best of 5 × 2000). The difference is the cross-CPU wake-up, which is unusually expensive in this VM (section 4 measures it). The 8 MiB stack costs address space, not memory: 2,000 idle threads in section 9 reserved <b data-k="cn.threads.vsz">18683</b> MiB of virtual memory but added only <b data-k="cn.threads.rss_added">13</b> MiB of resident memory, because untouched stack pages are never allocated (copy-on-write and demand paging: the sibling <a href="https://app.notion.com/p/3f05c17b0d0d81a48892cea154ce950b" target="_blank" rel="noopener noreferrer">Virtual memory</a> page).</div>
-<p><b>Thread or process?</b> A thread is cheaper to create and shares memory for free; a process gets a separate address space, so a crash or a corrupted heap in one cannot touch the other, and in CPython each process has its own GIL (section 8). PyTorch's DataLoader uses processes for that reason, and pays with pickling and shared memory to move batches. On Linux both are tasks, so a container's <code>pids.max</code> limit counts threads too: the root's <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Debug lab</a> case "BlockingIOError on fork: the pids limit counts threads too" shows it.</p>
-<div class="drill"><div class="q">Predict: one thread of a training process calls <code>exit(1)</code> from a background thread. What happens to the other threads?</div>
-<div class="opts"><button>Only that thread ends</button><button data-right>The whole process ends</button><button>The others end when they next make a system call</button></div>
-<div class="ans" hidden><code>exit</code> calls <code>exit_group</code>, which ends every thread in the thread group. To end only the calling thread, return from its function or call <code>pthread_exit</code>. The same holds for a signal whose default action is to terminate: it kills the whole process, whichever thread it was delivered to.</div></div>
+<p><b>exit() from any thread ends the whole process.</b> <code>exit</code> calls <code>exit_group</code>, which ends every thread in the thread group; to end only the calling thread, return from its function or call <code>pthread_exit</code>. The same holds for a signal whose default action is to terminate: it kills the whole process, whichever thread it was delivered to.</p>
+</div></details>
 </section>
+
 <section id="rd-s2">
 <h2>2. Races, atomic instructions and memory order</h2>
 <p><span class="ostep">ch. 26.3 to 26.5, ch. 28.6 to 28.11</span></p>
-<p><b>The problem.</b> When two threads update the same memory and nothing orders them, the result depends on timing: a <dfn>race condition</dfn>. The classic one, <code>count = count + 1</code> on two threads, is three instructions (load, add, store); if both threads load the same old value, one increment is lost. The root page measured it (two threads, 10 million increments each, about half lost) and its <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">OS simulators</a> tab steps the three instructions one at a time. A piece of code that touches shared data and must not run in two threads at once is a <dfn>critical section</dfn>; the guarantee that at most one thread is inside is <dfn>mutual exclusion</dfn>.</p>
-<p><b>Atomic instructions.</b> The hardware fix is an instruction that reads, modifies and writes one memory word as one indivisible step, which no other core can split. Three families matter:</p>
+<p>When two threads update the same memory and nothing orders them, the result depends on timing: a <dfn>race condition</dfn>. Two unordered accesses to one location, at least one a write, are a <dfn>data race</dfn>; in C, C++ and Rust's unsafe code that is undefined behaviour, not merely a wrong number. The classic one, <code>count = count + 1</code> on two threads, is three instructions (load, add, store). Predict the final count after two increments from 41, then step it:</p>
+<div class="card" id="rd-race-card">
+<h4>Two increments, one lost: the interleaving is the bug</h4>
+<div class="segb" id="rd-race-mode"><button data-m="plain" class="on">Plain count = count + 1</button><button data-m="atomic">Atomic fetch-and-add</button></div>
+<div class="rd-svg" id="rd-race-svg"></div>
+<div class="an-cap" id="rd-race-cap"></div>
+<div class="an-ctl" id="rd-race-ctl"></div>
+</div>
+<p>The root page measured the same race at full speed (two threads, 10 million increments each, about half lost) and its <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">OS simulators</a> tab runs OSTEP's <code>x86.py</code> programs. A concurrency bug needs a particular order of steps, which is why it passes tests and fails in production. Code that touches shared data and must not run in two threads at once is a <dfn>critical section</dfn>.</p>
+<p><b>Atomic instructions</b> are the hardware fix: one read-modify-write of one word as one indivisible step. Three families matter:</p>
 <div class="mech">
 <div><b>Fetch-and-add</b><code>old = *p; *p = old + v</code> in one step. arm64 v8.1 has <code>ldadd</code>; x86-64 has <code>lock xadd</code>. Counters and reference counts.</div>
 <div><b>Exchange (test-and-set)</b><code>old = *p; *p = v</code>. The simplest lock: <code>while (xchg(&amp;l, 1) == 1) ;</code></div>
 <div><b>Compare-and-swap (CAS)</b>if <code>*p == expected</code> then <code>*p = new</code>, and say whether it did. Everything lock-free is built on it. arm64 v8.1 <code>cas</code>; x86-64 <code>lock cmpxchg</code>.</div>
-<div><b>Load-linked / store-conditional</b>the older arm64 form (<code>ldaxr</code> then <code>stlxr</code>): the store fails if anyone wrote the word in between, and the code loops. GCC's "outline atomics" pick LSE or LL/SC at run time (the root's assembly shows a call to <code>__aarch64_ldadd8_acq_rel</code>).</div>
 </div>
-<p>An atomic update is not free: on one thread it cost <b data-k="lk.S1.atomic.wall">8.3</b> ns here against well under a nanosecond for a plain add, and with four threads updating one counter the cache line holding it bounces between cores (the C++ page's false-sharing measurement shows the same effect for neighbouring variables).</p>
-<p><b>Memory order.</b> A second, subtler problem: cores do not make their writes visible to each other in program order. Each core puts stores in a private <dfn>store buffer</dfn> and lets later loads run ahead of them. On x86-64 only that one reordering (a later load passing an earlier store) is allowed; arm64 allows more. Part 2 of the <a href="https://app.notion.com/p/3cd5c17b0d0d81ceadcee44fe9c023a0" target="_blank" rel="noopener noreferrer">C++ page</a> measures the message-passing reordering on this same chip and explains acquire, release and sequentially consistent orders; here is what it does to a lock.</p>
-<p><b>Peterson's algorithm</b> (OSTEP 28.6) is a correct lock for two threads using only loads and stores, proved in 1981 on the assumption that memory is sequentially consistent:</p>
+<p>An atomic update is not free: on one thread it cost <b data-k="lk.S1.atomic.wall">8.3</b> ns here against well under a nanosecond for a plain add, and with four threads updating one counter the cache line holding it bounces between cores (the <a href="https://app.notion.com/p/3cd5c17b0d0d81ceadcee44fe9c023a0" target="_blank" rel="noopener noreferrer">C++ page</a>'s false-sharing measurement shows the same effect for neighbouring variables).</p>
+<p><b>Memory order.</b> Cores also do not make their writes visible to each other in program order: each core puts stores in a private <dfn>store buffer</dfn> and lets later loads run ahead of them. x86-64 allows only that one reordering (a later load passing an earlier store); arm64 allows more. Part 2 of the <a href="https://app.notion.com/p/3cd5c17b0d0d81ceadcee44fe9c023a0" target="_blank" rel="noopener noreferrer">C++ page</a> measures the message-passing reordering on this chip and explains acquire, release and sequentially consistent orders; here is what it does to a lock. <b>Peterson's algorithm</b> (OSTEP 28.6) is a correct two-thread lock using only loads and stores, proved in 1981 on the assumption that memory is sequentially consistent:</p>
 <pre class="cd"><span class="k">void</span> lock(<span class="k">int</span> me) {  <span class="k">int</span> other = 1 - me;
     flag[me] = 1;                         <span class="c">// I want in</span>
     turn = other;                         <span class="c">// but you go first if you also want in</span>
     <span class="k">while</span> (flag[other] &amp;&amp; turn == other) ;  <span class="c">// wait while you want in and it is your turn</span>
 }
 <span class="k">void</span> unlock(<span class="k">int</span> me) { flag[me] = 0; }</pre>
-<p>If the store <code>flag[me] = 1</code> is still in this core's store buffer when the load <code>flag[other]</code> runs, both threads can read the other's flag as 0 and both enter. Two threads, each entering 20 million times, with a non-atomic <code>count = count + 1</code> inside <span class="meas">measured here</span> (<code>src/runs/c/peterson.c</code>):</p>
-<pre class="cd res" id="rd-peterson"></pre>
-<p id="rd-peterson-note" class="small"></p>
-<p>The fix is to declare the order you need: with sequentially consistent atomics the compiler emits the ordering instructions (<code>stlr</code> and <code>ldar</code> on arm64, or a full barrier <code>dmb ish</code>), and the lock is correct. Real locks never rely on plain loads and stores; they use an atomic exchange or CAS, which carry the ordering with them (acquire on lock, release on unlock).</p>
-<div class="drill"><div class="q">Predict: a <code>volatile int</code> counter, incremented by two threads. Does <code>volatile</code> make <code>count++</code> safe?</div>
-<div class="opts"><button>Yes, volatile makes each access atomic</button><button data-right>No</button><button>Only on x86-64</button></div>
-<div class="ans" hidden>No. <code>volatile</code> only stops the compiler from removing or merging the accesses; the load, add and store are still three steps, and nothing orders them across cores. The root's race measurement used a volatile counter and lost about half the increments. Use an atomic (<code>std::atomic</code>, <code>__atomic_fetch_add</code>) or a lock.</div></div>
+<p>If the store <code>flag[me] = 1</code> is still in this core's store buffer when the load <code>flag[other]</code> runs, both threads read the other's flag as 0 and both enter. Two threads, each entering 20 million times, with a non-atomic <code>count = count + 1</code> inside <span class="meas">measured here</span> (<code>src/runs/c/peterson.c</code>):</p>
+<p id="rd-peterson-note"></p>
+<details class="dp"><summary>The raw output of the ten runs <span class="mute">(evidence)</span></summary><div class="b"><pre class="cd res" id="rd-peterson"></pre></div></details>
+<p>The fix is to declare the order you need: with sequentially consistent atomics the compiler emits the ordering instructions (<code>stlr</code> and <code>ldar</code> on arm64, or a full barrier <code>dmb ish</code>) and the lock is correct. Real locks never rely on plain loads and stores; they use an atomic exchange or CAS, which carry the ordering with them (<b>acquire on lock, release on unlock</b>). <code>volatile</code> is not a fix: it only stops the compiler from removing or merging accesses; the load, add and store stay three steps, unordered across cores (the root's race measurement used a volatile counter).</p>
+<details class="dp"><summary>Load-linked / store-conditional, and lock-free structures in brief <span class="mute">(depth)</span></summary><div class="b">
+<p><b>Load-linked / store-conditional</b> is the older arm64 form (<code>ldaxr</code> then <code>stlxr</code>): the store fails if anyone wrote the word in between, and the code loops. GCC's "outline atomics" pick LSE or LL/SC at run time (the root's assembly shows a call to <code>__aarch64_ldadd8_acq_rel</code>).</p>
+<p>A <dfn>lock-free</dfn> data structure guarantees that some thread always makes progress, even if others are paused at any instruction, because nobody ever holds a lock. The building block is a CAS loop: read the current value, compute the new one, and CAS it in; if another thread changed it meanwhile, the CAS fails and you retry. A stack push:</p>
+<pre class="cd"><span class="k">do</span> { n-&gt;next = head; } <span class="k">while</span> (!CAS(&amp;head, n-&gt;next, n));</pre>
+<p>The traps: the <dfn>ABA problem</dfn> (the head was A, became B, became A again; the CAS succeeds although the list changed underneath; fixed with version counters or safe memory reclamation), and freeing memory another thread may still be reading (fixed by hazard pointers, epochs, or <dfn>RCU</dfn>, read-copy-update, which the Linux kernel uses so that readers take no lock at all: <a href="https://docs.kernel.org/RCU/whatisRCU.html" target="_blank" rel="noopener noreferrer">What is RCU</a>). The common, safe case in practice is a <dfn>single-producer single-consumer ring buffer</dfn>: one thread only advances the tail, the other only the head, and each reads the other's index with acquire order. io_uring's two rings (section 8) are exactly that, shared between a program and the kernel. Use lock-free structures from a library (the C++ page's atomics, Rust's crossbeam, <code>std::atomic</code> counters); a lock is usually fast enough (section 3: 10 ns uncontended) and far easier to get right.</p>
+</div></details>
 </section>
 
 <section id="rd-s3">
 <h2>3. Locks: spin, yield, or sleep</h2>
 <p><span class="ostep">ch. 28 Locks, ch. 29 Lock-based concurrent data structures</span></p>
-<p>A <dfn>lock</dfn> (or <dfn>mutex</dfn>, for mutual exclusion) is a word in memory plus two operations: <code>lock()</code> returns only when the caller owns it, <code>unlock()</code> gives it up. OSTEP judges a lock on three things: correctness (mutual exclusion), <dfn>fairness</dfn> (does every waiter eventually get it, or can one starve?) and performance (with no contention, with contention on many CPUs, and with contention on one CPU). The design question is what a thread does when the lock is taken:</p>
+<p>A <dfn>lock</dfn> (or <dfn>mutex</dfn>) is a word in memory plus two operations: <code>lock()</code> returns only when the caller owns it, <code>unlock()</code> gives it up. OSTEP judges a lock on correctness (mutual exclusion), <dfn>fairness</dfn> (can a waiter starve?) and performance (uncontended, contended on many CPUs, contended on one CPU). The design question is what a thread does when the lock is taken:</p>
 <div class="mech">
-<div><b>Spin</b>keep retrying the atomic exchange. Best when the holder is running on another core and will release within nanoseconds. Terrible when the holder is not running: the spinner burns its whole time slice.</div>
-<div><b>Yield</b>retry, and call <code>sched_yield()</code> after each failure to give the CPU away (OSTEP 28.13). A system call per failed attempt, and no promise about who runs next.</div>
-<div><b>Sleep</b>ask the kernel to put the thread on a wait queue and wake it when the lock is released. Costs two system calls and a wake-up when contended, nothing else.</div>
-<div><b>Spin, then sleep</b>(two-phase or adaptive locks) spin briefly in case the holder is about to release, then sleep. glibc's <code>PTHREAD_MUTEX_ADAPTIVE_NP</code> spins at most 100 rounds by default, with exponential backoff (<a href="https://github.com/bminor/glibc/blob/glibc-2.36/nptl/pthread_mutex_lock.c#L139-L158" target="_blank" rel="noopener noreferrer">nptl/pthread_mutex_lock.c L139-158</a>; tunable <code>glibc.pthread.mutex_spin_count</code>).</div>
+<div><b>Spin</b>keep retrying the atomic exchange. Best when the holder runs on another core and will release within nanoseconds; terrible when the holder is not running, since the spinner burns its whole time slice.</div>
+<div><b>Yield</b>retry, calling <code>sched_yield()</code> after each failure (OSTEP 28.13): a system call per failed attempt, and no promise about who runs next.</div>
+<div><b>Sleep</b>ask the kernel to put the thread on a wait queue and wake it at release: two system calls and a wake-up when contended, nothing else.</div>
+<div><b>Spin, then sleep</b>(two-phase or adaptive) spin briefly in case the holder is about to release, then sleep. glibc's <code>PTHREAD_MUTEX_ADAPTIVE_NP</code> spins at most 100 rounds by default, with exponential backoff (<a href="https://github.com/bminor/glibc/blob/glibc-2.36/nptl/pthread_mutex_lock.c#L139-L158" target="_blank" rel="noopener noreferrer">nptl/pthread_mutex_lock.c L139-158</a>; tunable <code>glibc.pthread.mutex_spin_count</code>).</div>
 </div>
-<p>Seven ways to protect one shared counter, measured in four situations <span class="meas">measured here</span> (<code>src/runs/c/locks.c</code>; "work" is a loop of about 0.3 ns per iteration; median of 3 runs; per-run values in the raw output):</p>
+<div class="card"><h4>A good lock costs one atomic instruction until it is contended; then the situation picks the winner</h4>
+<p class="small">Seven ways to protect one shared counter in four situations <span class="meas">measured here</span> (<code>src/runs/c/locks.c</code>; "work" is a loop of about 0.3 ns per iteration; median of 3 runs). Predict which design wins with four threads on one CPU, then pick that situation.</p>
 <div class="segb" id="rd-lk-sc"><button data-m="S1" class="on">1 thread, no contention</button><button data-m="S2">4 threads on 4 CPUs, short critical section</button><button data-m="S3">4 threads hammering</button><button data-m="S4">4 threads on 1 CPU, long critical section</button></div>
 <div class="segb" id="rd-lk-me"><button data-m="wall" class="on">Wall time per acquisition</button><button data-m="cpu">CPU time per acquisition</button></div>
 <div class="chart" id="rd-lk-chart"></div>
-<p class="small mute" id="rd-lk-cap"></p>
-<p>What to take from it:</p>
+<p class="small mute" id="rd-lk-cap"></p></div>
 <ul>
-<li><b>Uncontended, a good lock costs about as much as one atomic instruction</b> (<b data-k="lk.S1.futex.wall">9.2</b> ns for the hand-built futex lock, <b data-k="lk.S1.mutex.wall">10.1</b> ns for <code>pthread_mutex_t</code>), because it never enters the kernel. A lock that makes a system call on every unlock costs <b data-k="lk.S1.sysc.wall">288.6</b> ns: about thirty times more, for nothing.</li>
+<li><b>Uncontended, a good lock costs about one atomic instruction</b> (<b data-k="lk.S1.futex.wall">9.2</b> ns for the hand-built futex lock, <b data-k="lk.S1.mutex.wall">10.1</b> ns for <code>pthread_mutex_t</code>), because it never enters the kernel. A lock that makes a system call on every unlock costs <b data-k="lk.S1.sysc.wall">288.6</b> ns: about thirty times more, for nothing.</li>
 <li><b>Contended on enough CPUs, spinning burns CPU:</b> with a short critical section the spinlock used <b data-k="lk.S2.spin.cpu">910.3</b> ns of CPU per acquisition against <b data-k="lk.S2.mutex.cpu">437.2</b> ns for the mutex, and was slower in wall time too, because four cores fighting over one cache line slow each other down.</li>
-<li><b>With more threads than CPUs, a spinner can wait for a thread that is not running.</b> On one CPU with a long critical section, the holder is often preempted inside it; each spinner then burns a whole time slice before the holder runs again: <b data-k="lk.S4.spin.wall">1492.5</b> ns per acquisition against <b data-k="lk.S4.mutex.wall">815.9</b> ns for the mutex and <b data-k="lk.S4.spin1.wall">791.5</b> ns for one thread doing the same work alone.</li>
-<li><b>Hammering a lock rewards unfairness.</b> In the no-work scenario the yield lock looks fastest, because a thread that just released the lock usually takes it again while its cache line is still hot and the others are yielding; the work is done, but by one thread at a time in long runs. Fairness costs throughput; a <dfn>ticket lock</dfn> (OSTEP 28.11: fetch-and-add a ticket, wait for your number) is fair and slower.</li>
-<li><b>Never use a spinlock in user space unless every thread has its own CPU</b> (as with pinned threads in a low-latency system). This is why the Linux kernel spins (kernel code can disable preemption while holding a spinlock) and user space sleeps.</li>
+<li><b>With more threads than CPUs, a spinner waits for a thread that is not running.</b> On one CPU with a long critical section the holder is often preempted inside it, and each spinner burns a whole time slice: <b data-k="lk.S4.spin.wall">1492.5</b> ns per acquisition against <b data-k="lk.S4.mutex.wall">815.9</b> ns for the mutex and <b data-k="lk.S4.spin1.wall">791.5</b> ns for one thread doing the same work alone. In a container with a one-CPU limit and a long critical section, that slice is milliseconds, and under a CPU quota the whole cgroup can be throttled until the next 100 ms period (the root's Debug lab, "CPU limit" cases).</li>
+<li><b>Hammering a lock rewards unfairness:</b> with no work the yield lock looks fastest because the releasing thread retakes it while its cache line is hot. A <dfn>ticket lock</dfn> (OSTEP 28.11: fetch-and-add a ticket, wait for your number) is fair and slower.</li>
 </ul>
-<div class="drill"><div class="q">Predict: a container with a one-CPU limit runs a job whose 8 threads take a spinlock around a 50 µs critical section. Roughly how long can one waiter spin before the holder runs again?</div>
-<div class="opts"><button>About 50 µs</button><button data-right>Milliseconds: a whole scheduler time slice, or a whole cgroup period</button><button>It cannot spin: the kernel detects it</button></div>
-<div class="ans" hidden>The holder can be descheduled inside the critical section; then every spinner that runs uses its full slice (a few milliseconds under CFS) doing nothing, and under a CPU quota the whole cgroup can be throttled until the next 100 ms period (the root's Debug lab, "CPU limit" cases). The measured one-CPU case above shows the effect at small scale.</div></div>
+<p><b>Rule:</b> never spin in user space unless every thread has its own CPU (pinned threads in a low-latency system). The Linux kernel spins because kernel code can disable preemption while holding a spinlock; user space sleeps.</p>
 </section>
+
 <section id="rd-s4">
 <h2>4. The futex: how every Linux lock sleeps</h2>
 <p><span class="ostep">ch. 28.14 to 28.16 (Linux futex, two-phase locks)</span> <span class="src">from source</span> <span class="meas">measured here</span></p>
-<p><b>The problem.</b> Sleeping needs the kernel (only the kernel can take a thread off the CPU and put it back), but entering the kernel costs about 300 ns, thirty times an uncontended lock. Before futexes, user-space locks paid for a system call either on every operation or on none (and then spun). The <dfn>futex</dfn> ("fast user-space mutex", Linux 2.6, 2003) splits the job: the lock word lives in ordinary user memory and is changed with atomic instructions; the kernel is asked only to sleep on that word or to wake sleepers on it (<a href="https://man7.org/linux/man-pages/man2/futex.2.html" target="_blank" rel="noopener noreferrer">futex(2)</a>; Drepper, <a href="https://www.akkadia.org/drepper/futex.pdf" target="_blank" rel="noopener noreferrer">Futexes Are Tricky</a>, 2011). Two operations do almost all the work:</p>
+<p>Sleeping needs the kernel, but entering it costs about 300 ns, thirty times an uncontended lock. The <dfn>futex</dfn> ("fast user-space mutex", Linux 2.6, 2003) splits the job: the lock word lives in ordinary user memory and is changed with atomic instructions; the kernel is asked only to sleep on that word or to wake sleepers on it (<a href="https://man7.org/linux/man-pages/man2/futex.2.html" target="_blank" rel="noopener noreferrer">futex(2)</a>; Drepper, <a href="https://www.akkadia.org/drepper/futex.pdf" target="_blank" rel="noopener noreferrer">Futexes Are Tricky</a>, 2011). Two operations do almost all the work:</p>
 <div class="mech">
 <div><b>futex_wait(addr, val)</b>"if <code>*addr</code> still equals <code>val</code>, put me to sleep on <code>addr</code>; otherwise return at once with EAGAIN". The comparison and the going to sleep happen together inside the kernel, under a lock no waker can slip past.</div>
 <div><b>futex_wake(addr, n)</b>"wake up to <code>n</code> threads sleeping on <code>addr</code>". It does not change <code>*addr</code>; the user-space code changed it already.</div>
@@ -280,21 +335,26 @@ details.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}details.q
     <span class="k">if</span> (xchg(w, 0) &gt; 1)                      <span class="c">// was 2: someone may be asleep</span>
         futex_wake(w, 1);                      <span class="c">// wake one; it retries the xchg</span>
 }</pre>
-<p>Uncontended, <code>lock</code> is one CAS and <code>unlock</code> one exchange: no system call. Only a thread that finds the lock taken calls <code>futex_wait</code>, and only an unlock that sees 2 calls <code>futex_wake</code>. A thread that takes the lock after a wait sets it to 2, not 1, because it cannot know whether others are still asleep: an occasional unneeded wake-up is the price of never missing one. The hand-built version in <code>locks.c</code> counts its own system calls: with four threads and short critical sections it made <b data-k="lk.S2.futex.fw">208840</b> futex waits in 2 million acquisitions (about one acquisition in ten had to sleep).</p>
+<p>Uncontended, <code>lock</code> is one CAS and <code>unlock</code> one exchange: no system call. A thread that takes the lock after a wait sets it to 2, not 1, because it cannot know whether others are still asleep: an occasional unneeded wake-up is the price of never missing one. The hand-built version in <code>locks.c</code> counts its own system calls: with four threads and short critical sections it made <b data-k="lk.S2.futex.fw">208840</b> futex waits in 2 million acquisitions (about one acquisition in ten had to sleep).</p>
 <h3>Why the kernel must compare: the lost wake-up</h3>
-<p>Why not check the lock word in user space and then call a plain "sleep"? Because between the check and the sleep, the holder can unlock and send its wake-up to a thread that is not asleep yet; the wake-up is lost, and the waiter then sleeps forever. The kernel source states the rule (<a href="https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c#L2633-L2648" target="_blank" rel="noopener noreferrer">kernel/futex.c L2633-2648, v5.10</a>):</p>
-<pre class="cd"><span class="c"> * The basic logical guarantee of a futex is that it blocks ONLY
- * if cond(var) is known to be true at the time of blocking, for
- * any cond.  If we locked the hash-bucket after testing *uaddr, that
- * would open a race condition where we could block indefinitely with
- * cond(var) false, which would violate the guarantee.</span></pre>
-<p>So <code>futex_wait_setup</code> locks the wait queue first, then reads <code>*uaddr</code>, and returns EAGAIN if it changed (<a href="https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c#L2650-L2678" target="_blank" rel="noopener noreferrer">L2650-2678</a>). The <a href="#" data-tab="t-lock">Interleaving lab</a> lets you produce the lost wake-up yourself in the "check, then sleep" lock (54 of its 376 possible schedules leave a thread asleep forever) and shows that the futex version has none.</p>
-<h3>Where the sleepers are kept</h3>
-<p>The kernel does not allocate anything per futex while nobody waits. Sleepers go into one global hash table of wait queues, indexed by a key for the address: for a <dfn>private</dfn> futex (threads of one process; glibc passes <code>FUTEX_PRIVATE_FLAG</code>) the key is the address space and the virtual address; for a <dfn>shared</dfn> futex (a lock in memory mapped by several processes) it is the underlying page and offset, so different virtual addresses in different processes meet in the same queue (<a href="https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c#L487-L653" target="_blank" rel="noopener noreferrer">get_futex_key, kernel/futex.c L487-653</a>). The table has <code>roundup_pow_of_two(256 × CPUs)</code> buckets (<a href="https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c#L4050" target="_blank" rel="noopener noreferrer">L4050</a>), 2,048 on this 5-CPU VM. Python's <code>multiprocessing.Lock</code> is a POSIX semaphore in a <code>/dev/shm/sem.*</code> file mapped by both processes, so its futex is shared: no <code>_PRIVATE</code> in the trace <span class="meas">measured here</span>:</p>
-<pre class="cd res" id="rd-mpfutex"></pre>
+<p>Why not check the word in user space and then call a plain "sleep"? Because between the check and the sleep the holder can unlock and send its wake-up to a thread that is not asleep yet; the wake-up is lost and the waiter sleeps forever. The kernel source states the rule (<a href="https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c#L2633-L2648" target="_blank" rel="noopener noreferrer">kernel/futex.c L2633-2648, v5.10</a>): "The basic logical guarantee of a futex is that it blocks ONLY if cond(var) is known to be true at the time of blocking". So <code>futex_wait_setup</code> locks the wait queue first, then reads <code>*uaddr</code>, and returns EAGAIN if it changed (<a href="https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c#L2650-L2678" target="_blank" rel="noopener noreferrer">L2650-2678</a>). Be the scheduler and produce it yourself:</p>
+<div class="card" id="rd-il">
+<h4>You are the scheduler: break the lock, or prove you cannot</h4>
+<p class="small">Press a thread's button to run its next indivisible step. In "check, then sleep", <b>54 of its 376</b> possible schedules leave a thread asleep forever; the futex version has none.</p>
+<div class="segb" id="il-sc"></div>
+<p class="small" id="il-about"></p>
+<div class="il-btns" id="il-btns"></div>
+<div class="il-verdict" id="il-verdict"></div>
+<div class="il-code" id="il-code"></div>
+<div class="il-state" id="il-state"></div>
+<div class="il-log" id="il-log" aria-live="polite"></div>
+<p class="small" id="il-count"></p>
+<p class="small mute">How this is checked: the page explores every interleaving in your browser (a depth-first search over states, counting the distinct schedules that lead to each ending); <code>src/recompute.py</code> does the same search with an independent Python implementation of the same programs (<code>src/inputs/lab_programs.json</code>), and the pill says whether the two agree.</p>
+</div>
 <h3>One contended lock, four ways: before and after the futex</h3>
-<p>The animation runs one input through four lock designs: threads A and B each need the lock twice (a critical section of 2 µs, 1 µs of other work between), while thread C has 8 µs of unrelated work and no lock, all on 2 CPUs. Costs are this VM's measured ones where they exist: a futex system call 0.3 µs (the "wake on every unlock" lock's <b data-k="lk.S1.sysc.wall">288.6</b> ns per pair), and a wake-up of <b data-k="pp.1cpu.futex.half">1.7</b> µs (same CPU) or <b data-k="pp.2cpu.futex.half">23.5</b> µs (across CPUs in this VM; switch below), half a ping-pong round trip. The time slice is shortened to 3 µs so that preemption shows up at this scale <span class="ill">illustrative slice</span>.</p>
+<p>Threads A and B each need the lock twice (a 2 µs critical section, 1 µs of other work between), while thread C has 8 µs of unrelated work and no lock, all on 2 CPUs. Costs are this VM's measured ones: a futex system call 0.3 µs (the "wake on every unlock" lock's <b data-k="lk.S1.sysc.wall">288.6</b> ns per pair), and a wake-up of <b data-k="pp.1cpu.futex.half">1.7</b> µs (same CPU) or <b data-k="pp.2cpu.futex.half">23.5</b> µs (across CPUs in this VM), half a ping-pong round trip. The time slice is shortened to 3 µs so that preemption shows at this scale <span class="ill">illustrative slice</span>. Predict which design lets C finish first, then press play.</p>
 <div class="card" id="rd-fx-card">
+<h4>The futex frees the CPU for C; each hand-off now pays a wake-up</h4>
 <div class="segb" id="rd-fx-mode"><button data-m="spin" class="on">Spinlock</button><button data-m="sysc">Kernel on every unlock</button><button data-m="futex">Futex (glibc)</button><button data-m="adaptive">Spin, then futex</button></div>
 <div class="segb" id="rd-fx-wake"><button data-m="same" class="on">Wake-up on the same CPU</button><button data-m="cross">Wake-up across CPUs (this VM)</button></div>
 <div class="chart" id="rd-fx-svg"></div>
@@ -303,12 +363,14 @@ details.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}details.q
 <div class="an-cnt" id="rd-fx-cnt"></div>
 <div class="an-ctl" id="rd-fx-ctl"></div>
 </div>
-<p class="small mute">What to try: run the spinlock, then the futex: the futex frees the CPU for thread C but each hand-off now pays a wake-up. Switch to the cross-CPU wake-up: the futex's hand-offs become far slower than spinning, which is exactly why glibc offers an adaptive mutex and why the kernel and NCCL spin when they expect the wait to be short.</p>
-<h3>What a wake-up costs</h3>
-<p>Two threads passing a turn back and forth 200,000 times <span class="meas">measured here</span> (<code>pingpong.c</code>; round trip = two hand-offs; median of 5):</p>
-<div class="tw"><table class="tbl-sm" id="rd-pp-tbl"></table></div>
-<p>On one CPU a hand-off is a context switch: <b data-k="pp.1cpu.futex.half">1.7</b> µs, in line with the root's 1.33 µs pipe ping-pong. Across CPUs it is slower here because the sleeping CPU has gone idle and must be woken by an inter-processor interrupt, which a virtual machine turns into a trip through the hypervisor (here a GICv2 emulated in QEMU, with the idle vCPU a host thread that must itself be woken: <a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a>, section 5, measures each step); how much lower it is on bare metal was not measured here <span class="nrh">not run here</span>. Spinning across two CPUs never sleeps (<b data-k="pp.2cpu.spin.rt2">0.09</b> µs per round trip, median of 5; one run took 44.8 µs when another workload took one of the CPUs), but on one CPU each spin waits for a whole time slice: <b data-k="pp.1cpu.spin.ms">19.8</b> ms per round trip, about <b data-k="pp.spin.ratio">220,000</b> times slower.</p>
-<h3>The rest of the futex family</h3>
+<p class="small mute">Switch to the cross-CPU wake-up: the futex's hand-offs become far slower than spinning, which is why glibc offers an adaptive mutex and why the kernel and NCCL spin when they expect the wait to be short.</p>
+<p><b>What a wake-up costs.</b> Two threads passing a turn back and forth 200,000 times <span class="meas">measured here</span> (<code>pingpong.c</code>; round trip = two hand-offs; median of 5):</p>
+<div class="tw"><table class="tbl-sm nar" id="rd-pp-tbl"></table></div>
+<p>On one CPU a hand-off is a context switch: <b data-k="pp.1cpu.futex.half">1.7</b> µs, in line with the root's 1.33 µs pipe ping-pong. Across CPUs the idle CPU must be woken by an inter-processor interrupt, which a virtual machine turns into a trip through the hypervisor (<a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a>, section 5); bare metal <span class="nrh">not run here</span>. Spinning across two CPUs never sleeps (<b data-k="pp.2cpu.spin.rt2">0.09</b> µs per round trip), but on one CPU each spin waits for a whole time slice: <b data-k="pp.1cpu.spin.ms">19.8</b> ms per round trip, about <b data-k="pp.spin.ratio">220,000</b> times slower.</p>
+<div class="ml"><span class="t">In ML work</span> Python's <code>threading.Lock</code> and <code>queue.Queue</code>, PyTorch's thread pools, libgomp's barriers and NCCL's idle proxy thread all sleep on futexes, so in a hung process <code>cat /proc/&lt;pid&gt;/task/*/wchan</code> shows <code>futex_wait_queue_me</code> (5.10; <code>futex_wait_queue</code> on 6.x) for nearly every thread. Thousands of <code>futex(..., FUTEX_WAIT_PRIVATE, 2, NULL) = -1 EAGAIN</code> lines under strace are not a bug: the word changed before the kernel compared, and the caller retries (about a fifth of the job's futex calls in section 10 return an error; <code>strace -c</code> does not name it, and for these waits the usual ones are EAGAIN and, for timed waits, ETIMEDOUT).</div>
+<details class="dp"><summary>Where the sleepers are kept, shared futexes, and the rest of the futex family <span class="mute">(depth)</span></summary><div class="b">
+<p>The kernel does not allocate anything per futex while nobody waits. Sleepers go into one global hash table of wait queues, indexed by a key for the address: for a <dfn>private</dfn> futex (threads of one process; glibc passes <code>FUTEX_PRIVATE_FLAG</code>) the key is the address space and the virtual address; for a <dfn>shared</dfn> futex (a lock in memory mapped by several processes) it is the underlying page and offset, so different virtual addresses in different processes meet in the same queue (<a href="https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c#L487-L653" target="_blank" rel="noopener noreferrer">get_futex_key, kernel/futex.c L487-653</a>). The table has <code>roundup_pow_of_two(256 × CPUs)</code> buckets (<a href="https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c#L4050" target="_blank" rel="noopener noreferrer">L4050</a>), 2,048 on this 5-CPU VM. The full comment: "If we locked the hash-bucket after testing *uaddr, that would open a race condition where we could block indefinitely with cond(var) false, which would violate the guarantee." Python's <code>multiprocessing.Lock</code> is a POSIX semaphore in a <code>/dev/shm/sem.*</code> file mapped by both processes, so its futex is shared: no <code>_PRIVATE</code> in the trace <span class="meas">measured here</span>:</p>
+<pre class="cd res" id="rd-mpfutex"></pre>
 <ul>
 <li><b>FUTEX_WAIT_BITSET</b> with <code>FUTEX_CLOCK_REALTIME</code>: a wait with an absolute deadline; glibc uses it for timed waits and POSIX semaphores (the trace above).</li>
 <li><b>FUTEX_CMP_REQUEUE</b>: wake one waiter and move the rest from a condition variable's futex to the mutex's, so a broadcast does not wake a herd that would immediately fight for the mutex (the <dfn>thundering herd</dfn>). glibc 2.25 (2017) replaced its condition variables with an algorithm based on groups of waiters that never requeues (no requeue call appears in <a href="https://github.com/bminor/glibc/blob/glibc-2.36/nptl/pthread_cond_wait.c" target="_blank" rel="noopener noreferrer">nptl/pthread_cond_wait.c, glibc 2.36</a>); the operation remains in use for priority-inheritance locks.</li>
@@ -316,139 +378,162 @@ details.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}details.q
 <li><b>Robust futexes</b>: the kernel walks a per-thread list at exit and marks locks held by a dead thread (<code>EOWNERDEAD</code>), for locks in memory shared between processes.</li>
 <li><b>futex_waitv</b> (Linux 5.16) waits on several futexes at once, added for Wine and game engines (<a href="https://docs.kernel.org/userspace-api/futex2.html" target="_blank" rel="noopener noreferrer">futex2 docs</a>); <span class="nrh">not on this 5.10 kernel</span>.</li>
 </ul>
-<div class="ml"><span class="t">In ML work</span> Every lock and queue in the stack sleeps on a futex: Python's <code>threading.Lock</code> and <code>queue.Queue</code>, PyTorch's thread pools, libgomp's barriers, NCCL's proxy thread when idle. So when a training process hangs, <code>cat /proc/&lt;pid&gt;/task/*/wchan</code> shows <code>futex_wait_queue_me</code> (5.10; <code>futex_wait_queue</code> on 6.x) for nearly every thread, and the question becomes which address each one waits on and who should have woken it: <code>py-spy dump</code> for Python frames, <code>gdb -p &lt;pid&gt; -ex "thread apply all bt"</code> for native ones (section 6).</div>
-<div class="drill"><div class="q">Predict: under strace, a busy training process shows <code>futex(..., FUTEX_WAIT_PRIVATE, 2, NULL) = -1 EAGAIN</code> thousands of times. A bug?</div>
-<div class="opts"><button>Yes: EAGAIN means the lock is broken</button><button data-right>No: the lock word changed between the user-space check and the kernel's check</button><button>The futex table is full</button></div>
-<div class="ans" hidden>EAGAIN from <code>futex_wait</code> is the futex working as designed: by the time the kernel compared, the holder had released (or someone changed the word), so sleeping would have been wrong. The caller simply retries. In the job's trace in section 10, about a fifth of all futex calls return an error (<code>strace -c</code> counts errors without naming them; for these waits the usual ones are EAGAIN and, for timed waits, ETIMEDOUT).</div></div>
+</div></details>
 </section>
+
 <section id="rd-s5">
-<h2>5. Waiting for something: condition variables, semaphores, reader-writer locks, barriers</h2>
+<h2>5. Waiting for something: condition variables, semaphores, barriers</h2>
 <p><span class="ostep">ch. 30 Condition variables, ch. 31 Semaphores</span></p>
-<p><b>The problem.</b> A lock says "one at a time"; it cannot say "wait until a batch is ready" or "wait until there is room in the queue". Checking a flag in a loop (spinning) wastes a CPU; a thread needs to sleep until another thread says the condition may now hold.</p>
-<p>A <dfn>condition variable</dfn> is a queue of sleeping threads attached to a condition the program tracks in its own variables, always used with a mutex: <code>wait(cv, m)</code> atomically releases <code>m</code> and sleeps, and re-takes <code>m</code> before returning; <code>signal(cv)</code> wakes one sleeper, <code>broadcast(cv)</code> wakes all. The atomic "release and sleep" is the same lost-wake-up problem as in section 4, solved the same way (glibc builds it on futexes).</p>
-<p><b>Rule 1: re-check the condition in a while loop.</b> POSIX and Linux use <dfn>Mesa semantics</dfn>: a woken thread is only told that the condition was true at some moment; another thread may have run in between and made it false again (and implementations may wake a thread spuriously). OSTEP's producer/consumer with one slot, one producer and two consumers, run for 200,000 items <span class="meas">measured here</span> (<code>condvar.c</code>):</p>
+<p>A lock says "one at a time"; it cannot say "wait until a batch is ready" or "until there is room in the queue". A <dfn>condition variable</dfn> is a queue of sleeping threads attached to a condition the program tracks in its own variables, always used with a mutex: <code>wait(cv, m)</code> atomically releases <code>m</code> and sleeps, and re-takes <code>m</code> before returning; <code>signal(cv)</code> wakes one sleeper, <code>broadcast(cv)</code> all. The atomic "release and sleep" is section 4's lost-wake-up problem, solved the same way (glibc builds it on futexes).</p>
+<p><b>Rule 1: re-check the condition in a while loop.</b> POSIX and Linux use <dfn>Mesa semantics</dfn>: a woken thread is only told the condition was true at some moment; another thread may have run in between and made it false again (and implementations may wake a thread spuriously). OSTEP's producer/consumer with one slot, one producer and two consumers, 200,000 items <span class="meas">measured here</span> (<code>condvar.c</code>, three runs of each version; raw output in the closed block below). With <code>if</code>, a consumer woke up to an empty slot <b data-k="cv.if.empty">45 to 88</b> times per run: in real code, reading garbage or an exception from an empty queue, rarely enough to pass every test. With <code>while</code>, the same situations happen (<b data-k="cv.while.rechecks">37 to 70</b> re-checks per run) and are harmless. The lab in section 4 counts every schedule of a two-item version: with <code>if</code>, <b data-k="lab.cvif.bug">64,228</b> of <b data-k="lab.cvif.schedules">42,827,788</b> schedules make a consumer read an empty slot; with <code>while</code>, none of <b data-k="lab.cvwhile.schedules">91,732,872</b> do. <a href="#rd-il" class="il-go" data-il="cvif">Open the "if" scenario in the lab</a> and let C2 barge in between P's signal and C1's return.</p>
+<p><b>Rule 2: one condition variable per condition.</b> With one variable shared by "slot full" and "slot empty", a consumer's signal can wake the other consumer instead of the producer; then all three sleep and the program hangs at 0% CPU. It hung in <b data-k="cv.onecond.hangs">3 of 3</b> runs, after a handful of items. Use two condition variables (or broadcast, which is correct but wakes everyone). NCCL's proxy thread follows rule 1 with a predicate lambda: "Predicate avoids lost wakeups and guarantees we observe stop after ncclProxyProgressDestroy" (<a href="https://github.com/NVIDIA/nccl/blob/v2.32.3-1/src/proxy.cc#L849-L851" target="_blank" rel="noopener noreferrer">src/proxy.cc L849-851, NCCL v2.32.3-1</a>).</p>
+<p>A <dfn>semaphore</dfn> (Dijkstra, 1960s) is a counter: <code>wait</code> (P, down) decrements it and sleeps while it would go below zero; <code>post</code> (V, up) increments it and wakes a sleeper. Initialised to 1 it is a lock; to N it admits at most N holders ("at most 2 prefetched batches per worker", the DataLoader's <code>prefetch_factor</code>, is this idea); to 0 it is a "wait until done" signal. POSIX <code>sem_t</code> is a futex word; <code>multiprocessing</code>'s locks, semaphores and queues are <code>sem_t</code> in <code>/dev/shm</code>. Unlike a mutex, any thread can post a semaphore: nothing records an owner, which makes it easy to misuse.</p>
+<p>A <dfn>barrier</dfn> makes N threads wait until all N arrive. OpenMP puts one at the end of every parallel region, which is where PyTorch's math threads sit between operators: libgomp spins at the barrier for a while (<code>do_spin</code> in <code>libgomp/config/linux/wait.h</code>; tuned by <a href="https://gcc.gnu.org/onlinedocs/libgomp/GOMP_005fSPINCOUNT.html" target="_blank" rel="noopener noreferrer">GOMP_SPINCOUNT</a> and <code>OMP_WAIT_POLICY</code>) and then sleeps on a futex; section 10's gdb snapshots find the pool threads in <code>futex_wait</code> inside <code>gomp_barrier_wait_end</code>.</p>
+<details class="dp"><summary>The condition-variable runs, and reader-writer locks <span class="mute">(depth)</span></summary><div class="b">
 <pre class="cd res" id="rd-cv"></pre>
-<p>With <code>if</code>, a consumer woke up to an empty slot <b data-k="cv.if.empty">45 to 88</b> times per run: in real code that is reading garbage or an exception from an empty queue, rarely enough to pass every test. With <code>while</code>, the same situations happen (<b data-k="cv.while.rechecks">37 to 70</b> re-checks per run) and are harmless.</p>
-<p><b>Rule 2: one condition variable per condition.</b> With one variable shared by "slot full" and "slot empty", a consumer's signal can wake the other consumer instead of the producer; then all three sleep, and the program hangs at 0% CPU. It hung in <b data-k="cv.onecond.hangs">3 of 3</b> runs, after a handful of items. Use two condition variables (or broadcast, which is correct but wakes everyone).</p>
-<p>The <a href="#" data-tab="t-lock">Interleaving lab</a> counts every possible schedule of a two-item version: with <code>if</code>, <b data-k="lab.cvif.bug">64,228</b> of <b data-k="lab.cvif.schedules">42,827,788</b> schedules make a consumer read an empty slot; with <code>while</code>, none of <b data-k="lab.cvwhile.schedules">91,732,872</b> do.</p>
-<p><b>A semaphore</b> (Dijkstra, 1960s) is a counter with two operations: <code>wait</code> (also P, down) decrements it and sleeps while it would go below zero; <code>post</code> (V, up) increments it and wakes a sleeper. Initialised to 1 it is a lock; to N it admits at most N holders at once ("at most 2 prefetched batches per worker" is this idea: the DataLoader's <code>prefetch_factor</code>); to 0 it is a "wait until done" signal. POSIX <code>sem_t</code> is a futex word; <code>multiprocessing</code>'s locks, semaphores and queues are <code>sem_t</code> in <code>/dev/shm</code> (section 4's trace). Semaphores are easy to misuse because, unlike a mutex, any thread can post them: nothing records an owner.</p>
-<p><b>A reader-writer lock</b> lets many readers in at once or one writer alone; good for data read far more than written (a model registry, a config). The catch is starvation: glibc's <code>pthread_rwlock_t</code> prefers readers by default, so a steady stream of readers can keep a writer waiting indefinitely (<code>PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP</code> changes it; <a href="https://man7.org/linux/man-pages/man3/pthread_rwlockattr_setkind_np.3.html" target="_blank" rel="noopener noreferrer">pthread_rwlockattr_setkind_np(3)</a>). For short critical sections an rwlock is often slower than a mutex, since even readers write the shared reader count.</p>
-<p><b>A barrier</b> makes N threads wait until all N arrive. OpenMP puts one at the end of every parallel region, which is where PyTorch's math threads sit between operators: libgomp spins at the barrier for a while (<code>do_spin</code> in <code>libgomp/config/linux/wait.h</code>; tuned by <a href="https://gcc.gnu.org/onlinedocs/libgomp/GOMP_005fSPINCOUNT.html" target="_blank" rel="noopener noreferrer">GOMP_SPINCOUNT</a> and <code>OMP_WAIT_POLICY</code>) and then sleeps on a futex. The gdb snapshots in section 10 find the pool threads asleep in <code>futex_wait</code> inside <code>gomp_barrier_wait_end</code>.</p>
-<div class="ml"><span class="t">In ML work</span> NCCL's proxy thread sleeps on a C++ condition variable when it has nothing to progress, with the predicate the comment calls out: "Predicate avoids lost wakeups and guarantees we observe stop after ncclProxyProgressDestroy" (<a href="https://github.com/NVIDIA/nccl/blob/v2.32.3-1/src/proxy.cc#L849-L851" target="_blank" rel="noopener noreferrer">src/proxy.cc L849-851, NCCL v2.32.3-1</a>). <code>pool-&gt;cond.wait(lock, predicate)</code> is exactly rule 1, the while loop written as a lambda.</div>
+<p>A <dfn>reader-writer lock</dfn> lets many readers in at once or one writer alone; good for data read far more than written (a model registry, a config). The catch is starvation: glibc's <code>pthread_rwlock_t</code> prefers readers by default, so a steady stream of readers can keep a writer waiting indefinitely (<code>PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP</code> changes it; <a href="https://man7.org/linux/man-pages/man3/pthread_rwlockattr_setkind_np.3.html" target="_blank" rel="noopener noreferrer">pthread_rwlockattr_setkind_np(3)</a>). For short critical sections an rwlock is often slower than a mutex, since even readers write the shared reader count.</p>
+</div></details>
 </section>
 
 <section id="rd-s6">
 <h2>6. Deadlock, and the other concurrency bugs</h2>
 <p><span class="ostep">ch. 32 Common concurrency problems</span></p>
-<p>Lu et al. studied 105 concurrency bugs in MySQL, Apache, Mozilla and OpenOffice: 74 were not deadlocks and 31 were; 97% of the non-deadlock bugs were of two kinds (as summarised in OSTEP ch. 32, from <a href="https://dl.acm.org/doi/10.1145/1346281.1346323" target="_blank" rel="noopener noreferrer">Learning from Mistakes, ASPLOS 2008</a>):</p>
-<div class="mech">
-<div><b>Atomicity violation</b>code assumed two steps happen together, and another thread ran between them: <code>if (p) use(p);</code> while another thread sets <code>p = NULL</code>. Fix: one lock around both steps.</div>
-<div><b>Order violation</b>code assumed A happens before B, and nothing enforced it: a thread uses an object before its creator finished initialising it. Fix: a condition variable or semaphore that B waits on.</div>
-</div>
-<p>A <dfn>deadlock</dfn> is a set of threads each waiting for something another member of the set holds, so none can move. It needs four conditions at once (Coffman, 1971): <b>mutual exclusion</b> (resources are held exclusively), <b>hold and wait</b> (a thread holds one while waiting for another), <b>no preemption</b> (nobody can take a held lock away), and a <b>circular wait</b>. Remove any one and deadlock is impossible. In practice:</p>
+<p>A <dfn>deadlock</dfn> is a set of threads each waiting for something another member holds, so none can move. It needs four conditions at once (Coffman, 1971): <b>mutual exclusion</b>, <b>hold and wait</b>, <b>no preemption</b> (nobody can take a held lock away), and a <b>circular wait</b>. Remove any one and deadlock is impossible.</p>
+<div class="card"><h4>Two threads, two locks, opposite orders: a cycle in the wait-for graph</h4>
+<div class="rd-svg" id="rd-dl-svg"></div>
+<p class="small">T1 holds A and waits for B; T2 holds B and waits for A. Each arrow is one of the four conditions doing its part. Taking locks in one global order (A before B, everywhere) removes the arrow that closes the cycle; this is the program below run with <code>--ordered</code>, which finishes.</p></div>
 <div class="tw"><table class="tbl-sm"><thead><tr><th>Break</th><th>How</th><th>Cost</th></tr></thead><tbody>
 <tr><td>Circular wait</td><td>A global lock order: every thread takes locks in the same order (by level, or by address). The standard cure. The Linux kernel checks it at run time with <dfn>lockdep</dfn>, which records the order every lock class was ever taken in and warns at the first inversion, before any deadlock happens (<a href="https://docs.kernel.org/locking/lockdep-design.html" target="_blank" rel="noopener noreferrer">lockdep design</a>)</td><td>Discipline; hard across libraries and callbacks</td></tr>
 <tr><td>Hold and wait</td><td>Take all locks at once (behind one outer lock), or hold none while calling out</td><td>Less concurrency</td></tr>
 <tr><td>No preemption</td><td><code>trylock</code>, and on failure release everything and retry, with random backoff</td><td>Can <dfn>livelock</dfn>: threads keep backing off and retrying without progress</td></tr>
-<tr><td>Mutual exclusion</td><td>Lock-free data structures (section 7)</td><td>Much harder to write</td></tr>
+<tr><td>Mutual exclusion</td><td>Lock-free data structures (section 2, depth)</td><td>Much harder to write</td></tr>
 </tbody></table></div>
 <p><b>Seeing one.</b> Two Python threads take two locks in opposite orders (<code>deadlock.py</code>), then are inspected from outside <span class="meas">measured here</span>:</p>
 <pre class="cd res" id="rd-dl"></pre>
-<p>The signature of a deadlock: every thread in state S (sleeping), every wait channel <code>futex_wait_queue_me</code>, 0% CPU, and py-spy pointing at the two <code>with</code> lines. A busy-looping bug looks the opposite (state R, 100% CPU). With <code>--ordered</code> the same program finishes.</p>
-<div class="fix"><span class="t">Fixes and tools</span> One lock order per program, written down; never call unknown code (callbacks, logging handlers, <code>__del__</code>) while holding a lock; <code>lock.acquire(timeout=...)</code> in Python turns a silent hang into an error you can log; <code>faulthandler.dump_traceback_later(timeout)</code> prints every thread's stack if the job stops progressing; glibc's <code>PTHREAD_MUTEX_ERRORCHECK</code> returns <code>EDEADLK</code> when a thread re-locks a mutex it holds; ThreadSanitizer (<code>-fsanitize=thread</code>) reports lock-order inversions as well as data races.</div>
-<p><b>The training-job deadlock everyone meets</b> is not two locks but <code>fork</code> while another thread holds one: the child gets a copy of the locked lock and no thread to release it. The root's <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Debug lab</a> reproduces it ("A worker hangs forever: fork while another thread holds a lock") and the sibling <a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes</a> page covers start methods; it is why Python 3.14 made <code>forkserver</code> the default on Linux. Database transactions face the same four conditions with a different cure (detect the cycle and abort a victim): <a href="https://app.notion.com/p/3ef5c17b0d0d8155aa64ddeb09da144e" target="_blank" rel="noopener noreferrer">Transactions and concurrency</a>.</p>
-<div class="drill"><div class="q">Predict: thread A holds lock L and calls <code>logging.info()</code>; a logging handler, on another thread B, holds the handler's lock and calls a function that takes L. What can happen?</div>
-<div class="opts"><button>Nothing: logging is thread-safe</button><button data-right>A deadlock: A waits for the handler lock, B waits for L</button><button>A RuntimeError</button></div>
-<div class="ans" hidden>"Thread-safe" only means each call is safe on its own. A holds L and wants the handler's lock; B holds the handler's lock and wants L: a circular wait. The rule "never call out while holding a lock" exists for this case.</div></div>
+<p>The signature of a deadlock: every thread in state S (sleeping), every wait channel <code>futex_wait_queue_me</code>, 0% CPU, and py-spy pointing at the two <code>with</code> lines. A busy-looping bug looks the opposite (state R, 100% CPU).</p>
+<div class="fix"><span class="t">Fixes and tools</span> One lock order per program, written down; never call unknown code (callbacks, logging handlers, <code>__del__</code>) while holding a lock (copy what you need, release, then call): thread A holding L and calling <code>logging.info()</code> while a handler thread holds the handler's lock and wants L is a circular wait, although logging is "thread-safe" (each call is safe on its own); <code>lock.acquire(timeout=...)</code> in Python turns a silent hang into an error you can log; <code>faulthandler.dump_traceback_later(timeout)</code> prints every thread's stack if the job stops progressing; glibc's <code>PTHREAD_MUTEX_ERRORCHECK</code> returns <code>EDEADLK</code> when a thread re-locks a mutex it holds; ThreadSanitizer (<code>-fsanitize=thread</code>) reports lock-order inversions as well as data races.</div>
+<p><b>The training-job deadlock everyone meets</b> is not two locks but <code>fork</code> while another thread holds one: the child gets a copy of the locked lock and no thread to release it. The root's <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Debug lab</a> reproduces it ("A worker hangs forever: fork while another thread holds a lock") and <a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes</a> covers start methods (spawn or forkserver, or fork before starting threads); it is why Python 3.14 made <code>forkserver</code> the default on Linux. Databases face the same four conditions with a different cure (detect the cycle and abort a victim): <a href="https://app.notion.com/p/3ef5c17b0d0d8155aa64ddeb09da144e" target="_blank" rel="noopener noreferrer">Transactions and concurrency</a>.</p>
+<details class="dp"><summary>Most concurrency bugs are not deadlocks <span class="mute">(depth)</span></summary><div class="b"><p>Lu et al. studied 105 concurrency bugs in MySQL, Apache, Mozilla and OpenOffice: 74 were not deadlocks and 31 were; 97% of the non-deadlock bugs were of two kinds (as summarised in OSTEP ch. 32, from <a href="https://dl.acm.org/doi/10.1145/1346281.1346323" target="_blank" rel="noopener noreferrer">Learning from Mistakes, ASPLOS 2008</a>):</p>
+<div class="mech">
+<div><b>Atomicity violation</b>code assumed two steps happen together, and another thread ran between them: <code>if (p) use(p);</code> while another thread sets <code>p = NULL</code>. Fix: one lock around both steps.</div>
+<div><b>Order violation</b>code assumed A happens before B, and nothing enforced it: a thread uses an object before its creator finished initialising it. Fix: a condition variable or semaphore that B waits on.</div>
+</div>
+</div></details>
 </section>
 
 <section id="rd-s7">
-<h2>7. Lock-free, briefly</h2>
-<p>A <dfn>lock-free</dfn> data structure guarantees that some thread always makes progress, even if others are paused at any instruction, because nobody ever holds a lock. The building block is a CAS loop: read the current value, compute the new one, and CAS it in; if another thread changed it meanwhile, the CAS fails and you retry. A stack push:</p>
-<pre class="cd"><span class="k">do</span> { n-&gt;next = head; } <span class="k">while</span> (!CAS(&amp;head, n-&gt;next, n));</pre>
-<p>The traps: the <dfn>ABA problem</dfn> (the head was A, became B, became A again; the CAS succeeds although the list changed underneath; fixed with version counters or safe memory reclamation), and freeing memory another thread may still be reading (fixed by hazard pointers, epochs, or <dfn>RCU</dfn>, read-copy-update, which the Linux kernel uses so that readers take no lock at all: <a href="https://docs.kernel.org/RCU/whatisRCU.html" target="_blank" rel="noopener noreferrer">What is RCU</a>). The common, safe case in practice is a <dfn>single-producer single-consumer ring buffer</dfn>: one thread only advances the tail, the other only the head, and each reads the other's index with acquire order. io_uring's two rings (section 9) are exactly that, shared between a program and the kernel. Use lock-free structures from a library (the C++ page's atomics, Rust's crossbeam, <code>std::atomic</code> counters); a lock is usually fast enough (section 3: 10 ns uncontended) and far easier to get right.</p>
-</section>
-<section id="rd-s8">
-<h2>8. The GIL, seen as an operating-system lock</h2>
+<h2>7. The worked case: the GIL and free-threaded Python</h2>
 <p><span class="src">from source</span> <span class="meas">measured here</span></p>
-<p>CPython's <dfn>global interpreter lock</dfn> lets one thread at a time run Python bytecode. The <a href="https://app.notion.com/p/3cd5c17b0d0d81b28acdea39e7a4d998" target="_blank" rel="noopener noreferrer">Python page</a> covers what it means for your code and how the free-threaded build (3.13t, 3.14t) removes it; this section is about how it is built and what it does to latency. In CPython 3.11 it is the textbook construction of section 5: "The GIL is just a boolean variable (locked) whose access is protected by a mutex (gil_mutex), and whose changes are signalled by a condition variable (gil_cond)" (<a href="https://github.com/python/cpython/blob/v3.11.2/Python/ceval_gil.h#L13-L16" target="_blank" rel="noopener noreferrer">Python/ceval_gil.h L13-16, v3.11.2</a>).</p>
-<p>A thread that wants the GIL waits on the condition variable for at most the <dfn>switch interval</dfn> (5 ms by default, <code>DEFAULT_INTERVAL 5000</code> µs, <a href="https://github.com/python/cpython/blob/v3.11.2/Python/ceval_gil.h#L91" target="_blank" rel="noopener noreferrer">L91</a>); if the wait times out, it sets <code>gil_drop_request</code>, which the running thread checks between bytecodes, and the running thread then releases the GIL and waits until someone else has taken it (so it cannot grab it straight back). A thread that blocks in a system call (<code>sleep</code>, <code>recv</code>, <code>read</code>) or in C code that releases the GIL (NumPy, PyTorch operators) lets others run meanwhile.</p>
-<p>The consequence for latency: a thread that wakes up from I/O must get the GIL back, and if another thread is busy in Python it waits up to a whole switch interval. An "I/O" thread sleeping 2 ms, 300 times, next to 0, 1 or 2 threads doing pure-Python arithmetic, on 2 CPUs (<code>gil_latency.py</code>; median of 3 runs):</p>
+<p>CPython's <dfn>global interpreter lock</dfn> lets one thread at a time run Python bytecode, and it is built from exactly the parts of sections 4 and 5: "The GIL is just a boolean variable (locked) whose access is protected by a mutex (gil_mutex), and whose changes are signalled by a condition variable (gil_cond)" (<a href="https://github.com/python/cpython/blob/v3.11.2/Python/ceval_gil.h#L13-L16" target="_blank" rel="noopener noreferrer">Python/ceval_gil.h L13-16, v3.11.2</a>). A thread that wants the GIL waits on the condition variable for at most the <dfn>switch interval</dfn> (5 ms by default, <code>DEFAULT_INTERVAL 5000</code> µs, <a href="https://github.com/python/cpython/blob/v3.11.2/Python/ceval_gil.h#L91" target="_blank" rel="noopener noreferrer">L91</a>); if the wait times out it sets <code>gil_drop_request</code>, which the running thread checks between bytecodes; the running thread then releases the GIL and waits until someone else has taken it, so it cannot grab it straight back. A thread blocked in a system call (<code>sleep</code>, <code>recv</code>, <code>read</code>) or in C code that releases the GIL (NumPy, PyTorch operators) lets others run meanwhile; how to write Python around it is the <a href="https://app.notion.com/p/3cd5c17b0d0d81b28acdea39e7a4d998" target="_blank" rel="noopener noreferrer">Python page</a>'s.</p>
+<p><b>What it does to latency.</b> A thread waking from I/O must get the GIL back; if another thread is busy in Python it waits up to a whole switch interval. An "I/O" thread sleeping 2 ms, 300 times, next to 0, 1 or 2 threads doing pure-Python arithmetic, on 2 CPUs (<code>gil_latency.py</code>; median of 3 runs). Predict how late it wakes next to one busy thread:</p>
+<div class="card"><h4>Next to busy Python threads, a 2 ms sleep comes back a whole switch interval late</h4>
 <div class="chart" id="rd-gil-chart"></div>
-<p class="small mute" id="rd-gil-cap"></p>
-<p>Next to one busy thread the I/O thread wakes <b data-k="gil.1.5.med">8.0</b> ms late (the 5 ms interval plus the wake-ups on both sides); next to two, <b data-k="gil.2.5.med">17.5</b> ms, with a 99th percentile of <b data-k="gil.2.5.p99">86.9</b> ms, because the I/O thread competes with another waiter for each hand-over. <code>sys.setswitchinterval(0.0005)</code> brings it to <b data-k="gil.1.0.5.med">1.4</b> ms, at the price of more switching. This is the <dfn>convoy effect</dfn> David Beazley measured in 2010 for the GIL that 3.2 introduced (<a href="https://www.dabeaz.com/python/UnderstandingGIL.pdf" target="_blank" rel="noopener noreferrer">Understanding the Python GIL</a>).</p>
-<div class="ml"><span class="t">In ML work</span> A thread in the training process that must react quickly (a heartbeat to the cluster scheduler, a metrics sender, an asyncio loop serving requests next to Python preprocessing) is delayed by milliseconds whenever other Python threads compute. Move the CPU work to processes or into GIL-releasing native code, or use a free-threaded build; the Python page measures free-threaded scaling and the lost updates it brings back.</div>
+<p class="small mute" id="rd-gil-cap"></p></div>
+<p>Next to one busy thread the I/O thread wakes <b data-k="gil.1.5.med">8.0</b> ms late (the 5 ms interval plus the wake-ups on both sides); next to two, <b data-k="gil.2.5.med">17.5</b> ms, with a 99th percentile of <b data-k="gil.2.5.p99">86.9</b> ms, because it competes with another waiter for each hand-over. <code>sys.setswitchinterval(0.0005)</code> brings it to <b data-k="gil.1.0.5.med">1.4</b> ms, at the price of more switching. This is the <dfn>convoy effect</dfn> David Beazley measured in 2010 for the GIL that 3.2 introduced (<a href="https://www.dabeaz.com/python/UnderstandingGIL.pdf" target="_blank" rel="noopener noreferrer">Understanding the Python GIL</a>): a heartbeat to the cluster scheduler, a metrics sender or an asyncio loop next to Python preprocessing is delayed by milliseconds.</p>
+<h3>The free-threaded build: the same job, before and after</h3>
+<p>Python 3.14's free-threaded build (<code>python3.14t</code>, officially supported since 3.14, <a href="https://peps.python.org/pep-0779/" target="_blank" rel="noopener noreferrer">PEP 779</a>; design in <a href="https://peps.python.org/pep-0703/" target="_blank" rel="noopener noreferrer">PEP 703</a>) removes the GIL. Removing one lock means every object needs another way to stay consistent, and the replacement is this page's toolbox applied to the interpreter:</p>
+<div class="card" id="rd-ft-card"><h4>One lock for the interpreter, or a small lock and a thread-owned reference count per object</h4>
+<div class="segb" id="rd-ft-mode"><button data-m="gil" class="on">GIL build</button><button data-m="ft">Free-threaded build (3.14t)</button></div>
+<div class="rd-svg" id="rd-ft-svg"></div>
+<p class="small" id="rd-ft-cap"></p></div>
+<ul>
+<li><b>Built-in containers lock themselves.</b> "Built-in types like dict, list, and set use internal locks to protect against concurrent modifications in ways that behave similarly to the GIL" (<a href="https://docs.python.org/3.14/howto/free-threading-python.html" target="_blank" rel="noopener noreferrer">free-threading how-to, 3.14</a>): a dictionary never corrupts, but <code>d[k] += 1</code> from two threads is still section 2's lost update, now happening for real.</li>
+<li><b>Reference counts stop being a shared hot word.</b> "Biased reference counting, with a fast-path for objects owned by the current thread and a slow path for other objects" (same page): the owner changes its count with a plain add, other threads with an atomic one (section 2's 8.3 ns). Some objects (code constants, interned strings) are <dfn>immortal</dfn>, so their count is never written at all, and objects such as module functions use deferred reference counting.</li>
+<li><b>The cost:</b> "On the pyperformance benchmark suite, the average overhead ranges from about 1% on macOS aarch64 to 8% on x86-64 Linux systems" for single-threaded code (same page), and every C extension must declare support or importing it turns the GIL back on.</li>
+</ul>
+<p>Measured on the Python page (Python 3.14.8, a 10-CPU laptop under load, best of three): counting primes four times took <b>0.99 s</b> on four threads with the GIL (0.96 s serially) and <b>0.37 s</b> on four threads free-threaded (0.94 s serially); four processes took 0.36 s and 0.31 s. Scaling, overhead and which extensions are ready are measured there (Part 2).</p>
 </section>
 
-<section id="rd-s9">
-<h2>9. Event-driven I/O: one thread, thousands of waits</h2>
+<section id="rd-s8">
+<h2>8. Event-driven I/O: one thread, thousands of waits</h2>
 <p><span class="ostep">ch. 33 Event-based concurrency</span> <span class="src">from source</span> <span class="meas">measured here</span></p>
-<p><b>The problem.</b> A server with thousands of open connections (an inference server streaming tokens, a data service) spends almost all its time waiting. One thread per connection works but each thread is a stack, a kernel task and a context switch per event. 2,000 connections, each a Unix socket pair, served by one thread each or by one asyncio loop (<code>conns.py</code>; median of 3):</p>
-<div class="tw"><table class="tbl-sm" id="rd-conn-tbl"></table></div>
-<p>Threads reserve 8 MiB of address space each but touch little of it; the real costs are start-up and a context switch per message. The alternative is to ask the kernel one question, "which of these file descriptors are ready?", and handle only those. A <dfn>file descriptor</dfn> is the small integer naming an open file, pipe or socket (the sibling <a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes</a> page owns them); it is <dfn>ready</dfn> when a read or write on it would not block. Put it in <dfn>non-blocking</dfn> mode (<code>O_NONBLOCK</code>) and a read that would block returns <code>EAGAIN</code> instead.</p>
-<h3>select and poll: the whole list, every time</h3>
-<p><code>select</code> (BSD, 1983) passes three bitmaps of descriptor numbers; <code>poll</code> (System V) passes an array of <code>{fd, events}</code>. On every call the kernel copies the list in, checks every descriptor's state, registers a wait on each, sleeps, and on wake-up checks them all again (<a href="https://github.com/torvalds/linux/blob/v5.10/fs/select.c#L505-L536" target="_blank" rel="noopener noreferrer">fs/select.c L512-534 and L909, v5.10</a>); the program then scans the whole list again for the ready ones. Cost grows with the number watched, not the number ready. <code>select</code> also has a hard limit: <code>FD_SETSIZE</code> is 1024, so it cannot watch descriptor 1024 or higher at all (<a href="https://man7.org/linux/man-pages/man2/select.2.html" target="_blank" rel="noopener noreferrer">select(2)</a>).</p>
-<h3>epoll: the list lives in the kernel</h3>
-<p><code>epoll</code> (Linux 2.6, 2002) splits registration from waiting: <code>epoll_ctl(ADD)</code> registers a descriptor once, and the kernel keeps the interest list in a red-black tree and a separate <dfn>ready list</dfn> (<a href="https://github.com/torvalds/linux/blob/v5.10/fs/eventpoll.c#L195-L204" target="_blank" rel="noopener noreferrer">fs/eventpoll.c L195-204</a>). When data arrives on a socket, the socket's wait-queue callback <code>ep_poll_callback</code> appends that one item to the ready list (<a href="https://github.com/torvalds/linux/blob/v5.10/fs/eventpoll.c#L1240-L1248" target="_blank" rel="noopener noreferrer">L1244-1248</a>); <code>epoll_wait</code> just takes items off the ready list. Its cost depends on the number ready, not the number watched. With N pipes watched and exactly one readable (<code>evloop.c</code>, one call returning one ready descriptor):</p>
+<p>A server with thousands of open connections (an inference server streaming tokens, a data service) spends almost all its time waiting. <b>Blocking I/O</b> with a thread per connection works, but each thread is a stack, a kernel task and a context switch per event. 2,000 connections, each a Unix socket pair, served by one thread each or by one asyncio loop (<code>conns.py</code>; median of 3):</p>
+<div class="tw"><table class="tbl-sm nar" id="rd-conn-tbl"></table></div>
+<p>The alternative is <b>non-blocking I/O</b> plus one question to the kernel, "which of these file descriptors are ready?". A descriptor (the integer naming an open file, pipe or socket) is <dfn>ready</dfn> when a read or write on it would not block; put it in <dfn>non-blocking</dfn> mode (<code>O_NONBLOCK</code>) and a read that would block returns <code>EAGAIN</code> instead. The designs differ in how the question is asked:</p>
+<div class="mech">
+<div><b>select, poll: the whole list, every time</b><code>select</code> (BSD, 1983) passes three bitmaps of descriptor numbers, <code>poll</code> (System V) an array of <code>{fd, events}</code>. On every call the kernel copies the list in, checks every descriptor, registers a wait on each, sleeps, and on wake-up checks them all again (<a href="https://github.com/torvalds/linux/blob/v5.10/fs/select.c#L505-L536" target="_blank" rel="noopener noreferrer">fs/select.c, v5.10</a>); the program then scans the whole list again. Cost grows with the number watched. <code>FD_SETSIZE</code> is 1024, so <code>select</code> cannot watch descriptor 1024 or higher at all (<a href="https://man7.org/linux/man-pages/man2/select.2.html" target="_blank" rel="noopener noreferrer">select(2)</a>).</div>
+<div><b>epoll: the list lives in the kernel</b>(Linux 2.6, 2002) <code>epoll_ctl(ADD)</code> registers a descriptor once into an interest list (a red-black tree) with a separate <dfn>ready list</dfn> (<a href="https://github.com/torvalds/linux/blob/v5.10/fs/eventpoll.c#L195-L204" target="_blank" rel="noopener noreferrer">fs/eventpoll.c L195-204</a>). When data arrives, the socket's wait-queue callback <code>ep_poll_callback</code> appends that one item to the ready list (<a href="https://github.com/torvalds/linux/blob/v5.10/fs/eventpoll.c#L1240-L1248" target="_blank" rel="noopener noreferrer">L1244-1248</a>); <code>epoll_wait</code> just takes items off it. Cost follows the number ready.</div>
+<div><b>io_uring: completions, not readiness</b>(Linux 5.1, 2019) "do these operations and tell me when they are done": the program writes <dfn>submission queue entries</dfn> (SQEs) into a ring shared with the kernel, the kernel does the I/O and writes <dfn>completion queue entries</dfn> (CQEs) into another (<a href="https://man7.org/linux/man-pages/man7/io_uring.7.html" target="_blank" rel="noopener noreferrer">io_uring(7)</a>).</div>
+</div>
+<p>Step one input through all five designs: eight connections, data arriving on connection 2, then 5, then 2 again, then 7. Predict which design makes the fewest system calls before you switch to it.</p>
+<div class="card" id="ev-card">
+<h4>select and poll check every connection on every event; epoll touches only the ready one; io_uring does the read itself</h4>
+<div class="segb" id="ev-mode"><button data-m="threads" class="on">Thread per connection</button><button data-m="select">select</button><button data-m="poll">poll</button><button data-m="epoll">epoll</button><button data-m="uring">io_uring</button></div>
+<div class="chart" id="ev-svg"></div>
+<div class="an-cap" id="ev-cap"></div>
+<div class="an-cnt" id="ev-cnt"></div>
+<div class="an-ctl" id="ev-ctl"></div>
+</div>
+<p><b>The same difference at scale</b>, with N pipes watched and exactly one readable (<code>evloop.c</code>, one call returning one ready descriptor):</p>
+<div class="card"><h4>poll's cost grows with every descriptor watched; epoll_wait's stays flat</h4>
 <div class="chart" id="rd-ev-chart"></div>
 <p class="small mute" id="rd-ev-cap"></p>
+<p class="small"><b>Scale it.</b> Move the connections watched, and the message rate, to see each design's cost per readiness question as a share of one CPU (log-log interpolation between the measured points 1, 10, 100, 300, 500, 1,000, 3,000 and 10,000; thread memory from the measured 2,000-thread run). At 10,000 idle clients, <code>epoll_wait</code> costs <b data-k="ev.10000.epoll">352</b> ns against <b data-k="ev.100.epoll">393</b> ns at 100; <code>poll</code> <b data-k="ev.10000.poll_us">650</b> µs: from 100 to 10,000 watched, poll grows about a hundredfold, and select cannot go past descriptor 1023 at all.</p>
+<div class="ctl"><label>Connections watched: <b id="ev-n-l">1,000</b><input type="range" id="ev-n" min="0" max="4" step="0.01" value="3"></label>
+<label>Messages per second (one ready connection each): <b id="ev-r-l">10,000</b><input type="range" id="ev-r" min="2" max="5" step="0.01" value="4"></label></div>
+<div class="out" id="ev-out"></div>
+<p class="small mute" id="ev-note"></p></div>
 <h3>Level-triggered and edge-triggered</h3>
 <p>By default epoll is <dfn>level-triggered</dfn>: a descriptor is reported on every <code>epoll_wait</code> while data remains, because after reporting it the kernel puts it back on the ready list (<a href="https://github.com/torvalds/linux/blob/v5.10/fs/eventpoll.c#L1756-L1772" target="_blank" rel="noopener noreferrer">L1758-1771</a>). With <code>EPOLLET</code> it is <dfn>edge-triggered</dfn>: reported once per change (new data arriving), and not put back. Write 10 bytes to a pipe, read only 4, and ask again <span class="meas">measured here</span>:</p>
 <pre class="cd res" id="rd-el"></pre>
-<p>Edge-triggered is cheaper (no re-reporting) but has one rule: after an edge, read (or accept, or write) until <code>EAGAIN</code>, or the remaining 6 bytes sit there unreported until more data happens to arrive, which on a quiet connection is never. Tokio's I/O layer, mio, registers every descriptor edge-triggered (<code>let mut kind = EPOLLET;</code>, <a href="https://github.com/tokio-rs/mio/blob/v1.0.4/src/sys/unix/selector/epoll.rs#L112-L117" target="_blank" rel="noopener noreferrer">mio src/sys/unix/selector/epoll.rs L115, v1.0.4</a>) and its readiness tracking enforces the read-until-EAGAIN rule; Python's asyncio and libuv use level-triggered mode. macOS and the BSDs have the same idea under another name, <code>kqueue</code> (<a href="https://man.freebsd.org/cgi/man.cgi?query=kqueue&amp;sektion=2" target="_blank" rel="noopener noreferrer">kqueue(2)</a>), with filters for sockets, files, processes, signals and timers in one call; Python's selectors module prefers it where it exists (<a href="https://github.com/python/cpython/blob/v3.11.2/Lib/selectors.py#L606-L618" target="_blank" rel="noopener noreferrer">Lib/selectors.py L610-618</a>).</p>
-<h3>How the runtimes are built on it</h3>
-<div class="tw"><table class="tbl-sm"><thead><tr><th>Runtime</th><th>Waits with</th><th>Its loop, in one line</th></tr></thead><tbody>
-<tr><td>Python asyncio</td><td>epoll (level), via <code>selectors.EpollSelector</code></td><td><code>_run_once</code>: compute a timeout from the earliest timer, <code>event_list = self._selector.select(timeout)</code>, queue the ready callbacks, run them (<a href="https://github.com/python/cpython/blob/v3.11.2/Lib/asyncio/base_events.py#L1880-L1886" target="_blank" rel="noopener noreferrer">base_events.py L1884, v3.11.2</a>). The root's trace shows its <code>epoll_pwait</code> calls</td></tr>
-<tr><td>Node.js (libuv), uvloop</td><td><code>epoll_pwait</code>; a thread pool for file I/O and DNS; io_uring optional</td><td><code>uv__io_poll</code> calls <code>epoll_pwait(epollfd, events, ..., timeout, sigmask)</code> (<a href="https://github.com/libuv/libuv/blob/v1.48.0/src/unix/linux.c#L1430-L1433" target="_blank" rel="noopener noreferrer">src/unix/linux.c L1432, v1.48.0</a>). Since 1.45 libuv can batch through io_uring; the SQPOLL ring for file operations is opt-in (<code>UV_USE_IO_URING=1</code>) and refused on kernels older than 5.10.186 because "the sqpoll thread uses 100% CPU" there (<a href="https://github.com/libuv/libuv/blob/v1.51.0/src/unix/linux.c#L480-L497" target="_blank" rel="noopener noreferrer">v1.51.0 L480-497</a>). The <a href="https://app.notion.com/p/3cd5c17b0d0d81dbac7be3b8686be023" target="_blank" rel="noopener noreferrer">JS/TS page</a> covers the event loop's phases</td></tr>
-<tr><td>Rust tokio</td><td>epoll, edge-triggered, via mio</td><td>A work-stealing pool of threads; when a task's read returns <code>WouldBlock</code> its waker is parked until mio reports the descriptor. The <a href="https://app.notion.com/p/3c65c17b0d0d8156bed9ead8a22f33b0" target="_blank" rel="noopener noreferrer">Rust page</a> (Part 3) measures what blocking the runtime does</td></tr>
-</tbody></table></div>
-<p>All three follow the same <dfn>readiness model</dfn>: the kernel says "you can now read without blocking", and the program then makes the read itself. One cost remains: a system call per read and write, plus one per wait.</p>
-<h3>io_uring: the completion model</h3>
-<p><code>io_uring</code> (Linux 5.1, 2019) changes the question to "do these operations and tell me when they are done". The program and the kernel share two ring buffers in memory: the program writes <dfn>submission queue entries</dfn> (SQEs: read this fd at this offset into this buffer) into one, and the kernel writes <dfn>completion queue entries</dfn> (CQEs: result, user tag) into the other (<a href="https://man7.org/linux/man-pages/man7/io_uring.7.html" target="_blank" rel="noopener noreferrer">io_uring(7)</a>). One <code>io_uring_enter</code> call submits a whole batch and can wait for completions; with <code>IORING_SETUP_SQPOLL</code> a kernel thread polls the submission ring and the program makes no system call at all. The rings are single-producer single-consumer queues (section 7). On this lab's kernel 5.10 <span class="meas">measured here</span>:</p>
+<p>Edge-triggered is cheaper (no re-reporting) but has one rule: after an edge, read (or accept, or write) until <code>EAGAIN</code>, or the remaining 6 bytes sit unreported until more data happens to arrive, which on a quiet connection is never. asyncio and libuv use level-triggered mode, tokio edge-triggered; macOS and the BSDs have the same design as <code>kqueue</code> (depth block below).</p>
+<details class="dp"><summary>What each runtime waits with, and its loop in one line <span class="mute">(depth)</span></summary><div class="b">
+<p>Tokio's I/O layer, mio, registers every descriptor edge-triggered (<code>let mut kind = EPOLLET;</code>, <a href="https://github.com/tokio-rs/mio/blob/v1.0.4/src/sys/unix/selector/epoll.rs#L112-L117" target="_blank" rel="noopener noreferrer">mio src/sys/unix/selector/epoll.rs L115, v1.0.4</a>) and its readiness tracking enforces the rule; Python's asyncio and libuv use level-triggered mode. macOS and the BSDs have the same idea as <code>kqueue</code> (<a href="https://man.freebsd.org/cgi/man.cgi?query=kqueue&amp;sektion=2" target="_blank" rel="noopener noreferrer">kqueue(2)</a>), with filters for sockets, files, processes, signals and timers in one call; Python's selectors module prefers it where it exists (<a href="https://github.com/python/cpython/blob/v3.11.2/Lib/selectors.py#L606-L618" target="_blank" rel="noopener noreferrer">Lib/selectors.py L610-618</a>).</p>
+<p>All follow the <dfn>readiness model</dfn> (the kernel says "you can read now"; the program then makes the read itself: one system call per read and write, plus one per wait). Python asyncio waits with epoll, level-triggered, via <code>selectors.EpollSelector</code>; Node.js's libuv and uvloop with <code>epoll_pwait</code> plus a thread pool for file I/O and DNS; Rust's tokio with epoll, edge-triggered, via mio, under a work-stealing pool of threads. Their loops are taught on the <a href="https://app.notion.com/p/3cd5c17b0d0d81b28acdea39e7a4d998" target="_blank" rel="noopener noreferrer">Python</a>, <a href="https://app.notion.com/p/3cd5c17b0d0d81dbac7be3b8686be023" target="_blank" rel="noopener noreferrer">JS/TS</a> and <a href="https://app.notion.com/p/3c65c17b0d0d8156bed9ead8a22f33b0" target="_blank" rel="noopener noreferrer">Rust</a> pages.</p>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>Runtime</th><th>Its loop, in one line</th></tr></thead><tbody>
+<tr><td>Python asyncio</td><td><code>_run_once</code>: compute a timeout from the earliest timer, <code>event_list = self._selector.select(timeout)</code>, queue the ready callbacks, run them (<a href="https://github.com/python/cpython/blob/v3.11.2/Lib/asyncio/base_events.py#L1880-L1886" target="_blank" rel="noopener noreferrer">base_events.py L1884, v3.11.2</a>). The root's trace shows its <code>epoll_pwait</code> calls</td></tr>
+<tr><td>Node.js (libuv), uvloop</td><td><code>uv__io_poll</code> calls <code>epoll_pwait(epollfd, events, ..., timeout, sigmask)</code> (<a href="https://github.com/libuv/libuv/blob/v1.48.0/src/unix/linux.c#L1430-L1433" target="_blank" rel="noopener noreferrer">src/unix/linux.c L1432, v1.48.0</a>). Since 1.45 libuv can batch through io_uring; the SQPOLL ring for file operations is opt-in (<code>UV_USE_IO_URING=1</code>) and refused on kernels older than 5.10.186 because "the sqpoll thread uses 100% CPU" there (<a href="https://github.com/libuv/libuv/blob/v1.51.0/src/unix/linux.c#L480-L497" target="_blank" rel="noopener noreferrer">v1.51.0 L480-497</a>)</td></tr>
+<tr><td>Rust tokio</td><td>When a task's read returns <code>WouldBlock</code> its waker is parked until mio reports the descriptor. The Rust page (Part 3) measures what blocking the runtime does</td></tr>
+</tbody></table></div></div></details>
+<h3>io_uring on a real kernel</h3>
+<p>One <code>io_uring_enter</code> call submits a whole batch and can wait for completions; with <code>IORING_SETUP_SQPOLL</code> a kernel thread polls the submission ring and the program makes no system call at all. The rings are single-producer single-consumer queues (section 2, depth). On this lab's kernel 5.10 <span class="meas">measured here</span> (raw output, with the setup failures, in the closed block below), reading 16,384 cached 4 KiB blocks, io_uring at depth 32 made <b data-k="ur.enter">512</b> system calls instead of <b data-k="ur.pread_calls">16384</b>, and the time per block fell from <b data-k="ur.pread">1171</b> to <b data-k="ur.d32">908</b> ns (<b data-k="ur.saving_pct">22</b>% less; medians of 3 noisy runs, which overlap): with the data already in memory, the 4 KiB copy and the per-request bookkeeping remain and only the system-call entries are saved. io_uring pays off when operations really wait (disk, network) and many are in flight, when operations are tiny, or with SQPOLL and registered buffers on newer kernels <span class="nrh">not run here</span>.</p>
+<div class="co warn"><div class="t">io_uring is often unavailable in containers</div>Google reported that 60% of the Linux kernel exploits submitted to its kCTF bug bounty in the year to June 2023 used io_uring, and disabled it in ChromeOS and on its production servers (<a href="https://security.googleblog.com/2023/06/learnings-from-kctf-vrps-42-linux.html" target="_blank" rel="noopener noreferrer">Google security blog, 2023-06-14</a>). Docker 25.0 blocks the io_uring system calls in its default seccomp profile (<a href="https://github.com/moby/moby/pull/46762" target="_blank" rel="noopener noreferrer">moby #46762</a>); this lab's Docker 20.10 still allows them.</div>
+<details class="dp"><summary>The io_uring runs, and why io_uring_setup failed here at first <span class="mute">(depth)</span></summary><div class="b">
 <pre class="cd res" id="rd-ur"></pre>
-<p>Three lessons from those lines. <b>First</b>, io_uring_setup failed in a default Docker container: Linux 5.10 charges the rings to the user's locked-memory limit (<code>RLIMIT_MEMLOCK</code>, 64 KiB in Docker) unless the process has <code>CAP_IPC_LOCK</code> (<a href="https://github.com/torvalds/linux/blob/v5.10/fs/io_uring.c#L7862-L7880" target="_blank" rel="noopener noreferrer">fs/io_uring.c L7869-7876 and L9274, v5.10</a>), and the counter is per user, shared by every container running as root; the run passed <code>--ulimit memlock=-1</code>. Linux 5.12 moved the rings to memory-cgroup accounting <span class="src">from source</span> (the <code>ring_pages</code> charge is gone from fs/io_uring.c at v5.12). <b>Second</b>, SQPOLL needs <code>CAP_SYS_ADMIN</code> before 5.11 (<a href="https://github.com/torvalds/linux/blob/v5.10/fs/io_uring.c#L7782-L7790" target="_blank" rel="noopener noreferrer">L7786</a>). <b>Third</b>, reading 16,384 cached 4 KiB blocks, io_uring at depth 32 made <b data-k="ur.enter">512</b> system calls instead of <b data-k="ur.pread_calls">16384</b>, and the time per block fell from <b data-k="ur.pread">1171</b> to <b data-k="ur.d32">908</b> ns (<b data-k="ur.saving_pct">22</b>% less; medians of 3 noisy runs, which overlap): with the data already in memory, the 4 KiB copy and the per-request bookkeeping remain, and only the system-call entries are saved. io_uring pays off when operations really wait (disk, network) and many are in flight, when operations are tiny, or with SQPOLL and registered buffers on newer kernels <span class="nrh">not run here</span>.</p>
-<div class="co warn"><div class="t">io_uring and security</div>Google reported that 60% of the Linux kernel exploits submitted to its kCTF bug bounty in the year to June 2023 used io_uring, and disabled it in ChromeOS and on its production servers (<a href="https://security.googleblog.com/2023/06/learnings-from-kctf-vrps-42-linux.html" target="_blank" rel="noopener noreferrer">Google security blog, 2023-06-14</a>). Docker 25.0 blocks the io_uring system calls in its default seccomp profile (<a href="https://github.com/moby/moby/pull/46762" target="_blank" rel="noopener noreferrer">moby #46762</a>); this lab's Docker 20.10 still allows them. Expect io_uring to be unavailable in many containers.</div>
-<div class="ml"><span class="t">In ML work</span> Model servers are event loops: vLLM's OpenAI-compatible server is a uvicorn server started with <code>uvloop.run(run_server(args))</code> (<a href="https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/entrypoints/launchers/api_server/entry.py#L222" target="_blank" rel="noopener noreferrer">vllm/entrypoints/launchers/api_server/entry.py L222, v0.31.0</a>) and SGLang passes <code>loop="uvloop"</code> to uvicorn (<a href="https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/entrypoints/http_server.py#L2713" target="_blank" rel="noopener noreferrer">http_server.py L2713, v0.5.21</a>): uvloop is libuv underneath, so one thread streams tokens to many clients while the GPU work runs in an engine loop. A blocking call inside an async handler (a synchronous tokenizer call, <code>requests.get</code>, a big JSON encode) stalls every connection on that loop: the Rust page's "blocking the runtime" experiment measures it. Data clients that stream shards from object storage use the same machinery (aiohttp, or Rust/C++ readers on tokio or io_uring).</div>
-<div class="drill"><div class="q">Predict: an asyncio server is moved from 100 to 10,000 idle WebSocket clients. How does the cost of each <code>epoll_wait</code> call change?</div>
-<div class="opts"><button>About 100 times more</button><button data-right>About the same</button><button>It fails above 1024</button></div>
-<div class="ans" hidden>About the same: epoll's cost follows the number of ready descriptors. The measurement above: <b data-k="ev.100.epoll">393</b> ns with 100 watched, <b data-k="ev.10000.epoll">352</b> ns with 10,000. With <code>poll</code> it would grow about a hundredfold; with <code>select</code> it would fail, since descriptors above 1023 cannot be watched at all. (The open-file limit, <code>ulimit -n</code>, still has to allow 10,000 sockets.)</div></div>
+<p><b>First</b>, io_uring_setup failed in a default Docker container: Linux 5.10 charges the rings to the user's locked-memory limit (<code>RLIMIT_MEMLOCK</code>, 64 KiB in Docker) unless the process has <code>CAP_IPC_LOCK</code> (<a href="https://github.com/torvalds/linux/blob/v5.10/fs/io_uring.c#L7862-L7880" target="_blank" rel="noopener noreferrer">fs/io_uring.c L7869-7876 and L9274, v5.10</a>), and the counter is per user, shared by every container running as root; the run passed <code>--ulimit memlock=-1</code>. Linux 5.12 moved the rings to memory-cgroup accounting <span class="src">from source</span> (the <code>ring_pages</code> charge is gone from fs/io_uring.c at v5.12). <b>Second</b>, SQPOLL needs <code>CAP_SYS_ADMIN</code> before 5.11 (<a href="https://github.com/torvalds/linux/blob/v5.10/fs/io_uring.c#L7782-L7790" target="_blank" rel="noopener noreferrer">L7786</a>).</p>
+</div></details>
+<div class="ml"><span class="t">In ML work</span> Model servers are event loops: vLLM's OpenAI-compatible server is a uvicorn server started with <code>uvloop.run(run_server(args))</code> (<a href="https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/entrypoints/launchers/api_server/entry.py#L222" target="_blank" rel="noopener noreferrer">vllm/entrypoints/launchers/api_server/entry.py L222, v0.31.0</a>) and SGLang passes <code>loop="uvloop"</code> to uvicorn (<a href="https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/entrypoints/http_server.py#L2713" target="_blank" rel="noopener noreferrer">http_server.py L2713, v0.5.21</a>): uvloop is libuv underneath, so one thread streams tokens to many clients while the GPU work runs in an engine loop. A blocking call in an async handler (a synchronous tokenizer call, <code>requests.get</code>, a big JSON encode) stalls every connection on that loop; use <code>asyncio.to_thread</code> or a process pool (the Rust page's "blocking the runtime" experiment measures the stall). Data clients that stream shards from object storage use the same machinery (aiohttp, or Rust/C++ readers on tokio or io_uring). At 10,000 sockets the open-file limit, <code>ulimit -n</code>, must allow them.</div>
 </section>
+
+<section id="rd-s9">
+<h2>9. Choosing threads, processes or an event loop</h2>
+<p>The three differ in what they share and what a wait costs, so the choice follows from what the work waits on and whether it computes in Python:</p>
+<div class="card"><h4>Waiting picks between an event loop and threads; computing in Python picks processes (or free-threaded threads)</h4>
+<div class="rd-svg" id="rd-ch-svg"></div></div>
+<div class="choose">
+<div><h4>Threads</h4><ul><li>Share memory for free, so shared state needs locks (sections 2 to 6).</li><li>Create + join 136.0 µs here; 8 MiB of address space each, about 7 KiB resident when idle (13 MiB added for 2,000 threads).</li><li>Parallel for native code that releases the GIL, and for Python on the free-threaded build; under the GIL, concurrency for waiting only.</li><li>No isolation: a crash or a corrupted heap takes every thread down.</li></ul></div>
+<div><h4>Processes</h4><ul><li>A separate address space: a crash or a corrupted heap in one cannot touch the other, and in CPython each process has its own GIL.</li><li>Data moves by pickling or shared memory; PyTorch's DataLoader uses worker processes for exactly that trade.</li><li><code>fork</code> after threads exist copies held locks (section 6); spawn and forkserver avoid it.</li><li>Start-up and copies cost: the Python page's four-process pool ran 2.7 times faster, not four.</li></ul></div>
+<div><h4>One event loop</h4><ul><li>One thread, thousands of waits: 2,000 connections added 5 MiB and started serving in 22 ms (section 8).</li><li>Callbacks run one at a time, so no locks between them, but one blocking call or CPU-heavy handler stalls every connection.</li><li>Needs non-blocking libraries all the way down; CPU work goes to a thread or process pool.</li></ul></div>
+</div>
+<p class="small mute">"About 7 KiB" is <span class="der">derived</span>: 13 × 1,024 KiB / 2,000 threads = 6.7 KiB. Real systems combine them: vLLM is an event loop in front of an engine process; a training job is processes (workers) of threads (pools).</p>
+</section>
+
 <section id="rd-s10">
 <h2>10. In a training job: every thread, and what it waits on</h2>
 <p><span class="meas">measured here</span> <span class="src">from source</span> <span class="nrh">GPU parts not run here</span></p>
-<p>The root's job (2 DataLoader workers, fork, <code>torch.set_num_threads(n)</code>), stopped while stepping and looked at three ways: <code>/proc/&lt;pid&gt;/task/*</code> (name, state, wait channel), <code>py-spy dump</code> (the Python threads), and gdb backtraces of every thread classified by the functions on their stacks (<code>job_threads.sh</code>, <code>classify_threads.py</code>):</p>
+<p>The root's job (2 DataLoader workers, fork, <code>torch.set_num_threads(n)</code>), stopped while stepping and looked at three ways: <code>/proc/&lt;pid&gt;/task/*</code> (name, state, wait channel), <code>py-spy dump</code> (the Python threads), and gdb backtraces of every thread classified by the functions on their stacks (<code>job_threads.sh</code>, <code>classify_threads.py</code>). Predict how the futex count per step changes with the torch thread count, then switch:</p>
 <div class="segb" id="rd-job-th"><button data-m="1">torch threads 1</button><button data-m="2" class="on">2</button><button data-m="4">4</button></div>
 <pre class="cd res" id="rd-job"></pre>
-<p>Reading it:</p>
 <ul>
-<li><b>The main process</b> runs the training loop in its main thread. Its other threads are PyTorch's OpenMP pool (libgomp; between operators they wait at a barrier, spinning briefly in <code>do_spin</code> and then sleeping in <code>futex_wait</code>), two Python <code>QueueFeederThread</code>s (each <code>multiprocessing.Queue</code> has one: <code>put()</code> appends to an in-process buffer and the feeder thread pickles it into the pipe to the worker), and a libtorch_cpu thread asleep on a futex.</li>
-<li><b>Each worker</b> (named <code>pt_data_worker</code> by PyTorch) waits in <code>poll</code> for the next indices, plus a feeder thread for its result queue and a <code>_serve</code> thread: multiprocessing's resource sharer, which hands file descriptors for shared-memory tensors to the main process over a Unix socket (the <code>recvmsg</code> calls below).</li>
-<li><b>Nearly every thread is asleep on a futex.</b> Attached for 3 seconds with strace, the job made about <b data-k="job.2.futex_per_step">59</b> futex calls per training step with 2 torch threads (<b data-k="job.1.futex_per_step">39</b> with 1, <b data-k="job.4.futex_per_step">86</b> with 4), about a fifth of them EAGAIN (section 4): barrier wake-ups for each parallel operator and the queues' locks and semaphores. Strace slows the job about tenfold, so count, do not time, under it.</li>
+<li><b>The main process</b> runs the training loop in its main thread. Its other threads are PyTorch's OpenMP pool (libgomp; between operators they wait at a barrier, spinning briefly in <code>do_spin</code> and then sleeping in <code>futex_wait</code>), two Python <code>QueueFeederThread</code>s (each <code>multiprocessing.Queue</code> has one, pickling what <code>put()</code> buffered into the pipe to the worker), and a libtorch_cpu thread asleep on a futex.</li>
+<li><b>Each worker</b> (named <code>pt_data_worker</code> by PyTorch) waits in <code>poll</code> for the next indices, plus a feeder thread for its result queue and a <code>_serve</code> thread: multiprocessing's resource sharer, which hands file descriptors for shared-memory tensors to the main process over a Unix socket (the <code>recvmsg</code> calls).</li>
+<li><b>Nearly every thread is asleep on a futex.</b> Attached for 3 seconds with strace, the job made about <b data-k="job.2.futex_per_step">59</b> futex calls per training step with 2 torch threads (<b data-k="job.1.futex_per_step">39</b> with 1, <b data-k="job.4.futex_per_step">86</b> with 4), about a fifth of them EAGAIN (section 4): barrier wake-ups for each parallel operator and the queues' locks and semaphores. Strace slows the job about tenfold: count, do not time, under it.</li>
 </ul>
-<p>The thread count is a design input. Each worker runs its own copy of every thread pool a library creates (PyTorch sets <code>torch.set_num_threads(1)</code> in workers, but tokenizers, OpenCV and NumPy's BLAS have their own), and in a container every thread counts against <code>pids.max</code> and shares the CPU quota (the root's <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Debug lab</a>, "Too many threads for the CPUs you have"; scheduling is the sibling <a href="https://app.notion.com/p/3f05c17b0d0d81ed9c18cc47c6bfdf76" target="_blank" rel="noopener noreferrer">Scheduling and CPU time</a> page).</p>
-<h3>On a GPU node: the threads you do not see</h3>
+<p><b>The thread count is a design input.</b> Each worker runs its own copy of every thread pool a library creates (PyTorch sets <code>torch.set_num_threads(1)</code> in workers, but tokenizers, OpenCV and NumPy's BLAS have their own), and in a container every thread counts against <code>pids.max</code> and shares the CPU quota (the root's <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Debug lab</a>, "Too many threads for the CPUs you have"; scheduling is <a href="https://app.notion.com/p/3f05c17b0d0d81ed9c18cc47c6bfdf76" target="_blank" rel="noopener noreferrer">Scheduling and CPU time</a>). <code>os.cpu_count()</code> reports the machine, not the quota: multiply by the number of worker processes and every library's own pool.</p>
+<div class="ml"><span class="t">When a job hangs at 0% CPU</span> <code>top -H</code> or <code>ps -L</code> to confirm all threads sleep; <code>/proc/&lt;pid&gt;/task/*/wchan</code> (futex waits mean locks, queues or condition variables; <code>poll</code> or <code>read</code> means waiting for data); <code>py-spy dump --pid</code> for Python stacks on every rank and worker; <code>gdb -p &lt;pid&gt; -ex "thread apply all bt"</code> for native threads; then find who should have released or sent what each one waits for. In a distributed job the usual cause is not a lock but a collective that one rank never reaches (one rank skipped an all-reduce, or is stuck in its data loader): every other rank's main thread sits in a CUDA synchronisation or a futex while the GPU kernel spins waiting for the missing peer, and the watchdog fires after the process group's timeout. <code>py-spy dump --pid</code> on every rank (or PyTorch's flight recorder, <code>TORCH_NCCL_TRACE_BUFFER_SIZE</code>) shows which rank is somewhere else; <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a> covers the collectives, and GPU-side concurrency (streams) is <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU programming</a>'s.</div>
+<details class="dp"><summary>On a GPU node: the CPU threads you do not see (from source) <span class="mute">(depth)</span></summary><div class="b">
 <div class="tw"><table class="tbl-sm"><thead><tr><th>Thread</th><th>Who starts it</th><th>What it does, and how it waits</th></tr></thead><tbody>
 <tr><td>pin_memory thread</td><td>DataLoader with <code>pin_memory=True</code> (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/data/dataloader.py#L1196-L1206" target="_blank" rel="noopener noreferrer">dataloader.py L1198, v2.14.1</a>)</td><td>Takes batches from the workers' result queue, copies them into page-locked host memory so the copy to the GPU can be asynchronous, puts them on the queue the loop reads. It calls <code>torch.set_num_threads(1)</code> and polls its queue with a timeout so it notices shutdown (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/data/_utils/pin_memory.py#L18-L30" target="_blank" rel="noopener noreferrer">pin_memory.py L18-30</a>)</td></tr>
 <tr><td>NCCL watchdog</td><td><code>ProcessGroupNCCL</code> (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp#L2152-L2156" target="_blank" rel="noopener noreferrer">ProcessGroupNCCL.cpp L2152-2155</a>)</td><td>Wakes every 100 ms (<code>kWatchdogThreadSleepMillis</code>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp#L493" target="_blank" rel="noopener noreferrer">L493</a>) to check whether collectives have finished or timed out; on a timeout it aborts the communicator so a hung rank fails instead of waiting forever</td></tr>
 <tr><td>NCCL heartbeat monitor</td><td>same (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp#L1772-L1790" target="_blank" rel="noopener noreferrer">L1772-1790</a>)</td><td>Watches the watchdog: if it has not beaten for <code>TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC</code> (8 minutes by default), kills the process. A deadlock detector for the deadlock detector</td></tr>
 <tr><td>NCCL Progress thread</td><td>NCCL, one per GPU and communicator (<a href="https://github.com/NVIDIA/nccl/blob/v2.32.3-1/src/proxy.cc#L1030-L1035" target="_blank" rel="noopener noreferrer">src/proxy.cc L1030-1035, v2.32.3-1</a>)</td><td>Drives network transfers (InfiniBand, sockets) for the GPU's kernels. While operations are in flight it busy-polls and calls <code>std::this_thread::yield()</code> when nothing progressed (<a href="https://github.com/NVIDIA/nccl/blob/v2.32.3-1/src/proxy.cc#L986-L1006" target="_blank" rel="noopener noreferrer">L986-1006</a>); when idle it sleeps on a condition variable (section 5). A spinning thread per GPU is why NCCL performance is sensitive to CPU affinity and to CPU quotas</td></tr>
 <tr><td>NCCL Service, UDS threads</td><td>NCCL (<a href="https://github.com/NVIDIA/nccl/blob/v2.32.3-1/src/proxy.cc#L2157-L2163" target="_blank" rel="noopener noreferrer">L2157-2163</a>)</td><td>Answer setup requests from other ranks over sockets, asleep in <code>poll</code> otherwise</td></tr>
-</tbody></table></div>
-<div class="ml"><span class="t">When a distributed job hangs</span> The usual cause is not a lock but a collective that one rank never reaches (one rank skipped an all-reduce, or is stuck in its data loader). Every other rank's main thread sits in a CUDA synchronisation or a futex while the GPU kernel spins waiting for the missing peer; the watchdog fires after the process group's timeout. <code>py-spy dump --pid</code> on every rank (or PyTorch's flight recorder, <code>TORCH_NCCL_TRACE_BUFFER_SIZE</code>) shows which rank is somewhere else. <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a> covers the collectives themselves.</div>
+</tbody></table></div></div></details>
 </section>
 
 <section id="rd-s11">
-<h2>11. Common mistakes, interview questions, and the OSTEP map</h2>
-<h3>Common mistakes</h3>
-<details class="qa"><summary>Checking a condition with <code>if</code> before <code>wait()</code></summary><div>Mesa semantics: re-check in a <code>while</code> loop (section 5 measured the failure 45 to 88 times in 200,000 items).</div></details>
-<details class="qa"><summary>Spinning in user space</summary><div>A spinlock with more runnable threads than CPUs, or under a CPU quota, wastes whole time slices (section 3). Use a mutex; glibc's adaptive mutex if you have measured that spinning helps.</div></details>
-<details class="qa"><summary>Holding a lock while calling out</summary><div>Callbacks, logging, I/O and <code>__del__</code> inside a critical section create lock-order cycles and long hold times. Copy what you need, release, then call.</div></details>
-<details class="qa"><summary>Forking a process that has threads</summary><div>The child gets the memory, including locked locks, but only the forking thread. Use spawn or forkserver, or fork before starting threads.</div></details>
-<details class="qa"><summary>Trusting <code>volatile</code> or plain variables between threads</summary><div>No atomicity and no ordering (section 2: Peterson's lock failed on this CPU). Use atomics with the order you need, or a lock.</div></details>
-<details class="qa"><summary>Blocking inside an event loop</summary><div>A synchronous call in an <code>async</code> handler stops every connection on that loop; use <code>asyncio.to_thread</code> or a process pool for blocking and CPU work.</div></details>
-<details class="qa"><summary>Edge-triggered epoll without draining</summary><div>Read until <code>EAGAIN</code> after every edge, or the rest of the data waits forever (section 9).</div></details>
-<details class="qa"><summary>Sizing thread pools from <code>os.cpu_count()</code> in a container</summary><div>It reports the machine, not the quota; multiply by the number of worker processes and every library's own pool.</div></details>
-<h3>Interview questions, with model answers</h3>
+<h2>Depth: interview rehearsal and the OSTEP map</h2>
+<details class="dp"><summary>Interview questions, with model answers <span class="mute">(optional)</span></summary><div class="b">
 <details class="qa"><summary>What is the difference between a process and a thread on Linux?</summary><div>Both are tasks the scheduler runs. A thread is created with <code>clone</code> flags that share the address space, file table and signal handlers with its creator (CLONE_VM, CLONE_FILES, CLONE_SIGHAND, CLONE_THREAD); a process gets copies (copy-on-write for memory). Threads communicate through memory for free and need synchronisation; processes need IPC but are isolated from each other's crashes, and in CPython each has its own GIL.</div></details>
 <details class="qa"><summary>How does a mutex work, down to the kernel?</summary><div>A word in user memory. Lock: CAS 0 to 1; if that fails, exchange in 2 ("contended") and call <code>futex_wait(word, 2)</code>, which sleeps only if the word is still 2, checked in the kernel under the wait-queue lock. Unlock: exchange in 0; if the old value was 2, <code>futex_wake(word, 1)</code>. Uncontended: two atomic instructions, no system call.</div></details>
 <details class="qa"><summary>Why must the kernel re-check the value in futex_wait?</summary><div>To avoid the lost wake-up: between a user-space check and going to sleep, the holder could release and send a wake-up to a thread not yet asleep. Comparing under the hash-bucket lock makes "check and sleep" atomic with respect to wakers.</div></details>
@@ -458,85 +543,35 @@ details.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}details.q
 <details class="qa"><summary>select, poll, epoll: what is the difference, and when would you use io_uring?</summary><div>select and poll pass the whole interest list on every call and the kernel checks each entry: O(watched); select is also capped at descriptor 1023. epoll keeps the list in the kernel and a ready list filled by callbacks: O(ready). io_uring is a completion model with shared submission and completion rings: batch many operations per system call or none (SQPOLL); worth it for many small or truly asynchronous operations (disk I/O at high queue depth), and often disabled in containers for security.</div></details>
 <details class="qa"><summary>Level-triggered vs edge-triggered epoll?</summary><div>Level: reported on every wait while ready. Edge: reported once per new event; you must drain to EAGAIN. Edge avoids repeated reports and thundering herds with several waiters; level is harder to misuse.</div></details>
 <details class="qa"><summary>Why does a Python I/O thread get slow when another thread computes?</summary><div>It must re-take the GIL after its I/O completes; the computing thread releases it only when asked, after the 5 ms switch interval. Measured: a 2 ms sleep came back about 8 ms late next to one busy thread.</div></details>
-<details class="qa"><summary>A training job hangs with 0% CPU. How do you find out why?</summary><div><code>top -H</code> or <code>ps -L</code> to confirm all threads sleep; <code>/proc/&lt;pid&gt;/task/*/wchan</code> (futex waits mean locks, queues or condition variables; <code>poll</code> or <code>read</code> means waiting for data); <code>py-spy dump --pid</code> for Python stacks on every rank and worker; <code>gdb -p</code> with <code>thread apply all bt</code> for native threads; then find who should have released or sent what each one waits for.</div></details>
-<h3>OSTEP reading map for this page</h3>
-<div class="tw"><table class="tbl-sm"><thead><tr><th>Chapter</th><th>Here</th></tr></thead><tbody>
+<details class="qa"><summary>What changes in the free-threaded build, and what does not?</summary><div>The GIL is gone: threads run Python in parallel. Built-in containers take internal locks so they never corrupt, reference counts are biased towards the owning thread, and some objects are immortal. What does not change: a read-modify-write on shared data (<code>d[k] += 1</code>) is still a race and needs a lock.</div></details>
+</div></details>
+<details class="dp"><summary>OSTEP reading map for this page <span class="mute">(reference)</span></summary><div class="b">
+<div class="tw"><table class="tbl-sm nar"><thead><tr><th>Chapter</th><th>Here</th></tr></thead><tbody>
 <tr><td>26 Concurrency: an introduction (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-intro.pdf" target="_blank" rel="noopener noreferrer">pdf</a>)</td><td>sections 1, 2</td></tr>
 <tr><td>27 Interlude: thread API (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-api.pdf" target="_blank" rel="noopener noreferrer">pdf</a>)</td><td>section 1</td></tr>
 <tr><td>28 Locks (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-locks.pdf" target="_blank" rel="noopener noreferrer">pdf</a>)</td><td>sections 2, 3, 4 (Peterson, spin, yield, futex)</td></tr>
-<tr><td>29 Lock-based concurrent data structures (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-locks-usage.pdf" target="_blank" rel="noopener noreferrer">pdf</a>)</td><td>section 3 (contention), section 7</td></tr>
-<tr><td>30 Condition variables (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-cv.pdf" target="_blank" rel="noopener noreferrer">pdf</a>)</td><td>section 5, Interleaving lab</td></tr>
+<tr><td>29 Lock-based concurrent data structures (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-locks-usage.pdf" target="_blank" rel="noopener noreferrer">pdf</a>)</td><td>section 3 (contention), section 2 depth</td></tr>
+<tr><td>30 Condition variables (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-cv.pdf" target="_blank" rel="noopener noreferrer">pdf</a>)</td><td>section 5, the scheduler lab in section 4</td></tr>
 <tr><td>31 Semaphores (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-sema.pdf" target="_blank" rel="noopener noreferrer">pdf</a>)</td><td>section 5</td></tr>
 <tr><td>32 Common concurrency problems (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-bugs.pdf" target="_blank" rel="noopener noreferrer">pdf</a>)</td><td>section 6</td></tr>
-<tr><td>33 Event-based concurrency (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-events.pdf" target="_blank" rel="noopener noreferrer">pdf</a>)</td><td>section 9, Event loop lab</td></tr>
+<tr><td>33 Event-based concurrency (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-events.pdf" target="_blank" rel="noopener noreferrer">pdf</a>)</td><td>section 8</td></tr>
 </tbody></table></div>
-<p class="small">OSTEP's homework simulators for these chapters (<code>x86.py</code> for races and locks, the deadlock and condition-variable programs) are covered by the root's <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">OS simulators</a> tab and this page's <a href="#" data-tab="t-lock">Interleaving lab</a>.</p>
+<p class="small">OSTEP's homework simulators for these chapters (<code>x86.py</code> for races and locks, the deadlock and condition-variable programs) are covered by the root's <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">OS simulators</a> tab and this page's scheduler lab (section 4).</p>
+</div></details>
 </section>
-</div>
-<div class="tab" id="t-lock" role="tabpanel" hidden>
-<style>
-#t-lock .il-code{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:8px;margin:8px 0}
-#t-lock .il-code>div{min-width:0}
-#t-lock .il-code h5{margin:2px 0;font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
-#t-lock .il-ln{display:grid;grid-template-columns:4.6em minmax(0,1fr);gap:6px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;border-bottom:1px dotted var(--line);padding:1px 4px}
-#t-lock .il-ln .mk{white-space:nowrap}#t-lock .il-ln .tx{overflow-wrap:anywhere}
-#t-lock .il-ln.on{background:var(--acc2)}
-#t-lock .tk{display:inline-block;font:600 11px ui-sans-serif,-apple-system,Helvetica,Arial,sans-serif;border-radius:4px;padding:0 4px;margin-right:2px;color:var(--bg)}
-#t-lock .il-btns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
-#t-lock .il-btns button.th{font-weight:600}
-#t-lock .il-state{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:8px 0}
-#t-lock .il-state>div{border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;min-width:0;overflow-wrap:anywhere}
-#t-lock .il-state b{display:block;font-size:11.5px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
-#t-lock .il-log{font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;max-height:16em;overflow-y:auto;border:1px dashed var(--line);border-radius:8px;padding:6px 10px;white-space:pre-wrap;overflow-wrap:anywhere}
-#t-lock .il-verdict{font-weight:600;margin:6px 0;min-height:1.5em}
-#t-lock .il-verdict.bad{color:var(--bad)}#t-lock .il-verdict.ok{color:var(--good)}
-</style>
-<h2>Interleaving lab: you are the scheduler</h2>
-<p>A concurrency bug needs a particular order of steps, which is why it passes tests and fails in production. Here you choose the order. Each line below is one indivisible step; press a thread's button to run its next step, and watch the shared memory, the kernel's wait queues and the threads' states. The lab stops when two threads are in the critical section, when a consumer reads an empty slot, or when every thread that is not done is asleep with nobody left to wake it (the lost wake-up, or a hang).</p>
-<div class="segb" id="il-sc"></div>
-<p class="small" id="il-about"></p>
-<div class="il-btns" id="il-btns"></div>
-<div class="il-verdict" id="il-verdict"></div>
-<div class="il-code" id="il-code"></div>
-<div class="il-state" id="il-state"></div>
-<div class="il-log" id="il-log" aria-live="polite"></div>
-<div class="card" id="il-all">
-<div class="t" style="font-weight:600">Every possible schedule</div>
-<p class="small" id="il-count"></p>
-</div>
-<div class="deepnote"><b>How this is checked.</b> The page explores every interleaving in your browser (a depth-first search over states, counting the distinct schedules that lead to each ending). <code>src/recompute.py</code> does the same search with an independent Python implementation of the same programs (<code>src/inputs/lab_programs.json</code>); the counts above say whether the two agree. Races and lock ordering for OSTEP's own programs are in the root's <a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">OS simulators</a> tab.</div>
-</div>
-<div class="tab" id="t-ev" role="tabpanel" hidden>
-<h2>Event loop lab: one set of connections, five ways to wait</h2>
-<p>Eight open connections; data arrives on four of them, one after another (on connection 2, then 5, then 2 again, then 7). The same input runs through five designs: a thread per connection, <code>select</code>, <code>poll</code>, <code>epoll</code>, and <code>io_uring</code>. Count what each one makes the kernel and the program do. Then scale the measured costs up to thousands of connections below. Mechanisms are explained in Reading, <a href="#" data-tab="t-read">section 9</a>.</p>
-<div class="card" id="ev-card">
-<div class="segb" id="ev-mode"><button data-m="threads" class="on">Thread per connection</button><button data-m="select">select</button><button data-m="poll">poll</button><button data-m="epoll">epoll</button><button data-m="uring">io_uring</button></div>
-<div class="chart" id="ev-svg"></div>
-<div class="an-cap" id="ev-cap"></div>
-<div class="an-cnt" id="ev-cnt"></div>
-<div class="an-ctl" id="ev-ctl"></div>
-</div>
-<h3>Scale it up: measured costs at N connections</h3>
-<p class="small">One readiness question with N descriptors watched and one ready, from the measured curve (log-log interpolation between the measured points: 1, 10, 100, 300, 500, 1,000, 3,000 and 10,000; raw: <code>src/runs/out/evloop.txt</code>). Thread memory uses the measured 2,000-thread run.</p>
-<div class="ctl"><label>Connections watched: <b id="ev-n-l">1,000</b><input type="range" id="ev-n" min="0" max="4" step="0.01" value="3"></label>
-<label>Messages per second (one ready connection each): <b id="ev-r-l">10,000</b><input type="range" id="ev-r" min="2" max="5" step="0.01" value="4"></label></div>
-<div class="out" id="ev-out"></div>
-<p class="small mute" id="ev-note"></p>
 </div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <h2>Further reading</h2>
-<h3>This page's tabs</h3>
+<h3>This page</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>Threads, races, locks, the futex, condition variables, deadlock, the GIL, event-driven I/O, and the training job's threads. <span class="rt">about 40 minutes</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-lock">Interleaving lab</a></div><p>Be the scheduler: glibc's futex mutex, the lost wake-up and its fix, condition variables with if and while; every schedule counted. <span class="rt">10 to 15 minutes</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-ev">Event loop lab</a></div><p>Eight connections through threads, select, poll, epoll and io_uring, then the measured costs at thousands. <span class="rt">5 to 10 minutes</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>Threads, races, locks, the futex (with the scheduler lab), condition variables, deadlock, the GIL and free-threaded Python, event-driven I/O (with the five-designs walkthrough), choosing a model, and the training job's threads. <span class="rt">34 minutes, plus 14 in closed details</span></p></div>
 </div>
 <h3>The parent topic and the sibling pages</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Topic: operating-systems</a></div><p>The whole OS for one training job. Its OS simulators tab steps the lost update, locks, atomics and deadlock; its Debug lab reproduces the fork-with-a-held-lock hang. <span class="rt">about 50 minutes, plus labs</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes and the system-call API</a> <span class="rt">46 min</span></div><p>fork, exec, signals, file descriptors, start methods: the process side of section 1 and the descriptors of section 9.</p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81ed9c18cc47c6bfdf76" target="_blank" rel="noopener noreferrer">Scheduling and CPU time</a> <span class="rt">40 min</span></div><p>Context switches, CFS and EEVDF, CPU quotas: what decides which of your threads runs.</p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81a48892cea154ce950b" target="_blank" rel="noopener noreferrer">Virtual memory</a> <span class="rt">36 min</span></div><p>Why 2,000 thread stacks reserve 18 GB and use 13 MiB; shared memory between processes.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140" target="_blank" rel="noopener noreferrer">Topic: operating-systems</a></div><p>The whole OS for one training job. Its OS simulators tab runs OSTEP's race, lock and deadlock programs; its Debug lab reproduces the fork-with-a-held-lock hang. <span class="rt">about 50 minutes, plus labs</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes and the system-call API</a> <span class="rt">44 min</span></div><p>fork, exec, signals, file descriptors, start methods: the process side of section 1 and the descriptors of section 9.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81ed9c18cc47c6bfdf76" target="_blank" rel="noopener noreferrer">Scheduling and CPU time</a> <span class="rt">35 min</span></div><p>Context switches, CFS and EEVDF, CPU quotas: what decides which of your threads runs.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81a48892cea154ce950b" target="_blank" rel="noopener noreferrer">Virtual memory</a> <span class="rt">35 min</span></div><p>Why 2,000 thread stacks reserve 18 GB and use 13 MiB; shared memory between processes.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a> <span class="rt">34 min</span></div><p>malloc's per-thread arenas, a concurrency design.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d8141be7acc1313570cbf" target="_blank" rel="noopener noreferrer">Storage and file systems</a> <span class="rt">42 min</span></div><p>Where io_uring and asynchronous checkpoint writes pay off.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d8156a841e4bf28f11293" target="_blank" rel="noopener noreferrer">Containers and isolation</a> <span class="rt">45 min</span></div><p>pids.max counting threads, seccomp profiles that block io_uring.</p></div>
@@ -552,6 +587,7 @@ details.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}details.q
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a></div><p>Producer/consumer between services. <span class="rt">about 50 minutes</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8117b21dcb9041879564" target="_blank" rel="noopener noreferrer">Topic: protocols</a></div><p>Sockets and the networking the event loops serve. <span class="rt">about 45 minutes</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a></div><p>The collectives that NCCL's threads progress. <span class="rt">about 22 minutes</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU programming</a></div><p>Concurrency on the GPU side: streams, events and NCCL from the device's point of view.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a></div><p>Failures around the job: detection timeouts at every layer and the recovery designs. <span class="rt">about 40 minutes</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Topic: pytorch-ecosystem</a></div><p>DataLoader, thread settings and the libraries whose threads section 10 counts. <span class="rt">about 40 minutes</span></p></div>
 </div>
@@ -571,15 +607,15 @@ details.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}details.q
 </div>
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
-<script>/* 21_js_common.js */
-// ---- Shared helpers (adapted from the sibling page Processes and the system-call API) and the step-animation controller (play, pause, step, scrub, speed) ----
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
-  const onRender=(f,tab)=>{(window.TAB_RENDER=window.TAB_RENDER||{});const t=tab||'t-read';(window.TAB_RENDER[t]=window.TAB_RENDER[t]||[]).push(f)};
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
   // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
   function anim(o){
     const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
@@ -605,9 +641,9 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
-    onRender(()=>{show();kick()},o.tab);
+    onRender(()=>{show();kick()});
     show();
     return {
       // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
@@ -625,7 +661,7 @@ window.RD=(function(){
     const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
   return {RM,esc,stat,anim,onRender,width,tabLinks};
 })();
-RD.onResize=(f,tab)=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById(tab||'t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
 RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
 RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
 // segmented buttons: el contains <button data-m>; calls f(value)
@@ -692,15 +728,24 @@ window.CD={"raw":{"condvar":"mode if N 200000 consumed 200000 woke_to_empty_slot
     RD.seg(document.getElementById('rd-job-th'),show);show('2');})();
 })();
 
-// ---- Section 1: one process, three threads (static picture) ----
-(function(){const svg=document.getElementById('rd-thr-svg');if(!svg)return;
+// ---- Section 1: one process, three threads (static picture, drawn at the measured width) ----
+(function(){const el=document.getElementById('rd-thr-svg');if(!el)return;
   const t=RD.t,box=(x,y,w,h,fill,stroke)=>'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="6" fill="'+fill+'" stroke="'+stroke+'"/>';
-  let s=box(4,4,632,202,'none','var(--line)')+t(14,22,'one process: one address space',{w:600,fs:12});
-  s+=box(14,32,612,44,'var(--soft)','var(--line)')+t(24,50,'shared by every thread: code, global variables, heap (tensors, Python objects),',{fs:11.5})+t(24,66,'open file descriptors, signal handlers, current directory, memory mappings',{fs:11.5});
-  ['main thread','thread 1','thread 2'].forEach((n,i)=>{const x=14+i*206;
-    s+=box(x,88,196,110,'var(--bg)','var(--c'+(i+1)+')')+t(x+10,106,n,{w:600,fs:12,fill:'var(--c'+(i+1)+')'});
-    s+=t(x+10,126,'registers, program counter',{fs:11})+t(x+10,144,'its own stack (8 MiB reserved)',{fs:11})+t(x+10,162,'thread-local storage (errno)',{fs:11})+t(x+10,180,'thread id; scheduled separately',{fs:11});});
-  svg.innerHTML=s;})();
+  const L=['registers, program counter','its own stack (8 MiB reserved)','thread-local storage (errno)','thread id; scheduled separately'];
+  function draw(){const W=Math.min(760,RD.width(el)),wide=W>=600;let s='',H;
+    s+=t(10,18,'one process: one address space',{w:600,fs:12});
+    s+=box(10,26,W-20,wide?44:58,'var(--soft)','var(--line)');
+    if(wide){s+=t(20,44,'shared by every thread: code, global variables, heap (tensors, Python objects),',{fs:11.5})+t(20,60,'open file descriptors, signal handlers, current directory, memory mappings',{fs:11.5})}
+    else{s+=t(18,42,'shared by every thread: code, globals,',{fs:11.5})+t(18,57,'heap (tensors, Python objects), open files,',{fs:11.5})+t(18,72,'signal handlers, memory mappings',{fs:11.5})}
+    const y0=wide?82:96;
+    if(wide){const cw=(W-20-16)/3;['main thread','thread 1','thread 2'].forEach((n,i)=>{const x=10+i*(cw+8);
+        s+=box(x,y0,cw,108,'var(--bg)','var(--c'+(i+1)+')')+t(x+10,y0+18,n,{w:600,fs:12,fill:'var(--c'+(i+1)+')'});
+        L.forEach((l,k)=>s+=t(x+10,y0+38+k*18,l,{fs:11}))});H=y0+116}
+    else{['main thread','thread 1','thread 2'].forEach((n,i)=>{const y=y0+i*62;
+        s+=box(10,y,W-20,56,'var(--bg)','var(--c'+(i+1)+')')+t(18,y+16,n,{w:600,fs:12,fill:'var(--c'+(i+1)+')'});
+        s+=t(18,y+32,'registers, PC, its own stack (8 MiB)',{fs:11})+t(18,y+48,'thread-local storage; own thread id',{fs:11})});H=y0+3*62}
+    el.innerHTML=RD.svg(W,H,s,'One process with three threads');}
+  RD.onRender(draw);RD.onResize(draw);draw();})();
 
 // ---- Section 3: seven locks, four situations (measured) ----
 (function(){const el=document.getElementById('rd-lk-chart');if(!el)return;const L=window.CD.locks;
@@ -834,14 +879,14 @@ window.FXSIM=function(mode,wakeUs){
       RD.stat('C (no lock) finishes at',fin?(sim.doneC/10).toFixed(1)+' µs':'...','8 µs of work')+RD.stat('A and B finish at',fin?(sim.doneAB/10).toFixed(1)+' µs':'...','both lock holders');}
   build();
   const A=RD.anim({card:'rd-fx-card',ctl:'rd-fx-ctl',n:frames.length,ms:1300,label:'Step through the timeline',draw});
-  RD.seg(document.getElementById('rd-fx-mode'),m=>{mode=m;build();A.reset(frames.length);A.play()});
-  RD.seg(document.getElementById('rd-fx-wake'),m=>{wk=WK[m];build();A.reset(frames.length);A.play()});
+  RD.seg(document.getElementById('rd-fx-mode'),m=>{mode=m;build();A.reset(frames.length)});
+  RD.seg(document.getElementById('rd-fx-wake'),m=>{wk=WK[m];build();A.reset(frames.length)});
   RD.onResize(()=>A.redraw());
 })();
 </script>
-<script>/* 31_js_lock.js */
+<script>/* 25_js_il.js */
 // ---- Interleaving lab: an interpreter for the programs in inputs/lab_programs.json (same semantics as recompute.py) ----
-(function(){const root=document.getElementById('t-lock');if(!root)return;
+(function(){const root=document.getElementById('rd-il');if(!root)return;
   const SPEC=window.CD.lab,CHECK=window.CD.labcheck,esc=RD.esc;
   const ABOUT={
     futex:'Three threads run glibc\'s mutex protocol (section 4). Try to get two of them into the critical section, or to leave one asleep forever: neither is possible. Watch the word go to 2 when someone has to wait, and the unlock make a futex_wake only then.',
@@ -917,7 +962,7 @@ window.FXSIM=function(mode,wakeUs){
       '<div><b>Kernel wait queues</b>'+(Object.keys(st.q).length?Object.keys(st.q).map(k=>k+': ['+st.q[k].map(t=>names[t]).join(', ')+']').join('<br>'):'all empty')+'</div>'+
       '<div><b>Threads</b>'+names.map((n,t)=>'<span class="tk" style="background:'+TC[t]+'">'+n+'</span> '+desc(t)).join('<br>')+'</div>';
     const b=document.getElementById('il-btns');
-    b.innerHTML=names.map((n,t)=>'<button class="th" data-t="'+t+'" style="border-color:'+TC[t]+'"'+(end||st.th[t].s!=='R'?' disabled':'')+'>Run '+n+'</button>').join('')+
+    b.innerHTML=names.map((n,t)=>'<button class="th" data-th="'+t+'" style="border-color:'+TC[t]+'"'+(end||st.th[t].s!=='R'?' disabled':'')+'>Run '+n+'</button>').join('')+
       '<button data-a="rand"'+(end?' disabled':'')+'>Random step</button><button data-a="undo"'+(hist.length?'':' disabled')+'>Undo</button><button data-a="reset">Reset</button><button data-a="bad">Show a bad schedule</button>';
     const v=document.getElementById('il-verdict');
     v.className='il-verdict'+(end==='bug'||end==='stuck'?' bad':end==='ok'?' ok':'');
@@ -925,21 +970,137 @@ window.FXSIM=function(mode,wakeUs){
     const lg=document.getElementById('il-log');lg.textContent=log.length?log.map((l,i)=>(i+1)+'. '+l).join('\n'):'(no steps yet)';lg.scrollTop=lg.scrollHeight;}
   function stopReplay(){if(timer){clearInterval(timer);timer=0}}
   document.getElementById('il-btns').addEventListener('click',e=>{const x=e.target.closest('button');if(!x)return;
-    if(x.dataset.t!==undefined){stopReplay();doStep(+x.dataset.t);return}
+    if(x.dataset.th!==undefined){stopReplay();doStep(+x.dataset.th);return}
     const a=x.dataset.a;stopReplay();
     if(a==='rand'){const r=runnable(st);if(r.length)doStep(r[Math.floor(Math.random()*r.length)])}
     else if(a==='undo'){const h=hist.pop();if(h){st=h.st;log=h.log;render()}}
     else if(a==='reset'){st=init();hist=[];log=[];render()}
     else if(a==='bad'){const p=shortestBad();st=init();hist=[];log=[];render();if(!p){document.getElementById('il-verdict').textContent='No schedule of this program reaches a bug or a hang.';return}
       if(RD.RM){p.forEach(t=>doStep(t));return}
-      let i=0;timer=setInterval(()=>{if(root.hidden)return;if(i>=p.length){stopReplay();return}doStep(p[i++])},650)}});
+      let i=0;timer=setInterval(()=>{if(root.offsetParent===null)return;if(i>=p.length){stopReplay();return}doStep(p[i++])},650)}});
   document.getElementById('il-sc').innerHTML=SPEC.scenarios.map((s,i)=>'<button data-m="'+s.id+'"'+(i===0?' class="on"':'')+'>'+esc(s.title)+'</button>').join('');
   RD.seg(document.getElementById('il-sc'),id=>{document.getElementById('il-about').textContent=ABOUT[id];setup(id)});
   document.getElementById('il-about').textContent=ABOUT.futex;
-  let started=false;RD.onRender(()=>{if(!started){started=true;setup('futex')}},'t-lock');
+  setup('futex');
+  // links in section 5 open a scenario in this lab
+  document.querySelectorAll('a.il-go').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();const b=document.querySelector('#il-sc button[data-m="'+a.dataset.il+'"]');if(b)b.click();root.scrollIntoView({block:'start'})}));
 })();
 </script>
-<script>/* 32_js_ev.js */
+<script>/* 26_js_vis.js */
+// ---- Reading visuals added in the 2026-10-24 rebuild: hero, lost-update stepper, deadlock cycle, GIL vs free-threaded, choosing tree ----
+// Every figure is drawn at the measured width (RD.width) and redrawn on resize; nothing moves before the reader acts.
+(function(){
+  const V=(window.CD&&window.CD.v)||{},T=RD.t;
+  const rect=(x,y,w,h,f,s,r)=>'<rect x="'+x+'" y="'+y+'" width="'+Math.max(0,w)+'" height="'+h+'" rx="'+(r==null?6:r)+'" fill="'+f+'" stroke="'+s+'"/>';
+  const mk='<defs><marker id="rd-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--mute)"/></marker>'+
+    '<marker id="rd-ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--bad)"/></marker></defs>';
+
+  // ---- hero: the two kernel queues every wait ends in ----
+  (function(){const el=document.getElementById('rd-hero');if(!el)return;
+    const P=[{t:'Waiting for another thread',s:'lock, condition variable, queue, barrier, GIL',
+        u:'lock word w: 0 free, 1 held, 2 waiters',un:'fast path: one CAS, '+(V['lk.S1.mutex.wall']||'10.1')+' ns, no system call',
+        d:'↓ futex_wait(w, 2): sleep only if still 2',up:'↑ unlock that saw 2: futex_wake(w, 1)',
+        k:'futex queue for w: B, C asleep, 0% CPU',kn:'wake-up: '+(V['pp.1cpu.futex.half']||'1.7')+' µs same CPU, '+(V['pp.2cpu.futex.half']||'23.5')+' across'},
+      {t:'Waiting for I/O',s:'sockets, pipes, files',
+        u:'one event-loop thread, many sockets',un:'reads only ready sockets (O_NONBLOCK)',
+        d:'↓ epoll_ctl(ADD): each socket once',up:'↑ epoll_wait: returns only the ready ones',
+        k:'interest list (tree) → ready list: [5]',kn:(V['ev.10000.epoll']||'352')+' ns per wait at 10,000 watched'}];
+    function panel(x,y,pw,p){let s='';
+      s+=T(x+2,y+14,p.t,{w:600,fs:12.5,fill:'var(--acc)'})+T(x+2,y+29,p.s,{fs:11,fill:'var(--mute)'});
+      s+=rect(x,y+36,pw,62,'var(--soft)','var(--line)',8)+T(x+pw-8,y+92,'user space',{a:'end',fs:11,fill:'var(--mute)'});
+      s+=rect(x+8,y+42,pw-16,20,'var(--bg)','var(--ink)',4)+T(x+14,y+56,p.u,{fs:11.5,w:600});
+      s+=T(x+10,y+78,p.un,{fs:11,fill:'var(--good)',w:600});
+      s+=T(x+10,y+116,p.d,{fs:11})+T(x+10,y+132,p.up,{fs:11});
+      s+=rect(x,y+140,pw,64,'var(--acc2)','var(--acc)',8)+T(x+pw-8,y+198,'kernel',{a:'end',fs:11,fill:'var(--mute)'});
+      s+=rect(x+8,y+146,pw-16,20,'var(--bg)','var(--acc)',4)+T(x+14,y+160,p.k,{fs:11.5,w:600});
+      s+=T(x+10,y+182,p.kn,{fs:11});
+      return s}
+    function draw(){const W=Math.min(900,RD.width(el)),wide=W>=660;let s='',H;
+      if(wide){const pw=(W-24)/2;s+=panel(4,0,pw,P[0])+panel(pw+20,0,pw,P[1]);H=208}
+      else{const pw=W-8;s+=panel(4,0,pw,P[0])+panel(4,222,pw,P[1]);H=430}
+      el.innerHTML=RD.svg(W,H,s,'Two kernel queues: futex wait queues for threads, the epoll ready list for I/O');}
+    RD.onRender(draw);RD.onResize(draw);draw();})();
+
+  // ---- section 2: the lost update as an interleaving (stepper, before/after) ----
+  (function(){const card=document.getElementById('rd-race-card');if(!card)return;const el=document.getElementById('rd-race-svg'),cap=document.getElementById('rd-race-cap');
+    const SEQ={plain:[{th:1,op:'load',r:41,m:41},{th:2,op:'load',r:41,m:41},{th:1,op:'add',r:42,m:41},{th:1,op:'store',r:42,m:42},{th:2,op:'add',r:42,m:42},{th:2,op:'store',r:42,m:42}],
+      atomic:[{th:1,op:'ldadd',r:41,m:42},{th:2,op:'ldadd',r:42,m:43}]};
+    const CAP={plain:['count = 41 in memory. Both threads run count = count + 1: load into a register, add 1, store back. Predict the final count, then step.',
+        'T1 loads 41 into its register.','T2 runs before T1 stores (on another core, or the scheduler switched threads): it also loads 41.',
+        'T1 adds 1 in its register: 42. Memory still says 41.','T1 stores 42.','T2 adds 1 to the 41 it loaded: 42.',
+        'T2 stores 42 over T1’s 42. Two increments, and count rose by one: a lost update. It needs exactly this interleaving, which is why it passes tests and fails in production.'],
+      atomic:['count = 41. Each thread now runs one atomic fetch-and-add (ldadd on arm64, lock xadd on x86-64).',
+        'T1’s ldadd reads 41 and writes 42 as one indivisible step: no other core can touch the word in between (the register gets the old value, 41).',
+        'T2’s ldadd waits for the cache line, then reads 42 and writes 43. Correct in every order; it cost '+(V['lk.S1.atomic.wall']||'8.3')+' ns per update here, uncontended.']};
+    let mode='plain';
+    function draw(i){const seq=SEQ[mode],W=Math.min(760,RD.width(el)),lw=62,ncol=6,cw=(W-lw-8)/ncol,H=168;let s='';
+      const rows=[['T1',22,'var(--c1)'],['T2',72,'var(--c2)']];
+      rows.forEach(([n,y,c])=>{s+=T(4,y+22,n,{w:600,fs:12,fill:c})+'<line x1="'+lw+'" x2="'+(W-4)+'" y1="'+(y+18)+'" y2="'+(y+18)+'" stroke="var(--line)" stroke-dasharray="2 3"/>'});
+      s+=T(4,146,'count',{w:600,fs:12})+T(4,160,'in memory',{fs:11,fill:'var(--mute)'});
+      s+=T(lw,12,'time → (one column per instruction)',{fs:11,fill:'var(--mute)'});
+      for(let k=0;k<seq.length;k++){const o=seq[k],x=lw+k*cw,y=o.th===1?22:72,on=k<i,cur=k===i-1;
+        s+=rect(x+3,y,cw-6,38,on?(cur?'var(--acc2)':'var(--bg)'):'none',on?(o.th===1?'var(--c1)':'var(--c2)'):'var(--line)',5);
+        if(on){s+=T(x+cw/2,y+15,o.op,{a:'middle',fs:11.5,w:600})+T(x+cw/2,y+31,'r='+o.r,{a:'middle',fs:11})}
+        const lost=mode==='plain'&&k===seq.length-1&&on;
+        if(on)s+=T(x+cw/2,150,String(o.m),{a:'middle',fs:13,w:600,fill:lost?'var(--bad)':(k>0&&seq[k-1].m===o.m?'var(--mute)':'var(--ink)')});}
+      if(i===0)s+=T(lw+6,150,'41',{fs:13,w:600});
+      const fin=i===seq.length;
+      if(fin)s+=T(W-6,128,mode==='plain'?'expected 43, got 42':'43, as expected',{a:'end',fs:12,w:600,fill:mode==='plain'?'var(--bad)':'var(--good)'});
+      el.innerHTML=RD.svg(W,H,s,'Interleaving of two threads incrementing one counter');
+      cap.innerHTML='<div class="t">Step '+i+' of '+seq.length+'</div><p>'+RD.esc(CAP[mode][i])+'</p>';}
+    const A=RD.anim({card:'rd-race-card',ctl:'rd-race-ctl',n:SEQ.plain.length+1,ms:1500,label:'Step through the interleaving',draw});
+    RD.seg(document.getElementById('rd-race-mode'),m=>{mode=m;A.reset(SEQ[m].length+1)});
+    RD.onResize(()=>A.redraw());})();
+
+  // ---- section 6: the deadlock cycle (static) ----
+  (function(){const el=document.getElementById('rd-dl-svg');if(!el)return;
+    function draw(){const W=Math.min(520,RD.width(el)),H=200,xl=46,xr=W-46,yt=40,yb=160;let s=mk;
+      const lock=(x,y,n)=>rect(x-22,y-18,44,36,'var(--soft)','var(--ink)',4)+T(x,y+5,'lock '+n,{a:'middle',fs:11.5,w:600});
+      const thr=(x,y,n,c)=>'<circle cx="'+x+'" cy="'+y+'" r="20" fill="var(--bg)" stroke="'+c+'" stroke-width="2"/>'+T(x,y+5,n,{a:'middle',fs:12,w:600,fill:c});
+      const ar=(x1,y1,x2,y2,red)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+(red?'var(--bad)':'var(--mute)')+'" stroke-width="'+(red?2:1.5)+'" marker-end="url(#'+(red?'rd-ahb':'rd-ah')+')"/>';
+      s+=ar(xl+24,yt,xr-24,yt)+T((xl+xr)/2,yt-8,'held by',{a:'middle',fs:11});
+      s+=ar(xr,yt+22,xr,yb-20)+T(xr-8,(yt+yb)/2+4,'waits for',{a:'end',fs:11});
+      s+=ar(xr-24,yb,xl+22,yb)+T((xl+xr)/2,yb+26,'held by',{a:'middle',fs:11});
+      s+=ar(xl,yb-22,xl,yt+20,true)+T(xl+8,(yt+yb)/2+4,'waits for',{fs:11,fill:'var(--bad)',w:600});
+      s+=lock(xl,yt,'A')+thr(xr,yt,'T1','var(--c1)')+lock(xr,yb,'B')+thr(xl,yb,'T2','var(--c2)');
+      s+=T((xl+xr)/2,(yt+yb)/2-4,'circular wait:',{a:'middle',fs:11.5,w:600,fill:'var(--bad)'})+T((xl+xr)/2,(yt+yb)/2+12,'nobody can move',{a:'middle',fs:11,fill:'var(--bad)'});
+      el.innerHTML=RD.svg(W,H,s,'Wait-for cycle: T1 holds A and waits for B, T2 holds B and waits for A');}
+    RD.onRender(draw);RD.onResize(draw);draw();})();
+
+  // ---- section 7: GIL build against free-threaded build, same job (before/after) ----
+  (function(){const el=document.getElementById('rd-ft-svg');if(!el)return;const cap=document.getElementById('rd-ft-cap');
+    const GIL=0.99,FT=0.37;let mode='gil';
+    function draw(){const W=Math.min(760,RD.width(el)),lw=40,pw=W-lw-10,rh=26,H=4*rh+44;let s='';
+      const x=t=>lw+t/GIL*pw,cols=['var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
+      for(let k=0;k<4;k++){const y=8+k*rh;s+=T(4,y+15,'T'+(k+1),{w:600,fs:12,fill:cols[k]});
+        s+='<line x1="'+lw+'" x2="'+(lw+pw)+'" y1="'+(y+rh/2-2)+'" y2="'+(y+rh/2-2)+'" stroke="var(--line)" stroke-dasharray="2 3"/>';
+        if(mode==='gil'){const sl=GIL/24;for(let j=0;j<24;j++)if(j%4===k)s+=rect(x(j*sl),y+2,x(sl)-lw-0.5,rh-10,cols[k],'none',1)}
+        else s+=rect(x(0),y+2,x(FT)-lw,rh-10,cols[k],'none',2);}
+      const end=mode==='gil'?GIL:FT,ye=8+4*rh;
+      s+='<line x1="'+x(end)+'" x2="'+x(end)+'" y1="4" y2="'+(ye+2)+'" stroke="var(--ink)" stroke-width="1.2"/>';
+      s+=T(Math.min(x(end)+4,W-4),ye+16,end.toFixed(2)+' s',{a:x(end)+60>W?'end':'start',fs:12,w:600});
+      s+=T(lw,ye+30,mode==='gil'?'one thread holds the GIL at a time; others wait on gil_cond':'all four run Python at once on four cores',{fs:11,fill:'var(--mute)'});
+      el.innerHTML=RD.svg(W,H,s,'Four threads counting primes under each build');
+      cap.innerHTML=mode==='gil'?'Same job, four threads counting primes: under the GIL they take turns (slices drawn schematically; the real hand-over follows the switch interval), so four threads took 0.99 s against 0.96 s serially. Totals to scale, from the Python page’s measurement (Python 3.14.8, 10 CPUs).':
+        'Free-threaded 3.14t: no interpreter lock. dict, list and set take internal per-object locks, reference counts are biased to the owning thread, and constants are immortal; four threads took 0.37 s against 0.94 s serially (a busy laptop, so not a clean 4x). Your own shared data still needs a lock.';}
+    RD.seg(document.getElementById('rd-ft-mode'),m=>{mode=m;draw()});
+    RD.onRender(draw);RD.onResize(draw);draw();})();
+
+  // ---- section 9: choosing, as a tree ----
+  (function(){const el=document.getElementById('rd-ch-svg');if(!el)return;
+    const R=[[0,'What does the work wait on?','q'],[1,'I/O: thousands of connections, async libraries?','q'],[2,'yes: one event loop (asyncio, uvloop, tokio)','a'],[2,'no: a thread pool (blocking libraries)','a'],
+      [1,'CPU: is the hot loop Python?','q'],[2,'yes: processes, or free-threaded threads','a'],[2,'no (NumPy, PyTorch drop the GIL): threads','a']];
+    function draw(){const W=Math.min(760,RD.width(el)),rh=26,ind=W<460?16:26,H=R.length*rh+6;let s='';
+      R.forEach(([d,t,k],i)=>{const y=4+i*rh,x=6+d*ind;
+        if(d>0){let p=i-1;while(p>=0&&R[p][0]>=d)p--;const px=6+(d-1)*ind+6,py=4+p*rh+rh-6;
+          s+='<path d="M'+px+' '+py+' V'+(y+rh/2-2)+' H'+(x-2)+'" fill="none" stroke="var(--mute)"/>';}
+        if(k==='a')s+=rect(x,y+2,Math.min(W-x-4,t.length*6.6+16),rh-6,'var(--acc2)','var(--acc)',5);
+        s+=T(x+(k==='a'?8:0),y+17,t,{fs:k==='q'?12:11.5,w:k==='q'?600:400});});
+      el.innerHTML=RD.svg(W,H,s,'Decision tree: threads, processes or an event loop');}
+    RD.onRender(draw);RD.onResize(draw);draw();})();
+})();
+</script>
+<script>/* 27_js_ev.js */
 // ---- Event loop lab: the same arrivals through five designs, and the measured costs scaled up ----
 (function(){const card=document.getElementById('ev-card');if(!card)return;
   const N=8,ARR=[2,5,2,7];
@@ -989,9 +1150,9 @@ window.FXSIM=function(mode,wakeUs){
     cap.innerHTML='<div class="t">Step '+(i+1)+' of '+F.length+'</div><p>'+RD.esc(f.cap)+'</p>';
     const sum={sys:0,kchk:0,uscan:0,ctx:0};for(let j=0;j<=i;j++)for(const k in sum)sum[k]+=F[j].d[k];
     cnt.innerHTML=RD.stat('system calls',String(sum.sys),'including setup')+RD.stat('descriptors the kernel checked',String(sum.kchk),'')+RD.stat('entries the program scanned',String(sum.uscan),'')+RD.stat('thread wake-ups',String(sum.ctx),'context switches into a thread');}
-  const A=RD.anim({card:'ev-card',ctl:'ev-ctl',n:F.length,ms:1600,label:'Step through the arrivals',draw,tab:'t-ev'});
-  RD.seg(document.getElementById('ev-mode'),m=>{mode=m;F=frames(m);A.reset(F.length);A.play()});
-  RD.onResize(()=>A.redraw(),'t-ev');
+  const A=RD.anim({card:'ev-card',ctl:'ev-ctl',n:F.length,ms:1600,label:'Step through the arrivals',draw});
+  RD.seg(document.getElementById('ev-mode'),m=>{mode=m;F=frames(m);A.reset(F.length)});
+  RD.onResize(()=>A.redraw());
 
   // ---- scale up with measured costs ----
   const E=window.CD.ev,C=window.CD.conns;
@@ -1011,7 +1172,7 @@ window.FXSIM=function(mode,wakeUs){
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace os-conc-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1029,6 +1190,8 @@ window.FXSIM=function(mode,wakeUs){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('os-conc-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

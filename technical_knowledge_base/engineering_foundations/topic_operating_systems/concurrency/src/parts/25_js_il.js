@@ -1,5 +1,5 @@
 // ---- Interleaving lab: an interpreter for the programs in inputs/lab_programs.json (same semantics as recompute.py) ----
-(function(){const root=document.getElementById('t-lock');if(!root)return;
+(function(){const root=document.getElementById('rd-il');if(!root)return;
   const SPEC=window.CD.lab,CHECK=window.CD.labcheck,esc=RD.esc;
   const ABOUT={
     futex:'Three threads run glibc\'s mutex protocol (section 4). Try to get two of them into the critical section, or to leave one asleep forever: neither is possible. Watch the word go to 2 when someone has to wait, and the unlock make a futex_wake only then.',
@@ -75,7 +75,7 @@
       '<div><b>Kernel wait queues</b>'+(Object.keys(st.q).length?Object.keys(st.q).map(k=>k+': ['+st.q[k].map(t=>names[t]).join(', ')+']').join('<br>'):'all empty')+'</div>'+
       '<div><b>Threads</b>'+names.map((n,t)=>'<span class="tk" style="background:'+TC[t]+'">'+n+'</span> '+desc(t)).join('<br>')+'</div>';
     const b=document.getElementById('il-btns');
-    b.innerHTML=names.map((n,t)=>'<button class="th" data-t="'+t+'" style="border-color:'+TC[t]+'"'+(end||st.th[t].s!=='R'?' disabled':'')+'>Run '+n+'</button>').join('')+
+    b.innerHTML=names.map((n,t)=>'<button class="th" data-th="'+t+'" style="border-color:'+TC[t]+'"'+(end||st.th[t].s!=='R'?' disabled':'')+'>Run '+n+'</button>').join('')+
       '<button data-a="rand"'+(end?' disabled':'')+'>Random step</button><button data-a="undo"'+(hist.length?'':' disabled')+'>Undo</button><button data-a="reset">Reset</button><button data-a="bad">Show a bad schedule</button>';
     const v=document.getElementById('il-verdict');
     v.className='il-verdict'+(end==='bug'||end==='stuck'?' bad':end==='ok'?' ok':'');
@@ -83,16 +83,18 @@
     const lg=document.getElementById('il-log');lg.textContent=log.length?log.map((l,i)=>(i+1)+'. '+l).join('\n'):'(no steps yet)';lg.scrollTop=lg.scrollHeight;}
   function stopReplay(){if(timer){clearInterval(timer);timer=0}}
   document.getElementById('il-btns').addEventListener('click',e=>{const x=e.target.closest('button');if(!x)return;
-    if(x.dataset.t!==undefined){stopReplay();doStep(+x.dataset.t);return}
+    if(x.dataset.th!==undefined){stopReplay();doStep(+x.dataset.th);return}
     const a=x.dataset.a;stopReplay();
     if(a==='rand'){const r=runnable(st);if(r.length)doStep(r[Math.floor(Math.random()*r.length)])}
     else if(a==='undo'){const h=hist.pop();if(h){st=h.st;log=h.log;render()}}
     else if(a==='reset'){st=init();hist=[];log=[];render()}
     else if(a==='bad'){const p=shortestBad();st=init();hist=[];log=[];render();if(!p){document.getElementById('il-verdict').textContent='No schedule of this program reaches a bug or a hang.';return}
       if(RD.RM){p.forEach(t=>doStep(t));return}
-      let i=0;timer=setInterval(()=>{if(root.hidden)return;if(i>=p.length){stopReplay();return}doStep(p[i++])},650)}});
+      let i=0;timer=setInterval(()=>{if(root.offsetParent===null)return;if(i>=p.length){stopReplay();return}doStep(p[i++])},650)}});
   document.getElementById('il-sc').innerHTML=SPEC.scenarios.map((s,i)=>'<button data-m="'+s.id+'"'+(i===0?' class="on"':'')+'>'+esc(s.title)+'</button>').join('');
   RD.seg(document.getElementById('il-sc'),id=>{document.getElementById('il-about').textContent=ABOUT[id];setup(id)});
   document.getElementById('il-about').textContent=ABOUT.futex;
-  let started=false;RD.onRender(()=>{if(!started){started=true;setup('futex')}},'t-lock');
+  setup('futex');
+  // links in section 5 open a scenario in this lab
+  document.querySelectorAll('a.il-go').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();const b=document.querySelector('#il-sc button[data-m="'+a.dataset.il+'"]');if(b)b.click();root.scrollIntoView({block:'start'})}));
 })();

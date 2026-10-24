@@ -1,0 +1,30 @@
+
+<section id="rd-s11">
+<h2>Depth: interview rehearsal and the OSTEP map</h2>
+<details class="dp"><summary>Interview questions, with model answers <span class="mute">(optional)</span></summary><div class="b">
+<details class="qa"><summary>What is the difference between a process and a thread on Linux?</summary><div>Both are tasks the scheduler runs. A thread is created with <code>clone</code> flags that share the address space, file table and signal handlers with its creator (CLONE_VM, CLONE_FILES, CLONE_SIGHAND, CLONE_THREAD); a process gets copies (copy-on-write for memory). Threads communicate through memory for free and need synchronisation; processes need IPC but are isolated from each other's crashes, and in CPython each has its own GIL.</div></details>
+<details class="qa"><summary>How does a mutex work, down to the kernel?</summary><div>A word in user memory. Lock: CAS 0 to 1; if that fails, exchange in 2 ("contended") and call <code>futex_wait(word, 2)</code>, which sleeps only if the word is still 2, checked in the kernel under the wait-queue lock. Unlock: exchange in 0; if the old value was 2, <code>futex_wake(word, 1)</code>. Uncontended: two atomic instructions, no system call.</div></details>
+<details class="qa"><summary>Why must the kernel re-check the value in futex_wait?</summary><div>To avoid the lost wake-up: between a user-space check and going to sleep, the holder could release and send a wake-up to a thread not yet asleep. Comparing under the hash-bucket lock makes "check and sleep" atomic with respect to wakers.</div></details>
+<details class="qa"><summary>Spinlock or mutex?</summary><div>Spin only if the expected wait is shorter than a sleep and wake-up (a few microseconds) and the holder is guaranteed to be running (its own CPU, preemption disabled: kernel code). Otherwise sleep. Adaptive locks spin briefly then sleep.</div></details>
+<details class="qa"><summary>What are the four conditions for deadlock, and how do you prevent it in practice?</summary><div>Mutual exclusion, hold and wait, no preemption, circular wait. In practice: a global lock order (break the circle), checked with tools such as lockdep or TSan; trylock with backoff; not holding locks across calls into unknown code.</div></details>
+<details class="qa"><summary>Why must you wait on a condition variable in a while loop?</summary><div>Mesa semantics: wake-up means "the condition may have changed", and other threads can run between the signal and your return from wait; spurious wake-ups are also allowed. Re-check under the mutex.</div></details>
+<details class="qa"><summary>select, poll, epoll: what is the difference, and when would you use io_uring?</summary><div>select and poll pass the whole interest list on every call and the kernel checks each entry: O(watched); select is also capped at descriptor 1023. epoll keeps the list in the kernel and a ready list filled by callbacks: O(ready). io_uring is a completion model with shared submission and completion rings: batch many operations per system call or none (SQPOLL); worth it for many small or truly asynchronous operations (disk I/O at high queue depth), and often disabled in containers for security.</div></details>
+<details class="qa"><summary>Level-triggered vs edge-triggered epoll?</summary><div>Level: reported on every wait while ready. Edge: reported once per new event; you must drain to EAGAIN. Edge avoids repeated reports and thundering herds with several waiters; level is harder to misuse.</div></details>
+<details class="qa"><summary>Why does a Python I/O thread get slow when another thread computes?</summary><div>It must re-take the GIL after its I/O completes; the computing thread releases it only when asked, after the 5 ms switch interval. Measured: a 2 ms sleep came back about 8 ms late next to one busy thread.</div></details>
+<details class="qa"><summary>What changes in the free-threaded build, and what does not?</summary><div>The GIL is gone: threads run Python in parallel. Built-in containers take internal locks so they never corrupt, reference counts are biased towards the owning thread, and some objects are immortal. What does not change: a read-modify-write on shared data (<code>d[k] += 1</code>) is still a race and needs a lock.</div></details>
+</div></details>
+<details class="dp"><summary>OSTEP reading map for this page <span class="mute">(reference)</span></summary><div class="b">
+<div class="tw"><table class="tbl-sm nar"><thead><tr><th>Chapter</th><th>Here</th></tr></thead><tbody>
+<tr><td>26 Concurrency: an introduction ({{pdf|https://pages.cs.wisc.edu/~remzi/OSTEP/threads-intro.pdf}})</td><td>sections 1, 2</td></tr>
+<tr><td>27 Interlude: thread API ({{pdf|https://pages.cs.wisc.edu/~remzi/OSTEP/threads-api.pdf}})</td><td>section 1</td></tr>
+<tr><td>28 Locks ({{pdf|https://pages.cs.wisc.edu/~remzi/OSTEP/threads-locks.pdf}})</td><td>sections 2, 3, 4 (Peterson, spin, yield, futex)</td></tr>
+<tr><td>29 Lock-based concurrent data structures ({{pdf|https://pages.cs.wisc.edu/~remzi/OSTEP/threads-locks-usage.pdf}})</td><td>section 3 (contention), section 2 depth</td></tr>
+<tr><td>30 Condition variables ({{pdf|https://pages.cs.wisc.edu/~remzi/OSTEP/threads-cv.pdf}})</td><td>section 5, the scheduler lab in section 4</td></tr>
+<tr><td>31 Semaphores ({{pdf|https://pages.cs.wisc.edu/~remzi/OSTEP/threads-sema.pdf}})</td><td>section 5</td></tr>
+<tr><td>32 Common concurrency problems ({{pdf|https://pages.cs.wisc.edu/~remzi/OSTEP/threads-bugs.pdf}})</td><td>section 6</td></tr>
+<tr><td>33 Event-based concurrency ({{pdf|https://pages.cs.wisc.edu/~remzi/OSTEP/threads-events.pdf}})</td><td>section 8</td></tr>
+</tbody></table></div>
+<p class="small">OSTEP's homework simulators for these chapters (<code>x86.py</code> for races and locks, the deadlock and condition-variable programs) are covered by the root's {{OS simulators|n:3f05c17b0d0d81c5a97ce991644af140}} tab and this page's scheduler lab (section 4).</p>
+</div></details>
+</section>
+</div>

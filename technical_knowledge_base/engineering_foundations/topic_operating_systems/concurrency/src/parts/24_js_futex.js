@@ -79,7 +79,7 @@ window.FXSIM=function(mode,wakeUs){
       RD.stat('C (no lock) finishes at',fin?(sim.doneC/10).toFixed(1)+' µs':'...','8 µs of work')+RD.stat('A and B finish at',fin?(sim.doneAB/10).toFixed(1)+' µs':'...','both lock holders');}
   build();
   const A=RD.anim({card:'rd-fx-card',ctl:'rd-fx-ctl',n:frames.length,ms:1300,label:'Step through the timeline',draw});
-  RD.seg(document.getElementById('rd-fx-mode'),m=>{mode=m;build();A.reset(frames.length);A.play()});
-  RD.seg(document.getElementById('rd-fx-wake'),m=>{wk=WK[m];build();A.reset(frames.length);A.play()});
+  RD.seg(document.getElementById('rd-fx-mode'),m=>{mode=m;build();A.reset(frames.length)});
+  RD.seg(document.getElementById('rd-fx-wake'),m=>{wk=WK[m];build();A.reset(frames.length)});
   RD.onResize(()=>A.redraw());
 })();

@@ -49,15 +49,24 @@
     RD.seg(document.getElementById('rd-job-th'),show);show('2');})();
 })();
 
-// ---- Section 1: one process, three threads (static picture) ----
-(function(){const svg=document.getElementById('rd-thr-svg');if(!svg)return;
+// ---- Section 1: one process, three threads (static picture, drawn at the measured width) ----
+(function(){const el=document.getElementById('rd-thr-svg');if(!el)return;
   const t=RD.t,box=(x,y,w,h,fill,stroke)=>'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="6" fill="'+fill+'" stroke="'+stroke+'"/>';
-  let s=box(4,4,632,202,'none','var(--line)')+t(14,22,'one process: one address space',{w:600,fs:12});
-  s+=box(14,32,612,44,'var(--soft)','var(--line)')+t(24,50,'shared by every thread: code, global variables, heap (tensors, Python objects),',{fs:11.5})+t(24,66,'open file descriptors, signal handlers, current directory, memory mappings',{fs:11.5});
-  ['main thread','thread 1','thread 2'].forEach((n,i)=>{const x=14+i*206;
-    s+=box(x,88,196,110,'var(--bg)','var(--c'+(i+1)+')')+t(x+10,106,n,{w:600,fs:12,fill:'var(--c'+(i+1)+')'});
-    s+=t(x+10,126,'registers, program counter',{fs:11})+t(x+10,144,'its own stack (8 MiB reserved)',{fs:11})+t(x+10,162,'thread-local storage (errno)',{fs:11})+t(x+10,180,'thread id; scheduled separately',{fs:11});});
-  svg.innerHTML=s;})();
+  const L=['registers, program counter','its own stack (8 MiB reserved)','thread-local storage (errno)','thread id; scheduled separately'];
+  function draw(){const W=Math.min(760,RD.width(el)),wide=W>=600;let s='',H;
+    s+=t(10,18,'one process: one address space',{w:600,fs:12});
+    s+=box(10,26,W-20,wide?44:58,'var(--soft)','var(--line)');
+    if(wide){s+=t(20,44,'shared by every thread: code, global variables, heap (tensors, Python objects),',{fs:11.5})+t(20,60,'open file descriptors, signal handlers, current directory, memory mappings',{fs:11.5})}
+    else{s+=t(18,42,'shared by every thread: code, globals,',{fs:11.5})+t(18,57,'heap (tensors, Python objects), open files,',{fs:11.5})+t(18,72,'signal handlers, memory mappings',{fs:11.5})}
+    const y0=wide?82:96;
+    if(wide){const cw=(W-20-16)/3;['main thread','thread 1','thread 2'].forEach((n,i)=>{const x=10+i*(cw+8);
+        s+=box(x,y0,cw,108,'var(--bg)','var(--c'+(i+1)+')')+t(x+10,y0+18,n,{w:600,fs:12,fill:'var(--c'+(i+1)+')'});
+        L.forEach((l,k)=>s+=t(x+10,y0+38+k*18,l,{fs:11}))});H=y0+116}
+    else{['main thread','thread 1','thread 2'].forEach((n,i)=>{const y=y0+i*62;
+        s+=box(10,y,W-20,56,'var(--bg)','var(--c'+(i+1)+')')+t(18,y+16,n,{w:600,fs:12,fill:'var(--c'+(i+1)+')'});
+        s+=t(18,y+32,'registers, PC, its own stack (8 MiB)',{fs:11})+t(18,y+48,'thread-local storage; own thread id',{fs:11})});H=y0+3*62}
+    el.innerHTML=RD.svg(W,H,s,'One process with three threads');}
+  RD.onRender(draw);RD.onResize(draw);draw();})();
 
 // ---- Section 3: seven locks, four situations (measured) ----
 (function(){const el=document.getElementById('rd-lk-chart');if(!el)return;const L=window.CD.locks;

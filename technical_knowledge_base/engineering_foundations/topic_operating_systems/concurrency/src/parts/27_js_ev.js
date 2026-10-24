@@ -47,9 +47,9 @@
     cap.innerHTML='<div class="t">Step '+(i+1)+' of '+F.length+'</div><p>'+RD.esc(f.cap)+'</p>';
     const sum={sys:0,kchk:0,uscan:0,ctx:0};for(let j=0;j<=i;j++)for(const k in sum)sum[k]+=F[j].d[k];
     cnt.innerHTML=RD.stat('system calls',String(sum.sys),'including setup')+RD.stat('descriptors the kernel checked',String(sum.kchk),'')+RD.stat('entries the program scanned',String(sum.uscan),'')+RD.stat('thread wake-ups',String(sum.ctx),'context switches into a thread');}
-  const A=RD.anim({card:'ev-card',ctl:'ev-ctl',n:F.length,ms:1600,label:'Step through the arrivals',draw,tab:'t-ev'});
-  RD.seg(document.getElementById('ev-mode'),m=>{mode=m;F=frames(m);A.reset(F.length);A.play()});
-  RD.onResize(()=>A.redraw(),'t-ev');
+  const A=RD.anim({card:'ev-card',ctl:'ev-ctl',n:F.length,ms:1600,label:'Step through the arrivals',draw});
+  RD.seg(document.getElementById('ev-mode'),m=>{mode=m;F=frames(m);A.reset(F.length)});
+  RD.onResize(()=>A.redraw());
 
   // ---- scale up with measured costs ----
   const E=window.CD.ev,C=window.CD.conns;
