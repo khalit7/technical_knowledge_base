@@ -19,3 +19,16 @@ Scores 0 to 2 each: quantity moves with a control; defaults reproduce a publishe
 
 Inspiration: the DeepSeek MLA explainer pattern (same input, old method then new); the root page's harness animation controller (Play, step, scrub, speed); MT-Bench's own category tags as slices.
 What the methodology lacked: a rule for a published aggregate that silently includes an evaluation failure; handled by reproducing it exactly both ways and stating which matches.
+
+## 2026-10-24 rebuild (teaching contract)
+| # | Idea | Kind | Placement | Status | Data |
+|---|---|---|---|---|---|
+| PE11 | Hero: the promotion path, five stages with cost, what each catches, users exposed, and the loop back to the golden set | static annotated diagram | Reading top | built | the stage table (sourced in the closed block) |
+| PE12 | Error-analysis loop: sample, open code, axial code, count, saturate, evaluators, promote | stepper (RD.anim, no tweening) | Reading 1 | built | Hamel Husain and Shreya Shankar's FAQ (inputs/methods/hamel_evals_faq_error_analysis.txt); the MT-Bench "constrained rewrite" example from PE1 |
+| PE13 | Golden-set anatomy: sources, one tagged item, regression and capability suites, held-out split | static annotated diagram | Reading 2 | built | the section's own sourced claims |
+| PE14 | Online sampling rate against judged traces and judge bill, vendor bands | one slider | Reading 7 | built | Langfuse $0.01-0.10 per assessment (default $0.03), Braintrust bands, 1M requests a day (illustrative); defaults land on the page's $300 a day derivation |
+| PE15 | Shadow, canary, A/B, interleaving: who sees the challenger, what each can measure | static four-panel diagram | Reading 8 | built | Microsoft ExP, Google SRE, Netflix, Airbnb (prose) |
+| PE16 | Drift test: classifier between two windows, ROC AUC alarm at 0.55 | static diagram | Reading 9 | built | Evidently docs |
+| PE17 | promptfoo web viewer screenshot | real image | Reading 5 | built | promptfoo repository, MIT |
+| PE18 | A simulated failure-taxonomy count chart for the stepper | | | rejected | no real labelled production traces exist to count; invented counts would be decoration |
+| PE19 | Animation of drift over weeks | | | rejected | the change is not the point; a static diagram of the test says it |
