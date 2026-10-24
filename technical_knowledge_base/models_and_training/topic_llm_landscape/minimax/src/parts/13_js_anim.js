@@ -1,4 +1,4 @@
-// ---- One decoded token, three ways: MSA (M3) against full GQA (M2) and the lightning hybrid (01), animated on a canvas ----
+// ---- One decoded token, three ways: MSA (M3) against full GQA (M2) and the lightning hybrid (01), animated on a canvas. Never autoplays: it waits on step 1 until the reader presses play or steps ----
 (function(){
   const card=$('ax');if(!card)return;
   const DUR=3200,RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -104,8 +104,8 @@
   $('axSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   $('axT').addEventListener('change',e=>{n=+e.target.value;gen();st.k=0;st.t=RM?1:0;draw()});
   const seg=$('axM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM)st.play=true;draw();kick()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;if(st.vis&&!st.started&&!RM){st.started=true;st.play=true}kick()},{threshold:.15}).observe(card)}else st.vis=true;
+    pause();st.m=b.dataset.m;st.k=0;st.t=RM?1:0;draw()}));
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
   let rw=0;addEventListener('resize',()=>{const ww=$('axSvg').clientWidth;if(ww!==rw){rw=ww;draw()}});

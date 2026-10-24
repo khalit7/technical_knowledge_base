@@ -3,11 +3,11 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/
 # Assemble ../index.html from parts/: head and CSS, the HTML parts in order, the error box, then each script in its own element, tabs last.
 # Links in any part are written {{text|url}}; url may be an alias (@name, below) or n:<notion id>.
 cd "$(dirname "$0")"
-{ cat parts/01_head.html parts/02_read_a.html parts/03_read_b.html parts/04_read_c.html parts/05_tabs.html parts/07_more.html
+{ cat parts/01_head.html parts/02_read_a.html parts/03_read_b.html parts/04_read_c.html parts/05_read_d.html parts/07_more.html
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   echo '</div>'
   cat parts/05z_errbox.js.html
-  for f in parts/10_js_common.js parts/10b_js_model.js parts/11_js_read.js parts/12_js_read2.js parts/13_js_anim.js parts/14_js_cost.js parts/15_js_line.js parts/90_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
+  for f in parts/10_js_common.js parts/21_js_rd_common.js parts/10b_js_model.js parts/11_js_read.js parts/12_js_read2.js parts/13_js_anim.js parts/14_js_cost.js parts/15_js_line.js parts/16_js_figs.js parts/99_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
   echo '</body></html>'; } | perl -CSD -pe '
 BEGIN{%A=(
 wiki=>"https://en.wikipedia.org/wiki/MiniMax_Group",
@@ -46,19 +46,18 @@ s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);$u=$u=~m{^@(\w+)$}?($A{$1}||die 
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
 if grep -q '—' ../index.html; then echo "EM DASH FOUND"; fi
 wc -c ../index.html
+# Reading time: measured by html_utils/audit_pages.mjs (230 words a minute, core and closed details apart) and written to rt.json; the resources total is summed here
 python3 - <<'PY'
-import re
+import re,json
 s=open('../index.html').read()
-a=s.index('id="t-read"');b=s.index('id="t-cost"')
-t=re.sub(r'<script.*?</script>|<style.*?</style>|<math.*?</math>','',s[a:b],flags=re.S);t=re.sub(r'<[^>]+>',' ',t)
-w=len(t.split());m=round(w/230)
+rt=json.load(open('rt.json'))
 fr=s[s.index('<h3>Best resources</h3>'):]
 tot=0
 for x in re.findall(r'class="rt">\(([^)]*)\)',fr):
     h=re.search(r'(\d+)h',x);mm=re.search(r'(\d+) ?m(?:in)?\b',x)
     tot+=(int(h.group(1))*60 if h else 0)+(int(mm.group(1)) if mm else 0)
 res='%dh %02dm'%(tot//60,tot%60)
-s=s.replace('RT_MIN',str(m)).replace('RES_TIME',res)
+s=s.replace('RT_MIN',str(rt['core'])).replace('RT_DEP',str(rt['depth'])).replace('RES_TIME',res)
 open('../index.html','w').write(s)
-print('reading words',w,'minutes',m,'resources',res)
+print('reading',rt,'resources',res)
 PY

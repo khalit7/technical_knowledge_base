@@ -47,3 +47,9 @@ DeepSeek MLA explainer (pages/deepseek/v3/parts/18_js_mlx.js) for the animation'
 
 ## Built (resume, 1 Oct 2026)
 1 as a canvas animation in Reading (MSA / full GQA / lightning, 128K default, 32K and 1M; 7 / 5 / 5 steps; read and stored bars to scale); 2 as the Cost by context tab; 3 layer strip; 4 MoE rebuild table; 5 SWA paired-difference chart (all rows of Tables 2 and 3); 6 lightning stepper (token by token against blocks); 7 CISPO weight plot; 8 kernel widget (same 2,048-key budget, k = 2048 / B_k); 9 request-cost bars (M3, M2.7, M2.7-highspeed, M3.1 not priced); 10 Lineage tab. Correction during build: MSA decode reads 4 MiB of selected keys and values per layer at 1M (4 groups x 2,048 x 2 x 128 x 2 B), not 2 MiB; ratio still 7.9x.
+
+## Rebuild, 2026-10-24 (teaching contract)
+- Moved inline: Cost by context (now "What each route stores, reads and computes"), Lineage (timeline at measured width; cards became a closed static table).
+- Added: hero layer strips (static, from configs; replaces the clickable layer strip), kernel loop-order diagram (illustrative 4 x 6 selection: 12 tile loads Q-outer against 4 KV-outer), MoE experts to scale.
+- Removed: CISPO weight widget (RL for LLMs owns CISPO and draws its own toy), request-cost widget (volatile prices; table and one sentence carry them).
+- Rejected: an MSA paper figure or architecture photo (arXiv non-exclusive licence only; no physical object).
