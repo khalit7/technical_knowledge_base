@@ -28,3 +28,14 @@ Scores 0-2 on: quantity the reader moves / reproduces a measured or published fi
 | 15 | Benchmark tables | 4 | none | rejected: owned by the Long-context and multimodal benchmarks page; the vendor's own numbers for the two models are quoted where a measurement here meets them |
 
 What the methodology lacked: a rule for checking a coordinate convention empirically (score the same outputs under every documented convention and keep the one the outputs fit), and a rule for logit-based yes/no scoring (report the probability mass on yes and no tokens, so a model that answers neither is visible).
+
+## 2026-10-24 rebuild
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| 16 | **Hero**: one photo through both models, processor to language model, counts at every stage (static annotated diagram) | Reading top | built |
+| 17 | **1-D against 3-D positions** on the same 16 x 16 image tokens, from get_rope_index (static before/after) | Reading 2a | built (replaces idea 3's prose-only answer) |
+| 18 | **Training stages**: encoder, connector, language model trained, frozen, LoRA or not stated, per stage, six recipes (static) | Reading 6 | built |
+| 19 | **Serving pipeline** with the cache or limit at each stage (static HTML) | Reading 9 | built |
+| 2 | Tiles against native animation | moved from the What the model saw tab to Reading 2 | moved |
+| 9 | Hallucination probe | moved from its own tab to a closed block in Reading 7 | moved |
+| 20 | Real photo or paper figure (LLaVA, Flamingo architecture figure) | none | rejected: the connector animation and hero draw the same structure with this page's numbers; arXiv's default licence does not grant reuse |

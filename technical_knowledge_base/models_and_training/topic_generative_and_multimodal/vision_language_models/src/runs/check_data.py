@@ -45,7 +45,8 @@ c = lambda n: f"{round(n):,}"
 
 
 def has(key, s):
-    check(s in T.get(key, ""), f"{key}: expected '{s}'")
+    # since 2026-10-24 the measured numbers are written in the HTML (so the ledger check sees them); key names the old paragraph
+    check(s in T["__read"], f"{key}: expected '{s}' in the Reading tab")
 
 
 ks, kq = J("smol_kv.json")["runs"], J("qwen_kv.json")["runs"]
@@ -69,7 +70,14 @@ has("red_text", f"all 1,088 tokens {red['full']}"); has("red_text", f"random hal
 has("qa_text", ", ".join(f"{v['strict']} at {c(v['image_tokens'])}" for v in qa["smol"].values()))
 has("qa_text", ", ".join(f"{v['content']} at {c(v['image_tokens'])}" for v in qa["qwen"].values()))
 cat = next(s for s in qs["images"][0]["settings"] if s["budget"] == "256")
-has("pos_answer", f"{cat['pos_text_after'][0]}.")
+has("pos_answer", "(" + ", ".join(map(str, cat["pos_text_after"])) + ")")
+# hero and the tiles animation caption (static numbers)
+cs = next(x for x in ss["images"] if x["key"] == "p01_cat")["settings"][0]
+has("hero", f"{c(cs['image_tokens'])} image tokens in SmolVLM"); check(cs["prompt_tokens"] == 1142, "hero: SmolVLM cat prompt 1,142")
+check(cat["image_tokens"] == 256 and cat["prompt_tokens"] == 277 and "277-token prompt" in open(os.path.join(SRC, "parts", "27_js_vm_hero.js")).read(), "hero: Qwen3.5 cat 256 tokens, prompt 277")
+rk = next(x for x in D["saw"]["images"] if x["key"] == "rocket_native")
+rq = next(x for x in rk["qwen"] if x["budget"] == "native")
+has("tiles", f"= {c(rk['smol'][0]['imgTok'])} tokens; Qwen3.5: {rq['resized'][0]} &#215; {rq['resized'][1]}".replace("&#215;", "\u00d7")); has("tiles", f"shape kept, {rq['imgTok']} tokens")
 
 # 3. numbers typed into the HTML prose, recomputed
 read = T["__read"]; rule = {(r["h"], r["w"]): r for r in tr["qwen"]["rows"]}; iv = {(r["h"], r["w"]): r for r in tr["internvl"]["rows"]}

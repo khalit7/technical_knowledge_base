@@ -1,6 +1,6 @@
-// ---- Tab: Hallucination probe (P(yes) per question, model, condition; movable threshold) ----
+// ---- Reading 7, closed block: the full hallucination probe (P(yes) per question, model, condition; movable threshold). Moved from its own tab 2026-10-24 ----
 (function(){
-  const V=VM,TAB='t-vmhal';if(!V.$(TAB))return;const R=V.D.runs||{};
+  const V=VM,DET=V.$('vm-hl-det');if(!DET)return;const R=V.D.runs||{};
   const MOD=[['smol','SmolVLM-500M'],['qwen','Qwen3.5-0.8B']].filter(m=>R[m[0]]&&R[m[0]].pope);
   if(!MOD.length){V.$('vm-hl-note').textContent='Measurements pending.';return}
   const CON=[['img','real image'],['grey','grey image'],['none','no image'],['leading','leading question']];
@@ -26,5 +26,5 @@
       CON.map(x=>{const v=r[x[0]].yes_share;return '<td><span class="pb" style="width:'+Math.round(v*40)+'px"></span>'+v.toFixed(2)+'</td>'}).join('')+'</tr>'});
     V.$('vm-hl-tab').innerHTML=h+'</tbody>';
     V.$('vm-hl-note').innerHTML='Green dots: objects that are there (should be high); red: absent objects (should be low). Highlighted rows are wrong at the current threshold for the selected condition. '+(V.D.halNote&&V.D.halNote[m]||'')}
-  V.onRender(draw,TAB);addEventListener('resize',()=>{if(!V.$(TAB).hidden)draw()});
+  DET.addEventListener('toggle',()=>{if(DET.open)draw()});V.onRender(()=>{if(DET.open)draw()});RD.onResize(()=>{if(DET.open)draw()});
 })();
