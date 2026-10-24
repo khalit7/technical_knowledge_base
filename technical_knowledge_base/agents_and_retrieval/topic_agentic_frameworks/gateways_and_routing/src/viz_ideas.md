@@ -27,3 +27,9 @@ Central question: what does a gateway actually do to one model call, and does it
 
 ## What the methodology lacked
 "Reproduce a published figure" became "reproduce the recording from the source rule": the LiteLLM window rule reproduces all 153 recorded rate-limit decisions (with one fitted clock offset), and the budget outcomes follow the reservation rule exactly.
+
+## 2026-10-24 rebuild
+- Added: a static hero (structure: callers, gateway duties in order, groups and fallback), HTML boxes so it stacks at phone width.
+- Moved inline: the four-limiter replay (section 5), OpenRouter filters (section 9), router threshold slider with labels on the curve (section 10). Replays of every attempt, every budget call, the strategy swimlanes and the question table sit in closed blocks beside their sections.
+- Removed: the recorded-ticks rate-limit chart (the first two rows of the four-limiter replay show the same), the unfiltered OpenRouter bars and the static router curve (superseded by the widgets that contain them).
+- Rejected: a cascade animation (one sentence and the table row say it; no recording to animate), a vendor dashboard image (unclear licence, teaches nothing the recordings do not).

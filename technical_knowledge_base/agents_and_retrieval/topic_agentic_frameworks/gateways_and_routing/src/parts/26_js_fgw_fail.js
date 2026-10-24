@@ -1,4 +1,4 @@
-// ---- Failure lab (t-fail): replay of every recorded attempt ----
+// ---- Reading, end of section 4 (closed block): replay of every recorded attempt of sections 3 and 4 ----
 (function(){
   const F=window.FGW,E=RD.esc;
   const LAB2={c429:'C 429, defaults',c503:'C 503, defaults',c503af3:'C 503, allowed_fails 3',c503af1:'C 503, allowed_fails 1',single:'only C, fallback to A',ctx_nofb:'context error, fallbacks',ctx_fb:'context error, context_window_fallbacks',ctx_none:'context error, no fallbacks'};
@@ -41,15 +41,15 @@
       const pa=c.att.filter(a=>a[0]<=now);const work=pa.reduce((x,a)=>x+Math.min(now,a[1])-a[0],0);
       cnt.innerHTML=RD.stat('Time',now.toFixed(1)+' s','')+RD.stat('SDK sends',c.ev.filter(e=>e[0]==='client sends'&&e[1]<=now).length,'')+RD.stat('Provider calls',pa.length,'formula: 3 x 3 = 9 with 2 + 2 retries')+RD.stat('Provider seconds busy',work.toFixed(0),'')+RD.stat('User',c.done<=now?'error at '+c.done.toFixed(1)+' s':'waiting','')}
     const e=ev[Math.min(i,ev.length-1)];cap.innerHTML='<div class="t">Event '+(i+1)+' of '+ev.length+' at '+e.t.toFixed(2)+' s</div><p>'+E(e.txt)+'</p>'}
-  const an=RD.anim({card:'fl-card',ctl:'fl-ctl',n:EV.ev.length,draw,ms:550,label:'Event',tab:'t-fail'});
+  const an=RD.anim({card:'fl-card',ctl:'fl-ctl',n:EV.ev.length,draw,ms:550,label:'Event'});
   function table(){const t=document.getElementById('fl-tab');
     if(cur.kind===2){const c=EV.c;t.innerHTML='<thead><tr><th>#</th><th class="num">sent</th><th class="num">done</th><th>attempts (provider, status, start s)</th><th>result</th></tr></thead><tbody>'+c.reqs.map(r=>'<tr><td>'+r.i+'</td><td class="num">'+r.t0.toFixed(2)+'</td><td class="num">'+r.t1.toFixed(2)+'</td><td class="mono small">'+r.att.map(a=>a[0]+' '+a[1]+' @'+a[2].toFixed(1)).join(', ')+'</td><td>'+(r.ok?'answered by '+r.dep:'<b style="color:var(--bad)">'+E(r.err)+'</b>')+'</td></tr>').join('')+'</tbody>'}
     else{const c=EV.c;t.innerHTML='<thead><tr><th>#</th><th class="num">provider call start</th><th class="num">end</th><th>after the user\'s error?</th></tr></thead><tbody>'+c.att.map((a,k)=>'<tr><td>'+(k+1)+'</td><td class="num">'+a[0].toFixed(1)+'</td><td class="num">'+a[1].toFixed(1)+'</td><td>'+(a[0]>c.done?'yes':'')+'</td></tr>').join('')+'</tbody>'}}
   function chips(el,labs,kind){el.innerHTML=Object.keys(labs).map(k=>'<button data-k="'+k+'" data-kind="'+kind+'">'+E(labs[k])+'</button>').join('')}
   const p2=document.getElementById('fl-pick2'),p3=document.getElementById('fl-pick3');chips(p2,LAB2,2);chips(p3,LAB3,3);
   function mark(){[p2,p3].forEach(p=>p.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.k===cur.key)))}
-  [p2,p3].forEach(p=>p.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;cur={kind:+b.dataset.kind,key:b.dataset.k};EV=events();mark();table();an.reset(EV.ev.length);an.play()}));
+  [p2,p3].forEach(p=>p.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;cur={kind:+b.dataset.kind,key:b.dataset.k};EV=events();mark();table();an.reset(EV.ev.length)}));
   mark();table();
-  RD.onRender(()=>{an.redraw()},'t-fail');
-  addEventListener('resize',()=>{const t=document.getElementById('t-fail');if(t&&!t.hidden)an.redraw()});
+  RD.onRender(()=>{an.redraw()});RD.onResize(()=>an.redraw());
+  document.getElementById('fgw-fldet').addEventListener('toggle',e=>{if(e.target.open)an.redraw()});
 })();

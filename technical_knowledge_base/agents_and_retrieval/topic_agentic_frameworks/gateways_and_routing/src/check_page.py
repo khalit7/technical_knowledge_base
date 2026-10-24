@@ -31,11 +31,11 @@ T = RC.D["router"]["tasks"]
 e3 = {c["key"]: c for c in RC.D["e3"]["cases"]}
 c1 = {c["s"]: c for c in RC.D["e1"]["cases"]}
 checks = [
-    ("latency-based routing sent 34 of 40", c1["latency-based-routing"]["count"]["A"] == 34),
+    ("but still sent it only 34 of 40", c1["latency-based-routing"]["count"]["A"] == 34),
     ("sent all 40 to A, the expensive copy", c1["cost-based-routing, prices in model_info (B cheaper)"]["count"]["A"] == 40),
     ("sent 26 to A", c1["least-busy"]["count"]["A"] == 26),
     ("(18 to 22)", c1["usage-based-routing-v2"]["count"]["A"] == 18),
-    ("reached a hanging provider 9 times", len(e3["sdk_default_t10"]["att"]) == 9),
+    ("the provider received 9 calls", len(e3["sdk_default_t10"]["att"]) == 9),
     ("after 32.8 s and three sends", f'{e3["sdk_default_t10"]["done"]:.1f}' == "32.8"),
     ("starting at 36.9 s", f'{max(a[0] for a in e3["sdk_default_t10"]["att"]):.1f}' == "36.9"),
     ("270 seconds of provider work", round(sum(a[1] - a[0] for a in e3["sdk_default_t10"]["att"])) == 270),
@@ -44,7 +44,7 @@ checks = [
     ("calls at 0.1, 5.7, 11.8 and 17.8 s", "[0.1, 5.7, 11.8, 17.8]" in V["e2 c429"]),
     ("(at 7.3 s), then benched until 14.7 s", "7.3, 14.7" in V["e2 c503"]),
     ("about 5.5 s per request", V["e2 single mean s per request"] == 5.5),
-    ("accepted 19 requests in 15 seconds", V["e4 burst accepted in window"].startswith("19 between 50.0 and 65.0")),
+    ("19 requests accepted between second 50 and second 65", V["e4 burst accepted in window"].startswith("19 between 50.0 and 65.0")),
     ("seconds 0 to 9, 61 to 70, 121 to 129", V["e4 steady accepted at"] == list(range(10)) + list(range(61, 71)) + list(range(121, 130))),
     ("at most 10 in any 15 seconds", "most in any 15 s 10" in V["lim burst sliding log"]),
     ("at most 12 (its full bucket", "most in any 15 s 12" in V["lim burst token bucket"]),

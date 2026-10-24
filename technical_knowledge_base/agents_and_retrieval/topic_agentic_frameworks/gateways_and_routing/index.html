@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Gateways and routing: LiteLLM, OpenRouter, fallbacks, budgets, rate limits</h1>
-<div class="sub">What happens to one model call inside a gateway, read from LiteLLM's source and recorded request by request: how a deployment is chosen, what is retried and what is cooled down, how retries multiply across layers, how rate limits and budgets are really enforced, what the response cache keys on, what the format translation sends upstream, how OpenRouter picks a provider, and what learned routers buy. Child of <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Topic: agentic-frameworks</a>. LiteLLM 1.104.0, recorded on 6 October 2026 against scripted fake providers and a local model; OpenRouter from its live catalogue the same day. About 36 min to read.</div>
+<div class="sub">What a gateway does to one model call, read from LiteLLM 1.104.0's source and recorded request by request against scripted fake providers and a local model (6 October 2026); OpenRouter from its live catalogue the same day. Child of <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Topic: agentic-frameworks</a>. Data as of October 2026. Reading: 33 min, plus 17 in closed details.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-fail" aria-selected="false">Failure lab</button><button role="tab" data-t="t-lim" aria-selected="false">Limits lab</button><button role="tab" data-t="t-route" aria-selected="false">Routing lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -113,15 +113,21 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
 #t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
 #t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
-#t-read .an-cap{min-height:4.8em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+#t-read .an-cap{min-height:4.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px}
 #t-read .meas{font-size:11px;color:var(--good);font-weight:600;letter-spacing:.02em}
 #t-read .docs{font-size:11px;color:var(--c4);font-weight:600;letter-spacing:.02em}
 #t-read .srcl{font-size:11px;color:var(--c6);font-weight:600;letter-spacing:.02em}
 #t-read .unc{font-size:11px;color:var(--bad);font-weight:600;letter-spacing:.02em}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
 #t-read details.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}
 #t-read details.qa summary{cursor:pointer;padding:6px 12px;font-size:14px}
 #t-read details.qa>div{padding:0 12px 8px;font-size:13.5px}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px;font-size:14px}
 #t-read .drill{border:1px solid var(--line);border-left:4px solid var(--c5);border-radius:8px;padding:6px 12px;margin:10px 0;background:var(--soft)}
 #t-read .drill summary{cursor:pointer;font-size:13.5px}#t-read .drill summary b{color:var(--c5)}
 #t-read .drill>div{font-size:13.5px;padding:4px 0}
@@ -137,14 +143,68 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-read .fgw-bar{display:flex;height:16px;border-radius:3px;overflow:hidden;background:var(--soft)}
 #t-read .fgw-bar span{display:block;height:100%}
 #t-read .fgw-row .v{text-align:right;font-variant-numeric:tabular-nums}
-@media (max-width:520px){#t-read .fgw-row{grid-template-columns:minmax(0,7.5em) minmax(0,1fr) 4.6em;font-size:12px}#t-read .fgw-row .nm{white-space:normal;line-height:1.2}}
+#t-read .fl-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .fl-leg i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#t-read .rt-row{display:grid;grid-template-columns:minmax(0,11em) minmax(0,1fr) 5.4em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+#t-read .rt-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#t-read .rt-row .v{text-align:right}
+#t-read .rt-bar{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}#t-read .rt-bar span{position:absolute;left:0;top:0;bottom:0;background:var(--c4)}
+#t-read td.ok{color:var(--good);font-weight:600}#t-read td.no{color:var(--bad);font-weight:600}
+/* hero */
+#t-read .hero{display:grid;grid-template-columns:minmax(0,.8fr) 26px minmax(0,1.6fr) 26px minmax(0,1.2fr);gap:4px;align-items:stretch;margin:6px 0}
+#t-read .hero .col{display:flex;flex-direction:column;gap:6px;min-width:0}
+#t-read .hero .hd{font-size:11.5px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+#t-read .hero .bx{border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12.5px;line-height:1.3;background:var(--bg)}
+#t-read .hero .bx b{font-size:13px}#t-read .hero .bx .x{display:block;color:var(--mute);font-size:11.5px}
+#t-read .hero .gw{border:2px solid var(--acc);border-radius:10px;padding:6px;background:var(--soft);display:flex;flex-direction:column;gap:5px}
+#t-read .hero .gw .bx.d{border-color:var(--acc)}
+#t-read .hero .gw .bx.d b{color:var(--acc)}
+#t-read .hero .ar{display:flex;align-items:center;justify-content:center;color:var(--mute);font-size:18px}
+#t-read .hero .grp{border:1px dashed var(--mute);border-radius:8px;padding:5px;display:flex;flex-direction:column;gap:4px}
+@media (max-width:620px){#t-read .hero{grid-template-columns:minmax(0,1fr)}#t-read .hero .ar{transform:rotate(90deg);height:22px}#t-read .hero .col.cl{flex-direction:row;flex-wrap:wrap}#t-read .hero .col.cl .bx{flex:1 1 40%}#t-read .hero .col.cl .hd{flex:1 1 100%}}
+@media (max-width:520px){#t-read .fgw-row{grid-template-columns:minmax(0,7.5em) minmax(0,1fr) 4.6em;font-size:12px}#t-read .fgw-row .nm{white-space:normal;line-height:1.2}#t-read .rt-row{grid-template-columns:minmax(0,8em) minmax(0,1fr) 4.6em;font-size:12px}#t-read .rt-row .nm{white-space:normal;line-height:1.2}}
 </style>
-<nav class="nav" id="rd-nav"><a href="#rd-s0">One screen</a><a href="#rd-s1">1 Words</a><a href="#rd-s2">2 Choosing a deployment</a><a href="#rd-s3">3 Failures</a><a href="#rd-s4">4 Retries across layers</a><a href="#rd-s5">5 Rate limits</a><a href="#rd-s6">6 Budgets</a><a href="#rd-s7">7 Caching</a><a href="#rd-s8">8 Translation</a><a href="#rd-s9">9 OpenRouter</a><a href="#rd-s10">10 Learned routers</a><a href="#rd-s11">11 Your setup</a><a href="#rd-mis">Mistakes</a><a href="#rd-iq">Interview</a></nav>
+<nav class="nav" id="rd-nav"><a href="#rd-s0">The idea</a><a href="#rd-s1">1 One request</a><a href="#rd-s2">2 Choosing a deployment</a><a href="#rd-s3">3 Failures</a><a href="#rd-s4">4 Retries across layers</a><a href="#rd-s5">5 Rate limits</a><a href="#rd-s6">6 Budgets</a><a href="#rd-s7">7 Caching</a><a href="#rd-s8">8 Translation</a><a href="#rd-s9">9 OpenRouter</a><a href="#rd-s10">10 Routing by difficulty</a><a href="#rd-s11">11 The tools</a><a href="#rd-dp">Depth</a></nav>
 
 <section id="rd-s0">
-<h2>The whole page in one screen</h2>
-<p class="lead">A <dfn>gateway</dfn> (also called an LLM proxy) sits between your agent and the model providers: your code sends every model call to it in one format, and it decides which real endpoint answers, what to do when that endpoint fails, whether the caller is allowed to spend more, and what to log. The parent page, <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Topic: agentic-frameworks</a>, explains why you would want one (its Reading section 6) and its <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Production stack</a> tab records one LiteLLM proxy retrying a broken provider and falling back. This page opens the box: every rule below was read from LiteLLM 1.104.0's source and then checked by a recorded run, because several of them are not what the configuration file suggests.</p>
-<p>Follow one request through LiteLLM's proxy. Each box is a stage in the order the code runs it; pick a scenario and step through. The same request takes three different paths depending on what the gateway already knows.</p>
+<h2>The idea in one screen</h2>
+<p class="core">A <dfn>gateway</dfn> (an LLM proxy) is one endpoint in front of every model provider that turns each model call into a chain of <span class="hl">decisions</span>: may this caller spend, which deployment answers, what to do when it fails, and what to log. Each decision follows a rule in the code, and several of those rules are not what the configuration file suggests.</p>
+<div class="card" id="fgw-hero">
+<div class="t" style="font-weight:600;font-size:14px;margin-bottom:4px">Your code speaks one format to one place; the gateway decides the rest (section numbers in brackets)</div>
+<div class="hero">
+<div class="col cl"><div class="hd">Callers</div>
+<div class="bx"><b>agent</b><span class="x">virtual key sk-team-a</span></div>
+<div class="bx"><b>batch job</b><span class="x">virtual key sk-team-b</span></div>
+<div class="bx"><b>eval run</b><span class="x">pins one provider (9)</span></div></div>
+<div class="ar" aria-hidden="true">&#8594;</div>
+<div class="col"><div class="hd">Gateway, in the order a request meets it</div>
+<div class="gw">
+<div class="bx"><b>Authenticate</b><span class="x">virtual key in, provider keys never leave (1)</span></div>
+<div class="bx d"><b>Rate limit and budget</b><span class="x">window counter; worst-case cost reserved (5, 6)</span></div>
+<div class="bx"><b>Guard, cache lookup</b><span class="x">input rails; exact or semantic memo (7)</span></div>
+<div class="bx d"><b>Route</b><span class="x">pick a deployment by weight, latency, cost or difficulty (2, 10)</span></div>
+<div class="bx d"><b>Call: retry, cool down, fall back</b><span class="x">by HTTP status; retries multiply across layers (3, 4)</span></div>
+<div class="bx"><b>Translate</b><span class="x">the deployment's prefix picks the wire format (8)</span></div>
+<div class="bx"><b>Settle and log</b><span class="x">real cost replaces the reservation; one usage event</span></div>
+</div></div>
+<div class="ar" aria-hidden="true">&#8594;</div>
+<div class="col"><div class="hd">Upstreams</div>
+<div class="grp"><span class="small mute">model group "chat"</span>
+<div class="bx"><b>deployment A</b><span class="x">provider X, region 1</span></div>
+<div class="bx"><b>deployment B</b><span class="x">provider Y</span></div></div>
+<div class="grp"><span class="small mute">fallback group "chat-backup"</span>
+<div class="bx"><b>deployment C</b><span class="x">another model family</span></div></div>
+<div class="bx"><b>OpenRouter</b><span class="x">a rented gateway: one more upstream (9)</span></div></div>
+</div>
+<p class="small mute">Highlighted: the three decisions where this page's recordings found the rule differs from the config's wording. A cooldown moves traffic inside a group; a fallback moves it to another group.</p>
+</div>
+<p><b>You need:</b> why an agent stack wants a gateway at all, on the parent <a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Topic: agentic-frameworks</a> (Reading section 6, and its Production stack tab, which records one LiteLLM proxy falling back); retries with backoff and the token bucket, on <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>.</p>
+<p><b>New terms.</b> <dfn>Deployment</dfn>: one concrete endpoint (provider, model id, base URL, key); each <code>model_list</code> entry in LiteLLM's config. <dfn>Model group</dfn>: the name your code asks for (<code>model="chat"</code>); every deployment sharing that <code>model_name</code>; a group of one is common and changes the failure rules (section 3). <dfn>Provider prefix</dfn>: the part before the slash in <code>litellm_params.model</code> (<code>openai/</code>, <code>anthropic/</code>, <code>lm_studio/</code>); it chooses the code that speaks to the upstream, so it decides the wire format (section 8). <dfn>Router and proxy</dfn>: LiteLLM is a Python library whose <code>Router</code> does routing, retries, cooldowns and fallbacks in your process, and a proxy server (<code>litellm --config</code>) that wraps the same Router behind HTTP and adds keys, budgets, rate limits and spend logs. <dfn>Virtual key</dfn>: a key the gateway issues (<code>sk-...</code>) carrying limits (models allowed, budget, requests and tokens per minute, parallel requests). <dfn>Cooldown</dfn>: a deployment the router stops sending traffic to for a few seconds after failures.</p>
+<details class="dp"><summary>What is real on this page, and the labels <span class="mute">(provenance)</span></summary><div class="b">A real LiteLLM 1.104.0 (the latest on PyPI on 6 October 2026, uploaded 3 October) on one laptop, with Postgres 16 in Docker for its keys; small <b>fake providers</b> written for this page (an OpenAI-shaped server that answers, fails with a chosen status, or hangs, on a script); a <b>local model on Apple M1 Pro</b> (<code>mlx-community/Qwen3-4B-Instruct-2507-4bit</code>, mlx-lm 0.32.0); Claude Haiku 4.5 through the Claude Code CLI for the router experiment. OpenRouter was not called (no account); its public catalogue was read the same day. Labels: <span class="meas">MEASURED</span> recorded here, <span class="srcl">SOURCE</span> read from code at the pinned version, <span class="docs">DOCS</span> vendor documentation, <span class="unc">UNCONFIRMED</span> could not be checked.</div></details>
+</section>
+
+<section id="rd-s1">
+<h2>1. One request through the gateway</h2>
+<p>Follow one request through LiteLLM's proxy, stage by stage in the order the code runs them. The same request takes three paths depending on what the gateway already knows; pick a scenario and step. Note two orders the docs do not make obvious: the budget is reserved at authentication, before the cache is consulted, and the cache lookup happens after routing, inside the call to the chosen deployment. <span class="srcl">SOURCE</span></p>
 <div class="card" id="fgw-pipecard">
 <div class="seg" id="fgw-pipemode" role="group" aria-label="Scenario"><button data-m="miss" class="on">First call</button><button data-m="hit">Same call again (cache hit)</button><button data-m="fail">Chosen deployment fails</button></div>
 <div class="fgw-pipe" id="fgw-pipe"></div>
@@ -152,65 +212,53 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div class="an-cap" id="fgw-pipecap" aria-live="polite"></div>
 <div class="out" id="fgw-pipecnt"></div>
 </div>
-<p>What the page found, in one list (each is a section below, with its recording):</p>
-<ul class="tight">
-<li><b>Choosing a deployment:</b> latency-based routing sent 34 of 40 requests to the fast copy; cost-based routing ignored prices written in the wrong part of the config and sent all 40 to the expensive one. <span class="meas">MEASURED</span></li>
-<li><b>Failures:</b> a deployment that answers 429 is benched for 5 seconds at once; one that answers 503 keeps being tried until it has failed 5 requests in the minute. Setting <code>allowed_fails: 3</code> does nothing, because 3 is the default and the code treats the default as "not set". <span class="meas">MEASURED</span> <span class="srcl">SOURCE</span></li>
-<li><b>Retries multiply:</b> one user request through the OpenAI SDK's default 2 retries and the gateway's 2 retries reached a hanging provider 9 times, and the last attempt started after the user had already been given an error. <span class="meas">MEASURED</span></li>
-<li><b>Rate limits:</b> a 10-per-minute key accepted 19 requests in 15 seconds, because LiteLLM's window starts at the first request and resets whole. <span class="meas">MEASURED</span></li>
-<li><b>Budgets:</b> no longer soft. LiteLLM reserves each request's worst-case cost before calling the provider, so 20 simultaneous calls on a small budget were let through one at a time unless the caller set <code>max_tokens</code>. <span class="meas">MEASURED</span></li>
-<li><b>Caching:</b> the cache key is the exact request, so one extra space misses, and a temperature-0.9 answer comes back word for word on a hit. <span class="meas">MEASURED</span></li>
-<li><b>Translation:</b> an Anthropic-format request for an <code>openai/</code> model was turned into an OpenAI Responses API call, which the local server did not have. <span class="meas">MEASURED</span></li>
-<li><b>Routing services and learned routers:</b> one open model on OpenRouter is served by up to 23 endpoints at different prices, precisions and context lengths; on a small graded set, LiteLLM's keyword-based complexity router recovered two thirds of the gap between a local 4B model and Claude Haiku 4.5 while sending a quarter of the calls up, but only because it spotted code: it sent up none of the letter puzzles the small model failed. <span class="meas">MEASURED</span> <span class="docs">DOCS</span></li>
-</ul>
-<div class="co"><div class="t">What is real on this page</div>The gateway is a real LiteLLM 1.104.0 (the latest on PyPI on 6 October 2026, uploaded 3 October) running on one laptop, with Postgres 16 in Docker for its keys. The upstreams are small <b>fake providers</b> written for this page (an OpenAI-shaped server that answers, fails with a chosen status, or hangs, on a script) and a <b>local model on Apple M1 Pro</b> (<code>mlx-community/Qwen3-4B-Instruct-2507-4bit</code>, mlx-lm 0.32.0). The learned-router experiment also used Claude Haiku 4.5 through the Claude Code CLI. OpenRouter was not called (no account); its public model and endpoint catalogue was read on the same day. Labels: <span class="meas">MEASURED</span> recorded here, <span class="srcl">SOURCE</span> read from code at the pinned version, <span class="docs">DOCS</span> from vendor documentation, <span class="unc">UNCONFIRMED</span> could not be checked.</div>
+<p><b>The duties, in order:</b> authenticate the caller from a gateway-issued key, so provider keys live in one place; authorise the model (some data may go only to approved vendors or self-hosted models); check rate limits and budget; transform and guard (redact personal data, apply input rails: the classifiers are on <a href="https://app.notion.com/p/3c65c17b0d0d819bbfa5dffa9246c297" target="_blank" rel="noopener noreferrer">Guardrails</a>); look up the cache; route; call with a timeout, retrying or falling back on failure; stream the reply back unbuffered; write one usage event (caller, model, input, cached and output tokens, cost, latency) for billing and dashboards. Turning those events into traces is <a href="https://app.notion.com/p/3c65c17b0d0d81fe82c0c6e9360afec4" target="_blank" rel="noopener noreferrer">LLM observability</a>; how the gateway sits in a whole LLM service (tenancy, the batch path, rollouts, degradation ladders) is <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a>.</p>
+<p><b>What it costs:</b> one more network hop (milliseconds against seconds of generation); one more service that must not go down (run several stateless copies behind a load balancer, and keep its own dependencies, such as Redis for counters, off the critical path when they fail); the risk that it buffers streams or caps connection times; and it concentrates power, because whoever owns it decides which models the company may use. <b>When not to run one:</b> a single product calling a single provider, owned by one team; a client library with retries and a usage log is enough until a second model, a second team or a budget question appears.</p>
+<details class="dp"><summary>Gateways in production: Uber, Envoy AI Gateway, Huyen's platform <span class="mute">(provenance, 2 min)</span></summary><div class="b">
+<p><b>Uber</b> built its GenAI Gateway as "a Go service that acts as an encompassing layer around the clients for third-party vendors"; "a pivotal design decision was to mirror the HTTP/JSON interface of the OpenAI API", and it includes "a PII redactor that anonymizes sensitive information within requests before forwarding them to third-party vendors" and audit logs for "cost attribution, security audit purposes, quality evaluation". In mid-2024 it was "used by close to 30 customer teams and serves 16 million queries per month, with a peak QPS of 25" (<a href="https://www.uber.com/blog/genai-gateway/" target="_blank" rel="noopener noreferrer">Uber Engineering, 11 Jul 2024</a>). 25 queries a second is small: a gateway exists for control, not for throughput.</p>
+<p><b>Bloomberg</b> and Tetrate started Envoy AI Gateway because "traditional rate-limiting based on number of requests doesn't work for controlling usage of LLM providers" (<a href="https://github.com/theagentrouter/agent-router/blob/v1.1.0/site/blog/2024/2024-10-18-introducing-envoy-ai-gw.md" target="_blank" rel="noopener noreferrer">announcement, 18 Oct 2024</a>); renamed Agent Router (v1.1.0, 21 Aug 2026), its README describes two tiers: "The Tier One Gateway handles authentication, top-level routing, and global rate limiting", and a second tier in front of self-hosted models picks the endpoint (<a href="https://github.com/theagentrouter/agent-router/blob/v1.1.0/README.md" target="_blank" rel="noopener noreferrer">README at v1.1.0</a>).</p>
+<p>Chip Huyen's <i>AI Engineering</i> (O'Reilly, 2025) makes "Add Model Router and Gateway" step 3 of its five-step platform architecture, after context and guardrails and before caches (<a href="https://github.com/chiphuyen/aie-book/blob/main/ToC.md" target="_blank" rel="noopener noreferrer">table of contents</a>, chapter 10). <span class="docs">DOCS</span></p>
+</div></details>
 </section>
-
-<section id="rd-s1">
-<h2>1. Six words you need first</h2>
-<div class="grid">
-<div class="sp"><div class="n">Deployment</div><p>One concrete endpoint that can answer: a provider, a model id on it, a base URL and a key. In LiteLLM's config each entry of <code>model_list</code> is one deployment.</p></div>
-<div class="sp"><div class="n">Model group</div><p>The name your code asks for (<code>model="chat"</code>). Every deployment that shares a <code>model_name</code> belongs to the group; the router picks one of them per call. A group of one is common, and it changes the failure rules (section 3).</p></div>
-<div class="sp"><div class="n">Provider prefix</div><p>The part before the slash in <code>litellm_params.model</code> (<code>openai/</code>, <code>anthropic/</code>, <code>lm_studio/</code>, <code>bedrock/</code> ...). It chooses the code that speaks to that upstream, so it decides which wire format leaves the gateway (section 8).</p></div>
-<div class="sp"><div class="n">Router and proxy</div><p>LiteLLM is two things: a Python library whose <code>Router</code> class does routing, retries, cooldowns and fallbacks inside your process, and a proxy server (<code>litellm --config</code>) that wraps the same Router behind HTTP and adds keys, budgets, rate limits and spend logs. Sections 2 and 3 are the Router; 5 and 6 need the proxy and its database.</p></div>
-<div class="sp"><div class="n">Virtual key</div><p>A key the gateway issues (<code>sk-...</code>) and checks on every call. It carries limits (models allowed, budget, requests and tokens per minute, parallel requests). The real provider keys never leave the gateway.</p></div>
-<div class="sp"><div class="n">Cooldown</div><p>A deployment the router has decided to stop sending traffic to for a few seconds after failures. Not the same as a fallback: a cooldown moves traffic inside a group, a fallback moves it to another group.</p></div>
-</div>
-<p><b>What a gateway does, in the order a request meets it.</b> Authenticate the caller from a gateway-issued key (so provider keys live in one place); authorise the model (some data may go only to approved vendors or to self-hosted models); check rate limits and budget (sections 5 and 6); transform and guard (redact personal data, apply input rails: <a href="https://app.notion.com/p/3c65c17b0d0d819bbfa5dffa9246c297" target="_blank" rel="noopener noreferrer">Guardrails</a>); look up the cache (section 7); route (sections 2 and 10); call with a timeout, retrying or falling back on failure (sections 3 and 4); stream the reply back unbuffered; and write one usage event (caller, model, input, cached and output tokens, cost, latency) for billing and dashboards. How these duties sit in a whole LLM service (tenancy, the batch path, rollouts, degradation ladders) is the system design view on <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a>.</p>
-<div class="co"><div class="t">Gateways in production, and when not to run one</div>
-<p><b>Uber</b> built its GenAI Gateway as "a Go service that acts as an encompassing layer around the clients for third-party vendors"; "a pivotal design decision was to mirror the HTTP/JSON interface of the OpenAI API", and it includes "a PII redactor that anonymizes sensitive information within requests before forwarding them to third-party vendors" and audit logs for "cost attribution, security audit purposes, quality evaluation". In mid-2024 it was "used by close to 30 customer teams and serves 16 million queries per month, with a peak QPS of 25" (<a href="https://www.uber.com/blog/genai-gateway/" target="_blank" rel="noopener noreferrer">Uber Engineering, 11 Jul 2024</a>). 25 queries a second is small: a gateway exists for control, not for throughput. <b>Bloomberg</b> and Tetrate started Envoy AI Gateway because "traditional rate-limiting based on number of requests doesn't work for controlling usage of LLM providers" (<a href="https://github.com/theagentrouter/agent-router/blob/v1.1.0/site/blog/2024/2024-10-18-introducing-envoy-ai-gw.md" target="_blank" rel="noopener noreferrer">announcement, 18 Oct 2024</a>); renamed Agent Router (v1.1.0, 21 Aug 2026), its README describes two tiers: "The Tier One Gateway handles authentication, top-level routing, and global rate limiting", and a second tier in front of self-hosted models picks the endpoint (<a href="https://github.com/theagentrouter/agent-router/blob/v1.1.0/README.md" target="_blank" rel="noopener noreferrer">README at v1.1.0</a>). Chip Huyen's <i>AI Engineering</i> (O'Reilly, 2025) makes "Add Model Router and Gateway" step 3 of its five-step platform architecture, after context and guardrails and before caches (<a href="https://github.com/chiphuyen/aie-book/blob/main/ToC.md" target="_blank" rel="noopener noreferrer">table of contents</a>, chapter 10). Kong AI Gateway and Portkey are other options (not checked here). <span class="docs">DOCS</span></p>
-<p><b>What it costs:</b> one more network hop (milliseconds against seconds of generation); one more service that must not go down (run several stateless copies behind a load balancer, and keep its own dependencies, such as Redis for counters, off the critical path when they fail); the risk that it buffers streams or caps connection times; and it concentrates power, because whoever owns it decides which models the company may use. <b>When not to run one:</b> a single product calling a single provider, owned by one team; a client library with retries and a usage log is enough until a second model, a second team or a budget question appears.</p></div>
-</section>
-
 <section id="rd-s2">
-<h2>2. Choosing a deployment: six strategies, one recording</h2>
-<p><b>The problem.</b> When a group has several deployments (the same model on two Azure regions, or on two providers), something must pick one per call. The pick decides latency, cost and how evenly load spreads. LiteLLM offers several <code>routing_strategy</code> values; each is a small file in <code>litellm/router_strategy/</code>, and what each one actually measures is easy to get wrong from its name. <span class="srcl">SOURCE</span> One level down, inside a self-hosted pool, a second router picks the replica of one deployment by its queue and prefix cache; that layer is <a href="https://app.notion.com/p/3f35c17b0d0d818aa406da1f7a784c62" target="_blank" rel="noopener noreferrer">LLM serving in production</a>, section 1.</p>
+<h2>2. Choosing a deployment: what each strategy really measures</h2>
+<p>When a group has several deployments (the same model in two regions, or at two providers), something picks one per call, and the pick decides latency, cost and how evenly load spreads. Each LiteLLM <code>routing_strategy</code> is a small file in <code>litellm/router_strategy/</code>, and what it measures is easy to get wrong from its name. <span class="srcl">SOURCE</span> One level down, inside a self-hosted pool, a second router picks the replica by queue and prefix cache: that layer is <a href="https://app.notion.com/p/3f35c17b0d0d818aa406da1f7a784c62" target="_blank" rel="noopener noreferrer">LLM serving in production</a>, section 1.</p>
 <div class="tw"><table>
 <thead><tr><th>Strategy</th><th>What the code does (1.104.0)</th></tr></thead>
 <tbody>
-<tr><td><code>simple-shuffle</code> (default)</td><td>Random choice. If deployments carry a <code>weight</code> (or else <code>rpm</code>, or else <code>tpm</code>), the choice is weighted by it (<code>simple_shuffle.py</code>).</td></tr>
-<tr><td><code>least-busy</code></td><td>The deployment with the fewest requests in flight right now (<code>least_busy.py</code>).</td></tr>
-<tr><td><code>latency-based-routing</code></td><td>The lowest average of the last 10 latencies, where a latency is the response time <i>divided by the output tokens</i> (time to first token when streaming). A deployment with no history counts as 0, so it is tried first; a timeout adds a 1,000-second penalty sample. <code>lowest_latency_buffer</code> (default 0) picks at random among deployments within that fraction of the best. History lives for 1 hour (<code>lowest_latency.py</code>).</td></tr>
-<tr><td><code>usage-based-routing-v2</code></td><td>The deployment with the fewest tokens used in the current calendar minute, skipping any over its own <code>tpm</code>/<code>rpm</code> (<code>lowest_tpm_rpm_v2.py</code>; counters keyed by <code>%H-%M</code>).</td></tr>
-<tr><td><code>cost-based-routing</code></td><td>The cheapest deployment by input plus output price per token. Prices come from <code>litellm_params</code>, else from LiteLLM's price map for the model name, else <b>$5.00 per token</b> each (<code>lowest_cost.py</code>).</td></tr>
-<tr><td>Auto routers</td><td><code>auto_router/complexity_router</code>, <code>adaptive_router</code> and others choose between <i>different</i> models from the prompt itself; they are section 10.</td></tr>
+<tr><td><code>simple-shuffle</code> (default)</td><td>Random choice, weighted by <code>weight</code> if set (or else <code>rpm</code>, or else <code>tpm</code>) (<code>simple_shuffle.py</code>).</td></tr>
+<tr><td><code>least-busy</code></td><td>Fewest requests in flight right now (<code>least_busy.py</code>).</td></tr>
+<tr><td><code>latency-based-routing</code></td><td>Lowest average of the last 10 latencies, where a latency is the response time <i>divided by the output tokens</i> (time to first token when streaming). No history counts as 0, so a new deployment is tried first; a timeout adds a 1,000-second penalty sample; <code>lowest_latency_buffer</code> (default 0) picks at random within that fraction of the best; history lives 1 hour (<code>lowest_latency.py</code>).</td></tr>
+<tr><td><code>usage-based-routing-v2</code></td><td>Fewest tokens used in the current calendar minute, skipping any over its own <code>tpm</code>/<code>rpm</code> (<code>lowest_tpm_rpm_v2.py</code>; counters keyed by <code>%H-%M</code>).</td></tr>
+<tr><td><code>cost-based-routing</code></td><td>Cheapest by input plus output price per token, read from <code>litellm_params</code>, else LiteLLM's price map for the model name, else <b>$5.00 per token</b> each (<code>lowest_cost.py</code>).</td></tr>
+<tr><td>Auto routers</td><td><code>auto_router/complexity_router</code>, <code>adaptive_router</code> and others choose between <i>different</i> models from the prompt (section 10).</td></tr>
 </tbody></table></div>
 <p><b>The recording.</b> One group, two copies of the same fake model: <b>A</b> answers in 0.2 s, <b>B</b> in 1.0 s. Forty requests, four at a time, through <code>litellm.Router</code> under each strategy. <span class="meas">MEASURED</span></p>
-<div class="card" id="fgw-e1card"><div id="fgw-e1"></div>
-<p class="small mute">Bars: share of the 40 requests each copy answered (A fast, B slow); right: wall time for all 40. The cost rows mark B as the cheaper copy ($1 against $2 per million input tokens). Every request, with its timing, is in the <a href="#" data-tab="t-route">Routing lab</a>.</p></div>
+<div class="card" id="fgw-e1card">
+<div class="t" style="font-weight:600;font-size:14px">Cost-based routing sends everything to the expensive copy when prices sit in the wrong field</div>
+<div id="fgw-e1"></div>
+<p class="small mute">Bars: share of the 40 requests each copy answered (A fast, B slow); right: counts and wall time for all 40. In the cost rows B is the cheaper copy ($1 against $2 per million input tokens).</p></div>
 <ul>
 <li><b>Latency-based routing found the fast copy</b> but still sent it only 34 of 40: both copies start at "no history = 0" and B is tried until its own samples push its average up. That exploration is the price of measuring.</li>
-<li><b>Least-busy</b> sent 26 to A without measuring anything: A finishes sooner, so it is idle more often when the next request arrives.</li>
-<li><b>Usage-based</b> balanced tokens per minute (18 to 22), which is what it is for, and ignored that B is five times slower.</li>
-<li><b>Cost-based with prices in <code>model_info</code></b> sent all 40 to A, the expensive copy. The strategy reads prices only from <code>litellm_params</code>; with none there and no entry in the price map, both copies cost the default and the first one wins every tie. Moving the same two numbers into <code>litellm_params</code> sent all 40 to B. The proxy's spend tracking does read <code>model_info</code> prices, so the mistake is invisible on the bill.</li>
+<li><b>Least-busy</b> sent 26 to A without measuring anything: A finishes sooner, so it is idle more often when the next request arrives. <b>Usage-based</b> balanced tokens per minute (18 to 22), which is what it is for, and ignored that B is five times slower.</li>
+<li><b>Cost-based with prices in <code>model_info</code></b> sent all 40 to A, the expensive copy: the strategy reads prices only from <code>litellm_params</code>, so both copies cost the default and the first wins every tie. Moving the same two numbers into <code>litellm_params</code> sent all 40 to B. The proxy's spend tracking does read <code>model_info</code> prices, so the mistake is invisible on the bill.</li>
 </ul>
 <div class="co warn"><div class="t">Check what your strategy reads</div>A strategy that cannot find its input does not fail; it falls back to random or to the first deployment. After changing a routing setting, send a few dozen requests and count which deployment answered (the proxy returns it in the <code>x-litellm-model-id</code> response header).</div>
-<div class="deepnote"><b>Go deeper.</b> The <a href="#" data-tab="t-route">Routing lab</a> replays the 40 requests per strategy on a time axis. Load balancing in general (layer 4 against layer 7, round robin in the client) is taught on <a href="https://app.notion.com/p/3c65c17b0d0d81cb88a3f1f63e85f27b" target="_blank" rel="noopener noreferrer">Service APIs</a> (its Balancer lab); this section is only what LiteLLM implements.</div>
+<details class="dp" id="fgw-rodet"><summary>Replay the forty requests per strategy on a time axis <span class="mute">(widget)</span></summary><div class="b">
+<p class="small">Each bar is one request, placed at the time it was sent and coloured by the copy that answered (blue A, orange B). Step to watch the strategy decide; switch strategy to compare on the same workload.</p>
+<div class="card" id="ro-card" style="margin:6px 0">
+<div class="chips" id="ro-pick" role="group" aria-label="Strategy"></div>
+<div id="ro-svg" class="plot"></div>
+<div class="an-ctl" id="ro-ctl"></div>
+<div class="an-cap" id="ro-cap" aria-live="polite"></div>
+</div>
+<p class="small mute">Load balancing in general (layer 4 against layer 7, round robin in the client) is on <a href="https://app.notion.com/p/3c65c17b0d0d81cb88a3f1f63e85f27b" target="_blank" rel="noopener noreferrer">Service APIs</a> (its Balancer lab); this section is only what LiteLLM implements.</p>
+</div></details>
 </section>
 
 <section id="rd-s3">
 <h2>3. When a call fails: retry, cool down, or fall back</h2>
-<p><b>The problem.</b> A failed call can be handled three ways, and they answer different questions. <b>Retry</b>: try again, on the same group, after a short wait (was it a blip?). <b>Cooldown</b>: stop sending traffic to one deployment for a while (is this copy broken?). <b>Fallback</b>: give up on the group and call another one (is this model unusable right now?). LiteLLM decides among them from the error's HTTP status, and the table below is what its code does, not what the docs summarise. <span class="srcl">SOURCE</span></p>
+<p><b>Retry</b>: the same group again after a short wait (a blip?). <b>Cooldown</b>: stop routing to one deployment for a while (a broken copy?). <b>Fallback</b>: call another group (is this model unusable right now?). LiteLLM chooses by the error's HTTP status: <span class="srcl">SOURCE</span></p>
 <div class="tw"><table>
 <thead><tr><th>Upstream answer</th><th>Retried in the group?</th><th>Can cool the deployment down?</th><th>Goes to fallbacks?</th></tr></thead>
 <tbody>
@@ -223,52 +271,89 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>other 400s, 404</td><td>no</td><td>404 yes</td><td>regular fallbacks</td></tr>
 </tbody></table></div>
 <p class="small mute">From <code>litellm/utils.py</code> (<code>_should_retry</code>: 408, 409, 429 and 5xx), <code>router.py</code> (<code>should_retry_this_error</code>) and <code>router_utils/cooldown_handlers.py</code> (<code>_is_cooldown_required</code>, <code>_should_cooldown_deployment</code>) in 1.104.0. Defaults: <code>num_retries</code> 2, <code>cooldown_time</code> 5 s, at most 5 fallbacks per request; an error whose text contains "APIConnectionError" never triggers a cooldown.</p>
-<p><b>Two cooldown regimes, and a trap.</b> If you do not set <code>allowed_fails</code>, the router uses the rules in the table: a 429 benches a deployment at once (when the group has an alternative), other errors only once more than 50% of its calls this minute failed and there were at least 5 (<code>DEFAULT_FAILURE_THRESHOLD_PERCENT</code> 0.5, <code>DEFAULT_FAILURE_THRESHOLD_MINIMUM_REQUESTS</code> 5). If you set <code>allowed_fails</code>, it switches to a simpler counter: cool down once failures within <code>cooldown_time</code> exceed it. But the code decides whether you "set" it by comparing with the library default, which is 3 (<code>_is_allowed_fails_set_on_router</code>). <b>Writing <code>allowed_fails: 3</code> in a config therefore changes nothing</b>; the parent page's Production stack config contains exactly that line.</p>
-<p><b>The recording.</b> A group of two: A healthy (0.2 s), C scripted to fail every call. Thirty requests one after another, 0.3 s apart, <code>num_retries: 2</code>. Each mark below is one call that reached C; a red mark is a request whose user got an error. <span class="meas">MEASURED</span></p>
-<div class="card" id="fgw-e2card"><div id="fgw-e2"></div>
-<p class="small mute">Grey bands: more than 4 s in which no call reached C although requests kept coming, which the rules above attribute to a cooldown. Times in seconds from the first request. Every attempt of every request, including the ones that went to A, is in the <a href="#" data-tab="t-fail">Failure lab</a>.</p></div>
+<p><b>Two cooldown regimes, and a trap.</b> Without <code>allowed_fails</code>, the rules in the table apply: a 429 benches a deployment at once, other errors only once more than 50% of its calls this minute failed and there were at least 5 (<code>DEFAULT_FAILURE_THRESHOLD_PERCENT</code> 0.5, <code>DEFAULT_FAILURE_THRESHOLD_MINIMUM_REQUESTS</code> 5). With <code>allowed_fails</code>, a simpler counter: cool down once failures within <code>cooldown_time</code> exceed it. But the code decides whether you "set" it by comparing with the library default, 3 (<code>_is_allowed_fails_set_on_router</code>). <b>Writing <code>allowed_fails: 3</code> in a config therefore changes nothing</b>; the parent page's Production stack config contains exactly that line.</p>
+<p><b>The recording.</b> A group of two: A healthy (0.2 s), C scripted to fail every call. Thirty requests one after another, 0.3 s apart, <code>num_retries: 2</code>. Each mark is one call that reached C; a red mark is a request whose user got an error. <span class="meas">MEASURED</span></p>
+<div class="card" id="fgw-e2card">
+<div class="t" style="font-weight:600;font-size:14px">A 429 benches C at once; a 503 keeps being tried until five failures; allowed_fails 3 behaves like the default</div>
+<div id="fgw-e2"></div>
+<p class="small mute">Grey bands: more than 4 s in which no call reached C although requests kept coming, which the rules attribute to a cooldown. Seconds from the first request. Every attempt, including those to A, is replayed at the end of section 4.</p></div>
 <ul>
 <li><b>429:</b> C was benched after its first 429 and came back every 5 to 6 seconds (calls at 0.1, 5.7, 11.8 and 17.8 s). Users never saw an error.</li>
 <li><b>503, default settings:</b> C was picked about one time in three until its fifth failure in the minute (at 7.3 s), then benched until 14.7 s; after that each new failure benched it again.</li>
-<li><b>503, <code>allowed_fails: 3</code>:</b> the same rules, as the source predicts, and one user error: request 2 picked C, and both retries picked C again. A retry inside a group re-runs the routing choice at random; with two deployments, a request whose first pick is the bad one fails all three tries with probability 1/2 &times; 1/2 = 1/4 while the bad one is not benched. LiteLLM's <code>enable_weighted_failover</code> (async calls, simple-shuffle only) exists to re-pick among the <i>other</i> deployments instead.</li>
-<li><b>503, <code>allowed_fails: 1</code>:</b> benched after its second failure, back 5 s later.</li>
-<li><b>One deployment in the group:</b> no cooldown ever (the "single-deployment model group" exemption: benching the only copy would turn a partial outage into a total one), so every request paid two backoff waits and then fell back: about 5.5 s per request, every time.</li>
-<li><b>Context window error:</b> never retried; with no fallbacks the user got <code>ContextWindowExceededError</code> in 0.1 s; with either <code>fallbacks</code> or <code>context_window_fallbacks</code> the request went straight to the long-context group.</li>
+<li><b>503, <code>allowed_fails: 3</code>:</b> the same, as the source predicts, plus one user error: request 2 picked C, and both retries picked C again. A retry re-runs the routing choice at random, so with two deployments a request whose first pick is the bad one fails all three tries with probability 1/2 &times; 1/2 = 1/4 while the bad one is not benched. <code>enable_weighted_failover</code> (async calls, simple-shuffle only) re-picks among the <i>other</i> deployments instead.</li>
+<li><b>One deployment in the group:</b> never cooled down (the "single-deployment model group" exemption: benching the only copy would turn a partial outage into a total one), so every request paid two backoff waits and then fell back: about 5.5 s per request, every time.</li>
 </ul>
-<div class="drill"><details><summary><b>Predict, then open.</b> A group has two deployments and the bad one returns 500 on every call. You set <code>allowed_fails: 3</code> and <code>cooldown_time: 60</code>, expecting it to be benched after three failures for a minute. What happens?</summary><div>It is benched only after more than half of its calls in the current minute failed and there were at least five (the default regime), and the bench lasts 60 s because <code>cooldown_time</code> is honoured. Write <code>allowed_fails: 2</code> or use <code>allowed_fails_policy</code> (per error type, for example <code>InternalServerErrorAllowedFails</code>) to get a counter that actually applies.</div></details></div>
-<p><b>Planning the fallback, not just configuring it.</b> A fallback can be another deployment of the same model, the same model at another provider (Claude is also sold through AWS Bedrock and Google Vertex AI; open models through many, section 9), or a different model. Treat it like a backup generator and check it before the outage: is its quota big enough to take <i>all</i> the traffic at once; does it accept the same prompt and tool-call format; does it behave the same on safety; and has it been evaluated on your task (section 11)? It also starts with a cold prompt cache, so each request costs more and its first token comes later until the cache warms. A fallback that has never carried full traffic is untested; fail over on a schedule.</p>
+<details class="dp"><summary>Two more recorded cases: allowed_fails 1, and a context-window error <span class="mute">(depth)</span></summary><div class="b"><ul>
+<li><b>503, <code>allowed_fails: 1</code>:</b> benched after its second failure, back 5 s later.</li>
+<li><b>Context window error:</b> never retried; with no fallbacks the user got <code>ContextWindowExceededError</code> in 0.1 s; with either <code>fallbacks</code> or <code>context_window_fallbacks</code> the request went straight to the long-context group.</li>
+</ul></div></details>
+<div class="drill"><details><summary><b>Predict, then open.</b> A group has two deployments and the bad one returns 500 on every call. You set <code>allowed_fails: 3</code> and <code>cooldown_time: 60</code>, expecting it to be benched after three failures for a minute. What happens?</summary><div>It is benched only after more than half of its calls in the current minute failed and there were at least five (the default regime), and the bench lasts 60 s because <code>cooldown_time</code> is honoured. Write <code>allowed_fails: 2</code> or use <code>allowed_fails_policy</code> (per error type, for example <code>InternalServerErrorAllowedFails</code>) to get a counter that applies.</div></details></div>
+<p><b>Outages: plan the fallback, do not just configure it.</b> A fallback is another deployment of the same model, the same model at another provider (Claude is also sold through AWS Bedrock and Google Vertex AI; open models through many, section 9), or a different model. Check it like a backup generator: is its quota big enough to take all the traffic at once; does it accept the same prompt and tool-call format; does it behave the same on safety; has it been evaluated on your task? It starts with a cold prompt cache, so requests cost more and first tokens come later until it warms. A fallback that has never carried full traffic is untested; fail over on a schedule.</p>
 </section>
 
 <section id="rd-s4">
 <h2>4. Timeouts and retries across layers</h2>
-<p><b>The problem.</b> An agent's model call passes through several programs, and most of them retry: the provider's SDK in your agent, your own loop, the gateway, sometimes a second gateway or a provider-side router. Each layer's retries run once for <i>every</i> attempt of the layer above, so they multiply:</p>
+<p>An agent's model call passes through several programs that each retry: the provider SDK in your agent, your own loop, the gateway, sometimes a second gateway. Each layer's retries run once for <i>every</i> attempt of the layer above. With the SDK's 2 retries and the gateway's 2, one request can reach the provider 3 &times; 3 = 9 times:</p>
 <div class="fm"><div class="eq">attempts reaching the provider = (1 + r<sub>1</sub>) &times; (1 + r<sub>2</sub>) &times; &hellip; &times; (1 + r<sub>n</sub>)</div>
 <dl><dt>r<sub>i</sub></dt><dd>retries at layer i (OpenAI and Anthropic Python SDKs: 2 by default, with a 600-second timeout; LiteLLM: <code>num_retries</code>, 2 in this config, and a default request timeout of 6,000 seconds)</dd></dl></div>
 <p class="small mute">Defaults read from <code>openai/_constants.py</code> (openai 2.54.0), <code>anthropic/_constants.py</code> (anthropic 1.11.0) and <code>litellm/constants.py</code> (<code>DEFAULT_REQUEST_TIMEOUT_SECONDS = 6000.0</code>), 6 October 2026. <span class="srcl">SOURCE</span></p>
 <p><b>The recording.</b> Provider C hangs for 30 seconds on every call. The gateway gives each attempt 5 seconds and retries twice. The client is the OpenAI Python SDK, run three ways. <span class="meas">MEASURED</span></p>
-<div class="card" id="fgw-e3card"><div id="fgw-e3"></div>
-<p class="small mute">Each grey bar is one call the provider received and worked on for its full 30 s (it cannot tell that the caller gave up until it writes the answer). Blue ticks: the SDK sending; the red line: when the user got an error. Replayed step by step in the <a href="#" data-tab="t-fail">Failure lab</a>.</p></div>
+<div class="card" id="fgw-e3card">
+<div class="t" style="font-weight:600;font-size:14px">Nine provider calls for one request, the last one sent after the user was told it failed</div>
+<div id="fgw-e3"></div>
+<p class="small mute">Each grey bar is one call the provider received and worked on for its full 30 s (it cannot tell the caller gave up until it writes the answer). Blue ticks: the SDK sending; red line: when the user got an error.</p></div>
 <ul>
 <li><b>SDK defaults with a 10-second timeout:</b> the user got <code>APITimeoutError</code> after 32.8 s and three sends; the provider received <b>9 calls</b>, the last one starting at 36.9 s, four seconds <i>after</i> the user had been told it failed. 270 seconds of provider work for one failed request. The gateway does not stop its retry chain when the client hangs up.</li>
 <li><b>The same with <code>max_retries=0</code>:</b> 3 calls, error after 10.2 s.</li>
 <li><b>SDK timeout 60 s:</b> the gateway's own chain finished first (about 20 s), returned 408, and the SDK retried it, twice: 9 calls, error after 61.9 s.</li>
 </ul>
-<p>The harnesses page <a href="https://app.notion.com/p/3c65c17b0d0d819fa3cefdcd2ccff2f7" target="_blank" rel="noopener noreferrer">Other coding harnesses</a> hit the same thing from the other side: Gemini CLI 0.62.0 waits 60 s for headers and retries up to 10 times, so against a slow local server its retries overlapped and multiplied the load until the server ran out of memory. <span class="meas">MEASURED there</span></p>
-<div class="co key"><div class="t">The rule</div>Retry at one layer only, the one that knows the most (usually the gateway, which can switch deployments); set the others to 0. Give each layer a timeout shorter than the layer above it, so the inner one gives up first and reports why. And make the total budget visible: a request that has been retried 9 times is a capacity problem, not bad luck. Why retries need a budget (a cap on retries as a share of traffic) and how a retry storm keeps an overloaded service down is measured on <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>; which hop's timeout ends a long generation is on <a href="https://app.notion.com/p/3c65c17b0d0d811bb035fa3f158b0889" target="_blank" rel="noopener noreferrer">HTTP</a> (its Timeout chain tab).</div>
+<p><a href="https://app.notion.com/p/3c65c17b0d0d819fa3cefdcd2ccff2f7" target="_blank" rel="noopener noreferrer">Other coding harnesses</a> hit the same from the other side: Gemini CLI 0.62.0 waits 60 s for headers and retries up to 10 times, so against a slow local server its retries overlapped and multiplied the load until the server ran out of memory. <span class="meas">MEASURED there</span></p>
+<div class="co key"><div class="t">The rule</div>Retry at one layer only, the one that knows the most (usually the gateway, which can switch deployments); set the others to 0. Give each layer a timeout shorter than the layer above it, so the inner one gives up first and reports why. A request retried 9 times is a capacity problem, not bad luck. Retry budgets and retry storms are measured on <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>; which hop's timeout ends a long generation is on <a href="https://app.notion.com/p/3c65c17b0d0d811bb035fa3f158b0889" target="_blank" rel="noopener noreferrer">HTTP</a> (its Timeout chain tab).</div>
+<details class="dp" id="fgw-fldet"><summary>Replay every recorded attempt of sections 3 and 4, event by event <span class="mute">(widget, 11 cases)</span></summary><div class="b">
+<p class="small">Pick a case and step: the cursor walks through the attempts in the order they happened, lane by lane (the caller's requests, healthy provider A, failing provider C), with a caption and running counts. Pairs worth comparing: 429 against 503; allowed_fails 3 against 1; context error with and without fallbacks; SDK 2 retries against 0.</p>
+<div class="card" id="fl-card" style="margin:6px 0">
+<div class="band">Router cases (litellm.Router, two deployments A and C, num_retries 2)</div>
+<div class="chips" id="fl-pick2" role="group" aria-label="Router case"></div>
+<div class="band">Retry layers (OpenAI SDK, LiteLLM proxy, provider hanging 30 s)</div>
+<div class="chips" id="fl-pick3" role="group" aria-label="Retry layers case"></div>
+<div id="fl-svg" class="plot"></div>
+<div class="fl-leg"><span><i style="background:var(--c1)"></i>request (caller waiting)</span><span><i style="background:var(--good)"></i>answered</span><span><i style="background:var(--bad)"></i>error</span><span><i style="background:var(--c5)"></i>provider working on a call</span><span><i style="background:var(--dim)"></i>provider busy on a call nobody will read</span></div>
+<div class="an-ctl" id="fl-ctl"></div>
+<div class="an-cap" id="fl-cap" aria-live="polite"></div>
+<div class="out" id="fl-cnt"></div>
+</div>
+<details class="mist"><summary>Every request of this case</summary><div class="b"><div class="tw"><table id="fl-tab"></table></div></div></details>
+<p class="small mute">How it was recorded: each fake provider is one small Python HTTP server (<code>src/code/fake_provider.py</code>), scripted per case to answer, fail with a status or hang; it logs every call with its start and end time and the request's text, which names the case and request number, so every attempt is matched to its request. Router cases: <code>src/code/e2_failures.py</code> (sequential requests 0.3 s apart, a warm-up first because the first failing call in a fresh process paid about 10 s of one-off set-up in a trial run). Retry layers: <code>src/code/e3_amplify.py</code> (openai 2.54.0 against the proxy).</p>
+</div></details>
 </section>
-
 <section id="rd-s5">
 <h2>5. Rate limits: three places, three algorithms</h2>
-<p><b>The problem.</b> A rate limit caps how much one caller may send per unit of time, so one runaway agent cannot take everyone's capacity; past it the server answers <code>429 Too Many Requests</code>, which "MAY include a Retry-After header indicating how long to wait" (<a href="https://www.rfc-editor.org/rfc/rfc6585#section-4" target="_blank" rel="noopener noreferrer">RFC 6585 &sect;4</a>). For LLM traffic the unit is not only requests: a request's cost is its tokens, and the output tokens are unknown until it finishes. Two customers limited to 60 requests a minute show why: one sends 60 short chats (60 &times; 1,400 = 84,000 tokens), the other 60 requests each carrying a 50,000-token contract to summarise (3 million tokens, 36 times the load for the same "60 requests"). The algorithm is usually a <dfn>token bucket</dfn>, a refilling allowance that lets short bursts through and caps the average (taught and animated on <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>); for LLMs the bucket holds model tokens, not requests. An agent behind a gateway meets limits in three places, each counted differently:</p>
+<p>A rate limit caps how much one caller may send per unit of time, so one runaway agent cannot take everyone's capacity; past it the server answers <code>429 Too Many Requests</code>, which "MAY include a Retry-After header indicating how long to wait" (<a href="https://www.rfc-editor.org/rfc/rfc6585#section-4" target="_blank" rel="noopener noreferrer">RFC 6585 &sect;4</a>). For LLM traffic the unit cannot be requests alone. Two customers limited to 60 requests a minute: one sends 60 short chats (60 &times; 1,400 = 84,000 tokens), the other 60 requests each carrying a 50,000-token contract (3 million tokens, 36 times the load for the same "60 requests"). So limits count tokens too, and the usual algorithm is a <dfn>token bucket</dfn> holding model tokens (the algorithm is taught on <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>). An agent behind a gateway meets limits in three places, each counted differently:</p>
 <div class="tw"><table>
 <thead><tr><th>Where</th><th>Counted in</th><th>Algorithm</th><th>Answer when over</th></tr></thead>
 <tbody>
 <tr><td><b>Provider</b> (Anthropic, per organisation and model class)</td><td>requests, input tokens, output tokens per minute (RPM, ITPM, OTPM)</td><td>token bucket: "capacity is continuously replenished up to your maximum limit, rather than being reset at fixed intervals"; "a rate of 60 requests per minute (RPM) might be enforced as 1 request per second" <span class="docs">DOCS</span></td><td>429 with <code>retry-after</code></td></tr>
 <tr><td><b>Gateway</b> (LiteLLM, per key, user, team, model)</td><td><code>rpm_limit</code>, <code>tpm_limit</code>, <code>max_parallel_requests</code></td><td>a counter per window of 60 s (<code>LITELLM_RATE_LIMIT_WINDOW_SIZE</code>) that starts at the first request and resets whole <span class="srcl">SOURCE</span></td><td>429 <code>throttling_error</code>, <code>retry-after: 60</code> <span class="meas">MEASURED</span></td></tr>
-<tr><td><b>Router</b> (LiteLLM, per deployment)</td><td><code>rpm</code>/<code>tpm</code> on a deployment</td><td>counts per calendar minute; a deployment over its limit is skipped by the routing strategy</td><td>the next deployment, or "no deployments available"</td></tr>
+<tr><td><b>Router</b> (LiteLLM, per deployment)</td><td><code>rpm</code>/<code>tpm</code> on a deployment</td><td>counts per calendar minute; a deployment over its limit is skipped</td><td>the next deployment, or "no deployments available"</td></tr>
 </tbody></table></div>
-<p>Anthropic's input-token limit counts only uncached input for most models ("only uncached input tokens count toward your ITPM"), so with an 80% cache hit rate a 2,000,000 ITPM limit admits 10,000,000 input tokens a minute; output tokens count as they are generated, so a large <code>max_tokens</code> costs nothing against OTPM (<a href="https://platform.claude.com/docs/en/api/rate-limits" target="_blank" rel="noopener noreferrer">rate limits</a>, read 6 Oct 2026). LiteLLM's token limit has to guess the output before the call: when <code>max_tokens</code> is missing it reserves a floor of 1,024 output tokens (<code>DEFAULT_MAX_TOKENS_ESTIMATE</code> 4,096 divided by 4, capped at a quarter of the smallest TPM limit) and corrects after the response. <span class="docs">DOCS</span> <span class="srcl">SOURCE</span></p>
-<p><b>Output tokens are unknown at admission: three answers.</b> (1) <i>Reserve the worst case, refund later.</i> OpenAI: "Your rate limit is calculated as the maximum of <code>max_tokens</code> and the estimated number of tokens based on the character count", so a careless <code>max_tokens</code> of 32,000 on every call burns limit that is never used; what is left comes back in <code>x-ratelimit-remaining-tokens</code> and related headers (<a href="https://developers.openai.com/api/docs/guides/rate-limits" target="_blank" rel="noopener noreferrer">OpenAI rate limits</a>). (2) <i>Count output as it is produced.</i> Anthropic: "OTPM rate limits are evaluated in real time as output tokens are produced, counting only the actual tokens generated." (3) <i>Charge after the response.</i> Envoy AI Gateway (Agent Router) v1.1.0: "Token usage is charged after the response completes", and "If the existing charged usage is over the limit, the request is rejected with a 429 status code"; it "does not interrupt an already admitted stream", so with a 1,000-token hourly limit one admitted request "can stream 1,200 tokens successfully. The bucket is then 200 tokens over the limit" (<a href="https://github.com/theagentrouter/agent-router/blob/v1.1.0/site/docs/capabilities/traffic/usage-based-ratelimiting.md" target="_blank" rel="noopener noreferrer">usage-based rate limiting, v1.1.0</a>). Its per-tenant, per-model policy, trimmed: the request costs 0 and the response costs its total tokens, read from metadata the gateway fills in. <span class="docs">DOCS</span></p>
+<p><b>Output tokens are unknown at admission</b>, and limiters answer in one of three ways: <i>reserve the worst case and refund later</i> (OpenAI; LiteLLM's <code>tpm_limit</code>), <i>count output as it is produced</i> (Anthropic), or <i>charge after the response</i> (Envoy AI Gateway, which can end 200 tokens over). Alongside token limits, cap <b>concurrent streams</b> per caller (<code>max_parallel_requests</code>): fifty open streams from one tenant are fifty batch slots nobody else can use, whatever the token count.</p>
+<p><b>The gateway's window, recorded.</b> LiteLLM's limiter calls itself "based on a similar one by Envoy proxy" and names its functions "sliding window", but the code keeps one start time and one counter per key: the first request opens a 60-second window, and once 60 whole seconds have passed the next request starts a fresh one at zero. That is a <span class="hl">fixed window anchored on the first request</span>, with the fixed window's weakness at the boundary. Two keys with <code>rpm_limit: 10</code>: one sends a request every second for 130 s; the other sends 1, waits until second 50, sends 9, then 10 more just after the window rolls over. Predict how many the burst key gets through between second 50 and 65, then step or drag the limit. <span class="meas">MEASURED</span></p>
+<div class="card" id="lm-card">
+<div class="t" style="font-weight:600;font-size:14px">The same arrivals through four limiters: both fixed windows let 19 through in 15 seconds, a sliding log 10, a token bucket 12</div>
+<div class="seg" id="lm-mode" role="group" aria-label="Trace"><button data-m="burst" class="on">Burst at the boundary</button><button data-m="steady">One request per second</button></div>
+<label class="small" style="display:block;margin:6px 0">Limit per 60 s: <b id="lm-limv">10</b> <input type="range" id="lm-lim" min="2" max="20" value="10" step="1" aria-label="Limit per 60 seconds" style="max-width:260px;display:inline-block;vertical-align:middle"></label>
+<div id="lm-svg" class="plot"></div>
+<div class="an-ctl" id="lm-ctl"></div>
+<div class="an-cap" id="lm-cap" aria-live="polite"></div>
+<div class="tw"><table id="lm-tab"></table></div>
+<p class="small mute" id="lm-note"></p>
+<p class="small mute">Rows: what LiteLLM 1.104.0 answered; LiteLLM's rule read from its source (a 60 s window from the first request, in whole wall-clock seconds) replayed on the same arrivals, which reproduces every recorded decision; a calendar-minute window (what the router uses for a deployment's own <code>rpm</code>); a sliding log (allow if fewer than the limit were accepted in the last 60 s); a token bucket holding the limit, refilled continuously at limit per 60 s (Anthropic's shape). Rejected requests use no capacity in any of them.</p>
+</div>
+<p>The burst key had <b>19 requests accepted between second 50 and second 65</b>, almost twice its limit inside 15 seconds, then 429s. A calendar-minute window does the same here, because its boundary at second 60 also falls inside the burst: any fixed window has this weakness. The steady key was accepted for 10 seconds out of every 60 (seconds 0 to 9, 61 to 70, 121 to 129: the limiter counts whole wall-clock seconds, and this run happened to start just before a second ticked over). On the same burst a sliding log accepts at most 10 in any 15 seconds, and a token bucket holding 10 and refilling one every 6 seconds at most 12 (its full bucket plus two refills), which is the shape Anthropic's limiter imposes downstream: a gateway that lets 19 through will meet the provider's 429s.</p>
+<div class="co warn"><div class="t">Several gateway replicas</div>Without Redis each LiteLLM process keeps its own counters, so three replicas behind a load balancer admit three times the limit. With <code>redis_host</code> set the same window logic runs as a Lua script on the shared Redis (<code>BATCH_RATE_LIMITER_SCRIPT</code> in the same file). <span class="srcl">SOURCE</span></div>
+<details class="dp"><summary>The three admission answers in their own words, cache-aware input limits, and Envoy's per-tenant policy <span class="mute">(depth, 2 min)</span></summary><div class="b">
+<p>(1) <i>Reserve the worst case, refund later</i>: OpenAI counts "the maximum of <code>max_tokens</code> and the estimated number of tokens based on the character count", so a careless <code>max_tokens</code> of 32,000 on every call burns limit that is never used (<a href="https://developers.openai.com/api/docs/guides/rate-limits" target="_blank" rel="noopener noreferrer">OpenAI rate limits</a>). LiteLLM's <code>tpm_limit</code> does the same with a floor of 1,024 output tokens when <code>max_tokens</code> is missing (<code>DEFAULT_MAX_TOKENS_ESTIMATE</code> 4,096 divided by 4, capped at a quarter of the smallest TPM limit), corrected after the response. <span class="srcl">SOURCE</span> (2) <i>Count output as it is produced</i>: Anthropic, "OTPM rate limits are evaluated in real time as output tokens are produced, counting only the actual tokens generated." (3) <i>Charge after the response</i>: Envoy AI Gateway (Agent Router) v1.1.0, "Token usage is charged after the response completes"; it "does not interrupt an already admitted stream", so with a 1,000-token hourly limit one admitted request "can stream 1,200 tokens successfully. The bucket is then 200 tokens over the limit" (<a href="https://github.com/theagentrouter/agent-router/blob/v1.1.0/site/docs/capabilities/traffic/usage-based-ratelimiting.md" target="_blank" rel="noopener noreferrer">usage-based rate limiting, v1.1.0</a>). <span class="docs">DOCS</span></p>
+<p>Anthropic's input-token limit counts only uncached input for most models ("only uncached input tokens count toward your ITPM"), so with an 80% cache hit rate a 2,000,000 ITPM limit admits 10,000,000 input tokens a minute; output tokens count as they are generated, so a large <code>max_tokens</code> costs nothing against OTPM (<a href="https://platform.claude.com/docs/en/api/rate-limits" target="_blank" rel="noopener noreferrer">rate limits</a>, read 6 Oct 2026). OpenAI returns what is left in <code>x-ratelimit-remaining-tokens</code> and related headers. Envoy's per-tenant, per-model policy, trimmed: the request costs 0 and the response costs its total tokens, read from metadata the gateway fills in; "If the existing charged usage is over the limit, the request is rejected with a 429 status code". <span class="docs">DOCS</span></p>
 <pre>rateLimit:
   type: Global
   global:
@@ -281,221 +366,69 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
         cost:
           request:  {from: Number, number: 0}
           response: {from: Metadata, metadata: {namespace: io.envoy.ai_gateway, key: llm_total_token}}</pre>
-<p>Alongside token limits, cap <b>concurrent streams</b> per caller (LiteLLM's <code>max_parallel_requests</code>): a stream holds a batch slot on the model server for seconds, and fifty open streams from one tenant are fifty slots nobody else can use, whatever the token count.</p>
-<p><b>The gateway's window, recorded.</b> LiteLLM's limiter file calls itself "based on a similar one by Envoy proxy" and names its functions "sliding window", but the code keeps one start time and one counter per key: the first request opens a 60-second window, every request in it adds 1, and once 60 whole seconds have passed the next request starts a fresh window at zero. That is a fixed window anchored on the first request, not a sliding one, and it has the fixed window's weakness at the boundary. Two keys with <code>rpm_limit: 10</code>; one sends a request every second for 130 s, the other sends 1 request, waits until second 50, sends 9, then 10 more just after the window rolls over. <span class="meas">MEASURED</span></p>
-<div class="card" id="fgw-e4card">
-<div class="seg" id="fgw-e4mode" role="group" aria-label="Trace"><button data-m="burst" class="on">Burst at the boundary</button><button data-m="steady">One request per second</button></div>
-<div id="fgw-e4"></div>
-<p class="small mute" id="fgw-e4note"></p></div>
-<p>The burst key had <b>19 requests accepted between second 50 and second 65</b>, almost twice its limit inside 15 seconds, and then 429s; the steady key was accepted for 10 seconds out of every 60 (seconds 0 to 9, 61 to 70, 121 to 129: the limiter counts whole wall-clock seconds, and this run happened to start just before a second ticked over). On the same burst trace a sliding log would have accepted at most 10 in any 15 seconds, and a token bucket holding 10 and refilling one every 6 seconds at most 12 (its full bucket plus two refills), which is the shape Anthropic's limiter imposes downstream. The five classic algorithms (fixed window, sliding log, sliding window counter, token bucket, leaky bucket) are taught and animated on one burst on <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>; the <a href="#" data-tab="t-lim">Limits lab</a> replays these two recorded traces through LiteLLM's rule (which reproduces every accept and reject) and through the others.</p>
-<div class="co warn"><div class="t">Several gateway replicas</div>Without Redis each LiteLLM process keeps its own counters, so three replicas behind a load balancer admit three times the limit. With <code>redis_host</code> set the same window logic runs as a Lua script on the shared Redis (<code>BATCH_RATE_LIMITER_SCRIPT</code> in the same file). <span class="srcl">SOURCE</span></div>
+</div></details>
 </section>
 
 <section id="rd-s6">
 <h2>6. Budgets and virtual keys: what a dollar cap really does</h2>
-<p><b>The problem.</b> A budget caps spend in dollars for a key, a user, a team, an organisation or an end customer, optionally resetting on a period (<code>budget_duration: "30d"</code>, also seconds, minutes, hours). The gateway prices every call from its price table and adds it to each entity's spend. The hard part is concurrency: if the check reads the spend so far and 20 calls arrive together, all 20 see the same number and all 20 pass. <span class="docs">DOCS</span></p>
-<p><b>What 1.104.0 does instead: reserve, then settle.</b> Before calling the provider, the proxy estimates the request's <i>maximum</i> cost (its input tokens counted, plus <code>max_tokens</code> output tokens, or 16,384 if the request sets none, capped at the model's own output limit, at the configured prices) and adds it atomically to the key's counter. If that would cross the budget but some budget is left, the reservation is shrunk to what is left and the call goes ahead; if nothing is left, the call is refused with HTTP 422 <code>budget_exceeded</code>. When the call ends the reservation is replaced by the real cost (<code>proxy/spend_tracking/budget_reservation.py</code>). <span class="srcl">SOURCE</span></p>
-<p><b>The recording.</b> Budget $0.0004 per key; each call really costs $0.00008 (40 input tokens at $1 per million, 8 output tokens at $5 per million), so 5 calls fit. The fake provider takes 2 s per call. <span class="meas">MEASURED</span></p>
+<p>A budget caps dollars for a key, user, team, organisation or end customer, optionally per period (<code>budget_duration: "30d"</code>). The gateway prices every call from its price table and adds it to each entity's spend. The hard part is concurrency: if the check reads the spend so far, 20 calls arriving together all see the same number and all pass. <span class="docs">DOCS</span></p>
+<p><b>What 1.104.0 does instead: reserve, then settle.</b> Before calling the provider, the proxy estimates the request's <i>maximum</i> cost (its input tokens, plus <code>max_tokens</code> output tokens, or 16,384 if the request sets none, capped at the model's own output limit) and adds it atomically to the key's counter. If that would cross the budget but some is left, the reservation shrinks to what is left and the call goes ahead; if nothing is left, HTTP 422 <code>budget_exceeded</code>. When the call ends the reservation is replaced by the real cost (<code>proxy/spend_tracking/budget_reservation.py</code>). <span class="srcl">SOURCE</span></p>
+<p><b>The recording.</b> Budget $0.0004 per key; each call really costs $0.00008 (40 input tokens at $1 per million, 8 output tokens at $5 per million), so 5 calls fit; the fake provider takes 2 s per call. The same wave of 20 simultaneous calls under three admission policies; predict how many get through without <code>max_tokens</code>, then step. <span class="meas">MEASURED</span></p>
 <div class="card" id="fgw-e5card">
+<div class="t" style="font-weight:600;font-size:14px">Without max_tokens, a reserving budget lets one call through at a time</div>
 <div class="seg" id="fgw-e5mode" role="group" aria-label="Budget check"><button data-m="old">Reservation off (recorded)</button><button data-m="nomax" class="on">Reserve, no max_tokens (recorded)</button><button data-m="max16">Reserve, max_tokens 16 (recorded)</button></div>
 <div id="fgw-e5"></div>
 <div class="an-ctl" id="fgw-e5ctl"></div>
 <div class="an-cap" id="fgw-e5cap" aria-live="polite"></div>
 </div>
 <ul>
-<li><b>Reservation switched off</b> (<code>general_settings: disable_budget_reservation: true</code>, which the docs keep for "temporary mitigation"): all 20 simultaneous calls accepted, final spend $0.0016, four times the budget; the second wave was refused. This is the soft cap the parent page describes.</li>
-<li><b>Ten calls one after another:</b> exactly 5 accepted, final spend $0.0004, then 422s. No overshoot.</li>
+<li><b>Reservation switched off</b> (<code>general_settings: disable_budget_reservation: true</code>, which the docs keep for "temporary mitigation"): all 20 accepted, final spend $0.0016, four times the budget; the second wave was refused. This is the soft cap the parent page describes.</li>
 <li><b>Twenty at once, no <code>max_tokens</code>:</b> 1 accepted, 19 refused in about 0.4 s. Each request reserved about $0.082 (16,384 output tokens at $5 per million), far more than the whole budget, so the first was shrunk to the budget and the rest found nothing left. A second wave 4 s later: again 1. The key has become a queue of one.</li>
 <li><b>Twenty at once with <code>max_tokens: 16</code>:</b> each reserved about $0.000095, so 4 fitted and a fifth took the remainder: 5 accepted, final spend exactly $0.0004.</li>
+<li><b>Ten calls one after another:</b> exactly 5 accepted, final spend $0.0004, then 422s.</li>
 </ul>
-<div class="co warn"><div class="t">Correction to the parent page</div>The parent's Production stack tab recorded a sequential overshoot of one call ($0.0008 cap, three calls of $0.00033, final $0.00099) and concluded that a key "can overshoot its cap by the calls in flight", with batched spend writes "widening the overshoot under parallel traffic". On LiteLLM 1.104.0, the version both pages ran, the sequential overshoot reproduces (the last call is let through with whatever budget remains, and can cost more), but parallel calls do not overshoot: the reservation blocks them. LiteLLM's docs: "Budget reservation is enabled by default", and switching it off "can allow concurrent requests to exceed a configured budget" (<a href="https://docs.litellm.ai/docs/proxy/users" target="_blank" rel="noopener noreferrer">docs</a>); known gaps are requests whose cost cannot be estimated, which skip it (<a href="https://github.com/BerriAI/litellm/issues/35524" target="_blank" rel="noopener noreferrer">issue 35524</a>), and project budgets (<a href="https://github.com/BerriAI/litellm/issues/34101" target="_blank" rel="noopener noreferrer">issue 34101</a>). <span class="meas">MEASURED</span> <span class="srcl">SOURCE</span></div>
-<div class="co key"><div class="t">What follows for agents</div>Send <code>max_tokens</code> on every call. Without it, a small per-key budget serialises an agent's parallel tool-calling or subagents, and the 422 arrives long before the money is spent. <code>LITELLM_BUDGET_RESERVATION_MAX_COST_USD</code> caps one request's reservation instead (<a href="https://github.com/BerriAI/litellm/pull/38647" target="_blank" rel="noopener noreferrer">PR 38647</a>). Budgets nest: "If a key belongs to a team, only the team (and team-member) budgets are enforced" (<a href="https://docs.litellm.ai/docs/proxy/users" target="_blank" rel="noopener noreferrer">docs</a>). A provider's own spend cap is a separate, monthly thing: Anthropic's returns a 429 with no <code>retry-after</code> and the error code <code>enforced_spend_limit_reached</code>, which every retry layer will hit again until the month ends. <span class="docs">DOCS</span></div>
-<p><b>Rate limit, quota, capacity: three refusals to keep apart.</b> A rate limit protects capacity right now; a <dfn>quota</dfn> or budget caps total use over a period, usually in money. Envoy's docs draw the same line: "Use QuotaPolicy when you need to cap cumulative token spend, and usage-based rate limiting (this page) when you need to control request velocity." Anthropic's API returns three different answers: 429 with a <code>retry-after</code> header for a rate limit, 429 with <i>no</i> retry-after when the spend cap is reached (retrying cannot help), and <code>529 overloaded_error</code> when "the API experiences high traffic across all users" (<a href="https://platform.claude.com/docs/en/api/errors" target="_blank" rel="noopener noreferrer">Anthropic errors</a>). A gateway should keep the same three apart for its callers: you are over your limit (wait), you are out of budget (stop), we are out of capacity (fall back). And the dollars a budget counts are only as current as the gateway's price table: LiteLLM prices calls from a table shipped with the library (its 1.104.0 copy stopped at Claude Sonnet 4.5), which it can refresh at start-up or take from your config. <span class="docs">DOCS</span></p>
+<div class="co warn"><div class="t">Correction to the parent page</div>The parent's Production stack tab recorded a sequential overshoot of one call ($0.0008 cap, three calls of $0.00033, final $0.00099) and concluded that a key "can overshoot its cap by the calls in flight", with batched spend writes "widening the overshoot under parallel traffic". On 1.104.0, the version both pages ran, the sequential overshoot reproduces (the last call gets whatever budget remains and can cost more); parallel calls do not overshoot. LiteLLM's docs: "Budget reservation is enabled by default", and switching it off "can allow concurrent requests to exceed a configured budget" (<a href="https://docs.litellm.ai/docs/proxy/users" target="_blank" rel="noopener noreferrer">docs</a>); known gaps are requests whose cost cannot be estimated, which skip it (<a href="https://github.com/BerriAI/litellm/issues/35524" target="_blank" rel="noopener noreferrer">issue 35524</a>), and project budgets (<a href="https://github.com/BerriAI/litellm/issues/34101" target="_blank" rel="noopener noreferrer">issue 34101</a>). <span class="meas">MEASURED</span> <span class="srcl">SOURCE</span></div>
+<div class="co key"><div class="t">What follows for agents</div>Send <code>max_tokens</code> on every call. Without it, a small per-key budget serialises an agent's parallel tool calls or subagents, and the 422 arrives long before the money is spent. <code>LITELLM_BUDGET_RESERVATION_MAX_COST_USD</code> caps one request's reservation instead (<a href="https://github.com/BerriAI/litellm/pull/38647" target="_blank" rel="noopener noreferrer">PR 38647</a>). Budgets nest: "If a key belongs to a team, only the team (and team-member) budgets are enforced" (<a href="https://docs.litellm.ai/docs/proxy/users" target="_blank" rel="noopener noreferrer">docs</a>).</div>
+<p><b>Rate limit, quota, capacity: three refusals to keep apart.</b> A rate limit protects capacity right now; a <dfn>quota</dfn> or budget caps total use over a period, usually in money (Envoy: "Use QuotaPolicy when you need to cap cumulative token spend, and usage-based rate limiting (this page) when you need to control request velocity."). Anthropic's API answers 429 with a <code>retry-after</code> header for a rate limit; 429 with <i>no</i> retry-after and the code <code>enforced_spend_limit_reached</code> when the monthly spend cap is reached (every retry layer will hit it again until the month ends); and <code>529 overloaded_error</code> when "the API experiences high traffic across all users" (<a href="https://platform.claude.com/docs/en/api/errors" target="_blank" rel="noopener noreferrer">Anthropic errors</a>). <span class="docs">DOCS</span> A gateway should keep the same three apart for its callers: over your limit (wait), out of budget (stop), out of capacity (fall back). Its own 429 (<code>throttling_error</code>, retry-after 60) is the caller's key limit, which no fallback can fix; a provider 429 is capacity, which another deployment can. A budget is only as current as the price table, which LiteLLM ships with the library and can refresh at start-up or take from your config (dated table, section 11).</p>
+<details class="dp" id="fgw-bdet"><summary>Every call of the four budget runs, and the refusal messages <span class="mute">(widget)</span></summary><div class="b">
+<div class="seg" id="lm-bmode" role="group" aria-label="Budget run"><button data-m="seq">10 in sequence</button><button data-m="noreserve_no_max_tokens">20 at once, reservation off</button><button data-m="no_max_tokens" class="on">20 at once, no max_tokens</button><button data-m="max_tokens_16">20 at once, max_tokens 16</button></div>
+<div id="lm-bsvg" class="plot"></div>
+<p class="small mute" id="lm-bnote"></p>
+<div class="co warn"><div class="t">The refusal messages, verbatim (key hashes removed)</div><p class="mono small" id="lm-msg"></p></div>
+<p class="small mute">The in-run spend reads can precede LiteLLM's batched spend write, so final spends were read back from <code>/key/list</code> after all runs.</p>
+</div></details>
 </section>
-
 <section id="rd-s7">
-<h2>7. Caching at the gateway: an exact-match memo, not prompt caching</h2>
-<p><b>Two different things share the word.</b> <dfn>Provider prompt caching</dfn> happens inside the model server: the provider keeps the computed attention state (the KV cache) for a prompt prefix, so a later request that starts with the same prefix is cheaper and faster, but the model still generates a fresh answer. A <dfn>gateway response cache</dfn> stores whole answers: if a new request matches a stored one, the gateway returns the stored answer and the model is never called. The first is taught on <a href="https://app.notion.com/p/3f15c17b0d0d811292cee46514370431" target="_blank" rel="noopener noreferrer">Context engineering</a> and <a href="https://app.notion.com/p/3cd5c17b0d0d817ebd6ccadd4750c23a" target="_blank" rel="noopener noreferrer">Caching</a>; this section is the second.</p>
-<p><b>What the key is.</b> LiteLLM builds the key by concatenating every model parameter present in the request (model, messages, temperature, max_tokens, tools ...) and hashing it with SHA-256 (<code>Cache.get_cache_key</code> in <code>litellm/caching/caching.py</code>). Backends: in-memory (default TTL 600 s), Redis, S3, GCS, Azure Blob, disk, and three semantic caches (Redis, Valkey, Qdrant) that match by embedding similarity instead. Per request, <code>cache: {"no-cache": true}</code> skips the lookup, <code>ttl</code> sets the lifetime, and <code>mode: default_off</code> makes caching opt-in. <span class="srcl">SOURCE</span></p>
+<h2>7. Caching at the gateway: a memo of whole answers</h2>
+<p><b>Not prompt caching.</b> <dfn>Provider prompt caching</dfn> keeps the computed attention state for a prompt prefix inside the model server, so the model still generates a fresh answer, cheaper (<a href="https://app.notion.com/p/3f15c17b0d0d811292cee46514370431" target="_blank" rel="noopener noreferrer">Context engineering</a> and <a href="https://app.notion.com/p/3cd5c17b0d0d817ebd6ccadd4750c23a" target="_blank" rel="noopener noreferrer">Caching</a> own it). A <dfn>gateway response cache</dfn> stores whole answers: on a match the model is never called.</p>
+<p><b>The key.</b> LiteLLM concatenates every model parameter present in the request (model, messages, temperature, max_tokens, tools ...) and hashes it with SHA-256 (<code>Cache.get_cache_key</code> in <code>litellm/caching/caching.py</code>). Backends: in-memory (default TTL 600 s), Redis, S3, GCS, Azure Blob, disk, and three semantic caches (Redis, Valkey, Qdrant). Per request, <code>cache: {"no-cache": true}</code> skips the lookup, <code>ttl</code> sets the lifetime, and <code>mode: default_off</code> makes caching opt-in. <span class="srcl">SOURCE</span></p>
 <p><b>The recording.</b> Cache on (in-memory), the local model behind it, six calls with the same question. <span class="meas">MEASURED</span></p>
-<div class="card"><div class="tw"><table id="fgw-e6"></table></div>
-<p class="small mute">Seconds are what the caller waited. The first call also waited for the shared local model server, which other work was using. Cache key: the first 12 hex digits of the <code>x-litellm-cache-key</code> header, present only on hits.</p></div>
+<div class="card"><div class="t" style="font-weight:600;font-size:14px">A hit returns a sampled answer word for word; one extra space misses</div><div class="tw"><table id="fgw-e6"></table></div>
+<p class="small mute">Seconds are what the caller waited (the first call also waited for the shared local model server). Cache key: the first 12 hex digits of the <code>x-litellm-cache-key</code> header, present only on hits.</p></div>
 <ul>
 <li><b>Hit:</b> 0.08 s instead of seconds, no tokens spent.</li>
 <li><b>Temperature 0.9:</b> a miss (temperature is part of the key), then a hit that returned the sampled answer word for word. The cache turns a random answer into a fixed one for the TTL; for an agent that retries a step hoping for a different action, that is the opposite of what it wants.</li>
-<li><b>One extra space:</b> a miss. Agents rarely repeat a request exactly: each turn appends the last tool result, so an agent's calls almost never hit an exact cache. The gateway cache pays for repeated identical calls (classification, embedding, evals re-run on unchanged items), not for agent loops.</li>
+<li><b>One extra space:</b> a miss. Each agent turn appends the last tool result, so an agent's calls almost never hit an exact cache. The gateway cache pays for repeated identical calls (classification, embedding, evals re-run on unchanged items), not for agent loops.</li>
 </ul>
-<div class="co"><div class="t">Semantic caching</div>A semantic cache returns a stored answer for a request that is merely similar (cosine similarity above a threshold). It is the only cache that can be wrong: <a href="https://app.notion.com/p/3cd5c17b0d0d817ebd6ccadd4750c23a" target="_blank" rel="noopener noreferrer">Caching</a> measures how often, threshold by threshold, in its Threshold lab. Not repeated here.</div>
+<p><b>Semantic caching, and why it is the risky one.</b> A semantic cache embeds the prompt and returns a stored answer when a previous prompt is merely similar (cosine similarity above a threshold): LiteLLM's Redis, Valkey and Qdrant backends, Azure API Management's <code>llm-semantic-cache-lookup</code> and <code>llm-semantic-cache-store</code> policies (<a href="https://learn.microsoft.com/en-us/azure/api-management/genai-gateway-capabilities" target="_blank" rel="noopener noreferrer">Microsoft Learn</a>, read 24 Oct 2026). It is the only cache that can return a wrong answer: a hit is a bet that two different questions deserve the same reply, and the threshold trades money saved against wrong answers served. At a gateway three things make it worse: the cache is shared by every caller, so an entry must be scoped per tenant and user or one customer's answer reaches another; the reply is frozen, like any cache hit above; and nobody sees a false hit in an error counter. Use it last and narrowly, after measuring its false-hit rate on your traffic; <a href="https://app.notion.com/p/3cd5c17b0d0d817ebd6ccadd4750c23a" target="_blank" rel="noopener noreferrer">Caching</a> measures that rate threshold by threshold on real labelled pairs in its Threshold lab.</p>
 </section>
 
 <section id="rd-s8">
 <h2>8. The translation layer: what actually leaves the gateway</h2>
-<p><b>The problem.</b> A gateway accepts several request formats (OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, Gemini <code>generateContent</code>) and sends each upstream in whatever format that provider speaks. The provider prefix of the deployment decides the outgoing format, and the mapping is not always the obvious one.</p>
-<p><b>The recording.</b> One Anthropic-format request (<code>POST /v1/messages</code>, with a system prompt) for the local model, through two deployments of the same model that differ only in prefix. The locking proxy in front of the model server logged what arrived. <span class="meas">MEASURED</span></p>
-<div class="card"><div id="fgw-e7"></div></div>
-<p>With <code>openai/</code>, LiteLLM assumed an upstream that speaks OpenAI's newer Responses API and sent <code>POST /v1/responses</code> (the system prompt became <code>instructions</code>, the message became <code>input</code>, and it asked for <code>reasoning.encrypted_content</code>); mlx-lm has no such route, so the caller got a 404 that names the model group, not the format. With <code>lm_studio/</code> it sent ordinary <code>/v1/chat/completions</code> and the caller got a well-formed Anthropic reply. The sibling <a href="https://app.notion.com/p/3c65c17b0d0d819fa3cefdcd2ccff2f7" target="_blank" rel="noopener noreferrer">Other coding harnesses</a> found the same with a Responses request: <code>openai/</code> forwards <code>/responses</code> unchanged, <code>lm_studio/</code> translates it. That route is how the sibling ran Codex (which speaks only the Responses API; <code>wire_api = "chat"</code> is now a config error) against the local model, and it is why the prefix matters.</p>
+<p>A gateway accepts several request formats (OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, Gemini <code>generateContent</code>) and sends each upstream in whatever format the provider speaks. The deployment's provider prefix decides the outgoing format, and the mapping is not always the obvious one.</p>
+<p><b>The recording.</b> One Anthropic-format request (<code>POST /v1/messages</code>, with a system prompt) for the local model, through two deployments that differ only in prefix; a logging proxy in front of the model server recorded what arrived. <span class="meas">MEASURED</span></p>
+<div class="card"><div class="t" style="font-weight:600;font-size:14px">The same request, two prefixes: openai/ sends the Responses API, lm_studio/ sends Chat Completions</div><div id="fgw-e7"></div></div>
+<p>With <code>openai/</code>, LiteLLM assumed an upstream that speaks OpenAI's newer Responses API and sent <code>POST /v1/responses</code> (the system prompt became <code>instructions</code>, the message became <code>input</code>, and it asked for <code>reasoning.encrypted_content</code>); mlx-lm has no such route, so the caller got a 404 that names the model group, not the format. With <code>lm_studio/</code> it sent ordinary <code>/v1/chat/completions</code> and the caller got a well-formed Anthropic reply. <a href="https://app.notion.com/p/3c65c17b0d0d819fa3cefdcd2ccff2f7" target="_blank" rel="noopener noreferrer">Other coding harnesses</a> found the same with a Responses request (<code>openai/</code> forwards <code>/responses</code> unchanged, <code>lm_studio/</code> translates it), which is how it ran Codex, which speaks only the Responses API (<code>wire_api = "chat"</code> is now a config error), against the local model.</p>
 <div class="co warn"><div class="t">What translation can lose</div>Anything one format has and the other does not: Anthropic cache breakpoints, thinking blocks and their signatures, server tools, OpenAI's <code>reasoning</code> items, provider-specific parameters. LiteLLM drops unknown parameters when <code>drop_params: true</code> is set and raises otherwise. When something silently stops working behind a gateway, log the outgoing request body (the proxy's debug log, or a logging proxy like the one used here) before blaming the model.</div>
 </section>
 
 <section id="rd-s9">
 <h2>9. OpenRouter: a gateway you rent, and a market of providers</h2>
-<p><b>What it is.</b> OpenRouter is a hosted gateway: one OpenAI-compatible endpoint, one key and one bill in front of many model vendors and many inference providers. Its public catalogue listed <span class="fgw-v" data-v="or_models"></span> models from <span class="fgw-v" data-v="or_authors"></span> model authors on 6 October 2026, <span class="fgw-v" data-v="or_free"></span> of them free variants (<code>GET /api/v1/models</code>, no key needed). Money, from its FAQ the same day: it passes provider prices through with "no markup on inference pricing"; buying credits costs 5.5% ($0.80 minimum) by card and 5% in crypto; with your own provider keys (BYOK) "Pay-as-you-go includes $25,000 per month with no BYOK fee" and 5% above that; free models allow 50 requests a day, 1,000 once you have bought $10 of credits (<a href="https://openrouter.ai/docs/faq" target="_blank" rel="noopener noreferrer">FAQ</a>). <span class="docs">DOCS</span> The parent page has its company news (the Stripe announcement); not repeated.</p>
-<p><b>Two kinds of routing.</b> Across <i>models</i>: send a <code>models</code> list and it tries them in order on errors, rate limits and downtime, billing the model that answered (the parent page quotes the details). Across <i>providers of one model</i>, the part with no LiteLLM equivalent: the same open-weights model is served by many companies at different prices, and by default OpenRouter will "Prioritize providers that have not seen significant outages in the last 30 seconds", then "For the stable providers, look at the lowest-cost candidates and select one weighted by inverse square of the price", then "Use the remaining providers as fallbacks" (<a href="https://openrouter.ai/docs/features/provider-routing" target="_blank" rel="noopener noreferrer">provider routing</a>). The <code>provider</code> object overrides it: <code>order</code>, <code>only</code>, <code>ignore</code>, <code>allow_fallbacks</code> (default true), <code>require_parameters</code>, <code>data_collection</code>, <code>zdr</code>, <code>quantizations</code>, <code>sort</code> (price, throughput or latency), <code>max_price</code>, <code>preferred_min_throughput</code>, <code>preferred_max_latency</code>; the suffixes <code>:nitro</code> and <code>:floor</code> mean sort by throughput and by price. <span class="docs">DOCS</span></p>
+<p>OpenRouter is a hosted gateway: one OpenAI-compatible endpoint, one key and one bill in front of many model vendors and inference providers (its catalogue size and fees are in the dated table, section 11). It routes two ways. Across <i>models</i>: send a <code>models</code> list and it tries them in order on errors, rate limits and downtime, billing the model that answered (the parent page quotes the details). Across <i>providers of one model</i>, the part with no LiteLLM equivalent: the same open-weights model is served by many companies at different prices, and by default OpenRouter will "Prioritize providers that have not seen significant outages in the last 30 seconds", then "For the stable providers, look at the lowest-cost candidates and select one weighted by inverse square of the price", then "Use the remaining providers as fallbacks" (<a href="https://openrouter.ai/docs/features/provider-routing" target="_blank" rel="noopener noreferrer">provider routing</a>). <span class="docs">DOCS</span></p>
 <div class="fm"><div class="eq">P(provider i first) = (1 / p<sub>i</sub><sup>2</sup>) / &Sigma;<sub>j</sub> (1 / p<sub>j</sub><sup>2</sup>)</div>
-<dl><dt>p<sub>i</sub></dt><dd>provider i's price. The docs' example: at $1, $2 and $3 per million tokens, the $1 provider is 9 times likelier than the $3 one. They do not say which price (input or output) nor how many "lowest-cost candidates" are kept; the shares below use the input price over every listed endpoint, so they are an illustration of the rule, not OpenRouter's exact numbers.</dd></dl></div>
-<div class="card" id="fgw-orcard">
-<div class="chips" id="fgw-orpick" role="group" aria-label="Model"></div>
-<div id="fgw-or"></div>
-<p class="small mute" id="fgw-ornote"></p></div>
-<p><b>Why it matters for an agent.</b> "The same model" is not the same numbers. For Llama 3.3 70B Instruct, 11 endpoints on 6 October 2026 ranged from $0.10 to $1.04 per million input tokens, declared their weights as fp8, bf16, fp16 or nothing, and offered contexts from 12,288 to 131,072 tokens; under the rule above the two cheapest would take about two thirds of first picks. A benchmark or eval run through default routing mixes providers, and an agent's long prompt needs an endpoint whose context fits. Pin providers for evals (<code>order</code> with <code>allow_fallbacks: false</code>, or <code>quantizations</code>), and read the <code>provider</code> field each response carries. <span class="meas">MEASURED (catalogue)</span></p>
-<p><b>Auto Router.</b> <code>openrouter/auto</code> picks a model per prompt. Its docs now describe it as "Powered by the market: the aggregate spend of millions of people using OpenRouter, measured over a trailing 7-day window for each task type", classifying prompts into about 30 task types, at the chosen model's price with "no additional fee"; <code>allowed_models</code>, <code>excluded_models</code> and <code>cost_tier</code> restrict it (<a href="https://openrouter.ai/docs/guides/routing/auto-model-selection" target="_blank" rel="noopener noreferrer">Auto Router</a>, read 6 Oct 2026). <span class="docs">DOCS</span></p>
-<div class="deepnote"><b>Go deeper.</b> The <a href="#" data-tab="t-route">Routing lab</a> has all four models' endpoint lists with filters (quantization, context, price cap) applied to the inverse-square rule. LiteLLM can use OpenRouter as one more upstream (<code>openrouter/</code> prefix), so the two compose: your own gateway for keys, budgets and logs, OpenRouter for reach.</div>
-</section>
-
-<section id="rd-s10">
-<h2>10. Learned routers: choosing the model per request</h2>
-<p><b>The problem.</b> Sections 2 to 9 route between copies of the <i>same</i> model. A different question: given a cheap model and a strong one, can the gateway send each request to the cheapest model that will answer it well? If most traffic is easy, the savings are large; the risk is that the router cannot tell which requests are easy. The measure that matters is a curve: answer quality against the share of calls sent to the strong model, compared with routing at random at the same share (any router can trade cost for quality; a good one does it better than a coin).</p>
-<p><b>Why it is worth trying, and the rules that come first.</b> Prices differ by a factor of 2 to 40 between tiers: Claude 4.5 Haiku $1 and $5 per million input and output tokens, Sonnet 5.5 $2 and $10, Opus 5.5 $4 and $20, GPT-6 Luna $0.10 and $0.50 (the knowledge base's price snapshot of 2026-10-01). Most production routers start as rules, not learned models: <i>tier rules</i> ("summaries go small"), or a small classifier; Huyen describes "an intent classifier that predicts what the user is trying to do" so "simpler queries" go "to cheaper models" (<a href="https://huyenchip.com/2024/07/25/genai-platform.html" target="_blank" rel="noopener noreferrer">Building A Generative AI Platform, 25 Jul 2024</a>). <i>Context rules</i> send long prompts to models or pools configured for long context; getting one wrong is what happened in August 2025, when a routing bug sent some Claude Sonnet 4 requests to servers configured for a different context length, up to 16% of them in the worst hour, with normal error rates (<a href="https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues" target="_blank" rel="noopener noreferrer">Anthropic, 17 Sep 2025</a>). <i>Policy rules</i> pin a tenant to a contracted vendor, keep data in a region, or send sensitive data only to self-hosted models. Every misrouted hard question is a worse answer that no error counter sees, so a router of any kind is measured as a classifier, on labelled traffic.</p>
-<div class="tw"><table>
-<thead><tr><th>Approach</th><th>Decides from</th><th>Example</th></tr></thead>
-<tbody>
-<tr><td>Rules on the prompt</td><td>keywords, length, code, "step by step" markers, weighted into a score with tier boundaries</td><td>LiteLLM's <code>complexity_router</code>: weights code 0.30, reasoning markers 0.25, technical terms 0.25, token count 0.10, simple indicators 0.05, multi-step 0.03, question complexity 0.02; tiers SIMPLE, MEDIUM, COMPLEX, REASONING at 0.15, 0.35, 0.60; "no external API calls and &lt;1ms latency"; "Inspired by ClawRouter" <span class="srcl">SOURCE</span></td></tr>
-<tr><td>A classifier trained on preferences</td><td>which of two models people preferred on similar prompts</td><td>RouteLLM (<a href="https://arxiv.org/abs/2406.18665" target="_blank" rel="noopener noreferrer">Ong et al., 2024</a>): routers "leveraging human preference data and data augmentation", which the abstract says reduce costs "by over 2 times in certain cases" without compromising response quality; its code offers matrix factorisation ("recommended"), similarity-weighted Elo, a BERT classifier and an LLM classifier, with the threshold calibrated to a target share of strong calls (<a href="https://github.com/lm-sys/RouteLLM" target="_blank" rel="noopener noreferrer">repo</a>) <span class="docs">PAPER</span></td></tr>
-<tr><td>Online learning</td><td>feedback signals on live traffic</td><td>LiteLLM's <code>adaptive_router</code> (v0): seven request types, a Beta-distribution bandit per (type, model) sampled per request, scored as quality weight times sample plus cost weight times normalised cost; updates flushed to Postgres about every 10 s <span class="srcl">SOURCE</span></td></tr>
-<tr><td>Other people's spending</td><td>which models users pay for, per task type</td><td>OpenRouter's Auto Router (section 9) <span class="docs">DOCS</span></td></tr>
-<tr><td>A trained orchestrator</td><td>a model that plans which models to call, in which roles, over several turns</td><td>Sakana Fugu, "a Multi-Agent System, Delivered as One Model" behind an OpenAI-compatible API, built on the TRINITY ("a lightweight evolved coordinator ... assigning Thinker, Worker, or Verifier roles") and Conductor ("trained with reinforcement learning") papers; Fugu Ultra $5 and $30, Fugu Max $2 and $6 per million input and output tokens (<a href="https://sakana.ai/fugu/" target="_blank" rel="noopener noreferrer">Sakana</a>, read 6 Oct 2026) <span class="docs">DOCS</span>. Not a router in front of models but a system behind one model name: it takes the orchestration away from you.</td></tr>
-</tbody></table></div>
-<p><b>The experiment.</b> 48 questions written for this page with answers that can be graded exactly, in four families of 12: one-step facts, arithmetic word problems of 2 to 7 steps, "what does this Python print", and letter puzzles (count the r's in a made-up word, or write it backwards). Each question was answered once by the <b>local model on Apple M1 Pro</b> (Qwen3 4B, temperature 0, up to 512 tokens) and once by <b>Claude Haiku 4.5</b> (Claude Code CLI, no tools, the same instruction), each ending with an "ANSWER:" line. Then LiteLLM's complexity router scored every question offline. <span class="meas">MEASURED</span></p>
-<div class="card" id="fgw-rtcard"><div id="fgw-rt"></div>
-<p class="small mute">Vertical axis: questions answered correctly out of 48; horizontal: share of questions sent to Haiku. The dashed line is random routing (expected value). Every question and both answers are in the <a href="#" data-tab="t-route">Routing lab</a>.</p></div>
-<ul>
-<li><b>The two models:</b> local 38 of 48, Haiku 44 of 48. Both got every fact and every arithmetic problem; the local model missed 4 code questions and 6 letter puzzles (8 of its 10 misses ran out of its 512-token allowance without an ANSWER line); Haiku missed 4 backwards-spelling puzzles. Haiku's 48 answers cost $0.19 at API list prices (the CLI's <code>total_cost_usd</code>; the subscription paid).</li>
-<li><b>The complexity router</b> scored all 12 code questions MEDIUM (they contain code) and all 36 others SIMPLE. Sending MEDIUM up: 42 right with 25% of calls to Haiku. Random routing at 25% would expect 39.5; a perfect router needs only 6 strong calls (12.5%) for 44. RouteLLM's metric, the share of the quality gap recovered, is (42 &minus; 38) / (44 &minus; 38) = 0.67.</li>
-<li><b>Why it worked, and where it did not:</b> here the families the small model failed happened to differ in surface features (code), so a keyword rule found half of them. It sent none of the letter puzzles, which look simple and are hard for a small model because it sees tokens, not letters. A router's features must predict <i>your</i> cheap model's failures on <i>your</i> traffic; that is what training on preference data, or on your own graded logs, buys over keywords.</li>
-</ul>
-<div class="co warn"><div class="t">What this experiment is not</div>A small, invented question set and one run per model; a different 4B model or a larger token allowance would move the numbers. It shows how to evaluate a router (quality against strong-call share, beside random and an oracle), not how good routers are in general.</div>
-</section>
-
-<section id="rd-s11">
-<h2>11. Where your LiteLLM setup at work fits</h2>
-<p>The old notes on the parent page say you run LiteLLM at work and have hand-built a DAG engine over model calls; nothing else about that setup is known here, so this is a checklist of things this page found to be easy to get wrong, each with how to check it on any LiteLLM deployment.</p>
-<div class="tw"><table>
-<thead><tr><th>Check</th><th>Why</th><th>How to see it</th></tr></thead>
-<tbody>
-<tr><td>Which layer retries</td><td>SDK retries times gateway retries times engine retries multiply (section 4: 9 calls for one request)</td><td>Set <code>max_retries=0</code> in the SDK client that talks to the gateway; count upstream calls per request in the spend logs</td></tr>
-<tr><td>Timeouts per deployment</td><td>The default request timeout is 6,000 s; a hung provider holds a worker that long</td><td><code>timeout</code> (and <code>stream_timeout</code>) in each deployment's <code>litellm_params</code>, shorter than the client's</td></tr>
-<tr><td><code>allowed_fails</code></td><td>3 is the default and is treated as unset (section 3)</td><td>Use 2, or <code>allowed_fails_policy</code> per error type</td></tr>
-<tr><td>Single-deployment groups</td><td>Never cooled down: every request pays the full retry chain before falling back</td><td>Give important groups a second deployment, or lower <code>num_retries</code> for them</td></tr>
-<tr><td>Prices for cost routing</td><td>Read from <code>litellm_params</code> only (section 2)</td><td>Send 20 requests, count <code>x-litellm-model-id</code></td></tr>
-<tr><td><code>max_tokens</code> on every call</td><td>Budget reservation assumes 16,384 output tokens without it and serialises small budgets (section 6)</td><td>Look for 422 <code>budget_exceeded</code> while spend is far below the cap</td></tr>
-<tr><td>Redis for more than one replica</td><td>Without it, rate limits, cooldowns and budget counters are per process</td><td><code>router_settings.redis_host</code>; the limiter and cooldowns then share state</td></tr>
-<tr><td>Fallbacks evaluated</td><td>A fallback model nobody evaluated degrades answers silently (the parent page's warning)</td><td>Run the eval set against every model in each fallback chain; tag traces with the model that answered</td></tr>
-<tr><td>Response cache for agents</td><td>Exact keys rarely hit in agent loops and freeze sampled answers (section 7)</td><td><code>mode: default_off</code>, opt in per call type</td></tr>
-<tr><td>Provider prefix</td><td>Decides the wire format sent upstream (section 8)</td><td>Debug-log one outgoing request per deployment</td></tr>
-<tr><td>MCP servers behind the gateway</td><td>Since 1.106.0 (18 October 2026) LiteLLM disables stdio MCP servers, the ones it would start as local processes, by default (<a href="https://github.com/BerriAI/litellm/releases" target="_blank" rel="noopener noreferrer">releases</a>); a config that listed them stops serving their tools after the upgrade</td><td>List the gateway's MCP tools after upgrading; prefer HTTP MCP servers, and turn stdio back on only deliberately, since it lets the gateway run commands on its host</td></tr>
-</tbody></table></div>
-<p><b>A hand-built DAG engine</b> already does the workflow half of what LangGraph would (the parent page's section 10; <a href="https://app.notion.com/p/3c65c17b0d0d81529358c996382224ac" target="_blank" rel="noopener noreferrer">LangChain and LangGraph</a> in depth). Behind a gateway it should keep one job for itself: each node's deadline, passed down as the gateway call's timeout, so a slow branch fails fast instead of waiting through the gateway's whole retry chain. Retries belong in one place; with a gateway in front, that place is usually the gateway.</p>
-<p><b>Traces from the gateway.</b> To get those traces into Langfuse, <a href="https://app.notion.com/p/3c65c17b0d0d81fe82c0c6e9360afec4" target="_blank" rel="noopener noreferrer">LLM observability</a> (its section 4) found that LiteLLM's <code>langfuse_otel</code> callback sends a GenAI span per request, with usage and cost, and that LiteLLM now recommends it over the older <code>langfuse</code> callback; gateway spans see every request but not the agent around it, so join them with the app's spans on the trace id.</p>
-</section>
-
-<section id="rd-mis">
-<h2>Common mistakes</h2>
-<details class="qa"><summary>Retrying in the SDK, in the agent loop and in the gateway</summary><div>Attempts multiply (section 4). Pick one layer; set the SDK client's <code>max_retries</code> to 0 when a gateway retries for it.</div></details>
-<details class="qa"><summary>Treating a 429 from the gateway like a 429 from the provider</summary><div>A gateway 429 (<code>throttling_error</code>, retry-after 60) is your own key's limit; waiting does not help other keys and a fallback to another model will not help either. A provider 429 is capacity; a fallback or another deployment helps.</div></details>
-<details class="qa"><summary>Expecting a 10 RPM key to mean "at most 10 in any minute"</summary><div>LiteLLM's window starts at the first request and resets whole: 19 in 15 seconds were accepted here (section 5). If the upstream enforces a smooth token bucket, smooth on your side too.</div></details>
-<details class="qa"><summary>Reading a budget as an exact meter, or as a soft cap</summary><div>In 1.104.0 it is neither: parallel calls are held back by worst-case reservations, and the last sequential call can overshoot by its own cost (section 6).</div></details>
-<details class="qa"><summary>Caching agent calls at the gateway</summary><div>Every turn's request differs from the last, so exact hits are rare; when they happen they replay a sampled answer. Cache deterministic, repeated calls only (section 7).</div></details>
-<details class="qa"><summary>Running evals through a router that mixes providers</summary><div>Different quantisations and context limits behind one model name (section 9). Pin the provider and record which one answered.</div></details>
-<details class="qa"><summary>Trusting a learned router without testing it on your own traffic</summary><div>The keyword router tested here sent every question containing code to the strong model and none of the letter puzzles, whatever their difficulty: its features saw code, not difficulty (section 10). Measure its quality-cost curve against random routing on a sample of your requests before turning it on.</div></details>
-</section>
-
-<section id="rd-iq">
-<h2>Interview questions</h2>
-<details class="qa"><summary>Design the gateway for 50 internal teams calling three providers. What goes in it?</summary><div>Virtual keys per team with budgets and rate limits; model groups with several deployments each (regions, providers) and per-deployment timeouts; one retry layer with backoff and a retry budget; cooldowns for broken deployments; fallbacks across model families that were each evaluated; Redis for shared counters across replicas; spend logs and traces tagged with team, model group and the deployment that answered; caching off by default.</div></details>
-<details class="qa"><summary>Retry, cooldown, fallback: what is the difference?</summary><div>Retry: same group again after a wait (blips). Cooldown: stop routing to one deployment for a while (a broken copy). Fallback: switch to another group (the model is unavailable or unsuitable, for example the prompt is too long).</div></details>
-<details class="qa"><summary>A client has a 10 s timeout and 2 retries; the gateway has 5 s per attempt and 2 retries; the provider hangs. How many provider calls, and when does the user hear?</summary><div>Up to 3 &times; 3 = 9 calls (measured: 9, the last starting after the user's error at 32.8 s). Fix: one retry layer, inner timeouts shorter than outer ones, and cancellation propagated when the client goes away.</div></details>
-<details class="qa"><summary>How would you enforce a dollar budget under concurrency?</summary><div>Reserve the worst-case cost of each request atomically before calling (input tokens plus max output tokens at list price), settle to the real cost afterwards, and refuse when the reservation does not fit. Cap the reservation per request so a missing max_tokens does not serialise the caller. This is what LiteLLM 1.104.0 does.</div></details>
-<details class="qa"><summary>Fixed window, sliding window or token bucket for an LLM API?</summary><div>Token bucket (what Anthropic uses): it allows a burst up to the bucket size and then a steady rate, with no boundary double burst. Count tokens, not only requests, and reserve output tokens at admission because they are unknown until the end.</div></details>
-<details class="qa"><summary>When does a learned router pay off?</summary><div>When traffic mixes easy and hard requests, the cheap model is good enough on the easy ones, and the router's features actually predict difficulty on your traffic. Measure the quality against the share sent to the strong model, compared with random routing at the same share.</div></details>
-</section>
-<p class="foot">Sources are linked where each fact is used: LiteLLM 1.104.0's source (PyPI wheel, uploaded 3 October 2026; files named inline), LiteLLM's docs and GitHub issues, OpenRouter's docs and public catalogue API, Anthropic's rate-limit docs, the OpenAI (2.54.0) and Anthropic (1.11.0) Python SDKs' constants, the RouteLLM paper and repository, and Sakana's Fugu page, all read on 6 October 2026. Recordings, 6 October 2026, one Apple M1 Pro: <code>litellm.Router</code> runs (routing, failures) and a LiteLLM proxy with Postgres 16 (amplification, rate limits, budgets, cache, translation) in front of fake providers written for this page and the local model <code>mlx-community/Qwen3-4B-Instruct-2507-4bit</code> (mlx-lm 0.32.0); 48 Claude Haiku 4.5 answers through Claude Code 2.1.291 on a subscription (costs are its API-price estimates). Redacted recordings, the scripts that made them and <code>recompute.py</code>, which re-derives every number quoted, are in this page's <code>src/</code>. This is a new page: there was no old text to carry over.</p>
-</div>
-<div class="tab" id="t-fail" role="tabpanel" hidden>
-<style>
-#t-fail .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-fail .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-fail .an-play{min-width:6.4em}
-#t-fail .an-cap{min-height:4.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
-#t-fail .an-cap .t{font-weight:600;font-size:14px}#t-fail .an-cap p{margin:2px 0;font-size:13.5px}
-#t-fail .fl-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
-#t-fail .fl-leg i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-</style>
-<h2 style="margin-top:14px">Failure lab: every attempt, replayed</h2>
-<p>Each case below is a real recording from section 3 or section 4 of the Reading tab. Pick one, then play: the cursor walks through the attempts in the order they happened, lane by lane (the caller's requests, healthy provider A, failing provider C), with a caption for each and running counts. Pick two cases one after the other to compare the same failure under two settings (the before/after pairs are listed under the picker).</p>
-<div class="card" id="fl-card">
-<div class="band">Router cases (litellm.Router, two deployments A and C, num_retries 2)</div>
-<div class="chips" id="fl-pick2" role="group" aria-label="Router case"></div>
-<div class="band">Retry layers (OpenAI SDK, LiteLLM proxy, provider hanging 30 s)</div>
-<div class="chips" id="fl-pick3" role="group" aria-label="Retry layers case"></div>
-<p class="small mute">Pairs worth comparing: 429 against 503 (instant cooldown against error-rate cooldown); allowed_fails 3 against 1 (the default trap); context error with and without fallbacks; SDK 2 retries against 0.</p>
-<div id="fl-svg" class="plot"></div>
-<div class="fl-leg"><span><i style="background:var(--c1)"></i>request (caller waiting)</span><span><i style="background:var(--good)"></i>answered</span><span><i style="background:var(--bad)"></i>error</span><span><i style="background:var(--c5)"></i>provider working on a call (retry layers)</span><span><i style="background:var(--dim)"></i>provider busy on a call nobody will read</span></div>
-<div class="an-ctl" id="fl-ctl"></div>
-<div class="an-cap" id="fl-cap" aria-live="polite"></div>
-<div class="out" id="fl-cnt"></div>
-</div>
-<details class="mist"><summary>Every request of this case</summary><div class="b"><div class="tw"><table id="fl-tab"></table></div></div></details>
-<div class="co"><div class="t">How it was recorded</div>The fake providers are one small Python HTTP server each (<code>src/code/fake_provider.py</code>), scripted per case to answer, fail with a status or hang; each logs every call it receives with its start and end time and the request's text, which names the case and request number, so every attempt is matched to its request. Router cases: <code>src/code/e2_failures.py</code> (LiteLLM 1.104.0, sequential requests 0.3 s apart, a warm-up first because the first failing call in a fresh process paid about 10 s of one-off set-up in a trial run). Retry layers: <code>src/code/e3_amplify.py</code> (openai 2.54.0 against the proxy).</div>
-</div>
-<div class="tab" id="t-lim" role="tabpanel" hidden>
-<style>
-#t-lim .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-lim .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-lim .an-play{min-width:6.4em}
-#t-lim .an-cap{min-height:3.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
-#t-lim .an-cap .t{font-weight:600;font-size:14px}#t-lim .an-cap p{margin:2px 0;font-size:13.5px}
-</style>
-<h2 style="margin-top:14px">Limits lab: the same traffic through four rate limiters</h2>
-<p>Two recorded traces from section 5 of the Reading tab: a key that sends one request a second for 130 s, and a key that sends a burst on each side of a window boundary. The top row is what LiteLLM 1.104.0 actually answered; the second row is LiteLLM's rule as read from its source (a 60-second window that starts at the first request, in whole wall-clock seconds), replayed on the same arrival times, and it reproduces every recorded decision. The other rows replay the same arrivals through a calendar-minute window, a sliding log and a token bucket, each allowing 10 per 60 s. Rejected requests do not use up capacity in any of them.</p>
-<div class="card" id="lm-card">
-<div class="seg" id="lm-mode" role="group" aria-label="Trace"><button data-m="burst" class="on">Burst at the boundary</button><button data-m="steady">One request per second</button></div>
-<label class="small" style="display:block;margin:6px 0">Limit per 60 s: <b id="lm-limv">10</b> <input type="range" id="lm-lim" min="2" max="20" value="10" step="1" aria-label="Limit per 60 seconds" style="max-width:260px;display:inline-block;vertical-align:middle"></label>
-<div id="lm-svg" class="plot"></div>
-<div class="an-ctl" id="lm-ctl"></div>
-<div class="an-cap" id="lm-cap" aria-live="polite"></div>
-<div class="tw"><table id="lm-tab"></table></div>
-<p class="small mute" id="lm-note"></p>
-</div>
-<div class="co"><div class="t">Reading the rows</div><b>LiteLLM (anchored window)</b>: one start time and one counter; reset whole once 60 s have passed since the start. <b>Calendar minute</b>: reset at every whole minute of the clock; what LiteLLM's router uses for a deployment's own <code>rpm</code>. <b>Sliding log</b>: remember every accepted request and allow a new one if fewer than the limit were accepted in the last 60 s; exact, memory grows with the limit. <b>Token bucket</b>: a bucket holding up to the limit, refilled continuously at limit per 60 s, each request takes one token; what Anthropic says it uses for the Claude API. The algorithms themselves, with their history and costs, are on <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>.</div>
-<h3>Budgets: every call of the four budget runs</h3>
-<p>Section 6 of the Reading tab: a key with a $0.0004 budget, calls costing $0.00008 each, a provider that takes 2 s. Each row is one call, as recorded.</p>
-<div class="seg" id="lm-bmode" role="group" aria-label="Budget run"><button data-m="seq">10 in sequence</button><button data-m="noreserve_no_max_tokens">20 at once, reservation off</button><button data-m="no_max_tokens" class="on">20 at once, no max_tokens</button><button data-m="max_tokens_16">20 at once, max_tokens 16</button></div>
-<div id="lm-bsvg" class="plot"></div>
-<p class="small mute" id="lm-bnote"></p>
-<div class="co warn"><div class="t">The refusal messages, verbatim (key hashes removed)</div><p class="mono small" id="lm-msg"></p></div>
-</div>
-<div class="tab" id="t-route" role="tabpanel" hidden>
-<style>
-#t-route .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-route .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-route .an-play{min-width:6.4em}
-#t-route .an-cap{min-height:3.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
-#t-route .an-cap .t{font-weight:600;font-size:14px}#t-route .an-cap p{margin:2px 0;font-size:13.5px}
-#t-route .rt-row{display:grid;grid-template-columns:minmax(0,11em) minmax(0,1fr) 5.4em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
-#t-route .rt-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#t-route .rt-row .v{text-align:right}
-#t-route .rt-bar{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}#t-route .rt-bar span{position:absolute;left:0;top:0;bottom:0;background:var(--c4)}
-#t-route td.ok{color:var(--good);font-weight:600}#t-route td.no{color:var(--bad);font-weight:600}
-@media (max-width:520px){#t-route .rt-row{grid-template-columns:minmax(0,8em) minmax(0,1fr) 4.6em;font-size:12px}#t-route .rt-row .nm{white-space:normal;line-height:1.2}}
-</style>
-<h2 style="margin-top:14px">Routing lab</h2>
-<h3>1. Forty requests under each LiteLLM strategy</h3>
-<p>Section 2 of the Reading tab: one group, copy A answering in 0.2 s and copy B in 1.0 s, 40 requests four at a time. Each bar is one request, placed at the time it was sent and coloured by the copy that answered. Play to watch the strategy decide; switch strategy to compare on the same requests.</p>
-<div class="card" id="ro-card">
-<div class="chips" id="ro-pick" role="group" aria-label="Strategy"></div>
-<div id="ro-svg" class="plot"></div>
-<div class="an-ctl" id="ro-ctl"></div>
-<div class="an-cap" id="ro-cap" aria-live="polite"></div>
-</div>
-<h3>2. One model, many providers on OpenRouter</h3>
-<p>The endpoint lists OpenRouter published for four open-weights models on 6 October 2026 (<code>GET /api/v1/models/{author}/{slug}/endpoints</code>). The bars apply the documented default rule (inverse square of price) to whatever survives your filters, the way the <code>provider</code> options <code>quantizations</code>, a minimum context and <code>max_price</code> would narrow it. The price used is the input price; the docs do not say which price, nor how many lowest-cost candidates are kept, so read the shares as the rule's shape, not OpenRouter's exact numbers.</p>
+<dl><dt>p<sub>i</sub></dt><dd>provider i's price. The docs' example: at $1, $2 and $3 per million tokens, the $1 provider is 9 times likelier than the $3 one. They do not say which price (input or output) nor how many "lowest-cost candidates" are kept; the shares below use the input price over every listed endpoint, so they illustrate the rule, not OpenRouter's exact numbers.</dd></dl></div>
 <div class="card">
+<div class="t" style="font-weight:600;font-size:14px">One model name, many endpoints: price, precision and context all differ</div>
 <div class="chips" id="ro-orpick" role="group" aria-label="Model"></div>
 <div class="ctl">
 <label>Allowed quantisations <span id="ro-q"></span></label>
@@ -505,28 +438,121 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 </div>
 <div id="ro-or"></div>
 <p class="small mute" id="ro-ornote"></p>
+<p class="small mute">Endpoint lists OpenRouter published for four open-weights models on 6 October 2026 (<code>GET /api/v1/models/{author}/{slug}/endpoints</code>, no key needed). The filters do what the <code>provider</code> options <code>quantizations</code>, a minimum context and <code>max_price</code> would. <span class="meas">MEASURED (catalogue)</span></p>
 </div>
-<h3>3. The router experiment, question by question</h3>
-<p>Section 10 of the Reading tab: 48 questions, the local 4B model and Claude Haiku 4.5, LiteLLM's complexity-router score for each question. Move the threshold: every question scoring above it goes to Haiku. The dot shows where that lands next to random routing and a perfect router.</p>
+<p><b>Why it matters for an agent.</b> "The same model" is not the same numbers. For Llama 3.3 70B Instruct, 11 endpoints ranged from $0.10 to $1.04 per million input tokens, declared their weights as fp8, bf16, fp16 or nothing, and offered contexts from 12,288 to 131,072 tokens; under the rule the two cheapest take about two thirds of first picks; gpt-oss-120b had up to 23 endpoints. An eval run through default routing mixes providers, and an agent's long prompt needs an endpoint whose context fits. Pin providers for evals (<code>order</code> with <code>allow_fallbacks: false</code>, or <code>quantizations</code>), and read the <code>provider</code> field each response carries. The <code>provider</code> object's other options: <code>only</code>, <code>ignore</code>, <code>require_parameters</code>, <code>data_collection</code>, <code>zdr</code>, <code>sort</code> (price, throughput or latency), <code>preferred_min_throughput</code>, <code>preferred_max_latency</code>; the suffixes <code>:nitro</code> and <code>:floor</code> mean sort by throughput and by price. LiteLLM can use OpenRouter as one more upstream (<code>openrouter/</code> prefix), so the two compose: your own gateway for keys, budgets and logs, OpenRouter for reach.</p>
+</section>
+<section id="rd-s10">
+<h2>10. Routing by difficulty: routers and cascades</h2>
+<p>Sections 2 to 9 route between copies of the <i>same</i> model. Here the gateway picks <i>which</i> model: the cheapest that will answer well. Tier prices differ by a factor of 2 to 40 (dated table, section 11), so savings are large if most traffic is easy, but every misrouted hard question is a worse answer no error counter sees. So a router is measured as a classifier on labelled traffic: <span class="hl">answer quality against the share of calls sent to the strong model</span>, beside random routing at the same share (any router can trade cost for quality; a good one does it better than a coin).</p>
+<p><b>Rules come first.</b> Most production routers start as <i>tier rules</i> ("summaries go small") or a small classifier: Huyen describes "an intent classifier that predicts what the user is trying to do" so "simpler queries" go "to cheaper models" (<a href="https://huyenchip.com/2024/07/25/genai-platform.html" target="_blank" rel="noopener noreferrer">Building A Generative AI Platform, 25 Jul 2024</a>). <i>Context rules</i> send long prompts to pools configured for long context; getting one wrong is what happened in August 2025, when a routing bug sent some Claude Sonnet 4 requests to servers configured for a different context length, up to 16% of them in the worst hour, with normal error rates (<a href="https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues" target="_blank" rel="noopener noreferrer">Anthropic, 17 Sep 2025</a>). <i>Policy rules</i> pin a tenant to a contracted vendor, keep data in a region, or send sensitive data only to self-hosted models.</p>
+<div class="tw"><table>
+<thead><tr><th>Approach</th><th>Decides from, and when</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td>Rules on the prompt</td><td>keywords, length, code markers, weighted into a score; before the call, in under a millisecond</td><td>LiteLLM <code>complexity_router</code> <span class="srcl">SOURCE</span></td></tr>
+<tr><td>Classifier trained on preferences</td><td>which of two models people preferred on similar prompts; before the call</td><td>RouteLLM (Ong et al., 2024) <span class="docs">PAPER</span></td></tr>
+<tr><td><span class="hl">Cascade</span></td><td>the cheap model's own answer, judged by a scorer; after the cheap call, escalating if rejected</td><td>FrugalGPT (Chen, Zaharia and Zou, 2023) <span class="docs">PAPER</span></td></tr>
+<tr><td>Online learning</td><td>feedback on live traffic, a bandit per request type and model</td><td>LiteLLM <code>adaptive_router</code> <span class="srcl">SOURCE</span></td></tr>
+<tr><td>Other people's spending</td><td>which models users pay for, per task type</td><td>OpenRouter Auto Router <span class="docs">DOCS</span></td></tr>
+</tbody></table></div>
+<p>A router guesses difficulty from the prompt and adds no latency; a cascade sees the real answer but pays the cheap call, and its latency, on every hard request. The details, with weights, quotes and reported savings, are in the closed block below the experiment.</p>
+<p><b>The experiment.</b> 48 questions written for this page with exactly gradable answers, four families of 12: one-step facts, arithmetic word problems of 2 to 7 steps, "what does this Python print", and letter puzzles (count the r's in a made-up word, or write it backwards). Each was answered once by the <b>local model on Apple M1 Pro</b> (Qwen3 4B, temperature 0, up to 512 tokens) and once by <b>Claude Haiku 4.5</b> (Claude Code CLI, no tools, the same instruction), each ending with an "ANSWER:" line; LiteLLM's complexity router then scored every question offline. Predict: will a keyword router send the letter puzzles up? Then move the threshold. <span class="meas">MEASURED</span></p>
 <div class="card">
+<div class="t" style="font-weight:600;font-size:14px">The keyword router recovers two thirds of the gap, because it spots code, not difficulty</div>
 <label class="small" style="display:block">Send to Haiku when the complexity score is above <b id="ro-thv"></b> <input type="range" id="ro-th" min="0" max="7" step="1" value="5" aria-label="Threshold" style="max-width:300px;display:inline-block;vertical-align:middle"></label>
 <div id="ro-curve" class="plot"></div>
 <div class="out" id="ro-cnt"></div>
+<p class="small mute">Vertical: questions right out of 48; horizontal: share sent to Haiku. Dashed: random routing (expected value); green: a perfect router; purple: every threshold of the complexity score, the dot at the one chosen. The default threshold sends the router's MEDIUM tier up.</p>
+</div>
+<ul>
+<li><b>The two models:</b> local 38 of 48, Haiku 44 of 48. Both got every fact and every arithmetic problem; the local model missed 4 code questions and 6 letter puzzles (8 of its 10 misses ran out of its 512-token allowance without an ANSWER line); Haiku missed 4 backwards-spelling puzzles. Haiku's 48 answers cost $0.19 at API list prices (the CLI's <code>total_cost_usd</code>; the subscription paid).</li>
+<li><b>The complexity router</b> scored all 12 code questions MEDIUM (they contain code) and all 36 others SIMPLE. Sending MEDIUM up: 42 right with 25% of calls to Haiku. Random routing at 25% would expect 39.5; a perfect router needs only 6 strong calls (12.5%) for 44. RouteLLM's metric, the share of the quality gap recovered, is (42 &minus; 38) / (44 &minus; 38) = 0.67.</li>
+<li><b>Why it worked, and where it did not:</b> the families the small model failed happened to differ in surface features (code), so a keyword rule found half of them. It sent none of the letter puzzles, which look simple and are hard for a small model because it sees tokens, not letters. A router's features must predict <i>your</i> cheap model's failures on <i>your</i> traffic; that is what training on preference data, or on your own graded logs, buys over keywords.</li>
+</ul>
+<div class="co warn"><div class="t">What this experiment is not</div>A small invented question set, one run per model: it shows how to evaluate a router, not how good routers are. Grading is lenient on units ("2500 grams" counts for 2500); Haiku's raw grade before that was 39 of 48.</div>
+<details class="dp" id="fgw-rtdet"><summary>The 48 questions, both answers and each score <span class="mute">(table, uses the threshold above)</span></summary><div class="b">
 <div class="chips" id="ro-fam" role="group" aria-label="Family"></div>
 <div class="tw"><table id="ro-tab"></table></div>
-<p class="small mute">Answers are the final "ANSWER:" line of each reply (click a row for the end of the full reply). Grading: a number is right if the first number in that line equals the answer ("2500 grams" counts for 2500); a word must match exactly. "no answer": the reply hit its 512-token allowance before an ANSWER line. Questions and answers were written for this page (<code>src/code/r_tasks.py</code>, seed 7).</p>
+<p class="small mute">Answers are the final "ANSWER:" line of each reply (click a row for the end of the full reply). A number is right if the first number in that line equals the answer; a word must match exactly. "no answer": the reply hit its 512-token allowance before an ANSWER line. Questions: <code>src/code/r_tasks.py</code>, seed 7.</p>
 <div id="ro-det"></div>
-</div>
+</div></details>
+<details class="dp"><summary>The five approaches in detail: weights, quotes, reported savings <span class="mute">(depth, 2 min)</span></summary><div class="b">
+<div class="tw"><table>
+<thead><tr><th>Approach</th><th>Decides from</th><th>Details</th></tr></thead>
+<tbody>
+<tr><td>Rules on the prompt</td><td>keywords, length, code, "step by step" markers, weighted into a score with tier boundaries</td><td>LiteLLM's <code>complexity_router</code>: weights code 0.30, reasoning markers 0.25, technical terms 0.25, token count 0.10, simple indicators 0.05, multi-step 0.03, question complexity 0.02; tiers SIMPLE, MEDIUM, COMPLEX, REASONING at 0.15, 0.35, 0.60; "no external API calls and &lt;1ms latency"; "Inspired by ClawRouter" <span class="srcl">SOURCE</span></td></tr>
+<tr><td>A classifier trained on preferences</td><td>which of two models people preferred on similar prompts; decides <i>before</i> any call</td><td>RouteLLM (<a href="https://arxiv.org/abs/2406.18665" target="_blank" rel="noopener noreferrer">Ong et al., 2024</a>): routers "leveraging human preference data and data augmentation", which the abstract says reduce costs "by over 2 times in certain cases" without compromising response quality; matrix factorisation ("recommended"), similarity-weighted Elo, a BERT classifier and an LLM classifier, with the threshold calibrated to a target share of strong calls (<a href="https://github.com/lm-sys/RouteLLM" target="_blank" rel="noopener noreferrer">repo</a>) <span class="docs">PAPER</span></td></tr>
+<tr><td>A cascade</td><td>the cheap model's answer itself, judged by a scorer; decides <i>after</i> the cheap call</td><td>FrugalGPT (<a href="https://arxiv.org/abs/2305.05176" target="_blank" rel="noopener noreferrer">Chen, Zaharia and Zou, May 2023</a>): query models in order of cost, stop when a learned scorer accepts the answer; the abstract reports matching "the best individual LLM (e.g. GPT-4)" "with up to 98% cost reduction" on its tasks. A cascade pays the cheap call on every hard request and adds its latency, in exchange for seeing the actual answer rather than guessing from the prompt. <span class="docs">PAPER</span></td></tr>
+<tr><td>Online learning</td><td>feedback signals on live traffic</td><td>LiteLLM's <code>adaptive_router</code> (v0): seven request types, a Beta-distribution bandit per (type, model) sampled per request, scored as quality weight times sample plus cost weight times normalised cost; updates flushed to Postgres about every 10 s <span class="srcl">SOURCE</span></td></tr>
+<tr><td>Other people's spending</td><td>which models users pay for, per task type</td><td>OpenRouter's Auto Router (<code>openrouter/auto</code>): "Powered by the market: the aggregate spend of millions of people using OpenRouter, measured over a trailing 7-day window for each task type", about 30 task types, "no additional fee"; <code>allowed_models</code>, <code>excluded_models</code>, <code>cost_tier</code> restrict it (<a href="https://openrouter.ai/docs/guides/routing/auto-model-selection" target="_blank" rel="noopener noreferrer">Auto Router</a>, read 6 Oct 2026) <span class="docs">DOCS</span></td></tr>
+</tbody></table></div>
+</div></details>
+<details class="dp"><summary>A trained orchestrator sold as one model: Sakana Fugu <span class="mute">(depth)</span></summary><div class="b"><p>Sakana Fugu is "a Multi-Agent System, Delivered as One Model" behind an OpenAI-compatible API, built on the TRINITY ("a lightweight evolved coordinator ... assigning Thinker, Worker, or Verifier roles") and Conductor ("trained with reinforcement learning") papers (<a href="https://sakana.ai/fugu/" target="_blank" rel="noopener noreferrer">Sakana</a>, read 6 Oct 2026; prices in the dated table). Not a router in front of models but a system behind one model name: it takes the orchestration away from you. <span class="docs">DOCS</span></p></div></details>
+</section>
+
+<section id="rd-s11">
+<h2>11. The tools, compared by design</h2>
+<p>Every gateway does the duties of section 1; they differ in <b>where they run, who holds the provider keys and the bill, and what they add</b>. Read from each project's own documentation on the dates shown; Kong AI Gateway is another option, not checked here. <span class="docs">DOCS</span></p>
+<div class="tw"><table>
+<thead><tr><th>Tool</th><th>Design</th><th>What it adds or lacks</th></tr></thead>
+<tbody>
+<tr><td><b>LiteLLM</b> (this page's recordings)</td><td>Open-source Python: an in-process <code>Router</code> and a self-hosted proxy with Postgres for keys and spend, Redis for shared counters</td><td>Virtual keys, nested budgets with reservation, rate limits, cooldowns, fallbacks by error type, many provider prefixes, response and semantic caches; every rule in sections 2 to 8 is its source at 1.104.0</td></tr>
+<tr><td><b>OpenRouter</b></td><td>Hosted, rented: one key and one bill, OpenRouter holds the provider relationships</td><td>A market of providers per model with price-weighted provider routing (section 9), model fallbacks, Auto Router; no self-hosting; your data passes through a third party (the <code>data_collection</code> and <code>zdr</code> options restrict which providers see it)</td></tr>
+<tr><td><b>Portkey gateway</b></td><td>Open source (MIT), runs on Node.js (<code>npx @portkey-ai/gateway</code>), Docker or Cloudflare Workers, or Portkey's hosted cloud</td><td>Fallbacks, retries ("up to 5 times"), weighted load balancing across keys or providers, response caching, guardrail checks on inputs and outputs; claims "&lt;1ms latency" and a 122 kb footprint (<a href="https://github.com/Portkey-AI/gateway" target="_blank" rel="noopener noreferrer">README</a>, read 24 Oct 2026; vendor figures, not measured here)</td></tr>
+<tr><td><b>Envoy AI Gateway</b> (now Agent Router)</td><td>Built on Envoy proxy, configured as Kubernetes resources; two tiers (a front gateway for authentication, top-level routing and global rate limits; a second in front of self-hosted models)</td><td>Token-based rate limiting charged after the response (section 5), QuotaPolicy for cumulative spend; the network-proxy view of a gateway</td></tr>
+<tr><td><b>Cloud gateways</b>: Azure API Management AI gateway, Cloudflare AI Gateway</td><td>A feature of an existing managed API or edge platform, not a separate service</td><td>Azure: <code>llm-token-limit</code> (TPM or a token quota per counter key, with prompt tokens estimated before the call), semantic caching, round-robin, weighted, priority and session-aware load balancing, a circuit breaker that honours <code>Retry-After</code>, token metrics (<a href="https://learn.microsoft.com/en-us/azure/api-management/genai-gateway-capabilities" target="_blank" rel="noopener noreferrer">Microsoft Learn</a>). Cloudflare: analytics, logging, caching, rate limiting, "request retry and model fallbacks" (<a href="https://developers.cloudflare.com/ai-gateway/" target="_blank" rel="noopener noreferrer">docs</a>). Both read 24 Oct 2026.</td></tr>
+</tbody></table></div>
+<p><b>Choosing:</b> self-host (LiteLLM, Portkey, Envoy) when the provider keys, the logs and the budget rules must stay yours; rent (OpenRouter) for reach across open-weights providers without contracts; use the cloud gateway when the models already live in that cloud and its API platform already fronts your services. The layers compose: LiteLLM in front, OpenRouter as one upstream.</p>
+<details class="dp" id="fgw-dated"><summary>Volatile facts, dated: prices, fees, rosters and versions <span class="mute">(one table)</span></summary><div class="b">
+<div class="tw"><table>
+<thead><tr><th>Fact</th><th>Value</th><th>Source, date</th></tr></thead>
+<tbody>
+<tr><td>Tier prices, $ per million input / output tokens</td><td>Claude 4.5 Haiku $1 / $5; Sonnet 5.5 $2 / $10; Opus 5.5 $4 / $20; GPT-6 Luna $0.10 / $0.50</td><td>the knowledge base's price snapshot, 2026-10-01</td></tr>
+<tr><td>OpenRouter catalogue</td><td><span class="fgw-v" data-v="or_models"></span> models from <span class="fgw-v" data-v="or_authors"></span> model authors, <span class="fgw-v" data-v="or_free"></span> of them free variants</td><td><code>GET /api/v1/models</code>, 6 Oct 2026</td></tr>
+<tr><td>OpenRouter fees</td><td>"no markup on inference pricing"; buying credits 5.5% ($0.80 minimum) by card, 5% in crypto; BYOK: "Pay-as-you-go includes $25,000 per month with no BYOK fee", 5% above; free models 50 requests a day, 1,000 after buying $10 of credits</td><td><a href="https://openrouter.ai/docs/faq" target="_blank" rel="noopener noreferrer">FAQ</a>, 6 Oct 2026</td></tr>
+<tr><td>Sakana Fugu</td><td>Fugu Ultra $5 / $30, Fugu Max $2 / $6 per million input / output tokens</td><td><a href="https://sakana.ai/fugu/" target="_blank" rel="noopener noreferrer">Sakana</a>, 6 Oct 2026</td></tr>
+<tr><td>Portkey reach</td><td>"1,600+ LLMs", "45+ providers" (the README also says 250+ and 200+ in other places)</td><td><a href="https://github.com/Portkey-AI/gateway" target="_blank" rel="noopener noreferrer">README</a>, 24 Oct 2026</td></tr>
+<tr><td>LiteLLM versions</td><td>1.104.0 recorded here (uploaded 3 Oct 2026); its price table stops at Claude Sonnet 4.5; since 1.106.0 (18 Oct 2026) stdio MCP servers are disabled by default</td><td>PyPI; <a href="https://github.com/BerriAI/litellm/releases" target="_blank" rel="noopener noreferrer">releases</a></td></tr>
+<tr><td>Envoy AI Gateway</td><td>renamed Agent Router, v1.1.0 (21 Aug 2026)</td><td>GitHub</td></tr>
+</tbody></table></div>
+</div></details>
+</section>
+<section id="rd-dp">
+<h2>Depth: a checklist for your own setup, and interview rehearsal</h2>
+<details class="dp"><summary>Checklist for a LiteLLM deployment at work <span class="mute">(each row: what this page found, and how to see it)</span></summary><div class="b">
+<p>The old notes on the parent page say you run LiteLLM at work and have hand-built a DAG engine over model calls; nothing else about that setup is known here.</p>
+<div class="tw"><table>
+<thead><tr><th>Check</th><th>Why</th><th>How to see it</th></tr></thead>
+<tbody>
+<tr><td>Which layer retries</td><td>SDK, gateway and engine retries multiply (section 4)</td><td>Set <code>max_retries=0</code> in the SDK client that talks to the gateway; count upstream calls per request in the spend logs</td></tr>
+<tr><td>Timeouts per deployment</td><td>The default request timeout is 6,000 s; a hung provider holds a worker that long</td><td><code>timeout</code> (and <code>stream_timeout</code>) in each deployment's <code>litellm_params</code>, shorter than the client's</td></tr>
+<tr><td><code>allowed_fails</code></td><td>3 is the default and is treated as unset (section 3)</td><td>Use 2, or <code>allowed_fails_policy</code> per error type</td></tr>
+<tr><td>Single-deployment groups</td><td>Never cooled down: every request pays the full retry chain before falling back</td><td>Give important groups a second deployment, or lower <code>num_retries</code> for them</td></tr>
+<tr><td>Prices for cost routing</td><td>Read from <code>litellm_params</code> only (section 2)</td><td>Send 20 requests, count <code>x-litellm-model-id</code></td></tr>
+<tr><td><code>max_tokens</code> on every call</td><td>Budget reservation assumes 16,384 output tokens without it (section 6)</td><td>Look for 422 <code>budget_exceeded</code> while spend is far below the cap</td></tr>
+<tr><td>Redis for more than one replica</td><td>Without it, rate limits, cooldowns and budget counters are per process</td><td><code>router_settings.redis_host</code></td></tr>
+<tr><td>Fallbacks evaluated</td><td>A fallback model nobody evaluated degrades answers silently</td><td>Run the eval set against every model in each fallback chain; tag traces with the model that answered</td></tr>
+<tr><td>Response cache for agents</td><td>Exact keys rarely hit in agent loops and freeze sampled answers (section 7)</td><td><code>mode: default_off</code>, opt in per call type</td></tr>
+<tr><td>Provider prefix</td><td>Decides the wire format sent upstream (section 8)</td><td>Debug-log one outgoing request per deployment</td></tr>
+<tr><td>MCP servers behind the gateway</td><td>Since 1.106.0 LiteLLM disables stdio MCP servers (the ones it would start as local processes) by default; a config that listed them stops serving their tools after the upgrade</td><td>List the gateway's MCP tools after upgrading; prefer HTTP MCP servers, and turn stdio back on only deliberately, since it lets the gateway run commands on its host</td></tr>
+</tbody></table></div>
+<p><b>A hand-built DAG engine</b> already does the workflow half of what LangGraph would (the parent page's section 10; <a href="https://app.notion.com/p/3c65c17b0d0d81529358c996382224ac" target="_blank" rel="noopener noreferrer">LangChain and LangGraph</a> in depth). Behind a gateway it should keep one job for itself: each node's deadline, passed down as the gateway call's timeout, so a slow branch fails fast instead of waiting through the gateway's whole retry chain. Retries belong in one place; with a gateway in front, that place is usually the gateway.</p>
+<p><b>Traces from the gateway.</b> <a href="https://app.notion.com/p/3c65c17b0d0d81fe82c0c6e9360afec4" target="_blank" rel="noopener noreferrer">LLM observability</a> (its section 4) found that LiteLLM's <code>langfuse_otel</code> callback sends a GenAI span per request, with usage and cost, and that LiteLLM now recommends it over the older <code>langfuse</code> callback; gateway spans see every request but not the agent around it, so join them with the app's spans on the trace id.</p>
+</div></details>
+<details class="dp"><summary>Interview rehearsal: design angles <span class="mute">(optional)</span></summary><div class="b">
+<details class="qa"><summary>Design the gateway for 50 internal teams calling three providers. What goes in it?</summary><div>Virtual keys per team with budgets and rate limits; model groups with several deployments each (regions, providers) and per-deployment timeouts; one retry layer with backoff and a retry budget; cooldowns for broken deployments; fallbacks across model families that were each evaluated; Redis for shared counters across replicas; spend logs and traces tagged with team, model group and the deployment that answered; caching off by default.</div></details>
+<details class="qa"><summary>A client has a 10 s timeout and 2 retries; the gateway has 5 s per attempt and 2 retries; the provider hangs. How many provider calls, and when does the user hear?</summary><div>Up to 3 &times; 3 = 9 calls (measured: 9, the last starting after the user's error at 32.8 s). Fix: one retry layer, inner timeouts shorter than outer ones, and cancellation propagated when the client goes away.</div></details>
+<details class="qa"><summary>How would you enforce a dollar budget under concurrency?</summary><div>Reserve the worst-case cost of each request atomically before calling (input tokens plus max output tokens at list price), settle to the real cost afterwards, and refuse when the reservation does not fit. Cap the reservation per request so a missing max_tokens does not serialise the caller. This is what LiteLLM 1.104.0 does.</div></details>
+<details class="qa"><summary>Fixed window, sliding window or token bucket for an LLM API?</summary><div>Token bucket (what Anthropic uses): it allows a burst up to the bucket size and then a steady rate, with no boundary double burst. Count tokens, not only requests, and reserve output tokens at admission because they are unknown until the end.</div></details>
+<details class="qa"><summary>Router or cascade?</summary><div>A router decides from the prompt before any call: no extra latency, but it must predict difficulty. A cascade calls the cheap model first and escalates when a scorer rejects the answer: it sees the real answer but pays the cheap call and its latency on every hard request. Either is judged by quality against the strong-call share, beside random routing at the same share.</div></details>
+</div></details>
+</section>
+<p class="foot">Sources are linked where each fact is used: LiteLLM 1.104.0's source (PyPI wheel, uploaded 3 October 2026; files named inline), LiteLLM's docs and GitHub issues, OpenRouter's docs and public catalogue API, Anthropic's rate-limit docs, the OpenAI (2.54.0) and Anthropic (1.11.0) Python SDKs' constants, the RouteLLM paper and repository, and Sakana's Fugu page, all read on 6 October 2026; the FrugalGPT paper and the Portkey, Azure API Management and Cloudflare AI Gateway documentation, read on 24 October 2026. Recordings, 6 October 2026, one Apple M1 Pro: <code>litellm.Router</code> runs (routing, failures) and a LiteLLM proxy with Postgres 16 (amplification, rate limits, budgets, cache, translation) in front of fake providers written for this page and the local model <code>mlx-community/Qwen3-4B-Instruct-2507-4bit</code> (mlx-lm 0.32.0); 48 Claude Haiku 4.5 answers through Claude Code 2.1.291 on a subscription (costs are its API-price estimates). Redacted recordings, the scripts that made them and <code>recompute.py</code>, which re-derives every number quoted, are in this page's <code>src/</code>.</p>
 </div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <section id="s-more">
 <h2 style="margin-top:14px">Further reading</h2>
-<h3>On this page</h3>
-<div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-fail">Failure lab</a></div><p>Every attempt of the eight router cases and the three retry-layer cases, replayed with captions and counters. <span class="rt">15 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-lim">Limits lab</a></div><p>Two recorded traces through LiteLLM's window and three other limiters; every call of the budget runs. <span class="rt">10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-route">Routing lab</a></div><p>Forty requests per strategy, OpenRouter's endpoint lists with filters, the 48-question router experiment. <span class="rt">15 min</span></p></div>
-</div>
+<p class="small mute">The recorded replays that used to be lab tabs are now beside their sections: the forty requests per strategy (section 2), every failed attempt (end of section 4), four rate limiters on the same traffic (section 5), every budget call (section 6), OpenRouter endpoints with filters (section 9), and the 48-question router experiment (section 10).</p>
 <h3>The parent and its tabs</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7" target="_blank" rel="noopener noreferrer">Topic: agentic-frameworks</a></div><p>Why a gateway at all (Reading section 6), and the Production stack tab: a LiteLLM proxy retrying and falling back on a failing provider, keys, a hundred-request simulator, then tracing, evals and memory around the same loop. <span class="rt">30 min</span></p></div>
@@ -565,20 +591,22 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div class="sp"><div class="n"><a href="https://platform.claude.com/docs/en/api/rate-limits" target="_blank" rel="noopener noreferrer">Claude API: rate limits</a></div><p>Token bucket, cache-aware ITPM, headers, spend caps. <span class="rt">15 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/2406.18665" target="_blank" rel="noopener noreferrer">RouteLLM (Ong et al., 2024)</a> and <a href="https://github.com/lm-sys/RouteLLM" target="_blank" rel="noopener noreferrer">its code</a></div><p>Routers trained on preference data, evaluated as quality against strong-model share. <span class="rt">45 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://sakana.ai/fugu/" target="_blank" rel="noopener noreferrer">Sakana Fugu</a></div><p>A multi-model system sold as one model name. <span class="rt">10 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2305.05176" target="_blank" rel="noopener noreferrer">FrugalGPT (Chen, Zaharia and Zou, 2023)</a></div><p>Prompt adaptation, model approximation and the LLM cascade: query cheap models first and stop when a scorer accepts. <span class="rt">40 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://github.com/Portkey-AI/gateway" target="_blank" rel="noopener noreferrer">Portkey gateway</a> and <a href="https://learn.microsoft.com/en-us/azure/api-management/genai-gateway-capabilities" target="_blank" rel="noopener noreferrer">Azure API Management AI gateway</a></div><p>Two other gateway designs: a small open-source Node.js gateway, and gateway policies inside a cloud API platform. <span class="rt">20 min</span></p></div>
 </div>
 </section>
 </div>
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab (Gateways and routing): shared helpers and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
-  const onRender=(f,tab)=>{tab=tab||'t-read';(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER[tab]=window.TAB_RENDER[tab]||[]).push(f)};
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
   // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
   function anim(o){
     const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
@@ -604,9 +632,9 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
-    onRender(()=>{show();kick()},o.tab);
+    onRender(()=>{show();kick()});
     show();
     return {
       // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
@@ -673,7 +701,7 @@ window.FGW={"note":"Recorded 2026-10-06 on an Apple M1 Pro; LiteLLM 1.104.0. Fak
     const calls={miss:[0,0,0,0,0,1,1],hit:[0,0,0,0,0,0,0],fail:[0,0,0,0,0,1,3,4,4]}[mode][i];
     cnt.innerHTML=RD.stat('Stages run',seq.slice(0,i+1).filter(s=>s[1]!=='skip').length+' of '+ST.length,'')+RD.stat('Provider calls',calls,mode==='hit'?'cache hit: none':'')}
   const an=RD.anim({card:'fgw-pipecard',ctl:'fgw-pipectl',n:SC.miss.length,draw,ms:2200,label:'Pipeline step'});
-  RD.seg(document.getElementById('fgw-pipemode'),m=>{mode=m;an.reset(SC[m].length);an.play()});
+  RD.seg(document.getElementById('fgw-pipemode'),m=>{mode=m;an.reset(SC[m].length)});
 
   // 2. routing strategies (E1)
   function e1(){const el=document.getElementById('fgw-e1');if(!el)return;
@@ -714,24 +742,10 @@ window.FGW={"note":"Recorded 2026-10-06 on an Apple M1 Pro; LiteLLM 1.104.0. Fak
 })();
 </script>
 <script>/* 24_js_fgw_read_b.js */
-// ---- Reading tab, part 2: rate-limit traces (E4), budget animation (E5), cache table (E6), translation (E7), OpenRouter shares, router curve ----
+// ---- Reading tab, part 2: budget animation (E5), cache table (E6), translation (E7) ----
 (function(){
   const F=window.FGW,E=RD.esc;
   const usd=v=>'$'+(v>=0.001?v.toFixed(4):v.toFixed(5));
-
-  // E4: recorded accept/reject ticks with LiteLLM's anchored windows
-  let e4mode='burst';
-  function windows(tr,phi){const out=[];let st=null;tr.forEach(([t])=>{const ti=Math.floor(t+phi);if(st===null||ti-st>=60){st=ti;out.push(st-phi)}});return out}
-  function e4(){const el=document.getElementById('fgw-e4');if(!el)return;const tr=F.e4[e4mode],W=RD.width(el);
-    const tmax=e4mode==='burst'?70:132,L=8,R=W-18,X=t=>L+(R-L)*t/tmax,H=96;let s='';
-    windows(tr,F.phi[e4mode]).forEach((w,i)=>{s+='<rect x="'+X(Math.max(0,w))+'" y="14" width="'+(X(Math.min(tmax,w+60))-X(Math.max(0,w)))+'" height="40" fill="'+(i%2?'var(--soft)':'var(--acc2)')+'" opacity=".7"/>'+RD.t(X(Math.max(0,w))+3,24,'window '+(i+1),{fs:10,fill:'var(--mute)'})});
-    for(let t=0;t<=tmax;t+=(W<600?(e4mode==='burst'?20:30):10))s+=RD.t(X(t),70,t+' s',{a:'middle',fs:10,fill:'var(--mute)'});
-    tr.forEach(([t,st])=>{s+='<rect x="'+(X(t)-1.2)+'" y="'+(st===200?30:42)+'" width="2.4" height="10" fill="'+(st===200?'var(--good)':'var(--bad)')+'"><title>'+t.toFixed(1)+' s: '+(st===200?'accepted':'429')+'</title></rect>'});
-    s+=RD.t(L,88,'green: accepted; red: 429; shaded: LiteLLM\'s 60 s windows',{fs:10.5,fill:'var(--mute)'});
-    el.innerHTML=RD.svg(W,H,s,'Accepted and refused requests on a key limited to 10 per minute');
-    const acc=tr.filter(x=>x[1]===200).length;
-    document.getElementById('fgw-e4note').textContent=e4mode==='burst'?'23 requests: '+acc+' accepted. Everything from second 50 to 65 is in two adjacent windows.':'130 requests, one per second: '+acc+' accepted. Window boundaries are whole wall-clock seconds; this run started 0.996 to 0.999 s into a second (fitted: the only offsets that reproduce all 130 decisions).'}
-  RD.seg(document.getElementById('fgw-e4mode'),m=>{e4mode=m;e4()});e4();
 
   // E5: budget waves, three modes
   const B=F.e5.budget,pc=F.e5.per_call,wv=F.e5.waves;
@@ -759,7 +773,7 @@ window.FGW={"note":"Recorded 2026-10-06 on an Apple M1 Pro; LiteLLM 1.104.0. Fak
     el.innerHTML=RD.svg(W,104,s,'Budget bar with spend and reservations');
     e5cap.innerHTML='<div class="t">'+E(s5.t)+'</div><p>'+E(s5.p)+'</p>'}
   const an5=RD.anim({card:'fgw-e5card',ctl:'fgw-e5ctl',n:5,draw:e5,ms:2000,label:'Budget step'});
-  RD.seg(document.getElementById('fgw-e5mode'),m=>{e5mode=m;an5.reset(5);an5.play()});
+  RD.seg(document.getElementById('fgw-e5mode'),m=>{e5mode=m;an5.reset(5)});
 
   // E6: cache table
   (function(){const el=document.getElementById('fgw-e6');if(!el)return;
@@ -770,37 +784,10 @@ window.FGW={"note":"Recorded 2026-10-06 on an Apple M1 Pro; LiteLLM 1.104.0. Fak
   (function(){const el=document.getElementById('fgw-e7');if(!el)return;
     el.innerHTML='<div class="grid">'+F.e7.map(r=>'<div class="sp"><div class="n">model "'+E(r.model)+'"</div><p>Gateway sent <code>POST '+E(r.up_path)+'</code>, server answered '+r.up_status+'; caller got <b style="color:'+(r.status===200?'var(--good)':'var(--bad)')+'">'+r.status+'</b>.</p><p class="small mute">Body fields sent: '+r.up_keys.map(k=>'<code>'+E(k)+'</code>').join(', ')+'</p><pre class="small" style="white-space:pre-wrap;max-height:11em;overflow:auto">'+E(JSON.stringify(r.up_body,null,1)).slice(0,600)+'</pre></div>').join('')+'</div>'})();
 
-  // OpenRouter shares
-  const OR=F.or_eps,orKeys=Object.keys(OR);let orM='meta-llama/llama-3.3-70b-instruct';
-  const pick=document.getElementById('fgw-orpick');
-  pick.innerHTML=orKeys.map(k=>'<button data-m="'+E(k)+'"'+(k===orM?' class="on"':'')+'>'+E(k.split('/')[1])+'</button>').join('');
-  pick.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pick.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));orM=b.dataset.m;orDraw()});
-  function orDraw(){const el=document.getElementById('fgw-or');if(!el)return;const eps=OR[orM];const w=eps.map(e=>1/(e.in*e.in)),tot=w.reduce((a,b)=>a+b,0);
-    const rows=eps.map((e,i)=>({e,sh:w[i]/tot})).sort((a,b)=>b.sh-a.sh);
-    el.innerHTML='<div class="fgw-row small mute"><span class="nm">endpoint</span><span>share of first picks under the inverse-square rule</span><span class="v">$/M in</span></div>'+rows.map(({e,sh})=>
-      '<div class="fgw-row"><span class="nm" title="'+E(e.tag||e.p)+'">'+E(e.p)+' <span class="mute small">'+E(e.q||'?')+', '+Math.round(e.ctx/1024)+'K</span></span><span class="fgw-bar"><span style="width:'+(sh*100).toFixed(1)+'%;background:var(--c4)"></span></span><span class="v">'+(sh*100).toFixed(1)+'%<br><span class="mute">'+e.in.toFixed(3)+'</span></span></div>').join('');
-    const q=[...new Set(eps.map(e=>e.q||'unknown'))].join(', ');
-    document.getElementById('fgw-ornote').textContent=eps.length+' endpoints on 6 October 2026; quantisation declared: '+q+'; context '+Math.min(...eps.map(e=>e.ctx)).toLocaleString('en-US')+' to '+Math.max(...eps.map(e=>e.ctx)).toLocaleString('en-US')+' tokens. Share = (1/price squared) over all endpoints, input price; illustration of the documented rule.'}
-  orDraw();
-
-  // Router curve
-  function rt(){const el=document.getElementById('fgw-rt');if(!el)return;const T=F.router.tasks,n=T.length,W=RD.width(el);
-    const weak=T.filter(t=>t.lok).length,strong=T.filter(t=>t.hok).length;
-    const orc=T.filter(t=>!t.lok&&t.hok).length,cr=T.filter(t=>t.tier!=='SIMPLE');const crAcc=T.reduce((a,t)=>a+(t.tier!=='SIMPLE'?t.hok:t.lok),0);
-    const L=40,R=W-12,Tp=10,Bt=170,X=f=>L+(R-L)*f,ymin=Math.floor((weak-4)/2)*2,ymax=n,Y=v=>Bt-(Bt-Tp)*(v-ymin)/(ymax-ymin);let s='';
-    for(let v=ymin;v<=ymax;v+=2)s+='<line x1="'+L+'" x2="'+R+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RD.t(L-5,Y(v)+3,v,{a:'end',fs:10,fill:'var(--mute)'});
-    [0,0.25,0.5,0.75,1].forEach(f=>{s+=RD.t(X(f),Bt+14,Math.round(f*100)+'%',{a:'middle',fs:10,fill:'var(--mute)'})});
-    s+='<line x1="'+X(0)+'" y1="'+Y(weak)+'" x2="'+X(1)+'" y2="'+Y(strong)+'" stroke="var(--mute)" stroke-dasharray="4 4"/>';
-    s+='<polyline fill="none" stroke="var(--good)" stroke-width="1.5" points="'+X(0)+','+Y(weak)+' '+X(orc/n)+','+Y(weak+orc)+' '+X(1)+','+Y(strong)+'"/>';
-    const pt=(f,v,c,lab,dy)=>'<circle cx="'+X(f)+'" cy="'+Y(v)+'" r="5" fill="'+c+'"/>'+RD.t(X(f)+(f>0.8?-8:8),Y(v)+(dy||4),lab,{fs:11,a:f>0.8?'end':'start'});
-    s+=pt(0,weak,'var(--c2)','all local: '+weak,14)+pt(1,strong,'var(--c1)','all Haiku: '+strong,18)+pt(orc/n,weak+orc,'var(--good)','perfect router: '+(weak+orc),-8)+pt(cr.length/n,crAcc,'var(--c4)','complexity router: '+crAcc,-8);
-    el.innerHTML=RD.svg(W,Bt+20,s,'Questions answered correctly against share sent to the strong model')}
-  rt();
-  RD.onRender(()=>{e4();orDraw();rt();an5.redraw()});RD.onResize(()=>{e4();orDraw();rt();an5.redraw()});
-})();
-</script>
-<script>/* 31_js_fail.js */
-// ---- Failure lab (t-fail): replay of every recorded attempt ----
+  RD.onRender(()=>{an5.redraw()});RD.onResize(()=>{an5.redraw()});
+})();</script>
+<script>/* 26_js_fgw_fail.js */
+// ---- Reading, end of section 4 (closed block): replay of every recorded attempt of sections 3 and 4 ----
 (function(){
   const F=window.FGW,E=RD.esc;
   const LAB2={c429:'C 429, defaults',c503:'C 503, defaults',c503af3:'C 503, allowed_fails 3',c503af1:'C 503, allowed_fails 1',single:'only C, fallback to A',ctx_nofb:'context error, fallbacks',ctx_fb:'context error, context_window_fallbacks',ctx_none:'context error, no fallbacks'};
@@ -843,21 +830,21 @@ window.FGW={"note":"Recorded 2026-10-06 on an Apple M1 Pro; LiteLLM 1.104.0. Fak
       const pa=c.att.filter(a=>a[0]<=now);const work=pa.reduce((x,a)=>x+Math.min(now,a[1])-a[0],0);
       cnt.innerHTML=RD.stat('Time',now.toFixed(1)+' s','')+RD.stat('SDK sends',c.ev.filter(e=>e[0]==='client sends'&&e[1]<=now).length,'')+RD.stat('Provider calls',pa.length,'formula: 3 x 3 = 9 with 2 + 2 retries')+RD.stat('Provider seconds busy',work.toFixed(0),'')+RD.stat('User',c.done<=now?'error at '+c.done.toFixed(1)+' s':'waiting','')}
     const e=ev[Math.min(i,ev.length-1)];cap.innerHTML='<div class="t">Event '+(i+1)+' of '+ev.length+' at '+e.t.toFixed(2)+' s</div><p>'+E(e.txt)+'</p>'}
-  const an=RD.anim({card:'fl-card',ctl:'fl-ctl',n:EV.ev.length,draw,ms:550,label:'Event',tab:'t-fail'});
+  const an=RD.anim({card:'fl-card',ctl:'fl-ctl',n:EV.ev.length,draw,ms:550,label:'Event'});
   function table(){const t=document.getElementById('fl-tab');
     if(cur.kind===2){const c=EV.c;t.innerHTML='<thead><tr><th>#</th><th class="num">sent</th><th class="num">done</th><th>attempts (provider, status, start s)</th><th>result</th></tr></thead><tbody>'+c.reqs.map(r=>'<tr><td>'+r.i+'</td><td class="num">'+r.t0.toFixed(2)+'</td><td class="num">'+r.t1.toFixed(2)+'</td><td class="mono small">'+r.att.map(a=>a[0]+' '+a[1]+' @'+a[2].toFixed(1)).join(', ')+'</td><td>'+(r.ok?'answered by '+r.dep:'<b style="color:var(--bad)">'+E(r.err)+'</b>')+'</td></tr>').join('')+'</tbody>'}
     else{const c=EV.c;t.innerHTML='<thead><tr><th>#</th><th class="num">provider call start</th><th class="num">end</th><th>after the user\'s error?</th></tr></thead><tbody>'+c.att.map((a,k)=>'<tr><td>'+(k+1)+'</td><td class="num">'+a[0].toFixed(1)+'</td><td class="num">'+a[1].toFixed(1)+'</td><td>'+(a[0]>c.done?'yes':'')+'</td></tr>').join('')+'</tbody>'}}
   function chips(el,labs,kind){el.innerHTML=Object.keys(labs).map(k=>'<button data-k="'+k+'" data-kind="'+kind+'">'+E(labs[k])+'</button>').join('')}
   const p2=document.getElementById('fl-pick2'),p3=document.getElementById('fl-pick3');chips(p2,LAB2,2);chips(p3,LAB3,3);
   function mark(){[p2,p3].forEach(p=>p.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.k===cur.key)))}
-  [p2,p3].forEach(p=>p.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;cur={kind:+b.dataset.kind,key:b.dataset.k};EV=events();mark();table();an.reset(EV.ev.length);an.play()}));
+  [p2,p3].forEach(p=>p.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;cur={kind:+b.dataset.kind,key:b.dataset.k};EV=events();mark();table();an.reset(EV.ev.length)}));
   mark();table();
-  RD.onRender(()=>{an.redraw()},'t-fail');
-  addEventListener('resize',()=>{const t=document.getElementById('t-fail');if(t&&!t.hidden)an.redraw()});
+  RD.onRender(()=>{an.redraw()});RD.onResize(()=>an.redraw());
+  document.getElementById('fgw-fldet').addEventListener('toggle',e=>{if(e.target.open)an.redraw()});
 })();
 </script>
-<script>/* 32_js_lim.js */
-// ---- Limits lab (t-lim): recorded traces through four limiters, and the budget runs ----
+<script>/* 26_js_fgw_lim.js */
+// ---- Reading section 5: recorded traces through four limiters; section 6 (closed block): every call of the budget runs ----
 (function(){
   const F=window.FGW,E=RD.esc;
   let mode='burst',lim=10;
@@ -884,7 +871,7 @@ window.FGW={"note":"Recorded 2026-10-06 on an Apple M1 Pro; LiteLLM 1.104.0. Fak
     document.getElementById('lm-tab').innerHTML='<thead><tr><th>Limiter</th><th class="num">accepted</th><th class="num">most accepted in any 15 s</th><th class="num">matches the recording</th></tr></thead><tbody>'+R.filter(x=>x[2]).map(([n,r])=>'<tr><td>'+E(n)+'</td><td class="num">'+r.filter(v=>v===200).length+' of '+ts.length+'</td><td class="num">'+best15(ts,r)+'</td><td class="num">'+(lim===10?r.filter((v,k)=>v===R[0][1][k]).length+' of '+ts.length:'')+'</td></tr>').join('')+'</tbody>';
     document.getElementById('lm-note').textContent=lim===10?'At the recorded limit (10) the replayed LiteLLM rule matches all '+ts.length+' recorded decisions.':'The recording was made at limit 10; other limits show only the replayed rules.'}
   const ts0=F.e4[mode].length;
-  const an=RD.anim({card:'lm-card',ctl:'lm-ctl',n:ts0,draw,ms:220,label:'Request',tab:'t-lim',start:ts0-1});
+  const an=RD.anim({card:'lm-card',ctl:'lm-ctl',n:ts0,draw,ms:220,label:'Request',start:ts0-1});
   RD.seg(document.getElementById('lm-mode'),m=>{mode=m;an.reset(F.e4[m].length);an.go(F.e4[m].length-1)});
   document.getElementById('lm-lim').addEventListener('input',e=>{lim=+e.target.value;document.getElementById('lm-limv').textContent=lim;an.redraw()});
 
@@ -900,12 +887,13 @@ window.FGW={"note":"Recorded 2026-10-06 on an Apple M1 Pro; LiteLLM 1.104.0. Fak
     document.getElementById('lm-bnote').textContent=rr.length+' calls, '+ok+' accepted (green), '+(rr.length-ok)+' refused with 422 (red); final spend $'+sp+' against $'+F.e5.budget+'.';
     document.getElementById('lm-msg').textContent=msg}
   RD.seg(document.getElementById('lm-bmode'),m=>{bm=m;bdraw()});
-  RD.onRender(()=>{an.redraw();bdraw()},'t-lim');
-  addEventListener('resize',()=>{const t=document.getElementById('t-lim');if(t&&!t.hidden){an.redraw();bdraw()}});
+  RD.onRender(()=>{an.redraw();bdraw()});RD.onResize(()=>{an.redraw();bdraw()});
+  document.getElementById('fgw-bdet').addEventListener('toggle',e=>{if(e.target.open)bdraw()});
+  bdraw();
 })();
 </script>
-<script>/* 33_js_route.js */
-// ---- Routing lab (t-route): E1 replay, OpenRouter filters, router experiment table ----
+<script>/* 26_js_fgw_route.js */
+// ---- Reading: E1 replay (section 2, closed block), OpenRouter endpoints with filters (section 9), router threshold and question table (section 10) ----
 (function(){
   const F=window.FGW,E=RD.esc;
   // 1. E1 replay
@@ -918,8 +906,8 @@ window.FGW={"note":"Recorded 2026-10-06 on an Apple M1 Pro; LiteLLM 1.104.0. Fak
     svg.innerHTML=RD.svg(W,H,s,'Forty requests under '+E(c.s));
     const a=r.slice(0,k+1).filter(q=>q[2]==='A').length;
     cap.innerHTML='<div class="t">'+E(c.s)+': request '+(k+1)+' of 40 sent at '+now.toFixed(2)+' s</div><p>So far '+a+' to A (blue, fast), '+(k+1-a)+' to B (orange, slow). All 40 done in '+c.wall.toFixed(2)+' s.</p>'}
-  const an=RD.anim({card:'ro-card',ctl:'ro-ctl',n:40,draw,ms:260,label:'Request',tab:'t-route'});
-  pick.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pick.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));si=+b.dataset.i;an.reset(40);an.play()});
+  const an=RD.anim({card:'ro-card',ctl:'ro-ctl',n:40,draw,ms:260,label:'Request'});
+  pick.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pick.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));si=+b.dataset.i;an.reset(40)});
 
   // 2. OpenRouter filters
   const OR=F.or_eps;let om='meta-llama/llama-3.3-70b-instruct';const CTX=[0,16384,32768,65536,131072,200000];
@@ -958,6 +946,7 @@ window.FGW={"note":"Recorded 2026-10-06 on an Apple M1 Pro; LiteLLM 1.104.0. Fak
     const pts=TH.map(h=>{const sh=T.filter(t=>t.cr>h).length/n;return [sh,T.reduce((a,t)=>a+(t.cr>h?t.hok:t.lok),0)]});
     s+='<polyline fill="none" stroke="var(--c4)" stroke-width="1.5" points="'+pts.map(p=>X(p[0])+','+Y(p[1])).join(' ')+'"/>';
     s+='<circle cx="'+X(share)+'" cy="'+Y(acc)+'" r="6" fill="var(--c4)"/>';
+    s+=RD.t(X(0)+6,Y(weak)+14,'all local: '+weak,{fs:11})+RD.t(X(1)-4,Y(strong)+16,'all Haiku: '+strong,{fs:11,a:'end'})+RD.t(X(orc/n)+6,Y(weak+orc)-6,'perfect router',{fs:11,fill:'var(--good)'})+RD.t(X(0.62),Y(weak+0.62*(strong-weak))+14,'random',{fs:11,fill:'var(--mute)'})+RD.t(X(share)+(share>0.7?-9:9),Y(acc)+(share>0.7?-9:16),'threshold: '+acc+' right',{fs:11,fill:'var(--c4)',a:share>0.7?'end':'start'});
     el.innerHTML=RD.svg(W,Bt+20,s,'Router quality against share sent to Haiku');
     document.getElementById('ro-cnt').innerHTML=RD.stat('Sent to Haiku',Math.round(share*n)+' of '+n,(share*100).toFixed(0)+'%')+RD.stat('Right',acc+' of '+n,'random at this share: '+(weak+share*(strong-weak)).toFixed(1))+RD.stat('Gap recovered',((acc-weak)/(strong-weak)).toFixed(2),'(right - '+weak+') / ('+strong+' - '+weak+')')+RD.stat('Haiku cost','$'+cost.toFixed(3),'API-price estimate');
     const rows=T.filter(t=>fam==='all'||t.f===fam);
@@ -965,12 +954,12 @@ window.FGW={"note":"Recorded 2026-10-06 on an Apple M1 Pro; LiteLLM 1.104.0. Fak
   document.getElementById('ro-tab').addEventListener('click',e=>{const tr=e.target.closest('tr[data-id]');if(!tr)return;const t=T.find(x=>x.id===tr.dataset.id);
     document.getElementById('ro-det').innerHTML='<div class="detail"><h3>'+t.id+' ('+t.f+')</h3><pre style="white-space:pre-wrap">'+E(t.q)+'</pre><p class="small"><b>Local model, end of reply</b> ('+t.lt+' output tokens, '+t.ls+' s):</p><pre style="white-space:pre-wrap" class="small">'+E(t.lx)+'</pre><p class="small"><b>Haiku, end of reply</b> ('+t.hout+' output tokens, $'+t.hc.toFixed(4)+'):</p><pre style="white-space:pre-wrap" class="small">'+E(t.hx)+'</pre></div>'});
   rdraw();
-  RD.onRender(()=>{an.redraw();orDraw();rdraw()},'t-route');
-  addEventListener('resize',()=>{const t=document.getElementById('t-route');if(t&&!t.hidden){an.redraw();orDraw();rdraw()}});
+  RD.onRender(()=>{an.redraw();orDraw();rdraw()});RD.onResize(()=>{an.redraw();orDraw();rdraw()});
+  document.getElementById('fgw-rodet').addEventListener('toggle',e=>{if(e.target.open)an.redraw()});
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace fgw-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -988,6 +977,8 @@ window.FGW={"note":"Recorded 2026-10-06 on an Apple M1 Pro; LiteLLM 1.104.0. Fak
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('fgw-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

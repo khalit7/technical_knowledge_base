@@ -1,42 +1,106 @@
-
-<section id="rd-s1">
-<h2>1. Six words you need first</h2>
-<div class="grid">
-<div class="sp"><div class="n">Deployment</div><p>One concrete endpoint that can answer: a provider, a model id on it, a base URL and a key. In LiteLLM's config each entry of <code>model_list</code> is one deployment.</p></div>
-<div class="sp"><div class="n">Model group</div><p>The name your code asks for (<code>model="chat"</code>). Every deployment that shares a <code>model_name</code> belongs to the group; the router picks one of them per call. A group of one is common, and it changes the failure rules (section 3).</p></div>
-<div class="sp"><div class="n">Provider prefix</div><p>The part before the slash in <code>litellm_params.model</code> (<code>openai/</code>, <code>anthropic/</code>, <code>lm_studio/</code>, <code>bedrock/</code> ...). It chooses the code that speaks to that upstream, so it decides which wire format leaves the gateway (section 8).</p></div>
-<div class="sp"><div class="n">Router and proxy</div><p>LiteLLM is two things: a Python library whose <code>Router</code> class does routing, retries, cooldowns and fallbacks inside your process, and a proxy server (<code>litellm --config</code>) that wraps the same Router behind HTTP and adds keys, budgets, rate limits and spend logs. Sections 2 and 3 are the Router; 5 and 6 need the proxy and its database.</p></div>
-<div class="sp"><div class="n">Virtual key</div><p>A key the gateway issues (<code>sk-...</code>) and checks on every call. It carries limits (models allowed, budget, requests and tokens per minute, parallel requests). The real provider keys never leave the gateway.</p></div>
-<div class="sp"><div class="n">Cooldown</div><p>A deployment the router has decided to stop sending traffic to for a few seconds after failures. Not the same as a fallback: a cooldown moves traffic inside a group, a fallback moves it to another group.</p></div>
-</div>
-<p><b>What a gateway does, in the order a request meets it.</b> Authenticate the caller from a gateway-issued key (so provider keys live in one place); authorise the model (some data may go only to approved vendors or to self-hosted models); check rate limits and budget (sections 5 and 6); transform and guard (redact personal data, apply input rails: {{Guardrails|n:3c65c17b0d0d819bbfa5dffa9246c297}}); look up the cache (section 7); route (sections 2 and 10); call with a timeout, retrying or falling back on failure (sections 3 and 4); stream the reply back unbuffered; and write one usage event (caller, model, input, cached and output tokens, cost, latency) for billing and dashboards. How these duties sit in a whole LLM service (tenancy, the batch path, rollouts, degradation ladders) is the system design view on {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}}.</p>
-<div class="co"><div class="t">Gateways in production, and when not to run one</div>
-<p><b>Uber</b> built its GenAI Gateway as "a Go service that acts as an encompassing layer around the clients for third-party vendors"; "a pivotal design decision was to mirror the HTTP/JSON interface of the OpenAI API", and it includes "a PII redactor that anonymizes sensitive information within requests before forwarding them to third-party vendors" and audit logs for "cost attribution, security audit purposes, quality evaluation". In mid-2024 it was "used by close to 30 customer teams and serves 16 million queries per month, with a peak QPS of 25" (<a href="https://www.uber.com/blog/genai-gateway/" target="_blank" rel="noopener noreferrer">Uber Engineering, 11 Jul 2024</a>). 25 queries a second is small: a gateway exists for control, not for throughput. <b>Bloomberg</b> and Tetrate started Envoy AI Gateway because "traditional rate-limiting based on number of requests doesn't work for controlling usage of LLM providers" (<a href="https://github.com/theagentrouter/agent-router/blob/v1.1.0/site/blog/2024/2024-10-18-introducing-envoy-ai-gw.md" target="_blank" rel="noopener noreferrer">announcement, 18 Oct 2024</a>); renamed Agent Router (v1.1.0, 21 Aug 2026), its README describes two tiers: "The Tier One Gateway handles authentication, top-level routing, and global rate limiting", and a second tier in front of self-hosted models picks the endpoint (<a href="https://github.com/theagentrouter/agent-router/blob/v1.1.0/README.md" target="_blank" rel="noopener noreferrer">README at v1.1.0</a>). Chip Huyen's <i>AI Engineering</i> (O'Reilly, 2025) makes "Add Model Router and Gateway" step 3 of its five-step platform architecture, after context and guardrails and before caches (<a href="https://github.com/chiphuyen/aie-book/blob/main/ToC.md" target="_blank" rel="noopener noreferrer">table of contents</a>, chapter 10). Kong AI Gateway and Portkey are other options (not checked here). <span class="docs">DOCS</span></p>
-<p><b>What it costs:</b> one more network hop (milliseconds against seconds of generation); one more service that must not go down (run several stateless copies behind a load balancer, and keep its own dependencies, such as Redis for counters, off the critical path when they fail); the risk that it buffers streams or caps connection times; and it concentrates power, because whoever owns it decides which models the company may use. <b>When not to run one:</b> a single product calling a single provider, owned by one team; a client library with retries and a usage log is enough until a second model, a second team or a budget question appears.</p></div>
-</section>
-
 <section id="rd-s2">
-<h2>2. Choosing a deployment: six strategies, one recording</h2>
-<p><b>The problem.</b> When a group has several deployments (the same model on two Azure regions, or on two providers), something must pick one per call. The pick decides latency, cost and how evenly load spreads. LiteLLM offers several <code>routing_strategy</code> values; each is a small file in <code>litellm/router_strategy/</code>, and what each one actually measures is easy to get wrong from its name. <span class="srcl">SOURCE</span> One level down, inside a self-hosted pool, a second router picks the replica of one deployment by its queue and prefix cache; that layer is {{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}, section 1.</p>
+<h2>2. Choosing a deployment: what each strategy really measures</h2>
+<p>When a group has several deployments (the same model in two regions, or at two providers), something picks one per call, and the pick decides latency, cost and how evenly load spreads. Each LiteLLM <code>routing_strategy</code> is a small file in <code>litellm/router_strategy/</code>, and what it measures is easy to get wrong from its name. <span class="srcl">SOURCE</span> One level down, inside a self-hosted pool, a second router picks the replica by queue and prefix cache: that layer is {{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}, section 1.</p>
 <div class="tw"><table>
 <thead><tr><th>Strategy</th><th>What the code does (1.104.0)</th></tr></thead>
 <tbody>
-<tr><td><code>simple-shuffle</code> (default)</td><td>Random choice. If deployments carry a <code>weight</code> (or else <code>rpm</code>, or else <code>tpm</code>), the choice is weighted by it (<code>simple_shuffle.py</code>).</td></tr>
-<tr><td><code>least-busy</code></td><td>The deployment with the fewest requests in flight right now (<code>least_busy.py</code>).</td></tr>
-<tr><td><code>latency-based-routing</code></td><td>The lowest average of the last 10 latencies, where a latency is the response time <i>divided by the output tokens</i> (time to first token when streaming). A deployment with no history counts as 0, so it is tried first; a timeout adds a 1,000-second penalty sample. <code>lowest_latency_buffer</code> (default 0) picks at random among deployments within that fraction of the best. History lives for 1 hour (<code>lowest_latency.py</code>).</td></tr>
-<tr><td><code>usage-based-routing-v2</code></td><td>The deployment with the fewest tokens used in the current calendar minute, skipping any over its own <code>tpm</code>/<code>rpm</code> (<code>lowest_tpm_rpm_v2.py</code>; counters keyed by <code>%H-%M</code>).</td></tr>
-<tr><td><code>cost-based-routing</code></td><td>The cheapest deployment by input plus output price per token. Prices come from <code>litellm_params</code>, else from LiteLLM's price map for the model name, else <b>$5.00 per token</b> each (<code>lowest_cost.py</code>).</td></tr>
-<tr><td>Auto routers</td><td><code>auto_router/complexity_router</code>, <code>adaptive_router</code> and others choose between <i>different</i> models from the prompt itself; they are section 10.</td></tr>
+<tr><td><code>simple-shuffle</code> (default)</td><td>Random choice, weighted by <code>weight</code> if set (or else <code>rpm</code>, or else <code>tpm</code>) (<code>simple_shuffle.py</code>).</td></tr>
+<tr><td><code>least-busy</code></td><td>Fewest requests in flight right now (<code>least_busy.py</code>).</td></tr>
+<tr><td><code>latency-based-routing</code></td><td>Lowest average of the last 10 latencies, where a latency is the response time <i>divided by the output tokens</i> (time to first token when streaming). No history counts as 0, so a new deployment is tried first; a timeout adds a 1,000-second penalty sample; <code>lowest_latency_buffer</code> (default 0) picks at random within that fraction of the best; history lives 1 hour (<code>lowest_latency.py</code>).</td></tr>
+<tr><td><code>usage-based-routing-v2</code></td><td>Fewest tokens used in the current calendar minute, skipping any over its own <code>tpm</code>/<code>rpm</code> (<code>lowest_tpm_rpm_v2.py</code>; counters keyed by <code>%H-%M</code>).</td></tr>
+<tr><td><code>cost-based-routing</code></td><td>Cheapest by input plus output price per token, read from <code>litellm_params</code>, else LiteLLM's price map for the model name, else <b>$5.00 per token</b> each (<code>lowest_cost.py</code>).</td></tr>
+<tr><td>Auto routers</td><td><code>auto_router/complexity_router</code>, <code>adaptive_router</code> and others choose between <i>different</i> models from the prompt (section 10).</td></tr>
 </tbody></table></div>
 <p><b>The recording.</b> One group, two copies of the same fake model: <b>A</b> answers in 0.2 s, <b>B</b> in 1.0 s. Forty requests, four at a time, through <code>litellm.Router</code> under each strategy. <span class="meas">MEASURED</span></p>
-<div class="card" id="fgw-e1card"><div id="fgw-e1"></div>
-<p class="small mute">Bars: share of the 40 requests each copy answered (A fast, B slow); right: wall time for all 40. The cost rows mark B as the cheaper copy ($1 against $2 per million input tokens). Every request, with its timing, is in the {{Routing lab|#t-route}}.</p></div>
+<div class="card" id="fgw-e1card">
+<div class="t" style="font-weight:600;font-size:14px">Cost-based routing sends everything to the expensive copy when prices sit in the wrong field</div>
+<div id="fgw-e1"></div>
+<p class="small mute">Bars: share of the 40 requests each copy answered (A fast, B slow); right: counts and wall time for all 40. In the cost rows B is the cheaper copy ($1 against $2 per million input tokens).</p></div>
 <ul>
 <li><b>Latency-based routing found the fast copy</b> but still sent it only 34 of 40: both copies start at "no history = 0" and B is tried until its own samples push its average up. That exploration is the price of measuring.</li>
-<li><b>Least-busy</b> sent 26 to A without measuring anything: A finishes sooner, so it is idle more often when the next request arrives.</li>
-<li><b>Usage-based</b> balanced tokens per minute (18 to 22), which is what it is for, and ignored that B is five times slower.</li>
-<li><b>Cost-based with prices in <code>model_info</code></b> sent all 40 to A, the expensive copy. The strategy reads prices only from <code>litellm_params</code>; with none there and no entry in the price map, both copies cost the default and the first one wins every tie. Moving the same two numbers into <code>litellm_params</code> sent all 40 to B. The proxy's spend tracking does read <code>model_info</code> prices, so the mistake is invisible on the bill.</li>
+<li><b>Least-busy</b> sent 26 to A without measuring anything: A finishes sooner, so it is idle more often when the next request arrives. <b>Usage-based</b> balanced tokens per minute (18 to 22), which is what it is for, and ignored that B is five times slower.</li>
+<li><b>Cost-based with prices in <code>model_info</code></b> sent all 40 to A, the expensive copy: the strategy reads prices only from <code>litellm_params</code>, so both copies cost the default and the first wins every tie. Moving the same two numbers into <code>litellm_params</code> sent all 40 to B. The proxy's spend tracking does read <code>model_info</code> prices, so the mistake is invisible on the bill.</li>
 </ul>
 <div class="co warn"><div class="t">Check what your strategy reads</div>A strategy that cannot find its input does not fail; it falls back to random or to the first deployment. After changing a routing setting, send a few dozen requests and count which deployment answered (the proxy returns it in the <code>x-litellm-model-id</code> response header).</div>
-<div class="deepnote"><b>Go deeper.</b> The {{Routing lab|#t-route}} replays the 40 requests per strategy on a time axis. Load balancing in general (layer 4 against layer 7, round robin in the client) is taught on {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}} (its Balancer lab); this section is only what LiteLLM implements.</div>
+<details class="dp" id="fgw-rodet"><summary>Replay the forty requests per strategy on a time axis <span class="mute">(widget)</span></summary><div class="b">
+<p class="small">Each bar is one request, placed at the time it was sent and coloured by the copy that answered (blue A, orange B). Step to watch the strategy decide; switch strategy to compare on the same workload.</p>
+<div class="card" id="ro-card" style="margin:6px 0">
+<div class="chips" id="ro-pick" role="group" aria-label="Strategy"></div>
+<div id="ro-svg" class="plot"></div>
+<div class="an-ctl" id="ro-ctl"></div>
+<div class="an-cap" id="ro-cap" aria-live="polite"></div>
+</div>
+<p class="small mute">Load balancing in general (layer 4 against layer 7, round robin in the client) is on {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}} (its Balancer lab); this section is only what LiteLLM implements.</p>
+</div></details>
+</section>
+
+<section id="rd-s3">
+<h2>3. When a call fails: retry, cool down, or fall back</h2>
+<p><b>Retry</b>: the same group again after a short wait (a blip?). <b>Cooldown</b>: stop routing to one deployment for a while (a broken copy?). <b>Fallback</b>: call another group (is this model unusable right now?). LiteLLM chooses by the error's HTTP status: <span class="srcl">SOURCE</span></p>
+<div class="tw"><table>
+<thead><tr><th>Upstream answer</th><th>Retried in the group?</th><th>Can cool the deployment down?</th><th>Goes to fallbacks?</th></tr></thead>
+<tbody>
+<tr><td>429 rate limited</td><td>yes</td><td>yes, at once, if the group has another deployment</td><td>yes</td></tr>
+<tr><td>500, 502, 503 and any 5xx</td><td>yes</td><td>yes, once more than half of this minute's calls to it failed and it had at least 5</td><td>yes</td></tr>
+<tr><td>408 timeout, 409</td><td>yes</td><td>408 yes, 409 no</td><td>yes</td></tr>
+<tr><td>401, 403 bad credentials</td><td>only if the group has another deployment</td><td>401 yes</td><td>yes</td></tr>
+<tr><td>400 context window exceeded</td><td>no</td><td>no</td><td>yes: to <code>context_window_fallbacks</code> if set, else to the regular <code>fallbacks</code></td></tr>
+<tr><td>400 content policy</td><td>no</td><td>no</td><td>yes: to <code>content_policy_fallbacks</code> if set, else regular</td></tr>
+<tr><td>other 400s, 404</td><td>no</td><td>404 yes</td><td>regular fallbacks</td></tr>
+</tbody></table></div>
+<p class="small mute">From <code>litellm/utils.py</code> (<code>_should_retry</code>: 408, 409, 429 and 5xx), <code>router.py</code> (<code>should_retry_this_error</code>) and <code>router_utils/cooldown_handlers.py</code> (<code>_is_cooldown_required</code>, <code>_should_cooldown_deployment</code>) in 1.104.0. Defaults: <code>num_retries</code> 2, <code>cooldown_time</code> 5 s, at most 5 fallbacks per request; an error whose text contains "APIConnectionError" never triggers a cooldown.</p>
+<p><b>Two cooldown regimes, and a trap.</b> Without <code>allowed_fails</code>, the rules in the table apply: a 429 benches a deployment at once, other errors only once more than 50% of its calls this minute failed and there were at least 5 (<code>DEFAULT_FAILURE_THRESHOLD_PERCENT</code> 0.5, <code>DEFAULT_FAILURE_THRESHOLD_MINIMUM_REQUESTS</code> 5). With <code>allowed_fails</code>, a simpler counter: cool down once failures within <code>cooldown_time</code> exceed it. But the code decides whether you "set" it by comparing with the library default, 3 (<code>_is_allowed_fails_set_on_router</code>). <b>Writing <code>allowed_fails: 3</code> in a config therefore changes nothing</b>; the parent page's Production stack config contains exactly that line.</p>
+<p><b>The recording.</b> A group of two: A healthy (0.2 s), C scripted to fail every call. Thirty requests one after another, 0.3 s apart, <code>num_retries: 2</code>. Each mark is one call that reached C; a red mark is a request whose user got an error. <span class="meas">MEASURED</span></p>
+<div class="card" id="fgw-e2card">
+<div class="t" style="font-weight:600;font-size:14px">A 429 benches C at once; a 503 keeps being tried until five failures; allowed_fails 3 behaves like the default</div>
+<div id="fgw-e2"></div>
+<p class="small mute">Grey bands: more than 4 s in which no call reached C although requests kept coming, which the rules attribute to a cooldown. Seconds from the first request. Every attempt, including those to A, is replayed at the end of section 4.</p></div>
+<ul>
+<li><b>429:</b> C was benched after its first 429 and came back every 5 to 6 seconds (calls at 0.1, 5.7, 11.8 and 17.8 s). Users never saw an error.</li>
+<li><b>503, default settings:</b> C was picked about one time in three until its fifth failure in the minute (at 7.3 s), then benched until 14.7 s; after that each new failure benched it again.</li>
+<li><b>503, <code>allowed_fails: 3</code>:</b> the same, as the source predicts, plus one user error: request 2 picked C, and both retries picked C again. A retry re-runs the routing choice at random, so with two deployments a request whose first pick is the bad one fails all three tries with probability 1/2 &times; 1/2 = 1/4 while the bad one is not benched. <code>enable_weighted_failover</code> (async calls, simple-shuffle only) re-picks among the <i>other</i> deployments instead.</li>
+<li><b>One deployment in the group:</b> never cooled down (the "single-deployment model group" exemption: benching the only copy would turn a partial outage into a total one), so every request paid two backoff waits and then fell back: about 5.5 s per request, every time.</li>
+</ul>
+<details class="dp"><summary>Two more recorded cases: allowed_fails 1, and a context-window error <span class="mute">(depth)</span></summary><div class="b"><ul>
+<li><b>503, <code>allowed_fails: 1</code>:</b> benched after its second failure, back 5 s later.</li>
+<li><b>Context window error:</b> never retried; with no fallbacks the user got <code>ContextWindowExceededError</code> in 0.1 s; with either <code>fallbacks</code> or <code>context_window_fallbacks</code> the request went straight to the long-context group.</li>
+</ul></div></details>
+<div class="drill"><details><summary><b>Predict, then open.</b> A group has two deployments and the bad one returns 500 on every call. You set <code>allowed_fails: 3</code> and <code>cooldown_time: 60</code>, expecting it to be benched after three failures for a minute. What happens?</summary><div>It is benched only after more than half of its calls in the current minute failed and there were at least five (the default regime), and the bench lasts 60 s because <code>cooldown_time</code> is honoured. Write <code>allowed_fails: 2</code> or use <code>allowed_fails_policy</code> (per error type, for example <code>InternalServerErrorAllowedFails</code>) to get a counter that applies.</div></details></div>
+<p><b>Outages: plan the fallback, do not just configure it.</b> A fallback is another deployment of the same model, the same model at another provider (Claude is also sold through AWS Bedrock and Google Vertex AI; open models through many, section 9), or a different model. Check it like a backup generator: is its quota big enough to take all the traffic at once; does it accept the same prompt and tool-call format; does it behave the same on safety; has it been evaluated on your task? It starts with a cold prompt cache, so requests cost more and first tokens come later until it warms. A fallback that has never carried full traffic is untested; fail over on a schedule.</p>
+</section>
+
+<section id="rd-s4">
+<h2>4. Timeouts and retries across layers</h2>
+<p>An agent's model call passes through several programs that each retry: the provider SDK in your agent, your own loop, the gateway, sometimes a second gateway. Each layer's retries run once for <i>every</i> attempt of the layer above. With the SDK's 2 retries and the gateway's 2, one request can reach the provider 3 &times; 3 = 9 times:</p>
+<div class="fm"><div class="eq">attempts reaching the provider = (1 + r<sub>1</sub>) &times; (1 + r<sub>2</sub>) &times; &hellip; &times; (1 + r<sub>n</sub>)</div>
+<dl><dt>r<sub>i</sub></dt><dd>retries at layer i (OpenAI and Anthropic Python SDKs: 2 by default, with a 600-second timeout; LiteLLM: <code>num_retries</code>, 2 in this config, and a default request timeout of 6,000 seconds)</dd></dl></div>
+<p class="small mute">Defaults read from <code>openai/_constants.py</code> (openai 2.54.0), <code>anthropic/_constants.py</code> (anthropic 1.11.0) and <code>litellm/constants.py</code> (<code>DEFAULT_REQUEST_TIMEOUT_SECONDS = 6000.0</code>), 6 October 2026. <span class="srcl">SOURCE</span></p>
+<p><b>The recording.</b> Provider C hangs for 30 seconds on every call. The gateway gives each attempt 5 seconds and retries twice. The client is the OpenAI Python SDK, run three ways. <span class="meas">MEASURED</span></p>
+<div class="card" id="fgw-e3card">
+<div class="t" style="font-weight:600;font-size:14px">Nine provider calls for one request, the last one sent after the user was told it failed</div>
+<div id="fgw-e3"></div>
+<p class="small mute">Each grey bar is one call the provider received and worked on for its full 30 s (it cannot tell the caller gave up until it writes the answer). Blue ticks: the SDK sending; red line: when the user got an error.</p></div>
+<ul>
+<li><b>SDK defaults with a 10-second timeout:</b> the user got <code>APITimeoutError</code> after 32.8 s and three sends; the provider received <b>9 calls</b>, the last one starting at 36.9 s, four seconds <i>after</i> the user had been told it failed. 270 seconds of provider work for one failed request. The gateway does not stop its retry chain when the client hangs up.</li>
+<li><b>The same with <code>max_retries=0</code>:</b> 3 calls, error after 10.2 s.</li>
+<li><b>SDK timeout 60 s:</b> the gateway's own chain finished first (about 20 s), returned 408, and the SDK retried it, twice: 9 calls, error after 61.9 s.</li>
+</ul>
+<p>{{Other coding harnesses|n:3c65c17b0d0d819fa3cefdcd2ccff2f7}} hit the same from the other side: Gemini CLI 0.62.0 waits 60 s for headers and retries up to 10 times, so against a slow local server its retries overlapped and multiplied the load until the server ran out of memory. <span class="meas">MEASURED there</span></p>
+<div class="co key"><div class="t">The rule</div>Retry at one layer only, the one that knows the most (usually the gateway, which can switch deployments); set the others to 0. Give each layer a timeout shorter than the layer above it, so the inner one gives up first and reports why. A request retried 9 times is a capacity problem, not bad luck. Retry budgets and retry storms are measured on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}; which hop's timeout ends a long generation is on {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}} (its Timeout chain tab).</div>
+<details class="dp" id="fgw-fldet"><summary>Replay every recorded attempt of sections 3 and 4, event by event <span class="mute">(widget, 11 cases)</span></summary><div class="b">
+<p class="small">Pick a case and step: the cursor walks through the attempts in the order they happened, lane by lane (the caller's requests, healthy provider A, failing provider C), with a caption and running counts. Pairs worth comparing: 429 against 503; allowed_fails 3 against 1; context error with and without fallbacks; SDK 2 retries against 0.</p>
+<div class="card" id="fl-card" style="margin:6px 0">
+<div class="band">Router cases (litellm.Router, two deployments A and C, num_retries 2)</div>
+<div class="chips" id="fl-pick2" role="group" aria-label="Router case"></div>
+<div class="band">Retry layers (OpenAI SDK, LiteLLM proxy, provider hanging 30 s)</div>
+<div class="chips" id="fl-pick3" role="group" aria-label="Retry layers case"></div>
+<div id="fl-svg" class="plot"></div>
+<div class="fl-leg"><span><i style="background:var(--c1)"></i>request (caller waiting)</span><span><i style="background:var(--good)"></i>answered</span><span><i style="background:var(--bad)"></i>error</span><span><i style="background:var(--c5)"></i>provider working on a call</span><span><i style="background:var(--dim)"></i>provider busy on a call nobody will read</span></div>
+<div class="an-ctl" id="fl-ctl"></div>
+<div class="an-cap" id="fl-cap" aria-live="polite"></div>
+<div class="out" id="fl-cnt"></div>
+</div>
+<details class="mist"><summary>Every request of this case</summary><div class="b"><div class="tw"><table id="fl-tab"></table></div></div></details>
+<p class="small mute">How it was recorded: each fake provider is one small Python HTTP server (<code>src/code/fake_provider.py</code>), scripted per case to answer, fail with a status or hang; it logs every call with its start and end time and the request's text, which names the case and request number, so every attempt is matched to its request. Router cases: <code>src/code/e2_failures.py</code> (sequential requests 0.3 s apart, a warm-up first because the first failing call in a fresh process paid about 10 s of one-off set-up in a trial run). Retry layers: <code>src/code/e3_amplify.py</code> (openai 2.54.0 against the proxy).</p>
+</div></details>
 </section>

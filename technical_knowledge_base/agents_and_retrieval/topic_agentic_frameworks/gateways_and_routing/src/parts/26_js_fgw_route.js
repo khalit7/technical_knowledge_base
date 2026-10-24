@@ -1,4 +1,4 @@
-// ---- Routing lab (t-route): E1 replay, OpenRouter filters, router experiment table ----
+// ---- Reading: E1 replay (section 2, closed block), OpenRouter endpoints with filters (section 9), router threshold and question table (section 10) ----
 (function(){
   const F=window.FGW,E=RD.esc;
   // 1. E1 replay
@@ -11,8 +11,8 @@
     svg.innerHTML=RD.svg(W,H,s,'Forty requests under '+E(c.s));
     const a=r.slice(0,k+1).filter(q=>q[2]==='A').length;
     cap.innerHTML='<div class="t">'+E(c.s)+': request '+(k+1)+' of 40 sent at '+now.toFixed(2)+' s</div><p>So far '+a+' to A (blue, fast), '+(k+1-a)+' to B (orange, slow). All 40 done in '+c.wall.toFixed(2)+' s.</p>'}
-  const an=RD.anim({card:'ro-card',ctl:'ro-ctl',n:40,draw,ms:260,label:'Request',tab:'t-route'});
-  pick.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pick.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));si=+b.dataset.i;an.reset(40);an.play()});
+  const an=RD.anim({card:'ro-card',ctl:'ro-ctl',n:40,draw,ms:260,label:'Request'});
+  pick.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pick.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));si=+b.dataset.i;an.reset(40)});
 
   // 2. OpenRouter filters
   const OR=F.or_eps;let om='meta-llama/llama-3.3-70b-instruct';const CTX=[0,16384,32768,65536,131072,200000];
@@ -51,6 +51,7 @@
     const pts=TH.map(h=>{const sh=T.filter(t=>t.cr>h).length/n;return [sh,T.reduce((a,t)=>a+(t.cr>h?t.hok:t.lok),0)]});
     s+='<polyline fill="none" stroke="var(--c4)" stroke-width="1.5" points="'+pts.map(p=>X(p[0])+','+Y(p[1])).join(' ')+'"/>';
     s+='<circle cx="'+X(share)+'" cy="'+Y(acc)+'" r="6" fill="var(--c4)"/>';
+    s+=RD.t(X(0)+6,Y(weak)+14,'all local: '+weak,{fs:11})+RD.t(X(1)-4,Y(strong)+16,'all Haiku: '+strong,{fs:11,a:'end'})+RD.t(X(orc/n)+6,Y(weak+orc)-6,'perfect router',{fs:11,fill:'var(--good)'})+RD.t(X(0.62),Y(weak+0.62*(strong-weak))+14,'random',{fs:11,fill:'var(--mute)'})+RD.t(X(share)+(share>0.7?-9:9),Y(acc)+(share>0.7?-9:16),'threshold: '+acc+' right',{fs:11,fill:'var(--c4)',a:share>0.7?'end':'start'});
     el.innerHTML=RD.svg(W,Bt+20,s,'Router quality against share sent to Haiku');
     document.getElementById('ro-cnt').innerHTML=RD.stat('Sent to Haiku',Math.round(share*n)+' of '+n,(share*100).toFixed(0)+'%')+RD.stat('Right',acc+' of '+n,'random at this share: '+(weak+share*(strong-weak)).toFixed(1))+RD.stat('Gap recovered',((acc-weak)/(strong-weak)).toFixed(2),'(right - '+weak+') / ('+strong+' - '+weak+')')+RD.stat('Haiku cost','$'+cost.toFixed(3),'API-price estimate');
     const rows=T.filter(t=>fam==='all'||t.f===fam);
@@ -58,6 +59,6 @@
   document.getElementById('ro-tab').addEventListener('click',e=>{const tr=e.target.closest('tr[data-id]');if(!tr)return;const t=T.find(x=>x.id===tr.dataset.id);
     document.getElementById('ro-det').innerHTML='<div class="detail"><h3>'+t.id+' ('+t.f+')</h3><pre style="white-space:pre-wrap">'+E(t.q)+'</pre><p class="small"><b>Local model, end of reply</b> ('+t.lt+' output tokens, '+t.ls+' s):</p><pre style="white-space:pre-wrap" class="small">'+E(t.lx)+'</pre><p class="small"><b>Haiku, end of reply</b> ('+t.hout+' output tokens, $'+t.hc.toFixed(4)+'):</p><pre style="white-space:pre-wrap" class="small">'+E(t.hx)+'</pre></div>'});
   rdraw();
-  RD.onRender(()=>{an.redraw();orDraw();rdraw()},'t-route');
-  addEventListener('resize',()=>{const t=document.getElementById('t-route');if(t&&!t.hidden){an.redraw();orDraw();rdraw()}});
+  RD.onRender(()=>{an.redraw();orDraw();rdraw()});RD.onResize(()=>{an.redraw();orDraw();rdraw()});
+  document.getElementById('fgw-rodet').addEventListener('toggle',e=>{if(e.target.open)an.redraw()});
 })();

@@ -31,7 +31,7 @@
     const calls={miss:[0,0,0,0,0,1,1],hit:[0,0,0,0,0,0,0],fail:[0,0,0,0,0,1,3,4,4]}[mode][i];
     cnt.innerHTML=RD.stat('Stages run',seq.slice(0,i+1).filter(s=>s[1]!=='skip').length+' of '+ST.length,'')+RD.stat('Provider calls',calls,mode==='hit'?'cache hit: none':'')}
   const an=RD.anim({card:'fgw-pipecard',ctl:'fgw-pipectl',n:SC.miss.length,draw,ms:2200,label:'Pipeline step'});
-  RD.seg(document.getElementById('fgw-pipemode'),m=>{mode=m;an.reset(SC[m].length);an.play()});
+  RD.seg(document.getElementById('fgw-pipemode'),m=>{mode=m;an.reset(SC[m].length)});
 
   // 2. routing strategies (E1)
   function e1(){const el=document.getElementById('fgw-e1');if(!el)return;
