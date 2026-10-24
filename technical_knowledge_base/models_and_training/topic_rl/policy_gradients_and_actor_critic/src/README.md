@@ -63,3 +63,5 @@ Why about 39 minutes is right: the page owns fifteen mechanisms (the theorem and
 - `cd checks && node check_page.mjs`: every control at 390 dark and 920 light, the new figures and the off-policy loop's three modes, and no animation past step 0 or playing after scrolling through the page. Last run: 572 probes, 0 fails.
 - `sh html_utils/checkpage.sh <page folder>`: tabs 2, emdash 0, errbox 1, clipped 0, fail=0.
 - `python3 html_utils/ledger.py check <page folder>`: problems 0.
+
+2026-10-24 (topic close of Topic: rl): Further reading quotes the root as "17 min, plus 2" and siblings and neighbours as their headers; ledger keys that quoted old times re-keyed.
