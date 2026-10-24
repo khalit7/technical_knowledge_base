@@ -5,3 +5,5 @@ Two visuals, chosen because they carry the page's one idea and the choice betwee
 - **Which family when** (`rd-tree`), a decision tree with 13 leaves (the old embed's Explore tree, extended), with the full table under it.
 
 Everything else (the student MDP diagram, Monte Carlo sampler, bandit, value iteration against Q-learning, the bias-variance dial, deadly triad, maximisation bias, policy gradient with and without a baseline, PPO clip, GRPO group) moved with its section to `../for_children/reading_full/`, with scores, sources and checks in `../for_children/reading_full_checks/`.
+
+2026-10-24 (topic close): both visuals stay; the hero map (`#rd-map`) and the cross-page table (`#rd-cmpT`) are static HTML in `parts/20_read.html` and `20_read_b.html`. The animation no longer starts when scrolled into view (skill template controller).
