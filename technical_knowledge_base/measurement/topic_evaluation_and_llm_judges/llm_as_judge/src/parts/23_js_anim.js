@@ -59,7 +59,7 @@
   function draw(i){const s=STEPS[mode][i];paint(s);counters(s);caption(s)}
   setup();
   const A=RD.anim({card:'an-card',ctl:'an-ctl',n:STEPS[mode].length,draw,ms:1700,label:'Animation step'});
-  RD.seg($('an-mode'),m=>{mode=m;A.reset(STEPS[mode].length);A.play()});
+  RD.seg($('an-mode'),m=>{mode=m;A.reset(STEPS[mode].length)});
   tSel.addEventListener('change',()=>{setup();A.reset(STEPS[mode].length)});
   mSel.addEventListener('change',()=>{setup();A.reset(STEPS[mode].length)});
 })();

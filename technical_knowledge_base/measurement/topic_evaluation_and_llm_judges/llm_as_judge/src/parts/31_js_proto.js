@@ -60,5 +60,5 @@
     h+='</tbody></table></div><p class="small">With expert votes only, every vote count matches the paper exactly and every percentage rounds to it. The paper\'s pointwise row (60%, 1,280 votes) does not reproduce: the released single-grading file is a later run that graded a different Vicuna. Source: {{Zheng et al. 2023, Table 5|https://arxiv.org/abs/2306.05685}}.</p>';
     $('pl-repro').innerHTML=h;
   })();
-  RD.onRender(render,'t-proto');RD.onResizeTab('t-proto',render);
+  RD.onTab('t-proto',render);RD.onResizeTab('t-proto',render);
 })();

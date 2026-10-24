@@ -1,4 +1,4 @@
-// ---- Calibration lab (t-cal): Rogan-Gladen correction of the judge's win rate with a seeded gold slice ----
+// ---- Reading, Calibration: slice-size lab (moved from the Calibration lab tab on 2026-10-24): Rogan-Gladen correction of the judge's win rate with a seeded gold slice ----
 (function(){
   const L=window.LJ,$=id=>document.getElementById(id),P=(x,d)=>L.pct(x,d);
   const tS=$('cl-t');[2,1,0,3,4,5].forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=L.nm(m);tS.appendChild(o)});
@@ -72,5 +72,5 @@
   $('cl-reset').addEventListener('click',()=>{seed=1;render()});
   $('cl-run').addEventListener('click',()=>{showRep=true;repeat()});
   $('cl-curve').addEventListener('click',()=>{showCurve=true;curve()});
-  RD.onRender(render,'t-cal');RD.onResizeTab('t-cal',render);
+  RD.onRender(render);RD.onResize(render);
 })();
