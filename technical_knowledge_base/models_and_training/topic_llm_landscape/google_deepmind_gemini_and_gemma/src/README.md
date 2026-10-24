@@ -1,3 +1,40 @@
+# Google DeepMind: Gemini and Gemma, interactive page (v4, rebuilt 2026-10-24 to the teaching contract)
+
+Child page of Topic: llm-landscape (storage key `gg-tab`). Rebuilt by editing only: no new runs, no new numbers except derived ones with their formula (192 racks = 12,288 / 64).
+
+## Build and checks (current)
+- `sh build.sh` writes `../index.html`: HTML parts `00_top`, `01_css`, `02_header`, `03_read_a` (core idea, hero, you need, new terms, families table, how the design got here with the timeline and closed release notes), `04_read_b` (thinking, media, works harder with the one-task widget), `05_read_c` (Gemma, Gemma attention, edge models, sparse against dense, training, dated lineup, mistakes), `06_tabs` (Gemma on one machine), `07_more`; then the error box and the scripts `10_js_common`, `21_js_rd_common` (skill template), `11` to `19`, `20_js_figs` (hero, edge bars, sparse against dense), `99_js_tabs` (skill template, key `gg-tab`, plus `data-to` scrolling).
+- The header reading time comes from `rt.json`: after editing text run `node html_utils/audit_pages.mjs <out.jsonl> <page>` and update it (230 words a minute, core and closed details apart).
+- `node <page>/src/check_controls.mjs <page>/index.html` (from the repo root) works every control in every tab at 390 px dark and 920 px light under reduced motion. Nothing on the page animates by itself.
+- `python3 html_utils/ledger.py check <page>`: the knowledge ledger.
+
+## The 2026-10-24 rebuild: what changed and why
+- **Top**: the core idea in one sentence, a hero figure (frontier model distilled into Flash and into Gemma; what the caller sets per request; what makes Gemma fit one machine; TPUs underneath), "You need", new terms, and the families in one table (replacing the families grid and the "why Google" bullets, which the hero now carries).
+- **Lineage**: the Lineage tab moved into Reading as "How the design got here" (the order explains the design: sparsity, long context, thinking budgets then levels, width, per-request controls, the Flash cadence). The per-release benchmark paragraphs (3.8 Flash, Cyber, Live, Argon) are volatile and sit in a closed "Release notes" block; the dated cards sit in a closed block that a dot click opens.
+- **Works harder**: the one-task cost breakdown moved here from the Cost per task tab; the fitting arithmetic is closed. The list-price chart was removed (price history, a rejected pattern; its prices are one sentence in the lineup) and the index-against-cost scatter was removed (cross-provider, owned by the landscape root's Capability vs price tab). The Cost per task tab is gone.
+- **Gemma**: one section with the lineage in two paragraphs and the Gemma 4 table; attention keeps the layer strip and the 37.5% reconstruction, with the cache formula closed and sizing linked to Long context; a new edge-models section with a to-scale figure; sparse against dense gets a to-scale figure, the worked example condensed from five steps to three. EmbeddingGemma closed.
+- **Training**: a real photo (TPU v4 racks, CC BY 4.0, `img/CREDITS.md`); JAX's definition shortened (the JAX topic owns it); distillation's definition replaced by a link (Distillation owns it), the storage widget kept (that page links here for it); usage numbers and the Siri deal closed as volatile.
+- **Lineup today**: one dated volatile table; "Which model when", model codes and the mistakes are closed blocks.
+- **Gemma on one machine** stays a tab (a calculator used across the Gemma sections); its symbol definitions and the full Leviathan Table 4 are closed, and the roofline and speculative decoding owners are linked.
+- Reading formulas: symbol lists became one sentence each.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After |
+|---|---|---|
+| Reading, core | 31.7 min (7,291 words) | 27.2 min |
+| Reading, closed details | 0.9 min | 11.7 min |
+| Other tabs | 20.7 min (Lineage 3.4, Cost per task 2.8, Gemma on one machine 10.8, Further reading 3.5) | 15.1 min (Gemma on one machine 9.1 core plus 2.1 closed, Further reading 3.9) |
+| Visuals inline in Reading (audit count) | 2 | 7 |
+
+Why about 27 minutes is right: the page owns two families with different questions (what a Gemini request costs: thinking levels, media tokens, tokens per task; what fits on one machine: Gemma's attention layout, global-layer savings, edge tricks, sparse against dense), plus the lineage that explains them. What remains in core is Google-specific numbers and reasons; mechanisms other pages own are a line and a link, and benchmarks, release notes and per-item lists are closed.
+
+## Knowledge ledger
+359 units: core 253, depth 63, volatile 24, fat 19 (`ledger.py check`: problems 0). 356 drafted by `ledger.py init` from the old page, 3 added by hand for script-drawn figures. Fat: navigation lists, tab pointers, wind-ups and the KV-cache definition the reader already has. No unit is labelled owned: the owners (Speculative decoding for Table 4, the landscape root for the cost scatter) do not carry this page's keys, so the units stay here.
+
+---
+
+# Earlier notes (v3, kept for history)
+
 # Google DeepMind: Gemini and Gemma, interactive page (v3)
 
 `visual.html` replaces all the text of the Notion page "Google DeepMind: Gemini and Gemma" (https://app.notion.com/p/3c65c17b0d0d8173a0aafcb27cf7a5f3, child of Topic: llm-landscape). It is meant to be the only source of information on the page. `coverage.json` shows where it carries each fact of the old text, and every specific figure links inline to its source.
