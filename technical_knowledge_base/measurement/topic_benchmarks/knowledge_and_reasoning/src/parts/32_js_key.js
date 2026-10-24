@@ -115,5 +115,5 @@
   KU.seg(document.getElementById('ky-sort'),m=>{sort=m;drawMap()});
   KU.seg(document.getElementById('ky-n'),m=>{N=+m;drawMap()});
   drawMap();
-  KU.onResize('t-key',()=>an.redraw());
+  KU.onResize('t-read',()=>an.redraw());
 })();

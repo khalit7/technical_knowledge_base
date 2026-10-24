@@ -87,5 +87,5 @@
   tbl.addEventListener('input',calc);tbl.addEventListener('change',calc);
   KU.seg(document.getElementById('rh-pre'),m=>rhRows(PRE[m]));
   rhRows(PRE.human);
-  KU.onResize('t-arc',()=>{an.redraw();drawEd()});
+  KU.onResize('t-read',()=>{an.redraw();drawEd()});
 })();
