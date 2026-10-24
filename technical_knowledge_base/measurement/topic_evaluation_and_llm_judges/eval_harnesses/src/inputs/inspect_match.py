@@ -79,7 +79,7 @@ def _parse_number(s: str, *, trim_punctuation: bool = True) -> float | None:
     digits, locale grouping). Rejects strings with trailing non-numeric
     content (so ``"5 some text"`` returns None). Sentence/enclosing
     punctuation attached to the number ("42!", "(42)") is trimmed unless
-    ``trim_punctuation=False`` — the ``location="exact"`` path passes False
+    ``trim_punctuation=False`` \u2014 the ``location="exact"`` path passes False
     so that exact stays actually exact. ``nan`` and ``inf`` also return None.
     """
     s_cleaned = _clean_numeric_word(s) if trim_punctuation else s

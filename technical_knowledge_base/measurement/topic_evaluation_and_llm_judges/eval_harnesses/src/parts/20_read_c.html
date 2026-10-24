@@ -1,40 +1,85 @@
 
-<section id="rd-score">
-<h2>How each scores: three decisions inside every number</h2>
-<p>Whatever the harness, a score is the product of three decisions: <b>how the answer is read</b> (probabilities or generated text), <b>how a generated answer is extracted</b>, and <b>how the prompt is wrapped</b> (raw text or the model's chat template). The parent page's tab <b>Same model, many harnesses</b> measures how much each one moves a score; here is where each harness makes them.</p>
+<section id="rd-score" class="hn">
+<h2>2. From benchmark to score: the decisions in order</h2>
+<p>Follow the hero's chain left to right. For each link: what the harnesses do by default, and the size of the effect when only that link changes (Qwen2.5-0.5B-Instruct on 200 MMLU items unless another source is named).</p>
 
-<h3>1. Probabilities or text</h3>
-<p>lm-eval-harness has four request types ({{<code>lm_eval/api/instance.py</code>|https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/api/instance.py#L5-L7}}), and a backend only has to implement three methods to run all of them ({{model guide|https://github.com/EleutherAI/lm-evaluation-harness/blob/main/docs/model_guide.md}}):</p>
-<ul>
-<li><code>loglikelihood(context, continuation)</code>: the log-probability of a given continuation and whether it is the greedy one. A <code>multiple_choice</code> task asks it once per option and picks the largest. No sampling, deterministic, cheap, works on base models; it measures how the model ranks given options, never whether it can produce an answer, and it needs log-probabilities of the prompt, which most chat APIs do not return.</li>
-<li><code>loglikelihood_rolling(text)</code>: the log-probability of a whole text, for perplexity and bits-per-byte.</li>
-<li><code>generate_until(context, until=[...])</code>: generate until a stop string, then post-process with filters. This is what chat and reasoning models need, and every extraction rule becomes part of the score.</li>
-</ul>
-<div class="co"><div class="t">Length normalisation, exactly</div>For <code>multiple_choice</code> tasks lm-eval reports <code>acc</code> (argmax of the summed log-probabilities), <code>acc_norm</code> (argmax of the sum divided by the option's length <b>in characters</b>), and, when asked, <code>acc_bytes</code> (divided by its UTF-8 byte length) and <code>acc_mutual_info</code> ({{<code>task.py</code> lines 1494 to 1560|https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/api/task.py#L1494-L1560}}). The old version of this page called <code>acc_norm</code> byte-length normalised; it is character-length, which is the same for ASCII options and different for most other scripts.</div>
-<p>The other harnesses lean generative. HELM has both generation and multiple-choice adapters; Inspect, simple-evals, promptfoo and Braintrust score generated text. Inspect added <code>perplexity()</code> and <code>target_perplexity()</code> scorers in 0.3.212 (24 April 2026; {{changelog|https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/CHANGELOG.md}}); the docs describe <code>target_perplexity()</code> as the counterpart of lm-eval's <code>loglikelihood</code> pattern, and it needs prompt log-probabilities, which only its vLLM and SageMaker providers supply ({{Inspect: Perplexity|https://inspect.aisi.org.uk/perplexity.html}}).</p>
-<p>The field has been moving multiple-choice benchmarks from loglikelihood to generated chain-of-thought formats; Hugging Face's Open LLM Leaderboard v2, run on lm-eval, mixed both: four of its six tasks (BBH, GPQA, MMLU-Pro, MuSR) are <code>multiple_choice</code> and two (IFEval, MATH Level 5) are <code>generate_until</code> ({{<code>tasks/leaderboard</code>|https://github.com/EleutherAI/lm-evaluation-harness/tree/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/leaderboard}}). Scores under the two formats are different measurements even when the benchmark has the same name: never compare across them.</p>
-
-<h3>2. Extraction</h3>
-<p>A generative task is only as good as the code that finds the answer in the text. On GSM8K, the same benchmark in each harness uses a different rule (the tab {{One task, every harness|#t-same}} runs all of them on real outputs):</p>
-<div class="tw"><table>
-<thead><tr><th>Harness</th><th>Rule for the GSM8K answer</th></tr></thead>
+<h3>Prompt template and few-shot selection</h3>
+<div class="tw"><table class="cards">
+<thead><tr><th>Harness</th><th>Shots by default</th><th>How they are chosen</th></tr></thead>
 <tbody>
-<tr><td>lm-eval <code>gsm8k</code></td><td>Two filters reported side by side: <code>strict-match</code> needs <code>#### &lt;number&gt;</code> (the training-set format the 5 shots teach); <code>flexible-extract</code> takes the last number-like string. Then <code>exact_match</code> after removing commas, <code>$</code> and a trailing period</td></tr>
-<tr><td>inspect_evals <code>gsm8k</code></td><td>The prompt asks for <code>ANSWER: $ANSWER</code>, but the scorer <code>match(numeric=True)</code> ignores that line: it takes the <b>last number</b> in the whole output and compares numerically, formatted to 5 significant digits (<code>.5g</code>): for the 18 of 1,319 test answers above 99,999, a prediction of 114,201 matches a gold of 114,200</td></tr>
-<tr><td>lighteval <code>gsm8k</code></td><td>Parses expressions and LaTeX (a boxed answer first) from the output and the gold, then compares the parsed values</td></tr>
-<tr><td>HELM <code>gsm</code></td><td><code>final_number_exact_match</code>: the last match of <code>-?[\d,]+(?:.\d+)?</code> in output and gold. The dot is unescaped, so it matches any character: "3 4" is read as one number</td></tr>
-<tr><td>simple-evals MGSM (English)</td><td>Text after the last "Answer", then the last number in it (the code comment says "the first number"; the code returns the last). The match on "Answer" is case-sensitive, so an "ANSWER:" line, the format inspect_evals asks for, is never found</td></tr>
-<tr><td>OpenAI evals <code>Match</code></td><td>The output must <b>start with</b> the ideal answer string</td></tr>
+<tr><td>lm-eval <code>gsm8k</code></td><td data-l="Shots by default">5, raw text, each ending "#### N"</td><td data-l="How they are chosen">Sampled from the train split with seed 1234 (defaults "0,1234,1234,1234" for Python, NumPy, torch and few-shot): <b>a different five for every problem</b>, measured: the ten contexts start with ten different questions and run 2,181 to 3,328 characters</td></tr>
+<tr><td>lm-eval <code>mmlu</code></td><td data-l="Shots by default">0 unless <code>--num_fewshot</code></td><td data-l="How they are chosen">The first n dev examples, in order, as the original MMLU code</td></tr>
+<tr><td>inspect_evals <code>gsm8k</code></td><td data-l="Shots by default">10, in one system message</td><td data-l="How they are chosen">Random train examples with a fixed seed: <b>the same system message for every problem</b> (measured, all ten identical)</td></tr>
+<tr><td>HELM <code>gsm</code></td><td data-l="Shots by default">5, "Q: ... A:"</td><td data-l="How they are chosen">Sampled train instances, answers' "####" replaced by "The answer is"</td></tr>
+<tr><td>simple-evals</td><td data-l="Shots by default">0, chain of thought</td><td data-l="How they are chosen">None: few-shot and role-play prompts are "carryovers from evaluating base models"</td></tr>
 </tbody></table></div>
-<p>Extraction failures score as wrong answers, silently. They are the usual cause of "model X dropped 20 points": a new model writes <code>**72**</code> or <code>\boxed{72}</code> or "The answer is: 72 dollars" and the old regex misses it. When a score moves, read ten failures before believing it.</p>
+<p><b>Size of the effect.</b> On the 0.5B model, 5 shots to 0 moved MMLU by -0.5 points and the original prompt to a HELM-style prompt by 0.0: both inside the paired interval, so no detectable effect on this model. It is not zero everywhere: inspect_evals' MMLU README reports Claude Sonnet 4.5 at 36.0 with 0 shots and 54.5 with 5. Shots teach the answer <b>format</b>; whether that matters depends on whether the model already follows the format.</p>
 
-<h3>3. Chat template</h3>
-<p>Instruction-tuned models were trained on their own chat format; sending them raw text is a different test. Each harness has a default:</p>
+<h3>Chat template</h3>
+<p>Instruction-tuned models were trained on their own chat format; sending them raw text is a different test, and each harness has a different default:</p>
 <ul>
 <li><b>lm-eval</b> sends raw text unless asked. <code>--apply_chat_template</code> wraps prompts in the tokenizer's template, <code>--fewshot_as_multiturn</code> (on by default with it) turns the shots into alternating turns, and <code>--system_instruction</code> adds a system prompt ({{interface.md|https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/docs/interface.md#L75-L120}}). The results file records a hash of the chat template and of the system instruction.</li>
-<li><b>Inspect</b> sends messages; its Hugging Face provider applies the tokenizer's chat template unless <code>use_chat_template=False</code>. inspect_evals' GSM8K puts its ten shots in one system message.</li>
+<li><b>Inspect</b> sends messages; its Hugging Face provider applies the tokenizer's chat template unless <code>use_chat_template=False</code>.</li>
 <li><b>simple-evals</b> and the app-level tools always send chat messages; <b>HELM</b> builds a text prompt and the model client decides how to send it.</li>
 </ul>
-<div class="co warn"><div class="t">A default worth knowing: Inspect's local Hugging Face provider samples</div>Inspect's <code>hf</code> provider sets <code>do_sample=True</code> unless the model argument <code>do_sample=False</code> is passed ({{<code>hf.py</code> line 118|https://github.com/UKGovernmentBEIS/inspect_ai/blob/9f6accda8dce5ccd754e6be1a22fbcee96042e82/src/inspect_ai/model/_providers/hf.py#L117-L118}}), so a local run uses the model's own sampling settings (Qwen2.5-0.5B-Instruct's {{generation config|https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/blob/main/generation_config.json}} samples at temperature 0.7, top-p 0.8, top-k 20, repetition penalty 1.1). Passing <code>--temperature 0</code> instead raises an error in transformers 5.18, which this page hit. lm-eval's GSM8K task sets <code>do_sample: false</code>, <code>temperature: 0.0</code> in the YAML. Greedy against sampled is a knob in its own right.</div>
-<div class="deepnote"><b>Go deeper (optional):</b> how far each of these moves a score, measured: the parent's tab <b>Same model, many harnesses</b> ({{Topic: evaluation-and-llm-judges|n:3c65c17b0d0d8181b351e1b8fc6a1546}}). Benchmark-level spreads (effort, tools, splits): Topic: benchmarks, tab "Same model, many numbers" ({{Topic: benchmarks|n:3c65c17b0d0d811fb43fece56e40041a}}).</div>
+<p><b>Size of the effect: the largest on this page.</b> The same 0-shot MMLU prompt, raw then wrapped in Qwen2.5's chat template and parsed strictly: <b class="hx-hl">41.5% to 8.0%</b> (-33.5 points); 168 of 200 answers had no letter where the parser looked, because the model explains instead of answering. Adding "Answer with only the letter." brought it back to 38.5%. Qwen2.5's template also inserts a default system line ("You are Qwen ... a helpful assistant") when none is given: a knob nobody set.</p>
+<div class="co warn"><div class="t">A default worth knowing: Inspect's local Hugging Face provider samples</div>Inspect's <code>hf</code> provider sets <code>do_sample=True</code> unless the model argument <code>do_sample=False</code> is passed ({{<code>hf.py</code> line 118|https://github.com/UKGovernmentBEIS/inspect_ai/blob/9f6accda8dce5ccd754e6be1a22fbcee96042e82/src/inspect_ai/model/_providers/hf.py#L117-L118}}), so a local run uses the model's own sampling settings (Qwen2.5-0.5B-Instruct's {{generation config|https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/blob/main/generation_config.json}}: temperature 0.7, top-p 0.8, top-k 20, repetition penalty 1.1). Passing <code>--temperature 0</code> instead raises an error in transformers 5.18, which this page hit. lm-eval's GSM8K task sets <code>do_sample: false</code>, <code>temperature: 0.0</code> in the YAML. Greedy against sampled is a knob in its own right.</div>
+
+<h3>Read the answer: log-likelihood or generation</h3>
+<p>lm-eval-harness has four request types ({{<code>lm_eval/api/instance.py</code>|https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/api/instance.py#L5-L7}}) and a backend implements three methods to run them all ({{model guide|https://github.com/EleutherAI/lm-evaluation-harness/blob/main/docs/model_guide.md}}):</p>
+<ul>
+<li><code>loglikelihood(context, continuation)</code>: the log-probability of a given continuation and whether it is the greedy one. A <code>multiple_choice</code> task asks it once per option and picks the largest. Deterministic, cheap, works on base models, can never produce an invalid answer; it measures how the model <b>ranks</b> given options, never whether it can <b>produce</b> one, and it needs prompt log-probabilities, which most chat APIs do not return.</li>
+<li><code>loglikelihood_rolling(text)</code>: the log-probability of a whole text, for perplexity and bits-per-byte.</li>
+<li><code>generate_until(context, until=[...])</code>: generate until a stop string, then filter. What chat and reasoning models need; every extraction rule becomes part of the score.</li>
+</ul>
+<p>The other harnesses lean generative: HELM has both adapters; Inspect, simple-evals, promptfoo and Braintrust score generated text. Inspect added <code>perplexity()</code> and <code>target_perplexity()</code> in 0.3.212 (24 April 2026; {{changelog|https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/CHANGELOG.md}}), described by its docs as the counterpart of lm-eval's <code>loglikelihood</code> pattern; it needs prompt log-probabilities, which only its vLLM and SageMaker providers supply ({{Inspect: Perplexity|https://inspect.aisi.org.uk/perplexity.html}}).</p>
+
+<div class="an-wrap" id="hn-s-anim">
+<div class="t" style="font-weight:600;margin-bottom:4px">One MMLU item, read three ways: the same weights give a right, a wrong and an invalid answer</div>
+<div class="try" id="hn-try"><b>Predict:</b> on the chat-template mode, will the strict parser find a letter? Then step through each mode.</div>
+<div class="seg" id="hn-mode"><button data-m="ll" class="on">Loglikelihood of letters</button><button data-m="gen">Chat: generate, then extract</button><button data-m="txt">Answer text (lm-eval, Jan 2023)</button></div>
+<div class="chips" id="hn-items"></div>
+<div class="hn-two">
+<div><div class="small mute">What the harness sends</div><div class="hn-q" id="hn-prompt"></div></div>
+<div><div class="small mute" id="hn-dist-h">Next-token probabilities after "Answer:"</div><div class="hn-dist" id="hn-dist"></div>
+<div class="small mute" id="hn-gen-h" style="margin-top:6px">Model output</div><div class="hn-gen" id="hn-gen"></div></div>
+</div>
+<div class="hn-cap" id="hn-cap" aria-live="polite"></div>
+<div class="out" id="hn-count"></div>
+<div class="hn-ctrl"><button id="hn-play">Play</button><button id="hn-prev" aria-label="Previous step">&#9664;</button><button id="hn-next" aria-label="Next step">&#9654;</button><input type="range" id="hn-scrub" min="0" max="4" value="0" aria-label="Step"><select id="hn-speed" aria-label="Speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></div>
+<p class="small mute" id="hn-anim-src"></p>
+</div>
+<p><b>Size of the effect.</b> On the raw prompt this model behaves: the four letters hold 99.9% of the next-token probability, greedy decoding's first token is the log-likelihood pick on 200 of 200 items, and log-likelihood to generative moved the score by +2.0 points. The gap opens only through the chat template and the parser. Hugging Face's Open LLM Leaderboard v2, run on lm-eval, mixed both: four of its six tasks (BBH, GPQA, MMLU-Pro, MuSR) are <code>multiple_choice</code> and two (IFEval, MATH Level 5) <code>generate_until</code> ({{<code>tasks/leaderboard</code>|https://github.com/EleutherAI/lm-evaluation-harness/tree/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/leaderboard}}). Scores under the two formats are different measurements even when the benchmark has the same name: never compare across them.</p>
+<div class="co"><div class="t">Length normalisation, exactly</div>For <code>multiple_choice</code> tasks lm-eval reports <code>acc</code> (argmax of the summed log-probabilities), <code>acc_norm</code> (argmax of the sum divided by the option's length <b>in characters</b>) and, when asked, <code>acc_bytes</code> (divided by its UTF-8 byte length) and <code>acc_mutual_info</code> ({{<code>task.py</code> lines 1494 to 1560|https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/api/task.py#L1494-L1560}}). <b>Correction:</b> the old version of this page called <code>acc_norm</code> byte-length normalised; it is character-length, the same for ASCII options and different for most other scripts. On the 200 items, acc to acc_norm moved +0.5 points; scoring the answer <b>text</b> instead of the <b>letter</b> moved this model +0.5 and LLaMA-65B -14.8.</div>
+
+<h3>Extraction: the code that finds the answer</h3>
+<p>A generative score is only as good as the code that finds the answer in the text. On GSM8K each harness uses a different rule (the files themselves: tab {{GSM8K in every harness|#t-same}}):</p>
+<div class="tw"><table class="cards">
+<thead><tr><th>Harness</th><th>Rule for the GSM8K answer</th></tr></thead>
+<tbody>
+<tr><td>lm-eval <code>gsm8k</code></td><td data-l="Rule">Two filters side by side: <code>strict-match</code> needs <code>#### &lt;number&gt;</code> (the format the 5 shots teach); <code>flexible-extract</code> takes the last number-like string. Then <code>exact_match</code> after removing commas, <code>$</code> and a trailing period</td></tr>
+<tr><td>inspect_evals <code>gsm8k</code></td><td data-l="Rule">The prompt asks for <code>ANSWER: $ANSWER</code>, but <code>match(numeric=True)</code> ignores that line: it takes the <b>last number</b> in the output and compares numerically at 5 significant digits (<code>.5g</code>): for the 18 of 1,319 test answers above 99,999, a prediction of 114,201 matches a gold of 114,200</td></tr>
+<tr><td>lighteval <code>gsm8k</code></td><td data-l="Rule">Parses expressions and LaTeX (a boxed answer first) from output and gold, then compares the parsed values</td></tr>
+<tr><td>HELM <code>gsm</code></td><td data-l="Rule"><code>final_number_exact_match</code>: the last match of <code>-?[\d,]+(?:.\d+)?</code>. The dot is unescaped, so it matches any character: "3 4" is read as one number</td></tr>
+<tr><td>simple-evals MGSM (English)</td><td data-l="Rule">Text after the last "Answer", then the last number in it (the code comment says "the first number"; the code returns the last). The match is case-sensitive, so an "ANSWER:" line, the format inspect_evals asks for, is never found</td></tr>
+<tr><td>OpenAI evals <code>Match</code></td><td data-l="Rule">The output must <b>start with</b> the ideal answer, which a chain-of-thought answer never does</td></tr>
+</tbody></table></div>
+<figure class="hx-fig" id="ex-fig" aria-label="Correct answers out of 10 under seven extraction rules, on the same outputs"></figure>
+<p class="small mute hx-cap"><b>Seven rules, identical text, verdicts from 0 to 2 correct out of 10.</b> Twenty real outputs (this page's two GSM8K runs), each scored by every harness's rule: the harness's own code where it installs (lm-eval, Inspect, lighteval), a verbatim copy where it does not (HELM, simple-evals, openai/evals), <code>src/compute_extract.py</code>. lm-eval's logged result on its own outputs: strict-match 0 of 10, flexible-extract 1 of 10. Not a ranking: the point is that the same text gets different verdicts.</p>
+<details class="mist"><summary>Every rule on one output, or on your own text</summary><div class="b">
+<div class="small mute">Output</div>
+<div class="sx-pick" id="ex-pick"></div>
+<div class="sx-grid">
+<div><div class="sx-h" id="ex-h"></div><div class="ex-out" id="ex-out"></div></div>
+<div><table class="ex-tbl" id="ex-tbl"><thead><tr><th>Rule</th><th>Reads</th><th>Verdict</th></tr></thead><tbody></tbody></table></div>
+</div>
+<p class="small">Type a model answer and a gold number; six of the seven rules run live (lighteval's parser uses sympy and runs only offline). The JavaScript copies are checked against the harnesses' own code on all twenty outputs by <code>src/recompute.py</code>.</p>
+<div class="ctl"><label>Model output<textarea id="ex-in" rows="4" style="width:100%;font:12.5px ui-monospace,Menlo,monospace;background:var(--soft);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px">She makes 9 * 2 = $18 every day.
+#### 18</textarea></label><label>Gold answer<input id="ex-gold" value="18" style="width:100%"></label></div>
+<table class="ex-tbl" id="ex-live"><thead><tr><th>Rule</th><th>Reads</th><th>Verdict</th></tr></thead><tbody></tbody></table>
+</div></details>
+<p><b>Size of the effect.</b> On MMLU through the chat template, strict to lenient extraction moved the score from 8.0% to 25.5% (+17.5); on Qwen2.5-72B-Instruct's saved MATH Level 5 answers, swapping the parser moved the Open LLM Leaderboard score from 1.21 to 59.82. Extraction failures score as wrong answers, silently. They are the usual cause of "model X dropped 20 points": a new model writes <code>**72**</code> or <code>\boxed{72}</code> or "The answer is: 72 dollars" and the old regex misses it. When a score moves, read ten failures before believing it.</p>
+
+<h3>Normalisation and averaging</h3>
+<p>The last link: one number from many. Llama 3 8B's MMLU on the Open LLM Leaderboard is 66.70 as the mean of the 57 subject accuracies (macro) and 65.46 weighted by questions (micro), same run. Leaderboard v2 rescales so that chance is 0: Llama 3.1 8B Instruct's MMLU-Pro is 37.98 raw and 31.09 displayed. Name the averaging and any rescaling next to the number.</p>
 </section>
