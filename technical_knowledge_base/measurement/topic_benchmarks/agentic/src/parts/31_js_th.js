@@ -1,4 +1,4 @@
-// ---- Tab: METR time horizon fit on the released runs, and the doubling-time trend ----
+// ---- Reading, Long tasks: METR time horizon fit on the released runs, and the doubling-time trend ----
 window.TH=(function(){
   const M=AG.metr;
   // weighted logistic regression on (log2 minutes) with an L2 penalty lam on the slope only; Newton's method
@@ -30,7 +30,7 @@ window.TH=(function(){
   return {fit,bins,trend};
 })();
 (function(){
-  const root=document.getElementById('t-th');if(!root)return;
+  if(!document.getElementById('th-card'))return;const root=document.getElementById('t-read');
   const M=AG.metr,E=RD.esc,sel=document.getElementById('th-m');
   M.agents.forEach((g,i)=>{const o=document.createElement('option');o.value=i;o.textContent=g.n+' ('+g.rel+')';sel.appendChild(o)});
   sel.value=M.agents.findIndex(g=>g.n==='Claude Opus 4.6');
@@ -76,5 +76,5 @@ window.TH=(function(){
   }
   sel.addEventListener('change',draw);document.getElementById('th-bins').addEventListener('change',draw);
   document.getElementById('th-y').addEventListener('input',trend);document.getElementById('th-ex').addEventListener('change',trend);
-  const all=()=>{draw();trend()};RD.onRender(all,'t-th');RD.onResize(all,'t-th');
+  const all=()=>{draw();trend()};RD.onRender(all);RD.onResize(all);
 })();

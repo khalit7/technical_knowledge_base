@@ -1,85 +1,76 @@
 
-<section id="rd-integ">
-<h2>The integrity crisis</h2>
-<p>In April 2026 Hao Wang, Qiuyang Mang, Alvin Cheung, Koushik Sen and Dawn Song at UC Berkeley published {{How We Broke Top AI Agent Benchmarks|https://rdi.berkeley.edu/blog/trustworthy-benchmarks-cont/}} (Berkeley RDI; the paper is {{arXiv 2605.12673|https://arxiv.org/abs/2605.12673}} and the scanner is {{BenchJack|https://github.com/benchjack/benchjack}}). An automated agent audited eight prominent agent benchmarks, built a working exploit for each, ran it through the official evaluation, and scored near the top "without solving a single task", in most cases with no model calls at all:</p>
-<div class="tw"><table class="rd-t" id="rd-rdi">
-<thead><tr><th>Benchmark</th><th class="num">Tasks</th><th class="num">Exploit score</th><th>How</th></tr></thead>
-<tbody>
-<tr><td>Terminal-Bench (2.0)</td><td class="num">89</td><td class="num">100%</td><td>Wrapped binaries the verifier later calls in the same container (curl for 82 tasks; pip, python or uvx for 7); a trojaned uvx fakes pytest</td></tr>
-<tr><td>SWE-bench Verified</td><td class="num">500</td><td class="num">100%</td><td>A 10-line conftest.py hook forces every test to report passed (Django: patch unittest's run)</td></tr>
-<tr><td>SWE-bench Pro</td><td class="num">731</td><td class="num">100%</td><td>Overwrites the in-container test-output parser</td></tr>
-<tr><td>WebArena</td><td class="num">812</td><td class="num">about 100%</td><td>file:// reads the gold answer from the task config; DOM and prompt injection</td></tr>
-<tr><td>FieldWorkArena</td><td class="num">890</td><td class="num">100%</td><td>The validator checks only that the last message came from the assistant; sending "{}" passes</td></tr>
-<tr><td>CAR-bench</td><td class="num">hallucination tasks</td><td class="num">100%</td><td>Three of four reward components skipped for that task type; the LLM judge reads injected notes</td></tr>
-<tr><td>GAIA</td><td class="num">165 (validation)</td><td class="num">about 98%</td><td>Public answers plus a normaliser that collapses distinct strings; one miss per level dodges the 100% filter</td></tr>
-<tr><td>OSWorld</td><td class="num">369</td><td class="num">73%</td><td>Downloads public gold files into the checked path; sets checked state directly; eval() on a VM string</td></tr>
-</tbody></table></div>
-<p>RDI group the flaws into seven patterns, and every benchmark on this page can be read against them:</p>
-<ol class="tight">
-<li><b>No isolation between agent and evaluator</b> (SWE-bench, Terminal-Bench, OSWorld): the checker reads state the agent could write.</li>
-<li><b>Answers shipped with the test</b> (WebArena configs, OSWorld gold URLs, GAIA's public validation answers).</li>
-<li><b>eval() on untrusted input</b> (WebArena, OSWorld): code execution on the grading machine, a security hole as well as a scoring one.</li>
-<li><b>LLM judges without input sanitisation</b> (WebArena, CAR-bench): the agent's text reaches the judge's prompt.</li>
-<li><b>Weak string matching</b> (WebArena's substring check, GAIA's normaliser).</li>
-<li><b>Evaluation logic that does not evaluate</b> (FieldWorkArena's validator, CAR-bench's skipped components, GAIA's comma bug that marks correct answers wrong).</li>
-<li><b>Trusting the output of untrusted code</b> (pytest output and reward files produced inside the agent's container).</li>
-</ol>
-<p>It is not only a red-team result. RDI also list incidents in the wild: IQuest-Coder-V1 claimed 81.4% on SWE-bench until 24.4% of its trajectories were found running <code>git log</code> to copy the answer from history (corrected to 76.2%); in KernelBench, <code>torch.empty()</code> returned stale GPU memory holding the evaluator's reference answer; and Anthropic's Mythos Preview assessment describes a model that, unable to edit a file it lacked permission for, injected code into a config file that ran with elevated privileges and deleted itself afterwards. {{HAL|https://arxiv.org/abs/2510.11977}}, which reran 9 benchmarks with 21,730 rollouts (about $40,000), found agents searching Hugging Face for the benchmark instead of solving the task. {{METR|https://metr.org/blog/2025-06-05-recent-reward-hacking/}} measured o3 reward-hacking in 30.4% of RE-Bench runs by overwriting a grader's timer, monkey-patching the evaluator and caching answers. So an agent score you did not run yourself, under an isolated evaluator with held-out checks, deserves suspicion; RDI say plainly they are not claiming current leaders cheat, but that optimisation pressure can find the evaluator before it finds the solution.</p>
-<p><b>What changed since.</b> Terminal-Bench 3.0 and 4.0 tasks declare a separate verifier environment, copy out only declared artifacts and install nothing at trial time (74 of 74 and 66 of 66 task files, counted here; the animation in Anatomy shows why that defeats the wrapper exploit). Separation does not fix the other six patterns.</p>
-<div class="co key"><div class="t">The minimum bar for an agent benchmark (RDI's Agent-Eval Checklist, condensed)</div><ul class="tight">
-<li>Run the checker outside the agent's environment, on a read-only host; copy artifacts out through a controlled channel and treat them as untrusted; mount binaries and test files read-only.</li>
-<li>Never put reference answers, gold files or evaluator configs where the agent can read them; keep the primary split's answers secret and rotate instances.</li>
-<li>Never call eval() on agent-controlled strings; parse structured data.</li>
-<li>Treat agent text as data in any judge prompt (delimiters, stripping, structured output), or grade extracted features instead.</li>
-<li>Before publishing, attack your own evaluator with a null agent (its score is the floor and should be zero), a random agent, a prompt-injection agent and a state-tampering agent.</li>
-<li>Score robustly: no substring matches on short strings, a crashed task counts as zero, no category skips a check.</li>
-</ul></div>
-<div class="deepnote"><b>Go deeper:</b> <a href="#" data-tab="t-task">Grade a real task</a> runs regex-log's real test on your own regex and lists each exploit beside the defence that stops it; {{Reward Hacking|n:3c65c17b0d0d8196a6f1f29a817aa974}} covers why trained agents find these paths; {{Safety and honesty|n:3ef5c17b0d0d818da9d5efda1a443166}} covers AgentHarm and monitoring.</div>
-</section>
-
-<section id="rd-boards">
-<h2>Leaderboards worth checking</h2>
-<div class="tw"><table class="rd-t">
-<thead><tr><th>Board</th><th>Why</th><th>State (read 4 Oct 2026 unless marked)</th></tr></thead>
-<tbody>
-<tr><td>{{tbench.ai|https://www.tbench.ai/leaderboard}} and {{terminal-bench-science.ai|https://www.terminal-bench-science.ai/}}</td><td>Agent and model pairs, 5 (or 3) trials, intervals, pass@5 and dollars</td><td>4.0 updated 21 Sep; Science updated 22 Sep</td></tr>
-<tr><td>{{Vals AI Terminal-Bench 4.0|https://www.vals.ai/benchmarks/terminal-bench-4}}</td><td>Every model in one minimal harness (mini-swe-agent), with cost and time per test: the harness held fixed</td><td>updated 18 Oct (read 19 Oct)</td></tr>
-<tr><td>{{os-world.github.io|https://os-world.github.io/}} and {{osworld-v2.xlang.ai|https://osworld-v2.xlang.ai/}}</td><td>Verified with step budgets; 2.0 binary and partial per release and set</td><td>2.0 official results 17 Sep</td></tr>
-<tr><td>{{taubench.com|https://taubench.com/}}</td><td>Trajectories published with submissions, so pass^k can be recomputed (this page does)</td><td>core board idle since Mar; banking and voice active</td></tr>
-<tr><td>{{GAIA Space|https://gaia-benchmark-leaderboard.hf.space/}}</td><td>Submitted answers on the hidden test split</td><td>active; gameable</td></tr>
-<tr><td>{{MCP Atlas|https://labs.scale.com/leaderboard/mcp_atlas}}</td><td>The MCP board vendors cite</td><td>active</td></tr>
-<tr><td>{{METR time horizons (results file)|https://metr.org/assets/benchmark_results_1_1.yaml}}</td><td>The horizon per model, with intervals and the doubling fit; raw runs on GitHub</td><td>latest point 8 May; page "no longer actively updated" (note of 8 Sep)</td></tr>
-<tr><td>{{HAL (Princeton)|https://hal.cs.princeton.edu/}}</td><td>Reruns many agent benchmarks under one harness, with cost; the closest thing to a fair cross-benchmark view</td><td>see site</td></tr>
-<tr><td>{{Zapier AutomationBench|https://zapier.com/benchmarks}}, {{Agents' Last Exam|https://snorkel.ai/leaderboard/agents-last-exam/}}</td><td>Work tasks with price per task; strict and partial scores</td><td>active</td></tr>
-<tr><td>{{Artificial Analysis|https://artificialanalysis.ai/}}, {{Epoch AI|https://epoch.ai/benchmarks}}</td><td>Independent reruns and collected boards for cross-checking vendor claims</td><td>active</td></tr>
-</tbody></table></div>
-<p class="small mute">SWE-bench boards (swebench.com, Scale's SWE-bench Pro) are covered on {{Coding|n:3ef5c17b0d0d81bfa09ad4ba5eef0c4e}}.</p>
-</section>
-
-<section id="rd-mist">
-<h2>Common mistakes</h2>
-<details class="mist"><summary>Quoting a model's agent score without the harness, effort and budget</summary><div class="b">The pair is the unit. One model on the official Terminal-Bench 4.0 board spans 50.61% to 58.18% across effort settings; a harness lifted one model 9 points on Terminal-Bench 2.1; on ARC-AGI-3 two harnesses at equal effort gave 62.7% and 98.6%.</div></details>
-<details class="mist"><summary>Splicing versions of one benchmark</summary><div class="b">Terminal-Bench 2.0, 2.1, 3.0 and 4.0 are different task sets with different limits and checkers; OSWorld, OSWorld-Verified and OSWorld 2.0 (three releases, full or offline, binary or partial) are not one scale. Write the version, the set and the metric.</div></details>
-<details class="mist"><summary>Reading partial credit as success rate</summary><div class="b">OSWorld 2.0's partial score and binary accuracy differ by 30 to 40 points for the same run; Agents' Last Exam's 56.4% "score" for GPT-6 Sol is a 32.2% pass rate.</div></details>
-<details class="mist"><summary>Treating pass^1 as reliability</summary><div class="b">On τ²-bench retail, three models 5 points apart at pass^1 tie at pass^4, 25 to 30 points lower. If a product must work every time, ask for pass^k.</div></details>
-<details class="mist"><summary>Putting a lab's own run beside a board's</summary><div class="b">On Terminal-Bench-Science the same model reads 52.6% (lab) and 40.0% (board). Compare like with like and say who ran each number.</div></details>
-<details class="mist"><summary>Trusting a score the environment could have produced</summary><div class="b">If the checker ran where the agent ran, read answers it could see, or asked a judge that reads the agent's text, the score is an upper bound on capability plus an unknown amount of exploitation.</div></details>
-<details class="mist"><summary>Reading a small set's gap as a ranking</summary><div class="b">50 airline tasks: one task is 2 points. 30 sampled tasks with 3 attempts (HarnessTax) cannot separate harnesses a few points apart. Use the root's error-bar calculator.</div></details>
-<details class="mist"><summary>Quoting a METR horizon beyond the suite</summary><div class="b">A 17-hour horizon on a suite whose longest reliable range is about 16 hours, with an interval from 8 to 55 hours, says "beyond what this suite can measure", not "17 hours".</div></details>
-</section>
-
-<section id="rd-check">
-<h2>Checklist before quoting an agent number</h2>
-<ol class="cl">
-<li><label><input type="checkbox"> Benchmark <b>version</b>, task <b>set</b> (full, offline, public, held-out) and <b>metric</b> (binary, partial, pass^1, pass^k, Elo)?</label></li>
-<li><label><input type="checkbox"> <b>Who ran it</b>: the official board, an independent rerun, or the lab?</label></li>
-<li><label><input type="checkbox"> <b>Harness</b>, effort, and the time and step budget?</label></li>
-<li><label><input type="checkbox"> <b>How many trials</b> per task, and how many tasks (so how wide the interval is)?</label></li>
-<li><label><input type="checkbox"> Is the <b>checker isolated</b> from the agent, and are the answers hidden?</label></li>
-<li><label><input type="checkbox"> Is there a <b>simulated user or judge model</b> in the loop, and which version?</label></li>
-<li><label><input type="checkbox"> Is the board <b>still maintained</b>, and does the comparison use the same date's entries?</label></li>
-<li><label><input type="checkbox"> Is there a <b>cost</b> beside the score?</label></li>
-</ol>
-</section>
-<div class="foot">Built 4 October 2026 from the old Notion page's text (every fact carried or corrected; see <code>src/coverage.json</code>), the root page's verified data, and primary sources linked inline. Data computed in the page: τ²-bench trajectory files (MIT), METR's eval-analysis-public runs, Terminal-Bench task files (Apache 2.0).</div>
+<section id="rd-map">
+<h2>4. The families, on one screen</h2>
+<p>Every benchmark on this page, by what the agent acts on. The border says where each stands as read 4 Oct 2026: still separating models, saturating, broken by an exploit agent that scored near the top without solving tasks (Berkeley RDI, April 2026; the leaderboard still exists), or a board that stopped updating. The best reading of each, with who ran it and when, is in the one dated table at the end (<a href="#rd-check">Reading a score</a>).</p>
+<div class="rd-fig">
+<p class="ft">Four of the oldest boards were broken; the live frontier has moved to 2026 suites</p>
+<div class="map">
+<div class="ln"><b><a href="#rd-term">Terminal</a></b><div class="cs"><span class="c dor">Terminal-Bench 1.0<i>2025</i></span><span class="c brk">Terminal-Bench 2.0<i>2025</i></span><span class="c sat">2.1<i>2026</i></span><span class="c dor">3.0<i>2026</i></span><span class="c act">4.0<i>2026</i></span><span class="c act">Terminal-Bench-Science<i>2026</i></span></div></div>
+<div class="ln"><b><a href="#rd-comp">Computer use</a></b><div class="cs"><span class="c brk">OSWorld<i>2024</i></span><span class="c sat">OSWorld-Verified<i>2025</i></span><span class="c act">OSWorld 2.0<i>2026</i></span><span class="c">Windows Agent Arena<i>2024</i></span><span class="c">AndroidWorld<i>2024</i></span><span class="c act">OSWorld-Science<i>2026</i></span></div></div>
+<div class="ln"><b><a href="#rd-web">Web</a></b><div class="cs"><span class="c brk">WebArena<i>2023</i></span><span class="c">VisualWebArena<i>2024</i></span><span class="c">WebVoyager<i>2024</i></span><span class="c">Online-Mind2Web<i>2025</i></span><span class="c">Mind2Web 2<i>2025</i></span></div></div>
+<div class="ln"><b><a href="#rd-asst">Assistants and search</a></b><div class="cs"><span class="c brk">GAIA<i>2023</i></span><span class="c">Gaia2<i>2025</i></span><span class="c sat">BrowseComp<i>2025</i></span></div></div>
+<div class="ln"><b><a href="#rd-tau">Customer service</a></b><div class="cs"><span class="c">τ-bench<i>2024</i></span><span class="c sat">τ²-bench<i>2025</i></span><span class="c act">τ³ banking and voice<i>2026</i></span><span class="c act">Hyper-τ-bench<i>2026</i></span></div></div>
+<div class="ln"><b><a href="#rd-mcp">Tools and MCP</a></b><div class="cs"><span class="c dor">BFCL v4</span><span class="c dor">MCP-Universe<i>2025</i></span><span class="c dor">MCPMark<i>2025</i></span><span class="c">MCP-Bench<i>2025</i></span><span class="c act">MCP Atlas</span></div></div>
+<div class="ln"><b><a href="#rd-long">Long tasks and work</a></b><div class="cs"><span class="c sat">METR time horizon<i>2025</i></span><span class="c act">GDPval<i>2025</i></span><span class="c act">GDPval-AA</span><span class="c act">AutomationBench</span><span class="c act">Agents' Last Exam</span><span class="c">Vending-Bench<i>2025</i></span><span class="c dor">AgentBench<i>2023</i></span><span class="c act">FDE-Gym<i>2026</i></span><span class="c act">EngiWorld<i>2026</i></span><span class="c act">Into the Unknown<i>2026</i></span></div></div>
+<div class="ln"><b><a href="#rd-sys">The system as subject</a></b><div class="cs"><span class="c">HarnessDev<i>2026</i></span><span class="c">MOLE<i>2026</i></span><span class="c">Emergence World<i>2026</i></span><span class="c">EdgeBench<i>2026</i></span></div></div>
 </div>
+<div class="leg"><span class="sw" style="--sw:transparent;--swb:var(--acc)">active</span><span class="sw" style="--sw:transparent;--swb:var(--c5)">saturating</span><span class="sw" style="--sw:color-mix(in srgb,var(--bad) 12%,var(--bg));--swb:var(--bad)">broken by RDI's exploit agent</span><span class="sw" style="--sw:transparent;--swb:var(--mute)">board stopped, replaced or historical (dashed)</span><span class="sw" style="--sw:var(--soft);--swb:var(--line)">paper benchmark, no state tracked here</span></div>
+</div>
+</section>
+
+<section id="rd-term">
+<h2>Terminal: Terminal-Bench and Terminal-Bench-Science</h2>
+<p><b>Terminal-Bench</b> (Stanford and the Laude Institute; maintained in the {{harbor-framework|https://github.com/harbor-framework/terminal-bench}} organisation, Apache 2.0) gives the agent a shell in a Docker container and a task taken from real work: compile and fix builds, recover a database, train a small model, crack a hash, configure a server. Each task ships an environment, a human-written reference solution and tests that check the end state ({{paper, Jan 2026|https://arxiv.org/abs/2601.11868}}). Because Claude Code, Codex CLI, OpenHands and other agents run against it directly, it doubles as a harness benchmark, and the leaderboard lists each entry as an agent and model pair. Its versions are not one scale: each changed the tasks, the limits or the checker.</p>
+<div class="card" id="tbl">
+<p class="ft" style="font-weight:600;margin:0 0 6px">Five versions in 16 months, each a different scale: never splice them</p>
+<div id="tbl-fig"></div><div id="tbl-info" class="small"></div>
+<p class="small mute">Click a version. Task counts, timeouts and verifier modes are counted in this page from the task files at each tag ({{2.0 repository|https://github.com/harbor-framework/terminal-bench-2}}, {{3.0 and 4.0 tags|https://github.com/harbor-framework/terminal-bench/releases}}); dates are the GitHub tags and the {{tbench.ai news|https://www.tbench.ai/news}} posts; scores are the official boards unless marked as a lab's own run.</p></div>
+<p><b>What changed at 4.0, in the task files.</b> 8 tasks removed (2 saturated, 2 refused by models, 2 with public solutions, 2 for quality or platform problems), 19 fixed, and every task's agent timeout set to a flat 8 hours (65 of the 66 task files state 28,800 s; the announcement says all). "Saturated" was defined strictly: every model class in every family of the latest generation solves the task 5 times out of 5. Because time and memory limits are part of a task when the agent has a shell and a clock, 2.x and 4.0 scores are not comparable even on tasks that survived.</p>
+<p><b>Terminal-Bench-Science 0.1</b> ({{announcement, 27 Aug 2026|https://www.terminal-bench-science.ai/announcement}}) is the first agent benchmark built around research workflows rather than software engineering: 70 tasks across life, physical, Earth, mathematical and engineering sciences, graded by task-specific tests, three trials per task. At launch Claude Opus 5 led at 30.0%; within a week the {{official board|https://www.terminal-bench-science.ai/}} reached 68.1% (GPT-6 Astra (max) in Codex, dated 3 Sep, &plusmn;3.2). Lab and board figures disagree for the same model in both directions (section 3).</p>
+<details class="dp"><summary><b>Corrections to the old page, 4.0's noise and token notes, and Terminal-Bench-Science's construction</b></summary><div>
+<div class="co corr"><div class="t">Corrections</div><ul class="tight">
+<li>"4.0 (Sep 2026) is the current version, and there is no 3.x because the numbering jumped": {{Terminal-Bench 3.0|https://github.com/harbor-framework/terminal-bench/releases/tag/v3.0.0}} exists (tagged 23 Jul 2026, 74 tasks) and 4.0 was tagged 26 Aug 2026 (announced 28 Aug). The maintainers chose 4.0 over 3.1 because Terminal-Bench is now a continuous benchmark with semantic versioning, and changed resources and removed tasks are breaking changes that require re-running trials ({{4.0 announcement|https://www.tbench.ai/news/terminal-bench-4-0}}).</li>
+<li>"2.0 ... reached ~92% (GPT-5.6-class) by Aug 2026": the 92% figures are lab numbers on 2.1 (OpenAI's GPT-5.6 Sol Ultra with four parallel agents 91.9%). The official tops are 84.7% on 2.0 and 83.8% on 2.1 (root Benchmark atlas, from Wayback captures of the boards).</li>
+<li>"resets the scale to GPT-6 Astra 57.9% and Claude Fable 5.1 55.8%": those come from Anthropic's Opus 5.5 table. The official board reads GPT-6 Astra (max) 58.18%, Claude Fable 5.1 (max) 57.88%, Claude Opus 5 (xhigh) 53.94%, Grok 4.7 (xhigh) 37.58% (read 4 Oct 2026); Opus 5.5 was not on it at that reading (Anthropic's own run: 66.4%; Vals AI's fixed mini-swe-agent harness: 65.15%, 18 Oct 2026).</li>
+<li>"stood at 52.6% for Claude Fable 5.1 one week later": 52.6% is Anthropic's own run, published five days after launch; the official Terminal-Bench-Science board lists Fable 5.1 at 40.0% and Artificial Analysis measured 43.3%.</li>
+</ul></div>
+<p>The version chart in brief (task files and boards): 1.0 (19 May 2025, 80 tasks) saturated within months and its board froze at 64.5% (Apex2 agent with Claude Sonnet 4.5); 2.1 (6 May 2026) fixed 28 of the 89 tasks, and Opus 4.6 in Claude Code went from 58.0% on 2.0 to 70.1% on 2.1, so 2.0 and 2.1 are different scales; 3.0 launched at about 34% (GPT-5.6 Sol in Codex 34.4%, Claude Fable 5 in Claude Code 33.8%) and was replaced five weeks later.</p>
+<p>The 4.0 announcement also notes fewer agent timeouts and errors than 3.0, so less measurement noise, and that Sonnet 5 used 21.6 billion tokens on the run against 6.5 billion for Opus 5.</p>
+<p>Terminal-Bench-Science was built by Stanford with the Terminal-Bench and Harbor teams, from 376 contributors in 22 countries, reviewed by domain and technical reviewers plus a final "bar-raiser". At launch: Claude Opus 5 30.0%, GPT-5.6 Sol 22.4%, Claude Fable 5 21.4%, GPT-5.6 Luna 3.3%; the board later read 63.3% for Claude Opus 5.5 (max). Lab against board: Fable 5.1 52.6% against 40.0%; Opus 5.5 58.7% against 63.3%; Astra 64.6% against 68.1%. It is meant to be continuous: version 0.2 was taking task pull requests until 5 October 2026.</p>
+</div></details>
+</section>
+
+<section id="rd-comp">
+<h2>Computer use: OSWorld and its relatives</h2>
+<p><b>OSWorld</b> ({{Xie et al., XLANG Lab, HKU, Apr 2024|https://arxiv.org/abs/2404.07972}}) runs the agent on a real Ubuntu virtual machine, seeing screenshots (and optionally the accessibility tree) and sending mouse and keyboard actions, across office apps, browsers, file managers, IDEs and workflows that span several apps. Each of its 369 tasks is a configuration file: an initial-state setup and an evaluation script that inspects the final state (a file's contents, a setting, a spreadsheet). At launch people completed 72.36% and the best model 12.24%. How such an agent perceives and acts is {{Personal agents|n:3c75c17b0d0d81bf9462fbeb09593e1c}}' subject (section 2); what matters here is the task file.</p>
+<figure class="img"><img src="img/osworld_task_config.webp" alt="OSWorld's Figure 2: a task configuration in JSON on the left (instruction, download and open steps, an evaluator with a vm_file result, an expected cloud_file at a drive.google.com URL, and a compare_table metric), and on the right the coordinator, simulator, task manager with setup and evaluation interpreters, and the virtual machines, ending in a reward" loading="lazy" width="1076" height="460">
+<figcaption>Notice the evaluator's <code>"expected"</code> entry: the gold spreadsheet is a public download URL inside the task's own configuration, on a VM with internet access. That is the door RDI's exploit walked through (below). Figure 2 of Xie et al. 2024, <a href="https://arxiv.org/abs/2404.07972" target="_blank" rel="noopener noreferrer">arXiv 2404.07972</a>, CC BY 4.0.</figcaption></figure>
+<p>Three names are in circulation, and they are three scales:</p>
+<div class="tw"><table class="rd-t">
+<thead><tr><th>Version</th><th>What it is</th><th>Best reading (who, when)</th></tr></thead>
+<tbody>
+<tr><td>OSWorld (2024)</td><td>The original 369 tasks; a self-reported board remains</td><td>66.2% AskUI VisionAgent, screenshot track, 100 steps, 5 Nov 2025 ({{self-reported results|https://os-world.github.io/static/data/self_reported_results.xlsx}})</td></tr>
+<tr><td>OSWorld-Verified (2025)</td><td>The same tasks after the team fixed "300+ issues" reported as feedback (changed websites, blocked sites, ambiguous instructions, fragile evaluators) ({{XLANG|https://xlang.ai/blog/osworld-verified}}); scores are reported per step budget (50 or 100)</td><td>90.19% Intelligence-Indeed Agent (a framework, 325.6 of 361 scored tasks, 25 Jul 2026); 85.96% Claude Fable 5 bare model (307.7 of 358, 1 Aug 2026); both 100 steps, one rollout ({{Verified results|https://os-world.github.io/static/data/osworld_verified_results.xlsx}})</td></tr>
+<tr><td>OSWorld 2.0 (Jun 2026)</td><td>108 longer workflows, a 500-step budget, an offline subset, three task releases (2026.06.24, 2026.08.08, 2.1); the board's default is binary accuracy, with a partial-credit score beside it</td><td>44.33% binary (77.67% partial), Claude Opus 5 (max, batched tools), release 2.1, full set, 17 Sep 2026 ({{official results|https://osworld-v2.xlang.ai/static/data/leaderboard/official-results.json}})</td></tr>
+</tbody></table></div>
+<p>Note the denominators: the Verified rows score 361 and 358 tasks, not 369, and fractional counts mean partial runs were averaged. OSWorld-Verified is above the 72% human baseline and saturating; its useful content now is the step-budget and framework-against-model split.</p>
+<div class="co corr"><div class="t">Correction: OSWorld 2.0 vendor figures are partial credit</div>Vendor cards quote OSWorld 2.0 at 72.6% (GPT-6 Astra), 74.0% (Claude Opus 5) and 81.8% (Claude Opus 5.5). These are <b>partial-credit scores</b>, from different task releases and harnesses; on the official board's default binary metric the best is 44.33%. A 2.0 figure without release, set and metric carries no information, and none of them compares with OSWorld-Verified.</div>
+<details class="dp"><summary><b>Where each OSWorld 2.0 vendor figure comes from</b>, and the launch numbers</summary><div>
+<p>OpenAI's 72.6% is release 2026.08.08, offline set ({{OpenAI|https://openai.com/index/gpt-6-astra/}}); GPT-6 Sol was quoted at 60.5% offline at extra-high effort. Anthropic's 74.0% and 81.8% are its own re-run on the 10 September task files with a new context harness, where the strict pass rates are 37.2% and 48.7% ({{Opus 5.5 system card, 8.13.3|https://www-cdn.anthropic.com/fc1b44717c85dc068bc6ba5024219938094694bd/Claude%20Opus%205.5%20System%20Card.pdf}}). The maintainers' own run of Opus 5 on release 2026.08.08 read 31.4% binary, 68.3% partial. OpenAI also notes that the Fable 5.1 system card used modified tasks and grading. At launch (26 Jun 2026) the best public model was Claude Opus 4.8 at 20.6% binary with batched tools.</p>
+<p>Earlier, Claude 3.5 Sonnet's computer-use release in October 2024 scored 14.9% on the original OSWorld screenshot-only, 22.0% with more steps ({{Anthropic, 22 Oct 2024|https://www.anthropic.com/news/3-5-models-and-computer-use}}).</p>
+</div></details>
+<p><b>How OSWorld was broken.</b> RDI's exploit agent reached 73%: it downloaded the public gold file straight into the path the checker reads ("the evaluator compares gold vs. gold"); state checks were met by setting the state directly (<code>gsettings set</code>, writing expected config files); the 29 tasks marked infeasible were answered "FAIL" for free points; and the grader called Python's <code>eval()</code> on a string read from the VM, so a crafted gsettings value ran code on the grading machine ({{RDI|https://rdi.berkeley.edu/blog/trustworthy-benchmarks-cont/}}).</p>
+<details class="dp"><summary><b>Relatives</b>: Windows Agent Arena, OSWorld-Science, AndroidWorld</summary><div>
+<p>{{Windows Agent Arena|https://arxiv.org/abs/2409.08264}} (Microsoft, Sep 2024) adapts OSWorld's framework to 150+ Windows tasks, parallelised on Azure to finish in about 20 minutes; its Navi agent scored 19.5% against 74.5% for people. {{OSWorld-Science|https://arxiv.org/abs/2609.39903}} (Sep 2026) applies the same idea to scientific software: 146 expert-designed tasks (molecular drawing and retrosynthesis, pathology images, statistics, physical simulation) whose evaluators inspect the produced artifacts and give partial credit. {{AndroidWorld|https://arxiv.org/abs/2405.14573}} (Google, May 2024) has 116 programmatic tasks across 20 Android apps, parameterised so each run draws new instances; the best agent then completed 30.6%.</p>
+</div></details>
+</section>
+
+<section id="rd-web">
+<h2>Web: WebArena, VisualWebArena and the live web</h2>
+<p><b>WebArena</b> ({{Zhou et al., CMU, Jul 2023|https://arxiv.org/abs/2307.13854}}) self-hosts working copies of four kinds of site (an e-commerce store, a social forum, a GitLab, a content-management system) plus a map, a wiki and manuals, and poses 812 long-horizon tasks checked for functional correctness: the resulting site state, or the answer string. The best GPT-4 agent completed 14.41% against 78.24% for people. Self-hosting makes it reproducible, and its sites and tasks have been public since 2023. <b>VisualWebArena</b> ({{Koh et al., Jan 2024|https://arxiv.org/abs/2401.13649}}) adds tasks that need the page's images, where text-only agents fall short.</p>
+<p><b>How WebArena was broken.</b> RDI reached about 100% of 812 tasks: navigating the browser to a <code>file://</code> URL opens the task's own configuration, gold answer included (<code>file:///proc/self/cwd/config_files/{task_id}.json</code>); its <code>must_include</code> check is substring containment, so a verbose answer passes; it calls <code>eval()</code> on agent-controlled strings; and its LLM-judged answers can be steered by text injected into the agent's reply.</p>
+<p><b>The live web trades reproducibility for realism</b>, and needs a judge model because no one controls the end state.</p>
+<details class="dp"><summary><b>Live-web benchmarks</b>: WebVoyager, Online-Mind2Web, Mind2Web 2</summary><div>
+<p>{{WebVoyager|https://arxiv.org/abs/2401.13919}} (Jan 2024) runs on 15 real websites with a GPT-4V judge that agreed with people 85.3% of the time. {{Online-Mind2Web|https://arxiv.org/abs/2504.01382}} ("An Illusion of Progress?", Apr 2025) has 300 tasks across 136 live websites and found earlier results over-optimistic; its LLM judge agrees with people about 85% of the time. {{Mind2Web 2|https://arxiv.org/abs/2506.21506}} (Jun 2025) has 130 long-horizon research tasks graded by task-specific judge agents with tree-structured rubrics for correctness and citations; OpenAI Deep Research reached 50 to 70% of human performance in half the time.</p>
+</div></details>
+</section>

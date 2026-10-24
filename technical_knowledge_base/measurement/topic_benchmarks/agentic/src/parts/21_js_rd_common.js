@@ -1,12 +1,11 @@
-// ---- Shared helpers and the step-animation controller (play, pause, step, scrub, speed) ----
-// Adapted from Topic: rl's reading_full/22_js_rd_common.js (for_children); onRender and onResize take a tab id here.
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
-  const onRender=(f,tab)=>{tab=tab||'t-read';(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER[tab]=window.TAB_RENDER[tab]||[]).push(f)};
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
   // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
   function anim(o){
     const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
@@ -32,9 +31,9 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
-    onRender(()=>{show();kick()},o.tab);
+    onRender(()=>{show();kick()});
     show();
     return {
       // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
@@ -52,24 +51,13 @@ window.RD=(function(){
     const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
   return {RM,esc,stat,anim,onRender,width,tabLinks};
 })();
-// ---- helpers shared by this page's Reading visuals ----
-// redraw on window resize only while the Reading tab is visible (the tab bar fires resize on every tab switch)
-RD.onResize=(f,tab)=>addEventListener('resize',()=>{const t=document.getElementById(tab||'t-read');if(t&&!t.hidden&&t.offsetParent!==null)f()});
-// numbers with a true minus sign; percentages; powers of ten with a superscript exponent
-RD.pct=(v,n)=>(100*v).toFixed(n==null?1:n)+'%';
-RD.e=(v,n)=>{if(v===0)return '0';const a=Math.abs(v),ex=Math.floor(Math.log10(a)),m=v/Math.pow(10,ex);return m.toFixed(n?n-1:1)+' &times; 10<sup>'+(ex<0?'&minus;'+(-ex):ex)+'</sup>'};
-RD.n=(v,d)=>{const s=(+v).toFixed(d==null?2:d);return /^-0?\.?0*$/.test(s)?s.slice(1):s.replace('-','−')};
-RD.sg=(v,d)=>(v>0?'+':'')+RD.n(v,d);
-// build an svg string of width w and height h
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
 RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
 RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
-RD.colorScale=(v,lo,hi)=>{// diverging: negative orange, positive blue, via color-mix on CSS variables
-  const t=Math.max(-1,Math.min(1,v>=0?(hi>0?v/hi:0):(lo<0?-v/lo:0)));const p=Math.round(Math.abs(t)*70);
-  return 'color-mix(in srgb, '+(t>=0?'var(--c1)':'var(--c2)')+' '+p+'%, var(--bg))'};
-// the section nav highlights the section in view
-(function(){
-  const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
   const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
   const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
-  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});
-})();
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
