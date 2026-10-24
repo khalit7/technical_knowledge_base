@@ -79,3 +79,6 @@ Why about 39 minutes is right: the page teaches five selection families with the
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 498 units: core 346, depth 90, fat 62. 477 were drafted by `ledger.py init` from the old page; 21 were added by hand for script-rendered tables and the new visuals (section "hand: ..."). Keys were matched to the rebuilt page's static text; fat units carry a `note`.
+
+## Topic close (2026-10-24)
+The root was rebuilt as a map; this page's Further reading now quotes the root as "31 min, plus 7" and siblings as their headers, and its ledger keys that quoted old times were re-keyed. The Continued pretraining card (old page, now merged) is folded into the Data mixing card (its section 6).
