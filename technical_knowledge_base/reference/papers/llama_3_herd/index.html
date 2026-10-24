@@ -202,8 +202,11 @@ td.in{background:var(--soft)}td.up{color:var(--good);font-weight:600}td.dn{color
 .mono11{font:12px/1.4 ui-monospace,Menlo,monospace}
 select{max-width:100%}
 .meshrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:8px;margin:8px 0}
+.core1{font-size:16px;line-height:1.55;margin:14px 0 8px;padding:10px 12px;border-left:3px solid var(--acc);background:var(--soft);border-radius:0 6px 6px 0}
+figure.hfig{margin:10px 0 12px}figure.hfig figcaption{font-size:13px;margin-top:6px;line-height:1.5}
+.terms{margin:6px 0 0;padding-left:1.2em;font-size:14px}.terms li{margin:2px 0}
 </style>
-<div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81549dbedb27e8f2a26f" target="_blank" rel="noopener noreferrer">Papers</a> · 2024 · <span id="rt">⏱ About 26 min to read The paper tab, +9 min in its expandable details · +5h 50m of resources.</span></div>
+<div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81549dbedb27e8f2a26f" target="_blank" rel="noopener noreferrer">Papers</a> · 2024 · <span id="rt">Reading: 29 min, plus 11 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
 <button role="tab" data-t="t-read" aria-selected="true">The paper</button><button role="tab" data-t="t-fit" aria-selected="false">Refit the forecast</button><button role="tab" data-t="t-run" aria-selected="false">Run the 16K-GPU job</button><button role="tab" data-t="t-tables" aria-selected="false">The paper's tables, rebuilt</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
@@ -223,6 +226,18 @@ select{max-width:100%}
 <div class="hero-l"><a href="https://arxiv.org/html/2407.21783v3" target="_blank" rel="noopener noreferrer">read it (arXiv HTML)</a> · <a href="https://arxiv.org/pdf/2407.21783v3" target="_blank" rel="noopener noreferrer">PDF</a> · <a href="https://github.com/meta-llama/llama-models" target="_blank" rel="noopener noreferrer">code (meta-llama/llama-models)</a> · <a href="#" data-tab="t-fit">refit its scaling law</a></div>
 </div>
 
+<p class="core1"><b>The idea in one sentence:</b> a plain dense Transformer, Llama 2's with four small changes, reaches GPT-4-class quality because of what surrounds it: 15.6T cleaner tokens, a size picked by a scaling law aimed at benchmark accuracy, engineering that keeps 16,384 H100s training through an unexpected stop every three hours, and a post-training loop (reward model, rejection sampling, SFT, DPO) simple enough to repeat six times.</p>
+<figure class="hfig"><div id="l3hero"></div>
+<figcaption><b>No box is a new architecture. The blue ones are what the report adds: a size chosen by a forecast of benchmark accuracy, a 16K-GPU job kept alive, and a post-training loop without PPO; the grey ones are scale and cleaner data.</b> Drawn from §3 to §5 and <a href="https://arxiv.org/html/2407.21783v3#S1.T2" target="_blank" rel="noopener noreferrer">Table 2</a>; each number is sourced in its section below.</figcaption></figure>
+<p class="small"><b>You need:</b> the parallelism forms (data and FSDP, tensor, pipeline, context) from <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed training</a>, scaling laws and IsoFLOPs curves from <a href="https://app.notion.com/p/3c65c17b0d0d814f82cffd0d5c0dd5ba" target="_blank" rel="noopener noreferrer">Pretraining</a> (section 3), and SFT, reward models and DPO from <a href="https://app.notion.com/p/3c65c17b0d0d81d5bed7e608d4061c7a" target="_blank" rel="noopener noreferrer">Alignment</a>. This page says what Llama 3 did with each.</p>
+<p class="small" style="margin-bottom:2px"><b>New terms</b></p>
+<ul class="terms">
+<li><b>Two-stage forecast</b>: training FLOPs to the loss on a benchmark's correct answers, then that loss to accuracy with a sigmoid.</li>
+<li><b>Annealing</b>: the last stretch of pre-training, learning rate falling to zero on upsampled high-quality data; also Meta's cheap test of a dataset.</li>
+<li><b>4D parallelism</b>: tensor, context, pipeline and data (FSDP) parallelism composed on one device mesh, ordered by how much bandwidth each needs.</li>
+<li><b>Effective training time</b>: useful training time over elapsed time.</li>
+<li><b>Rejection sampling</b>, here: sample 10 to 30 responses per prompt and keep the reward model's favourite as SFT data.</li>
+</ul>
 <nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-herd">The herd</a><a href="#s-data">Data</a><a href="#s-law">Scaling law</a><a href="#s-infra">16K GPUs</a><a href="#s-rel">Failures</a><a href="#s-recipe">Recipe</a><a href="#s-post">Post-training</a><a href="#s-cap">Capabilities</a><a href="#s-res">Results</a><a href="#s-why">Why it matters</a><a href="#s-believe">Believe?</a><a href="#s-use">Use it</a></nav>
 
 <section id="s-prob"><h2>Problem</h2>
@@ -242,10 +257,10 @@ select{max-width:100%}
 <p>The herd is three sizes, each as a pre-trained and an instruction-tuned model. Llama 3 8B and 70B came out in April 2024; Llama 3.1 in July 2024 added the 405B, eight-language multilingual support, a 128K-token context and tool use at every size. Every result in the paper is for the 3.1 models, which it calls Llama 3 (<a href="https://arxiv.org/html/2407.21783v3#S1.T1" target="_blank" rel="noopener noreferrer">Table 1</a>). The April 8B and 70B "were pre-trained on multilingual data but were intended for use in English at the time" (footnote 1).</p>
 <p>The architecture is Llama 2's with four changes; the paper credits its gains "primarily" to data and scale, not architecture (<a href="https://arxiv.org/html/2407.21783v3#S3.SS2" target="_blank" rel="noopener noreferrer">§3.2</a>):</p>
 <ul>
-<li><b>Grouped-query attention with 8 key-value heads</b> at every size, for faster inference and a smaller KV cache. For the 405B that is 2 × 126 layers × 8 heads × 128 dimensions × 2 bytes = 504 KiB of BF16 cache per token, 16 times less than with one key-value head per query head (derived from <a href="https://arxiv.org/html/2407.21783v3#S3.T3" target="_blank" rel="noopener noreferrer">Table 3</a>).</li>
+<li><b>Grouped-query attention with 8 key-value heads</b> at every size, for faster inference and a smaller KV cache (<a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a> owns GQA). For the 405B that is 2 × 126 layers × 8 heads × 128 dimensions × 2 bytes = 504 KiB of BF16 cache per token, 16 times less than with one key-value head per query head (derived from <a href="https://arxiv.org/html/2407.21783v3#S3.T3" target="_blank" rel="noopener noreferrer">Table 3</a>).</li>
 <li><b>A document mask</b>: tokens cannot attend across document boundaries inside a packed sequence. It "had limited impact" in standard pre-training but mattered for continued pre-training on very long sequences.</li>
 <li><b>A 128K-token vocabulary</b>: 100K tokens from tiktoken plus 28K for non-English languages. English compression improves from 3.17 to 3.94 characters per token, so each token of compute reads 24% more text.</li>
-<li><b>RoPE base frequency 500,000</b> (from 10,000), after Xiong et al. showed it works for contexts up to 32,768 (<a href="https://app.notion.com/p/3c65c17b0d0d81cfa5e9f54459720098" target="_blank" rel="noopener noreferrer">RoFormer</a> has the rotary embedding itself).</li>
+<li><b>RoPE base frequency 500,000</b> (from 10,000), after Xiong et al. showed it works for contexts up to 32,768 (<a href="https://app.notion.com/p/3c65c17b0d0d81cfa5e9f54459720098" target="_blank" rel="noopener noreferrer">RoFormer</a> has the rotary embedding; <a href="https://app.notion.com/p/3c65c17b0d0d81a5b7c9e578fcdfac00" target="_blank" rel="noopener noreferrer">Positional encodings</a> owns the base and the RoPE scaling the 3.1 release added).</li>
 </ul>
 <div class="tw"><table><thead><tr><th></th><th class="num">8B</th><th class="num">70B</th><th class="num">405B</th></tr></thead><tbody id="t3mini"></tbody></table></div>
 <p class="small mute">Rows from <a href="https://arxiv.org/html/2407.21783v3#S3.T3" target="_blank" rel="noopener noreferrer">Table 3</a>; all three use SwiGLU, RoPE with θ = 500,000 and a 128,000-token vocabulary as printed (the released config.json says 128,256). The parameter row is recounted here from those shapes: attention, SwiGLU feed-forward, two RMSNorm vectors per layer, untied input and output embeddings. The 405B comes out at <b id="p405"></b>, the 70B at <b id="p70"></b> and the 8B at <b id="p8"></b>; the <a href="#" data-tab="t-tables" data-to="tb3">tables tab</a> shows the breakdown.</p>
@@ -254,7 +269,7 @@ select{max-width:100%}
 
 <section id="s-data"><h2>Pre-training data</h2>
 <a class="where" href="https://arxiv.org/html/2407.21783v3#S3.SS1" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§3.1</a>
-<p>The corpus has knowledge up to the end of 2023 and is mostly web text, cleaned in seven stages (<a href="https://arxiv.org/html/2407.21783v3#S3.SS1.SSS1" target="_blank" rel="noopener noreferrer">§3.1.1</a>): safety and PII filtering, a custom HTML parser that strips markdown, de-duplication by URL, document and line, heuristic filters, model-based quality classifiers, separate code and maths pipelines, and per-language multilingual processing.</p>
+<p>The corpus has knowledge up to the end of 2023 and is mostly web text, cleaned in seven stages (<a href="https://arxiv.org/html/2407.21783v3#S3.SS1.SSS1" target="_blank" rel="noopener noreferrer">§3.1.1</a>): safety and PII filtering, a custom HTML parser that strips markdown, de-duplication by URL, document and line (the methods are on <a href="https://app.notion.com/p/3f95c17b0d0d8171ac17e43ab5ea276f" target="_blank" rel="noopener noreferrer">Deduplication</a>), heuristic filters, model-based quality classifiers, separate code and maths pipelines, and per-language multilingual processing.</p>
 <details class="mist"><summary><b>The seven cleaning stages</b> in detail</summary><div class="b"><ol id="clean">
 <li><b>PII and safety filtering</b>: drop domains likely to hold unsafe content or much personal data, domains Meta's safety standards rank as harmful, and known adult domains.</li>
 <li><b>Text extraction</b>: a custom HTML parser tuned for precision in boilerplate removal and recall of content, judged better than third-party article parsers by human raters. Maths and code pages keep their structure, and image alt text is kept because maths is often rendered as images with the formula in alt. Markdown markers are stripped: markdown "is harmful to the performance of a model that is primarily trained on web data compared to plain text".</li>
@@ -272,12 +287,13 @@ select{max-width:100%}
 
 <section id="s-law"><h2>The scaling law that sized the 405B</h2>
 <a class="where" href="https://arxiv.org/html/2407.21783v3#S3.SS2.SSS1" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§3.2.1, Figures 2 to 4</a>
-<p>Ordinary scaling laws predict next-token loss, not benchmark scores, and laws fitted on small runs can be unreliable. Meta's answer is a two-stage method (<a href="https://arxiv.org/html/2407.21783v3#S3.SS2.SSS1" target="_blank" rel="noopener noreferrer">§3.2.1</a>):</p>
+<p>Ordinary scaling laws predict next-token loss, not benchmark scores, and laws fitted on small runs can be unreliable (<a href="https://app.notion.com/p/3c65c17b0d0d814f82cffd0d5c0dd5ba" target="_blank" rel="noopener noreferrer">Pretraining</a> owns scaling laws and compute-optimal allocation). Meta's answer is a two-stage method (<a href="https://arxiv.org/html/2407.21783v3#S3.SS2.SSS1" target="_blank" rel="noopener noreferrer">§3.2.1</a>):</p>
 <ol>
 <li>Relate the compute-optimal model's negative log-likelihood (NLL) on a benchmark's correct answers to training FLOPs.</li>
 <li>Relate that NLL to the benchmark's accuracy with a sigmoid, fitted on the scaling-law models plus the older, larger Llama 2 models.</li>
 </ol>
-<p>The runs: budgets from 6 × 10<sup>18</sup> to 10<sup>22</sup> FLOPs, models from 40M to 16B parameters, cosine learning rate with 2,000 warm-up steps, peak between 2 × 10<sup>−4</sup> and 4 × 10<sup>−4</sup> by size, decay to 0.1 of peak, weight decay 0.1 times the learning rate, and a fixed batch of 250K to 4M tokens per budget. At each budget a parabola is fitted to validation loss against training tokens (<a href="https://arxiv.org/html/2407.21783v3#S3.F3" target="_blank" rel="noopener noreferrer">Figure 2</a>); its minimum is that budget's compute-optimal model. A power law through the ten minima gives the optimal number of training tokens:</p>
+<p>The runs span budgets from 6 × 10<sup>18</sup> to 10<sup>22</sup> FLOPs and models from 40M to 16B parameters. At each budget a parabola is fitted to validation loss against training tokens (<a href="https://arxiv.org/html/2407.21783v3#S3.F3" target="_blank" rel="noopener noreferrer">Figure 2</a>); its minimum is that budget's compute-optimal model. A power law through the ten minima gives the optimal number of training tokens:</p>
+<details class="mist"><summary><b>The scaling-law runs' hyperparameters</b></summary><div class="b"><p>Cosine learning rate with 2,000 warm-up steps, peak between 2 × 10<sup>−4</sup> and 4 × 10<sup>−4</sup> by size, decay to 0.1 of peak, weight decay 0.1 times the learning rate, and a fixed batch of 250K to 4M tokens per budget (<a href="https://arxiv.org/html/2407.21783v3#S3.SS2.SSS1" target="_blank" rel="noopener noreferrer">§3.2.1</a>).</p></div></details>
 <div class="fm"><div class="eq"><i>N</i><sup>⋆</sup>(<i>C</i>) = <i>A</i> <i>C</i><sup>α</sup>, with (α, <i>A</i>) = (0.53, 0.29)</div><div class="wh">Equation 1 (<a href="https://arxiv.org/html/2407.21783v3#S3.SS2.SSS1" target="_blank" rel="noopener noreferrer">§3.2.1</a>). <i>C</i> is the compute budget in FLOPs; <i>N</i><sup>⋆</sup> is a number of <b>tokens</b>, not parameters. The paper then states that extrapolating to 3.8 × 10<sup>25</sup> FLOPs "suggests training a 402B parameter model on 16.55T tokens".</div></div>
 <div class="pred" id="pr-law" data-ans="2"><div class="q">Put the printed constants into the printed formula at the printed budget, 0.29 × (3.8 × 10<sup>25</sup>)<sup>0.53</sup>. How many tokens come out?</div>
 <div class="opts"><button>16.55T, as the paper says</button><button>About 40T</button><button>About 10.5T, a third too few</button></div>
@@ -297,26 +313,28 @@ select{max-width:100%}
 
 <section id="s-infra"><h2>Training on 16K GPUs</h2>
 <a class="where" href="https://arxiv.org/html/2407.21783v3#S3.SS3" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§3.3, Tables 4 and 5, Figures 5 and 6</a>
-<p><b>The cluster</b> (<a href="https://arxiv.org/html/2407.21783v3#S3.SS3.SSS1" target="_blank" rel="noopener noreferrer">§3.3.1</a>). Llama 1 and 2 trained on Meta's AI Research SuperCluster; Llama 3 moved to Meta's production clusters for "production-grade reliability". The 405B used up to 16K H100 GPUs (700 W, 80 GB HBM3) in Grand Teton servers of eight GPUs and two CPUs, NVLink inside each server, scheduled by MAST, Meta's global training scheduler. Storage is Tectonic, Meta's distributed file system: 240 PB on 7,500 SSD servers, 2 TB/s sustained and 7 TB/s peak, sized for bursty checkpoint writes of 1 MB to 4 GB per GPU.</p>
-<p><b>The network.</b> The 405B ran on RDMA over Converged Ethernet (RoCE) with Arista 7800 and Minipack2 switches; the smaller models used Nvidia Quantum2 InfiniBand; both at 400 Gbps between GPUs, tuned to equal performance. The RoCE cluster is a three-layer Clos network of 24K GPUs (Llama 3 used up to 16K): 16 GPUs per rack under one top-of-rack switch, 192 racks per pod of 3,072 GPUs at full bisection bandwidth, and eight pods joined by aggregation switches at 1:7 oversubscription. So traffic that crosses pods is seven times scarcer, and the parallelism layout and the scheduler are topology-aware. Two fixes replace classic congestion control: the collective library opens 16 flows between each GPU pair, which Enhanced-ECMP hashes across paths, and deep-buffer spine switches absorb bursts. The cluster runs without DCQCN.</p>
-<p><b>4D parallelism</b> (<a href="https://arxiv.org/html/2407.21783v3#S3.SS3.SSS2" target="_blank" rel="noopener noreferrer">§3.3.2</a>, <a href="https://arxiv.org/html/2407.21783v3#S3.F5" target="_blank" rel="noopener noreferrer">Figure 5</a>). Four ways of splitting the job compose on one device mesh, ordered from the most to the least bandwidth-hungry:</p>
+<p><b>The cluster in one line</b> (<a href="https://arxiv.org/html/2407.21783v3#S3.SS3.SSS1" target="_blank" rel="noopener noreferrer">§3.3.1</a>): up to 16K H100s, eight per server on NVLink, 400 Gbps RoCE between servers in a three-layer Clos network whose pods of 3,072 GPUs are joined at 1:7 oversubscription, so traffic that crosses pods is seven times scarcer and the layout below keeps the chatty groups inside servers and pods (<a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a> owns RoCE, Clos fabrics and collectives).</p>
+<details class="mist"><summary><b>The cluster, storage and network</b> in detail</summary><div class="b"><p><b>The cluster</b> (<a href="https://arxiv.org/html/2407.21783v3#S3.SS3.SSS1" target="_blank" rel="noopener noreferrer">§3.3.1</a>). Llama 1 and 2 trained on Meta's AI Research SuperCluster; Llama 3 moved to Meta's production clusters for "production-grade reliability". The 405B used up to 16K H100 GPUs (700 W, 80 GB HBM3) in Grand Teton servers of eight GPUs and two CPUs, NVLink inside each server, scheduled by MAST, Meta's global training scheduler. Storage is Tectonic, Meta's distributed file system: 240 PB on 7,500 SSD servers, 2 TB/s sustained and 7 TB/s peak, sized for bursty checkpoint writes of 1 MB to 4 GB per GPU.</p>
+<p><b>The network.</b> The 405B ran on RDMA over Converged Ethernet (RoCE) with Arista 7800 and Minipack2 switches; the smaller models used Nvidia Quantum2 InfiniBand; both at 400 Gbps between GPUs, tuned to equal performance. The RoCE cluster is a three-layer Clos network of 24K GPUs (Llama 3 used up to 16K): 16 GPUs per rack under one top-of-rack switch, 192 racks per pod of 3,072 GPUs at full bisection bandwidth, and eight pods joined by aggregation switches at 1:7 oversubscription. So traffic that crosses pods is seven times scarcer, and the parallelism layout and the scheduler are topology-aware. Two fixes replace classic congestion control: the collective library opens 16 flows between each GPU pair, which Enhanced-ECMP hashes across paths, and deep-buffer spine switches absorb bursts. The cluster runs without DCQCN.</p></div></details>
+<p><b>4D parallelism</b> (<a href="https://arxiv.org/html/2407.21783v3#S3.SS3.SSS2" target="_blank" rel="noopener noreferrer">§3.3.2</a>, <a href="https://arxiv.org/html/2407.21783v3#S3.F5" target="_blank" rel="noopener noreferrer">Figure 5</a>). Four ways of splitting the job compose on one device mesh, ordered from the most to the least bandwidth-hungry; what each form splits and sends is taught on <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed training</a>, and here is where Llama 3 put each:</p>
 <div class="grid">
-<div class="sp"><div class="n">1 · Tensor (TP = 8)</div><p>Splits each weight matrix across GPUs (<a href="https://app.notion.com/p/3c65c17b0d0d8133ae92fbe90a1f308e" target="_blank" rel="noopener noreferrer">Megatron-LM</a>). Communicates inside every layer, so it stays inside one 8-GPU NVLink server.</p></div>
-<div class="sp"><div class="n">2 · Context (CP = 1 or 16)</div><p>Splits the sequence, only in the long-context stage. Each rank holds 2 of 2×CP chunks (the <i>i</i>-th and the (2×CP − 1 − <i>i</i>)-th) to balance the causal mask.</p></div>
-<div class="sp"><div class="n">3 · Pipeline (PP = 16)</div><p>Splits the 126 layers into stages; micro-batches flow through them. Point-to-point traffic between neighbouring stages only.</p></div>
-<div class="sp"><div class="n">4 · Data, as FSDP (DP = 8 to 128)</div><p>Each replica sees different data; optimiser state and gradients are sharded (<a href="https://app.notion.com/p/3c65c17b0d0d81879a7ed90bca007699" target="_blank" rel="noopener noreferrer">ZeRO</a>). Weights are not resharded after the forward pass, saving an all-gather in the backward. Outermost because prefetching weights and reducing gradients asynchronously hides long latencies.</p></div>
+<div class="sp"><div class="n">1 · Tensor (TP = 8)</div><p>Communicates inside every layer, so it stays inside one 8-GPU NVLink server (<a href="https://app.notion.com/p/3c65c17b0d0d8133ae92fbe90a1f308e" target="_blank" rel="noopener noreferrer">Megatron-LM</a>).</p></div>
+<div class="sp"><div class="n">2 · Context (CP = 1 or 16)</div><p>Only in the long-context stage. Each rank holds 2 of 2×CP chunks (the <i>i</i>-th and the (2×CP − 1 − <i>i</i>)-th) to balance the causal mask.</p></div>
+<div class="sp"><div class="n">3 · Pipeline (PP = 16)</div><p>The 126 layers in 16 stages; only point-to-point traffic between neighbouring stages.</p></div>
+<div class="sp"><div class="n">4 · Data, as FSDP (DP = 8 to 128)</div><p>Optimiser state and gradients sharded (<a href="https://app.notion.com/p/3c65c17b0d0d81879a7ed90bca007699" target="_blank" rel="noopener noreferrer">ZeRO</a>). Weights are not resharded after the forward pass, saving an all-gather in the backward. Outermost because prefetching weights and reducing gradients asynchronously hides long latencies.</p></div>
 </div>
 <p>The three configurations of the run reach 38% to 43% BF16 model FLOPs utilisation (<a href="https://arxiv.org/html/2407.21783v3#S3.T4" target="_blank" rel="noopener noreferrer">Table 4</a>):</p>
 <div class="tw"><table><thead><tr><th class="num">GPUs</th><th class="num">TP</th><th class="num">CP</th><th class="num">PP</th><th class="num">DP</th><th class="num">Seq. len.</th><th class="num">Batch/DP</th><th class="num">Tokens/batch</th><th class="num">TFLOPs/GPU</th><th class="num">MFU</th></tr></thead><tbody id="t4mini"></tbody></table></div>
-<p class="small mute">Every row multiplies out: TP × CP × PP × DP is the GPU count and DP × batch × sequence length is 16.8M tokens (2<sup>24</sup>). arXiv v1 printed DP = 4 in the 128K row, which multiplies to 8,192 GPUs; v3 corrects it to 8. MFU against the H100's 989.4 dense BF16 TFLOP/s recomputes as 43.5%, 40.4% and 38.4%: the middle row's printed 41% is 0.6 points high. MFU dropped from 43% to 41% going from 8K to 16K GPUs because keeping 16M tokens per batch halves the batch per data-parallel group.</p>
+<p class="small mute">Every row multiplies out: TP × CP × PP × DP is the GPU count and DP × batch × sequence length is 16.8M tokens (2<sup>24</sup>); the middle row's printed 41% MFU recomputes as 40.4%, and v1's DP = 4 in the 128K row was corrected to 8 in v3 (the <a href="#" data-tab="t-tables" data-to="tb4">tables tab</a> has the check). MFU dropped from 43% to 41% going from 8K to 16K GPUs because keeping 16M tokens per batch halves the batch per data-parallel group.</p>
 <p>Engineering details that made it work:</p>
 <ul>
-<li><b>A tunable pipeline schedule</b> (<a href="https://arxiv.org/html/2407.21783v3#S3.F6" target="_blank" rel="noopener noreferrer">Figure 6</a>). Existing schedules forced the micro-batch count per GPU to divide by the number of stages: depth-first needs <i>N</i> = PP contiguous micro-batches per stage, breadth-first needs <i>N</i> = <i>M</i>, all of them. Meta made <i>N</i> a free knob between the two, to run fewer micro-batches than stages when batch size is capped at scale, or more to hide communication. It also removes one Transformer layer from the first and last stages to balance the embedding and the output-and-loss work, uses an interleaved schedule with <i>V</i> stages per rank, so the bubble is <span class="m">(PP − 1) / (<i>V</i> × <i>M</i>)</span>, sends point-to-point traffic asynchronously, and frees tensors as soon as profiling shows they are dead. Result: 8K-token pre-training without activation checkpointing. The <a href="#" data-tab="t-run" data-to="pp">16K-GPU tab</a> animates the schedules.</li>
+<li><b>A tunable pipeline schedule</b> (<a href="https://arxiv.org/html/2407.21783v3#S3.F6" target="_blank" rel="noopener noreferrer">Figure 6</a>). Existing schedules forced the micro-batch count per GPU to divide by the number of stages: depth-first needs <i>N</i> = PP contiguous micro-batches per stage, breadth-first needs <i>N</i> = <i>M</i>, all of them. Meta made <i>N</i> a free knob between the two, to run fewer micro-batches than stages when batch size is capped at scale, or more to hide communication. It uses an interleaved schedule with <i>V</i> stages per rank, so the bubble is <span class="m">(PP − 1) / (<i>V</i> × <i>M</i>)</span> (interleaved 1F1B, explained on <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed training</a>). Result: 8K-token pre-training without activation checkpointing.<details class="mist"><summary><b>The other schedule changes</b></summary><div class="b">One Transformer layer is removed from the first and last stages to balance the embedding and the output-and-loss work; point-to-point traffic is sent asynchronously; tensors are freed as soon as profiling shows they are dead.</div></details> The <a href="#" data-tab="t-run" data-to="pp">16K-GPU tab</a> animates the schedules.</li>
 <li><b>Context parallelism by all-gather</b>, not the usual ring that overlaps communication with compute: gather all keys and values, then compute attention for the local queries. The gather sits on the critical path but is cheap, because with 8 key-value heads against 128 query heads K and V are 1/16 the size of Q, and attention costs <span class="m">O(<i>S</i><sup>2</sup>)</span> against the gather's <span class="m">O(<i>S</i>)</span>. It also handles the document mask easily.</li>
 <li><b>Topology-aware placement</b>: the order [TP, CP, PP, DP] keeps the chattiest groups within a server and only FSDP across the multi-hop network. A memory estimator and a performance-projection tool chose the configurations.</li>
-<li><b>Numerics</b>: comparing training loss across parallelism setups exposed several numerical issues; gradients are accumulated over micro-batches in FP32 and reduce-scattered across data-parallel workers in FP32, as are gradients of tensors reused in the forward pass (such as vision encoder outputs).</li>
-<li><b>NCCLX</b> (<a href="https://arxiv.org/html/2407.21783v3#S3.SS3.SSS3" target="_blank" rel="noopener noreferrer">§3.3.3</a>), Meta's fork of Nvidia's NCCL, retuned chunking and data transfer for latencies of tens of microseconds across the cluster and lets small control messages jump the queue in deep-buffer switches.</li>
 </ul>
+<details class="mist"><summary><b>Numerics and NCCLX</b></summary><div class="b"><ul><li><b>Numerics</b>: comparing training loss across parallelism setups exposed several numerical issues; gradients are accumulated over micro-batches in FP32 and reduce-scattered across data-parallel workers in FP32, as are gradients of tensors reused in the forward pass (such as vision encoder outputs).</li>
+<li><b>NCCLX</b> (<a href="https://arxiv.org/html/2407.21783v3#S3.SS3.SSS3" target="_blank" rel="noopener noreferrer">§3.3.3</a>), Meta's fork of Nvidia's NCCL, retuned chunking and data transfer for latencies of tens of microseconds across the cluster and lets small control messages jump the queue in deep-buffer switches.</li>
+</ul></div></details>
 <p>The device mesh, rank by rank, and where each group lands in the racks and pods is in the <a href="#" data-tab="t-run" data-to="mesh">16K-GPU tab</a>; the <a href="https://app.notion.com/p/3c65c17b0d0d81949ad8e17bcb3567f1" target="_blank" rel="noopener noreferrer">Meta lab page</a> shows the three Table 4 meshes at a glance, and <a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a> covers FSDP and DTensor in general.</p>
 </section>
 
@@ -327,10 +345,10 @@ select{max-width:100%}
 <div class="opts"><button>About once a day</button><button>About every 3 hours</button><button>About every 20 minutes</button></div>
 <div class="fb"></div>
 <div class="reveal" hidden>
-<p>54 days × 24 hours / 419 = <b>3.1 hours</b> between unexpected stops, or 2.8 hours counting the 47 planned ones. At that rate, losing even 20 minutes per stop (restart plus the work since the last checkpoint) would cost about 11% of the run, already past the 10% the paper's ">90%" allows. That is why checkpoint frequency, job start-up time and automated diagnosis dominate this section. The <a href="#" data-tab="t-run" data-to="rl">16K-GPU tab</a> replays the 54 days with adjustable checkpointing and restart times.</p>
+<p>54 days × 24 hours / 419 = <b>3.1 hours</b> between unexpected stops, or 2.8 hours counting the 47 planned ones. At that rate, losing even 20 minutes per stop (restart plus the work since the last checkpoint) would cost about 11% of the run, already past the 10% the paper's ">90%" allows. That is why checkpoint frequency, job start-up time and automated diagnosis dominate this section; recovery designs and the checkpoint interval are on <a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a>. The <a href="#" data-tab="t-run" data-to="rl">16K-GPU tab</a> replays the 54 days with adjustable checkpointing and restart times.</p>
 </div></div>
 <div class="card" id="t5bars"></div>
-<p class="small mute">Bars are the counts printed in <a href="https://arxiv.org/html/2407.21783v3#S3.T5" target="_blank" rel="noopener noreferrer">Table 5</a>. The counts add up to 419, but the percentages add up to 94.9%: the "Faulty GPU" row prints 148 interruptions and 30.1%, and 148 of 419 is 35.3% (30.1% would be 126). Every other row's percentage matches its count. The text's "GPU issues … 58.7% of all unexpected issues" is the sum of the printed percentages; by count GPUs caused 268 of 419, 64.0%.</p>
+<p class="small mute">Bars are the counts printed in <a href="https://arxiv.org/html/2407.21783v3#S3.T5" target="_blank" rel="noopener noreferrer">Table 5</a>. The counts add up to 419 but the percentages to 94.9%: the "Faulty GPU" row prints 148 interruptions and 30.1%, and 148 of 419 is 35.3%, so by count GPUs caused 268 of 419 unexpected stops, 64.0%, not the text's "58.7%" (the <a href="#" data-tab="t-tables" data-to="tb5">tables tab</a> checks every row).</p>
 <details class="mist"><summary><b>The tooling</b> that kept effective time above 90%: start-up, flight recorder, NCCLX, stragglers</summary><div class="b"><p>The tooling that kept effective time above 90%:</p>
 <ul>
 <li>Faster job start-up and checkpointing, and tools for quick diagnosis.</li>
@@ -338,7 +356,7 @@ select{max-width:100%}
 <li>NCCLX co-designed with PyTorch so failures are detected and localised fast. NVLink failures show up as stalled loads and stores inside CUDA kernels with no error code; the library watches its own state, times out on a stall, and snapshots finished and pending transfers across ranks.</li>
 <li>Straggler detection: a still-working but slow GPU can slow thousands of others; ranking suspicious communications in selected process groups usually found it among a few top suspects.</li>
 </ul></div></details>
-<p>Two physical effects: throughput varied 1% to 2% with the time of day, because midday heat changes the GPUs' dynamic voltage and frequency scaling; and tens of thousands of GPUs idling or resuming together (waiting on a checkpoint or a collective, or the job starting or stopping) swing the data centre's power draw by tens of megawatts, "stretching the limits of the power grid".</p>
+<p>Two physical effects: throughput varied 1% to 2% with the time of day, because midday heat changes the GPUs' dynamic voltage and frequency scaling; and tens of thousands of GPUs idling or resuming together (waiting on a checkpoint or a collective, or the job starting or stopping) swing the data centre's power draw by tens of megawatts, "stretching the limits of the power grid" (<a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">Power, cooling and reliability</a> owns power swings and fleet failure rates).</p>
 </section>
 
 <section id="s-recipe"><h2>The 405B recipe</h2>
@@ -350,17 +368,18 @@ select{max-width:100%}
 <li><b>Annealing</b>: over the final 40M tokens the learning rate falls linearly to 0 at 128K context, with very high-quality sources upsampled; the released base model is the Polyak average of checkpoints taken during annealing.</li>
 </ol>
 <div class="card"><div class="stkt">The 405B run: learning rate and batch size against tokens seen</div><div id="runline"></div></div>
-<p class="small mute">Drawn from the numbers above; the shaded band is the last 800B tokens of long-context training, and the final 40M tokens of annealing are too short to see on this scale. Steps come from dividing each phase's tokens by its batch (taking M as 2<sup>20</sup>, which makes Table 4's 16M exactly 2<sup>24</sup>): 60, then 342,101, then 758,767, about 1.10 million steps for 15.6T tokens, so the cosine's 1.2 million-step horizon is slightly longer than the run and the learning rate never reaches 8 × 10<sup>−7</sup> before annealing takes over (derived; the paper gives no step count for the end of the run, nor how the long-context and annealing tokens sit inside the 15.6T). The model card puts the 405B at 30.84M H100 hours: 3.8 × 10<sup>25</sup> FLOPs over that time is <b id="effT"></b> TFLOP/s per GPU, <b id="effM"></b> of peak, below Table 4's 38% to 43% because restarts, checkpoints, the long-context stage and any work not in the final run all count (<a href="https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/MODEL_CARD.md" target="_blank" rel="noopener noreferrer">model card</a>). On 16,384 GPUs those hours are <b id="effD"></b> days.</p>
+<p class="small mute">Drawn from the numbers above; the shaded band is the last 800B tokens of long-context training, and the final 40M tokens of annealing are too short to see on this scale. Over the whole run the 405B averaged <b id="effM"></b> of peak, below Table 4's 38% to 43%, because restarts, checkpoints and the long-context stage all count.</p>
+<details class="mist"><summary><b>Steps and whole-run utilisation</b>, derived</summary><div class="b"><p>Steps come from dividing each phase's tokens by its batch (taking M as 2<sup>20</sup>, which makes Table 4's 16M exactly 2<sup>24</sup>): 60, then 342,101, then 758,767, about 1.10 million steps for 15.6T tokens, so the cosine's 1.2 million-step horizon is slightly longer than the run and the learning rate never reaches 8 × 10<sup>−7</sup> before annealing takes over (derived; the paper gives no step count for the end of the run, nor how the long-context and annealing tokens sit inside the 15.6T). The model card puts the 405B at 30.84M H100 hours: 3.8 × 10<sup>25</sup> FLOPs over that time is <b id="effT"></b> TFLOP/s per GPU, <span id="effM2"></span> of peak; restarts, checkpoints, the long-context stage and any work not in the final run all count (<a href="https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/MODEL_CARD.md" target="_blank" rel="noopener noreferrer">model card</a>; MFU accounting is on <a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a>). On 16,384 GPUs those hours are <b id="effD"></b> days.</p></div></details>
 </section>
 
 <section id="s-post"><h2>Post-training: six rounds of reward model, rejection sampling, SFT and DPO</h2>
 <a class="where" href="https://arxiv.org/html/2407.21783v3#S4.SS1" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§4.1, Figure 7</a>
 <p>Each round trains on top of the pre-trained checkpoint (<a href="https://arxiv.org/html/2407.21783v3#S4.SS1" target="_blank" rel="noopener noreferrer">§4.1</a>):</p>
 <ol>
-<li><b>Reward model</b> on all human preference data so far, using Llama 2's objective without its margin term (the gains faded as data grew). Annotators compare two responses from two different models (trained with different data mixes and recipes, for diversity), rate the strength of preference on four levels, then may edit the chosen response or prompt the model to improve it, giving rankings of edited &gt; chosen &gt; rejected. Only "significantly better" and "better" pairs are used. Two or three ranked responses share one training row, shuffled, which trains faster with no loss of accuracy (<a href="https://arxiv.org/html/2407.21783v3#S4.SS1.SSS2" target="_blank" rel="noopener noreferrer">§4.1.2</a>, <a href="https://arxiv.org/html/2407.21783v3#S4.SS2.SSS1" target="_blank" rel="noopener noreferrer">§4.2.1</a>).</li>
+<li><b>Reward model</b> on all human preference data so far, using Llama 2's objective without its margin term (the gains faded as data grew); annotators rank edited &gt; chosen &gt; rejected responses (<a href="https://arxiv.org/html/2407.21783v3#S4.SS1.SSS2" target="_blank" rel="noopener noreferrer">§4.1.2</a>, <a href="https://arxiv.org/html/2407.21783v3#S4.SS2.SSS1" target="_blank" rel="noopener noreferrer">§4.2.1</a>).<details class="mist"><summary><b>How the preference data is collected</b></summary><div class="b">Annotators compare two responses from two different models (trained with different data mixes and recipes, for diversity), rate the strength of preference on four levels, then may edit the chosen response or prompt the model to improve it, giving rankings of edited &gt; chosen &gt; rejected. Only "significantly better" and "better" pairs are used. Two or three ranked responses share one training row, shuffled, which trains faster with no loss of accuracy.</div></details></li>
 <li><b>Rejection sampling</b>: for each human-annotation prompt, sample <i>K</i> = 10 to 30 responses from the best recent checkpoint (or the best for a capability) and keep the one the reward model scores highest. Later rounds add system prompts to steer tone, style and format. <a href="https://app.notion.com/p/3c65c17b0d0d81bf8b90ca93fee19f5f" target="_blank" rel="noopener noreferrer">PagedAttention</a> shares the prompt's KV cache pages across all <i>K</i> outputs and admits a request only when memory for a maximum output length is free (avoiding swap-outs): together, over 2× the throughput (<a href="https://arxiv.org/html/2407.21783v3#S4.SS2.SSS2" target="_blank" rel="noopener noreferrer">§4.2.2</a>).</li>
 <li><b>Supervised finetuning</b> on the rejection-sampled responses plus synthetic and a little human-curated data: cross-entropy on target tokens with prompt tokens masked, learning rate 10<sup>−5</sup> for 8.5K to 9K steps for the largest models (<a href="https://arxiv.org/html/2407.21783v3#S4.SS1.SSS3" target="_blank" rel="noopener noreferrer">§4.1.3</a>).</li>
-<li><b>Direct Preference Optimization</b> (<a href="https://app.notion.com/p/3c65c17b0d0d818bb1d8cafd30e20f9e" target="_blank" rel="noopener noreferrer">DPO</a>) on the latest preference batches only, collected with the previous round's best models, so the data is close to the policy being trained; learning rate 10<sup>−5</sup>, β = 0.1. Two changes: special formatting tokens (headers, end-of-turn) are masked out of the loss in both responses, since they caused tail repetition and abrupt termination; and a negative log-likelihood term with coefficient 0.2 on the chosen response keeps formatting and stops its probability falling. Meta "explored on-policy algorithms such as PPO, but found that DPO required less compute for large-scale models and performed better, especially on instruction following benchmarks like IFEval" (<a href="https://arxiv.org/html/2407.21783v3#S4.SS1.SSS4" target="_blank" rel="noopener noreferrer">§4.1.4</a>).</li>
+<li><b>Direct Preference Optimization</b> (<a href="https://app.notion.com/p/3c65c17b0d0d818bb1d8cafd30e20f9e" target="_blank" rel="noopener noreferrer">DPO</a>; the loss and its family are on <a href="https://app.notion.com/p/3c65c17b0d0d81d5bed7e608d4061c7a" target="_blank" rel="noopener noreferrer">Alignment</a>) on the latest preference batches only, collected with the previous round's best models, so the data is close to the policy being trained; learning rate 10<sup>−5</sup>, β = 0.1. Two changes: special formatting tokens (headers, end-of-turn) are masked out of the loss in both responses, since they caused tail repetition and abrupt termination; and a negative log-likelihood term with coefficient 0.2 on the chosen response keeps formatting and stops its probability falling. Meta "explored on-policy algorithms such as PPO, but found that DPO required less compute for large-scale models and performed better, especially on instruction following benchmarks like IFEval" (<a href="https://arxiv.org/html/2407.21783v3#S4.SS1.SSS4" target="_blank" rel="noopener noreferrer">§4.1.4</a>).</li>
 <li><b>Model averaging</b> of runs with different data or hyperparameters at each of the RM, SFT and DPO stages (<a href="https://arxiv.org/html/2407.21783v3#S4.SS1.SSS5" target="_blank" rel="noopener noreferrer">§4.1.5</a>).</li>
 </ol>
 <p>Then a new round: fresh preference annotations and SFT data, sampled from the latest models, six times in all (<a href="https://arxiv.org/html/2407.21783v3#S4.SS1.SSS6" target="_blank" rel="noopener noreferrer">§4.1.6</a>). A new multi-message chat format with header and termination tokens marks each message's source and destination (user, ipython) so one assistant turn can contain several messages, such as a tool call and the answer after it (<a href="https://arxiv.org/html/2407.21783v3#S4.SS1.SSS1" target="_blank" rel="noopener noreferrer">§4.1.1</a>). The animation runs one prompt through a round, and through the PPO-based pipeline Llama 3 moved away from.</p>
@@ -434,9 +453,11 @@ select{max-width:100%}
 <ul>
 <li><b>Post-training.</b> SFT followed by DPO rather than PPO was, in Raschka's words that summer, "the most popular preference tuning strategy at the moment due to the ease of use"; his comparison sets Llama 3.1's iterated rejection sampling, SFT and DPO beside the Qwen 2, Gemma 2 and Apple recipes (<a href="https://magazine.sebastianraschka.com/p/new-llm-pre-training-and-post-training" target="_blank" rel="noopener noreferrer">Raschka, August 2024</a>).</li>
 <li><b>Annealing</b> as a final quality step and as a cheap test of a dataset's value, and scaling laws aimed at downstream accuracy rather than loss.</li>
-<li><b>Training stacks.</b> PyTorch's torchtitan trains Llama 3.1 8B, 70B and 405B with FSDP2, tensor, pipeline and context parallelism (<a href="https://github.com/pytorch/torchtitan" target="_blank" rel="noopener noreferrer">torchtitan</a>).</li>
-<li><b>"Managing complexity"</b> defined one pole of the design space. DeepSeek-V3, five months later, took the other: mixture of experts, FP8 training and multi-token prediction (<a href="https://app.notion.com/p/3c65c17b0d0d815fb8dac9ba1e35ab81" target="_blank" rel="noopener noreferrer">DeepSeek-V3 paper</a>, <a href="https://app.notion.com/p/3c65c17b0d0d81a2ae7ec6796947a235" target="_blank" rel="noopener noreferrer">DeepSeek lab page</a>). Meta itself moved to mixture of experts with Llama 4 in April 2025 (<a href="https://app.notion.com/p/3c65c17b0d0d81949ad8e17bcb3567f1" target="_blank" rel="noopener noreferrer">Meta lab page</a>).</li>
+
+<li><b>"Managing complexity"</b> defined one pole of the design space. DeepSeek-V3, five months later, took the other: mixture of experts, FP8 training and multi-token prediction (<a href="https://app.notion.com/p/3c65c17b0d0d815fb8dac9ba1e35ab81" target="_blank" rel="noopener noreferrer">DeepSeek-V3 paper</a>, <a href="https://app.notion.com/p/3c65c17b0d0d81a2ae7ec6796947a235" target="_blank" rel="noopener noreferrer">DeepSeek lab page</a>).</li>
 </ul>
+<details class="mist"><summary><b>Later, as of 25 October 2026</b></summary><div class="b"><ul><li><b>Training stacks.</b> PyTorch's torchtitan trains Llama 3.1 8B, 70B and 405B with FSDP2, tensor, pipeline and context parallelism (<a href="https://github.com/pytorch/torchtitan" target="_blank" rel="noopener noreferrer">torchtitan</a>).</li>
+<li>Meta itself moved to mixture of experts with Llama 4 in April 2025 (<a href="https://app.notion.com/p/3c65c17b0d0d81949ad8e17bcb3567f1" target="_blank" rel="noopener noreferrer">Meta lab page</a>).</li></ul></div></details>
 </section>
 
 <section id="s-conn"><h2>Connections</h2>
@@ -468,9 +489,10 @@ select{max-width:100%}
 <li><b>Gaps inside the noise.</b> HumanEval has 164 problems, so 89.0 carries ±4.8 points (Table 18): the 405B, GPT-4o (90.2) and Claude 3.5 Sonnet (92.0) are indistinguishable. ZeroSCROLLS/QuALITY's ±9.1 at 95.2 implies about 21 questions. MMLU's 14,042 questions, by contrast, separate gaps of a point. The <a href="#" data-tab="t-tables" data-to="tb2">tables tab</a> marks every Table 2 gap against its interval.</li>
 <li><b>The summary of the human evaluation is kinder than its figure.</b> Against GPT-4o the 405B wins none of the seven capabilities, ties single-turn English and loses six with separated intervals, including multi-turn English; "mixed results (some wins and some losses)" overstates it (<a href="https://arxiv.org/html/2407.21783v3#S5.F17" target="_blank" rel="noopener noreferrer">Figure 17</a>). Against GPT-4 (0125) it is roughly level, as claimed: one clear win (multi-turn coding), four ties, two losses (reasoning and multilingual).</li>
 <li><b>Single runs, internal benchmarks.</b> No result has seeds; DPO-over-PPO, the 0.1% long-context mix and the annealing gains are reported as findings without the ablation numbers. Safety comparisons use internal benchmarks and anonymised rivals.</li>
-<li><b>Small inconsistencies</b>, none large: the text's (α, A) = (0.53, 0.29) are rounded so far that they give 10.5T, not 16.55T; the forecast reproduces at 4.0 × 10<sup>25</sup>, not the 3.8 × 10<sup>25</sup> named; Table 5's faulty-GPU row is 148 interruptions but 30.1% (148/419 is 35.3%), so "GPU issues 58.7%" should be 64.0%; v1's Table 4 had DP = 4 in the 128K row (fixed in v3); the 41% MFU row recomputes as 40.4%; the text puts the API-Bank gap to Claude at 0.6 points where Table 22 shows 0.3.</li>
+
 <li><b>Not described:</b> the released 3.1 configs use a "llama3" RoPE scaling (factor 8 from an original 8,192 positions) that the paper does not mention (config.json in <a href="https://huggingface.co/meta-llama/Llama-3.1-8B" target="_blank" rel="noopener noreferrer">the Hugging Face release</a>); the training code is not released.</li>
 </ul>
+<details class="mist"><summary><b>Six small inconsistencies</b>, none large</summary><div class="b"><ul><li><b>Small inconsistencies</b>, none large: the text's (α, A) = (0.53, 0.29) are rounded so far that they give 10.5T, not 16.55T; the forecast reproduces at 4.0 × 10<sup>25</sup>, not the 3.8 × 10<sup>25</sup> named; Table 5's faulty-GPU row is 148 interruptions but 30.1% (148/419 is 35.3%), so "GPU issues 58.7%" should be 64.0%; v1's Table 4 had DP = 4 in the 128K row (fixed in v3); the 41% MFU row recomputes as 40.4%; the text puts the API-Bank gap to Claude at 0.6 points where Table 22 shows 0.3.</li></ul></div></details>
 <p class="co key"><b>Verdict.</b> Believe the engineering: the infrastructure numbers, the failure log, the recipe and the scaling-law method are internally consistent, reproducible from the paper's own figures, and unmatched in detail. Believe that the 405B was the first open model in GPT-4's class. Treat the head-to-head rankings against GPT-4o and Claude 3.5 Sonnet as approximate: the benchmark gaps are often inside the noise, comparisons mix self-run and reported numbers, and Meta's own human evaluation puts the 405B behind GPT-4o.</p>
 </section>
 
@@ -570,7 +592,7 @@ select{max-width:100%}
 </section>
 <section class="tab" id="t-tables" hidden role="tabpanel">
 <h2>The paper's tables, rebuilt</h2>
-<p>The tables that carry the argument, transcribed from the arXiv HTML by <span class="mono11">mk_tables.py</span> with the printed precision kept, and every derived number recomputed by <span class="mono11">recompute.py</span>. Where a number does not reproduce, the box says so.</p>
+<p>The tables that carry the argument, transcribed from the arXiv HTML by <span class="mono11">mk_tables.py</span> with the printed precision kept, and every derived number recomputed by <span class="mono11">recompute.py</span>. Where a number does not reproduce, the box says so. Table 2 and Figure 17 carry the verdict and stay open; the others are closed blocks.</p>
 
 <div class="card" id="tb2">
 <h3 style="margin-top:0">Table 2: the instruction-tuned models on key benchmarks</h3>
@@ -585,41 +607,35 @@ select{max-width:100%}
 <p class="small mute">Read from the vector PDFs in the arXiv source; percent of comparisons won and lost, ties being the remainder, with the drawn 95% intervals. Separated: intervals do not overlap. The paper's text: "approximately on par with" GPT-4 (0125), "mixed results (some wins and some losses)" against GPT-4o and Claude 3.5 Sonnet.</p>
 </div>
 
-<div class="card" id="tb3">
-<h3 style="margin-top:0">Table 3: hyperparameters, and the parameter count recounted</h3>
+<details class="mist"><summary><b>Table 3: hyperparameters, and the parameter count recounted</b></summary><div class="b"><div class="card" id="tb3">
 <div id="t3Tab"></div>
 <p class="small mute">Per layer: attention <span class="m">2<i>d</i><sup>2</sup> + 2 × <i>d</i> × 8 × 128</span> (query and output full width; keys and values for 8 heads of 128), SwiGLU <span class="m">3 × <i>d</i> × <i>d</i><sub>ff</sub></span>, two RMSNorm vectors; plus untied embedding and output matrices of 128,256 × <i>d</i> and a final norm. <b>Reproduces 8B, 70B and 405B independently</b>: 8.03B, 70.55B, 405.85B.</p>
-</div>
+</div></div></details>
 
-<div class="card" id="tb4">
-<h3 style="margin-top:0">Table 4: parallelism configurations, checked</h3>
+<details class="mist"><summary><b>Table 4: parallelism configurations, checked</b></summary><div class="b"><div class="card" id="tb4">
 <div id="t4Tab"></div>
 <div class="co warn"><div class="t">Does not reproduce exactly</div>MFU recomputed from the printed TFLOPs/GPU against the H100 SXM's 989.4 dense BF16 TFLOP/s (<a href="https://www.nvidia.com/en-us/data-center/h100/" target="_blank" rel="noopener noreferrer">NVIDIA H100 datasheet</a>, 1,979 with sparsity, halved) gives 43.5%, 40.4% and 38.4%: the middle row's 41% is 0.6 points above 400 TFLOP/s. arXiv v1 printed DP = 4 in the third row, which multiplies to 8,192 GPUs and 8.4M tokens; v3 prints 8.</div>
-</div>
+</div></div></details>
 
-<div class="card" id="tb5">
-<h3 style="margin-top:0">Table 5: root causes of the 419 unexpected interruptions</h3>
+<details class="mist"><summary><b>Table 5: root causes of the 419 unexpected interruptions</b></summary><div class="b"><div class="card" id="tb5">
 <div id="t5Tab"></div>
 <div class="co warn"><div class="t">Does not reproduce</div>The counts sum to 419 but the percentages to 94.9%. Every row's percentage is its count over 419 except "Faulty GPU": 148 is 35.3%, and 30.1% would be 126 interruptions. Since the counts reach exactly 419, the 30.1% is the likelier typo, and the text's "GPU issues … 58.7%", the sum of the printed GPU percentages, would then be 64.0% (268 of 419).</div>
-</div>
+</div></div></details>
 
-<div class="card" id="tb67">
-<h3 style="margin-top:0">Tables 6 and 7: preference data and SFT data</h3>
+<details class="mist"><summary><b>Tables 6 and 7: preference data and SFT data</b></summary><div class="b"><div class="card" id="tb67">
 <div id="t67Tab"></div>
 <p class="small mute">Shares recompute to 100% in both tables. The SFT tokens column is derived: share of examples × average tokens per example, renormalised. Table 7's printed average of 846.1 tokens per example recomputes as <b id="t7avg"></b> from the rows.</p>
-</div>
+</div></div></details>
 
-<div class="card" id="tb15">
-<h3 style="margin-top:0">Table 15: contamination by 8-gram overlap, and its estimated effect</h3>
+<details class="mist"><summary><b>Table 15: contamination by 8-gram overlap, and its estimated effect</b></summary><div class="b"><div class="card" id="tb15">
 <div id="t15Tab"></div>
 <p class="small mute">Contam. %: share of each evaluation set flagged, at the overlap threshold that showed the largest significant estimated gain. Gain: the score on the full set minus the score on the clean part, per model size. Dashes: the paper excludes results that were not significant or behaved erratically; for HumanEval, MBPP, MMLU and MMLU-Pro 8-gram overlap flagged too much to estimate a gain (<a href="https://arxiv.org/html/2407.21783v3#S5.SS1.SSS4" target="_blank" rel="noopener noreferrer">§5.1.4</a>).</p>
-</div>
+</div></div></details>
 
-<div class="card" id="tb21">
-<h3 style="margin-top:0">Table 21: long-context benchmarks, and how few questions some have</h3>
+<details class="mist"><summary><b>Table 21: long-context benchmarks, and how few questions some have</b></summary><div class="b"><div class="card" id="tb21">
 <div id="t21Tab"></div>
 <p class="small mute">N is implied by the printed interval, <span class="m">N = 1.96<sup>2</sup> S(1 − S)/h<sup>2</sup></span> (derived; the paper does not give set sizes). QuALITY's intervals imply about 21 questions, so its 95.2 against 90.5 in Table 2 is one question in 21.</p>
-</div>
+</div></div></details>
 </section>
 <section class="tab" id="t-more" hidden>
 <h2>Further reading</h2>
@@ -711,11 +727,11 @@ const ln2=(x1,y1,x2,y2,c,o)=>{o=o||{};return '<line x1="'+(+x1).toFixed(1)+'" y1
 const G=(op,s)=>op<=0?'':op>=1?s:'<g opacity="'+op.toFixed(3)+'">'+s+'</g>';
 const cl01=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v);
 
-// makeAnim: one input animated step by step, with modes (old method and new) sharing one scale.
+// makeAnim (never autoplays since 2026-10-25: it waits on step 1 until the reader presses play or steps): one input animated step by step, with modes (old method and new) sharing one scale.
 // o = {id, modes:{m:[{t,c}...]}, mode, draw(svgHost, mode, k, e, width), counters(mode,k,e) -> html, dur}
 // Expects #<id>Svg, #<id>Play, #<id>Back, #<id>Fwd, #<id>Scrub, #<id>Spd, #<id>Step, #<id>Cap, #<id>Cnt and a .seg #<id>M.
 function makeAnim(o){const id=o.id,card=$(id);if(!card)return null;const DUR=o.dur||3000,MOVE=.65;
-  const st={m:o.mode,k:0,t:RM?1:0,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',w:0};
+  const st={m:o.mode,k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',w:0};
   const steps=()=>o.modes[st.m];
   function draw(){const host=$(id+'Svg'),w=host.clientWidth;if(!w)return;st.w=w;const e=RM?1:ease(cl01(st.t/MOVE));
     host.innerHTML=o.draw(st.m,st.k,e,w);
@@ -735,8 +751,8 @@ function makeAnim(o){const id=o.id,card=$(id);if(!card)return null;const DUR=o.d
   $(id+'Scrub').addEventListener('input',e=>{pause();const n=steps().length,v=+e.target.value;st.k=Math.min(n-1,Math.floor(v/100));st.t=cl01(v/100-st.k);if(st.k===n-1&&v>=n*100)st.t=1;draw()});
   $(id+'Spd').addEventListener('change',e=>{st.spd=+e.target.value});
   const seg=$(id+'M');if(seg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM)st.play=true;draw();kick()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;if(st.vis&&!st.started&&!RM){st.started=true;st.play=true}kick()},{threshold:.15}).observe(card)}else st.vis=true;
+    st.m=b.dataset.m;st.k=0;st.t=1;pause();draw()}));
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   fit($(id+'Svg'),()=>draw());
   return {draw,st,kick}}
@@ -799,7 +815,7 @@ const lg10=Math.log10;
 (function(){const P=RC.params;
   setH('p405',pB(P['405B'].total));setH('p70',pB(P['70B'].total));setH('p8',pB(P['8B'].total));setH('p405b',pB(P['405B'].total));
   setH('f6nd',sci(RC.flops_6nd,2));
-  setH('effT',Math.round(RC.eff_tflops_per_gpu));setH('effM',RC.eff_mfu.toFixed(1)+'%');setH('effD',RC.days_on_16k.toFixed(0));
+  setH('effT',Math.round(RC.eff_tflops_per_gpu));setH('effM',RC.eff_mfu.toFixed(1)+'%');setH('effM2',RC.eff_mfu.toFixed(1)+'%');setH('effD',RC.days_on_16k.toFixed(0));
   const f=RC.forecast.refit;setH('faA',f.alpha.toFixed(4));setH('faB',f.A.toFixed(4));setH('faC',sci(RC.C_for_16_55T,2));
   setH('faN',bil(f.N_at_4e25));setH('faD',tril(f['D_at_3.8e25']));setH('faE',bil(f['N_at_3.8e25']));
   const tb=$('t3mini');if(tb){let s='';const want=['Layers','Model Dimension','FFN Dimension','Attention Heads','Key/Value Heads','Peak Learning Rate'];
@@ -961,6 +977,26 @@ function t2Verdict(bench,score,rivals){const c=ciFor(bench,'Llama 3 405B',score)
       stat('Networks held while weights change',L?(k>=5?'2':k>=4?'1':'–'):(k>=4?'4':k>=3?'3':k>=2?'2':'1'),L?(k>=5?'DPO: policy + reference (whose log-probs can be precomputed)':'SFT: the model being trained'):'policy, reference, reward, value')+
       stat('Round',L?(k===7?'1 → 2 of 6':'1 of 6'):'batch by batch',L?'six rounds in all':'continuous')}
   makeAnim({id:'pt',modes:MODES,mode:'l3',draw,counters,dur:3200});})();
+
+</script>
+<script>/* 15_js_hero.js */
+// ---- Hero: the whole report as one pipeline (static; drawn at the measured width, one to three columns) ----
+(function(){const el=$('l3hero');if(!el)return;
+  const S=[
+    [0,'1 · Data',['15.6T tokens, knowledge to end of 2023','7 cleaning stages, 128K vocabulary','mix: 50% general, 25% maths and','reasoning, 17% code, 8% multilingual']],
+    [1,'2 · Size it with a scaling law',['IsoFLOPs fits, 40M to 16B models','forecast: 402B on 16.55T tokens','then loss to accuracy (ARC-C 95.8%)','built: dense 405B, 126 layers']],
+    [1,'3 · Keep 16,384 H100s busy',['4D parallelism: TP 8, CP, PP 16, DP','38% to 43% MFU in BF16','419 unexpected stops in 54 days,','one every 3.1 h; >90% effective']],
+    [0,'4 · Grow, stretch, anneal',['batch 4M, then 8M, then 16M tokens','context 8K to 128K over 800B tokens','anneal the last 40M tokens to LR 0','average the annealing checkpoints']],
+    [1,'5 · Post-train, six rounds',['reward model on human preferences','rejection sampling: best of 10 to 30','SFT, then DPO (β 0.1, format tokens','masked, NLL 0.2); average the runs']],
+    [0,'6 · Result',['405B: MMLU 87.3, HumanEval 89.0','level with GPT-4 (0125) on benchmarks','behind GPT-4o in Meta\'s own','human evaluation (Figure 17)']]];
+  fit(el,w=>{const cols=w>=840?3:w>=560?2:1,g=12,bw=(w-g*(cols-1))/cols,bh=96,rows=Math.ceil(S.length/cols),H=rows*bh+(rows-1)*g+2;
+    const fs=12;let s="";
+    S.forEach(([nw,t,ls],i)=>{const c=i%cols,r=Math.floor(i/cols),x=c*(bw+g)+1,y=r*(bh+g)+1;
+      s+=rc(x,y,bw-2,bh-2,nw?'var(--acc2)':'var(--soft)',{s:nw?'var(--acc)':'var(--line)',sw:nw?1.6:1,r:6});
+      s+=tx(x+10,y+19,t,{fs:13,w:700,c:nw?'var(--acc)':'var(--ink)'});
+      ls.forEach((l,j)=>{s+=tx(x+10,y+38+j*15,l,{fs,c:'var(--ink)'})});
+      if(c<cols-1&&i<S.length-1){const ax=x+bw-2,ay=y+bh/2;s+='<path d="M'+(ax+1).toFixed(1)+','+(ay-4)+' l'+(g-3)+',4 l-'+(g-3)+',4z" fill="var(--mute)"/>'}});
+    el.innerHTML=svgW(w,H,s,'The Llama 3 report as one pipeline: data, a scaling-law size, keeping 16,384 GPUs busy, the pre-training schedule, six rounds of post-training, and the result').replace('style="max-width:100%;height:auto"','style="width:'+w+'px;max-width:none;height:'+H+'px"')})})();
 
 </script>
 <script>/* 20_js_fit.js */
@@ -1194,20 +1230,28 @@ function pipeSim(P,V,M,N,tf,tb,c){tf=tf||1;tb=tb||2;c=c||0;
     $('t21Tab').innerHTML=s+'</tbody></table></div>'})();})();
 
 </script>
-<script>/* 90_js_tabs.js */
-// ---- Tabs: Reading opens by default; charts in a tab draw when it is shown ----
+<script>/* 99_js_tabs.js */
+// ---- Tabs ---- (the explainer-page template; storage key l3-tab; a data-to link opens the closed block that holds its target)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
-  function show(id){
+  const shown={};
+  function show(id,save){
     btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
     document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
-    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){console.error(e)}});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('l3-tab',id)}catch(e){}}
   }
-  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t)));
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
   bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
-    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t)}});
-  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab);const to=a.dataset.to&&document.getElementById(a.dataset.to);(to||bar).scrollIntoView({block:'start'})}));
-  show('t-read');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);const to=a.dataset.to&&document.getElementById(a.dataset.to);if(to){const d=to.closest('details')||to.querySelector(':scope > details');if(d)d.open=true}(to||bar).scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('l3-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
+  show(start,false);
 })();
 
 </script>

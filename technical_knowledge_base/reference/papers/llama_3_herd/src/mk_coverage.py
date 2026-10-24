@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "15 min read, +~5h 5m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "15 min read, +~5h 5m resources"', 'dropped: replaced by the measured reading time in the header (2026-10-25)', ['Reading: ', 'in closed details']),
  ('Authors/lab: Llama Team, AI @ Meta', R + ', headline card', ['Llama Team, AI @ Meta']),
  ('Date: July 2024 (paper 2024-07-23; arXiv v3 2024-11)', R + ', headline card (with v1 31 July and v3 23 November 2024 from the arXiv listing)', ['dated 23 July 2024', 'v3 23 November 2024']),
  ('Link arXiv 2407.21783 (~2h 30m, long technical report)', 'card and Further reading', ['https://arxiv.org/abs/2407.21783', '(2h 30m)']),
@@ -64,7 +64,7 @@ C = [
  ('8B/70B trained on InfiniBand clusters instead', R + ', Training on 16K GPUs', ['the smaller models used Nvidia Quantum2 InfiniBand']),
  ('4D parallelism [TP, CP, PP, DP] innermost to outermost by bandwidth need', R + ', 4D cards; Run tab mesh', ['[TP, CP, PP, DP]', 'ordered from the most to the least bandwidth-hungry']),
  ('TP = 8, PP = 16, FSDP as DP (optimizer state and gradients sharded, weights not resharded after forward)', R + ', 4D cards and Table 4', ['Tensor (TP = 8)', 'Pipeline (PP = 16)', 'Weights are not resharded after the forward pass']),
- ('Pipeline: tunable number of contiguous micro-batches (between DFS and BFS); one layer removed from first and last stages; interleaved; async p2p', R + ', engineering list; Run tab pipeline simulation', ['Meta made N a free knob between the two', 'removes one Transformer layer from the first and last stages', 'interleaved schedule', 'asynchronously']),
+ ('Pipeline: tunable number of contiguous micro-batches (between DFS and BFS); one layer removed from first and last stages; interleaved; async p2p', R + ', engineering list; Run tab pipeline simulation', ['Meta made N a free knob between the two', 'One Transformer layer is removed from the first and last stages', 'interleaved schedule', 'asynchronously']),
  ('8K-token pre-training without activation checkpointing', R + ', engineering list', ['8K-token pre-training without activation checkpointing']),
  ('Context parallelism (long-context only) all-gather over K/V, cheap because GQA keeps K/V small', R + ', 4D cards and engineering list', ['Context parallelism by all-gather', 'K and V are 1/16 the size of Q']),
  ('BF16 MFU 38-43% (430 TFLOPs/GPU at 8K GPUs, 380 at 131K sequence)', R + ', Table 4 mini; card; Tables tab check', ['38% to 43%', '430', '380']),

@@ -31,7 +31,7 @@
 ## Parts
 
 HTML: `00_top`, `01_css` (reference copy), `01b_css` (stacked bars, Table 2 shading), `02_header`, `03_paper`, `04_fit`, `05_run`, `06_tables`, generated `_gen_card`, `_gen_more`.
-JS: `10_js_common`, `_gen_data`, `11_js_ui` (reference copies), `12_js_data` (table helpers, interval lookup), `13_js_read`, `14_js_post` (post-training animation), `20_js_fit`, `21_js_run` (mesh, memory, pipeline simulator, replay), `22_js_tables`, `90_js_tabs`.
+JS: `10_js_common`, `_gen_data`, `11_js_ui` (reference copies; `makeAnim` never autoplays), `12_js_data` (table helpers, interval lookup), `13_js_read`, `14_js_post` (post-training animation), `15_js_hero` (the hero pipeline), `20_js_fit`, `21_js_run` (mesh, memory, pipeline simulator, replay), `22_js_tables`, `99_js_tabs` (the explainer-page template, storage key `l3-tab`; a `data-to` link opens the closed block holding its target).
 
 ## What reproduces and what does not
 
@@ -41,3 +41,15 @@ JS: `10_js_common`, `_gen_data`, `11_js_ui` (reference copies), `12_js_data` (ta
 ## Checks (3 October 2026)
 
 `sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 384 actions, 0 problems. `mk_coverage.py`: 112 of 112 verified.
+
+## Light pass, 2026-10-25 (teaching contract)
+
+- **Top**: the core sentence, a hero figure (`15_js_hero.js`, `#l3hero`: the report as one six-stage pipeline, data, scaling-law sizing, the 16K-GPU job, the schedule, six post-training rounds, result; blue boxes are the report's contributions), You need (Distributed training, Pretraining section 3, Alignment) and New terms. The paper's own figures are not reused: arXiv lists the report under its non-exclusive distribution licence, not CC BY, so the hero is redrawn. No photo: the page is about a recipe, not a physical object the reader has not seen.
+- **Owned elsewhere** (OWNERS.md): the 4D grid keeps where Llama 3 put each form and links Distributed training for what each splits and sends (and for the interleaved 1F1B bubble); GQA links Attention variants; RoPE base and scaling link Positional encodings; dedup links Deduplication; scaling laws link Pretraining; DPO links Alignment; the checkpoint argument links Fault tolerance at scale; power swings link Power, cooling and reliability; RoCE and Clos link Interconnects and scaling; whole-run MFU links Performance math.
+- **Moved into closed `<details>`** (nothing deleted but fat): the scaling-law runs' hyperparameters; the cluster, storage and network paragraphs (one open sentence keeps the 1:7 point); numerics and NCCLX; the other pipeline-schedule changes; how preference data is collected; the step derivation and whole-run utilisation (the 34.6% stays open); the six small inconsistencies; a dated block "Later, as of 25 October 2026" (torchtitan, Llama 4). The Table 4 and Table 5 captions in Reading are shortened to the point and link the Tables tab checks. In the Tables tab, Table 2 and Figure 17 stay open; Tables 3, 4, 5, 6 and 7, 15 and 21 are closed blocks.
+- **No autoplay**: `makeAnim` waits on step 1, also after a mode switch; `check_page.mjs` fails if `pt`, `pp` or `rl` draws a frame before play or on a mode switch, and opens every closed block before auditing a tab. Header: "Reading: 29 min, plus 11 in closed details." (`reading.json`, from audit_pages.mjs).
+- **Length**: Reading core 6,834 words (30 min) plus 1,878 closed (8) before; 6,560 (29 min, including about 330 words of new top) plus 2,608 closed (11) after. Tables tab 1,543 open before; 589 open plus 970 closed after. Refit and Run tabs unchanged (2.5 and 4.7 min). The core stays long because the ledger is mostly core: the page owns a 92-page report whose argument runs through data, sizing, infrastructure, reliability, recipe, post-training and evidence, and the verdict rests on the open numbers. Generic mechanisms were already short here, so linking owners saved little.
+- **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 409 units, core 284, depth 115, owned 6, volatile 2, fat 2 (old reading-time line, tab labels); `ledger.py check` problems 0.
+- `mk_coverage.py`: reading-time and pipeline items updated for the new wording; 112 of 112. Saved extracts: em-dashes replaced with `--`; no author emails were present, and `extract_paper.py` now redacts any it meets.
+
+Rechecked 2026-10-25: `checkpage.sh` 5 tabs, 228 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 384 actions, 0 problems.

@@ -9,7 +9,7 @@ const lg10=Math.log10;
 (function(){const P=RC.params;
   setH('p405',pB(P['405B'].total));setH('p70',pB(P['70B'].total));setH('p8',pB(P['8B'].total));setH('p405b',pB(P['405B'].total));
   setH('f6nd',sci(RC.flops_6nd,2));
-  setH('effT',Math.round(RC.eff_tflops_per_gpu));setH('effM',RC.eff_mfu.toFixed(1)+'%');setH('effD',RC.days_on_16k.toFixed(0));
+  setH('effT',Math.round(RC.eff_tflops_per_gpu));setH('effM',RC.eff_mfu.toFixed(1)+'%');setH('effM2',RC.eff_mfu.toFixed(1)+'%');setH('effD',RC.days_on_16k.toFixed(0));
   const f=RC.forecast.refit;setH('faA',f.alpha.toFixed(4));setH('faB',f.A.toFixed(4));setH('faC',sci(RC.C_for_16_55T,2));
   setH('faN',bil(f.N_at_4e25));setH('faD',tril(f['D_at_3.8e25']));setH('faE',bil(f['N_at_3.8e25']));
   const tb=$('t3mini');if(tb){let s='';const want=['Layers','Model Dimension','FFN Dimension','Attention Heads','Key/Value Heads','Peak Learning Rate'];

@@ -22,3 +22,5 @@ Question the page keeps returning to: what can be checked in Meta's engineering 
 | P-llama_3_herd.16 | FP8 row-wise against tensor-wise quantisation demo | | | rejected for now: Figure 26's reward distributions are not in the source as data; would need an illustrative tensor |
 
 Methodology gap noted: for long technical reports with many figures, the arXiv e-print often ships the figures as vector PDFs even when the HTML has no image; reading markers from the PDF drawing commands (pymupdf `get_drawings`, calibrated on gridlines) is as exact as the SVG method and should be tried first.
+
+| P-llama_3_herd.h | Hero: the report as one six-stage pipeline, contributions in blue (static SVG at measured width, 1 to 3 columns) | built 2026-10-25 (light pass) |
