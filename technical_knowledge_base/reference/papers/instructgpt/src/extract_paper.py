@@ -14,7 +14,7 @@ def txt(x):
     x = html.unescape(x)
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
 a = s.index('<article'); b = s.index('</article>')
-open('inputs/paper_v1.txt', 'w').write('Source: https://arxiv.org/html/2203.02155v1 (extracted by extract_paper.py)\n\n' + txt(s[a:b]))
+open('inputs/paper_v1.txt', 'w').write('Source: https://arxiv.org/html/2203.02155v1 (extracted by extract_paper.py)\n\n' + re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}', '[email removed]', txt(s[a:b])))  # author emails redacted (2026-10-25)
 tids = re.findall(r'<figure id="([^"]+)" class="ltx_table"', s)
 def block(tid):  # the whole <figure>, nested figures included
     i = s.index('<figure id="%s"' % tid); d = 0

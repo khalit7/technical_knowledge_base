@@ -36,8 +36,37 @@
 ## Parts
 
 HTML: `00_top`, `01_css` (the Switch page's CSS plus token chips, samples grid, stage boxes, verdict tags, responsive check tables), `02_header`, `03_paper`, `04_run`, `05_tables`, `06_then`, generated `_gen_card`, `_gen_more`.
-JS: `10_js_common`, `_gen_data`, `11_js_ui` (reference helpers), `12_js_charts` (bars, frames, wrapped titles), `20_js_toy_core`, `20b_sweep_data`, `20c_js_toyrun` (stage-by-stage training without freezing the page, cached PPO runs), `13_js_read`, `21_js_run`, `24_js_tables`, `25_js_then`, `90_js_tabs`.
+JS: `10_js_common`, `_gen_data`, `11_js_ui` (reference helpers), `12_js_charts` (bars, frames, wrapped titles), `20_js_toy_core`, `20b_sweep_data`, `20c_js_toyrun` (stage-by-stage training without freezing the page, cached PPO runs), `13_js_read`, `21_js_run`, `24_js_tables`, `25_js_then`, `99_js_tabs` (the skill template, storage key `instructgpt-tab`; replaced `90_js_tabs` on 2026-10-25).
 
 ## Checks (3 October 2026)
 
 `sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 257 KB. `check_page.mjs`: 282 actions, 0 problems (toy ready for the paper tab in about 6 s headless; a PPO run about 2.4 s; all five presets equal the offline sweep). `check_grad.py`: PASS. `mk_coverage.py`: 67 of 67 verified.
+
+## The 2026-10-25 light pass (teaching contract)
+
+What changed and why:
+- **Top**: the core sentence and a hero: the paper's Figure 2 redrawn (it was already on the page, in The recipe) now sits at the top, extended with who labels each step and what each step produces (the SFT model, a 6B RM, InstructGPT), static. The paper is under arXiv's non-exclusive licence, not CC BY, so no figure is embedded; nothing physical to photograph, so no images. Then "You need" (Policy gradients for PPO itself, RL for LLMs for PPO's four models, the alignment page for RLHF as practised today) and the new terms.
+- **Visuals inline**: Figure 1, the no-KL toy curve and the Figure 33/34 sweeps left the predict reveals; each sits in its own card right after its question ("answer the question above before you look"); the reveals keep only the explanation. The Run tab stays a tab: it is a lab with several sections that the RM widget, the episode animation and the tax section all use.
+- **No autoplay**: `makeAnim` in `11_js_ui.js` patched as on LoRA (waits on step 1; mode switches pause); `90_js_tabs.js` replaced by the template `99_js_tabs.js`. The episode animation says "preparing" until the toy is trained. `check_page.mjs` now fails if `#epi` draws a frame before a click and opens every closed block.
+- **Owned elsewhere, a sentence kept and linked**: reward-model over-optimisation in general (Goodhart, Gao et al.'s curve) to Reward hacking; the current framework list to the alignment page.
+- **Closed**: prompt cleaning and the §A.2 discrepancy, SFT settings, how the baselines were built, §1's version of the FLAN/T0 comparison, TruthfulQA's secondary results; in the tables tab, Tables 6 to 13. Restatements removed from the toxicity, Figure 8 and §5.1 blocks and one Why-it-matters bullet.
+- **Volatile**: TRL's PPOTrainer and OpenRLHF moved to one dated closed block, "Open implementations (checked 3 October 2026)".
+- Header: "Reading: 23 min, plus 8 in closed details.", read by `build.sh` from `reading.json`. `mk_coverage.py` keys updated to the condensed wording (67 of 67). The author email in `inputs/paper_v1.txt` is redacted, and `extract_paper.py` now redacts emails.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After |
+|---|---|---|
+| The paper, core | 22.7 min (5,231 words) | 23.5 min (5,416) |
+| The paper, closed | 7.0 min | 7.6 min |
+| Run the three steps | 3.5, plus 2.4 closed | unchanged |
+| The paper's numbers, rebuilt | 10.3 min | 8.0, plus 2.3 closed |
+| Then and now; Further reading | 1.8; 2.2 min | unchanged |
+| Visuals drawn in Reading (audit) | 7 | 11 |
+
+Why about 23 minutes is right: the top (core sentence, hero caption, You need, new terms) added about 1.9 minutes and closing settings, baseline construction and secondary results paid back about 1.1. What stays open is the paper's argument in its order plus the evidence section, which the paper page owns; the predict explanations (hidden until answered) count in the core.
+
+## Knowledge ledger (`ledger.json`, labelled by `label_ledger.py`)
+300 units: core 232, depth 63, owned 2, volatile 1, fat 2. 290 drafted by `ledger.py init`; 10 added (core sentence, hero, new terms, two owner links, five script-drawn tables and tools). `ledger.py check`: problems 0.
+
+## Checks (25 October 2026)
+`checkpage.sh`: tabs 5, 262 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 282 actions, 0 problems (no frame before a click, every closed block opened). `mk_coverage.py`: 67 of 67. The toy (`20_js_toy_core.js`) is unchanged, so `check_grad.py` was not rerun.

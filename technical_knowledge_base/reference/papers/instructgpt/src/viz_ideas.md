@@ -44,3 +44,8 @@ Scores follow the Methodology (.claude/skills/explainer-page/visuals/choosing.md
 - A rule for **figures available only as vector graphics inside the HTML**: decoding glyph-tagged SVGs is exact transcription, not curve reading; it should be the first thing tried for any arXiv HTML paper (it found three of the paper's own inconsistencies here).
 - A rule for **toys of training procedures with a ground truth**: when the paper's quantity of interest is an unobservable (true human preference), give the toy a known truth and show proxy against truth; label the truth as the toy's construction.
 - Units: a toy's hyperparameters (β, γ) are in its own units; say so wherever the paper's values appear beside them.
+
+## 2026-10-25 light pass
+- P-instructgpt.h1 (built): the hero, Figure 2 redrawn with Table 6 sizes plus who labels and what each step produces; static, stacked at phone width.
+- Moved, not new: Figure 1, the no-KL toy curve and Figures 33/34 from predict reveals to inline cards.
+- Rejected: embedding the paper's own Figure 2 (arXiv non-exclusive licence); a photo (nothing physical to show).

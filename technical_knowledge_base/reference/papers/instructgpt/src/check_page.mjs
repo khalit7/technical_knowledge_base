@@ -48,11 +48,16 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       const t0 = Date.now();
       await p.waitForFunction(() => !/Preparing/.test(document.getElementById('rmwOut').textContent) && !/Training the toy/.test(document.getElementById('epiSvg').innerHTML), { timeout: 120000 });
       console.log(scheme, width, 'toy ready for the paper tab in ms', Date.now() - t0); await audit('t-read toy ready');
+      // nothing may move before the reader acts (2026-10-25): the episode animation is in view and ready; wait and count frames
+      await p.$eval('#epi', e => e.scrollIntoView()); await wait(1200);
+      const fr = await p.$eval('#epi', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: epi moved before any click (${fr} frames)`);
     }
     if (t === 't-run') {
       await p.waitForFunction(() => /are trained/.test(document.getElementById('stgMsg').textContent) && document.querySelectorAll('#smpOut .tok').length > 20, { timeout: 120000 });
       await audit('t-run pipeline ready');
     }
+    // closed details hold charts and tables too: open them all
+    await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(300); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }

@@ -9,15 +9,17 @@ function lineChart(o){const W=o.W,TT=o.title?titleSvg(o.title,W,12):null,H=(o.H|
     se.pts.forEach((p,i)=>{if(p[2]!=null)s+=ln2(P[i][0],f.sy(p[2]),P[i][0],f.sy(p[3]),se.c,{sw:1.2,op:se.op});if(!se.nodot)s+='<circle cx="'+P[i][0].toFixed(1)+'" cy="'+P[i][1].toFixed(1)+'" r="3.2" fill="'+se.c+'"'+(se.op!=null?' opacity="'+se.op+'"':'')+'><title>'+escH(se.n)+': '+(o.fmt||(v=>v.toFixed(3)))(p[1])+(p[2]!=null?' ('+(o.fmt||(v=>v.toFixed(3)))(p[2])+' to '+(o.fmt||(v=>v.toFixed(3)))(p[3])+')':'')+'</title></circle>'})});
   const lg=legend(o.series.filter(se=>!se.nolg).map(se=>[se.n,se.c,se.da]),o.pl||46,H+14,W-(o.pl||46));
   return svgW(W,H+lg.h,s+lg.s,o.title||'chart')}
-// Figure 2 redrawn: three steps, each with its training set to scale (Table 6)
-fit($('pipeSvg'),W=>{const n=W<560,sz=RC.sizes,mx=sz.RM.train,steps=[['1','Supervised fine-tuning','labelers write demonstrations',sz.SFT.train,'prompts with a demonstration','var(--c3)'],
-  ['2','Reward model','labelers rank 4 to 9 answers',sz.RM.train,'prompts with ranked answers','var(--c1)'],['3','PPO against the RM','no labels: prompts only',sz.PPO.train,'prompts, unlabeled','var(--c2)']];
-  let s='',y=4;const bw=n?W-8:(W-40)/3;
-  steps.forEach((st,i)=>{const x=n?0:i*(bw+20),yy=n?y+i*92:4,bh=14,len=(bw-20)*st[3]/mx;
-    s+=rc(x,yy,bw,82,'var(--soft)',{s:'var(--line)'})+tx(x+10,yy+18,'Step '+st[0]+': '+st[1],{fs:13,w:600})+tx(x+10,yy+35,st[2],{fs:12,c:'var(--mute)'});
-    s+=rc(x+10,yy+46,len,bh,st[5],{r:3})+tx(x+10,yy+74,fmt(st[3])+' '+st[4],{fs:12});
-    if(!n&&i<2)s+=ln2(x+bw+3,yy+41,x+bw+17,yy+41,'var(--mute)',{sw:1.6})+'<path d="M'+(x+bw+17)+' '+(yy+37)+'l5 4l-5 4z" fill="var(--mute)"/>'});
-  return $('pipeSvg').innerHTML=svgW(W,n?3*92:90,s,'The three steps with their training-set sizes')});
+// Hero: Figure 2 redrawn, three steps, each with who labels, its training set to scale (Table 6) and what it produces; static
+fit($('pipeSvg'),W=>{const n=W<720,sz=RC.sizes,mx=sz.RM.train,BH=112,steps=[['1','Supervised fine-tuning','labelers write the answer',sz.SFT.train,'prompts with a demonstration','var(--c3)','gives: the SFT model'],
+  ['2','Reward model','labelers rank 4 to 9 answers',sz.RM.train,'prompts with ranked answers','var(--c1)','gives: a 6B RM, one score'],['3','PPO-ptx against the RM','no labels: prompts only',sz.PPO.train,'prompts, unlabeled','var(--c2)','gives: InstructGPT']];
+  let s='';const bw=n?W-2:(W-44)/3,gap=n?22:22;
+  steps.forEach((st,i)=>{const x=n?0:i*(bw+gap),yy=n?i*(BH+gap):2,bh=14,len=Math.max(2,(bw-20)*st[3]/mx);
+    s+=rc(x+1,yy,bw,BH,'var(--soft)',{s:'var(--line)'})+tx(x+11,yy+19,'Step '+st[0]+': '+st[1],{fs:13,w:600})+tx(x+11,yy+37,st[2],{fs:12,c:'var(--mute)'});
+    s+=rc(x+11,yy+47,len,bh,st[5],{r:3})+tx(x+11,yy+76,fmt(st[3])+' '+st[4],{fs:12});
+    s+=tx(x+11,yy+100,st[6],{fs:12,w:600,c:st[5]});
+    if(i<2){if(n){const cx=x+bw/2;s+=ln2(cx,yy+BH+2,cx,yy+BH+gap-6,'var(--mute)',{sw:1.6})+'<path d="M'+(cx-4)+' '+(yy+BH+gap-7)+'l4 5l4 -5z" fill="var(--mute)"/>'}
+      else s+=ln2(x+bw+3,yy+BH/2,x+bw+gap-5,yy+BH/2,'var(--mute)',{sw:1.6})+'<path d="M'+(x+bw+gap-6)+' '+(yy+BH/2-4)+'l5 4l-5 4z" fill="var(--mute)"/>'}});
+  return $('pipeSvg').innerHTML=svgW(W,n?3*BH+2*gap+2:BH+4,s,'The three steps of InstructGPT: supervised fine-tuning on demonstrations, a reward model trained on rankings, and PPO-ptx against the reward model, with their training-set sizes and what each step produces')});
 // Table 1 bars
 fit($('t1Svg'),W=>{$('t1Svg').innerHTML=hbars(W,TB.t1.rows.map(r=>({n:r[0],v:parseFloat(r[1]),c:['Generation','Brainstorming'].includes(r[0])?'var(--c2)':['Classification','Open QA','Closed QA'].includes(r[0])?'var(--c1)':'var(--dim)'})),{fmt:v=>v.toFixed(1)+'%',dom:[0,50],title:'Use-case categories of API prompts (%)'})});
 // ---- the reward-model widget: K live answers, one labeler's ranking, every pair's term of Eq. 1 ----
@@ -80,8 +82,8 @@ fit($('t1Svg'),W=>{$('t1Svg').innerHTML=hbars(W,TB.t1.rows.map(r=>({n:r[0],v:par
     return svgW(W,H+6,s,'One PPO episode')}
   function counters(m,k){if(!E)return '';const d=E[m],n=d.y.length,sh=Math.min(k,n);let kl=0;for(let i=0;i<sh;i++)kl+=-d.pen[i]/BETA;
     return stat('words written',sh+' of '+n,'stops at &lt;end&gt; or 8')+stat('log ratio so far',kl.toFixed(3),'Σ log π/π_SFT (KL sample)')+stat('RM score',k>n?d.rm.toFixed(3):'not yet','r_θ(x, y)')+stat('total reward',k>n+1?d.tot.toFixed(3):'not yet','r - β Σ log ratio')+stat('pretraining loss',k>n+2?(d.ce[0].toFixed(3)+' to '+(m==='ptx'&&k>n+3?d.ce[2]:d.ce[1]).toFixed(3)):'unchanged','nats per word, 8 windows per word')}
-  const o={id:'epi',mode:'ppo',modes:{ppo:[{t:'',c:''}],ptx:[{t:'',c:''}]},draw,counters,dur:2600};
-  function ready(){E=build();if(!E)return;o.modes.ppo=stepsFor(E.ppo);o.modes.ptx=stepsFor(E.ptx);if(A){A.st.k=0;A.st.t=RM?1:0;A.st.lk=-1;A.draw()}}
+  const o={id:'epi',mode:'ppo',modes:{ppo:[{t:'preparing',c:'Training the toy models in your browser (a few seconds); the steps appear here when they are ready.'}],ptx:[{t:'preparing',c:'Training the toy models in your browser (a few seconds); the steps appear here when they are ready.'}]},draw,counters,dur:2600};
+  function ready(){E=build();if(!E)return;o.modes.ppo=stepsFor(E.ppo);o.modes.ptx=stepsFor(E.ptx);if(A){A.st.k=0;A.st.t=1;A.st.lk=-1;A.draw()}}
   A=makeAnim(o);
   const go=()=>{TM.train(TOY_PPO,null,()=>TM.train(TOY_PTX,null,ready))};
   $('epiNew').addEventListener('click',()=>{nEp++;ready()});
@@ -119,3 +121,6 @@ PRED_REVEAL['pr-tax']=()=>{const drawT=()=>fit($('taxSvg'),W=>{$('taxSvg').inner
   $('taxOut').innerHTML='The toy, mean of 3 seeds: pretraining loss '+SW.sft.ce.toFixed(2)+' after SFT, '+p.ce.toFixed(2)+' after PPO (win rate against SFT '+p.win.toFixed(2)+'); PPO-ptx with γ = 0.1: '+x.ce.toFixed(2)+' (win '+x.win.toFixed(2)+'); PPO with β = 3 instead: '+k.ce.toFixed(2)+' (win '+k.win.toFixed(2)+'). <a href="#" data-tab="t-run" data-to="swf">The full sweep.</a>';
   $('taxOut').querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();document.querySelector('.tabs button[data-t="t-run"]').click();setTimeout(()=>$('swf').scrollIntoView({block:'start'}),50)}));
   segBind('taxM',v=>{taxMode=v;refit($('taxSvg'))})};
+
+// the three predict visuals sit inline beside their questions (2026-10-25): draw them now; the reveals hold only the explanation
+['pr-kl','pr-13','pr-tax'].forEach(k=>{const f=PRED_REVEAL[k];delete PRED_REVEAL[k];if(f)f()});
