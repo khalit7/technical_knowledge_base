@@ -1,6 +1,7 @@
-// ---- Straggler replay tab (t-str): per-rank compute and wait from src/runs/strag_*.json (window.FT.strag) ----
+// ---- Reading, section 8 (moved from the Straggler replay tab, 2026-10-24): per-rank compute and wait from src/runs/strag_*.json (window.FT.strag) ----
 (function(){
 const D=window.FT.strag, $=id=>document.getElementById(id), E=RD.esc;
+if(!D||!$('st-anim-card'))return;
 const f1=x=>(+x).toFixed(1), f2=x=>(+x).toFixed(2);
 let RUN='strag_mix';
 const R=()=>D.runs[RUN];
@@ -24,7 +25,7 @@ function drawAnim(i){
     const step=run.steps[j];
     const span=Math.max(...[0,1,2,3].map(r=>run.compute[r][j]+run.comm[r][j]));
     s+='<line x1="'+x0+'" y1="'+(top-6)+'" x2="'+x0+'" y2="'+(top+4*lane)+'" stroke="var(--line)"/>';
-    s+=RD.t(x0+3,top-6,'step '+step,{fs:10.5,fill:'var(--mute)'});
+    {const lb=(span*sc>58?'step ':'')+step;if(span*sc>lb.length*6+6)s+=RD.t(x0+3,top-6,lb,{fs:11,fill:'var(--mute)'})}
     for(let r=0;r<4;r++){
       const c=run.compute[r][j],m=run.comm[r][j],y=top+r*lane+4;
       s+='<rect x="'+x0.toFixed(1)+'" y="'+y+'" width="'+Math.max(.5,c*sc).toFixed(1)+'" height="16" rx="2" fill="'+(isSlow(r,step)?'var(--bad)':'var(--c1)')+'"/>';
@@ -125,7 +126,6 @@ function initDet(){['st-rule','st-stat'].forEach(id=>$(id).addEventListener('cha
 RD.seg($('st-run'),m=>{RUN=m;A.reset(R().steps.length-STEPS_SHOWN+1);A.go(m==='strag_none'?75:76);drawDet()});
 let inited=false;
 function render(){if(!inited){inited=true;initAnim();A.go(76);initDet()}else{A.redraw();drawDet()}}
-(window.TAB_RENDER=window.TAB_RENDER||{})['t-str']=[render];
-addEventListener('resize',()=>{const t=$('t-str');if(t&&!t.hidden&&inited){A.redraw();drawDet()}});
+RD.onRender(render);RD.onResize(()=>{if(inited){A.redraw();drawDet()}});render();
 window.FTSTR={flags,score,setRun:m=>{RUN=m},isSlow};
 })();

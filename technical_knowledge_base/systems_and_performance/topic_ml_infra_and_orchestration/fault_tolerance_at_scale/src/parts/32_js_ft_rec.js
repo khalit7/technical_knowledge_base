@@ -1,4 +1,4 @@
-// ---- Recovery designs tab (t-rec): time to recover and goodput per design (window.FT.rec, window.FT.fl) ----
+// ---- Reading, sections 5 and 9 (moved from the Recovery designs tab, 2026-10-24): time to recover and goodput per design (window.FT.rec, window.FT.fl) ----
 (function(){
 const D=window.FT.rec, $=id=>document.getElementById(id), E=RD.esc;
 if(!D||!$('rc-card'))return;
@@ -116,8 +116,7 @@ function drawStatic(){
 }
 function all(){drawBars();drawCurves();drawTable();if(A)A.reset(nSteps())}
 let inited=false;
-function render(){if(!inited){inited=true;fillSel();$('rc-n').value=Math.log2(N);$('rc-n-v').textContent=N.toLocaleString('en-US')+' GPUs';A=RD.anim({card:'rc-card',ctl:'rc-ctl',n:nSteps(),draw:drawAnim,ms:1800,label:'Step'});drawStatic();RD.tabLinks($('t-rec'));all()}else{all()}}
-(window.TAB_RENDER=window.TAB_RENDER||{})['t-rec']=[render];
-addEventListener('resize',()=>{const t=$('t-rec');if(t&&!t.hidden&&inited){drawBars();drawCurves();A.redraw()}});
+function render(){if(!inited){inited=true;fillSel();$('rc-n').value=Math.log2(N);$('rc-n-v').textContent=N.toLocaleString('en-US')+' GPUs';A=RD.anim({card:'rc-card',ctl:'rc-ctl',n:nSteps(),draw:drawAnim,ms:1800,label:'Step'});drawStatic();RD.tabLinks($('rc-repro'));RD.tabLinks($('rc-src'));all()}else{all()}}
+RD.onRender(render);RD.onResize(()=>{if(inited){drawBars();drawCurves();A.redraw()}});render();
 window.FTREC={evalDesign,goodput,best,setN:n=>{N=n},setRate:k=>{RATE=k}};
 })();
