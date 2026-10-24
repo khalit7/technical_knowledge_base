@@ -44,3 +44,6 @@ Why about 32 minutes is right: the page now holds what three tabs held, plus a w
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 302 units: core 197, depth 63, fat 42. 288 were drafted from the old page by `ledger.py init`; 14 were added by hand (the new SPLADE section, the hero, and the two script-rendered tables whose summaries are written statically). Fat units carry a `note` (headings, restated "six ideas" cards, interview answers restating sections, tab cards for removed tabs). The hosted-rerankers row is kept here as a dated closed table rather than labelled volatile, because the brief asks for one compact dated table on the page.
+
+## Topic close (2026-10-24)
+New closed block at the end of Reading: the root's retired Pipeline lab units this page did not carry (0.765 dense and 0.778 hybrid at K 30, the 40-times cost ratio, the pairs scored for K 50 and why K 100 was not run). References to the root's Pipeline lab now name its shared runs or its sections 2 to 4. Header remeasured: 32 min, plus 8 in closed details. Every quoted sibling time now matches its header (`html_utils/check_times.py`); the ledger keys that quoted old times or tab names were re-pointed to the current text (problems 0).
