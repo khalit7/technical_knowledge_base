@@ -245,5 +245,55 @@ E["dx"] = {
 }
 E["dx"]["binom"]["loss_check_pmf"] = round(-(lchoose(10, 7) + 7 * ln(0.7) + 3 * ln(0.3)), 3)
 
+
+# ---------------- 2026-10-24 rebuild: new Reading visuals ----------------
+# density figure: N(0, 0.1^2): peak density, its NLL, the area within one sd
+put("gauss_peak_nll_sd01", -ln(1 / math.sqrt(2 * math.pi * 0.01)), 3)
+# law of large numbers and CLT on the tiny model's per-token loss, by the page's own seeded generator (mulberry32)
+def mulberry32(seed):
+    a = seed & 0xFFFFFFFF
+    def imul(x, y): return (x * y) & 0xFFFFFFFF
+    def r():
+        nonlocal a
+        a = (a + 0x6D2B79F5) & 0xFFFFFFFF
+        t = a
+        t = imul(t ^ (t >> 15), t | 1)
+        t = (t ^ ((t + imul(t ^ (t >> 7), t | 61)) & 0xFFFFFFFF)) & 0xFFFFFFFF
+        return ((t ^ (t >> 14)) & 0xFFFFFFFF) / 4294967296
+    return r
+cdf2 = [p[0], p[0] + p[1]]
+fl = [-ln(v) for v in p]
+sdf = math.sqrt(vf)
+CLT_N = [1, 2, 4, 10, 30, 100, 1000]; CLT_R = 2000
+clt = []
+for n in CLT_N:
+    r = mulberry32(31000 + n); ms = []
+    for _ in range(CLT_R):
+        s_ = 0.0
+        for _ in range(n):
+            u = r(); k = 0 if u < cdf2[0] else (1 if u < cdf2[1] else 2); s_ += fl[k]
+        ms.append(s_ / n)
+    m = sum(ms) / CLT_R; sd = math.sqrt(sum((x - m) ** 2 for x in ms) / CLT_R)
+    th = sdf / math.sqrt(n); inside = sum(1 for x in ms if abs(x - H) <= 1.96 * th) / CLT_R
+    clt.append({"n": n, "mean": round(m, 4), "sd": round(sd, 4), "theory_sd": round(th, 4), "inside": round(inside, 4)})
+E["clt"] = clt
+r = mulberry32(5); s_ = 0.0; run = {}
+for i in range(1, 1001):
+    u = r(); k = 0 if u < cdf2[0] else (1 if u < cdf2[1] else 2); s_ += fl[k]
+    if i in CLT_N: run[i] = round(s_ / i, 4)
+E["lln_run"] = run
+# softmax temperature slider
+TEMPS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5, 10]
+E["temps"] = {}
+for T in TEMPS:
+    e = [math.exp(v / T) for v in z]; s_ = sum(e); q = [v / s_ for v in e]
+    E["temps"]["%g" % T] = {"p": [round(v, 3) for v in q], "H": round(-sum(v * ln(v) for v in q if v > 0), 3)}
+# log-probabilities: a 100-token sentence at the tiny model's 0.090 per token
+put("sent100_log10", 100 * math.log10(p[2]), 1); put("sent100_ln", 100 * ln(p[2]), 1)
+# logsumexp on z + 998 = (1000, 999, 998): shift invariance
+zz = [1000.0, 999.0, 998.0]; mm = max(zz); ee = [math.exp(v - mm) for v in zz]
+put("lse_shift_sum", sum(ee), 3); put("lse_1000", mm + ln(sum(ee)), 3)
+E["lse_shift_e"] = [round(v, 3) for v in ee]
+
 json.dump(E, open(os.path.join(here, "expected.json"), "w"), indent=1)
 print(json.dumps({k: v for k, v in E.items() if k not in ("coin_steps",)}, indent=0)[:6000])

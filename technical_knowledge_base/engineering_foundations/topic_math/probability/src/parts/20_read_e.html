@@ -1,31 +1,19 @@
-<section id="rd-s7">
-<h2>7. The exponential family: one form behind the standard losses</h2>
-<p class="raise"><b>The question.</b> Why does the gradient of every standard loss with respect to the network's last output come out as "prediction minus target": \(\hat p - y\) for BCE, \(p - \text{one-hot}\) for cross-entropy, \(\lambda - y\) for Poisson, \(\hat y - y\) for squared error? It is not four coincidences.</p>
-<h3>The form</h3>
-<p>A distribution is in the <dfn id="g-expfam">exponential family</dfn> if its PMF or PDF can be written</p>
-\[ p(y \mid \eta) = h(y)\, \exp\!\big(\eta^\top T(y) - A(\eta)\big). \]
-<dl class="sym">
-<dt>\(\eta\)</dt><dd>(eta) the <b>natural parameter</b>. For the networks below, it is exactly what the last layer outputs: the logit, the vector of logits, the log-rate, the mean.</dd>
-<dt>\(T(y)\)</dt><dd>the <b>sufficient statistic</b>: the only feature of the data the likelihood uses (\(y\) itself, or the one-hot vector).</dd>
-<dt>\(A(\eta)\)</dt><dd>the <b>log-partition function</b>, \(A(\eta) = \ln \sum_y h(y) e^{\eta^\top T(y)}\) (an integral for densities): the log of the normaliser that makes the total 1.</dd>
-<dt>\(h(y)\)</dt><dd>a base measure that does not depend on \(\eta\) (it drops out of every gradient).</dd>
-</dl>
-<div class="tw"><table class="mini one">
-<tr><th>Distribution</th><th>\(\eta\) (what the network outputs)</th><th>\(T(y)\)</th><th>\(A(\eta)\)</th><th>\(A'(\eta)\) = mean</th><th>\(A''(\eta)\) = variance</th></tr>
-<tr><td>Bernoulli</td><td>logit \(z = \ln\frac{p}{1 - p}\)</td><td>\(y\)</td><td>\(\ln(1 + e^{z})\)</td><td>\(\sigma(z) = p\)</td><td>\(p(1 - p)\)</td></tr>
-<tr><td>Categorical</td><td>logits \(z\) (one per class)</td><td>one-hot \(e_y\)</td><td>\(\ln \sum_k e^{z_k}\)</td><td>\(\operatorname{softmax}(z) = p\)</td><td>\(\operatorname{diag}(p) - pp^\top\)</td></tr>
-<tr><td>Poisson</td><td>log-rate \(z = \ln\lambda\)</td><td>\(y\)</td><td>\(e^{z}\)</td><td>\(\lambda\)</td><td>\(\lambda\)</td></tr>
-<tr><td>Gaussian, \(\sigma = 1\)</td><td>mean \(\mu\)</td><td>\(y\)</td><td>\(\mu^2/2\)</td><td>\(\mu\)</td><td>1</td></tr>
-</table></div>
-<p class="small mute">Check one row by hand: the Bernoulli \(p^y(1 - p)^{1 - y} = \exp\big(y \ln\frac{p}{1 - p} + \ln(1 - p)\big)\), and with \(z = \ln\frac{p}{1 - p}\), \(\ln(1 - p) = -\ln(1 + e^z)\). So \(\eta = z\), \(T = y\), \(A = \ln(1 + e^z)\), \(h = 1\). The Laplace distribution is not in the family (\(|y - \mu|\) cannot be written as \(\eta\, T(y)\)), which is why its gradient is a sign, not a difference. Reference: Bishop, PRML, section 2.4; Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, section 3.4.</p>
-<h3>The two facts, derived</h3>
-<p><b>Fact 1: the derivative of \(A\) is the mean.</b> Differentiate \(A(\eta) = \ln \sum_y h(y) e^{\eta T(y)}\) (one-dimensional \(\eta\) for clarity). The derivative of \(\ln u\) is \(u'/u\):</p>
-\[ A'(\eta) = \frac{\sum_y h(y)\, T(y)\, e^{\eta T(y)}}{\sum_y h(y)\, e^{\eta T(y)}} = \sum_y T(y)\, \underbrace{h(y)\, e^{\eta T(y) - A(\eta)}}_{p(y \mid \eta)} = \mathbb{E}[T(Y)]. \]
-<p>Differentiating once more gives \(A''(\eta) = \mathbb{E}[T^2] - \mathbb{E}[T]^2 = \operatorname{Var}(T)\). A variance is never negative, so \(A\) is convex.</p>
-<p><b>Fact 2: the loss gradient is prediction minus target.</b> The loss for one example is the negative log-likelihood:</p>
-\[ \ell(\eta) = -\ln p(y \mid \eta) = A(\eta) - \eta\, T(y) - \ln h(y), \qquad \frac{d\ell}{d\eta} = A'(\eta) - T(y) = \mathbb{E}[T(Y)] - T(y). \]
-<p class="plain">In plain words: the gradient with respect to what the network outputs is what the model expected minus what was observed. And the curvature \(d^2\ell/d\eta^2 = A''(\eta)\) is the model's own variance, which never depends on the label and is never negative: the loss is convex in \(\eta\).</p>
-<div class="nums"><div class="t">The numbers (the tiny model)</div>Categorical with \(\eta = z = (2, 1, 0)\) and target sat: gradient \(p - e_{\text{sat}} = (0.665, 0.245, 0.090 - 1)\) \(= (0.665, 0.245, -0.910)\), the root page's famous result. Bernoulli curvature \(p(1 - p)\) is 0.25 at \(z = 0\) and 0.09 at \(z = \ln 9 = 2.197\) (where \(p = 0.9\)): a confident output is a flatter part of the loss. The same quantity is the Hessian of the loss in the logit, the variance of the Bernoulli, and its Fisher information (the variance of the score \(y - p\)); the three readings are on the root's "Curvature is read three ways".</div>
-<p>One more consequence: an exponential family with the network's output as \(\eta\) is a <dfn id="g-glm">generalised linear model</dfn> (GLM) when that output is linear in the features. The inverse of \(A'\) is the <b>canonical link</b>: logit for Bernoulli (logistic regression), log for Poisson (Poisson regression), identity for Gaussian (linear regression). For exponential families the maximum-likelihood fit has a famous property: at the optimum, the average predicted \(T\) equals the average observed \(T\) (set the summed gradient to zero), so a fitted logistic regression with an intercept predicts the training base rate exactly on average.</p>
-<div class="use"><div class="t">What it is used for in ML</div>Why outputs are left as logits and the loss is computed on them (fused, stable, convex in the logit); knowing which output activation goes with which target; the Fisher information and natural gradient (the Fisher equals \(A''\) with respect to \(\eta\); with respect to the weights it equals only the generalised Gauss-Newton part of the Hessian, {{Martens, 2020|https://arxiv.org/abs/1412.1193}}); maximum-entropy derivations (the exponential family is the maximum-entropy distribution matching given expectations, on {{Information theory for ML|n:3c65c17b0d0d81c6baf3f778a62e14e5}}); energy-based models (\(A\) is the log of the partition function they cannot compute).</div>
+<section id="rd-s6">
+<h2>6. Softmax as a distribution, and temperature</h2>
+<p>Softmax turns any real scores into a categorical distribution, \(p_i = e^{z_i} / \sum_k e^{z_k}\): exponentiate (everything positive), divide by the total (everything sums to 1). Two properties do most of the work:</p>
+<ul class="tight">
+<li><b>Only differences of scores matter.</b> Adding the same constant to every \(z_i\) cancels in the ratio: \(z = (2, 1, 0)\) and \(z = (1000, 999, 998)\) are the same distribution. Ratios are exponentials of gaps: \(p_{\text{cat}}/p_{\text{dog}} = e^{2 - 1} = 2.718\). This invariance is what makes the stable log-sum-exp possible (section 12).</li>
+<li><b>Temperature rescales the gaps.</b> \(p^{(T)}_i \propto e^{z_i / T} \propto p_i^{1/T}\). At \(T = 0.5\) the tiny model's bet becomes \((0.867, 0.117, 0.016)\), the same as squaring \(p\) and renormalising; at \(T = 2\), \((0.506, 0.307, 0.186)\). As \(T \to 0\) all mass goes to the top score (greedy decoding); as \(T \to \infty\) the bet becomes uniform. Dividing by \(T \gt 0\) never changes which word is top.</li>
+</ul>
+<p class="try"><b>Predict, then drag:</b> at \(T = 2\), is sat's probability closer to 0.09 or to 0.2? And what is the entropy at \(T = 10\), next to its ceiling \(\ln 3 = 1.099\)?</p>
+<div class="card" id="rd-temp-card"><h4>One knob between "always the top word" and "any word at random"</h4>
+<div class="ctl"><label>Temperature \(T\): <b id="rd-temp-v">1</b><input type="range" id="rd-temp-t" min="0" max="9" step="1" value="4" aria-label="Temperature"></label></div>
+<div class="dgm" id="rd-temp"></div>
+<div class="out" id="rd-temp-out"></div>
+<p class="small mute">The tiny model's scores \(z = (2, 1, 0)\) divided by \(T\), then softmax. \(T = 1\) is the model's own bet, \((0.665, 0.245, 0.090)\), entropy 0.832 nats. Values recomputed in <code>src/recompute.py</code>.</p>
+</div>
+<p>Temperature appears in three different jobs. <b>Decoding</b>: sampling at \(T \lt 1\) concentrates on likely tokens; top-k and top-p go further and cut the tail, so the sampled text is no longer a sample from the model (the sampler stack, its order and min-p, with a live lab on a real model, are on {{Sampling and Decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}). <b>Calibration</b>: one \(T\) fitted after training fixes over- or underconfidence without touching accuracy (section 8). <b>Distillation</b>: soft targets at a raised temperature expose the teacher's ranking of the wrong answers ({{Hinton, Vinyals and Dean, 2015|https://arxiv.org/abs/1503.02531}}).</p>
+<details class="dp"><summary>Top-k and top-p on the tiny model <span class="mute">(depth; decoding is owned by Sampling and Decoding)</span></summary><div class="b">
+<p>Every decoding knob replaces \(p\) by another distribution and samples from that. <b>Top-k</b>: keep the \(k\) most probable, renormalise; \(k = 1\) is greedy. <b>Top-p</b> (nucleus): keep the smallest set of most probable items whose total reaches a threshold (0.9 here), renormalise. At top-p 0.9: cat (0.665) is not enough, cat plus dog (0.910) is, so sat is removed and the bet becomes \((0.731, 0.269, 0)\). None of these changes the model. Sampling from a truncated distribution means the text's probability under the model is no longer what you sampled from, which matters when the samples train another model (RL, distillation).</p>
+</div></details>
 </section>

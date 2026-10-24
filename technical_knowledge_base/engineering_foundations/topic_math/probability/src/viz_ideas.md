@@ -16,3 +16,17 @@ Central question: how does a distribution become a loss, and when are the probab
 | PR10 | Gradient checks of BCE/CE/MSE | link | n/a | exists in the root's Gradient lab; linked |
 
 What the methodology lacked: guidance for a foundations page where "reproduce a published figure" rarely applies; here the stand-ins were reproducing a library's own formula (torch source) and an exact identity (sequential log loss = minus log evidence).
+
+## 2026-10-24 rebuild to the teaching contract
+Placement changed and five visuals were added; the rule was "every core idea has a picture beside the claim, chosen by the kind of concept".
+
+| # | Idea | Kind | Placement | Status |
+|---|---|---|---|---|
+| PR2 | Calibration on real models | parameter slider (T) over recorded runs | moved from its own tab into Reading section 8, beside the proper-scoring claim it proves | moved |
+| PR7 | Score-function against pathwise | before/after | reconsidered: built as a static two-path diagram with the exact variances (30, 18, 4) drawn to scale, Reading section 11; still no histograms | built (static) |
+| PR11 | Hero: scores to softmax bars, the loss on the true word, the CDF strip with u = 0.7 | static annotated diagram | top of Reading | built |
+| PR12 | A density is not a probability: N(0, 0.1^2), peak 3.989, shaded area 0.6827 | static annotated plot | Reading section 1 | built |
+| PR13 | LLN and CLT by simulation on the tiny model's token loss: running mean with its 1.96 band (top), 2,000 averages against the CLT curve (bottom), n = 1 to 1,000 | stepper (change over n is the point), paused until the reader acts | Reading section 4 | built; recompute.py ports mulberry32 and reproduces every counter |
+| PR14 | Softmax temperature slider on the tiny model, T = 0.1 to 10, default 1 lands on (0.665, 0.245, 0.090) | one slider, one variable | Reading section 6 | built |
+| PR15 | Log-sum-exp before/after on (1000, 999, 998) | before/after (static table) | Reading section 12 | built; the animated version with every intermediate's bits is Numerical computing's, linked |
+| PR16 | Proper-score curves | | | still rejected: three numbers at q = 0.7 carry it |

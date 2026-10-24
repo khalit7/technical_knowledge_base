@@ -20,11 +20,13 @@ const text = html.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<annotation
 const must = [E.bayes_precision, E.umb_post, E.umb_corr, E.umb_cov, E.tiny_entropy, E.die_var, E.tot_var, E.binom_sd, E.pois_p3, E.beta22_sd,
   E.bce_spam_pos, E.bce_spam_neg, E.gauss_nll, E.laplace_nll, E.pois_nll, E.pois_model_part, E.ps_log_07, E.ps_log_09, E.ps_log_05,
   E.unb_var, E.ridge_mle, E.ridge_map, E.map_logit_coin, E.coin3_post_sd, E.coin3_tails_bayes, E.coin_neg_log_evidence, E.exp_invcdf_u05_l2,
-  E.mc_entropy_sd, E.mc_entropy_se100, E.gauss_peak_sd01, E.p_within_1sd, E.Phi1,
+  E.mc_entropy_sd, E.mc_entropy_se100, E.gauss_peak_sd01, E.p_within_1sd, E.Phi1, E.gauss_peak_nll_sd01, '104.6', '240.8', '90.6%', '95.7%', '94.9%', '0.0205', '0.0206', '4.6 points', '1000.408', E.lse_shift_sum, E.lse_1000, ...E.lse_shift_e,
+  ...E.temps['2'].p, ...E.temps['0.5'].p,
   ...E.gumbel_g, ...E.gumbel_zg, ...E.exp_race_E, ...E.exp_race_ratio, ...E.topp09.slice(0, 2), ...E.temp_2, ...E.is_weights, ...E.bigram_add1, ...E.tiny_cov[0]];
 const fmt = v => typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(Math.max(2, (String(v).split('.')[1] || '').length))) : String(v);
-for (const v of must) { const s = fmt(Math.abs(v)); ok(text.includes(s), 'text number ' + s) }
-ok(!/\bNaN\b|undefined/.test(text), 'NaN or undefined in static text');
+for (const v of must) { const s = typeof v === 'string' ? v : fmt(Math.abs(v)); ok(text.includes(s), 'text number ' + s) }
+ok(!/\bNaN\b|undefined/.test(text.replace('inf / inf = NaN', '').replace('NaN, and the run is lost', '')), 'NaN or undefined in static text');
+fs.mkdirSync(path.resolve(here, '../.shots'), { recursive: true });
 
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
@@ -68,6 +70,32 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     fr.forEach((v, i) => near(v, E.tiny_p[i], 0.012, tag + ' sampler ' + m + ' word ' + i));
     for (let i = 0; i < 8; i++) { await setRange('#rd-smp-ctl-s', i); ok(!/NaN|undefined/.test(await p.$eval('#rd-smp-card', e => e.textContent)), tag + ' sampler text ' + m + i) }
   }
+  // ---- Reading: LLN and CLT, every step against recompute.py's port of the same generator
+  for (let i = 0; i < E.clt.length; i++) {
+    await setRange('#rd-clt-ctl-s', i); const c = E.clt[i];
+    ok(await ds('#rd-clt', 'n') === String(c.n), tag + ' clt n ' + i);
+    near(await ds('#rd-clt', 'sd'), c.sd, 1e-4, tag + ' clt sd n=' + c.n); near(await ds('#rd-clt', 'inside'), c.inside, 1e-4, tag + ' clt inside n=' + c.n);
+    near(await ds('#rd-clt', 'mean'), c.mean, 1e-4, tag + ' clt mean n=' + c.n); near(await ds('#rd-clt', 'run'), E.lln_run[String(c.n)], 1e-4, tag + ' lln run n=' + c.n);
+    ok(!/NaN|undefined|Infinity/.test(await p.$eval('#rd-clt-card', e => e.textContent)), tag + ' clt text ' + i);
+  }
+  for (const id of ['#rd-clt-ctl-b', '#rd-clt-ctl-f', '#rd-clt-ctl-p', '#rd-clt-ctl-p']) await click(id);
+  // ---- Reading: temperature, every position
+  const TS = ['0.1', '0.25', '0.5', '0.75', '1', '1.5', '2', '3', '5', '10'];
+  for (let i = 0; i < TS.length; i++) {
+    await setRange('#rd-temp-t', i); const t = E.temps[TS[i]];
+    ok(await ds('#rd-temp', 'p') === t.p.map(v => v.toFixed(3)).join(','), tag + ' temp p T=' + TS[i]);
+    near(await ds('#rd-temp', 'h'), t.H, 1e-9, tag + ' temp H T=' + TS[i]);
+    ok(!/NaN|undefined|Infinity/.test(await p.$eval('#rd-temp-card', e => e.textContent)), tag + ' temp text ' + i);
+  }
+  await setRange('#rd-temp-t', 4);
+  // ---- Reading: calibration (moved from its own tab, 2026-10-24)
+  for (const k of Object.keys(E.calib)) {
+    await click('#cal-seg button[data-m="' + k + '"]'); await setRange('#cal-t', 10);
+    near(await ds('#cal-svg', 'ece'), E.calib[k].T1.ece, 1e-4, tag + ' cal ' + k + ' ECE'); near(await ds('#cal-svg', 'nll'), E.calib[k].T1.nll, 1e-4, tag + ' cal ' + k + ' NLL');
+    ok(await ds('#cal-svg', 'bestT') === E.calib[k].bestT, tag + ' cal ' + k + ' best T');
+    for (const v of [0, 30, 11]) await setRange('#cal-t', v);
+    ok(!/NaN|undefined/.test(await p.$eval('#rd-cal-card', e => e.textContent)), tag + ' cal text ' + k);
+  }
   await p.screenshot({ path: path.resolve(here, '../.shots/check-read-' + tag + '.png') });
   // ---- Distribution explorer
   await click('button[data-t="t-dist"]');
@@ -90,18 +118,21 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     const t = await p.$eval('#t-dist', e => e.textContent); ok(!/NaN|undefined|Infinity/.test(t), tag + ' dx ' + k + ' text after controls');
     if (k === 'cat' || k === 'gauss') await p.screenshot({ path: path.resolve(here, '../.shots/check-dist-' + k + '-' + tag + '.png'), fullPage: false });
   }
-  // ---- Calibration
-  await click('button[data-t="t-cal"]');
-  for (const k of Object.keys(E.calib)) {
-    await click('#cal-seg button[data-m="' + k + '"]'); await setRange('#cal-t', 10);
-    near(await ds('#cal-svg', 'ece'), E.calib[k].T1.ece, 1e-4, tag + ' cal ' + k + ' ECE'); near(await ds('#cal-svg', 'nll'), E.calib[k].T1.nll, 1e-4, tag + ' cal ' + k + ' NLL');
-    ok(await ds('#cal-svg', 'bestT') === E.calib[k].bestT, tag + ' cal ' + k + ' best T');
-    for (const v of [0, 30, 11]) await setRange('#cal-t', v);
-    ok(!/NaN|undefined/.test(await p.$eval('#t-cal', e => e.textContent)), tag + ' cal text ' + k);
-  }
   await click('button[data-t="t-more"]');
   ok(errs.length === 0, tag + ' script errors: ' + errs.join(' | '));
   ok(await p.evaluate(() => document.getElementById('jsErr').hidden), tag + ' error box hidden');
+  await p.close();
+}
+
+// ---- no autoplay: with normal motion, scroll each animation into view and wait; nothing may advance
+{
+  const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
+  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
+  await p.goto('file://' + file);
+  for (const [card, ctl] of [['#rd-clt-card', '#rd-clt-ctl-s'], ['#rd-coin-card', '#rd-coin-ctl-s'], ['#rd-smp-card', '#rd-smp-ctl-s']]) {
+    await p.$eval(card, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2500));
+    ok(await p.$eval(ctl, e => e.value) === '0', 'no autoplay ' + card);
+  }
   await p.close();
 }
 await b.close();

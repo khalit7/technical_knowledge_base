@@ -1,4 +1,4 @@
-// ---- Calibration tab: reliability diagrams from inputs/calibration.json ----
+// ---- Reading section 8 (moved from the old Calibration tab, 2026-10-24): reliability diagrams from inputs/calibration.json ----
 (function(){
   const $=id=>document.getElementById(id);if(!$('cal-seg')||!window.CAL_DATA)return;
   const C=window.CAL_DATA.models,keys=Object.keys(C),f=PM.f;let mk='gpt2';
@@ -44,7 +44,6 @@
     $('cal-ex').innerHTML=M.examples.map(e=>'<div class="ex">Context: <code>'+esc(e.context)+'</code><br>Right token: <code>'+esc(JSON.stringify(e.target))+'</code>, given probability '+f(e.p_target,3)+' at T = 1. Top 5: '+e.top.map(t=>'<code>'+esc(JSON.stringify(t[0]))+'</code> '+f(t[1],3)).join(', ')+'</div>').join('');
   }
   RD.seg($('cal-seg'),m=>{mk=m;draw()});$('cal-t').addEventListener('input',draw);
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-cal']=window.TAB_RENDER['t-cal']||[]).push(draw);
-  addEventListener('resize',()=>{const t=$('t-cal');if(t&&!t.hidden)draw()});
+  RD.onRender(draw);RD.onResize(draw);
   draw();
 })();
