@@ -30,7 +30,7 @@ window.EL=(function(){
     const X=v=>lab+(v-lo)/(hi-lo)*(W-lab-R);let s='';
     (o.ticks||[]).forEach(v=>{s+='<line x1="'+X(v)+'" y1="4" x2="'+X(v)+'" y2="'+(H-22)+'" stroke="var(--line)"/>'+RD.t(X(v),H-8,(o.tfmt||(x=>x.toFixed(2)))(v),{a:'middle',fs:10,fill:'var(--mute)'})});
     if(o.ref!==undefined)s+='<line x1="'+X(o.ref)+'" y1="2" x2="'+X(o.ref)+'" y2="'+(H-22)+'" stroke="var(--ink)" stroke-dasharray="3 3"/>';
-    const mc=Math.max(8,Math.floor((lab-8)/5.6));rows.forEach((r,i)=>{const y=12+i*rh;const nm=r.name.length>mc?r.name.slice(0,mc-1)+'…':r.name;s+='<g><title>'+esc(r.name)+'</title>'+RD.t(lab-6,y+4,esc(nm),{a:'end',fs:11,fill:r.dim?'var(--mute)':undefined})+'</g>';
+    const mc=Math.max(8,Math.floor((lab-8)/6.4));rows.forEach((r,i)=>{const y=12+i*rh;const nm=r.name.length>mc?r.name.slice(0,mc-1)+'…':r.name;s+='<g><title>'+esc(r.name)+'</title>'+RD.t(lab-6,y+4,esc(nm),{a:'end',fs:11,fill:r.dim?'var(--mute)':undefined})+'</g>';
       s+='<line x1="'+X(r.lo)+'" y1="'+y+'" x2="'+X(r.hi)+'" y2="'+y+'" stroke="'+(r.color||'var(--acc)')+'" stroke-width="2"/>'+
         '<circle cx="'+X(r.v)+'" cy="'+y+'" r="4.5" fill="'+(r.color||'var(--acc)')+'"><title>'+esc(r.name+': '+r.v.toFixed(3)+' ('+r.lo.toFixed(3)+' to '+r.hi.toFixed(3)+')')+'</title></circle>'+
         RD.t(W-R+4,y+4,r.txt||r.v.toFixed(3),{fs:10.5})});

@@ -1,4 +1,4 @@
-// Browser check of every tab at 390 dark and 920 light: every segmented button, chip, checkbox, select option,
+// Browser check of every tab (since 2026-10-24: Reading and Further reading; the two labs moved into Reading) at 390 dark and 920 light: every segmented button, chip, checkbox, select option,
 // animation step (in each mode) and predict button. Fails on script errors, NaN/undefined/Infinity in text,
 // sideways scroll or a visible error box.
 // usage: node check_page.mjs <index.html> <shots dir>   (puppeteer from html_utils via createRequire)
@@ -9,8 +9,8 @@ const puppeteer = require('puppeteer');
 const [file, shots] = process.argv.slice(2); fs.mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell' });
 let bad = 0;
-const TABS = ['t-read', 't-embtrain', 't-embchoose', 't-more'];
-const PIECES = ['emb-pa-card', 'emb-fn-bars', 'emb-fn-ex', 'emb-ft-card', 'emb-pf-svg', 'emb-ln-svg', 'emb-ds-svg', 'emb-mt-svg', 'emb-sub-svg', 'emb-pool-tab', 'emb-code-pool', 'emb-tl-body', 'emb-ch-svg', 'emb-ch-tab', 'emb-ch-verdict'];
+const TABS = ['t-read', 't-more'];
+const PIECES = ['emb-hero-card', 'emb-sim-svg', 'emb-batch-svg', 'emb-mq-card', 'emb-tl-card', 'emb-ch-card', 'emb-pa-card', 'emb-fn-bars', 'emb-fn-ex', 'emb-ft-card', 'emb-pf-svg', 'emb-ln-svg', 'emb-ds-svg', 'emb-mt-svg', 'emb-sub-svg', 'emb-pool-tab', 'emb-code-pool', 'emb-tl-body', 'emb-ch-svg', 'emb-ch-tab', 'emb-ch-verdict'];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });

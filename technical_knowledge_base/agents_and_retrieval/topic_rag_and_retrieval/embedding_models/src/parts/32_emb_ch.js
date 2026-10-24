@@ -1,11 +1,11 @@
-// ---- Model chooser tab: quality with paired intervals, limits, tied group, costs, subsample stability ----
+// ---- Reading section 11 (moved from the Model chooser tab, 2026-10-24): quality with paired intervals, limits, tied group, costs ----
 (function(){
+  if(!document.getElementById('emb-ch-svg'))return;
   const E=window.EMB,esc=RD.esc;
   const LAT=[10,20,60,1000,Infinity],LATN=['10 ms','20 ms','60 ms','1 s','no limit'];
   const BYT=[384,1536,3072,Infinity],BYTN=['384 B (int8 384-d)','1,536 B','3,072 B','no limit'];
-  const NS=[25,50,100,200];
   let set='scifact';
-  const latEl=document.getElementById('emb-ch-lat'),bytEl=document.getElementById('emb-ch-byt'),nEl=document.getElementById('emb-ch-n');
+  const latEl=document.getElementById('emb-ch-lat'),bytEl=document.getElementById('emb-ch-byt');
   function draw(){const S=E.ch[set],lat=LAT[+latEl.value],byt=BYT[+bytEl.value];
     document.getElementById('emb-ch-latv').textContent=LATN[+latEl.value];document.getElementById('emb-ch-bytv').textContent=BYTN[+bytEl.value];
     const keys=Object.keys(S.systems).sort((a,b)=>S.systems[b].ndcg10-S.systems[a].ndcg10);
@@ -25,13 +25,10 @@
     if(!allowed.length)msg='No system meets these limits.';
     else if(!allowed.includes(S.best))msg='The best system on this set ('+EL.NM[S.best]+') is outside your limits. Within them, the highest is '+EL.NM[top]+' ('+S.systems[top].ndcg10.toFixed(3)+'), '+(S.vs_best[top].hi>=0?'still statistically tied with the best.':'clearly below the best (paired interval '+S.vs_best[top].lo.toFixed(3)+' to '+S.vs_best[top].hi.toFixed(3)+').');
     else msg='Statistically tied group within your limits: '+tied.map(k=>EL.NM[k]).join(', ')+'. '+(tied.length>1?'Choose on cost: the cheapest query among them is '+EL.NM[cheapest]+'.':'One clear winner.');
-    document.getElementById('emb-ch-verdict').innerHTML='<div class="t">Verdict on '+EL.SET[set]+' ('+S.n+' queries)</div>'+esc(msg)+' Confirm on held-out queries that look like your traffic: on SciFact the train claims and the test claims disagree (Reading, section 10).';
-    // subsample
-    const ns=S.subsample.map(x=>x.n);let ni=Math.min(+nEl.value,ns.length-1);const x=S.subsample[ni];document.getElementById('emb-ch-nv').textContent=x.n;
-    document.getElementById('emb-ch-sub').innerHTML=RD.stat('same winner as all '+S.n,(x.same_winner<1&&x.same_winner>=0.9995?'99.95':(100*x.same_winner).toFixed(1))+'%','of 2,000 random subsets')+RD.stat('same order of all four',(100*x.same_order).toFixed(1)+'%','')+RD.stat('paired 95% half-width',x.ci_halfwidth.toFixed(3),'best minus second, nDCG@10')}
+    document.getElementById('emb-ch-verdict').innerHTML='<div class="t">Verdict on '+EL.SET[set]+' ('+S.n+' queries)</div>'+esc(msg)+' Confirm on held-out queries that look like your traffic: on SciFact the train claims and the test claims disagree (section 10).';
+  }
   RD.seg(document.getElementById('emb-ch-set'),v=>{set=v;draw()});
-  [latEl,bytEl,nEl].forEach(e=>e.addEventListener('input',draw));
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-embchoose']=window.TAB_RENDER['t-embchoose']||[]).push(draw);
-  addEventListener('resize',()=>{const t=document.getElementById('t-embchoose');if(t&&!t.hidden)draw()});
+  [latEl,bytEl].forEach(e=>e.addEventListener('input',draw));
+  RD.onRender(draw);RD.onResize(draw);
   draw();
 })();
