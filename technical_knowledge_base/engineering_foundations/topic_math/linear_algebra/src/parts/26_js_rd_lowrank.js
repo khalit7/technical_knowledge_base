@@ -1,6 +1,6 @@
-// ---- Low-rank lab (t-lowrank): real GPT-2 small spectra, truncation errors and losses; two real LoRA updates ----
+// ---- Reading s12 (moved from the old Low-rank lab tab on 2026-10-24): real GPT-2 small spectra, truncation errors and losses; two real LoRA updates ----
 (function(){
-  const $=id=>document.getElementById(id);if(!$('t-lowrank'))return;
+  const $=id=>document.getElementById(id);if(!$('lr-card'))return;
   const D=window.LA_DATA,NAMES=RDF.NAMES;let mat='W_Q',k=64,ad=0,layer=5;
   const fmtN=v=>Math.round(v).toLocaleString('en-US');
   $('lr-src').innerHTML='Weights: '+D.model+' (revision '+D.revision.slice(0,7)+'), layer '+D.layer+'. Inputs and loss: the first '+D.tokens.toLocaleString('en-US')+' tokens of the WikiText-2 (raw) test split, two windows of 1,024; unchanged loss '+D.base_loss.toFixed(3)+' nats per token. Computed offline in float64 (SVD) and float32 (model) by <code>src/inputs/la_gpt2.py</code>.';
@@ -68,7 +68,7 @@
   RD.seg($('lr-mat'),m=>{mat=m;render()});RD.seg($('lr-ad'),m=>{ad=+m;lora()});
   $('lr-k').addEventListener('input',e=>{k=+e.target.value;stats();spec();err();loss()});
   $('lr-l').addEventListener('input',e=>{layer=+e.target.value;lora()});
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-lowrank']=window.TAB_RENDER['t-lowrank']||[]).push(render);
-  addEventListener('resize',()=>{if(!$('t-lowrank').hidden)render()});
+  RD.onRender(render);RD.onResize(render);
+  const det=$('lr-lora-det');if(det)det.addEventListener('toggle',()=>{if(det.open)lora()});
   render();
 })();

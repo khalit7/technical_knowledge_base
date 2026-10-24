@@ -1,47 +1,49 @@
-
-<section id="rd-svd">
-<h2>12. The SVD: every matrix is rotate, stretch, rotate</h2>
-<div class="raise"><b>The question.</b> Eigenvectors need a square matrix and may not exist. Is there a description of what any matrix does, including a \(768 \times 3072\) weight, that always works?</div>
-<h3>The picture: watch it happen</h3>
-<p>Take the unit circle and the grid of the plane, apply \(A = \begin{pmatrix} 3 & 0 \\ 4 & 5 \end{pmatrix}\), and the circle becomes an ellipse. The <dfn id="g-svd">singular value decomposition</dfn> says this always happens in three simple moves: a rotation, a stretch along the axes, and another rotation. Step through the same circle under \(A\) in one go, then under its three SVD factors. Drawn to scale: the circle has radius 1, the ellipse's long axis is 6.708.</p>
-<div class="card" id="rd-svd-card">
-<div class="seg" id="rd-svd-seg"><button data-m="one" class="on">A in one step</button><button data-m="svd">SVD: rotate, stretch, rotate</button><button data-m="eig">Eigen: P, Λ, P⁻¹</button></div>
-<div class="seg" id="rd-svd-mat"><button data-m="A" class="on">A = [[3, 0], [4, 5]]</button><button data-m="S">S = WᵀW (symmetric)</button></div>
-<div class="rd-svg" id="rd-svd-svg"></div>
-<div class="leg" id="rd-svd-leg"></div>
-<div class="an-cnt" id="rd-svd-cnt"></div>
-<div class="an-cap" id="rd-svd-cap"></div>
-<div class="an-ctl" id="rd-svd-ctl"></div>
+<section id="rd-low">
+<h2>12. Low rank in ML: what is really low rank, and what is not</h2>
+<p>LoRA, MLA, GaLore and many compression papers all say "low rank". Low rank of what: pretrained weights, the updates fine-tuning makes, the gradients, or the cached keys and values? The answers differ, and real numbers settle them.</p>
+<div class="co key"><div class="t">The pattern</div>Low rank is a fact about <b>changes and products</b> (fine-tuning updates, gradients, the query-key product of one head, the KV bottleneck a model is trained with), much more than about pretrained weight matrices themselves. Methods that impose low rank during training (LoRA, MLA, GaLore) work; compressing a finished model by truncated SVD costs accuracy fast.</div>
+<h3>Pretrained weights: concentrated, but not low rank</h3>
+<p>The old page said trained weight matrices "are often effectively low rank". Measured on GPT-2 small (the released weights, 2,048 tokens of WikiText-2 test text, script in this page's source folder), that does not hold in the sense that matters for compression:</p>
+<div class="tw" id="rd-low-tab"></div>
+<p class="small mute">k90: singular directions needed to keep 90% of the squared Frobenius norm, out of 768; "random" is a Gaussian matrix of the same shape and norm. Output error: relative error of the layer's output on the real inputs that reach it, \(\lVert X(W - W_k) \rVert_F / \lVert XW \rVert_F\). Loss: GPT-2's next-token loss on the same text with only that one matrix replaced by its rank-64 truncation (unchanged model: <span id="rd-low-base"></span> nats).</p>
+<p>Three readings. First, every real spectrum is more concentrated than random (k90 near 300 against 391 for the attention matrices), so there is structure. Second, it is nowhere near rank 64: keeping 64 of 768 directions leaves a relative output error of 42% for the MLP input matrix and 70% to 86% for the other five. Third, how much a matrix matters is not how compressible it is: cutting the MLP input matrix to rank 64 raises the loss by 0.72 nats, cutting the key matrix by 0.20. Truncating every attention and MLP matrix in all 12 layers to 90% of its rank, which saves no parameters at all, already raises the loss from 3.17 to 3.91; at 50% of the rank it is 8.50, close to the 10.8 of a uniform guess over 50,257 tokens (<span id="rd-low-whole"></span>). Real weights carry information in their small singular values too.</p>
+<div class="card" id="lr-card"><h4>Truncate one real GPT-2 matrix: the matrix error falls smoothly, the loss does not recover until k is large</h4>
+<p class="small">Predict first: at \(k = 64\), how much of the query matrix's output on real text is lost? Then pick a matrix and move \(k\) (the Eckart-Young truncation of section 10).</p>
+<p class="small mute" id="lr-src"></p>
+<div class="seg" id="lr-mat"></div>
+<label class="small" style="display:block;margin:8px 0">Keep \(k\) = <b id="lr-kv"></b> singular directions<input type="range" id="lr-k" min="1" max="768" step="1" value="64" aria-label="Rank k kept"></label>
+<div class="out" id="lr-stats"></div>
+<div class="lr-two">
+<div><h4>Spectrum: real against random</h4><div class="plot rd-svg" id="lr-spec"></div><p class="small mute">Singular values, largest first, on a log scale. Grey: a Gaussian random matrix of the same shape scaled to the same Frobenius norm. Shaded: the directions truncation drops.</p></div>
+<div><h4>Error as k grows</h4><div class="plot rd-svg" id="lr-err"></div><p class="small mute">Relative error of the matrix itself (Frobenius, exact from the spectrum) and of its output on 2,048 real token inputs, \(\lVert X(W - W_k)\rVert_F / \lVert XW \rVert_F\). The two differ because real inputs do not point equally in every direction.</p></div>
 </div>
-<h3>The words, then the formula</h3>
-\[ A = U \Sigma V^\top = \sum_{i=1}^{r} \sigma_i\, u_i v_i^\top \]
-<dl class="sym"><dt>\(V\)</dt><dd>an \(n \times n\) orthogonal matrix; its columns \(v_i\) (the right singular vectors) are the input directions. \(V^\top\) rotates \(v_i\) onto the \(i\)-th axis.</dd><dt>\(\Sigma\)</dt><dd>an \(m \times n\) matrix, zero except for the <dfn>singular values</dfn> \(\sigma_1 \ge \sigma_2 \ge \dots \ge 0\) on its diagonal: the stretch along each axis.</dd><dt>\(U\)</dt><dd>an \(m \times m\) orthogonal matrix; its columns \(u_i\) (the left singular vectors) are the output directions.</dd><dt>\(r\)</dt><dd>the rank: the number of nonzero singular values.</dd></dl>
-<p class="plain">In plain words: there are orthonormal input directions \(v_i\) that the matrix sends to orthogonal output directions, \(A v_i = \sigma_i u_i\). The sum form reads the matrix as \(r\) rank-1 layers, largest first. Every matrix, of any shape, has an SVD.</p>
-<h3>Computing it by hand</h3>
-<p>Since \(A^\top A = V \Sigma^\top U^\top U \Sigma V^\top = V \Sigma^\top \Sigma V^\top\), the right singular vectors are the eigenvectors of the symmetric PSD matrix \(A^\top A\), and the singular values are the square roots of its eigenvalues. Then \(u_i = A v_i / \sigma_i\).</p>
-<div class="nums"><div class="t">Worked on \(A\) (old page, checked; signs chosen so both factors are rotations)</div>
-<p>\(A^\top A = \begin{pmatrix} 3 & 4 \\ 0 & 5 \end{pmatrix}\begin{pmatrix} 3 & 0 \\ 4 & 5 \end{pmatrix} = \begin{pmatrix} 25 & 20 \\ 20 & 25 \end{pmatrix}\). Eigenvalues: \((25 - \lambda)^2 = 400\), so \(\lambda = 45\) or 5, and \(\sigma_1 = \sqrt{45} = 6.708\), \(\sigma_2 = \sqrt{5} = 2.236\). Eigenvectors: \(v_1 = (1, 1)/\sqrt{2}\), \(v_2 = (-1, 1)/\sqrt{2}\).</p>
-<p>\(u_1 = A v_1 / \sigma_1 = (3, 9)/(\sqrt{2}\sqrt{45}) = (1, 3)/\sqrt{10}\) and </p>
-\[u_2 = A v_2/\sigma_2 = (-3, 1)/(\sqrt{2}\sqrt{5}) = (-3, 1)/\sqrt{10}\]
-<p>; orthogonal, \(-3 + 3 = 0\).</p>
-<p>So \(V^\top\) is a rotation by \(-45°\) (it takes \(v_1\) to the horizontal axis), \(\Sigma = \operatorname{diag}(6.708, 2.236)\) stretches, and \(U\) is a rotation by \(71.57°\) (the angle of \((1, 3)\)). Both have determinant \(+1\). Checks: \(|\det A| = 15 = 6.708 \times 2.236\); \(\lVert A \rVert_F^2 = 50 = 45 + 5\).</p>
-<p><b>Eigenvalues are not singular values.</b> \(A\)'s eigenvalues are 3 and 5, its singular values 6.708 and 2.236: a non-symmetric matrix can stretch some direction (by 6.708) more than it scales any eigenvector (at most 5). For the symmetric PSD \(S = W^\top W\) the two coincide: eigenvalues and singular values are both 6 and 1, and \(U = V\), so the second rotation exactly undoes the first (switch to S in the animation).</p></div>
-<h3>The SVD answers the earlier sections at once</h3>
+<h4>The model's loss with this one matrix truncated</h4>
+<div class="plot rd-svg" id="lr-loss"></div>
+<p class="small mute" id="lr-losscap"></p>
+<details class="mist"><summary>All 48 attention and MLP matrices truncated at once <span class="mute">(table)</span></summary><div class="b">
+<div class="tw" id="lr-whole"></div>
+<p class="small mute">Each matrix keeps the stated fraction of its full rank (768); the attention input matrix is truncated as its three 768 by 768 blocks, Q, K and V, separately. "Parameters in low-rank form" counts \(k(m + n)\) per matrix, capped at \(mn\): below rank 384 for a square matrix, a truncated SVD is not even smaller than the original. A uniform guess over the 50,257-token vocabulary scores \(\ln 50257 = 10.8\) nats.</p></div></details>
+</div>
+<h3>Fine-tuning updates: genuinely low rank</h3>
+<p>LoRA (Hu et al. 2021) does not compress the weights; it constrains the <b>change</b>. The layer computes \(W_0 x + \frac{\alpha}{r} B A x\) with the pretrained \(W_0\) frozen, \(B\) of shape \(d \times r\), \(A\) of shape \(r \times k\) and \(r \ll \min(d, k)\). \(BA\) is a sum of \(r\) outer products, so its rank is at most \(r\). \(B\) starts at zero, so training starts exactly at the pretrained model, and after training \(BA\) can be merged into \(W_0\) for free inference. For \(d = k = 4096\), \(r = 8\): \(2 \times 4096 \times 8 = 65{,}536\) trainable numbers instead of \(16{,}777{,}216\), 0.39%. The method, its variants (DoRA, rsLoRA, PiSSA) and current practice are on {{Parameter-Efficient Fine-Tuning (PEFT)|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}; the {{LoRA paper page|n:3c65c17b0d0d81018f15edd19fa5c28a}} trains LoRA live on a toy where the true update is known.</p>
+<div class="co warn"><div class="t">Correction carried from the root</div>The old page said "ranks as low as 1 to 8 were competitive on GPT-3". The paper's words: "a rank as small as one suffices for adapting both \(W_q\) and \(W_v\)" on GPT-3, with Table 6 testing \(r = 1, 2, 4, 8, 64\); and the low "intrinsic rank" of the update is the authors' hypothesis, which they then test ({{LoRA, arXiv 2106.09685, sections 4 and 7|https://arxiv.org/abs/2106.09685}}). The idea goes back to Aghajanyan, Zettlemoyer and Gupta: "by optimizing only 200 trainable parameters randomly projected back into the full space, we can tune a RoBERTa model to achieve 90% of the full parameter performance levels on MRPC" ({{Intrinsic dimensionality, arXiv 2012.13255|https://arxiv.org/abs/2012.13255}}).</div>
+<p><b>Two real adapters, measured.</b> Two public GPT-2 LoRA adapters on Hugging Face target the attention input matrix <code>c_attn</code> (\(768 \to 2304\)) in all 12 layers: <code>monsterapi/gpt2_alpaca-lora</code> (\(r = 8\), \(\alpha = 16\), trained on Alpaca) and <code>harigovind511/GPT2-Guanaco-LoRA</code> (\(r = 32\), \(\alpha = 8\), a QLoRA run on a 4-bit base). Rebuilding each \(\Delta W = \frac{\alpha}{r} BA\) and taking its SVD:</p>
+<div class="card"><h4>Inside its rank budget, a real LoRA update puts most of its energy in one direction</h4><div class="rd-svg" id="rd-lora-svg"></div><p class="small mute" id="rd-lora-cap"></p></div>
 <ul>
-<li><b>Rank</b> = number of nonzero \(\sigma_i\); effective rank = number of \(\sigma_i\) above a tolerance.</li>
-<li><b>Four subspaces</b>: \(u_1..u_r\) span the column space, \(u_{r+1}..u_m\) the left null space, \(v_1..v_r\) the row space, \(v_{r+1}..v_n\) the null space.</li>
-<li><b>Norms</b>: spectral \(\sigma_1\), Frobenius \(\sqrt{\sum \sigma_i^2}\), nuclear \(\sum \sigma_i\).</li>
-<li><b>Pseudo-inverse</b>: \(A^{+} = V \Sigma^{+} U^\top\), with \(\Sigma^{+}\) inverting the nonzero \(\sigma_i\) and leaving zeros; \(A^{+} y\) is the least-squares solution of shortest length.</li>
-<li><b>Condition number</b>: \(\kappa = \sigma_{\max} / \sigma_{\min}\) (section 13).</li>
+<li>Exactly \(r\) singular values are nonzero (the next is about \(10^{-14}\), rounding), as the algebra says.</li>
+<li>Inside its budget the update is far lower rank still: the largest singular value alone carries a median <span id="rd-lora-top1a"></span> of \(\lVert \Delta W \rVert_F^2\) for the \(r = 8\) adapter and <span id="rd-lora-top1b"></span> for the \(r = 32\) one. Most of the rank budget is unused.</li>
+<li>The update is small: \(\lVert \Delta W \rVert_F / \lVert W_0 \rVert_F\) is 2% to 8% (Alpaca) and 1.5% to 4% (Guanaco), growing with depth.</li>
 </ul>
-<h3>Eckart-Young: truncation is arithmetic</h3>
-<p>Keep only the \(k\) largest layers, \(A_k = \sum_{i=1}^{k} \sigma_i u_i v_i^\top\). The <dfn>Eckart-Young(-Mirsky) theorem</dfn> says no rank-\(k\) matrix is closer to \(A\), in either the spectral or the Frobenius norm, and the errors are exactly</p>
-\[ \lVert A - A_k \rVert_2 = \sigma_{k+1}, \qquad \lVert A - A_k \rVert_F = \sqrt{\sigma_{k+1}^2 + \sigma_{k+2}^2 + \dots + \sigma_r^2} \]
-<p class="plain">In plain words: the singular values tell you, before you compress anything, exactly what you will lose. A spectrum that falls fast compresses well; a flat one does not. Storing \(A_k\) for an \(m \times n\) matrix costs \(k(m + n)\) numbers (fold each \(\sigma_i\) into \(u_i\)) instead of \(mn\): for \(768 \times 768\) at \(k = 64\), 98,304 instead of 589,824.</p>
-<div class="nums"><div class="t">Worked (old page, checked)</div>\[A_1 = \sigma_1 u_1 v_1^\top = \sqrt{45} \cdot \frac{(1, 3)}{\sqrt{10}} \cdot \frac{(1, 1)}{\sqrt{2}} = \frac{3}{2}\begin{pmatrix} 1 & 1 \\ 3 & 3 \end{pmatrix} = \begin{pmatrix} 1.5 & 1.5 \\ 4.5 & 4.5 \end{pmatrix}\]. The error \(A - A_1 = \begin{pmatrix} 1.5 & -1.5 \\ -0.5 & 0.5 \end{pmatrix}\) has spectral and Frobenius norm \(\sqrt{2.25 \cdot 2 + 0.25 \cdot 2} = \sqrt{5} = 2.236 = \sigma_2\), as the theorem says (the two norms agree because the error has rank 1).</div>
-<p><b>On a real matrix.</b> The query matrix of GPT-2 small's layer 5 (768 by 768) needs <span id="rd-svd-k90"></span> of its 768 singular directions to keep 90% of its squared Frobenius norm; a random matrix of the same shape needs <span id="rd-svd-rk90"></span>. Real weights are more concentrated than noise, but far from low rank. The {{Low-rank lab|#t-lowrank}} tab shows every spectrum and what truncation does to the model's loss.</p>
-<h3>PCA is the SVD of centred data</h3>
-<p>Stack \(n\) examples as the rows of \(X\), subtract each column's mean, and the covariance is \(C = \frac{1}{n} X^\top X\). Its eigenvectors (equivalently the right singular vectors of \(X\)) are the <dfn>principal directions</dfn>, and the variance along the \(i\)-th is \(\sigma_i^2/n\).</p>
-<div class="nums"><div class="t">Worked: four centred points</div>Points \((2, 1), (-2, -1), (1, 1), (-1, -1)\) (each column already sums to 0). \(C = \frac{1}{4}\begin{pmatrix} 10 & 6 \\ 6 & 4 \end{pmatrix} = \begin{pmatrix} 2.5 & 1.5 \\ 1.5 & 1 \end{pmatrix}\). Trace 3.5, determinant \(2.5 - 2.25 = 0.25\), so \(\lambda = (3.5 \pm \sqrt{3.5^2 - 1})/2 = 3.427\) and 0.073. The first principal direction is \((0.851, 0.526)\) and carries \(3.427/3.5 = 97.9\%\) of the variance: these points are almost a line.</div>
-<div class="use"><div class="t">What it is used for in ML</div>Low-rank compression and LoRA initialisations ({{PiSSA|https://arxiv.org/abs/2404.02948}} starts LoRA from the top singular directions); PCA and whitening; the pseudo-inverse; spectral norms and condition numbers; Muon's orthogonalised update, which replaces \(U\Sigma V^\top\) by \(UV^\top\) (section 13); and analysing what a trained weight or update does (section 14).</div>
+<details class="mist" id="lr-lora-det"><summary>The LoRA paper's amplification factor on these adapters, layer by layer <span class="mute">(explorer)</span></summary><div class="b">
+<p>The paper's "amplification factor" (section 7.3 and appendix H.4: \(\lVert \Delta W_q \rVert_F / \lVert U^\top W_q V^\top \rVert_F\), with \(U, V\) the top-\(r\) singular directions of \(\Delta W_q\)) was "\(21.5 \approx 6.91/0.32\) for \(r = 4\)" on GPT-3's layer 48, and "only around 2" at \(r = 64\). On these adapters it is 0.6 to 3.4 (Alpaca) and 0.2 to 0.6 (Guanaco). It does not reproduce at this scale; GPT-2 small, different tasks, ranks and scales (\(\alpha/r\) = 2 and 0.25) are all different from the paper's setting, so this is a measurement, not a refutation. The paper's other finding does hold here: \(W_q\) projected on the update's directions is larger than on random directions (median ratio 1.6 and 1.3), so the update is correlated with the pretrained weight.</p>
+<div class="seg" id="lr-ad"></div>
+<label class="small" style="display:block;margin:8px 0">Layer <b id="lr-lv"></b><input type="range" id="lr-l" min="0" max="11" step="1" value="5" aria-label="Layer"></label>
+<div class="out" id="lr-lstats"></div>
+<div class="plot rd-svg" id="lr-lbars"></div>
+<p class="small mute" id="lr-lcap"></p></div></details>
+<h3>Gradients: GaLore</h3>
+<p>GaLore keeps full-rank weights but notices that the gradient of a weight matrix is approximately low rank (one example's gradient is exactly rank 1, section 5; a batch sums a few such outer products). Every \(T\) steps it takes the SVD of the current gradient \(G\) (\(m \times n\), \(m \le n\)), keeps the top \(r\) left singular vectors as a projector \(P\) (\(m \times r\)), runs Adam on the small matrix \(P^\top G\) (\(r \times n\)), and maps the update back with \(P\). Adam's two moment matrices shrink from \(2mn\) numbers to \(2nr\), plus \(mr\) for \(P\); the paper reports that it "reduces memory usage by up to 65.5% in optimizer states" ({{GaLore, Zhao et al. 2024, arXiv 2403.03507|https://arxiv.org/abs/2403.03507}}).</p>
+<details class="mist"><summary>GaLore's settings and one matrix counted</summary><div class="b"><p>The paper uses \(T = 200\) and scale \(\alpha = 0.25\) for its LLaMA pretraining runs. For one \(4096 \times 4096\) matrix at \(r = 128\): 33,554,432 moment numbers become \(4096 \times 128 + 2 \times 4096 \times 128 = 1{,}572{,}864\).</p></div></details>
+<h3>Cached keys and values: MLA</h3>
+<p>Multi-head latent attention (DeepSeek-V2 and V3) caches one compressed vector per token and layer and rebuilds every head's keys and values from it, so the map from hidden state to keys is a product through a 512-wide bottleneck, exactly the \(BA\) shape: \(512 + 64 = 576\) cached numbers per token per layer against 32,768 for standard multi-head attention with 128 heads of 128. The mechanism, the absorbed form and the animation are on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}.</p>
 </section>

@@ -26,3 +26,17 @@ Scores 0 to 2 on: moving quantity, reproduces a source, computable from public d
 Data: `inputs/la_gpt2.py` (GPT-2 small revision 607a30d, WikiText-2 raw test, adapters monsterapi/gpt2_alpaca-lora 368cce4 and harigovind511/GPT2-Guanaco-LoRA 34698cd), output `inputs/gpt2_la.json`; page data `parts/20_js_data.js` made by `mk_data.py`.
 
 What the methodology lacked: a rule for "real data that contradicts a commonly repeated claim" (GPT-2 weights are not low rank by truncation): treated as a correction with the measurement shown, plus the scope (one small model).
+
+## 2026-10-24 rebuild to the teaching contract
+Built (static, inline, numbers from the same inputs as `recompute.py`; power angles and Newton-Schulz values checked by `check_page.mjs`):
+| # | Idea | Kind | Where |
+|---|---|---|---|
+| 12 | Hero: A as Vᵀ, Σ, U in four panels, with rank, spectral norm and κ read off | static annotated diagram | top |
+| 13 | Broadcasting bug: (3, 1) minus (3,) becomes a 3 x 3 table | static diagram | s4 |
+| 14 | Rank-1 map: null-space and row-space lines, two inputs landing on one output | static diagram | s5 |
+| 15 | Least squares: residuals in data space, and the projection picture in R³ (schematic) | static diagram | s7 |
+| 16 | Power iteration: x₀ to x₂ on the plane plus the angle per step (was R3, rejected as an animation; a static fan plus bars carries it) | static chart | s8 |
+| 17 | PD level set: ellipse with semi-axes 1/√λ along S's eigenvectors | static diagram | s9 |
+| 18 | Ill-conditioned 2x2: true scale, and the gap magnified 1,000 times | before/after on the same system | s11 |
+| 19 | Newton-Schulz: singular values of A/‖A‖F climbing to 1 | static chart | s11 |
+Moved: the Low-rank lab (#2, #4) from its own tab into Reading section 12, because it explains one mechanism.

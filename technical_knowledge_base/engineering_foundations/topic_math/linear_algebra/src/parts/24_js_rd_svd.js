@@ -51,7 +51,7 @@
   const nSteps=()=>factors().length+1;
   const an=RD.anim({card:'rd-svd-card',ctl:'rd-svd-ctl',n:nSteps(),draw:show,ms:2000,label:'Step of the SVD animation'});
   const leg=()=>{$('rd-svd-leg').innerHTML='<span style="--sw:var(--c6)">unit circle, mapped</span><span style="--sw:var(--c4)">grid of [-1, 1]², mapped</span><span style="--sw:var(--c1)">'+(mode==='eig'?'eigenvector 1':'v1')+'</span><span style="--sw:var(--c2)">'+(mode==='eig'?'eigenvector 2':'v2')+'</span>'};
-  RD.seg($('rd-svd-seg'),m=>{mode=m;last=0;leg();an.reset(nSteps());an.play()});
-  RD.seg($('rd-svd-mat'),m=>{mk=m;last=0;an.reset(nSteps());an.play()});
+  RD.seg($('rd-svd-seg'),m=>{mode=m;last=0;leg();an.reset(nSteps())});
+  RD.seg($('rd-svd-mat'),m=>{mk=m;last=0;an.reset(nSteps())});
   leg();RD.onResize(()=>an.redraw());
 })();

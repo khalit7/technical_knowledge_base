@@ -1,49 +1,46 @@
+<section id="rd-mul">
+<h2>3. Matrix multiplication, four ways, and what it costs</h2>
+<p>An \(m \times n\) matrix \(P\) times an \(n \times p\) matrix \(Q\) is the \(m \times p\) matrix \(PQ\): the inner sizes must match and vanish, the outer sizes survive. There are four ways to read the same product, and each is the natural reading in some part of ML. Take</p>
+\[ P = \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}, \quad Q = \begin{pmatrix} 5 & 6 \\ 7 & 8 \end{pmatrix}, \quad PQ = \begin{pmatrix} 19 & 22 \\ 43 & 50 \end{pmatrix} \]
+<ol class="steps">
+<li><b>Row times column (dot products).</b> \((PQ)_{ij} = \sum_k P_{ik} Q_{kj}\), so \((PQ)_{11} = 1 \cdot 5 + 2 \cdot 7 = 19\). Attention scores read this way: every query (a row) against every key (a column).</li>
+<li><b>Column picture.</b> Column \(j\) of \(PQ\) is a combination of the columns of \(P\) with weights from column \(j\) of \(Q\): \(5\,(1, 3) + 7\,(2, 4) = (19, 43)\). So every output of a layer lies in the span of the weight matrix's columns (section 5).</li>
+<li><b>Sum of outer products.</b> An <dfn id="g-outer">outer product</dfn> \(u v^\top\) is a whole matrix with entries \(u_i v_j\), of rank 1 (every row is a multiple of \(v\)). \(PQ\) is the sum over \(k\) of (column \(k\) of \(P\)) times (row \(k\) of \(Q\)): \((1, 3)(5, 6) + (2, 4)(7, 8)\), that is \(\begin{pmatrix} 5 & 6 \\ 15 & 18 \end{pmatrix} + \begin{pmatrix} 14 & 16 \\ 28 & 32 \end{pmatrix}\). This is the SVD's reading (section 10), LoRA's \(BA\) (a sum of \(r\) rank-1 layers) and the gradient of a layer (\(\nabla_W L = g\,x^\top\), the root's rank-1 gradient).</li>
+<li><b>Composition.</b> \((PQ)x = P(Qx)\): apply \(Q\) first, then \(P\); with \(x = e_1\), \(Qx = (5, 7)\), then \(P(5, 7) = (19, 43)\). Read right to left. That is why order matters: \(QP = \begin{pmatrix} 23 & 34 \\ 31 & 46 \end{pmatrix} \ne PQ\), because "rotate then stretch" is not "stretch then rotate".</li>
+</ol>
+<div class="card" id="rd-mm-card"><h4>Four orders, the same 8 multiplications: the readings differ in grouping, not in work</h4>
+<div class="seg" id="rd-mm-seg"><button data-m="rc" class="on">Row times column</button><button data-m="col">Column picture</button><button data-m="outer">Outer products</button><button data-m="comp">Composition</button></div>
+<div class="mmrow" id="rd-mm-mats"></div>
+<div class="mmwork" id="rd-mm-work"></div>
+<div class="an-cnt" id="rd-mm-cnt"></div>
+<div class="an-cap" id="rd-mm-cap"></div>
+<div class="an-ctl" id="rd-mm-ctl"></div>
+<p class="small mute">Predict before you step: which reading builds the answer one whole matrix at a time? The same product in every mode, drawn to the same layout; it waits on step 1 until you press play or step.</p>
+</div>
+<p><b>Transpose.</b> \(P^\top\) swaps rows and columns, \((P^\top)_{ij} = P_{ji}\). So \(a^\top b\) (a row times a column) is a dot product and \(a b^\top\) (a column times a row) an outer product. Transposing a product reverses the order, \((PQ)^\top = Q^\top P^\top\) (entry \((i, j)\) of \((PQ)^\top\) is row \(i\) of \(Q^\top\) dotted with column \(j\) of \(P^\top\)). That reversal is what makes backpropagation multiply by \(W^\top\) on the way back.</p>
+<p><b>Why stacked linear layers collapse.</b> Two linear layers in a row, \(W_2 (W_1 x)\), are one linear layer \((W_2 W_1) x\): however many you stack, without a non-linear function between them the network can only ever compute one matrix. The activation function (ReLU, GELU) between layers is what stops the collapse.</p>
+<p><b>What a product costs.</b> An \(m \times n\) times \(n \times p\) product does \(m \cdot n \cdot p\) multiplications and about as many additions, usually counted as \(2mnp\) floating-point operations (FLOPs). For one GPT-2 small layer of 768 by 768 applied to 1,024 tokens that is \(2 \times 1024 \times 768 \times 768 \approx 1.2\) billion FLOPs. Counting FLOPs for whole networks and for the backward pass belongs to {{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}}.</p>
+</section>
 
-<section id="rd-vec">
-<h2>1. Vectors: arrows and lists, length, dot product, cosine, projection</h2>
-<div class="raise"><b>The question.</b> A model holds a word, an image patch or a whole sentence as a list of numbers. What can you do with such a list, and why does multiplying two of them pair by pair and adding tell you how similar they are?</div>
-<h3>Two pictures of the same thing</h3>
-<p>A <dfn id="g-vector">vector</dfn> is an ordered list of numbers. The running example from {{Topic: math|n:3c65c17b0d0d81cdb851c0835b25a538}} is the input of a tiny three-word language model, \(x = (2, 1)\). You can read it two ways, and you need both:</p>
-<ul>
-<li><b>As a list</b>: two numbers in a fixed order, \(x_1 = 2\) and \(x_2 = 1\). This is how code stores it (a tensor of shape <code>(2,)</code>). How many numbers it holds is its <dfn>dimension</dfn>, written \(x \in \mathbb{R}^2\) ("x is a member of the set of all lists of 2 real numbers").</li>
-<li><b>As an arrow</b> from the origin: two steps right, one step up. This is how you reason about it. Adding vectors is placing arrows head to tail, \((2,1) + (1,-2) = (3,-1)\); multiplying by a number (a <dfn>scalar</dfn>) stretches the arrow, \(3 \cdot (2,1) = (6,3)\).</li>
-</ul>
-<p>A GPT-2 small token is a list of 768 numbers. Nobody can draw 768 axes, but every rule on this page works the same in 768 dimensions as in 2, which is why the 2-D pictures are worth learning.</p>
-<div class="card"><div class="rd-svg" id="rd-vec-svg"></div>
-<p class="small mute">The tiny model's input \(x = (2, 1)\) and its three word rows: cat \((1, 0)\), dog \((0, 1)\), sat \((1, -2)\). The dashed line is the projection of \(x\) onto the cat arrow. Every number comes from the root's model.</p></div>
-
-<h3>Length: the norm</h3>
-<p>The length of an arrow follows from Pythagoras' theorem. For \(x = (2, 1)\) the arrow is the long side of a right triangle with sides 2 and 1:</p>
-\[ \lVert x \rVert_2 = \sqrt{x_1^2 + x_2^2 + \dots + x_n^2} = \sqrt{2^2 + 1^2} = \sqrt{5} \approx 2.236 \]
-<dl class="sym"><dt>\(\lVert x \rVert_2\)</dt><dd>the length, or <dfn>L2 norm</dfn>, of \(x\). The subscript 2 says "squares, then square root"; other norms are in section 7.</dd><dt>\(x_i\)</dt><dd>entry \(i\) of \(x\).</dd></dl>
-<p class="plain">In plain words: square every entry, add, take the square root. A <dfn>unit vector</dfn> has length 1; dividing any nonzero vector by its length gives the unit vector pointing the same way, \(x / \lVert x \rVert = (0.894, 0.447)\).</p>
-
-<h3>The dot product: two definitions that agree</h3>
-<p>The <dfn id="g-dot">dot product</dfn> (or inner product) of two vectors of the same dimension multiplies them entry by entry and adds:</p>
-\[ a \cdot b = a^\top b = \sum_{i=1}^{n} a_i b_i \]
-<p>The tiny model scores each word this way: \(x \cdot w_{\text{cat}} = 2 \cdot 1 + 1 \cdot 0 = 2\), \(x \cdot w_{\text{dog}} = 1\), \(x \cdot w_{\text{sat}} = 2 \cdot 1 + 1 \cdot (-2) = 0\). The \(a^\top b\) notation reads the first vector as a row and the second as a column; it is the same number (the transpose \(\top\) is explained in section 3).</p>
-<p>The second definition is geometric. If \(\theta\) is the angle between the arrows,</p>
-\[ a \cdot b = \lVert a \rVert \, \lVert b \rVert \cos\theta \]
-<details class="mist"><summary>Why the two definitions agree (the derivation, every step)</summary><div class="b">
-<p>Draw \(a\), \(b\) and the third side of their triangle, \(a - b\). The law of cosines (Pythagoras for a triangle without a right angle) says \(\lVert a - b \rVert^2 = \lVert a \rVert^2 + \lVert b \rVert^2 - 2 \lVert a \rVert \lVert b \rVert \cos\theta\).</p>
-<p>Now expand the left side with entries: </p>
-\[\lVert a - b \rVert^2 = \sum_i (a_i - b_i)^2 = \sum_i a_i^2 - 2\sum_i a_i b_i + \sum_i b_i^2 = \lVert a \rVert^2 - 2\, a \cdot b + \lVert b \rVert^2\]
-<p>.</p>
-<p>The two expressions are equal; cancel \(\lVert a \rVert^2 + \lVert b \rVert^2\) from both sides and divide by \(-2\): \(a \cdot b = \lVert a \rVert \lVert b \rVert \cos\theta\). Check on \(x\) and \(w_{\text{cat}}\): \(2 = 2.236 \times 1 \times \cos\theta\), so \(\cos\theta = 0.894\), an angle of 26.6 degrees, which is the angle of the arrow \((2, 1)\) above the horizontal.</p></div></details>
-
-<h3>Cosine similarity</h3>
-<p>Divide out the lengths and only the direction is left:</p>
-\[ \cos\theta = \frac{a \cdot b}{\lVert a \rVert \, \lVert b \rVert} \]
-<p class="plain">In plain words: 1 means the arrows point the same way, 0 means at right angles (<dfn>orthogonal</dfn>), \(-1\) means opposite. Length does not matter.</p>
-<div class="nums"><div class="t">The numbers</div>Tiny model: \(\cos(x, w_{\text{cat}}) = 2/\sqrt{5} = 0.894\), \(\cos(x, w_{\text{dog}}) = 1/\sqrt{5} = 0.447\), \(\cos(x, w_{\text{sat}}) = 0\): the right answer, sat, is exactly orthogonal to the input, which is why its score is 0 however long the arrows are. From the old page, checked: \(a = (1, 2, 2)\), \(b = (2, 1, 2)\) give \(a \cdot b = 8\), \(\lVert a \rVert = \lVert b \rVert = 3\), \(\cos\theta = 8/9 = 0.889\); and \((3, -4) \cdot (4, 3) = 12 - 12 = 0\), orthogonal.</div>
-<p><b>On real embeddings.</b> GPT-2 small stores one 768-number vector per token in its embedding table. The cosine similarities between a few of them (computed from the released weights, script in this page's source folder):</p>
-<div class="tw" id="rd-embcos"></div>
-<p class="small mute" id="rd-embcos-cap"></p>
-
-<h3>Projection: how much of one vector lies along another</h3>
-<p>The <dfn id="g-proj">projection</dfn> of \(a\) onto the direction of \(b\) is the shadow \(a\) casts on the line through \(b\):</p>
-\[ \operatorname{proj}_b(a) = \frac{a \cdot b}{b \cdot b}\, b \]
-<p>The fraction is a number (how many copies of \(b\)); multiplying by \(b\) turns it back into an arrow. What is left over, \(a - \operatorname{proj}_b(a)\), is orthogonal to \(b\). Example: projecting \(x = (2, 1)\) onto \(b = (1, 1)\): \(x \cdot b = 3\), \(b \cdot b = 2\), so the projection is \(1.5\,(1, 1) = (1.5, 1.5)\) and the leftover is \((0.5, -0.5)\); check \((0.5, -0.5) \cdot (1, 1) = 0\). Projection is the idea behind least squares (section 9), PCA (section 12) and attention reading values (section 15).</p>
-<div class="use"><div class="t">What it is used for in ML</div>Embeddings are vectors and similar meanings point in similar directions; retrieval ranks documents by cosine similarity (usually after scaling every embedding to length 1, so the dot product is the cosine); attention scores are dot products of queries and keys; a logit is a dot product of the final hidden state with a row of the output matrix.</div>
-<div class="deepnote"><b>Go deeper (optional):</b> the root's {{Gradient lab|n:3c65c17b0d0d81cdb851c0835b25a538}} tab lets you move \(x\) and the word rows; contrastive losses built on cosine similarity are on {{Contrastive and self-supervised learning|n:3c65c17b0d0d811db6a7d02d0ee7215c}}.</div>
+<section id="rd-shape">
+<h2>4. Shapes, layouts, broadcasting and einsum</h2>
+<p>Write the shape beside every symbol: \(W\) is \(3 \times 2\), \(x\) has 2 entries, so \(Wx\) has 3. A real model holds activations as a tensor of shape \((B, T, d)\): \(B\) sequences in the batch, \(T\) tokens each, \(d\) numbers per token; a layer acts on the last axis only, with the same matrix for every token.</p>
+<p><b>Three layouts for the same layer.</b> Papers treat one input as a column and write \(y = Wx + b\) with \(W\) of shape (outputs by inputs). Code stacks inputs as rows and computes \(Y = XW^\top + b\): PyTorch's <code>nn.Linear</code> stores <code>weight</code> with shape <code>(out_features, in_features)</code> and computes \(y = xA^\top + b\) ({{PyTorch nn.Linear docs|https://docs.pytorch.org/docs/stable/generated/torch.nn.Linear.html}}). GPT-2's original code uses a third: its <code>Conv1D</code> stores the weight as <code>(in, out)</code> and computes \(xW + b\); Hugging Face's own docstring says it "works like a linear layer but the weights are transposed" ({{transformers pytorch_utils.py|https://github.com/huggingface/transformers/blob/main/src/transformers/pytorch_utils.py}}). Section 12's GPT-2 measurements use this layout. The transpose between conventions is the same map; mixing them inside one derivation is the bug. Reading a model's code against its paper is mostly translating shapes and layouts: which axis is the batch, which is heads, whether the weight is stored (out, in) or (in, out).</p>
+<p><b>Broadcasting.</b> Adding a bias of shape \((d,)\) to activations of shape \((B, T, d)\) works because libraries <dfn>broadcast</dfn>: they line up shapes from the right, and an axis of size 1 (or a missing axis) is stretched to match. NumPy's rule, word for word: "two dimensions are compatible when they are equal, or one of them is 1" ({{NumPy broadcasting|https://numpy.org/doc/stable/user/basics.broadcasting.html}}). So \((3, 1) + (1, 2)\) gives \((3, 2)\), and \((B, T, d) + (d,)\) gives \((B, T, d)\). The same rule produces the commonest silent bug:</p>
+<div class="card"><h4>A (3, 1) column minus a (3,) row is a 3 x 3 table, not three differences</h4><div class="rd-svg" id="rd-bc-svg"></div>
+<p class="small">Predictions of shape <code>(3, 1)</code>, \((1, 2, 3)\) as a column, minus targets of shape <code>(3,)</code>, also \((1, 2, 3)\). Instead of three differences of 0 you get every prediction minus every target, \(\begin{pmatrix} 0 & -1 & -2 \\ 1 & 0 & -1 \\ 2 & 1 & 0 \end{pmatrix}\); its mean square is \(12/9 = 1.333\), though the predictions are perfect and the true mean squared error is 0. No error is raised. Fix: make the shapes equal (<code>pred.squeeze(-1)</code>) and assert shapes before every loss.</p></div>
+<h3 id="rd-ein">Einsum: every axis named</h3>
+<p>Einstein summation labels every axis with a letter. The rule: <b>a letter that appears in the inputs but not in the output is summed over; every other letter is kept, in the order the output names them</b>. <code>torch.einsum</code>, <code>numpy.einsum</code> and <code>jax.numpy.einsum</code> all read the same strings, and writing one is the cure when a shape bug survives ten minutes of staring.</p>
+<div class="tw"><table class="mini"><thead><tr><th>String</th><th>Reads as</th><th>Math</th></tr></thead><tbody>
+<tr><td><code>i,i-&gt;</code></td><td>dot product: multiply along i, sum it away</td><td>\(a \cdot b\)</td></tr>
+<tr><td><code>i,j-&gt;ij</code></td><td>outer product: nothing summed</td><td>\(a b^\top\)</td></tr>
+<tr><td><code>ij,j-&gt;i</code></td><td>matrix times vector</td><td>\(Wx\)</td></tr>
+<tr><td><code>ij,jk-&gt;ik</code></td><td>matrix product: j shared and summed</td><td>\(PQ\)</td></tr>
+<tr><td><code>ij-&gt;ji</code></td><td>transpose: relabel only</td><td>\(A^\top\)</td></tr>
+<tr><td><code>ii-&gt;</code></td><td>trace: the diagonal, summed</td><td>\(\operatorname{tr} A\)</td></tr>
+<tr><td><code>btd,od-&gt;bto</code></td><td>a linear layer on every token (PyTorch's (out, in) weight)</td><td>\(XW^\top\)</td></tr>
+<tr><td><code>bhqd,bhkd-&gt;bhqk</code></td><td>attention scores: per batch b and head h, every query q against every key k, summed over d</td><td>\(QK^\top\)</td></tr>
+<tr><td><code>bhqk,bhkd-&gt;bhqd</code></td><td>attention output: weights times values, summed over keys k</td><td>\(PV\)</td></tr>
+</tbody></table></div>
+<p><b>Reading the shape off the string.</b> In <code>bhqd,bhkd-&gt;bhqk</code> with \(b = 2\), \(h = 8\), \(q = k = 128\), \(d = 64\) (the old page's example), \(d\) is summed away and the output is \((2, 8, 128, 128)\). Counting the multiply-adds from the same string (one per combination of all distinct letters, here \(2 \cdot 8 \cdot 128 \cdot 128 \cdot 64\)) and seeing why attention is quadratic in length is done on {{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}}. "Splitting heads" in code is a reshape from \((B, T, 768)\) to \((B, T, 12, 64)\) and a transpose of two axes, no arithmetic; the <code>einops</code> library writes it as a named reshape that documents intent, <code>rearrange(x, 'b t (h d) -&gt; b h t d', h=12)</code>.</p>
 </section>

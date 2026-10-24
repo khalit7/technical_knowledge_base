@@ -1,32 +1,63 @@
-
-<section id="rd-cond">
-<h2>13. The condition number: why some problems lose all their digits</h2>
-<div class="raise"><b>The question.</b> Two linear systems of the same size, solved by the same code. One gives an answer accurate to every digit, the other gives garbage. Why, and why does the same number decide how fast gradient descent converges?</div>
-<h3>The definition</h3>
-\[ \kappa(A) = \frac{\sigma_{\max}(A)}{\sigma_{\min}(A)} \]
-<p class="plain">In plain words: the ratio of the most a matrix stretches any direction to the least. A circle becomes an ellipse with this aspect ratio. \(\kappa = 1\) for an orthogonal matrix (a circle stays a circle); \(\kappa = \infty\) for a singular one (some direction is squashed flat). For the running examples: \(\kappa(A) = 6.708/2.236 = 3\); \(\kappa(W) = \sqrt{6}/1 = 2.449\).</p>
-<h3>What it does to a linear solve, derived</h3>
-<p>Solve \(Ax = b\), but \(b\) carries a small error \(\delta b\) (measurement noise or rounding). The computed answer is off by \(\delta x = A^{-1}\delta b\). Two inequalities from the SVD: \(\lVert \delta x \rVert = \lVert A^{-1}\delta b \rVert \le \lVert \delta b \rVert / \sigma_{\min}\) (the inverse stretches by at most \(1/\sigma_{\min}\)), and \(\lVert b \rVert = \lVert Ax \rVert \le \sigma_{\max} \lVert x \rVert\). Divide the first by \(\lVert x \rVert \ge \lVert b \rVert / \sigma_{\max}\):</p>
-\[ \frac{\lVert \delta x \rVert}{\lVert x \rVert} \le \kappa(A)\, \frac{\lVert \delta b \rVert}{\lVert b \rVert} \]
-<p class="plain">In plain words: a relative error in the data can come out up to \(\kappa\) times bigger in the answer. Rule of thumb: you lose about \(\log_{10}\kappa\) decimal digits. float32 carries about 7 digits, bfloat16 about 3, so a problem with \(\kappa = 10^4\) is fine in float64, marginal in float32 and hopeless in bfloat16.</p>
-<div class="nums"><div class="t">Worked: a nearly singular system</div>\(B = \begin{pmatrix} 1 & 1 \\ 1 & 1.001 \end{pmatrix}\) has \(\kappa = 4{,}002\). With \(b = (2, 2.001)\) the solution is \(x = (1, 1)\). Change \(b\) to \((2, 2.002)\), a relative change of 0.035%, and the solution jumps to \(x = (0, 2)\), a relative change of 100%: an amplification of 2,829, within the bound of 4,002.</div>
-<p>The same thing happens inside a model fit. On {{Statistics for ML: estimation, bias and variance, bootstrap, hypothesis tests|n:3f05c17b0d0d810f896cf688ce9aed1b}}, section 11 and its Double descent lab tab plot the smallest singular value of a 40-row training matrix as the number of features \(p\) grows: at \(p = 40\) the matrix is square and that singular value collapses (median 0.086, against 3.55 at \(p = 10\)), so least squares divides the noise by almost zero and the test error peaks. That peak of double descent is ill-conditioning, seen from the statistics side.</p>
-<h3>Normal equations square it: a real float32 run</h3>
-<p>\(\kappa(X^\top X) = \kappa(X)^2\), because the singular values of \(X^\top X\) are the squares of those of \(X\). Section 9 had 2.92 against 8.55. On a harder problem the squaring is decisive. Fit a degree-6 polynomial to 50 evenly spaced points on \([0, 1]\) (true coefficients \(1, -2, 3, -4, 5, -6, 7\), no noise) in float32, computed with NumPy by this page's script:</p>
-<div class="tw"><table class="mini"><thead><tr><th>Method</th><th>Condition number it works with</th><th class="num">Relative error in the coefficients</th></tr></thead><tbody>
-<tr><td>Normal equations \(X^\top X w = X^\top y\)</td><td>\(\kappa(X)^2 \approx 3.9 \times 10^8\)</td><td class="num">0.77 (77%)</td></tr>
-<tr><td>QR, then \(Rw = Q^\top y\)</td><td>\(\kappa(X) \approx 1.98 \times 10^4\)</td><td class="num">0.000018</td></tr>
-</tbody></table></div>
-<p class="small mute">Same data, same precision, same library; only the algorithm differs. \(\kappa(X)^2\) exceeds 1 over float32's unit roundoff (\(2^{-24}\)), about \(1.7 \times 10^7\), so the normal equations lose every digit.</p>
-<h3>What it does to gradient descent</h3>
-<p>Near a minimum, a loss looks like a bowl \(\tfrac{1}{2} w^\top H w\) whose curvature matrix is the Hessian \(H\) (symmetric, PD at a strict minimum). Gradient descent's step size must stay below \(2/\lambda_{\max}\) to be stable in the steepest direction, but then it crawls along the flattest direction, which has curvature \(\lambda_{\min}\). With the best fixed step, \(\eta = 2/(\lambda_{\max} + \lambda_{\min})\), the error shrinks by \((\kappa - 1)/(\kappa + 1)\) per step, \(\kappa = \lambda_{\max}/\lambda_{\min}\). The old page stated this rate without the best-step condition; it holds only at that step size, and is slower at any other. The full derivation, with the root's diag(1, 10) bowl, is on {{Calculus and optimisation for ML|n:3c65c17b0d0d81eb8b49ed6a0f897f3b}}; the root's {{Gradient lab|n:3c65c17b0d0d81cdb851c0835b25a538}} tab animates it.</p>
-<h3>Fixing conditioning: preconditioning</h3>
+<section id="rd-attn">
+<h2>13. Embeddings and attention, read as linear algebra</h2>
+<p>Attention itself, \(\operatorname{softmax}(QK^\top/\sqrt{d_k})V\), with every shape and why the scores are scaled, is taught on {{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}. Three facts from this page's side, measured on GPT-2 small:</p>
 <ul>
-<li><b>Rescale the inputs.</b> Standardising features (zero mean, unit variance) makes \(X^\top X\) closer to a multiple of \(I\); normalisation layers and careful initialisation do the same inside a network ({{Normalisation and initialisation|n:3c65c17b0d0d81369e1cc38ed4e11d48}}).</li>
-<li><b>Regularise.</b> Adding \(\lambda I\) lifts the smallest eigenvalue (ridge, section 9; damping in second-order methods).</li>
-<li><b>Precondition the update.</b> Multiply the gradient by an approximation of \(H^{-1}\): Newton's method uses \(H^{-1}\) itself; Adam divides each coordinate by the square root of an exponential moving average of its squared gradient, a diagonal preconditioner.</li>
-<li><b>Orthogonalise the update.</b> Muon takes the momentum update \(G = U\Sigma V^\top\) of a 2-D weight and replaces it by \(UV^\top\): every singular value set to 1, so the update has \(\kappa = 1\) and pushes equally in every direction it touches instead of being dominated by a few. A full SVD is too slow, so it runs five Newton-Schulz iterations \(X \leftarrow aX + (bA + cA^2)X\) with \(A = XX^\top\) and \((a, b, c) = (3.4445, -4.7750, 2.0315)\), which "can be stably run in bfloat16"; it applies only to the 2-D weights of hidden layers, with embeddings, the output layer and scalar parameters left to AdamW ({{Keller Jordan, Muon, 8 Dec 2024|https://kellerjordan.github.io/posts/muon/}}). How it behaves in training is on {{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}}.</li>
+<li><b>An embedding lookup is a matrix product.</b> Token \(i\) as a <dfn>one-hot</dfn> vector \(e_i\) (all zeros except a 1 in position \(i\)) times the table \(E\) (\(V \times d\)) picks out row \(i\). Libraries index instead, because multiplying by zeros is wasteful, but the gradient is that of a matrix product: only the rows that were used get updated. GPT-2 small's table is \(50{,}257 \times 768\), reused as the output matrix (section 5's softmax bottleneck).</li>
+<li><b>Real embeddings are not centred.</b> Two random GPT-2 token embeddings have cosine similarity <span id="rd-attn-randcos"></span> on average, not 0: the vectors share a common direction (the mean embedding's length is <span id="rd-attn-mean"></span> of the average embedding's length). So cosine similarities like cat to dog (0.55) must be read against that baseline, and many retrieval systems subtract the mean or whiten embeddings before comparing them; a PCA of them must centre first.</li>
+<li><b>The query-key product is a low-rank bilinear form.</b> The score between hidden states \(h_i\) and \(h_j\) is \(q_i \cdot k_j = h_i^\top (W_Q W_K^\top) h_j\). The \(768 \times 768\) matrix \(W_Q W_K^\top\) is a product through a 64-wide middle (\(d_k = 64\) in GPT-2 small), so its rank is at most 64. Measured on layer 5, head 0: exactly <span id="rd-attn-qkrank"></span> nonzero singular values out of 768 (the 65th is \(3 \times 10^{-14}\), rounding). Each head compares tokens through a 64-dimensional "view" of the 768-dimensional residual stream; twelve heads give twelve such views. The same holds for \(W_V W_O\), the head's output map (Elhage et al., {{A Mathematical Framework for Transformer Circuits, 2021|https://transformer-circuits.pub/2021/framework/index.html}}, call these the QK and OV circuits). The \(768 \times 2304\) matrix <code>c_attn</code> holds \(W_Q, W_K, W_V\) side by side, each twelve \(768 \times 64\) blocks, one per head.</li>
 </ul>
-<div class="nums"><div class="t">Orthogonalisation, worked on \(A\)</div>The simplest Newton-Schulz iteration is \(X \leftarrow 1.5X - 0.5\,XX^\top X\), which maps each singular value \(s\) to \(1.5s - 0.5s^3\) and leaves the singular vectors alone. Start from \(A/\lVert A \rVert_F\), whose singular values are 0.949 and 0.316. After each step the smaller one reads 0.459, 0.640, 0.829, 0.958, 0.997, 1.000 while the larger reaches 1.000 after two: six steps give \(UV^\top = \begin{pmatrix} 0.894 & -0.447 \\ 0.447 & 0.894 \end{pmatrix}\), the rotation by 26.6° that is the "nearest orthogonal matrix" to \(A\). Muon's quintic version uses tuned coefficients to push small singular values up faster, in five steps. Try it on any matrix in the {{Matrix playground|#t-play}}.</div>
-<div class="use"><div class="t">What it is used for in ML</div>Choosing solvers (QR or Cholesky, never an explicit inverse); choosing precision (mixed-precision training keeps some accumulations in float32 for this reason; {{Numerical computing for ML|n:3f05c17b0d0d81d6af0be4a9a2edba8d}} owns floating point); understanding why normalisation, warmup and adaptive optimisers help; and reading optimiser papers, which are mostly about preconditioning.</div>
+<details class="mist"><summary>Attention piece by piece in this page's terms, with the root's numbers</summary><div class="b">
+<p>For a sequence of \(T\) token vectors stacked as the rows of \(H\) (\(T \times d\)), one head computes \(Q = H W_Q\), \(K = H W_K\), \(V = H W_V\) (projections, section 2); \(QK^\top\) is \(T \times T\), entry \((i, j)\) the dot product of query \(i\) with key \(j\) (row times column, section 3); dividing by \(\sqrt{d_k}\) keeps the scores' spread near 1 when the entries of \(q\) and \(k\) have variance 1 (the variance of a sum of \(d_k\) products is \(d_k\)); softmax along each row turns scores into positive weights summing to 1; multiplying by \(V\) makes each output row a weighted average of value vectors, a point inside their convex hull: the column picture of section 3, with the weights as coefficients.</p>
+<p>Treat the tiny model's input \(x = (2, 1)\) as a query and its three word rows as keys and values (\(d_k = 2\)): scores \(Wx/\sqrt{2} = (1.414, 0.707, 0)\), weights \((0.576, 0.284, 0.140)\), output</p>
+\[0.576\,(1, 0) + 0.284\,(0, 1) + 0.140\,(1, -2) = (0.716, 0.004)\]
+<p>The same example is decoded symbol by symbol on the root's Reading tab ("Reading an equation in a paper").</p></div></details>
+<div class="deepnote"><b>Go deeper (optional):</b> the full Transformer, trained live, is on the {{Attention Is All You Need paper page|n:3c65c17b0d0d81999af7f16f8ed8ee9e}}; the cost of attention as einsum counts and the backward pass through softmax are on {{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}}; rotary position encodings, which rotate query and key pairs, on the {{RoFormer paper page|n:3c65c17b0d0d81cfa5e9f54459720098}}.</div>
+</section>
+
+<section id="rd-tools">
+<h2>14. Which tool when</h2>
+<ul>
+<li><b>Solving \(Ax = b\)</b>: factorise and solve (<code>torch.linalg.solve</code>, <code>cholesky_solve</code>); never form \(A^{-1}\), which is slower and less accurate, and fails badly when \(\kappa\) is large.</li>
+<li><b>Least squares</b>: QR by default (<code>lstsq</code>); normal equations only when well conditioned; SVD when rank-deficient.</li>
+<li><b>Top few singular directions of a big matrix</b>: power iteration or a randomized SVD (<code>torch.svd_lowrank</code>), not a full SVD.</li>
+<li><b>Eigen or SVD</b>: eigen for symmetric matrices; SVD for anything about stretch, size or rank.</li>
+<li><b>Rank of a floating-point matrix</b>: never literally; count singular values above a tolerance (NumPy's <code>matrix_rank</code> uses \(\sigma_{\max} \cdot \max(m, n) \cdot \varepsilon\)) or look at how fast the spectrum falls.</li>
+</ul>
+<details class="mist"><summary>The decompositions side by side: form, when each exists, cost <span class="mute">(reference)</span></summary><div class="b">
+<div class="tw"><table class="mini"><thead><tr><th>Decomposition</th><th>Form</th><th>Exists for</th><th>Cost (\(n \times n\), leading term)</th><th>Use it for</th></tr></thead><tbody>
+<tr><td>LU</td><td>\(A = LU\) (with row swaps)</td><td>any square, invertible</td><td>\(\tfrac{2}{3}n^3\)</td><td>general linear systems</td></tr>
+<tr><td>Cholesky</td><td>\(S = LL^\top\)</td><td>symmetric PD</td><td>\(\tfrac{1}{3}n^3\)</td><td>PD systems, Gaussian sampling, PD test</td></tr>
+<tr><td>QR</td><td>\(A = QR\)</td><td>every matrix</td><td>\(\tfrac{4}{3}n^3\) (\(2mn^2 - \tfrac{2}{3}n^3\) for \(m \times n\))</td><td>least squares, orthonormal bases</td></tr>
+<tr><td>Eigen (symmetric)</td><td>\(S = Q\Lambda Q^\top\)</td><td>symmetric</td><td>a small multiple of \(n^3\)</td><td>covariances, Hessians, PCA</td></tr>
+<tr><td>Eigen (general)</td><td>\(A = P\Lambda P^{-1}\)</td><td>diagonalisable square</td><td>larger multiple of \(n^3\)</td><td>repeated application, stability</td></tr>
+<tr><td>SVD</td><td>\(A = U\Sigma V^\top\)</td><td>every matrix</td><td>the largest multiple of \(n^3\) of these</td><td>rank, norms, conditioning, compression, pseudo-inverse</td></tr>
+</tbody></table></div>
+<p class="small mute">Leading-term operation counts from Trefethen and Bau, Numerical Linear Algebra (1997): Householder QR lecture 10, LU lecture 20, Cholesky lecture 23. Eigen and SVD solvers are iterative; their constants depend on the algorithm and whether vectors are wanted.</p>
+</div></details>
+</section>
+
+<section id="rd-mist">
+<h2>Depth: mistakes and interview rehearsal</h2>
+<details class="mist"><summary>Common mistakes, each with the section that shows it</summary><div class="b">
+<p><b>Treating eigenvalues as stretches.</b> For a non-symmetric matrix they differ from the singular values (3 and 5 against 6.708 and 2.236 for \(A\)), and the eigenvectors need not be orthogonal (section 10).</p>
+<p><b>Forgetting to centre before PCA.</b> \(\frac{1}{n}X^\top X\) is the covariance only if every column of \(X\) has mean zero. GPT-2's embeddings, with a mean cosine near 0.27 between random tokens, are a real case (section 13).</p>
+<p><b>Mixing layouts and conventions.</b> \(Wx\) with \(W\) as (out, in), \(XW^\top\) in PyTorch, \(XW\) with GPT-2's Conv1D (in, out). Each is right; mixing two in one derivation puts transposes in the wrong places. Write the shape beside every symbol. (Derivative layouts are a separate convention, owned by {{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}}.)</p>
+<p><b>Reading "low rank" as "small", or "small" as "unimportant".</b> A rank-1 matrix can have a huge norm and a full-rank matrix can be tiny: rank counts directions, norms measure size. And small singular values of a pretrained weight still matter: dropping the bottom 10% of every GPT-2 matrix raises the loss from 3.17 to 3.91 (section 12).</p>
+<p><b>Inverting a matrix to solve a system, or forming \(X^\top X\).</b> 77% coefficient error against 0.0018% for QR in the float32 run of section 11.</p>
+<p><b>Silent broadcasting.</b> \((n, 1) - (n,)\) gives an \(n \times n\) table, not \(n\) differences (section 4). Assert shapes before every reduction.</p>
+<p><b>Assuming \(AB = BA\).</b> Order matters (\(PQ \ne QP\) in section 3), and \((AB)^\top = B^\top A^\top\), \((AB)^{-1} = B^{-1}A^{-1}\): both reverse the order.</p></div></details>
+<details class="mist"><summary>Interview questions, with the one-line answer and where it is derived</summary><div class="b">
+<div class="tw"><table class="mini"><thead><tr><th>Question</th><th>Short answer</th><th>Section</th></tr></thead><tbody>
+<tr><td>What is the rank of an outer product \(uv^\top\)?</td><td>1 (if \(u, v \ne 0\)): every row is a multiple of \(v^\top\)</td><td>3, 5</td></tr>
+<tr><td>Why is \(X^\top X\) PSD? When is it PD?</td><td>\(w^\top X^\top X w = \lVert Xw \rVert^2 \ge 0\); PD when \(X\) has full column rank</td><td>9</td></tr>
+<tr><td>Eigen decomposition against SVD?</td><td>eigen: square, directions not turned, may be complex or missing; SVD: every matrix, orthonormal in and out directions, nonnegative stretches</td><td>8, 10</td></tr>
+<tr><td>How do you get the best rank-\(k\) approximation, and its error?</td><td>truncated SVD; spectral error \(\sigma_{k+1}\), Frobenius \(\sqrt{\sum_{i \gt k} \sigma_i^2}\) (Eckart-Young)</td><td>10</td></tr>
+<tr><td>Why does LoRA save memory, and what does it cost?</td><td>trains \(r(d + k)\) instead of \(dk\) numbers and their optimiser state; caps the update's rank at \(r\)</td><td>12</td></tr>
+<tr><td>What does the condition number tell you?</td><td>error amplification in solves (lose about \(\log_{10}\kappa\) digits); gradient descent's zig-zag on a quadratic</td><td>11</td></tr>
+<tr><td>Why scale attention scores by \(\sqrt{d_k}\)?</td><td>a dot product of \(d_k\) unit-variance terms has variance \(d_k\); dividing keeps softmax out of saturation</td><td>13</td></tr>
+<tr><td>Derive the least-squares solution.</td><td>residual orthogonal to the columns: \(X^\top(y - Xw) = 0\)</td><td>7</td></tr>
+<tr><td>Why are eigenvectors of a symmetric matrix orthogonal?</td><td>\((\lambda_1 - \lambda_2)\, v_1 \cdot v_2 = 0\)</td><td>9</td></tr>
+<tr><td>What does the determinant mean?</td><td>signed area (volume) scale factor; product of eigenvalues; zero iff singular</td><td>2, 8</td></tr>
+</tbody></table></div>
+<p>More drills with worked answers: the root's {{Practice drills|n:3c65c17b0d0d81cdb851c0835b25a538}} tab.</p></div></details>
 </section>
