@@ -46,3 +46,6 @@ Generator (bench lock): run on 2026-10-15 02:02 to 04:56 under the lock with `sc
 
 ## Downloads (download lock, recorded in the shared SETUP.md)
 Shallow source clones in `$RAG_SCRATCH/src`: graphrag v3.3.0 (5faaaf4f), LightRAG v1.5.7 (28ff1b05), nano-graphrag v0.0.8 (cddcda71), HippoRAG v1.0.0 (b144c46d), graspologic-native 1.2.5 (3c989664). Spider 1.0 (`spider_data.zip`, 205,800,266 bytes, from the Hugging Face mirror HAL-9001/spider-databases at revision 4a01bbac, because the official Google Drive link returned "quota exceeded"; its dev.json is identical, 1,034 of 1,034 rows, to the authors' xlangai/spider validation split); only the 20 dev databases kept, in `$RAG_SCRATCH/gr/dl/spider`. NLTK corpora for TextBlob (brown, treebank, averaged_perceptron_tagger_eng, punkt, punkt_tab) and tiktoken's encoding files. pip packages as listed above.
+
+## Topic close (2026-10-24)
+New closed block at the end of Reading: the root's retired Agentic lab small graph (build cost, names, one graph hop, global use). "root Agentic lab" now reads "root agent runs". Header remeasured: 37 min, plus 19 in closed details. Every quoted sibling time now matches its header (`html_utils/check_times.py`); the ledger keys that quoted old times or tab names were re-pointed to the current text (problems 0).
