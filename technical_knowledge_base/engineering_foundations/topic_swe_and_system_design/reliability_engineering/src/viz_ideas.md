@@ -12,8 +12,26 @@ Scores: teaching value (T), uses real data (R), not already on the root or a sib
 | Error budget and alerts: SLO, traffic, normal error ratio, incident ratio and length against the workbook's multiwindow burn-rate alerts; budget over 28 days | Tab | 5 | 3 (published thresholds) | 5 | Minute-step simulation; compares with the workbook's detection-time formula. |
 | Nines table, dependency chain, burn-rate threshold table, fan-out 63% | Reading, computed tables | 3 | 4 | 3 | Numbers to know on the root has an availability calculator; linked rather than rebuilt. |
 
+## Added 2026-10-24 (teaching-contract rebuild)
+| Idea | Placement | Kind | Notes |
+|---|---|---|---|
+| Hero: where each defence acts on one chat request (app, edge, API, provider call) | Top | static annotated diagram | the whiteboard picture the page elaborates |
+| Dependency chain multiplying to 99.24% | Section 1 | static diagram | same numbers as the parent's Numbers to know |
+| Metastable loop with the two cuts (budget, bounded queue) | Section 2 | static diagram | numbers from the measured run |
+| Measured latency histogram, p50, p99.9 and the 100 ms timeout | Section 3 | real data | `gen_lat_js.py` from `inputs/baseline_attempts.txt` |
+| Deadline propagation, 10 s budget, 3 s left | Section 3 | static diagram | |
+| Retry amplification 1, 3, 9, 27 | Section 4 | static diagram | |
+| Jitter before/after on the same 20 clients | Section 4 | before/after toggle | seeded; peak 20 against 7, count 80 both; checked by recompute.py |
+| Breaker state machine with resilience4j defaults | Section 7 | static diagram | replaces the HTML flow; the 2026-10-04 rejection was of an animation, this is static |
+| Goodput against offered load, bounded and unbounded queue | Section 8 | chart from the verified engine | 13 loads x 2 queues; checked by recompute.py and check_engine.mjs |
+| Health probe failure -> action | Section 10 | static diagram | |
+| Rollout waves with bake times | Section 11 | static diagram | |
+| Streaming reply under three timeout designs | Section 14 | static diagram, illustrative times | |
+| Error budget and alerts | moved from its own tab into section 12 | calculator | it explains one mechanism, so it sits beside the claim |
+
 ## Rejected
 - Rebuilding the root's retry-storm and double-charge animation: already on the root (Step 4); linked instead.
+- A photo or real figure: the page is about mechanisms; the SRE book's figures are CC BY-NC-ND (not an allowed licence) and status-page screenshots are third-party branding.
 - An incident timeline animation (detect, declare, mitigate, communicate): a static flow plus the illustrative postmortem teaches the same; the burn-rate tab covers detection.
 - Circuit breaker state-machine animation on its own: folded into the lab (breaker-open strip) and the before/after animation, where its effect on users is visible.
 - Hedged-request simulator: low value for LLM calls (doubles GPU cost); the Tail at Scale numbers suffice.
