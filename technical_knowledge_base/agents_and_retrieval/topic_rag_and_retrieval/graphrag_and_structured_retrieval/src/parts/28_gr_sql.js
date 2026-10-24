@@ -1,4 +1,4 @@
-// ---- Text-to-SQL lab (t-grsql) ----
+// ---- Reading section 10: one question under four prompts (moved from the old Text-to-SQL lab); section 11: concert_singer in Kuzu ----
 (function(){
   const D=window.GR,S=D.sql,E=GRL.esc,$=id=>document.getElementById(id);
   if(!$('sq-card'))return;
@@ -7,7 +7,7 @@
   $('sq-db').innerHTML=dbs.map(d=>'<option>'+E(d)+'</option>').join('');
   let ri=0;
   function qs(){const d=$('sq-db').value;const L=rows.map((r,i)=>[r,i]).filter(x=>x[0].db===d);
-    $('sq-q').innerHTML=L.map(([r,i])=>'<option value="'+i+'">'+E(r.question.length>90?r.question.slice(0,88)+'...':r.question)+'</option>').join('');ri=L[0][1];draw2()}
+    $('sq-q').innerHTML=L.map(([r,i])=>'<option value="'+i+'">'+E(r.question.length>60?r.question.slice(0,58)+'...':r.question)+'</option>').join('');ri=L[0][1];draw2()}
   const COND=[['none','No schema: the question only'],['all20','All 20 databases dumped'],['retrieved','5 tables retrieved by bge-small'],['oracle','The question\'s own database']];
   const tokTop=r=>{const t=D.schema_ret.top5[String(r.i)]||[];return t};
   function draw(i){const r=rows[ri];
@@ -29,11 +29,10 @@
   function draw2(){A.reset(4);const r=rows[ri];
     $('sq-gold').innerHTML='<div class="gr-src">'+E(r.gold)+'</div><div class="small">'+GRL.fmt(r.gold_rows)+' row(s); first: '+(r.gold_preview.length?r.gold_preview.map(x=>E(x.join(', '))).join(' | '):'(empty)')+'</div>';
     const K=D.kuzu;const C=D.cypher_runs&&(D.cypher_runs['1.7b']||D.cypher_runs['4b']);
-    if(r.db!=='concert_singer'){$('sq-cy').innerHTML='<p class="small mute">Pick the concert_singer database to see its property-graph version in Kùzu.</p>';return}
     $('sq-cy').innerHTML='<div class="gr-src">'+E(K.schema)+'</div>'+K.examples.map(e=>'<p class="small"><b>'+E(e.q)+'</b></p><div class="gr-src">'+E(e.sql)+'\n'+E(e.cypher)+'</div><div class="small">'+(e.equal?'same rows from SQLite and Kùzu':'different rows')+': '+E(e.cypher_rows.slice(0,3).map(x=>x.join(', ')).join(' | '))+'</div>').join('')+
       (C?'<p class="small">Generated, 45 questions: SQL '+C.sql.ex+' of 45 match, Cypher '+C.cypher.ex+' of 45 <span class="meas">measured</span>.</p>':'<div class="gr-pbox"><b>Pending run.</b> The same 45 questions written as SQL and as Cypher by the local model (s_cypher_run.py run 1.7b, about 3 min).</div>')}
   const A=RD.anim({card:'sq-card',ctl:'sq-ctl',n:4,draw,ms:2000,label:'Prompt condition'});
   $('sq-db').addEventListener('change',qs);$('sq-q').addEventListener('change',e=>{ri=+e.target.value;draw2()});
   qs();
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-grsql']=[()=>A.redraw()];
+  RD.onRender(()=>A.redraw());
 })();

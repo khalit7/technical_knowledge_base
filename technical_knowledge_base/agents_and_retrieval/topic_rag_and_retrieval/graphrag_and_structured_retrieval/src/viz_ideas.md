@@ -33,3 +33,9 @@ Question the page keeps returning to: which questions need structure that a top-
 
 ## What the methodology lacked for this page
 A rule for pages whose generator runs are queued behind other agents: here every generator-dependent number is a pending box with its command and estimated time, and build_data turns each into a result table when its data file appears, so the page is complete and honest at every stage.
+
+## 2026-10-24 rebuild to the teaching contract
+Built (all inline in Reading): the hero (four question kinds, the structure that answers each, when it is paid for); a chunk-size slider for prompt tokens per text token, to scale, landing on the measured 14.0 and the derived 2.4; resolution rules as links gained against hand-checked merges right; Louvain against Leiden on a toy graph (illustrative toggle); the GraphRAG paper's Figure 4 (real image, CC BY 4.0) beside the hierarchy; local search's 12,000-token context to scale; DRIFT's five stages; a personalised-PageRank stepper on a toy phrase graph (exact power iteration, labelled illustrative); HippoRAG 2's published indexing bill; DAIL-SQL's drop from Spider 1.0 to Spider 2.0-lite; measured SQL accuracy under four prompts; concert_singer as tables and as a property graph.
+Moved from tabs into Reading: the Graph build lab's stepper (section 5), its hierarchy explorer (closed block) and global map-reduce stepper (section 6); the Before/after lab (section 8, now with previous and next buttons instead of a 200-option select); the Text-to-SQL lab (section 10, its Kùzu part in section 11).
+Kept as a tab: the Cost calculator (a tool used across sections 3, 6 and 9).
+Rejected: an animation of Leiden's refinement step by step (the toggle shows the end states, which is the point); a PPR animation on the real 9,760-paragraph graph (unreadable at phone width; the measured outcome is the chart in section 8).

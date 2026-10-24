@@ -1,4 +1,4 @@
-// ---- Before/after lab (t-grba) ----
+// ---- Reading section 8: one question through two retrievers (moved from the old Before/after lab) ----
 (function(){
   const D=window.GR,B=D.ba,E=GRL.esc,$=id=>document.getElementById(id);
   if(!$('ba-card'))return;
@@ -7,15 +7,14 @@
   const si=k=>B.systems.indexOf(k);
   $('ba-a').innerHTML=B.systems.map(k=>'<option value="'+k+'"'+(k==='dense'?' selected':'')+'>'+E(NAME[k]||k)+'</option>').join('');
   $('ba-b').innerHTML=B.systems.map(k=>'<option value="'+k+'"'+(k==='expand_title'?' selected':'')+'>'+E(NAME[k]||k)+'</option>').join('');
-  let a='dense',b='expand_title',list=[],cur=0;
+  let a='dense',b='expand_title',list=[],cur=0,pos=0;
+  function setPos(p){pos=p;cur=list.length?list[pos]:-1;$('ba-pos').textContent=list.length?'question '+(pos+1)+' of '+list.length:'no question';$('ba-prev').disabled=pos<=0;$('ba-next').disabled=pos>=list.length-1;A.reset(7)}
   const both=(r,k)=>r.g.every(g=>r.top[si(k)].includes(g));
   function filt(){const f=$('ba-f').value;
     list=B.rows.map((r,i)=>i).filter(i=>{const r=B.rows[i];return f==='all'||(f==='win'&&both(r,b)&&!both(r,a))||(f==='loss'&&both(r,a)&&!both(r,b))||(f===r.t)});
-    $('ba-q').innerHTML=list.length?list.map(i=>'<option value="'+i+'">'+(i+1)+'. '+E(B.rows[i].q.length>80?B.rows[i].q.slice(0,78)+'...':B.rows[i].q)+'</option>').join(''):'<option>none</option>';
-    cur=list.length?list[0]:-1;
     const w=B.rows.filter(r=>both(r,b)&&!both(r,a)).length,l=B.rows.filter(r=>both(r,a)&&!both(r,b)).length;
     $('ba-note').innerHTML='Over all 200: both gold in the top 5 for '+B.rows.filter(r=>both(r,a)).length+' questions with A, '+B.rows.filter(r=>both(r,b)).length+' with B; B gains '+w+' and loses '+l+' <span class="meas">measured</span>.'+(QA?'':' Answers from each list are <span class="gr-pend">pending</span> (s_qa.py run 1.7b).');
-    A.reset(7)}
+    setPos(0)}
   function col(el,k,r,i){const top=r.top[si(k)];
     el.innerHTML='<h4>'+E(NAME[k]||k)+'</h4>'+top.map((t,j)=>{const g=r.g.includes(t),lk=k==='expand_title'&&r.lk[t];
       return '<div class="ba-r'+(g?' gold':'')+(j>=i?' hid':'')+'"><span class="k">'+(j+1)+'</span><span>'+E(B.titles[t])+(g?' <b style="color:var(--c2)">gold</b>':'')+'</span>'+(lk&&i>=6?'<span class="ba-lk">linked from "'+E(B.titles[lk[0]])+'": '+E(lk[2])+'</span>':'')+'</div>'}).join('')+
@@ -30,9 +29,10 @@
     $('ba-ctr').innerHTML='<span>gold found by A <b>'+ga+'</b> of 2</span><span>gold found by B <b>'+gb+'</b> of 2</span>'}
   const A=RD.anim({card:'ba-card',ctl:'ba-ctl',n:7,draw,ms:1200,label:'Rank'});
   $('ba-f').addEventListener('change',filt);
-  $('ba-q').addEventListener('change',e=>{cur=+e.target.value;A.reset(7)});
+  $('ba-prev').addEventListener('click',()=>{if(pos>0)setPos(pos-1)});
+  $('ba-next').addEventListener('click',()=>{if(pos<list.length-1)setPos(pos+1)});
   $('ba-a').addEventListener('change',e=>{a=e.target.value;filt()});
   $('ba-b').addEventListener('change',e=>{b=e.target.value;filt()});
   filt();
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-grba']=[()=>A.redraw()];
+  RD.onRender(()=>A.redraw());
 })();

@@ -1,10 +1,10 @@
-// ---- Graph build lab (t-grbuild) ----
+// ---- Reading: the fast-path build stepper (section 5), the hierarchy explorer and the global map-reduce stepper (section 6); moved from the old Graph build lab ----
 (function(){
   const D=window.GR,B=D.build,E=GRL.esc,$=id=>document.getElementById(id);
   if(!$('gb-card'))return;
   let src='nlp',qi=0;
   const Q=()=>(src==='llm'&&B.llm?B.llm.questions:B.questions)[qi];
-  $('gb-q').innerHTML=B.questions.map((q,i)=>'<option value="'+i+'">'+(i+1)+'. ['+q.type+'] '+E(q.q.length>90?q.q.slice(0,88)+'...':q.q)+'</option>').join('');
+  $('gb-q').innerHTML=B.questions.map((q,i)=>'<option value="'+i+'">'+(i+1)+'. '+E(q.q.length>60?q.q.slice(0,58)+'...':q.q)+'</option>').join('');
   const llmBtn=$('gb-src').querySelector('[data-m="llm"]');
   if(!B.llm){llmBtn.disabled=true;llmBtn.title='pending: no LLM extraction of the subset yet';llmBtn.textContent='LLM (pending)'}
   else llmBtn.textContent=B.llm.source==='agt'?'LLM (Qwen3-1.7B, Agentic lab prompt)':'LLM (Qwen3-1.7B, graphrag prompt)';
@@ -66,6 +66,5 @@
       const k=Math.min(i,R.length);$('gg-ctr').innerHTML='<span>map calls <b>'+k+'</b> of '+R.length+'</span><span>points kept so far <b>'+(a.map||[]).slice(0,k).reduce((s,m)=>s+m[2],0)+'</b></span><span>paragraphs behind the kept points <b>'+(i>R.length?a.paragraphs_behind_points:'&ndash;')+'</b></span>'}
     const GA=RD.anim({card:'gg-card',ctl:'gg-ctl',n:n(),draw:gd,ms:1500,label:'Global search step'});
     $('gg-q').addEventListener('change',e=>{gi=+e.target.value;GA.reset(n())});})();
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-grbuild']=[()=>A.redraw()];
-  addEventListener('resize',()=>{if(!$('t-grbuild').hidden)A.redraw()});
+  RD.onRender(()=>A.redraw());RD.onResize(()=>A.redraw());
 })();
