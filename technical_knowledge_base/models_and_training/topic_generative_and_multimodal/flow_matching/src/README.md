@@ -67,3 +67,10 @@ Why about 36 minutes is right: the page now carries flow matching from an empty 
 ## Departures from the page-kind shape
 - **Two data parts**: `make_page_data.py` needs numpy and Pillow (the shared generative venv); the absorbed recordings come through plain-Python `make_data_more.py`, which embeds the root's 70 KB sprite sheet for the convention-bug strips.
 - **No real photographs**: a mechanism page; the canonical rectified-flow figures are arXiv figures without an open licence, so they are redrawn (hero, clock) rather than embedded.
+
+## 2026-10-24, topic close
+- **Root data path**: the root retired its Flow lab tab and moved its data part to `../../src/retired/parts/33_js_fw_0data.js`; `make_data_more.py` and `check_data.py` read it there (rerun: FMY unchanged except its `src` string; `check_data.py` OK).
+- **Stale references**: section 9 now links consistency, progressive and adversarial distillation to Latent diffusion and diffusion transformers, section 10 (was Diffusion from zero, section 7). "You need" names Diffusion from zero's sections (forward process 1, schedules 2, targets and loss weighting 3, samplers 5, guidance 6) instead of re-teaching them; the page had no other re-teaching of diffusion mechanics to cut (sections 6, 10 and 12 compare paths, budgets and stochastic sampling from the flow side and already link there).
+- **Further reading**: the root card no longer points at the retired Flow and Diffusion lab tabs (the recordings are named as provenance, root `src/flow/out`, `src/diff/out`); times updated: diffusion from zero 36, latent diffusion 32 (33 after this pass), video and audio generation 28. Ledger units 365 and 368 (retired-tab reading times) are fat; 366 and 367 have new keys.
+- **Header unchanged**: 36 min core (8,332 words), 17 in closed details. Checks: checkpage fail=0, ledger problems 0, `check_data.py` and `check_page.mjs` OK.
+- Root fat audit (2026-10-24): "a second-order step with CFG costs four" passes restored in the solver-comparison mistake block (ledger unit 406). Reading time unchanged.
