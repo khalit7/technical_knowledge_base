@@ -1,19 +1,4 @@
-// ---- Capacity planner: run -> fleet -> own or rent. Same formulas as src/scripts/recompute.py ----
-window.OCP=(function(){
-  const PEAK={h100:989.5e12,b200:2250e12};
-  const MODELS={l405:['Llama 3.1 405B',405853388800,15.6],l70:['Llama 3.1 70B',70553706496,15.0],l8:['Llama 3.1 8B',8030261248,15.0]};
-  const LLAMA_RATE=419/(54*16384)*1000;
-  function run(k,n,interval){const flops=6*k.params*k.tokens_t*1e12,ideal=flops/(PEAK[k.gpu]*k.mfu)/3600,lam=k.rate_k/1000/24;
-    const mtbf=lam>0?1/(lam*n):Infinity,tau=interval/60,st=k.stall_s/3600,rs=k.restart_min/60;
-    let g=1-st/tau-(isFinite(mtbf)?(tau/2+rs)/mtbf:0);g=Math.max(g,0);
-    const wall=g>0?ideal/n/g:Infinity,paid=n*wall/(1-k.idle),yd=isFinite(mtbf)?Math.sqrt(2*st*mtbf)*60:Infinity;
-    return {flops,ideal_h:ideal,mtbf_h:mtbf,goodput:g,wall_days:wall/24,paid_h:paid,cost:paid*k.price,yd_min:yd}}
-  function runYD(k,n){const r0=run(k,n,60);return run(k,n,isFinite(r0.yd_min)?Math.max(1,Math.round(r0.yd_min)):60)}
-  function gpusFor(dl,k){for(let n=8;n<=200000;n+=8){if(runYD(k,n).wall_days<=dl)return n}return null}
-  function fleet(rg,ph,runs,extra,sched){const d=ph*runs*(1+extra),bh=d/(8760*sched);const n=Math.max(rg,Math.ceil(bh/8)*8);return {demand_h:d,by_hours:bh,gpus:n,binding:rg>=bh?'deadline':'hours'}}
-  function own(b){const cap=b.capex_gpu*(1+b.net)/b.life_y,en=b.kw_gpu*b.load*b.pue*8760*b.usd_kwh,op=b.ops*b.capex_gpu,a=cap+en+op;return {capital:cap,energy:en,ops:op,annual:a,per_hour:a/8760}}
-  return {PEAK,MODELS,LLAMA_RATE,run,runYD,gpusFor,fleet,own};
-})();
+// ---- Capacity planner tab UI (engine OCP in 16_js_oc_plan.js) ----
 (function(){
   const $=id=>document.getElementById(id);if(!$('oc-cp-card'))return;
   const P=OCP,B=(window.OC&&OC.buy)||{},PR=(window.OC&&OC.prices)||[];
@@ -50,16 +35,9 @@ window.OCP=(function(){
       RD.stat('Owning beats on-demand above',f0(be*100,0)+'% busy','$'+f0(o.per_hour,2)+' / $'+ov.usd.toFixed(2))+
       RD.stat('Fleet for a year',usd(fl.gpus*o.annual)+' owned','against '+usd(fl.gpus*rv.usd*8760)+' reserved; buying it costs '+usd(fl.gpus*b.capex_gpu*(1+b.net))+' up front');
     last={o,rv,ov,fu};draw()}
-  function draw(){if(!last)return;const {o,rv,ov,fu}=last,el=$('oc-cp-svg'),W=RD.width(el),H=210,L=46,R=10,T=10,Bm=34;
-    const xs=u=>L+(u-.1)/(.9)*(W-L-R),ymax=Math.ceil(Math.max(ov.usd*1.2,rv.usd/.35,o.per_hour/.2)/5)*5,ys=v=>T+(1-Math.min(v,ymax)/ymax)*(H-T-Bm);
-    let s='';for(let v=0;v<=ymax;v+=ymax>40?10:5){s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+ys(v)+'" y2="'+ys(v)+'" stroke="var(--line)"/>'+RD.t(L-4,ys(v)+3,'$'+v,{a:'end',fs:10,fill:'var(--mute)'})}
-    [.1,.25,.5,.75,1].forEach(u=>{s+=RD.t(xs(u),H-Bm+14,Math.round(u*100)+'%',{a:u>=1?'end':u<=.1?'start':'middle',fs:10,fill:'var(--mute)'})});
-    s+=RD.t((L+W-R)/2,H-4,'share of the GPU-hours you pay for that do useful work',{a:'middle',fs:10.5,fill:'var(--mute)'});
-    const line=(f,c)=>{let p='';for(let i=0;i<=60;i++){const u=.1+.9*i/60;p+=(i?'L':'M')+xs(u).toFixed(1)+' '+ys(f(u)).toFixed(1)}return '<path d="'+p+'" fill="none" stroke="'+c+'" stroke-width="2" clip-path="url(#oc-cp-clip)"/>'};
-    s+=line(u=>o.per_hour/u,'var(--c3)')+line(u=>rv.usd/u,'var(--c1)')+line(()=>ov.usd,'var(--c2)');
-    s+='<line x1="'+xs(fu)+'" x2="'+xs(fu)+'" y1="'+T+'" y2="'+(H-Bm)+'" stroke="var(--ink)" stroke-dasharray="3 3"/>'+RD.t(Math.min(xs(fu)+4,W-R-60),T+10,'this plan',{fs:10.5});
-    el.innerHTML=RD.svg(W,H,'<defs><clipPath id="oc-cp-clip"><rect x="'+L+'" y="'+T+'" width="'+(W-L-R)+'" height="'+(H-T-Bm)+'"/></clipPath></defs>'+s,'Cost per useful GPU-hour against utilisation');
-    $('oc-cp-cap').innerHTML='Cost per <b>useful</b> GPU-hour: owned and reserved capacity cost the same every hour, so their price per useful hour is the hourly cost divided by the share that does useful work; on-demand is flat but has no guaranteed capacity for a multi-node run. Owned comes to <b>$'+(o.per_hour/Math.max(fu,.01)).toFixed(2)+'</b> per useful hour at this plan’s '+Math.round(fu*100)+'% busy share, reserved to <b>$'+(rv.usd/Math.max(fu,.01)).toFixed(2)+'</b>. Every point of utilisation the dashboards win back moves both curves down. <span class="oc-der">derived</span>'}
+  function draw(){if(!last)return;const {o,rv,ov,fu}=last;
+    $('oc-cp-cap').innerHTML='Cost per <b>useful</b> GPU-hour: owned and reserved capacity cost the same every hour, so their price per useful hour is the hourly cost divided by the share that does useful work; on-demand is flat but has no guaranteed capacity for a multi-node run. Owned comes to <b>$'+(o.per_hour/Math.max(fu,.01)).toFixed(2)+'</b> per useful hour at this plan’s '+Math.round(fu*100)+'% busy share, reserved to <b>$'+(rv.usd/Math.max(fu,.01)).toFixed(2)+'</b>. Every point of utilisation the dashboards win back lowers both. <span class="oc-der">derived</span> The curve against the busy share is drawn in Reading section 10.';
+  }
   document.querySelectorAll('#oc-cp-card input,#oc-cp-card select').forEach(e=>{e.addEventListener('input',calc);e.addEventListener('change',calc)});
   calc();
   (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-cap']=window.TAB_RENDER['t-cap']||[]).push(draw);

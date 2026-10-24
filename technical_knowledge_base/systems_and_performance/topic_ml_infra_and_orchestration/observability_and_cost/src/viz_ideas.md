@@ -18,3 +18,9 @@ Question the page keeps returning to: which meter tells the truth about a GPU-ho
 - Price-history chart: a pattern Khalid removed; one dated snapshot (the root's table) is reused.
 - Goodput vs checkpoint interval curve and recovery-design comparisons: owned by the Fault tolerance sibling.
 - Cardinality explosion demo with per-job labels: taught on the SWE Observability page; only the sizing calculator here.
+
+## 2026-10-24 rebuild
+Built: the hero ladder (static: one GPU-hour through seven meters); goodput bars (static, measured); alert timeline (static, measured, defaults off the chart); fragmentation diagram (static, measured Kueue and Slurm cases); cost per useful GPU-hour against the busy share with one slider and four price kinds, plus cost per million training tokens (defaults land on recompute.py: owned $2.00 and Capacity Block $8.53 at 70%; breakeven 20% against on demand).
+Moved: the Metrics explainer from its own tab into Reading section 2; the healthy-against-hung stepper from section 4 to section 1.
+Removed: the planner tab's cost chart (now drawn once, in Reading section 10).
+Rejected: photos (no licensed GPU-dashboard image; an H100 card photo would decorate); a spot-eviction simulation (no sourced eviction rate).
