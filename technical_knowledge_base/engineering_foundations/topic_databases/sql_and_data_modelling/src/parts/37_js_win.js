@@ -37,6 +37,6 @@
   }
   window.RD_WIN={ids:R.map(r=>r.id),vals:Object.fromEntries(Object.keys(F).map(k=>[k,R.map((r,i)=>F[k].val(i))]))}; // for src/check_page.mjs
   const A=RD.anim({card:'rd-win-card',ctl:'rd-win-ctl',n:n,ms:900,label:'Row',draw});
-  RD.seg(document.getElementById('rd-win-fn'),m=>{mode=m;A.reset(n);A.play()});
+  RD.seg(document.getElementById('rd-win-fn'),m=>{mode=m;A.reset(n)});
   RD.onResize(()=>A.redraw());
 })();

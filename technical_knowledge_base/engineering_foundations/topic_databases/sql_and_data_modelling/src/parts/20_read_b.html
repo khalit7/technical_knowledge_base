@@ -1,21 +1,40 @@
-<section id="rd-s1">
-<h2>1. How a query runs: written in one order, evaluated in another</h2>
-<p><b>The problem.</b> You write <code>SELECT</code> first, so it is natural to think the database starts there. It does not, and that mismatch causes most beginner errors: an alias that "does not exist", an aggregate that is "not allowed here", a ranking you cannot filter on.</p>
-<p><b>The idea.</b> A SELECT statement is defined as a pipeline of steps, each producing a table that feeds the next. The {{PostgreSQL SELECT reference|https://www.postgresql.org/docs/current/sql-select.html}} lists the processing order; every SQL database follows the same logical order:</p>
-<div class="two">
-<div><h4>The order you write</h4><ol class="small" style="margin:0"><li>SELECT (and DISTINCT)</li><li>FROM, JOIN</li><li>WHERE</li><li>GROUP BY</li><li>HAVING</li><li>WINDOW</li><li>ORDER BY</li><li>LIMIT, OFFSET</li></ol></div>
-<div><h4>The order it is evaluated</h4><ol class="small" style="margin:0"><li><b>FROM and JOIN</b>: build the combined rows</li><li><b>WHERE</b>: keep rows whose condition is true</li><li><b>GROUP BY</b>: collapse rows into one per group</li><li><b>HAVING</b>: keep groups whose condition is true</li><li><b>SELECT</b>: compute the output columns, including window functions</li><li><b>DISTINCT</b>: remove duplicate output rows</li><li><b>ORDER BY</b>: sort (it can use output names)</li><li><b>LIMIT, OFFSET</b>: cut</li></ol></div>
+<section id="rd-s2">
+<h2>2. Joins: every pair, filtered</h2>
+<p>A <b>join</b> pairs every row of a left table with every row of a right table and keeps the pairs for which the <code>ON</code> condition is <i>true</i>. Read it that way and every kind of join follows. It is not a set intersection, which is why Venn-diagram pictures mislead: a left row appears once per matching right row, so zero, one or many times ({{Lukas Eder, "Say NO to Venn diagrams when explaining JOINs", jOOQ blog, 2016|https://blog.jooq.org/say-no-to-venn-diagrams-when-explaining-joins/}}). So draw the pairs:</p>
+<div class="card" id="rd-join-card">
+<h4 class="vt">Every join is the same grid of pairs; the kinds differ only in what they keep</h4>
+<p class="small">Five users (one with no country) against a list of markets (one market has no users). Each cell is one pair: <b style="color:var(--good)">filled</b> where <code>ON m.code = u.country</code> is true, blank where false, <b style="color:var(--c5)">U</b> where it is unknown because a NULL is involved. Predict which rows each join returns, then pick it; then add a market whose code is NULL and watch NOT IN.</p>
+<div class="seg" id="rd-join-mode"><button data-m="inner" class="on">INNER</button><button data-m="left">LEFT</button><button data-m="right">RIGHT</button><button data-m="full">FULL</button><button data-m="cross">CROSS</button><button data-m="semi">semi (EXISTS)</button><button data-m="anti">anti (NOT EXISTS)</button><button data-m="notin">NOT IN</button></div>
+<label class="small" style="display:block;margin:4px 0"><input type="checkbox" id="rd-join-null"> add a market whose code is NULL</label>
+<div class="rd-svg" id="rd-join-grid"></div>
+<pre class="code" id="rd-join-sql"></pre>
+<div id="rd-join-out"></div>
+<p class="small mute" id="rd-join-cap"></p>
 </div>
-<p>The root page animates this pipeline on nine sample rows ({{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}, Reading tab, section 2). Four rules follow from the order, and each one is a common error message:</p>
 <ul>
-<li><b>WHERE cannot use a name defined in SELECT</b>, because SELECT has not run yet. ORDER BY can, because it runs after.</li>
-<li><b>WHERE cannot use an aggregate</b> such as <code>COUNT(*)</code>, because groups do not exist yet; filter groups with HAVING.</li>
-<li><b>WHERE cannot use a window function</b> (section 4), because those are computed in the SELECT step; compute it in a subquery and filter outside.</li>
-<li><b>LIMIT without ORDER BY returns whichever rows the engine found first.</b> Without an ORDER BY, SQL promises no order at all, and the order can change when the data or the plan changes.</li>
+<li><b>INNER</b> keeps the filled cells. A user with no chats disappears; a user with seven chats appears seven times.</li>
+<li><b>LEFT</b> also keeps each left row that has no filled cell, with NULLs for the right side ("every user, with their chats if any"); <b>RIGHT</b> is the mirror image (usually rewritten as a LEFT with the tables swapped); <b>FULL</b> keeps unmatched rows from both sides, the join for reconciling two lists. SQLite gained RIGHT and FULL only in {{version 3.39.0, 2022-06-25|https://www.sqlite.org/releaselog/3_39_0.html}}.</li>
+<li><b>CROSS</b> keeps every cell: 50 users and 200 chats make 10,000 rows. Useful on purpose for a grid of every combination (report empty combinations as zero); a forgotten join condition does the same by accident.</li>
+<li><b>Semi</b> (<code>EXISTS</code> or <code>IN (subquery)</code>) keeps a left row once if its row has any filled cell; <b>anti</b> (<code>NOT EXISTS</code>, or LEFT JOIN keeping rows where the right key IS NULL) keeps it if none. Writing a semi join as a plain JOIN repeats rows, the classic source of "why do I have duplicates?" and of a <code>DISTINCT</code> added to hide it: 42 joined rows against 27 users below.</li>
 </ul>
-<div class="rq" data-ex="q_alias" data-title="An alias used in WHERE" data-why="SQLite resolves the alias as an extension; Postgres follows the standard and refuses. Code that works in a SQLite test can fail in production."></div>
-<p>This first box already shows a difference between engines: SQLite accepts the alias in WHERE, Postgres reports <code>column "doubled" does not exist</code>. Write <code>WHERE tokens * 2 &gt; 1780</code> and both agree. The lesson generalises: <b>test against the database you run in production</b>; SQLite is a fine engine, but its dialect is more permissive.</p>
-<div class="rq" data-ex="q_where_having" data-title="WHERE before grouping, HAVING after"></div>
-<p><b>NULL and three-valued logic.</b> NULL means "unknown", not zero or empty. Any comparison with NULL (<code>= NULL</code>, <code>&lt;&gt; 'US'</code> when the country is NULL) is neither true nor false but <i>unknown</i>, and WHERE keeps only rows where the condition is true. The root's playground has a NULL lesson (<code>COUNT(*)</code> against <code>COUNT(column)</code>, <code>IS NULL</code>, where NULLs sort); section 2 shows the most expensive consequence, in <code>NOT IN</code>.</p>
-<div class="co"><div class="t">The logical order is not the execution order</div>The pipeline above defines what the answer must be, not how it is computed. The planner (the part of the database that chooses how to run a query) is free to filter before joining, use an index instead of reading everything, or stop early under a LIMIT, as long as the result is the same. How it chooses, and how to read its plan, is the {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}} page and the root's Query plans tab.</div>
+<div class="rq" data-ex="j_semi" data-title="JOIN repeats rows; EXISTS does not"></div>
+<details class="dp"><summary>Three more runnable joins: FULL, CROSS for empty combinations, a self join, anti join three ways <span class="mute">(examples)</span></summary><div class="b">
+<div class="rq" data-ex="j_full" data-title="FULL OUTER JOIN: reconcile two lists"></div>
+<div class="rq" data-ex="j_cross" data-title="CROSS JOIN to report empty combinations as zero"></div>
+<p>A <b>self join</b> joins a table to itself under two names; with <code>parent_id</code>, each assistant reply sits next to the prompt it answers.</p>
+<div class="rq" data-ex="j_self" data-title="A self join: replies next to their prompts" data-cap="6"></div>
+<div class="rq" data-ex="j_anti" data-title="Users with no chats, three ways"></div>
+</div></details>
+<h3>Three joins that run and return the wrong answer</h3>
+<p><b>A LEFT JOIN filtered in WHERE becomes an inner join.</b> A condition on the right table in <code>WHERE</code> throws away the NULL rows LEFT JOIN kept, because <code>NULL = 'reasoning'</code> is unknown, not true: 27 users instead of 50. Conditions that should only limit what is matched belong in <code>ON</code>.</p>
+<div class="rq" data-ex="j_left_trap" data-title="Same LEFT JOIN, filter in WHERE against filter in ON"></div>
+<div class="pr" id="rd-pr-notin"></div>
+<div class="rq" data-ex="j_notin_null" data-title="The NOT IN trap, on real data"></div>
+<p><b>NOT IN with a NULL returns nothing.</b> <code>x NOT IN (a, b, NULL)</code> means <code>x &lt;&gt; a AND x &lt;&gt; b AND x &lt;&gt; NULL</code>; the last term is unknown for every x, so by the AND table the whole condition is never true (the U column in the grid above). Two of the five team-plan users have no country, so the subquery holds a NULL: 0 rows against NOT EXISTS's 31. NOT EXISTS asks a different question ("is there a matching row?") and is not affected. The Postgres project's advice is blunt, {{"Don't use NOT IN"|https://wiki.postgresql.org/wiki/Don't_Do_This#Don.27t_use_NOT_IN}} (PostgreSQL wiki), and it also tends to plan badly on large subqueries. Use NOT EXISTS.</p>
+<div class="card" id="rd-fan-card"><h4 class="vt">Fan-out: joining down two levels repeats each chat once per message</h4>
+<div class="rd-svg" id="rd-fan"></div>
+<p class="small mute" id="rd-fan-cap"></p></div>
+<p><b>Fan-out doubles your totals.</b> Join a parent to a child and a grandchild (or to two child tables) and aggregate, and each parent and child row is repeated once per grandchild row before the aggregate runs. Nothing errors. The rule: <b>aggregate each child table on its own, then join the results</b> (CTEs make this readable, section 5). <code>COUNT(DISTINCT c.id)</code> fixes a count but not a sum.</p>
+<div class="rq" data-ex="j_fanout" data-title="Counting chats through messages: wrong, then right"></div>
+<div class="co"><div class="t">What a join costs, and the index this page owns</div>How the database finds matching pairs (a loop, a hash table, or two sorted inputs) is on {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}. One modelling consequence belongs here: <b>Postgres indexes primary keys and UNIQUE columns automatically, but not foreign key columns</b>; the {{documentation on foreign keys|https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK}} recommends indexing the referencing column yourself, because joins and deletes of the parent need it.</div>
 </section>

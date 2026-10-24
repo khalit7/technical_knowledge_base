@@ -30,3 +30,8 @@ Question the page keeps returning to: "will this query, schema or schema change 
 ## Methodology notes for this page
 - Timings were noisy because other measurements ran on the same laptop: the page shows all repetitions and leans on index size and WAL bytes, which are stable.
 - Keys generated inside the database cost more than the insert itself (gen_random_uuid 12.9 s per 1M here), so generation is timed apart.
+
+## 2026-10-24 rebuild
+Built: evaluation-order figure; three-valued logic tables; join grid of pairs (added to the join explorer); fan-out on user 1; GROUP BY against OVER before/after; recursive CTE stepper; upsert race before/after (illustrative timing); eight modelling shapes; constraint refusals with Postgres errors; expand and contract stepper; checks on generated SQL.
+Removed: the B-tree page-split animation (owned by Storage engines and indexes, which draws and measures it and has a lab); linked instead.
+Rejected: an isolation-level view of the upsert race (Transactions and concurrency owns it); a time-zone timeline (the runnable boxes and one rule cover it; moved to a closed block).

@@ -1,41 +1,60 @@
-<section id="rd-s2">
-<h2>2. Joins in depth</h2>
-<p><b>The problem.</b> Normalised data (section 9) puts each fact in one table, so almost every real question needs rows from two or more tables at once: a chat's title with its owner's name, users with no chats, each reply next to its prompt. A <b>join</b> combines them.</p>
-<p><b>The idea.</b> A join pairs rows from a left table and a right table and keeps the pairs for which the <code>ON</code> condition is true. Read it that way, as "every pair, filtered", and every kind of join below follows. It is <i>not</i> a set intersection, which is why the familiar Venn-diagram pictures mislead: a left row appears once per matching right row, so zero, one or many times ({{Lukas Eder, "Say NO to Venn diagrams when explaining JOINs", jOOQ blog, 2016|https://blog.jooq.org/say-no-to-venn-diagrams-when-explaining-joins/}}).</p>
-<div class="card" id="rd-join-card">
-<h3 style="margin-top:0">Seven joins on the same two tables</h3>
-<p class="small">Five users (one with no country) and a small list of markets the company sells in (one market has no users). Pick a join; every output row is coloured by where its parts came from. Then add a market whose code is NULL and watch what happens to NOT IN.</p>
-<div class="seg" id="rd-join-mode"><button data-m="inner" class="on">INNER</button><button data-m="left">LEFT</button><button data-m="right">RIGHT</button><button data-m="full">FULL</button><button data-m="cross">CROSS</button><button data-m="semi">semi (EXISTS)</button><button data-m="anti">anti (NOT EXISTS)</button><button data-m="notin">NOT IN</button></div>
-<label class="small" style="display:block;margin:4px 0"><input type="checkbox" id="rd-join-null"> add a market whose code is NULL</label>
-<pre class="code" id="rd-join-sql"></pre>
-<div id="rd-join-out"></div>
-<p class="small mute" id="rd-join-cap"></p>
+<section id="rd-s3">
+<h2>3. Grouping: many rows become one per group</h2>
+<p><b>GROUP BY</b> collapses all rows sharing the grouping values into one row, and <b>aggregate functions</b> (<code>COUNT</code>, <code>SUM</code>, <code>AVG</code>, <code>MIN</code>, <code>MAX</code>) summarise each group. Every column in the SELECT list must then be grouped or aggregated; SQLite's leniency here (it picks an arbitrary row) is a lesson in the root's playground. A <b>window function</b> (section 4) computes the same aggregate but keeps every row. Same 16 rows, both ways:</p>
+<div class="card" id="rd-grp-card"><h4 class="vt">GROUP BY collapses the rows; OVER keeps them and writes the group's value on each</h4>
+<div class="seg" id="rd-grp-mode"><button data-m="group" class="on">GROUP BY role</button><button data-m="over">SUM(tokens) OVER (PARTITION BY role)</button></div>
+<pre class="code" id="rd-grp-sql"></pre>
+<div class="rd-svg" id="rd-grp"></div>
+<p class="small mute" id="rd-grp-cap"></p></div>
+<p><b>Several counts in one pass.</b> "Per model: messages, replies, reply tokens, distinct users" is conditional aggregation. The standard spelling is <code>FILTER (WHERE ...)</code>, supported by Postgres and SQLite ({{modern-sql.com's support table|https://modern-sql.com/feature/filter}}); without it, write <code>SUM(CASE WHEN ... THEN 1 ELSE 0 END)</code>. One scan replaces four queries:</p>
+<div class="rq" data-ex="a_filter" data-title="Conditional aggregation with FILTER"></div>
+<p><b>The NULL cells of aggregation:</b> <code>COUNT(column)</code> skips NULLs, so after a LEFT JOIN count the right table's key, not <code>*</code>, or every empty group counts as 1; <code>SUM</code> over zero rows is NULL, not 0 (wrap it in <code>COALESCE(SUM(x), 0)</code>); and an average of averages is wrong when groups differ in size (average the raw rows, or weight by count).</p>
+<details class="dp"><summary>Subtotals with ROLLUP, CUBE and GROUPING SETS, and the AVG type difference <span class="mute">(depth)</span></summary><div class="b">
+<p><code>GROUP BY ROLLUP (plan, model)</code> returns the per-plan-and-model rows, a subtotal row per plan (model shown as NULL) and a grand total (both NULL). <code>CUBE</code> and <code>GROUPING SETS</code> generalise it. SQLite has none of them, so this box is Postgres only. <code>AVG</code> of an integer column is a numeric with many digits in Postgres and a float in SQLite: round explicitly when you compare.</p>
+<div class="rq" data-ex="a_rollup" data-title="Subtotals with ROLLUP" data-cap="14"></div>
+</div></details>
+</section>
+
+<section id="rd-s4">
+<h2>4. Window functions: a value per row from its neighbours</h2>
+<p>Many questions need every row <i>and</i> something about its neighbours: rank each user by tokens, the time since the previous message, a running total, the latest message per chat (before window functions, slow self joins or correlated subqueries). A window function's <code>OVER (...)</code> has three parts: <code>PARTITION BY</code> splits rows into independent groups (all rows if absent); <code>ORDER BY</code> orders rows inside each partition (ranking and LAG/LEAD need it); the <b>frame</b> says which rows around the current one an aggregate sees (<code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code>: this row and the two before). <b>With an ORDER BY and no frame, the default is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code></b>: from the start of the partition to the current row <i>and every row tied with it</i> ({{SQLite window functions|https://www.sqlite.org/windowfunctions.html}}; Postgres {{documents the same default|https://www.postgresql.org/docs/current/sql-expressions.html#SYNTAX-WINDOW-FUNCTIONS}}).</p>
+<div class="card" id="rd-win-card">
+<h4 class="vt">The frame (outlined) is all the function sees for the current row</h4>
+<p class="small">The 16 messages of chat 11, in id order, values computed from the real rows. Pick a function, then step through the rows; predict LAST_VALUE with the default frame before you step it.</p>
+<div class="seg" id="rd-win-fn"><button data-m="sum" class="on">SUM(tokens)</button><button data-m="avg3">AVG, last 3 rows</button><button data-m="lag">LAG(tokens)</button><button data-m="rank">RANK() by tokens</button><button data-m="last">LAST_VALUE, default frame</button><button data-m="lastall">LAST_VALUE, whole partition</button></div>
+<pre class="code" id="rd-win-sql"></pre>
+<div class="an-ctl" id="rd-win-ctl"></div>
+<div class="rd-svg" id="rd-win-svg"></div>
+<div class="an-cap" id="rd-win-cap"></div>
 </div>
-<h3>Inner, left, right, full, cross</h3>
-<ul>
-<li><b>INNER JOIN</b> keeps only pairs that match. A user with no chats disappears; a user with seven chats appears seven times.</li>
-<li><b>LEFT JOIN</b> (LEFT OUTER JOIN) keeps every left row; where nothing matches, the right side's columns are NULL. This is how you get "every user, with their chats if any". <b>RIGHT JOIN</b> is the mirror image; most people rewrite it as a LEFT JOIN with the tables swapped.</li>
-<li><b>FULL OUTER JOIN</b> keeps unmatched rows from both sides. It is the join for reconciling two lists ("which markets have no users, and which users are in no market?"). SQLite gained RIGHT and FULL joins only in {{version 3.39.0, 2022-06-25|https://www.sqlite.org/releaselog/3_39_0.html}}.</li>
-<li><b>CROSS JOIN</b> pairs every row with every row (no ON). 50 users and 200 chats make 10,000 rows. Useful on purpose for building a grid of every combination, as below; dangerous by accident (a forgotten join condition does the same).</li>
-</ul>
-<div class="rq" data-ex="j_full" data-title="FULL OUTER JOIN: reconcile two lists"></div>
-<div class="rq" data-ex="j_cross" data-title="CROSS JOIN to report empty combinations as zero"></div>
-<h3>The LEFT JOIN that silently becomes an inner join</h3>
-<p>Put a condition on the right table in <code>WHERE</code> and the NULL rows that LEFT JOIN kept are thrown away, because <code>NULL = 'reasoning'</code> is not true. The query still runs and returns plausible numbers. Conditions that should only limit what is matched belong in <code>ON</code>:</p>
-<div class="rq" data-ex="j_left_trap" data-title="Same LEFT JOIN, filter in WHERE against filter in ON"></div>
-<h3>Self joins</h3>
-<p>A <b>self join</b> joins a table to itself under two names. With <code>parent_id</code>, each assistant reply can sit next to the prompt it answers:</p>
-<div class="rq" data-ex="j_self" data-title="A self join: replies next to their prompts" data-cap="6"></div>
-<h3>Semi and anti joins: "has at least one" and "has none"</h3>
-<p>A <b>semi join</b> keeps a left row if <i>some</i> right row matches, without repeating it per match: <code>EXISTS (subquery)</code> or <code>IN (subquery)</code>. An <b>anti join</b> keeps a left row if <i>no</i> right row matches: <code>NOT EXISTS</code>, or a LEFT JOIN keeping rows where the right key IS NULL. Writing a semi join as a plain JOIN repeats rows, the classic source of "why do I have duplicates?" and of a <code>DISTINCT</code> added to hide it:</p>
-<div class="rq" data-ex="j_semi" data-title="JOIN repeats rows; EXISTS does not"></div>
-<div class="rq" data-ex="j_anti" data-title="Users with no chats, three ways"></div>
-<div class="pr" id="rd-pr-notin"></div>
-<div class="rq" data-ex="j_notin_null" data-title="The NOT IN trap, on real data"></div>
-<p><b>Why.</b> <code>x NOT IN (a, b, NULL)</code> means <code>x &lt;&gt; a AND x &lt;&gt; b AND x &lt;&gt; NULL</code>; the last comparison is unknown for every x, so the whole condition is never true and every row is dropped. Two of the five team-plan users have no country, so the subquery contains NULL. <code>NOT EXISTS</code> asks a different question ("is there a matching row?") and is not affected. The Postgres project's own advice is blunt: {{"Don't use NOT IN"|https://wiki.postgresql.org/wiki/Don't_Do_This#Don.27t_use_NOT_IN}} (PostgreSQL wiki); it also tends to plan badly on large subqueries. Use NOT EXISTS.</p>
-<h3>Fan-out: the join that doubles your totals</h3>
-<p>Join a parent to two different child tables (or to a child and a grandchild) and aggregate, and each parent row is repeated once per child row before the aggregate runs. Counts and sums come out too large, and nothing errors:</p>
-<div class="rq" data-ex="j_fanout" data-title="Counting chats through messages: wrong, then right"></div>
-<p>The rule: <b>aggregate each child table on its own, then join the results</b> (CTEs make this readable, section 5). <code>COUNT(DISTINCT c.id)</code> fixes a count but not a sum.</p>
-<div class="co"><div class="t">What a join costs</div>A join is work proportional to how the database finds matching rows: by looping, by building a hash table, or by walking two sorted inputs. Which one it picks, and why joining on an indexed column matters, is on {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}. One modelling consequence belongs here: <b>Postgres indexes primary keys and UNIQUE columns automatically, but not foreign key columns</b>; the {{documentation on foreign keys|https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK}} recommends indexing the referencing column yourself, because joins and deletes of the parent need it.</div>
+<p><b>Two frame traps.</b> <code>LAST_VALUE</code> with the default frame returns the <i>current</i> row's value, because the frame ends at the current row; ask for the whole partition. And the default frame is RANGE, so rows tied on the ORDER BY value enter together: two chats opened on the same day get the same running count. Say <code>ROWS</code> when you mean rows.</p>
+<div class="rq" data-ex="w_range" data-title="RANGE (the default) against ROWS on tied days"></div>
+<p><b>Rankings.</b> <code>ROW_NUMBER()</code> numbers 1, 2, 3 even through ties (add a tie-breaker to its ORDER BY, or two runs can number tied rows differently); <code>RANK()</code> gives ties one number and leaves a gap (1, 1, 3); <code>DENSE_RANK()</code> leaves none (1, 1, 2). <b>Top N per group</b>, the most common production use: number the rows per partition in a subquery and keep <code>rn &lt;= N</code> outside (a window result cannot be filtered in the same SELECT's WHERE, section 1). Postgres also has <code>DISTINCT ON (user_id) ... ORDER BY user_id, ...</code> for N = 1.</p>
+<div class="rq" data-ex="w_topn" data-title="Top 2 chats per user"></div>
+<details class="dp"><summary>More runnable windows: ranks on ties, LAG for gaps, running totals, LAST_VALUE <span class="mute">(examples)</span></summary><div class="b">
+<div class="rq" data-ex="w_rank" data-title="ROW_NUMBER, RANK and DENSE_RANK on tied counts" data-cap="10"></div>
+<p><code>LAG(x)</code> and <code>LEAD(x)</code> read a column from the row before or after. Time arithmetic is a dialect difference: Postgres subtracts timestamps into an interval; SQLite has no time type, so this box uses <code>julianday</code> there.</p>
+<div class="rq" data-ex="w_lag" data-title="Seconds between messages with LAG"></div>
+<div class="rq" data-ex="w_running" data-title="Running total and a 3-row moving average" data-cap="6"></div>
+<div class="rq" data-ex="w_last" data-title="LAST_VALUE: the default frame surprises"></div>
+</div></details>
+</section>
+
+<section id="rd-s5">
+<h2>5. CTEs and recursive queries</h2>
+<p>A <b>common table expression</b>, <code>WITH name AS (SELECT ...)</code>, names a step of a query so later steps use it like a table (the fan-out fix in section 2 used two). <b>It usually costs nothing:</b> since PostgreSQL 12, a CTE that is referenced once, is not recursive and has no side effects is inlined into the main query and optimised with it; <code>MATERIALIZED</code> forces it to be computed once on its own, <code>NOT MATERIALIZED</code> forces inlining ({{PostgreSQL 12 release notes|https://www.postgresql.org/docs/release/12.0/}}; {{WITH queries|https://www.postgresql.org/docs/current/queries-with.html}}). Advice that "CTEs are an optimisation fence" describes Postgres 11 and earlier.</p>
+<p><b>Recursion.</b> <code>WITH RECURSIVE</code> is an anchor query, <code>UNION ALL</code>, and a step that joins the CTE's previous rows to find the next ones, repeated until a step adds no rows. It is how SQL walks a tree or graph of unknown depth: a reply thread, an org chart, a bill of materials, a category tree.</p>
+<div class="card" id="rd-rec-card"><h4 class="vt">Each iteration joins only the rows the last one added, and stops when it adds none</h4>
+<pre class="code" id="rd-rec-sql"></pre>
+<div class="an-ctl" id="rd-rec-ctl"></div>
+<div class="rd-svg" id="rd-rec"></div>
+<div class="an-cnt" id="rd-rec-cnt"></div>
+<div class="an-cap" id="rd-rec-cap"></div></div>
+<div class="rq" data-ex="c_up" data-title="Walk a thread upwards through parent_id"></div>
+<p>A second use: generating rows no table holds, such as every day in a range, so days with no messages show as zero instead of vanishing from a chart (Postgres has <code>generate_series</code>; in SQLite a recursive CTE does it).</p>
+<div class="co warn"><div class="t">When recursion goes wrong</div>A recursive query on a cycle (a message that is its own ancestor through bad data) never ends: guard with a depth limit (<code>WHERE depth &lt; 100</code>) or, in Postgres 14 and later, the <code>CYCLE</code> clause. Trees read far more than written are often stored differently (section 8); traversals many hops deep across large graphs are the graph section of {{NoSQL in practice|n:3ef5c17b0d0d81ec8456c41e4e8f5f6b}}.</div>
+<details class="dp"><summary>Two more recursive examples: an org chart with depth and path, filling empty days <span class="mute">(examples)</span></summary><div class="b">
+<div class="rq" data-ex="c_tree" data-title="An org chart, depth and path"></div>
+<div class="rq" data-ex="c_days" data-title="Fill the empty days" data-cap="10"></div>
+</div></details>
 </section>

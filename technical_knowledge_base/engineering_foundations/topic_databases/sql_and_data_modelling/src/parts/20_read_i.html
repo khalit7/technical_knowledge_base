@@ -1,7 +1,8 @@
 <section id="rd-s12">
-<h2>12. ORMs against raw SQL, and the N+1 query problem</h2>
-<p><b>The problem.</b> Application code works with objects (a <code>Chat</code> with a list of <code>Message</code>s); the database works with rows. Writing the SQL and the conversion by hand for every screen is repetitive and easy to get subtly wrong.</p>
-<p><b>The idea.</b> An <b>ORM</b> (object-relational mapper) maps tables to classes and rows to objects, writes the SQL for you, and tracks changes to objects so it can save them. In Python the standard is {{SQLAlchemy|https://docs.sqlalchemy.org/en/21/}} (2.1.3, released 2026-10-03 per {{PyPI|https://pypi.org/project/SQLAlchemy/}}); its 2.x style declares typed models and builds queries with <code>select()</code>. These are the models the measurement below used, mapped onto the existing chat tables:</p>
+<h2>12. SQL that an ORM or an LLM writes for you</h2>
+<p>Much production SQL is not written by hand: an <b>ORM</b> (object-relational mapper) generates it from classes, and LLMs generate it from questions (text-to-SQL features, agents with a database tool). Both produce SQL that runs; the two failures that matter are SQL that is <b>slow by shape</b> (too many round trips) and SQL that is <b>wrong or unsafe</b> (it returns plausible numbers, or does more than it should). This section shows each on the chat data, then the checks that catch them.</p>
+<h3>The N+1 query problem</h3>
+<p>An ORM maps tables to classes and rows to objects, writes the SQL, and tracks changes so it can save them; in Python the standard is {{SQLAlchemy|https://docs.sqlalchemy.org/en/21/}} (2.1.3, released 2026-10-03 per {{PyPI|https://pypi.org/project/SQLAlchemy/}}), whose 2.x style declares typed models and builds queries with <code>select()</code>. What it hides is the SQL and, above all, the number of <b>round trips</b> (one request and its reply over the network: a fraction of a millisecond to a millisecond or two inside one data centre, paid per query however small):</p>
 <pre class="code">class Chat(Base):
     __tablename__ = "chats"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -13,10 +14,9 @@
 chats = session.scalars(select(Chat).order_by(Chat.created_at.desc()).limit(50)).all()
 for c in chats:
     print(c.id, len(c.messages))      # each c.messages here is a new query</pre>
-<p><b>What an ORM gives you:</b> less boilerplate for create, read, update and delete; queries composed from Python pieces; parameters bound safely by default (section 13); an <i>identity map</i> (one object per row per session) and a <i>unit of work</i> (changes flushed in a valid order); and models that Alembic can diff. <b>What it costs:</b> the SQL and, above all, the number of round trips to the database are hidden. A <b>round trip</b> is one request and its reply over the network; inside one data centre it is a fraction of a millisecond to a millisecond or two, and it is paid per query, however small the query.</p>
-<p><b>The N+1 query problem.</b> The loop above runs 1 query for the chats and then, because relationships load lazily by default (only when first touched), 1 more query per chat: N+1 in total. The {{SQLAlchemy documentation|https://docs.sqlalchemy.org/en/21/orm/queryguide/relationships.html}} names it as "one of the most common issues referred to in object relational mapping". It is invisible in development, where the database is on the same machine and there are ten rows, and it grows linearly with the page size and the network distance. Measured for this page:</p>
+<p>The loop runs 1 query for the chats and then, because relationships load lazily by default (only when first touched), 1 more per chat: <b>N+1 in total</b>. The {{SQLAlchemy documentation|https://docs.sqlalchemy.org/en/21/orm/queryguide/relationships.html}} names it as "one of the most common issues referred to in object relational mapping". It is invisible in development, where the database is on the same machine and there are ten rows, and grows linearly with the page size and the network distance. Predict how many times slower the lazy loop is at N = 200 through 1 ms of network, then pick it:</p>
 <div class="card" id="rd-n1-card">
-<h3 style="margin-top:0">Four ways to load N chats with their messages <span class="meas">measured</span></h3>
+<h4 class="vt">Lazy loading pays one round trip per row; selectinload pays two in all <span class="meas">measured</span></h4>
 <p class="small">PostgreSQL 16.2, SQLAlchemy 2.1.3, psycopg 3.3.6, the chat data with an index on <code>messages.chat_id</code>. Each bar is the median of 30 runs of "load the N most recent chats, with each one's message count and last message"; every SQL statement sent was counted. "Through 1 ms of network" sends the same traffic through a small proxy that adds 0.5 ms each way, about the round trip between two machines in one region. All four return identical results.</p>
 <div class="seg" id="rd-n1-n"><button data-m="10">N = 10</button><button data-m="50" class="on">N = 50</button><button data-m="200">N = 200</button></div>
 <div class="seg" id="rd-n1-p"><button data-m="direct">same machine</button><button data-m="proxy_1ms" class="on">through 1 ms of network</button></div>
@@ -24,26 +24,12 @@ for c in chats:
 <div class="out" id="rd-n1-stats"></div>
 <p class="small" id="rd-n1-note"></p>
 </div>
-<div class="two">
-<div><h4>The fixes, in SQLAlchemy</h4><ul class="tight">
-<li><code>selectinload(Chat.messages)</code>: a second query <code>WHERE chat_id IN (...)</code> loads all the children at once; 2 queries whatever N. The documentation calls it {{"the most simple and efficient way to eagerly load collections"|https://docs.sqlalchemy.org/en/21/orm/queryguide/relationships.html}}.</li>
-<li><code>joinedload(Chat.messages)</code>: one query with a LEFT JOIN; each chat's columns repeat once per message, so it suits many-to-one (a message's chat) better than one-to-many.</li>
-<li><code>raiseload("*")</code> in tests or on hot paths turns any accidental lazy load into an error, so N+1 cannot creep back.</li>
-<li>Or write the query: one SQL statement that aggregates in the database returns only what the screen needs.</li>
-</ul></div>
-<div><h4>What professionals do</h4><ul class="tight">
-<li>ORM for ordinary reads and writes; hand-written SQL (SQLAlchemy Core, <code>text()</code>, or sqlc) for reports and anything performance-critical.</li>
-<li>Look at the SQL: <code>create_engine(..., echo=True)</code> in development, and per-request query counts in tracing ({{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}).</li>
-<li>Assert query counts in tests for important endpoints.</li>
-<li>Paginate by key, not by OFFSET ({{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}} measures why).</li>
-</ul></div>
-</div>
-</section>
-
-<section id="rd-s13">
-<h2>13. SQL injection and parameterised queries</h2>
-<p><b>The problem.</b> If a program builds SQL by pasting user input into the query text, the input can change the query's meaning. That is <b>SQL injection</b>, still near the top of the {{OWASP|https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html}} list of web risks. The demo below is a real "find my account" lookup running in the page's database; try the inputs.</p>
+<details class="dp"><summary>What an ORM gives you in return <span class="mute">(depth)</span></summary><div class="b"><p>Less boilerplate for create, read, update and delete; queries composed from Python pieces; parameters bound safely by default; an <i>identity map</i> (one object per row per session); a <i>unit of work</i> (changes flushed in a valid order); and models Alembic can diff.</p></div></details>
+<p><b>The fixes:</b> <code>selectinload(Chat.messages)</code> loads all the children with a second query <code>WHERE chat_id IN (...)</code>, 2 queries whatever N (the documentation calls it {{"the most simple and efficient way to eagerly load collections"|https://docs.sqlalchemy.org/en/21/orm/queryguide/relationships.html}}); <code>joinedload(Chat.messages)</code> uses one LEFT JOIN, but each chat's columns repeat once per message (fan-out again), so it suits many-to-one (a message's chat) better than one-to-many; <code>raiseload("*")</code> in tests or on hot paths turns any accidental lazy load into an error, so N+1 cannot creep back; or write one SQL statement that aggregates in the database and returns only what the screen needs. In practice: the ORM for ordinary reads and writes, hand-written SQL (SQLAlchemy Core, <code>text()</code>, or sqlc) for reports and anything performance-critical, and paginate by key, not by OFFSET ({{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}} measures why).</p>
+<h3>SQL injection, live</h3>
+<p>If a program builds SQL by pasting input into the query text, the input can change the query's meaning: <b>SQL injection</b>, still near the top of the {{OWASP|https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html}} list of web risks. A real "find my account" lookup in the page's database; try the inputs:</p>
 <div class="card" id="rd-inj-card">
+<h4 class="vt">The same input is SQL on the left and a value on the right</h4>
 <label class="small">Email to look up: <input id="rd-inj-in" type="text" value="femi.okafor@example.com" style="width:100%;max-width:420px;font-family:ui-monospace,Menlo,monospace" spellcheck="false" autocapitalize="off"></label>
 <div class="chips" id="rd-inj-chips"><button data-v="femi.okafor@example.com">a normal email</button><button data-v="x' OR '1'='1">x' OR '1'='1</button><button data-v="x' UNION SELECT id, email, CAST(balance AS TEXT) FROM credits JOIN users ON users.id = credits.user_id --">a UNION that reads another table</button><button data-v="x'; UPDATE credits SET balance = 999999; --">a second statement</button><button data-v="O'Reilly@example.com">an honest apostrophe</button></div>
 <div class="two">
@@ -52,41 +38,49 @@ for c in chats:
 </div>
 <p class="small mute" id="rd-inj-note"></p>
 </div>
-<p><b>The fix: parameterised queries.</b> Write the query with placeholders (<code>?</code> in SQLite, <code>%s</code> in psycopg, <code>:name</code> in SQLAlchemy's <code>text()</code>) and pass the values separately. The value is then data, never SQL, whatever it contains; an apostrophe in a real name stops being a bug too. Psycopg 3 goes further and {{"sends the query and the parameters to the server separately"|https://www.psycopg.org/psycopg3/docs/basic/from_pg2.html}}; its documentation's rule is {{"Never use % or + to merge values into queries"|https://www.psycopg.org/psycopg3/docs/basic/params.html}}.</p>
+<p><b>The fix: parameterised queries.</b> Write placeholders (<code>?</code> in SQLite, <code>%s</code> in psycopg, <code>:name</code> in SQLAlchemy's <code>text()</code>) and pass the values separately; the value is then data, never SQL, and an apostrophe in a real name stops being a bug too. Psycopg 3 {{"sends the query and the parameters to the server separately"|https://www.psycopg.org/psycopg3/docs/basic/from_pg2.html}}; its rule is {{"Never use % or + to merge values into queries"|https://www.psycopg.org/psycopg3/docs/basic/params.html}}.</p>
 <pre class="code"># wrong: the input becomes part of the SQL
 cur.execute(f"SELECT id FROM users WHERE email = '{email}'")
 # right: the input is a value
 cur.execute("SELECT id FROM users WHERE email = %s", (email,))
 # SQLAlchemy
 session.execute(text("SELECT id FROM users WHERE email = :e"), {"e": email})</pre>
+<p><b>Identifiers cannot be parameters:</b> a table name, a sort column or ASC/DESC from input must come from an allow-list in your code, or be quoted with <code>psycopg.sql.Identifier</code> ({{psycopg.sql|https://www.psycopg.org/psycopg3/docs/api/sql.html}}). <b>An ORM protects you only while you use it as intended:</b> <code>text()</code> or raw SQL built with f-strings is as vulnerable as anything else. <b>Defence in depth:</b> the application's role gets only the privileges it needs (no DDL, no superuser), and row-level security (section 8) limits what a successful injection could read.</p>
+<h3>Checking generated SQL</h3>
+<p><b>LLM-written SQL is untrusted input of the same kind as user input</b>, and like ORM SQL it fails in the ways this page has shown: it runs and returns plausible numbers. The checks, each pointing at the section that explains it:</p>
+<div class="card" id="rd-chk-card"><h4 class="vt">Where each check sits between the generator and the data</h4>
+<div class="rd-svg" id="rd-chk"></div>
+<p class="small mute">Safety boundaries (right) hold even when every review (left) misses something. Text-to-SQL itself (schema retrieval, how the model is prompted) is {{GraphRAG and structured retrieval|n:3f85c17b0d0d81e2bb4cdbb749e48a5a}}; agent tool security is {{Agent security|n:3f15c17b0d0d81ad9fb7d1dd74217335}}.</p></div>
 <ul>
-<li><b>Identifiers cannot be parameters.</b> A table name, a column to sort by or ASC/DESC from user input must come from an allow-list in your code, or be quoted with <code>psycopg.sql.Identifier</code> ({{psycopg.sql|https://www.psycopg.org/psycopg3/docs/api/sql.html}}).</li>
-<li><b>An ORM protects you only while you use it as intended</b>: <code>text()</code> or raw SQL built with f-strings is as vulnerable as anything else.</li>
-<li><b>Defence in depth:</b> the application's database role gets only the privileges it needs (no DDL, no superuser), and row-level security (section 10) limits what a successful injection could read.</li>
-<li><b>LLM-written SQL</b> (text-to-SQL features, agents with a database tool) is untrusted input of the same kind: run it as a read-only role, with row-level security, a statement_timeout and a row limit, never as the application's owner role.</li>
+<li><b>Look at the SQL and count it:</b> <code>create_engine(..., echo=True)</code> in development, per-request query counts in tracing ({{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}), query counts asserted in tests for important endpoints.</li>
+<li><b>Read it for the traps</b>: a LEFT JOIN filtered in WHERE, NOT IN over a nullable column, fan-out in an aggregate, LIMIT without ORDER BY, a default window frame (sections 1 to 4).</li>
+<li><b>Check the rows, not that it ran</b>: write the expected result first (a count you know, a total from another source) and compare.</li>
+<li><b>Run it as a read-only role</b>, with row-level security, a <code>statement_timeout</code> and a row limit, never as the application's owner role; on the production engine's dialect (section 1).</li>
 </ul>
 </section>
 
-<section id="rd-s14">
-<h2>14. Common mistakes, and the habits that prevent them</h2>
-<div class="mist-list">
-<details class="mist"><summary>A LEFT JOIN filtered in WHERE</summary><div class="b">Turns into an inner join and drops the rows you kept on purpose. Put conditions on the right table in ON (section 2).</div></details>
-<details class="mist"><summary>NOT IN over a column that can be NULL</summary><div class="b">Returns no rows at all. Use NOT EXISTS (section 2).</div></details>
-<details class="mist"><summary>Aggregating across two joined child tables</summary><div class="b">Fan-out multiplies counts and sums. Aggregate each child on its own, then join (section 2).</div></details>
-<details class="mist"><summary>LIMIT without ORDER BY, or ROW_NUMBER without a tie-breaker</summary><div class="b">The rows you get can change between runs. Order by something unique (section 1, section 4).</div></details>
-<details class="mist"><summary>Window frames left to the default</summary><div class="b">LAST_VALUE returns the current row; RANGE includes ties. Write the frame you mean (section 4).</div></details>
-<details class="mist"><summary>Read, then insert or update, in application code</summary><div class="b">Races under concurrency. Use one atomic INSERT ... ON CONFLICT (section 6).</div></details>
-<details class="mist"><summary>Plain timestamp for instants, fixed offsets for zones</summary><div class="b">Ambiguous times and wrong day boundaries twice a year. timestamptz, IANA zone names, convert at the edges (section 7).</div></details>
-<details class="mist"><summary>A natural key (email) as the primary key; integer instead of bigint</summary><div class="b">Keys that change or run out. Surrogate bigint or UUID v7 plus UNIQUE on the natural key (section 8).</div></details>
-<details class="mist"><summary>Copying facts without an owner</summary><div class="b">Denormalised copies drift. Every copy needs a sync mechanism and a reconciliation query (section 9).</div></details>
-<details class="mist"><summary>Rules only in application code; unindexed foreign keys</summary><div class="b">Put rules in the schema; index the referencing column of every foreign key you join on or delete through (sections 2 and 10).</div></details>
-<details class="mist"><summary>Soft deletes everywhere by default</summary><div class="b">Leaks deleted data, breaks unique constraints and foreign keys, and does not erase anything. Use them only where users undo, with a partial unique index and a purge job (section 10).</div></details>
-<details class="mist"><summary>A migration without lock_timeout; an index built without CONCURRENTLY</summary><div class="b">A queued ACCESS EXCLUSIVE lock blocks every query behind it; a plain CREATE INDEX blocks writes. Bound the wait and use the non-blocking forms (section 11 and the ALTER TABLE tab).</div></details>
-<details class="mist"><summary>Renaming or dropping a column in one step</summary><div class="b">Breaks the old code still running during the deploy. Expand and contract (section 11).</div></details>
-<details class="mist"><summary>Lazy loading in a loop</summary><div class="b">N+1 queries; at 200 rows over 1 ms of network, measured at hundreds of milliseconds. selectinload, raiseload in tests, or one SQL query (section 12).</div></details>
-<details class="mist"><summary>Building SQL with string formatting</summary><div class="b">Injection, and broken queries for names with apostrophes. Bound parameters; allow-lists for identifiers (section 13).</div></details>
-<details class="mist"><summary>Testing on SQLite, running on Postgres</summary><div class="b">The dialects differ in ways that matter (aliases in WHERE, loose GROUP BY, foreign keys off by default, typing). Test against the production engine; run Postgres in a container or with pgserver in CI.</div></details>
-</div>
-<div class="co key"><div class="t">The habits, in one list</div>Write the expected result before the query, then check the rows, not just that it ran. Name things consistently. Every rule you can in the schema. Every schema change through a reviewed, linted, timed migration with a lock timeout. Look at the SQL your ORM sends and count it. Bind every value. Test on the engine you run. Then, when it is correct, make it fast: {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}} and {{Transactions and concurrency|n:3ef5c17b0d0d8155aa64ddeb09da144e}} are the next pages.</div>
+<section id="rd-s13">
+<h2>Depth: a review checklist</h2>
+<details class="dp"><summary>The mistakes this page teaches, one line each, with the habit that prevents it <span class="mute">(review list)</span></summary><div class="b">
+<ul class="tight">
+<li><b>A LEFT JOIN filtered in WHERE</b> turns into an inner join: conditions on the right table go in ON (section 2).</li>
+<li><b>NOT IN over a column that can be NULL</b> returns no rows: use NOT EXISTS (section 2).</li>
+<li><b>Aggregating across two joined child tables</b> multiplies counts and sums: aggregate each child, then join (section 2).</li>
+<li><b>LIMIT without ORDER BY, or ROW_NUMBER without a tie-breaker</b>: rows can change between runs; order by something unique (sections 1 and 4).</li>
+<li><b>Window frames left to the default</b>: LAST_VALUE returns the current row, RANGE includes ties; write the frame you mean (section 4).</li>
+<li><b>Read, then insert or update, in application code</b> races: one atomic INSERT ... ON CONFLICT (section 6).</li>
+<li><b>Plain timestamp for instants, fixed offsets for zones</b>: ambiguous times and wrong day boundaries twice a year; timestamptz and IANA names (section 10).</li>
+<li><b>A natural key (email) as the primary key; integer instead of bigint</b>: keys that change or run out; surrogate bigint or UUID v7 plus UNIQUE on the natural key (section 7).</li>
+<li><b>Copying facts without an owner</b>: copies drift; a sync mechanism and a reconciliation query for each (section 9).</li>
+<li><b>Rules only in application code; unindexed foreign keys</b>: rules in the schema; index the referencing column of every foreign key you join on or delete through (sections 2 and 10).</li>
+<li><b>Soft deletes everywhere by default</b>: leaks deleted data, breaks unique constraints and foreign keys, erases nothing; only where users undo, with a partial unique index and a purge job (section 8).</li>
+<li><b>A migration without lock_timeout; an index built without CONCURRENTLY</b>: a queued ACCESS EXCLUSIVE lock blocks every query behind it, a plain CREATE INDEX blocks writes (section 11).</li>
+<li><b>Renaming or dropping a column in one step</b> breaks the old code still running during the deploy: expand and contract (section 11).</li>
+<li><b>Lazy loading in a loop</b>: N+1 queries, hundreds of milliseconds at 200 rows over 1 ms of network; selectinload, raiseload in tests, or one SQL query (section 12).</li>
+<li><b>Building SQL with string formatting</b>: injection, and broken queries for names with apostrophes; bound parameters, allow-lists for identifiers (section 12).</li>
+<li><b>Testing on SQLite, running on Postgres</b>: the dialects differ in ways that matter; test against the production engine (section 1).</li>
+</ul>
+<p>When it is correct, make it fast: {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}} and {{Transactions and concurrency|n:3ef5c17b0d0d8155aa64ddeb09da144e}} are the next pages.</p>
+</div></details>
 </section>
 </div>

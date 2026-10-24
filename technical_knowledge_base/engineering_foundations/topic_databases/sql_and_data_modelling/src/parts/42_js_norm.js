@@ -46,7 +46,7 @@
     document.getElementById('rd-norm-cap').innerHTML='<div class="t">'+(wide?'One wide table':'Normalised')+', step '+(i+1)+' of '+STEPS+'</div><p>'+C[mode][i]+'</p>';
   }
   const A=RD.anim({card:'rd-norm-card',ctl:'rd-norm-ctl',n:STEPS,ms:2600,label:'Step',draw});
-  RD.seg(document.getElementById('rd-norm-mode'),m=>{mode=m;A.reset(STEPS);A.play()});
+  RD.seg(document.getElementById('rd-norm-mode'),m=>{mode=m;A.reset(STEPS)});
   RD.onResize(()=>A.redraw());
   window.RD_NORM={N,K,BUG}; // for src/check_page.mjs and recompute.py
 })();

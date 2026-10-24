@@ -5,7 +5,7 @@ const require = createRequire(path.join(here, '../../../../../html_utils/package
 const puppeteer = require('puppeteer');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
-const cards = (process.argv[2] || 'rd-schema-card,rd-join-card,rd-win-card,rd-btree-card,rd-keys-card,rd-norm-card,rd-q-card,rd-n1-card,rd-inj-card').split(',');
+const cards = (process.argv[2] || 'rd-schema-card,rd-pipe-card,rd-3vl,rd-join-card,rd-fan-card,rd-grp-card,rd-win-card,rd-rec-card,rd-ups-card,rd-keys-card,rd-shape-card,rd-norm-card,rd-con-card,rd-q-card,rd-ec-card,rd-n1-card,rd-inj-card,rd-chk-card').split(',');
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); await p.setViewport({ width, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
   await p.goto('file://' + path.join(here, '..', 'index.html')); await p.waitForFunction(() => window.SM && SM.S.SQL, { timeout: 20000 });

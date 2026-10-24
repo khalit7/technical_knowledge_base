@@ -63,9 +63,13 @@ window.SM=(function(){
     const ta=el.querySelector('textarea'),L=el.querySelector('.rq-l'),P=el.querySelector('.rq-p'),C=el.querySelector('.rq-cmp');
     const sql0=pgOnly?(e.pg||e.sql):e.sql;ta.value=sql0;ta.rows=Math.min(18,sql0.split('\n').length+1);
     const pgres=e.pgres||[];
-    function drawPg(difs){P.innerHTML='<div class="rq-lab">'+esc(PGL)+(e.pg&&!pgOnly?' (Postgres spelling of the same query below)':'')+'</div>'+
-      (e.pg&&!pgOnly?'<details class="mist"><summary class="small">The Postgres version of this SQL</summary><div class="b"><pre class="code">'+esc(e.pg)+'</pre></div></details>':'')+list(pgres,cap,difs)}
+    // engines that agree offline (Python's SQLite against Postgres): the Postgres result is folded away, so the box shows one result, not two
+    const agree=!pgOnly&&(e.pyres||[]).length>0&&cmpLists(e.pyres,pgres,e.cmp).nd===0;
+    function drawPg(difs){const body=(e.pg&&!pgOnly?'<details class="mist"><summary class="small">The Postgres version of this SQL</summary><div class="b"><pre class="code">'+esc(e.pg)+'</pre></div></details>':'')+list(pgres,cap,difs);
+      P.innerHTML=agree&&!(difs&&difs.some(Boolean))?'<details class="mist rq-pgd"><summary class="small">'+esc(PGL)+': the same result</summary><div class="b">'+body+'</div></details>'
+        :'<div class="rq-lab">'+esc(PGL)+(e.pg&&!pgOnly?' (Postgres spelling of the same query below)':'')+'</div>'+body}
     if(pgOnly){L.remove();el.querySelector('.rq-o').style.gridTemplateColumns='1fr';drawPg();C.remove();return}
+    if(agree)el.querySelector('.rq-o').classList.add('rq-one');
     let ran=false;
     function go(){
       const edited=ta.value.trim()!==sql0.trim();

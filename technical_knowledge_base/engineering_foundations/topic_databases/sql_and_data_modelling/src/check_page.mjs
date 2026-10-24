@@ -63,9 +63,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     const r = document.getElementById('al-rows'); for (const v of [5, 8, 10]) { r.value = v; r.dispatchEvent(new Event('input')) } const c = document.getElementById('al-only'); c.click(); c.click() });
   await p.screenshot({ path: path.join(shots, `my-alter-${scheme}-${width}.png`), fullPage: true });
   // page JS against recompute.py
-  const js = await p.evaluate(() => ({ win: RD_WIN, bt: Object.fromEntries(Object.entries(RD_BT).map(([k, s]) => { const st = s[s.length - 1]; const C = 6; const used = st.leaves.reduce((a, l) => a + l.length, 0); return [k, { leaves: st.leaves.length, splits: st.splits, fill: Math.round(100 * used / (st.leaves.length * C)) }] })), norm: { N: RD_NORM.N, K: RD_NORM.K, BUG: RD_NORM.BUG }, M: SM_DATA.M }));
+  const js = await p.evaluate(() => ({ win: RD_WIN, norm: { N: RD_NORM.N, K: RD_NORM.K, BUG: RD_NORM.BUG }, M: SM_DATA.M }));
   say(JSON.stringify(js.win.vals) === JSON.stringify(RC.win) && JSON.stringify(js.win.ids) === JSON.stringify(RC.win_ids), `${scheme}: window animation values equal recompute.py`);
-  say(JSON.stringify(js.bt) === JSON.stringify(RC.bt), `${scheme}: B-tree model equals recompute.py ${JSON.stringify(js.bt)}`);
   say(JSON.stringify(js.norm) === JSON.stringify(RC.norm), `${scheme}: normalisation counters equal recompute.py ${JSON.stringify(js.norm)}`);
   say(JSON.stringify(js.M) === JSON.stringify(RC.M), `${scheme}: numbers in the text equal recompute.py`);
   // every tab: NaN / undefined text, sideways scroll and its culprits

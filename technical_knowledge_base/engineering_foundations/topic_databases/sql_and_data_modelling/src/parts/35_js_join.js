@@ -43,6 +43,34 @@
     notin:'Looks like the anti join, but Dara is missing even now: her country is NULL, and NULL NOT IN (...) is unknown, not true.'};
   const CAPN={notin:'With a NULL in the list, every comparison against it is unknown, so no row can pass: zero rows. NOT EXISTS (try "anti") is unaffected.',
     anti:'Still Chen and Dara: NOT EXISTS ignores the NULL market, because NULL = anything never matches.'};
+
+  // the grid of pairs: users down, markets across; filled where ON is TRUE, U where it is unknown (a NULL on either side)
+  function drawGrid(withNull){
+    const g=document.getElementById('rd-join-grid');if(!g)return;
+    const M=withNull?M0.concat([[null,'(code unknown)']]):M0;
+    const W=RD.width(g),lw=W<420?78:96,cw=Math.min(78,Math.floor((W-lw-90)/M.length)),rh=26,top=34,kx=lw+cw*M.length+8;
+    const has=u=>M.some(m=>eq(m[0],u[2])),unk=(u,m)=>u[2]===null||m[0]===null;
+    const keepRow=u=>{if(mode==='semi')return has(u);if(mode==='anti')return !has(u);
+      if(mode==='notin'){if(u[2]===null)return false;if(M.some(m=>m[0]===null))return false;return !has(u)}return null};
+    const keepCell=(u,m)=>mode==='cross'?true:(['inner','left','right','full'].includes(mode)?eq(m[0],u[2]):false);
+    let s=RD.t(lw-8,top-8,'users ↓',{fs:10.5,a:'end',fill:'var(--mute)'});
+    M.forEach((m,j)=>{s+=RD.t(lw+cw*j+cw/2,top-8,m[0]===null?'NULL':m[0],{fs:11.5,a:'middle',w:600,fill:m[0]===null?'var(--c5)':'var(--c2)'})});
+    U.forEach((u,i)=>{const y=top+i*rh;
+      s+=RD.t(lw-8,y+17,u[1]+' ('+(u[2]===null?'NULL':u[2])+')',{fs:11.5,a:'end',fill:u[2]===null?'var(--c5)':'var(--c1)'});
+      M.forEach((m,j)=>{const x=lw+cw*j,on=eq(m[0],u[2]),un=unk(u,m),kept=keepCell(u,m);
+        s+='<rect x="'+(x+2)+'" y="'+(y+2)+'" width="'+(cw-4)+'" height="'+(rh-4)+'" rx="4" fill="'+(on?'color-mix(in srgb,var(--good) 35%,transparent)':'var(--soft)')+'" stroke="'+(kept?'var(--acc)':'var(--line)')+'" stroke-width="'+(kept?2:1)+'"/>';
+        if(un)s+=RD.t(x+cw/2,y+17,'U',{fs:11.5,a:'middle',w:600,fill:'var(--c5)'});else if(on)s+=RD.t(x+cw/2,y+17,'TRUE',{fs:10.5,a:'middle',fill:'var(--good)'});});
+      const kr=keepRow(u);let tag='';
+      if(kr!==null)tag=kr?'kept':'dropped';
+      else if((mode==='left'||mode==='full')&&!has(u))tag='kept + NULLs';
+      else if(['inner','right'].includes(mode)&&!has(u))tag='gone';
+      if(tag)s+=RD.t(kx,y+17,tag,{fs:11,w:600,fill:tag==='dropped'||tag==='gone'?'var(--bad)':'var(--good)'});
+    });
+    let y=top+U.length*rh+4;
+    if(mode==='right'||mode==='full'){M.forEach((m,j)=>{if(!U.some(u=>eq(m[0],u[2])))s+=RD.t(lw+cw*j+cw/2,y+12,'kept + NULLs',{fs:10.5,a:'middle',w:600,fill:'var(--good)'})});y+=16}
+    else if(mode==='inner'||mode==='left'){M.forEach((m,j)=>{if(!U.some(u=>eq(m[0],u[2])))s+=RD.t(lw+cw*j+cw/2,y+12,'gone',{fs:10.5,a:'middle',w:600,fill:'var(--bad)'})});y+=16}
+    g.innerHTML=RD.svg(W,y+4,s,'Every pair of user and market, and which pairs or rows the chosen join keeps');
+  }
   function cell(v,cls){return '<td class="'+(v===null?'nul':'')+'"'+(cls?' style="background:'+cls+'"':'')+'>'+(v===null?'NULL':esc(v))+'</td>'}
   function draw(){
     const withNull=document.getElementById('rd-join-null').checked;
@@ -53,10 +81,10 @@
     R.forEach(r=>{const u=r.u||[null,null,null],m=r.m||[null,null];
       h+='<tr>'+cell(u[0],r.u?lc:'')+cell(u[1],r.u?lc:'')+cell(u[2],r.u?lc:'')+(two?cell(m[0],r.m?rc:'')+cell(m[1],r.m?rc:''):'')+'</tr>'});
     h+='</table></div><div class="leg"><span style="--sw:color-mix(in srgb,var(--c1) 40%,transparent)">from users</span>'+(two?'<span style="--sw:color-mix(in srgb,var(--c2) 40%,transparent)">from markets</span>':'')+'<span>'+R.length+' row'+(R.length===1?'':'s')+'</span></div>';
-    out.innerHTML=h;
+    out.innerHTML=h;drawGrid(withNull);
     document.getElementById('rd-join-cap').textContent=(withNull&&CAPN[mode])?CAPN[mode]:CAP[mode];
   }
   RD.seg(document.getElementById('rd-join-mode'),m=>{mode=m;draw()});
   document.getElementById('rd-join-null').addEventListener('change',draw);
-  draw();
+  draw();RD.onRender(draw);RD.onResize(draw);
 })();

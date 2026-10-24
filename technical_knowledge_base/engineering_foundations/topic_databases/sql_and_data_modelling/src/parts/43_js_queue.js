@@ -35,6 +35,6 @@
     document.getElementById('rd-q-note').innerHTML=sn.length?'Snapshot of <code>pg_locks</code> taken at 2.2 s in this run: '+sn.map(r=>esc(r[0])+(r[1]?' granted':' <b>waiting</b>')+' ('+esc(r[2].split(' FROM')[0].slice(0,24))+')').join('; ')+'. Recorded '+esc(Q.date)+' on PostgreSQL '+esc(Q.postgres)+'; median of 3 runs per scenario.':'Recorded '+esc(Q.date)+' on PostgreSQL '+esc(Q.postgres)+'; median of 3 runs per scenario.';
   }
   const A=RD.anim({card:'rd-q-card',ctl:'rd-q-ctl',n:NST,ms:260,label:'Time',draw});
-  RD.seg(document.getElementById('rd-q-mode'),m=>{mode=m;A.reset(NST);A.play()});
+  RD.seg(document.getElementById('rd-q-mode'),m=>{mode=m;A.reset(NST)});
   RD.onResize(()=>A.redraw());
 })();
