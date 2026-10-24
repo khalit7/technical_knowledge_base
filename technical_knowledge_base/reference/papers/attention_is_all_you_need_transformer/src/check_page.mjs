@@ -42,6 +42,10 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
+    // never autoplay (2026-10-24): each animation on screen for 1.5 s before any click draws no frame
+    for (const id of ['rnx', 'thx', 'dec']) { if (!(await p.$(`#${t} #${id}`))) continue;
+      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1500);
+      if ((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0) problems.push(`${scheme} ${width}: ${id} autoplayed`) }
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }

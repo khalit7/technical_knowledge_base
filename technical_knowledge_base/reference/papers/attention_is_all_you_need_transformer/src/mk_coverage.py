@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "9 min read, +5h 35m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "9 min read, +5h 35m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['Reading: ', 'of resources']),
  ('Authors: Vaswani, Shazeer, Parmar, Uszkoreit, Jones, Gomez, Kaiser, Polosukhin', R + ', headline card', ['Ashish Vaswani', 'Noam Shazeer', 'Niki Parmar', 'Jakob Uszkoreit', 'Llion Jones', 'Aidan N. Gomez', 'Łukasz Kaiser', 'Illia Polosukhin']),
  ('Lab: Google Brain / Google Research / U. Toronto', R + ', headline card', ['Google Brain, Google Research, University of Toronto']),
  ('Date: June 2017 (NeurIPS 2017)', R + ', headline card', ['NeurIPS 2017', 'June 2017']),
@@ -45,7 +45,7 @@ C = [
  ('Learned absolute embeddings performed identically in ablations', R + ', Positions (corrected to "nearly identical", 25.7 against 25.8, Table 3 row (E))', ['nearly identical results (25.7 BLEU against 25.8']),
  ('Training: WMT 2014; BPE 37K shared EN-DE; 32K word-piece EN-FR', R + ', Training', ['about 37,000 tokens', '32,000 word-piece vocabulary']),
  ('Adam beta_2 = 0.98; warmup 4000 then inverse sqrt', R + ', Training: Equation 3 with chart', ['β 2 = 0.98', '4,000 warmup steps', 'inverse square root']),
- ('Residual and embedding dropout 0.1', R + ', Training: Regularisation', ['residual dropout 0.1 on every sub-layer output and on the sums of embeddings and positional encodings']),
+ ('Residual and embedding dropout 0.1', R + ', Training: Regularisation', ['residual dropout 0.1', 'Dropout is applied to every sub-layer output and to the sums of embeddings and positional encodings']),
  ('Label smoothing 0.1 (hurts perplexity, helps BLEU)', R + ', Training: Regularisation', ['label smoothing ε ls = 0.1', 'hurts perplexity']),
  ('Base 65M parameters, 12 hours on 8 P100s; big 213M, 3.5 days', R + ', Training; headline card; Tables tab recount', ['Base model (65M parameters): 100,000 steps', 'Big model (213M): 300,000 steps at 1.0 s, 3.5 days']),
  ('Inference: beam 4, length penalty 0.6, checkpoint averaging', R + ', Training and decoding', ['beam 4 and length penalty α = 0.6', 'averages the last 5 checkpoints']),
@@ -58,12 +58,12 @@ C = [
  ('Parsing: 4-layer Transformer 91.3 F1 WSJ-only (beating BerkeleyParser), 92.7 semi-supervised, little tuning', R + ', Results; Tables tab Table 4', ['scores 91.3 F1', 'beating the BerkeleyParser (90.4)', 'it scores 92.7', 'evidence the architecture generalises beyond translation']),
  ('Ablations: too many heads hurts as well as too few; shrinking d_k hurts; bigger is better; dropout essential', R + ', Results; Tables tab Table 3 in full', ['too many heads hurts as well as too few', 'shrinking d k hurts', 'bigger models are better', 'dropout is essential at this data scale']),
  # why it matters
- ('The architecture paper of the deep learning era; removing recurrence made training parallel; compute on model and data size', R + ', Why it matters', ['This is the architecture paper of the deep learning era', 'embarrassingly parallel across sequence length']),
+ ('The architecture paper of the deep learning era; removing recurrence made training parallel; compute on model and data size', R + ', Why it matters', ['embarrassingly parallel across sequence length']),
  ('Descendants: GPT, Claude, Llama, Gemini, DeepSeek, BERT-style encoders, ViT, CLIP, Whisper, diffusion backbones', R + ', Why it matters', ['(GPT, Claude, Llama, Gemini, DeepSeek), BERT-style encoders, ViT, CLIP, Whisper']),
- ('Changed: pre-LN instead of post-LN; RMSNorm', R + ', Why it matters; Then and now step 3 and 4', ['Pre-LN instead of post-LN', 'RMSNorm']),
- ('Changed: RoPE instead of sinusoidal, plus interpolation/YaRN', R + ', Why it matters; Then and now step 5', ['RoPE instead of sinusoidal absolute encodings', 'YaRN']),
- ('Changed: SwiGLU/GeGLU FFNs, biases dropped', R + ', Why it matters; Then and now steps 6 and 8', ['SwiGLU or GeGLU instead of ReLU', 'No biases']),
- ('Changed: decoder-only; cross-attention survives in multimodal adapters and T5, Whisper', R + ', Why it matters; Then and now step 2', ['Decoder-only, not encoder-decoder', 'multimodal adapters']),
+ ('Changed: pre-LN instead of post-LN; RMSNorm', R + ', Why it matters; Then and now step 3 and 4', ['pre-LN and RMSNorm replaced post-LN LayerNorm', 'RMSNorm']),
+ ('Changed: RoPE instead of sinusoidal, plus interpolation/YaRN', R + ', Why it matters; Then and now step 5', ['RoPE replaced the added sinusoids', 'YaRN']),
+ ('Changed: SwiGLU/GeGLU FFNs, biases dropped', R + ', Why it matters; Then and now steps 6 and 8', ['SwiGLU (or GeGLU) replaced the ReLU FFN', 'No biases']),
+ ('Changed: decoder-only; cross-attention survives in multimodal adapters and T5, Whisper', R + ', Why it matters; Then and now step 2', ['decoder-only won for generation', 'multimodal adapters']),
  ('Changed: MQA/GQA and MLA, FlashAttention, PagedAttention, sliding windows, sparse/linear hybrids like Mamba', R + ', Why it matters; Then and now step 7 and table', ['MQA, GQA and MLA shrink the KV cache', 'FlashAttention makes exact attention IO-aware', 'sparse and linear hybrids such as Mamba']),
  ('Changed: label smoothing and heavy dropout dropped at pretraining scale; warmup + decay survives in cosine form', R + ', Why it matters (now sourced: PaLM without dropout, GPT-3 cosine; plus Adam beta2 0.98 to 0.95)', ['label smoothing and heavy dropout largely dropped at pretraining scale', 'cosine']),
  ('Survived: scaled dot-product attention, multi-head, residual + norm, 4x FFN expansion, weight-tied embeddings', R + ', Why it matters; Then and now "What survived" (corrected: 4x FFN survives as a parameter budget; tied embeddings only in small models, with configs)', ['What survived untouched', 'survives as a parameter budget', 'tie_word_embeddings']),

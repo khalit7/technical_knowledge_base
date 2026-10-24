@@ -6,9 +6,9 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Headline card (generated from `paper.json`), then Problem, Idea (RNN against self-attention animation, Table 1), Method (attention with the √d<sub>k</sub> predict-and-reveal demo, multi-head, the block diagram, positional encoding with its heatmap and offset curve, training with the Equation 3 chart), Results (with the Table 3 predict question), Why it matters, Connections. Every section has an "in the paper" margin label linking the arXiv HTML anchor. |
+| The paper | `t-read` | Headline card (generated from `paper.json`), the idea in one sentence with a verdict, the hero (the base model's layout, redrawn from Figure 1), new terms; then Problem, Idea (RNN against self-attention animation, Table 1), Method (attention with the √d<sub>k</sub> predict-and-reveal demo, multi-head with its to-scale diagram, the block, positional encoding with its heatmap and offset curve, training with the Equation 3 chart), Results (the Table 2 chart, the Table 3 predict question), Why it matters, Connections. Every section has an "in the paper" margin label linking the arXiv HTML anchor. |
 | Run a Transformer | `t-run` | A real trained toy encoder-decoder (three variants) running in the browser: composer, translation checked against the rules, step-by-step greedy decoding, every attention map, before/after variants, an in-browser test, training curves. |
-| The paper's tables, rebuilt | `t-tables` | Table 1 calculator, Table 2 chart, Table 3 explorer, the parameter recount, Table 4. |
+| The paper's tables, rebuilt | `t-tables` | Table 1 calculator, Table 3 explorer, the parameter recount, Table 4 (Table 2's chart moved to Results on 2026-10-24). |
 | Then and now | `t-then` | The 2017 block morphing into a 2026 decoder-only block, one sourced change per step, with recounted parameters and KV cache; the changed and survived tables. |
 | Further reading | `t-more` | Generated from `paper.json`: the paper, code, resources with times, connected KB papers, topics, the parent database. |
 
@@ -40,3 +40,32 @@ Copy the folder layout and these unchanged: `build.sh` (edit only the HTML and J
 ## Checks (2 October 2026)
 
 `sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, 5 tabs, 285 KB. `node .../src/check_page.mjs`: 310 actions, 0 problems. `check_forward.py`: PASS (identical translations 200/200 for each variant, logits within 1.1e-5, attention within 1.2e-6, grammar 200/200). `mk_coverage.py`: 60 of 60 items verified.
+
+## The 2026-10-24 rebuild (teaching contract, light pass for papers)
+
+What changed and why:
+- **Top**: the core idea in one sentence and a verdict ("how far to trust it") under the headline card, then the hero figure: the base model's layout, the old block diagram moved up from the Block section (the whiteboard figure for this paper; the Block section now links to it). A three-line "New terms" note links the pre-transformer background (Sequence models before the transformer owns RNNs and Bahdanau attention). No real image: the arXiv paper is not CC BY (Google's notice allows reproduction for journalistic or scholarly works only), and the redraw carries Figure 1's structure in the page's colours.
+- **A visual for every core idea**: multi-head attention had none; it now has a static to-scale diagram (`mhSvg` in `13_js_read.js`). The Table 2 chart moved from the tables tab into Results, beside the result it proves.
+- **No autoplay**: the page keeps its own controller (`makeAnim` in `11_js_ui.js`) and the tab wiring (`90_js_tabs.js`, which handles `data-to` scrolling the template lacks); autoplay was removed by hand (no start on scroll into view, no start on a mode switch; each animation opens on step 1 fully drawn). `check_page.mjs` now fails if `rnx`, `thx` or the decoder draws a frame in 1.5 s on screen before any click (`dec` now counts frames too).
+- **Closed blocks**: the rest of the training recipe (batches, where dropout applies, checkpoint averaging) and two small gaps in it; how the FLOPs were counted and the 41.0 against 41.8 provenance; parsing setup; the toy model's training, shipping and forward-check details (Run tab, with a one-sentence summary kept open); the modern config-file checks (Then and now, dated 2 October 2026, the day they were read).
+- **Why it matters**: the six-item list became one paragraph that names each later change and links the page that owns it (families and objectives, normalisation, positional encodings, attention variants, writing kernels); the Then and now tab keeps the sourced detail.
+- **Fixes**: the Table 2 note printed the best earlier EN-DE cost as 7.7 × 10<sup>20</sup> (an exponent rounded up); it is 7.7 × 10<sup>19</sup>. The Run tab no longer says the page runs in Notion's sandbox. `placeLabels` keeps fallback labels inside the chart (a label ran off the Table 2 chart at 390 px). The hero's cross-attention label is shortened at phone width. Author emails in `inputs/paper_v7.txt` are redacted (privacy grep).
+- **Coverage**: `mk_coverage.py` needles updated where the prose was rephrased; the old "the architecture paper of the deep learning era" wind-up was dropped as fat. 60 of 60 items verified.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After (2026-10-24) |
+|---|---|---|
+| The paper, core | 3,259 words, 14.2 min | 3,272 words, 14.2 min |
+| The paper, closed details | 0 | 247 words, 1.1 min |
+| Run a Transformer | 1,218 core + 172 closed | 1,062 core + 371 closed |
+| Tables | 985 | 887 |
+| Then and now | 730 | 657 core + 92 closed |
+| Visuals drawn in The paper (audit count) | 5 | 7 (plus two in predict reveals) |
+
+Why about 14 minutes is right: a paper page owns every detail of its paper, and this one is the reference for the most cited architecture. The added top (core sentence, verdict, hero caption, new terms), the multi-head caption and the Table 2 caption added several hundred words; condensing Why it matters, the Idea and Results prose, and moving recipe and provenance detail into closed blocks paid for them, so the core stayed level while gaining a hero, a verdict and two visuals. Every remaining core unit is a step of the paper's argument, a number it reports, or the caption of a visual.
+
+## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
+204 units: core 177, depth 19, owned 2 (RoPE scaling at Positional encodings, key "YaRN"; MQA/GQA/MLA at Attention variants, key "MLA"), fat 6 (the old reading-time crumb, the tab names, two motion-manner sentences, a pointer sentence rewritten, the "architecture paper of the deep learning era" wind-up). 196 were drafted by `ledger.py init`; 8 were added by hand for the new top, the multi-head and Table 2 visuals and the moved closed details.
+
+## Checks (2026-10-24)
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 291 KB. `check_page.mjs`: 310 actions, 0 problems (including the new no-autoplay check). `mk_coverage.py`: 60 of 60. `ledger.py check`: problems 0. The model, its weights and `check_forward.py` were not touched.

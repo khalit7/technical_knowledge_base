@@ -45,3 +45,12 @@ Scoring follows `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each
 2. **Belief elicitation.** Nothing rewarded asking the reader to commit to a prediction; added as P, with a generic widget (`11_js_ui.js`).
 3. **Paper anchors.** Topic pages cite sources; a paper page should point into the paper itself at section, table and equation level. The `ax:` macro and margin labels do that.
 4. **Honesty for trained artefacts**: report held-out accuracy, overlap with the training stream (49% of sentences from the training distribution occur in training; 0.2% of uniformly drawn ones), quantisation effect, and a JS-against-PyTorch check, all on the page.
+
+## 2026-10-24 light pass (teaching contract)
+
+| id | Visual | Kind | Decision |
+|---|---|---|---|
+| P-attention_is_all_you_need_transformer.20 | Hero: the base model's layout redrawn from Figure 1 (the old block diagram, moved to the top) | static annotated diagram | built: it is the whiteboard figure for this paper; the Block section links up to it instead of drawing it twice |
+| P-attention_is_all_you_need_transformer.21 | Multi-head attention to scale: 512 split into 8 heads of 64, concatenated, one 512-wide head dashed below | static, drawn to scale | built: the only core mechanism of the paper that had no picture |
+| P-attention_is_all_you_need_transformer.22 | Table 2 chart moved from the tables tab into Results | scatter (existing) | moved: it proves the headline result, so it sits beside it |
+| P-attention_is_all_you_need_transformer.23 | Paper's own Figure 1 as an image | real image | rejected: the arXiv version is not CC BY (Google grants reproduction for journalistic or scholarly works only); the redraw carries the same structure in the page's colours |

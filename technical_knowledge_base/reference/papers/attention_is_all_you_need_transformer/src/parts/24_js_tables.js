@@ -24,7 +24,7 @@
       $('t2Svg').innerHTML=svgW(w,H,s,'Table 2: BLEU against training cost')});
     const miss=T.t2.rows.filter(r=>r[t2l]!=null&&r['c'+t2l]==null);$('t2Miss').innerHTML=miss.length?'No cost in the table: '+miss.map(r=>r.m+' ('+r[t2l]+')').join(', ')+'.':'';
     const best=T.t2.rows.filter(r=>!r.tf&&r[t2l]!=null).reduce((a,b)=>parseFloat(a[t2l])>parseFloat(b[t2l])?a:b);
-    $('t2Miss').innerHTML+=' Best earlier result: '+best.m+', '+best[t2l]+' BLEU at '+sci(best['c'+t2l],1).replace(/10(.+)$/,'')+'10<sup>'+Math.round(Math.log10(best['c'+t2l]))+'</sup> FLOPs; the big Transformer: '+(t2l==='de'?'28.4':'41.8')+' at 2.3 × 10<sup>19</sup> ('+(2.3e19/best['c'+t2l]).toFixed(2)+' of that cost).'}
+    $('t2Miss').innerHTML+=' Best earlier result: '+best.m+', '+best[t2l]+' BLEU at '+sci(best['c'+t2l],1).replace(/10(.+)$/,'')+'10<sup>'+Math.floor(Math.log10(best['c'+t2l]))+'</sup> FLOPs; the big Transformer: '+(t2l==='de'?'28.4':'41.8')+' at 2.3 × 10<sup>19</sup> ('+(2.3e19/best['c'+t2l]).toFixed(2)+' of that cost).'}
   segBind('t2L',m=>{t2l=m;$('t2L').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m?'true':'false'));refit($('t2Svg'));t2()});
   // Table 3
   const B=T.t3.base,lab=k=>({N:'<i>N</i>',d:'<i>d</i><sub>model</sub>',dff:'<i>d</i><sub>ff</sub>',h:'<i>h</i>',dk:'<i>d<sub>k</sub></i>',dv:'<i>d<sub>v</sub></i>',pd:'<i>P</i><sub>drop</sub>',ls:'ε<sub>ls</sub>',steps:'steps',pe:'positions'}[k]);
@@ -44,5 +44,7 @@
   $('tPv').addEventListener('input',tP);
   // Table 4
   function t4(){$('t4Out').innerHTML='<div class="bars">'+T.t4.rows.map(r=>'<div class="row'+(r.tf?' hl':'')+'"><span class="nm" title="'+r.m+'">'+r.m+' <span class="mute">'+r.tr+'</span></span><span class="track"><span class="fill" style="width:'+((r.f1-86)/(94-86)*100).toFixed(1)+'%;background:'+(r.tf?'var(--c1)':'var(--dim)')+'"></span></span><span class="val">'+r.f1.toFixed(1)+'</span></div>').join('')+'</div><p class="small mute">Bars start at 86 F1.</p>'}
-  onTab('t-tables',()=>{['t1Svg','t2Svg'].forEach(i=>refit($(i)));t1();t2();t3();tP();t4()});
+  onTab('t-tables',()=>{refit($('t1Svg'));t1();t3();tP();t4()});
+  // Table 2 is drawn in the Reading tab (Results)
+  t2();onTab('t-read',()=>{refit($('t2Svg'));t2()});
 })();

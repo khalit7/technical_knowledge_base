@@ -70,7 +70,7 @@
     const sc=$('decScrub');sc.max=m-1;sc.value=k;const pb=$('decPlay'),end=k>=m-1;pb.innerHTML=S.dplay?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',S.dplay?'Pause':end?'Replay':'Play')}
   const dlive=()=>S.dvis&&!document.hidden&&$('dec').offsetParent!==null;
   function dtick(now){S.draf=0;if(!S.dplay||!dlive())return;const dt=S.dlast?Math.min(100,now-S.dlast):16;S.dlast=now;const spd=+$('decSpd').value;S.dt+=dt*spd/1500;
-    const m=run(S.v,S.w).out.length;if(S.dt>=1){if(S.dk<m-1){S.dk++;S.dt=0}else{S.dt=1;S.dplay=false}}drawDec();if(S.dplay)S.draf=requestAnimationFrame(dtick)}
+    const m=run(S.v,S.w).out.length;if(S.dt>=1){if(S.dk<m-1){S.dk++;S.dt=0}else{S.dt=1;S.dplay=false}}$('dec').dataset.frames=(+$('dec').dataset.frames||0)+1;drawDec();if(S.dplay)S.draf=requestAnimationFrame(dtick)}
   function dkick(){if(S.dplay&&dlive()&&!S.draf){S.dlast=0;S.draf=requestAnimationFrame(dtick)}}
   const dpause=()=>{S.dplay=false;if(S.draf){cancelAnimationFrame(S.draf);S.draf=0}};
   $('decPlay').addEventListener('click',()=>{if(!done())return;if(S.dplay)dpause();else{const m=run(S.v,S.w).out.length;if(S.dk>=m-1){S.dk=0;S.dt=RM?1:0}S.dplay=!RM||true;dkick()}drawDec()});
