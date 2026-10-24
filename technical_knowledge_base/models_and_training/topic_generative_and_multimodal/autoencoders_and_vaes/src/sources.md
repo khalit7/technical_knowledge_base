@@ -3,7 +3,7 @@
 Source read at pinned versions (shallow clones in the shared setup folder; commits in the root's shared FACTS file):
 
 ## diffusers v0.41.0 (086bf9578c0f)
-- `src/diffusers/models/autoencoders/vae.py:576` comment "specify legacy=False to fix it" (VectorQuantizer beta bug; Latent lab owns the full quote, lines 574 to 576 and 651 to 654); `:644` `min_encoding_indices = torch.argmin(torch.cdist(z_flattened, self.embedding.weight), dim=1)`; `:672` `def get_codebook_entry`.
+- `src/diffusers/models/autoencoders/vae.py:576` comment "specify legacy=False to fix it" (VectorQuantizer beta bug; quoted on this page, section 8, lines 574 to 576 and 651 to 654); `:644` `min_encoding_indices = torch.argmin(torch.cdist(z_flattened, self.embedding.weight), dim=1)`; `:672` `def get_codebook_entry`.
 - `src/diffusers/models/autoencoders/vq_model.py:143` `def decode(self, h, force_not_quantize=False, ...)`: decode quantizes again unless told not to.
 - `src/diffusers/pipelines/kandinsky2_2/pipeline_kandinsky2_2.py:315` `image = self.movq.decode(latents, force_not_quantize=True)["sample"]` (Kandinsky's diffusion runs on unquantized MoVQ latents).
 - `src/diffusers/models/autoencoders/autoencoder_kl_flux2.py:133` `self.bn = nn.BatchNorm2d(` (128 channels = 4 x 32 latent channels, affine=False, track_running_stats=True).

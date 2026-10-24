@@ -1,4 +1,4 @@
-// ---- Reading: predict buttons, sprite tiles (AVL, the Latent lab data this page reuses), hero, latent spaces,
+// ---- Reading: predict buttons, sprite tiles (AVL, the retired root Latent lab's data this page reuses), hero, latent spaces,
 // random-code samples, interpolation, the beta slider, the loss-units strips and the three-loss toggle ----
 // Every number in the prose is written into the HTML at build time (src/fill_static.py); scripts only draw.
 (function(){

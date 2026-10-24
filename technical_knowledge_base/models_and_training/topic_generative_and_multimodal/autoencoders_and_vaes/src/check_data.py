@@ -37,10 +37,10 @@ if os.path.exists(os.path.join(HERE, "out", "tok", "metrics.json")):
         if not m["nan"]:
             ok(m["mean"] == met[k]["mean"], f"tok {k} mean")
             ok([r["psnr"] for r in m["per"]] == [r["psnr"] for r in met[k]["per_image"]], f"tok {k} per-image")
-# 1b. the Latent lab subset (AVL, written by absorb_lab.py) equals the root's committed data part, field by field
+# 1b. the Latent lab subset (AVL, written by absorb_lab.py) equals the root's committed data part (src/retired/parts/31_js_lt_0data.js), field by field
 js2 = open(os.path.join(HERE, "parts", "22_js_av_1lab.js")).read()
 A = json.loads(js2[js2.index("window.AVL=") + len("window.AVL="):].rstrip().rstrip(";"))
-r = open(os.path.join(ROOT_SRC, "parts", "31_js_lt_0data.js")).read()
+r = open(os.path.join(ROOT_SRC, "retired", "parts", "31_js_lt_0data.js")).read()
 LTD = json.loads(r[r.index("=") + 1:r.rindex(";")].strip())
 for k, v in A["runs"].items():
     for f, x in v.items():
