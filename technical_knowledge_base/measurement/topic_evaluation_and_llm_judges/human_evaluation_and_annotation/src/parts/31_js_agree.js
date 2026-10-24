@@ -33,5 +33,5 @@ function render(){
 }
 $('la-ds').onchange=()=>{render()};
 $('la-opt').querySelectorAll('button').forEach(b=>b.onclick=()=>{opt=+b.dataset.v;render()});
-(window.TAB_RENDER=window.TAB_RENDER||{})['t-agree']=[render];
+(window.TAB_RENDER=window.TAB_RENDER||{})['t-read']=(window.TAB_RENDER['t-read']||[]).concat([render]);
 })();

@@ -74,7 +74,7 @@ $('ag-play').onclick=play;
 $('ag-prev').onclick=()=>{playing=false;clearTimeout(timer);step=Math.max(0,step-1);draw()};
 $('ag-next').onclick=()=>{playing=false;clearTimeout(timer);step=Math.min(N-1,step+1);draw()};
 $('ag-scrub').oninput=e=>{playing=false;clearTimeout(timer);step=+e.target.value;draw()};
-[0,1,2].forEach(i=>{$('ag-m'+i).onclick=()=>{mode=i;draw()}});
+[0,1,2].forEach(i=>{$('ag-m'+i).onclick=()=>{mode=i;playing=false;clearTimeout(timer);step=0;draw()}});
 if('IntersectionObserver' in window)new IntersectionObserver(es=>{onScreen=es[0].isIntersecting},{threshold:.1}).observe($('ag'));
 let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(!$('t-read').hidden)draw()},120)});
 (window.TAB_RENDER=window.TAB_RENDER||{})['t-read']=(window.TAB_RENDER['t-read']||[]).concat([draw]);

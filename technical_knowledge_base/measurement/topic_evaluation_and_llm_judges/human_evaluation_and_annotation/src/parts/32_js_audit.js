@@ -48,6 +48,6 @@ function render(){
   list(s,a,nm,k);acc(a);
 }
 ['lb-sub','lb-sc','lb-what'].forEach(id=>$(id).onchange=render);$('lb-k').oninput=render;
-let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(!$('t-audit').hidden)render()},120)});
-(window.TAB_RENDER=window.TAB_RENDER||{})['t-audit']=[render];
+let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(!$('t-read').hidden)render()},120)});
+(window.TAB_RENDER=window.TAB_RENDER||{})['t-read']=(window.TAB_RENDER['t-read']||[]).concat([render]);
 })();
