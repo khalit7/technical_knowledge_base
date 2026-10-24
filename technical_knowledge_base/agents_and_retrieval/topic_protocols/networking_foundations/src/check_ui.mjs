@@ -38,7 +38,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const shot = async (sel, name) => { const e = await p.$(sel); if (e) await e.screenshot({ path: `${out}/${name}-${w}.png` }) };
   // Reading
   await p.click('button[data-t=t-read]'); await sleep(200);
-  for (const [seg, ctl, card] of [[null, 'rd-fsm-ctl', 'rd-fsm-card'], ['#rd-cc-seg button', 'rd-cc-ctl', 'rd-cc-card'], ['#rd-nat-seg button', 'rd-nat-ctl', 'rd-nat-card'], ['#rd-mig-seg button', 'rd-mig-ctl', 'rd-mig-card']]) {
+  for (const [seg, ctl, card] of [[null, 'rd-fsm-ctl', 'rd-fsm-card'], [null, 'rd-tr-ctl', 'rd-tr-card'], ['#rd-cc-seg button', 'rd-cc-ctl', 'rd-cc-card'], ['#rd-nat-seg button', 'rd-nat-ctl', 'rd-nat-card'], ['#rd-mig-seg button', 'rd-mig-ctl', 'rd-mig-card']]) {
     if (seg) { const k = await p.$$eval(seg, es => es.length);
       for (let i = 0; i < k; i++) { await p.evaluate((s, i) => document.querySelectorAll(s)[i].click(), seg, i); await sleep(50); const n = await stepAll(ctl); await bad(card + ' mode ' + i + ' (' + n + ' steps)'); await p.click('#' + ctl + '-f'); await shot('#' + card, card + '-m' + i) } }
     else { const n = await stepAll(ctl); await bad(card + ' (' + n + ' steps)'); await shot('#' + card, card) }
@@ -49,17 +49,23 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const nd = await clickAll('#rd-drills button[data-j]'); await bad('drills (' + nd + ' answers)');
   await clickAll('#t-read details > summary'); await bad('details');
   for (const id of ['rd-nums', 'rd-winbars', 'rd-wintab', 'rd-wndplot', 'rd-loadplot', 'rd-nodelay', 'rd-backlog', 'rd-mtuplot', 'rd-udpdrop', 'rd-drills']) await shot('#' + id, id);
-  // TCP timeline
-  await p.click('button[data-t=t-tcp]'); await sleep(200);
+  // nothing may move before the reader acts: every animation is still on step 0 after scrolling past it
+  await p.reload(); await sleep(300);
+  for (const c of ['rd-fsm-card','rd-tr-card','rd-cc-card','rd-nat-card','rd-mig-card','rd-tc-card']) { await p.evaluate(c => document.getElementById(c).scrollIntoView(), c); await sleep(1600) }
+  const moved = await p.$$eval('.an-ctl input[type=range]', es => es.filter(e => +e.value !== 0).map(e => e.id));
+  if (moved.length) { fails++; console.log(`${w} ${scheme} autoplay: ${moved.join(' ')}`) }
+  // round-trip budget
+  await clickAll('#rd-rtt-pre button'); for (const v of [1, 100, 200]) { await p.evaluate(v => { const s = document.getElementById('rd-rtt'); s.value = v; s.dispatchEvent(new Event('input')) }, v); await sleep(20); await bad('rtt ' + v) }
+  // TCP timeline (Reading section 4)
   for (const seg of ['#tc-scn', '#tc-rec', '#tc-nag', '#tc-dack']) {
     const k = await p.$$eval(seg + ' button', es => es.length);
     for (let i = 0; i < k; i++) { await p.evaluate((s, i) => document.querySelectorAll(s + ' button')[i].click(), seg, i); await sleep(40); const n = await stepAll('tc-ctl'); await bad('tcp ' + seg + ' ' + i + ' (' + n + ' events)') } }
   for (const v of [10, 200, 100]) { await p.evaluate(v => { const s = document.getElementById('tc-rtt'); s.value = v; s.dispatchEvent(new Event('input')) }, v); await sleep(40); await stepAll('tc-ctl'); await bad('tcp rtt ' + v) }
   await p.evaluate(() => { document.querySelector('#tc-scn button[data-m=mid]').click(); document.querySelector('#tc-rec button[data-m=fast]').click() }); await sleep(50);
   const n = await p.$eval('#tc-ctl-s', s => +s.max); for (let i = 0; i < n; i++) await p.click('#tc-ctl-f');
-  await shot('#t-tcp', 'tcp-mid-fast');
-  // Throughput lab
-  await p.click('button[data-t=t-thru]'); await sleep(200);
+  await shot('#rd-tc-card', 'tcp-mid-fast');
+  await p.click('#rd-tc-nagle'); await sleep(80); await bad('nagle button');
+  // Throughput calculator (Reading section 13)
   await clickAll('#th-pre button'); await bad('presets');
   for (const id of ['th-win', 'th-loss', 'th-cap', 'th-mss', 'th-size']) {
     const k = await p.$eval('#' + id, s => s.options.length);
@@ -67,7 +73,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   for (const id of ['th-link', 'th-rtt', 'th-n']) for (const f of [0, 0.5, 1]) {
     await p.evaluate((id, f) => { const s = document.getElementById(id); s.value = +s.min + f * (s.max - s.min); s.dispatchEvent(new Event('input')) }, id, f); await sleep(20); await bad(id + ' ' + f) }
   await p.evaluate(() => document.querySelector('#th-pre button[data-p=xr]').click()); await sleep(50);
-  await shot('#t-thru', 'thru');
+  await shot('#rd-thru-card', 'thru');
   await p.click('button[data-t=t-more]'); await sleep(100); await bad('more');
   if (errs.length) { fails++; console.log(`${w} ${scheme} errors:`, errs.slice(0, 5)) }
   await p.close();

@@ -35,6 +35,6 @@
     $('rd-nat-cap').innerHTML='<div class="t">'+(i+1)+' of '+S.length+'. '+esc(st.title)+'</div><p>'+esc(st.text)+'</p>';
   }
   const h=RD.anim({card:'rd-nat-card',ctl:'rd-nat-ctl',n:S.length,draw,ms:2600,label:'NAT step'});
-  RD.seg($('rd-nat-seg'),m=>{mode=m;S=steps();h.reset(S.length);h.play()});
+  RD.seg($('rd-nat-seg'),m=>{mode=m;S=steps();h.reset(S.length)});
   RD.onResize(()=>h.redraw());
 })();

@@ -74,24 +74,24 @@ window.TCPSIM=(function(){
   return {sim,WRITES,REQ,MSS};
 })();
 (function(){
-  const $=id=>document.getElementById(id);if(!$('t-tcp'))return;const esc=RD.esc,F=NFC.fmt;
-  const cfg={scn:'clean',rec:'fast',nagle:false,dack:true,rtt:100};let R=TCPSIM.sim(cfg);
+  const $=id=>document.getElementById(id);if(!$('rd-tc-card'))return;const esc=RD.esc,F=NFC.fmt;
+  const cfg={scn:'mid',rec:'rto',nagle:false,dack:true,rtt:100};let R=TCPSIM.sim(cfg);
   function draw(i){
     const el=$('tc-svg');const W=Math.max(280,Math.min(880,RD.width(el)));const tmax=Math.max(R.end,400);
     const H=Math.max(420,Math.min(900,tmax*0.9)),T=26,B=10,xc=Math.min(70,W*0.16),xs=W-Math.min(70,W*0.16);
     const Y=t=>T+t/tmax*(H-T-B);let s='';
     s+=RD.t(xc,16,'Client',{a:'middle',w:600,fs:12})+RD.t(xs,16,'Server',{a:'middle',w:600,fs:12});
-    NFC.ticks(0,tmax,6).forEach(v=>{s+='<line x1="'+(xc+4)+'" x2="'+(xs-4)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)" stroke-dasharray="2 4"/>'+RD.t(xc-6,Y(v)+3.5,F(v)+' ms',{a:'end',fs:9.5,fill:'var(--mute)'})});
+    NFC.ticks(0,tmax,6).forEach(v=>{s+='<line x1="'+(xc+4)+'" x2="'+(xs-4)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)" stroke-dasharray="2 4"/>'+RD.t(xc-6,Y(v)+3.5,F(v)+' ms',{a:'end',fs:10.5,fill:'var(--mute)'})});
     s+='<line x1="'+xc+'" x2="'+xc+'" y1="'+T+'" y2="'+(H-B)+'" stroke="var(--mute)" stroke-width="1.5"/><line x1="'+xs+'" x2="'+xs+'" y1="'+T+'" y2="'+(H-B)+'" stroke="var(--mute)" stroke-width="1.5"/>';
     const tnow=i<R.ev.length?R.ev[i].t:R.end;
     R.pk.filter(p=>p.t0<=tnow+1e-6).forEach(p=>{const c=p.from==='c';const x0=c?xc:xs,x1=c?xs:xc;
       const col=p.lost?'var(--bad)':p.retx?'var(--c5)':p.kind==='ack'?'var(--c3)':p.kind==='ctl'?'var(--mute)':'var(--c1)';
       if(p.lost){const xm=x0+(x1-x0)*0.55,ym=Y(p.t0)+(Y(p.t1)-Y(p.t0))*0.55;s+='<line x1="'+x0+'" y1="'+Y(p.t0)+'" x2="'+xm+'" y2="'+ym+'" stroke="'+col+'" stroke-width="2"/><path d="M'+(xm-5)+' '+(ym-5)+'l10 10m0 -10l-10 10" stroke="'+col+'" stroke-width="2"/>'}
       else s+='<line x1="'+x0+'" y1="'+Y(p.t0)+'" x2="'+x1+'" y2="'+Y(p.t1)+'" stroke="'+col+'" stroke-width="'+(p.kind==='ack'?1.1:1.8)+'"/><circle cx="'+x1+'" cy="'+Y(p.t1)+'" r="2.2" fill="'+col+'"/>';
-      if(p.kind!=='ack'||W>520){const tx=c?xc+6:xs-6;s+=RD.t(tx,Y(p.t0)-2,esc(p.lab),{a:c?'start':'end',fs:W<480?8.5:9.5,fill:col})}});
+      if(p.kind!=='ack'||W>520){const tx=c?xc+6:xs-6;s+=RD.t(tx,Y(p.t0)-2,esc(p.lab),{a:c?'start':'end',fs:W<480?10:10.5,fill:col})}});
     // token deliveries at the client
     const byT={};R.tok.forEach((k,j)=>{if(k.td!==null&&k.td<=tnow+1e-6&&j>0&&j<6){const key=k.td.toFixed(1);(byT[key]=byT[key]||[]).push(j)}});
-    Object.keys(byT).forEach(key=>{const js=byT[key];s+=RD.t(xc-6,Y(+key)+12,'&#9654; tok '+(js.length>1?js[0]+'-'+js[js.length-1]:js[0]),{a:'end',fs:9,fill:'var(--c4)',w:600})});
+    Object.keys(byT).forEach(key=>{const js=byT[key];s+=RD.t(xc-6,Y(+key)+12,'&#9654; tok '+(js.length>1?js[0]+'-'+js[js.length-1]:js[0]),{a:'end',fs:10.5,fill:'var(--c4)',w:600})});
     el.innerHTML=RD.svg(W,H,s,'TCP time-sequence diagram');
     const e=R.ev[Math.min(i,R.ev.length-1)];
     $('tc-cap').innerHTML='<div class="t">'+(i+1)+' of '+R.ev.length+'. t = '+F(e.t,1)+' ms</div><p>'+esc(e.text)+'</p>';
@@ -106,12 +106,13 @@ window.TCPSIM=(function(){
       R.tok.map(k=>{const ex=k.td-(k.tw+R.R/2);return '<tr><td>'+esc(k.lab)+'</td><td class="num">'+F(k.tw,1)+' ms</td><td class="num">'+F(k.td,1)+' ms</td><td class="num'+(ex>1?' late':'')+'">'+(ex>0.05?'+'+F(ex,1)+' ms':'none')+'</td></tr>'}).join('')+
       '</tbody></table><div class="small mute">Extra wait = arrival at the client application minus (write time + one-way delay). Times from the client\'s SYN.</div>';
   }
-  const h=RD.anim({card:'t-tcp',ctl:'tc-ctl',n:R.ev.length,draw,ms:1100,label:'Event'});
-  function rerun(){R=TCPSIM.sim(cfg);table();h.reset(R.ev.length);h.play()}
+  const h=RD.anim({card:'rd-tc-card',ctl:'tc-ctl',n:R.ev.length,draw,ms:1100,label:'Event'});
+  function rerun(){R=TCPSIM.sim(cfg);table();h.reset(R.ev.length)}
   RD.seg($('tc-scn'),m=>{cfg.scn=m;rerun()});RD.seg($('tc-rec'),m=>{cfg.rec=m;rerun()});
   RD.seg($('tc-nag'),m=>{cfg.nagle=m==='on';rerun()});RD.seg($('tc-dack'),m=>{cfg.dack=m==='on';rerun()});
   $('tc-rtt').addEventListener('input',e=>{cfg.rtt=+e.target.value;$('tc-rtt-v').textContent=cfg.rtt+' ms';rerun()});
   table();
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-tcp']=window.TAB_RENDER['t-tcp']||[]).push(()=>h.redraw());
-  addEventListener('resize',()=>{if(!$('t-tcp').hidden)h.redraw()});
+  RD.onRender(()=>h.redraw());RD.onResize(()=>h.redraw());
+  // section 7's button: set the timeline to the Nagle case and scroll to it
+  const nb=$('rd-tc-nagle');if(nb)nb.addEventListener('click',()=>{const pick=(id,m)=>{const b=$(id).querySelector('button[data-m="'+m+'"]');if(b)b.click()};pick('tc-scn','clean');pick('tc-rec','fast');pick('tc-nag','on');$('tc-rtt').value=100;$('tc-rtt').dispatchEvent(new Event('input'));$('rd-tc-card').scrollIntoView({block:'start'})});
 })();
