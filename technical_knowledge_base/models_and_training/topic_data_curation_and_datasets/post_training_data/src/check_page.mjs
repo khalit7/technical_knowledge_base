@@ -51,7 +51,8 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   }
   ok(errs.length===0,w+'px: no errors'+(errs.length?' '+errs.slice(0,3).join(' | '):''));
   if(shots){fs.mkdirSync(shots,{recursive:true});
-    for(const [t,sel] of [['t-read','#pd-s0'],['t-read','#pd-si-card'],['t-read','#pd-mix-card'],['t-read','#pd-lin'],['t-read','#pd-s3'],['t-read','#pd-s4'],['t-read','#pd-s5'],['t-read','#pd-bin-card'],['t-read','#pd-s6'],['t-read','#pd-ex-card'],['t-read','#pd-s7'],['t-read','#pd-s8'],['t-read','#pd-s9'],['t-pdat','#t-pdat'],['t-pdpair','#t-pdpair'],['t-pdchk','#t-pdchk']]){
+    await p.evaluate(()=>document.querySelectorAll('details').forEach(d=>d.open=true));
+    for(const [t,sel] of [['t-read','#pd-s0'],['t-read','#pd-lin-card'],['t-read','#pd-si-card'],['t-read','#pd-mix-card'],['t-read','#pd-s2'],['t-read','#pd-s3'],['t-read','#pd-row-card'],['t-read','#pd-bin-card'],['t-read','#pd-s5'],['t-read','#pd-pp'],['t-read','#pd-ex-card'],['t-read','#pd-pc'],['t-read','#pd-s6'],['t-read','#pd-s7'],['t-read','#pd-s8'],['t-pdat','#t-pdat']]){
       await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),t);await new Promise(r=>setTimeout(r,250));
       const el=await p.$(sel);if(el)await el.screenshot({path:path.join(shots,w+'_'+sel.replace('#','')+'.png')})}}
   await p.close();

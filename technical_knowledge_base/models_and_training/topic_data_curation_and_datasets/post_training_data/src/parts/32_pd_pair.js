@@ -1,4 +1,4 @@
-// ---- Pair inspector (tab t-pdpair) ----
+// ---- Pair inspector (Reading section 5, closed block #pd-pp) ----
 (function(){
 const P=window.PD,E=RD.esc,$=id=>document.getElementById(id),{f0,pc}=window.PDU;const PR=P.pref;
 let key=PR.order[0],i=0,onlyRL=false;
@@ -32,6 +32,6 @@ function render(){stats();hist();show()}
 $('pp-set').addEventListener('change',e=>{key=e.target.value;i=0;render()});
 $('pp-prev').addEventListener('click',()=>{i--;show()});$('pp-next').addEventListener('click',()=>{i++;show()});
 $('pp-rl').addEventListener('change',e=>{onlyRL=e.target.checked;i=0;show()});
-(window.TAB_RENDER=window.TAB_RENDER||{})['t-pdpair']=[render];
+RD.onRender(render);document.getElementById('pd-pp-det').addEventListener('toggle',e=>{if(e.target.open)hist()});
 rules();render();
 })();

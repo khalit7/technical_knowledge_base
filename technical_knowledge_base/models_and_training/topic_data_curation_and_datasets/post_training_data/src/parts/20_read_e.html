@@ -1,10 +1,54 @@
-<section id="pd-s5"><h2>5. Chat templates and loss masking: what a row becomes</h2>
-<p><b>The problem.</b> A row is a list of turns; a model reads one string of tokens. The <dfn>chat template</dfn> renders the turns into that string, with headers that say who speaks, and the <dfn>loss mask</dfn> decides which tokens the model is graded on. Get the template different between training and serving and the model sees headers it never learned; forget the mask and it learns to write the user's half too. The mechanics (how masked tokens drop out of the loss, packing several rows into one sequence) are on {{Alignment: SFT, RLHF, DPO Family, RLVR|n:3c65c17b0d0d81d5bed7e608d4061c7a}}, which animates them; here is what they do to the data.</p>
-<p><b>How Tulu 3 did it.</b> open-instruct renders the conversation with its "tulu" template (<code>&lt;|user|&gt;</code>, <code>&lt;|assistant|&gt;</code> headers, end-of-text token after each answer; <code>dataset_transformation.py</code> lines 260 to 279 at commit 72f46040), then, for each non-assistant message, renders the conversation up to that message and masks that span of tokens, including the <code>&lt;|assistant|&gt;</code> header that follows it (<code>finetune.py</code> lines 401 to 444 at the Tulu 3 release commit b0899767; today's code builds the same labels another way, lines 1598 to 1728). Rows padded, not packed. One real row from the Tulu 3 sample, rendered and tokenized with the Qwen3 tokenizer; green tokens get loss:</p>
-<div class="pd-tok" id="pd-tok"></div>
-<p class="small mute" id="pd-tok-note"></p>
-<p><b>How much of a row is trained</b> <span class="meas">measured</span>: the same template and masking on every set (at most 3,000 rows each, seed 0), share of all tokens that get loss.</p>
-<div class="rd-bars" id="pd-mask-bars"></div>
-<p>The spread is the point. In a reasoning set nearly every token is the model's own trace, so nearly every token is trained. In an agent trajectory the observations (file contents, test output) are most of the tokens and are masked: only about one token in six or seven is the agent's. Two sets with the same number of rows can carry five times different amounts of training signal, so budgets are set in trained tokens, not rows.</p>
-<div class="co warn"><div class="t">Three ways this goes wrong</div><b>Template drift</b>: the base model's tokenizer ships one template, the training script uses another, the serving stack a third; whitespace and the end-of-turn token are the usual differences. Render a row with each and diff the strings. <b>No end token</b>: if the token after the answer is masked or missing, the model never learns to stop. <b>Masking by string search</b>: finding "assistant" in the text to start the mask breaks on any answer that contains the word; render prefixes, as open-instruct does.</div>
+<section id="pd-s5"><h2>5. Preference data: pairs, judges and the length trap</h2>
+<p>SFT can only copy; pairs teach a model to prefer the better of answers it can already write (DPO and relatives, or a reward model). <b>Whatever separates chosen from rejected is what the model learns, intended or not.</b></p>
+<div class="tw"><table class="rd-narrow"><thead><tr><th>Recipe</th><th>Answers from</th><th>Who decides</th><th>Example</th></tr></thead><tbody>
+<tr><td>Human comparison</td><td>The lab's own model, two samples</td><td>Crowdworkers choose the more helpful (or, for red-teaming, the more harmful) one</td><td>HH-RLHF: base 44k helpful + 42k harmless comparisons, rejection-sampled 52k + 2k, online 22k ({{arXiv 2204.05862|https://arxiv.org/abs/2204.05862}}); the card warns the data are "not meant for supervised training"</td></tr>
+<tr><td>Human ratings, absolute</td><td>Model responses, two per prompt</td><td>At least three annotators rate each response 0 to 4 on five attributes (helpfulness, correctness, coherence, complexity, verbosity); pairs or a regression reward model come from the scores</td><td>HelpSteer2: 21,362 rated responses, about ten thousand response pairs, CC-BY-4.0 ({{arXiv 2406.08673|https://arxiv.org/abs/2406.08673}}, {{card|https://huggingface.co/datasets/nvidia/HelpSteer2}}); verbosity is rated separately, so length can be controlled for</td></tr>
+<tr><td>AI feedback, off-policy</td><td>Four models drawn from a pool of 17</td><td>GPT-4 rates each answer 1 to 5 on four aspects, with a rationale</td><td>UltraFeedback: 63,967 prompts, 255,864 completions ({{arXiv 2310.01377|https://arxiv.org/abs/2310.01377}})</td></tr>
+<tr><td>AI feedback, on-policy mixed in</td><td>Models from a pool of 22, plus the model being trained</td><td>GPT-4o, same four aspects; chosen = highest mean, rejected = random lower</td><td>Tulu 3 8B: 271,409 pairs (Table 15); OLMo 2 the same with a 20-model permissive pool</td></tr>
+<tr><td>Delta learning</td><td>A strong model and a weak model of the same family</td><td>Nobody: the stronger model's answer is chosen by construction</td><td>OLMo 3: Qwen3-32B chosen, Qwen3-0.6B rejected; for chat, length difference capped at 100 tokens ({{arXiv 2512.13961, 4.3|https://arxiv.org/abs/2512.13961}})</td></tr>
+</tbody></table></div>
+<p><b>Does on-policy help?</b> Tulu 3's ablation (Figure 11, read from figure): 8B SFT model 58.2; DPO on 100k off-policy pairs 60.0; on 100k pairs with one on-policy answer 60.7; on the combined 120k 61.2 ({{arXiv 2411.15124, section 5|https://arxiv.org/abs/2411.15124}}). On-policy pairs show the model its own likely mistakes; here that is worth less than a point, and the mixture is best.</p>
+
+<h3>Binarization: the same ratings, different pairs</h3>
+<p>UltraFeedback gives four rated answers per prompt; DPO needs one pair, and the rule that picks it is a data decision. Hugging Face's <code>ultrafeedback_binarized</code> card says it took the highest <code>overall_score</code> and a random other answer (the Zephyr paper, trained on it, says "highest mean score"); Argilla found <code>overall_score</code> is a critique score that "will give a 10 to responses that get a 1" in some rows, and rebuilt the pairs from the mean of the four aspect ratings, dropping ties. Real prompts from UltraFeedback's evol_instruct subset, three rules:</p>
+<div class="rd-card" id="pd-bin-card">
+<div class="seg" id="pd-bin-rule"><button class="on" data-m="h4">overall_score (H4 card)</button><button data-m="argilla">mean of aspects (Argilla, Tulu 3)</button><button data-m="maxmin">best against worst</button></div>
+<div class="an-ctl" id="pd-bin-ctl"></div>
+<div class="an-cap" id="pd-bin-cap"></div>
+<div id="pd-bin-prompt" class="small"></div>
+<div class="pd-comp" id="pd-bin-comp"></div>
+</div>
+<p><span class="meas">measured</span> Across all @@ub_prompts@@ prompts the two common rules pick the same chosen answer for only @@ub_same_chosen@@ of the @@ub_same_n@@ prompts where both apply (@@ub_same_pct@@; Argilla reported "a different chosen response in ~30K examples (out of ~63K)" for the whole set). Under the overall_score rule @@ub_h4_ties@@ of the @@ub_h4_n@@ pairs are ties, so the label is noise; the mean rule drops them.</p>
+
+<h3>Length: the signal nobody asked for</h3>
+<p>Within each UltraFeedback prompt, GPT-4's mean rating correlates with the answer's length at @@ub_spear@@ on average (Spearman, @@ub_spear_n@@ prompts with untied ratings and lengths) <span class="meas">measured</span>; the longest of the four answers is (one of) the top-rated in @@ub_top_longest_pct@@ of prompts, against 25% by chance. Per aspect:</p>
+<div class="rd-bars" id="pd-asp-bars"></div>
+<p>Longer answers are often more complete, so this is not proof of bias; but a model trained on these pairs can lower its loss by writing more. Published: always choosing the longer answer is right 55.7%, 59.6% and 63.1% of the time on WebGPT, Stack Exchange and RLCD preferences, and a reward of length alone reproduces most of RLHF's measured gains on two of them ({{Singhal et al., Table 5 and Table 2|https://arxiv.org/abs/2310.03716}}). Across eight sets, the share of pairs whose chosen answer is longer (Qwen3 tokens; 50% means length says nothing):</p>
+<div class="rd-card"><h4>Six of eight preference sets favour the longer answer, human-labelled ones included</h4><div class="rd-bars" id="pd-len-bars"></div></div>
+<p>@@pf_len_summary@@</p>
+<div class="pr" id="pd-pr2"><div class="q">Predict: OLMo 3's delta-learning pairs (Qwen3-32B chosen, Qwen3-0.6B rejected) have no judge at all. Is the chosen answer longer more or less often than in GPT-judged pairs of the same set?</div><div class="opts"><button data-ok="1">More often: the big model writes more</button><button data-ok="0">Less often: with no judge there is no length bias</button><button data-ok="0">Exactly as often</button></div><div class="ans" hidden>@@pf_dolci_delta@@</div></div>
+<p>The fixes are in the data or the loss: cap the length difference (OLMo 3, 100 tokens for chat), balance pairs by length, rate verbosity separately (HelpSteer2), or length-normalise DPO (Tulu 3). To detect it: the share of "chosen is longer" by length-gap bucket, and the within-prompt rating-length correlation, both below.</p>
+<details class="dp" id="pd-pp-det"><summary>Pair inspector: every set by length gap, its generators, and the pairs themselves <span class="mute">(measured; eight sets)</span></summary><div class="b" id="pd-pp">
+<p>Eight preference sets, measured the same way: lengths of the final chosen and rejected answers in Qwen3 tokens, ties and identical pairs, how the share of "chosen is longer" changes with the size of the length gap, who wrote the answers, and the pairs. A share of 50% in a gap bucket means length carries no information about the label there.</p>
+<label class="small" style="display:flex;gap:6px;align-items:center;min-width:0"><span style="flex:none">Set</span> <select id="pp-set" style="flex:1 1 auto;min-width:0;width:100%"></select></label>
+<div class="out" id="pp-stats"></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px">
+<div style="min-width:0"><h4>Length ratio, chosen over rejected</h4><div class="pp-hist" id="pp-hist"></div><p class="small mute">log2 of (chosen tokens + 1) / (rejected tokens + 1), clipped at &plusmn;4; right of the line, the chosen answer is longer.</p></div>
+<div style="min-width:0"><h4>Chosen is longer, by gap</h4><div class="rd-bars" id="pp-gap"></div><p class="small mute">Gap = |log2 ratio|; 1 means one answer is twice as long. Pairs with equal lengths or identical texts left out.</p></div>
+</div>
+<div id="pp-src"></div>
+<h4>The pairs</h4>
+<div class="pp-nav"><button id="pp-prev">&#9664; Previous</button><span id="pp-pos"></span><button id="pp-next">Next &#9654;</button><label class="chk"><input type="checkbox" id="pp-rl"> only pairs where the rejected answer is longer</label></div>
+<div class="small mute">A seeded sample per set: half drawn at random, half among pairs where the rejected answer is longer (to show both sides), trimmed. HH-RLHF harmless-base contains offensive requests by design; read with that in mind.</div>
+<div class="pp-p" id="pp-prompt"></div>
+<div class="pp-two"><div class="c" id="pp-c"></div><div class="r" id="pp-r"></div></div>
+<h4>UltraFeedback: four binarization rules on the same ratings</h4>
+<div class="tw" id="pp-rules"></div>
+<p class="small mute">Raw openbmb/UltraFeedback evol_instruct subset, every prompt with four rated answers. overall_score is the critique score Argilla found unreliable; the other rules use the mean of the four aspect ratings.</p>
+</div></details>
+
+<h3>A small judge, shown each pair in both orders</h3>
+<div class="rd-card" id="pd-judge-run"><div id="pd-judge-out"><div class="pend"><b>Pending GPU run</b> (src/scripts/run_pending.sh, about 30 minutes).</div></div></div>
+<p>@@jd_summary@@</p>
+<details class="dp"><summary>Delta pairs: not run here, and what the paper found <span class="mute">(published)</span></summary><div class="b"><p><b>Not run here:</b> generating our own delta pairs (a large and a small Qwen3 answering the same prompts). The Dolci-Instruct-DPO sample above already measures OLMo 3's delta pairs, and the method is published: Geng et al. pair a 3B model's answers with a 1.5B model's and, with preference tuning on that weak data, match Tulu 3's recipe on an 11-benchmark suite although supervised fine-tuning on the same data hurts ({{The Delta Learning Hypothesis, arXiv 2507.06187|https://arxiv.org/abs/2507.06187}}).</p></div></details>
 </section>
