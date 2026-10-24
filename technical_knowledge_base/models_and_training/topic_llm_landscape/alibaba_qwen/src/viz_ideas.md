@@ -104,3 +104,10 @@ Scoring is 0 to 2 per question; reproduction and computability count double; bui
 - **Licence content**: legal text is neither a number nor a mechanism, so the scoring questions fit it poorly. It scored well only on misconception and centrality. A rule is needed for "categorical facts that vary per item": a checker or matrix, read verbatim, never paraphrased into thresholds the text does not state.
 - **Same-named benchmark sets**: the predecessor in the Flash-Next paper was not the model the page implied. The paper says "397B-A17B predecessor", and its own Table 11 names Qwen3.7-Plus, a closed model. Rule: when a paper compares against "the predecessor", read the table header, not the prose.
 - **Config fields that disagree with prose**: `output_gate_type: swish` in the 27B and 2.4T configs against "sigmoid output gate" in the paper. Rule: the config describes the checkpoint; the paper may describe only its own model.
+
+
+## 2026-10-24 rebuild to the teaching contract
+- Built: hero block diagram (static, structure), Flash-Next parameters to scale (static, drawn to scale), Qwen3 post-training recipe (static, process with a branch). All in `17_js_figs.js`, drawn at the measured width.
+- Moved: lineage chart from its tab into Reading.
+- Removed: the delta rule against plain linear attention widget (Beyond attention owns and demonstrates the mechanism); the Table 21 bars (owned by Distillation and small language models, numbers kept in text); the AA bars (merged into the dated table).
+- Rejected: a stepper for QSA's two passes (the hybrid animation's QSA mode already steps them); a real image (no physical object; Qwen's figures carry no reuse licence).

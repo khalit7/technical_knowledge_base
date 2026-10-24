@@ -1,25 +1,5 @@
-// ---- Smaller Reading-tab visuals: delta rule, layout ablation, Table 11, thinking budget, distillation, AA index ----
-// Delta rule against plain linear attention, three writes and one read, exact arithmetic (illustrative vectors)
-(function(){
-  if(!$('dr'))return;let m='delta';
-  const k1=[1,0,0],k2=[0,1,0],v1=[2,0,1],v2=[0,3,0],v3=[1,1,0];
-  const mv=(S,x)=>S.map(r=>r.reduce((a,v,j)=>a+v*x[j],0));
-  const f=v=>'('+v.map(x=>(Math.abs(x)<5e-4?0:x).toFixed(2).replace(/\.00$/,'')).join(', ')+')';
-  function draw(){
-    const a=+$('drA').value/100,b=+$('drB').value/100;$('drAv').textContent=a.toFixed(2);$('drBv').textContent=b.toFixed(2);
-    let S=[[0,0,0],[0,0,0],[0,0,0]];const rows=[];
-    [[k1,v1,'k₁, v₁'],[k2,v2,'k₂, v₂'],[k1,v3,'k₁, v₃']].forEach(([k,v,lab])=>{
-      const old=mv(S,k);
-      // S = a S (I - b k kT) + b v kT   (delta)   or   S = a S + v kT   (plain)
-      const n=S.map((r,i)=>r.map((x,j)=>m==='delta'?a*(x-b*old[i]*k[j])+b*v[i]*k[j]:a*x+v[i]*k[j]));S=n;
-      rows.push('<tr><td>write '+lab+'</td><td class="vec">'+(m==='delta'?'state returned '+f(old)+' for this key; erased, then '+f(v)+' written':'adds '+f(v)+' on top')+'</td></tr>')});
-    const out=mv(S,k1),want=v3,err=Math.hypot(...out.map((x,i)=>x-want[i]));
-    $('drOut').innerHTML='<div class="tw"><table>'+rows.join('')+'<tr><td><b>read with q = k₁</b></td><td class="vec"><b>'+f(out)+'</b> against the latest value v₃ = '+f(want)+'</td></tr></table></div>'+
-      '<div class="out">'+stat('Recall error for k₁',err.toFixed(2),err<0.01?'exact: the write replaced the old value':m==='plain'?'old value v₁ still mixed in':'decay or partial write strength')+stat('Numbers in the state','9','fixed: 3 × 3, however many writes')+'</div>';
-  }
-  $('drM').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{$('drM').querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});m=b.dataset.m;draw()}));
-  $('drA').addEventListener('input',draw);$('drB').addEventListener('input',draw);draw();
-})();
+// ---- Smaller Reading-tab visuals: layout ablation (Table 1), Flash-Next against Qwen3.7-Plus (Table 11), thinking budget ----
+// Removed 2026-10-24: the delta-rule demo (Beyond attention owns it), the Table 21 bars (Distillation owns them; numbers stay in the text), the AA bars (now columns of the dated table).
 // Layout ablation, Flash-Next paper Table 1 (averages of 9 benchmarks)
 (function(){
   if(!$('ablBars'))return;const R=[['Full attention',49.87,'var(--c2)'],['SWA hybrid (3:1)',51.15,'var(--c5)'],['GDN hybrid (3:1)',53.81,'var(--good)']];
@@ -48,25 +28,4 @@
       '<div class="leg"><span><i style="background:var(--acc)"></i>thinking generated</span>'+(cut?'<span><i style="background:var(--line)"></i>thinking it never got to</span>':'')+'<span><i style="background:var(--bad)"></i>budget</span></div>';
     $('tbTxt').innerHTML=cut?'Thinking stops at token '+fmt(b)+' of the '+fmt(w)+' it wanted ('+Math.round(b/w*100)+'%). The serving code appends: <i>"Considering the limited time by the user, I have to give the solution based on the thinking directly now."</i> and the closing think tag, and the answer follows from the partial reasoning.':'The chain ends on its own at '+fmt(w)+' tokens; the '+fmt(b)+'-token budget never binds and nothing is inserted.'}
   $('tbB').addEventListener('input',draw);$('tbW').addEventListener('input',draw);draw();
-})();
-// Distillation against RL on Qwen3-8B, Table 21
-(function(){
-  if(!$('dsBars'))return;
-  const R=[['Off-policy start',55.0,42.8,0],['+ RL',67.6,55.5,17920],['+ distillation',74.4,65.5,1800]];
-  const bar=(v,mx,c,t)=>'<span class="track"><span class="fill" style="width:'+(v/mx*100).toFixed(1)+'%;background:'+c+'"></span></span><span class="val">'+t+'</span>';
-  let h='<div class="bars"><div class="small mute">AIME\'24 (blue) and AIME\'25 (orange), score out of 100</div>';
-  R.forEach(r=>{h+='<div class="row"><span class="nm">'+r[0]+'</span>'+bar(r[1],100,'var(--c1)',r[1].toFixed(1))+'</div><div class="row"><span class="nm"></span>'+bar(r[2],100,'var(--c2)',r[2].toFixed(1))+'</div>'});
-  h+='<div class="small mute" style="margin-top:8px">GPU hours spent on the step</div>';
-  R.slice(1).forEach(r=>{h+='<div class="row'+(r[3]<2000?' hl':'')+'"><span class="nm">'+r[0]+'</span>'+bar(r[3],17920,r[3]<2000?'var(--good)':'var(--mute)',fmt(r[3]))+'</div>'});
-  $('dsBars').innerHTML=h+'</div>';
-})();
-// Qwen on the Artificial Analysis Intelligence Index v4.3 (read 2026-10-01, from aa_snapshot.json)
-(function(){
-  if(!$('aaBars'))return;
-  const R=[['Qwen3.8-Max (0902), hosted',45.4,5.4085,false],['Qwen3.8-2.4T-A95B, open',39.9,2.1559,true],['Qwen3.8-Flash-Next, open',39.8,0.3722,true],['Qwen3.8-27B (xhigh), open',33.7,1.0073,true]];
-  let h='<div class="bars"><div class="small mute">Intelligence Index v4.3</div>';
-  R.forEach(r=>{h+='<div class="row"><span class="nm" title="'+r[0]+'">'+r[0]+'</span><span class="track"><span class="fill" style="width:'+(r[1]/50*100).toFixed(1)+'%;background:'+(r[3]?'var(--open)':'var(--closed)')+'"></span></span><span class="val">'+r[1].toFixed(1)+'</span></div>'});
-  h+='<div class="small mute" style="margin-top:8px">Cost per index task, US dollars</div>';
-  R.forEach(r=>{h+='<div class="row"><span class="nm" title="'+r[0]+'">'+r[0]+'</span><span class="track"><span class="fill" style="width:'+(r[2]/5.5*100).toFixed(1)+'%;background:'+(r[3]?'var(--open)':'var(--closed)')+'"></span></span><span class="val">$'+r[2].toFixed(2)+'</span></div>'});
-  $('aaBars').innerHTML=h+'</div><div class="leg"><span><i style="background:var(--open)"></i>open weights</span><span><i style="background:var(--closed)"></i>hosted only</span></div>';
 })();
