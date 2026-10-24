@@ -56,3 +56,6 @@ About 34 minutes is right for this page: it owns nine operational subjects (fres
 
 ## Ledger
 `src/ledger.json`: 375 units (351 drafted by `html_utils/ledger.py init` from the page as built on 2026-10-19, 20 added for script-rendered visuals and tables, 4 for the dated price rows): core 232, depth 31, volatile 9 (the dated prices, kept in one table here as the brief asks), fat 103 (each with a note), problems 0. Keys were proposed by searching each unit's longest phrase containing its numbers in the rebuilt page, then checked by hand; weak or missing ones were set manually.
+
+## Topic close (2026-10-24)
+New closed block at the end of Reading: each stage's time on its own and generation time from the root's retired Pipeline lab. References to the Pipeline lab, the ingestion page's Re-indexing lab and Vector indexes' Filter lab now name what exists. Header remeasured: 34 min, plus 11 in closed details. Every quoted sibling time now matches its header (`html_utils/check_times.py`); the ledger keys that quoted old times or tab names were re-pointed to the current text (problems 0).
