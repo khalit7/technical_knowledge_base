@@ -1,3 +1,42 @@
+# Alibaba: Qwen, interactive page (v4, rebuilt 2026-10-24 to the teaching contract)
+
+Child page of Topic: llm-landscape (prefix `qw`, storage key `qw-tab`). Rebuilt by editing only: no new runs, no new numbers except derived ones with their formula.
+
+## Build and checks (current)
+- `sh build.sh` writes `../index.html`: HTML parts `01_head`, `02_read_a` (core idea, hero, you need, new terms, one-screen table, strategy and licences, how the design got here), `02b_read_line` (lineage release notes, closed), `03_read_b` (MoE, hybrid attention, QSA and Flash-Next), `04_read_c` (post-training, dated lineup), `04d_read_deep` (closed depth blocks), `05_tabs` (Configs, Licence checker), `07_more`; then the error box and one script per JS part: `10_js_common`, `21_js_rd_common` (skill template, never autoplays), `11_js_moe`, `12_js_hx`, `13_js_small`, `14_js_cfg`, `15_js_line` (lineage chart, now in Reading), `16_js_lic`, `17_js_figs` (hero, Flash-Next parameters to scale, Qwen3 post-training recipe), `99_js_tabs` (skill template).
+- The header reading time comes from `rt.json`: after editing text run `node html_utils/audit_pages.mjs <out.jsonl> <page>` and update it (230 words a minute, core and closed details apart).
+- `check_controls.mjs` (from the repo root: `node <page>/src/check_controls.mjs <page>/index.html`) moves every slider, select, radio and toggle, steps the hybrid animation through all three modes, clicks every lineage dot, in 390 px dark and 920 px light, and fails if the animation moves before a click (also under reduced motion).
+- `recompute.py` recomputes every reproduced default; `python3 html_utils/ledger.py check <page>` checks the knowledge ledger.
+
+## The 2026-10-24 rebuild: what changed and why
+- **Top**: the core idea in one sentence (coverage, paid for by the test, adopt, inherit, distil loop), a static hero (one Qwen3.8 block, annotated, with the loop from Qwen3-Next to Flash-Next under it), "You need", new terms condensed, and the one-screen table.
+- **Licences**: the bullet list became a table of the clause that bites per checkpoint; the checker tab stays (a tool across about thirty checkpoints) and is renamed Licence checker.
+- **Lineage**: moved from its tab into Reading ("How the design got here"), because the order is the loop; the per-release cards are a closed "Release notes" block that a dot click opens.
+- **MoE**: global-batch toy kept inline (Qwen's own design; the formula moved to a closed block); expert grid kept; worked parameter examples closed, the 2.4T reproduction kept in core; the high-sparsity costs condensed to one sentence (Mixture of experts owns them).
+- **Attention**: the delta-rule formula and the delta against plain linear attention widget were removed: Beyond attention owns the mechanism and its demo (one-line formula and link kept). Gated attention sink numbers named with a link to Attention variants; study details closed. Cache sizing is one paragraph of Qwen numbers plus the calculator link; the arithmetic is closed. The hybrid animation (never autoplays) stays inline with its counting notes closed.
+- **QSA and Flash-Next**: the two passes, results, worked 1M example and "the cache does not shrink" stay core; indexer internals, training steps, kernel conditions, IndexShare and the unconfirmed gather claim are closed. New to-scale figure of where Flash-Next's parameters live (the 51.2B n-gram table outside the 125B headline). The hard-selection cost from the old trade-offs section was added to the cache box.
+- **Post-training**: a new static recipe figure (four stages for the large models, two distillation phases for the small ones). The Table 21 bars and the KL formula were removed (Distillation and small language models owns on-policy distillation and carries the numbers); the numbers stay in one sentence.
+- **Models today**: one dated volatile table with the AA v4.3 index and cost per task as columns (the AA bars were removed).
+- **Trade-offs and common mistakes**: the trade-offs section restated the core; its new points were moved into the sections (balanced over the corpus but not per sequence, hard selection, the distillation ceiling) and the rest is fat. Mistakes are a closed block.
+- No real image: the subject has no physical object, and Qwen's own architecture figures (blog, arXiv) carry no reuse licence, so none was embedded.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After |
+|---|---|---|
+| Reading, core | 32.1 min (7,378 words) | 23.4 min (5,378 words) |
+| Reading, closed details | 1.1 min | 10.7 min |
+| Other tabs | 11.4 min (Configs 1.5, Lineage 4.9, Licences 2.5, Further reading 2.4) | 7.0 min (Configs 1.5, Licence checker 2.5, Further reading 2.9) |
+| Visuals inline in Reading (audit count) | 3 | 7 (hero, lineage, global-batch toy, expert grid, hybrid animation, Flash-Next parameters, recipe) plus the Table 1, Table 11 and thinking-budget bar charts |
+
+Why about 23 minutes is right: the page owns three architectural departures (512-expert MoE with global-batch balance, the 3:1 Gated DeltaNet hybrid, QSA plus capacity off the accelerator) and a post-training recipe, each with Qwen's published evidence; the ledger shows the remaining core is Qwen-specific numbers and reasons, not restatement. Mechanisms other pages own are now one line and a link; detail and chronicle are closed.
+
+## Knowledge ledger
+471 units: core 286, depth 73, volatile 65, owned 13, fat 34 (`ledger.py check`: problems 0). 455 drafted by `ledger.py init` from the old page, 10 carried from the 2026-10-23 pilot ledger (KV-cache units owned by Long context), 6 added by hand for script-drawn visuals. Owned: delta-rule demo by Beyond attention; Table 21 bars by Distillation and small language models; MoE definition by Mixture of experts; cache sizing by Long context.
+
+---
+
+# Earlier notes (v3, kept for history)
+
 # Alibaba: Qwen, interactive page (v3)
 
 `visual.html` replaces all the text of the Notion page "Alibaba: Qwen" (child of Topic: llm-landscape, https://app.notion.com/p/3c65c17b0d0d81fd8c36ce06672bb235). It is the only source of information on the page, so it carries every fact of the old text (`coverage.json`), each specific figure linked inline to its source.

@@ -24,8 +24,8 @@
     // labels for a few anchors, to orient
     [['Qwen3',2025.33,0],['Next',2025.69,1],['3.5',2026.13,0],['3.8',2026.6,0],['Flash-Next',2026.65,1],['Qwen3-Max',2025.73,2]].forEach(([t,v,l])=>{s+='<text x="'+lx(v)+'" y="'+(ly(l)-22)+'" font-size="10.5" text-anchor="middle" fill="var(--mute)">'+t+'</text>'});
     $('tlSvg').innerHTML=svgEl(W,H,s,'Qwen releases 2023 to 2026 by lane and licence');
-    $('tlSvg').querySelectorAll('.lnd').forEach(g=>g.addEventListener('click',()=>{const el=$(g.dataset.go);if(!el)return;document.querySelectorAll('.tl-item.sel').forEach(x=>x.classList.remove('sel'));el.classList.add('sel');el.scrollIntoView({block:'start',behavior:'smooth'})}));
+    $('tlSvg').querySelectorAll('.lnd').forEach(g=>g.addEventListener('click',()=>{const el=$(g.dataset.go);if(!el)return;const d=$('tlNotes');if(d)d.open=true;document.querySelectorAll('.tl-item.sel').forEach(x=>x.classList.remove('sel'));el.classList.add('sel');el.scrollIntoView({block:'start',behavior:'smooth'})}));
     $('tlLeg').innerHTML=Object.values(LC).map(([n,c])=>'<span><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="'+c+'"/></svg>'+n+'</span>').join('')+'<span>dashed ring: size unpublished</span>';
   }
-  onTab('t-line',draw);addEventListener('resize',()=>{if(!$('t-line').hidden)draw()});
+  onTab('t-read',draw);addEventListener('resize',()=>{if(!$('t-read').hidden)draw()});
 })();

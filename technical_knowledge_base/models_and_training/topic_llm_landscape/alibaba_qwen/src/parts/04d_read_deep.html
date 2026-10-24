@@ -1,0 +1,77 @@
+
+<section id="s-deep">
+<h2>Depth (closed)</h2>
+<p class="small mute">Optional detail behind the sections above, in the order they appear.</p>
+
+<details class="dp"><summary>Global-batch balancing: the loss, and why micro-batches are the problem</summary><div class="b">
+<div class="fm"><math display="block"><mtext>LBL</mtext><mo>=</mo><msub><mi>N</mi><mi>E</mi></msub><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><msub><mi>N</mi><mi>E</mi></msub></munderover><msub><mi>f</mi><mi>i</mi></msub><msub><mi>P</mi><mi>i</mi></msub></math>
+<dl><dt>N<sub>E</sub></dt><dd>number of experts</dd><dt>f<sub>i</sub></dt><dd>fraction of the batch's tokens routed to expert <i>i</i></dd><dt>P<sub>i</sub></dt><dd>the router's average probability for expert <i>i</i> over the same tokens</dd></dl>
+<p class="wh">The loss is smallest (1) when traffic is even. Computed per micro-batch and then averaged, it forces even traffic <i>within</i> a handful of documents. Computing <i>f<sub>i</sub></i> and <i>P<sub>i</sub></i> over the global batch, synchronised across all data-parallel ranks, demands balance only over the diverse mix. The extra communication is one number per expert per step ({{Qiu et al., 2025|@gbl}}).</p></div>
+</div></details>
+
+<details class="dp"><summary>Expert parameters, worked: Qwen3-235B-A22B and Qwen3.8-2.4T-A95B</summary><div class="b">
+<ul>
+<li><b>Qwen3-235B-A22B</b>: <span class="m"><i>d</i><sub>model</sub> = 4,096</span>, <span class="m"><i>d</i><sub>ff</sub> = 1,536</span> ({{config|@c235}}), so <span class="m"><i>P</i><sub>expert</sub> = 3 × 4,096 × 1,536 = 18,874,368</span>. Stored: 94 × 128 × 18.87M = 227.1B, which is 97% of the 235B total. Active: 94 × 8 × 18.87M = 14.2B of the 22B; attention, norms and embeddings make up the rest.</li>
+<li><b>Qwen3.8-2.4T-A95B</b>: <span class="m"><i>d</i><sub>model</sub> = 8,192</span>, <span class="m"><i>d</i><sub>ff</sub> = 2,048</span>, 92 layers, 513 experts stored per layer. Stored: 92 × 513 × 50.33M = 2.375T. Active: 92 × 11 × 50.33M = 50.9B of the 95B: at this scale the attention and DeltaNet layers are a much larger share of per-token compute than in Qwen3.</li>
+</ul>
+</div></details>
+
+<details class="dp"><summary>Qwen's Gated DeltaNet layer, in detail</summary><div class="b">
+<ul>
+<li><b>Short causal convolution.</b> Queries, keys and values pass through a short causal convolution and a SiLU before the recurrence (kernel 4 in every config). Queries and keys are L2-normalised.</li>
+<li><b>Gate parameterisation.</b> The write strength is <span class="m"><i>β<sub>t</sub></i> = σ(<i>W<sub>β</sub></i><b>x</b><sub><i>t</i></sub>)</span>, and the decay <i>α<sub>t</sub></i> is an exponential of a softplus, so it stays in (0, 1). The output is RMS-normalised and multiplied by the output gate.</li>
+<li><b>Custom kernels.</b> The recurrence has to run in a chunked parallel form to use tensor cores at all. Qwen's FlashQLA kernels run 2 to 3 times faster forward, and about 2 times backward, than the reference Triton kernels ({{FlashQLA|@fla}}, via the Flash-Next paper).</li>
+<li><b>Two stability changes that arrived with Next.</b> Zero-centred, weight-decayed layer normalisation: the norm's scale is parameterised as an offset from 1 and weight decay is applied to it, so norm weights cannot grow without bound (Flash-Next applies the same norm everywhere). And multi-token prediction (MTP): extra heads predict tokens further ahead and serve as a built-in draft for speculative decoding (the mechanism is on {{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}).</li>
+</ul>
+</div></details>
+
+<details class="dp"><summary>Gated attention: what Qwen's paper measured</summary><div class="b">
+<p>Qwen's NeurIPS 2025 paper tested the output gate across 30 variants of 15B MoE (2.54B active) and 1.7B dense models trained on up to 3.5T tokens ({{Qiu et al., 2025|@gat}}). The gate adds non-linearity to the otherwise low-rank value-to-output path; makes the output query-dependently sparse; removes the attention sink, where heads dump weight on the first token because softmax must put its probability somewhere (46.7% of attention across layers went to the first token in the baseline, 4.8% with the gate), and the associated massive activations; and improves training stability, tolerance of higher learning rates and long-context extrapolation.</p>
+</div></details>
+
+<details class="dp"><summary>The cache arithmetic, Qwen3-235B against Qwen3-Next</summary><div class="b">
+<div class="fm"><math display="block"><mtext>KV bytes per token</mtext><mo>=</mo><msub><mi>L</mi><mtext>full</mtext></msub><mo>×</mo><mn>2</mn><mo>×</mo><msub><mi>H</mi><mrow><mi>k</mi><mi>v</mi></mrow></msub><mo>×</mo><msub><mi>d</mi><mi>h</mi></msub><mo>×</mo><mi>b</mi></math>
+<p class="wh"><i>L</i><sub>full</sub> full-attention layers, one key and one value, <i>H<sub>kv</sub></i> key-value heads of dimension <i>d<sub>h</sub></i>, <i>b</i> bytes per number (2 for 16-bit). A DeltaNet layer instead holds a fixed <span class="m"><i>H<sub>v</sub></i> × <i>d<sub>k</sub></i> × <i>d<sub>v</sub></i></span> numbers per request.</p></div>
+<ul>
+<li><b>Qwen3-235B</b>: <span class="m">94 × 2 × 4 × 128 × 2 = 192,512</span> bytes, 188 KiB per token, 47 GiB at 262,144 tokens.</li>
+<li><b>Qwen3-Next</b>: <span class="m">12 × 2 × 2 × 256 × 2 = 24,576</span> bytes, 24 KiB per token, 6 GiB at 262,144 tokens. Its 36 DeltaNet layers each hold 32 value heads of 128 × 128: <span class="m">36 × 32 × 128 × 128 = 18,874,368</span> numbers, 36 MiB at 2 bytes, whatever the context.</li>
+<li><b>Crossover.</b> Had those 36 layers been full attention they would add <span class="m">36 × 2 × 2 × 256 × 2 = 73,728</span> bytes (72 KiB) per token, so the fixed state is cheaper after <span class="m">36 MiB ÷ 72 KiB = 512</span> tokens.</li>
+<li>Qwen3.5-397B: 15 full layers with 2 KV heads of 256, 30 KiB per token; Qwen3.8-27B: 16 layers with 4 heads, 64 KiB; Qwen3.8-2.4T-A95B: 23 layers with 4 heads, 92 KiB.</li>
+<li>These configurations also set <code>mamba_ssm_dtype: float32</code>. If serving keeps the DeltaNet state in 32-bit (unconfirmed), every state figure doubles; the {{KV-cache calculator|n:3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv}} has the toggle.</li>
+</ul>
+</div></details>
+
+<details class="dp"><summary>QSA in detail: the indexer, training, measurement, and the alternatives rejected</summary><div class="b">
+<p><b>Indexer.</b> Keys are average-pooled over blocks of 4 tokens, then normalised. Pooling happens before positional encoding, so tokens with different rotary phases are not averaged together; each block gets one position, its first token's. The indexer's rotary embedding covers 64 of its 128 dimensions. A block's score is the ReLU of the query-key similarity, summed over the 4 heads; only fully observed blocks can be scored.</p>
+<p><b>Training.</b> First only the indexer, for 1,000 steps of 8 sequences of 256K tokens (about 2B tokens), to match full attention's own distribution through a KL loss (summed over heads and max-pooled to blocks, so one salient token is not diluted). Then backbone and indexer jointly with QSA on, for 8,000 steps of 96 such sequences (about 200B tokens); the language-modelling loss stays within about 10<sup>−4</sup> of the full-attention run.</p>
+<p><b>Measurement.</b> The 7.6 and 4.9 times speedups at 1M are kernel-level measurements against FlashInfer's paged grouped-query attention, with chunked prefill in 16K chunks at batch 1, and decode at batch 4 with three MTP steps.</p>
+<p><b>IndexShare.</b> The paper compared intra-layer compression with IndexShare, which shares one top-k across adjacent full-attention layers. QSA matched full attention at a quarter of the indexer latency; IndexShare stayed below full attention even at half. In a hybrid the full-attention layers sit three DeltaNet layers apart and resemble each other too little to share indices.</p>
+<p><b>Unconfirmed.</b> A second benefit of blocks is often cited: gathering runs of 4 adjacent tokens suits GPU memory access better than scattered single-token gathers. That is plausible, but the paper does not make the argument, so treat it as <span class="ill">unconfirmed</span>.</p>
+</div></details>
+
+<details class="dp"><summary>Flash-Next's gated residual and Muon, in detail</summary><div class="b">
+<ul>
+<li><b>Gated residual.</b> Each layer reads the 4 branches through an elementwise sigmoid gate predicted from all branches, with bottleneck rank <span class="m"><i>d</i>/8 = 2,560/8 = 320</span>, and writes its output back to every branch through one data-dependent scalar per branch. The 4 × 4 branch-mixing matrix of hyper-connections was dropped as adding little. The gate decides how the extra capacity is used and supplies the rescaling that keeps training stable.</li>
+<li><b>Muon.</b> It runs 8 Newton-Schulz orthogonalisation steps, and fused matrices are split before orthogonalising. The router, the embeddings, the output head and the gated-residual projections stay on AdamW. A refitted scaling law raised the learning rate and batch size and dropped batch-size warm-up, which ended no better and cost 18.8% more optimiser steps ({{Flash-Next paper|@fnp}}).</li>
+</ul>
+</div></details>
+
+<details class="dp"><summary>The 38,912-token figure</summary><div class="b">
+<p>The 38,912-token figure sometimes quoted beside the thinking budget is the maximum output length the Qwen3 report allowed on AIME, not a budget setting.</p>
+</div></details>
+
+<details class="dp"><summary>Common misreadings</summary><div class="b">
+<ul>
+<li><b>"Qwen has no shared expert."</b> True of Qwen3 only; every large Qwen from Qwen3-Next on routes 10 of 512 experts plus 1 shared.</li>
+<li><b>"Qwen is Apache 2.0."</b> True of every open checkpoint from Qwen3 to Qwen3.5, and of the 3.6 and 3.8 mid-size models; not of the pre-Qwen3 flagships, Qwen2.5-3B, or the open 2.4T flagship, Flash-Next and Qwen-Image-2.1, which ship under three different custom licences.</li>
+<li><b>"Qwen3.8-27B is a standard dense transformer."</b> Its feed-forward layers are dense, but 48 of its 64 layers are Gated DeltaNet.</li>
+<li><b>"The model was trained to respect the thinking budget."</b> The serving code enforces it by inserting a stop-thinking instruction; answering well from truncated thinking emerged from thinking mode fusion.</li>
+<li><b>"QSA shrinks the KV cache."</b> It cuts what each query reads, not what is stored.</li>
+<li><b>"Sparse attention cuts attention time by the selection ratio."</b> 488 times fewer tokens read at 1M gives 7.6 times (prefill) and 4.9 times (decode), because the indexer pass remains.</li>
+<li><b>"Flash-Next was compared with Qwen3.5-397B."</b> The paper's "397B-A17B predecessor" is the closed Qwen3.7-Plus.</li>
+<li><b>"Qwen3.8-Max" as one model.</b> It is a series of dated snapshots, and the hosted model and the open 2.4T-A95B checkpoint differ in modalities and modes.</li>
+<li><b>Reading an Arena placing as a capability score.</b> It is a preference ranking at one moment.</li>
+</ul>
+</div></details>
+</section>
+</div>
