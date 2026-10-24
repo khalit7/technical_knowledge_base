@@ -97,6 +97,26 @@ out['mrcr_row'] = {k: row[k] for k in ['n_chars', 'n_needles', 'desired_msg_inde
 out['halfwidth'] = [{'b': b, 'n': n_, 'p': p, 'hw': round(1.96 * math.sqrt(p / 100 * (1 - p / 100) / n_) * 100, 1)} for b, n_, p in SIZES]
 
 json.dump(out, open('recompute_out.json', 'w'), indent=1, ensure_ascii=False)
-print(json.dumps({k: out[k] for k in ['ruler_eff_all_match', 'ruler_half_at_32k', 'nolima_eff_mismatch', 'nolima_t3_count', 'nolima_t3_below_half_at_32k', 'gpt4o_32k_over_base', 'overlap', 'mmmupro_all_deltas_ok', 'mmstar', 'mrcr_grades', 'halfwidth', 't6_drop_32k']}, indent=0))
+# 7. ANLS worked example (DocVQA metric: 1 - normalised Levenshtein distance, 0 when that distance is 0.5 or more)
+def lev(a, b):
+    d = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        p, d[0] = d[0], i
+        for j, cb in enumerate(b, 1):
+            p, d[j] = d[j], min(d[j] + 1, d[j - 1] + 1, p + (ca != cb))
+    return d[len(b)]
+ANLS_REF = 'Robert Smith'
+out['anls'] = []
+for pred in ['Robert Smith', 'Robert Smyth', 'Rob Smith', 'R. Smith', 'Smith']:
+    dist = lev(pred, ANLS_REF); nl = dist / max(len(pred), len(ANLS_REF))
+    out['anls'].append({'pred': pred, 'dist': dist, 'nl': round(nl, 3), 'score': round(1 - nl, 3) if nl < 0.5 else 0})
+# 8. POPE: always answering yes on a balanced set (half the objects present)
+P_, R_ = 0.5, 1.0
+out['pope_always_yes'] = {'acc': 50.0, 'precision': P_, 'recall': R_, 'f1': round(2 * P_ * R_ / (P_ + R_) * 100, 2), 'yes_rate': 100.0}
+# 9. CircularEval on 4 options: a model that always answers "A"
+# single pass: right when the key is A (1 in 4 on a balanced key); circular: the key visits A, B, C, D, so never right on all four passes
+out['circular_always_a'] = {'single_pass': 25.0, 'circular': 0.0, 'random_guess_circular': round(0.25 ** 4 * 100, 2)}
+
+print(json.dumps({k: out[k] for k in ['ruler_eff_all_match', 'ruler_half_at_32k', 'nolima_eff_mismatch', 'nolima_t3_count', 'nolima_t3_below_half_at_32k', 'gpt4o_32k_over_base', 'overlap', 'mmmupro_all_deltas_ok', 'mmstar', 'mrcr_grades', 'halfwidth', 't6_drop_32k', 'anls', 'pope_always_yes', 'circular_always_a']}, indent=0))
 print([ (x['m'],x['pub'],x['last']) for x in r if not x['match']])
 print(out['litm'])

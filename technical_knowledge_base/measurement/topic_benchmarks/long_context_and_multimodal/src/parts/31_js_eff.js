@@ -1,6 +1,6 @@
-// ---- Effective length tab (ids ef-) ----
+// ---- Effective length chart, inline in Reading (ids ef-) ----
 (function(){
-const D=window.LD,esc=RD.esc;if(!document.getElementById('t-eff'))return;
+const D=window.LD,esc=RD.esc;if(!document.getElementById('ef-dumb'))return;
 const C=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim()||'#888';
 const COL=['--c1','--c2','--c3','--c4'];
 const st={b:'ruler',r:'abs',t:85.6,sel:{ruler:['GPT-4','Llama3.1 (70B)','LWM (7B)'],nolima:['GPT-4o','GPT-4.1','Claude 3.5 Sonnet']}};
@@ -45,7 +45,7 @@ function draw(){setSlider();const R=rows().map(r=>Object.assign(r,{q:eff(r)}));
     s+='<circle cx="'+xs(r.cl)+'" cy="'+y+'" r="5" fill="'+C('--bg')+'" stroke="'+C('--mute')+'" stroke-width="2"/>';
     s+='<circle cx="'+ex+'" cy="'+y+'" r="5" fill="'+C('--acc')+'"/>';
     const a=effLab(r.q);if(isDefault()&&a!==pubNorm(r.pub)){const px=xs(parseK(r.pub));s+='<circle cx="'+px+'" cy="'+y+'" r="3" fill="'+C('--bad')+'"/>'}
-    const nm=nar&&r.m.length>17?r.m.slice(0,16)+'.':r.m;
+    const nm=nar&&r.m.length>15?r.m.slice(0,14)+'.':r.m;
     s+='<text class="nm" x="4" y="'+(y+4)+'" font-size="11"'+(sel>=0?' fill="'+C(COL[sel%4])+'"':'')+'>'+esc(nm)+'</text>'+RD.t(ml-6,y+4,a,{a:'end',fs:10.5,fill:C('--mute')})+'</g>'});
   box.innerHTML=RD.svg(W,H,s,'Claimed against effective context length');
   box.querySelectorAll('g.effrow').forEach(g=>g.addEventListener('click',()=>{const m=g.dataset.m,L=st.sel[st.b];const k=L.indexOf(m);if(k>=0)L.splice(k,1);else{L.push(m);if(L.length>4)L.shift()}draw()}));
@@ -65,6 +65,5 @@ RD.seg(document.getElementById('ef-b'),m=>{st.b=m;if(m==='ruler'){st.r='abs';st.
 RD.seg(document.getElementById('ef-r'),m=>{st.r=m;st.t=m==='abs'?85.6:85;draw()});
 document.getElementById('ef-t').addEventListener('input',e=>{st.t=+e.target.value;draw()});
 document.getElementById('ef-reset').addEventListener('click',()=>{if(st.b==='ruler'){st.r='abs';st.t=85.6}else{st.r='rel';st.t=85}draw()});
-(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-eff']=window.TAB_RENDER['t-eff']||[]).push(draw);
-addEventListener('resize',()=>{const t=document.getElementById('t-eff');if(t&&!t.hidden)draw()});
+RD.onRender(draw);RD.onResize(draw);draw();
 })();

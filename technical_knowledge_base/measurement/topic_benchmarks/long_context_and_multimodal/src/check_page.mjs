@@ -1,4 +1,4 @@
-// Exercise every control at 390 dark and 920 light; compare JS numbers with recompute_out.json; screenshot cards.
+// Exercise every control at 390 dark and 920 light (all inline in the Reading tab since 2026-10-24); compare JS numbers with recompute_out.json; screenshot cards; check nothing moves before the reader acts.
 // usage: node src/check_page.mjs   (from the page folder or anywhere)
 import { createRequire } from 'node:module';
 import path from 'node:path'; import fs from 'node:fs'; import { fileURLToPath } from 'node:url';
@@ -43,7 +43,6 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.select('#litm-m', '0'); { const el = await p.$('#litm-card'); await el.screenshot({ path: shots + `/c-litm-${scheme}-${width}.png` }) }
   { const el = await p.$('#niah-pair'); await el.screenshot({ path: shots + `/c-niah-${scheme}-${width}.png` }) }
   // effective length: JS rule vs recompute
-  await p.click('button[data-t=t-eff]');
   const js = await p.evaluate(() => ({ r: LC_eff.eff('ruler', 'abs', 85.6), n: LC_eff.eff('nolima', 'rel', 85) }));
   const lab = (e, ge, lo) => e == null ? lo : (ge ? '≥' : '') + (e >= 1024 ? e / 1024 + 'M' : e + 'K');
   js.r.forEach(([m, e, ge], i) => { const want = R.ruler_eff[i].last.replace('>', '≥'); if (lab(e, ge, '<4K') !== want) problems.push('ruler eff ' + m + ' ' + lab(e, ge, '<4K') + ' vs ' + want) });
@@ -56,20 +55,25 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     await bad('eff click ' + bm);
   }
   await p.click('#ef-b button[data-m=nolima]'); await p.click('#ef-reset');
-  { const el = await p.$('#t-eff'); await el.screenshot({ path: shots + `/c-eff-nolima-${scheme}-${width}.png` }) }
+  { const el = await p.$('#ef-card'); await el.screenshot({ path: shots + `/c-eff-nolima-${scheme}-${width}.png` }) }
   // MRCR: presets vs Python
-  await p.click('button[data-t=t-mrcr]');
   const btns = await p.$$('#mr-cands button');
   const keys = ['correct', 'other_needle', 'no_prefix', 'same_format_other_topic', 'first_half', 'with_preamble'];
   for (let k = 0; k < btns.length; k++) { await btns[k].click(); const s = await p.evaluate(() => MRCRgrade(document.getElementById('mr-resp').value, LD.mrcr.prefix + LD.mrcr.texts.target, LD.mrcr.prefix).score);
     if (Math.abs(s - R.mrcr_grades[keys[k]]) > 1e-6) problems.push('mrcr ' + keys[k] + ' ' + s + ' vs ' + R.mrcr_grades[keys[k]]) }
   await p.$eval('#mr-resp', e => { e.value = e.value.slice(0, 300); e.dispatchEvent(new Event('input')) }); await bad('mrcr edit');
   for (const i of [0, 1, 2, 3, 14, 56, 73]) { await p.click(`#mr-map span[data-i="${i}"]`); await bad('mrcr map ' + i) }
-  await p.click('#mr-cands button'); { const el = await p.$('#t-mrcr'); await el.screenshot({ path: shots + `/c-mrcr-${scheme}-${width}.png` }) }
+  await p.click('#mr-cands button'); { const el = await p.$('#mr-card'); await el.screenshot({ path: shots + `/c-mrcr-${scheme}-${width}.png` }) }
+  for (const id of ['hero-card', 'bias-card']) { const el = await p.$('#' + id); await el.screenshot({ path: shots + `/c-${id}-${scheme}-${width}.png` }) }
+  { const el = await p.$('figure.ph'); await el.screenshot({ path: shots + `/c-niahimg-${scheme}-${width}.png` }) }
+  const moved = await p.evaluate(() => [...document.querySelectorAll('.an-ctl input[type=range]')].map(e => e.value)); if (!moved.length) problems.push('no steppers found')
   const sw = await p.evaluate(() => document.documentElement.scrollWidth > innerWidth); if (sw) problems.push(scheme + width + ' sideways scroll');
   const box = await p.evaluate(() => { const d = document.getElementById('jsErr'); return d && !d.hidden ? d.textContent : '' }); if (box) problems.push('errbox: ' + box);
   if (errs.length) problems.push(scheme + width + ' errors ' + errs.join(' | '));
   await p.close();
 }
+{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + page);
+  for (const id of ['nb-card', 'mm-card']) { await p.$eval('#' + id, e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 2500)); const v = await p.$eval('#' + id + ' .an-ctl input[type=range]', e => +e.value); if (v !== 0) problems.push('autoplay: ' + id + ' at step ' + v) }
+  await p.close() }
 await b.close();
 console.log(problems.length ? problems.join('\n') : 'all controls ok, JS matches recompute_out.json');
