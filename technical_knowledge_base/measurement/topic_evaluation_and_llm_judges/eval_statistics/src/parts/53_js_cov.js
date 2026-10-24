@@ -1,4 +1,4 @@
-// ---- Small-n intervals tab: exact coverage of four binomial intervals (no simulation) ----
+// ---- Reading, section 1 (moved from the old Small-n intervals tab): exact coverage of four binomial intervals (no simulation) ----
 (function(){
   const S=window.EST,host=document.getElementById('cv-svg');if(!host)return;
   const M=[['wald','CLT (Wald)','var(--c2)'],['wilson','Wilson score','var(--c1)'],['cp','Clopper-Pearson','var(--c3)'],['bayes','Bayes, uniform prior','var(--c4)']];
@@ -40,7 +40,7 @@
     document.getElementById('cv-tab').innerHTML='<tr><th>Method</th><th class="num">Average coverage, true rate uniform on [0, 1]</th><th class="num">Average width</th><th class="num">Counts k with an interval outside [0, 1]</th><th class="num">Counts with zero width</th></tr>'+
       M.map(m=>'<tr><td>'+m[1]+'</td><td class="num">'+(100*A[m[0]].cov).toFixed(1)+'%</td><td class="num">'+(100*A[m[0]].w).toFixed(1)+' pts</td><td class="num">'+A[m[0]].out+' of '+(n+1)+'</td><td class="num">'+A[m[0]].zero+'</td></tr>').join('');
     if(n===100&&c===.95)window.ES_CHECK.cov100={wald:A.wald.cov,wilson:A.wilson.cov,cp:A.cp.cov,bayes:A.bayes.cov};
-    document.getElementById('cv-repro').innerHTML=(n===100&&c===.95?'<b>Defaults reproduce Bowyer et al.</b> (their Section 3.1: "in the N=100 column we see that 95% CLT-based intervals achieve a coverage of only 92.5%"): computed exactly here, independently, the CLT interval covers '+(100*A.wald.cov).toFixed(1)+'% on average; the small gap to 92.5% is their simulation (100 true rates, 200 datasets each). ':'')+
+    document.getElementById('cv-repro').innerHTML=(n===100&&c===.95?'At these defaults the CLT interval covers '+(100*A.wald.cov).toFixed(1)+'% on average; the small gap to 92.5% is their simulation (100 true rates, 200 datasets each). ':'')+
       'The Bayes interval averages exactly its nominal level by construction here, because the uniform average over true rates is its own prior; Clopper-Pearson over-covers, as Bowyer et al. say ("overly conservative"); Wilson stays close to nominal at every n, narrower than Clopper-Pearson.';
   }
   nI.addEventListener('input',draw);cI.addEventListener('change',draw);
@@ -48,8 +48,7 @@
   function own(){let k=Math.max(0,Math.floor(+document.getElementById('cv-k').value||0)),n=Math.max(1,Math.floor(+document.getElementById('cv-m').value||1));if(k>n)k=n;
     document.getElementById('cv-own').innerHTML='<tr><th>Method</th><th class="num">95% interval</th><th class="num">Width</th></tr>'+M.map(m=>{const I=S.ci[m[0]](k,n,.95);return'<tr><td>'+m[1]+'</td><td class="num">'+(100*I[0]).toFixed(1)+'% to '+(100*I[1]).toFixed(1)+'%</td><td class="num">'+(100*(I[1]-I[0])).toFixed(1)+' pts</td></tr>'}).join('')}
   ['cv-k','cv-m'].forEach(id=>document.getElementById(id).addEventListener('input',own));
-  let first=true;onTab('t-cov',()=>{draw();if(first){own();first=false}});
-  addEventListener('resize',()=>{const t=document.getElementById('t-cov');if(t&&!t.hidden)draw()});
+  draw();own();RD.onRender(draw);RD.onResize(draw);
   // the published check runs once at load so the recompute comparison does not depend on opening the tab
   (function(){const A=avg(100,.95);window.ES_CHECK.cov100={wald:A.wald.cov,wilson:A.wilson.cov,cp:A.cp.cov,bayes:A.bayes.cov}})();
 })();

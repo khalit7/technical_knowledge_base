@@ -8,16 +8,26 @@ Scores 0 to 2 per question (quantity the reader moves; reproduces a published fi
 
 | # | Idea | Placement | Data and formulas | Reproduces | Score |
 |---|---|---|---|---|---|
-| ES1 | **One comparison, three intervals, same items** (before/after animation): every item a square; model B added; unpaired interval; pairing fades the concordant items and shrinks it; clusters regroup the squares and widen it; verdict. Toggle RACE-H (pass/fail) or MT-Bench (judge grades) | Reading, Pairing | RACE-H run here (2 models, 1,983 questions, 600 passages); MT-Bench GPT-4 grades (claude-v1 vs claude-instant-v1, 159 turns, 80 questions). Miller Eq. 5, 7, 8 | Parent topic's ±9.0 / ±4.4 shape on real data; production handoff's paired interval for the claude pair | 15 |
+| ES1 | **One comparison, three intervals, same items** (before/after animation): every item a square; model B added; unpaired interval; pairing fades the concordant items and shrinks it; clusters regroup the squares and widen it; verdict. Toggle RACE-H (pass/fail) or MT-Bench (judge grades) | Reading, Pairing | RACE-H run here (2 models, 1,311 questions, 400 passages); MT-Bench GPT-4 grades (claude-v1 vs claude-instant-v1, 159 turns, 80 questions). Miller Eq. 5, 7, 8 | Parent topic's ±9.0 / ±4.4 shape on real data; production handoff's paired interval for the claude pair | 15 |
 | ES2 | **Interval lab**: dataset, scoring rule (greedy, one sample, K samples, probability), any of 561 MT-Bench pairs, slice, subset of clusters; six intervals and seven tests | Own tab | same data; bootstrap and sign-flip permutation seeded | recompute.py checks every default row | 14 |
 | ES3 | **Sample-size calculator**: pass/fail mode with exact McNemar power and Type-M; general mode (Miller Eq. 9/10) with K, clusters (design effect), slices (Bonferroni); presets with residuals | Own tab | Miller §5; Card et al. App. C; parent topic; old Production example | Miller 969 (residual 0), 13.2 and 7.5 (13.3, 7.6 with exact z; residual shown); Card power 0.25 and Type-M 1.9, n = 2,000 nearly 80% (exact, independent); parent topic 8,242 / 1,955 (by construction); old "3,500" and "high power at 300" shown failing | 15 |
-| ES4 | **Small-n intervals**: exact coverage curves of CLT, Wilson, Clopper-Pearson, Bayes against the true rate, any n; average coverage, width, intervals outside [0, 1] | Own tab | binomial sums, no simulation | Bowyer et al.: CLT 92.5% at N = 100 (simulated) against 92.2% exact here | 12 |
+| ES4 | **Small-n intervals**: exact coverage curves of CLT, Wilson, Clopper-Pearson, Bayes against the true rate, any n; average coverage, width, intervals outside [0, 1] | Reading, Error bars (moved from its own tab 2026-10-24: it explains one mechanism) | binomial sums, no simulation | Bowyer et al.: CLT 92.5% at N = 100 (simulated) against 92.2% exact here | 12 |
 | ES5 | **Variance split on real logits**: SE against K (Miller's curve from the measured Var(x) and E[sigma^2], dots from seeded sampling), probability and greedy lines; greedy shifts the mean | Reading, Variance | RACE-H letter probabilities | Miller §3.1 shape on real data | 11 |
 | ES6 | **Clustered against naive** table: Miller Table 4 beside this page's RACE-H ratios and MT-Bench ratios | Reading, Clusters | same | RACE-H ratios 0.96 and 1.02 against Miller's 1.10 (independent, different models; does not reproduce, said) | 10 |
 | ES7 | **Tests side by side** on the two default comparisons | Reading, Tests | same | | 8 |
 | ES8 | **Many slices** calculator: familywise rate, Bonferroni and Sidak levels, item inflation per slice | Reading, Many slices | formulas | parent topic's 64% | 7 |
 | ES9 | **MathArena variance split**: per model, item variance against run-to-run variance from 4 runs per problem; SE for 1, 4 and infinitely many runs, and the pooled-answers SE | Reading, Resampling | MathArena released answers (via the Math page's extract) | complements the Math page's 1.7x (not rebuilt) | 9 |
 | ES10 | **Judge noise as a variance component**: MT-Bench expert votes, between-judge against between-item variance per model pair | Reading, Judge noise | lmsys/mt_bench_human_judgments | | 9 |
+
+## Added 2026-10-24 (teaching-contract rebuild)
+
+| # | Idea | Placement | Data and formulas | Reproduces | Score |
+|---|---|---|---|---|---|
+| ES11 | **Hero: one comparison, three intervals** (static) | Reading, top | RACE-H run, Miller Eq. 5, 7, 8 | same numbers as ES1 | core picture |
+| ES12 | **Error bar against n** at 70% (static) | Reading, Error bars | CLT formula | ±6.4 at 200 (parent topic) | 8 |
+| ES13 | **Clustered/naive ratio bars** | Reading, Clusters | Miller Table 4; Math benchmarks page (±10.75 against ±6.92, median 1.7); this page's data | published rows by construction | 11 |
+| ES14 | **Power against n**, paired and unpaired, one slider (discordant share) with a prediction prompt | Reading, Power | normal approximation | parent topic's 1,955 and 8,242 (by construction) | 12 |
+| ES15 | **MT-Bench rank ranges** from a question bootstrap | Reading, Rankings | `mk_ranks.py` on the released grades already in the page | (new measurement) | 12 |
 
 ## Rejected
 

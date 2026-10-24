@@ -49,5 +49,6 @@ X = {
    grab('inspect_std.py', 'def _clustered_stderr', 900)]},
 }
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'inputs', 'source_extracts.json')
-json.dump(X, open(out, 'w'), indent=1, ensure_ascii=False)
+json.dump(X, open(out, 'w'), indent=1, ensure_ascii=False)  # long dashes are replaced with -- below (repo rule)
+_t = open(out).read().replace('\u2014', '--'); open(out, 'w').write(_t)
 print(out, os.path.getsize(out))
