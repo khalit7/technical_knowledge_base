@@ -24,6 +24,22 @@ Scores 0 to 2 on the Methodology's questions (moves with a parameter, reproduces
 | Out-of-range prefill check | Orange points on the validation scatter: 49 calls at 9k to 15k tokens against the model fitted below 8k | s_longctx.py | Long-context tab | 8 |
 | Dashed pending boxes | Every number awaiting a generator run, with the command and time estimate; filled automatically from data/pending.json when the runs exist (all 1.7B runs were made on 2026-10-15) | s_post.py | inline | n/a |
 
+## Added 2026-10-24 (teaching-contract rebuild)
+
+| Idea | Kind | Placement |
+|---|---|---|
+| Hero: F1 against billed tokens, twelve strategies, coloured by who decides | static annotated chart | top of Reading |
+| Loop staircase: each call's prompt to scale, re-read against new, slider on n, recorded billed and prefilled beside it | one slider, one variable | section 1 |
+| Search budget 1 to 6 against tokens, with 1 and 5 results per search | static chart | section 1 |
+| Nine methods at Qwen3-1.7B and 4B (dumbbell) | static chart | section 3 |
+| Evaluator signals as AUROC dots against a coin line | static chart | section 4 |
+| Router lab | moved from its tab | section 5 |
+| Deep-research shape from open_deep_research's source (lead, parallel researchers with own windows, compression) | static diagram | section 7 |
+| Lost in the middle by window length (lines) | static chart | section 8 (the table moved into the caption) |
+| Prefill validation scatter | moved from the calculator tab | section 8 |
+| Memory curation: both hops kept against tokens, question only against question plus last thought | static chart | section 9 |
+| Liu et al.'s published U next to ours | rejected: accuracy % and F1 on one axis would mix figure kinds; quoted in the caption instead | |
+
 ## Rejected
 
 | Idea | Why not |
