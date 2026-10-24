@@ -1,7 +1,8 @@
-// ---- Depth and placement tab: (1) Theorem 1 sweep on the toy, (2) six released models' residual streams ----
+// ---- Reading 6, closed blocks: (1) Theorem 1 sweep on the toy, (2) six released models' residual streams ----
 (function(){
   const NI=window.NI,dsvg=document.getElementById('dp-svg'),rsvg=document.getElementById('rm-svg');if(!dsvg)return;
-  const onTab=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-depth']=window.TAB_RENDER['t-depth']||[]).push(f)};
+  // both cards sit in closed <details> blocks of the Reading tab: compute and draw only once a block is opened
+  const onOpen=(id,f)=>{const d=document.getElementById(id);if(!d)return;d.addEventListener('toggle',()=>{if(d.open)f()});RD.onRender(()=>{if(d.open)f()});RD.onResize(()=>{if(d.open)f()})};
   const PL=[['post','Post-norm','var(--c2)'],['pre','Pre-norm','var(--c1)'],['peri','Peri-norm','var(--c3)'],['out','Output norm','var(--c4)'],['deep','DeepNorm','var(--c5)']];
   const LS=[3,6,12,24,48],SEEDS=5;
   let sweep=null,q='g',busy=false;
@@ -35,7 +36,7 @@
       'Post-norm and DeepNorm end every block at size 1; pre-norm grows like the square root of the depth (Lemma 2); peri-norm and the output norm add a size-1 vector per sub-layer, so their streams reach about &radic;(2L + 1).';}
   document.getElementById('dp-leg').innerHTML=PL.map(p=>'<span><i style="background:'+p[2]+'"></i>'+p[1]+'</span>').join('');
   document.getElementById('dp-q').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;q=b.dataset.q;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));drawSweep()});
-  onTab(()=>compute(drawSweep));
+  onOpen('pl-det',()=>compute(drawSweep));
 
   // ---- (2) real models ----
   const R=NID.real,COL=['var(--c2)','var(--c1)','var(--c6)','var(--c4)','var(--c3)','var(--c5)'];
@@ -66,5 +67,5 @@
   document.getElementById('rm-q').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;rq=b.dataset.q;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));drawReal()});
   document.getElementById('rm-tb').innerHTML=R.map(m=>'<tr><td>'+short(m.id)+'</td><td>'+PN[m.place]+(m.qk?' + QK-norm':'')+'</td><td class="num">'+m.L+'</td><td class="num">'+m.d+'</td><td class="num">'+fmt(m.emb)+'</td><td class="num">'+fmt(m.rms[m.L-1])+'</td><td class="num">×'+(m.rms[m.L-1]/m.emb).toFixed(1)+'</td><td class="num">'+Math.max(...m.logit).toFixed(1)+'</td></tr>').join('');
   document.getElementById('rm-src').innerHTML='One English passage (the opening sentence of <i>A Tale of Two Cities</i>, public domain), about 145 tokens per tokenizer, one forward pass per model in float32 with eager attention (transformers '+NID.realVer.transformers+', torch '+NID.realVer.torch+'); <code>src/real/real_streams.py</code> <span class="nl m">measured</span>. Gemma 3 270M is read from the <code>unsloth/gemma-3-270m</code> mirror of Google\'s release; its embedding output already includes Gemma\'s &radic;d scaling.';
-  onTab(drawReal);
+  onOpen('rm-det',drawReal);
 })();
