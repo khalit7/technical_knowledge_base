@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "9 min read, +~5h 30m resources"', 'dropped: replaced by the build-computed reading time and resources total of the new page', ['min to read', 'of resources']),
+ ('Reading time line "9 min read, +~5h 30m resources"', 'dropped: replaced by the measured reading time in the header (2026-10-24)', ['Reading:', 'in closed details']),
  ('Authors: Jonathan Ho, Ajay Jain, Pieter Abbeel (UC Berkeley)', R + ', headline card', ['Jonathan Ho, Ajay Jain, Pieter Abbeel', 'UC Berkeley']),
  ('Date: June 2020 (NeurIPS 2020)', R + ', headline card', ['NeurIPS 2020', 'June 2020']),
  ('Link arXiv 2006.11239 (~1h, math-heavy)', 'card and Further reading', ['https://arxiv.org/abs/2006.11239', '(1h)']),

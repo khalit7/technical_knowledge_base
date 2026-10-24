@@ -26,7 +26,7 @@
   ['runSig','runN','runSeed'].forEach(id=>$(id).addEventListener('change',()=>{reset()}));
   $('runShow').addEventListener('change',show);$('runT').addEventListener('input',show);
   fit($('runCv'),()=>show());
-  let started=false;onTab('t-run',()=>{refit($('runCv'));if(!started){started=true;start()}drawSc();drawTc()});
+  onTab('t-run',()=>{refit($('runCv'));drawTc()});  // nothing samples until the reader presses Sample (2026-10-24); the score field now lives in the Reading tab and draws through fit()
 
   // measured table
   {let h='<table class="dt"><thead><tr><th>Variant</th><th>Paper IS / FID</th><th>Bound, test (train)</th><th>Rate + distortion</th><th>σ² = β: precision / recall / on roll</th><th>σ² = β̃: on roll, bound</th></tr></thead><tbody>';

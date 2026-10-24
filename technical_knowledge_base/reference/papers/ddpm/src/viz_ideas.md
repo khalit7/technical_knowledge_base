@@ -20,3 +20,11 @@ Central question: why does predicting the noise with an unweighted MSE give the 
 
 Lesson: a toy whose quantity must be reproduced almost exactly (mu-prediction outputs its input plus a beta-sized correction) is far more sensitive to weight quantisation; measure the cost per variant before choosing the bit width.
 Lesson: a background sampler that redraws on every slice when paused can starve the main thread; throttle redraws.
+
+## Light pass, 2026-10-24
+| id | Idea | Decision |
+|---|---|---|
+| P-ddpm.L1 | Hero: Figure 2 (the two Markov chains) redrawn on the toy Swiss roll, five panels on one scale, q dashed and p_theta solid | Built (`16_js_hero.js`), static. The paper is under arXiv's non-exclusive licence, so the figure is redrawn, not embedded. |
+| P-ddpm.L2 | Move the learned score field from the Sample tab to "Why this is score matching" | Built: it proves that claim, so it sits beside it. |
+| P-ddpm.L3 | Real image: the paper's CIFAR10 or CelebA-HQ samples (Figure 1) | Rejected: not openly licensed (arXiv non-exclusive licence, NeurIPS proceedings); the live samples carry the point. |
+| P-ddpm.L4 | Move the whole Sample tab into Reading | Rejected: it is a lab with four variants used by four sections (Idea, ablation, progressive coding, evidence); only the score field moved. |
