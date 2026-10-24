@@ -2,7 +2,8 @@
 written in the prose as @@key@@, filled in by build.sh), so prose and data cannot disagree.
 A result whose GPU run has not been made yet is written as a visible "pending run" marker, never guessed; the list of
 pending keys is printed and stored in facts.json under _pending.
-Also reads a committed output of the parent page: ../../src/vec/out/models.json (cost records of the setup's models).
+Also reads committed outputs of the parent page: ../../src/vec/out/models.json (cost records of the setup's models) and
+mrl_quant.json (truncation x precision x rescoring on SciFact, drawn in Reading section 8 since 2026-10-24).
 (The parent's contrastive.json fed the "who gets pushed" widget, removed 2026-10-19: the Contrastive and
 self-supervised learning page owns InfoNCE's gradient split; check_data.py still checks its batch-size sweep.)
 usage: python3 build_data.py"""
@@ -244,14 +245,12 @@ if tr and len([r for r in tr["runs"] if r["variant"] != "base"]) >= 12 and tr.ge
     st_ = {k: arms[k][0]["steps"] for k in arms}
     nf_lo = min(PR[k]["nfcorpus"]["vs_base"]["diff"] for k in arms); nf_hi = max(PR[k]["nfcorpus"]["vs_base"]["diff"] for k in arms)
     sr = max(PR[k]["scifact"]["seed_range"] for k in arms)
-    F["tr_reading"] = ("<p><b>What it says.</b> (1) <b>In-domain training helps</b> even at this size: in-batch negatives alone take SciFact from %s to %s, and every arm's paired interval against the starting model is clear of zero. "
-                       "(2) <b>Mined hard negatives add about one point</b> over in-batch only: BM25-mined %s (paired difference against in-batch %s), bge-mined %s (%s). "
-                       "This is the opposite of the sibling cross-encoder run, where random negatives beat BM25-mined ones; the bi-encoder here also keeps its in-batch negatives, so the mined one is an addition, not a replacement. "
-                       "(3) <b>The false-negative filter took the gain away</b>: %s, against in-batch %s. It removed %s%% of the top-10 candidates and pushed the first kept candidate to rank %s, so the negatives left were easier. "
-                       "Whether the removed abstracts were truly relevant cannot be checked without new labels; on this set, keeping them helped. "
-                       "(4) <b>Batch size, at a fixed number of epochs, went the other way from the large-batch advice</b>: batch 8 %s (%d steps), 32 %s (%d steps), 128 %s (%d steps). With 919 pairs, a bigger batch means far fewer updates, and that dominates; the large-batch recipes (BGE's 19,200) train on millions of pairs, where the trade between negatives per step and number of steps may differ; this run cannot test that regime. "
-                       "(5) <b>No forgetting</b>: every arm also gains %s to %s on NFCorpus, a domain it never saw. "
-                       "(6) <b>The noise floor</b>: seeds move an arm's mean by at most %s, less than the effects in (1), (2) and (4), while the filtered arm's %s over in-batch is inside it; the test set adds a paired interval of about &plusmn;%s for differences between arms.</p>") % (
+    F["tr_reading"] = ("<ol class=\"tight\"><li><b>In-domain training helps</b> even at this size: in-batch negatives alone take SciFact from %s to %s; every arm's paired interval against the starting model is clear of zero.</li>"
+                       "<li><b>Mined hard negatives add about one point</b>: BM25-mined %s (paired difference against in-batch %s), bge-mined %s (%s). Unlike the sibling cross-encoder run, the bi-encoder keeps its in-batch negatives, so the mined one is an addition, not a replacement.</li>"
+                       "<li><b>The false-negative filter took the gain away</b>: %s, against in-batch %s. It removed %s%% of the top-10 candidates and pushed the first kept candidate to rank %s, so the negatives left were easier. Whether the removed abstracts were truly relevant needs new labels; on this set, keeping them helped.</li>"
+                       "<li><b>At a fixed number of epochs, smaller batches won</b>: batch 8 %s (%d steps), 32 %s (%d steps), 128 %s (%d steps). With 919 pairs a bigger batch means far fewer updates, and that dominates; recipes like BGE's 19,200 train on millions of pairs, and this run cannot test that regime.</li>"
+                       "<li><b>No forgetting</b>: every arm also gains %s to %s on NFCorpus, a domain it never saw.</li>"
+                       "<li><b>The noise floor</b>: seeds move an arm's mean by at most %s, less than the effects in 1, 2 and 4; the filtered arm's %s over in-batch is inside it. The test set adds a paired interval of about &plusmn;%s for differences between arms.</li></ol>") % (
         f3(b0), mm("inbatch"), mm("bm25"), vi("bm25"), mm("dense"), vi("dense"), mm("dense_f"), mm("inbatch"), F["filt_share"], F["kept_rank"],
         mm("inbatch8"), st_["inbatch8"], mm("inbatch"), st_["inbatch"], mm("inbatch128"), st_["inbatch128"], "%+.3f" % nf_lo, "%+.3f" % nf_hi, "%.3f" % sr,
         "%+.3f" % PR["dense_f"]["scifact"]["vs_inbatch"]["diff"],
@@ -280,8 +279,28 @@ else:
     F["lab_note"] = ("<p class=\"small\"><b>What to watch.</b> Training spreads the whole space: with filtered dense negatives the mean cosine of a claim to the random abstracts falls from %s to %s, "
                      "and to its own labelled abstract from %s to %s. Absolute cosines fall; what retrieval needs is the gap between the labelled abstract and everything else. "
                      "On these 12 claims the labelled abstract wins before training for %d and after for %d: a sample this small does not show the gain that the 300-claim nDCG@10 measures "
-                     "(section 6 of Reading), which is why the lab is for seeing the mechanism, and the table below is for judging it. <span class=\"meas\">measured here</span></p>") % (
+                     "(the chart above), which is why this view is for seeing the mechanism and the chart for judging it. <span class=\"meas\">measured here</span></p>") % (
         f3(r0), f3(r1), f3(p0), f3(p1), m0, m1)
+
+# ---------------------------------------------------------------- smaller vectors (parent's mrl_quant.json), Reading section 8
+mq = R("mrl_quant.json")
+def mqrows(m, precs):
+    return [[r["d"], r["prec"], r["rescore"], r["bytes_per_vector"], r["ndcg10"], r["agree10"]] for r in mq[m]["rows"]
+            if r["prec"] in precs and r["rescore"] in (None, 100)]
+EMB["mq"] = dict(asof=mq["asof"], full={m: mq[m]["full"]["ndcg10"] for m in ("qwen3", "bge", "gte")},
+                 dim={m: mq[m]["full_dim"] for m in ("qwen3", "bge", "gte")},
+                 qwen3=mqrows("qwen3", ("float32", "int8", "binary")), bge=mqrows("bge", ("float32",)), gte=mqrows("gte", ("float32",)))
+# ---------------------------------------------------------------- the one dated roster table (Reading section 12)
+_mods = {r["key"]: r for r in R("models.json")["rows"]}
+_mt = D("mteb.json")["setup"]
+_hf = {"minilm-l6": "sentence-transformers/all-MiniLM-L6-v2", "bge-small": "BAAI/bge-small-en-v1.5", "gte-modernbert": "Alibaba-NLP/gte-modernbert-base", "qwen3-emb-0.6b": "Qwen/Qwen3-Embedding-0.6B"}
+_ctx = {"minilm-l6": "256", "bge-small": "512", "gte-modernbert": "8,192 (run at 1,024)", "qwen3-emb-0.6b": "32K (run at 1,024)"}
+_mrl = {"minilm-l6": "no", "bge-small": "no", "gte-modernbert": "not stated", "qwen3-emb-0.6b": "yes, 32 to 1,024"}
+_rk = lambda k, f: (str(_mt[_hf[k]][f]) if _mt.get(_hf[k], {}).get(f) else "not in results")
+_rows = "".join("<tr><td>%s</td><td class=\"num\">%s</td><td class=\"num\">%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class=\"num\">%s</td><td class=\"num\">%s</td><td class=\"num\">%.3f</td></tr>" % (
+    r["name"], r["params"], r["dim"], r["pool"], r["prompt"], _ctx[k], _mrl[k], r["lic"], _rk(k, "rank_mean"), _rk(k, "rank_scifact"), r["scifact_ndcg10"]) for k, r in _mods.items())
+F["roster_table"] = ("<div class=\"tw\"><table><tr><th>model</th><th class=\"num\">params</th><th class=\"num\">dims</th><th>pooling</th><th>query prompt</th><th>max tokens</th><th>Matryoshka</th><th>licence</th>"
+                     "<th class=\"num\">MTEB(eng, v2) rank by mean</th><th class=\"num\">rank on SciFact</th><th class=\"num\">SciFact nDCG@10 here</th></tr>" + _rows + "</table></div>")
 
 F["_pending"] = PEND
 json.dump(F, open(os.path.join(H, "facts.json"), "w"), indent=1)

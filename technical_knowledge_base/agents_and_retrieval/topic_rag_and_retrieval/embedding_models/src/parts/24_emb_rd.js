@@ -1,4 +1,4 @@
-// ---- Reading tab, part 1: the pooling animation, code quotes, pooling table, false negatives ----
+// ---- Reading tab, part 1: the pooling stepper, code quotes, pooling table, false negatives ----
 (function(){
   const E=window.EMB,esc=RD.esc;
   // ---------- code blocks with line numbers
@@ -57,7 +57,8 @@
   (function(){const el=document.getElementById('emb-fn-bars');if(!el)return;
     EL.bars(el,E.fn.bars.map((b,i)=>({name:b[0],v:b[1],txt:(100*b[1]).toFixed(1)+'%',color:i===0?'var(--good)':'var(--bad)'})),{max:1});
     const ex=document.getElementById('emb-fn-ex');
-    ex.innerHTML=E.fn.examples.map(e=>'<div class="emb-ex"><div class="c">Claim: '+esc(e.claim)+'</div><div><span class="lab">labelled abstract</span> '+esc(e.pos_title)+' <span class="mute">(cosine bge '+e.bge_pos.toFixed(2)+', Qwen3 '+e.qw_pos.toFixed(2)+')</span></div><div><span class="lab">top unlabelled abstract, both models</span> '+esc(e.neg_title)+' <span class="mute">(cosine bge '+e.bge_neg.toFixed(2)+', Qwen3 '+e.qw_neg.toFixed(2)+')</span></div><div class="small mute">'+esc(e.neg_text.slice(0,260))+'&hellip;</div></div>').join('')})();
+    const card=e=>'<div class="emb-ex"><div class="c">Claim: '+esc(e.claim)+'</div><div><span class="lab">labelled abstract</span> '+esc(e.pos_title)+' <span class="mute">(cosine bge '+e.bge_pos.toFixed(2)+', Qwen3 '+e.qw_pos.toFixed(2)+')</span></div><div><span class="lab">top unlabelled abstract, both models</span> '+esc(e.neg_title)+' <span class="mute">(cosine bge '+e.bge_neg.toFixed(2)+', Qwen3 '+e.qw_neg.toFixed(2)+')</span></div><div class="small mute">'+esc(e.neg_text.slice(0,260))+'&hellip;</div></div>';
+    ex.innerHTML=card(E.fn.examples[0])+(E.fn.examples.length>1?'<details class="dp"><summary>'+(E.fn.examples.length-1)+' more pairs <span class="mute">(examples)</span></summary><div class="b">'+E.fn.examples.slice(1).map(card).join('')+'</div></details>':'')})();
 })();
 // ---------- predict, then reveal
 document.querySelectorAll('.emb-prd').forEach(box=>{const ans=box.querySelector('.ans');

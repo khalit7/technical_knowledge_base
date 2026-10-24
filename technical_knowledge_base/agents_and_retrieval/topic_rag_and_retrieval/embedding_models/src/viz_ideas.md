@@ -19,8 +19,18 @@ The question the page keeps returning to: what decides where a text lands in the
 | E12 | Model chooser: intervals, paired difference to the best, limits on latency and bytes, tied group, subsample stats | The protocol as a tool | e_choose.py + parent's models.json | own tab |
 | E13 | Four predict-then-reveal drills | Belief before evidence | facts | Reading 1, 7, 11, 12 |
 
-## Rejected
-- A truncation and quantization explorer: the parent's Vector search lab already has one on the same Qwen3 vectors; repeating it adds nothing. Linked instead.
+## 2026-10-24 rebuild (teaching contract)
+| # | Idea | Kind | Placement |
+|---|---|---|---|
+| E14 | Hero: query and document through the same model separately, meeting only at the cosine; each part labelled with the section that owns it (static annotated diagram, real claim and abstract) | structure | top of Reading |
+| E15 | The similarity worked example drawn as 2-D vectors (q, d1, d2, d3, unit arc), values on the figure | static diagram | section 2 |
+| E16 | One training batch as a similarity matrix: diagonal positives, in-batch negatives, mined hard negatives, a masked duplicate (illustrative B = 4) | static diagram | section 3 |
+| E17 | Smaller vectors: share-of-dimensions slider and precision switch over the parent's mrl_quant.json; Qwen3 (Matryoshka-trained) against bge-small (not) and gte-modernbert (not stated), defaults land on the parent's 98% / 95% / 94% / 81% by construction from the same file | slider over recorded runs | section 7 (replaces the rejection below: this page now owns Matryoshka and quantised embeddings) |
+| E6, E12 | Training lab and Model chooser moved from tabs into Reading sections 5 and 11 (each explains one mechanism); the chooser's subsample readout dropped (E11 carries it) | moved | Reading |
+| E2, E13 | Pooling table and code moved into a closed block; predict drills kept (four, plus one new in section 7) | | |
+
+
+- (Reversed 2026-10-24, see E17.) A truncation and quantization explorer: the parent's Vector search lab already has one on the same Qwen3 vectors. OWNERS now gives Matryoshka and quantised embeddings to this page, so it draws the explorer from the parent's committed output; the parent should link here.
 - A 2-D (PCA, t-SNE or UMAP) before/after map of the fine-tune: projections distort neighbours (the parent measured it); the radial view is exact.
 - An InfoNCE loss widget: the parent has it (live batch, temperature slider); E3 shows the gradient side instead.
 - Hosted-model landscape table: the parent's Tool map owns it.

@@ -1,5 +1,6 @@
-// ---- Training lab tab: exact cosines around one claim, frame by frame through the fine-tune ----
+// ---- Reading section 5 (moved from the Training lab tab, 2026-10-24): exact cosines around one claim, frame by frame through the fine-tune ----
 (function(){
+  if(!document.getElementById('emb-tl-body'))return;
   const E=window.EMB,esc=RD.esc,lab=E.lab;
   const pend=document.getElementById('emb-tl-pend'),body=document.getElementById('emb-tl-body');
   if(!lab){pend.hidden=false;body.hidden=true;
@@ -24,7 +25,7 @@
   function draw(f){const A=lab.arms[arm];f=Math.min(f,A.frames.length-1);const g=lab.groups[gi],fr=A.frames[f][gi],f0=A.frames[0][gi];
     const W=Math.max(260,Math.min(RD.width(svgEl),440)),cx=W/2,cy=W/2,R=W/2-18;const ang=angles(g.kinds);
     const rad=c=>Math.min(1,Math.max(0,(1-c)/(1-cmin)))*R;let s='';
-    rings.filter((c,i)=>rings.length<6||i%2===rings.length%2).forEach(c=>{s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+rad(c)+'" fill="none" stroke="var(--line)"/>'+RD.t(cx+3,cy-rad(c)+11,'cos '+c.toFixed(1),{fs:9,fill:'var(--mute)'})});
+    rings.filter((c,i)=>rings.length<6||i%2===rings.length%2).forEach(c=>{s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+rad(c)+'" fill="none" stroke="var(--line)"/>'+RD.t(cx+3,cy-rad(c)+11,'cos '+c.toFixed(1),{fs:11,fill:'var(--mute)'})});
     g.kinds.forEach((k,j)=>{const x0=cx+rad(f0[j])*Math.cos(ang[j]),y0=cy+rad(f0[j])*Math.sin(ang[j]),x=cx+rad(fr[j])*Math.cos(ang[j]),y=cy+rad(fr[j])*Math.sin(ang[j]);
       if(f>0)s+='<line x1="'+x0.toFixed(1)+'" y1="'+y0.toFixed(1)+'" x2="'+x.toFixed(1)+'" y2="'+y.toFixed(1)+'" stroke="'+KC[k]+'" stroke-opacity=".45"/>';
       s+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+(k==='pos'?7:k==='neg'?5.5:4)+'" fill="'+KC[k]+'"><title>'+esc(lab.items[g.rel[j]].text.slice(0,120)+' | cosine '+fr[j].toFixed(3))+'</title></circle>'});
@@ -51,6 +52,5 @@
     h+='<tr><td>starting model</td><td></td><td></td><td class="num">'+E.ft.base.scifact.ndcg10.toFixed(3)+'</td><td class="num">'+E.ft.base.nfcorpus.ndcg10.toFixed(3)+'</td><td></td></tr>';
     Object.keys(E.ft.arms).forEach(a=>E.ft.arms[a].forEach(r=>{h+='<tr><td>'+esc(a)+'</td><td class="num">'+r.seed+'</td><td class="num">'+r.steps+'</td><td class="num">'+r.scifact.toFixed(3)+'</td><td class="num">'+r.nfcorpus.toFixed(3)+'</td><td class="num">'+r.train_s+'</td></tr>'}));
     t.innerHTML=h;note.textContent='Measured on Apple M1 Pro (MPS); training time includes snapshot encoding.'})();
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-embtrain']=window.TAB_RENDER['t-embtrain']||[]).push(()=>an.redraw());
-  addEventListener('resize',()=>{const t=document.getElementById('t-embtrain');if(t&&!t.hidden)an.redraw()});
+  RD.onResize(()=>an.redraw());
 })();

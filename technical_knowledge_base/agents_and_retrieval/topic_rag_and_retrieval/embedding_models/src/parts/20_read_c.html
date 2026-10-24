@@ -1,59 +1,42 @@
-<section id="emb-s6">
-<h2>6. A tiny fine-tune, measured</h2>
-<p><b>The question.</b> Does in-domain contrastive training help a small general model on SciFact, and does the choice of negatives matter once false negatives are taken into account? The setup is deliberately small, and labelled <b>tiny</b>: it shows the mechanics and their size on one corpus, not a recipe for a production model.</p>
+<section id="emb-s5">
+<h2>5. A tiny fine-tune, measured</h2>
+<p><b>The question.</b> Does in-domain contrastive training help a small general model on SciFact, and does the choice of negatives matter once false negatives are counted? bge-small-en-v1.5 (33 M parameters) trained on the @@n_pairs@@ SciFact train pairs for @@tr_epochs@@ epochs, InfoNCE at &tau; = 0.05, four arms at batch 32: <b>in-batch</b> negatives only; <b>+BM25</b> one BM25-mined negative per pair; <b>+dense</b> one bge-small-mined negative; <b>+dense, filtered</b> the same after the 95% filter. Plus in-batch only at batch 8 and 128. Three seeds each; the spread across seeds is the noise floor. Deliberately <b>tiny</b>: it shows the mechanics and their size on one corpus, not a production recipe.</p>
+<div class="card" id="emb-ft-card"><h4>Every arm beats the starting model; the arms differ by about a point, the seeds by less</h4><div class="small">nDCG@10 per arm, every seed a dot, the starting model as a dashed line; SciFact above, NFCorpus below (a domain it never trained on). <span id="emb-ft-lab"></span></div>
+<div class="emb-chart" id="emb-ft-svg"></div><div class="emb-leg" id="emb-ft-leg"></div></div>
+@@tr_reading@@
+<p>How to read a small difference: one model's nDCG@10 on 300 claims carries a 95% interval about &plusmn;@@ci_half@@ wide (section 11), but two runs on the <i>same</i> claims are compared with a paired bootstrap, which is much tighter; seeds add their own spread, which only repeats reveal. A difference smaller than the spread across seeds is not a finding.</p>
+<details class="dp"><summary>The full setup and the result table <span class="mute">(2 min)</span></summary><div class="b">
 <div class="tw"><table>
 <tr><th>setting</th><th>value</th></tr>
 <tr><td>model</td><td>bge-small-en-v1.5 (33 M parameters, CLS pooling, normalised), its query prefix on claims, 512 tokens, float32 on MPS</td></tr>
 <tr><td>data</td><td>SciFact train: @@n_pairs@@ (claim, labelled abstract) pairs from @@n_claims@@ claims; nothing from the test claims</td></tr>
 <tr><td>loss</td><td>InfoNCE, &tau; = 0.05, labelled-relevant columns masked; gradient caching in chunks of 16</td></tr>
 <tr><td>optimiser</td><td>AdamW, learning rate 2e-5, weight decay 0.01, 10% warm-up then linear decay, @@tr_epochs@@ epochs</td></tr>
-<tr><td>arms (batch 32)</td><td><b>in-batch</b> negatives only; <b>+BM25</b> one BM25-mined negative per pair; <b>+dense</b> one bge-small-mined negative; <b>+dense, filtered</b> the same after the 95%-of-positive filter. Each mined negative is drawn per epoch from the top 10 of its pool.</td></tr>
+<tr><td>mined negatives</td><td>each drawn per epoch from the top 10 of its pool</td></tr>
 <tr><td>batch-size arm</td><td>in-batch only at batch 8, 32 and 128 (same epochs, so a larger batch also means fewer steps: the two effects are not separated)</td></tr>
-<tr><td>repeats</td><td>3 seeds per arm (batch-size arm: the same); the spread across seeds is the noise floor</td></tr>
+<tr><td>repeats</td><td>3 seeds per arm</td></tr>
 <tr><td>evaluation</td><td>re-embed the SciFact and NFCorpus corpora with the trained weights; nDCG@10 on the test queries; paired bootstrap against the starting model</td></tr>
 </table></div>
-<div class="card" id="emb-ft-card"><div class="small"><b>Results.</b> nDCG@10 per arm, every seed a dot, the starting model as a dashed line; SciFact above, NFCorpus below (did training on SciFact help or hurt the other set?). <span id="emb-ft-lab"></span></div>
-<div class="emb-chart" id="emb-ft-svg"></div><div class="emb-leg" id="emb-ft-leg"></div></div>
-<div id="emb-ft-text">@@tr_text@@</div>
-@@tr_reading@@
-<p>How to read a small difference: the 300 SciFact test claims give a 95% interval about &plusmn;@@ci_half@@ wide for one model's nDCG@10 (section 12), but two runs evaluated on the <i>same</i> claims are compared with a paired bootstrap, which is much tighter; and seeds add their own spread, which only repeats reveal. A difference smaller than the spread across seeds is not a finding.</p>
-<p>The <b>Training lab</b> tab shows the same run from the inside: 12 test claims, their labelled abstracts, their hardest unlabelled abstracts and random abstracts, with the exact cosines recomputed every 4 training steps, so the pull of the positives and the push of the negatives can be watched, and compared between in-batch training and filtered dense negatives.</p>
-</section>
-
-<section id="emb-s7">
-<h2>7. Instructions and prefixes: asymmetric queries</h2>
-<p><b>The problem.</b> Queries are short and phrased as questions or claims; documents are long and phrased as statements. Many models are trained with a marker that tells them which side they are encoding, and some with a task description:</p>
-<ul class="tight">
-<li><b>E5-style prefixes</b>: "query: " before queries and "passage: " before documents. The e5-small-v2 card: "Yes, this is how the model is trained, otherwise you will see a performance degradation" (FAQ, card at revision ffb93f3b, read 2026-10-14) <span class="pub">published, vendor</span>.</li>
-<li><b>bge</b>: a query-side instruction "Represent this sentence for searching relevant passages: ", nothing on documents.</li>
-<li><b>Qwen3-Embedding</b>: "Instruct: &lt;task&gt;\nQuery:" before the query, nothing on documents; the card says instructions "typically" improve results by 1% to 5% <span class="pub">published, vendor</span>.</li>
-<li>all-MiniLM-L6 and gte-modernbert: no prompts.</li>
-</ul>
-<div class="emb-prd"><div class="q">Predict: Qwen3-Embedding with no instruction at all on the NFCorpus queries. How many nDCG@10 points does it lose against its task instruction?</div><div class="opts"><button data-r="0">under 1</button><button data-r="0">about 2</button><button data-r="1">about 6 to 7</button></div><div class="ans" hidden>@@qw_none_drop_nf@@ points (@@qw_task_nf@@ to @@qw_none_nf@@), the largest effect on this page outside fine-tuning; on SciFact @@qw_none_drop_sf@@.</div></div>
-<p>Measured on both sets, re-encoding only the queries (CPU, float32) and searching the stored document vectors (<code>scripts/e_prefix.py</code>). Bars show nDCG@10; the interval is the paired bootstrap of the difference against the model's documented setting. <span class="meas">measured here</span></p>
-<div class="emb-chart" id="emb-pf-svg"></div>
-<div id="emb-pf-text">
-<p>What it says. <b>bge-small</b>: without its prefix SciFact moves from @@bge_p_sf@@ to @@bge_np_sf@@ (paired interval of the difference @@bge_np_sf_ci@@) and NFCorpus from @@bge_p_nf@@ to @@bge_np_nf@@ (@@bge_np_nf_ci@@): opposite directions, both inside their intervals, so on these sets the prefix is a coin toss, not the rule its card implies. <b>Qwen3-Embedding</b>: dropping the instruction costs @@qw_none_drop_sf@@ points on SciFact and @@qw_none_drop_nf@@ on NFCorpus, clear of the noise; but the <i>wording</i> barely matters: the card's generic web-search instruction scores @@qw_gen_sf@@ against the task instruction's @@qw_task_sf@@ on SciFact (@@qw_gen_sf_ci@@) and @@qw_gen_nf@@ against @@qw_task_nf@@ on NFCorpus (@@qw_gen_nf_ci@@), and the <i>other</i> set's instruction scores @@qw_oth_nf@@ on NFCorpus (@@qw_oth_nf_ci@@). A decoder embedder trained with instructions needs to be told "this is a query"; which task description it gets matters much less here. @@e5_sentence@@</p></div>
-<div class="co key"><div class="t">The rule</div>Use the model's documented prompt as the default, then measure without it and with one or two task wordings on your own labelled queries: it costs one re-encoding of the queries, not of the corpus. The document side is different: a document prefix changes every stored vector, so changing it means re-embedding the corpus, and a query encoded with a mismatched setting silently loses quality.</div>
-</section>
-
-<section id="emb-s8">
-<h2>8. Smaller vectors: Matryoshka training and quantization</h2>
-<p>Two knobs shrink a stored vector: keep fewer numbers, or fewer bits per number. The parent's <b>Vector search lab</b> measures both on Qwen3-Embedding over SciFact, with an explorer (dimensions &times; float32, int8, binary &times; rescoring); this page does not rebuild it. The training side, which is this page's subject:</p>
-<div class="fm"><div class="eq">L<sub>MRL</sub> = &Sigma;<sub>m &isin; M</sub> c<sub>m</sub> &thinsp;L(v<sub>1:m</sub>)</div>
-<dl><dt>M</dt><dd>the nested sizes, for example {32, 64, 128, 256, 512, 1024}</dd><dt>v<sub>1:m</sub></dt><dd>the first m numbers of the embedding, re-normalised</dd><dt>L</dt><dd>the contrastive loss of section 4, applied to the truncated vector</dd><dt>c<sub>m</sub></dt><dd>a weight per size, often 1</dd></dl></div>
-<p><dfn>Matryoshka Representation Learning</dfn> (Kusupati et al. 2022, arXiv 2205.13147) adds the loss on every prefix, so the front of the vector carries the most. sentence-transformers wraps any loss this way (<code>MatryoshkaLoss</code>). The parent's measurements show what it buys <span class="meas">measured here (parent page)</span>: Qwen3-Embedding (trained with it) keeps 98% of its nDCG@10 at half its dimensions and 95% at a quarter; bge-small (trained without) keeps 94% and 81%; gte-modernbert cut to 384 dimensions (0.726) still beats Qwen3-Embedding at 1,024 (0.700). Binary codes of all 1,024 dimensions with the top 100 rescored in float32 keep all of it (0.700). Hosted models expose the same idea as a parameter: OpenAI's text-embedding-3 models take a <code>dimensions</code> argument (1,536 by default for -small, 3,072 for -large), and OpenAI states that "a text-embedding-3-large embedding can be shortened to a size of 256 while still outperforming an unshortened text-embedding-ada-002 embedding with a size of 1536" ({{OpenAI embeddings guide|https://developers.openai.com/api/docs/guides/embeddings}}) <span class="pub">published, vendor</span>. Index-side compression (product quantization, RaBitQ) is on {{Vector indexes from the inside|n:3f85c17b0d0d81f29707c130b2ebcfb1}}; indexing a Matryoshka prefix in pgvector is on {{Search and vector databases|n:3ef5c17b0d0d815eb4caef9b4cd4d732}}.</p>
-<p class="small mute">The old page's figure "up to 14x smaller embeddings at the same ImageNet accuracy" is the MRL paper's ImageNet-1K classification result; it says nothing about retrieval on your corpus. A truncation and quantization explorer was considered for this page and rejected: it would repeat the parent's, on the same vectors.</p>
-</section>
-
-<section id="emb-s9">
-<h2>9. Long inputs and truncation</h2>
-<p><b>The problem.</b> Every model reads at most a fixed number of tokens (its <dfn>maximum sequence length</dfn>) and silently drops the rest: all-MiniLM-L6 reads 256 tokens by default, bge-small and e5-small-v2 512 (the e5 card: "Long texts will be truncated to at most 512 tokens"), gte-modernbert 8,192 (run here at 1,024), Qwen3-Embedding 32K (run here at 1,024). Nothing warns you: the vector of a truncated text is still a vector.</p>
-<div class="card"><div class="small"><b>How long are the documents, and where is the evidence?</b> Left: share of documents longer than each limit, per tokenizer (the same text is a different number of tokens to each). Right: for every SciFact evidence sentence of a train or dev claim (from the original release, which marks evidence sentences), the BERT-token position where it ends. <span class="meas">measured here</span></div>
-<div class="seg" id="emb-ln-set"><button data-m="scifact" class="on">SciFact</button><button data-m="nfcorpus">NFCorpus</button></div>
-<div class="emb-chart" id="emb-ln-svg"></div></div>
-<p>The point the right panel makes: in a scientific abstract the evidence is late (conclusions come last). @@ev_256@@% of evidence sentences end after BERT token 256, and for @@ev_pair_256@@% of (claim, abstract) pairs even the <i>first</i> evidence sentence ends after token 256, so all-MiniLM-L6 at its default limit never reads the sentence that makes the abstract relevant. It still retrieves many of them, from the topic words in the title and opening. At 512 tokens, @@ev_512@@% of evidence sentences are cut.</p>
-<div id="emb-ln-embed">@@long_embed_text@@</div>
-<p>The same problem in chunked pipelines is measured by {{The retrieval pipeline|n:3c65c17b0d0d819899fde889e1e8b782}} on QASPER papers: LangChain's default 4,000-character chunks are 782 BERT tokens at the median, so all-MiniLM-L6 reads 33.3% of their tokens and bge-small 65.1%; even 256-Qwen3-token chunks exceed MiniLM's 256 BERT tokens 16.9% of the time, because the two tokenizers count differently. <span class="meas">measured here (sibling page)</span> The fix is to size chunks in the <i>embedding model's</i> tokens, not in characters or in the generator's tokens.</p>
-<p><b>Long-context embedders</b> (gte-modernbert, Qwen3-Embedding, modernbert-embed at 8K to 32K) can embed a whole paper, but one vector for 8,000 tokens averages many topics; the usual design still chunks, and late chunking (embed the long text once, pool per chunk) is measured on the pipeline page.</p>
+@@tr_text@@
+</div></details>
+<p><b>What training does to the vectors.</b> Twelve SciFact <b>test</b> claims (never trained on), each with its labelled abstract, its three highest-scoring unlabelled abstracts under the starting model, and twelve random abstracts, re-encoded every 4 training steps. The picture is exact, not a projection: each abstract sits at distance 1 &minus; cosine from the claim at the centre, at a fixed angle, so moving in means "more similar". Predict before stepping: does the labelled abstract move closer to the claim?</p>
+<div class="card" id="emb-tl-card">
+<h4>Training pushes everything apart; what retrieval needs is the gap, not the cosine</h4>
+<div id="emb-tl-pend" class="emb-pendbox" hidden></div>
+<div id="emb-tl-body">
+<div class="seg" id="emb-tl-arm"></div>
+<div class="ctl"><label>Claim <select id="emb-tl-claim"></select></label></div>
+<div class="emb-rp">
+<div><div class="emb-chart" id="emb-tl-svg"></div></div>
+<div><div class="emb-cap" id="emb-tl-cap"></div><div class="emb-ctr" id="emb-tl-ctr"></div><div id="emb-tl-key"></div></div>
+</div>
+<div class="an-ctl" id="emb-tl-ctl"></div>
+<p class="small mute" style="margin-top:10px">All twelve claims at this step. Margin = cosine to the labelled abstract minus the highest cosine to any other abstract in the set; positive means the labelled abstract wins.</p>
+<div class="emb-chart" id="emb-tl-bars"></div>
+</div></div>
+@@lab_note@@
+<details class="dp"><summary>Every run: 6 arms &times; 3 seeds <span class="mute">(table)</span></summary><div class="b">
+<div class="tw"><table id="emb-tl-runs"></table></div>
+<p class="small mute" id="emb-tl-note"></p>
+</div></details>
 </section>
