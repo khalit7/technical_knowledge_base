@@ -16,3 +16,17 @@ Central question: what actually crosses the wire between host, client and server
 | M10 | Latency bar chart across transports | none | all within 1 to 3 ms on loopback, noise up to 0.5 ms; a table says it better | rejected |
 
 What the methodology lacked: guidance for protocol pages, where the measurable object is a message sequence, not a curve; the replacement was "record it, replay it, count it".
+
+## Rebuild of 2026-10-24 (teaching contract)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| M11 | Hero: roles (model API, host and clients, local and remote servers, authorization server) with the loop numbered 1 to 4 | Reading top | built (the audit found no roles diagram) |
+| M12 | Envelope before/after: the same tools/call under both eras, bytes to scale, `_meta` highlighted | Reading s2 | built |
+| M13 | Anatomy of a tool definition and result | Reading s3 | built |
+| M14 | The two transports side by side | Reading s4 | built |
+| M1 | Two replicas stepper | moved from its tab to Reading s5 | moved; no longer plays on a mode switch |
+| M3 | OAuth flow | moved from the Wire lab to Reading s7, now a drawn sequence diagram | moved and drawn (the audit found no flow diagram) |
+| M15 | Token passthrough before/after | Reading s7 | built |
+| M16 | Trust map: five attacker positions with their controls | Reading s8 | built; an attack walkthrough was rejected (rejected pattern: step-by-step attack routes) |
+| M17 | Confused deputy sequence | none | rejected: an attack route; explained in text with the specified mitigation |
+| M18 | Real image (MCP Inspector screenshot) | none | rejected: a UI screenshot teaches nothing a diagram does not, licence unclear |
