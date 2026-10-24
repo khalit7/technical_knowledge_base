@@ -47,38 +47,23 @@ check('mini total', mini == 80277256 and '80,277,256' in read and str(mini) in m
 check('2.6 ms', round(m['agg_col']['ms_median'], 1) == 2.6 and '2.6 ms' in read)
 check('Buffers hit=12', 'shared hit=12' in read and m['lookup_idx']['nodes'][1]['hit'] == 12)
 v = 1536 * 4
-check('6,144 bytes', v == 6144 and '6,144 bytes' in read)
 check('6,152 pgvector', v + 8 == 6152 and '6,152' in read)
-check('6.2 GB / 615 GB', round((v + 8) * 1e6 / 1e9, 1) == 6.2 and round((v + 8) * 1e8 / 1e9) == 615 and 'about 6.2 GB' in read and 'about 615 GB' in read)
+check('615 GB', round((v + 8) * 1e8 / 1e9) == 615 and 'about 615 GB' in read)
+check('1.68 MB', f"{colb / 1e6:.2f}" == '1.68' and '1.68 MB' in read, colb)
 tps = json.load(open(os.path.join(H, '..', 'atlas', 'inputs', 'pg_tps.json')))
 wt = {r['clients']: r['tps'] for r in tps['writethrough']['runs']}
 check('148 / 2,133 tps', wt[1] == 148 and wt[32] == 2133 and '148 write transactions' in read and '2,133' in read)
-# 3. the SQL animation's result, recomputed from the sample rows
-D = {}
-for t in ('users', 'chats', 'messages'):
-    blk = re.search(t + r":\{cols:\[(.*?)\],rows:\[(.*?)\]\]\}", js)
-    cols = [c.strip("'") for c in blk.group(1).split(',')]
-    rows = [[x.strip().strip("'") for x in r.split(',')] for r in re.findall(r'\[([^\[\]]+)\]', blk.group(2) + ']')]
-    D[t] = [dict(zip(cols, r)) for r in rows]
-chat_user = {c['id']: c['user_id'] for c in D['chats']}; uname = {u['id']: u['name'] for u in D['users']}
-agg = {}
-for msg in D['messages']:
-    if msg['role'] != 'assistant': continue
-    n = uname[chat_user[msg['chat_id']]]; a = agg.setdefault(n, [0, 0]); a[0] += 1; a[1] += int(msg['tokens'])
-expect = sorted(([k, v[0], v[1]] for k, v in agg.items()), key=lambda r: -r[2])
+# 3. the write stepper (2026-10-24: the six old animations were retired to read/retired/parts; their numbers stay in the prose above)
+steps = re.findall(r'<li><b>', re.search(r'id="rd-w-list">(.*?)</ol>', read, re.S).group(1))
+check('write stepper 11 steps', len(steps) == 11, len(steps))
 co = os.path.join(H, 'check_out.json')
+expect = None
 if os.path.exists(co):
     out = json.load(open(co))
     for run in out['runs']:
-        got = [[r['name'], r['replies'], r['tokens']] for r in run['sql']]
-        check('sql animation ' + run['scheme'], got == expect, f'{got} vs {expect}')
-        cards = run['cards']
-        check('idx final ' + run['scheme'], 'Pages read: 12' in cards['rd-idx/idx'] and 'Pages read: 19,349' in cards['rd-idx/seq'], cards['rd-idx/idx'])
-        check('col final ' + run['scheme'], 'Bytes read: 1.68 MB' in cards['rd-col/col'] and 'Bytes read: 157.7 MB' in cards['rd-col/row'], cards['rd-col/col'])
-        check('tx final ' + run['scheme'], 'Replies sent: 2' in cards['rd-tx/naive'] and 'Replies sent: 1' in cards['rd-tx/lock'] and 'Replies sent: 1' in cards['rd-tx/serializable'])
-        check('cache final ' + run['scheme'], 'Stale answers: 1' in cards['rd-cache/ttl'] and 'Stale answers: 0' in cards['rd-cache/inv'] and 'Expensive queries: 4' in cards['rd-cache/db'], cards['rd-cache/ttl'])
+        check('stepper card ' + run['scheme'], 'rd-w' in run['cards'], list(run['cards']))
         check('no errors ' + run['scheme'], not run['errors'] and not run['problems'] and not run['sideways'])
 else:
     print('check_out.json missing: run check_read.mjs first')
-print(f'recompute: {ok} ok, {fail} failed; SQL result {expect}')
-json.dump({'ok': ok, 'failed': fail, 'sql': expect, 'ratio_bytes': round(ratio, 2)}, open(os.path.join(H, 'recompute_out.json'), 'w'), indent=1)
+print(f'recompute: {ok} ok, {fail} failed')
+json.dump({'ok': ok, 'failed': fail, 'ratio_bytes': round(ratio, 2)}, open(os.path.join(H, 'recompute_out.json'), 'w'), indent=1)

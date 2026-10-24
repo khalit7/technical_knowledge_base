@@ -47,12 +47,12 @@ window.QPA=(function(){
     sc.addEventListener('input',()=>{setPlay(false);st.i=+sc.value;draw()});
     sp.addEventListener('change',()=>{st.spd=+sp.value});
     if('IntersectionObserver' in window)new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;draw();setPlay(true)}}kick()},{threshold:.2}).observe(card);else st.vis=true;
+      kick()},{threshold:.2}).observe(card);else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     let rt=0;addEventListener('resize',()=>{if(!card.offsetParent||!st.lanes.length)return;clearTimeout(rt);rt=setTimeout(()=>{layout();draw()},80)});
     return {
       set(lanes){setPlay(false);st.lanes=lanes;st.max=Math.max(...lanes.map(l=>l.ms));layout();
-        if(RM||!st.started){st.i=N-1;draw()}else{st.i=0;draw();if(live())setPlay(true)}},
+        st.i=N-1;draw()},  // never autoplays (2026-10-24): a new case shows the whole run, still, until the reader plays or steps
       redraw(){if(st.lanes.length){layout();draw()}}
     };
   }

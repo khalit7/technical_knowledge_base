@@ -64,7 +64,7 @@ window.SQJ=(function(){
   function init(){
     if(!window.RD||!RD.anim){draw(N-1);return}
     anim=RD.anim({card:'sq-joincard',ctl:'sq-jctl',n:N,draw:draw,ms:1500,label:'JOIN step'});
-    RD.seg($('sq-jmode'),m=>{mode=m;anim.reset(N);anim.play()});
+    RD.seg($('sq-jmode'),m=>{mode=m;anim.reset(N)});
     let t=0;addEventListener('resize',()=>{const c=$('sq-joincard');if(!c||c.hidden||c.offsetParent===null)return;clearTimeout(t);t=setTimeout(()=>anim.redraw(),80)});
   }
   init();

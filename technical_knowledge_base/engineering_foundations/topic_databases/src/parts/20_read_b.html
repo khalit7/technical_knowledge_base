@@ -1,37 +1,26 @@
 
+<section id="rd-s1">
+<h2>1. Why a database, and the relational model</h2>
+<p>Day one, the chat app keeps everything in one file, <code>chats.json</code>, read at start-up and written back whole after every message. Three things break it, each at a different size: two requests at once each write the whole file and one message vanishes with no error; a power cut half-way through a write leaves a file that may not even parse; and every question ("user 17's chats") reads the whole file, gigabytes at ten million messages <span class="ill">illustrative</span>.</p>
+<p>A <dfn id="g-dbms">database</dfn> (properly a database management system) is a separate program that owns the data; the app sends it requests over a connection. It promises four things a file cannot: <b>durability</b> (once it says "saved", a crash cannot lose it; section 4), <b>safe concurrent access</b> (section 3), <b>queries</b> that find answers without reading everything (sections 2 and 4) and <b>constraints</b>, rules checked on every write ("every message belongs to an existing chat").</p>
+<p>Most databases you meet first are <dfn id="g-rel">relational</dfn>, after Edgar Codd's 1970 paper ({{Codd, CACM 1970|https://dl.acm.org/doi/10.1145/362384.362685}}): data in <dfn id="g-table">tables</dfn>, one per kind of thing, with named <dfn id="g-col">columns</dfn> and one <dfn id="g-row">row</dfn> per thing. A <dfn id="g-pk">primary key</dfn> names a row; a <dfn id="g-fk">foreign key</dfn> stores another row's key, and that pointer is the "relation". The chat product needs four tables. Click a row: the rows it points to, and the rows that point to it, light up.</p>
+<div class="card">
+<h4 class="vt">The email lives once, in users; a message reaches it through two keys</h4>
+<div class="tbls" id="rd-schema"></div>
+<p class="small mute" id="rd-schema-cap">Click a row to follow its keys.</p>
+</div>
+<p class="small"><b>The price:</b> a server to run, back up and upgrade; a network hop per request (a fraction of a millisecond in one data centre); and a schema you change by deliberate <dfn id="g-migration">migrations</dfn>. An <i>embedded</i> database such as SQLite gives the promises without a server, in one file (the map's Embedded row).</p>
+<div class="deepnote"><b>Go deeper:</b> designing tables, keys and relationships, and changing them safely, is {{SQL and data modelling|n:3ef5c17b0d0d813980dcd474e19f6c3f}} (sections 7 to 11); the API in front of the database is {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}.</div>
+</section>
+
 <section id="rd-s2">
-<h2>2. SQL from zero</h2>
-<h3>The problem appears</h3>
-<p>The data is in tables now; the app needs to ask questions of it. "The last 50 messages of chat 11." "How many tokens did each user's replies use this month?" You could write a loop for each question, but then every new question is new code, and the loop decides how to search, which is the part a database is good at.</p>
-<h3>The idea: say what you want, not how to get it</h3>
-<p><dfn id="g-sql">SQL</dfn> (Structured Query Language) is the language relational databases speak. It is <dfn id="g-declarative">declarative</dfn>: you describe the result you want, and the database works out the steps (section 4 shows how it chooses). Six pieces cover most of what an app does:</p>
+<h2>2. SQL: say what you want, not how to get it</h2>
+<p><dfn id="g-sql">SQL</dfn> (Structured Query Language) is <dfn id="g-declarative">declarative</dfn>: you describe the result and the database works out the steps (section 4 shows who chooses). Six clauses cover most of what an app asks:</p>
 <pre class="sql"><span class="k">SELECT</span> id, role, tokens          <span class="c">-- which columns</span>
 <span class="k">FROM</span> messages                     <span class="c">-- which table</span>
 <span class="k">WHERE</span> chat_id = 11                <span class="c">-- which rows</span>
 <span class="k">ORDER BY</span> id <span class="k">DESC</span> <span class="k">LIMIT</span> 50;       <span class="c">-- in what order, how many</span></pre>
-<p><dfn id="g-join">JOIN</dfn> combines rows of two tables whose keys match, which is how the foreign keys of section 1 get used. <dfn id="g-groupby">GROUP BY</dfn> collapses rows that share a value into one row per value, with an <i>aggregate</i> such as <code>count(*)</code> or <code>sum(tokens)</code> computed over each group. Changing data uses three more statements:</p>
-<pre class="sql"><span class="k">INSERT INTO</span> messages (chat_id, role, tokens) <span class="k">VALUES</span> (11, 'user', 14);
-<span class="k">UPDATE</span> chats <span class="k">SET</span> title = 'SQL basics' <span class="k">WHERE</span> id = 11;
-<span class="k">DELETE FROM</span> messages <span class="k">WHERE</span> chat_id = 13;</pre>
-<p>A query is written in one order and evaluated in another. The database starts from the tables (<code>FROM</code> and the joins), filters (<code>WHERE</code>), groups, computes the <code>SELECT</code> list, then sorts; the {{PostgreSQL SELECT reference|https://www.postgresql.org/docs/current/sql-select.html}} lists this processing order. The animation runs one real query on the sample rows from section 1, one clause at a time.</p>
-<div class="card" id="rd-sql-card">
-<pre class="sql" id="rd-sql-q"></pre>
-<div class="an-ctl" id="rd-sql-ctl"></div>
-<div class="an-cap" id="rd-sql-cap"></div>
-<div class="tbls" id="rd-sql-tab" style="overflow-x:auto"></div>
-<p class="small mute">The rows are the nine sample messages above; every intermediate table is computed live from them. Chen disappears at the WHERE step because his only message is from the user, not the assistant: a filter removes rows before any grouping happens.</p>
-</div>
-<h3>Rules the data must obey: schema and constraints</h3>
-<p>The <dfn id="g-schema">schema</dfn> is the declared shape of the tables. Constraints in it are checked on every write, so bad data cannot get in, whichever code path tries:</p>
-<pre class="sql"><span class="k">CREATE TABLE</span> messages (
-  id      <span class="k">INTEGER PRIMARY KEY</span>,                   <span class="c">-- unique, never empty</span>
-  chat_id <span class="k">INTEGER NOT NULL REFERENCES</span> chats(id),  <span class="c">-- must name an existing chat</span>
-  role    <span class="k">TEXT NOT NULL CHECK</span> (role <span class="k">IN</span> ('user', 'assistant')),
-  tokens  <span class="k">INTEGER NOT NULL CHECK</span> (tokens &gt;= 0)
-);</pre>
-<p>Inserting a message for chat 999, which does not exist, shows a <dfn id="g-constraint">constraint</dfn> doing its job: Postgres refuses it. Try it in lesson 9 of the {{SQL playground|#t-sql}}, which runs SQLite: SQLite accepts the orphan row until foreign keys are switched on with <code>PRAGMA foreign_keys = ON</code>, a default worth knowing.</p>
-<h3>One fact in one place: normalisation</h3>
-<p>Suppose, to save a join, every message row also stored the user's email. Ada changes her email: now ten thousand message rows must change, and if one code path forgets, the database holds two emails for one person and nothing says which is right. That is an <dfn id="g-anomaly">update anomaly</dfn>. <dfn id="g-norm">Normalisation</dfn> is the discipline of storing each fact once (the email in <code>users</code>, a pointer everywhere else) so that a change is one write. Codd defined the <i>normal forms</i> that make this precise in 1970 and 1971; for daily work the one-line rule is enough.</p>
-<div class="cost"><div class="t">What it costs</div>Reading normalised data means joins, which cost work at query time. Copying facts on purpose to avoid joins is <dfn id="g-denorm">denormalisation</dfn>: it makes reads faster and makes you responsible for keeping every copy in step. Analytics stores (section 5) and wide-column stores (section 6) denormalise deliberately; an app's source of truth usually should not. SQL itself has dialects: the basics above work everywhere, but details (date functions, upserts, JSON operators) differ between Postgres, MySQL and SQLite.</div>
-<div class="deepnote"><b>Go deeper (optional):</b> every query here runs in the {{SQL playground|#t-sql}}; the {{PostgreSQL tutorial|https://www.postgresql.org/docs/current/tutorial.html}} chapters 2 and 3 (about 1 hour) teach the same statements on a weather example; joins, grouping, window functions and recursive queries in depth, with 28 graded exercises, are on the child page {{SQL and data modelling|n:3ef5c17b0d0d813980dcd474e19f6c3f}}.</div>
+<p><dfn id="g-join">JOIN</dfn> combines rows of two tables whose keys match; <dfn id="g-groupby">GROUP BY</dfn> collapses rows sharing a value into one row with an aggregate such as <code>count(*)</code> or <code>sum(tokens)</code>; <code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> change data. A query is written in one order and evaluated in another: <code>FROM</code> and the joins, then <code>WHERE</code>, grouping, the <code>SELECT</code> list, then sorting (the {{PostgreSQL SELECT reference|https://www.postgresql.org/docs/current/sql-select.html}} lists the order).</p>
+<p>The <dfn id="g-schema">schema</dfn> declares the tables, and each <dfn id="g-constraint">constraint</dfn> in it (<code>NOT NULL</code>, <code>CHECK (tokens &gt;= 0)</code>, <code>REFERENCES chats(id)</code>, <code>UNIQUE</code>) is checked on every write, whichever code path sends it. <dfn id="g-norm">Normalisation</dfn> is storing each fact once (the email in <code>users</code>, a key everywhere else), so a change is one write rather than an <dfn id="g-anomaly">update anomaly</dfn> where two copies disagree. Copying facts on purpose to skip joins is <dfn id="g-denorm">denormalisation</dfn>: faster reads, and every copy is yours to keep in step; analytics and wide-column stores do it deliberately, an app's source of truth usually should not.</p>
+<div class="deepnote"><b>Go deeper:</b> every query here runs in the {{SQL playground|#t-sql}}; joins drawn as pairs, NULL logic, grouping, window functions, recursive queries, upserts, normalisation, constraints and migrations, with 28 graded exercises, are {{SQL and data modelling|n:3ef5c17b0d0d813980dcd474e19f6c3f}}.</div>
 </section>
