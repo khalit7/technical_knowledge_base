@@ -93,7 +93,7 @@ window.AFD=(function(){
     $('gfT').textContent='Step '+(i+1)+' of '+(mode==='plain'?4:6)+': '+t;$('gfP').innerHTML=p;
   }
   const A=RD.anim({card:'gf',ctl:'gfC',n:4,draw,ms:2400,label:'Feed-forward step'});
-  function setMode(m){mode=m;$('gfM').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));$('gfGl').style.display=m==='glu'?'':'none';A.reset(m==='plain'?4:6);A.play()}
+  function setMode(m){mode=m;$('gfM').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));$('gfGl').style.display=m==='glu'?'':'none';A.reset(m==="plain"?4:6)}
   $('gfM').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.m)});
   $('gfG').addEventListener('change',e=>{gate=e.target.value;prepGate();A.redraw()});
   $('gfGl').style.display='none';

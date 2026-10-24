@@ -38,6 +38,9 @@ for (const [scheme, w] of [['light', 920], ['dark', 390]]) {
       if (g === 'silu') { caps.push(await p.evaluate(() => document.getElementById('gfP').innerText)); await shot('#gf', 'ffn-' + m) } } }
   await p.evaluate(() => { const e = document.getElementById('gfG'); e.value = 'silu'; e.dispatchEvent(new Event('change')) });
   for (const k of ['p65', 'p524', 'glue', 'sglue']) { await click('#szM [data-k="' + k + '"]'); await bad('sz ' + k) }
+  // slope figure: every activation at both input scales
+  for (const k of ['1', '3']) { await click('#slK [data-m="' + k + '"]'); for (const f of ['sigmoid', 'tanh', 'relu', 'gelut', 'silu']) { await click('#slF [data-m="' + f + '"]'); await bad('slope ' + f + ' x' + k) } }
+  await click('#slK [data-m="1"]'); await click('#slF [data-m="gelut"]'); await shot('#sl', 'slope'); await shot('#hr', 'hero');
   await click('#szM [data-k="p65"]'); await shot('#sz', 'shazeer'); await shot('#fw', 'widths');
   const inside = await p.evaluate(() => ['in-opt', 'in-gpt', 'in-smol', 'in-mir', 'dr-opt'].map(i => document.getElementById(i).innerText));
   // atlas
@@ -65,5 +68,12 @@ for (const [scheme, w] of [['light', 920], ['dark', 390]]) {
   out[scheme] = { errs, caps, inside, tbl: tbl.split('\n').slice(0, 6) };
   await p.close();
 }
+// no autoplay under normal motion: scroll both animations into view, wait, and check they are still on step 0
+{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + file);
+  await p.evaluate(() => { localStorage.clear(); document.querySelector('button[data-t="t-read"]').click() });
+  const moved = [];
+  for (const id of ['dr', 'gf']) { await p.evaluate(id => document.getElementById(id).scrollIntoView(), id); await new Promise(r => setTimeout(r, 3000));
+    const v = await p.evaluate(id => document.getElementById(id === 'dr' ? 'drC-s' : 'gfC-s').value, id); if (v !== '0') moved.push(id + ' at step ' + v) }
+  out.autoplay = moved.length ? moved : 'none'; await p.close() }
 console.log(JSON.stringify(out, null, 1));
 await b.close();
