@@ -45,10 +45,6 @@ $('mp-gatetab').innerHTML=M.alias_hist.map(h=>{const v=M.versions.find(x=>x.v===
   return '<tr><td class="num">'+h.v+'</td><td class="mp-r">'+r.mf.slice(-6)+'</td><td>'+r.lr+'</td><td>'+r.split+'</td><td class="num">'+v.val_loss.toFixed(4)+'</td><td class="'+(h.promoted?'mp-ok':'mp-no')+'">'+(h.promoted?'promoted':'kept')+'</td><td class="small">v'+h.champion+'; '+why+'</td></tr>'}).join('');
 $('mp-rest').textContent='$ curl "http://127.0.0.1:5077/api/2.0/mlflow/registered-models/alias?name=mi-tiny-gpt&alias=champion"\n'+JSON.stringify(M.rest,null,1);
 
-// reproduction table
-const R=M.repro,rows=[['held-out loss',R.recorded.val_loss,R.rerun.val_loss,R.bit_identical.val_loss],['last train loss (step 200)',R.recorded.train_loss_last,R.rerun.train_loss_last,R.bit_identical.train_loss_last],['checkpoint SHA-256',R.recorded.ckpt_sha+'...',R.rerun.ckpt_sha+'...',R.bit_identical.ckpt_sha]];
-$('mp-reptab').innerHTML=rows.map(r=>'<tr><td>'+r[0]+'</td><td class="mp-r">'+r[1]+'</td><td class="mp-r">'+r[2]+'</td><td class="'+(r[3]?'mp-ok':'mp-no')+'">'+(r[3]?'yes':'no')+'</td></tr>').join('');
-
 // drills
 document.querySelectorAll('.mp-pr').forEach(box=>box.addEventListener('click',e=>{const b=e.target.closest('button[data-a]');if(!b)return;
   box.querySelectorAll('button[data-a]').forEach(x=>{x.classList.toggle('right',x.dataset.a==='1');x.classList.toggle('wrong',x===b&&x.dataset.a!=='1')});box.classList.add('done')}));
@@ -65,13 +61,13 @@ let xk='g';
 function drawX(){const el=$('mp-xp-svg');const W=Math.max(300,el.clientWidth||600),H=170,L=46,Rr=8,Tp=10,B=34;
   const lo=-8.5,hi=-5.5,y=v=>Tp+(hi-v)/(hi-lo)*(H-Tp-B),xs=s=>L+(s-0.5)/ev.length*(W-L-Rr);
   let g='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Absolute loss difference per step, native against container">';
-  [-8,-7,-6].forEach(p=>{g+='<line x1="'+L+'" x2="'+(W-Rr)+'" y1="'+y(p)+'" y2="'+y(p)+'" stroke="var(--line)"/><text x="'+(L-4)+'" y="'+(y(p)+4)+'" text-anchor="end" font-size="10.5" fill="var(--mute)">1e'+p+'</text>'});
+  [-8,-7,-6].forEach(p=>{g+='<line x1="'+L+'" x2="'+(W-Rr)+'" y1="'+y(p)+'" y2="'+y(p)+'" stroke="var(--line)"/><text x="'+(L-4)+'" y="'+(y(p)+4)+'" text-anchor="end" font-size="11" fill="var(--mute)">1e'+p+'</text>'});
   const bw=Math.max(1.5,(W-L-Rr)/ev.length*0.7);
   ev.forEach(r=>{const a=xk==='g'?r[3]:r[1],b=xk==='g'?r[4]:r[2],d=Math.abs(b-a),cx=xs(r[0]);
     if(d===0)g+='<circle cx="'+cx+'" cy="'+(H-B+8)+'" r="2.2" fill="var(--good)"><title>step '+r[0]+': identical</title></circle>';
     else{const v=Math.log10(d);g+='<rect x="'+(cx-bw/2)+'" y="'+y(v)+'" width="'+bw+'" height="'+(H-B-y(v))+'" fill="var(--c2)"><title>step '+r[0]+': |difference| '+d.toExponential(2)+'</title></rect>'}});
-  [1,10,20,30,40,50,60,70].forEach(s=>{g+='<text x="'+xs(s)+'" y="'+(H-6)+'" text-anchor="middle" font-size="10.5" fill="var(--mute)">'+s+'</text>'});
-  g+='<text x="'+L+'" y="'+(H-B+21)+'" font-size="10" fill="var(--good)"></text></svg>';el.innerHTML=g;
+  [1,10,20,30,40,50,60,70].forEach(s=>{g+='<text x="'+xs(s)+'" y="'+(H-6)+'" text-anchor="middle" font-size="11" fill="var(--mute)">'+s+'</text>'});
+  g+='<text x="'+L+'" y="'+(H-B+21)+'" font-size="11" fill="var(--good)"></text></svg>';el.innerHTML=g;
   $('mp-xp-cap').innerHTML='Each bar is |container - native| of the '+(xk==='g'?'all-reduced loss':'rank 0 loss')+' at one step (log scale); a green dot under the axis means bit-identical. Steps 1 to 70, logged every step. Over 200 steps (logged every 10): step 200 global loss '+last[1]+' native against '+last[2]+' in the container (difference '+d200.toExponential(2)+'); held-out loss '+M.repro.recorded.val_loss+' against '+X.cval+'; checkpoint SHA-256 '+X.nck+'... against '+X.cck+'.... Largest global difference in the first 70 steps: '+maxG.toExponential(2)+'. Native: '+esc(X.native)+'. Container: '+esc(X.container)+'.'}
 $('mp-xp-seg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;xk=b.dataset.k;[...$('mp-xp-seg').children].forEach(x=>x.classList.toggle('on',x===b));drawX()});
 RD.onRender(drawX);addEventListener('resize',()=>{if(!$('t-read').hidden)drawX()});drawX();
@@ -89,11 +85,11 @@ const tot=lanes[1].total,NF=Math.ceil(tot)+1;
 const col={start:'var(--c1)',train:'var(--c3)',evaluate:'var(--c4)',register:'var(--c2)',end:'var(--mute)'};
 function drawR(f){const el=$('mp-rs-svg'),W=Math.max(300,el.clientWidth||600),L=Math.min(150,W*0.3),Rr=10,lh=34,H=lanes.length*lh+34,tc=Math.min(f,tot);
   const xs=t=>L+t/tot*(W-L-Rr);let g='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Task timelines: failed run, rerun everything, resume">';
-  for(let s=0;s<=tot;s+=5)g+='<line x1="'+xs(s)+'" x2="'+xs(s)+'" y1="4" y2="'+(H-24)+'" stroke="var(--line)"/><text x="'+xs(s)+'" y="'+(H-10)+'" text-anchor="middle" font-size="10.5" fill="var(--mute)">'+s+' s</text>';
+  for(let s=0;s<=tot;s+=5)g+='<line x1="'+xs(s)+'" x2="'+xs(s)+'" y1="4" y2="'+(H-24)+'" stroke="var(--line)"/><text x="'+xs(s)+'" y="'+(H-10)+'" text-anchor="middle" font-size="11" fill="var(--mute)">'+s+' s</text>';
   lanes.forEach((l,i)=>{const yy=8+i*lh;g+='<text x="4" y="'+(yy+16)+'" font-size="11.5" fill="var(--ink)">'+(W<460?l.name.replace('Fix, then ',''):l.name)+'</text>';
     l.tasks.forEach(k=>{const a=i===0?k.t1:Math.min(k.t1,tc);if(i>0&&tc<=k.t0)return;const w=Math.max(i>0&&k.c?2:1,xs(i===0?k.t1:a)-xs(k.t0));
       g+='<rect x="'+xs(k.t0)+'" y="'+yy+'" width="'+w+'" height="22" rx="3" fill="'+col[k.s]+'" opacity="'+(i===0?0.45:(k.c?0.35:0.9))+'"><title>'+k.s+(k.c?' (cloned)':'')+': '+k.d.toFixed(2)+' s</title></rect>';
-      if(w>34)g+='<text x="'+(xs(k.t0)+4)+'" y="'+(yy+15)+'" font-size="10.5" fill="var(--bg)">'+k.s+'</text>';
+      if(w>34)g+='<text x="'+(xs(k.t0)+4)+'" y="'+(yy+15)+'" font-size="11" fill="var(--bg)">'+k.s+'</text>';
       if(k.x)g+='<text x="'+(xs(k.t1)+3)+'" y="'+(yy+16)+'" font-size="13" font-weight="700" fill="var(--bad)">&#10007;</text>'})});
   if(f>0)g+='<line x1="'+xs(tc)+'" x2="'+xs(tc)+'" y1="'+(8+lh-4)+'" y2="'+(H-24)+'" stroke="var(--acc)" stroke-width="1.5"/>';
   g+='</svg>';el.innerHTML=g;

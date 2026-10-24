@@ -1,4 +1,4 @@
-// ---- Lineage graph tab: nodes and edges built from the recorded ids and hashes ----
+// ---- Lineage graph (Reading section 7) and alias stepper (section 6), moved from the Lineage graph tab 2026-10-24: nodes and edges built from the recorded ids and hashes ----
 (function(){
 const M=window.MP,U=window.MPU,$=id=>document.getElementById(id),esc=U.esc;
 const N=[],E=[];const node=(id,col,label,sub,info,cls)=>{N.push({id,col,label,sub,info,cls});};
@@ -38,12 +38,12 @@ function related(id){if(!id)return null;const s=new Set([id]);const dir=E.filter
   q=[id];const fw=new Set();while(q.length){const x=q.pop();dir.forEach(e=>{if(e.a===x&&!fw.has(e.b)&&!s.has(e.b)){fw.add(e.b);q.push(e.b)}})}
   fw.forEach(x=>s.add(x));E.filter(e=>e.k==='same'&&(e.a===id||e.b===id)).forEach(e=>{s.add(e.a);s.add(e.b)});return s}
 const colC={in:'var(--c1)',ok:'var(--good)',resumed:'var(--c5)',failed:'var(--bad)',hung:'var(--bad)',kept:'var(--mute)',al:'var(--c2)'};
-function draw(){const el=$('ln-svg');const W=Math.max(320,el.clientWidth||700);const cols=5,gap=W<500?6:14,cw=(W-gap*(cols-1))/cols;
-  const heads=['inputs','Metaflow runs','MLflow runs','registry','alias'];const bh=W<500?30:34,vg=6;
+function draw(){const el=$('ln-svg');const W=Math.max(660,RD.width(el));const cols=5,gap=14,cw=(W-gap*(cols-1))/cols;
+  const heads=['inputs','Metaflow runs','MLflow runs','registry','alias'];const bh=36,vg=6;
   const byc=[0,1,2,3,4].map(c=>N.filter(n=>n.col===c));const H=Math.max(...byc.map(a=>a.length))*(bh+vg)+30;
   const pos={};byc.forEach((a,c)=>{const off=(H-30-a.length*(bh+vg))/2;a.forEach((n,i)=>{pos[n.id]={x:c*(cw+gap),y:24+off+i*(bh+vg)}})});
-  const R=related(sel);const fs=W<500?9:10.5;
-  let g='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Lineage graph of the recorded runs">';
+  const R=related(sel);const fs=11.5;
+  let g='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" style="max-width:none" role="img" aria-label="Lineage graph of the recorded runs">';
   heads.forEach((h,c)=>g+='<text x="'+(c*(cw+gap)+cw/2)+'" y="13" text-anchor="middle" font-size="'+fs+'" fill="var(--mute)">'+h+'</text>');
   E.forEach(e=>{const a=pos[e.a],b=pos[e.b];if(!a||!b)return;const on=!R||(R.has(e.a)&&R.has(e.b));
     if(e.k==='same'){g+='<path d="M'+(a.x+cw)+' '+(a.y+bh/2)+' C'+(a.x+cw+gap+18)+' '+(a.y+bh/2)+' '+(b.x+cw+gap+18)+' '+(b.y+bh/2)+' '+(b.x+cw)+' '+(b.y+bh/2)+'" fill="none" stroke="var(--c4)" stroke-dasharray="2 3" stroke-width="1.6" opacity="'+(on?1:0.12)+'"/>';return}
@@ -70,6 +70,5 @@ function drawA(f){let champ=null;$('ln-chips').innerHTML=M.versions.map(v=>{cons
   const h=AH[f-1],v=M.versions[f-1],r=M.runs.find(x=>x.id===v.run);
   $('ln-al-cap').innerHTML='Version '+v.v+' registered (lr '+r.lr+', split '+r.split+', held-out loss '+v.val_loss+'). '+(h.promoted?(h.prev?'Lower than version '+h.prev+': the alias moves from v'+h.prev+' to v'+v.v+'.':'No champion yet: the alias goes to v'+v.v+'.'):'Not lower than version '+h.prev+': the alias stays.'+(r.split!==0.9?' The comparison itself is invalid: different held-out text.':(v.val_loss===M.versions.find(x=>x.v===h.prev).val_loss?' Exactly equal: this is the reproduction.':'')))}
 RD.anim({card:'ln-al-card',ctl:'ln-al-ctl',n:AH.length+1,draw:drawA,ms:1500,label:'Registration'});
-(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-lin']=window.TAB_RENDER['t-lin']||[]).push(()=>{draw();drawA(+$('ln-al-ctl-s').value)});
-addEventListener('resize',()=>{if(!$('t-lin').hidden)draw()});
+RD.onRender(draw);RD.onResize(draw);draw();
 })();

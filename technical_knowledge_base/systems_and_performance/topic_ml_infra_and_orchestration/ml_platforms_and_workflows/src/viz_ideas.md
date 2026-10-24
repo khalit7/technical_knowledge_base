@@ -22,3 +22,8 @@ The page's question: given a model in use, can you say what made it and make it 
 
 ## What the methodology lacked
 Nothing to reproduce from a paper: the "published figure" here is the platform's own behaviour (defaults, error messages), so the reproduce-a-figure rule became "reproduce your own registry's claim" (bit-identical rerun) and "say where it does not reproduce" (cross-platform).
+
+## 2026-10-24 rebuild
+- Built: hero (static annotated layer stack with the champion's real record); MLflow architecture diagram (static, structure); point-in-time join table (static, illustrative rows, Feast semantics); training job against HyperPod (two schematic strips side by side; a structure comparison, not a mechanism to animate).
+- Moved: lineage graph into section 7 (scroll box at phone width, 11 px labels); alias stepper into section 6; reproduce stepper into section 8; loss curves into a closed block.
+- Rejected: an animated HyperPod failure-and-resume (the recovery timeline is Fault tolerance at scale's; linked); a managed-platform price comparison (volatile, and prices are not this page's subject); a dashboard screenshot (repeats the run record).

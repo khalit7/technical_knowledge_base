@@ -1,4 +1,4 @@
-// ---- Reproduce a run: a six-step walkthrough on the recorded registry, and every run's loss curve ----
+// ---- Reproduce a run (Reading section 8, moved from its tab 2026-10-24): a six-step walkthrough on the recorded registry, and every run's loss curve ----
 (function(){
 const M=window.MP,U=window.MPU,$=id=>document.getElementById(id),esc=U.esc;
 const CUR=M.repro.checks.code_sha.now;const sh=x=>String(x).slice(0,8); // code hash of src/lab now (12 chars), as reproduce.py read it
@@ -6,7 +6,7 @@ const NOW={data:M.repro.checks.data_sha.now,torch:M.repro.checks.torch.now,platf
 let ver=M.champion;
 $('rp-pick').innerHTML=M.versions.map(v=>'<button data-v="'+v.v+'">version '+v.v+(v.v===M.champion?' (champion)':'')+'</button>').join('');
 function steps(){const v=M.versions.find(x=>x.v===ver),r=M.runs.find(x=>x.id===v.run),champ=M.versions.find(x=>x.v===M.champion),cr=M.runs.find(x=>x.id===champ.run);
-  const ok=b=>b?'<span class="mp-ok">same</span>':'<span class="mp-no">different</span>';
+  const ok=b=>b?'<span class="mp-ok">same</span>':'<span class="mp-no">differs</span>';
   const codeOK=v.code===CUR&&r.code===CUR;
   const cmd='python flow.py run --lr '+r.lr+' --steps '+r.steps+' --seed '+r.seed+' --split '+r.split;
   const S=[];
@@ -35,11 +35,10 @@ function curves(){const el=$('rp-curves'),W=Math.max(300,el.clientWidth||600),H=
   const rs=M.runs.filter(r=>r.curve.length);const ys=rs.flatMap(r=>r.curve.map(p=>p[1]));const lo=2.0,hi=Math.min(4.5,Math.max(...ys));
   const x=s=>L+(s/200)*(W-L-Rr),y=v=>T+(hi-Math.max(lo,Math.min(hi,v)))/(hi-lo)*(H-T-B);
   const sv=M.versions.find(v=>v.v===ver);let g='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Training loss of every run">';
-  [2,2.5,3,3.5,4].forEach(v=>{if(v>hi)return;g+='<line x1="'+L+'" x2="'+(W-Rr)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/><text x="'+(L-4)+'" y="'+(y(v)+4)+'" text-anchor="end" font-size="10.5" fill="var(--mute)">'+v.toFixed(1)+'</text>'});
-  [0,50,100,150,200].forEach(s=>g+='<text x="'+x(s)+'" y="'+(H-8)+'" text-anchor="middle" font-size="10.5" fill="var(--mute)">'+s+'</text>');
+  [2,2.5,3,3.5,4].forEach(v=>{if(v>hi)return;g+='<line x1="'+L+'" x2="'+(W-Rr)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/><text x="'+(L-4)+'" y="'+(y(v)+4)+'" text-anchor="end" font-size="11" fill="var(--mute)">'+v.toFixed(1)+'</text>'});
+  [0,50,100,150,200].forEach(s=>g+='<text x="'+x(s)+'" y="'+(H-8)+'" text-anchor="middle" font-size="11" fill="var(--mute)">'+s+'</text>');
   rs.forEach(r=>{const on=r.id===sv.run;g+='<polyline fill="none" stroke="'+(on?'var(--acc)':'var(--dim)')+'" stroke-width="'+(on?2.4:1.2)+'" points="'+r.curve.map(p=>x(p[0])+','+y(p[1])).join(' ')+'"><title>lr '+r.lr+', split '+r.split+'</title></polyline>'});
   g+='</svg>';el.innerHTML=g;const r=M.runs.find(x=>x.id===sv.run);
   $('rp-cc').innerHTML='All-reduced training loss logged every 10 steps by each run that trained (MLflow metric train_loss; 6 runs; the hung run logged none). Highlighted: version '+ver+' (lr '+r.lr+', split '+r.split+', final '+r.train_loss.toFixed(4)+'). Versions 3 and 5 overlap exactly. Axis clipped at '+hi.toFixed(1)+' (step 1 starts near 4.3).'}
-(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-rep']=window.TAB_RENDER['t-rep']||[]).push(()=>{draw(+$('rp-ctl-s').value);curves()});
-addEventListener('resize',()=>{if(!$('t-rep').hidden)curves()});
+const cd=$('rp-curves').closest('details');if(cd)cd.addEventListener('toggle',()=>{if(cd.open)curves()});RD.onResize(()=>{if(!cd||cd.open)curves()});curves();
 })();
