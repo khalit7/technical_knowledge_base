@@ -45,3 +45,5 @@ Why about 23 minutes is right: the page owns the whole of exploration, from the 
 
 ## Images
 None. This is a mechanism page; no physical object would teach anything here, and the canonical figures (Sutton and Barto 2.2 to 2.6) are reproduced live on the testbed tab rather than embedded.
+
+2026-10-24 (topic close of Topic: rl): Further reading quotes the root as "17 min, plus 2" and siblings and neighbours as their headers; section 2's gradient bandit block links Policy gradients sections 2 and 4; ledger keys that quoted old times re-keyed.
