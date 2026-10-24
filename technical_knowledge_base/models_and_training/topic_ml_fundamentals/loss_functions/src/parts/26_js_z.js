@@ -18,5 +18,5 @@
     $('zl-tbl').innerHTML=h+'<tr><td colspan="5" class="small mute">Cross entropy is the same at every shift (the softmax ignores c); z-loss is the mean over tokens of 10<sup>−4</sup>(log Z + c)<sup>2</sup>; bf16 damage is the mean total-variation distance between the softmax of bf16-rounded and float32 logits, measured at shifts of 8.</td></tr>';
   }
   $('zl-c').addEventListener('input',e=>{k=+e.target.value;draw()});
-  RD.onRender(draw);draw();addEventListener('resize',()=>{if(card.offsetParent)draw()});
+  RD.onRender(draw);draw();const dt=card.closest('details');if(dt)dt.addEventListener('toggle',()=>{if(dt.open)draw()});addEventListener('resize',()=>{if(card.offsetParent)draw()});
 })();

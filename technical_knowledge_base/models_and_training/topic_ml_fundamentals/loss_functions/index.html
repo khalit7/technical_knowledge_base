@@ -129,20 +129,39 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 .ftbl td,.ftbl th{font-size:12.5px}
 .sw{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:4px;margin-right:5px}
 @media (max-width:520px){h1{font-size:21px}.ctl2 input[type=range]{width:110px}}
+span.hl{background:var(--hl);border-radius:3px;padding:0 3px}
+.dd summary{font-weight:600}.dd summary small{font-weight:400;color:var(--mute)}
+.rk-row{display:grid;grid-template-columns:2.2em 4.2em minmax(0,1fr);gap:6px;align-items:center;font-size:12.5px;margin:2px 0}
 </style></head><body><div class="w">
-<div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a> · deep dive · <span id="rtime">⏱ 21 min read · +5h 10m resources</span></div>
+<div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a> · deep dive</div>
 <h1>Loss functions</h1>
-<div class="sub">What a loss makes a model estimate, and what it does to the gradient: regression losses as noise models (mean, median, quantile), what outliers and leverage points do to a fit, cross entropy and its margin-based relatives, the losses that act on the logits themselves (z-loss, soft-capping), and the adversarial loss. Every curve and fit on this page is computed exactly in your browser and checked against PyTorch. Sources are linked inline; checked 3 October 2026.</div>
+<div class="sub">Reading: 27 min, plus 5 in closed details. What a loss makes a model estimate and what it does to the gradient: regression losses as noise models, outliers and leverage, cross entropy and its gradient on the logits, focal loss and label smoothing, margins, ranking losses, and the adversarial loss. Every curve and fit is computed in your browser and checked against PyTorch. Data as of October 2026.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-fit" aria-selected="false">Fit a line</button><button role="tab" data-t="t-shape" aria-selected="false">Loss shapes</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-fit" aria-selected="false">Fit a line</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
-<nav class="nav" aria-label="Sections"><a href="#s-over">In one screen</a><a href="#s-terms">Terms</a><a href="#s-reg">Regression</a><a href="#s-out">Outliers</a><a href="#s-lev">Leverage</a><a href="#s-more-reg">MAPE, quantiles, counts</a><a href="#s-cls">Classification</a><a href="#s-marg">Margins</a><a href="#s-logit">On the logits</a><a href="#s-dist">Between distributions</a><a href="#s-gan">Adversarial</a><a href="#s-mist">Mistakes</a></nav>
+<nav class="nav" id="rd-nav" aria-label="Sections"><a href="#s-top">The idea</a><a href="#s-over">In one screen</a><a href="#s-terms">Reduction</a><a href="#s-reg">Regression</a><a href="#s-out">Outliers</a><a href="#s-lev">Leverage</a><a href="#s-more-reg">MAPE and quantiles</a><a href="#s-ce">Cross entropy</a><a href="#s-cls">The family</a><a href="#s-marg">Margins</a><a href="#s-rank">Ranking</a><a href="#s-logit">Logit level</a><a href="#s-dist">Between distributions</a><a href="#s-gan">Adversarial</a><a href="#s-mist">Mistakes</a></nav>
+
+<section id="s-top">
+<p class="lead"><b>The idea in one sentence.</b> A loss decides two things at once: <b>what the model learns to predict</b> (a mean, a median, a quantile, a probability, a ranking or only a decision) and <b>which examples drive the gradient</b>; read the first from the noise model the loss assumes, and the second from its <span class="hl">pull</span>, minus the gradient one example puts on the prediction.</p>
+<div class="card" id="hr-card">
+<div class="ph">Read a loss by its pull: who drags the model, and how hard</div>
+<div class="two"><div><div class="ph">Regression <small>pull against the error <i>u</i> = <i>y</i> &minus; ŷ</small></div><div id="hr-r" class="ch"></div></div><div><div class="ph">Classification <small>pull against the margin <i>m</i> = <i>y</i>&middot;<i>f</i>(<i>x</i>)</small></div><div id="hr-c" class="ch"></div></div></div>
+<p class="small" style="margin:4px 0">Regression: under MSE a point twice as far off pulls twice as hard, so the largest errors steer the fit; Huber caps the pull at δ (here 1) and MAE gives every point the same pull of 1, which is why both resist bad targets. Classification: every classification loss pulls hardest on wrong examples (<i>m</i> &lt; 0) and lets go of right ones, but at different rates: the exponential loss's pull explodes on a mislabelled point, hinge drops to exactly 0 once <i>m</i> &ge; 1, and focal loss (γ = 2) silences easy examples far sooner than cross entropy. Every curve is the exact derivative, drawn from the page's checked formulas <i class="nl d">derived</i>.</p>
+</div>
+<div class="co"><div class="t">You need</div><p class="small" style="margin:2px 0">Maximum likelihood (<a href="https://app.notion.com/p/3c65c17b0d0d815f9a47d613409b5a0c" target="_blank" rel="noopener noreferrer">Probability for ML</a>), entropy, cross-entropy and KL as quantities (<a href="https://app.notion.com/p/3c65c17b0d0d81c6baf3f778a62e14e5" target="_blank" rel="noopener noreferrer">Information theory for ML</a>), and where the loss sits in one training step (step 3 of <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a>).</p></div>
+<div class="co"><div class="t">New terms</div><ul class="tight small" style="margin:2px 0">
+<li><b>Error</b> <i>u</i> = <i>y</i> &minus; ŷ, target minus prediction; <b>margin</b> <i>m</i> = <i>y</i>&middot;<i>f</i>(<i>x</i>) with <i>y</i> &isin; {&minus;1, +1}, positive when right.</li>
+<li><b>Pull</b> ψ(<i>u</i>) = ρ′(<i>u</i>): minus the gradient of one example's loss with respect to the prediction (or the score).</li>
+<li><b>Consistent for</b> a statistic: the loss's expected value is lowest at that statistic (MSE at the mean, MAE at the median). <b>Strictly proper</b>: a loss on probabilities lowest only at the true probability.</li>
+<li><b>Leverage point</b>: an input far from the others along <i>x</i>, as opposed to an outlying target.</li>
+<li><b>Logit</b>: a score before the softmax; <b>log <i>Z</i></b>: the log of the softmax's normaliser.</li>
+</ul></div>
+</section>
 
 <section id="s-over">
-<h2>In one screen</h2>
-<p class="lead">A loss is the one number a training step pushes down, and choosing it decides two things at once: <b>what the model learns to predict</b> (a mean, a median, a quantile, a probability, or only a decision) and <b>which examples drive the gradient</b> (the large errors, the hard examples, or every example equally). Read most losses as the negative log-likelihood of a noise model and the choice follows from what you believe about the target and its noise.</p>
-<p>This page owns the details. The parent topic places the loss in one training step and already has three live pieces this page links rather than repeats: the loss explorer for cross entropy, label smoothing and focal loss, with the push on the right logit (step 3 of the <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Reading tab of Topic: ml-fundamentals</a>), "cross entropy = entropy + KL" with four targets (its thread 1), and the <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Training lab</a> tab, which trains the same network with cross entropy, MSE, label smoothing or focal loss side by side.</p>
+<h2>In one screen: target, belief, loss</h2>
+<p>Read most losses as the negative log-likelihood of a noise model, and the choice follows from what you believe about the target and its noise.</p>
 <div class="tw"><table class="choose">
 <tr><th>Target, and what you believe about its noise</th><th>Loss</th><th>What the model learns to predict</th><th>Watch out for</th></tr>
 <tr><td>A number, errors roughly Gaussian</td><td>MSE (squared error)</td><td>the conditional <b>mean</b></td><td>a few large errors dominate the fit (<a href="#s-out">below</a>)</td></tr>
@@ -153,29 +172,29 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>A number with its own uncertainty</td><td>Gaussian negative log-likelihood (mean and variance)</td><td>mean and variance</td><td>the variance can collapse; PyTorch clamps it at <code>eps</code></td></tr>
 <tr><td>One class out of <i>K</i></td><td>softmax cross entropy</td><td>class <b>probabilities</b></td><td>overconfidence (label smoothing), rare classes (weights, focal)</td></tr>
 <tr><td>Several yes/no labels at once</td><td>binary cross entropy per label, on logits</td><td>one probability per label</td><td>use the logits version for numerical stability</td></tr>
-<tr><td>Rare positives among many easy negatives</td><td>focal loss (γ, α)</td><td>probabilities pulled towards 0.5 (<a href="#s-marg">computed below</a>)</td><td>recalibrate before reading scores as probabilities</td></tr>
+<tr><td>Rare positives among many easy negatives</td><td>focal loss (γ, α)</td><td>probabilities pulled towards 0.5 (<a href="#s-cls">computed below</a>)</td><td>recalibrate before reading scores as probabilities</td></tr>
 <tr><td>Only the decision matters</td><td>hinge (SVM)</td><td>the <b>sign</b> only, no probability</td><td>scores are not probabilities</td></tr>
+<tr><td>An order of items for a query</td><td>pairwise (RankNet), listwise, LambdaRank</td><td>scores whose <b>order</b> is right</td><td>pairwise counts every swap alike; the top of the list matters more (<a href="#s-rank">below</a>)</td></tr>
 <tr><td>A distribution: a teacher, a prior, a reference model</td><td>KL divergence</td><td>the other distribution</td><td>which direction (<a href="#s-dist">below</a>)</td></tr>
-<tr><td>Which of a batch belongs together</td><td>InfoNCE, contrastive losses</td><td>a similarity</td><td><a href="https://app.notion.com/p/3c65c17b0d0d811db6a7d02d0ee7215c" target="_blank" rel="noopener noreferrer">Contrastive and self-supervised learning</a></td></tr>
+<tr><td>Which of a batch belongs together</td><td>InfoNCE, triplet, contrastive losses</td><td>a similarity</td><td><a href="https://app.notion.com/p/3c65c17b0d0d811db6a7d02d0ee7215c" target="_blank" rel="noopener noreferrer">Contrastive and self-supervised learning</a></td></tr>
 <tr><td>Which of two answers people prefer</td><td>Bradley-Terry, DPO and its family</td><td>a reward, or a policy</td><td><a href="https://app.notion.com/p/3c65c17b0d0d81d5bed7e608d4061c7a" target="_blank" rel="noopener noreferrer">Alignment: SFT, RLHF, DPO Family, RLVR</a></td></tr>
 <tr><td>New samples that look real</td><td>adversarial (GAN) loss</td><td>a generator</td><td>the original form stalls early (<a href="#s-gan">below</a>)</td></tr>
 </table></div>
-<p class="small mute">"What the model learns to predict" is what minimises the expected loss for each input: for squared error the mean, for absolute error the median, for pinball loss the τ-quantile; scikit-learn's guide lists the same pairs as "strictly consistent scoring functions" (<a href="https://scikit-learn.org/stable/modules/model_evaluation.html" target="_blank" rel="noopener noreferrer">scikit-learn, model evaluation</a>), which is the rule to follow when the loss is also the metric: train with a loss consistent for the quantity you will be scored on.</p>
+<p class="small mute">"What the model learns to predict" is what minimises the expected loss for each input; scikit-learn's guide lists the same pairs as "strictly consistent scoring functions" (<a href="https://scikit-learn.org/stable/modules/model_evaluation.html" target="_blank" rel="noopener noreferrer">scikit-learn, model evaluation</a>). The rule when the loss is also the metric: train with a loss consistent for the quantity you will be scored on.</p>
 </section>
 
 <section id="s-terms">
-<h2>Terms, and how a batch becomes one number</h2>
+<h2>How a batch becomes one number</h2>
+<p>Strictly, the <i>loss</i> is one example's error and the <i>cost</i> its aggregate, usually the mean; in practice the words are used interchangeably. The aggregate hides two traps.</p>
 <ul>
-<li><b>Loss and cost.</b> Strictly, the <i>loss</i> is one example's error and the <i>cost</i> its aggregate, usually the mean, over a batch or the dataset; in practice the words are used interchangeably.</li>
-<li><b>The target decides the family.</b> A numeric target gets a regression loss, a class (or a probability) gets a classification loss.</li>
-<li><b>Cross entropy is maximum likelihood.</b> Cross entropy with a one-hot label is the negative log-likelihood of the right class under the model, so minimising it is maximum likelihood estimation. MSE is maximum likelihood too, for Gaussian noise of fixed variance: &minus;log N(<i>y</i> | ŷ, σ<sup>2</sup>) = (<i>y</i> &minus; ŷ)<sup>2</sup>/(2σ<sup>2</sup>) + log(σ√(2π)), so with σ fixed only the squared error is left <i class="nl d">derived</i>; MAE is the same for Laplace noise.</li>
-<li><b>Reduction.</b> PyTorch losses return one value per element with <code>reduction='none'</code>, their sum with <code>'sum'</code>, and by default their mean. Two details matter. With class weights, cross entropy's "mean" divides by the <i>sum of the weights</i> of the examples, not by their number; and targets equal to <code>ignore_index</code> (default &minus;100) are left out of both the sum and the count (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html" target="_blank" rel="noopener noreferrer">PyTorch, CrossEntropyLoss</a>).</li>
+<li><b>Reduction.</b> PyTorch losses return one value per element with <code>reduction='none'</code>, their sum with <code>'sum'</code>, and by default their mean. With class weights, cross entropy's "mean" divides by the <i>sum of the weights</i> of the examples, not by their number; and targets equal to <code>ignore_index</code> (default &minus;100) are left out of both the sum and the count (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html" target="_blank" rel="noopener noreferrer">PyTorch, CrossEntropyLoss</a>).</li>
 <li><b>Token-level means in language models.</b> A language model's loss is the mean over all non-padding tokens. Averaging per micro-batch and then over micro-batches is not the same number when micro-batches hold different numbers of tokens; Hugging Face fixed exactly this in its Trainer's gradient accumulation on 16 October 2024 by summing and dividing by the total token count (<a href="https://huggingface.co/blog/gradient_accumulation" target="_blank" rel="noopener noreferrer">Hugging Face</a>). Which tokens count at all (prompt, padding, packed neighbours) is in "Padding, packing, and how tokens are weighted" on <a href="https://app.notion.com/p/3c65c17b0d0d81d5bed7e608d4061c7a" target="_blank" rel="noopener noreferrer">Alignment: SFT, RLHF, DPO Family, RLVR</a>.</li>
 </ul>
 </section>
+
 <section id="s-reg">
 <h2>Regression: each loss is a noise model, and picks a statistic</h2>
-<p>Write the error as <i>u</i> = <i>y</i> &minus; ŷ (target minus prediction). Every regression loss is a function ρ(<i>u</i>), and its derivative ψ(<i>u</i>) = ρ′(<i>u</i>) is the <b>pull</b>: how hard one example drags the prediction towards itself (it is minus the gradient with respect to ŷ). The pull is what tells the losses apart.</p>
+<p>Every regression loss is a function ρ(<i>u</i>) of the error, and its derivative ψ(<i>u</i>) is the pull. MSE is maximum likelihood for Gaussian noise of fixed variance: &minus;log N(<i>y</i> | ŷ, σ<sup>2</sup>) = (<i>y</i> &minus; ŷ)<sup>2</sup>/(2σ<sup>2</sup>) + log(σ√(2π)), so with σ fixed only the squared error is left <i class="nl d">derived</i>; MAE is the same for Laplace noise.</p>
 <div class="tw"><table>
 <tr><th>Loss</th><th>Per example, ρ(<i>u</i>)</th><th>Pull ψ(<i>u</i>)</th><th>For</th><th>Against</th></tr>
 <tr><td>MSE</td><td><i>u</i><sup>2</sup></td><td>2<i>u</i>: grows with the error</td><td>smooth, and the gradient shrinks near the minimum, so convergence is clean for small errors</td><td>squaring lets huge errors dominate: drastic update jumps, very sensitive to outliers</td></tr>
@@ -186,116 +205,197 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>Pinball, level τ</td><td>τ<i>u</i> if <i>u</i> &ge; 0, (τ &minus; 1)<i>u</i> if not</td><td>τ or τ &minus; 1</td><td>predicts a quantile: τ = 0.9 under-predicts only 10% of the time; τ = 0.5 is MAE / 2</td><td>one model per τ</td></tr>
 <tr><td>MAPE</td><td>|<i>u</i>| / |<i>y</i>|</td><td>sign(<i>u</i>) / |<i>y</i>|</td><td>scale-free, so errors on small and large targets count alike</td><td>no value at <i>y</i> = 0 and huge near it; biased low (<a href="#s-more-reg">below</a>)</td></tr>
 </table></div>
-<p>PyTorch's <code>HuberLoss(delta)</code> is the formula above; <code>SmoothL1Loss(beta)</code> is the same curve divided by β, so the two differ by a factor of δ and agree only at δ = 1 (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.SmoothL1Loss.html" target="_blank" rel="noopener noreferrer">PyTorch, SmoothL1Loss</a>). The rule of thumb that follows: MSE by default, MAE or Huber when outliers are real data, log-cosh (or pseudo-Huber) when a smooth second derivative is needed.</p>
-<div class="co corr"><div class="t">Two claims about log-cosh, checked</div>
-<p class="small" style="margin:2px 0">"<b>Cheaper than Huber</b>": not in arithmetic. Huber is one comparison and a multiply; log-cosh needs an exponential and a logarithm (computed stably as |<i>u</i>| + log(1 + e<sup>&minus;2|<i>u</i>|</sup>) &minus; log 2). "<b>Second-order methods want it</b>": half right. A Newton step, as in XGBoost's leaf weights, divides by the summed second derivative. Huber's is exactly 0 beyond δ, so a leaf of large errors has nothing to divide by; XGBoost ships pseudo-Huber for this reason, "a twice differentiable alternative to absolute loss" (<a href="https://xgboost.readthedocs.io/en/stable/parameter.html" target="_blank" rel="noopener noreferrer">XGBoost parameters</a>). But log-cosh's second derivative, 1/cosh<sup>2</sup>(<i>u</i>), also falls towards 0 for large errors (about 4e<sup>&minus;2|<i>u</i>|</sup>), so it softens the problem rather than removing it <i class="nl d">derived</i>. See both second derivatives in <a href="#" data-tab="t-shape">Loss shapes</a>.</p></div>
+<p class="try"><b>Predict, then look:</b> which of these losses gives a Newton step (XGBoost's leaf weight, which divides by the summed second derivative) nothing to divide by for large errors? Switch to "second derivative".</p>
+<div class="card" id="sh-r">
+<div class="ph">The pull separates the losses; the second derivative is what a Newton step needs</div>
+<div class="ctl2"><span class="seg2" id="sh-rv" role="group" aria-label="Quantity"><button data-v="rho" class="on">loss</button><button data-v="psi">pull</button><button data-v="h">second derivative</button></span></div>
+<div class="ctl2 lbox" id="sh-rl"></div>
+<div class="ctl2"><label>Huber δ = <b id="sh-dv"></b> <input type="range" id="sh-d" min="0" max="100" value="50" aria-label="Huber delta"></label><label>pinball τ = <b id="sh-tv"></b> <input type="range" id="sh-t" min="1" max="99" value="90" aria-label="Pinball tau"></label><label><i>u</i> = <b id="sh-uv"></b> <input type="range" id="sh-u" min="0" max="120" value="90" aria-label="Error"></label></div>
+<div id="sh-rsvg" class="ch"></div>
+<div class="tw"><table class="ftbl" id="sh-rt"></table></div>
+<p class="small mute">MAPE is drawn for a target <i>y</i> = 1, where it equals MAE; for other targets divide by |<i>y</i>|. Huber's second derivative is 0 beyond δ, log-cosh's decays as 4e<sup>&minus;2|<i>u</i>|</sup>, MAE's and pinball's are 0 everywhere except a kink. Values and pulls checked against PyTorch autograd.</p>
+</div>
+<p>PyTorch's <code>HuberLoss(delta)</code> is the formula above; <code>SmoothL1Loss(beta)</code> is the same curve divided by β, so the two differ by a factor of δ and agree only at δ = 1 (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.SmoothL1Loss.html" target="_blank" rel="noopener noreferrer">PyTorch, SmoothL1Loss</a>). The rule of thumb: MSE by default, MAE or Huber when outliers are real data, log-cosh (or pseudo-Huber) when a smooth second derivative is needed.</p>
+<details class="mist dd"><summary>Two claims about log-cosh, checked</summary><div class="b">
+<p class="small">"<b>Cheaper than Huber</b>": not in arithmetic. Huber is one comparison and a multiply; log-cosh needs an exponential and a logarithm (computed stably as |<i>u</i>| + log(1 + e<sup>&minus;2|<i>u</i>|</sup>) &minus; log 2). "<b>Second-order methods want it</b>": half right. Huber's second derivative is exactly 0 beyond δ, so a leaf of large errors has nothing to divide by; XGBoost ships pseudo-Huber for this reason, "a twice differentiable alternative to absolute loss" (<a href="https://xgboost.readthedocs.io/en/stable/parameter.html" target="_blank" rel="noopener noreferrer">XGBoost parameters</a>). But log-cosh's second derivative, 1/cosh<sup>2</sup>(<i>u</i>), also falls towards 0 for large errors (about 4e<sup>&minus;2|<i>u</i>|</sup>), so it softens the problem rather than removing it <i class="nl d">derived</i>.</p></div></details>
 
 <h3>Which number each loss picks</h3>
-<p>Before any model, ask what single number each loss would predict for a whole sample. The answer is the statistic the loss estimates, and it is where a model trained on that loss will sit for every input. The sample is real and skewed: the lengths of 141 major North American rivers, in miles (<a href="https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/rivers.html" target="_blank" rel="noopener noreferrer">R's <code>rivers</code>, from the USGS via the World Almanac 1975</a>).</p>
-<p class="try"><b>Try:</b> move τ and δ; switch on "add a 0.5-mile river" and watch MAPE's choice collapse while the others barely move. Each curve is the mean loss for a constant forecast <i>c</i>, scaled to its own range; the dot is its minimum. Log-cosh's curve lies on top of MAE's.</p>
+<p>Before any model, ask what single number each loss would predict for a whole sample: that is the statistic the loss estimates, and where a model trained on it will sit for every input. The sample is real and skewed: the lengths of 141 major North American rivers, in miles (<a href="https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/rivers.html" target="_blank" rel="noopener noreferrer">R's <code>rivers</code>, from the USGS via the World Almanac 1975</a>).</p>
+<p class="try"><b>Predict, then look:</b> add one 0.5-mile river. Which loss's choice collapses? Tick "add a 0.5-mile river", then move τ and δ.</p>
 <div class="card" id="pk-card">
+<div class="ph">The long rivers drag the mean up; MAPE lands below the median</div>
 <div class="ctl2"><label>pinball τ = <b id="pk-tv">0.9</b> <input type="range" id="pk-t" min="1" max="99" value="90" aria-label="Pinball tau"></label><label>Huber δ = <b id="pk-dv">100</b> miles <input type="range" id="pk-d" min="0" max="60" value="40" aria-label="Huber delta"></label><label><input type="checkbox" id="pk-z"> add a 0.5-mile river</label></div>
 <div id="pk-svg" class="ch"></div>
 <div class="cnt" id="pk-out"></div>
-<p class="small mute">Exact minimisers: the mean; the median; the τ-quantile and MAPE's weighted median (weights 1/<i>y</i>) by sorting; Huber and log-cosh by solving Σψ(<i>y</i> &minus; <i>c</i>) = 0. All checked against PyTorch losses evaluated on a 40,000-point grid (<code>src/recompute.py</code>). The 0.5-mile river is <i class="nl i">illustrative</i>.</p>
+<p class="small mute">Each curve is the mean loss for a constant forecast <i>c</i>, scaled to its own range; the dot is its minimum; log-cosh's curve lies on top of MAE's. Exact minimisers: the mean; the median; the τ-quantile and MAPE's weighted median (weights 1/<i>y</i>) by sorting; Huber and log-cosh by solving Σψ(<i>y</i> &minus; <i>c</i>) = 0. All checked against PyTorch losses evaluated on a 40,000-point grid (<code>src/recompute.py</code>). The 0.5-mile river is <i class="nl i">illustrative</i>.</p>
 </div>
-<p>On the rivers the mean is 591 miles and the median 425: the long rivers drag the mean up. MAPE picks 336, below the median, because dividing by <i>y</i> makes short rivers count for more; Gneiting proved this in general: MAPE is consistent for the "median of order &minus;1", the median of a distribution reweighted by 1/<i>y</i>, which "tends to support severe underforecasts" (<a href="https://arxiv.org/abs/0912.0902" target="_blank" rel="noopener noreferrer">Gneiting 2011</a>). Log-cosh lands on 425.2, the median to a fraction of a mile, because every river is hundreds of units away from any reasonable <i>c</i>, deep in its linear part.</p>
+<p>On the rivers the mean is 591 miles and the median 425. MAPE picks 336, below the median, because dividing by <i>y</i> makes short rivers count for more; Gneiting proved this in general: MAPE is consistent for the "median of order &minus;1", the median of a distribution reweighted by 1/<i>y</i>, which "tends to support severe underforecasts" (<a href="https://arxiv.org/abs/0912.0902" target="_blank" rel="noopener noreferrer">Gneiting 2011</a>). Log-cosh lands on 425.2, the median to a fraction of a mile, because every river is hundreds of units away from any reasonable <i>c</i>, deep in its linear part.</p>
 </section>
 
 <section id="s-out">
 <h2>What an outlier does to a fit, step by step</h2>
 <p>Anscombe built four small datasets with the same means, variances, correlation and least-squares line, y = 3.00 + 0.500<i>x</i> (<a href="https://doi.org/10.1080/00031305.1973.10478966" target="_blank" rel="noopener noreferrer">Anscombe 1973</a>). His third set is ten points on an almost perfect line plus one point far above it. The animation runs it through MSE on the left and a robust loss on the right, from the same data.</p>
-<p class="try"><b>Try:</b> play it, then switch the right-hand loss, or switch the scenario to the star cluster, where the outliers sit at unusual inputs instead.</p>
+<p class="try"><b>Predict, then play:</b> how far will one bad point move the MSE slope from the clean 0.345? Then switch the right-hand loss, or the scenario to the star cluster, where the outliers sit at unusual inputs instead.</p>
 <div class="card" id="oa-card">
+<div class="ph">One bad target steers MSE; a capped pull barely moves</div>
 <div class="ctl2"><span class="seg2" id="oa-sc" role="group" aria-label="Scenario"><button data-s="a" class="on">Bad target: Anscombe III</button><button data-s="s">Unusual inputs: stars CYG OB1</button></span>
 <span class="seg2" id="oa-l" role="group" aria-label="Robust loss"><button data-l="huber" class="on">Huber, δ = 1</button><button data-l="mae">MAE</button><button data-l="logcosh">Log-cosh</button></span></div>
 <div class="an-ctl" id="oa-ctl"></div>
 <div class="two"><div><div class="ph">MSE <small>the old default</small></div><div id="oa-l0"></div><div class="cnt" id="oa-c0"></div></div><div><div class="ph" id="oa-h1">Huber</div><div id="oa-l1"></div><div class="cnt" id="oa-c1"></div></div></div>
 <div class="an-cap" id="oa-cap"></div>
 <div class="lg"><span><i style="background:var(--c1)"></i>points used before</span><span><i style="background:var(--c2)"></i>outliers</span><span><i class="ln" style="background:var(--mute)"></i>fit without the outliers</span><span><i class="ln" style="background:var(--ink)"></i>current fit</span><span><i class="ln" style="background:var(--c3)"></i>pull ψ(<i>u</i>) on each point, same scale in both panels</span></div>
-<p class="repro"><b>Defaults reproduce</b> Anscombe's line, y = 3.00 + 0.500<i>x</i> for set III, independently (MSE fit here: 3.0025 + 0.4997<i>x</i>). Every fit is the exact minimiser (closed form for MSE, IRLS for Huber and log-cosh, a line through two data points for MAE), checked against PyTorch's <code>MSELoss</code>, <code>L1Loss</code> and <code>HuberLoss</code> with autograd and SciPy (<code>src/recompute.py</code>, 99 checks).</p>
+<p class="repro"><b>Defaults reproduce</b> Anscombe's line, y = 3.00 + 0.500<i>x</i> for set III, independently (MSE fit here: 3.0025 + 0.4997<i>x</i>). Every fit is the exact minimiser (closed form for MSE, IRLS for Huber and log-cosh, a line through two data points for MAE), checked against PyTorch's <code>MSELoss</code>, <code>L1Loss</code> and <code>HuberLoss</code> with autograd and SciPy (<code>src/recompute.py</code>).</p>
 </div>
 <p>On Anscombe III the outlier at (13, 12.74) is a <b>bad target</b>. Under MSE its pull is 2<i>u</i>, so it moves the slope from 0.345 to 0.500 and every other point ends up off the line. Under Huber with δ = 1 its pull is capped at 1, and the slope only moves to 0.393; MAE ignores it completely (slope 0.345, through the ten clean points), and log-cosh behaves like Huber (0.394), because the residuals here are in the units where its bend sits.</p>
 </section>
 
 <section id="s-lev">
 <h2>Robust to bad targets is not robust to unusual inputs</h2>
-<p>The star cluster CYG OB1 (47 stars, log surface temperature against log light intensity; <a href="https://search.r-project.org/CRAN/refmans/robustbase/html/starsCYG.html" target="_blank" rel="noopener noreferrer">robustbase <code>starsCYG</code>, from Rousseeuw and Leroy 1987</a>) is the classic counter-example. 43 stars lie on the main sequence, where light rises with temperature; 4 red giants (observations 11, 20, 30, 34) are cool and bright, far out on the <i>x</i> axis. They are <b>leverage points</b>: unusual inputs, not unusual targets.</p>
+<p>The star cluster CYG OB1 (47 stars, log surface temperature against log light intensity; <a href="https://search.r-project.org/CRAN/refmans/robustbase/html/starsCYG.html" target="_blank" rel="noopener noreferrer">robustbase <code>starsCYG</code>, from Rousseeuw and Leroy 1987</a>) is the classic counter-example: press "Unusual inputs" in the animation above. 43 stars lie on the main sequence, where light rises with temperature; 4 red giants (observations 11, 20, 30, 34) are cool and bright, far out on the <i>x</i> axis. They are <b>leverage points</b>: unusual inputs, not unusual targets.</p>
 <div class="co corr"><div class="t">Correction: "Huber and MAE make a fit robust to outliers"</div>
 <p class="small" style="margin:2px 0">Only to outliers in <i>y</i>. On the 43 main-sequence stars every loss finds a rising line (MSE slope +2.05, MAE +2.50). Add the 4 giants and they all turn it over: MSE &minus;0.41, Huber (δ = 1) &minus;0.42, log-cosh &minus;0.42, and MAE &minus;0.69, <i>worse</i> than MSE <i class="nl d">computed here</i>. Capping each point's pull does nothing about its lever: a point's effect on the slope is its pull times its distance along <i>x</i>, and the giants' distance is the largest in the set. Fixing this needs a method that down-weights by position as well (least trimmed squares, RANSAC, Theil-Sen); scikit-learn's guide separates "outliers in the y direction" from "outliers in the X direction" for this reason (<a href="https://scikit-learn.org/stable/modules/linear_model.html#robustness-regression-outliers-and-modeling-errors" target="_blank" rel="noopener noreferrer">scikit-learn, robustness regression</a>; <a href="https://doi.org/10.1002/0471725382" target="_blank" rel="noopener noreferrer">Rousseeuw and Leroy 1987</a>). In a neural network the same holds: a robust loss protects against bad labels, not against inputs unlike the rest of the training set.</p></div>
-<p>Every loss, any δ or τ, on these datasets or on points you place yourself: <a href="#" data-tab="t-fit">Fit a line</a>.</p>
+<p>Every loss, any δ or τ, on these datasets or on points you place yourself, with each point's pull and lever: <a href="#" data-tab="t-fit">Fit a line</a>.</p>
 </section>
 
 <section id="s-more-reg">
-<h2>MAPE, quantiles, counts and variances</h2>
-<p><b>MAPE is asymmetric.</b> For a positive target and a non-negative forecast, under-forecasting can cost at most 100% (forecast 0), while over-forecasting has no ceiling: forecasting 2<i>y</i> costs 100%, 3<i>y</i> costs 200% <i class="nl d">derived</i>. That, and the 1/<i>y</i> weighting above, is why a MAPE-trained model under-forecasts. At <i>y</i> = 0 it has no value at all: scikit-learn divides by machine epsilon instead and documents an example returning 1.1 &times; 10<sup>14</sup> from a single zero target, "arbitrarily large MAPE values, especially if some <code>y_true</code> values are very close to zero" (<a href="https://scikit-learn.org/stable/modules/generated/sklearn.metrics.mean_absolute_percentage_error.html" target="_blank" rel="noopener noreferrer">scikit-learn, MAPE</a>). It also returns a fraction, not a percentage (0.5 means 50%). When relative error is what matters, training MSE on log(<i>y</i>) is the usual alternative; it estimates the mean of log <i>y</i>, a geometric mean, and it too needs <i>y</i> &gt; 0.</p>
+<h2>MAPE and quantiles</h2>
+<p><b>MAPE is asymmetric.</b> For a positive target and a non-negative forecast, under-forecasting can cost at most 100% (forecast 0), while over-forecasting has no ceiling: forecasting 2<i>y</i> costs 100%, 3<i>y</i> costs 200% <i class="nl d">derived</i>. That, and the 1/<i>y</i> weighting above, is why a MAPE-trained model under-forecasts. At <i>y</i> = 0 it has no value at all: scikit-learn divides by machine epsilon instead and documents an example returning 1.1 &times; 10<sup>14</sup> from a single zero target, "arbitrarily large MAPE values, especially if some <code>y_true</code> values are very close to zero" (<a href="https://scikit-learn.org/stable/modules/generated/sklearn.metrics.mean_absolute_percentage_error.html" target="_blank" rel="noopener noreferrer">scikit-learn, MAPE</a>); it also returns a fraction, not a percentage (0.5 means 50%). When relative error is what matters, training MSE on log(<i>y</i>) is the usual alternative; it estimates the mean of log <i>y</i>, a geometric mean, and it too needs <i>y</i> &gt; 0.</p>
 <p><b>Quantile (pinball) loss</b> gives a prediction interval from two fits: τ = 0.05 and 0.95 bracket 90% of targets if the model is right. Tree libraries ship it (XGBoost's <code>reg:quantileerror</code> since 2.0 with <code>quantile_alpha</code>, which accepts a list of quantiles: <a href="https://xgboost.readthedocs.io/en/stable/parameter.html" target="_blank" rel="noopener noreferrer">XGBoost</a>; scikit-learn's <code>HistGradientBoostingRegressor(loss="quantile")</code>: <a href="https://scikit-learn.org/stable/modules/model_evaluation.html" target="_blank" rel="noopener noreferrer">scikit-learn</a>).</p>
-<p><b>Counts</b> take the Poisson negative log-likelihood, ŷ &minus; <i>y</i> log ŷ (+ log <i>y</i>!, a constant), with the network predicting log ŷ so the rate stays positive; that is PyTorch's <code>PoissonNLLLoss</code> with its default <code>log_input=True</code> (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.PoissonNLLLoss.html" target="_blank" rel="noopener noreferrer">PyTorch</a>). Its minimiser is the mean, like MSE's, but it charges errors relative to the rate.</p>
-<p><b>A prediction with its own variance</b> takes the Gaussian negative log-likelihood, ½(log σ<sup>2</sup> + (<i>y</i> &minus; ŷ)<sup>2</sup>/σ<sup>2</sup>), with the network predicting σ<sup>2</sup> too; the model can lower the loss on hard examples by raising their σ<sup>2</sup> instead of fitting them, and PyTorch clamps σ<sup>2</sup> at <code>eps</code> (default 10<sup>&minus;6</sup>) so it cannot collapse to zero (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.GaussianNLLLoss.html" target="_blank" rel="noopener noreferrer">PyTorch, GaussianNLLLoss</a>).</p>
+<details class="mist dd"><summary>Counts and predicted variances: Poisson and Gaussian negative log-likelihood</summary><div class="b">
+<p class="small"><b>Counts</b> take the Poisson negative log-likelihood, ŷ &minus; <i>y</i> log ŷ (+ log <i>y</i>!, a constant), with the network predicting log ŷ so the rate stays positive; that is PyTorch's <code>PoissonNLLLoss</code> with its default <code>log_input=True</code> (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.PoissonNLLLoss.html" target="_blank" rel="noopener noreferrer">PyTorch</a>). Its minimiser is the mean, like MSE's, but it charges errors relative to the rate.</p>
+<p class="small"><b>A prediction with its own variance</b> takes the Gaussian negative log-likelihood, ½(log σ<sup>2</sup> + (<i>y</i> &minus; ŷ)<sup>2</sup>/σ<sup>2</sup>), with the network predicting σ<sup>2</sup> too; the model can lower the loss on hard examples by raising their σ<sup>2</sup> instead of fitting them, and PyTorch clamps σ<sup>2</sup> at <code>eps</code> (default 10<sup>&minus;6</sup>) so it cannot collapse to zero (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.GaussianNLLLoss.html" target="_blank" rel="noopener noreferrer">PyTorch, GaussianNLLLoss</a>).</p></div></details>
 </section>
+
+<section id="s-ce">
+<h2>Cross entropy: likelihood, KL, and the gradient p &minus; y</h2>
+<p>A five-class image classifier outputs logits <i>z</i> = (3.0, 1.5, 0.5, &minus;0.5, &minus;1.5) for cat, dog, fox, owl and car; the softmax turns them into <i>p</i> = (0.743, 0.166, 0.061, 0.022, 0.008) <i class="nl i">illustrative</i>. If the image is a cat, cross entropy is &minus;log 0.743 = 0.30 nats; if it is a car, &minus;log 0.008 = 4.80.</p>
+<ul class="tight">
+<li><b>It is maximum likelihood.</b> With a one-hot label, cross entropy is the negative log-likelihood of the right class, so minimising its mean is maximum likelihood estimation (<a href="https://app.notion.com/p/3c65c17b0d0d815f9a47d613409b5a0c" target="_blank" rel="noopener noreferrer">Probability for ML</a>).</li>
+<li><b>It is entropy plus KL.</b> Against any target distribution <i>P</i>, cross entropy <i>H</i>(<i>P</i>, <i>Q</i>) = <i>H</i>(<i>P</i>) + <i>D</i><sub>KL</sub>(<i>P</i>&#8214;<i>Q</i>). With a one-hot <i>P</i>, <i>H</i>(<i>P</i>) = 0 and the loss <i>is</i> the KL; with a soft target (label smoothing, a teacher) <i>H</i>(<i>P</i>) &gt; 0 is a floor no model goes below. The derivation is on <a href="https://app.notion.com/p/3c65c17b0d0d81c6baf3f778a62e14e5" target="_blank" rel="noopener noreferrer">Information theory for ML</a>.</li>
+<li><b>Its gradient on the logits is just</b> &part;<i>L</i>/&part;<i>z</i><sub><i>k</i></sub> = <i>p</i><sub><i>k</i></sub> &minus; <i>y</i><sub><i>k</i></sub>. Every wrong class is pushed down by its probability, the right class up by what it lacks, and the pushes sum to zero <i class="nl d">derived</i>. For the cat that is &minus;0.257 on the cat logit; for the car, &minus;0.992 on the car logit: a confidently wrong example gets almost the largest push possible (1).</li>
+</ul>
+<p>Every other classification loss is this gradient reshaped: a softer target, a weight per example, or a different function of <i>p</i>. The widget puts each beside cross entropy on the same logits.</p>
+<p class="try"><b>Predict, then look:</b> on the car (confidently wrong), which loss pushes the car logit hardest, and which barely at all? Pick "confidently wrong", then each loss on the right.</p>
+<div class="card" id="lg-card">
+<div class="ph">Same logits, four losses: the gradient each one puts on every logit</div>
+<div class="ctl2"><span class="seg2" id="lg-in" role="group" aria-label="Example"><button data-m="0" class="on">easy: it is a cat</button><button data-m="4">confidently wrong: it is a car</button></span>
+<span class="seg2" id="lg-l" role="group" aria-label="Loss on the right"><button data-m="ls" class="on">label smoothing, ε = 0.1</button><button data-m="focal">focal, γ = 2</button><button data-m="brier">MSE on probabilities</button></span></div>
+<div class="two"><div><div class="ph">Cross entropy <small>the reference, p &minus; y</small></div><div id="lg-a" class="ch"></div></div><div><div class="ph" id="lg-h">Label smoothing</div><div id="lg-b" class="ch"></div></div></div>
+<div class="cnt" id="lg-out"></div>
+<div class="an-cap" id="lg-cap"></div>
+<p class="small mute">Bars are &minus;&part;<i>L</i>/&part;<i>z</i><sub><i>k</i></sub>, the direction gradient descent moves each logit (up is towards the class), on one scale across both panels; the right class is outlined. Label smoothing uses PyTorch's convention (target 1 &minus; ε + ε/<i>K</i> on the right class, ε/<i>K</i> = 0.02 on each other); focal is &minus;(1 &minus; <i>p</i><sub><i>t</i></sub>)<sup>γ</sup> log <i>p</i><sub><i>t</i></sub> with α = 1; MSE on probabilities is the Brier score Σ<sub><i>k</i></sub>(<i>p</i><sub><i>k</i></sub> &minus; <i>y</i><sub><i>k</i></sub>)<sup>2</sup>. Gradients checked against PyTorch autograd (<code>src/recompute.py</code>).</p>
+</div>
+<p>What the widget shows, in numbers <i class="nl d">computed here</i>:</p>
+<ul class="tight">
+<li><b>MSE on probabilities lets the worst examples off.</b> On the car it pushes the car logit by 0.026 against cross entropy's 0.992, 38 times less, because the softmax's slope <i>p</i><sub><i>k</i></sub>(1 &minus; <i>p</i><sub><i>k</i></sub>) is nearly 0 at <i>p</i> = 0.008 and squared error has no log to cancel it. Cross entropy's log exactly cancels that slope, which is why classifiers train on it; the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Training lab</a> trains the same network both ways.</li>
+<li><b>Focal loss silences the easy example, not the hard one.</b> On the cat it pushes 0.046, 5.6 times less than cross entropy; on the car it pushes 1.053, about the same. That is the point of focal loss: the gradient budget moves to the hard examples.</li>
+<li><b>Label smoothing stops short of certainty and lifts the tail.</b> On the cat it pushes the cat logit 0.177 instead of 0.257, and it pushes the car logit <i>up</i> (0.012), because <i>p</i> = 0.008 is below its target of 0.02 for every wrong class.</li>
+</ul>
+</section>
+
 <section id="s-cls">
-<h2>Classification: the cross-entropy family</h2>
-<p>Every loss in this family is cross entropy against some target distribution, and only the target or a weight changes. The loss explorer in step 3 of the parent page's Reading tab shows cross entropy, label smoothing and focal loss charging and pushing on one prediction; its thread 1 splits cross entropy into entropy plus KL for four kinds of target (<a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a>). The table carries the details those two leave out.</p>
+<h2>The cross-entropy family</h2>
 <div class="tw"><table>
 <tr><th>Loss</th><th>Use</th><th>Per example</th><th>Notes</th></tr>
 <tr><td>Binary cross entropy</td><td>binary, and multilabel (one sigmoid per output)</td><td>&minus;[<i>y</i> log <i>p̂</i> + (1 &minus; <i>y</i>) log(1 &minus; <i>p̂</i>)]</td><td>feed logits to <code>BCEWithLogitsLoss</code>, which folds in the sigmoid and is "more numerically stable" via the log-sum-exp trick; <code>pos_weight</code> up-weights positives (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html" target="_blank" rel="noopener noreferrer">PyTorch</a>)</td></tr>
-<tr><td>Categorical cross entropy</td><td>one class out of <i>K</i> (softmax)</td><td>&minus;Σ<sub><i>c</i></sub> <i>y</i><sub><i>c</i></sub> log <i>p̂</i><sub><i>c</i></sub></td><td>per example; the batch mean is the cost. PyTorch's <code>CrossEntropyLoss</code> takes unnormalised logits and equals <code>LogSoftmax</code> then <code>NLLLoss</code> (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html" target="_blank" rel="noopener noreferrer">PyTorch</a>)</td></tr>
+<tr><td>Categorical cross entropy</td><td>one class out of <i>K</i> (softmax)</td><td>&minus;Σ<sub><i>c</i></sub> <i>y</i><sub><i>c</i></sub> log <i>p̂</i><sub><i>c</i></sub></td><td>PyTorch's <code>CrossEntropyLoss</code> takes unnormalised logits and equals <code>LogSoftmax</code> then <code>NLLLoss</code> (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html" target="_blank" rel="noopener noreferrer">PyTorch</a>)</td></tr>
 <tr><td>Sparse categorical CE</td><td>the same, integer labels</td><td>&minus;log <i>p̂</i><sub><i>y</i></sub></td><td>identical maths; takes the class index instead of a one-hot vector (Keras's name; PyTorch's <code>CrossEntropyLoss</code> accepts either)</td></tr>
 <tr><td>Label smoothing</td><td>overconfident models, calibration</td><td>cross entropy against a softened target</td><td>two conventions: 1 &minus; ε on the true class and ε/(<i>K</i> &minus; 1) on each other, or (PyTorch and <a href="https://arxiv.org/abs/1512.00567" target="_blank" rel="noopener noreferrer">Szegedy et al. 2016</a>) a mix with the uniform distribution, 1 &minus; ε + ε/<i>K</i> and ε/<i>K</i>; the same ε gives different targets</td></tr>
 <tr><td>Weighted CE</td><td>class imbalance</td><td><i>w</i><sub><i>y</i></sub> times the CE</td><td>up-weight the minority class; PyTorch's mean then divides by the summed weights, not the count</td></tr>
 <tr><td>Focal loss</td><td>extreme imbalance (dense detection)</td><td>&minus;α<sub><i>t</i></sub>(1 &minus; <i>p</i><sub><i>t</i></sub>)<sup>γ</sup> log <i>p</i><sub><i>t</i></sub></td><td>down-weights easy examples so the hard ones dominate the gradient (<a href="https://arxiv.org/abs/1708.02002" target="_blank" rel="noopener noreferrer">Lin et al. 2017</a>)</td></tr>
 <tr><td>Hinge</td><td>SVMs, maximum margin</td><td>max(0, 1 &minus; <i>y</i>&middot;<i>f</i>(<i>x</i>)), <i>y</i> &isin; {&minus;1, 1}</td><td>zero once the margin is met; the decision, not a probability (<a href="#s-marg">below</a>)</td></tr>
 </table></div>
-<p><b>Focal loss, exactly as published.</b> In a dense detector most of the roughly 100,000 anchor boxes per image are easy background, and "easily classified negatives comprise the majority of the loss and dominate the gradient". The factor (1 &minus; <i>p</i><sub><i>t</i></sub>)<sup>γ</sup> removes them: "with γ = 2, an example classified with <i>p</i><sub><i>t</i></sub> = 0.9 would have 100&times; lower loss compared with CE and with <i>p</i><sub><i>t</i></sub> &asymp; 0.968 it would have 1000&times; lower loss" (1/0.1<sup>2</sup> = 100 and 1/0.032<sup>2</sup> = 977 <i class="nl d">derived</i>; reproduced live in <a href="#" data-tab="t-shape">Loss shapes</a>). The paper found γ = 2 best and, with it, α = 0.25, noting that "lower α's are selected for higher γ's": α weights the <i>rare</i> foreground class <b>down</b>, because γ already removed most of the easy background. It also initialises the output bias so the model starts by predicting 0.01 for the rare class, and shows that "the exact form of the focal loss is not crucial" (<a href="https://arxiv.org/abs/1708.02002" target="_blank" rel="noopener noreferrer">Lin et al. 2017</a>). The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">When training goes wrong</a> tab runs focal loss with α = 0.25 against re-weighting, oversampling and the prior bias on an imbalanced task.</p>
+<p><b>Focal loss, exactly as published.</b> In a dense detector most of the roughly 100,000 anchor boxes per image are easy background, and "easily classified negatives comprise the majority of the loss and dominate the gradient". The factor (1 &minus; <i>p</i><sub><i>t</i></sub>)<sup>γ</sup> removes them: "with γ = 2, an example classified with <i>p</i><sub><i>t</i></sub> = 0.9 would have 100&times; lower loss compared with CE and with <i>p</i><sub><i>t</i></sub> &asymp; 0.968 it would have 1000&times; lower loss" (1/0.1<sup>2</sup> = 100 and 1/0.032<sup>2</sup> = 977 <i class="nl d">derived</i>; reproduced live in the margin chart below).</p>
+<details class="mist dd"><summary>Focal loss: α, the prior bias and the paper's ablations</summary><div class="b"><p class="small">The paper found γ = 2 best and, with it, α = 0.25, noting that "lower α's are selected for higher γ's": α weights the <i>rare</i> foreground class <b>down</b>, because γ already removed most of the easy background. It also initialises the output bias so the model starts by predicting 0.01 for the rare class, and shows that "the exact form of the focal loss is not crucial" (<a href="https://arxiv.org/abs/1708.02002" target="_blank" rel="noopener noreferrer">Lin et al. 2017</a>). The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">When training goes wrong</a> tab runs focal loss with α = 0.25 against re-weighting, oversampling and the prior bias on an imbalanced task.</p></div></details>
 <p><b>Label smoothing</b> improves calibration: on ImageNet Müller et al. report an expected calibration error of 0.071 with hard targets, 0.022 after temperature scaling, and 0.035 with label smoothing of 0.1 and no scaling. It also harms distillation: a teacher trained with label smoothing was more accurate than one trained with hard targets and dropout (0.59% error against 0.67% on MNIST) but taught a much worse student (0.91% against 0.74%) (<a href="https://arxiv.org/abs/1906.02629" target="_blank" rel="noopener noreferrer">Müller et al. 2019</a>), because smoothing erases the similarities between wrong classes that a student learns from (<a href="https://app.notion.com/p/3c65c17b0d0d81efa2a8c3b3b623eb09" target="_blank" rel="noopener noreferrer">Distillation and Small Language Models</a>).</p>
-<p><b>Proper scoring.</b> A loss on probabilities is <i>strictly proper</i> when the expected loss is lowest only at the true probability; the log score (cross entropy) and the Brier score (squared error on probabilities) are (<a href="https://doi.org/10.1198/016214506000001437" target="_blank" rel="noopener noreferrer">Gneiting and Raftery 2007</a>). Focal loss is not: if 90% of inputs like this one are positive, the focal optimum with γ = 2 is a predicted probability of 0.694, with γ = 3 0.647 <i class="nl d">computed here</i>. Mukhoti et al. show the same thing from the other side: focal loss is an upper bound on KL minus γ times the entropy of the prediction, so it raises entropy, and that is why networks trained with it come out <i>better</i> calibrated than overconfident cross-entropy networks (<a href="https://arxiv.org/abs/2002.09437" target="_blank" rel="noopener noreferrer">Mukhoti et al. 2020</a>). Either way, a focal model's scores are recalibrated before being read as probabilities.</p>
+<p><b>Proper scoring.</b> A loss on probabilities is <i>strictly proper</i> when the expected loss is lowest only at the true probability; the log score (cross entropy) and the Brier score (squared error on probabilities) are (<a href="https://doi.org/10.1198/016214506000001437" target="_blank" rel="noopener noreferrer">Gneiting and Raftery 2007</a>). Focal loss is not: if 90% of inputs like this one are positive, the focal optimum with γ = 2 is a predicted probability of 0.694, with γ = 3 0.647 <i class="nl d">computed here</i> (move η and γ in the score chart in the next section). Either way, a focal model's scores are recalibrated before being read as probabilities.</p>
+<details class="mist dd"><summary>Why focal-trained networks still come out better calibrated</summary><div class="b"><p class="small">Mukhoti et al. show the same thing from the other side: focal loss is an upper bound on KL minus γ times the entropy of the prediction, so it raises entropy, and that is why networks trained with it come out <i>better</i> calibrated than overconfident cross-entropy networks (<a href="https://arxiv.org/abs/2002.09437" target="_blank" rel="noopener noreferrer">Mukhoti et al. 2020</a>).</p></div></details>
 </section>
 
 <section id="s-marg">
 <h2>One axis for every classification loss: the margin</h2>
-<p>With labels <i>y</i> &isin; {&minus;1, +1} and a score <i>f</i>(<i>x</i>), the <b>margin</b> <i>m</i> = <i>y</i>&middot;<i>f</i>(<i>x</i>) is positive when the example is classified correctly and large when it is classified confidently. The loss we would like is the 0-1 loss (1 if <i>m</i> &le; 0); it has no gradient, so training minimises a convex surrogate: hinge max(0, 1 &minus; <i>m</i>) for the SVM, logistic log(1 + e<sup>&minus;<i>m</i></sup>), which is binary cross entropy on logits, and exponential e<sup>&minus;<i>m</i></sup>, which AdaBoost minimises (<a href="https://doi.org/10.1214/aos/1016218223" target="_blank" rel="noopener noreferrer">Friedman, Hastie and Tibshirani 2000</a>). A convex surrogate gives the right decisions in the limit exactly when it is differentiable at 0 with a negative slope there (<a href="https://doi.org/10.1198/016214505000000907" target="_blank" rel="noopener noreferrer">Bartlett, Jordan and McAuliffe 2006</a>, Theorem 6), which all of these pass.</p>
-<p>Where they differ is what the score means and who pulls hardest:</p>
+<p>With labels <i>y</i> &isin; {&minus;1, +1} and a score <i>f</i>(<i>x</i>), the margin <i>m</i> = <i>y</i>&middot;<i>f</i>(<i>x</i>) is positive when the example is classified correctly and large when it is classified confidently. The loss we would like is the 0-1 loss (1 if <i>m</i> &le; 0); it has no gradient, so training minimises a convex surrogate: hinge max(0, 1 &minus; <i>m</i>) for the SVM, logistic log(1 + e<sup>&minus;<i>m</i></sup>), which is binary cross entropy on logits, and exponential e<sup>&minus;<i>m</i></sup>, which AdaBoost minimises (<a href="https://doi.org/10.1214/aos/1016218223" target="_blank" rel="noopener noreferrer">Friedman, Hastie and Tibshirani 2000</a>). A convex surrogate gives the right decisions in the limit exactly when it is differentiable at 0 with a negative slope there (<a href="https://doi.org/10.1198/016214505000000907" target="_blank" rel="noopener noreferrer">Bartlett, Jordan and McAuliffe 2006</a>, Theorem 6), which all of these pass.</p>
+<p><b>Who pulls hardest.</b> A misclassified point at <i>m</i> = &minus;5 pulls with 0.99 under the logistic loss, 1 under hinge, and e<sup>5</sup> = 148 under the exponential loss <i class="nl d">derived</i>. A mislabelled example is exactly such a point, which is why exponential-loss boosting suffers under label noise; Long and Servedio prove that for a broad class of convex potentials, any nonzero rate of random label noise can stop a booster from beating 1/2 accuracy on a data set it would learn without noise (<a href="https://doi.org/10.1007/s10994-009-5165-z" target="_blank" rel="noopener noreferrer">Long and Servedio 2010</a>).</p>
+<p class="try"><b>Try:</b> switch to "pull" and drag <i>m</i> to &minus;3; then press the two buttons under the chart to land on Lin et al.'s focal numbers.</p>
+<div class="card" id="sh-c">
+<div class="ph">Every surrogate pulls on wrong examples; they differ in how fast they let go of right ones</div>
+<div class="ctl2"><span class="seg2" id="sh-cv" role="group" aria-label="Quantity"><button data-v="phi" class="on">loss</button><button data-v="pull">pull</button></span></div>
+<div class="ctl2 lbox" id="sh-cl"></div>
+<div class="ctl2"><label>focal γ = <b id="sh-gv"></b> <input type="range" id="sh-g" min="0" max="50" value="20" aria-label="Focal gamma"></label><label><i>m</i> = <b id="sh-mv"></b> <input type="range" id="sh-m" min="0" max="160" value="80" aria-label="Margin"></label></div>
+<div id="sh-csvg" class="ch"></div>
+<div class="tw"><table class="ftbl" id="sh-ct"></table></div>
+<div class="cnt" id="sh-focal"></div>
+<p class="repro" id="sh-repro"><b>Defaults reproduce</b> Lin et al.'s "100× lower loss" at p<sub>t</sub> = 0.9 and "1000×" at p<sub>t</sub> ≈ 0.968 for γ = 2: 100× and 977×, independently.</p>
+<p class="small mute">Logistic loss in nats, log(1 + e<sup>&minus;<i>m</i></sup>), which is <code>BCEWithLogitsLoss</code> on the score; some texts divide by ln 2 so that it equals 1 at <i>m</i> = 0. Focal is the binary focal loss on the same score, <i>p</i><sub><i>t</i></sub> = σ(<i>m</i>), α = 1. Values and pulls checked against PyTorch autograd.</p>
+</div>
+<p><b>What the score estimates.</b> If a fraction η of inputs like <i>x</i> are positive, the logistic loss is minimised at <i>f</i> = log(η/(1 &minus; η)), the log-odds, so σ(<i>f</i>) is the probability; exponential at half the log-odds; squared hinge at 2η &minus; 1; hinge at sign(η &minus; ½), "for all η &isin; (0, 1) other than 1/2" (<a href="https://doi.org/10.1198/016214505000000907" target="_blank" rel="noopener noreferrer">Bartlett et al. 2006</a>, Example 3): an SVM's score carries the decision and nothing about how sure it is.</p>
+<div class="card" id="sh-k">
+<div class="ph">Logistic recovers η exactly; hinge keeps only the sign; focal is pulled towards 0.5</div>
+<p class="small" style="margin:2px 0">The expected loss of a score <i>f</i> is η&middot;φ(<i>f</i>) + (1 &minus; η)&middot;φ(&minus;<i>f</i>). Its minimum <i>f</i>* is what a model trained on that loss learns to output.</p>
+<div class="ctl2"><label>η = <b id="sh-ev"></b> <input type="range" id="sh-e" min="51" max="99" value="90" aria-label="Fraction positive"></label><label>focal γ = <b id="sh-g2v"></b> <input type="range" id="sh-g2" min="0" max="50" value="20" aria-label="Focal gamma for the minimum"></label></div>
+<div id="sh-ksvg" class="ch"></div>
+<div class="tw"><table class="ftbl" id="sh-kt"></table></div>
+<p class="small mute">Closed forms for logistic (log-odds), exponential (half the log-odds), squared hinge (2η &minus; 1) and hinge (sign; Bartlett et al. 2006, Example 3); focal by a grid then golden-section search, checked against SciPy. Each curve is shifted and scaled to its own range so their minima can be compared.</p>
+</div>
+</section>
+
+<section id="s-rank">
+<h2>Ranking losses: only the order counts</h2>
+<p>A search engine scores each document <i>i</i> for a query, <i>s</i><sub><i>i</i></sub> = <i>f</i>(<i>x</i><sub><i>i</i></sub>), and shows them sorted. The labels are relevance grades, and the metric only looks at the order, usually NDCG: each document's gain 2<sup><i>l</i></sup> &minus; 1 divided by log(1 + its rank), summed, over the best possible sum (<a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/MSR-TR-2010-82.pdf" target="_blank" rel="noopener noreferrer">Burges 2010</a>, eq. 5; the log's base cancels in the ratio). Three ways to turn that into a loss:</p>
 <ul class="tight">
-<li><b>What the score estimates.</b> If a fraction η of inputs like <i>x</i> are positive, the logistic loss is minimised at <i>f</i> = log(η/(1 &minus; η)), the log-odds, so σ(<i>f</i>) is the probability; exponential at half the log-odds; squared hinge at 2η &minus; 1; hinge at sign(η &minus; ½), "for all η &isin; (0, 1) other than 1/2" (<a href="https://doi.org/10.1198/016214505000000907" target="_blank" rel="noopener noreferrer">Bartlett et al. 2006</a>, Example 3): an SVM's score carries the decision and nothing about how sure it is.</li>
-<li><b>Who pulls hardest.</b> A misclassified point at <i>m</i> = &minus;5 pulls with 0.99 under the logistic loss, 1 under hinge, and e<sup>5</sup> = 148 under the exponential loss <i class="nl d">derived</i>. A mislabelled example is exactly such a point, which is why exponential-loss boosting suffers under label noise; Long and Servedio prove that for a broad class of convex potentials, any nonzero rate of random label noise can stop a booster from beating 1/2 accuracy on a data set it would learn without noise (<a href="https://doi.org/10.1007/s10994-009-5165-z" target="_blank" rel="noopener noreferrer">Long and Servedio 2010</a>).</li>
+<li><b>Pairwise.</b> For each pair where <i>i</i> should rank above <i>j</i>, penalise the score difference. PyTorch's <code>MarginRankingLoss</code> is the hinge version, max(0, &minus;<i>y</i>&middot;(<i>x</i><sub>1</sub> &minus; <i>x</i><sub>2</sub>) + margin), margin 0 by default (PyTorch 2.14 docstring). <b>RankNet</b> is the logistic version: model P(<i>i</i> above <i>j</i>) = 1/(1 + e<sup>&minus;σ(<i>s</i><sub><i>i</i></sub> &minus; <i>s</i><sub><i>j</i></sub>)</sup>) and take cross entropy, which for a known order is <i>C</i> = log(1 + e<sup>&minus;σ(<i>s</i><sub><i>i</i></sub> &minus; <i>s</i><sub><i>j</i></sub>)</sup>), the logistic margin loss above with <i>m</i> = <i>s</i><sub><i>i</i></sub> &minus; <i>s</i><sub><i>j</i></sub>; "when <i>s</i><sub><i>i</i></sub> = <i>s</i><sub><i>j</i></sub>, the cost is log 2" (<a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/MSR-TR-2010-82.pdf" target="_blank" rel="noopener noreferrer">Burges 2010</a>, section 2).</li>
+<li><b>Listwise.</b> A softmax over the whole list's scores, cross entropy against the target distribution (ListNet, with its top-one probability: <a href="https://doi.org/10.1145/1273496.1273513" target="_blank" rel="noopener noreferrer">Cao et al. 2007</a>). With exactly one relevant item in the list this is InfoNCE, the loss contrastive learning runs over a batch (<a href="https://app.notion.com/p/3c65c17b0d0d811db6a7d02d0ee7215c" target="_blank" rel="noopener noreferrer">Contrastive and self-supervised learning</a>).</li>
+<li><b>Metric-weighted (LambdaRank).</b> NDCG is "everywhere either discontinuous or flat" in the scores, so it has no useful gradient. LambdaRank keeps RankNet's gradient on each pair, λ<sub><i>ij</i></sub> = &minus;σ/(1 + e<sup>σ(<i>s</i><sub><i>i</i></sub> &minus; <i>s</i><sub><i>j</i></sub>)</sup>), and multiplies it by |ΔNDCG|, the change in NDCG from swapping the two; "experiments have shown" this "gives very good results" (eq. 6). LambdaMART is its boosted-tree version; "an ensemble of LambdaMART rankers won Track 1 of the 2010 Yahoo! Learning To Rank Challenge" (<a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/MSR-TR-2010-82.pdf" target="_blank" rel="noopener noreferrer">Burges 2010</a>).</li>
 </ul>
-<p>All six curves with their pulls, the conditional-risk minimum for any η, and the focal factor: <a href="#" data-tab="t-shape">Loss shapes</a>.</p>
+<p><b>Why pairwise is not enough, in numbers.</b> Ten documents, relevant at ranks 2 and 10, the rest irrelevant <i class="nl i">illustrative</i>: 9 pairs are in the wrong order, NDCG 0.564. Fix A lifts the bottom relevant document to rank 5: 4 wrong pairs, NDCG 0.624. Fix B swaps the top two: 8 wrong pairs, NDCG 0.790. A pairwise loss prefers A; the user, and NDCG, prefer B <i class="nl d">computed here</i>. Burges's Figure 1 makes the same point (13 pairwise errors reduced to 11 by a move that hurts the top of the list).</p>
+<p class="try"><b>Predict, then look:</b> under RankNet, which document gets the largest push? Under LambdaRank? Then move the second relevant document up the list.</p>
+<div class="card" id="rk-card">
+<div class="ph">Same scores, same pairs: LambdaRank moves the push to the top of the list</div>
+<div class="ctl2"><label>second relevant document at rank <b id="rk-pv">10</b> <input type="range" id="rk-p" min="3" max="10" value="10" aria-label="Rank of the second relevant document"></label></div>
+<div class="two"><div><div class="ph">RankNet <small>every wrong pair counts alike</small></div><div id="rk-a"></div></div><div><div class="ph">LambdaRank <small>each pair times |ΔNDCG|</small></div><div id="rk-b"></div></div></div>
+<div class="cnt" id="rk-out"></div>
+<p class="small mute">Each bar is &minus;λ<sub><i>i</i></sub> = &minus;&part;<i>C</i>/&part;<i>s</i><sub><i>i</i></sub> summed over the document's pairs (Burges 2010, eqs. 3, 4 and 6; σ = 1): right is "push this score up". Each panel is scaled to its own largest bar, because LambdaRank's λ carries NDCG's units. Scores fall by 0.4 per rank from 2.0 <i class="nl i">illustrative</i>; RankNet's λ checked against PyTorch autograd, LambdaRank's recomputed independently (<code>src/recompute.py</code>).</p>
+</div>
+<p>With the default list, RankNet pushes the relevant document at rank 2 only 0.30 times as hard as the one at rank 10, because rank 10 is in more wrong pairs; LambdaRank raises that to 0.42. The irrelevant document at rank 1 is pushed down 0.24 times as hard as rank 10 is pushed up under RankNet, 0.75 times under LambdaRank: the swap that fixes the top of the list now carries a far larger share of the gradient <i class="nl d">computed here</i>.</p>
+<details class="mist dd"><summary>Triplet loss: a margin between a matching and a non-matching pair</summary><div class="b">
+<p class="small">PyTorch's <code>TripletMarginLoss</code> is max{<i>d</i>(<i>a</i>, <i>p</i>) &minus; <i>d</i>(<i>a</i>, <i>n</i>) + margin, 0} for an anchor, a positive and a negative, with <i>d</i> the p-norm distance, margin 1 and p = 2 by default (PyTorch 2.14 docstring). FaceNet used squared L2 distances on unit-length embeddings with "the margin α is set to 0.2" (<a href="https://arxiv.org/abs/1503.03832" target="_blank" rel="noopener noreferrer">Schroff et al. 2015</a>). Its gradient is a hinge's: a triplet already separated by the margin contributes nothing, so training mines hard negatives, and "selecting the hardest negatives can in practice lead to bad local minima early on in training, specifically it can result in a collapsed model (i.e. <i>f</i>(<i>x</i>) = 0)"; FaceNet picks "semi-hard" negatives, further than the positive but inside the margin. One pair or triplet at a time against many negatives at once (InfoNCE) is the comparison on <a href="https://app.notion.com/p/3c65c17b0d0d811db6a7d02d0ee7215c" target="_blank" rel="noopener noreferrer">Contrastive and self-supervised learning</a>.</p></div></details>
 </section>
 
 <section id="s-logit">
-<h2>Losses on the logits themselves: z-loss and soft-capping</h2>
-<p>Cross entropy only sees differences between logits: add the same constant <i>c</i> to every logit and the softmax, and so the loss, do not change. The overall <b>level</b> of the logits, measured by log <i>Z</i> = log Σ<sub><i>j</i></sub> e<sup><i>z</i><sub><i>j</i></sub></sup>, is therefore free to drift. PaLM added "an auxiliary loss of z_loss = 10<sup>&minus;4</sup> &middot; log<sup>2</sup> <i>Z</i> to encourage the softmax normalizer log(<i>Z</i>) to be close to 0, which we found increases the stability of training" (<a href="https://arxiv.org/abs/2204.02311" target="_blank" rel="noopener noreferrer">Chowdhery et al. 2022</a>). Its gradient on logit <i>i</i> is 2&middot;10<sup>&minus;4</sup>&middot;log <i>Z</i>&middot;softmax<sub><i>i</i></sub>, a push of every logit towards a level where log <i>Z</i> = 0 and each logit <i>is</i> its log-probability. Wortsman et al. reproduced the failure it prevents, output logits diverging late in training, in small models trained without weight decay at high learning rates, and found z-loss resolves it (weight decay also helped in their larger models; <a href="https://arxiv.org/abs/2309.14322" target="_blank" rel="noopener noreferrer">Wortsman et al. 2023</a>). Which landmark models used it is in the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Defaults across models</a> tab.</p>
-<p>Why the level matters at all is number formats: bfloat16 keeps 8 significant bits, so the gap between neighbouring values grows with magnitude (0.0078 near 1, 0.125 near 24, 0.5 near 100) <i class="nl d">derived</i>. Logits stored in bf16 at a high level lose the small differences the softmax depends on.</p>
-<p class="try"><b>Try:</b> real logits from three small open models on one sentence. Slide the shift <i>c</i> added to every logit: cross entropy does not move, z-loss does, and so does the damage bf16 storage does to the probabilities.</p>
+<h2>The level of the logits: what cross entropy ignores</h2>
+<p>Because the cross-entropy gradient <i>p</i> &minus; <i>y</i> sums to zero over the classes, adding the same constant <i>c</i> to every logit changes neither the softmax nor the loss. The overall level, log <i>Z</i> = log Σ<sub><i>j</i></sub> e<sup><i>z</i><sub><i>j</i></sub></sup>, is free to drift, and in large models it does. Two fixes act on the logits themselves: <b>z-loss</b> adds 10<sup>&minus;4</sup>&middot;log<sup>2</sup> <i>Z</i> to pull the level to log <i>Z</i> = 0 (PaLM), and <b>soft-capping</b> bounds them, soft_cap&middot;tanh(logits / soft_cap) (Gemma 2: 50 in attention, 30 on the final layer). Both, with the instabilities they prevent and measured runs, are owned by <a href="https://app.notion.com/p/3fd5c17b0d0d8163b50dc5e9d9240e89" target="_blank" rel="noopener noreferrer">Normalisation, residuals and stability</a> (section 5 for z-loss, section 4 for soft-capping).</p>
+<details class="mist dd"><summary>Real logits from three small models: where the level sits, and what bf16 storage does to it <small>(measured)</small></summary><div class="b">
+<p class="small">PaLM added "an auxiliary loss of z_loss = 10<sup>&minus;4</sup> &middot; log<sup>2</sup> <i>Z</i> to encourage the softmax normalizer log(<i>Z</i>) to be close to 0, which we found increases the stability of training" (<a href="https://arxiv.org/abs/2204.02311" target="_blank" rel="noopener noreferrer">Chowdhery et al. 2022</a>). Its gradient on logit <i>i</i> is 2&middot;10<sup>&minus;4</sup>&middot;log <i>Z</i>&middot;softmax<sub><i>i</i></sub>, a push of every logit towards a level where log <i>Z</i> = 0 and each logit <i>is</i> its log-probability. Wortsman et al. reproduced the failure it prevents, output logits diverging late in training, in small models trained without weight decay at high learning rates, and found z-loss resolves it (weight decay also helped in their larger models; <a href="https://arxiv.org/abs/2309.14322" target="_blank" rel="noopener noreferrer">Wortsman et al. 2023</a>). Which landmark models used it is in the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Defaults across models</a> tab.</p>
+<p class="small">Why the level matters at all is number formats: bfloat16 keeps 8 significant bits, so the gap between neighbouring values grows with magnitude (0.0078 near 1, 0.125 near 24, 0.5 near 100) <i class="nl d">derived</i>. Logits stored in bf16 at a high level lose the small differences the softmax depends on. Slide the shift <i>c</i> added to every logit: cross entropy does not move, z-loss does, and so does the damage bf16 storage does to the probabilities.</p>
 <div class="card" id="zl-card">
 <div class="ctl2"><label>shift every logit by <i>c</i> = <b id="zl-cv">0</b> <input type="range" id="zl-c" min="0" max="24" value="12" aria-label="Logit shift"></label></div>
 <div id="zl-svg" class="ch"></div>
 <div class="tw"><table class="ftbl" id="zl-tbl"></table></div>
 <p class="small mute">The opening sentence of <i>A Tale of Two Cities</i> (public domain), tokenised by each model; 72 or 73 next-token predictions each. Logits computed offline in float32 with PyTorch and Hugging Face <code>transformers</code> (<code>src/real_logits.py</code>); the bf16 column rounds every logit to bfloat16 with <code>torch.bfloat16</code> before an exact softmax and reports the mean total-variation distance from the float32 probabilities. Cross entropy is low because the sentence is famous. <i class="nl m">measured</i></p>
 </div>
-<p>None of the three sits at log <i>Z</i> = 0: GPT-2 averages &minus;42.6 (its logits sit around &minus;61), SmolLM2-135M +25.2 and Qwen2.5-0.5B +22.4, and storing GPT-2's logits in bf16 already moves 2.4% of its probability mass. For SmolLM2 and Qwen2.5 the bf16 error is smallest at shifts of &minus;16 to &minus;24, close to &minus;log <i>Z</i>, which is where z-loss would put them; GPT-2's minimum lies further out because its bulk of very negative logits matters too. This is a demonstration of the mechanism, not of training: mixed-precision training usually computes the softmax and loss in float32.</p>
-<p><b>Soft-capping</b> bounds the logits instead of penalising their level: Gemma 2 replaces logits by soft_cap &middot; tanh(logits / soft_cap), with soft_cap 50 in attention and 30 on the final layer (<a href="https://arxiv.org/abs/2408.00118" target="_blank" rel="noopener noreferrer">Gemma 2 report</a>); Gemma 3 replaced the soft-capping with QK-norm (<a href="https://arxiv.org/abs/2503.19786" target="_blank" rel="noopener noreferrer">Gemma 3 report</a>).</p>
+<p class="small">None of the three sits at log <i>Z</i> = 0: GPT-2 averages &minus;42.6 (its logits sit around &minus;61), SmolLM2-135M +25.2 and Qwen2.5-0.5B +22.4, and storing GPT-2's logits in bf16 already moves 2.4% of its probability mass. For SmolLM2 and Qwen2.5 the bf16 error is smallest at shifts of &minus;16 to &minus;24, close to &minus;log <i>Z</i>, which is where z-loss would put them; GPT-2's minimum lies further out because its bulk of very negative logits matters too. This is a demonstration of the mechanism, not of training: mixed-precision training usually computes the softmax and loss in float32. Gemma 3 replaced Gemma 2's soft-capping with QK-norm (<a href="https://arxiv.org/abs/2503.19786" target="_blank" rel="noopener noreferrer">Gemma 3 report</a>; soft-capping values from the <a href="https://arxiv.org/abs/2408.00118" target="_blank" rel="noopener noreferrer">Gemma 2 report</a>).</p>
+</div></details>
 </section>
 
 <section id="s-dist">
 <h2>Between distributions and between models</h2>
 <ul>
-<li><b>KL divergence</b>, <i>D</i><sub>KL</sub>(<i>P</i>&#8214;<i>Q</i>) = Σ <i>P</i> log(<i>P</i>/<i>Q</i>): a distance-like measure between distributions, asymmetric and not a metric. It is the regulariser in VAEs (keep the code near its prior), the distillation loss (the student matches the teacher) and the RLHF anchor (the policy stays near its reference). Cross entropy = entropy + KL is thread 1 of <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a>; which direction a small student should minimise, forward or reverse, is "Forward or reverse KL" on <a href="https://app.notion.com/p/3c65c17b0d0d81efa2a8c3b3b623eb09" target="_blank" rel="noopener noreferrer">Distillation and Small Language Models</a>. In PyTorch, <code>KLDivLoss</code> takes the model's <i>log</i>-probabilities first and the target second, and its default <code>reduction='mean'</code> "doesn't return the true KL divergence value"; use <code>'batchmean'</code> (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.KLDivLoss.html" target="_blank" rel="noopener noreferrer">PyTorch</a>).</li>
+<li><b>KL divergence</b>, <i>D</i><sub>KL</sub>(<i>P</i>&#8214;<i>Q</i>) = Σ <i>P</i> log(<i>P</i>/<i>Q</i>): asymmetric and not a metric. It is the regulariser in VAEs (keep the code near its prior), the distillation loss (the student matches the teacher) and the RLHF anchor (the policy stays near its reference). Which direction a small student should minimise, forward or reverse, is "Forward or reverse KL" on <a href="https://app.notion.com/p/3c65c17b0d0d81efa2a8c3b3b623eb09" target="_blank" rel="noopener noreferrer">Distillation and Small Language Models</a>. In PyTorch, <code>KLDivLoss</code> takes the model's <i>log</i>-probabilities first and the target second, and its default <code>reduction='mean'</code> "doesn't return the true KL divergence value"; use <code>'batchmean'</code> (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.KLDivLoss.html" target="_blank" rel="noopener noreferrer">PyTorch</a>).</li>
 <li><b>Penalties</b> (L1 or lasso, L2 or ridge, elastic net) are added to the loss but are not task losses: L1 drives weights to exactly zero (sparsity, feature selection), L2 shrinks them without zeroing any, elastic net combines both. Details on <a href="https://app.notion.com/p/3c65c17b0d0d81e988b5c3cb5e197f98" target="_blank" rel="noopener noreferrer">Regularisation</a>.</li>
-<li><b>Contrastive losses</b> (InfoNCE and its relatives) are cross entropy over a batch: pick the one matching pair among <i>N</i>. Owned by <a href="https://app.notion.com/p/3c65c17b0d0d811db6a7d02d0ee7215c" target="_blank" rel="noopener noreferrer">Contrastive and self-supervised learning</a>; the <a href="https://app.notion.com/p/3c65c17b0d0d8194a85dfc5f3bf3f799" target="_blank" rel="noopener noreferrer">CLIP</a> paper page runs one live.</li>
-<li><b>Preference losses</b> (Bradley-Terry reward models, DPO and its family) score a preferred answer against a rejected one; "Direct preference optimisation and its family" on <a href="https://app.notion.com/p/3c65c17b0d0d81d5bed7e608d4061c7a" target="_blank" rel="noopener noreferrer">Alignment: SFT, RLHF, DPO Family, RLVR</a> runs one preference pair through eight of them.</li>
+<li><b>Preference losses</b> (Bradley-Terry reward models, DPO and its family) score a preferred answer against a rejected one, a pairwise ranking loss on two answers; "Direct preference optimisation and its family" on <a href="https://app.notion.com/p/3c65c17b0d0d81d5bed7e608d4061c7a" target="_blank" rel="noopener noreferrer">Alignment: SFT, RLHF, DPO Family, RLVR</a> runs one preference pair through eight of them. The <a href="https://app.notion.com/p/3c65c17b0d0d8194a85dfc5f3bf3f799" target="_blank" rel="noopener noreferrer">CLIP</a> paper page runs a contrastive loss live.</li>
 </ul>
 </section>
 
 <section id="s-gan">
 <h2>The adversarial loss, and the fix in the same paper</h2>
 <p>A GAN trains a generator <i>G</i> and a discriminator <i>D</i> against each other in one minimax game, min<sub><i>G</i></sub> max<sub><i>D</i></sub> E[log <i>D</i>(<i>x</i>)] + E[log(1 &minus; <i>D</i>(<i>G</i>(<i>z</i>)))]. The original paper already warned that this form starves the generator: "Early in learning, when <i>G</i> is poor, <i>D</i> can reject samples with high confidence ... In this case, log(1 &minus; <i>D</i>(<i>G</i>(<i>z</i>))) saturates. Rather than training <i>G</i> to minimize log(1 &minus; <i>D</i>(<i>G</i>(<i>z</i>))) we can train <i>G</i> to maximize log <i>D</i>(<i>G</i>(<i>z</i>))", which has the same fixed point "but provides much stronger gradients early in learning" (<a href="https://arxiv.org/abs/1406.2661" target="_blank" rel="noopener noreferrer">Goodfellow et al. 2014</a>, section 3). This is the <b>non-saturating</b> loss most GANs train with.</p>
-<p class="try"><b>Try:</b> slide how confidently the discriminator rejects a generated sample, and compare the generator's gradient under each loss (with respect to the discriminator's logit on that sample).</p>
+<p class="try"><b>Predict, then slide:</b> when the discriminator gives a fake 0.01, how many times stronger is the non-saturating gradient? Slide how confidently the discriminator rejects a generated sample.</p>
 <div class="card" id="gn-card">
+<div class="ph">The minimax gradient vanishes exactly when the generator is worst</div>
 <div class="ctl2"><label><i>D</i>(<i>G</i>(<i>z</i>)) = <b id="gn-dv"></b> <input type="range" id="gn-d" min="0" max="1000" value="100" aria-label="Discriminator output on a fake sample"></label></div>
 <div id="gn-svg" class="ch"></div>
 <div class="cnt" id="gn-out"></div>
-<p class="small mute">With <i>D</i> = σ(<i>l</i>): minimax gradient d/d<i>l</i> log(1 &minus; σ(<i>l</i>)) = &minus;<i>D</i>; non-saturating d/d<i>l</i> (&minus;log σ(<i>l</i>)) = &minus;(1 &minus; <i>D</i>) <i class="nl d">derived</i>, checked with PyTorch autograd.</p>
+<p class="small mute">Gradients with respect to the discriminator's logit <i>l</i> on the sample, <i>D</i> = σ(<i>l</i>): minimax d/d<i>l</i> log(1 &minus; σ(<i>l</i>)) = &minus;<i>D</i>; non-saturating d/d<i>l</i> (&minus;log σ(<i>l</i>)) = &minus;(1 &minus; <i>D</i>) <i class="nl d">derived</i>, checked with PyTorch autograd. At <i>D</i> = 0.01 the ratio is (1 &minus; <i>D</i>)/<i>D</i> = 99.</p>
 </div>
 <p>Later losses change the game itself: least-squares GANs replace the log loss with squared error, because the sigmoid cross-entropy loss "may lead to the vanishing gradients problem", and minimising it amounts to the Pearson χ<sup>2</sup> divergence (<a href="https://arxiv.org/abs/1611.04076" target="_blank" rel="noopener noreferrer">Mao et al. 2017</a>); Wasserstein GANs minimise the earth mover's distance with a Lipschitz critic, enforced in the first paper by weight clipping, which its authors call "a clearly terrible way to enforce a Lipschitz constraint" (<a href="https://arxiv.org/abs/1701.07875" target="_blank" rel="noopener noreferrer">Arjovsky et al. 2017</a>). GANs themselves belong to <a href="https://app.notion.com/p/3c65c17b0d0d817ab6ade318917bff55" target="_blank" rel="noopener noreferrer">Topic: generative-and-multimodal</a>.</p>
 </section>
@@ -303,18 +403,16 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <section id="s-mist">
 <h2>Common mistakes</h2>
 <details class="mist"><summary>A softmax (or sigmoid) before a loss that expects logits</summary><div class="b"><code>CrossEntropyLoss</code> applies log-softmax itself, and <code>BCEWithLogitsLoss</code> the sigmoid; applying them twice squashes the scores and shrinks every gradient. Use the plain <code>BCELoss</code> on probabilities only when you have no logits; the logits version is the numerically stable one (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html" target="_blank" rel="noopener noreferrer">PyTorch</a>).</div></details>
-<details class="mist"><summary>Expecting Huber or MAE to fix any outlier</summary><div class="b">They cap the pull of a bad target, not the lever of an unusual input. On the CYG OB1 stars MAE does worse than MSE (<a href="#s-lev">above</a>).</div></details>
 <details class="mist"><summary>δ in the wrong units, or SmoothL1 taken for Huber</summary><div class="b">Huber's δ (and log-cosh's built-in bend at about 1) is measured in the target's units: standardise the target or pick δ from the residual scale. <code>SmoothL1Loss(beta)</code> is <code>HuberLoss(delta)</code> divided by β; with β &ne; 1 the gradients differ by that factor.</div></details>
-<details class="mist"><summary>MAPE with zeros or tiny targets</summary><div class="b">It has no value at 0 and explodes near it; it also rewards under-forecasting (<a href="#s-more-reg">above</a>). Use MAE on a scale that makes sense, MSE on log(<i>y</i>), or a weighted error.</div></details>
-<details class="mist"><summary>Reading focal or hinge scores as probabilities</summary><div class="b">Only a strictly proper loss (cross entropy, Brier) is minimised at the true probability; focal loss pulls scores towards 0.5 and hinge keeps only the sign. Recalibrate (temperature or Platt scaling) on held-out data first.</div></details>
-<details class="mist"><summary>Distilling from a label-smoothed teacher</summary><div class="b">The teacher may be more accurate and still a worse teacher (<a href="https://arxiv.org/abs/1906.02629" target="_blank" rel="noopener noreferrer">Müller et al. 2019</a>).</div></details>
+<details class="mist"><summary>MAPE with zeros or tiny targets</summary><div class="b">Use MAE on a scale that makes sense, MSE on log(<i>y</i>), or a weighted error.</div></details>
+<details class="mist"><summary>Reading focal or hinge scores as probabilities</summary><div class="b">Recalibrate (temperature or Platt scaling) on held-out data first.</div></details>
 <details class="mist"><summary>KLDivLoss with its arguments swapped or its default reduction</summary><div class="b">The first argument is the model's log-probabilities; <code>'mean'</code> averages over every element, not over examples; <code>'batchmean'</code> gives the KL.</div></details>
 <details class="mist"><summary>Comparing loss values across set-ups</summary><div class="b">A smoothed target has entropy above 0, so its loss has a floor no model goes below; class weights change what "mean" divides by; per-micro-batch averages differ from a token mean. Compare under the same target, weights and reduction, or compare a metric instead. And check the starting loss: an untrained <i>K</i>-class classifier should score about ln <i>K</i> (step 3 of <a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a>).</div></details>
 </section>
 </div>
 <div class="tab" id="t-fit" role="tabpanel" hidden>
 <h2 style="margin-top:14px">Fit a line</h2>
-<p>Every regression loss on this page fitting the same straight line, exactly, on real data or on points you place. It extends "What an outlier does to a fit" and "Robust to bad targets is not robust to unusual inputs" in the <a href="#" data-tab="t-read">Reading</a> tab.</p>
+<p>Every regression loss on this page fitting the same straight line, exactly, on real data or on points you place: the workbench for the outlier and leverage sections of the <a href="#" data-tab="t-read">Reading</a> tab.</p>
 <p class="try"><b>Try:</b> on Anscombe III, slide δ from 10 down to 0.1 and watch Huber move from MSE's line to MAE's. Switch to the stars and see every loss lose the main sequence. Choose "your points", tap to add points and tap a point to remove it; build a bad target, then a leverage point, and compare.</p>
 <div class="card" id="ft-card">
 <div class="ctl2"><span class="seg2" id="ft-ds" role="group" aria-label="Data"><button data-d="a3" class="on">Anscombe III</button><button data-d="a3c">without its outlier</button><button data-d="st">Stars CYG OB1</button><button data-d="stm">main sequence only</button><button data-d="own">your points</button></span></div>
@@ -328,38 +426,6 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <p class="repro"><b>Defaults reproduce</b> Anscombe's y = 3.00 + 0.500<i>x</i> for set III (<a href="https://doi.org/10.1080/00031305.1973.10478966" target="_blank" rel="noopener noreferrer">Anscombe 1973</a>), independently. Fits are exact minimisers of the mean loss: closed form (MSE), iteratively reweighted least squares to convergence (Huber, log-cosh), and the best line through two data points (MAE, pinball, MAPE), which is where a linear programme's optimum lies. Checked against PyTorch's <code>MSELoss</code>, <code>L1Loss</code> and <code>HuberLoss</code> with autograd, and SciPy's <code>linprog</code> and BFGS (<code>src/recompute.py</code>: objectives agree to 10<sup>&minus;15</sup>, parameters to 10<sup>&minus;6</sup>). Data: Anscombe's set III (R <code>datasets::anscombe</code>); <a href="https://search.r-project.org/CRAN/refmans/robustbase/html/starsCYG.html" target="_blank" rel="noopener noreferrer">robustbase <code>starsCYG</code></a>, giants are observations 11, 20, 30, 34.</p>
 </div>
 </div>
-<div class="tab" id="t-shape" role="tabpanel" hidden>
-<h2 style="margin-top:14px">Loss shapes</h2>
-<p>Every loss on this page drawn against its one argument: the error <i>u</i> = <i>y</i> &minus; ŷ for regression, the margin <i>m</i> = <i>y</i>&middot;<i>f</i>(<i>x</i>) for classification. It extends the regression table and "One axis for every classification loss" in the <a href="#" data-tab="t-read">Reading</a> tab. The pull is minus the gradient with respect to the prediction (or the score): how hard one example drags the model.</p>
-<div class="card" id="sh-r">
-<div class="ph">Regression, against the error <i>u</i></div>
-<div class="ctl2"><span class="seg2" id="sh-rv" role="group" aria-label="Quantity"><button data-v="rho" class="on">loss</button><button data-v="psi">pull</button><button data-v="h">second derivative</button></span></div>
-<div class="ctl2 lbox" id="sh-rl"></div>
-<div class="ctl2"><label>Huber δ = <b id="sh-dv"></b> <input type="range" id="sh-d" min="0" max="100" value="50" aria-label="Huber delta"></label><label>pinball τ = <b id="sh-tv"></b> <input type="range" id="sh-t" min="1" max="99" value="90" aria-label="Pinball tau"></label><label><i>u</i> = <b id="sh-uv"></b> <input type="range" id="sh-u" min="0" max="120" value="90" aria-label="Error"></label></div>
-<div id="sh-rsvg" class="ch"></div>
-<div class="tw"><table class="ftbl" id="sh-rt"></table></div>
-<p class="small mute">MAPE is drawn for a target <i>y</i> = 1, where it equals MAE; for other targets divide by |<i>y</i>|. The second derivative is what a Newton step (XGBoost's leaf weights) divides by: Huber's is 0 beyond δ, log-cosh's decays as 4e<sup>&minus;2|<i>u</i>|</sup>, MAE's and pinball's are 0 everywhere except a kink.</p>
-</div>
-<div class="card" id="sh-c">
-<div class="ph">Classification, against the margin <i>m</i></div>
-<div class="ctl2"><span class="seg2" id="sh-cv" role="group" aria-label="Quantity"><button data-v="phi" class="on">loss</button><button data-v="pull">pull</button></span></div>
-<div class="ctl2 lbox" id="sh-cl"></div>
-<div class="ctl2"><label>focal γ = <b id="sh-gv"></b> <input type="range" id="sh-g" min="0" max="50" value="20" aria-label="Focal gamma"></label><label><i>m</i> = <b id="sh-mv"></b> <input type="range" id="sh-m" min="0" max="160" value="80" aria-label="Margin"></label></div>
-<div id="sh-csvg" class="ch"></div>
-<div class="tw"><table class="ftbl" id="sh-ct"></table></div>
-<div class="cnt" id="sh-focal"></div>
-<p class="repro" id="sh-repro"></p>
-<p class="small mute">Logistic loss in nats, log(1 + e<sup>&minus;<i>m</i></sup>), which is <code>BCEWithLogitsLoss</code> on the score; some texts divide by ln 2 so that it equals 1 at <i>m</i> = 0. Focal is the binary focal loss on the same score, <i>p</i><sub><i>t</i></sub> = σ(<i>m</i>), α = 1. Values and pulls checked against PyTorch autograd.</p>
-</div>
-<div class="card" id="sh-k">
-<div class="ph">What the score estimates: the minimum of the expected loss</div>
-<p class="small" style="margin:2px 0">If a fraction η of inputs like this one are positive, the expected loss of a score <i>f</i> is η&middot;φ(<i>f</i>) + (1 &minus; η)&middot;φ(&minus;<i>f</i>). Its minimum <i>f</i>* is what a model trained on that loss learns to output.</p>
-<div class="ctl2"><label>η = <b id="sh-ev"></b> <input type="range" id="sh-e" min="51" max="99" value="90" aria-label="Fraction positive"></label><label>focal γ = <b id="sh-g2v"></b> <input type="range" id="sh-g2" min="0" max="50" value="20" aria-label="Focal gamma for the minimum"></label></div>
-<div id="sh-ksvg" class="ch"></div>
-<div class="tw"><table class="ftbl" id="sh-kt"></table></div>
-<p class="small mute">Closed forms for logistic (log-odds), exponential (half the log-odds), squared hinge (2η &minus; 1) and hinge (sign; <a href="https://doi.org/10.1198/016214505000000907" target="_blank" rel="noopener noreferrer">Bartlett et al. 2006</a>, Example 3); focal by a grid then golden-section search, checked against SciPy. Each curve is shifted and scaled to its own range so their minima can be compared.</p>
-</div>
-</div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <h2 style="margin-top:14px">Further reading</h2>
 <h3>Best resources</h3>
@@ -369,8 +435,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/1708.02002" target="_blank" rel="noopener noreferrer">Focal Loss for Dense Object Detection (Lin et al. 2017)</a></div><p>The original derivation and the class-imbalance argument; α and γ ablations. <span class="rt">(45 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/1906.02629" target="_blank" rel="noopener noreferrer">When Does Label Smoothing Help? (Müller et al. 2019)</a></div><p>What smoothing does to representations and calibration, and why it hurts distillation. <span class="rt">(45 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/0912.0902" target="_blank" rel="noopener noreferrer">Making and Evaluating Point Forecasts (Gneiting 2011)</a></div><p>Which statistic each loss is consistent for, including MAPE's "median of order &minus;1"; the theory behind "Which number each loss picks". <span class="rt">(60 min)</span></p></div>
-<div class="sp"><div class="n"><a href="http://www.stat.berkeley.edu/~jordan/638.pdf" target="_blank" rel="noopener noreferrer">Convexity, Classification, and Risk Bounds (Bartlett, Jordan and McAuliffe 2006)</a></div><p>Why hinge, logistic and exponential losses all give the right decisions, and what each score estimates; Examples 1 to 3 are the margin plots of Loss shapes. <span class="rt">(60 min)</span></p></div>
+<div class="sp"><div class="n"><a href="http://www.stat.berkeley.edu/~jordan/638.pdf" target="_blank" rel="noopener noreferrer">Convexity, Classification, and Risk Bounds (Bartlett, Jordan and McAuliffe 2006)</a></div><p>Why hinge, logistic and exponential losses all give the right decisions, and what each score estimates; Examples 1 to 3 are the margin charts in the Reading tab. <span class="rt">(60 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://scikit-learn.org/stable/modules/model_evaluation.html" target="_blank" rel="noopener noreferrer">scikit-learn: choosing a scoring function</a></div><p>A practical guide to strictly consistent scoring functions: pick the functional first, then the loss. <span class="rt">(20 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/MSR-TR-2010-82.pdf" target="_blank" rel="noopener noreferrer">From RankNet to LambdaRank to LambdaMART: An Overview (Burges 2010)</a></div><p>Pairwise ranking as cross entropy, the lambdas as forces on each document, and why multiplying by |ΔNDCG| works; the source of the ranking section. <span class="rt">(40 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/2309.14322" target="_blank" rel="noopener noreferrer">Small-scale proxies for large-scale Transformer training instabilities (Wortsman et al. 2023)</a></div><p>Output-logit divergence reproduced in small models, and z-loss as the fix. <span class="rt">(40 min)</span></p></div>
 </div>
 
@@ -381,6 +448,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 
 <h3>Related pages</h3>
 <div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c6baf3f778a62e14e5" target="_blank" rel="noopener noreferrer">Information theory for ML</a></div><p>Entropy, cross-entropy and KL from first principles, and the cross entropy = entropy + KL derivation.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d815f9a47d613409b5a0c" target="_blank" rel="noopener noreferrer">Probability for ML</a></div><p>Maximum likelihood, and how distributions lead to losses.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8163b50dc5e9d9240e89" target="_blank" rel="noopener noreferrer">Normalisation, residuals and stability</a></div><p>z-loss and soft-capping on the logits, with measured runs: the owner of the logit-level fixes.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81e988b5c3cb5e197f98" target="_blank" rel="noopener noreferrer">Regularisation</a></div><p>L1, L2 and elastic-net penalties added to the loss; label smoothing as a regulariser.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81a29acef722e842a29b" target="_blank" rel="noopener noreferrer">Evaluation metrics</a></div><p>Entropy against cross entropy against KL as measurements; metrics for imbalanced classes.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d811db6a7d02d0ee7215c" target="_blank" rel="noopener noreferrer">Contrastive and self-supervised learning</a></div><p>InfoNCE and the other batch-level losses.</p></div>
@@ -395,9 +465,10 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <ul class="tight small">
 <li>Huber 1964, <a href="https://doi.org/10.1214/aoms/1177703732" target="_blank" rel="noopener noreferrer">Robust Estimation of a Location Parameter</a>; Koenker and Bassett 1978, <a href="https://doi.org/10.2307/1913643" target="_blank" rel="noopener noreferrer">Regression Quantiles</a>; Anscombe 1973, <a href="https://doi.org/10.1080/00031305.1973.10478966" target="_blank" rel="noopener noreferrer">Graphs in Statistical Analysis</a>; Rousseeuw and Leroy 1987, <a href="https://doi.org/10.1002/0471725382" target="_blank" rel="noopener noreferrer">Robust Regression and Outlier Detection</a>.</li>
 <li>Gneiting and Raftery 2007, <a href="https://doi.org/10.1198/016214506000001437" target="_blank" rel="noopener noreferrer">Strictly Proper Scoring Rules</a>; Friedman, Hastie and Tibshirani 2000, <a href="https://doi.org/10.1214/aos/1016218223" target="_blank" rel="noopener noreferrer">Additive Logistic Regression</a>; Long and Servedio 2010, <a href="https://doi.org/10.1007/s10994-009-5165-z" target="_blank" rel="noopener noreferrer">Random Classification Noise Defeats All Convex Potential Boosters</a>; Mukhoti et al. 2020, <a href="https://arxiv.org/abs/2002.09437" target="_blank" rel="noopener noreferrer">Calibrating Deep Neural Networks using Focal Loss</a>.</li>
+<li>Burges 2010, <a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/MSR-TR-2010-82.pdf" target="_blank" rel="noopener noreferrer">From RankNet to LambdaRank to LambdaMART</a>; Cao et al. 2007, <a href="https://doi.org/10.1145/1273496.1273513" target="_blank" rel="noopener noreferrer">Learning to Rank: From Pairwise Approach to Listwise Approach</a>; Schroff, Kalenichenko and Philbin 2015, <a href="https://arxiv.org/abs/1503.03832" target="_blank" rel="noopener noreferrer">FaceNet</a> (triplet loss).</li>
 <li>Chowdhery et al. 2022, <a href="https://arxiv.org/abs/2204.02311" target="_blank" rel="noopener noreferrer">PaLM</a> (z-loss); Gemma Team 2024, <a href="https://arxiv.org/abs/2408.00118" target="_blank" rel="noopener noreferrer">Gemma 2</a> (soft-capping); Goodfellow et al. 2014, <a href="https://arxiv.org/abs/1406.2661" target="_blank" rel="noopener noreferrer">Generative Adversarial Nets</a>; Mao et al. 2017, <a href="https://arxiv.org/abs/1611.04076" target="_blank" rel="noopener noreferrer">Least Squares GANs</a>; Arjovsky et al. 2017, <a href="https://arxiv.org/abs/1701.07875" target="_blank" rel="noopener noreferrer">Wasserstein GAN</a>.</li>
 </ul>
-<p class="foot">Built from the repository's <code>src/</code> for this page: every curve, fit and minimum is computed in the page and checked offline against PyTorch 2.14 and SciPy (<code>check_core.mjs</code>, <code>recompute.py</code>); the real logits come from <code>real_logits.py</code>. Checked 3 October 2026.</p>
+<p class="foot">Built from the repository's <code>src/</code> for this page: every curve, fit and minimum is computed in the page and checked offline against PyTorch 2.14 and SciPy (<code>check_core.mjs</code>, <code>recompute.py</code>); the real logits come from <code>real_logits.py</code>. Checked 3 October 2026; rebuilt to the teaching contract, with the ranking section and the gradient-on-logits widget added, on 24 October 2026.</p>
 </div>
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
@@ -510,13 +581,45 @@ const _f=new Float32Array(1),_u=new Uint32Array(_f.buffer);
 function bf16(v){_f[0]=v;const x=_u[0];if((x&0x7f800000)===0x7f800000)return _f[0];const lsb=(x>>>16)&1;_u[0]=((x+0x7fff+lsb)>>>16)<<16;return _f[0]}
 function bf16gap(v){const a=Math.abs(v);if(a===0)return 0;return Math.pow(2,Math.floor(Math.log2(a))-7)}
 
-root.LF={sgn,logcosh,REG,HESS,fitLS,fitIRLS,fitL1,fit,objective,pulls,wquant,mean,location,meanLoss,sig,softplus,MARG,condRisk,fstar,pstar,GAN,logsumexp,zloss,bf16,bf16gap};
+// ---- K-class losses on one logit vector z with true class t: value and gradient on every logit
+function softmax(z){const m=Math.max(...z),e=z.map(v=>Math.exp(v-m)),s=e.reduce((a,b)=>a+b,0);return e.map(v=>v/s)}
+// o: {eps (label smoothing, PyTorch convention: mix with uniform), g (focal gamma)}
+function logitLoss(key,z,t,o){o=o||{};const p=softmax(z),K=z.length,y=z.map((v,k)=>k===t?1:0);
+  if(key==='ce')return {loss:-Math.log(p[t]),grad:p.map((v,k)=>v-y[k]),p};
+  if(key==='ls'){const e=o.eps==null?0.1:o.eps,ys=y.map(v=>(1-e)*v+e/K);let L=0;for(let k=0;k<K;k++)L-=ys[k]*Math.log(p[k]);return {loss:L,grad:p.map((v,k)=>v-ys[k]),p,target:ys}}
+  if(key==='focal'){const g=o.g==null?2:o.g,pt=p[t],lp=Math.log(pt),q=1-pt;
+    // L = -(1-pt)^g log pt ; dL/dpt = g (1-pt)^(g-1) log pt - (1-pt)^g / pt ; dpt/dz_k = pt (1[k=t] - p_k)
+    const dLdpt=(g>0?g*Math.pow(q,g-1)*lp:0)-Math.pow(q,g)/pt;return {loss:-Math.pow(q,g)*lp,grad:p.map((v,k)=>dLdpt*pt*((k===t?1:0)-v)),p}}
+  if(key==='brier'){let L=0,s=0;for(let j=0;j<K;j++){L+=(p[j]-y[j])**2;s+=p[j]*(p[j]-y[j])}
+    // dL/dz_k = 2 p_k ((p_k - y_k) - sum_j p_j (p_j - y_j))
+    return {loss:L,grad:p.map((v,k)=>2*v*((v-y[k])-s)),p}}
+}
+// ---- ranking: one query, documents already listed in score order (index 0 = top). labels l_i (graded), scores s_i.
+// RankNet (Burges 2010, eq. 3 with S_ij = 1): lambda_ij = -sigma / (1 + exp(sigma (s_i - s_j))) for each pair with l_i > l_j;
+// lambda_i = sum_j lambda_ij - sum_k lambda_ki (eq. 4). Negative lambda_i means "push this score up" (C decreases as s_i rises).
+// LambdaRank (eq. 6): the same lambda_ij times |Delta NDCG| from swapping i and j. DCG gain 2^l - 1, discount 1/log2(1 + rank).
+function dcg(l){let s=0;for(let r=0;r<l.length;r++)s+=(Math.pow(2,l[r])-1)/Math.log2(2+r);return s}
+function ndcg(l){const ideal=l.slice().sort((a,b)=>b-a),m=dcg(ideal);return m>0?dcg(l)/m:0}
+function rankOrder(s){return s.map((v,i)=>i).sort((i,j)=>s[j]-s[i]||i-j)}
+function lambdas(s,l,sigma,lambdaRank){sigma=sigma||1;const n=s.length,lam=new Array(n).fill(0),ord=rankOrder(s),rank=new Array(n);
+  ord.forEach((i,r)=>{rank[i]=r});const ideal=dcg(l.slice().sort((a,b)=>b-a))||1;let pairs=0,errs=0,cost=0;
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){if(!(l[i]>l[j]))continue;pairs++;if(s[i]<=s[j])errs++;
+    let lij=-sigma/(1+Math.exp(sigma*(s[i]-s[j])));cost+=Math.log1p(Math.exp(-sigma*(s[i]-s[j])));
+    if(lambdaRank){const gi=Math.pow(2,l[i])-1,gj=Math.pow(2,l[j])-1,di=1/Math.log2(2+rank[i]),dj=1/Math.log2(2+rank[j]);
+      lij*=Math.abs((gi-gj)*(di-dj))/ideal}
+    lam[i]+=lij;lam[j]-=lij}
+  return {lam,pairs,errs,cost,ndcg:ndcg(ord.map(i=>l[i]))}}
+// ---- triplet margin loss (PyTorch: max(d(a,p) - d(a,n) + margin, 0), d the p-norm) and pairwise margin ranking (max(0, -y (x1 - x2) + margin))
+function triplet(dap,dan,margin){return Math.max(0,dap-dan+margin)}
+function marginRank(x1,x2,y,margin){return Math.max(0,-y*(x1-x2)+(margin||0))}
+
+root.LF={softmax,logitLoss,dcg,ndcg,rankOrder,lambdas,triplet,marginRank,sgn,logcosh,REG,HESS,fitLS,fitIRLS,fitL1,fit,objective,pulls,wquant,mean,location,meanLoss,sig,softplus,MARG,condRisk,fstar,pstar,GAN,logsumexp,zloss,bf16,bf16gap};
 })(typeof window!=='undefined'?window:globalThis);
 </script>
-<script>/* 22_js_common.js */
-// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed) ----
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -547,7 +650,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -567,6 +670,18 @@ window.RD=(function(){
     const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
   return {RM,esc,stat,anim,onRender,width,tabLinks};
 })();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+</script>
+<script>/* 22_js_common.js */
 // ---- page helpers: colours, number formats, SVG ----
 window.PF=(function(){
   const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -714,7 +829,7 @@ window.PL=(function(){
     const c=caps(i);$('oa-cap').innerHTML='<div class="t">Step '+(i+1)+' of 6'+(c[0]?': '+c[0]:'')+'</div>'+c[1]}
   A=RD.anim({card:'oa-card',ctl:'oa-ctl',n:6,draw,ms:2200,label:'Outlier animation step'});
   function seg(id,key){document.getElementById(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
-    [...e.currentTarget.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===b));st[key]=b.dataset[key==='sc'?'s':'l'];prep();A.reset(6);A.play()})}
+    [...e.currentTarget.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===b));st[key]=b.dataset[key==='sc'?'s':'l'];prep();A.reset(6)})}
   seg('oa-sc','sc');seg('oa-l','rl');
   addEventListener('resize',()=>{if(card.offsetParent)A.redraw()});
 })();
@@ -740,7 +855,7 @@ window.PL=(function(){
     $('zl-tbl').innerHTML=h+'<tr><td colspan="5" class="small mute">Cross entropy is the same at every shift (the softmax ignores c); z-loss is the mean over tokens of 10<sup>−4</sup>(log Z + c)<sup>2</sup>; bf16 damage is the mean total-variation distance between the softmax of bf16-rounded and float32 logits, measured at shifts of 8.</td></tr>';
   }
   $('zl-c').addEventListener('input',e=>{k=+e.target.value;draw()});
-  RD.onRender(draw);draw();addEventListener('resize',()=>{if(card.offsetParent)draw()});
+  RD.onRender(draw);draw();const dt=card.closest('details');if(dt)dt.addEventListener('toggle',()=>{if(dt.open)draw()});addEventListener('resize',()=>{if(card.offsetParent)draw()});
 })();
 </script>
 <script>/* 27_js_gan.js */
@@ -763,6 +878,95 @@ window.PL=(function(){
   }
   $('gn-d').value=v;$('gn-d').addEventListener('input',e=>{v=+e.target.value;draw()});
   RD.onRender(draw);draw();addEventListener('resize',()=>{if(card.offsetParent)draw()});
+})();
+</script>
+<script>/* 28_js_hero.js */
+// ---- Reading, top: the hero. Static pull curves (regression against the error, classification against the margin), labels on the figure ----
+(function(){
+  const card=document.getElementById('hr-card');if(!card)return;
+  const $=id=>document.getElementById(id);
+  function draw(){
+    const narrow=RD.width($('hr-r'))<360;
+    const us=PL.range(-3,3,300),p={delta:1};
+    PL.chart({el:$('hr-r'),id:'hrr',h:narrow?210:230,x:[-3,3],y:[-3.2,3.2],xl:'error u',yl:'pull ψ(u)',yt:[-2,0,2],xt:[-3,-1,0,1,3],
+      lines:[{xs:us,ys:us.map(u=>LF.REG.mse.psi(u)),c:'var(--c1)',w:2.4},{xs:us,ys:us.map(u=>LF.REG.huber.psi(u,p)),c:'var(--c3)',w:2.4},{xs:us,ys:us.map(u=>LF.REG.mae.psi(u)),c:'var(--c2)',w:2,dash:'5 3'}],
+      txt:[{x:-0.6,y:-2.6,s:'MSE: 2u',c:'var(--c1)',b:1},{x:2.9,y:1.32,s:'Huber: capped',c:'var(--c3)',b:1,a:'end'},{x:2.9,y:0.62,s:'MAE: 1 for all',c:'var(--c2)',b:1,a:'end'}],
+      label:'Pull against the error for MSE, Huber and MAE'});
+    const ms=PL.range(-4,4,400);
+    PL.chart({el:$('hr-c'),id:'hrc',h:narrow?210:230,x:[-4,4],y:[-0.1,3.2],xl:'margin m (wrong ← 0 → right)',yl:'pull',yt:[0,1,2,3],xt:[-4,-2,0,2,4],
+      lines:[{xs:ms,ys:ms.map(m=>LF.MARG.exp.pull(m)),c:'var(--c4)',w:2.2},{xs:ms,ys:ms.map(m=>LF.MARG.hinge.pull(m)),c:'var(--c2)',w:2,dash:'5 3'},
+        {xs:ms,ys:ms.map(m=>LF.MARG.logistic.pull(m)),c:'var(--c1)',w:2.4},{xs:ms,ys:ms.map(m=>LF.MARG.focal.pull(m,2)),c:'var(--c3)',w:2.4}],
+      txt:[{x:-1.0,y:2.85,s:'exponential: e⁻ᵐ',c:'var(--c4)',b:1,a:'start'},{x:-1.9,y:1.33,s:'hinge',c:'var(--c2)',b:1},{x:1.15,y:0.62,s:'cross entropy',c:'var(--c1)',b:1,a:'start'},{x:-3.9,y:0.45,s:'focal γ = 2',c:'var(--c3)',b:1,a:'start'}],
+      label:'Pull against the margin for exponential, hinge, cross entropy and focal losses'});
+  }
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+</script>
+<script>/* 28_js_lg.js */
+// ---- Reading, cross entropy: the same logits under four losses, the gradient on every logit (before/after on one input) ----
+(function(){
+  const card=document.getElementById('lg-card');if(!card)return;
+  const $=id=>document.getElementById(id);
+  const Z=[3.0,1.5,0.5,-0.5,-1.5],NM=['cat','dog','fox','owl','car'];
+  const LN={ce:'Cross entropy',ls:'Label smoothing, ε = 0.1',focal:'Focal, γ = 2',brier:'MSE on probabilities'};
+  const st={t:0,k:'ls'};
+  const run=(k,t)=>LF.logitLoss(k,Z,t,{eps:0.1,g:2});
+  const f3=v=>(Math.abs(v)<0.0005?0:v).toFixed(3).replace('-','−');
+  function bars(el,r,t,scale){
+    const W=Math.max(240,Math.min(420,RD.width(el))),rowH=26,H=NM.length*rowH+24,x0=64,x1=W-48,mid=(x0+x1)/2,half=(x1-x0)/2;
+    let s='<line x1="'+mid+'" x2="'+mid+'" y1="4" y2="'+(H-18)+'" stroke="var(--dim)"/>';
+    NM.forEach((n,k)=>{const y=6+k*rowH,v=-r.grad[k],w=half*Math.min(1,Math.abs(v)/scale),xa=v>=0?mid:mid-w;
+      s+=RD.t(x0-6,y+15,n+' '+(r.p[k]).toFixed(3),{a:'end',fill:k===t?'var(--ink)':'var(--mute)',w:k===t?600:null});
+      s+='<rect x="'+xa+'" y="'+(y+3)+'" width="'+Math.max(0.5,w)+'" height="'+(rowH-9)+'" rx="2" fill="'+(v>=0?'var(--c1)':'var(--c2)')+'"'+(k===t?' stroke="var(--ink)" stroke-width="1.5"':'')+'/>';
+      s+=RD.t(v>=0?Math.min(x1+4,mid+w+4):mid+4,y+15,f3(v),{fill:'var(--ink)'})});
+    s+=RD.t(mid-4,H-4,'← lower',{a:'end',fill:'var(--mute)'})+RD.t(mid+4,H-4,'raise →',{fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,H,s,'Gradient on each logit');
+  }
+  function draw(){
+    const a=run('ce',st.t),b=run(st.k,st.t);
+    const scale=Math.max(...a.grad.map(Math.abs),...b.grad.map(Math.abs));
+    bars($('lg-a'),a,st.t,scale);bars($('lg-b'),b,st.t,scale);$('lg-h').innerHTML=LN[st.k]+' <small>on the same logits</small>';
+    const ga=-a.grad[st.t],gb=-b.grad[st.t],ratio=ga/gb;
+    $('lg-out').innerHTML=RD.stat('loss: cross entropy',a.loss.toFixed(3),'nats')+RD.stat('loss: '+LN[st.k],b.loss.toFixed(3),'')+
+      RD.stat('push on the right logit',f3(ga)+' vs '+f3(gb),'cross entropy vs '+LN[st.k].split(',')[0].toLowerCase())+
+      RD.stat('ratio',(Math.abs(ratio)>=10?Math.round(ratio):ratio.toFixed(2))+'×','cross entropy over the other');
+    const easy=st.t===0,K={
+      ls:easy?'Smoothing stops short of certainty: the cat logit gets '+f3(gb)+' instead of '+f3(ga)+', and the car logit is pushed <b>up</b>, because its probability 0.008 is below the target ε/K = 0.02.':'On a wrong example smoothing changes little: the target moves only 0.1 of the mass, so the push on the car logit is '+f3(gb)+' against '+f3(ga)+'.',
+      focal:easy?'Focal loss multiplies by (1 − p)² ≈ 0.07 and more: the easy cat gets '+f3(gb)+', '+(ga/gb).toFixed(1)+' times less than cross entropy. The gradient budget leaves the easy examples.':'On the hard example focal loss pushes as hard as cross entropy ('+f3(gb)+' against '+f3(ga)+'): (1 − p)² is nearly 1 when p = 0.008.',
+      brier:easy?'On the easy example squared error on probabilities pushes about half as hard as cross entropy ('+f3(gb)+').':'Squared error on probabilities pushes the car logit only '+f3(gb)+', '+Math.round(ga/gb)+' times less than cross entropy: the softmax slope p(1 − p) is nearly 0 at p = 0.008 and nothing cancels it. The worst example learns least.'};
+    $('lg-cap').innerHTML='<div class="t">'+(easy?'Easy: the model already gives the cat 0.743':'Confidently wrong: the car has 0.008')+'</div>'+K[st.k];
+  }
+  RD.seg($('lg-in'),m=>{st.t=+m;draw()});RD.seg($('lg-l'),m=>{st.k=m;draw()});
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+</script>
+<script>/* 29_js_rk.js */
+// ---- Reading, ranking: one list of ten documents, RankNet's lambdas against LambdaRank's (toggle-compare on one input) ----
+(function(){
+  const card=document.getElementById('rk-card');if(!card)return;
+  const $=id=>document.getElementById(id);
+  const N=10,S=[...Array(N)].map((_,i)=>+(2-0.4*i).toFixed(2));
+  let pos=10;
+  const labels=()=>S.map((_,i)=>(i===1||i===pos-1)?1:0);
+  function panel(el,lam,l){
+    const W=Math.max(220,Math.min(420,RD.width(el))),rowH=21,H=N*rowH+20,x0=58,x1=W-8,mid=x0+(x1-x0)*0.42,R=(x1-mid),L=(mid-x0);
+    const mx=Math.max(...lam.map(Math.abs))||1;let s='<line x1="'+mid+'" x2="'+mid+'" y1="2" y2="'+(H-16)+'" stroke="var(--dim)"/>';
+    lam.forEach((v,i)=>{const y=2+i*rowH,u=-v/mx,w=(u>=0?R:L)*Math.abs(u)*0.92,rel=l[i]>0;
+      s+=RD.t(x0-6,y+14,'#'+(i+1)+(rel?' rel':''),{a:'end',fill:rel?'var(--ink)':'var(--mute)',w:rel?600:null});
+      s+='<rect x="'+(u>=0?mid:mid-w)+'" y="'+(y+3)+'" width="'+Math.max(0.5,w)+'" height="'+(rowH-7)+'" rx="2" fill="'+(rel?'var(--c1)':'var(--c2)')+'"/>'});
+    s+=RD.t(mid-4,H-3,'← down',{a:'end',fill:'var(--mute)'})+RD.t(mid+4,H-3,'up →',{fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,H,s,'Push on each document score');
+  }
+  function draw(){
+    const l=labels(),a=LF.lambdas(S,l,1,false),b=LF.lambdas(S,l,1,true),lo=pos-1;
+    $('rk-pv').textContent=pos;panel($('rk-a'),a.lam,l);panel($('rk-b'),b.lam,l);
+    const r=(x,y)=>(x/y).toFixed(2);
+    $('rk-out').innerHTML=RD.stat('wrong pairs, NDCG',a.errs+', '+a.ndcg.toFixed(3),'of '+a.pairs+' pairs')+
+      RD.stat('push on rank 2 / rank '+pos,r(a.lam[1],a.lam[lo])+' → '+r(b.lam[1],b.lam[lo]),'RankNet → LambdaRank')+
+      RD.stat('push down on rank 1 / up on rank '+pos,r(-a.lam[0],a.lam[lo])+' → '+r(-b.lam[0],b.lam[lo]),'RankNet → LambdaRank');
+  }
+  $('rk-p').addEventListener('input',e=>{pos=+e.target.value;draw()});
+  RD.onRender(draw);RD.onResize(draw);draw();
 })();
 </script>
 <script>/* 30_js_fit.js */
@@ -825,7 +1029,7 @@ window.PL=(function(){
 })();
 </script>
 <script>/* 31_js_shape.js */
-// ---- Loss shapes tab: regression losses against the error, classification losses against the margin, and what each score estimates ----
+// ---- Reading (moved from the old Loss shapes tab on 2026-10-24): regression losses against the error, classification losses against the margin, and what each score estimates ----
 (function(){
   const card=document.getElementById('sh-r');if(!card)return;
   const $=id=>document.getElementById(id);
@@ -882,7 +1086,7 @@ window.PL=(function(){
   // ---- what the score estimates
   function drawK(){
     $('sh-ev').textContent=st.eta.toFixed(2);$('sh-g2v').textContent=st.g2.toFixed(1);
-    const fs=PL.range(-3,3,600),lines=[],pts=[];let rows='<tr><th>Loss</th><th class="num">best score f*</th><th class="num">probability it implies</th><th>vs the true η = '+st.eta.toFixed(2)+'</th></tr>';
+    const fs=PL.range(-3,3,600),lines=[],pts=[];let rows='<tr><th>Loss</th><th class="num">best score f*</th><th class="num">probability it implies</th><th>vs η</th></tr>';
     ['hinge','sqhinge','logistic','exp','focal'].forEach(k=>{const g=k==='focal'?st.g2:0,C=fs.map(f=>LF.condRisk(k,f,st.eta,g));let a=Infinity,b=-Infinity;C.forEach(v=>{if(v<a)a=v;if(v>b)b=v});
       const fstar=LF.fstar(k,st.eta,g),cs=LF.condRisk(k,fstar,st.eta,g);
       lines.push({xs:fs,ys:C.map(v=>(v-a)/(b-a||1)),c:MC[k]});if(Math.abs(fstar)<=3)pts.push({x:fstar,y:(cs-a)/(b-a||1),r:5,c:MC[k],stroke:'var(--bg)'});
@@ -894,12 +1098,11 @@ window.PL=(function(){
   $('sh-e').addEventListener('input',e=>{st.eta=e.target.value/100;drawK()});
   $('sh-g2').addEventListener('input',e=>{st.g2=e.target.value/10;drawK()});
   const all=()=>{drawR();drawC();drawK()};
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-shape']=window.TAB_RENDER['t-shape']||[]).push(all);
-  addEventListener('resize',()=>{if(card.offsetParent)all()});
+  RD.onRender(all);RD.onResize(all);all();
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (skill template; storage key lf-tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -917,6 +1120,8 @@ window.PL=(function(){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('lf-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

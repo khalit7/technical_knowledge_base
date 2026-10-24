@@ -102,5 +102,37 @@ const _f=new Float32Array(1),_u=new Uint32Array(_f.buffer);
 function bf16(v){_f[0]=v;const x=_u[0];if((x&0x7f800000)===0x7f800000)return _f[0];const lsb=(x>>>16)&1;_u[0]=((x+0x7fff+lsb)>>>16)<<16;return _f[0]}
 function bf16gap(v){const a=Math.abs(v);if(a===0)return 0;return Math.pow(2,Math.floor(Math.log2(a))-7)}
 
-root.LF={sgn,logcosh,REG,HESS,fitLS,fitIRLS,fitL1,fit,objective,pulls,wquant,mean,location,meanLoss,sig,softplus,MARG,condRisk,fstar,pstar,GAN,logsumexp,zloss,bf16,bf16gap};
+// ---- K-class losses on one logit vector z with true class t: value and gradient on every logit
+function softmax(z){const m=Math.max(...z),e=z.map(v=>Math.exp(v-m)),s=e.reduce((a,b)=>a+b,0);return e.map(v=>v/s)}
+// o: {eps (label smoothing, PyTorch convention: mix with uniform), g (focal gamma)}
+function logitLoss(key,z,t,o){o=o||{};const p=softmax(z),K=z.length,y=z.map((v,k)=>k===t?1:0);
+  if(key==='ce')return {loss:-Math.log(p[t]),grad:p.map((v,k)=>v-y[k]),p};
+  if(key==='ls'){const e=o.eps==null?0.1:o.eps,ys=y.map(v=>(1-e)*v+e/K);let L=0;for(let k=0;k<K;k++)L-=ys[k]*Math.log(p[k]);return {loss:L,grad:p.map((v,k)=>v-ys[k]),p,target:ys}}
+  if(key==='focal'){const g=o.g==null?2:o.g,pt=p[t],lp=Math.log(pt),q=1-pt;
+    // L = -(1-pt)^g log pt ; dL/dpt = g (1-pt)^(g-1) log pt - (1-pt)^g / pt ; dpt/dz_k = pt (1[k=t] - p_k)
+    const dLdpt=(g>0?g*Math.pow(q,g-1)*lp:0)-Math.pow(q,g)/pt;return {loss:-Math.pow(q,g)*lp,grad:p.map((v,k)=>dLdpt*pt*((k===t?1:0)-v)),p}}
+  if(key==='brier'){let L=0,s=0;for(let j=0;j<K;j++){L+=(p[j]-y[j])**2;s+=p[j]*(p[j]-y[j])}
+    // dL/dz_k = 2 p_k ((p_k - y_k) - sum_j p_j (p_j - y_j))
+    return {loss:L,grad:p.map((v,k)=>2*v*((v-y[k])-s)),p}}
+}
+// ---- ranking: one query, documents already listed in score order (index 0 = top). labels l_i (graded), scores s_i.
+// RankNet (Burges 2010, eq. 3 with S_ij = 1): lambda_ij = -sigma / (1 + exp(sigma (s_i - s_j))) for each pair with l_i > l_j;
+// lambda_i = sum_j lambda_ij - sum_k lambda_ki (eq. 4). Negative lambda_i means "push this score up" (C decreases as s_i rises).
+// LambdaRank (eq. 6): the same lambda_ij times |Delta NDCG| from swapping i and j. DCG gain 2^l - 1, discount 1/log2(1 + rank).
+function dcg(l){let s=0;for(let r=0;r<l.length;r++)s+=(Math.pow(2,l[r])-1)/Math.log2(2+r);return s}
+function ndcg(l){const ideal=l.slice().sort((a,b)=>b-a),m=dcg(ideal);return m>0?dcg(l)/m:0}
+function rankOrder(s){return s.map((v,i)=>i).sort((i,j)=>s[j]-s[i]||i-j)}
+function lambdas(s,l,sigma,lambdaRank){sigma=sigma||1;const n=s.length,lam=new Array(n).fill(0),ord=rankOrder(s),rank=new Array(n);
+  ord.forEach((i,r)=>{rank[i]=r});const ideal=dcg(l.slice().sort((a,b)=>b-a))||1;let pairs=0,errs=0,cost=0;
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){if(!(l[i]>l[j]))continue;pairs++;if(s[i]<=s[j])errs++;
+    let lij=-sigma/(1+Math.exp(sigma*(s[i]-s[j])));cost+=Math.log1p(Math.exp(-sigma*(s[i]-s[j])));
+    if(lambdaRank){const gi=Math.pow(2,l[i])-1,gj=Math.pow(2,l[j])-1,di=1/Math.log2(2+rank[i]),dj=1/Math.log2(2+rank[j]);
+      lij*=Math.abs((gi-gj)*(di-dj))/ideal}
+    lam[i]+=lij;lam[j]-=lij}
+  return {lam,pairs,errs,cost,ndcg:ndcg(ord.map(i=>l[i]))}}
+// ---- triplet margin loss (PyTorch: max(d(a,p) - d(a,n) + margin, 0), d the p-norm) and pairwise margin ranking (max(0, -y (x1 - x2) + margin))
+function triplet(dap,dan,margin){return Math.max(0,dap-dan+margin)}
+function marginRank(x1,x2,y,margin){return Math.max(0,-y*(x1-x2)+(margin||0))}
+
+root.LF={softmax,logitLoss,dcg,ndcg,rankOrder,lambdas,triplet,marginRank,sgn,logcosh,REG,HESS,fitLS,fitIRLS,fitL1,fit,objective,pulls,wquant,mean,location,meanLoss,sig,softplus,MARG,condRisk,fstar,pstar,GAN,logsumexp,zloss,bf16,bf16gap};
 })(typeof window!=='undefined'?window:globalThis);

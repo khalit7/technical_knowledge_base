@@ -14,4 +14,4 @@ for t in re.findall(r'class="rt">\(([^)]*)\)', mm):
     tot += (int(hh.group(1)) * 60 if hh else 0) + (int(mi.group(1)) if mi else 0)
 res = "%dh %02dm" % (tot // 60, tot % 60) if tot >= 60 else "%d min" % tot
 sys.stderr.write("reading words %d -> %d min; resources %s\n" % (words, read, res))
-sys.stdout.write(h.replace("RT_READ", str(read)).replace("RT_RES", res))
+sys.stdout.write(h.replace("RT_RES", res))  # the header states Reading minutes measured by html_utils/audit_pages.mjs

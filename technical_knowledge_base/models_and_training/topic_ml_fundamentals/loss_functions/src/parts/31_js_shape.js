@@ -1,4 +1,4 @@
-// ---- Loss shapes tab: regression losses against the error, classification losses against the margin, and what each score estimates ----
+// ---- Reading (moved from the old Loss shapes tab on 2026-10-24): regression losses against the error, classification losses against the margin, and what each score estimates ----
 (function(){
   const card=document.getElementById('sh-r');if(!card)return;
   const $=id=>document.getElementById(id);
@@ -55,7 +55,7 @@
   // ---- what the score estimates
   function drawK(){
     $('sh-ev').textContent=st.eta.toFixed(2);$('sh-g2v').textContent=st.g2.toFixed(1);
-    const fs=PL.range(-3,3,600),lines=[],pts=[];let rows='<tr><th>Loss</th><th class="num">best score f*</th><th class="num">probability it implies</th><th>vs the true η = '+st.eta.toFixed(2)+'</th></tr>';
+    const fs=PL.range(-3,3,600),lines=[],pts=[];let rows='<tr><th>Loss</th><th class="num">best score f*</th><th class="num">probability it implies</th><th>vs η</th></tr>';
     ['hinge','sqhinge','logistic','exp','focal'].forEach(k=>{const g=k==='focal'?st.g2:0,C=fs.map(f=>LF.condRisk(k,f,st.eta,g));let a=Infinity,b=-Infinity;C.forEach(v=>{if(v<a)a=v;if(v>b)b=v});
       const fstar=LF.fstar(k,st.eta,g),cs=LF.condRisk(k,fstar,st.eta,g);
       lines.push({xs:fs,ys:C.map(v=>(v-a)/(b-a||1)),c:MC[k]});if(Math.abs(fstar)<=3)pts.push({x:fstar,y:(cs-a)/(b-a||1),r:5,c:MC[k],stroke:'var(--bg)'});
@@ -67,6 +67,5 @@
   $('sh-e').addEventListener('input',e=>{st.eta=e.target.value/100;drawK()});
   $('sh-g2').addEventListener('input',e=>{st.g2=e.target.value/10;drawK()});
   const all=()=>{drawR();drawC();drawK()};
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-shape']=window.TAB_RENDER['t-shape']||[]).push(all);
-  addEventListener('resize',()=>{if(card.offsetParent)all()});
+  RD.onRender(all);RD.onResize(all);all();
 })();

@@ -22,5 +22,13 @@ for(const eta of [0.6,0.75,0.9,0.99]){out.fstar[eta]={};for(const L of ['logisti
 out.gan=[-6,-4.6,-2,0,2].map(l=>[l,LF.GAN.minimax(l),LF.GAN.ns(l)]);
 out.bf16=[0.1,1.00390625,3.14159,24.7,-43.4,100.3,-109.31,1e-3,65504.5].map(v=>[v,LF.bf16(v),LF.bf16gap(v)]);
 const v=[2,1,-1,0.5,30];const z=LF.zloss(v,1e-4);out.z={v,logZ:z.logZ,loss:z.loss,grad:z.grad};
+// gradient on the logits (Reading, cross entropy widget)
+const Zl=[3.0,1.5,0.5,-0.5,-1.5];out.logit={z:Zl,rows:[]};
+for(const t of [0,4])for(const k of ['ce','ls','focal','brier']){const r=LF.logitLoss(k,Zl,t,{eps:0.1,g:2});out.logit.rows.push({k,t,loss:r.loss,grad:r.grad})}
+out.logit.p=LF.softmax(Zl);
+// ranking (Reading, ranking widget): ten documents, scores 2.0 - 0.4 i, relevant at rank 2 and at rank pos
+const Sr=[...Array(10)].map((_,i)=>+(2-0.4*i).toFixed(2));out.rank={s:Sr,rows:[]};
+for(const pos of [3,5,10]){const l=Sr.map((_,i)=>(i===1||i===pos-1)?1:0);for(const lr of [false,true]){const r=LF.lambdas(Sr,l,1,lr);out.rank.rows.push({pos,lr,l,lam:r.lam,errs:r.errs,pairs:r.pairs,cost:r.cost,ndcg:r.ndcg})}}
+out.rank.fixA=LF.ndcg([0,1,0,0,1,0,0,0,0,0]);out.rank.fixB=LF.ndcg([1,0,0,0,0,0,0,0,0,1]);
 fs.mkdirSync('check',{recursive:true});fs.writeFileSync('check/js_out.json',JSON.stringify(out,null,1));
 console.log('anscombe3 mse',out.fits.anscombe3.mse,'stars mse',out.fits.stars.mse);console.log('rivers',out.loc);
