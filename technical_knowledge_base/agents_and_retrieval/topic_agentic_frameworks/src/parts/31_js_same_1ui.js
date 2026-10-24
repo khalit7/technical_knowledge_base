@@ -7,7 +7,7 @@ window.SAMEUI=(function(){
   const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
   const reg=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-same']=window.TAB_RENDER['t-same']||[]).push(f)};
   // Step animation: play, pause, step, scrub, speed. Animates only while on screen in the visible tab;
-  // under prefers-reduced-motion it never autoplays.
+  // it never autoplays: it waits on step 0 until the reader presses play or steps.
   function anim(o){
     const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl),p=o.ctl+'-';
     const st={i:0,n:o.n,play:false,timer:0,vis:false,spd:1,auto:false};
@@ -21,7 +21,7 @@ window.SAMEUI=(function(){
     q('p').onclick=()=>setPlay(!st.play);q('b').onclick=()=>{setPlay(false);go(st.i-1)};q('f').onclick=()=>{setPlay(false);go(st.i+1)};
     q('s').oninput=e=>{setPlay(false);go(+e.target.value)};q('v').onchange=e=>{st.spd=+e.target.value};
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{es.forEach(e=>{st.vis=e.isIntersecting;
-      if(st.vis&&!st.auto&&!RM&&o.autoplay!==false&&card.offsetParent!==null){st.auto=true;setPlay(true)}})}).observe(card)}else st.vis=true;
+      })}).observe(card)}else st.vis=true;   // never autoplays (2026-10-23): it waits for the reader
     go(o.start||0);
     return {go,reset(n){setPlay(false);st.n=n;q('s').max=n-1;st.auto=RM;go(0)},get i(){return st.i},play:setPlay};
   }

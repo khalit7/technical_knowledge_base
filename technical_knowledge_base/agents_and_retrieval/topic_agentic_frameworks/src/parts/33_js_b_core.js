@@ -33,18 +33,15 @@ window.OPU=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+      kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
     return {reset(n){setPlay(false);st.n=n;st.i=0;show()},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},redraw(){o.draw(st.i)},get i(){return st.i},get n(){return st.n}};
   }
   function seg(el,f){el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)})}
-  function pred(id,right,text){const el=document.getElementById(id);if(!el)return;
-    el.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{el.classList.add('done');
-      el.querySelectorAll('.opts button').forEach(x=>x.classList.remove('right','wrong'));
-      b.classList.add(b.dataset.a===String(right)?'right':'wrong');el.querySelector('.opts button[data-a="'+right+'"]').classList.add('right');
-      el.querySelector('.ans').innerHTML=(b.dataset.a===String(right)?'<b>Right.</b> ':'<b>Not quite.</b> ')+text()}))}
+  function pred(id,right,text){const el=document.getElementById(id);if(!el)return;const d=el.querySelector('details');
+    if(d)d.addEventListener('toggle',()=>{el.querySelector('.ans').innerHTML=text()})}
   // a "go to section of another tab" link: data-ops-goto="<tab id>|<section id>"
   document.addEventListener('click',e=>{const a=e.target.closest('a[data-ops-goto]');if(!a)return;e.preventDefault();
     const [tab,sec]=a.dataset.opsGoto.split('|');const b=document.querySelector('#tabs button[data-t="'+tab+'"]');if(b)b.click();

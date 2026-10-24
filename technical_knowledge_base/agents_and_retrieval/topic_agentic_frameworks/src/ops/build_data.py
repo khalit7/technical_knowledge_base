@@ -48,14 +48,9 @@ def main():
          "cc_spans": spans("cc_otel_spans.json"), "cc_events": load("cc_otel_events.json"),
          "loop_manual": spans("loop_manual_spans.json"), "loop_auto": spans("loop_auto_spans.json"),
          "loop_manual_res": load("loop_manual_result.json"), "loop_auto_res": load("loop_auto_result.json"),
-         "memory": load("memory.json"), "evals": load("evals.json"), "redaction": load("redaction.json")}
-    if D["memory"]:
-        import sys
-        sys.path.insert(0, os.path.join(HERE, "code"))
-        import mem_data
-        D["memory"]["sessions"] = mem_data.SESSIONS
-        D["memory"]["questions"] = [{k: q[k] for k in ("id", "q", "kind")} for q in mem_data.QUESTIONS]
-        D["memory"]["ask_date"] = mem_data.ASK_DATE
+         "evals": load("evals.json"), "redaction": load("redaction.json")}
+    # memory.json (the four-session memory experiment) stays in recordings/ but is no longer embedded:
+    # the tab's memory section was retired on 2026-10-24 (Context engineering, section 8, owns memory layers)
     # the Claude Code result record of the traced run
     for line in open(os.path.join(R, "cc_otel_haiku.jsonl")):
         d = json.loads(line)

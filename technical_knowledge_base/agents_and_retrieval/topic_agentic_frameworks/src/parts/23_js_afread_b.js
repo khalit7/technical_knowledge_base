@@ -36,7 +36,7 @@ document.querySelectorAll('#t-read [data-afv]').forEach(el=>{
   out.innerHTML=RD.stat('Turns',String(R.turns),'')+RD.stat('Input tokens',fmtN(R.inp),'fresh + cache write')+RD.stat('Output tokens',fmtN(R.out),fmtN(R.think)+' of them thinking')+RD.stat('Time, cost',(R.ms/1000).toFixed(1)+' s, '+fmt$(R.cost),'claude -p, Haiku 4.5')}
  function draw(i){const s=S[mode][i];view.innerHTML=s.v;cap.innerHTML='<div class="t">'+E(s.t)+'</div><p>'+E(s.p)+'</p>';stats()}
  const an=RD.anim({card:'afread-so-card',ctl:'afread-so-ctl',n:4,ms:2600,draw,label:'Step'});
- RD.seg(document.getElementById('afread-so-seg'),m=>{mode=m;an.reset(4);an.play()});
+ RD.seg(document.getElementById('afread-so-seg'),m=>{mode=m;an.reset(4)});
 })();
 
 // 2) multi-agent: one agent against a lead with two subagents, same input

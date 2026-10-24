@@ -1,19 +1,8 @@
-// ---- Reading tab, part A: the layer map, the ownership axis, workflow against agent (data: window.AFREAD from 22_js_afread_data.js) ----
+// ---- Reading tab, part A: the ownership axis, workflow against agent (data: window.AFREAD from 22_js_afread_data.js) ----
 (function(){
 const D=window.AFREAD,E=RD.esc;
 const fmt$=v=>'$'+(v<0.1?v.toFixed(4):v.toFixed(3));
 const fmtN=v=>Math.round(v).toLocaleString('en-US');
-
-// 1) the layer map
-const LAY={
- orch:'<b>Orchestration</b> decides what runs next: your code (a workflow), the model (an agent), or a graph that mixes both. It also holds the run\'s state between steps. Libraries: LangGraph, Pydantic AI, OpenAI Agents SDK, smolagents, Google ADK, CrewAI, Microsoft Agent Framework, Claude Agent SDK. Sections <a href="#rd-s1">1</a> to <a href="#rd-s5">5</a>.',
- gw:'<b>A gateway</b> is a proxy between your code and the providers: one API shape for every model, keys and spend limits per team, retries and fallbacks when a provider fails, one place to log every call. LiteLLM (self-hosted), OpenRouter (managed). Section <a href="#rd-s6">6</a>.',
- obs:'<b>Observability</b> records each run as a trace: a tree of timed steps (model calls, tool calls) with tokens and cost, so a bad run can be replayed and a bill attributed. Evals run scorers over those traces. OpenTelemetry GenAI conventions, Langfuse, LangSmith, Braintrust, Phoenix. Section <a href="#rd-s7">7</a>.',
- mem:'<b>Memory</b> keeps what should outlive one conversation (a user\'s preferences, facts that change over time) outside the context window and brings back only what is relevant. Mem0, Zep, Letta. Section <a href="#rd-s8">8</a>.'};
-const mc=document.getElementById('afread-map-card'),md=document.getElementById('afread-map-det');
-function pick(l){mc.querySelectorAll('button[data-l]').forEach(b=>b.classList.toggle('on',b.dataset.l===l));md.innerHTML=LAY[l]}
-mc.addEventListener('click',e=>{const b=e.target.closest('button[data-l]');if(b)pick(b.dataset.l)});
-pick('orch');
 
 // 2) the ownership axis: who writes each piece at each position (this page's reading of each library's docs)
 const PIECES=['The loop (call, run tool, repeat, stop)','Tool schemas','Order of steps','Saved state, resume after a crash','Pause for a human','Context trimming and compaction','Built-in tools (files, shell)','Permissions and sandbox','Where the loop runs'];

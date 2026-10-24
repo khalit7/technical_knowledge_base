@@ -16,13 +16,11 @@
     if(!narrow){
       const cw=(W-40)/4,bw=cw-18,h=46;H=230;
       const X=i=>10+i*(cw+6);
-      s+=bx(X(0),20,bw,h,'Memory store','read before, write after','var(--c4)');
       s+=bx(X(0),92,bw,h,'Your agent loop','model call, tools, repeat','var(--acc)');
       s+=bx(X(1),92,bw,h,'Gateway','retries, fallback, keys','var(--c2)');
       s+=bx(X(2),60,bw,h,'Primary provider','');s+=bx(X(2),124,bw,h,'Backup model','');
       s+=bx(X(3),92,bw,h,'Trace collector','spans from every step','var(--c3)');
       s+=bx(X(3),172,bw,h,'Eval suite','checks stored runs','var(--c5)');
-      s+=ar(X(0)+bw/2,92,X(0)+bw/2,66+2)+ar(X(0)+bw/2+14,66,X(0)+bw/2+14,92-2);
       s+=ar(X(0)+bw,115,X(1)-2,115);
       s+=ar(X(1)+bw,108,X(2)-2,84);s+=ar(X(1)+bw,122,X(2)-2,146,true);
       s+='<path d="M'+(X(0)+bw/2)+',138 V158 H'+(X(3)-14)+' V122" fill="none" stroke="var(--c3)" stroke-width="1.4" stroke-dasharray="4 3"/>'+ar(X(3)-14,122,X(3)-2,118,true,'var(--c3)');
@@ -30,16 +28,16 @@
       s+=ar(X(3)+bw/2,138,X(3)+bw/2,172-2,false,'var(--c5)');
       s+='<text x="'+(X(1)+bw+8)+'" y="'+160+'" font-size="10.5" fill="var(--mute)">fallback</text>';
     }else{
-      const bw=W-24,h=40;H=40+6*(h+16);const Y=i=>8+i*(h+16);
-      s+=bx(12,Y(0),bw,h,'Memory store','read before a session, written after','var(--c4)');
+      const bw=W-24,h=40;H=8+5*(h+16);const Y=i=>8+(i-1)*(h+16);
       s+=bx(12,Y(1),bw,h,'Your agent loop','model call, tools, repeat','var(--acc)');
       s+=bx(12,Y(2),bw,h,'Gateway','retries, fallback, keys, budgets','var(--c2)');
       s+=bx(12,Y(3),bw/2-6,h,'Primary','')+bx(12+bw/2+6,Y(3),bw/2-6,h,'Backup','');
       s+=bx(12,Y(4),bw,h,'Trace collector','spans from loop and gateway','var(--c3)');
       s+=bx(12,Y(5),bw,h,'Eval suite','checks stored runs on every change','var(--c5)');
-      for(let i=0;i<5;i++)s+=ar(W/2,Y(i)+h,W/2,Y(i+1)-2,i>=3);
+      for(let i=1;i<5;i++)s+=ar(W/2,Y(i)+h,W/2,Y(i+1)-2,i>=3);
     }
-    el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">'+s+'</svg>';
+    const y0=narrow?0:48;   // the wide layout's top row held the memory store, retired 2026-10-24
+    el.innerHTML='<svg viewBox="0 '+y0+' '+W+' '+(H-y0)+'" width="'+W+'" height="'+(H-y0)+'">'+s+'</svg>';
   }
   arch();U.onRender(arch);
   // ---------- gateway replay ----------

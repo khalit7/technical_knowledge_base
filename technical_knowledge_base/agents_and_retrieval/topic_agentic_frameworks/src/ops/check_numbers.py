@@ -65,11 +65,5 @@ check("eval run count", has(f"scores {len(E)} recorded"))
 den = [r for r in E if r["run"] == "orch_agent_denied"][0]
 check("denied run never verified", den["tested_after_edit"] is False and den["denials"] == 3)
 
-# 5. memory
-M = json.load(open(os.path.join(R, "memory.json")))
-for k, label in (("full", "Full history"), ("facts", "Facts"), ("graph", "Temporal graph"), ("paging", "Paging")):
-    n = sum(a["pass"] for a in M["systems"][k])
-    check(f"memory {k} {n}/5", has(f"{label}: {n} of 5"))
-
 print(f"{ok} checks passed, {bad} failed")
 sys.exit(1 if bad else 0)
