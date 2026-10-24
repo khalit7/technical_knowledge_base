@@ -51,7 +51,7 @@
   const card=$('sa');if(!card)return;
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const P=100000,N=5000,O=2000,TURNS=16,DUR=2600,MOVE=0.8,U=1000; // one square = 1,000 tokens
-  const st={m:'cache',mod:'Opus 5.5',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
+  const st={m:'cache',mod:'Opus 5.5',k:0,t:RM?1:0,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
   const cl=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v);
   // per-turn bill for turn t (1-based) in the two modes (page's growing-context model)
   function turn(t,m,p){const w=1.25*p.i;if(P+(t-1)*(N+O)+N>p.win)return {read:0,write:0,inp:0,out:0,cost:0,over:true};
@@ -109,14 +109,14 @@
     card.dataset.frames=(+card.dataset.frames||0)+1;draw();if(st.play)st.raf=requestAnimationFrame(tick)}
   function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0}}
   const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
-  $('saPlay').addEventListener('click',()=>{if(st.play){pause()}else{if(st.k===TURNS-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<TURNS-1){st.k++;st.t=0}st.play=true;kick()}draw()});
+  $('saPlay').addEventListener('click',()=>{if(RM){if(st.k===TURNS-1)st.k=0;else st.k++;st.t=1;draw();return}if(st.play){pause()}else{if(st.k===TURNS-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<TURNS-1){st.k++;st.t=0}st.play=true;kick()}draw()});
   $('saFwd').addEventListener('click',()=>{pause();st.k=Math.min(TURNS-1,st.k+1);st.t=1;draw()});
   $('saBack').addEventListener('click',()=>{pause();st.k=Math.max(0,st.k-1);st.t=1;draw()});
   $('saScrub').addEventListener('input',e=>{pause();const v=+e.target.value;st.k=Math.min(TURNS-1,Math.floor(v/100));st.t=cl(v/100-st.k);draw()});
   $('saSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   $('saMod').addEventListener('change',e=>{st.mod=e.target.value;st.lk=-1;draw()});
   const seg=$('saM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM)st.play=true;draw();kick()}));
+    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;pause();draw()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});
