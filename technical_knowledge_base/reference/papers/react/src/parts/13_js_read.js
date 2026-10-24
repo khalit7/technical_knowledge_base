@@ -13,7 +13,7 @@ function hbars(host,rows,max,f){if(!host)return;host.innerHTML=rows.map(r=>{cons
   const g=RC.se['hotpotqa ReAct vs CoT'];set('seHq','about '+g.se_gap.toFixed(1)+' points, so z = '+g.z.toFixed(1));})();
 // Table 1 mini bars
 function t1bars(host,key){const rows=TB.t1.rows.map(r=>({n:r.m.replace(/ -> /g,' → '),v:+r[key],c:KC[r.kind],se:r.kind==='sota'?0:seP(+r[key],500),hl:r.m==='ReAct'}));hbars(host,rows,100,v=>v.toFixed(1))}
-let t1mk='hq';const drawT1m=()=>t1bars($('t1m'),t1mk);segBind('t1mM',m=>{t1mk=m;drawT1m()});PRED_REVEAL['pr-cot']=drawT1m;
+let t1mk='hq';const drawT1m=()=>t1bars($('t1m'),t1mk);segBind('t1mM',m=>{t1mk=m;drawT1m()});drawT1m(); // drawn at once since 2026-10-25 (inline beside the claim)
 // Table 2 mini: stacked splits
 (function(){const h=$('t2m');if(!h)return;const R=TB.t2.rows,c={'True positive':'var(--good)','False positive':'var(--c5)','Reasoning error':'var(--c6)','Search result error':'var(--ra)','Hallucination':'var(--bad)','Label ambiguity':'var(--dim)'};
   const line=(m,grp)=>{const rs=R.filter(r=>r.grp===grp&&r[m]);return '<span class="small"><b>'+(m==='react'?'ReAct':'CoT')+'</b> '+(grp==='Success'?'successes':'failures')+'</span><div class="sb" role="img" aria-label="'+m+' '+grp+'">'+rs.map(r=>'<span style="width:'+r[m]+'%;background:'+c[r.type]+'" title="'+r.type+' '+r[m]+'%">'+(r[m]>=12?r[m]+'%':'')+'</span>').join('')+'</div>'};
@@ -28,7 +28,7 @@ function f3draw(host,panels){fit(host,W=>{const F=RC.fig3,sizes=['8B','62B','540
         if(bw>=13&&(m==='ReAct'||W>560))s+=tx(bx_+bw/2,y(v)-3,v.toFixed(0),{fs:11,a:'middle',c:'var(--mute)'})});
       if(!F[p][z])s+=tx(gx+pw/6,y(4),'not run',{fs:11,a:'middle',c:'var(--mute)'})})});
   const L=legend(M.map(m=>[m,MC[m]]),pl,H-6,W-pl);s+=L.s;host.innerHTML=svgW(W,H+L.h-10,s,'HotpotQA exact match by model size, prompted and fine-tuned')})}
-let f3mk='prompt';const drawF3m=()=>f3draw($('f3m'),[f3mk]);segBind('f3mM',m=>{f3mk=m;refit($('f3m'));drawF3m()});PRED_REVEAL['pr-ft']=drawF3m;
+let f3mk='prompt';const drawF3m=()=>f3draw($('f3m'),[f3mk]);segBind('f3mM',m=>{f3mk=m;refit($('f3m'));drawF3m()});drawF3m();
 // ALFWorld mini bars
-PRED_REVEAL['pr-alf']=()=>{const r=TB.t3.rows,g=m=>r.find(x=>x.m===m).All;
-  hbars($('alfm'),[{n:'ReAct, best of 6',v:g('ReAct (best of 6)'),c:KC.react,hl:1},{n:'ReAct, average',v:g('ReAct (avg)'),c:KC.react},{n:'ReAct, worst trial',v:48,c:KC.react,lab:' (text)'},{n:'Act, best of 6',v:g('Act (best of 6)'),c:KC.act},{n:'ReAct-IM, best of 6',v:g('ReAct-IM (best of 6)'),c:KC.im},{n:'BUTLER, best of 8',v:g('BUTLER (best of 8)'),c:'var(--rq)'}].map(x=>Object.assign(x,{se:seP(x.v,134)})),100,v=>v+'%')};
+(()=>{const r=TB.t3.rows,g=m=>r.find(x=>x.m===m).All;
+  hbars($('alfm'),[{n:'ReAct, best of 6',v:g('ReAct (best of 6)'),c:KC.react,hl:1},{n:'ReAct, average',v:g('ReAct (avg)'),c:KC.react},{n:'ReAct, worst trial',v:48,c:KC.react,lab:' (text)'},{n:'Act, best of 6',v:g('Act (best of 6)'),c:KC.act},{n:'ReAct-IM, best of 6',v:g('ReAct-IM (best of 6)'),c:KC.im},{n:'BUTLER, best of 8',v:g('BUTLER (best of 8)'),c:'var(--rq)'}].map(x=>Object.assign(x,{se:seP(x.v,134)})),100,v=>v+'%')})();

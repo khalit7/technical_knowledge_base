@@ -19,6 +19,12 @@ Scored on the Methodology's questions (`.claude/skills/explainer-page/visuals/ch
 | P-react.9 | Then and now: one step, six wire formats | Thought 2, Act 2, Obs 2 of the Apple Remote episode written as 2022 prompt text, LangChain's format, function calling JSON, tool_use blocks, interleaved thinking, a harness loop; who writes the thought, who parses, what it is learned from | What survived (the loop) and what was replaced (parsing, exemplars, imitated thoughts), on the same input | `inputs/later_extracts.txt` | Own tab | 9 |
 | P-react.10 | Predict, then reveal (three) | ReAct against CoT on HotpotQA (CoT wins); the worst method on PaLM-8B prompted (ReAct); whether the worst ReAct prompt beats the best Act prompt on ALFWorld (yes, 48 against 45) | Belief elicitation where intuition fails | Tables 1, 3, Figure 3 | Reading | 9 |
 
+## Light pass, 2026-10-25
+
+- **P-react.15, hero (built)**: a static two-panel figure, `14_js_hero.js`. Left, the loop (thought appended with no observation; action, environment, observation appended); right, the four prompts as a 2 × 2 of thoughts by actions, each with its Figure 1 answer and its Table 1 HotpotQA EM, so the hero itself shows that ReAct is not the HotpotQA winner. Hand-built rather than the paper's Figure 1 because Figure 1 is a dense text panel that the Idea section already replays step by step.
+- **P-react.16, Figure 1 panel (2) as the paper's image (built)**: CC BY 4.0, cropped to the ALFWorld half (`img/react_fig1_alfworld.webp`), beside the ALFWorld setup, where sparse thoughts were only described in words.
+- **Moved inline**: the Table 1 bars, the Figure 3 bars and the ALFWorld bars left their predict reveals; each sits in a card after its question.
+
 ## Rejected
 
 | # | Idea | Why not |

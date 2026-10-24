@@ -11,7 +11,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, N = 'The paper tab', 'Replay the traces tab', "Tables tab", 'Then and now tab'
 C = [
  # header
- ('Reading time line "10 min read, +~2h 25m resources"', 'dropped: replaced by the build-computed reading time and resources total (more resources now)', ['min to read', 'of resources']),
+ ('Reading time line "10 min read, +~2h 25m resources"', 'dropped: replaced by the measured reading time in the header (2026-10-25)', ['Reading: ', 'in closed details']),
  ('Authors: Yao, Zhao, Yu, Du, Shafran, Narasimhan, Cao (Princeton NLP, Google Brain)', R + ', headline card', ['Shunyu Yao', 'Jeffrey Zhao', 'Dian Yu', 'Nan Du', 'Izhak Shafran', 'Karthik Narasimhan', 'Yuan Cao', 'Princeton University', 'Google Research, Brain team']),
  ('Date: October 2022 (arXiv 2210.03629; ICLR 2023)', R + ', headline card', ['October 2022 (arXiv v1, 6 October 2022)', 'ICLR 2023', 'arXiv 2210.03629']),
  ('Link arXiv (~45 min)', 'card and Further reading', ['https://arxiv.org/abs/2210.03629', '(45 min)']),
