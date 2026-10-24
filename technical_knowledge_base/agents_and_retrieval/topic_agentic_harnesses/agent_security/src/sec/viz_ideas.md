@@ -53,3 +53,12 @@ The methodology assumes visuals reproduce published figures. A defensive securit
 succeeding on a benign action (the socket refused, the unlisted destination denied, the out-of-tree write blocked) and
 a policy decision made with no model. The honest move is to compute every verdict from real code on benign inputs and
 to teach the attack conceptually, never to stage a successful attack for drama.
+
+## 2026-10-24 rebuild (teaching contract)
+Built: trust-boundary hero (static); trifecta design tool (the simulator tab, moved inline); token-stream figure (static,
+schematic); pin-and-hash stepper for rug pulls (defence only, illustrative hashes); gate rule-chain stepper (redrawn from
+the HTML list; the full table is a closed block); approval bars (Anthropic's vendor figures); sandbox before/after as SVG
+(same measured data); egress stepper as SVG; credential placement (static); DNS incident timeline drawn to scale.
+Rejected: a drawing of an injection or exfiltration route step by step (the skill's rejected-patterns list, and out of the
+defensive scope); a photo or product screenshot (nothing physical to show; volatile, licence unclear); a red-team results
+chart (no measured data here; AgentDojo's tables are the Guardrails page's).
