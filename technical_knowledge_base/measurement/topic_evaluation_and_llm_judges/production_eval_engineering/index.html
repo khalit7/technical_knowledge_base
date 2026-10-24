@@ -115,59 +115,94 @@ table.path td{font-size:12.5px}table.path td:first-child{min-width:8.5em}table.p
 .gtab td.v-fail{color:var(--bad);font-weight:600}.gtab td.v-escalate{color:var(--c5);font-weight:600}.gtab td.v-pass{color:var(--good)}
 
 #ga-count{grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr))}#ga-count .stat .v{font-size:17px}
+.pe-hl{background:var(--hl);border-radius:3px;padding:0 3px}
+.pe-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:4px 22px}.pe-two>div{min-width:0}
+.pe-cap{margin:4px 0 14px;font-size:13px;line-height:1.5}
+.pe-img{margin:12px 0}.pe-img img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px}.pe-img figcaption{font-size:13px;color:var(--mute);margin-top:6px;line-height:1.5}
+table.pe-tools td{font-size:13px;vertical-align:top}table.pe-tools{min-width:720px}
+.gctl button.an-play{min-width:6.5em}
+#pe-smp-out{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}#pe-smp-out .stat .v{font-size:17px}
 </style></head><body><div class="w">
 <h1>Production eval engineering: gates, golden sets, shadow and A/B tests</h1>
-<div class="sub">How a change to a shipping LLM product (a prompt edit, a model swap, a retrieval or tool change) earns its way to users: frozen golden sets, regression gates in CI, budget gates, shadow traffic, A/B tests and monitoring. Child of <a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">Topic: evaluation-and-llm-judges</a>. Sources are linked inline; data as of October 2026.</div>
+<div class="sub">Reading: 24 min, plus 6 in closed details. Child of <a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">Topic: evaluation-and-llm-judges</a>. Sources are linked inline; data as of October 2026.</div>
 <div class="tabs" role="tablist" id="tabs">
 <button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-gate" aria-selected="false">Gate designer</button><button role="tab" data-t="t-cases" aria-selected="false">Case file</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
-<nav class="nav" id="rd-nav"><a href="#rd-one">In one screen</a><a href="#rd-gate">One swap, two gates</a><a href="#rd-golden">Golden sets</a><a href="#rd-ci">Gates in CI</a><a href="#rd-budget">Budgets</a><a href="#rd-online">Offline and online</a><a href="#rd-shadow">Shadow</a><a href="#rd-ab">A/B and interleaving</a><a href="#rd-mon">Monitoring</a><a href="#rd-edd">Eval-driven development</a><a href="#rd-moved">Moved</a><a href="#rd-mist">Mistakes</a></nav>
-<p class="mute small" id="rd-time">About 26 minutes to read; the animation and the two other tabs take longer.</p>
+<nav class="nav" id="rd-nav"><a href="#rd-top">The idea</a><a href="#rd-ea">1. Error analysis</a><a href="#rd-golden">2. Golden sets</a><a href="#rd-gate">3. One swap, two gates</a><a href="#rd-ci">4. Gates in CI</a><a href="#rd-tools">5. Tools</a><a href="#rd-budget">6. Budgets</a><a href="#rd-online">7. Online evaluation</a><a href="#rd-exp">8. Shadow, canary, A/B</a><a href="#rd-mon">9. Monitoring and drift</a><a href="#rd-edd">10. Eval-driven development</a></nav>
+<section id="rd-top">
+<p class="lead"><b>The idea in one sentence.</b> A change to a shipping LLM product (a prompt edit, a model swap, a retrieval or tool change) reaches users only after it beats the incumbent configuration, the <b>champion</b>, at every stage of a promotion path whose stages are each cheaper than the failure they stop, and every failure found at any stage becomes a new tagged item in the <span class="pe-hl">golden set</span> the first stage reads.</p>
+<div class="card" id="pe-hero"><div id="pe-hero-svg"></div></div>
+<p class="small mute pe-cap"><b>Cheap stages run first; each catches what the stage before cannot.</b> An offline gate sees regressions on your own cases in minutes but only on inputs you thought of; shadow traffic sees real inputs but no user reactions; only an A/B test sees whether people accept, retry, abandon or escalate; only monitoring sees decay after launch. The loop underneath is what keeps the first stage honest: failures found later are read, named and promoted into the golden set (sections 1 and 2).</p>
 
-<section id="rd-one">
-<h2>In one screen</h2>
-<p class="lead">Every change to a shipping LLM product (a prompt edit, a model swap, a retrieval or tool change) walks the same path, and each stage is cheaper than the failure it exists to stop. The incumbent configuration is the <b>champion</b>; nothing ships without beating it at every stage. That is the whole discipline; the rest of this page is how each stage is built and how each one fails.</p>
+<div class="pe-two">
+<div><h3 style="margin-top:4px">You need</h3>
+<ul class="tight">
+<li>An eval as a measuring instrument: the parent <a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">Topic: evaluation-and-llm-judges</a>.</li>
+<li>Paired tests and error bars on small slices: <a href="https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d" target="_blank" rel="noopener noreferrer">Eval statistics</a> (this page uses them, never derives them).</li>
+<li>How an LLM judge is built and calibrated: <a href="https://app.notion.com/p/3c65c17b0d0d810ba2a2ecc08c4c233b" target="_blank" rel="noopener noreferrer">LLM-as-judge</a>.</li>
+</ul></div>
+<div><h3 style="margin-top:4px">New terms</h3>
+<ul class="tight">
+<li><b>Champion, challenger</b>: the configuration now serving, and the candidate change.</li>
+<li><b>Golden set</b>: the frozen, versioned, tagged list of inputs with expected behaviour that every change is scored on.</li>
+<li><b>Slice</b>: the items sharing one tag (intent, difficulty, source incident).</li>
+<li><b>Gate</b>: a rule that turns scores into pass, fail or review.</li>
+<li><b>Shadow</b>: the challenger runs on mirrored live requests; only the champion's answer is served. <b>Canary</b>: a small share of real traffic gets the challenger.</li>
+<li><b>Guardrail metric</b>: a metric that must not get worse, though the change is not meant to improve it.</li>
+</ul></div>
+</div>
+<div class="co key"><div class="t">What this page owns, and what it links to</div>The pipeline: building eval sets from real traffic, golden sets, gates in CI, budgets, online evaluation, shadow and A/B tests, monitoring, eval drift and the tools compared by design. Harness mechanics are on <a href="https://app.notion.com/p/3c65c17b0d0d81ea9cd5eb65795ff5c9" target="_blank" rel="noopener noreferrer">Eval harnesses</a>; judge design and bias on <a href="https://app.notion.com/p/3c65c17b0d0d810ba2a2ecc08c4c233b" target="_blank" rel="noopener noreferrer">LLM-as-judge</a>; standard errors, power and sample sizes on <a href="https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d" target="_blank" rel="noopener noreferrer">Eval statistics</a>; gold-label auditing on <a href="https://app.notion.com/p/3ef5c17b0d0d819485bcc54a45d49420" target="_blank" rel="noopener noreferrer">Human evaluation and annotation</a>; tracing on <a href="https://app.notion.com/p/3c65c17b0d0d81fe82c0c6e9360afec4" target="_blank" rel="noopener noreferrer">LLM observability</a>; retrieval-specific monitoring on <a href="https://app.notion.com/p/3f85c17b0d0d81aa9ba9c0ceac9e28c1" target="_blank" rel="noopener noreferrer">RAG in production</a>; trajectories on <a href="https://app.notion.com/p/3ef5c17b0d0d81fdbabaf3582bff37f2" target="_blank" rel="noopener noreferrer">Agent and trajectory evaluation</a>.</div>
+<details class="mist"><summary>The five stages in one table (reference)</summary><div class="b">
 <div class="tw"><table class="path">
 <thead><tr><th>Stage</th><th>Question it answers</th><th>What trips it</th><th>Cost and time</th><th>Catches what the stage before cannot</th></tr></thead>
 <tbody>
-<tr><td><b>1. Offline gate</b> on frozen golden sets, in CI</td><td>Did this change break anything we already know matters?</td><td>A paired drop against the champion beyond a threshold <i>in any slice</i>; a hard floor on safety slices; a failing deterministic assertion</td><td>Minutes per change; judge calls cost money (below)</td><td>Regressions on <i>your</i> product, which public benchmarks never see</td></tr>
-<tr><td><b>2. Budget gate</b></td><td>Can we afford it, and is it fast enough?</td><td>Tokens per request, p95 latency or projected spend above budget. A model swap that wins quality at 3 times the cost fails unless someone waives it</td><td>Seconds (computed from stage 1's runs)</td><td>A quality win that the business cannot pay for</td></tr>
-<tr><td><b>3. Shadow deployment</b></td><td>Does it hold on real traffic?</td><td>Per-intent score distributions of candidate against champion on the <i>same</i> mirrored requests; errors; latency</td><td>Doubles inference for the mirrored share; nothing reaches users</td><td>Inputs nobody imagined when building the golden set: real traffic is uglier than any curated set</td></tr>
+<tr><td><b>1. Offline gate</b> on frozen golden sets, in CI</td><td>Did this change break anything we already know matters?</td><td>A paired drop against the champion beyond a threshold <i>in any slice</i>; a hard floor on safety slices; a failing deterministic assertion</td><td>Minutes per change; judge calls cost money</td><td>Regressions on <i>your</i> product, which public benchmarks never see</td></tr>
+<tr><td><b>2. Budget gate</b></td><td>Can we afford it, and is it fast enough?</td><td>Tokens per request, p95 latency or projected spend above budget</td><td>Seconds (computed from stage 1's runs)</td><td>A quality win that the business cannot pay for</td></tr>
+<tr><td><b>3. Shadow deployment</b></td><td>Does it hold on real traffic?</td><td>Per-intent score distributions of challenger against champion on the <i>same</i> mirrored requests; errors; latency</td><td>Doubles inference for the mirrored share; nothing reaches users</td><td>Inputs nobody imagined when building the golden set: real traffic is uglier than any curated set</td></tr>
 <tr><td><b>4. Canary, then A/B test</b></td><td>Do users and the business actually come out ahead?</td><td>Guardrail metrics (errors, refusals, complaints, task completion) crossing a rollback trigger; the primary metric not improving</td><td>Days to weeks; real users exposed</td><td>What only behaviour shows: whether people accept, retry, abandon or escalate</td></tr>
 <tr><td><b>5. Monitoring</b> after full rollout</td><td>Is it still good?</td><td>Drift in sampled judge scores, implicit signals or input mix; silent provider-side changes</td><td>Continuous; a sampled share of live traces</td><td>Decay after launch: traffic, product and the model behind an API all move</td></tr>
 </tbody></table></div>
-<p>Keep every configuration pinned and logged (prompt hash, model version, judge model and prompt version, dataset version) so that any score can be reproduced, and so that a change in score can be traced to the one thing that changed. The root page's <a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">five layers of evaluation</a> (Reading, "Evaluation in one screen") put this path in context: these are its two most expensive layers, regression gates and online measurement.</p>
-<div class="co key"><div class="t">What belongs here, and what moved</div>This page owns the pipeline. The statistics a gate leans on (standard errors, paired tests, power and sample sizes) are on <a href="https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d" target="_blank" rel="noopener noreferrer">Eval statistics: error bars, paired tests, how many items you need</a>; auditing the gold labels a gate compares against is on <a href="https://app.notion.com/p/3ef5c17b0d0d819485bcc54a45d49420" target="_blank" rel="noopener noreferrer">Human evaluation and annotation: rubrics, agreement, gold-label auditing</a>. Both are summarised in <a href="#rd-moved">Moved</a> below.</div>
+<p>Keep every configuration pinned and logged (prompt hash, model version, judge model and prompt version, dataset version) so that any score can be reproduced and a change in score traced to the one thing that changed. On the root page's <a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">five layers of evaluation</a> (Reading, "Evaluation in one screen"), these are the two most expensive layers: regression gates and online measurement.</p>
+</div></details>
 </section>
-<section id="rd-gate">
-<h2>One model swap, two gates</h2>
-<p>A real swap, on real released grades. The champion is <b>claude-v1</b>; the challenger is the cheaper <b>claude-instant-v1</b>, the kind of cost-down swap every product team runs. The golden set is <a href="https://arxiv.org/abs/2306.05685" target="_blank" rel="noopener noreferrer">MT-Bench</a>: 80 two-turn questions in 8 categories of 10, so 160 graded turns in 8 tagged slices, each turn graded 1 to 10 by GPT-4. Every grade below is LMSYS's own released judgment (<a href="https://huggingface.co/spaces/lmsys/mt-bench/tree/main/data/mt_bench/model_judgment" target="_blank" rel="noopener noreferrer">gpt-4_single.jsonl</a>, mid-2023), not a simulation. Run it twice: once through a gate with <b>one aggregate threshold</b>, then through the same gate with <b>thresholds per slice</b>.</p>
-<div class="card" id="ga">
-<div class="seg" role="group" aria-label="Gate design"><button id="ga-m0" class="on">Before: one aggregate threshold</button><button id="ga-m1">After: thresholds per slice</button></div>
-<div id="ga-grid" class="plot" aria-label="Golden set grid: one square per graded turn"></div>
-<div id="ga-bars" class="plot"></div>
-<div id="ga-cap" class="gcap" aria-live="polite"></div>
-<div class="out" id="ga-count"></div>
-<div class="gctl"><button id="ga-play">Play</button><button id="ga-prev" aria-label="Previous step">&#9664;</button><button id="ga-next" aria-label="Next step">&#9654;</button><input type="range" id="ga-scrub" min="0" max="6" value="0" aria-label="Step"><select id="ga-speed" aria-label="Speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></div>
-<p class="small mute">Thresholds are illustrative and the same in both runs: the aggregate gate fails a mean paired drop of 0.25 points or more; the per-slice gate fails a slice whose mean paired drop is 0.5 points or more <i>and</i> whose 95% interval lies wholly below zero, and sends a drop of 0.5 or more with an interval that still reaches zero to review instead of passing it. Intervals are paired t intervals over graded turns (the two turns of one question are treated as independent here; that overstates precision on average, since across all 561 MT-Bench model pairs the clustered standard error is a median 1.10 times the paired one (range 0.90 to 1.26), but for this claude-v1 against claude-instant-v1 pair the ratio is 1.00, so the intervals shown stand; measured on <a href="https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d" target="_blank" rel="noopener noreferrer">Eval statistics</a>, which covers clustered errors). Change any of this, or pick any other pair of the 34 graded models, in the <a href="#" data-tab="t-gate">Gate designer</a> tab.</p>
+<section id="rd-ea">
+<h2>1. Error analysis: where eval items come from</h2>
+<p>An eval set is not written from imagination. It is read out of real traces: you look at what the system actually did, name the ways it fails, and only then write a check for each named failure. Hamel Husain and Shreya Shankar's FAQ gives the working numbers: review "at least 100 traces", annotate "at least 30 traces yourself", and stop at <b>theoretical saturation</b>, "meaning new reviews stop revealing failure modes or changing existing ones" (<a href="https://hamel.dev/blog/posts/evals-faq/" target="_blank" rel="noopener noreferrer">evals FAQ</a>, read 2026-10-24). They report having "spent 60-80% of our development time on error analysis and evaluation". Step through the loop:</p>
+<div class="card" id="pe-ea">
+<div id="pe-ea-svg"></div>
+<div id="pe-ea-cap" class="gcap" aria-live="polite"></div>
+<div class="gctl" id="pe-ea-ctl"></div>
 </div>
-<p><b>What the two runs show.</b> Averaged over all 159 turns both models have a grade for, the swap moves the score by <span class="pe-v" data-k="aggd"></span> points, and the aggregate gate waves it through. Split by the tags the golden set already carries, the same numbers say something else: writing drops by <span class="pe-v" data-k="wrd"></span> points (95% interval <span class="pe-v" data-k="wrci"></span>), which the per-slice gate fails, and extraction drops by <span class="pe-v" data-k="exd"></span> with an interval that still crosses zero, which goes to review. Math <i>improves</i> by about as much as writing falls (and coding a little), which is exactly why the average hid it. Per-slice thresholds cost nothing extra to compute; they only need the tags.</p>
-<div class="co warn"><div class="t">A flaky judge, in the released data</div>The failed grade comes from one of the 320 judge calls in this run: on question <span class="pe-v" data-k="failq"></span> GPT-4 kept writing for 9,516 characters, repeating "The assistant's function does not correctly..." 63 times, and never emitted a <code>[[rating]]</code>, so the grade was recorded as &minus;1. Across all 34 models in the file, <span class="pe-v" data-k="failall"></span> of 5,440 judgments failed this way, all on second turns, all between about 9,500 and 12,000 characters long. A gate must decide what an unparsable verdict means (here: drop the pair from both sides, and count it), never average it in as a score.</div>
-<div class="co warn"><div class="t">A judge failure inside a published number</div>The released file gives claude-instant-v1 a mean of <span class="pe-v" data-k="cimean"></span> over its 159 valid grades, which is what FastChat's <a href="https://github.com/lm-sys/FastChat/blob/main/fastchat/llm_judge/show_result.py" target="_blank" rel="noopener noreferrer">show_result.py</a> computes today (it drops grades of &minus;1). The <a href="https://huggingface.co/spaces/lmsys/chatbot-arena-leaderboard/blob/main/leaderboard_table_20250804.csv" target="_blank" rel="noopener noreferrer">LMSYS leaderboard table</a> prints <b>7.85</b> for Claude-Instant-1 (and 7.90 for Claude-1, which matches). Averaging the one failed grade in <i>as a score of &minus;1</i> over all 160 turns gives exactly <span class="pe-v" data-k="cimean160"></span>. So the published figure most likely counts a judge failure as the model's worst-ever answer, and understates the model by about 0.06 points; whether the table was built with an older version of the script is not stated anywhere we found. Recomputed in <code>src/recompute.py</code>.</div>
+<p class="small mute pe-cap"><b>Name the failure before you measure it.</b> Notes first (open coding), categories second (axial coding, which the FAQ calls "the most important step"), evaluators third: a rubric written before reading "can get in the way", because "Reviewers can become so focused on checking each item that they overlook problems outside the rubric". The running example of this page (section 3) ends in exactly this loop: its three worst writing drops share one name, a constrained rewrite.</p>
+<p><b>Binary labels, one failure mode per evaluator.</b> The FAQ prefers pass or fail to 1 to 5 scales: "Binary evaluations force clearer thinking and more consistent labeling", while on Likert scales "annotators often default to middle values". Each named mode gets either a code check, when an objective rule can identify it, or a judge validated on "100 to 200 examples for each failure mode" (judge design and its agreement measures: <a href="https://app.notion.com/p/3c65c17b0d0d810ba2a2ecc08c4c233b" target="_blank" rel="noopener noreferrer">LLM-as-judge</a>).</p>
+<details class="mist"><summary>How to pick which traces to read (five sampling methods)</summary><div class="b">
+<div class="tw"><table>
+<thead><tr><th>Method</th><th>What it does</th><th>Main limitation</th></tr></thead>
+<tbody>
+<tr><td>Random</td><td>Selects traces with equal probability</td><td>A small batch can miss rare cases</td></tr>
+<tr><td>Clustering</td><td>Groups traces by similar content and selects from each group</td><td>Depends on the features and clustering choices</td></tr>
+<tr><td>Data analysis</td><td>Reviews extreme values such as latency or tool count</td><td>An extreme value may have nothing to do with quality</td></tr>
+<tr><td>Classification</td><td>An evaluator or another model flags likely failures</td><td>Favours problems the classifier already knows how to find</td></tr>
+<tr><td>Feedback</td><td>Traces with negative user feedback</td><td>Misses problems that users do not report</td></tr>
+</tbody></table></div>
+<p>The table runs from most exploratory to most targeted; start exploratory, lean on signals as you learn, and "Keep some random traces in every batch" (same FAQ). Where traces come from and how they are sampled and redacted at collection time is <a href="https://app.notion.com/p/3c65c17b0d0d81fe82c0c6e9360afec4" target="_blank" rel="noopener noreferrer">LLM observability</a>'s subject.</p>
+</div></details>
+<h3>Promotion: how a failure becomes a golden item</h3>
+<p>Every confirmed failure becomes a new tagged item and, where a judge grades it, a rubric criterion. Teams describe the same path: DoorDash, "Newly identified issues are systematically added to Promptfoo test suites" (<a href="https://careersatdoordash.com/blog/large-language-modules-based-dasher-support-automation/" target="_blank" rel="noopener noreferrer">Dasher support automation</a>, Sep 2024); Vercel for v0, "we add new, failing prompts to the eval set" (<a href="https://vercel.com/blog/eval-driven-development-build-better-ai-faster" target="_blank" rel="noopener noreferrer">Eval-driven development</a>, 17 Oct 2024); Anthropic, failures from the bug tracker and support queue become new tasks, and capability evals the system has learned to pass "graduate" to the regression suite (<a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents" target="_blank" rel="noopener noreferrer">Demystifying evals for AI agents</a>, 9 Jan 2026).</p>
 </section>
 <section id="rd-golden">
-<h2>Golden sets</h2>
-<p>A golden set is the frozen list of inputs, with expected behaviour, that every change is scored on. It is the instrument the gate reads, so it is built and maintained like code.</p>
-<h3>What goes in</h3>
+<h2>2. Golden sets</h2>
+<p>A golden set is the instrument the gate reads, so it is built and maintained like code: sources in, tagged items, two suites with different jobs, a version number.</p>
+<div class="card" id="pe-gs"><div id="pe-gs-svg"></div></div>
+<p class="small mute pe-cap"><b>The tags make per-slice gating possible; the split keeps the pass rate readable.</b> A <b>regression</b> item guards something that already works and should pass almost always (Anthropic: regression suites "should have a nearly 100% pass rate"); a <b>capability</b> item measures something the system cannot yet do and is expected to fail often. One pass rate over both moves for reasons nobody can read. Notion's team, in a <a href="https://www.braintrust.dev/blog/notion" target="_blank" rel="noopener noreferrer">Braintrust case study</a> (vendor page, undated), notes that a new model "might pass a regression eval at 100%", which is why they also keep frontier evals: a set everyone passes has stopped measuring.</p>
 <ul>
-<li><b>A representative slice of real traffic</b>, deduplicated and scrubbed of personally identifiable information (PII).</li>
-<li><b>Regression cases:</b> every production incident becomes a test.</li>
-<li><b>Adversarial and edge cases,</b> and <b>safety canaries</b> (items that must always be refused or always be answered).</li>
+<li><b>Sources:</b> a representative slice of real traffic, deduplicated and scrubbed of personally identifiable information (PII); regression cases (every production incident becomes a test); adversarial and edge cases; and <b>safety canaries</b>, items that must always be refused or always be answered.</li>
+<li><b>Each item</b> carries an input, the expected behaviour (a reference answer, a rubric, or programmatic checks) and metadata tags: intent, difficulty, source incident. Section 3's animation could split its 160 turns only because MT-Bench tags every question with a category.</li>
+<li><b>Size:</b> the practical range is 100 to 500 items per product surface; smaller sets can gate only large effects, larger ones rot because nobody maintains them. Anthropic: "20-50 simple tasks drawn from real failures is a great start"; Hamel Husain and Shreya Shankar: regression sets "grow to 100 or more examples"; GitHub Copilot runs "more than 4,000 offline tests". Write each gate's <b>minimum detectable effect</b> next to its threshold, so nobody believes a 20-item slice can see a half-point drop (how many items a threshold needs: <a href="https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d" target="_blank" rel="noopener noreferrer">Eval statistics</a>).</li>
 </ul>
-<p>Each item carries an input, the expected behaviour (a reference answer, a rubric, or programmatic checks) and <b>metadata tags</b>: intent, difficulty, source incident. The tags are what make per-slice gating possible: the animation above could split its 160 turns only because MT-Bench tags every question with a category.</p>
-<h3>How big</h3>
-<p>The practical range has been 100 to 500 items per product surface: smaller sets can only gate large effects, larger ones rot because nobody maintains them. Published teams sit on both sides of it, because they mean different things by an item:</p>
+<details class="mist"><summary>Published golden-set sizes, team by team</summary><div class="b">
+<p>Teams sit on both sides of the 100 to 500 range because they mean different things by an item:</p>
 <div class="tw"><table>
 <thead><tr><th>Team, date</th><th>What they gate on</th></tr></thead>
 <tbody>
@@ -177,171 +212,175 @@ table.path td{font-size:12.5px}table.path td:first-child{min-width:8.5em}table.p
 <tr><td>GitHub Copilot (<a href="https://github.blog/ai-and-ml/generative-ai/how-we-evaluate-models-for-github-copilot/" target="_blank" rel="noopener noreferrer">How we evaluate AI models</a>, 17 Jan 2025)</td><td>"more than 4,000 offline tests, most of them as part of our automated CI pipeline": about 100 containerised repositories with deliberately broken tests, and more than 1,000 chat questions graded by an LLM judge</td></tr>
 <tr><td>GitLab Duo (<a href="https://about.gitlab.com/blog/2024/05/09/developing-gitlab-duo-how-we-validate-and-test-ai-models-at-scale/" target="_blank" rel="noopener noreferrer">How we validate and test AI models at scale</a>, 9 May 2024)</td><td>"thousands of prompts tied to dozens of use cases" as a "proxy for production" without customer data; a focused subset during development, the broad set before release, and a daily run against the previous day's baseline</td></tr>
 </tbody></table></div>
-<p>Hamel Husain and Shreya Shankar's FAQ gives the working numbers for building one from traces: "Start with 100 diverse traces and annotate at least the first 30 yourself", "Label 100 to 200 examples for each failure mode", and expect regression sets to "grow to 100 or more examples"; in CI, "Favor assertions or other deterministic checks over LLM-as-judge" (<a href="https://hamel.dev/blog/posts/evals-faq/" target="_blank" rel="noopener noreferrer">evals FAQ</a>, September 2026 revision). Anthropic's own documentation leans the other way on volume: "More questions with slightly lower signal automated grading is better than fewer questions with high-quality human hand-graded evals" (<a href="https://platform.claude.com/docs/en/test-and-evaluate/develop-tests" target="_blank" rel="noopener noreferrer">Develop tests</a>).</p>
-<p>How many items a given threshold needs is a statistics question, answered on <a href="https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d" target="_blank" rel="noopener noreferrer">Eval statistics</a>. The engineering rule that follows from it: write each gate's <b>minimum detectable effect</b> next to its threshold, so nobody believes a 20-item slice can see a half-point drop.</p>
-<h3>Promotion paths: how production failures become golden items</h3>
-<p>The set grows from error analysis: read raw transcripts of failures (Hamel Husain's core discipline, in his <a href="https://hamel.dev/blog/posts/evals-faq/" target="_blank" rel="noopener noreferrer">evals FAQ</a>), cluster them into named failure modes, then turn each cluster into new tagged items and, where a judge grades it, a new rubric criterion. The last step of the animation is this loop. Teams describe the same path in their own words:</p>
+<p>The FAQ's other working numbers: "Start with 100 diverse traces and annotate at least the first 30 yourself"; in CI, "Favor assertions or other deterministic checks over LLM-as-judge" (<a href="https://hamel.dev/blog/posts/evals-faq/" target="_blank" rel="noopener noreferrer">evals FAQ</a>, September 2026 revision). Anthropic's own documentation leans the other way on volume: "More questions with slightly lower signal automated grading is better than fewer questions with high-quality human hand-graded evals" (<a href="https://platform.claude.com/docs/en/test-and-evaluate/develop-tests" target="_blank" rel="noopener noreferrer">Develop tests</a>).</p>
+</div></details>
+<h3>Lifecycle: a golden set decays</h3>
 <ul>
-<li>DoorDash: "Newly identified issues are systematically added to Promptfoo test suites" (<a href="https://careersatdoordash.com/blog/large-language-modules-based-dasher-support-automation/" target="_blank" rel="noopener noreferrer">Dasher support automation</a>, Sep 2024).</li>
-<li>Vercel, for v0: "we add new, failing prompts to the eval set" (<a href="https://vercel.com/blog/eval-driven-development-build-better-ai-faster" target="_blank" rel="noopener noreferrer">Eval-driven development</a>, 17 Oct 2024).</li>
-<li>Anthropic: capability evals that the system has learned to pass "graduate" to the regression suite, and failures from the bug tracker and support queue become new tasks (9 Jan 2026, above).</li>
-</ul>
-<p>Two paths run into a golden set, and they should be kept apart. A <b>regression</b> item guards something that already works and should pass almost always; a <b>capability</b> item measures something the system cannot yet do and is expected to fail often. Mixing them makes the pass rate meaningless. Notion's team, in a <a href="https://www.braintrust.dev/blog/notion" target="_blank" rel="noopener noreferrer">Braintrust case study</a> (vendor page, undated), notes that a new model "might pass a regression eval at 100%", which is why they also keep separate frontier evals: a set everyone passes has stopped measuring.</p>
-<h3>Lifecycle</h3>
-<ul>
-<li><b>Decay.</b> A golden set drifts away from reality three ways: the product changes, traffic changes, and the set leaks into prompts and fine-tunes. Refresh it on a schedule from recent traffic and error analysis.</li>
-<li><b>Criteria drift.</b> Shankar et al. found that "users need criteria to grade outputs, but grading outputs helps users define criteria" (<a href="https://arxiv.org/abs/2404.12272" target="_blank" rel="noopener noreferrer">Who Validates the Validators?</a>, Apr 2024): the expected behaviour itself changes as people read outputs, so rubrics are versioned with the items.</li>
-<li><b>Versioning.</b> Any edit to the set is a reviewed change, and the score history is re-baselined when the set changes: a v2 score is not comparable to a v1 score.</li>
+<li><b>Decay.</b> It drifts away from reality three ways: the product changes, traffic changes, and the set leaks into prompts and fine-tunes. Refresh it on a schedule from recent traffic and error analysis; the FAQ adds that if "everything keeps passing", an eval should be run less often or retired.</li>
+<li><b>Criteria drift.</b> Shankar et al. found that "users need criteria to grade outputs, but grading outputs helps users define criteria" (<a href="https://arxiv.org/abs/2404.12272" target="_blank" rel="noopener noreferrer">Who Validates the Validators?</a>, Apr 2024): the expected behaviour changes as people read outputs, so rubrics are versioned with the items.</li>
+<li><b>Versioning.</b> Any edit to the set is a reviewed change, and the champion is re-scored on every new version: a v2 score is a reading on a different instrument and never shares a chart line with v1.</li>
 <li><b>A held-out split</b> that is never published or sent to a vendor that might train on your traffic.</li>
+<li><b>Gold labels are fallible.</b> Before a gate failure is believed, audit the failing items: the eval system has three fallible parts (model, judge, gold). Keep "ambiguous, exclude from gating" as a valid label state and gate on the verified subset (auditing method and error rates: <a href="https://app.notion.com/p/3ef5c17b0d0d819485bcc54a45d49420" target="_blank" rel="noopener noreferrer">Human evaluation and annotation</a>; the root page's <a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">attribution animation</a> shows the split on six physics benchmarks).</li>
 </ul>
+</section>
+<section id="rd-gate">
+<h2>3. One model swap, two gates</h2>
+<p>The running example, on real released grades. The champion is <b>claude-v1</b>; the challenger is the cheaper <b>claude-instant-v1</b>, the cost-down swap every product team runs. The golden set is <a href="https://arxiv.org/abs/2306.05685" target="_blank" rel="noopener noreferrer">MT-Bench</a>: 80 two-turn questions in 8 categories of 10, so 160 graded turns in 8 tagged slices, each graded 1 to 10 by GPT-4. Every grade is LMSYS's own released judgment (<a href="https://huggingface.co/spaces/lmsys/mt-bench/tree/main/data/mt_bench/model_judgment" target="_blank" rel="noopener noreferrer">gpt-4_single.jsonl</a>, mid-2023), not a simulation. <b>Predict first:</b> the two means differ by a few hundredths of a point; will any slice fail? Then step through it with <b>one aggregate threshold</b>, and again with <b>thresholds per slice</b>.</p>
+<div class="card" id="ga">
+<div class="seg" role="group" aria-label="Gate design"><button id="ga-m0" class="on">Before: one aggregate threshold</button><button id="ga-m1">After: thresholds per slice</button></div>
+<div id="ga-grid" class="plot" aria-label="Golden set grid: one square per graded turn"></div>
+<div id="ga-bars" class="plot"></div>
+<div id="ga-cap" class="gcap" aria-live="polite"></div>
+<div class="out" id="ga-count"></div>
+<div class="gctl"><button id="ga-play">Play</button><button id="ga-prev" aria-label="Previous step">&#9664;</button><button id="ga-next" aria-label="Next step">&#9654;</button><input type="range" id="ga-scrub" min="0" max="6" value="0" aria-label="Step"><select id="ga-speed" aria-label="Speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></div>
+<p class="small mute">Thresholds are illustrative and the same in both runs: the aggregate gate fails a mean paired drop of 0.25 points or more; the per-slice gate fails a slice whose mean paired drop is 0.5 points or more <i>and</i> whose 95% interval lies wholly below zero, and sends a drop of 0.5 or more whose interval still reaches zero to review instead of passing it. Paired t intervals over graded turns, a question's two turns treated as independent; across all 561 MT-Bench model pairs the clustered standard error is a median 1.10 times the paired one (range 0.90 to 1.26), but for this pair the ratio is 1.00, so the intervals stand (measured on <a href="https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d" target="_blank" rel="noopener noreferrer">Eval statistics</a>). Every threshold and any pair of the 34 graded models: <a href="#" data-tab="t-gate">Gate designer</a>.</p>
+</div>
+<p class="small mute pe-cap"><b>The average hid a one-point writing regression.</b> Over the 159 turns both models have a grade for, the swap moves the score by <span class="pe-v" data-k="aggd">−0.03</span> points and the aggregate gate passes it. Split by the tags the set already carries: writing drops <span class="pe-v" data-k="wrd">0.95</span> points (95% interval <span class="pe-v" data-k="wrci">−1.51 to −0.39</span>) and fails; extraction drops <span class="pe-v" data-k="exd">0.70</span> with an interval that still crosses zero and goes to review; math <i>improves</i> by about as much as writing falls, which is why the mean did not move. Per-slice thresholds cost nothing extra; they only need the tags.</p>
+<div class="co warn"><div class="t">A flaky judge, in the released data</div>One of the 320 judge calls in this run produced no grade: on question <span class="pe-v" data-k="failq">128 (coding, turn 2)</span> GPT-4 wrote 9,516 characters, repeating "The assistant's function does not correctly..." 63 times, and never emitted a <code>[[rating]]</code>, so the file records &minus;1. Across all 34 models, <span class="pe-v" data-k="failall">4</span> of 5,440 judgments failed this way, all on second turns, all about 9,500 to 12,000 characters long. A gate must decide what an unparsable verdict means (here: drop the pair from both sides, and count it), never average it in as a score.</div>
+<details class="mist"><summary>The same judge failure inside a published leaderboard number</summary><div class="b">The released file gives claude-instant-v1 a mean of <span class="pe-v" data-k="cimean">7.906</span> over its 159 valid grades, which is what FastChat's <a href="https://github.com/lm-sys/FastChat/blob/main/fastchat/llm_judge/show_result.py" target="_blank" rel="noopener noreferrer">show_result.py</a> computes today (it drops grades of &minus;1). The <a href="https://huggingface.co/spaces/lmsys/chatbot-arena-leaderboard/blob/main/leaderboard_table_20250804.csv" target="_blank" rel="noopener noreferrer">LMSYS leaderboard table</a> prints <b>7.85</b> for Claude-Instant-1 (and 7.90 for Claude-1, which matches). Averaging the failed grade in <i>as a score of &minus;1</i> over all 160 turns gives exactly <span class="pe-v" data-k="cimean160">7.850</span>. So the published figure most likely counts a judge failure as the model's worst-ever answer and understates the model by about 0.06 points; whether the table was built with an older version of the script is not stated anywhere we found. Recomputed in <code>src/recompute.py</code>.</div></details>
 </section>
 
 <section id="rd-ci">
-<h2>Regression gates in CI</h2>
-<h3>What trips a gate</h3>
+<h2>4. Regression gates in CI</h2>
+<p>The gate in section 3 combines four kinds of rule, run on every pull request:</p>
 <ul>
-<li><b>A paired drop against the champion, per slice.</b> Same items, both configurations, compare per item; a threshold per tagged slice, not one aggregate, for the reason the animation shows. Gating 8 or 20 slices at once means some will fire by chance on every run: use a stricter level per slice, or gate on the aggregate and the slices that matter and treat the rest as diagnostics (<a href="https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d" target="_blank" rel="noopener noreferrer">Eval statistics</a> has the arithmetic).</li>
+<li><b>A paired drop against the champion, per slice.</b> Same items, both configurations, compared per item. Gating 8 or 20 slices at once means some fire by chance on every run: use a stricter level per slice, or gate on the aggregate and the slices that matter and treat the rest as diagnostics (<a href="https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d" target="_blank" rel="noopener noreferrer">Eval statistics</a> has the arithmetic).</li>
 <li><b>Hard floors on safety slices</b>, where no trade is allowed: Vercel keeps refusal and safety evals at "a 100% pass rate" while other evals may move.</li>
-<li><b>Deterministic assertions:</b> the format parses, the tool call is valid, no forbidden string, the right citation. Cheap, exact, and the first layer of Hamel Husain's three levels (assertion tests on every code change, human and model evaluation on a cadence, A/B tests after significant product changes).</li>
-<li><b>Budget limits</b> computed from the same runs (next section).</li>
+<li><b>Deterministic assertions:</b> the format parses, the tool call is valid, no forbidden string, the right citation. Cheap and exact, and the first of Hamel Husain's three levels (assertion tests on every code change, human and model evaluation on a cadence, A/B tests after significant product changes).</li>
+<li><b>Budget limits</b> computed from the same runs (section 6).</li>
 </ul>
-<p>A gate result is a <b>decision with three outcomes</b>, not two: pass, fail, and "cannot tell", which escalates to more samples or a human. "Re-run until green" turns a gate into a random number generator with a bias toward shipping.</p>
+<p>A gate result has <b>three outcomes</b>, not two: pass, fail, and "cannot tell", which escalates to more samples or a human. "Re-run until green" turns a gate into a random number generator with a bias toward shipping.</p>
 <h3>Flaky evals</h3>
-<p>A gate that fails on an unchanged configuration trains everyone to ignore it. Three sources of flakiness are now well documented:</p>
+<p>A gate that fails on an unchanged configuration trains everyone to ignore it. Three sources are well documented:</p>
 <ul>
-<li><b>Temperature 0 is not deterministic on a shared server.</b> Thinking Machines sampled the same prompt 1,000 times at temperature 0 and got "80 unique completions", the first divergence at token 103; the cause is that server load changes the batch size, and the kernels are not batch-invariant. With batch-invariant kernels all 1,000 were identical, at a cost of 26 s rising to 55 s for the run (42 s with an improved attention kernel) (<a href="https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/" target="_blank" rel="noopener noreferrer">Defeating Nondeterminism in LLM Inference</a>, 10 Sep 2025). Through a provider API you cannot fix this, only measure it: score each item K times and gate on the mean. OpenAI's <code>seed</code> is "best effort" and "Determinism is not guaranteed" (<a href="https://developers.openai.com/api/reference/resources/chat" target="_blank" rel="noopener noreferrer">API reference</a>); Anthropic's docs say that "Even with temperature set to 0, the results will not be fully deterministic", and the parameter is now deprecated: "Models released after Claude Opus 4.6 do not support setting temperature" (<a href="https://platform.claude.com/docs/en/api/messages" target="_blank" rel="noopener noreferrer">Messages API</a>). A gate that relied on temperature 0 for repeatability has to move to K samples.</li>
-<li><b>The judge is a model too.</b> In the animation's data, one of 320 GPT-4 judge calls looped and never emitted a grade; across the whole file 4 of 5,440 did. Parse failures need an explicit rule, and a judge model or prompt change is a new instrument that needs re-baselining (the root page's <a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">Calibration section</a> and <a href="https://app.notion.com/p/3c65c17b0d0d810ba2a2ecc08c4c233b" target="_blank" rel="noopener noreferrer">LLM-as-judge</a>).</li>
-<li><b>Agents fail some trials and pass others.</b> Report pass^k (every one of k trials succeeds) beside pass@k: Anthropic's example is a 75% per-trial success rate becoming (0.75)^3, about 42%, over three trials. <a href="https://app.notion.com/p/3ef5c17b0d0d81fdbabaf3582bff37f2" target="_blank" rel="noopener noreferrer">Agent and trajectory evaluation</a> owns this for agents.</li>
+<li><b>Temperature 0 is not deterministic on a shared server.</b> Thinking Machines sampled one prompt 1,000 times at temperature 0 and got "80 unique completions", the first divergence at token 103, because server load changes the batch size and the kernels are not batch-invariant (<a href="https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/" target="_blank" rel="noopener noreferrer">Defeating Nondeterminism in LLM Inference</a>, 10 Sep 2025). Through a provider API you cannot fix this, only measure it: score each item K times and gate on the mean. OpenAI's <code>seed</code> is "best effort" (<a href="https://developers.openai.com/api/reference/resources/chat" target="_blank" rel="noopener noreferrer">API reference</a>); Anthropic: "Even with temperature set to 0, the results will not be fully deterministic", and "Models released after Claude Opus 4.6 do not support setting temperature" (<a href="https://platform.claude.com/docs/en/api/messages" target="_blank" rel="noopener noreferrer">Messages API</a>).</li>
+<li><b>The judge is a model too.</b> 4 of 5,440 GPT-4 judge calls in the MT-Bench file never emitted a grade. Parse failures need an explicit rule, and a judge model or prompt change is a new instrument that needs re-baselining (the root page's <a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">Calibration section</a> and <a href="https://app.notion.com/p/3c65c17b0d0d810ba2a2ecc08c4c233b" target="_blank" rel="noopener noreferrer">LLM-as-judge</a>).</li>
+<li><b>Agents fail some trials and pass others.</b> Report pass^k (every one of k trials succeeds) beside pass@k: Anthropic's example is a 75% per-trial success rate becoming (0.75)^3, about 42%, over three trials (<a href="https://app.notion.com/p/3ef5c17b0d0d81fdbabaf3582bff37f2" target="_blank" rel="noopener noreferrer">Agent and trajectory evaluation</a> owns this).</li>
 </ul>
 <p>Practice: pin every version, cache champion outputs, re-score K times where decoding is nondeterministic, quarantine items that flip on an unchanged configuration and fix or remove them, and log every gate run with its configuration so a failure can be replayed.</p>
-<h3>What trips the gate in common tools</h3>
-<p>The tools differ in what counts as a failure, and the default is often stricter or looser than you think (docs read 2026-10-04; tool depth on <a href="https://app.notion.com/p/3c65c17b0d0d81ea9cd5eb65795ff5c9" target="_blank" rel="noopener noreferrer">Eval harnesses</a>):</p>
-<div class="tw"><table>
-<thead><tr><th>Tool</th><th>What fails the build</th></tr></thead>
+<details class="mist"><summary>Measured cost of making inference deterministic, and the deprecations</summary><div class="b">With batch-invariant kernels all 1,000 of Thinking Machines' completions were identical, at a cost of 26 s rising to 55 s for the run (42 s with an improved attention kernel). OpenAI's API reference adds "Determinism is not guaranteed" to the <code>seed</code> parameter. Anthropic's temperature parameter is now deprecated, so a gate that relied on temperature 0 for repeatability has to move to K samples.</div></details>
+</section>
+
+<section id="rd-tools">
+<h2>5. The tools, by design</h2>
+<p>Every app-level eval tool stores the same three things (a dataset, the task's outputs, scores), but they differ in what counts as a failure, and the default is often stricter or looser than you think. Versions and products move fast: this is one dated table (docs read 2026-10-04; running and installing them is <a href="https://app.notion.com/p/3c65c17b0d0d81ea9cd5eb65795ff5c9" target="_blank" rel="noopener noreferrer">Eval harnesses</a>; their tracing side is <a href="https://app.notion.com/p/3c65c17b0d0d81fe82c0c6e9360afec4" target="_blank" rel="noopener noreferrer">LLM observability</a>).</p>
+<div class="tw"><table class="pe-tools">
+<thead><tr><th>Tool</th><th>What an eval is</th><th>Compared against</th><th>What fails the build</th><th>Live traffic</th></tr></thead>
 <tbody>
-<tr><td><a href="https://www.promptfoo.dev/docs/usage/command-line/" target="_blank" rel="noopener noreferrer">promptfoo</a></td><td><code>eval</code> exits with code 100 "when there is at least 1 test case failure or when the pass rate is below the threshold set by <code>PROMPTFOO_PASS_RATE_THRESHOLD</code>"; the default is 100%, no failures allowed. Each test passes when the weighted score of its assertions reaches its threshold.</td></tr>
-<tr><td><a href="https://deepeval.com/docs/evaluation-unit-testing-in-ci-cd" target="_blank" rel="noopener noreferrer">DeepEval</a></td><td>pytest-style: "when a metric falls below its threshold the assertion fails, so the build goes red". A <code>flaky=True</code> flag turns a failure into a warning for borderline cases that "flip between passing and failing across runs".</td></tr>
-<tr><td><a href="https://www.braintrust.dev/docs/evaluate/run-in-ci" target="_blank" rel="noopener noreferrer">Braintrust</a></td><td>A GitHub Action posts per-row score deltas against a baseline experiment (by default the latest on the same branch) to the pull request; <code>bt eval</code> exits non-zero only if an eval throws, so a score gate is your own reporter returning false.</td></tr>
-<tr><td><a href="https://docs.langchain.com/langsmith/pytest" target="_blank" rel="noopener noreferrer">LangSmith</a></td><td>pytest assertions fail CI; the comparison view counts runs that "regressed" or "improved" against a chosen experiment.</td></tr>
-<tr><td><a href="https://inspect.aisi.org.uk/handling-errors.html" target="_blank" rel="noopener noreferrer">Inspect</a></td><td>No score gate built in: <code>fail_on_error</code> stops a run on sample errors (or above an error share such as 0.1), and the docs say to "always check their status"; a threshold is your own code over the log.</td></tr>
-<tr><td><a href="https://developers.openai.com/api/docs/guides/evals" target="_blank" rel="noopener noreferrer">OpenAI Evals API</a></td><td>Graders carry a <code>pass_threshold</code>; a run reports passed, failed and errored counts. <b>Being retired:</b> "Evals will become read-only for existing users on October 31, 2026, and the platform is scheduled to shut down" on 30 November 2026. Export gate history now.</td></tr>
+<tr><td><a href="https://www.promptfoo.dev/docs/usage/command-line/" target="_blank" rel="noopener noreferrer">promptfoo</a><br><span class="mute small">open source (MIT)</span></td><td>A config: prompts x providers x test cases; a test passes when the weighted score of its assertions reaches its threshold</td><td>Side by side in one matrix (image below)</td><td><code>eval</code> exits with code 100 "when there is at least 1 test case failure or when the pass rate is below the threshold set by <code>PROMPTFOO_PASS_RATE_THRESHOLD</code>"; default 100%, no failures allowed</td><td>Not in the pages read</td></tr>
+<tr><td><a href="https://deepeval.com/docs/evaluation-unit-testing-in-ci-cd" target="_blank" rel="noopener noreferrer">DeepEval</a><br><span class="mute small">Python, pytest-based</span></td><td>pytest tests calling <code>assert_test()</code> with metric thresholds</td><td>Each metric's threshold</td><td>"when a metric falls below its threshold the assertion fails, so the build goes red"; <code>flaky=True</code> turns a failure into a warning for cases that "flip between passing and failing across runs"</td><td>Not in the pages read</td></tr>
+<tr><td><a href="https://www.braintrust.dev/docs/evaluate/run-in-ci" target="_blank" rel="noopener noreferrer">Braintrust</a><br><span class="mute small">commercial</span></td><td><code>Eval(data, task, scores)</code> in your code, stored as an experiment</td><td>A baseline experiment, by default the most recent on the same git branch; a GitHub Action posts per-row score deltas to the pull request, regressions in red</td><td><code>bt eval</code> exits non-zero only if an eval throws, so a score gate is your own reporter returning false</td><td>Scoring rules at a sampling rate</td></tr>
+<tr><td><a href="https://docs.langchain.com/langsmith/pytest" target="_blank" rel="noopener noreferrer">LangSmith</a><br><span class="mute small">commercial</span></td><td>pytest or SDK experiments; a <code>pass</code> feedback key per test case</td><td>A chosen experiment; the view counts runs that "regressed" or "improved"</td><td>pytest assertions</td><td>Online evaluators at a sampling rate</td></tr>
+<tr><td><a href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge" target="_blank" rel="noopener noreferrer">Langfuse</a><br><span class="mute small">open source (MIT outside <code>ee/</code>)</span></td><td>Evaluation rules over traced observations: filters, a sampling rate, evaluator assignments</td><td>Not in the pages read</td><td>Not in the pages read</td><td>Its design centre: rules score live traces; "A typical evaluation costs $0.01-0.10 per assessment"</td></tr>
+<tr><td><a href="https://inspect.aisi.org.uk/handling-errors.html" target="_blank" rel="noopener noreferrer">Inspect</a><br><span class="mute small">UK AI Security Institute</span></td><td>A Python task: dataset, solvers, scorer; a log per run</td><td>Your own code over two logs</td><td>No score gate built in: <code>fail_on_error</code> stops a run on sample errors (or above an error share such as 0.1); the docs say to "always check their status"</td><td>Not in the pages read</td></tr>
+<tr><td><a href="https://developers.openai.com/api/docs/guides/evals" target="_blank" rel="noopener noreferrer">OpenAI Evals API</a><br><span class="mute small">being retired</span></td><td>Graders with a <code>pass_threshold</code>; a run reports passed, failed and errored counts</td><td>Runs of one eval</td><td>Your code over the counts</td><td>Not in the pages read</td></tr>
 </tbody></table></div>
+<p class="small"><b>Retirement:</b> OpenAI's Evals platform "will become read-only for existing users on October 31, 2026, and the platform is scheduled to shut down" on 30 November 2026. Export gate history now.</p>
+<figure class="pe-img"><a href="img/promptfoo_web_viewer.webp" target="_blank" rel="noopener noreferrer"><img src="img/promptfoo_web_viewer.webp" alt="promptfoo's web viewer: pass-rate bars for five models, a histogram of test scores, and a matrix with one column per model showing its pass rate, token counts, latency and each output marked PASS or FAIL" loading="lazy" width="1400" height="732"></a>
+<figcaption><b>What a gate's evidence looks like:</b> one column per configuration, the pass rate on top (75.00% passing, 6 of 8 cases), cost and latency per column (the budget gate's inputs), and every output with its verdict underneath, so a FAIL cell opens straight into error analysis. Real promptfoo web viewer, five open models on 8 test cases. Credit: Promptfoo, MIT licence, <a href="https://github.com/promptfoo/promptfoo/blob/main/site/static/img/claude-vs-gpt-example%402x.png" target="_blank" rel="noopener noreferrer">source</a> (cropped).</figcaption></figure>
 </section>
 <section id="rd-budget">
-<h2>Cost and latency budgets</h2>
-<h3>The product's budget</h3>
-<p>The second gate reads tokens per request, p95 latency and projected spend from the runs the first gate already made, so it is nearly free. A model swap that wins on quality at 3 times the cost fails promotion unless someone explicitly waives it. Latency belongs in it from the start: Honeycomb's query assistant saw responses take "from two to 15+ seconds" in 2023 (<a href="https://www.honeycomb.io/blog/hard-stuff-nobody-talks-about-llm" target="_blank" rel="noopener noreferrer">All the Hard Stuff Nobody Talks About</a>, 26 May 2023), and GitHub describes Copilot model choices as a trade between acceptance rate and latency (17 Jan 2025). Discord measures tokens per second during a limited release "to predict the costs of a complete launch" (<a href="https://discord.com/blog/developing-rapidly-with-generative-ai" target="_blank" rel="noopener noreferrer">Developing Rapidly with Generative AI</a>, 12 Apr 2024).</p>
-<p><b>Model choice is a Pareto problem.</b> Plot calibrated quality against cost per request (and latency) for every candidate, and only points on the frontier are candidates. Below: the four strongest models in the animation's MT-Bench file at their mid-2023 list prices. Move the input share: the frontier depends on your traffic's mix of prompt and completion tokens.</p>
+<h2>6. Cost and latency budgets</h2>
+<p>The second gate reads tokens per request, p95 latency and projected spend from the runs the first gate already made, so it is nearly free. A model swap that wins on quality at 3 times the cost fails promotion unless someone explicitly waives it. Latency belongs in it from the start: Honeycomb's query assistant saw responses take "from two to 15+ seconds" (<a href="https://www.honeycomb.io/blog/hard-stuff-nobody-talks-about-llm" target="_blank" rel="noopener noreferrer">All the Hard Stuff Nobody Talks About</a>, 26 May 2023); GitHub describes Copilot model choices as a trade between acceptance rate and latency (17 Jan 2025); Discord measures tokens per second during a limited release "to predict the costs of a complete launch" (<a href="https://discord.com/blog/developing-rapidly-with-generative-ai" target="_blank" rel="noopener noreferrer">Developing Rapidly with Generative AI</a>, 12 Apr 2024).</p>
+<p><b>Model choice is a Pareto problem:</b> plot quality against cost per request (and latency) for every candidate; only points on the frontier are candidates. <b>Predict:</b> as your traffic becomes mostly prompt tokens, does the cheap Claude model join the frontier? Drag the share.</p>
 <div class="card" id="fr">
 <div class="ctl"><label>Share of tokens that are prompt (input): <b id="fr-mixv"></b><input type="range" id="fr-mix" min="0" max="95" step="5" value="75"></label></div>
 <div id="fr-plot" class="plot"></div>
 <p class="small mute" id="fr-note"></p>
 </div>
-<p>Three practical additions. <b>Cascades and routing</b>: a cheap model with escalation on low confidence or judge-flagged outputs often beats any single point. <b>Quality per dollar</b> as the gate metric on cost-sensitive surfaces. And <b>re-run the frontier</b> on every price or model-version change, because frontiers move month to month: the chart above is a 2023 snapshot, not advice.</p>
-<h3>The evals' own budget</h3>
-<p>The gate costs money too, and judge calls dominate it. The animation's run took 320 GPT-4 calls averaging <span class="pe-v" data-k="tokcall"></span> tokens each (counted with GPT-4's tokenizer on the released prompts and judgments): <span class="pe-v" data-k="judgecost"></span> at the 2023 price of $0.03 per 1,000 prompt tokens and $0.06 per 1,000 completion tokens (<a href="https://web.archive.org/web/20230531155533/https://openai.com/pricing" target="_blank" rel="noopener noreferrer">OpenAI pricing, May 2023 capture</a>). Small per run, but a gate runs on every change, a shadow judge runs on a share of all traffic, and the champion's scores must be recomputed whenever the judge changes. Published reference points:</p>
+<p class="small mute pe-cap"><b>The frontier depends on your traffic's token mix.</b> The four strongest models in the MT-Bench file at their mid-2023 list prices: at 75% prompt tokens the frontier is gpt-3.5-turbo and gpt-4; claude-instant-v1 joins it above a 90.5% prompt share (5.51 &minus; 3.88 x share &le; 2), where its blended price drops below gpt-3.5-turbo's (blended price = share x prompt price + (1 &minus; share) x completion price; recomputed in <code>src/recompute.py</code>). A 2023 snapshot to show the method, not advice: re-run the frontier on every price or model-version change.</p>
+<p>Three practical additions. <b>Cascades and routing</b>: a cheap model with escalation on low confidence or judge-flagged outputs often beats any single point (routers: <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a>). <b>Quality per dollar</b> as the gate metric on cost-sensitive surfaces. And the frontier is <b>re-run</b>, never cached.</p>
+<h3>The evals' own bill</h3>
+<p>The gate costs money too, and judge calls dominate it. Section 3's run took 320 GPT-4 calls averaging <span class="pe-v" data-k="tokcall">775 (617 prompt, 159 completion)</span> tokens each (counted with GPT-4's tokenizer on the released prompts and judgments): <span class="pe-v" data-k="judgecost">$8.97 for the two models, or $0.028 per call</span> at the 2023 price of $0.03 per 1,000 prompt tokens and $0.06 per 1,000 completion tokens (<a href="https://web.archive.org/web/20230531155533/https://openai.com/pricing" target="_blank" rel="noopener noreferrer">OpenAI pricing, May 2023 capture</a>). Small per run, but a gate runs on every change, an online judge on a share of all traffic, and the champion must be re-scored whenever the judge changes.</p>
 <ul>
 <li>Vercel: "LLM evals still cost 1.5x to 2x more than code-based grading", so deterministic checks go first (17 Oct 2024).</li>
 <li>LinkedIn "had to set timetables for when it was ok to test the product or not, as it'd consume too many tokens" (<a href="https://www.linkedin.com/blog/engineering/generative-ai/musings-on-building-a-generative-ai-product" target="_blank" rel="noopener noreferrer">Musings on Building a Generative AI Product</a>, 25 Apr 2024).</li>
-<li>Checklist judges move the economics: grading all of WildBench 1,000 times costs $27.7 with Gemma-2-2B against $3,400 with GPT-4o, at a near-identical model ranking but weaker per-item agreement, so they suit aggregate and drift gates, not single-item verdicts (<a href="https://app.notion.com/p/3cd5c17b0d0d81ffa8e5f8fa5a5806c8" target="_blank" rel="noopener noreferrer">RocketEval</a>, paper page).</li>
+<li>Checklist judges move the economics: grading all of WildBench 1,000 times costs $27.7 with Gemma-2-2B against $3,400 with GPT-4o, at a near-identical model ranking but weaker per-item agreement, so they suit aggregate and drift gates, not single-item verdicts (<a href="https://app.notion.com/p/3cd5c17b0d0d81ffa8e5f8fa5a5806c8" target="_blank" rel="noopener noreferrer">RocketEval</a>, paper page). Panels of small judges exist because scoring production traffic with a frontier judge inverts the economics; the root page's <a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">Judge atlas</a> tab compares judges.</li>
 </ul>
-<p>Judge cost is therefore part of the frontier: panels of small judges exist because scoring production traffic with a frontier judge inverts the economics. The <a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">Judge atlas</a> tab on the root page compares judges.</p>
 </section>
-
 <section id="rd-online">
-<h2>Offline against online</h2>
-<p>Offline evals catch the regressions you anticipated; online metrics catch what your golden set could not imagine. Both are required, and they disagree routinely.</p>
+<h2>7. Online evaluation</h2>
+<p>Offline evals catch the regressions you anticipated; online measurement catches what the golden set could not imagine. The instruments: <b>sampled judge scoring</b> of live traces (asynchronous, outside the request path, usually reference-free because live traffic has no reference answers); <b>implicit signals</b> (retry and regenerate rate, how much users edit an output, abandonment, escalation to a human); <b>explicit feedback</b> (thumbs, ratings); and the business or task-completion metric itself. The first design decision is how much traffic to judge.</p>
+<div class="card" id="pe-smp">
+<div class="ctl"><label>Share of live traces sent to the judge: <b id="pe-smp-v"></b><input type="range" id="pe-smp-r" min="0" max="10" step="1" value="3" aria-label="Sampling rate"></label></div>
+<div id="pe-smp-svg"></div>
+<div class="out" id="pe-smp-out"></div>
+</div>
+<p class="small mute pe-cap"><b>The judge bill scales with the sampling rate; the rare slice is what runs short.</b> Defaults: 1 million requests a day and $0.03 per judged trace, inside Langfuse's "A typical evaluation costs $0.01-0.10 per assessment" (<a href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge" target="_blank" rel="noopener noreferrer">LLM-as-a-judge</a>); at 1% that is 10,000 judged traces and $300 a day (cost = requests x rate x price). The shaded bands are the vendor advice: Braintrust suggests "lower rates (1-10%)" for high-volume applications and "50-100%" for low-volume or critical ones (<a href="https://www.braintrust.dev/docs/evaluate/score-online" target="_blank" rel="noopener noreferrer">online scoring</a>); LangSmith's example scores "10% of traces" (<a href="https://docs.langchain.com/langsmith/online-evaluations-llm-as-judge" target="_blank" rel="noopener noreferrer">online evaluators</a>). An intent that is 2% of traffic (illustrative) gets only 200 judged traces a day at 1%: sample by slice, not only uniformly, when a small slice matters.</p>
 <ul>
-<li><b>Online instruments:</b> sampled judge scoring of live traces (asynchronous, outside the request path); implicit signals (retry and regenerate rate, how much users edit an output, abandonment, escalation to a human); explicit feedback (thumbs, ratings); and the business or task-completion metric itself.</li>
 <li><b>Their delays differ by days.</b> LinkedIn's annotators "give more granular feedback but have a ~1 day turnaround", while member metrics "can take 3+ days for a single change"; their linguists rated up to 500 conversations a day (25 Apr 2024).</li>
 <li><b>Offline rankings often fail to predict online ones.</b> Copilot Arena's in-editor preference ranking had "low correlation (rs &le; 0.1) with most static benchmarks" (0.62 with Chatbot Arena's coding ranking). And the online metric is itself a proxy: for Copilot, acceptance rate "correlates best with aggregate productivity" among usage measures, at only &rho; = 0.24 (<a href="https://arxiv.org/abs/2205.06537" target="_blank" rel="noopener noreferrer">Ziegler et al. 2022</a>).</li>
-<li><b>Divergence is an alarm on the offline set.</b> If a candidate wins offline and loses online, the golden set or the judge is miscalibrated for current traffic: find the divergent segment and feed it back into the golden set.</li>
-<li><b>Online judge scores inherit every judge failure</b> (<a href="https://app.notion.com/p/3c65c17b0d0d810ba2a2ecc08c4c233b" target="_blank" rel="noopener noreferrer">LLM-as-judge</a>), plus sampling bias (which traffic gets scored) and label lag; correct them with the judge's true- and false-positive rates measured on a human-labelled slice, as for offline scores.</li>
+<li><b>Divergence is an alarm on the offline set.</b> If a challenger wins offline and loses online, the golden set or the judge is miscalibrated for current traffic: find the divergent segment and feed it back into the golden set (section 1's loop).</li>
+<li><b>Online judge scores inherit every judge failure</b>, plus sampling bias (which traffic gets scored) and label lag; correct them with the judge's true- and false-positive rates measured on a human-labelled slice, and "track confidence intervals" (Hamel Husain and Shreya Shankar's FAQ). How to correct a judge-derived rate: <a href="https://app.notion.com/p/3c65c17b0d0d810ba2a2ecc08c4c233b" target="_blank" rel="noopener noreferrer">LLM-as-judge</a>.</li>
 </ul>
-<div class="co warn"><div class="t">When every number looked fine: GPT-4o, April 2025</div>OpenAI shipped a GPT-4o update on 24 to 25 April 2025 that was markedly sycophantic, and rolled it back; "The full rollback took around 24 hours". In their account, "offline evaluations, especially those testing behavior, generally looked good" and "the A/B tests seemed to indicate that the small number of users who tried the model liked it"; "some expert testers had indicated that the model behavior 'felt' slightly off", and "We also didn't have specific deployment evaluations tracking sycophancy." The update had leaned on thumbs-up and thumbs-down signals, and they "focused too much on short-term feedback". Their fixes are pipeline fixes: behavioural issues become launch-blocking, an opt-in alpha phase, and "blocking launches based on proxy measurements or qualitative signals, even when metrics like A/B testing look good" (<a href="https://openai.com/index/sycophancy-in-gpt-4o/" target="_blank" rel="noopener noreferrer">Sycophancy in GPT-4o</a>, 29 Apr 2025; <a href="https://openai.com/index/expanding-on-sycophancy/" target="_blank" rel="noopener noreferrer">Expanding on what we missed with sycophancy</a>, May 2025). The lesson for this page: an online metric that users can reward is itself an instrument that can be gamed, and a golden set without a slice for a failure mode cannot see it.</div>
+<div class="co warn"><div class="t">When every number looked fine: GPT-4o, April 2025</div>OpenAI shipped a GPT-4o update on 24 to 25 April 2025 that was markedly sycophantic, and rolled it back; "The full rollback took around 24 hours". In their account, "offline evaluations, especially those testing behavior, generally looked good" and "the A/B tests seemed to indicate that the small number of users who tried the model liked it"; "some expert testers had indicated that the model behavior 'felt' slightly off", and "We also didn't have specific deployment evaluations tracking sycophancy." The update had leaned on thumbs-up and thumbs-down signals, and they "focused too much on short-term feedback". Their fixes are pipeline fixes: behavioural issues become launch-blocking, an opt-in alpha phase, and "blocking launches based on proxy measurements or qualitative signals, even when metrics like A/B testing look good" (<a href="https://openai.com/index/sycophancy-in-gpt-4o/" target="_blank" rel="noopener noreferrer">Sycophancy in GPT-4o</a>, 29 Apr 2025; <a href="https://openai.com/index/expanding-on-sycophancy/" target="_blank" rel="noopener noreferrer">Expanding on what we missed with sycophancy</a>, May 2025). An online metric users can reward can be gamed, and a golden set without a slice for a failure mode cannot see it.</div>
 </section>
 
-<section id="rd-shadow">
-<h2>Shadow deployments</h2>
-<p>In shadow mode the candidate runs on mirrored production requests; its responses are logged, never served. Champion and candidate are then scored on the <i>same</i> requests, so the comparison is paired by construction, and score distributions are diffed per intent or segment. Microsoft's experimentation platform describes the same idea for LLM features: shadow experiments "compute the treatment and control response for the same user, but only show them the control response", which makes metrics "more sensitive than regular A/B tests" because both arms share the same users; the limit is that "metrics that need user response cannot be evaluated in shadow experiments" (<a href="https://www.microsoft.com/en-us/research/group/experimentation-platform-exp/articles/how-to-evaluate-llms-a-complete-metric-framework/" target="_blank" rel="noopener noreferrer">How to Evaluate LLMs: A Complete Metric Framework</a>, 27 Sep 2023).</p>
+<section id="rd-exp">
+<h2>8. Shadow, canary, A/B tests and interleaving</h2>
+<p>Four ways to put a challenger in front of real traffic, from no user exposure to full randomisation. They differ in who sees the challenger's answer, and therefore in what they can measure:</p>
+<div class="card" id="pe-exp"><div id="pe-exp-svg"></div></div>
+<p class="small mute pe-cap"><b>Only designs that show the challenger to users can measure user reactions; only paired designs get high sensitivity cheaply.</b> Shadow pairs both arms on the same request but cannot see behaviour; A/B sees behaviour but compares different users; interleaving pairs both rankers inside one user's list, which is why it needs so much less traffic.</p>
+<h3>Shadow</h3>
+<p>The challenger runs on mirrored production requests; its responses are logged, never served. Scored on the <i>same</i> requests as the champion, the comparison is paired by construction, and score distributions are diffed per intent. Microsoft's experimentation platform: shadow experiments "compute the treatment and control response for the same user, but only show them the control response", which makes metrics "more sensitive than regular A/B tests"; the limit is that "metrics that need user response cannot be evaluated in shadow experiments" (<a href="https://www.microsoft.com/en-us/research/group/experimentation-platform-exp/articles/how-to-evaluate-llms-a-complete-metric-framework/" target="_blank" rel="noopener noreferrer">How to Evaluate LLMs: A Complete Metric Framework</a>, 27 Sep 2023).</p>
 <ul>
-<li><b>What shadow catches:</b> the distribution gap between curated and real inputs; errors, timeouts and rate limits (the same framework tracks the 90th and 95th percentile of HTTP 429 errors and time to first token); latency under real load.</li>
-<li><b>What it cannot catch:</b> anything that depends on how a user reacts (accepting, editing, retrying), which only an A/B test shows.</li>
+<li><b>What shadow catches:</b> the gap between curated and real inputs; errors, timeouts and rate limits (the same framework tracks the 90th and 95th percentile of HTTP 429 errors and time to first token); latency under real load. <b>Cost:</b> inference doubles on the mirrored share, plus judge calls; mirror a sample.</li>
 <li><b>Agents:</b> shadow whole trajectories, not single turns, and make every tool with side effects a dry run or a sandbox in the shadow path: a mirrored agent that really sends the email is not a shadow.</li>
-<li><b>Infrastructure supports it directly:</b> AWS SageMaker shadow tests send copies of requests to a shadow variant at a chosen "traffic sampling percentage", return "Only the responses of the production variant", and compare latency and errors side by side for 1 hour to 30 days (<a href="https://docs.aws.amazon.com/sagemaker/latest/dg/shadow-tests.html" target="_blank" rel="noopener noreferrer">shadow tests</a>); Seldon Core 2 mirrors traffic to a model whose responses "will not be returned to the caller" (<a href="https://docs.seldon.ai/seldon-core-2/user-guide/experiment.md" target="_blank" rel="noopener noreferrer">experiments</a>). Quality scoring of the shadow responses is yours to add.</li>
-<li><b>Cost:</b> inference doubles on the mirrored share, plus judge calls; mirror a sample, not everything.</li>
+<li><b>Infrastructure supports it:</b> AWS SageMaker shadow tests copy requests to a shadow variant at a chosen "traffic sampling percentage", return "Only the responses of the production variant", and compare latency and errors for 1 hour to 30 days (<a href="https://docs.aws.amazon.com/sagemaker/latest/dg/shadow-tests.html" target="_blank" rel="noopener noreferrer">shadow tests</a>); Seldon Core 2 mirrors traffic to a model whose responses "will not be returned to the caller" (<a href="https://docs.seldon.ai/seldon-core-2/user-guide/experiment.md" target="_blank" rel="noopener noreferrer">experiments</a>). Quality scoring of the shadow responses is yours to add.</li>
 </ul>
-</section>
-
-<section id="rd-ab">
-<h2>Canary, A/B tests and interleaving</h2>
-<p>The last gate exposes real users. A <b>canary</b> sends a small share of traffic (or only staff: GitHub runs an internal canary with its own employees before Copilot changes reach customers) to the candidate with <b>guardrail metrics</b> (error rate, refusal rate, complaints, task completion) and automatic rollback triggers; then a progressive rollout. Google's SRE workbook defines canarying as "a partial and time-limited deployment of a change in a service and its evaluation", compares canary against a concurrent control rather than against yesterday because "time is one of the biggest sources of change", and keeps the metrics to "perhaps no more than a dozen" (<a href="https://sre.google/workbook/canarying-releases/" target="_blank" rel="noopener noreferrer">Canarying releases</a>). An <b>A/B test</b> randomises users between champion and candidate and compares a primary metric. Anthropic's 2026 guide notes that A/B results take "days or weeks to reach significance", which is why everything cheaper runs first.</p>
-<p><b>Interleaving</b> is the sensitive alternative from search ranking: each user sees one merged list built from both rankers, and credit goes to whichever ranker contributed the items the user chose. Netflix reported that interleaving "requires &gt;100&times; fewer users than our most sensitive A/B metric to achieve 95% power", and uses it as a first stage to prune candidates before an A/B test on the survivors (<a href="https://netflixtechblog.com/interleaving-in-online-experiments-at-netflix-a04ee392ec55" target="_blank" rel="noopener noreferrer">Interleaving at Netflix</a>, 29 Nov 2017). Airbnb reported a "50x speedup over an A/B test given the same amount of traffic", about 6% of a regular test's traffic for a third of its duration, agreeing with the A/B result "82% of the time" (<a href="https://medium.com/airbnb-engineering/beyond-a-b-test-speeding-up-airbnb-search-ranking-experimentation-through-interleaving-7087afa09c8e" target="_blank" rel="noopener noreferrer">Beyond A/B Test</a>, 6 Oct 2022).</p>
-<p>For LLM features, interleaving only fits where the output is a list (search, retrieval, code suggestions to pick from). For a single free-text answer, the closest analogue is a side-by-side preference shown to the user: OpenAI lists "preferences in side by side comparisons" among the aggregate A/B metrics it reads (May 2025). That inherits every bias of pairwise judging, done by users instead of a model, and the <a href="https://app.notion.com/p/3ef5c17b0d0d814db49ff3b5c9fc3034" target="_blank" rel="noopener noreferrer">Human preference and arenas</a> page covers how such votes mislead.</p>
-<h3>The experimentation hygiene that carries over</h3>
-<p>LLM features inherit everything online experimentation learned, and the same mistakes:</p>
+<h3>Canary and A/B</h3>
+<p>A <b>canary</b> sends a small share of traffic (or only staff: GitHub runs an internal canary with its own employees before Copilot changes reach customers) to the challenger, with <b>guardrail metrics</b> (error rate, refusal rate, complaints, task completion, cost per session) and automatic rollback triggers; then a progressive rollout. Google's SRE workbook defines canarying as "a partial and time-limited deployment of a change in a service and its evaluation", compares the canary against a concurrent control rather than against yesterday because "time is one of the biggest sources of change", and keeps the metrics to "perhaps no more than a dozen" (<a href="https://sre.google/workbook/canarying-releases/" target="_blank" rel="noopener noreferrer">Canarying releases</a>). An <b>A/B test</b> randomises users between champion and challenger and compares a primary metric; Anthropic notes A/B results take "days or weeks to reach significance", which is why everything cheaper runs first.</p>
+<h3>Interleaving</h3>
+<p>From search ranking: each user sees one merged list built from both rankers, and credit goes to whichever ranker contributed the items the user chose. Netflix reported that interleaving "requires &gt;100&times; fewer users than our most sensitive A/B metric to achieve 95% power", and uses it to prune candidates before an A/B test on the survivors (<a href="https://netflixtechblog.com/interleaving-in-online-experiments-at-netflix-a04ee392ec55" target="_blank" rel="noopener noreferrer">Interleaving at Netflix</a>, 29 Nov 2017). Airbnb reported a "50x speedup over an A/B test given the same amount of traffic", about 6% of a regular test's traffic for a third of its duration, agreeing with the A/B result "82% of the time" (<a href="https://medium.com/airbnb-engineering/beyond-a-b-test-speeding-up-airbnb-search-ranking-experimentation-through-interleaving-7087afa09c8e" target="_blank" rel="noopener noreferrer">Beyond A/B Test</a>, 6 Oct 2022). For LLM features it fits only where the output is a list (search, retrieval, code suggestions to pick from); for a single free-text answer the analogue is a side-by-side preference shown to the user, which OpenAI lists among the A/B metrics it reads ("preferences in side by side comparisons", May 2025) and which inherits every bias of pairwise voting (<a href="https://app.notion.com/p/3ef5c17b0d0d814db49ff3b5c9fc3034" target="_blank" rel="noopener noreferrer">Human preference and arenas</a>).</p>
+<details class="mist"><summary>Experimentation hygiene that carries over to LLM features (SRM, guardrails, CUPED, peeking, side-by-side)</summary><div class="b">
 <ul>
 <li><b>Why interleaving is so sensitive:</b> it "is a paired test, paired on both queries and users". On Yahoo data, an absolute click metric needed between 17.8 and 379 times as much data as interleaving for five of six ranker pairs (and less for the sixth), "over an order of magnitude" overall (Chapelle et al., <a href="https://www.cs.cornell.edu/people/tj/publications/chapelle_etal_12a.pdf" target="_blank" rel="noopener noreferrer">Large-scale validation and analysis of interleaved search evaluation</a>, TOIS 2012). The same pairing is why shadow comparisons and paired golden-set gates beat unpaired ones.</li>
 <li><b>Side-by-side inside a product:</b> Copilot Arena showed two code completions stacked in the editor, with Tab or Shift+Tab as the vote, order randomised "to remove top-bottom bias"; over "4.5 million suggestions from 10 models". A pair is as slow as its slower model, and a latency-aware sampler cut median latency from 1.61 to 1.07 seconds (<a href="https://arxiv.org/abs/2502.09328" target="_blank" rel="noopener noreferrer">Copilot Arena</a>, Feb 2025).</li>
 <li><b>Sample ratio mismatch (SRM):</b> when the split of users between arms differs from the design, the test is usually broken: "approximately 6% of experiments at Microsoft exhibit an SRM", detected with a chi-square test (<a href="https://exp-platform.com/Documents/2019_KDDFabijanGupchupFuptaOmhoverVermeerDmitriev.pdf" target="_blank" rel="noopener noreferrer">Fabijan et al., KDD 2019</a>). LLM features add new causes: timeouts and rate limits that drop one arm's sessions.</li>
-<li><b>Guardrail metrics</b> "Measure aspects of the product that we don't want to degrade but won't necessarily improve" (<a href="https://www.microsoft.com/en-us/research/articles/patterns-of-trustworthy-experimentation-during-experiment-stage/" target="_blank" rel="noopener noreferrer">Microsoft ExP, 2021</a>): for an LLM feature, latency, error and refusal rates, cost per session.</li>
+<li><b>Guardrail metrics</b> "Measure aspects of the product that we don't want to degrade but won't necessarily improve" (<a href="https://www.microsoft.com/en-us/research/articles/patterns-of-trustworthy-experimentation-during-experiment-stage/" target="_blank" rel="noopener noreferrer">Microsoft ExP, 2021</a>).</li>
 <li><b>Variance reduction:</b> CUPED, adjusting each user's metric by the same metric before the experiment, reduced variance "by about 50%" at Bing, the same power "with only half of the users, or half the duration" (<a href="https://exp-platform.com/Documents/2013-02-CUPED-ImprovingSensitivityOfControlledExperiments.pdf" target="_blank" rel="noopener noreferrer">Deng et al., WSDM 2013</a>).</li>
-<li><b>Peeking:</b> checking a running test daily and stopping at the first significant result inflates false positives; "Type I error can easily increase fivefold" even with 10,000 samples, unless the test uses always-valid p-values built for continuous monitoring (<a href="https://arxiv.org/abs/1512.04922" target="_blank" rel="noopener noreferrer">Johari et al.</a>). The canonical reference for all of this is Kohavi, Tang and Xu, <a href="https://www.cambridge.org/core/books/trustworthy-online-controlled-experiments/D97B26382EB0EB2DC2019A7A7B518F59" target="_blank" rel="noopener noreferrer">Trustworthy Online Controlled Experiments</a> (2020).</li>
+<li><b>Peeking:</b> checking a running test daily and stopping at the first significant result inflates false positives; "Type I error can easily increase fivefold" even with 10,000 samples, unless the test uses always-valid p-values built for continuous monitoring (<a href="https://arxiv.org/abs/1512.04922" target="_blank" rel="noopener noreferrer">Johari et al.</a>). The canonical reference for all of this is Kohavi, Tang and Xu, <a href="https://www.cambridge.org/core/books/trustworthy-online-controlled-experiments/D97B26382EB0EB2DC2019A7A7B518F59" target="_blank" rel="noopener noreferrer">Trustworthy Online Controlled Experiments</a> (2020); bandits as an alternative to a fixed split: <a href="https://app.notion.com/p/3ee5c17b0d0d81acba54d70ac51c601c" target="_blank" rel="noopener noreferrer">Bandits and exploration</a>.</li>
+<li><b>When the metric becomes the reward:</b> Cursor retrains its Tab completion model on live accept and reject signals, taking "1.5 to 2 hours to roll out a checkpoint and collect the data" across "over 400 million requests per day"; the new policy made "21% fewer suggestions" with a "28% higher accept rate" (<a href="https://cursor.com/blog/tab-rl" target="_blank" rel="noopener noreferrer">Improving Cursor Tab with online RL</a>, 12 Sep 2025). The metric then needs the same scepticism as any reward (<a href="https://app.notion.com/p/3c65c17b0d0d8196a6f1f29a817aa974" target="_blank" rel="noopener noreferrer">Reward hacking</a>).</li>
 </ul>
-<p>Online learning closes the loop entirely. Cursor retrains its Tab completion model on live accept and reject signals, taking "1.5 to 2 hours to roll out a checkpoint and collect the data" across "over 400 million requests per day"; the new policy made "21% fewer suggestions" with a "28% higher accept rate" (<a href="https://cursor.com/blog/tab-rl" target="_blank" rel="noopener noreferrer">Improving Cursor Tab with online RL</a>, 12 Sep 2025). The metric is now the reward, so it needs the same scepticism as any reward (<a href="https://app.notion.com/p/3c65c17b0d0d8196a6f1f29a817aa974" target="_blank" rel="noopener noreferrer">Reward hacking</a>).</p>
+</div></details>
 </section>
-
 <section id="rd-mon">
-<h2>Monitoring and drift</h2>
-<p>Passing every gate is a statement about the day of launch. Afterwards, everything moves:</p>
+<h2>9. Monitoring and drift</h2>
+<p>Passing every gate is a statement about launch day. Afterwards three things move, and each needs its own watch:</p>
 <ul>
-<li><b>Traffic drift:</b> new users, new intents, new languages; watch the input mix and per-intent judge scores, not only the global mean.</li>
-<li><b>Product drift:</b> the features around the model change what "good" means; the golden set and rubrics must follow (criteria drift, above).</li>
+<li><b>Traffic drift:</b> new users, intents, languages. Watch the input mix and per-intent judge scores, not only the global mean.</li>
+<li><b>Product drift:</b> the features around the model change what "good" means; the golden set and rubrics follow (criteria drift, section 2).</li>
 <li><b>Provider and infrastructure drift:</b> the model behind an API, or the serving stack around it, changes without your prompt changing. Pin model snapshots where the provider offers them, and keep a canary set running against production daily: GitLab validates "daily" against "the baseline from the day before", and GitHub runs its tests "against our production models every day".</li>
 </ul>
+<p>The first is the one a statistical test can see. The common test for text trains a classifier to tell last month's inputs from this week's:</p>
+<div class="card" id="pe-drift"><div id="pe-drift-svg"></div></div>
+<p class="small mute pe-cap"><b>If a classifier can tell the two windows apart, the inputs drifted.</b> Evidently flags drift when the classifier's ROC AUC exceeds 0.55 on more than 1,000 observations (<a href="https://docs.evidentlyai.com/metrics/explainer_drift" target="_blank" rel="noopener noreferrer">drift explainer</a>), and recommends the same "model-based drift detection as a good default" for embeddings (<a href="https://www.evidentlyai.com/blog/embedding-drift-detection" target="_blank" rel="noopener noreferrer">embedding drift</a>, 2023, updated 2025). The classifier's most confident examples are the ones to read: they show <i>what</i> changed, and they go into section 1's loop. Retrieval-specific drift (stale indexes, re-embedding backfills) is <a href="https://app.notion.com/p/3f85c17b0d0d81aa9ba9c0ceac9e28c1" target="_blank" rel="noopener noreferrer">RAG in production</a>'s.</p>
 <div class="co warn"><div class="t">When the serving stack drifted: Anthropic, August to September 2025</div>Three infrastructure bugs degraded some Claude responses. One misrouted requests to servers configured for a different context window: it "initially affected 0.8% of requests", then 16% of Sonnet 4 requests at the worst hour on 31 August, and about "30% of Claude Code users" had at least one message misrouted. "The evaluations we ran simply didn't capture the degradation users were reporting, in part because Claude often recovers well from isolated mistakes", and "We relied too heavily on noisy evaluations." The fix is a monitoring fix: run quality evaluations "continuously on true production systems" (<a href="https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues" target="_blank" rel="noopener noreferrer">A postmortem of three recent issues</a>, 17 Sep 2025). Offline gates test a configuration; only production monitoring tests the system that actually serves it.</div>
-<p>Honeycomb ran its query assistant against a service-level objective: a "Target of 75% successful requests over a seven day period", later raised to 80%, against "95% or higher" for most of their services, with a yes, no or not-sure feedback widget feeding it (<a href="https://www.honeycomb.io/blog/improving-llms-production-observability" target="_blank" rel="noopener noreferrer">Improving LLMs in Production With Observability</a>, 16 Jun 2023). An SLO turns monitoring into an alert with a budget instead of a dashboard nobody reads.</p>
-<h3>How much live traffic to score, and how to see drift</h3>
-<ul>
-<li><b>Sampling rates</b> for online judges, from vendor docs: Braintrust advises "lower rates (1-10%)" for high-volume applications and "50-100%" for low-volume or critical ones (<a href="https://www.braintrust.dev/docs/evaluate/score-online" target="_blank" rel="noopener noreferrer">online scoring</a>); LangSmith's example scores "10% of traces" (<a href="https://docs.langchain.com/langsmith/online-evaluations-llm-as-judge" target="_blank" rel="noopener noreferrer">online evaluators</a>); Langfuse puts "A typical evaluation" at "$0.01-0.10 per assessment" (<a href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge" target="_blank" rel="noopener noreferrer">LLM-as-a-judge</a>). At 1 million requests a day, 1% sampled at $0.03 is $300 a day: the judge bill is a budget line.</li>
-<li><b>Input drift on text:</b> a common test trains a classifier to tell last month's inputs from this week's; Evidently flags drift when its ROC AUC exceeds 0.55 on more than 1,000 observations (<a href="https://docs.evidentlyai.com/metrics/explainer_drift" target="_blank" rel="noopener noreferrer">drift explainer</a>), and recommends the same "model-based drift detection as a good default" for embeddings (<a href="https://www.evidentlyai.com/blog/embedding-drift-detection" target="_blank" rel="noopener noreferrer">embedding drift</a>, 2023, updated 2025).</li>
-<li><b>Close the loop:</b> sample live traces, run reference-free judges asynchronously, "track confidence intervals", and feed new failures back into the CI set (Hamel Husain and Shreya Shankar's FAQ). That is the promotion path from the Golden sets section, run continuously.</li>
-</ul>
+<p><b>An SLO turns monitoring into an alert with a budget.</b> Honeycomb ran its query assistant against a "Target of 75% successful requests over a seven day period", later raised to 80%, against "95% or higher" for most of their services, with a yes, no or not-sure feedback widget feeding it (<a href="https://www.honeycomb.io/blog/improving-llms-production-observability" target="_blank" rel="noopener noreferrer">Improving LLMs in Production With Observability</a>, 16 Jun 2023).</p>
+<h3>Eval drift: when the instrument changes</h3>
+<p>The eval drifts too, and a score series is only comparable while three things stay fixed: the set version, the judge (model and prompt) and the scoring rule. Change the judge, and the champion is re-scored before any comparison; change the set, and the history is re-baselined ("As your eval set changes, its scores may no longer be directly comparable with older scores. That is ok!", Hamel Husain and Shreya Shankar's FAQ). Section 3's leaderboard number moved by 0.06 points from a scoring-rule difference alone. Close the loop by sampling live traces, running reference-free judges asynchronously and feeding new failures back into the CI set: section 1's loop, run continuously.</p>
 </section>
 
 <section id="rd-edd">
-<h2>Eval-driven development</h2>
-<p>The same machinery used during development rather than only at release: write the eval for a behaviour before changing the prompt, model or pipeline that should produce it, and let every change run against it. Vercel named the practice for v0, whose prompts changed "almost daily" (<a href="https://vercel.com/blog/eval-driven-development-build-better-ai-faster" target="_blank" rel="noopener noreferrer">Eval-driven development</a>, 17 Oct 2024); Eugene Yan describes it as the counterpart of test-driven development, with "every prompt tweak, every system update" evaluated (<a href="https://eugeneyan.com/writing/eval-process/" target="_blank" rel="noopener noreferrer">An LLM-as-Judge Won't Save The Product</a>, Apr 2025). Who coined the phrase is unconfirmed.</p>
+<h2>10. Eval-driven development</h2>
+<p>The same machinery used during development, not only at release: write the eval for a behaviour before changing the prompt, model or pipeline that should produce it, and let every change run against it. Vercel named the practice for v0, whose prompts changed "almost daily" (<a href="https://vercel.com/blog/eval-driven-development-build-better-ai-faster" target="_blank" rel="noopener noreferrer">Eval-driven development</a>, 17 Oct 2024); Eugene Yan describes it as the counterpart of test-driven development, with "every prompt tweak, every system update" evaluated (<a href="https://eugeneyan.com/writing/eval-process/" target="_blank" rel="noopener noreferrer">An LLM-as-Judge Won't Save The Product</a>, Apr 2025). Who coined the phrase is unconfirmed.</p>
 <ul>
 <li><b>Start small and from failures:</b> Anthropic's 20 to 50 tasks drawn from real failures; Hamel Husain's assertions first, judges second, A/B tests last.</li>
 <li><b>Label before you automate:</b> a judge used in development needs a human-labelled calibration set; Yan suggests aiming for a "50:50 split of passes and fails" so both kinds of error can be measured.</li>
 <li><b>The last 20% is the work:</b> LinkedIn reached 80% of the experience in the first month, then "spent an additional four months attempting to surpass 95%"; their structured-output errors fell from about 10% to "~0.01%" along the way.</li>
 <li><b>Mind compounding:</b> Honeycomb's arithmetic for chained steps: five steps that are each 90% right give "59% accurate" end to end (0.9<sup>5</sup> = 0.59), so gate the steps as well as the whole.</li>
 </ul>
+<details class="mist"><summary>Mistakes that are easy to make anyway</summary><div class="b">
+<ul>
+<li><b>Comparing unpaired scores:</b> a fresh run against last month's dashboard number mixes item difficulty into the difference. Score both on the same items and subtract per item.</li>
+<li><b>Charting v1 and v2 of a golden set on one line</b>, or a score from a new judge beside one from the old.</li>
+<li><b>Trusting the A/B test as the final word:</b> users can reward the wrong thing (GPT-4o, April 2025), and a short test reads short-term behaviour.</li>
+<li><b>Stopping at launch:</b> serving bugs, provider updates and traffic drift arrive after the last gate (Anthropic, August 2025).</li>
+<li><b>Forgetting the evals' own bill:</b> a frontier judge on every change and on a share of live traffic can cost more than the feature; match the judge to the decision it supports.</li>
+</ul>
+</div></details>
 </section>
-<section id="rd-moved">
-<h2>Moved: statistics and gold labels</h2>
-<p>Two parts of the old page now have pages of their own. One paragraph each, so this page still reads on its own:</p>
-<div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d" target="_blank" rel="noopener noreferrer">Eval statistics: error bars, paired tests, how many items you need</a></div><p>A golden-set score is a mean over items, so it has a standard error; a 2-point drop on 100 items is noise. Compare configurations on the same items and test the per-item differences (paired tests, McNemar for pass/fail), which cuts the items needed sharply; re-sample nondeterministic outputs K times; cluster errors when items share a source; correct for gating many slices at once; state each gate's minimum detectable effect. The old page's worked example (sizing a model-swap gate on 300 items) lives there, with two corrections found while moving it.</p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d819485bcc54a45d49420" target="_blank" rel="noopener noreferrer">Human evaluation and annotation: rubrics, agreement, gold-label auditing</a></div><p>Gold labels are wrong at rates that dominate small deltas (MMLU-Redux estimates about 6.5% of MMLU questions contain an error of some kind, and 57% of its virology subset). So store a confidence and provenance field per label, route model-against-gold disagreements through a consensus battery and human adjudication, keep "ambiguous, exclude from gating" as a valid label state, and gate on the verified subset. Every gate failure triggers an audit of the failing items before the failure is believed: the eval system has three fallible parts (model, judge, gold), and the root page's <a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">attribution animation</a> (Reading, "How it breaks") shows the split on six physics benchmarks.</p></div>
-</div>
-</section>
-
-<section id="rd-mist">
-<h2>Common mistakes</h2>
-<details class="mist"><summary>Gating on one aggregate number</summary><div class="b">Improvements in one slice hide regressions in another; the animation's swap moved the average by <span class="pe-v" data-k="aggd"></span> while writing lost <span class="pe-v" data-k="wrd"></span> points. Tag items and threshold per slice.</div></details>
-<details class="mist"><summary>Comparing unpaired scores</summary><div class="b">Two configurations scored on different samples, or a fresh run compared against last month's dashboard number, mix item difficulty into the difference. Score both on the same items and subtract per item.</div></details>
-<details class="mist"><summary>Re-running a red gate until it turns green</summary><div class="b">With nondeterministic decoding and judges, enough re-runs make any gate pass. Fix K samples per item in advance, and send "cannot tell" to review.</div></details>
-<details class="mist"><summary>Averaging in a judge failure</summary><div class="b">An unparsable verdict is not a score. Count parse failures as their own metric, drop the pair from both sides, and alert when the rate moves (4 in 5,440 in the MT-Bench file; a jump means the judge or its prompt changed).</div></details>
-<details class="mist"><summary>Editing the golden set without re-baselining</summary><div class="b">A v2 score is a reading on a different instrument. Version the set, re-score the champion on every new version, and never chart v1 and v2 numbers on one line.</div></details>
-<details class="mist"><summary>Mixing regression and capability items</summary><div class="b">Regression items should pass nearly always; capability items should fail often. One pass rate over both moves for reasons nobody can read.</div></details>
-<details class="mist"><summary>Trusting the A/B test as the final word</summary><div class="b">Users can reward the wrong thing (GPT-4o, April 2025), and a short test reads short-term behaviour. Keep launch-blocking behavioural evals and qualitative checks beside it.</div></details>
-<details class="mist"><summary>Stopping at launch</summary><div class="b">Serving bugs, provider updates and traffic drift all arrive after the last gate (Anthropic, August 2025). Run evals continuously against production, with an SLO.</div></details>
-<details class="mist"><summary>Letting a shadow agent act</summary><div class="b">Mirror the trajectory, not the side effects: tools with side effects must be dry runs in shadow mode.</div></details>
-<details class="mist"><summary>Forgetting the evals' own bill</summary><div class="b">A frontier judge on every change and on a share of live traffic can cost more than the feature. Put deterministic checks first and match the judge to the decision it supports.</div></details>
-</section>
-<div class="foot">Built from the old Notion page (fetched read only on 2026-10-04, last edited 2026-09-22), LMSYS's released MT-Bench judgments, and the primary sources linked inline. Source and data scripts: <code>src/</code> in the knowledge base repository.</div>
+<div class="foot">Built from the old Notion page (fetched read only on 2026-10-04, last edited 2026-09-22), LMSYS's released MT-Bench judgments, and the primary sources linked inline; rebuilt to the teaching contract on 2026-10-24. Source and data scripts: <code>src/</code> in the knowledge base repository.</div>
 </div>
 <div class="tab" id="t-gate" role="tabpanel" hidden>
 <h2 style="margin-top:14px">Gate designer</h2>
@@ -384,10 +423,10 @@ table.path td{font-size:12.5px}table.path td:first-child{min-width:8.5em}table.p
 <h3>The parent topic and its other children</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546" target="_blank" rel="noopener noreferrer">Topic: evaluation-and-llm-judges</a></div><p>The overview: an eval is a measuring instrument. Tabs: Judge bias lab, Same model, many harnesses, Judge atlas. <span class="rt">20 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d" target="_blank" rel="noopener noreferrer">Eval statistics: error bars, paired tests, how many items you need</a></div><p>Owns the statistics a gate needs, including this page's former worked example. <span class="rt">22 min read</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d" target="_blank" rel="noopener noreferrer">Eval statistics: error bars, paired tests, how many items you need</a></div><p>Owns the statistics a gate needs, including this page's former worked example. <span class="rt">20 min read</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d819485bcc54a45d49420" target="_blank" rel="noopener noreferrer">Human evaluation and annotation: rubrics, agreement, gold-label auditing</a></div><p>Owns gold-label auditing and gold-error-aware scoring, formerly here. <span class="rt">28 min read</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d810ba2a2ecc08c4c233b" target="_blank" rel="noopener noreferrer">LLM-as-judge: design, biases, calibration, reliability</a></div><p>The judges every gate and online scorer relies on, and their failure modes. <span class="rt">30 min read</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81ea9cd5eb65795ff5c9" target="_blank" rel="noopener noreferrer">Eval harnesses: lm-eval-harness, Inspect, HELM, lighteval, app-level tools</a></div><p>lm-eval-harness, Inspect, HELM, lighteval and the app-level tools (promptfoo, Braintrust and others) that run gates. <span class="rt">23 min read</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81ea9cd5eb65795ff5c9" target="_blank" rel="noopener noreferrer">Eval harnesses: lm-eval-harness, Inspect, HELM, lighteval, app-level tools</a></div><p>lm-eval-harness, Inspect, HELM, lighteval and the app-level tools (promptfoo, Braintrust and others) that run gates. <span class="rt">22 min read</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d819bbfa5dffa9246c297" target="_blank" rel="noopener noreferrer">Guardrails: staged runtime safety for LLM systems</a></div><p>Runtime checks on every request, evaluated as classifiers. <span class="rt">35 min read</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d81fdbabaf3582bff37f2" target="_blank" rel="noopener noreferrer">Agent and trajectory evaluation: grading actions, not messages</a></div><p>Grading actions, not messages; pass^k for flaky agents. <span class="rt">27 min read</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d8194a914d1843ee26f13" target="_blank" rel="noopener noreferrer">RAG and retrieval evaluation: faithfulness, groundedness, retrieval metrics</a></div><p>Faithfulness, groundedness, retrieval metrics: the slices a RAG product gates on. <span class="rt">22 min read</span></p></div>
@@ -398,6 +437,9 @@ table.path td{font-size:12.5px}table.path td:first-child{min-width:8.5em}table.p
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d814db49ff3b5c9fc3034" target="_blank" rel="noopener noreferrer">Human preference and arenas</a></div><p>Side-by-side votes, Elo and style control: what user preference measures and how it misleads. <span class="rt">21 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3cd5c17b0d0d81ffa8e5f8fa5a5806c8" target="_blank" rel="noopener noreferrer">RocketEval (paper page)</a></div><p>Checklist grading with small judges: what makes per-merge judge gates affordable. <span class="rt">27 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3e25c17b0d0d8165b0c8d15600421259" target="_blank" rel="noopener noreferrer">Re-grading six physics benchmarks (paper page)</a></div><p>Model, grader or benchmark: attributing failures before believing them. <span class="rt">22 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81fe82c0c6e9360afec4" target="_blank" rel="noopener noreferrer">LLM observability: traces, OpenTelemetry GenAI, Langfuse and peers</a></div><p>Where the traces that online evaluation and error analysis read come from; the tracing tools compared. <span class="rt">30 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f85c17b0d0d81aa9ba9c0ceac9e28c1" target="_blank" rel="noopener noreferrer">RAG in production</a></div><p>Retrieval monitoring, model-upgrade backfills and golden-set size for a RAG system. <span class="rt">34 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a></div><p>Routers and cascades: the cheap-model-first designs the budget gate prices. <span class="rt">33 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8196a6f1f29a817aa974" target="_blank" rel="noopener noreferrer">Reward hacking</a></div><p>When an online metric becomes a training signal. <span class="rt">29 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81a29acef722e842a29b" target="_blank" rel="noopener noreferrer">Evaluation metrics</a></div><p>Precision, recall and the classifier metrics for judges and guardrails. <span class="rt">18 min</span></p></div>
 </div>
@@ -468,6 +510,71 @@ C.esc=s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"'
 // prices (US$ per million tokens), 2023: Anthropic July 2023 price sheet (Claude 1 at the Claude 2 price), OpenAI pricing page May 2023 (GPT-4 8K)
 C.PRICE={'claude-v1':[11.02,32.68],'claude-instant-v1':[1.63,5.51],'gpt-4':[30,60]};
 })();
+</script>
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
+// Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>setPlay(!st.play));
+    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      reset(n){setPlay(false);st.n=n;st.i=0;show()},
+      go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
 </script>
 <script>/* 22_js_gate_anim.js */
 // One model swap, two gates: claude-v1 (champion) against claude-instant-v1 (challenger) on MT-Bench's released GPT-4 grades.
@@ -636,6 +743,195 @@ let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(!$(
 draw();
 })();
 </script>
+<script>/* 24_js_pe_figs.js */
+// Reading figures added on 2026-10-24: hero promotion path, error-analysis stepper, golden-set anatomy,
+// online sampling slider, the four exposure designs, drift test. All drawn at the measured width; nothing moves by itself.
+(function(){
+if(!window.RD)return;
+const $=id=>document.getElementById(id),T=RD.t,esc=RD.esc;
+// word wrap by an estimated character width (11 px sans is about 6 px a character)
+function wrap(s,px,fs){const max=Math.max(6,Math.floor(px/((fs||11)*0.56)));const out=[];let line='';
+  s.split(' ').forEach(w=>{if((line+' '+w).trim().length>max&&line){out.push(line);line=w}else line=(line+' '+w).trim()});if(line)out.push(line);return out}
+function lines(x,y,arr,o){o=o||{};const lh=o.lh||14;return arr.map((s,i)=>T(x,y+i*lh,esc(s),o)).join('')}
+function box(x,y,w,h,o){o=o||{};return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.r||6)+'" fill="'+(o.fill||'var(--soft)')+'" stroke="'+(o.stroke||'var(--line)')+'" stroke-width="'+(o.sw||1)+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>'}
+function arrow(x1,y1,x2,y2,o){o=o||{};const a=Math.atan2(y2-y1,x2-x1),L=7;
+  return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+(o.c||'var(--mute)')+'" stroke-width="'+(o.w||1.4)+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>'+
+  '<path d="M'+x2+' '+y2+'L'+(x2-L*Math.cos(a-0.45))+' '+(y2-L*Math.sin(a-0.45))+'L'+(x2-L*Math.cos(a+0.45))+' '+(y2-L*Math.sin(a+0.45))+'Z" fill="'+(o.c||'var(--mute)')+'"/>'}
+const defs=[];
+function reg(f){defs.push(f);RD.onRender(f)}
+RD.onResize(()=>defs.forEach(f=>f()));
+
+// ---------- Hero: the promotion path ----------
+const ST=[
+ {n:'1. Offline gate',s:'golden set, in CI',t:'minutes per change',c:'regressions on your own cases',u:0},
+ {n:'2. Budget gate',s:'same runs',t:'seconds',c:'a quality win you cannot pay for',u:0},
+ {n:'3. Shadow',s:'mirrored live requests',t:'doubles inference',c:'real inputs nobody imagined',u:0},
+ {n:'4. Canary, A/B',s:'real users',t:'days to weeks',c:'how users react',u:1},
+ {n:'5. Monitoring',s:'sampled live traces',t:'continuous',c:'decay after launch',u:2}];
+const EXPO=['no users see it','no users see it','no users see it','a share of users','all users'];
+function hero(){const el=$('pe-hero-svg');if(!el)return;const w=RD.width(el);let s='';
+  if(w>=640){
+    const gap=10,bw=(w-gap*4)/5,bh=132,y0=26;
+    s+=T(0,13,'a change (prompt, model, retrieval, tool) enters on the left; it must beat the champion at every stage',{fs:11.5,fill:'var(--mute)'});
+    ST.forEach((d,i)=>{const x=i*(bw+gap),hl=i===0;
+      s+=box(x,y0,bw,bh,{fill:hl?'var(--acc2)':'var(--soft)',stroke:hl?'var(--acc)':'var(--line)',sw:hl?1.6:1});
+      s+=T(x+8,y0+18,esc(d.n),{fs:12.5,w:600});s+=T(x+8,y0+33,esc(d.s),{fs:11,fill:'var(--mute)'});
+      s+=T(x+8,y0+54,'cost: ',{fs:11,fill:'var(--mute)'})+lines(x+8,y0+68,wrap(d.t,bw-16),{fs:11});
+      s+=T(x+8,y0+90,'catches:',{fs:11,fill:'var(--mute)'})+lines(x+8,y0+104,wrap(d.c,bw-16),{fs:11,fill:'var(--good)'});
+      if(i<4)s+=arrow(x+bw+1,y0+bh/2,x+bw+gap-1,y0+bh/2,{c:'var(--ink)'});
+      const ey=y0+bh+10,op=[.12,.12,.12,.45,.9][i];
+      s+='<rect x="'+x+'" y="'+ey+'" width="'+bw+'" height="18" rx="3" fill="var(--bad)" fill-opacity="'+op+'"/>'+T(x+bw/2,ey+13,EXPO[i],{fs:11,a:'middle'});
+    });
+    const ly=y0+bh+50;
+    s+=T(w,ly-6,'users exposed if a bad change gets this far',{fs:11,a:'end',fill:'var(--mute)'});
+    const x5=4*(bw+gap)+bw/2,x3=2*(bw+gap)+bw/2,x1=bw/2;
+    s+='<path d="M'+x5+' '+(ly+2)+'V'+(ly+30)+'H'+(x1+6)+'" fill="none" stroke="var(--acc)" stroke-width="1.6" stroke-dasharray="5 4"/>';
+    s+='<path d="M'+x3+' '+(ly+2)+'V'+(ly+30)+'" fill="none" stroke="var(--acc)" stroke-width="1.6" stroke-dasharray="5 4"/>';
+    s+='<path d="M'+(3*(bw+gap)+bw/2)+' '+(ly+2)+'V'+(ly+30)+'" fill="none" stroke="var(--acc)" stroke-width="1.6" stroke-dasharray="5 4"/>';
+    s+=arrow(x1,ly+30,x1,y0+bh+30,{c:'var(--acc)',w:1.6});
+    s+=T(x1+14,ly+46,'every failure found later is read, named and promoted into the golden set (sections 1 and 2)',{fs:11.5,fill:'var(--acc)'});
+    el.innerHTML=RD.svg(w,ly+54,s,'The promotion path: five stages and the loop back to the golden set');
+  }else{
+    const bh=62,gap=16,x0=22,bw=w-x0;let y=20;
+    s+=T(0,12,'a change enters at the top',{fs:11,fill:'var(--mute)'});
+    ST.forEach((d,i)=>{const hl=i===0;
+      s+=box(x0,y,bw,bh,{fill:hl?'var(--acc2)':'var(--soft)',stroke:hl?'var(--acc)':'var(--line)',sw:hl?1.6:1});
+      s+=T(x0+8,y+16,esc(d.n),{fs:12.5,w:600})+T(bw+x0-8,y+16,EXPO[i],{fs:11,a:'end',fill:i>2?'var(--bad)':'var(--mute)'});
+      s+=T(x0+8,y+32,esc(d.s+'; '+d.t),{fs:11,fill:'var(--mute)'});
+      s+=T(x0+8,y+50,esc('catches: '+d.c),{fs:11,fill:'var(--good)'});
+      if(i<4)s+=arrow(x0+bw/2,y+bh+1,x0+bw/2,y+bh+gap-1,{c:'var(--ink)'});
+      y+=bh+gap});
+    s+='<path d="M'+(x0+4)+' '+(y-gap-bh/2)+'H8V'+(20+bh/2)+'" fill="none" stroke="var(--acc)" stroke-width="1.6" stroke-dasharray="5 4"/>'+arrow(8,20+bh/2,x0-1,20+bh/2,{c:'var(--acc)',w:1.6});
+    s+=lines(0,y+6,wrap('dashed: every failure found later is promoted into the golden set (sections 1 and 2)',w,11.5),{fs:11.5,fill:'var(--acc)'});
+    el.innerHTML=RD.svg(w,y+26,s,'The promotion path: five stages and the loop back to the golden set');
+  }
+}
+reg(hero);
+
+// ---------- Error analysis stepper ----------
+const EA=[
+ ['Sample','about 100 traces','100 traces'],['Open code','30+ by you','30+ by you'],['Axial code','failure taxonomy','taxonomy'],['Count','per mode','per mode'],['Saturate','no new modes','no new'],['Evaluators','code or judge','code, judge'],['Promote','golden set v+1','set v+1']];
+const EAC=[
+ '<b>Step 1 of 7. Sample traces.</b> Pull about 100 diverse traces from production (or shadow, or a beta). Mix methods, from random to targeted, and keep some random traces in every batch: targeted sampling finds only what you already suspect.',
+ '<b>Step 2 of 7. Open coding.</b> Read each trace and write a free-text note on what went wrong, in your own words; no rubric yet. Annotate at least 30 yourself before reviewing any model\'s or agent\'s suggestions.',
+ '<b>Step 3 of 7. Axial coding.</b> Group the notes into a <b>failure taxonomy</b>: named modes you can count (in section 3\'s data, "constrained rewrite": the three worst writing drops are all rewrites under an explicit constraint). The FAQ calls this "the most important step".',
+ '<b>Step 4 of 7. Count.</b> Tally each mode across the reviewed traces. The counts order the work: a frequent mode gets an evaluator and a fix first; a rare but severe one may get a hard floor.',
+ '<b>Step 5 of 7. Saturate.</b> Keep reading until new traces stop revealing modes or changing existing ones (theoretical saturation); at least 100 traces.',
+ '<b>Step 6 of 7. One evaluator per mode.</b> A code check when an objective rule identifies the failure; otherwise an LLM judge, validated on 100 to 200 human-labelled examples of that mode. Binary pass or fail.',
+ '<b>Step 7 of 7. Promote.</b> Confirmed failures become tagged items in the next golden-set version, each mode its own slice for the gate (section 4). Failures found later by shadow, A/B tests or monitoring re-enter at step 1.'];
+let eaStep=0;
+function eaDraw(i){if(i!==undefined)eaStep=i;const el=$('pe-ea-svg');if(!el)return;const w=RD.width(el),n=EA.length,cols=w<600?4:7;
+  const gap=w<600?12:10,nw=(w-gap*(cols-1))/cols,nh=46,rg=30;let s='';const pos=[];
+  for(let k=0;k<n;k++){const r=Math.floor(k/cols),c0=k%cols,c=r%2?cols-1-c0:c0;pos.push([c*(nw+gap),8+r*(nh+rg)])}
+  for(let k=0;k<n-1;k++){const a=pos[k],b=pos[k+1];
+    if(a[1]===b[1]){const dir=b[0]>a[0];s+=arrow(dir?a[0]+nw+1:a[0]-1,a[1]+nh/2,dir?b[0]-1:b[0]+nw+1,b[1]+nh/2,{c:k<eaStep?'var(--acc)':'var(--mute)'})}
+    else s+=arrow(a[0]+nw/2,a[1]+nh+1,b[0]+nw/2,b[1]-1,{c:k<eaStep?'var(--acc)':'var(--mute)'})}
+  EA.forEach((d,k)=>{const p=pos[k],cur=k===eaStep,done=k<eaStep;
+    s+=box(p[0],p[1],nw,nh,{fill:cur?'var(--acc)':done?'var(--acc2)':'var(--soft)',stroke:cur||done?'var(--acc)':'var(--line)'});
+    s+=T(p[0]+nw/2,p[1]+19,esc(d[0]),{fs:12,a:'middle',w:600,fill:cur?'var(--bg)':'var(--ink)'});
+    s+=T(p[0]+nw/2,p[1]+35,esc(nw<110?d[2]:d[1]),{fs:11,a:'middle',fill:cur?'var(--bg)':'var(--mute)'})});
+  const rows=Math.ceil(n/cols),yb=8+rows*(nh+rg)-rg+14,last=pos[n-1],first=pos[0];
+  // loop back: from Promote to Sample, below the rows
+  s+='<path d="M'+(last[0]+nw/2)+' '+(last[1]+nh)+'V'+yb+'H'+(first[0]+nw/2)+'V'+(first[1]+nh+ (rows>1?0:4))+'" fill="none" stroke="'+(eaStep===n-1?'var(--acc)':'var(--mute)')+'" stroke-width="1.4" stroke-dasharray="5 4"/>';
+  s+=T(w/2,yb+15,'new failures from shadow, A/B tests and monitoring re-enter here',{fs:11,a:'middle',fill:'var(--mute)'});
+  el.innerHTML=RD.svg(w,yb+22,s,'The error-analysis loop, step '+(eaStep+1)+' of 7');
+  $('pe-ea-cap').innerHTML=EAC[eaStep];}
+if($('pe-ea')){RD.anim({card:'pe-ea',ctl:'pe-ea-ctl',n:EA.length,ms:2600,label:'Error-analysis step',draw:eaDraw});RD.onResize(()=>eaDraw())}
+
+// ---------- Golden-set anatomy ----------
+function gs(){const el=$('pe-gs-svg');if(!el)return;const w=RD.width(el);let s='';
+  const SRC=[['Real traffic','sampled, deduplicated, PII scrubbed'],['Incidents','every production failure'],['Adversarial and edge','inputs built to break it'],['Safety canaries','always refuse, or always answer']];
+  const ITEM=[['input','the request, with context'],['expected','reference answer, rubric or checks'],['tags','intent, difficulty, source incident'],['version','set v3, rubric v3']];
+  const SU=[['Regression suite','guards what works: pass rate near 100%; gate on drops','var(--good)'],['Capability suite','what it cannot yet do: low pass rate; climb it','var(--c4)'],['Held-out split','never published, never sent to a vendor','var(--mute)']];
+  if(w>=640){const cw=(w-60)/3,x1=0,x2=cw+30,x3=2*cw+60,h=4*52;
+    s+=T(x1,12,'sources',{fs:11,fill:'var(--mute)'})+T(x2,12,'one golden item',{fs:11,fill:'var(--mute)'})+T(x3,12,'two suites with different jobs',{fs:11,fill:'var(--mute)'});
+    SRC.forEach((d,i)=>{const y=20+i*52;s+=box(x1,y,cw,44)+T(x1+8,y+17,esc(d[0]),{fs:12,w:600})+lines(x1+8,y+33,wrap(d[1],cw-16).slice(0,1),{fs:11,fill:'var(--mute)'})+arrow(x1+cw+2,y+22,x2-3,20+h/2-4,{c:'var(--line)'})});
+    s+=box(x2,20,cw,h-8,{fill:'var(--bg)',stroke:'var(--acc)',sw:1.6});
+    ITEM.forEach((d,i)=>{const y=40+i*48;s+=T(x2+10,y,esc(d[0]),{fs:12,w:600,fill:i===2?'var(--acc)':'var(--ink)'})+lines(x2+10,y+16,wrap(d[1],cw-20).slice(0,2),{fs:11,fill:'var(--mute)'})});
+    s+='<rect x="'+(x2+6)+'" y="'+(40+2*48-14)+'" width="'+(cw-12)+'" height="36" rx="4" fill="var(--hl)" fill-opacity=".55"/>';
+    s+=lines(x2+10,40+2*48,['tags'],{fs:12,w:600,fill:'var(--acc)'})+lines(x2+10,40+2*48+16,wrap(ITEM[2][1],cw-20).slice(0,2),{fs:11});
+    SU.forEach((d,i)=>{const y=20+i*70;s+=box(x3,y,cw,60,{stroke:d[2],sw:1.4})+T(x3+8,y+17,esc(d[0]),{fs:12,w:600,fill:d[2]})+lines(x3+8,y+33,wrap(d[1],cw-16).slice(0,2),{fs:11});
+      if(i<2)s+=arrow(x2+cw+2,20+h/2-4,x3-3,y+30,{c:'var(--line)'})});
+    el.innerHTML=RD.svg(w,20+h+4,s,'Anatomy of a golden set: sources, one tagged item, regression and capability suites');
+  }else{let y=16;const bw=w;
+    s+=T(0,12,'sources',{fs:11,fill:'var(--mute)'});
+    SRC.forEach((d,i)=>{const col=i%2,bx=col*(bw/2+4),by=y+Math.floor(i/2)*64,ww=bw/2-4;s+=box(bx,by,ww,58)+lines(bx+6,by+16,wrap(d[0],ww-12).slice(0,1),{fs:11.5,w:600})+lines(bx+6,by+31,wrap(d[1],ww-12).slice(0,2),{fs:11,fill:'var(--mute)'})});
+    y+=132;s+=arrow(bw/2,y,bw/2,y+14,{c:'var(--mute)'});y+=18;
+    s+=box(0,y,bw,4*30+10,{fill:'var(--bg)',stroke:'var(--acc)',sw:1.6});
+    ITEM.forEach((d,i)=>{const yy=y+20+i*30;if(i===2)s+='<rect x="4" y="'+(yy-14)+'" width="'+(bw-8)+'" height="22" rx="4" fill="var(--hl)" fill-opacity=".55"/>';
+      s+=T(8,yy,esc(d[0]),{fs:12,w:600,fill:i===2?'var(--acc)':'var(--ink)'})+T(72,yy,esc(wrap(d[1],bw-80)[0]),{fs:11})});
+    y+=4*30+10;s+=arrow(bw/2,y+2,bw/2,y+16,{c:'var(--mute)'});y+=20;
+    SU.forEach((d,i)=>{const lw=wrap(d[1],bw-16);s+=box(0,y,bw,22+lw.length*14,{stroke:d[2],sw:1.4})+T(8,y+16,esc(d[0]),{fs:12,w:600,fill:d[2]})+lines(8,y+31,lw,{fs:11});y+=28+lw.length*14});
+    el.innerHTML=RD.svg(w,y,s,'Anatomy of a golden set: sources, one tagged item, regression and capability suites');
+  }
+}
+reg(gs);
+
+// ---------- Online sampling slider ----------
+const RATES=[0.001,0.0025,0.005,0.01,0.02,0.05,0.1,0.2,0.5,0.75,1],REQ=1e6,PRICE=0.03,SLICE=0.02;
+function smp(){const el=$('pe-smp-svg'),r=$('pe-smp-r');if(!el||!r)return;const w=RD.width(el),rate=RATES[+r.value];
+  $('pe-smp-v').textContent=(rate*100)+'%';
+  const l=10,rr=10,X=v=>l+(Math.log10(v)+3)/3*(w-l-rr),h=86;let s='';
+  s+='<rect x="'+X(0.01)+'" y="22" width="'+(X(0.1)-X(0.01))+'" height="30" fill="var(--c6)" fill-opacity=".18"/>'+T(X(0.01)+4,18,'1-10%: high volume',{fs:11,fill:'var(--c6)'});
+  s+='<rect x="'+X(0.5)+'" y="22" width="'+(X(1)-X(0.5))+'" height="30" fill="var(--c4)" fill-opacity=".18"/>'+T(X(1),18,w<480?'50-100%: critical':'50-100%: low volume or critical',{fs:11,a:'end',fill:'var(--c4)'});
+  s+='<line x1="'+l+'" x2="'+(w-rr)+'" y1="52" y2="52" stroke="var(--mute)"/>';
+  [0.001,0.01,0.1,1].forEach(v=>{s+='<line x1="'+X(v)+'" x2="'+X(v)+'" y1="48" y2="56" stroke="var(--mute)"/>'+T(Math.min(w-rr-14,Math.max(l+12,X(v))),70,(v*100)+'%',{fs:11,a:'middle',fill:'var(--mute)'})});
+  s+='<circle cx="'+X(rate)+'" cy="37" r="7" fill="var(--acc)"/>';
+  s+=T(w/2,84,'share of live traces judged (log scale); bands: Braintrust\'s advice',{fs:11,a:'middle',fill:'var(--mute)'});
+  el.innerHTML=RD.svg(w,h+4,s,'Sampling rate on a log axis with the vendor bands');
+  const n=REQ*rate,c=n*PRICE,fmt=x=>x.toLocaleString('en-US',{maximumFractionDigits:0});
+  $('pe-smp-out').innerHTML=RD.stat('Judged traces a day',fmt(n),'of 1,000,000 requests')+RD.stat('Judge cost a day','$'+fmt(c),'at $0.03 a trace')+RD.stat('Judge cost a month','$'+fmt(c*30),'30 days')+RD.stat('Judged in a 2% slice',fmt(n*SLICE),'a day (illustrative slice)');
+}
+if($('pe-smp')){$('pe-smp-r').addEventListener('input',smp);reg(smp)}
+
+// ---------- Four exposure designs ----------
+function exp(){const el=$('pe-exp-svg');if(!el)return;const w=RD.width(el),two=w>=640,pw=two?(w-16)/2:w,ph=168;let s='';
+  const P=[
+   {n:'Shadow',sees:'users see: champion only',m:'measures: paired quality, errors, latency; no reactions'},
+   {n:'Canary',sees:'users see: challenger, a small share',m:'measures: guardrails; rollback on a trigger'},
+   {n:'A/B test',sees:'users see: one arm each, randomised',m:'measures: the primary metric, behaviour; unpaired'},
+   {n:'Interleaving',sees:'users see: one merged list',m:'measures: which ranker\'s item was chosen; paired'}];
+  P.forEach((d,i)=>{const ox=two?(i%2)*(pw+16):0,oy=two?Math.floor(i/2)*(ph+14):i*(ph+14);
+    s+=box(ox,oy,pw,ph,{fill:'var(--bg)'})+T(ox+10,oy+18,d.n,{fs:13,w:600});
+    const ux=ox+16,uy=oy+64,cx=ox+pw*0.48,bw=Math.min(118,pw*0.4);
+    const C='var(--c1)',X='var(--c2)';
+    if(i<3){s+='<circle cx="'+(ux+10)+'" cy="'+uy+'" r="10" fill="var(--soft)" stroke="var(--mute)"/>'+T(ux+10,uy+28,i===2?'users':'request',{fs:11,a:'middle',fill:'var(--mute)'})}
+    if(i===0){s+=arrow(ux+22,uy-4,cx-3,oy+42,{c:C})+arrow(ux+22,uy+4,cx-3,oy+86,{c:X,dash:'4 3'});
+      s+=box(cx,oy+30,bw,24,{stroke:C})+T(cx+8,oy+46,'champion: served',{fs:11})+box(cx,oy+74,bw,24,{stroke:X,dash:'4 3'})+T(cx+8,oy+90,'challenger: logged',{fs:11})}
+    if(i===1){s+=arrow(ux+22,uy-4,cx-3,oy+42,{c:C,w:3})+arrow(ux+22,uy+4,cx-3,oy+86,{c:X,w:1});
+      s+=box(cx,oy+30,bw,24,{stroke:C})+T(cx+8,oy+46,'champion: most',{fs:11})+box(cx,oy+74,bw,24,{stroke:X})+T(cx+8,oy+90,'challenger: a few %',{fs:11})}
+    if(i===2){s+=arrow(ux+22,uy-4,cx-3,oy+42,{c:C,w:2})+arrow(ux+22,uy+4,cx-3,oy+86,{c:X,w:2});
+      s+=box(cx,oy+30,bw,24,{stroke:C})+T(cx+8,oy+46,'champion: half',{fs:11})+box(cx,oy+74,bw,24,{stroke:X})+T(cx+8,oy+90,'challenger: half',{fs:11})}
+    if(i===3){const lx=ox+16,lw=Math.min(170,pw-32);
+      ['C','X','C','X','C'].forEach((k,j)=>{const y=oy+30+j*15;s+='<rect x="'+lx+'" y="'+y+'" width="'+lw+'" height="12" rx="2" fill="'+(k==='C'?C:X)+'" fill-opacity="'+(j===1?.75:.3)+'"/>'+T(lx+6,y+10,(j+1)+'. '+(k==='C'?'champion\'s result':'challenger\'s result')+(j===1?' (clicked)':''),{fs:11})});
+      s+=T(lx+lw+8,oy+52,'credit:',{fs:11,fill:'var(--mute)'})+T(lx+lw+8,oy+66,'challenger',{fs:11,fill:X})}
+    s+=lines(ox+10,oy+ph-44,wrap(d.sees,pw-20).slice(0,1),{fs:11,fill:'var(--bad)'})+lines(ox+10,oy+ph-28,wrap(d.m,pw-20).slice(0,2),{fs:11,fill:'var(--mute)'});
+  });
+  const H=two?2*ph+14:4*ph+42;el.innerHTML=RD.svg(w,H,s,'Shadow, canary, A/B test and interleaving: who sees the challenger');
+}
+reg(exp);
+
+// ---------- Drift test ----------
+function drift(){const el=$('pe-drift-svg');if(!el)return;const w=RD.width(el);let s='';const narrow=w<600;
+  const cw=narrow?w:(w-40)*0.42,wx=0;
+  s+=box(wx,8,cw*0.48,62,{stroke:'var(--c1)'})+T(wx+8,26,'last month',{fs:12,w:600})+T(wx+8,42,'inputs labelled 0',{fs:11,fill:'var(--mute)'})+T(wx+8,58,'(reference window)',{fs:11,fill:'var(--mute)'});
+  s+=box(wx+cw*0.52,8,cw*0.48,62,{stroke:'var(--c2)'})+T(wx+cw*0.52+8,26,'this week',{fs:12,w:600})+T(wx+cw*0.52+8,42,'inputs labelled 1',{fs:11,fill:'var(--mute)'})+T(wx+cw*0.52+8,58,'(current window)',{fs:11,fill:'var(--mute)'});
+  let gx,gy,gw;
+  if(narrow){s+=arrow(w/2,72,w/2,90);s+=box(0,92,w,30,{fill:'var(--acc2)',stroke:'var(--acc)'})+T(w/2,111,'classifier: which window is this input from?',{fs:11.5,a:'middle'});s+=arrow(w/2,124,w/2,140);gx=10;gy=150;gw=w-20}
+  else{const cx=cw+20;s+=arrow(cw+2,39,cx+8,39);s+=box(cx+10,20,150,40,{fill:'var(--acc2)',stroke:'var(--acc)'})+T(cx+85,36,'classifier',{fs:12,a:'middle',w:600})+T(cx+85,51,'which window?',{fs:11,a:'middle'});
+    s+=arrow(cx+162,39,cx+184,39);gx=cx+190;gy=14;gw=w-gx-8}
+  const X=v=>gx+(v-0.5)/0.5*gw;
+  s+='<rect x="'+X(0.55)+'" y="'+(gy+10)+'" width="'+(X(1)-X(0.55))+'" height="20" fill="var(--bad)" fill-opacity=".16"/>';
+  s+='<line x1="'+X(0.5)+'" x2="'+X(1)+'" y1="'+(gy+30)+'" y2="'+(gy+30)+'" stroke="var(--mute)"/>';
+  [0.5,0.55,0.75,1].forEach(v=>{s+='<line x1="'+X(v)+'" x2="'+X(v)+'" y1="'+(gy+26)+'" y2="'+(gy+34)+'" stroke="var(--mute)"/>'+(v===0.5?'':T(Math.min(X(1)-10,X(v)),gy+47,v===1?'1.0':v.toFixed(2),{fs:11,a:'middle',fill:'var(--mute)'}))});
+  s+='<line x1="'+X(0.55)+'" x2="'+X(0.55)+'" y1="'+(gy+6)+'" y2="'+(gy+34)+'" stroke="var(--bad)" stroke-dasharray="3 3"/>';
+  s+=T(gx,gy+4,'ROC AUC',{fs:11,fill:'var(--mute)'})+T(X(1),gy+4,'above 0.55: drift',{fs:11,a:'end',fill:'var(--bad)'});
+  s+=T(gx,gy+62,'0.5: cannot tell the windows apart',{fs:11,fill:'var(--mute)'});
+  el.innerHTML=RD.svg(w,gy+70,s,'Drift test: a classifier separating last month from this week, alarm above ROC AUC 0.55');
+}
+reg(drift);
+})();
+</script>
 <script>/* 31_js_gate.js */
 // Gate designer: any champion and challenger among the 34 MT-Bench models, every threshold exposed.
 (function(){
@@ -729,21 +1025,26 @@ function draw(){
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace pee-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
   function show(id,save){
     btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
     document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
-    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){window.__jsErr&&window.__jsErr(String(e))}});
-    dispatchEvent(new Event('resize'));
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
     if(save){try{localStorage.setItem('pee-tab',id)}catch(e){}}
   }
   btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
   bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
     if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('pee-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

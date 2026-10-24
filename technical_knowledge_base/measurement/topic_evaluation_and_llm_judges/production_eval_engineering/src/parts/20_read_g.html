@@ -1,0 +1,38 @@
+<section id="rd-mon">
+<h2>9. Monitoring and drift</h2>
+<p>Passing every gate is a statement about launch day. Afterwards three things move, and each needs its own watch:</p>
+<ul>
+<li><b>Traffic drift:</b> new users, intents, languages. Watch the input mix and per-intent judge scores, not only the global mean.</li>
+<li><b>Product drift:</b> the features around the model change what "good" means; the golden set and rubrics follow (criteria drift, section 2).</li>
+<li><b>Provider and infrastructure drift:</b> the model behind an API, or the serving stack around it, changes without your prompt changing. Pin model snapshots where the provider offers them, and keep a canary set running against production daily: GitLab validates "daily" against "the baseline from the day before", and GitHub runs its tests "against our production models every day".</li>
+</ul>
+<p>The first is the one a statistical test can see. The common test for text trains a classifier to tell last month's inputs from this week's:</p>
+<div class="card" id="pe-drift"><div id="pe-drift-svg"></div></div>
+<p class="small mute pe-cap"><b>If a classifier can tell the two windows apart, the inputs drifted.</b> Evidently flags drift when the classifier's ROC AUC exceeds 0.55 on more than 1,000 observations ({{drift explainer|https://docs.evidentlyai.com/metrics/explainer_drift}}), and recommends the same "model-based drift detection as a good default" for embeddings ({{embedding drift|https://www.evidentlyai.com/blog/embedding-drift-detection}}, 2023, updated 2025). The classifier's most confident examples are the ones to read: they show <i>what</i> changed, and they go into section 1's loop. Retrieval-specific drift (stale indexes, re-embedding backfills) is {{RAG in production|n:3f85c17b0d0d81aa9ba9c0ceac9e28c1}}'s.</p>
+<div class="co warn"><div class="t">When the serving stack drifted: Anthropic, August to September 2025</div>Three infrastructure bugs degraded some Claude responses. One misrouted requests to servers configured for a different context window: it "initially affected 0.8% of requests", then 16% of Sonnet 4 requests at the worst hour on 31 August, and about "30% of Claude Code users" had at least one message misrouted. "The evaluations we ran simply didn't capture the degradation users were reporting, in part because Claude often recovers well from isolated mistakes", and "We relied too heavily on noisy evaluations." The fix is a monitoring fix: run quality evaluations "continuously on true production systems" ({{A postmortem of three recent issues|https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues}}, 17 Sep 2025). Offline gates test a configuration; only production monitoring tests the system that actually serves it.</div>
+<p><b>An SLO turns monitoring into an alert with a budget.</b> Honeycomb ran its query assistant against a "Target of 75% successful requests over a seven day period", later raised to 80%, against "95% or higher" for most of their services, with a yes, no or not-sure feedback widget feeding it ({{Improving LLMs in Production With Observability|https://www.honeycomb.io/blog/improving-llms-production-observability}}, 16 Jun 2023).</p>
+<h3>Eval drift: when the instrument changes</h3>
+<p>The eval drifts too, and a score series is only comparable while three things stay fixed: the set version, the judge (model and prompt) and the scoring rule. Change the judge, and the champion is re-scored before any comparison; change the set, and the history is re-baselined ("As your eval set changes, its scores may no longer be directly comparable with older scores. That is ok!", Hamel Husain and Shreya Shankar's FAQ). Section 3's leaderboard number moved by 0.06 points from a scoring-rule difference alone. Close the loop by sampling live traces, running reference-free judges asynchronously and feeding new failures back into the CI set: section 1's loop, run continuously.</p>
+</section>
+
+<section id="rd-edd">
+<h2>10. Eval-driven development</h2>
+<p>The same machinery used during development, not only at release: write the eval for a behaviour before changing the prompt, model or pipeline that should produce it, and let every change run against it. Vercel named the practice for v0, whose prompts changed "almost daily" ({{Eval-driven development|https://vercel.com/blog/eval-driven-development-build-better-ai-faster}}, 17 Oct 2024); Eugene Yan describes it as the counterpart of test-driven development, with "every prompt tweak, every system update" evaluated ({{An LLM-as-Judge Won't Save The Product|https://eugeneyan.com/writing/eval-process/}}, Apr 2025). Who coined the phrase is unconfirmed.</p>
+<ul>
+<li><b>Start small and from failures:</b> Anthropic's 20 to 50 tasks drawn from real failures; Hamel Husain's assertions first, judges second, A/B tests last.</li>
+<li><b>Label before you automate:</b> a judge used in development needs a human-labelled calibration set; Yan suggests aiming for a "50:50 split of passes and fails" so both kinds of error can be measured.</li>
+<li><b>The last 20% is the work:</b> LinkedIn reached 80% of the experience in the first month, then "spent an additional four months attempting to surpass 95%"; their structured-output errors fell from about 10% to "~0.01%" along the way.</li>
+<li><b>Mind compounding:</b> Honeycomb's arithmetic for chained steps: five steps that are each 90% right give "59% accurate" end to end (0.9<sup>5</sup> = 0.59), so gate the steps as well as the whole.</li>
+</ul>
+<details class="mist"><summary>Mistakes that are easy to make anyway</summary><div class="b">
+<ul>
+<li><b>Comparing unpaired scores:</b> a fresh run against last month's dashboard number mixes item difficulty into the difference. Score both on the same items and subtract per item.</li>
+<li><b>Charting v1 and v2 of a golden set on one line</b>, or a score from a new judge beside one from the old.</li>
+<li><b>Trusting the A/B test as the final word:</b> users can reward the wrong thing (GPT-4o, April 2025), and a short test reads short-term behaviour.</li>
+<li><b>Stopping at launch:</b> serving bugs, provider updates and traffic drift arrive after the last gate (Anthropic, August 2025).</li>
+<li><b>Forgetting the evals' own bill:</b> a frontier judge on every change and on a share of live traffic can cost more than the feature; match the judge to the decision it supports.</li>
+</ul>
+</div></details>
+</section>
+<div class="foot">Built from the old Notion page (fetched read only on 2026-10-04, last edited 2026-09-22), LMSYS's released MT-Bench judgments, and the primary sources linked inline; rebuilt to the teaching contract on 2026-10-24. Source and data scripts: <code>src/</code> in the knowledge base repository.</div>
+</div>

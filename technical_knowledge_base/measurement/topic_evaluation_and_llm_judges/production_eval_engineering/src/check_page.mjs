@@ -16,13 +16,17 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   page.on('pageerror', e => errs.push(e.message)); page.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
   await page.goto(file, { waitUntil: 'load' });
   await page.evaluate(() => { try { localStorage.clear() } catch (e) {} });
+  // nothing may move before the reader acts: both step controls still on step 0 after three seconds with the cards on screen
+  for (const id of ['pe-ea', 'ga']) { await page.evaluate(id => document.getElementById(id).scrollIntoView(), id); await new Promise(r => setTimeout(r, 1500)) }
+  const still = await page.evaluate(() => [document.getElementById('pe-ea-ctl-s').value, document.getElementById('ga-scrub').value]);
+  if (still.join() !== '0,0') { bad++; console.log(w, 'AUTOPLAY', still) } else console.log(w, scheme, 'no autoplay');
   const tabs = await page.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
   for (const t of tabs) {
     await page.click(`#tabs button[data-t="${t}"]`); await new Promise(r => setTimeout(r, 150));
     const n = await page.evaluate(async (t) => {
       const tab = document.getElementById(t); let k = 0; if (!tab) return -1;
       const sleep = ms => new Promise(r => setTimeout(r, ms));
-      for (const b of [...tab.querySelectorAll('button')]) { if (b.id === 'ga-play') continue; b.click(); k++; await sleep(10) }
+      for (const b of [...tab.querySelectorAll('button')]) { if (b.id === 'ga-play' || b.classList.contains('an-play')) continue; b.click(); k++; await sleep(10) }
       for (const s of [...tab.querySelectorAll('select')]) { for (const o of [...s.options]) { s.value = o.value; s.dispatchEvent(new Event('change')); s.dispatchEvent(new Event('input')); k++; await sleep(5) } }
       for (const r of [...tab.querySelectorAll('input[type=range]')]) { for (const v of [r.min, r.max, (+r.min + +r.max) / 2]) { r.value = v; r.dispatchEvent(new Event('input')); r.dispatchEvent(new Event('change')); k++; await sleep(5) } }
       for (const c of [...tab.querySelectorAll('input[type=checkbox]')]) { c.click(); k++; await sleep(5); c.click() }
