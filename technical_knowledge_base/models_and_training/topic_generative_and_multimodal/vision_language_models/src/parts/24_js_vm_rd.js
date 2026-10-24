@@ -90,4 +90,6 @@
   const os=V.$('vm-ocr-seg');if(os)V.seg(os,[['smol','SmolVLM-500M'],['qwen','Qwen3.5-0.8B']],'smol',v=>{ocrM=v;ocr()});
   function all(){V.fill(V.$('t-read'));norms();res();ocr();ground();video();drift();hal();kv();red()}
   V.onRender(all);RD.onResize(all);
+  // figures inside closed blocks measure their width when opened
+  document.querySelectorAll('#t-read details.dp').forEach(d=>d.addEventListener('toggle',()=>{if(d.open)all()}));
 })();

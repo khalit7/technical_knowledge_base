@@ -1,4 +1,4 @@
-// ---- Tabs ----
+// ---- Tabs ---- (the explainer-page template; storage key vm-tab, so this page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};

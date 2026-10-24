@@ -7,5 +7,5 @@ const b=await puppeteer.launch({headless:'shell'});const p=await b.newPage();awa
 await p.goto('file://'+path.resolve(here,'../../index.html'));await new Promise(r=>setTimeout(r,400));
 const out=await p.evaluate(()=>{const o={};document.querySelectorAll('[data-vm]').forEach(e=>{o[e.dataset.vm]=e.textContent});
   o.__read=document.getElementById('t-read').textContent;
-  for(const t of ['t-vmsaw','t-vmbud','t-vmhal']){document.querySelector('#tabs button[data-t="'+t+'"]').click();o['__'+t]=document.getElementById(t).innerText}return o});
+  for(const t of ['t-vmsaw','t-vmbud']){document.querySelector('#tabs button[data-t="'+t+'"]').click();o['__'+t]=document.getElementById(t).innerText}return o});
 fs.writeFileSync(process.argv[2],JSON.stringify(out,null,1));await b.close();
