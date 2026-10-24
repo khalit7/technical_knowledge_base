@@ -15,7 +15,7 @@ S["reading"] = ("zstd shrinks the JSONL %.1f times; Parquet with zstd is %.0f%% 
                 "would allow uint16 and roughly halve it (%s derived)." % (b["jsonl"] / b["jsonl.zst"], 100 * (b["parquet.zstd"] / b["jsonl.zst"] - 1), f"{b['bin']:,} bytes",
                 b["bin"] / b["jsonl.zst"], f"{T * 2 + N * 8:,} bytes"))
 S["loader"] = ("A pretraining loader memory-maps the token file (numpy.memmap or Megatron's indexed dataset), so the operating system pages in only the windows a step needs. "
-               "It draws window start positions with a seeded shuffle, gives each data-parallel rank a disjoint slice, and records how many samples it has consumed so a "
+               "It draws window start positions with a seeded shuffle (Megatron, datatrove; nanoGPT instead draws random offsets with replacement), gives each data-parallel rank a disjoint slice, and records how many samples it has consumed so a "
                "restart resumes at the same place. Measured on these %s documents (median %s tokens, 90th percentile %s): one document per 2,048-token window leaves %.1f%% "
                "of positions as padding (%s windows), packing needs %s windows at %.2f%% fill; at 8,192 tokens the padding share rises to %.1f%%. Streaming loaders "
                "(MosaicML Streaming, LitData, WebDataset) do the same from object storage, one shard at a time." %
