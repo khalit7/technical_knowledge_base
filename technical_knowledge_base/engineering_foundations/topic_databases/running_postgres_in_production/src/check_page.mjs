@@ -10,7 +10,7 @@ const RC = fs.existsSync(path.join(here, 'recompute_out.json')) ? JSON.parse(fs.
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let bad = 0; const say = (ok, m) => { if (!ok) bad++; console.log((ok ? 'ok   ' : 'FAIL ') + m) };
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
-const CARDS = ['rd-arch', 'rd-pitr-card', 'rd-lag-card', 'rd-slot', 'rd-sync', 'rd-thr-card', 'rd-vac-card', 'rd-full', 'rd-conn', 'rd-eol', 'rd-up-out', 'rd-mcost'];
+const CARDS = ['rd-hero', 'rd-mem-card', 'rd-rep', 'rd-fo-card', 'rd-xid-card', 'rd-leak-card', 'rd-lock', 'rd-pitr-card', 'rd-lag-card', 'rd-slot', 'rd-sync', 'rd-thr-card', 'rd-vac-card', 'rd-full', 'rd-conn', 'rd-eol', 'rd-up-out', 'rd-mcost'];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
@@ -24,7 +24,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     for (const c of document.querySelectorAll('#t-read .an-ctl')) { for (const s of ['f', 'f', 'b', 'p', 'p']) { const e = document.getElementById(c.id + '-' + s); if (e) { click(e); await sleep(30) } }
       const r = document.getElementById(c.id + '-s'); if (r) { r.value = r.max; r.dispatchEvent(new Event('input')); await sleep(30); r.value = 0; r.dispatchEvent(new Event('input')); await sleep(30); r.value = r.max; r.dispatchEvent(new Event('input')) }
       const v = document.getElementById(c.id + '-v'); if (v) { v.value = '2'; v.dispatchEvent(new Event('change')) } }
-    for (const id of ['rd-thr-n', 'rd-thr-s']) { const r = document.getElementById(id); for (const v of [r.min, r.max, (+r.min + +r.max) / 2]) { r.value = v; r.dispatchEvent(new Event('input')); k++ } }
+    for (const id of ['rd-thr-n', 'rd-thr-s', 'rd-mem-w', 'rd-xid']) { const r = document.getElementById(id); for (const v of [r.min, r.max, (+r.min + +r.max) / 2]) { r.value = v; r.dispatchEvent(new Event('input')); k++ } }
     for (const el of document.querySelectorAll('details')) el.open = true;
     return k });
   say(n > 15, `${scheme} ${width}: clicked ${n} Reading controls`);
@@ -65,10 +65,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const sw = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   say(sw <= 0, `${scheme} ${width}: no sideways scroll (${sw})`);
   if (RC && width === 920) {
-    const js = await p.evaluate(() => ({ thr: [RPG_thr(1e9, 0.2), RPG_thr(1e7, 0.01), RPG_thr(1e5, 0.2)], cost: RPG_COST }));
+    const js = await p.evaluate(() => ({ thr: [RPG_thr(1e9, 0.2), RPG_thr(1e7, 0.01), RPG_thr(1e5, 0.2)], cost: RPG_COST, mem: RPG_MEM(256, 100), mem20: RPG_MEM(256, 20), mem4: RPG_MEM(4, 100), xid: [1e8, 3e8, 1.7e9, 2.12e9, 2.146e9].map(RPG_XID), lockq: RPG_LOCKQ }));
     const close = (a, b) => Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(b));
     say(close(js.thr[0].raw, RC.thr_1e9_02.raw) && close(js.thr[0].pg18, RC.thr_1e9_02.pg18) && close(js.thr[1].raw, RC.thr_1e7_001.raw) && close(js.thr[2].raw, RC.thr_1e5_02.raw), 'autovacuum thresholds match recompute.py');
     say(Object.keys(RC.cost).every(k => close(js.cost[k], RC.cost[k])), 'managed costs match recompute.py');
+    say(close(js.mem.total, RC.mem.direct_256.total) && close(js.mem20.total, RC.mem.pool_256.total) && close(js.mem4.total, RC.mem.direct_4.total), 'memory calculator matches recompute.py ' + JSON.stringify([js.mem, js.mem20, js.mem4]));
+    say(JSON.stringify(js.xid) === JSON.stringify(RC.xid), 'XID-age zones match recompute.py ' + JSON.stringify(js.xid));
+    say(js.lockq && js.lockq.length === 5 && js.lockq.filter(r => r.by === js.lockq[1].pid).length === 3, 'lock-queue diagram parsed 1 holder, 1 ALTER, 3 readers');
   }
   say(errs.length === 0, `${scheme}: no page errors` + (errs.length ? ' ' + errs.slice(0, 3).join(' | ') : ''));
   const jsErr = await p.evaluate(() => document.getElementById('jsErr').hidden);

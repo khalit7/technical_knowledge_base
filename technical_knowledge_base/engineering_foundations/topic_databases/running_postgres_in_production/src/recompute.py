@@ -17,7 +17,7 @@ out = {}
 thr = lambda rows, sf: {'raw': 50 + sf * rows, 'pg18': min(50 + sf * rows, 1e8)}
 out['thr_1e9_02'], out['thr_1e7_001'], out['thr_1e5_02'] = thr(1e9, 0.2), thr(1e7, 0.01), thr(1e5, 0.2)
 check(out['thr_1e5_02']['raw'] == 20050, 'chat_state trigger 50 + 0.2 x 100,000 = 20,050'); inhtml('20,050', 'trigger')
-check(out['thr_1e9_02']['raw'] == 200_000_050, 'a billion rows at 0.2: 200 million dead tuples'); inhtml('200 million dead rows', 'mistakes section')
+check(out['thr_1e9_02']['raw'] == 200_000_050, 'a billion rows at 0.2: 200 million dead tuples'); inhtml('200 million dead rows', 'section 5')
 # managed: one 2 vCPU / 8 GiB node, 730 h, compute only
 out['cost'] = {'rds': 0.168 * 730, 'rds_maz': 0.337 * 730, 'csql': (2 * 0.0413 + 8 * 0.007) * 730, 'csql_ha': 2 * (2 * 0.0413 + 8 * 0.007) * 730, 'alloy': (2 * 0.06608 + 8 * 0.0112) * 730}
 print('     monthly:', {k: round(v, 2) for k, v in out['cost'].items()})
@@ -66,5 +66,21 @@ check(all(x == '5s' for x in cs['set_leak']['b']), "client B saw client A's 5s t
 u = J('upgrade'); us = {s['step']: s for s in u['steps']}
 check(us['copy']['secs'] < 3 and us['link']['secs'] < 3, f"pg_upgrade copy {us['copy']['secs']} s, link {us['link']['secs']} s (prose: about two seconds)")
 check('duplicate key' in us['seq_trap']['out'], 'sequence trap reproduced')
+# memory calculator: shared_buffers 16 GB + conns x (sort + hash x 2.0) x work_mem, 64 GB host (illustrative)
+mem = lambda wm, c: {'work': c * 3 * wm / 1024, 'total': 16 + c * 3 * wm / 1024}
+out['mem'] = {'direct_256': mem(256, 100), 'pool_256': mem(256, 20), 'direct_4': mem(4, 100)}
+check(out['mem']['direct_256']['total'] > 64 > out['mem']['pool_256']['total'], 'predict: 256 MB x 100 backends passes 64 GB; behind a pooler (20) it does not')
+check(mem(128, 100)['total'] < 64, '128 MB x 100 still fits (54.4 GB), so 256 MB is the first step past RAM')
+# XID zones: 200M aggressive, 1.6B failsafe, 2^31 - 40M warnings, 2^31 - 3M refusal
+L = 2**31
+z = lambda a: 'stop' if a >= L - 3e6 else 'warn' if a >= L - 40e6 else 'failsafe' if a >= 1.6e9 else 'aggressive' if a >= 200e6 else 'normal'
+out['xid'] = [z(a) for a in (1e8, 3e8, 1.7e9, 2.12e9, 2.146e9)]
+check(L - w['steps'][1]['target'] + w['steps'][1]['oldest'] == 3_000_300, 'the run stopped 3,000,300 short of 2^31, inside the 3M refusal margin plus 300')
+# connections: reconnect cost
+pg = {(r['path'], r['reconnect']): r['tps'] for r in cs['pgbench']['rows']} if 'pgbench' in cs else None
+if pg:
+    keep = pg[('direct', True)] / pg[('direct', False)]; spd = pg[('PgBouncer', True)] / pg[('direct', True)]
+    check(round(keep * 100) == 2 and round(spd, 1) == 5.6, f'reconnecting keeps {keep:.1%}; via PgBouncer {spd:.2f}x faster (title: 2%, 5.6 times)')
+    inhtml('keeps 2% of the throughput', 'connection bars title'); inhtml('5.6 times faster', 'connection bars title')
 json.dump(out, open(os.path.join(HERE, 'recompute_out.json'), 'w'), indent=1)
 print('FAILED', bad) if bad else print('all ok')

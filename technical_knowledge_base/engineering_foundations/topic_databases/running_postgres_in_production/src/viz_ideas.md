@@ -27,3 +27,15 @@ The question the page keeps returning to: **when something goes wrong at 3 a.m.,
 
 ## What the methodology lacked for this page
 Its examples are about recomputing published figures. An operations page's evidence is command output; the useful rule here was "every output shown is captured by a script and rendered from JSON, never pasted", plus labelling laptop-scale timings as orders of magnitude (macOS fsync does not flush the drive cache, so commit rates are high).
+
+## 2026-10-24 rebuild to the teaching contract
+Built (all inline in Reading, all drawn at the measured width, none moves before the reader acts):
+- **Hero** (static annotated diagram, `27_js_rd_new.js`): clients, PgBouncer, one backend per connection, shared buffers, table files, WAL, archive and replica, with section numbers on the figure and the two pins (open transaction, inactive slot) in the page's highlight colour. Replaces the old section 1 server diagram.
+- **work_mem calculator** (slider plus a direct/pooler toggle): worst-case memory = shared_buffers + backends x (sort + hash x 2.0) x work_mem against a 64 GB host (illustrative host; rule from the docs). Section 1 had no visual and the page now owns memory settings.
+- **Replication pipeline** (static): one WAL record through sender, receiver, write, flush, replay with the three lags as brackets. Streaming replication had only a transcript.
+- **Failover before/after stepper**: the same partition promoted by hand (split brain, real rows 2150968, real pg_rewind numbers) against Patroni's leader lock (from its docs, not run). The 2026-10-04 rejection of a failover animation is reversed: the before/after on one partition shows what the transcripts only listed, and the leader lock is drawn only as far as the operations need (Raft stays on Distributed systems fundamentals).
+- **XID-age slider** with a zoom on the last 50 million: the four documented layers and this page's alert lines on one linear axis.
+- **SET-leak stepper** (4 frames): transaction pooling's correctness bug, with the run's measured result in the caption.
+- **Lock-queue diagram** parsed from the real `pg_stat_activity` snapshot (new section 8, safe schema changes).
+Moved: every real transcript (22 boxes, about 2,700 words) into closed "Real run" blocks; the line each section relies on is quoted in the prose. Removed: the "What pages you" card grid (it restated the failure table, which is now at the top) and the Common mistakes section (each mistake restated a section; the one new fact, recovery_min_apply_delay, moved into section 2).
+Rejected: a real photo (the page is about software; no physical object teaches here), a pooling animation of 1,000 dots (still decoration), a pg_wal/ checkpoint animation (Storage engines and indexes owns checkpoints as a mechanism; here the hero and the slot chart carry the operational point).

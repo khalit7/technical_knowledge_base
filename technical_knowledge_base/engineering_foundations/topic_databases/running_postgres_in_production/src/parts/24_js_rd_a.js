@@ -1,4 +1,4 @@
-// ---- Reading sections 1 to 5: server diagram, PITR animation, lag chart, slot and sync bars ----
+// ---- Reading sections 2 and 3: PITR animation, lag chart, slot and sync bars ----
 (function(){
   const D=window.RPG,t=RD.t,esc=RD.esc;
   const fmt=n=>Math.round(n).toLocaleString('en-US');
@@ -6,27 +6,6 @@
     t(x+w/2,y+(sub?h/2-2:h/2+4),label,{a:'middle',fs:11.5,w:600})+(sub?t(x+w/2,y+h/2+12,sub,{a:'middle',fs:10,fill:'var(--mute)'}):'');
   const arrow=(x1,y1,x2,y2,col)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+(col||'var(--mute)')+'" stroke-width="1.3" marker-end="url(#rpa)"/>';
   const defs='<defs><marker id="rpa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--mute)"/></marker></defs>';
-
-  // 1. the server
-  function arch(){
-    const el=document.getElementById('rd-arch');if(!el)return;const W=Math.min(760,RD.width(el)),H=350,g=10,cw=(W-4*g)/3;
-    let s=defs;
-    for(let i=0;i<3;i++){const x=g+i*(cw+g);s+=box(x,6,cw,34,'app '+(i+1),'client connection',null);s+=arrow(x+cw/2,40,x+cw/2,62);
-      s+=box(x,64,cw,38,'backend '+(i+1),'one process each','var(--c4)')}
-    s+=t(W/2,118,'postmaster starts one backend per connection',{a:'middle',fs:10,fill:'var(--mute)'});
-    for(let i=0;i<3;i++){const x=g+i*(cw+g)+cw/2;s+=arrow(x,102,x,134)}
-    s+=box(g,136,W-2*g,36,'shared buffers','cached 8 KB pages, shared by every backend','var(--c1)');
-    const hw=(W-3*g)/2;
-    s+=arrow(g+hw/2,172,g+hw/2,200);s+=arrow(2*g+hw+hw/2,172,2*g+hw+hw/2,200,'var(--bad)');
-    s+=box(g,202,hw,40,'data files','tables, indexes');
-    s+=box(2*g+hw,202,hw,40,'WAL (pg_wal/)','every change, first','var(--bad)');
-    const qw=(hw-g)/2,x0=2*g+hw;
-    s+=arrow(x0+qw/2,242,x0+qw/2,286,'var(--bad)');s+=arrow(x0+qw+g+qw/2,242,x0+qw+g+qw/2,286,'var(--bad)');
-    s+=box(x0,288,qw,44,'archive','backups, PITR','var(--c3)');
-    s+=box(x0+qw+g,288,qw,44,'replica','replays it','var(--c3)');
-    s+=t(g,300,'Checkpoints let old WAL be recycled,',{fs:10,fill:'var(--mute)'})+t(g,314,'unless the archive or a replica',{fs:10,fill:'var(--mute)'})+t(g,328,'still needs it (section 4).',{fs:10,fill:'var(--mute)'});
-    el.innerHTML=RD.svg(W,H,s,'Diagram of a Postgres server');
-  }
 
   // 3. PITR animation
   const P=D.pitr||{},base=P.count_dump||1000000,good=P.before_delete||1012000,today=good-base;
@@ -74,10 +53,10 @@
     document.getElementById('rd-pitr-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+ST.length+': '+esc(s0.t)+'</div><p>'+s0.d[mode]+'</p>';
   }
   let A;
-  RD.onRender(()=>{arch();lag();slot();sync();sum()});
-  RD.onResize(()=>{arch();A&&A.redraw();lag();slot()});
+  RD.onRender(()=>{lag();slot();sync();sum()});
+  RD.onResize(()=>{A&&A.redraw();lag();slot()});
   A=RD.anim({card:'rd-pitr-card',ctl:'rd-pitr-ctl',n:ST.length,draw:drawPitr,ms:2200,label:'Recovery step'});
-  RD.seg(document.getElementById('rd-pitr-mode'),m=>{mode=m;A.reset(ST.length);A.play()});
+  RD.seg(document.getElementById('rd-pitr-mode'),m=>{mode=m;A.reset(ST.length)});  // a mode switch resets to step 1; nothing moves until the reader steps or presses play
   function sum(){const el=document.getElementById('rd-pitr-sum');if(!el||!P.count_pitr)return;
     el.innerHTML='<div class="out">'+RD.stat('Before the DELETE',fmt(good),'messages')+RD.stat('Restored from the dump',fmt(P.count_dump),'lost '+fmt(good-P.count_dump)+', restore '+secDump+' s')+
       RD.stat('Point-in-time recovery',fmt(P.count_pitr),'lost '+fmt(good-P.count_pitr)+', recovery '+secPitr+' s')+'</div>'}
