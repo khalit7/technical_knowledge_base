@@ -52,7 +52,7 @@ claim("a <code>GetTask</code> in between said so", r["get_task_between"]["body"]
 snap = r["second_stream"][0]["data"]["result"]["task"]["artifacts"][0]["parts"]
 claim("The snapshot held all four shards finished by then", len(snap) == 4)
 U = json.load(open(os.path.join(H, "inputs", "ucp_allbirds_profile.json")))["ucp"]
-claim("(version 2026-08-25)", U["version"] == "2026-08-25")
+claim("(version 2026-08-25,", U["version"] == "2026-08-25")
 claim("offers shopping over MCP and embedded only", sorted(x["transport"] for x in U["services"]["dev.ucp.shopping"]) == ["embedded", "mcp"])
 claim("a2a-sdk 1.2.2", A["versions"]["a2a-sdk"] == "1.2.2")
 # privacy and secrets: page, data, src
