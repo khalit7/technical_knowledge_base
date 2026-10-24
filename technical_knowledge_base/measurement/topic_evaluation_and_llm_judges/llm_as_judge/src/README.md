@@ -16,6 +16,7 @@ Page prefix `lj`, storage key `lj-tab`. Rebuilt 2026-10-24 to the teaching contr
 |---|---|
 | Reading `t-read` | `20_read_a` (styles, nav, core sentence, hero, you need, new terms, in one screen, modes, prompt), `20_read_b` (biases, CALM grid, exploits), `20_read_c` (calibration: gold slice, kappa, stepper, formula, slice-size lab, reliability against validity), `20_read_d` (juries, judge models, meta-evaluations, list vs item), `20_read_e` (checklist, depth); JS `21_js_rd_common.js` (skill template, never autoplays), `21_js_rd_lj.js` (`RD.onTab`, `RD.onResizeTab`, `window.LJ` computations), `22_js_calm.js`, `23_js_anim.js` (gold-slice stepper), `23_js_rd_cal.js` (slice-size lab), `24_js_rd_figs.js` (ten static figures) |
 | Protocol lab `t-proto` | `31_tab_proto.html`, `31_js_proto.js` |
+| Judge bias lab `t-bias` | `32_tab_bias.html`, `32_js_bias_a.js`, `32_js_bias_b.js`, `32_js_bias_data.js` (written by `bias/mk_data.py`; `bias/recompute.py` and `bias/check.mjs` check it). Moved here from the topic root on 2026-10-24 at the topic close, intact except that it no longer starts playing on scroll |
 | Further reading `t-more` | `39_tab_more.html` |
 
 ## The 2026-10-24 rebuild: what changed and why
@@ -42,3 +43,8 @@ Why about 25 minutes is right: the page owns the whole judge lifecycle (design, 
 
 ## Knowledge ledger
 345 units: core 261, depth 50, fat 34 (each fat unit carries a `note`). 335 were drafted from the old page by `ledger.py init` (344 sentences, 9 sentence fragments merged into their units); 10 were added by hand for the new figures and the Table 5 reproduction box (`note` says so). No unit is `owned:` elsewhere: kappa for judges, Critique Shadowing and the correction live here.
+
+## Topic close (2026-10-24)
+- Received the root's Judge bias lab as tab `t-bias` (with `src/bias/`); links that pointed at the root's lab now point at this tab.
+- Added a closed block under "The bias catalogue": Zheng et al. Table 2 per judge (GPT-4 65.0%, GPT-3.5 46.2%, Claude-v1 23.8% consistent) and the pointwise 60% against pairwise 66% from Table 5, carried from the root's retired grading-mode animation. Closed details stay at 7 minutes (1,723 words).
+- Further reading: root card (15 min, Judge atlas only), sibling times, Guardrails moved to related pages.
