@@ -13,7 +13,7 @@ def txt(x):
     x = x.replace('\u2014', ' -- ')
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
 a = s.index('<article'); b = s.index('</article>')
-open('inputs/paper_v2.txt', 'w').write('Source: https://arxiv.org/html/2205.14135v2 (extracted by extract_paper.py)\n\n' + txt(s[a:b]))
+open('inputs/paper_v2.txt', 'w').write('Source: https://arxiv.org/html/2205.14135v2 (extracted by extract_paper.py)\n\n' + re.sub(r'\{[^}]*\}@[A-Za-z0-9.-]+\.[a-z]{2,}|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}', '[email removed]', txt(s[a:b])))  # author emails redacted (2026-10-25)
 tids = sorted(set(re.findall(r'<figure[^>]*id="((?:S|A)\d+\.T\d+)"', s)))
 for tid in tids:
     m = re.search(r'<figure[^>]*id="' + re.escape(tid) + r'".*?</figure>', s, re.S)

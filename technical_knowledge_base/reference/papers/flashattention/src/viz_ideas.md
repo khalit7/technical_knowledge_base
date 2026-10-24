@@ -23,3 +23,9 @@ Scores 0 to 2 per Methodology question (quantity under the reader's control; rep
 | P-flashattention.15 | Heat-map of P's values in the animation | none | | rejected: 2,048 coloured cells per frame for no extra insight; the followed row shows the real numbers |
 
 What the methodology lacked here: a rule for when a systems simulation should also run the real arithmetic. Here it should, because the mechanism's correctness (online rescaling) is the part readers doubt, and running it costs nothing.
+
+## 2026-10-25 light pass
+- P-flashattention.h1 (built): the hero, standard against FlashAttention as HBM band and SRAM box with Figure 2's printed numbers; static; arrows schematic, labelled so.
+- P-flashattention.h2 (built): a CC0 photo of a P100 package (die and HBM stacks) beside the hierarchy chart.
+- Moved, not new: the kernel animation, the scale panel and the block-size chart from the Run tab into Reading; Figure 2's bars, the online-softmax demo and the Theorem 2 curve out of predict reveals.
+- Rejected: embedding the paper's Figure 1 (arXiv non-exclusive licence); the Commons A100 image (vendor render, doubtful licence).

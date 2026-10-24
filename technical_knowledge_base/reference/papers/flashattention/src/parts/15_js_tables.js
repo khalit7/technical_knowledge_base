@@ -72,3 +72,6 @@ function statics(){
   $('chkT').innerHTML='<tr><th>Claim</th><th>Where</th><th>Printed</th><th>Recomputed</th><th>Verdict</th></tr>'+RC.checks.map(c=>'<tr><td>'+c.claim+(c.note?'<div class="small mute">'+c.note+'</div>':'')+'</td><td style="white-space:nowrap">'+A(PAPER.meta.ax+'#'+c.at,c.at.replace(/^S4\.T6$/,c.claim.indexOf('Path')>=0?'Table 6':'Table 5').replace(/^S(\d+)\.T(\d+)$/,'Table $2').replace(/^A5\.T(\d+)$/,'Table $1').replace(/^S3\.F2$/,'Figure 2').replace(/^S1\.F1$/,'Figure 1').replace(/^S(\d)\.SS(\d)$/,'§$1.$2').replace(/^S(\d)$/,'§$1'))+'</td><td>'+c.printed+'</td><td>'+c.value+'</td><td>'+V[c.ok]+'</td></tr>').join('')}
 let done=0;onTab('t-tables',()=>{bench();if(!done){done=1;statics()}});
 })();
+
+// the per-table sections are closed blocks since 2026-10-25: a jump from the tab's nav opens the one it lands on
+(function(){const n=$('tbNav');if(!n)return;n.querySelectorAll('a[href^="#"]').forEach(a=>a.addEventListener('click',()=>{const d=document.querySelector(a.getAttribute('href')+' details');if(d)d.open=true}))})();

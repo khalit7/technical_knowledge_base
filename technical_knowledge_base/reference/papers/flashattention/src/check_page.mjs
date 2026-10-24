@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const file = 'file://' + path.resolve(here, '../index.html');
-const shots = process.argv[2] || path.resolve(here, '../.shots');
+const shots = process.argv[2] || path.resolve(here, '../.shots'); (await import('node:fs')).mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: true });
 let problems = [], actions = 0;
 for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
@@ -51,6 +51,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
+    // nothing may move before the reader acts (2026-10-25): scroll the animation into view and wait
+    if (await p.$(`#${t} #kx`)) { await p.$eval('#kx', e => e.scrollIntoView()); await wait(1200);
+      const fr = await p.$eval('#kx', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: kx moved before any click (${fr} frames)`) }
+    // closed details hold controls and outputs too: open them all
+    await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(300); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }

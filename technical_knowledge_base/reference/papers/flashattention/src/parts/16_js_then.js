@@ -22,8 +22,8 @@ const V=[
   what:['Software-emulated exponential and conditional softmax rescaling, to cut non-matmul work','Tensor memory and 2-CTA MMA to reduce shared-memory traffic and atomic adds in the backward pass','Written entirely in CuTe-DSL embedded in Python: 20 to 30× faster compile times than C++ templates'],
   num:'up to 1.3× over cuDNN 9.13 and 2.7× over Triton on B200 in BF16, up to 1,613 TFLOPs/s (71% utilisation)',src:ax('2603.05451')}];
 function show(i){const v=V[i];$('thCard').innerHTML='<h3 style="margin-top:0">'+v.h+'</h3><p class="small mute">'+v.by+' · '+v.gpu+' · '+v.src+'</p>'+
-  (v.left?'<p><b>What the previous version left:</b> '+v.left+'</p>':'')+'<p><b>Loop picture:</b> '+v.loop+(i<2?' ('+'<a href="#" data-tab="t-run">run both orders</a>)':'')+'.</p><ul>'+v.what.map(w=>'<li>'+w+'</li>').join('')+'</ul><p><b>Headline:</b> '+v.num+'.</p>';
-  $('thCard').querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();document.querySelector('#tabs button[data-t="t-run"]').click()}))}
+  (v.left?'<p><b>What the previous version left:</b> '+v.left+'</p>':'')+'<p><b>Loop picture:</b> '+v.loop+(i<2?' ('+'<a href="#" data-tab="t-read">run both orders</a>)':'')+'.</p><ul>'+v.what.map(w=>'<li>'+w+'</li>').join('')+'</ul><p><b>Headline:</b> '+v.num+'.</p>';
+  $('thCard').querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();document.querySelector('#tabs button[data-t="t-read"]').click();$('kx').scrollIntoView({block:'start'})}))}
 const seg=$('thM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});show(+b.dataset.m)}));
 show(0);
 })();

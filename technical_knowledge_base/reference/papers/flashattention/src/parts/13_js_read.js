@@ -64,3 +64,6 @@ function th(){const N=+$('thN').value,d=+$('thD').value,host=$('thSvg');
   const fM=fa(a100);$('thRep').innerHTML='The green line is the A100: 192 KB = 98,304 fp16 values. Solid blue: Algorithm 1 counted exactly, with B<sub>c</sub> = ⌈M / 4d⌉ (it steps because T<sub>c</sub> is a whole number of passes). Dashed blue: the Θ(N²d²/M) term alone. At the A100\'s M, one head of N = '+fmt(N)+', d = '+d+' moves '+fmt(fM)+' values against standard attention\'s '+fmt(std)+' ('+(std/fM).toFixed(1)+'× fewer). Doubling M from there: '+fmt(fa(2*a100))+' ('+(fM/fa(2*a100)).toFixed(2)+'× fewer again). The halving holds while the passes over Q dominate, that is while M is small against Nd; near the floor (short sequences, or M close to Nd) each doubling buys less, as with N = 1,024.'}
 PRED_REVEAL['pr-sram']=th;$('thN').addEventListener('change',th);$('thD').addEventListener('change',th);
 })();
+
+// the three predict visuals sit inline beside their questions (2026-10-25): draw them now; the reveals hold only the explanation
+['pr-flops','pr-resc','pr-sram'].forEach(k=>{const f=PRED_REVEAL[k];delete PRED_REVEAL[k];if(f)f()});

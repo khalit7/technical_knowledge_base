@@ -8,10 +8,10 @@ import html, json, re, sys
 raw = open('../index.html', encoding='utf-8').read()
 txt = html.unescape(re.sub(r'<[^>]+>', ' ', raw))
 txt = re.sub(r'\s+', ' ', txt)
-R, K, T, N, F = 'The paper tab', 'Run the kernel tab', "The paper's tables tab", 'Then and now tab', 'Further reading'
+R, K, T, N, F = 'The paper tab', 'The paper tab (the kernel animation and scale panel, formerly the Run the kernel tab)', "The paper's tables tab", 'Then and now tab', 'Further reading'
 C = [
  # header
- ('Reading time line "12 min read, +~4h resources"', 'dropped: replaced by the build-computed reading time and resources total (4h 00m, the same)', ['min to read', '4h 00m of resources']),
+ ('Reading time line "12 min read, +~4h resources"', 'replaced by the measured reading time in the header (2026-10-25 format)', ['Reading: ', 'in closed details.']),
  ('Authors: Dao, Fu, Ermon, Rudra, Re (Stanford Hazy Research / U. Buffalo)', R + ', headline card', ['Tri Dao', 'Daniel Y. Fu', 'Stefano Ermon', 'Atri Rudra', 'Christopher Ré', 'Hazy Research', 'University at Buffalo']),
  ('Date: May 2022 (NeurIPS 2022)', R + ', headline card', ['May 2022 (arXiv v1)', 'NeurIPS 2022']),
  ('Link arXiv 2205.14135 (~1h)', 'card and ' + F, ['https://arxiv.org/abs/2205.14135', '(1h)']),
@@ -38,7 +38,7 @@ C = [
  ('Split K, V into blocks of B_c rows and Q into blocks of B_r rows; sized so K, V, Q and output blocks fit SRAM; B_c = ceil(M/4d)', R + ', Algorithm 1 paragraph', ['B c = ⌈M / 4d⌉', 'B r = min(⌈M / 4d⌉, d)', 'so that a K block, a V block, a Q block and an output block fit on chip']),
  ('Outer loop streams K_j, V_j; inner loop streams Q_i; on chip S_ij = Q_i K_j^T, block max and exponentials, update (m_i, l_i), rescale O_i before adding P_ij V_j', R + ' Algorithm 1 walk-through; ' + K, ['The outer loop loads K j and V j into SRAM', 'the inner loop loads Q i , O i', 'S ij = Q i K j T on chip', 'rescales the output accumulator and adds P̃ ij V j']),
  ('Only Q, K, V, O and the O(N) statistics touch HBM', R, ['Only Q, K, V, O and the O(N) statistics ever touch HBM']),
- ('FlashAttention-2 swapped the loop order so Q is outer, what to picture today', R + ' note; ' + K + ' FA-2 order mode; ' + N, ['swapped the loops so Q is outer', 'which is the picture to have today', 'FlashAttention-2 order']),
+ ('FlashAttention-2 swapped the loop order so Q is outer, what to picture today', R + ' note; ' + K + ' FA-2 order mode; ' + N, ['switched to (Q outer', 'the picture to have today', 'FlashAttention-2 order']),
  ('Masking and dropout fuse in for free inside one kernel instead of extra N x N round trips', R + ' and ' + K, ['the steps between the matrix multiplies cost nothing extra', 'fuses masking and dropout into its single kernel at no extra HBM cost']),
  ('Recomputation: training normally stores S, P (O(N^2) memory); FA stores O and (m, l); later versions one logsumexp L per row', R + ' Recomputation; ' + K + ' FA-2 final step; ' + N, ['stores only the output O and the softmax statistics (m, ℓ)', 'a single number per row, L = m + log ℓ']),
  ('Backward recomputes S_ij, P_ij block by block in SRAM from Q, K, V and saved stats', R, ['recomputes S ij and P ij tile by tile in SRAM']),

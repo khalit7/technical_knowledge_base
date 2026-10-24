@@ -71,7 +71,7 @@ function counters(mode,k){const S=KX.sims[mode].steps[k],tot=S.rd+S.wr,std=total
     R.innerHTML=x}
   return h}
 const an=makeAnim({id:'kx',modes,mode:'std',draw,counters,dur:2600});
-function reset(){rebuild();if(an){an.st.k=0;an.st.t=RM?1:0;an.draw()}}
+function reset(){rebuild();if(an){an.st.k=0;an.st.t=1;an.st.play=false;an.draw()}}
 $('kxB').addEventListener('change',e=>{KX.B=+e.target.value;reset()});
 $('kxMd').addEventListener('change',e=>{KX.md=e.target.checked;reset()});
 $('kxNew').addEventListener('click',()=>{KX.seed=(KX.seed*1103515245+12345)%2147483647||7;reset()});
@@ -114,5 +114,6 @@ function blocks(){const eff=(+$('bkE').value)/100;$('bkEv').textContent=Math.rou
     host.innerHTML=svgW(W,H,h,'Forward-pass lower bounds against block size');
     $('bkRep').innerHTML='Forward pass only, Figure 2\'s workload, B_r = 64. The HBM line is Algorithm 1\'s count (T_c = ⌈N / B_c⌉ passes over Q and O); the FLOPs line is the two matrix multiplies, '+(2*FA.mm(N,d)*BH/1e9).toFixed(0)+' GFLOP, at the share of peak you choose. Runtime cannot sit below either line, so past the crossing (B_c ≈ '+(bx||'beyond 1024')+' here) bigger blocks buy nothing. Illustrative: the default 35% sits inside the 25 to 40% of peak that the '+A('https://arxiv.org/abs/2307.08691','FlashAttention-2')+' paper reports for the original FlashAttention.'})}
 $('bkE').addEventListener('input',blocks);
-onTab('t-run',()=>{scale();blocks();if(an)an.draw()});
+// the kernel animation, the scale panel and the block-size chart sit in the Reading tab since 2026-10-25
+onTab('t-read',()=>{scale();blocks();if(an)an.draw()});
 })();
