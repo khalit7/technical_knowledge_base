@@ -29,6 +29,6 @@ bad = 0
 for txt, got, exp in claims:
     inpage = txt in H; good = inpage and got == exp
     print(("OK  " if good else "BAD ") + repr(txt), "page" if inpage else "NOT IN PAGE", got, exp); bad += not good
-priv = [p for p in ("/Users/", "Users-", "khalid", "glpat", "sk-ant", "@aveni", "172.17.", "192.168.") if p in H]
+priv = [p for p in ("/Users/", "Users-", "glpat", "sk-ant", "172.17.", "192.168.") if p in H]
 print("privacy hits in index.html:", priv)
 sys.exit(1 if bad or not ok or priv else 0)

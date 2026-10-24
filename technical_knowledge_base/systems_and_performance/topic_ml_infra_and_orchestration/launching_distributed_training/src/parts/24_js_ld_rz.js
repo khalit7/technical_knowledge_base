@@ -1,5 +1,6 @@
-// ---- Rendezvous lab (t-ldrz) ----
+// ---- Rendezvous replay (Reading section 4; was the Rendezvous lab tab) ----
 (function(){
+if(!document.getElementById('rz-card'))return;
 const D=window.LD,$=id=>document.getElementById(id),esc=RD.esc,f1=x=>(Math.round(x*10)/10).toFixed(1);
 const KEEP={store_host:'hosts the rendezvous store',add_part:'joins the round',add_wait:'joins the wait list',rm_part:'leaves the round',roundup:'round reset',
   wait_last:'waits for the last call',quorum:'quorum reached',complete:'round complete',joined:'gets its rank',dead:'declares a node dead',
@@ -38,8 +39,7 @@ function draw(i){const s=steps[i];if(!s)return;lanes(i);const st=s.state;
 function render(){steps=build(mode);$('rz-log').innerHTML=steps.map(s=>'<div><span class="w">'+esc(s.who)+'</span>+'+f1(s.t).padStart(6,' ')+' s  '+esc(s.msg.trim())+'</div>').join('')}
 render();
 const an=RD.anim({card:'rz-card',ctl:'rz-ctl',n:steps.length,draw:draw,ms:1500,label:'Rendezvous step'});
-RD.seg($('rz-mode'),m=>{mode=m;render();an.reset(steps.length);an.play()});
+RD.seg($('rz-mode'),m=>{mode=m;render();an.reset(steps.length)});
 $('rz-log').addEventListener('click',e=>{const d=e.target.closest('div');if(!d||d===$('rz-log'))return;an.go([...$('rz-log').children].indexOf(d))});
-(window.TAB_RENDER=window.TAB_RENDER||{})['t-ldrz']=(window.TAB_RENDER['t-ldrz']||[]).concat([()=>an.redraw()]);
-addEventListener('resize',()=>{if(!$('t-ldrz').hidden)an.redraw()});
+RD.onRender(()=>an.redraw());RD.onResize(()=>an.redraw());
 })();
