@@ -22,3 +22,8 @@ What the text needs: (1) what a tool call physically is, below the API; (2) why 
 
 ## What the methodology lacked
 - A rule for shared infrastructure: when the measuring machine is loaded by other jobs, report tokens, not seconds, and state any loss of determinism.
+
+## 2026-10-24 rebuild
+Built: hero loop (static annotated, sections linked); SWE-agent Table 3 as bars (published, one choice changed at a time); planning diagram (illustrative structure); execution-environment spectrum (structure); prompt tokens per call by kind (measured, moved from the token tab); first-attempt correct per format for three models (dot plot: the ranking flip that makes "measure on your model" concrete). Existing bars redrawn as SVG.
+Moved: token tab to a closed block in section 1; Stop lab inline in section 10.
+Rejected: a "same edit, five formats" viewer in Reading (the bench tab already shows every reply by cell); a cost-in-dollars chart (local model has no price); a latency chart (shared server).

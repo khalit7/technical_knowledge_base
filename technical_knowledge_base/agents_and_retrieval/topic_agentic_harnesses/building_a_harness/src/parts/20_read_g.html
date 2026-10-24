@@ -1,21 +1,29 @@
+<section id="hb-s8">
+<h2>8. Planning: a todo tool and a plan phase</h2>
+<p>On a task of five or seven turns, like the running example, the loop needs no plan: native.py has none, and nothing on this page measures one. On long tasks two failures grow: steps drift out of view as the transcript grows, and the model declares victory early. Harnesses answer with two patterns, both built from parts this page already has (a tool, a gate, a verifier), not from a special model ability.</p>
+<div class="fig"><h4>Planning is a tool set and a tool result, not a prompt</h4>
+<div class="rd-svg" id="hb-plan-svg"></div>
+<p class="cap">Illustrative. Left: a plan phase whose tool set is read-only, ending at a person's approval, then the act phase with every tool. Right: a todo tool whose only effect is its result, the current checklist, which therefore sits near the end of the transcript on every later turn.</p></div>
+<ul class="tight">
+<li><b>A todo tool.</b> A tool such as <code>todo_write(items)</code> that changes nothing outside the transcript: the harness stores the list and returns it as the result, so the plan stays in recent context and the person watching has something to supervise. The model ticks items off by calling it again. After compaction ({{Context engineering|n:3f15c17b0d0d811292cee46514370431}}), the harness re-inserts the current list.</li>
+<li><b>Plan, then act.</b> A phase in which the harness offers only read-only tools (read, search, run the tests) and ends when a person approves the plan; then all tools. Implement it as a switch of the tool list and a gate rule, not as a request in the prompt, so the model cannot edit during planning even if it wants to.</li>
+<li><b>Across sessions.</b> Past one context window the plan must live outside it. Anthropic's long-running harness (26 Nov 2025) has an initializer agent set up the environment, a progress log and a feature list with every feature initially marked failing; each later session reads them, implements one feature, tests it, commits and updates the log. It was built against premature completion and marking features done without proper testing ({{Effective harnesses for long-running agents|https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents}}) <span class="src">SOURCE</span>. The feature list is a todo list the verifier, not the model, ticks.</li>
+</ul>
+<p class="small">How Claude Code implements plan mode and its todo list, with recorded runs: {{Claude Code, taken apart|n:3c65c17b0d0d81db9c7fc54987c1ab65}}.</p>
+</section>
 
-<section id="hb-s7">
-<h2>7. Error recovery: every way a turn can go wrong</h2>
-<p><b>The rule.</b> A harness never crashes on a bad turn and never hides one. Each failure is either turned into an observation the model can act on, or, if it is the infrastructure's fault rather than the model's, retried quietly and kept out of both the transcript and the score. The difficulty is telling the two apart, and noticing some failures at all.</p>
-<div class="tw"><table>
-<thead><tr><th>What went wrong</th><th>How the harness notices</th><th>What it should do</th><th>Seen on this page</th></tr></thead>
-<tbody>
-<tr><td>The call is not valid JSON, or names no tool</td><td>parse error; on mlx-lm the call simply vanishes (empty reply)</td><td>say so as the next message; count it toward a malformed-reply cap</td><td>section 1; local model in the {{Edit format bench|#t-edit}} ("no edit_file tool call")</td></tr>
-<tr><td>Unknown tool, missing or wrong-typed argument</td><td>validation before running</td><td>an error result that lists the valid tools or the schema; strict schemas remove most of these</td><td><code>native.py</code> <code>run_one()</code></td></tr>
-<tr><td>The tool ran and failed</td><td>exit code, exception</td><td>a result with the exit code and the relevant lines first, <code>is_error: true</code></td><td>parent page: <code>command not found: python</code>, fixed on the next call</td></tr>
-<tr><td>The edit did not apply</td><td>the applier refuses</td><td>an instructive error and one retry; never a silent partial apply</td><td>section 5 and the bench</td></tr>
-<tr><td>The edit applied but is wrong</td><td>only a verifier (tests) can tell</td><td>run the verifier after edits and before accepting "done"</td><td>bench (amber cells), {{Stop lab|#t-stop}}</td></tr>
-<tr><td>The reply was cut at <code>max_tokens</code></td><td><code>finish_reason: "length"</code> / <code>stop_reason: "max_tokens"</code></td><td>not a stop: retry with a higher limit, or ask for a shorter reply; never execute a half-written call</td><td>Stop lab, run <code>naive_t0</code></td></tr>
-<tr><td>An empty reply</td><td>no text, no call</td><td>a new user message asking it to continue (Anthropic's advice for empty <code>end_turn</code> replies after tool results)</td><td><code>native.py</code> careful rule</td></tr>
-<tr><td>Permission denied</td><td>the gate</td><td>an observation saying why, so the model can choose another way</td><td>parent page, Loop lab step 3</td></tr>
-<tr><td>The server failed (dropped connection, overload, out of memory)</td><td>HTTP error, a stream <code>error</code> event</td><td>retry with back-off outside the loop; do not show it to the model; do not score it</td><td>this page's runs: the shared local server ran out of GPU memory ("[METAL] ... Insufficient Memory") three times while several clients used it and had to be restarted; our runners retried the dropped requests and scored nothing from them</td></tr>
-</tbody></table></div>
-<p><b>Retry budgets.</b> Every retry needs a ceiling: errors in a row (the Loop lab ended a run after three malformed replies), retries per edit (one in our bench), and the run's overall caps (section 8). Anthropic's docs describe Claude's own behaviour with invalid tool calls: it "will retry 2-3 times with corrections before apologizing to the user" ({{Handle tool calls|https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls}}). Retrying the infrastructure belongs in the client or a gateway; the frameworks root's {{Production stack|n:3c65c17b0d0d81ab8432c54d65b7f8c7}} tab measures LiteLLM's retry and fallback rules.</p>
-<div class="hb-bars" id="hb-rec-bars"></div>
-<p class="small mute" id="hb-rec-cap"></p>
+<section id="hb-s9">
+<h2>9. The execution environment: where tools run</h2>
+<p>Every tool call runs somewhere, with somebody's rights. Whatever the isolation, the harness owns five things on every call, and native.py shows each in a line or two:</p>
+<ul class="tight">
+<li><b>A working directory</b>: every command runs with <code>cwd</code> set to the repository.</li>
+<li><b>Paths resolved and fenced</b>: <code>inside()</code> resolves a path to its real location and refuses anything outside the repository, so <code>../</code> and symlinks cannot escape (the poka-yoke of section 5, also a safety line).</li>
+<li><b>A timeout</b>: 60 seconds per command or test run, so a hung process becomes an error result instead of a hung agent; an interrupt must also be able to kill it (section 4).</li>
+<li><b>Captured output</b>: standard output and error together, the exit code on the first line (the verdict first, section 5).</li>
+<li><b>Hygiene</b>: <code>PYTHONDONTWRITEBYTECODE=1</code> keeps <code>__pycache__</code> out of what the model sees; for evaluation every run must start from the same repository state, or runs stop being comparable (section 12).</li>
+</ul>
+<div class="fig"><h4>Isolation rises with autonomy: the more the agent may do unasked, the further out the boundary</h4>
+<div class="rd-svg" id="hb-env-svg"></div>
+<p class="cap">Where a bad command is contained, from none to a machine you can throw away. A permission gate decides what may start; it does not contain what runs. An OS sandbox wraps each command (Claude Code's optional sandbox uses Seatbelt on macOS and bubblewrap on Linux); a container or virtual machine contains the whole session, and a cloud agent returns a branch or pull request for review instead of edits you watch. The trade, not measured here: each step out costs start-up time and copies of files and credentials, and tools the model expects may be missing inside.</p></div>
+<p>The security analysis of each layer (what the sandbox lets through, egress control, prompt injection) is {{Agent security|n:3f15c17b0d0d81ad9fb7d1dd74217335}}'s; how namespaces and seccomp work is {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}'s. For training and evaluation the environment is part of the measurement: {{Harnesses for training and evaluation|n:3f15c17b0d0d815ea579d6c80065aa36}} runs its hidden verifier in a fresh container with no network.</p>
 </section>
