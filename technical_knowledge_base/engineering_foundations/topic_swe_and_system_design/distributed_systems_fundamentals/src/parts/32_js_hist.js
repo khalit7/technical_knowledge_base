@@ -1,4 +1,4 @@
-// ---- Consistency lab (and the two inline histories in the Reading tab). Definitions mirrored in src/histories_def.py ----
+// ---- Reading, section 5: consistency histories and the model ladder. Definitions mirrored in src/histories_def.py ----
 window.DSF_H=(function(){
   const o=(p,s,e,f,v)=>({p,s,e,f,v});
   const HIST=[
@@ -6,15 +6,15 @@ window.DSF_H=(function(){
      story:'Client 1 saves 1; afterwards clients 2 and 3 both read 1. This is what a single machine gives you.',
      h:{causal:[1,'Nothing is seen out of order.'],ryw:[1,'Nobody reads after their own write.'],ev:[1,'Everyone ends on 1.']}},
     {id:'stale',t:'A stale read after the write finished',ops:[o(1,0,2,'w',1),o(2,3,4,'r',0),o(2,6,7,'r',1)],
-     story:'Client 1\'s write of 1 returned "done". Then client 2 read 0, and later 1. This is a read from a lagging asynchronous replica (the Reading tab\'s animation).',
+     story:'Client 1\'s write of 1 returned "done". Then client 2 read 0, and later 1. This is a read from a lagging asynchronous replica (section 3\'s animation).',
      why:{lin:'The write ended at time 2 and the read began at 3, so the read must take effect after the write and return 1.'},
      h:{causal:[1,'Client 2 had seen nothing that depended on the write, so seeing the older value breaks no cause-and-effect.'],ryw:[1,'Client 2 never wrote, so it has no "own write" to miss.'],ev:[1,'Client 2 ends on 1, like everyone.']}},
     {id:'overlap',t:'Two reads during a slow write',ops:[o(1,0,7,'w',1),o(2,1,2,'r',0),o(3,4,5,'r',1)],
      story:'A slow write of 1 is in progress. Client 2 reads 0, then client 3 reads 1. While a write is in progress, either answer is allowed.',
      h:{causal:[1,'Old value first, new value after: nothing out of order.'],ryw:[1,'No client reads after its own write.'],ev:[1,'All later reads would return 1.']}},
     {id:'inversion',t:'A new value, then an old one',ops:[o(1,0,7,'w',1),o(2,1,2,'r',1),o(3,4,5,'r',0)],
-     story:'The same slow write, but now client 2 reads 1 and only after that read returned, client 3 reads 0. Each read alone overlaps the write; together they break linearizability.',
-     why:{lin:'Client 2\'s read (returned 1) ended before client 3\'s read began, so client 3 must see the write too. Linearizability forbids the new value followed, in real time, by the old one.'},
+     story:'The same slow write, but now client 2 reads 1 and only after that read returned, client 3 reads 0. Each read alone overlaps the write; together they break linearisability.',
+     why:{lin:'Client 2\'s read (returned 1) ended before client 3\'s read began, so client 3 must see the write too. Linearisability forbids the new value followed, in real time, by the old one.'},
      h:{causal:[1,'Client 3 had no causal link to client 2\'s read (they never talked), so it may lag.'],ryw:[1,'No client reads after its own write.'],ev:[1,'Allowed: later reads converge on 1.']}},
     {id:'own',t:'Ana loses her own write',ops:[o(1,0,1,'w',1),o(1,2,3,'r',0),o(1,5,6,'r',1)],
      story:'One client writes 1, then reads 0, then 1. Ana sent "hello", refreshed, and it was gone (the read went to a lagging replica).',
@@ -40,7 +40,7 @@ window.DSF_H=(function(){
   const lab=op=>op.f==='w'?'w('+op.v+')':'r→'+op.v;
   function svg(ops,W,o2){o2=o2||{};const ps=[...new Set(ops.map(x=>x.p))].sort(),tmax=Math.max(...ops.map(x=>x.e))+0.5,lx=62,rx=W-8,rh=34,H=ps.length*rh+30;
     const X=t=>lx+(rx-lx)*t/tmax;let g='';
-    for(let t=0;t<=Math.floor(tmax);t++)g+='<line x1="'+X(t)+'" y1="4" x2="'+X(t)+'" y2="'+(H-22)+'" stroke="var(--line)" stroke-width="1"/>'+RD.t(X(t),H-8,String(t),{a:'middle',fs:10,fill:'var(--mute)'});
+    for(let t=0;t<=Math.floor(tmax);t++)g+='<line x1="'+X(t)+'" y1="4" x2="'+X(t)+'" y2="'+(H-22)+'" stroke="var(--line)" stroke-width="1"/>'+RD.t(X(t),H-8,String(t),{a:'middle',fs:11,fill:'var(--mute)'});
     ps.forEach((p,k)=>{g+=RD.t(4,14+k*rh+12,'Client '+p,{fs:11.5,w:600})});
     ops.forEach((op,i)=>{const k=ps.indexOf(op.p),y=10+k*rh,x1=X(op.s),x2=X(op.e),isR=op.f==='r';
       g+='<g'+(isR&&o2.edit?' class="hl-op" data-i="'+i+'" style="cursor:pointer"':'')+'><rect x="'+x1+'" y="'+y+'" width="'+Math.max(8,x2-x1)+'" height="22" rx="5" fill="'+(isR?'var(--acc2)':'var(--open2)')+'" stroke="'+(isR?'var(--acc)':'var(--good)')+'" stroke-width="1.5"/>'+
@@ -48,13 +48,7 @@ window.DSF_H=(function(){
     return RD.svg(W,H,g,'History timeline')}
   return {HIST,check,svg,lab,legal};
 })();
-// inline figures in the Reading tab
-(function(){
-  const pairs=[['rd-h-stale','stale'],['rd-h-inv','inversion']];
-  function draw(){pairs.forEach(([id,h])=>{const el=document.getElementById(id);if(!el)return;const H=DSF_H.HIST.find(x=>x.id===h);el.innerHTML=DSF_H.svg(H.ops,Math.min(420,RD.width(el)))})}
-  RD.onRender(draw);RD.onResize(draw);draw();
-})();
-// the lab tab
+// the history checker and the ladder, inline in Reading section 5 (moved from the old Consistency lab tab on 2026-10-24)
 (function(){
   const $=id=>document.getElementById(id);if(!$('hl-list'))return;
   const H=DSF_H;let cur=1,ops=null,edited=false;
@@ -69,17 +63,18 @@ window.DSF_H=(function(){
     const ord=s=>s.map(x=>H.lab(x)+'·c'+x.p).join(', ');
     const rows=[
       ['Linearizable',lin?1:0,lin?'A valid order that respects real time exists (below).':(why.lin||'No order respects both real time and the register\'s values.')],
-      ['Sequential',seq?1:0,seq?(lin?'Implied by linearizable.':'An order exists if real time is ignored (below).'):(why.seq||'No single order respects each client\'s own sequence.')],
+      ['Sequential',seq?1:0,seq?(lin?'Implied by linearisable.':'An order exists if real time is ignored (below).'):(why.seq||'No single order respects each client\'s own sequence.')],
       ['Causal',edited?-1:h.h.causal[0],edited?'Checked by hand for the presets only.':h.h.causal[1]],
       ['Read-your-writes',edited?-1:h.h.ryw[0],edited?'Checked by hand for the presets only.':h.h.ryw[1]],
       ['Eventual',edited?-1:h.h.ev[0],edited?'Checked by hand for the presets only.':h.h.ev[1]]];
-    $('hl-vt').innerHTML='<div><b>Model</b></div><div><b>Verdict</b></div><div><b>Why</b></div>'+rows.map(r=>'<div>'+r[0]+'</div><div>'+V(r[1])+'</div><div>'+r[2]+'</div>').join('');
+    const AV={'Linearizable':'not available in a partition','Sequential':'not available in a partition','Causal':'sticky available','Read-your-writes':'sticky available','Eventual':'available on any replica'};
+    const NM={'Linearizable':'Linearisable','Sequential':'Sequential','Causal':'Causal','Read-your-writes':'Read-your-writes','Eventual':'Eventual'};
+    $('hl-vt').innerHTML=rows.map(r=>'<div class="rung '+(r[1]===1?'y':r[1]===0?'n':'q')+'"><div><b>'+NM[r[0]]+'</b><span class="av">'+AV[r[0]]+'</span></div><div>'+V(r[1])+'</div><div>'+r[2]+'</div></div>').join('');
     $('hl-ord').innerHTML=(lin?'Linearizable order: '+ord(lin):seq?'Sequential order (ignoring real time): '+ord(seq):'No valid order found among all orderings.');
   }
   $('hl-list').addEventListener('click',e=>{const b=e.target.closest('button');if(b)pick(+b.dataset.i)});
   $('hl-svg').addEventListener('click',e=>{const g=e.target.closest('.hl-op');if(!g)return;const op=ops[+g.dataset.i];
     const vals=[0,...new Set(ops.filter(x=>x.f==='w').map(x=>x.v))].sort();op.v=vals[(vals.indexOf(op.v)+1)%vals.length];edited=true;draw()});
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-hist']=window.TAB_RENDER['t-hist']||[]).push(()=>draw());
-  addEventListener('resize',()=>{if(!$('t-hist').hidden)draw()});
+  RD.onRender(()=>draw());RD.onResize(draw);
   pick(1);
 })();

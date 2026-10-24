@@ -22,8 +22,8 @@
     // lease bars
     g+='<rect x="'+X(0)+'" y="'+(Y.W1-7)+'" width="'+(X(4.5)-X(0))+'" height="14" rx="3" fill="var(--acc2)"/>';
     if(i>=2)g+='<rect x="'+X(4.5)+'" y="'+(Y.W2-7)+'" width="'+(X(10)-X(4.5))+'" height="14" rx="3" fill="var(--acc2)"/>';
-    if(s.pause||i>=1&&i<=3)g+='<rect x="'+X(1.5)+'" y="'+(Y.W1-9)+'" width="'+(X(Math.min(8,Math.max(s.t,3)))-X(1.5))+'" height="18" fill="var(--bad)" opacity=".18"/>'+RD.t(X(1.6),Y.W1-12,'paused',{fs:10.5,fill:'var(--bad)'});
-    if(s.exp)g+='<line x1="'+X(4.5)+'" y1="'+(Y.S-20)+'" x2="'+X(4.5)+'" y2="'+(Y.D+10)+'" stroke="var(--mute)" stroke-dasharray="3 3"/>'+RD.t(X(4.5)+3,12,'lease 33 expired',{fs:10.5,fill:'var(--mute)'});
+    if(s.pause||i>=1&&i<=3)g+='<rect x="'+X(1.5)+'" y="'+(Y.W1-9)+'" width="'+(X(Math.min(8,Math.max(s.t,3)))-X(1.5))+'" height="18" fill="var(--bad)" opacity=".18"/>'+RD.t(X(1.6),Y.W1-12,'paused',{fs:11,fill:'var(--bad)'});
+    if(s.exp)g+='<line x1="'+X(4.5)+'" y1="'+(Y.S-20)+'" x2="'+X(4.5)+'" y2="'+(Y.D+10)+'" stroke="var(--mute)" stroke-dasharray="3 3"/>'+RD.t(X(4.5)+3,12,'lease 33 expired',{fs:11,fill:'var(--mute)'});
     // all events up to now
     M[mode].slice(0,i+1).forEach((st,k)=>st.ev.forEach(e=>{const x=X(st.t),y1=Y[e[0]],y2=Y[e[1]],cur=k===i;
       g+='<line x1="'+x+'" y1="'+y1+'" x2="'+(x+8)+'" y2="'+(y2+(y2>y1?-6:6))+'" stroke="'+col[e[3]]+'" stroke-width="'+(cur?2.6:1.4)+'" opacity="'+(cur?1:.55)+'" marker-end="url(#fc-'+e[3]+')"/>';
@@ -35,6 +35,6 @@
     cnt.innerHTML=RD.stat('Ana\'s balance in storage',s.bal+' credits',s.bad?'should end at 30 (100 − 60 − 10)':'')+RD.stat('Highest token seen by storage',s.max,mode?'checked on every write':'not checked')+RD.stat('Writes accepted',String(s.acc||0),s.rej?'one rejected':'')+RD.stat('Charges lost',s.bad?'60 credits':'none','');
   }
   const A=RD.anim({card:'rd-fence-card',ctl:'rd-fence-ctl',n:M[0].length,draw:draw,ms:2600,label:'Fencing step'});
-  RD.seg(document.getElementById('rd-fence-seg'),v=>{mode=+v;A.reset(M[mode].length);A.play()});
+  RD.seg(document.getElementById('rd-fence-seg'),v=>{mode=+v;A.reset(M[mode].length)});
   RD.onResize(()=>A.redraw());
 })();

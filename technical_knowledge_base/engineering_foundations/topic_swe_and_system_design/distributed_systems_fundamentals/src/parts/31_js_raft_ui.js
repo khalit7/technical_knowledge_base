@@ -1,4 +1,4 @@
-// ---- Raft lab: drawing, guided tour and free mode ----
+// ---- Reading, section 7: the Raft cluster (drawing, guided tour and free mode); moved inline from the old Raft lab tab on 2026-10-24 ----
 (function(){
   const $=id=>document.getElementById(id);if(!$('rf-svg'))return;
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -20,10 +20,10 @@
       if(s.alive&&s.role!=='leader'){const frac=Math.max(0,Math.min(1,(s.deadline-sim.now)/s.eto)),r=28,len=2*Math.PI*r;
         g+='<circle cx="'+p.x+'" cy="'+p.y+'" r="'+r+'" fill="none" stroke="'+col+'" stroke-width="3" opacity=".45" stroke-dasharray="'+(len*frac)+' '+len+'" transform="rotate(-90 '+p.x+' '+p.y+')"/>'}
       g+='<circle cx="'+p.x+'" cy="'+p.y+'" r="22" fill="'+col+'" opacity="'+(s.alive?0.9:0.55)+'"/>';
-      g+=RD.t(p.x,p.y-2,nm(i),{a:'middle',fs:13,w:600,fill:'var(--bg)'})+RD.t(p.x,p.y+12,'term '+s.term,{a:'middle',fs:9.5,fill:'var(--bg)'});
-      if(!s.alive)g+=RD.t(p.x,p.y+40,'crashed',{a:'middle',fs:10.5,fill:'var(--bad)'});
-      else if(sim.group&&sim.group[i]===1)g+=RD.t(p.x,p.y+40,'split off',{a:'middle',fs:10.5,fill:'var(--bad)'});
-      else if(s.role==='leader')g+=RD.t(p.x,p.y+40,'leader',{a:'middle',fs:10.5,fill:'var(--good)',w:600});
+      g+=RD.t(p.x,p.y-2,nm(i),{a:'middle',fs:13,w:600,fill:'var(--bg)'})+RD.t(p.x,p.y+12,'term '+s.term,{a:'middle',fs:11,fill:'var(--bg)'});
+      if(!s.alive)g+=RD.t(p.x,p.y+40,'crashed',{a:'middle',fs:11,fill:'var(--bad)'});
+      else if(sim.group&&sim.group[i]===1)g+=RD.t(p.x,p.y+40,'split off',{a:'middle',fs:11,fill:'var(--bad)'});
+      else if(s.role==='leader')g+=RD.t(p.x,p.y+40,'leader',{a:'middle',fs:11,fill:'var(--good)',w:600});
       g+='</g>'});
     el.innerHTML=RD.svg(W,H,g,'Five Raft servers and their messages');
     const L=sim.leader();
@@ -45,7 +45,7 @@
     while(sim.nextAt()<=t){sim.step();track();if(until&&(until()||sim.now>untilMax)){done();return}}
     sim.runTo(t);track();if(until&&sim.now>untilMax)done()}
   function done(){until=null;setPlaying(false);if(onDone){const f=onDone;onDone=null;f()}}
-  const visible=()=>!$('t-raft').hidden&&!document.hidden;
+  const visible=()=>!$('t-read').hidden&&!document.hidden&&$('rf-card').offsetParent!==null;
   function loop(ts){raf=0;if(!playing||!visible())return;const dt=last?Math.min(100,ts-last):16;last=ts;advance(dt*spd()/1000);draw();if(playing)raf=requestAnimationFrame(loop)}
   function setPlaying(p){playing=p;last=0;$('rf-play').innerHTML=p?'❚❚ Pause':'▶ Play';$('rf-next').disabled=p&&mode==='tour';if(p&&!raf&&visible())raf=requestAnimationFrame(loop);draw()}
   function runUntil(cond,maxMs,then){until=cond;untilMax=sim.now+maxMs;onDone=then;
@@ -95,7 +95,7 @@
   $('rf-svg').addEventListener('click',e=>{const n=e.target.closest('.rf-node');if(!n)return;sel=+n.dataset.i;draw()});
   $('rf-speed').addEventListener('change',()=>{});
   document.addEventListener('visibilitychange',()=>{if(playing&&visible()&&!raf){last=0;raf=requestAnimationFrame(loop)}});
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-raft']=window.TAB_RENDER['t-raft']||[]).push(()=>{draw();if(playing&&!raf){last=0;raf=requestAnimationFrame(loop)}});
-  addEventListener('resize',()=>{if(!$('t-raft').hidden)draw()});
+  RD.onRender(()=>{draw();if(playing&&!raf){last=0;raf=requestAnimationFrame(loop)}});
+  RD.onResize(draw);
   tourStart();
 })();
