@@ -21,8 +21,11 @@ Question the page keeps returning to: what does each extraction and filtering ch
 | EF15 | Toxicity tiles and labelled bad-word matches | Reading s11 | built | ef_tox.py, labels |
 | EF16 | Cost per stage | Reading s12 | built | ef_cost.py (rough) |
 | EF17 | Label browser | Own tab | built | labels |
+| EF18 | Hero: run0's funnel, documents per stage to scale with the largest drop reason | Reading top | built 2026-10-24 | pipe.run0, wb.reasons |
+| EF19 | trafilatura cascade diagram with branch shares (replaces EF2's bars) | Reading s2 | built 2026-10-24 | ef_traf.json |
+| EF20 | fastText LID mechanism: features, hashing, averaging, softmax | Reading s6 | built 2026-10-24 | lid.176 settings |
 | R1 | Animated DOM tree of a page with nodes pruned by each extractor | none | rejected: the jusText block list and the comparer show the same thing with real data; a tree for a real page is unreadable at 390 px |
-| R2 | Funnel animation | none | rejected: the root's Pipeline lab owns it |
+| R2 | Funnel animation | none | rejected as an animation: the root's Pipeline lab animates it; a static hero funnel (EF18) was built on 2026-10-24 because this page owns what each filter removes |
 | R3 | Training proxy models per extractor | none | rejected: GPU scale far beyond one WARC; FineWeb and DCLM published results quoted instead |
 | R4 | Per-line LID heat strip per document | none | rejected for now: the code-switching table carries the finding; a per-line strip needs per-line text, too large to embed |
 

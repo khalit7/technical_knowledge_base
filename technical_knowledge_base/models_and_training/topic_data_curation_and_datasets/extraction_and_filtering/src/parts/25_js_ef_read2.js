@@ -7,13 +7,16 @@
     function draw(){const W=RD.width(el),h=200,m={l:44,r:10,t:10,b:30},w=W-m.l-m.r,ih=h-m.t-m.b,th=L.thresholds,mx=L.n;
       const x=t=>m.l+w*t,y=v=>m.t+ih*(1-v/mx);
       const path=a=>a.map((v,i)=>(i?'L':'M')+x(th[i]).toFixed(1)+','+y(v).toFixed(1)).join('');
-      let g='';for(let v=0;v<=mx;v+=5000)g+='<line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(m.l-4,y(v)+4,H.n(v),{a:'end',fs:10,fill:'var(--mute)'});
-      for(let t=0;t<=1.001;t+=0.25)g+=RD.t(x(t),h-10,t.toFixed(2),{a:'middle',fs:10,fill:'var(--mute)'});
-      g+='<line x1="'+x(0.65)+'" x2="'+x(0.65)+'" y1="'+m.t+'" y2="'+(m.t+ih)+'" stroke="var(--bad)" stroke-dasharray="4 3"/>'+RD.t(x(0.65)+4,m.t+12,'0.65',{fs:10,fill:'var(--bad)'});
+      let g='';for(let v=0;v<=mx;v+=5000)g+='<line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(m.l-4,y(v)+4,H.n(v),{a:'end',fs:11,fill:'var(--mute)'});
+      for(let t=0;t<=1.001;t+=0.25)g+=RD.t(x(t),h-10,t.toFixed(2),{a:'middle',fs:11,fill:'var(--mute)'});
+      g+='<line x1="'+x(0.65)+'" x2="'+x(0.65)+'" y1="'+m.t+'" y2="'+(m.t+ih)+'" stroke="var(--bad)" stroke-dasharray="4 3"/>'+RD.t(x(0.65)+4,m.t+12,'0.65',{fs:11,fill:'var(--bad)'});
+      const thEl=$('ef-l-th'),cur=thEl?th[+thEl.value]:0.65,ci=thEl?+thEl.value:65;
+      if(Math.abs(cur-0.65)>1e-6)g+='<line x1="'+x(cur)+'" x2="'+x(cur)+'" y1="'+m.t+'" y2="'+(m.t+ih)+'" stroke="var(--acc)" stroke-width="2"/>'+RD.t(Math.min(x(cur)+4,W-m.r-40),m.t+26,cur.toFixed(2),{fs:11,fill:'var(--acc)'});
+      g+='<circle cx="'+x(cur)+'" cy="'+y(L.ft_kept[ci])+'" r="4" fill="var(--c1)"/><circle cx="'+x(cur)+'" cy="'+y(L.gl_kept[ci])+'" r="4" fill="var(--c3)"/>';
       g+='<path d="'+path(L.ft_kept)+'" fill="none" stroke="var(--c1)" stroke-width="2"/><path d="'+path(L.gl_kept)+'" fill="none" stroke="var(--c3)" stroke-width="2"/><path d="'+path(L.both_kept)+'" fill="none" stroke="var(--c5)" stroke-width="1.5" stroke-dasharray="3 3"/>';
       el.innerHTML=RD.svg(W,h,g,'English documents kept against the threshold')+'<div class="ef-leg"><span><i style="background:var(--c1)"></i>lid.176 English score above threshold</span><span><i style="background:var(--c3)"></i>GlotLID eng_Latn above threshold</span><span><i style="background:var(--c5)"></i>both</span></div>';
       $('ef-lid-mini-note').innerHTML='Documents (of '+H.n(L.n)+' extracted) whose English probability is above each threshold <span class="ef-lbl meas">measured</span>. Most documents sit near 0 or near 1, so the count changes slowly in the middle: moving the threshold from 0.5 to 0.8 changes lid.176\'s count from '+H.n(L.ft_kept[50])+' to '+H.n(L.ft_kept[80])+'.'}
-    draw();RD.onRender(draw);RD.onResize(draw);
+    window.EFLidDraw=draw;draw();RD.onRender(draw);RD.onResize(draw);
   })();
 
   // rules table with labels
@@ -62,7 +65,7 @@
       const dropped=s===2&&mode!=='fw';
       $('ef-ln-cnt').innerHTML=H.stat('Lines',Ls.length,'')+H.stat(mode==='rw'?'Lines flagged':'Lines deleted',s>0?rm:0,'')+H.stat('Characters left',dropped?0:H.n(s>0&&mode!=='rw'?ch:tot),'of '+H.n(tot))+H.stat('Document',s<2?'...':(dropped?'dropped':'kept'),'');}
     const A=RD.anim({card:'ef-ln-card',ctl:'ef-ln-ctl',n:3,draw,ms:2600,label:'Line-filter step'});
-    H.chips($('ef-ln-mode'),m=>{mode=m;A.reset(3);A.play()});
+    H.chips($('ef-ln-mode'),m=>{mode=m;A.reset(3)});
   })();
 
   // URL lists
@@ -75,8 +78,8 @@
   // toxicity
   (function(){const T=E.tox,L=E.toxLabels,el=$('ef-tox');if(!el)return;if(!T){el.innerHTML='<div class="ef-pend">Toxicity run pending.</div>';return}
     const a=T.english,f=T.final;
-    el.innerHTML='<div class="ef-cnt">'+H.stat('C4 bad-word match',H.n(f.badword_docs),'of '+H.n(f.docs)+' kept ('+H.n(a.badword_docs)+' of '+H.n(a.docs)+' English)')+H.stat('Dolma, sentences over 0.4',H.n(f.dolma_04_docs_touched)+' docs',(100*f.dolma_04_char_share).toFixed(1)+'% of their characters on average')+H.stat('Dolma, over 0.0004',H.n(f.dolma_00004_docs_touched)+' docs',(100*f.dolma_00004_char_share).toFixed(1)+'% of characters')+(L?H.stat('Labelled bad-word matches',L.W+' of '+L.n,'ordinary text'):'')+'</div>'+
-      (L?'<p class="small"><b>What the word list matched in ordinary documents</b> (matched word, then where): '+L.examples.map(x=>'"'+H.esc(x.word)+'": '+H.esc(x.what)).join('; ')+'.</p>':'');
+    el.innerHTML='<div class="ef-cnt">'+H.stat('C4 bad-word match',H.n(f.badword_docs),'of '+H.n(f.docs)+' kept ('+H.n(a.badword_docs)+' of '+H.n(a.docs)+' English)')+H.stat('Dolma, sentences over 0.4',H.n(f.dolma_04_docs_touched)+' docs',(100*f.dolma_04_char_share).toFixed(1)+'% of their characters on average')+H.stat('Dolma, over 0.0004',H.n(f.dolma_00004_docs_touched)+' docs',(100*f.dolma_00004_char_share).toFixed(1)+'% of characters')+(L?H.stat('Labelled bad-word matches',L.W+' of '+L.n,'ordinary text'):'')+'</div>';
+    const ex=$('ef-tox-ex');if(ex)ex.innerHTML=(L?'<p class="small"><b>What the word list matched in ordinary documents</b> (matched word, then where): '+L.examples.map(x=>'"'+H.esc(x.word)+'": '+H.esc(x.what)).join('; ')+'.</p>':'');
     $('ef-tox-note').innerHTML='C4 rule exactly as TFDS applies it; Dolma\'s Jigsaw fastText models run per sentence (a simple splitter here, not BlingFire), a sentence removed when either model scores it above the threshold; the share is the mean, over the documents, of characters that would be removed <span class="ef-lbl meas">measured</span>. Labels from 30 random matches <span class="ef-lbl lab">hand-labelled</span>; no matched text is shown.';
   })();
 
