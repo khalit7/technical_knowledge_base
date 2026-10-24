@@ -90,3 +90,10 @@ Google page's thinking-level matrix (G6) and cost-per-task split (G2), Topic: ll
 2. **Rule tables are data too.** On an API-centred page the most useful reproducible artefacts were the docs' own matrices (thinking value by model, effort level by model). The scoring favours numeric reproduction and underrates a validator that reproduces a documented rule table by construction; worth a line.
 3. **Composite cost metrics are not ratios.** AA's cost per task is a weighted average, so cost to run divided by cost per task gives a different task count per model (912 to 2,833). Decompose the run total, and plot cost per task only as AA states it.
 4. **Raw data beats charts.** METR's YAML let an OLS fit reproduce its doubling times to the third decimal, which a chart image never would; the methodology should say to look for the data file behind every tracker chart.
+
+## 6. Rebuild of 2026-10-23
+- Added: hero (static annotated diagram), training recipe (static, replaces the CAI stepper, which the Constitutional AI paper page owns), thinking before/after (toggle of end states; bar lengths labelled illustrative because Anthropic publishes no per-step amounts).
+- Moved: Lineage tab into Reading (one card on click). Benchmark grid into a closed Release notes block.
+- Removed: CAI stepper (owned by the paper page); AA mini stats (the root owns the cross-lab ranking).
+- Fixed: the session animation autoplayed on scroll and on a mode switch; it now waits for the reader.
+- No image: no physical object to show; rejected the CAI paper figure (owned by the paper page).

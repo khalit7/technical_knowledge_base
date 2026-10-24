@@ -1,4 +1,4 @@
-// ---- Lineage tab: lanes per tier plus API changes ----
+// ---- Lineage (Reading, How the design got here): lanes per tier plus API changes; one card shown on click ----
 (function(){
   const L={h:'Haiku',s:'Sonnet',o:'Opus',m:'Mythos class',g:'Before tiers',a:'API changes'};
   const LC={h:'var(--c6)',s:'var(--c1)',o:'var(--c4)',m:'var(--c2)',g:'var(--mute)',a:'var(--c3)'};
@@ -36,9 +36,9 @@
   ].map(([d,k,n,t,pr,src],i)=>({d:new Date(d+'T00:00:00Z'),k,n,t,pr,src,id:'ln'+i}));
   let range='all',filt='all';const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const dlab=e=>e.d.getUTCDate()+' '+mon[e.d.getUTCMonth()]+' '+e.d.getUTCFullYear();
-  const SH=n=>n.replace(/^Claude /,'').replace(' and Claude Instant','').replace(' Opus, Sonnet, Haiku','').replace('Opus 4 and Sonnet 4','4 (Opus, Sonnet)').replace(' and Mythos 5.1','').replace('Cyber Verification Program tiers','CVP tiers').replace(' and Mythos 5','');
+  const SH=n=>n.replace(/^Claude /,'').replace(' and Claude Instant','').replace(' Opus, Sonnet, Haiku','').replace('Opus 4 and Sonnet 4','4').replace(' and Mythos 5.1','').replace('Cyber Verification Program tiers','CVP tiers').replace(' and Mythos 5','');
   function draw(){
-    const narrow=$('lnSvg').clientWidth<560,W=narrow?560:880,pl=narrow?62:84,pr=14;
+    const narrow=$('lnSvg').clientWidth<560,W=narrow?580:880,pl=narrow?86:84,pr=14;
     const t0=range==='all'?Date.UTC(2023,1,1):Date.UTC(2026,0,1),t1=Date.UTC(2026,9,20),T26=Date.UTC(2026,0,1),split=range==='all'?0.45:0;
     const x=t=>{const w=W-pl-pr;if(range!=='all')return pl+w*(t-t0)/(t1-t0);return t<T26?pl+w*split*(t-t0)/(T26-t0):pl+w*(split+(1-split)*(t-T26)/(t1-T26))};
     const ev=E.filter(e=>+e.d>=t0&&(filt==='all'||(filt==='api')===(e.k==='a')));
@@ -54,10 +54,13 @@
       P[side].push(sp);const ty=side==='up'?y-8:y+16;
       s+='<g class="lnd" data-id="'+e.id+'" style="cursor:pointer"><circle cx="'+xx+'" cy="'+y+'" r="5.5" fill="'+LC[e.k]+'"/><text x="'+(xx+(end?-3:3))+'" y="'+ty+'" font-size="10.5"'+(end?' text-anchor="end"':'')+'>'+lab+'</text><title>'+dlab(e)+': '+e.n+'</title></g>'});
     $('lnSvg').innerHTML='<div class="tw">'+svgEl(W,H,s,'Claude releases and API changes on a time axis').replace('<svg ','<svg style="min-width:'+(narrow?520:600)+'px" ')+'</div>';
-    $('lnSvg').querySelectorAll('.lnd').forEach(g=>g.addEventListener('click',()=>{const c=$(g.dataset.id);if(!c)return;document.querySelectorAll('.tl-item').forEach(x=>x.classList.toggle('sel',x===c));c.scrollIntoView({block:'center',behavior:'smooth'})}));
-    $('lnCards').innerHTML=ev.map(e=>'<div class="tl-item" style="border-left:4px solid '+LC[e.k]+'" id="'+e.id+'"><h3>'+e.n+'</h3><div class="dt">'+dlab(e)+' · '+L[e.k]+(e.pr?' · '+e.pr+' per 1M tokens':'')+' · '+e.src+'</div><p style="margin:4px 0 0;font-size:14px">'+e.t+'</p></div>').join('');
+    $('lnSvg').querySelectorAll('.lnd').forEach(g=>{g.addEventListener('click',()=>{sel=g.dataset.id;card()});if(g.dataset.id===sel)g.querySelector('circle').setAttribute('r','7.5')});
   }
+  let sel=null;
+  function card(){const e=E.find(x=>x.id===sel);if(!e)return;
+    $('lnSvg').querySelectorAll('.lnd').forEach(g=>g.querySelector('circle').setAttribute('r',g.dataset.id===sel?'7.5':'5.5'));
+    $('lnCards').innerHTML='<div class="tl-item sel" style="border-left:4px solid '+LC[e.k]+'"><h3>'+e.n+'</h3><div class="dt">'+dlab(e)+' · '+L[e.k]+(e.pr?' · '+e.pr+' per 1M tokens':'')+' · '+e.src+'</div><p style="margin:4px 0 0;font-size:14px">'+e.t+'</p></div>'}
   segBind('lnR',m=>{range=m;draw()});
   const F=$('lnF');F.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{F.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));filt=b.dataset.m;draw()}));
-  onTab('t-line',draw);
+  onTab('t-read',draw);let rw=0;addEventListener('resize',()=>{const w=$('lnSvg').clientWidth<560;if(w!==rw){rw=w;draw()}});
 })();
