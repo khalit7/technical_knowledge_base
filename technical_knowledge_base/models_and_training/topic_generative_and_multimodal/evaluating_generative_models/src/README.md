@@ -48,3 +48,9 @@ Why 25 minutes is right: the page owns a whole family of metrics (FID and its bi
 
 ## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 312 units: core 227, depth 48, fat 32, volatile 5 (the two arena boards, kept in a closed dated block until a tech-news issue carries them). 285 drafted by `ledger.py init` (the old page's script-filled numbers were empty, so 27 units were added by hand for EV.txt values, script-drawn tabs and the new content). Fat units carry a `note`.
+
+## 2026-10-24, topic close
+- Further reading: every knowledge-base link is now a `{{title|n:<id>}}` link (they were raw Notion URLs) with the reading time in the target's header (`html_utils/check_times.py`: 0 stale); the root card no longer names its Reading section 9 or its retired lab tabs.
+- Retired root labs: the guidance pointer now links Flow matching (which carries s = 1.5, FD 23.8), the typographic-attack pointer links Vision encoders (its section 6), and the flow model and 16-d VAE in the provenance block are "root Flow lab recordings" and "root Latent lab recordings". The generated `20_js_ev_0data.js` keeps "(Flow lab, ...)" and "(Latent lab)" as provenance labels of the comparator's last column (regeneration needs the scratch sets); that column's header now reads "the original run's value".
+- Section 9 is now the single owner of FVD and FAD; Video and audio generation links it and labels its moved units `owned:` this page. Nothing had to be added here: every moved unit was already carried.
+- Reading time unchanged (5,814 core and 1,778 closed words: 25 min, plus 8).
