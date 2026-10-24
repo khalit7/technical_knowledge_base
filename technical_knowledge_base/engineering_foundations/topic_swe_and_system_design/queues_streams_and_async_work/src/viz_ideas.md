@@ -21,3 +21,18 @@ Central question: how often does handed-off work actually happen (zero, once, tw
 
 ## What the methodology lacked
 A rule for experiments with injected faults: say exactly which part is injected (the crash, by os._exit at a named line) and which is real (locks, leases, redelivery, transactions), and give the expected count from a formula next to the measured one.
+
+## Added in the 2026-10-24 rebuild (teaching contract)
+
+| # | Idea | Placement | Kind | Notes |
+|---|---|---|---|---|
+| Q6 | **Hero: three places handed-off work goes wrong** (hand-off, ack, rate) on one producer-to-effect chain | Reading, top | static annotated diagram | The whiteboard picture the page elaborates; numbered badges match the three fixes |
+| Q7 | **Queue against log**: deleted on ack and competing workers, against a retained log with three readers at their own offsets | Reading, s-kinds | static diagram | Replaces two prose boxes |
+| Q8 | **What a Kafka transaction covers**: output topic and `__consumer_offsets` inside, e-mail and Postgres outside | Reading, s-eos | static diagram | The scope claim made visible; the protocol steps went to a closed block |
+| Q9 | **Visibility timeout toggle**: 30 s for a 45 s job (duplicate), heartbeat (one run), 300 s with a crash (late) | Reading, s-vt | toggle-compare of end states | Times illustrative; the measured "too short" run is cited beside it |
+| Q10 | **Backlog drain slider**: capacity as a multiple of the arrival rate, one-hour outage; drain = 60 / (k - 1) min | Reading, s-bp | one slider, prediction prompt | Default 2x lands on Yanacek's "double the capacity for another hour" (from the formula, independently of his number); the line is also the age of the oldest message for FIFO |
+| Q11 | **Nightly batch LLM job stepper**: 7 steps, each with its failure and the key that makes a rerun harmless | Reading, s-batch | stepper (RD.anim, no autoplay) | The page's worked example (OWNERS: batch LLM jobs); counts illustrative, provider terms sourced |
+
+Moved: the measured redelivery chart now sits beside the at-most-once / at-least-once code (it was a separate "Measured" section). Removed autoplay: the outbox animation no longer starts on a mode switch, and `21_js_rd_common.js` is the skill template.
+Kept as a tab: the Queue lab, because it is a tool used across the page (redelivery, timeouts, DLQ, backpressure, Little's law), not the explanation of one mechanism.
+Rejected: a photo or real figure. Nothing physical teaches here, and a vendor console screenshot (an SQS age-of-oldest-message graph) has no clear reuse licence.

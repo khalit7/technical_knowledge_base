@@ -1,6 +1,35 @@
-
-<section id="s-gl">
-<h2>Glossary</h2>
+<section id="s-ref">
+<h2>Reference</h2>
+<details class="dp"><summary>What pros do in production: ten decisions <span class="mute">(reference)</span></summary><div class="b">
+<p class="small">Sourced where a source states it; the rest is common practice (marked).</p>
+<div class="tw"><table>
+<thead><tr><th>Decision</th><th>Typical choice</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>First queue for a new service</td><td>A Postgres-backed queue (Procrastinate, River, Solid Queue) or SQS</td><td>No new infrastructure; enqueue in the same transaction as the data (common practice; River and Oban docs)</td></tr>
+<tr><td>When to add Kafka</td><td>Several consumers of the same events, replay, or high event volume</td><td>A log's strengths; operational cost is real (common practice)</td></tr>
+<tr><td>Kafka producer</td><td><code>acks=all</code>, idempotence on (defaults since 3.0), replication factor 3, <code>min.insync.replicas=2</code></td><td>No loss if one broker fails; Kafka docs recommend RF 3 with min ISR 2 for EOS</td></tr>
+<tr><td>Kafka consumer</td><td>Commit offsets after processing (manual commit) or process idempotently; <code>read_committed</code> if upstream uses transactions</td><td>At-least-once on purpose, not by accident of the auto-commit timer</td></tr>
+<tr><td>Message ids</td><td>A producer-assigned unique id (UUID, or entity id plus version) in every message</td><td>Deduplication needs a key the producer controls</td></tr>
+<tr><td>Visibility timeout</td><td>Several times the p99 job time, with a heartbeat for long jobs</td><td>SQS docs: extend with <code>ChangeMessageVisibility</code></td></tr>
+<tr><td>DLQ</td><td>After 3 to 5 receives; alarm on any message; tested redrive</td><td>SQS redrive policy; the numbers are common practice</td></tr>
+<tr><td>Monitoring</td><td>Age of oldest message (or lag in seconds), DLQ depth, consumer error rate, redelivery rate</td><td>Yanacek: age catches both slowness and retry loops</td></tr>
+<tr><td>Events to other services</td><td>Outbox, relayed by polling or by Debezium</td><td>Removes the dual write</td></tr>
+<tr><td>Multi-step, long-running work</td><td>A durable workflow engine (Temporal, DBOS, Restate, Cloudflare Workflows)</td><td>Resumes after crashes without hand-written state machines</td></tr>
+</tbody></table></div></div></details>
+<details class="dp"><summary>Common mistakes, as a checklist <span class="mute">(each is taught above)</span></summary><div class="b">
+<ul>
+<li><b>Assuming the queue gives exactly-once.</b> Every common broker delivers at least once in practice; test every consumer by delivering twice.</li>
+<li><b>Generating the dedup id in the consumer</b>: new on every redelivery, so nothing is deduplicated.</li>
+<li><b>Celery with default acks for important work</b>: a killed worker loses the task; use <code>acks_late</code> plus <code>reject_on_worker_lost</code>, and idempotent tasks.</li>
+<li><b>A visibility timeout shorter than the slowest job</b>: slow jobs run on two workers at once; set it above p99, or heartbeat.</li>
+<li><b>Publishing right after a commit, "it is usually fine"</b>: until a deploy or crash lands between the two lines; then events are lost silently, one per crash.</li>
+<li><b>Watching queue length instead of message age.</b></li>
+<li><b>No DLQ, or a DLQ nobody watches</b>: a poison message burns a worker forever, or failed jobs vanish quietly.</li>
+<li><b>More consumers than partitions</b> in a Kafka consumer group: the extras sit idle; plan partitions for peak parallelism, or use share groups (Kafka 4.2+).</li>
+<li><b>Changing the partition count of a keyed topic</b>: per-key ordering breaks across the change.</li>
+<li><b>Slow work inside the transaction that holds the job lock</b>, and <b>unbounded queues in front of expensive resources</b> (bound them, reject early with 429, scale on queue age).</li>
+</ul></div></details>
+<details class="dp"><summary>Glossary <span class="mute">(every term is defined where it first appears)</span></summary><div class="b">
 <div class="gl">
 <div><b><a href="#d-req">Request path</a></b>: everything between a request arriving and its response.</div>
 <div><b><a href="#d-mq">Message queue</a></b>: a broker that deletes each message once a worker acknowledges it.</div>
@@ -46,6 +75,6 @@
 <div><b><a href="#d-taskq">Task queue library</a></b>: Celery, RQ, Arq, Dramatiq, Procrastinate.</div>
 <div><b><a href="#d-activity">Activity</a></b>: a durable workflow's side-effecting step, retried by the engine.</div>
 <div><b><a href="#d-cron">Cron</a></b>: running jobs at set times.</div>
-</div>
+</div></div></details>
 </section>
 </div>
