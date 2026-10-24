@@ -1,4 +1,4 @@
-// ---- Real rollouts tab: the ten groups, every answer's verdicts, reward score and advantages; reward model against verifier ----
+// ---- Real rollouts tab: the ten groups, every answer's verdicts, reward score and advantages. The reward-model-against-verifier scatter (ro-sc) now sits in the Reading tab, section 10 ----
 (function(){
   const E=window.LLE,D=window.LLD,TAB='t-roll';
   const pick=document.getElementById('ro-pick'),tab=document.getElementById('ro-tab'),Q=document.getElementById('ro-q'),TX=document.getElementById('ro-txt');
@@ -28,9 +28,9 @@
     all.forEach(a=>s+='<circle cx="'+X(a.rm).toFixed(1)+'" cy="'+Y(a.L).toFixed(1)+'" r="3.2" fill="'+(a.v?'var(--c3)':'none')+'" stroke="'+(a.v?'var(--c3)':'var(--c2)')+'" stroke-width="1.2"/>');
     P.innerHTML=RD.svg(W,H,s,'Reward score against length')+'<div class="leg"><span><i style="background:var(--c3)"></i>passes the strict verifier</span><span><i style="border:1.5px solid var(--c2);background:none"></i>fails</span><span>across: reward-model score; up: length in tokens</span></div>'}
   document.getElementById('ro-st').innerHTML=RD.stat('Pairs ranked right (AUC)',RD.pct(auc,0),'chance a correct answer outscores a wrong one')+RD.stat('Wrong answers above the correct mean',fp+' of '+neg.length,'')+RD.stat('Score against length','r = '+RD.n(rL,2),'Pearson, all 160')+RD.stat('Pass rate, strict',RD.pct(pos.length/all.length,0),pos.length+' of '+all.length);
-  document.getElementById('ro-scT').innerHTML='The reward model has never seen these problems\' answers; it judges the text. It ranks a correct answer above a wrong one '+RD.pct(auc,0)+' of the time: useful, and exactly the kind of imperfect proxy a policy would learn to exploit if it were the reward. '+(Math.abs(rL)>=0.1?'Its score '+(rL>0?'rises':'falls')+' with length (r = '+RD.n(rL,2)+').':'Its score barely tracks length here (r = '+RD.n(rL,2)+').');
+  const scT=document.getElementById('ro-scT');if(scT)scT.innerHTML='The reward model has never seen these problems\' answers; it judges the text. It ranks a correct answer above a wrong one '+RD.pct(auc,0)+' of the time: useful, and exactly the kind of imperfect proxy a policy would learn to exploit if it were the reward. '+(Math.abs(rL)>=0.1?'Its score '+(rL>0?'rises':'falls')+' with length (r = '+RD.n(rL,2)+').':'Its score barely tracks length here (r = '+RD.n(rL,2)+').');
   // the Reading tab's sentences in section 10
   const s1=document.getElementById('rd-hkAuc');if(s1)s1.textContent='ranks a correct answer above a wrong one only '+RD.pct(auc,0)+' of the time, and scores '+fp+' of '+neg.length+' wrong answers above the average correct one';
   const s2=document.getElementById('rd-hkLen');if(s2)s2.textContent=rL>=0.1?'rise with length (r = '+RD.n(rL,2)+')':rL<=-0.1?'fall with length (r = '+RD.n(rL,2)+'): long answers here are mostly truncated or confused ones, so the sign of a length preference depends on the reward model and the data, which is why it has to be measured':'barely track length (r = '+RD.n(rL,2)+')';
-  RD.onRender(scatter,TAB);RD.onResize(scatter,TAB);
+  RD.onRender(scatter);RD.onResize(scatter);
 })();
