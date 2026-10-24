@@ -50,3 +50,6 @@ No `live.md` or `coverage.json`: the page was new, with no old text; since 2026-
 ## Findings worth passing on
 - On this VM, when dirty data reaches the device varied from about 2 to 32 s for the same 16 MiB; in fresh containers it left at the flusher's next 5 s wake-up. Explained (likely, not traced) by the per-writeback-domain share in `wb_over_bg_thresh`. This also explains the root's Debug lab "fsync" case, where 256 MiB was clean 5 s later.
 - torch.distributed.checkpoint 2.14.1 deletes `.metadata` before renaming the new one in and never fsyncs a directory; saving into the same directory twice has crash windows (see Crash lab). One directory per step avoids them.
+
+## Topic close (2026-10-24)
+Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.
