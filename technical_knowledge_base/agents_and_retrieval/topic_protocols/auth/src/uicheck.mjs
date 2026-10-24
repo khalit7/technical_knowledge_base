@@ -64,7 +64,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       await sleep(900); await shot('#oaA', 'oauth-' + m);
     }
     await shot('#sgCalc', 'sigv4'); await shot('#rotSvg', 'rotation'); await shot('#devSvg', 'device'); await shot('#heroCard', 'hero'); await shot('#dpSvg', 'dpop'); await shot('#wiSvg', 'workload'); await shot('#rdDisc2', 'discovery'); await shot('#rdAlgs', 'algs'); 
-    await p.evaluate(() => { const s = document.querySelector('#mfA [data-a=scrub]'); s.value = 3; s.dispatchEvent(new Event('input')); }); await shot('#mfA', 'mf-step4');
+    // the recorded MCP flow stepper (#mfA) moved to the MCP page's section 7 at the topic close, 2026-10-24
     for (const m of ['strict', 'naive', 'xchg']) {
       await p.click(`#mfB [data-p=${m}]`); await p.evaluate(() => { const s = document.querySelector('#mfB [data-a=scrub]'); s.value = s.max - 1; s.dispatchEvent(new Event('input')); });
       await sleep(300); await shot('#mfB', 'mf-' + m);

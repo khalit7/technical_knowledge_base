@@ -82,3 +82,8 @@ Outputs: `lab/out/*.json` (embedded byte for byte; access-token JWTs in the wire
 - Microsoft's common OIDC discovery document (fetched 2026-10-05) has no `code_challenge_methods_supported`: an MCP client following 2026-07-28 literally must refuse to proceed.
 - Google's discovery document still advertises `response_type=token` and PKCE `plain`.
 - The MCP spec cites CIMD draft -00 and OAuth 2.1 draft -13; current are -02 (2026-07-06) and -16 (2026-09-03).
+
+## The topic close (2026-10-24)
+- Section 9 no longer re-teaches MCP's authorization flow: the eight-step list, the recorded SDK stepper (`#mfA`) and the mix-up block were replaced by one paragraph that names the profile's pieces from the OAuth side and links MCP section 7, which records the same flow and owns it. Auth keeps audience binding, no token passthrough (with the section 8 before/after), the confused deputy and the credential rules. The ledger labels the 17 moved units `owned:agents_and_retrieval/topic_protocols/mcp` with keys found on MCP; the two OAuth rules MCP does not state (refuse without `code_challenge_methods_supported`, rotate refresh tokens for public clients) stay here. `parts/32_js_mcpflow.js` still draws the section 8 stepper and skips the removed one; `uicheck.mjs` no longer screenshots it; the `#t-mcpflow` redirect still lands on `#mf-sec`.
+- Header after the trim: Reading 39 min, plus 9 in closed details (was 40 plus 10). Sibling times in Further reading updated to their headers; the parent's time is 33 min.
+- Section 6's validator is no longer called "the JWT lab" in section 5's ID-token comparison.
