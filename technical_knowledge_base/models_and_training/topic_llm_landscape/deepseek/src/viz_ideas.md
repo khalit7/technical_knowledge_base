@@ -501,3 +501,14 @@ The general rule: reject a visual if it is (a) a single number, (b) backed only 
 - https://api-docs.deepseek.com/news/news250226 (off-peak terms not found)
 - https://www.nature.com/articles/s41586-025-09422-z (could not be fetched)
 - https://www.reuters.com/world/china/chinas-deepseek-says-its-hit-ai-model-cost-just-294000-train-2025-09-18/ (could not be fetched)
+
+## 2026-10-24 rebuild to the teaching contract
+Built:
+- **Hero: layer by release** (`30_js_figs.js`, static annotated diagram; a list by release below 560 px). Answers "why are the models the way they are": each release changes one or two parts and keeps the rest. Replaces the Lineage tab's timeline dots and the "where each answer sits" table.
+- **Attention: the factor each generation shrank** (static before/after bars to scale, derived from the configs): entry size (MLA), entries read (DSA), entries stored (CSA/HCA). The DeepSeek instance only; the mechanisms and their steppers stay on Attention variants.
+- **Cost: GPU hours of the priced runs** (static bar to scale with the excluded research shown as an undisclosed box). Corrects the "$5.6M is what V3 cost" misconception (choosing.md criterion 5); one bar, not a training-bill tab.
+
+Removed (owner has the better visual): the aux-loss-free toy control loop (Mixture of experts animates recorded load curves from trained models, section 3); the GRPO group-advantage widget (RL for LLMs, `25_js_group.js`); the Lineage timeline and parameter bars (replaced by the hero).
+Moved to a closed block: the Sinkhorn-Knopp 4 x 4 toy (Normalisation owns mHC and has a random-matrix table, not this projection; proposed for absorption there).
+Kept inline: V4.1-Flash phase switch, layer modes and indexer funnel (no owner carries V4.1-Flash), MoE layouts grid, DualPipe simulator (Distributed Training links here for it), EPLB port, R1 flow and distillation scatter.
+Rejected: a real image. The page is about a lab and its models, not a physical object; the canonical figures (V3's architecture figure) are under arXiv's non-exclusive distribution licence, which does not allow reuse.
