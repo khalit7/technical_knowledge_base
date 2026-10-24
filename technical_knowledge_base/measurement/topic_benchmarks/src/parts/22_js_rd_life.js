@@ -70,7 +70,7 @@ window.RD_LIFE=(function(){
       RD.stat('Headroom left',r.headroom.toFixed(1)+' pts','100 minus score')+RD.stat('Points per 30 days',r.per30==null?'·':r.per30.toFixed(2),'derived, since launch');
   }
   an=RD.anim({card:'rd-life-card',ctl:'rd-life-ctl',n:5,draw,ms:2600,label:'Stage'});
-  RD.seg(document.getElementById('rd-life-mode'),m=>{mode=m;an.reset(5);an.play()});
+  RD.seg(document.getElementById('rd-life-mode'),m=>{mode=m;an.reset(5)});
   RD.onResize(()=>an.redraw());
   return {R,pace,setMode:m=>{mode=m;an.reset(5)},draw};
 })();

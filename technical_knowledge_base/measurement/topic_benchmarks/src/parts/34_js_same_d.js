@@ -60,6 +60,6 @@
   $('sm-an-mode').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{st.mode=b.dataset.m;$('sm-an-mode').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));stop();st.i=0;st.shownV=null;draw(false)}));
   if('IntersectionObserver' in window)new IntersectionObserver(es=>es.forEach(e=>{st.onScreen=e.isIntersecting})).observe(host);
   draw(false);
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-same']=(window.TAB_RENDER['t-same']||[]).concat([()=>{draw(false);if(!reduce&&!st.playing&&st.i===0&&!st.started){st.started=1;start()}}]);
+  (window.TAB_RENDER=window.TAB_RENDER||{})['t-same']=(window.TAB_RENDER['t-same']||[]).concat([()=>{draw(false)}]);
   addEventListener('resize',()=>{const t=$('t-same');if(t&&!t.hidden)draw(false)});
 })();
