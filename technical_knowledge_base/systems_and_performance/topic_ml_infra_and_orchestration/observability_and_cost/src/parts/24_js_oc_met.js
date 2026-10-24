@@ -1,5 +1,4 @@
-// ---- Metrics explainer: one simulated H100 over one sample window, every counter from its definition ----
-// The engine (OCM) is also used by the Reading tab's healthy/hung before-and-after (22_js_oc_read.js).
+// ---- Reading section 2: one simulated H100 over one sample window, every counter from its definition (was the Metrics explainer tab) ----
 window.OCM=(function(){
   const SM=132,WMAX=64,SL=20;
   const gemm=()=>({f:1,g:[{n:132,w:12,t:.75,k:'t'}],dram:.35,nvl:0});
@@ -67,18 +66,7 @@ window.OCM=(function(){
     $('oc-me-cap').innerHTML='<b>'+C[cm].lab+(fx?', after the fix':'')+'.</b> '+(fx?C[cm].ca:C[cm].cb)+(done?'':' <span class="mute">(readings so far cover slices 1 to '+(i+1)+')</span>')}
   const A=RD.anim({card:'oc-me-card',ctl:'oc-me-ctl',n:M.SL,ms:450,draw,label:'Slice of the sample window'});
   RD.seg($('oc-me-case'),m=>{cm=m;A.reset(M.SL);A.go(M.SL-1)});
-  RD.seg($('oc-me-fix'),m=>{fx=+m;A.reset(M.SL);A.play()});
-  // definitions and decoder tables
-  const D=(window.OC&&OC.metdefs)||[];
-  $('oc-me-defs').innerHTML=D.map(d=>'<tr><td><code>'+d.f+'</code></td><td>'+d.q+'</td><td class="small">'+d.how+'</td></tr>').join('');
-  const dec=[['gemm','Compute-bound and healthy','MFU from the step log against a reference run; occupancy is not a target'],
-    ['grid','Too little work per kernel (small batch, small matrices)','the profiler’s grid sizes; a larger micro-batch'],
-    ['gaps','Launch overhead: the CPU cannot keep up','a profiler timeline for gaps; CUDA graphs, torch.compile'],
-    ['loader','Waiting for input','data-loader wait time in the step log; storage throughput'],
-    ['mem','Memory-bound phase (optimizer, norms, elementwise)','which kernels; fusion; normal for part of a step'],
-    ['comm','Communication not overlapped','NVLink and network counters; overlap and bucket settings'],
-    ['hang','Hung collective, no progress','the step counter, py-spy, the NCCL flight recorder; kill and drain']];
-  $('oc-me-dec').innerHTML=dec.map(d=>{const r=M.readings(C[d[0]].bef);return '<tr><td class="num">'+M.pct(r.util)+'</td><td class="num">'+M.dec(r.act)+'</td><td class="num">'+M.dec(r.ten)+'</td><td class="num">'+M.dec(r.dram)+'</td><td>'+d[1]+'</td><td class="small">'+d[2]+'</td></tr>'}).join('');
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-met']=window.TAB_RENDER['t-met']||[]).push(()=>A.redraw());
-  addEventListener('resize',()=>{if(!$('t-met').hidden)A.redraw()});
+  RD.seg($('oc-me-fix'),m=>{fx=+m;A.reset(M.SL);A.go(M.SL-1)});
+  // the definitions and decoder tables are static HTML in 20_read_b.html (written from this engine on 2026-10-24); check/check_data.mjs recomputes the decoder readings
+  A.go(M.SL-1);RD.onRender(()=>A.redraw());RD.onResize(()=>A.redraw());
 })();

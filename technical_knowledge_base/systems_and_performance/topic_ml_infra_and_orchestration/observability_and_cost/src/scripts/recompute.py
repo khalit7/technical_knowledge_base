@@ -58,7 +58,7 @@ def own(capex_gpu, net, life_y, kw_gpu, load, pue, usd_kwh, ops):
 
 B = json.load(open(os.path.join(os.path.dirname(H), 'inputs', 'page_inputs.json')))['buy']
 DEF = dict(model='l405', gpu='h100', mfu=0.40, price=5.970, stall_s=60, restart_min=10, idle=0.0, deadline=90,
-           runs=1, extra=0.5, sched=0.85, od=6.88)
+           runs=1, extra=0.5, sched=0.85, od=6.88, spot=2.2712)  # spot: Azure ND96isr H100 v5, East US, read 2026-10-16
 
 if __name__ == '__main__':
     m = MODELS[DEF['model']]
@@ -74,6 +74,14 @@ if __name__ == '__main__':
                fleet_year_cost_own=f['gpus'] * o['annual'], fleet_year_cost_reserved=f['gpus'] * DEF['price'] * 8760,
                # the root Cost lab's check: 16,384 GPUs, its residual against the model card (30.84M H100-hours)
                root_check=run_yd(16384, **dict(k, rate_k=LLAMA_RATE))['paid_h'] / 30.84e6 - 1)
+    # cost per training token (Reading section 12): tokens per paid GPU-hour of the default run, then
+    # $ per million tokens = $ per GPU-hour / tokens per paid GPU-hour x 1e6, at 100% busy
+    tph = m[2] * 1e12 / r['paid_h']
+    out['tokens_per_gpu_h_ideal'] = DEF['mfu'] * PEAK[DEF['gpu']] * 3600 / (6 * m[1])
+    out['tokens_per_paid_gpu_h'] = tph
+    out['usd_per_m_tokens'] = {'owned': o['per_hour'] / tph * 1e6, 'reserved': DEF['price'] / tph * 1e6,
+                               'on_demand': DEF['od'] / tph * 1e6, 'spot': DEF['spot'] / tph * 1e6}
+    out['breakeven_vs_spot'] = o['per_hour'] / DEF['spot']
     for kk, v in out.items():
         print(kk, v)
     json.dump(out, open(os.path.join(os.path.dirname(H), 'recompute.json'), 'w'), indent=1, default=str)
