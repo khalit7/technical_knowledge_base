@@ -18,5 +18,5 @@ curl -sS -o /dev/null --http1.1 --cacert "$CA" --resolve api.llm.test:"$TP":127.
 # 5. Which sockets are open right now? (macOS has lsof and netstat; Linux has ss)
 ( curl -sS -N --http1.1 --cacert "$CA" --resolve api.llm.test:"$TP":127.0.0.1 https://api.llm.test:"$TP"/v1/messages \
   -H 'content-type: application/json' --data-binary @"$REQ" > /dev/null & ); sleep 0.15
-lsof -nP -iTCP:"$TP" | sed 's/  */ /g' > "$O/t5_lsof.txt" 2>&1
+lsof -nP -iTCP:"$TP" | sed 's/  */ /g' | awk 'NR>1{$3="dev"}1' > "$O/t5_lsof.txt" 2>&1
 sleep 0.5
