@@ -8,16 +8,17 @@ Data principle: real where possible. 160 responses sampled for this page from Qw
 
 | # | Idea | Teach | Data | Placement | Status |
 |---|---|---|---|---|---|
-| 1 | **One real response through RLHF-PPO, GRPO+verifier, Dr. GRPO** (before/after, six steps: response, score, KL, baseline, advantage, loss weight; counters for models in memory, rollouts, networks, distinct advantages; λ toggle) | 5 | 5 (real tokens, real RM, measured values) | Reading section 5 | built |
+| 1 | **One real response through RLHF-PPO, GRPO+verifier, Dr. GRPO** (before/after, six steps: response, score, KL, baseline, advantage, loss weight; counters for models in memory, rollouts, networks, distinct advantages; λ toggle) | 5 | 5 (real tokens, real RM, measured values) | Reading section 4 (was 5) | built |
 | 2 | **One group step by step: GRPO, Dr. GRPO, RLOO** (reused from Topic: rl reading_full, now with real groups and lengths) | 5 | 5 | Reading section 3 | built (reused) |
 | 3 | **Rare token under four objectives** (PPO clip, clip-higher, CISPO, no clip; 16 minibatch steps; probability on log scale; per-step gradient weight) | 4 | 3 (illustrative toy, exact gradients, checked in Python) | Reading section 7 | built |
-| 4 | **Rollout mismatch tab** (histograms of real per-token log-ratios in three set-ups; TIS cap and MIS band sliders; sequence ratio against GSPO's geometric mean) | 4 | 5 | Tab | built |
-| 5 | **Verifier gallery** (three checkers on 160 answers, agreement table, real disagreements annotated, documented failures with sources) | 4 | 5 | Tab | built |
-| 6 | **Real rollouts tab** (all groups, verdicts, RM score, three advantages, KL to base; RM-against-verifier scatter with AUC and length correlation) | 4 | 5 | Tab | built |
+| 4 | **Rollout mismatch tab** (histograms of real per-token log-ratios in three set-ups; TIS cap and MIS band sliders; sequence ratio against GSPO's geometric mean) | 4 | 5 | Reading section 8 (was a tab; moved 2026-10-24) | built |
+| 5 | **Verifier gallery** (three checkers on 160 answers, agreement table, real disagreements annotated, documented failures with sources) | 4 | 5 | Reading section 5 (was a tab; agreement table inline, cases closed, failures merged into the verifier table; 2026-10-24) | built |
+| 6 | **Real rollouts tab** (all groups, verdicts, RM score, three advantages, KL to base; RM-against-verifier scatter with AUC and length correlation) | 4 | 5 | Tab (problem table); the scatter moved to Reading section 10 on 2026-10-24 | built |
 | 7 | **Synchronous against asynchronous** (real lengths, illustrative engine/trainer model; utilisation and staleness counters) | 3 | 3 | Reading section 12 | built |
 | 8 | **pass@k crossing** (sharpening against expansion) | 3 | 2 (illustrative, exact) | Reading section 9 | built |
 | 9 | k3 against the plain log-ratio on real tokens | 3 | 4 (base model as stand-in reference) | Reading section 3 | built |
 | 10 | DAPO overlong penalty slider | 2 | 5 (formula) | Reading section 7 | built (from the old embed) |
+| 11 | **Hero: one wrong answer, per-token credit under PPO, GRPO and Dr. GRPO** (static, real data; measured critic, λ = 1, KL left out) | 5 | 5 | top of Reading | built 2026-10-24 |
 
 ## Formulas and sources reproduced
 - Worked example of four, clip steps, k3 at 0.5, Dr. GRPO's length and difficulty numbers, RLOO, DAPO clip-higher and overlong, GSPO 3-token example, TIS examples: `recompute.py`, checked against the page engine by `check_engine.mjs` (independently computed, PASS).
@@ -34,3 +35,7 @@ Data principle: real where possible. 160 responses sampled for this page from Qw
 
 ## What the methodology lacked here
 - Guidance for a "measured instead of learned" stand-in (Monte Carlo values in place of a critic, a base model in place of the SFT reference): we label each stand-in at the point of use and say what it changes (magnitudes, not shapes).
+
+## 2026-10-24 rebuild
+- Lab tabs that each explained one mechanism (Verifier gallery, Rollout mismatch) moved into the Reading sections that explain it; the Real rollouts tab stays as the dataset view used across the page.
+- Considered and rejected: a static chart of the clip's headroom p(1 + ε) against p (a sentence with 0.01 to 0.012 and 0.9 says it, and the rare-token toy shows the consequence); a fitted entropy-collapse curve R = −a e^H + b (no published coefficients read here, so it would be illustrative only); real images (a mechanism page: no photo or paper figure teaches more than the diagrams).

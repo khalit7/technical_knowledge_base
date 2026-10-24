@@ -64,7 +64,7 @@
       'Every token gets the same advantage, '+RD.sg(a,3)+'. The tokens that decided the answer and the boilerplate around them are credited alike; over many prompts the noise averages out.',
       mode==='dr'?'Dr. GRPO divides by a constant (the longest response in the group, '+Math.max(...g.L)+' tokens), so every token of every response in the group carries the same weight per unit of advantage: '+RD.n(o.w[0],6)+' here.':'GRPO divides by this response\'s own length ('+f.L+'), then by G: '+RD.n(o.w[0],6)+' per token. A longer response of the same score would get a smaller weight per token: the length bias of section 7.'][i]}
   const an=RD.anim({card:'rd-on',ctl:'rd-onC',n:STEPS.length,ms:2600,draw,label:'Step'});
-  document.getElementById('rd-onM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));RB.querySelectorAll('[data-l],[data-s]').forEach(x=>x.style.display=mode==='ppo'?'':'none');an.reset(STEPS.length);an.play()});
+  document.getElementById('rd-onM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));RB.querySelectorAll('[data-l],[data-s]').forEach(x=>x.style.display=mode==='ppo'?'':'none');an.reset(STEPS.length)});
   RB.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
     if(b.dataset.l){lam=lam===1?0.95:1;b.textContent='GAE λ = '+lam;an.redraw();return}
     if(b.dataset.s){rsrc=rsrc==='rm'?'ver':'rm';b.textContent='PPO reward: '+(rsrc==='rm'?'reward model':'verifier');an.redraw();return}

@@ -1,6 +1,6 @@
-// ---- Rollout mismatch tab: real per-token log-ratios between engine and trainer, TIS and MIS at any threshold, sequence ratios ----
+// ---- Reading section 8 (was the Rollout mismatch tab): real per-token log-ratios between engine and trainer, TIS and MIS at any threshold, sequence ratios ----
 (function(){
-  const D=window.LLD,TAB='t-mis';let m='f16';
+  const D=window.LLD,TAB='t-read';let m='f16';
   const H_=document.getElementById('mi-h'),S_=document.getElementById('mi-s'),Cs=document.getElementById('mi-C'),Bs=document.getElementById('mi-B'),ST=document.getElementById('mi-st'),T=document.getElementById('mi-T'),sT=document.getElementById('mi-sT');
   const NAME={f16:'float16 engine with KV cache against float32 trainer',bf:'bfloat16 against float32, both one pass',rp:'engine with repetition penalty 1.1 against the plain model (float32)'};
   function frac(h,f){let s=0;h.c.forEach((c,k)=>{const x=h.lo+(k+0.5)*h.bin;if(f(x))s+=c});return s/h.n}

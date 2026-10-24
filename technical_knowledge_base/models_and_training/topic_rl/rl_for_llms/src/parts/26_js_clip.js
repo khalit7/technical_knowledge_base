@@ -37,6 +37,6 @@
     N.innerHTML=RD.stat('Final p, PPO clip',RD.n(z,4),'')+RD.stat('Final p, clip-higher',RD.n(d,4),'')+RD.stat('Final p, CISPO',RD.n(ci,4),'')+RD.stat('Steps with gradient',runs[mode].slice(0,ST).filter(x=>x.active).length+' of '+ST,MODES[mode])}
   compute();
   const an=RD.anim({card:'rd-cz',ctl:'rd-czC',n:ST+1,ms:600,draw,label:'Step'});
-  document.getElementById('rd-czM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));an.reset(ST+1);an.play()});
+  document.getElementById('rd-czM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));an.reset(ST+1)});
   Ps.addEventListener('input',()=>{compute();an.redraw()});Hs.addEventListener('input',()=>{compute();an.redraw()});RD.onResize(()=>an.redraw());
 })();

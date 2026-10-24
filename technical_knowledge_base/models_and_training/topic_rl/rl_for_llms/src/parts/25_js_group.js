@@ -45,7 +45,7 @@
     N.innerHTML=RD.stat('Passes',nc+' / '+G,'')+RD.stat('Mean, std',RD.n(st.ad.m,3)+', '+RD.n(st.ad.sd,3),'population std')+RD.stat('Σ advantages',RD.n(E.sum(st.ad.A),3),'zero by construction')+RD.stat('Top advantage',RD.sg(Math.max(...st.ad.A),3),'')}
   const an=RD.anim({card:'rd-gr',ctl:'rd-grC',n:STEPS.length,ms:2200,draw,label:'Step'});
   function setBtns(){[...GB.querySelectorAll('button')].forEach(b=>b.classList.toggle('on',b.dataset.p===pre))}
-  GB.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pre=b.dataset.p;cur=PRE.find(p=>p.k===pre);r=cur.r.slice();setBtns();an.reset(STEPS.length);an.play()});
+  GB.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pre=b.dataset.p;cur=PRE.find(p=>p.k===pre);r=cur.r.slice();setBtns();an.reset(STEPS.length)});
   document.getElementById('rd-grK').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;kind=b.dataset.k;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));an.redraw()});
   P.addEventListener('click',e=>{const g=e.target.closest('.rd-grR');if(!g)return;const k=+g.dataset.k;r[k]=1-r[k];pre='';setBtns();if(an.i<1)an.go(3);else an.redraw()});
   setBtns();RD.onResize(()=>an.redraw());
