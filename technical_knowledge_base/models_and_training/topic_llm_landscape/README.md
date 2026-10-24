@@ -9,7 +9,6 @@ Renamed from "Topic: llms" on 2026-10-18 (folder `topic_llms/` became `topic_llm
 
 The page also carries a narrated video (not in this repository; its HyperFrames project is in `video/`) and the child pages below, one folder each.
 
-- `ai2_olmo/`: Ai2: OLMo (fully open models)
 - `alibaba_qwen/`: Alibaba: Qwen
 - `anthropic_claude_family/`: Anthropic: Claude family
 - `deepseek/`: DeepSeek
@@ -20,7 +19,7 @@ The page also carries a narrated video (not in this repository; its HyperFrames 
 - `mistral_ai/`: Mistral AI
 - `moonshot_ai_kimi/`: Moonshot AI: Kimi
 - `openai_gpt_family/`: OpenAI: GPT family
-- `other_notable_providers/`: Other notable providers
+- `other_notable_providers/`: Other notable providers (Ai2 OLMo merged in, 2026-10-24)
 - `xai_spacexai_grok/`: xAI / SpaceXAI: Grok
 - `zhipu_glm/`: Zhipu: GLM
 
