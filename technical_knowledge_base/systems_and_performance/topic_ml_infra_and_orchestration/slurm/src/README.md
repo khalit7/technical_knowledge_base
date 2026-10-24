@@ -46,3 +46,5 @@ Why about 31 minutes is right: the page owns the whole of Slurm for ML (daemons,
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 388 units: core 251, depth 59, fat 78. 379 were drafted from the old page by `ledger.py init`; 9 were added by hand for script-drawn visuals and the Why pending? decoder. Fat units carry a `note`. No unit is labelled owned: what other pages own (cgroups, launchers, Kubernetes, networks) the old page already only linked.
+
+2026-10-24 topic close: section 2's job states note that under torchrun Slurm records torchrun's exit code 1, linking Launching distributed training section 3; Further reading training-root time 27 to 22.
