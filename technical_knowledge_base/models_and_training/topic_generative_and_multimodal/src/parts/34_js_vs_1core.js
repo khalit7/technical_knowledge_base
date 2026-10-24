@@ -1,6 +1,6 @@
-// ---- Vision lab (t-vision): helpers and the step-animation controller (play, pause, step, scrub, speed) ----
-// Animations run only while their card is on screen in the visible tab, play once when first seen,
-// and never autoplay under prefers-reduced-motion. Data: window.VS_DATA (34_js_vs_0data.js, built by src/vision/make_data.py).
+// ---- Zero-shot lab (t-vision, formerly the Vision lab): helpers and the step-animation controller (play, pause, step, scrub, speed) ----
+// Animations run only while their card is on screen in the visible tab
+// and never autoplay: they wait on step 0 (2026-10-24). Data: window.VS_DATA (34_js_vs_0data.js, built by src/vision/make_data.py).
 window.VS=(function(){
   const D=window.VS_DATA,$=id=>document.getElementById(id);
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -47,7 +47,7 @@ window.VS=(function(){
     g('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
     g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     g('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    function maybeStart(){if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()}
+    function maybeStart(){kick()}
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;maybeStart()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();maybeStart()});

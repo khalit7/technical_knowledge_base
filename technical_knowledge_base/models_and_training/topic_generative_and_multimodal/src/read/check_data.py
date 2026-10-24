@@ -4,7 +4,10 @@ H = os.path.dirname(os.path.abspath(__file__))
 page = open(os.path.join(H, '..', '..', 'index.html'), encoding='utf-8').read()
 emb = json.loads(re.search(r'window\.RDG=(\{.*?\});\n', page).group(1))
 d = json.load(open(os.path.join(H, 'read_data.json')))
-assert emb == d, 'embedded data differs from read_data.json'
+# Since 2026-10-24 the page embeds only the pullover and the seconds per pass; the recorded sentences in
+# read_data.json are static HTML on the root or on the child that owns them (ledger.json), and are still checked below.
+assert {k: v for k, v in emb.items() if k != 'lab'} == {k: v for k, v in d.items() if k != 'lab'}, 'embedded image differs from read_data.json'
+assert emb['lab'] == {'sd_sec_per_pass': d['lab']['sd_sec_per_pass']}, 'embedded seconds per pass differ'
 S = os.path.join(H, '..', 'data', 'smoke')
 sd, sl, clip, vlm, ff = (json.load(open(os.path.join(S, f))) for f in ['sd.json', 'sd_slicing.json', 'clip.json', 'vlm.json', 'fid_floor.json'])
 sig = json.load(open(os.path.join(S, 'siglip.json')))

@@ -15,7 +15,7 @@
       RD.stat('Against 50 steps with CFG',(calls>=base?(calls===base?'the same':(calls/base).toFixed(1)+'&times; more'):(base/calls).toFixed(base/calls<10?1:0)+'&times; fewer'),calls+' vs 100 passes')+
       RD.stat('Time in the denoiser',isFinite(sec)&&sec>0?(calls*sec).toFixed(2)+' s':'enter a time',G?'passes &times; seconds per pass; a step\'s two passes batched together take less on a GPU with room to spare':'passes &times; seconds per pass');
     $('rd-c-note').innerHTML='<span class="der">derived</span> latent side = image side / 8; DiT tokens = (latent side / 2)<sup>2</sup>, so a 1024 image is 4,096 tokens and attention costs 16 times a 512 image\'s per layer; passes = steps &times; 2 with guidance. Plus once per image: the text encoder (twice with guidance) and the VAE decoder. '+
-      (L.sd_sec_per_pass?'Default time: Stable Diffusion v1.5 U-Net, '+L.sd_sec_per_pass+' s per pass, <span class="meas">measured</span> on Apple M1 Pro (MPS, fp16) by the Diffusion lab.':'<span class="rd-todo">TODO (Diffusion lab): default seconds per pass from the measured Stable Diffusion v1.5 run.</span>');
+      (L.sd_sec_per_pass?'Default time: Stable Diffusion v1.5 U-Net, '+L.sd_sec_per_pass+' s per pass, <span class="meas">measured</span> on Apple M1 Pro (MPS, fp16; the topic\'s diffusion runs, root <code>src/diff/out</code>).':'');
   }
   ['rd-c-res','rd-c-ch','rd-c-steps','rd-c-cfg','rd-c-sec'].forEach(id=>$(id).addEventListener('input',upd));
   upd();
