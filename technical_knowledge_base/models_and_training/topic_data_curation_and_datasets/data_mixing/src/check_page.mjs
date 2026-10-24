@@ -2,8 +2,9 @@
 //   node technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/data_mixing/src/check_page.mjs
 // 1. clicks every control in every tab at 390 px dark and 920 px light (reduced motion), failing on JS errors, NaN,
 //    undefined, Infinity in visible text, or sideways page scroll;
-// 2. checks the page embeds exactly data/mx2_data.json, that the page's JS reproduces recompute.py (DoReMi toy,
-//    mixing-law refit, blend rule), and that numbers quoted in the prose match the data.
+// 2. checks the page embeds exactly data/mx2_data.json and parts/26_js_cpt_data.js, that the page's JS reproduces recompute.py
+//    (DoReMi toy, mixing-law refit, blend rule) and cpt/recompute_cpt.py (CMR, D-CPT), and that numbers quoted in the prose match;
+// 3. with normal motion, scrolls the whole Reading tab and confirms no animation has started by itself (2026-10-23 rule).
 import {createRequire} from 'module';
 import path from 'path';
 import fs from 'fs';
@@ -11,6 +12,7 @@ const require=createRequire(path.resolve('html_utils/package.json'));
 const puppeteer=require('puppeteer');
 const here=path.dirname(new URL(import.meta.url).pathname), page_path=path.resolve(here,'../index.html');
 const DATA=JSON.parse(fs.readFileSync(path.resolve(here,'data/mx2_data.json'),'utf8'));
+const CPTD=JSON.parse(fs.readFileSync(path.resolve(here,'parts/26_js_cpt_data.js'),'utf8').replace(/^\/\/.*\n/,'').replace(/^window\.CPT=/,'').replace(/;\s*$/,''));
 let fail=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)fail++};
 const b=await puppeteer.launch({headless:'shell'});
 for(const [scheme,width] of [['dark',390],['light',920]]){
@@ -70,9 +72,19 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
     ok(has('maths from 2.7% to 12.5%')&&Math.abs(sm[0].groups.math-0.027)<1e-9&&Math.abs(sm[2].groups.math-0.1249)<1e-9,'prose: SmolLM3 maths share');
     ok(has('from 0.40 to about 0.29')&&Math.abs(D.toy.check_avg[0]-0.29088)<1e-4&&has('from 0.15 to about 0.11'),'prose: toy prediction answer');
     ok(D.regmix.ratio_flops_doremi===0.095&&has('about 10%'),'prose: RegMix FLOPs about 10% of DoReMi');
+    // continued-pretraining sections (moved from the former CPT page)
+    const embC=await p.evaluate(()=>JSON.stringify(window.CPT));ok(embC===JSON.stringify(CPTD),'page embeds exactly parts/26_js_cpt_data.js');
+    const cm=await p.evaluate(async()=>{const o=[],sz=document.getElementById('cmSize'),sl=document.getElementById('cmT');sl.value=20;sl.dispatchEvent(new Event('input'));
+      for(const v of ['460M','940M','1.6B','3.1B']){sz.value=v;sz.dispatchEvent(new Event('change'));o.push(document.getElementById('cmOut').innerText.includes('match'))}return o});
+    ok(cm.every(Boolean),'CMR calculator reproduces the four published CMRs at 20B ('+cm.join(',')+')');
+    const dc=await p.evaluate(()=>{const s=document.getElementById('dcT');s.value=3;s.dispatchEvent(new Event('input'));return document.getElementById('dcOut').innerText});
+    ok(/0\.92[45]/.test(dc),'D-CPT crossing at 3% near 0.924: '+dc.slice(0,90));
+    const fill=await p.evaluate(()=>[...document.querySelectorAll('[data-v]')].map(e=>e.textContent));ok(fill.length>=5&&fill.every(v=>v&&v!=='?'),'toy numbers filled in the prose: '+fill.join(', '));
+    const T=CPTD.toy.summary;ok(has('removes '+T['p1.0_r0.25'].removed_pct+'% of the English loss rise'),'prose: toy 25% replay removes '+T['p1.0_r0.25'].removed_pct+'%');
+    ok(has('1% replay removed 52% of the Pile loss rise, 5% removed 71% and 25% removed 89%'),'prose: Ibrahim replay shares');
     const PR=D.proxy_runs;ok(PR&&PR.doremi&&PR.doremi.length===1,'measured DoReMi run embedded');
     const R=PR.doremi[0],pc=v=>(100*v).toFixed(1)+'%';
-    ok(has('(17% to 2.6%)')&&Math.round(100*R.ref_weights.web)===17&&R.avg_weights.web===0.0263,'prose: web 17% to 2.6%');
+    ok(has('from 17% to 2.6%')&&Math.round(100*R.ref_weights.web)===17&&R.avg_weights.web===0.0263,'prose: web 17% to 2.6%');
     ok(has('rise to about 38% each')&&Math.round(100*R.avg_weights.code)===38&&Math.round(100*R.avg_weights.math)===38,'prose: code and maths about 38%');
     const H=R.trajectory,mx=k=>Math.max(...H.map(r=>r[k]));ok(has('reached 0.998 on code and 0.994 on maths')&&mx(2).toFixed(3)==='0.998'&&mx(3).toFixed(3)==='0.994','prose: max single-step alpha');
     const top=H.map(r=>r.indexOf(Math.max(...r)));ok(has('93% of the logged steps')&&Math.round(100*top.filter(t=>t===2||t===3).length/top.length)===93,'prose: code or maths on top 93%');
@@ -85,5 +97,11 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
   }
   await p.close();
 }
+// 3. no autoplay: normal motion, scroll every card into view, wait, and confirm nothing is playing and every scrubber is at 0
+{ const p=await b.newPage();await p.setViewport({width:920,height:900});await p.goto('file://'+page_path,{waitUntil:'load'});
+  await p.evaluate(async()=>{try{localStorage.clear()}catch(e){}const sl=ms=>new Promise(r=>setTimeout(r,ms));for(const c of document.querySelectorAll('#t-read .card')){c.scrollIntoView({block:'center'});await sl(60)}await sl(2000)});
+  const st=await p.evaluate(()=>[...document.querySelectorAll('#t-read .an-play')].map(b=>b.getAttribute('aria-label')+':'+(b.parentElement.querySelector('input[type=range]')||{}).value));
+  ok(st.length>=4&&st.every(x=>x.startsWith('Play:0')),'no animation starts by itself ('+st.length+' controllers: '+st.join(' ')+')');
+  await p.close(); }
 await b.close();
 console.log(fail?('FAILED '+fail):'all checks passed');process.exit(fail?1:0);

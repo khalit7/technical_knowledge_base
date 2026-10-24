@@ -54,7 +54,7 @@
     // stage boundaries and LR schedule
     let acc=0;const tot=R.tot||1;S.stages.forEach((s,j)=>{if(j){const x=4+acc/tot*(W-8);g+='<line x1="'+x+'" x2="'+x+'" y1="'+(T-4)+'" y2="'+(T+bh+4)+'" stroke="var(--ink)" stroke-dasharray="3 2"/>'}g+=RD.t(4+acc/tot*(W-8)+3,12,esc(s.name),{fs:10,fill:'var(--mute)'});acc+=s.tok});
     const ds=(tot-S.stages[S.stages.length-1].tok)/tot;let p='';for(let k=0;k<=60;k++){const f=k/60,lr=f<0.01?f/0.01:f<ds||S.stages.length<2?1:Math.max(0,1-(f-ds)/(1-ds));p+=(k?'L':'M')+(4+f*(W-8)).toFixed(1)+' '+(T+bh+40-lr*30).toFixed(1)}
-    g+='<path d="'+p+'" fill="none" stroke="var(--mute)" stroke-width="1.5"/>'+RD.t(W-4,T+bh+48,'learning rate',{a:'end',fs:9,fill:'var(--mute)'});
+    g+='<path d="'+p+'" fill="none" stroke="var(--mute)" stroke-width="1.5"/>'+RD.t(W-4,T+bh+48,'learning rate',{a:'end',fs:10.5,fill:'var(--mute)'});
     if(i>0&&i<=N){const x=4+i*cw;g+='<line x1="'+x+'" x2="'+x+'" y1="'+T+'" y2="'+(T+bh)+'" stroke="var(--ink)" stroke-width="2"/>'}
     $('mx2-pl-plot').innerHTML=RD.svg(W,H,g,'Composition of the token stream along the run');
     const seen=k=>{let s=0;for(let c=0;c<k;c++)s+=colShares(c,mode)[hl];return s/N*tot},last10=()=>{let s=0;for(let c=90;c<N;c++)s+=colShares(c,mode)[hl];return s/10},other=mode==='static'?'staged':'static';
@@ -63,7 +63,7 @@
       RD.stat(esc(S.doms[hl].name)+' share of the last 10%',(100*last10()).toFixed(1)+'%',(other==='static'?'static mix: ':'stages: ')+(100*l10o).toFixed(1)+'%');
     $('mx2-pl-cap').textContent=(mode==='static'?'One static mix: every part of the run has the same composition, so the best data is spread thinly and most of it is read while the learning rate is still high. ':'Your stages: the same tokens per domain, with the last stage concentrated where the learning rate decays. ')+'Highlighted domain: '+S.doms[hl].name+' (the one whose weight rises most in the last stage).'}
   const A=RD.anim({card:'mx2-pl-card',ctl:'mx2-pl-ctl',n:N+1,ms:90,label:'Position in the run',draw:drawAn,tab:'t-plan'});
-  RD.seg($('mx2-pl-mode'),m=>{mode=m;A.reset(N+1);A.play()});
+  RD.seg($('mx2-pl-mode'),m=>{mode=m;A.reset(N+1)});
   RD.onRender(()=>A.redraw(),'t-plan');RD.onResize(()=>A.redraw(),'t-plan');
   load('ill');
 })();

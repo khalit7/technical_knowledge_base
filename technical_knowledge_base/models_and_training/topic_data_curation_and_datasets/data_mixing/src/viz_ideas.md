@@ -31,3 +31,9 @@ Scores 0 to 2 on: parameter the reader moves; reproduces a published figure (cou
 ## What the methodology lacked
 - A rule for "released raw runs": when a paper releases its experiment logs, refitting them (and fitting forms the paper did not try) beats transcribing its table; it also lets the page check claims (rank invariance) directly.
 - Toys that run one published update rule on made-up curves need an explicit statement of which conclusions are by construction.
+
+## 2026-10-24 rebuild
+- Added: static hero (SmolLM3 stage mixes plus the WSD shape, beside DeepSeekMath's CPT mix), chosen as the whiteboard picture of the three decisions.
+- Moved inline: measured DoReMi run (3a), fitter (3c); toy DoReMi, recommendations and coefficients to closed blocks.
+- Absorbed from the CPT page (its `cpt/viz_ideas_cpt.md` keeps that page's scoring): forgetting before/after animation (6a), frontier chart (6b), toy grid (closed, 6b), schedule toggle (6c), CMR calculator (6d), D-CPT card (closed, 6d), recipes table and scatter (tab).
+- Rejected: a paper's own figure as an image (no physical object; the figures are rebuilt from released data, and arXiv licences were not cleared).

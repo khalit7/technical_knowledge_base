@@ -9,11 +9,11 @@
     if(dm==='top'){rows.sort((a,b)=>Math.abs(b.doremi_280m-b.doremi_baseline)-Math.abs(a.doremi_280m-a.doremi_baseline));rows.length=10}
     else rows.sort((a,b)=>b.doremi_280m-a.doremi_280m);
     const keys=[['pile_table1','var(--dim)'],['doremi_baseline','var(--c2)'],['doremi_280m','var(--c1)'],['doremi_120m_r1','var(--c4)']];
-    const W=RD.width($('mx2-dw-plot')),nmW=Math.min(140,Math.max(90,W*0.28)),bw=W-nmW-52,rh=38,H=rows.length*rh+4;
+    const W=RD.width($('mx2-dw-plot')),nmW=Math.min(140,Math.max(104,W*0.28)),bw=W-nmW-52,rh=48,H=rows.length*rh+4;
     const mx=Math.max(...rows.flatMap(r=>keys.map(k=>r[k[0]])));let g='';
-    rows.forEach((r,j)=>{const y=j*rh+2;g+=RD.t(nmW-6,y+20,esc(r.name.replace(' (en)','').replace('Gutenberg (PG-19)','Gutenberg')),{a:'end',fs:11});
-      keys.forEach((k,m)=>{const w=r[k[0]]/mx*bw;g+='<rect x="'+nmW+'" y="'+(y+2+m*8.5)+'" width="'+w.toFixed(1)+'" height="7.5" fill="'+k[1]+'"/>';
-        g+=RD.t(nmW+w+3,y+9+m*8.5,pct(r[k[0]],1),{fs:9,fill:'var(--mute)'})})});
+    rows.forEach((r,j)=>{const y=j*rh+2;g+=RD.t(nmW-6,y+25,esc(r.name.replace(' (en)','').replace('Gutenberg (PG-19)','Gutenberg').replace('USPTO Backgrounds','USPTO').replace('PubMed Abstracts','PubMed Abs.').replace('PubMed Central','PubMed Central')),{a:'end',fs:11});
+      keys.forEach((k,m)=>{const w=r[k[0]]/mx*bw;g+='<rect x="'+nmW+'" y="'+(y+3+m*11)+'" width="'+w.toFixed(1)+'" height="9" fill="'+k[1]+'"/>';
+        g+=RD.t(nmW+w+3,y+11+m*11,pct(r[k[0]],1),{fs:10.5,fill:'var(--mute)'})})});
     $('mx2-dw-plot').innerHTML=RD.svg(W,H,g,'Four weightings of The Pile per domain')}
   RD.seg($('mx2-dw-seg'),m=>{dm=m;drawDW()}); RD.onRender(drawDW); RD.onResize(drawDW); drawDW();
 
@@ -51,7 +51,7 @@
     $('mx2-bl-out').innerHTML=BN.map((n,j)=>RD.stat(n+' (target '+pct(BW[j],0)+')',c[j]+' of '+i,'target '+(BW[j]*i).toFixed(1))).join('')+RD.stat('Largest gap so far',(i?Math.max(...dev.slice(0,i)):0).toFixed(1),'samples');
     $('mx2-bl-cap').textContent=i===0?'Step 0: no samples drawn yet. Each step draws one sample.':
       (bm==='rand'?'Random: each sample picks a domain with probability 0.6, 0.3, 0.1. ':'Blend: each sample goes to the domain whose count lags w·n most. ')+'Sample '+i+' came from '+BN[SEQ[bm][i-1]]+'.'}
-  RD.seg($('mx2-bl-seg'),m=>{bm=m;blA.reset(NS+1);blA.play()}); RD.onResize(()=>blA.redraw());
+  RD.seg($('mx2-bl-seg'),m=>{bm=m;blA.reset(NS+1)}); RD.onResize(()=>blA.redraw());
 
   // 5. SmolLM3 stage groups
   const GN={web_en:'English web',multilingual:'Multilingual',code:'Code',math:'Maths',other:'Other'},GC={web_en:'var(--c1)',multilingual:'var(--c6)',code:'var(--c3)',math:'var(--c2)',other:'var(--c5)'};
