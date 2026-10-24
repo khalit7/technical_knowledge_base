@@ -1,4 +1,4 @@
-// ---- Chunking workbench (t-rpwb)
+// ---- Chunking workbench (inline in Reading section 1)
 (function(){
   const $=id=>document.getElementById(id);
   const docs=RP.D.wb.map(RP.Doc);
@@ -63,5 +63,5 @@
   [['rp-wb-size','size','rp-wb-sizev'],['rp-wb-over','over','rp-wb-overv'],['rp-wb-bud','bud','rp-wb-budv']].forEach(([id,k,v])=>$(id).addEventListener('input',e=>{st[k]=+e.target.value;$(v).textContent=st[k];render()}));
   $('rp-wb-seps').addEventListener('change',()=>{st.seps=[...$('rp-wb-seps').querySelectorAll('input')].filter(x=>x.checked).map(x=>x.dataset.s);render()});
   fillQ();
-  RP.onTab('t-rpwb',render);
+  RP.onTab('t-read',render);
 })();

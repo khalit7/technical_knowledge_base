@@ -46,7 +46,7 @@
       $('rp-an-split-ctr').innerHTML='<span>section <b>'+E(secName)+'</b> ('+doc.starts.length+' tokens)</span><span>chunks <b>'+(i+1)+' / '+all.length+'</b></span><span>chunks ending inside a paragraph <b>'+midPara+'</b></span><span>evidence paragraphs intact so far <b>'+intactN+' / '+evs.length+'</b></span>';
     }
     const an=RD.anim({card:'rp-an-split',ctl:'rp-an-split-c',n:cut.fixed.length,draw,ms:1300,label:'Chunk'});
-    RD.seg($('rp-an-split-m'),m=>{st.m=m;an.reset(cut[m].length);an.play()});
+    RD.seg($('rp-an-split-m'),m=>{st.m=m;an.reset(cut[m].length)});
   })();
   // 1.5 small to big
   function pcChart(){const el=$('rp-pc-chart');const S=(D.parent_child||{}).strategies;if(!S)return;

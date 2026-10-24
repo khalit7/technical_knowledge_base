@@ -23,7 +23,7 @@ D = json.loads(data[len("window.RPD="):].rstrip().rstrip(";"))
 for name in ("bm25", "bm25_example", "score_ranges", "chunk_internals", "chunking_rp", "parent_child", "mmr", "router", "mixed", "late", "sparse", "qrewrite", "prompt_asm"):
     p = os.path.join(HERE, "out", name + ".json")
     if os.path.exists(p):
-        rec = json.loads(json.dumps(J(p), ensure_ascii=False).replace("—", "-"))
+        rec = json.loads(json.dumps(J(p), ensure_ascii=False).replace("\u2014", "-"))
         if D.get(name) != rec:
             bad.append("embedded %s differs from out/%s.json" % (name, name))
 for name, key in (("chunking.json", "root_chunking"), ("filter.json", "root_filter"), ("qtrans.json", "root_qtrans")):
@@ -72,6 +72,18 @@ QT = J(os.path.join(ROOT_OUT, "qtrans.json"))
 for m, k, v in (("qwen3-emb-0.6b", "hyde", 0.718), ("bge-small", "hyde+claim", 0.733), ("bge-small", "hyde", 0.692), ("qwen3-emb-0.6b", "multi-query", 0.699)):
     if QT[m][k]["ndcg10"] != v:
         bad.append("qtrans %s %s is %s, prose says %s" % (m, k, QT[m][k]["ndcg10"], v))
+# 4b. section 9's waffle data and the hero's numbers equal the root's end-to-end run
+E2 = J(os.path.join(ROOT_OUT, "e2e.json"))["agg"]
+RPE = json.loads(open(os.path.join(HERE, "parts", "22_rp_e2e.js"), encoding="utf-8").read()[len("window.RPE="):].rstrip().rstrip(";"))
+for c, v in RPE["conds"].items():
+    for k, x in v.items():
+        if E2[c][k] != x:
+            bad.append("e2e %s %s: page %s, root %s" % (c, k, x, E2[c][k]))
+c = E2["rr30@3"]
+if (c["in_K"], c["in_k"], c["correct_strict"], E2["oracle"]["strict"], E2["closed"]["lenient"], c["lenient_without_evidence"]) != (186, 178, 96, 112, 45, 4):
+    bad.append("section 9 prose numbers (186, 178, 96, 112, 45, 4) differ from the root's e2e.json")
+if E2["rr10@1"]["correct_strict"] != 97 or E2["rr20@3"]["correct_strict"] != 96:
+    bad.append("prompt budget numbers differ from the root's e2e.json")
 # 5. privacy and hygiene
 pat = re.compile(r"/Users/|Users-|khalid|glpat|sk-ant|[\w.+-]+@[\w-]+\.[\w.]+|claude-502")
 for dp, dn, fn in os.walk(PAGE):

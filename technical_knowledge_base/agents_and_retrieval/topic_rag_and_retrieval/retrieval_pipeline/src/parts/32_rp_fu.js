@@ -1,4 +1,4 @@
-// ---- Fusion lab (t-rpfu)
+// ---- Fusion lab (inline in Reading section 4)
 (function(){
   const $=id=>document.getElementById(id);
   const F=RP.D.fu;
@@ -67,5 +67,5 @@
   $('rp-fu-am').addEventListener('change',e=>{st.am=e.target.value;plot()});
   RP.seg($('rp-fu-ads'),m=>{st.ads=m;plot()});
   setSlider('a');setSlider('b');fillQ();
-  RP.onTab('t-rpfu',()=>{render();plot()});RP.resizeFor('t-rpfu',plot);
+  RP.onTab('t-read',()=>{render();plot()});RP.resizeFor('t-read',plot);
 })();

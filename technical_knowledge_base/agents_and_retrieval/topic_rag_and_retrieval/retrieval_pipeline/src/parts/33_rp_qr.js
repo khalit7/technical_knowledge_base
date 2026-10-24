@@ -1,4 +1,4 @@
-// ---- Query-rewrite lab (t-rpqr)
+// ---- Query-rewrite lab (inline in Reading section 5)
 (function(){
   const $=id=>document.getElementById(id);
   const Q=RP.D.qr;if(!Q||!Q.claims)return;
@@ -38,5 +38,5 @@
   $('rp-qr-m').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.m=b.dataset.m;st.showR=false;segs();$('rp-qr-list').innerHTML='';render()});
   $('rp-qr-go').addEventListener('click',()=>{st.showR=!st.showR;render()});
   segs();
-  RP.onTab('t-rpqr',()=>{render();dec()});
+  RP.onTab('t-read',()=>{render();dec()});
 })();

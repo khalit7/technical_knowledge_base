@@ -1,0 +1,3793 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "The retrieval pipeline: chunking, query rewriting, hybrid search, filtering The retrieval pipeline: chunking, query rewriting, hybrid search, filtering Everything between a document collection and the passages a model reads, taught in depth: how text is cut into chunks (and what the libraries really do), BM25's knobs, learned sparse retrieval, how and why rank fusion works, understanding and rewriting the query, metadata filters, removing duplicates, and assembling the prompt.",
+  "label": "core",
+  "key": "the retrieval pipeline: chunking, query rewriting, hybrid search,",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Every stage measured on the topic's running example (SciFact, NFCorpus, QASPER, HotpotQA) on an Apple M1 Pro, with published results kept apart.",
+  "label": "core",
+  "key": "nfcorpus, qasper, hotpotqa) on an apple m1",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026.",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Chunking workbench Fusion lab Query-rewrite lab Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar of the old layout (labs moved into Reading)"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 Chunking 2 BM25 3 Learned sparse 4 Fusion 5 Query understanding 6 Filters 7 Duplicates and diversity 8 Prompt assembly 9 Mistakes 10 Interview 11 How measured The retrieval pipeline is everything between a pile of documents and the handful of passages a language model reads before it answers.",
+  "label": "core",
+  "key": "1 chunking 2 bm25 3 learned sparse",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "At index time (before any question arrives) documents are cut into chunks , each chunk keeps its metadata (source, date, owner), and the chunks go into two indexes: a word index scored by BM25 and a vector index of embeddings.",
+  "label": "core",
+  "key": "query-time stages once per question",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "At query time the question may be rewritten, both indexes are searched with any filter applied inside the search, the two ranked lists are fused, a reranker reorders the best few dozen, and the top few chunks are written into the prompt with their sources. documents → chunk (§1) → BM25 index (§2), learned sparse (§3) vector index → rewrite the query (§5) → filter inside each search (§6) → fuse (§4) → rerank → deduplicate, diversify (§7) → assemble the prompt (§8) The root page, Topic: rag-and-retrieval , gives the intuition for each stage and its Pipeline lab tab measures the main results on the running example (chunking strategies at equal token budgets, RRF and score fusion, pre- against post-filtering, HyDE and multi-query, reranking depth, and where an answer gets lost, A = r × p × g).",
+  "label": "core",
+  "key": "query-time stages once per question",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page is the depth behind those results: what the libraries actually do (read in their source at pinned versions), every knob swept, and the questions the root only names.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "Rerankers have their own page, Rerankers and late interaction ; turning PDFs into clean text, and how chunk boundaries move when a document is revised, are on Document ingestion and multimodal retrieval (its Re-indexing lab).",
+  "label": "core",
+  "key": "how chunk boundaries move when a document is",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "The running example (defined in the root's data README): SciFact , 5,183 scientific abstracts and 300 test claims, most with exactly one relevant abstract; NFCorpus , 3,633 medical documents and 323 test questions with many graded relevant documents each; QASPER , 281 NLP papers with 892 questions whose evidence paragraphs annotators located in the text (the set for chunking); HotpotQA , 200 two-hop questions over 9,760 Wikipedia paragraphs.",
+  "label": "core",
+  "key": "the root's data readme): scifact , 5,183",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "Metrics: nDCG@10 (normalised discounted cumulative gain over the top 10: 1.0 when the relevant documents fill the top ranks, less the lower they sit) and recall@k (the share of relevant documents found in the top k).",
+  "label": "core",
+  "key": "1.0 when the relevant documents fill the",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "Everything marked measured ran on an Apple M1 Pro in October 2026; numbers marked published come from the cited source; constructed marks inputs written for this page.",
+  "label": "core",
+  "key": "on an apple m1 pro in october",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "in one screen: what each knob did here",
+  "text": "In one screen: what each knob did here stage knob what it did on the running example section chunking cut where the author did (paragraphs, sections) instead of every N tokens evidence kept whole for 607 → 832 of 892 QASPER questions; found within 1,024 tokens 56.8% → 70.0% (bge-small) root lab §1 chunking retrieve small, return big (sentence → its paragraph) 0.789 against 0.700 for paragraph-aware chunks at 1,024 tokens measured §1.5 chunking late chunking (embed the whole paper, pool per chunk) hurt here: paragraph-aware chunks found within 1,024 tokens 0.733 → 0.684, fixed windows 0.556 → 0.536 (modernbert-embed-base) measured §1.7 BM25 k1 and b tuned on held-out queries SciFact 0.679 → 0.678; NFCorpus 0.318 → 0.322 (barely moves) measured §2 BM25 title as its own weighted field (BM25F) SciFact 0.679 → 0.689 measured §2 fusion score fusion with a weight tuned on held-out queries, instead of RRF SciFact Qwen3: RRF 0.725, z-score 0.739; after a reranker: 0.782 against 0.776 measured §4 query route each query to BM25, dense or hybrid a learned router 0.721 against always-hybrid 0.724; a perfect router would reach 0.798 measured §5.1 query filters extracted from the question by the local generator (self-query) the generator added a month to all 100 year-only requests, so its filter dropped the right paper for 93 of them; checking each extracted value against the request fixed that (found within 1,024 tokens, year-only requests: 22 with no filter, 17 raw filter, 25 checked) measured constructed queries §5.2 filters filter inside the search, not after it post-filter at 10% visibility returns 1.73 of 10 results root lab §6 diversity MMR (penalise near-duplicates of what is already chosen) hurt on every set here; HotpotQA both gold paragraphs in the top 5: 137 → 75 at λ 0.5 measured §7 prompt where the evidence sits among 10 abstracts gold abstract first, middle or last among 10: 116, 68 and 78 of 188 strictly right (the right label alone: 118, 109, 113) measured §8 The one-line lesson Most knobs move the result by one or two points; three move it by ten or more: cutting documents along their own structure, putting a strong reranker after a recall-oriented first stage, and (for chat) rewriting the follow-up into a standalone question.",
+  "label": "depth",
+  "key": "n tokens evidence kept whole for 607",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "in one screen: what each knob did here",
+  "text": "Measure every knob on your own labelled queries, tuned on one split and reported on another.",
+  "label": "depth",
+  "key": "measure every knob on your own labelled queries,",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Chunking in depth The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "An embedding model reads a few hundred tokens at a time and turns them into one vector; a prompt can hold a few thousand tokens.",
+  "label": "core",
+  "key": "reads a few hundred tokens",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "A 6,000-token paper therefore has to be cut into pieces, each indexed on its own, and only some pieces reach the model.",
+  "label": "core",
+  "key": "6,000-token paper",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Two things can go wrong at a cut: the paragraph that answers the question is split, so no single chunk contains the answer; or the chunk that does contain it has lost the context that would make it match the question (\"the model\" without saying which).",
+  "label": "core",
+  "key": "it has lost the context that would make",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The root's Pipeline lab measured the headline: on QASPER, fixed 256-token windows keep an evidence paragraph whole for 607 of 892 questions, splitting on paragraphs first keeps 832 to 838, and at an equal budget of 1,024 tokens the share of questions whose evidence is handed over rises from 56.8% to 70.0% (bge-small) root lab .",
+  "label": "core",
+  "key": "fixed 256-token windows keep an evidence paragraph",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "This section opens the box: what a splitter does line by line, what \"size\" means, and the variants the root does not run.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "1.1 Size is measured in tokens, and in the embedder's tokens A token is the unit a model reads: a word, a piece of a word, or a punctuation mark, as cut by that model's tokenizer.",
+  "label": "core",
+  "key": "in the embedder's tokens a token is the",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Every model limit is in tokens (bge-small reads 512, all-MiniLM-L6-v2 reads 256 by default; anything longer is silently cut off), but the most used splitter measures size in characters by default: LangChain's TextSplitter takes chunk_size=4000 , chunk_overlap=200 and length_function=len (langchain-text-splitters 1.1.3, base.py lines 64 to 66).",
+  "label": "core",
+  "key": "limit is in tokens (bge-small reads 512,",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "How many tokens a character count means depends on the tokenizer: tokenizer (all 281 QASPER papers, 6,762,684 characters) tokens characters per token tokens per word So the same text is about 5% longer for a BERT-vocabulary model than for Qwen3.",
+  "label": "depth",
+  "key": "depends on the tokenizer: tokenizer (all 281",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "That gap matters at the limit: of chunks cut to 256 Qwen3 tokens by the recursive splitter, 16.9% are longer than 256 tokens for MiniLM's tokenizer, so MiniLM would drop the end of one chunk in six measured .",
+  "label": "core",
+  "key": "of chunks cut to 256 qwen3 tokens",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "With character sizes it is far worse: LangChain recursive splitter, as configured median chunk, BERT tokens chunks over 256 (MiniLM) text MiniLM actually reads chunks over 512 (bge-small) text bge-small reads 1,500 chunks sampled per setting (seed 0) from all 281 papers; counts include [CLS] and [SEP]. src/exp/chunk_make.py measured Predict: LangChain's default splitter (4,000 characters) feeding all-MiniLM-L6-v2.",
+  "label": "core",
+  "key": "median chunk, bert tokens chunks over 256",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "What share of the text ends up in the vectors?",
+  "label": "core",
+  "key": "what share of the text ends up in",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "All of it About 90% About two thirds About a third About a third: 33.3% of the tokens.",
+  "label": "core",
+  "key": "all of it about 90% about two",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The median chunk is 782 BERT tokens and MiniLM stops at 256, without an error or a warning. bge-small (512) reads 65.1%.",
+  "label": "core",
+  "key": "the median chunk is 782 bert tokens",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The fix is one line: build the splitter from the embedder's own tokenizer, as below. src/snippets/split_tokens.py (runs in the page's own env; its output below is real) from transformers import AutoTokenizer from langchain_text_splitters import RecursiveCharacterTextSplitter tok = AutoTokenizer.from_pretrained(\"sentence-transformers/all-MiniLM-L6-v2\") # reads at most 256 tokens n = lambda s: len(tok(s)[\"input_ids\"]) # counts [CLS] and [SEP] too for name, sp in [(\"library default, 4,000 characters\", RecursiveCharacterTextSplitter()), (\"tutorial setting, 1,000 characters\", RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)), (\"256 MiniLM tokens\", RecursiveCharacterTextSplitter.from_huggingface_tokenizer(tok, chunk_size=254, chunk_overlap=32))]: sizes = [n(c) for c in sp.split_text(paper_text)] # paper_text: QASPER's CoVoST paper (arXiv 2002.01320) seen = sum(min(s, 256) for s in sizes) / sum(sizes) print(f\"{name:36s} {len(sizes):3d} chunks, largest {max(sizes):4d} tokens, MiniLM reads {seen:.0%} of the text\") # output library default, 4,000 characters 5 chunks, largest 909 tokens, MiniLM reads 33% of the text tutorial setting, 1,000 characters 24 chunks, largest 316 tokens, MiniLM reads 98% of the text 256 MiniLM tokens 24 chunks, largest 256 tokens, MiniLM reads 100% of the text 1.2 The recursive splitter, read in the source \"Recursive character splitting\" is the default almost everywhere, and it is simpler than its name.",
+  "label": "depth",
+  "key": "from langchain_text_splitters import recursivecharactertextsplitter tok = autotokenizer.from_pretrained(\"sentence-transformers/all-minilm-l6-v2\")",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "It holds an ordered list of separators, from the coarsest to the finest.",
+  "label": "core",
+  "key": "holds separators from coarse to fine",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "It splits the text on the first separator that occurs in it, keeps every piece already shorter than the target, merges consecutive short pieces back together up to the target size (carrying a tail of up to overlap tokens into the next chunk), and calls itself on any piece still too long with the next, finer separator.",
+  "label": "core",
+  "key": "a tail of up to overlap",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The source, at langchain-text-splitters 1.1.3: langchain_text_splitters/character.py, lines 98 to 107 (defaults) and 110 to 149 (_split_text; abridged and reflowed onto fewer lines, highlighted lines verbatim) def __init__(self, separators=None, keep_separator=True, is_separator_regex=False, **kwargs): super().__init__(keep_separator=keep_separator, **kwargs) self._separators = separators or [\"\\n\\n\", \"\\n\", \" \", \"\"] def _split_text(self, text, separators): separator = separators[-1]; new_separators = [] for i, s_ in enumerate(separators): # first separator present in this text wins if not s_: separator = s_; break if re.search(re.escape(s_), text): separator = s_; new_separators = separators[i + 1:]; break splits = _split_text_with_regex(text, re.escape(separator), keep_separator=self._keep_separator) good_splits = [] for s in splits: if self._length_function(s) < self._chunk_size: good_splits.append(s) # short enough: keep for merging else: if good_splits: final_chunks.extend(self._merge_splits(good_splits, separator_)); good_splits = [] if not new_separators: final_chunks.append(s) # nothing finer: an oversize chunk else: final_chunks.extend(self._split_text(s, new_separators)) # recurse with the next separator if good_splits: final_chunks.extend(self._merge_splits(good_splits, separator_)) return final_chunks Two details people miss.",
+  "label": "depth",
+  "key": "langchain_text_splitters/character.py, lines 98 to 107 (defaults) and",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The default list has no sentence separator : after the blank line and the newline comes the space, so a paragraph longer than the target is cut between two words, wherever the size runs out (add \". \" to the list to cut at sentence ends; the root lab's rule does).",
+  "label": "core",
+  "key": "the default list has no sentence separator :",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "And the merge step ( base.py lines 167 to 210) drops pieces from the front of the running chunk while the running total is above the overlap, which is how the overlap is made: the last few pieces of one chunk start the next.",
+  "label": "depth",
+  "key": "the merge step ( base.py lines 167",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Checked against the root.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading phrase"
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The root lab reimplemented this rule in its own code.",
+  "label": "depth",
+  "key": "the root lab reimplemented this rule",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Running the real library on all 281 papers with sizes in Qwen3 tokens ( from_huggingface_tokenizer , 256 tokens, 32 overlap) gives the same result: 838 of 892 questions with evidence intact (root: 838) and 0.617 found with BM25 at 1,024 tokens (root: 0.613) measured .",
+  "label": "depth",
+  "key": "running the real library on all 281",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The 1,000-character tutorial setting keeps 794 intact (smaller chunks, more cuts); the 4,000-character default keeps all 892 intact (its chunks are huge) but then fits almost nothing into a 1,024-token budget (0.385).",
+  "label": "depth",
+  "key": "the 1,000-character tutorial setting keeps 794 intact",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Animation, before/after on the same text: one section of the CoVoST paper (QASPER, arXiv 2002.01320) cut by fixed 128-token windows, then by the recursive splitter at the same size.",
+  "label": "core",
+  "key": "of the covost paper (qasper, arxiv 2002.01320)",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Red bars are cuts; green underline is evidence an annotator used. fixed windows (before) recursive splitter (after) 1.3 How many chunks, how many tokens stored With fixed windows of c tokens overlapping by o , each new chunk starts c − o tokens (the stride ) after the previous one, so a document of L tokens gives n = ⌈(L − o) / (c − o)⌉, T = L + (n − 1) · o n chunks (one when L ≤ c); the last chunk may be shorter T tokens stored and embedded: every overlap is stored twice (exactly, when the last chunk ends at the document end) Worked example (the old version of this page): L = 10,000, c = 512, o = 64 gives a stride of 448, n = ⌈9,936 / 448⌉ = 23 and T = 10,000 + 22 × 64 = 11,408 tokens, 14% more than the text.",
+  "label": "depth",
+  "key": "t = l + (n − 1)",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Checked on the real chunk files: the formula gives the exact chunk count for all 281 papers at each of 128/16, 256/32 and 512/64, and the stored overhead is 14.1%, 13.9% and 13.5% measured .",
+  "label": "depth",
+  "key": "the exact chunk count for all 281",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Overlap is not free, and the root lab showed what it buys: 32 tokens of overlap move fixed 256-token windows from 546 to 607 intact questions, still far below the 832 of cutting at paragraphs.",
+  "label": "core",
+  "key": "windows from 546 to 607 intact questions,",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "1.4 Structure-aware splitting: Markdown, HTML, code, sentences When a document carries its own structure, cut along it first.",
+  "label": "core",
+  "key": "when a document carries its own structure, cut",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "QASPER's text has Markdown section headings, so LangChain's MarkdownHeaderTextSplitter applies: it splits at each heading and records the heading path as metadata (useful for filters and for citations), then the recursive splitter caps the size inside each section.",
+  "label": "core",
+  "key": "records the heading path as metadata",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "One behaviour to know, read in markdown.py (lines 250 to 257 and 107): it strips every line, drops blank lines, and re-joins the remaining lines of a section with two spaces and a newline, so paragraph breaks ( \"\\n\\n\" ) no longer exist when the size cap runs; the cap falls back to single newlines.",
+  "label": "depth",
+  "key": "250 to 257 and 107): it strips",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "On QASPER that costs nothing, because each paragraph is one line: 832 intact and 0.652 found with BM25 at 1,024 tokens, level with the root's paragraphs-within-sections rule (832; 0.645) measured .",
+  "label": "core",
+  "key": "832 intact and 0.652 found with bm25",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "On text where paragraphs wrap across several lines it would.",
+  "label": "depth",
+  "key": "costly on text whose paragraphs wrap across lines",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The same library has HTMLHeaderTextSplitter for web pages and per-language separators for code: for Python it tries \"\\nclass \" , then \"\\ndef \" , then \"\\n\\tdef \" before blank lines ( character.py lines 366 to 374), so functions stay whole when they fit.",
+  "label": "depth",
+  "key": "character.py lines 366 to 374), so functions",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Not run here: the running example has no HTML or code corpus.",
+  "label": "depth",
+  "key": "not run here: the running example has no",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Packing whole sentences needs a sentence splitter, and a regex such as the root's (cut after . ! ? followed by a capital, digit or bracket) breaks on abbreviations.",
+  "label": "depth",
+  "key": "a regex such as the root's (cut after",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "On a third of the QASPER papers (94), the regex makes 15,931 sentences of which 252 end on an abbreviation such as \"et al.\", \"Fig.\" or \"No.\" (a false cut); pySBD 0.3.4, a rule-based segmenter, makes 16,174 with 84 such ends measured .",
+  "label": "depth",
+  "key": "the regex makes 15,931 sentences of which",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Under 2% of cuts either way, and the root measured that sentence packing itself is a poor chunker here (593 intact, below fixed windows with overlap) because it ignores paragraph and section breaks.",
+  "label": "depth",
+  "key": "(593 intact, below fixed windows with overlap)",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "1.5 Small to big: retrieve a sentence, return its paragraph Small chunks match precisely (a sentence is about one thing, so its vector is not an average of several topics); big chunks carry the context the model needs to answer.",
+  "label": "core",
+  "key": "small chunks match precisely (a sentence is about",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Parent-child or small-to-big retrieval does both: index small units (the children ), and when one matches, hand over the larger unit that contains it (its parent ).",
+  "label": "core",
+  "key": "and when one matches, hand over the larger",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "LlamaIndex's SentenceWindowNodeParser is one form: it embeds single sentences and stores the three sentences on each side as the window to return ( DEFAULT_WINDOW_SIZE = 3 , llama-index-core 0.14.25, node_parser/text/sentence_window.py line 16).",
+  "label": "core",
+  "key": "default_window_size = 3 , llama-index-core",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Measured on QASPER inside each question's paper, with the vectors the root lab already computed (bge-small; sentence vectors are three-sentence windows), handing over parents in the order their children rank until 1,024 tokens are used, a parent counted once: evidence paragraph covered (root's rule) an extractive answer string handed over (646 questions) The best unit to hand over here is the paragraph, and the best way to find it is through its sentences: sentence → parent paragraph reaches 0.789 against 0.775 for ranking whole paragraphs and 0.700 for paragraph-aware 256-token chunks.",
+  "label": "core",
+  "key": "the order their children rank until 1,024",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Returning bare sentence windows looks bad under the paragraph rule (0.398) but holds up better when the test is only whether the answer string arrived (0.598 against 0.712): a sentence often carries the answer without its paragraph.",
+  "label": "core",
+  "key": "bad under the paragraph rule (0.398) but",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Going bigger than the paragraph loses: whole sections as parents fall to 0.604, because one section can eat the budget.",
+  "label": "core",
+  "key": "whole sections as parents fall to",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "1.6 Semantic chunking Semantic chunking embeds each sentence (with its neighbours) and cuts where consecutive vectors are least similar.",
+  "label": "core",
+  "key": "cut where neighbours are least similar",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The root lab ran LangChain's SemanticChunker defaults (cut above the 95th percentile of distances): chunks of median 342 and up to 4,967 tokens, best at a fixed top 3 only because the chunks are big, and last at an equal 1,024-token budget (38.6% with BM25) root lab .",
+  "label": "core",
+  "key": "langchain's semanticchunker defaults (cut above the 95th",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "It costs an embedding call per sentence at index time and has no size cap; on documents with real paragraphs, the author's breaks are the better boundaries.",
+  "label": "core",
+  "key": "it costs an embedding call per sentence",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "1.7 Late chunking The idea ( Günther et al., Jina AI, arXiv 2409.04701 ): instead of cutting first and embedding each piece alone, run the whole document through a long-context embedding model once, so every token's vector has attended to the whole document; then, for each chunk, average the token vectors inside its span.",
+  "label": "core",
+  "key": "günther et al., jina ai, arxiv 2409.04701",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "A chunk that says \"the model\" now carries which model.",
+  "label": "core",
+  "key": "a chunk that says \"the model\"",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "It needs an embedder that pools by averaging token vectors (so a span's average is a sensible vector) and a context long enough for the document; documents longer than the context are processed in overlapping windows (\"long late chunking\", the paper's Algorithm 2).",
+  "label": "depth",
+  "key": "(\"long late chunking\", the paper's algorithm 2).",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Published (the paper's Table 2, nDCG@10 on BEIR, documents cut into 256-token chunks): with jina-embeddings-v2-small, NFCorpus rises from 23.5 to 30.0 and SciFact from 64.2 to 66.1 ( Jina's blog of 2024-08-22 prints 23.46 and 29.98); with the stronger jina-embeddings-v3 the gains shrink to 35.6 → 36.7 and 71.8 → 73.2, and with nomic-embed-text-v1 to nothing on NFCorpus (35.3 → 35.3) published, authors' runs .",
+  "label": "depth",
+  "key": "66.1 ( jina's blog of 2024-08-22 prints",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The paper reports an average relative gain of about 3.5% for fixed-size chunks.",
+  "label": "depth",
+  "key": "an average relative gain of about 3.5%",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "A comparison by Merola and Singh (arXiv 2504.19754, April 2025) found contextual retrieval (next section) \"preserves semantic coherence more effectively\" while late chunking \"offers higher efficiency but tends to sacrifice relevance and completeness\".",
+  "label": "depth",
+  "key": "merola and singh (arxiv 2504.19754, april 2025)",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Run here with nomic-ai/modernbert-embed-base (ModernBERT, 149 M parameters, 8,192 tokens, mean pooling, Apache 2.0), the same chunks and the root's within-paper metric: it did not help .",
+  "label": "depth",
+  "key": "run here with nomic-ai/modernbert-embed-base (modernbert, 149 m",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Within each question's own paper, at a 1,024-token budget, paragraph-aware chunks found 0.733 of questions embedded one by one and 0.684 with late chunking; fixed 256-token windows 0.556 against 0.536; the top-1 chunk is right for 0.318 against 0.243 (paragraph-aware) measured .",
+  "label": "depth",
+  "key": "each question's own paper, at a 1,024-token",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The setting explains it: every chunk competing here comes from the same paper, so the document-wide context late chunking adds is shared by all of them and makes them more alike, not easier to tell apart.",
+  "label": "depth",
+  "key": "the setting explains it: every chunk competing here",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The published gains come from search across many documents (BEIR), where knowing which document a chunk belongs to is exactly what separates it.",
+  "label": "depth",
+  "key": "the published gains come from search across many",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Cost: one pass over each whole paper (19 of 281 papers were longer than 8,192 tokens and went through in overlapping windows) took 376 s against 168 s for embedding the chunks one by one on MPS, because attention over long sequences costs more than over many short ones.",
+  "label": "depth",
+  "key": "one pass over each whole paper (19",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The root lab's contextual prefixes showed the same within-paper pattern.",
+  "label": "depth",
+  "key": "the root lab's contextual prefixes showed the same",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "1.8 Contextual prefixes written by a model Anthropic's contextual retrieval ( post of 2024-09-19 ) asks a model, given the whole document and one chunk, for a short context (usually 50 to 100 tokens) situating the chunk, and prepends it before embedding and BM25 indexing.",
+  "label": "core",
+  "key": "post of 2024-09-19 )",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Their reported top-20 retrieval failure rate fell from 5.7% to 3.7% with contextual embeddings, 2.9% adding contextual BM25, and 1.9% adding a reranker; with prompt caching (the document is read once per document, not once per chunk) they put the one-off cost at $1.02 per million document tokens, assuming 800-token chunks, 8,000-token documents and 100 tokens of context per chunk published, vendor .",
+  "label": "core",
+  "key": "top-20 retrieval failure rate fell from 5.7%",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The root lab ran it with Qwen3-1.7B on 71 papers: llama.cpp's prompt cache cut the prompt tokens from 11.1 M to 0.87 M, and the gain was within noise for this small writer (bge-small top 3 46.9% → 49.4%, but at 1,024 tokens 57.7% → 55.2%) root lab ; see its Pipeline lab for the details.",
+  "label": "depth",
+  "key": "cache cut the prompt tokens from 11.1",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Late chunking gets document context for one extra forward pass per document and no generator; contextual prefixes cost a generator call per chunk.",
+  "label": "core",
+  "key": "contextual prefixes cost a generator call per chunk.",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "1.9 Mixing chunking strategies in one index The old version of this page said that mixing chunking strategies across ingestion runs \"can cost about 8 points of recall\".",
+  "label": "depth",
+  "key": "across ingestion runs \"can cost about 8",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "No source for that number was found, so it was tested.",
+  "label": "depth",
+  "key": "was found, so it was",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "One index over all 281 papers, half chunked in 128-token windows and half in 512-token windows (as if a re-ingestion changed the chunker for half the corpus), searched globally (any paper) with bge-small: index found within 1,024 tokens, all 892 questions about the 512-token half questions about the 128-token half long chunks: share of index / of top 10s The mixed index lands between the two uniform ones.",
+  "label": "depth",
+  "key": "one index over all 281 papers, half",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "The papers re-chunked to 512 tokens do worse than they would in an all-512 index (0.216 against 0.269), because they now compete with small chunks for the same budget; the 128-token papers gain a little.",
+  "label": "depth",
+  "key": "in an all-512 index (0.216 against 0.269),",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "So mixing does move recall, by about five points for the affected half here, but the old \"8 points\" is not reproduced and is dropped.",
+  "label": "depth",
+  "key": "the old \"8 points\" is",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "What does hold: a chunker change should re-index the whole corpus, in both the BM25 and the vector index; how chunk boundaries move when a single document is revised (and how much has to be re-embedded) is measured in the ingestion page's Re-indexing lab .",
+  "label": "depth",
+  "key": "the whole corpus, in both the bm25",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "1. chunking in depth",
+  "text": "Try it: the Chunking workbench cuts two real papers live with every strategy and any size, and shows what a token budget hands over.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab"
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "BM25 in depth The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "A dense retriever finds paraphrases but can rank a vaguely related abstract above the one that names the exact gene; a word-matching retriever finds the exact word every time.",
+  "label": "core",
+  "key": "a dense retriever finds paraphrases but can rank",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "BM25 (\"Best Match 25\", Robertson and colleagues, 1990s) is the standard word-matching score.",
+  "label": "core",
+  "key": "bm25 (\"best match 25\", robertson and colleagues,",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "It lives on an inverted index : for every word, the list of documents containing it and how often, so a query only touches the lists of its own words.",
+  "label": "core",
+  "key": "documents containing it and how",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "How that index is stored, compressed and updated inside a database is on Search and vector databases ; this section is about the score and its knobs.",
+  "label": "depth",
+  "key": "is on search and vector databases",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "2.1 BM25 on a real claim The formula is taught from zero, term frequency to idf to saturation and length normalisation, with a calculator on six real questions, on Search and vector databases (its section 4, \"Ranking with BM25\").",
+  "label": "core",
+  "key": "search and vector databases (its section 4,",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "In one line: score(D, Q) = Σ t in Q idf(t) · tf / (tf + k 1 · (1 − b + b · |D| / avgdl)), where k 1 sets how fast repeats stop counting and b how much document length matters.",
+  "label": "core",
+  "key": "· tf / (tf + k 1",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "This is the \"Lucene\" variant as bm25s computes it ( bm25s/scoring.py lines 115 to 130 and 190 to 195, tag 0.3.13); the textbook version multiplies the fraction by (k 1 + 1), a constant that changes no ranking.",
+  "label": "depth",
+  "key": "is the \"lucene\" variant as bm25s computes",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "A 60-line NumPy version written for this page ( src/exp/bm25lab.py ) reproduces the setup's recorded bm25s run: identical top-10 scores for 281 of 300 SciFact claims and 310 of 323 NFCorpus questions (the rest differ only in how zero-score documents pad the list) measured .",
+  "label": "depth",
+  "key": "a 60-line numpy version written for this",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "Here is one claim scored term by term: The non-relevant review wins because \"statin\" appears seven times in it, but saturation already caps that: in this 111-term abstract seven occurrences give 0.88 of the maximum, against 0.52 for one occurrence.",
+  "label": "core",
+  "key": "saturation already caps that: in this 111-term",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "The relevant abstract is missing \"decrease\" entirely.",
+  "label": "core",
+  "key": "the relevant abstract is missing \"decrease\" entirely.",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "That is BM25's blind spot: it cannot know that \"lowering LDL\" means \"decrease cholesterol\".",
+  "label": "core",
+  "key": "that is bm25's blind spot: it cannot",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "2.2 Do k1 and b matter?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "Swept on both sets Defaults differ: bm25s uses k 1 1.5 and b 0.75 ( bm25s/__init__.py lines 146 and 147); Lucene and Elasticsearch use 1.2 and 0.75; the running example uses 1.2 and 0.75.",
+  "label": "depth",
+  "key": "defaults differ: bm25s uses k 1 1.5",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "The grid below is test-split nDCG@10 for every pair; switch to the tuning split (SciFact train, 809 claims; NFCorpus dev, 324 questions) to see what you would pick without peeking.",
+  "label": "core",
+  "key": "to the tuning split (scifact train, 809",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "SciFact NFCorpus test split tuning split Outlined: the default (1.2, 0.75).",
+  "label": "core",
+  "key": "outlined: the default (1.2, 0.75).",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "Ringed: the pair that is best on the tuning split.",
+  "label": "core",
+  "key": "ringed: the best pair on the tuning split",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "Colour scaled within the grid. src/exp/bm25_sweep.py measured What the numbers say.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "caption fragment and heading"
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "Across the sensible range (k 1 0.9 to 3, b 0.4 to 1) SciFact moves by about a point and NFCorpus by less.",
+  "label": "core",
+  "key": "scifact moves by about a point",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "Tuned on SciFact's training claims, the best pair (k1 1.5, b 0.4) scores 0.678 on test, against 0.679 for the default: no gain .",
+  "label": "core",
+  "key": "training claims, the best pair (k1 1.5,",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "The best pair picked on the test claims themselves would claim 0.688, a point that exists only because it was chosen on the answers.",
+  "label": "core",
+  "key": "the test claims themselves would claim 0.688,",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "On NFCorpus, tuning on dev picks k1 1.5, b 0.6 and gives 0.322 against 0.318.",
+  "label": "core",
+  "key": "tuning on dev picks k1 1.5, b",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "Extreme values do hurt (k 1 0.2, or b 0 on SciFact), which is why the defaults sit where they do.",
+  "label": "core",
+  "key": "extreme values do hurt (k 1 0.2,",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "2.3 Tokenisation, stemming, stopwords BM25 only sees the terms its tokenizer produces, and that matters more than k 1 . bm25s's default tokenizer lowercases, keeps runs of two or more word characters ( token_pattern=r\"(?u)\\b\\w\\w+\\b\" , tokenization.py line 572), drops Lucene's 33 English stopwords (which include \"no\" and \"not\": the claims \"X causes Y\" and \"X does not cause Y\" become the same query), and optionally stems (\"decreases\" and \"decreased\" both become \"decreas\"). tokenisation (k1 1.2, b 0.75) SciFact nDCG@10 SciFact recall@100 NFCorpus nDCG@10 vocabulary (SciFact) Stemming is worth 1.7 points of nDCG@10 on SciFact and 1.3 on NFCorpus; stopwords change nothing here.",
+  "label": "core",
+  "key": "bm25 only sees the terms its tokenizer",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "The two-character pattern silently drops single characters: \"Type 1 Diabetes\" loses the \"1\", \"IL-6\" becomes just \"il\", \"H2A.Z\" loses its \"Z\".",
+  "label": "core",
+  "key": "pattern silently drops single characters: \"type 1",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "109 of the 300 SciFact claims contain such a token, and keeping them is worth 0.7 points.",
+  "label": "core",
+  "key": "109 of the 300 scifact claims contain",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "This is the old page's warning about analyzers made concrete: on technical text, check what your tokenizer does to identifiers before trusting the BM25 half of a hybrid.",
+  "label": "core",
+  "key": "does to identifiers before trusting the bm25",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "The Robertson, ATIRE, BM25L and BM25+ formulas (bm25s implements all five, following Kamphuis et al., ECIR 2020 ) differ in the idf floor and in a small boost for long documents; on SciFact they span 0.679 to 0.686 and on NFCorpus 0.318 to 0.322.",
+  "label": "depth",
+  "key": "the robertson, atire, bm25l and bm25+ formulas",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "Pick one and move on.",
+  "label": "depth",
+  "key": "pick one and move on.",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "2.4 Fields: BM25F A document often has fields of different value: a title is short and on topic, a body is long.",
+  "label": "depth",
+  "key": "a title is short and on",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "Concatenating them treats a title word like any body word.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the BM25F definition"
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "BM25F ( Robertson, Zaragoza and Taylor, CIKM 2004 ) normalises each field by its own average length, weights it, and adds the fields before saturation, so a word that appears in the title and the body is not counted as two independent pieces of evidence: tf̃ = Σ f w f · tf f / (1 − b f + b f · |D f | / avgdl f ), score = Σ t idf(t) · tf̃ / (k 1 + tf̃) With the title weight chosen on the tuning split (titles average 10 terms against 147 for SciFact abstracts): SciFact 0.679 → 0.689 (title weight 2), NFCorpus 0.318 → 0.321 measured .",
+  "label": "depth",
+  "key": "bm25f ( robertson, zaragoza and taylor, cikm",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "2. bm25 in depth",
+  "text": "Elasticsearch's combined_fields query \"takes a principled approach to scoring based on the simple BM25F formula\" ( Elasticsearch docs , read 2026-10-14); multi_match with best_fields is field-centric (each field scored on its own, the best field's score used), which is a different thing.",
+  "label": "depth",
+  "key": "to scoring based on the simple bm25f",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "3. learned sparse retrieval",
+  "text": "Learned sparse retrieval The idea.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "3. learned sparse retrieval",
+  "text": "Keep BM25's machinery (an inverted index, a score that is a sum over shared terms) but let a model choose the terms and their weights.",
+  "label": "core",
+  "key": "keep bm25's machinery (an inverted index, a",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "3. learned sparse retrieval",
+  "text": "SPLADE ( Formal, Piwowarski and Clinchant, SIGIR 2021 ) runs a BERT masked-language-model head over the text: for every position it predicts a weight for each of the 30,522 vocabulary entries, takes the maximum over positions after log(1 + ReLU), and keeps the non-zero entries.",
+  "label": "core",
+  "key": "( formal, piwowarski and clinchant, sigir 2021",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "3. learned sparse retrieval",
+  "text": "The vector is sparse but contains expansion terms : words the text does not contain but that a reader would expect (a statin abstract gets weight on \"cholesterol\" even if it only says \"LDL\").",
+  "label": "core",
+  "key": "a reader would expect (a statin abstract gets",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "3. learned sparse retrieval",
+  "text": "An inference-free variant runs the model on documents only and gives each query word a fixed weight from a table, so a query costs a tokenizer call, like BM25.",
+  "label": "core",
+  "key": "query costs a tokenizer call, like bm25.",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "3. learned sparse retrieval",
+  "text": "Run here: opensearch-neural-sparse-encoding-doc-v3-distill (67 M parameters, Apache 2.0) through sentence-transformers' SparseEncoder, documents encoded on MPS (42 and 38 documents per second, load average about 11 to 18 from other jobs). nDCG@10: SciFact 0.708 against 0.679 for BM25 and 0.700 for Qwen3-Embedding; NFCorpus 0.345 against 0.318 and 0.363 measured .",
+  "label": "core",
+  "key": "run here: opensearch-neural-sparse-encoding-doc-v3-distill (67 m parameters, apache",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "3. learned sparse retrieval",
+  "text": "Fused with Qwen3-Embedding by RRF it scores 0.724 (SciFact) and 0.364 (NFCorpus), level with BM25 + Qwen3 (0.724, 0.361).",
+  "label": "core",
+  "key": "fused with qwen3-embedding by rrf it scores",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "3. learned sparse retrieval",
+  "text": "A document keeps 239 non-zero terms on average and a query 20 (SciFact) or 5 (NFCorpus), so the index stays an inverted index.",
+  "label": "core",
+  "key": "a document keeps 239 non-zero terms on",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "3. learned sparse retrieval",
+  "text": "Caveat: the model card lists SciFact and NFCorpus among its training sets, so these scores are in-domain and flatter it against BM25 and the dense models, which never saw these sets.",
+  "label": "core",
+  "key": "are in-domain and flatter it against bm25",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "3. learned sparse retrieval",
+  "text": "Published for this model: average nDCG@10 0.517 on 13 BEIR sets against 0.524 for the larger query-and-document v1 model published, vendor (OpenSearch model card) .",
+  "label": "core",
+  "key": "published for this model: average ndcg@10 0.517",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "3. learned sparse retrieval",
+  "text": "BGE-M3 (BAAI) produces dense, sparse and multi-vector outputs from one model; not run here (2.3 GB, and its sparse head is one more variant of the same idea).",
+  "label": "core",
+  "key": "from one model; not run here (2.3",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "Fusion: merging two ranked lists The problem.",
+  "label": "core",
+  "key": "fusion: merging two ranked lists",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "Hybrid search runs BM25 and a dense retriever on the same query and gets two ranked lists with scores on unrelated scales: a BM25 score of 8.96 and a cosine of 0.71.",
+  "label": "core",
+  "key": "hybrid search runs bm25 and a dense",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "The root lab measured the two common answers on the running example (RRF lifts Qwen3-Embedding on SciFact from 0.700 to 0.724; z-score fusion with a weight tuned on training claims reaches 0.739) root lab .",
+  "label": "core",
+  "key": "(rrf lifts qwen3-embedding on scifact from 0.700",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "This section asks why each works, what each throws away, and runs the older score-combination family alongside.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "4.1 Why the raw scores cannot simply be added BM25 is a sum of idf-weighted terms, unbounded above (the top-1 score of a SciFact claim ranges from 6.9 to 28.5, 5th to 95th percentile); a cosine lies between −1 and 1, and Qwen3-Embedding's top-1 cosines range from 0.56 to 0.83 measured .",
+  "label": "core",
+  "key": "ranges from 6.9 to 28.5, 5th to",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "Add them with equal weight and BM25 decides almost alone: on SciFact with Qwen3-Embedding, raw 0.5 · BM25 + 0.5 · cosine scores 0.685, close to BM25 alone (0.679).",
+  "label": "core",
+  "key": "add them with equal weight and bm25",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "The trap is the equal weight, not the addition: give the cosine 0.99 of the weight (chosen on training claims) and the raw sum scores 0.734, as good as any normalised method.",
+  "label": "core",
+  "key": "not the addition: give the cosine 0.99",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "The weight absorbs the scale difference, and it has to be learned on labelled queries, for each pair of retrievers, and again whenever either changes.",
+  "label": "core",
+  "key": "for each pair of retrievers, and again whenever",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "4.2 Reciprocal rank fusion, and what it throws away RRF(d) = Σ lists r 1 / (k + rank r (d)) rank r (d) position of d in list r, from 1; a list that does not contain d adds 0 k 60 in the paper ( Cormack, Clarke and Büttcher, SIGIR 2009 : \"fixed during a pilot investigation\"), the default rank_constant in Elasticsearch and OpenSearch, and in most libraries: damps the top ranks, so being in both lists counts for more than being first in one Predict (the old page's worked example): dense returns A, B, C, D; BM25 returns C, D, E, A.",
+  "label": "core",
+  "key": "rrf(d) = σ lists r 1 /",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "With k = 60, what is the fused order?",
+  "label": "core",
+  "key": "with k = 60, what is the",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "A, C, B, D, E C, A, D, B, E C, D, A, B, E A, B, C, D, E C, A, D, B, E.",
+  "label": "core",
+  "key": "a, c, b, d, e c, a, d,",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "C: 1/63 + 1/61 = 0.032266; A: 1/61 + 1/64 = 0.032018; D: 1/64 + 1/62 = 0.031754; B: 1/62 = 0.016129; E: 1/63 = 0.015873 (recomputed for this page; the old page's arithmetic is right).",
+  "label": "core",
+  "key": "c: 1/63 + 1/61 = 0.032266; a:",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "Anything in both lists beats anything in one, whatever its rank there.",
+  "label": "core",
+  "key": "anything in both lists beats anything in one,",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "RRF uses only ranks, so it needs no calibration and no tuning, and the root lab found k barely matters (0.724 to 0.732 across k from 1 to 1,000).",
+  "label": "core",
+  "key": "root lab found k barely matters (0.724",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "The price is that it discards how sure each retriever is.",
+  "label": "core",
+  "key": "how sure each retriever is.",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "Scores do carry that: on SciFact, when BM25's first result beats its second by a wide relative margin, the first result is relevant far more often.",
+  "label": "core",
+  "key": "first result beats its second by a wide",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "300 SciFact test claims split into five equal groups by the relative margin (s 1 − s 2 ) / s 1 of each retriever's own top two scores; bar = share of claims whose top-1 result is relevant. src/exp/fusion_deep.py measured Score fusion can use this (a runaway BM25 winner keeps a big normalised score); RRF gives a runaway winner and a near-tie the same 1/(k+1).",
+  "label": "core",
+  "key": "300 scifact test claims split into five",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "4.3 Why agreement is a good bet RRF's real bet is that a document both retrievers find is more likely relevant than either one's favourite.",
+  "label": "core",
+  "key": "what rrf bets on",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "On SciFact with Qwen3-Embedding, of the documents in both top 10s, 22.8% are relevant; of those only BM25 found, 0.8%; only dense, 1.8% measured .",
+  "label": "core",
+  "key": "on scifact with qwen3-embedding, of the documents",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "On NFCorpus, where each question has many relevant documents, the same pattern: 52.0% against 9.9% and 15.9%.",
+  "label": "core",
+  "key": "52.0% against 9.9% and",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "4.4 The whole family, tuned honestly The score-combination methods are older than RRF ( Fox and Shaw, TREC-2, 1994 ): normalise each list, then CombSUM adds the normalised scores, CombMNZ multiplies that sum by the number of lists containing the document (an explicit agreement bonus), CombMAX keeps the best one.",
+  "label": "core",
+  "key": "than rrf ( fox and shaw, trec-2,",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "Weighted RRF gives each list its own weight; Borda count adds positions.",
+  "label": "depth",
+  "key": "weighted rrf gives each list its own weight;",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "Every knob below was chosen on the tuning split (SciFact train, NFCorpus dev) by the root lab's rule and scored once on test; the root's RRF, min-max and z-score numbers are reproduced exactly.",
+  "label": "core",
+  "key": "was chosen on the tuning split (scifact train,",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "SciFact NFCorpus nDCG@10 on test; in brackets the knob chosen on the tuning split (k for RRF, the dense weight otherwise).",
+  "label": "depth",
+  "key": "scifact nfcorpus ndcg@10 on test; in brackets",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "Bold: best per column. src/exp/fusion_deep.py measured What the numbers say.",
+  "label": "depth",
+  "key": "bold: best per column. src/exp/fusion_deep.py measured",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "With a weight learned on held-out queries, normalised score fusion (min-max or z-score, CombMNZ) beats RRF for every model that is about as good as BM25: Qwen3 on SciFact 0.725 (RRF) against 0.739 (z-score) and 0.741 (CombMNZ); on NFCorpus 0.366 against 0.375.",
+  "label": "core",
+  "key": "about as good as bm25: qwen3 on",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "CombMAX is the weak member (it ignores agreement).",
+  "label": "depth",
+  "key": "is the weak member (it ignores",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "For gte-modernbert, which beats BM25 by nine points on SciFact, every method lands within a point of the model alone: when one list dominates, fusion has little to add.",
+  "label": "core",
+  "key": "on scifact, every method lands within a point",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "Fusing three lists (BM25, Qwen3 and gte with RRF) scores 0.771 on SciFact, against 0.747 for the two embedders alone.",
+  "label": "depth",
+  "key": "fusing three lists (bm25, qwen3 and gte",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "In products the same choice is a setting: Elasticsearch, OpenSearch and Weaviate let you weight the lists or fuse normalised scores instead of ranks (OpenSearch's normalization processor, docs ); tune the weights on labelled queries as above, never by eye.",
+  "label": "depth",
+  "key": "choice is a setting: elasticsearch, opensearch and weaviate",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "Hybrid search measured inside Postgres (BM25 over Postgres lexemes, pgvector, and RRF in one SQL statement on 522,931 Quora questions and SciFact) is on Search and vector databases .",
+  "label": "depth",
+  "key": "hybrid search measured inside postgres (bm25 over",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "4.5 Does the fusion method still matter after a reranker?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "The old page claimed weighted fusion \"rarely beats plain RRF plus a reranker\".",
+  "label": "core",
+  "key": "the old page claimed weighted fusion \"rarely beats",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "Tested with the recorded Qwen3-Reranker-0.6B scores: rerank the top K of each fused list, SciFact test.",
+  "label": "core",
+  "key": "tested with the recorded qwen3-reranker-0.6b",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "Before the reranker z-score fusion is ahead (0.739 against 0.724); after it the gap closes or flips: RRF's top 20, reranked, scores 0.782, z-score's 0.776; at K 30 they score 0.778 and 0.778.",
+  "label": "core",
+  "key": "the reranker z-score fusion is ahead (0.739",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "The reranker reorders the candidates itself, so what matters is which documents are in the top K, not their order; the extra precision of score fusion is spent on an order the reranker replaces.",
+  "label": "core",
+  "key": "the reranker reorders the candidates itself, so what",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "So the old claim holds here: tune the fusion weight if there is no reranker; with one, RRF is enough and the time is better spent on the depth K (see Rerankers and late interaction ).",
+  "label": "core",
+  "key": "there is no reranker; with one, rrf is",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "4. fusion: merging two ranked lists",
+  "text": "Try it: the Fusion lab fuses real lists with any two methods and animates one order into the other; its lower chart is every method's sweep.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab"
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Understanding and rewriting the query The problem.",
+  "label": "core",
+  "key": "understanding and rewriting the query the",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "The text a user types is often not the best text to search with.",
+  "label": "core",
+  "key": "the text a user types",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "It may need a different retriever (an error code wants BM25), contain a condition that should be a filter (\"papers from 2019\"), lean on earlier turns of a chat (\"does it help?\"), be phrased unlike the documents (a question against statements), or ask two things at once.",
+  "label": "core",
+  "key": "different retriever (an error code wants bm25),",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Query understanding is everything done to the query before the search: routing, extracting filters, and rewriting.",
+  "label": "core",
+  "key": "query understanding is everything done to the query",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Each costs time before retrieval can start, so each has to earn its place on measured queries.",
+  "label": "core",
+  "key": "so each has to earn its place on",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "5.1 Routing: which retriever for which query?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "If some queries are served better by BM25 and others by dense search, a router that sends each query to the right one beats always fusing.",
+  "label": "core",
+  "key": "a perfect router choosing per claim",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "The ceiling is large.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by the oracle number"
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "On SciFact, BM25 beats Qwen3-Embedding on 56 claims, loses on 81 and ties on 163; a perfect router choosing per claim among BM25, dense and hybrid would score 0.798 , against 0.724 for always-hybrid measured .",
+  "label": "core",
+  "key": "on scifact, bm25 beats qwen3-embedding on 56",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "The question is whether anything visible before the answer predicts the winner.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "A router was trained on SciFact's training claims (logistic regression on nine features computable at query time: query length, the highest and mean idf of its terms, how identifier-like it is, each retriever's top score and its margin over the second, and how much the two top 10s overlap), with its two thresholds (send to BM25 above one, to dense below the other, fuse in between) chosen on the same training claims.",
+  "label": "depth",
+  "key": "and how much the two top 10s",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "On test it separates \"BM25 wins\" from \"dense wins\" only weakly (area under the ROC curve 0.67) and scores 0.721 , slightly below always-hybrid.",
+  "label": "core",
+  "key": "separates \"bm25 wins\" from \"dense wins\" only",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "On NFCorpus: 0.360 against 0.361 (hybrid) and 0.363 (dense alone).",
+  "label": "depth",
+  "key": "on nfcorpus: 0.360 against 0.361 (hybrid) and",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "The folk rule \"identifiers go to BM25\" fails here too: the 172 claims containing a digit or an inner capital (gene and protein names) score 0.707 with dense search and 0.666 with BM25.",
+  "label": "core",
+  "key": "capital (gene and protein names) score 0.707",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "So: fuse by default; route only between query types that really differ, such as exact lookups of part numbers against natural questions, and check on labelled queries that the router beats fusion.",
+  "label": "core",
+  "key": "on labelled queries that the router beats fusion.",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Routing between whole sources or tools (a vector index, a SQL database, web search) by a classifier or an LLM is measured on Agentic retrieval, long context and memory .",
+  "label": "core",
+  "key": "measured on agentic retrieval, long context and memory",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "5.2 Self-query: turning words in the question into filters \"In the CoVoST paper, how many languages...\" contains a condition on metadata (which paper) mixed into the question.",
+  "label": "core",
+  "key": "\"in the covost paper, how many languages...\"",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Embedded as is, the title words only nudge the vector; as a filter, they restrict the search to the right document.",
+  "label": "core",
+  "key": "they restrict the search to the right document.",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Self-query retrieval asks a language model to split the request into a cleaned query and a structured filter over known metadata fields (LangChain's SelfQueryRetriever pattern).",
+  "label": "core",
+  "key": "self-query retrieval asks a language model to split",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Measured with the local generator (Qwen3-1.7B, greedy) on 300 constructed requests: real QASPER questions with a reference to their paper added by template, a third by title, a third by month and year of the arXiv posting, a third by year only; search over all 6,463 default chunks of all 281 papers with bge-small; found = the root's rule within 1,024 tokens.",
+  "label": "core",
+  "key": "measured with the local generator (qwen3-1.7b, greedy)",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "What the numbers say.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "The generator always produced parseable JSON (300 of 300) and resolved titles well (the right paper alone for 88 of 100 title requests).",
+  "label": "depth",
+  "key": "the generator always produced parseable json (300",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "But it invented values: every one of the 100 year-only requests came back with a month as well (always 12, December), which the request never stated, so the raw filter kept the right paper for only 7 of them and found less than no filter at all (17 against 22).",
+  "label": "depth",
+  "key": "invented values: every one of the 100",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Dropping any extracted value that the request does not literally state (a schema check, no model) keeps the right paper for 100 of 100 and lifts the month-and-year requests from 22 to 32 found.",
+  "label": "depth",
+  "key": "model) keeps the right paper for 100",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "For title requests a filter adds little (34 without, 34 with): the title words in the query already pull the embedding to the right paper.",
+  "label": "depth",
+  "key": "title requests a filter adds little (34",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "The oracle row (the right paper as the filter) shows how much a correct filter is worth when the request only gives a date: 45 and 60 found.",
+  "label": "depth",
+  "key": "the request only gives a date: 45",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "The filter must be applied inside the search (section 6), and an extracted filter must be checked against the schema: a wrong year silently removes the right document, which is worse than no filter.",
+  "label": "core",
+  "key": "a wrong year silently removes the right document,",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Field values extracted from free text (titles, names) need fuzzy matching against the real values; here the title was matched to the best word overlap among the papers that survive the year and month filters.",
+  "label": "depth",
+  "key": "values extracted from free text (titles, names) need",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "5.3 Rewriting: HyDE, multi-query, step-back, decomposition, conversation The root lab measured three rewrites on SciFact with the same generator root lab : HyDE (write a hypothetical answer passage and search with it; Gao et al., arXiv 2212.10496 ) lifts Qwen3-Embedding from 0.700 to 0.718 when the passage replaces the claim, and helps bge-small only when the passage vector is averaged with the claim's (0.713 → 0.733; the passage alone gives 0.692); multi-query (three rewordings, fused with RRF) buys nothing on these already specific claims (0.699 for Qwen3); conversational rewrite turns a follow-up that is meaningless alone into a standalone question and repairs most of eight constructed chats (the relevant abstract at rank 1 for 6 of 8 with bge-small, against 2 of 8 for the follow-up alone; one chat got worse).",
+  "label": "core",
+  "key": "with it; gao et al., arxiv 2212.10496",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "The old version of this page said HyDE is \"largely superseded by instruction-aware embedders\": on this set it still helped the instruction-aware Qwen3-Embedding by 1.8 points, so that claim is dropped.",
+  "label": "core",
+  "key": "it still helped the instruction-aware qwen3-embedding by",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Step-back ( Zheng et al., arXiv 2310.06117 ) asks the model for the more general question behind the query and retrieves for both.",
+  "label": "core",
+  "key": "step-back ( zheng et al., arxiv 2310.06117",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Run here on the 300 SciFact claims, prompt adapted from the paper's (zero-shot, one line): Step-back hurt every retriever: alone it scores 0.669 (Qwen3), 0.669 (bge-small) and 0.619 (BM25) against 0.700, 0.713 and 0.679 for the claim, and fused with the claim it still loses (0.678, 0.697, 0.652).",
+  "label": "depth",
+  "key": "on the 300 scifact claims, prompt adapted",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "The general question retrieves general abstracts, and a SciFact claim needs the one specific study.",
+  "label": "depth",
+  "key": "the general question retrieves general abstracts, and a",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Step-back is designed for questions that need background principles (the paper tested STEM, time-sensitive knowledge and multi-hop questions), not for specific claims.",
+  "label": "depth",
+  "key": "step-back is designed for questions that need background",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Decomposition splits a multi-part question into sub-questions, retrieves for each and fuses the lists.",
+  "label": "core",
+  "key": "a multi-part question into sub-questions,",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "On HotpotQA's two-hop questions (both gold paragraphs needed), with the generator writing up to three sub-questions: The 1.7 B generator mostly returned the question unchanged (1.12 sub-questions per question on average), and where it did split, fusing the lists hurt: with bge-small, questions with both gold paragraphs in the top 5 fell from 98 to 85 (bridge) and from 39 to 29 (comparison); BM25 fell the same way.",
+  "label": "depth",
+  "key": "writing up to three sub-questions: the 1.7",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "A fixed decomposition written before any retrieval cannot resolve a bridge question (\"the director of the film that...\"), because the second sub-question needs the first answer; that needs retrieval in a loop, which is the subject of Agentic retrieval, long context and memory .",
+  "label": "core",
+  "key": "decomposition written before any retrieval cannot resolve a",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Every rewrite is a generator call before the search: the root measured about 2.2 s per claim for HyDE and 0.8 s for three rewordings with the 1.7 B model on this laptop; here step-back took 0.3 s per claim and a decomposition 0.3 s per question measured .",
+  "label": "core",
+  "key": "the search: the root measured about 2.2",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "That is more than the whole retrieval stage (BM25 0.25 ms, query embedding 49 ms, exact search 0.5 ms in the root's latency table).",
+  "label": "core",
+  "key": "more than the whole retrieval stage (bm25",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Rewrite only where it is needed: always for chat follow-ups, otherwise only for query types where it measurably helps.",
+  "label": "core",
+  "key": "otherwise only for query types where it measurably",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "5. understanding and rewriting the query",
+  "text": "Try it: the Query-rewrite lab shows each rewrite's retrieved list against the original's, animated, with the generated text.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab"
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Metadata filtering, designed The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Real queries carry conditions: only this customer's documents, only what this user may read, only papers after 2020, only the current version.",
+  "label": "core",
+  "key": "what this user may read,",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "A condition on metadata (structured fields stored next to each chunk) is a filter .",
+  "label": "core",
+  "key": "a condition on metadata (structured fields stored next",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "The root lab measured the central fact: applied after the search (a post-filter : fetch the top 10, drop what is not allowed), a filter that lets a user see 10% of SciFact returns 1.73 results of 10 on average and none at all for 14 of 300 claims; applied inside the search (a pre-filter : only allowed documents compete) it always returns 10 root lab .",
+  "label": "core",
+  "key": "(a post-filter : fetch the top 10,",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "This section is the design around that fact.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "6.1 What to store on every chunk Identity and provenance: document id, chunk index, character span or page, section path (the Markdown splitter's heading metadata, §1.4), source URL.",
+  "label": "core",
+  "key": "what to store on every chunk identity and",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Needed for citations (§8) and for deleting or replacing a document's chunks.",
+  "label": "core",
+  "key": "needed for citations (§8) and for deleting",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Version and time: document version or content hash, published and indexed dates.",
+  "label": "core",
+  "key": "version and time: document version or content hash,",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Needed for \"current only\" and for re-indexing (the ingestion page's Re-indexing lab).",
+  "label": "core",
+  "key": "needed for \"current only\" and for re-indexing (the",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Access: tenant, owner, groups allowed.",
+  "label": "core",
+  "key": "access: tenant, owner, groups allowed.",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Needed for access control, which must be a filter inside the search, never an instruction in the prompt; measured with PostgreSQL row-level security on RAG in production .",
+  "label": "core",
+  "key": "needed for access control, which must be a",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Facets users filter on: language, document type, product, year.",
+  "label": "core",
+  "key": "facets users filter on: language, document type, product,",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Store as typed fields (integer year, date), not inside the text, so the engine can index them.",
+  "label": "core",
+  "key": "store as typed fields (integer year, date), not",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Every chunk inherits its document's fields at index time; a metadata change (a permission revoked) must update every chunk of the document, in both the BM25 and the vector index.",
+  "label": "core",
+  "key": "of the document, in both the bm25",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "6.2 Where the filter runs, and the arithmetic of post-filtering If an index returns its top K and then a filter keeps a share s of documents (the filter's selectivity ), the expected number of survivors is about K · s, assuming the allowed documents are spread evenly through the ranking.",
+  "label": "core",
+  "key": "the arithmetic of post-filtering if an index returns",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "The pgvector README gives the same arithmetic for its HNSW index: \"If a condition matches 10% of rows, with HNSW and the default hnsw.ef_search of 40, only 4 rows will match on average\" (README line 450 at tag v0.8.7, verified).",
+  "label": "core",
+  "key": "hnsw index: \"if a condition matches 10%",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Against the root lab's measurement: Lines: K · s capped at 10.",
+  "label": "core",
+  "key": "lines: k · s capped at 10.",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Dots: results returned of 10 asked, post-filter over the exact top K, mean over 300 SciFact claims (root lab, src/pipe/out/filter.json; each claim asked by a user who may see its evidence abstract, the constructed setting described there).",
+  "label": "core",
+  "key": "dots: results returned of 10 asked, post-filter",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "The measured counts sit above K · s at small K because the setting is not uniform: the user may always see the claim's own evidence abstract, which ranks high.",
+  "label": "core",
+  "key": "the measured counts sit above k · s",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Real access patterns are correlated in both directions (a user's own documents are often exactly what they search for; a tenant's documents may all sit far from a generic query), so measure the survivors on your own data rather than trusting the formula.",
+  "label": "core",
+  "key": "real access patterns are correlated in both directions",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "The fixes put the filter inside the search: pgvector from 0.8.0 rescans more of the index until enough rows pass ( SET hnsw.iterative_scan = strict_order or relaxed_order , stopping at hnsw.max_scan_tuples , 20,000 by default; README lines 480 and 527); Qdrant and Weaviate filter during graph traversal and switch to an exact scan when few points match.",
+  "label": "depth",
+  "key": "pgvector from 0.8.0 rescans more of the",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Filtered HNSW and these strategies are measured on Vector indexes from the inside (its filtered-search lab).",
+  "label": "core",
+  "key": "measured on vector indexes from the inside (its",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Predict: hybrid search, with the filter applied to the fused list after RRF (each retriever returns its top 100 unfiltered).",
+  "label": "core",
+  "key": "rrf (each retriever returns its top 100",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "A tenant owns 1% of the corpus.",
+  "label": "core",
+  "key": "a tenant owns 1% of the corpus.",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "How many results come back when you ask for 10?",
+  "label": "core",
+  "key": "come back when you ask for 10?",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "10, RRF reranks after filtering About 5 About 2, sometimes none About 2: the fused list holds at most 200 distinct documents, of which about 1% belong to the tenant.",
+  "label": "core",
+  "key": "10, rrf reranks after filtering about 5",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Filtering after fusion is a post-filter.",
+  "label": "core",
+  "key": "filtering after fusion is a post-filter.",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "Put the filter into each retriever's own search (a filter clause on BM25's posting lists, a filtered vector search), then fuse.",
+  "label": "core",
+  "key": "own search (a filter clause on bm25's",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "6.3 Filters in hybrid search BM25 filters cheaply: the engine intersects the query terms' posting lists with the set of allowed documents (a bitmap), so a selective filter makes BM25 faster.",
+  "label": "core",
+  "key": "filters in hybrid search bm25 filters cheaply:",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "A vector index pays for a selective filter instead, because its graph or clusters were built over every document.",
+  "label": "core",
+  "key": "a vector index pays for a selective filter",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "So the two halves of a hybrid search behave differently under the same filter, and both must receive it before fusion.",
+  "label": "core",
+  "key": "so the two halves of a hybrid search",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "6. metadata filtering, designed",
+  "text": "The filters a user never typed (tenant, permissions) come from the session; the ones they typed come from query understanding (§5.2).",
+  "label": "core",
+  "key": "the filters a user never typed (tenant, permissions)",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "Duplicates and diversity The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "Ten retrieved chunks that say the same thing waste nine slots of the prompt.",
+  "label": "core",
+  "key": "ten retrieved chunks that say the same thing",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "Duplicates come from the corpus (the same abstract under two ids, a page crawled twice, mirrored documentation), from overlapping chunks (neighbours share their overlap), and from near-identical versions.",
+  "label": "core",
+  "key": "duplicates come from the corpus (the same abstract",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "Two remedies: remove duplicates, or penalise similarity among the chosen results.",
+  "label": "core",
+  "key": "two remedies: remove duplicates, or penalise similarity among",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "7.1 How much duplication the running example has NFCorpus has 41 pairs above cosine 0.995 with bge-small, and they are true duplicates: for example \"Alkylphenols in human milk and their relations to dietary habits in central Taiwan.\" appears as MED-118 and MED-2651 with identical text measured .",
+  "label": "core",
+  "key": "nfcorpus has 41 pairs above cosine 0.995",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "Exact duplicates are best removed at ingestion with a content hash, before they reach any index; the ingestion page covers content hashing.",
+  "label": "core",
+  "key": "exact duplicates are best removed at ingestion with",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "7.2 Maximal marginal relevance next = argmax d not chosen [ λ · sim(q, d) − (1 − λ) · max s chosen sim(d, s) ] λ 1 = plain ranking by similarity to the query; lower values trade relevance for difference from what is already chosen MMR ( Carbonell and Goldstein, SIGIR 1998 ) builds the list greedily, each time taking the candidate most similar to the query and least similar to anything already taken.",
+  "label": "core",
+  "key": "[ λ · sim(q, d) − (1",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "LangChain's max_marginal_relevance_search uses it with fetch_k 20 candidates and lambda_mult 0.5 by default (langchain-core 1.6.10, vectorstores/base.py lines 663 and 664).",
+  "label": "core",
+  "key": "langchain's max_marginal_relevance_search uses it with fetch_k 20",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "Measured on the dense top 50 of three sets: HotpotQA: both gold in top 5 NFCorpus: nDCG@10 SciFact: nDCG@10 MMR hurt on all three.",
+  "label": "core",
+  "key": "measured on the dense top 50 of",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "On HotpotQA, where diversity sounds like exactly what a two-hop question needs, the questions with both gold paragraphs in the top 5 fall from 137 (λ 1) to 129 at 0.8 and 75 at 0.5 (bge-small) measured .",
+  "label": "core",
+  "key": "both gold paragraphs in the top 5",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "The two gold paragraphs are not near-duplicates of each other, so MMR has nothing to remove, and the penalty pushes in loosely related paragraphs instead.",
+  "label": "core",
+  "key": "the two gold paragraphs are not near-duplicates of",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "MMR pays when a corpus has many near-duplicates crowding out other relevant material and when the reader wants coverage of several aspects; check that your corpus is like that before turning it on, and keep λ high.",
+  "label": "core",
+  "key": "mmr pays when a corpus has many near-duplicates",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "7.3 Overlapping chunks: merge, do not drop With overlapping fixed windows, a chunk and its neighbour often both rank high, because both hold part of the same paragraph.",
+  "label": "core",
+  "key": "overlapping chunks: merge, do not drop with overlapping",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "Treating the neighbour as a duplicate and dropping it is wrong: on QASPER (bge-small, within the paper) dropping any chunk that overlaps one already chosen cuts the questions found within 1,024 tokens from 0.568 to 0.455, because the neighbour is what completes a paragraph the window boundary cut.",
+  "label": "core",
+  "key": "chosen cuts the questions found within 1,024",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "7. duplicates and diversity",
+  "text": "Merging overlapping or touching chunks into one span and paying for the shared tokens once gives 0.571; MMR at λ 0.7 gives 0.512 measured .",
+  "label": "core",
+  "key": "for the shared tokens once gives 0.571;",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Assembling the prompt The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Retrieval ends with a ranked list; the generator needs one prompt.",
+  "label": "core",
+  "key": "retrieval ends with a ranked list; the generator",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Between the two sit decisions that change the answer: how many chunks (the context budget ), in what order, with what labels so the answer can cite them, and how to check that a cited chunk says what the answer claims.",
+  "label": "core",
+  "key": "sit decisions that change the answer: how many",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Measured with the root lab's end-to-end task, unchanged: Qwen3-1.7B (llama.cpp, greedy, thinking off) reads a SciFact claim and k abstracts and answers SUPPORT, CONTRADICT or NOT ENOUGH INFO with the number of the abstract it relied on; an answer is strictly right when the label matches the annotators' and the cited abstract is annotated evidence.",
+  "label": "core",
+  "key": "qwen3-1.7b (llama.cpp, greedy, thinking off) reads a",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "The 188 test claims with evidence; candidates from the root's pipeline (hybrid RRF, then Qwen3-Reranker-0.6B on the top 30); the root's answer prompt.",
+  "label": "core",
+  "key": "188 test claims with evidence; candidates from",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Answers identical to the root's runs were reused from its cache (same model, same prompt), so the shared cells agree by construction.",
+  "label": "core",
+  "key": "answers identical to the root's runs were reused",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "8.1 How many chunks Strictly right answers barely move with k: 97 of 188 with only the top abstract, 96 at k 3, 96 at k 5 and 101 at k 10, while the prompt grows from 504 to 3,644 tokens on average.",
+  "label": "core",
+  "key": "right answers barely move with k: 97",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "The reranked top 3 already holds the evidence for 178 of the 188 claims (root lab), so more abstracts add little to find; this 1.7 B model's limit is reading, not finding (it never answered CONTRADICT in any of these runs, the same failure the root lab found).",
+  "label": "core",
+  "key": "the reranked top 3 already holds the",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "More context is not free even when the window allows it: prefill time grows with the prompt (about 1,040 prompt tokens per second for this model here, root's latency table), and a small model is distracted by more near-miss abstracts.",
+  "label": "core",
+  "key": "time grows with the prompt (about 1,040",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "8.2 Order, and where the evidence sits Published: Liu et al., \"Lost in the Middle\" (arXiv 2307.03172, 2023) moved the one relevant document through 10, 20 and 30 retrieved documents and found a U shape for several models: accuracy highest with the document first or last, lowest in the middle published, authors' runs .",
+  "label": "core",
+  "key": "al., \"lost in the middle\" (arxiv 2307.03172,",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Measured here with the claim's gold abstract placed first, in the middle or last among the reranker's highest-ranked non-evidence abstracts (hard distractors, which is what a real pipeline puts next to the evidence): Position matters a lot here, but not as a U: the evidence first gives 111 (k 5) and 116 (k 10) strictly right of 188; in the middle 71 and 68; last 65 and 78.",
+  "label": "core",
+  "key": "a u: the evidence first gives 111",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Look at what changes, though: the right label barely moves (107 to 118 of 188 across all six placements), the citation does.",
+  "label": "core",
+  "key": "though: the right label barely moves (107",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "With the evidence elsewhere, the model still cites abstract [1] in 59 of 188 answers at k 10 (gold in the middle) and 45 (gold last), a pull toward the first abstract shown.",
+  "label": "core",
+  "key": "elsewhere, the model still cites abstract [1]",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "So for this model, put the best chunk first, and treat citations to the first position with suspicion.",
+  "label": "core",
+  "key": "so for this model, put the best chunk",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Reversing the real reranked top 5 (best abstract last, nearest the question) gives 67 strictly right against 96 of 188 best-first.",
+  "label": "core",
+  "key": "reversing the real reranked top 5 (best",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Longer contexts and more positions are measured on Agentic retrieval, long context and memory .",
+  "label": "core",
+  "key": "longer contexts and more positions are measured on",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "8.3 Citation formats, and checking a citation A citation is a pointer from the answer to a chunk; it is only useful if it can be resolved and checked.",
+  "label": "core",
+  "key": "citation formats, and checking a citation a citation",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Three formats on the same top 5: All three formats could be parsed and resolved to an abstract in the prompt for every answer (188, 188, 188 of 188), so labels the model can copy are what matters, not their style; corpus ids did as well as numbers (99 against 96 strictly right).",
+  "label": "core",
+  "key": "three formats on the same top 5:",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Asking for a quote changed the answers themselves: the model never answered NOT ENOUGH INFO (0 times, against 25 with numbers), which raised strictly right answers to 108, but only 71 of its 188 quotes were found word for word in the cited abstract; the rest paraphrased or quoted the claim back.",
+  "label": "core",
+  "key": "model never answered not enough info (0",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Strictly right with a verified quote: 38.",
+  "label": "core",
+  "key": "strictly right with a verified quote: 38.",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "A quote is the cheapest citation to check: a string match against the cited chunk, no model needed.",
+  "label": "core",
+  "key": "a quote is the cheapest citation to check:",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Whether the cited chunk actually supports the claim needs a judgement (a natural-language-inference model or an LLM judge); those metrics (faithfulness, groundedness, citation precision) and their tools are on RAG and retrieval evaluation .",
+  "label": "core",
+  "key": "needs a judgement (a natural-language-inference model or an",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "8.4 A template that holds up Label each chunk with a short id the model can repeat exactly ([1], [2]...) and keep the mapping to document, section and span outside the prompt; here numbers and corpus ids both resolved for every answer.",
+  "label": "core",
+  "key": "id the model can repeat exactly ([1],",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Put each chunk's title and date in its header line: the model cannot weigh a 2019 document against a 2025 one if it never sees the dates.",
+  "label": "core",
+  "key": "line: the model cannot weigh a 2019",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Merge chunks that overlap or touch into one span (§7.3); drop exact duplicates; never truncate a chunk mid-sentence to fit the budget, drop the lowest-ranked chunk instead.",
+  "label": "core",
+  "key": "merge chunks that overlap or touch into one",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Keep instructions and the question outside the retrieved text, and treat retrieved text as data: a document that says \"ignore previous instructions\" is an injection (prompt injection through retrieved documents is covered on RAG in production ).",
+  "label": "core",
+  "key": "keep instructions and the question outside the retrieved",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "Ask for the label or answer first and the citation in a fixed format, then parse it; count unparseable answers as wrong.",
+  "label": "core",
+  "key": "ask for the label or answer first and",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "8. assembling the prompt",
+  "text": "If you ask for quotes, verify them: here most were not verbatim (§8.3).",
+  "label": "core",
+  "key": "if you ask for quotes, verify them: here",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Common mistakes Sizing chunks in characters for a model that counts tokens LangChain's default is 4,000 characters measured with len ; with all-MiniLM-L6-v2 only 33.3% of that text reaches the vector, silently.",
+  "label": "depth",
+  "key": "all-minilm-l6-v2 only 33.3% of",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Build the splitter from the embedder's tokenizer (§1.1).",
+  "label": "core",
+  "key": "build the splitter from the embedder's",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Believing the default separators cut at sentences They are blank line, newline, space, nothing: a long paragraph is cut between two words.",
+  "label": "depth",
+  "key": "believing the default separators cut at sentences",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Add \". \" or use structure-aware splitting (§1.2, §1.4).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the separator point of section 1"
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Dropping overlapping neighbours as duplicates The neighbour is what completes a cut paragraph: dropping it took QASPER from 0.568 to 0.455 found; merging overlapping spans gave 0.571 (§7.3).",
+  "label": "depth",
+  "key": "from 0.568 to 0.455 found; merging overlapping",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Tuning k1, b, the fusion weight or k on the test queries The best BM25 pair on SciFact test claims claims 0.688; chosen on training claims it scores 0.678, no better than the default.",
+  "label": "depth",
+  "key": "tuning k1, b, the fusion weight or",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Choose on one split, report on another.",
+  "label": "core",
+  "key": "report the test split once",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Adding BM25 and cosine scores with equal weight BM25's scale wins and the dense half is ignored (0.685, near BM25's 0.679).",
+  "label": "depth",
+  "key": "adding bm25 and cosine scores with equal",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Normalise, or learn the weight, or use ranks (§4.1).",
+  "label": "depth",
+  "key": "learn the weight, or use ranks",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Tuning the fusion weight when a reranker follows The reranker reorders the candidates anyway; after it, RRF and tuned z-score fusion land within a point (§4.5).",
+  "label": "depth",
+  "key": "tuning the fusion weight when a reranker follows",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Spend the effort on rerank depth.",
+  "label": "depth",
+  "key": "spend the effort on rerank",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Ignoring what the BM25 tokenizer does to identifiers and negations The default pattern drops one-character tokens (\"Type 1\" loses the 1; \"IL-6\" becomes \"il\") and the stopword list removes \"not\" (§2.3).",
+  "label": "depth",
+  "key": "ignoring what the bm25 tokenizer does to",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Filtering after the search or after fusion A post-filter returns about K · s results and often none; filter inside each retriever's search, then fuse (§6.2).",
+  "label": "depth",
+  "key": "filtering after the search or after fusion",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Turning on MMR because diversity sounds good It hurt on every set here, including the multi-hop one (§7.2).",
+  "label": "depth",
+  "key": "it hurt on every set here, including the",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "It helps only when near-duplicates crowd the list.",
+  "label": "core",
+  "key": "mmr pays when a corpus has many near-duplicates",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Trusting an extracted filter without checking it Here the generator added a month (December) to every request that only named a year, and the filter then removed the right paper for most of them.",
+  "label": "depth",
+  "key": "trusting an extracted filter without checking it",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Keep an extracted value only if the request states it, check it against the real field values, and fall back to no filter when it does not match (§5.2).",
+  "label": "core",
+  "key": "fall back to no filter when it",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "9. common mistakes",
+  "text": "Accepting citations without resolving and checking them Parse every citation, resolve it to a chunk, and at least string-match a quote (§8.3); an unresolvable citation is a wrong answer.",
+  "label": "depth",
+  "key": "accepting citations without resolving and checking them",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Interview questions, short answers How would you choose a chunking strategy for a new corpus?",
+  "label": "depth",
+  "key": "how would you choose a chunking strategy for",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Get a few hundred questions with located evidence.",
+  "label": "depth",
+  "key": "get a few hundred questions with located evidence.",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Split on the documents' own structure first (headings, paragraphs), cap the size in the embedder's tokens, and compare candidates on \"evidence intact\" and on retrieval at an equal token budget , never at an equal number of chunks.",
+  "label": "depth",
+  "key": "split on the documents' own structure first (headings,",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Try small-to-big (index sentences or paragraphs, return the paragraph) before tuning sizes.",
+  "label": "depth",
+  "key": "try small-to-big (index sentences or paragraphs, return the",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Why does RRF work without calibration, and when would you not use it?",
+  "label": "depth",
+  "key": "why does rrf work without calibration, and when",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "It uses ranks, so the two score scales never meet, and it rewards agreement, which is a strong signal (documents in both top 10s were relevant 13 to 28 times as often as single-list ones on SciFact).",
+  "label": "depth",
+  "key": "strong signal (documents in both top 10s",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "It discards score margins; with no reranker and labelled queries to learn a weight, normalised score fusion did about 1 to 1.6 points better here.",
+  "label": "depth",
+  "key": "weight, normalised score fusion did about 1",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "With a strong reranker after it, RRF is enough.",
+  "label": "depth",
+  "key": "with a strong reranker after it, rrf is",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "BM25 or dense for queries with product codes?",
+  "label": "depth",
+  "key": "bm25 or dense for queries with product",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Run both and fuse.",
+  "label": "depth",
+  "key": "run both and fuse",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Check the BM25 tokenizer keeps the codes intact (a two-character pattern drops \"X1\" pieces; hyphens split).",
+  "label": "depth",
+  "key": "check the bm25 tokenizer keeps the codes",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "A router is only worth it if it beats fusion on labelled queries; here a learned router did not.",
+  "label": "depth",
+  "key": "a router is only worth it if it",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Design a multi-tenant RAG search for 10,000 customers.",
+  "label": "depth",
+  "key": "design a multi-tenant rag search for 10,000",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Where do permissions go?",
+  "label": "depth",
+  "key": "where do permissions go",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Tenant id and ACL groups as typed metadata on every chunk, enforced as a filter inside both the BM25 and the vector search (or row-level security in the database), never in the prompt.",
+  "label": "depth",
+  "key": "as a filter inside both the bm25",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Choose shared index plus filter or index per tenant by tenant size: tiny tenants make post-filtering useless and filtered ANN slow, so check the engine's filtered-search strategy (iterative scans, ACORN-style traversal, exact scan below a threshold) and measure recall for the smallest tenant.",
+  "label": "depth",
+  "key": "choose shared index plus filter or index per",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Re-index a document's chunks when its permissions change.",
+  "label": "depth",
+  "key": "re-index a document's chunks when its permissions change.",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Your RAG answers cite the wrong document.",
+  "label": "depth",
+  "key": "your rag answers cite the wrong document.",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "How do you debug it?",
+  "label": "depth",
+  "key": "how do you debug it?",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Split the failure: was the right chunk retrieved (recall at the rerank depth), did it reach the prompt (rank after reranking against the budget), and did the model use it (an oracle run with only the right chunk)?",
+  "label": "depth",
+  "key": "split the failure: was the right chunk retrieved",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Then check the citation plumbing: labels the model can repeat, parse rate, resolution to chunks, quote match.",
+  "label": "core",
+  "key": "then check the citation plumbing: labels the model",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "When is query rewriting worth its latency?",
+  "label": "depth",
+  "key": "when is query rewriting worth its latency?",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Always for chat follow-ups (they are not queries without the history).",
+  "label": "depth",
+  "key": "always for chat follow-ups (they are not queries",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Otherwise measure: HyDE helped one embedder and hurt another here; multi-query did nothing and step-back and decomposition hurt; a rewrite costs a generator call (0.3 to 2.2 s per query here, depending on how much it writes), more than the whole retrieval.",
+  "label": "depth",
+  "key": "a rewrite costs a generator call (0.3",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "What is late chunking and what does it need?",
+  "label": "depth",
+  "key": "what is late chunking and what does it",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "Embed the whole document with a long-context, mean-pooling embedder, then average token vectors per chunk span, so each chunk vector sees the document.",
+  "label": "depth",
+  "key": "embed the whole document with a long-context, mean-pooling",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "10. interview questions, short answers",
+  "text": "It needs mean pooling and a long context; published gains are large for weak embedders and small for strong ones, and within a single document (where every chunk shares the same context) it hurt here.",
+  "label": "depth",
+  "key": "it needs mean pooling and a long context;",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "11. how this was measured, and the limits",
+  "text": "How this was measured, and the limits Machine: Apple M1 Pro (8 performance and 2 efficiency cores, 16 GB unified memory), PyTorch MPS and llama.cpp Metal, October 2026, shared with other agents.",
+  "label": "depth",
+  "key": "machine: apple m1 pro (8 performance and",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "11. how this was measured, and the limits",
+  "text": "Relevance numbers (nDCG, recall, found-within-budget) are deterministic and do not depend on the machine; the few timings are labelled with their load.",
+  "label": "depth",
+  "key": "relevance numbers (ndcg, recall, found-within-budget) are deterministic and",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "11. how this was measured, and the limits",
+  "text": "Data and models: the root's running example (src/data/README.md there) and its precomputed vectors, runs and reranker scores; this page added nomic-ai/modernbert-embed-base (late chunking) and opensearch-neural-sparse-encoding-doc-v3-distill (learned sparse), revisions and sha256 in the shared SETUP notes.",
+  "label": "depth",
+  "key": "page added nomic-ai/modernbert-embed-base (late chunking) and opensearch-neural-sparse-encoding-doc-v3-distill",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "11. how this was measured, and the limits",
+  "text": "Generator: Qwen3-1.7B Q4_K_M in llama-server, temperature 0, seed 0, thinking off, answers cached by exact prompt.",
+  "label": "depth",
+  "key": "generator: qwen3-1.7b q4_k_m in llama-server, temperature 0,",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "11. how this was measured, and the limits",
+  "text": "Libraries read at pinned versions: langchain-text-splitters 1.1.3, langchain-core 1.6.10, llama-index-core 0.14.25, bm25s 0.3.13, pgvector v0.8.7 README, pySBD 0.3.4.",
+  "label": "depth",
+  "key": "libraries read at pinned versions: langchain-text-splitters 1.1.3,",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "11. how this was measured, and the limits",
+  "text": "What transfers: the shapes (structure-aware chunks beat fixed windows at equal budget; post-filters lose results in proportion to selectivity; fusion matters less after a reranker; tuning on test inflates) are properties of the methods.",
+  "label": "depth",
+  "key": "what transfers: the shapes (structure-aware chunks beat fixed",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "11. how this was measured, and the limits",
+  "text": "What does not: the exact numbers belong to these corpora (scientific abstracts and NLP papers, mostly one relevant document per SciFact claim), these embedders and a 1.7 B generator, which is weak at CONTRADICT; a larger generator changes the prompt-assembly numbers.",
+  "label": "depth",
+  "key": "scifact claim), these embedders and a 1.7",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "11. how this was measured, and the limits",
+  "text": "Not run here: HTML and code splitting (no such corpus in the running example), BGE-M3's sparse head, LLM routers (on the agentic page), and contextual prefixes beyond the root's run.",
+  "label": "depth",
+  "key": "such corpus in the running example), bge-m3's",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "11. how this was measured, and the limits",
+  "text": "Corrections to the old version of this page \"Mixed chunking strategies can cost ~8 points of recall\": no source found; tested (§1.9): the affected half lost about five points; the number is dropped. \"HyDE is largely superseded by instruction-aware embedders\": on SciFact HyDE still lifted the instruction-aware Qwen3-Embedding by 1.8 points (root lab).",
+  "label": "core",
+  "key": "page \"mixed chunking strategies can cost ~8",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "11. how this was measured, and the limits",
+  "text": "Late chunking's \"23.46 to 29.98 on NFCorpus\" is right but is jina-embeddings-v2-small's; with jina-v3 and nomic-embed the gain was 1.1 points and 0 (paper Table 2). \"256 to 512 tokens with 10 to 20% overlap is the most reliable default\": at an equal budget, fixed windows of every size tried (128 to 512 tokens, with or without overlap) found 13 to 24 points fewer questions than paragraphs packed within sections on QASPER (bge-small, 1,024 tokens; root lab).",
+  "label": "core",
+  "key": "late chunking's \"23.46 to 29.98 on nfcorpus\"",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "11. how this was measured, and the limits",
+  "text": "Reranking claims (depth 50 to 150, model lists, latencies) moved to Rerankers and late interaction , which measures depth on this data (the hybrid list peaked at K 20 with Qwen3-Reranker).",
+  "label": "core",
+  "key": "reranking claims (depth 50 to 150, model",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "11. how this was measured, and the limits",
+  "text": "Full list with every claim's verdict: src/coverage.md.",
+  "label": "core",
+  "key": "full list with every claim's verdict: src/coverage.md.",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-rpwb",
+  "section": "chunking workbench",
+  "text": "Chunking workbench Two real QASPER papers, cut live in your browser by the same chunkers the topic measures (a line-by-line port of the root Pipeline lab's chunkers.py , checked equal to the Python output on both papers by src/check_js.mjs : 18 of 18 configurations give identical spans).",
+  "label": "depth",
+  "key": "on both papers by src/check_js.mjs : 18",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-rpwb",
+  "section": "chunking workbench",
+  "text": "Sizes are counted in Qwen3 tokens, as everywhere on this page.",
+  "label": "depth",
+  "key": "sizes are counted in qwen3 tokens, as",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-rpwb",
+  "section": "chunking workbench",
+  "text": "Move the size and overlap, switch the strategy, and watch two things: whether an annotated evidence paragraph (green underline) survives whole inside one chunk, and whether the chunks a retriever would hand over within a token budget cover it.",
+  "label": "depth",
+  "key": "move the size and overlap, switch the strategy,",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-rpwb",
+  "section": "chunking workbench",
+  "text": "Try: fixed windows at 256 tokens, then the same size with the recursive splitter: count the questions whose evidence stays intact.",
+  "label": "depth",
+  "key": "try: fixed windows at 256 tokens, then",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-rpwb",
+  "section": "chunking workbench",
+  "text": "Then untick \". \" (LangChain's default separators have no sentence separator) and watch long paragraphs get cut mid-sentence.",
+  "label": "depth",
+  "key": "then untick \". \" (langchain's default separators have",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-rpwb",
+  "section": "chunking workbench",
+  "text": "Paper Question fixed windows recursive sentences packed paragraphs within sections one paragraph Chunk size: 256 tokens Overlap: 32 tokens Budget handed to the model: 1024 tokens Recursive separators, tried in order: blank line newline \". \" (sentence) space chunks (alternating) overlap (stored twice) annotated evidence handed over within the budget #1 BM25 rank Every strategy on this paper, at this size Overlap applies to fixed windows and the recursive splitter. \"Found\" = the chunks handed over within the budget cover at least 90% of an evidence paragraph (the root lab's rule).",
+  "label": "depth",
+  "key": "within sections one paragraph chunk size: 256",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-rpwb",
+  "section": "chunking workbench",
+  "text": "Retrieval in this table uses a small BM25 written for the page (Lucene formula, no stemmer), so it can differ slightly from the bm25s numbers measured over all 892 questions in the Reading tab.",
+  "label": "depth",
+  "key": "in this table uses a small bm25",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-rpwb",
+  "section": "chunking workbench",
+  "text": "Measured over all 281 papers and 892 questions: Reading, Chunking and the root's Pipeline lab (chunking section).",
+  "label": "depth",
+  "key": "measured over all 281 papers and 892",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-rpwb",
+  "section": "chunking workbench",
+  "text": "Paper text: QASPER (CC BY 4.0), arXiv 1910.06592 and 2002.01320.",
+  "label": "depth",
+  "key": "paper text: qasper (cc by 4.0), arxiv",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-rpfu",
+  "section": "fusion lab",
+  "text": "Fusion lab Real ranked lists from the running example: BM25 and Qwen3-Embedding-0.6B for SciFact claims and NFCorpus questions, their top 20 each, with the annotators' relevant documents marked green.",
+  "label": "core",
+  "key": "for scifact claims and nfcorpus questions,",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-rpfu",
+  "section": "fusion lab",
+  "text": "Pick two fusion methods, A and B, and press Animate A → B : the same candidates re-sort from A's order into B's, so you see exactly which documents a method promotes.",
+  "label": "core",
+  "key": "press animate a → b",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-rpfu",
+  "section": "fusion lab",
+  "text": "The functions are the ones in src/exp/fusion_deep.py ; nDCG@10 is computed here over these top-20 lists (the aggregate numbers below use the full top 100).",
+  "label": "core",
+  "key": "over these top-20 lists (the aggregate",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-rpfu",
+  "section": "fusion lab",
+  "text": "SciFact NFCorpus Query BM25 (score) Qwen3-Embedding (cosine) A B ▶ Animate A → B Rows: fused rank, title, the fused score, and the document's rank in BM25 / dense (\"b3 d12\"; \"–\" = not in that top 20). measured All test queries: the fusion knob swept The same methods over every test query (SciFact 300, NFCorpus 323) and each embedder, nDCG@10 on the test split as the knob moves.",
+  "label": "core",
+  "key": "scifact nfcorpus query bm25 (score) qwen3-embedding (cosine)",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-rpfu",
+  "section": "fusion lab",
+  "text": "The ringed point is the knob chosen on held-out queries (SciFact train, NFCorpus dev), the honest number; the curve's peak is what tuning on test would claim.",
+  "label": "core",
+  "key": "the curve's peak is what tuning on test",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-rpqr",
+  "section": "query-rewrite lab",
+  "text": "Query-rewrite lab What a rewrite does to the retrieved list, on real SciFact claims.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab heading (lab moved inline)"
+ },
+ {
+  "id": 355,
+  "tab": "t-rpqr",
+  "section": "query-rewrite lab",
+  "text": "The rewrites were written by the local generator (Qwen3-1.7B, greedy): HyDE passages and multi-query rewordings by the root's Pipeline lab, step-back questions by this page.",
+  "label": "core",
+  "key": "the local generator (qwen3-1.7b,",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-rpqr",
+  "section": "query-rewrite lab",
+  "text": "Retrieval: bge-small over all 5,183 abstracts (exact search; the rewrites were embedded again on CPU for this lab).",
+  "label": "core",
+  "key": "bge-small over all 5,183 abstracts (exact",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-rpqr",
+  "section": "query-rewrite lab",
+  "text": "The ten claims shown are the ones, among the first 120 test claims, where a rewrite moved the relevant abstract the most, so this lab shows the effect when there is one, not the average (the averages over all 300 claims are in the Reading tab ).",
+  "label": "core",
+  "key": "among the first 120 test claims, where",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-rpqr",
+  "section": "query-rewrite lab",
+  "text": "Claim ▶ Animate original → rewrite Rows: rank, title, cosine (or RRF score), and the row's rank in the other list (\"o3\" = third in the original list; \"–\" = not in its top 10).",
+  "label": "core",
+  "key": "row's rank in the other list (\"o3\"",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-rpqr",
+  "section": "query-rewrite lab",
+  "text": "Green = the annotators' relevant abstract. measured What the generator wrote Decomposition on multi-hop questions HotpotQA questions need two paragraphs.",
+  "label": "core",
+  "key": "green = the annotators' relevant abstract. measured what",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-rpqr",
+  "section": "query-rewrite lab",
+  "text": "The generator split each into sub-questions (examples below); retrieving for each and fusing the lists helps when both entities are named in the question (comparison questions) and cannot help when the second hop depends on the first answer (bridge questions).",
+  "label": "core",
+  "key": "cannot resolve a bridge question",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-rpqr",
+  "section": "query-rewrite lab",
+  "text": "Counts over all 200 questions are in the Reading tab .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab"
+ },
+ {
+  "id": 362,
+  "tab": "t-rpqr",
+  "section": "query-rewrite lab",
+  "text": "Conversational rewrites (follow-up questions that only make sense with the chat before them) are measured on eight constructed chats in the root's Pipeline lab ; not repeated here.",
+  "label": "depth",
+  "key": "are measured on eight constructed chats in the",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading On this page Chunking workbench Two real papers cut live by five strategies at any size; evidence intact and what a budget hands over.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading entry for a removed tab"
+ },
+ {
+  "id": 364,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min Fusion lab Real BM25 and dense lists fused by any two methods, one order animated into the other; every method's sweep.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading entry for a removed tab"
+ },
+ {
+  "id": 365,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min Query-rewrite lab HyDE, multi-query and step-back on real claims, each list against the original.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading entry for a removed tab"
+ },
+ {
+  "id": 366,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "5 min The parent and its siblings Topic: rag-and-retrieval The map of the subject.",
+  "label": "core",
+  "key": "the parent and its siblings topic: rag-and-retrieval the",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Its Pipeline lab tab holds the headline measurements this page builds on (one claim's funnel, chunking, fusion, filters, rewrites, rerank depth, A = r × p × g); its Vector search lab and Tool map tabs cover indexes and the tools.",
+  "label": "core",
+  "key": "its pipeline lab tab holds the headline measurements",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Rerankers and late interaction The stage after fusion: cross-encoders, rerank depth K against latency, LLM rerankers, ColBERT.",
+  "label": "core",
+  "key": "45 min rerankers and late interaction the",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "28 min Document ingestion and multimodal retrieval The stage before chunking: parsing PDFs, tables, figures; its Re-indexing lab measures how chunk boundaries move when a document is revised.",
+  "label": "core",
+  "key": "28 min document ingestion and multimodal retrieval",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "28 min Embedding models The dense half: how embedders are trained and chosen, prefixes, Matryoshka and quantisation.",
+  "label": "core",
+  "key": "28 min embedding models the dense half:",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Vector indexes from the inside HNSW, IVF, PQ and filtered vector search, measured.",
+  "label": "core",
+  "key": "30 min vector indexes from the inside",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Agentic retrieval, long context and memory When the model writes its own queries in a loop; routers; long context against retrieval.",
+  "label": "core",
+  "key": "40 min agentic retrieval, long context and",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min GraphRAG and structured retrieval Questions a ranked list of chunks cannot answer.",
+  "label": "core",
+  "key": "40 min graphrag and structured retrieval questions",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min RAG in production Access control enforced at retrieval, freshness, latency and cost per query.",
+  "label": "core",
+  "key": "40 min rag in production access control",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "32 min Neighbouring pages Search and vector databases The database view of the same structures: inverted indexes, BM25 inside an engine, pgvector operations.",
+  "label": "core",
+  "key": "32 min neighbouring pages search and vector",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "37 min RAG and retrieval evaluation Judged metrics: faithfulness, groundedness, citation checking, retrieval metrics and their tools.",
+  "label": "core",
+  "key": "37 min rag and retrieval evaluation judged",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "22 min Context engineering What else goes into the window besides retrieved chunks, and how to budget it.",
+  "label": "core",
+  "key": "22 min context engineering what else goes",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "29 min Tokenizers Why the same text is a different number of tokens for each model.",
+  "label": "core",
+  "key": "29 min tokenizers why the same text",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "34 min RAG (Lewis et al.) The paper that named retrieval-augmented generation.",
+  "label": "core",
+  "key": "34 min rag (lewis et al.) the",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "16 min Papers and sources Reciprocal rank fusion (Cormack, Clarke, Büttcher, SIGIR 2009) Two pages; where k = 60 comes from.",
+  "label": "core",
+  "key": "16 min papers and sources reciprocal rank",
+  "where": ""
+ },
+ {
+  "id": 381,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min Combination of multiple searches (Fox and Shaw, TREC-2) CombSUM, CombMNZ and friends, 1994.",
+  "label": "core",
+  "key": "10 min combination of multiple searches (fox",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min Simple BM25 extension to multiple weighted fields (CIKM 2004) BM25F: why fields are mixed before saturation.",
+  "label": "core",
+  "key": "20 min simple bm25 extension to multiple",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min Which BM25 do you mean?",
+  "label": "core",
+  "key": "20 min which bm25 do you mean?",
+  "where": ""
+ },
+ {
+  "id": 384,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(Kamphuis et al., ECIR 2020) The BM25 variants side by side; bm25s follows it.",
+  "label": "core",
+  "key": "(kamphuis et al., ecir 2020) the bm25",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min SPLADE (arXiv 2107.05720) Learned sparse retrieval with expansion terms.",
+  "label": "core",
+  "key": "20 min splade (arxiv 2107.05720) learned sparse",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Late chunking (arXiv 2409.04701) Embed first, pool per chunk; Table 2 has the per-model gains.",
+  "label": "core",
+  "key": "30 min late chunking (arxiv 2409.04701) embed",
+  "where": ""
+ },
+ {
+  "id": 387,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Anthropic: Contextual Retrieval Model-written chunk context, with costs under prompt caching (vendor, 2024).",
+  "label": "core",
+  "key": "30 min anthropic: contextual retrieval model-written chunk",
+  "where": ""
+ },
+ {
+  "id": 388,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min Reconstructing Context (arXiv 2504.19754) Late chunking against contextual retrieval.",
+  "label": "core",
+  "key": "15 min reconstructing context (arxiv 2504.19754) late",
+  "where": ""
+ },
+ {
+  "id": 389,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min HyDE (arXiv 2212.10496) Search with a hypothetical answer.",
+  "label": "core",
+  "key": "40 min hyde (arxiv 2212.10496) search with",
+  "where": ""
+ },
+ {
+  "id": 390,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "25 min Step-back prompting (arXiv 2310.06117) Ask the more general question first.",
+  "label": "core",
+  "key": "25 min step-back prompting (arxiv 2310.06117) ask",
+  "where": ""
+ },
+ {
+  "id": 391,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "25 min Lost in the Middle (arXiv 2307.03172) Where in the context a model finds the evidence.",
+  "label": "core",
+  "key": "25 min lost in the middle (arxiv",
+  "where": ""
+ },
+ {
+  "id": 392,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min MMR (Carbonell and Goldstein, SIGIR 1998) Diversity-based reranking, the original.",
+  "label": "core",
+  "key": "30 min mmr (carbonell and goldstein, sigir",
+  "where": ""
+ },
+ {
+  "id": 393,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min pgvector README, filtering and iterative scans (v0.8.7) Why post-filtered HNSW returns fewer rows, and the fix.",
+  "label": "core",
+  "key": "15 min pgvector readme, filtering and iterative",
+  "where": ""
+ },
+ {
+  "id": 394,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min LangChain text splitters source (langchain-text-splitters 1.1.3) character.py and base.py are short; read them once.",
+  "label": "core",
+  "key": "10 min langchain text splitters source (langchain-text-splitters",
+  "where": ""
+ },
+ {
+  "id": 395,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "Truncation table: median chunk tokens and share of text each embedder reads per LangChain setting",
+  "label": "core",
+  "key": "text minilm actually reads",
+  "where": ""
+ },
+ {
+  "id": 396,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "Tokenizer table: tokens, characters per token, tokens per word for each tokenizer over QASPER",
+  "label": "depth",
+  "key": "characters per token",
+  "where": ""
+ },
+ {
+  "id": 397,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "Tokenisation variants table: SciFact and NFCorpus nDCG@10, recall@100, vocabulary",
+  "label": "core",
+  "key": "vocabulary (scifact)",
+  "where": ""
+ },
+ {
+  "id": 398,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "k1 x b grid of test and tuning nDCG@10 for both sets",
+  "label": "core",
+  "key": "outlined: the default (1.2, 0.75)",
+  "where": ""
+ },
+ {
+  "id": 399,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "BM25 worked example on one claim, term by term",
+  "label": "core",
+  "key": "111-term abstract",
+  "where": ""
+ },
+ {
+  "id": 400,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "Learned sparse expansion terms of one abstract",
+  "label": "core",
+  "key": "expansion terms",
+  "where": ""
+ },
+ {
+  "id": 401,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "Fusion family table, every method per embedder with tuned knob",
+  "label": "depth",
+  "key": "bold: best per column",
+  "where": ""
+ },
+ {
+  "id": 402,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "Fuse-then-rerank table at K 10, 20, 30",
+  "label": "core",
+  "key": "rerank top 10",
+  "where": ""
+ },
+ {
+  "id": 403,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "Self-query table by request type",
+  "label": "depth",
+  "key": "self-query, every request type",
+  "where": ""
+ },
+ {
+  "id": 404,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "Step-back table per retriever",
+  "label": "depth",
+  "key": "step-back on the 300 scifact claims",
+  "where": ""
+ },
+ {
+  "id": 405,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "Decomposition table bridge against comparison",
+  "label": "depth",
+  "key": "decomposition on hotpotqa",
+  "where": ""
+ },
+ {
+  "id": 406,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "Near-duplicate pairs per corpus at three cosine thresholds",
+  "label": "depth",
+  "key": "near-duplicate pairs per corpus",
+  "where": ""
+ },
+ {
+  "id": 407,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "Prompt budget table k 1 to 10, strict, lenient, NEI, prompt tokens",
+  "label": "core",
+  "key": "how many chunks",
+  "where": ""
+ },
+ {
+  "id": 408,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "Citation formats table: parsed, strict, quotes given and verbatim",
+  "label": "core",
+  "key": "three formats on the same top 5",
+  "where": ""
+ },
+ {
+  "id": 409,
+  "tab": "t-read",
+  "section": "script-rendered tables",
+  "text": "Mixed index table",
+  "label": "depth",
+  "key": "long chunks: share of index",
+  "where": ""
+ },
+ {
+  "id": 410,
+  "tab": "t-read",
+  "section": "absorbed from root section 6",
+  "text": "Golden set: real labelled questions, synthetic questions easy by construction, version and re-label, tune on one split",
+  "label": "core",
+  "key": "synthetic questions written from a chunk are easy by construction",
+  "where": ""
+ },
+ {
+  "id": 411,
+  "tab": "t-read",
+  "section": "absorbed from root section 6",
+  "text": "Retrieval metrics named, definitions owned by evaluation metrics; measure recall at the rerank depth K",
+  "label": "core",
+  "key": "measure the first stage's recall at the depth the reranker reads",
+  "where": ""
+ },
+ {
+  "id": 412,
+  "tab": "t-read",
+  "section": "absorbed from root section 6",
+  "text": "A = r x p x g with 186/188, 178/186, 96/178",
+  "label": "core",
+  "key": "a = 0.989 × 0.957 × 0.539 = 0.511",
+  "where": ""
+ },
+ {
+  "id": 413,
+  "tab": "t-read",
+  "section": "absorbed from root section 6",
+  "text": "Three failure buckets that add up exactly",
+  "label": "core",
+  "key": "m ranking = n r (1 − p)",
+  "where": ""
+ },
+ {
+  "id": 414,
+  "tab": "t-read",
+  "section": "absorbed from root section 6",
+  "text": "Generation bucket 82 of 92 failures; oracle 112 of 188; closed book 45",
+  "label": "core",
+  "key": "82 of 92 failures",
+  "where": ""
+ },
+ {
+  "id": 415,
+  "tab": "t-read",
+  "section": "absorbed from root section 6",
+  "text": "Citation check refuses 4 right labels without evidence; always SUPPORT would score 66%",
+  "label": "core",
+  "key": "always answering support would score 66%",
+  "where": ""
+ },
+ {
+  "id": 416,
+  "tab": "t-read",
+  "section": "absorbed from root section 6",
+  "text": "Debugging one bad answer with two bits",
+  "label": "core",
+  "key": "those one or two bits assign the failure to a stage",
+  "where": ""
+ },
+ {
+  "id": 417,
+  "tab": "t-read",
+  "section": "absorbed from root section 6",
+  "text": "Old illustrative golden set N 200, A 0.675, buckets 20, 30, 15",
+  "label": "depth",
+  "key": "buckets of 20 (retrieval), 30 (ranking) and 15",
+  "where": ""
+ },
+ {
+  "id": 418,
+  "tab": "t-read",
+  "section": "absorbed from root section 6",
+  "text": "Waffle of 188 claims under each K and k (root e2e.json)",
+  "label": "core",
+  "key": "188 claims, one square each",
+  "where": ""
+ }
+]

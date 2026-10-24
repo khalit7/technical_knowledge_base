@@ -34,3 +34,10 @@ Scores: computable from public data (x2), reproduces a source or the root (x2), 
 
 ## What the methodology lacked here
 Most visuals are measurements of a pipeline knob rather than reproductions of a published figure; the "defaults reproduce" rule became "the page's numbers reproduce the root's" (fusion, chunking, recursive splitter, BM25 run) and "the JS reproduces the Python" (chunkers).
+
+## 2026-10-24 rebuild to the teaching contract
+- **Added: hero** (`25_rp_hero.js`), a static annotated diagram of the pipeline (index time, query time), each stage's largest measured effect, and the evidence of 188 SciFact claims followed through it. Two layouts (six columns at 760 px and wider, one column below).
+- **Added: section 9 waffle** (`26_rp_e2e.js`, data `22_rp_e2e.js` from the root's `src/pipe/out/e2e.json` by `make_e2e.py`): 188 claims, one square each, coloured by the stage that lost the evidence; one control pair (reranker depth K, prompt k). This page now owns end-to-end failure analysis.
+- **Moved inline:** the Fusion lab (A to B animation into section 4 as the before/after of fusion; its sweep chart replaces the family table, which went to a closed block), the Query-rewrite lab (into section 5), the Chunking workbench (into a closed interactive block in section 1, because its long paper text is exploration, not reading). The three lab tabs are gone.
+- **No autoplay:** the fixed-vs-recursive animation no longer starts on a mode switch; `21_js_rd_common.js` is the skill template.
+- **Real images:** none. This is a mechanism page; the only candidate (Lost in the Middle's U-curve figure) is replaced by the page's own measured position chart.
