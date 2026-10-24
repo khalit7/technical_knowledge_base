@@ -287,5 +287,44 @@ def w_ok(vw):
     return True
 ok(all(w_ok(r['vw']) for r in D['ivFull']['runs']), 'Figure 5.4: weighted importance sampling is exactly 1 after the first consistent episode, in all ten runs')
 
+# ---------------- 4. Baird's counterexample with one leg of the deadly triad off at a time (section 7) ----------------
+def baird_x(s):
+    x = [0.0] * 8
+    if s < 6: x[s] = 2.0; x[7] = 1.0
+    else: x[6] = 1.0; x[7] = 2.0
+    return x
+def triad_run(fa, tg, dist, g=0.99, al=0.01, N=1000):
+    lin = fa != 'table'
+    X = [baird_x(s) if lin else [1.0 if i == s else 0.0 for i in range(7)] for s in range(7)]
+    w = [1.0] * 6 + [10.0, 1.0] if lin else [3.0] * 6 + [12.0]
+    S = [6] if dist == 'on' else list(range(7)); wt = 1 / len(S)
+    def val():
+        out = []
+        for x in X:
+            s = 0
+            for i in range(len(x)): s += x[i] * w[i]
+            out.append(s)
+        return out
+    v = val(); vmax = [max(abs(a) for a in v)]
+    for k in range(N):
+        dw = [0.0] * len(w)
+        for s in S:
+            d = (0 if tg == 'mc' else g * v[6]) - v[s]
+            for i in range(len(w)): dw[i] += wt * d * X[s][i]
+        for i in range(len(w)): w[i] += al * dw[i]
+        v = val(); vmax.append(max(abs(a) for a in v))
+    return w, vmax
+allok = True
+for k, js in D['triad'].items():
+    w, vm = triad_run(*k.split('|'))
+    allok = allok and close(w, js['w'], 1e-12) and close(vm[::50], js['vmax'], 1e-12)
+ok(allok, 'deadly triad: all 8 switch settings, final weights and largest |value| every 50 of 1,000 sweeps, Python against the page (1e-12)')
+w, vm = triad_run('linear', 'td', 'off')
+ok(w[7] > 300 and min(w[:6]) > 100 and w[6] < 10 and max(w[:6]) - min(w[:6]) < 1e-9, 'Figure 11.2 (right) shape: w8 %.2f > 300, w1..w6 %.2f > 100 and equal, w7 %.2f < 10; page prose 335, 114, 6.85' % (w[7], w[0], w[6]))
+ok(round(w[7]) == 335 and round(w[0]) == 114 and abs(w[6] - 6.85) < 0.005, 'page prose numbers match: 335, 114, 6.85')
+grow = {k: v['vmax'][-1] > v['vmax'][0] for k, v in D['triad'].items()}
+ok(grow['linear|td|off'] and sum(grow.values()) == 1, 'only the setting with all three legs grows (%s)' % ', '.join(k for k, v in grow.items() if v))
+ok(abs((1 + 0.1 * (2 * 1 - 1)) * 10 - 11) < 1e-12 and abs((1.1 ** 2) * 10 - 12.1) < 1e-9, 'w, 2w example: factor 1 + alpha(2 gamma - 1) = 1.1 at alpha 0.1, gamma 1: 10, 11, 12.1')
+
 print('\n' + ('recompute: %d FAILED' % len(fails) if fails else 'recompute: all checks pass'))
 raise SystemExit(1 if fails else 0)

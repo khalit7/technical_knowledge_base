@@ -19,3 +19,14 @@ Question the page makes measurable: what stands in for DP's expectation (MC retu
 | MF-13 | Quiz / flashcards like the old embed | Reading | n/a | n/a | kept as a collapsible "Check yourself" list (content carried, no scoring UI) |
 
 What the methodology lacked: guidance for a figure whose free parameter the book leaves unstated (number of actions in B, cliff alpha): expose it as a control, label the default as assumed with a source for the choice, and test only claims that hold across it.
+
+## 2026-10-24 rebuild
+| # | Idea | Placement | Decision |
+|---|---|---|---|
+| MF-2 to MF-6 | the five experiment tabs | Reading, inline beside their sections (1, 2, 4, 5, 6) | moved: each explains one mechanism |
+| MF-10 | Which method decision tree | Reading | removed: the section 8 table says the same in one screen |
+| MF-13 | Check yourself list | Reading | removed: no quizzes under the teaching contract; every answer restated a section |
+| MF-14 | Hero: the two choices of a target (how far it looks along one trajectory; which next action it trusts) | Reading, top | built, static annotated diagram |
+| MF-15 | Baird's counterexample with the three legs of the deadly triad as switches, largest |value| over 1,000 expected sweeps on a log axis | Reading, section 7 | built; defaults reproduce Figure 11.2 (right) in shape (w8 335, w1..w6 114, w7 6.85), checked by recompute.py |
+| MF-16 | The w, 2w two-state divergence animated | section 7 | rejected: Value-based deep RL already draws it; the numbers (10, 11, 12.1) are one sentence here |
+| MF-17 | A paper or book figure as an image | any | rejected: every canonical figure is rerun live; no physical object to photograph |

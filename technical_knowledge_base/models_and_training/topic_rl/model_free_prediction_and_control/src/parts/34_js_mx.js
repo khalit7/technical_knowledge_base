@@ -60,6 +60,6 @@ function init(){if(inited)return;inited=true;initAnim();
   $('mx-nb').onchange=e=>{S.nb=+e.target.value;rec();A.i=Math.min(A.i,EP);A.show();run()};
   $('mx-runs').onchange=e=>{S.runs=+e.target.value;run()};$('mx-seed').onchange=e=>{S.seed=+e.target.value;rec();A.show();run()};
   U.watch(sec,()=>{if(!S.res[key()]&&!job)run()})}
-U.onRender('t-mx',()=>{init();drawEm();A.show();plot()});
+U.onRender('t-read',()=>{init();drawEm();A.show();plot()});
 window.LB_TEST=Object.assign(window.LB_TEST||{},{mx:()=>({A,S,busy:()=>!!job})});
 })();

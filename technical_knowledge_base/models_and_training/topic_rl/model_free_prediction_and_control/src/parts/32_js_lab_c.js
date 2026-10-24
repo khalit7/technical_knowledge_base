@@ -67,7 +67,7 @@ let inited=false;
 function init(){if(inited)return;inited=true;initAnim();U.seg($('lb-rw-mode'),b=>{S.mode=b.dataset.m;run()});
   $('lb-rw-runs').onchange=e=>{S.runs=+e.target.value;run()};$('lb-rw-seed').onchange=e=>{S.seed=+e.target.value;run()};
   U.watch(sec,()=>{if(!S.res[key()]&&!job)run()})}
-U.onRender('t-rw',()=>{init();A.show();plot()});
+U.onRender('t-read',()=>{init();A.show();plot()});
 
 // =================== Experiment 3: n-step TD, the lambda-return and TD(lambda) on the 19-state walk ===================
 const sec3=$('lb-nl'),T3={n:4,l:0.8,ep:0,a:0.4,tr:null,fam:'nstep',runs:100,seed:1,res:{},on:{},ov:true,zm:false};
@@ -133,6 +133,6 @@ function init3(){if(in3)return;in3=true;initAnim3();
   U.seg($('lb-nl-fam'),b=>{T3.fam=b.dataset.f;run3()});$('lb-nl-ov').onchange=e=>{T3.ov=e.target.checked;run3()};$('lb-nl-zm').onchange=e=>{T3.zm=e.target.checked;plot3()};
   $('lb-nl-runs').onchange=e=>{T3.runs=+e.target.value;run3()};$('lb-nl-seed').onchange=e=>{T3.seed=+e.target.value;run3()};
   U.watch(sec3,()=>{if(!T3.res[key3(T3.fam)]&&!job3)run3()})}
-U.onRender('t-nl',()=>{init3();A3.show();plot3()});
+U.onRender('t-read',()=>{init3();A3.show();plot3()});
 window.LB_TEST=Object.assign(window.LB_TEST||{},{rw:()=>({A,S}),nl:()=>({A3,T3,busy:()=>!!job3||queue.length>0}),rwBusy:()=>!!job});
 })();

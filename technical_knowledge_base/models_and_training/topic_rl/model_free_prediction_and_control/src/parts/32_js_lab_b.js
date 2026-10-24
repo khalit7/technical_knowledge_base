@@ -52,7 +52,7 @@ U.chart=function(el,o){const W=Math.max(260,Math.round(el.clientWidth||300)),H=o
 U.legend=function(el,items,on,cb){el.innerHTML=items.map(it=>'<button data-k="'+it.k+'" class="'+(on[it.k]===false?'off':'')+'" aria-pressed="'+(on[it.k]!==false)+'"><i class="'+(it.dash?'d':'')+'" style="border-color:'+it.c+'"></i>'+it.lab+'</button>').join('');
   el.querySelectorAll('button').forEach(b=>b.onclick=()=>{const k=b.dataset.k;on[k]=on[k]===false;cb()})};
 U.checks=function(el,rows){el.innerHTML=rows.map(r=>'<li><span class="'+(r[0]===true?'lb-ok':r[0]===false?'lb-no':'lb-in')+'">'+(r[0]===true?'✓':r[0]===false?'✗':'•')+'</span><span>'+r[1]+'</span></li>').join('')};
-// transport: play, back, step, speed, frame counter and scrubber; animates only while its section is on screen and the tab is visible
+// transport: play, back, step, speed, frame counter and scrubber; animates only while its section is on screen and the tab is visible, and never by itself
 U.anim=function(o){const tr=$(o.p+'-tr'),sec=o.sec;
   tr.innerHTML='<button class="lb-pl" id="'+o.p+'-play" aria-pressed="false">Play</button><button id="'+o.p+'-back" aria-label="Step back">&#9664; Back</button><button id="'+o.p+'-fwd" aria-label="Step forward">Step &#9654;</button>'+
     '<label>Speed <select id="'+o.p+'-spd">'+o.speeds.map((s,i)=>'<option value="'+i+'"'+(i===(o.def||0)?' selected':'')+'>'+s[0]+'</option>').join('')+'</select></label><span class="fn" id="'+o.p+'-fn"></span>';
@@ -70,7 +70,7 @@ U.anim=function(o){const tr=$(o.p+'-tr'),sec=o.sec;
   $(o.p+'-back').onclick=()=>{setPlay(false);A.i=o.back?o.back(A.i):Math.max(0,A.i-1);show()};
   scr.oninput=()=>{setPlay(false);A.i=o.fromScrub?o.fromScrub(+scr.value):+scr.value;show()};
   A.show=show;A.setPlay=setPlay;A.kick=kick;A.set=i=>{A.i=i;show()};
-  if(sec)U.watch(sec,()=>{if(!A.started){A.started=true;if(!U.RM&&o.autoplay!==false)setPlay(true)}kick()});
+  if(sec)U.watch(sec,()=>kick());// never autoplays: it waits until the reader presses Play or steps
   return A};
 U.seg=function(el,cb){el.querySelectorAll('button').forEach(b=>b.onclick=()=>{el.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',String(x===b))});cb(b)})};
 
