@@ -63,6 +63,6 @@
   $('cu-ldd').textContent=C[key('ldd rt_probe')];
   $('cu-cubins').textContent=C[key('each cubin')];
   $('cu-ptx').textContent=C[key('the first lines of the PTX')];
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-cuda']=[render];
+  const det=$('cu-det');if(det)det.addEventListener('toggle',()=>{if(det.open)render()});
   render();
 })();

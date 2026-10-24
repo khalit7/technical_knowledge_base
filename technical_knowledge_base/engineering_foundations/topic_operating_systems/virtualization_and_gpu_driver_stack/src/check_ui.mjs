@@ -23,6 +23,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const startTab = await p.evaluate(() => [...document.querySelectorAll('.tab')].find(t => !t.hidden).id);
   if (startTab !== 't-read') console.log(scheme, 'opened on', startTab, '(remembered in localStorage)');
   await p.click('button[data-t=t-read]'); await sleep(100);
+  // nothing moves before the reader acts: scroll every animation into view, wait, and confirm each is still on step 0 and paused
+  for (const c of ['pw-card', 'wk-card', 'vq-card', 'fc-card']) { await p.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await sleep(600) }
+  const moving = await p.evaluate(() => ['pw-ctl', 'wk-ctl', 'vq-ctl', 'fc-ctl'].filter(c => document.getElementById(c + '-s').value !== '0' || !/Play/.test(document.getElementById(c + '-p').textContent)));
+  if (moving.length) errs.push('autoplay: ' + moving.join(', '));
+  await p.evaluate(() => scrollTo(0, 0));
   const check = async (tab, label) => {
     const t = await p.$eval('#' + tab, e => e.innerText);
     for (const w of ['NaN', 'undefined', 'Infinity', '[object']) if (t.includes(w)) errs.push(label + ': text contains ' + w + ' near "' + t.slice(Math.max(0, t.indexOf(w) - 60), t.indexOf(w) + 20).replace(/\n/g, ' ') + '"');
@@ -70,8 +75,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.$$eval('#t-read details', ds => ds.forEach(d => d.open = true));
   await check('t-read', scheme + ' read after drills');
   await p.screenshot({ path: `${out}/${scheme}_${width}_read.png`, fullPage: true });
-  // One CUDA call
-  await p.click('button[data-t=t-cuda]'); await sleep(200);
+  // One CUDA call (closed block in section 9)
+  await p.$eval('#cu-det', d => { d.open = true }); await sleep(100);
   const nc = await p.$$eval('#cu-case button', bs => bs.length);
   for (let i = 0; i < nc; i++) {
     await p.$$eval('#cu-case button', (bs, i) => bs[i].click(), i);
@@ -81,22 +86,20 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     for (let k = 0; k < ns; k++) await p.$$eval('#cu-steps button', (bs, k) => bs[k].click(), k);
     const miss = await p.evaluate(() => document.querySelector('#cu-raw .hl') ? '' : document.querySelector('#cu-case .on').textContent);
     if (miss) errs.push('cuda tab: last step of ' + miss + ' highlights no line');
-    await check('t-cuda', scheme + ' cuda case ' + i);
-    if (i === 2) await p.$eval('#t-cuda', e => e.scrollIntoView());
+    await check('t-read', scheme + ' cuda case ' + i);
   }
   await p.$$eval('#cu-case button', bs => bs[2].click()); await p.$$eval('#cu-steps button', bs => bs[8].click());
-  await shoot(p, '#t-cuda', `${out}/${scheme}_${width}_cuda.png`);
-  // Sharing a GPU
-  await p.click('button[data-t=t-share]'); await sleep(200);
+  await shoot(p, '#cu-box', `${out}/${scheme}_${width}_cuda.png`);
+  // MIG placement (section 8)
   const np = await p.$$eval('#mg-pre button', bs => bs.length);
-  for (let i = 0; i < np; i++) { await p.$$eval('#mg-pre button', (bs, i) => bs[i].click(), i); await check('t-share', scheme + ' preset ' + i) }
+  for (let i = 0; i < np; i++) { await p.$$eval('#mg-pre button', (bs, i) => bs[i].click(), i); await check('t-read', scheme + ' preset ' + i) }
   await p.$$eval('#mg-gpu .inst', is => is.forEach(x => x.click()));
   while (await p.$('#mg-gpu .inst')) await p.$eval('#mg-gpu .inst', e => e.click());
   const nprof = await p.$$eval('#mg-prof button', bs => bs.length);
-  for (let i = 0; i < nprof; i++) { await p.$$eval('#mg-prof button', (bs, i) => bs[i].click(), i); if (await p.$('#mg-gpu .cand')) await p.$eval('#mg-gpu .cand', e => e.click()); await check('t-share', scheme + ' profile ' + i) }
+  for (let i = 0; i < nprof; i++) { await p.$$eval('#mg-prof button', (bs, i) => bs[i].click(), i); if (await p.$('#mg-gpu .cand')) await p.$eval('#mg-gpu .cand', e => e.click()); await check('t-read', scheme + ' profile ' + i) }
   await p.$$eval('#mg-pre button', bs => bs[4].click()); await p.$$eval('#mg-prof button', bs => bs[4].click());
   const msg = await p.$eval('#mg-msg', e => e.textContent); if (!/No valid position/.test(msg)) errs.push('share: failing-order example did not block 3g.20gb: ' + msg);
-  await shoot(p, '#t-share', `${out}/${scheme}_${width}_share.png`);
+  await shoot(p, '#mg-box', `${out}/${scheme}_${width}_share.png`);
   await p.click('button[data-t=t-more]'); await sleep(150); await check('t-more', scheme + ' more');
   console.log(scheme, width, 'version checker combinations', vc[0], 'errors', errs.length ? errs : 'none');
   if (errs.length) bad = 1;

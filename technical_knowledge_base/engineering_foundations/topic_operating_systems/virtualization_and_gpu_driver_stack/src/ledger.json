@@ -1,0 +1,4154 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Virtualization and the GPU driver stack: hypervisors, IOMMU, MIG, one CUDA call down Virtualization and the GPU driver stack: hypervisors, IOMMU, MIG, one CUDA call down What sits between your training code and the hardware when the hardware is not yours alone: the hypervisor that runs a whole operating system as a guest, the IOMMU that lets a guest own a GPU safely, the ways one GPU is shared, and the path of one CUDA call from Python down to the GPU through the driver.",
+  "label": "core",
+  "key": "virtualization and the gpu driver stack: hypervisors,",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Taught from zero to source-code depth, measured inside the virtual machine this knowledge base runs in and against the hypervisor underneath it.",
+  "label": "core",
+  "key": "this knowledge base runs in and against",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "A child page of Topic: operating-systems .",
+  "label": "core",
+  "key": "of topic: operating-systems .",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026.",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading One CUDA call Sharing a GPU Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab names; the page now has two tabs"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "One screen 1 Why VMs 2 VM exits 3 This VM 4 Memory 5 Interrupts 6 virtio 7 IOMMU 8 Sharing a GPU 9 One CUDA call 10 Versions 11 GPU memory Mistakes Interview",
+  "label": "core",
+  "key": "4 memory 5 interrupts 6 virtio 7",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "In one screen Almost every GPU you will train on in a cloud is reached through two extra layers that a laptop does not have.",
+  "label": "core",
+  "key": "two stacks, one rule",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "A hypervisor runs your whole operating system as a guest , so your \"machine\" is a virtual machine sharing a physical one; and a GPU driver stack turns each CUDA call into commands the GPU fetches from memory.",
+  "label": "core",
+  "key": "runs whole operating systems as",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Both layers are mostly invisible, until a wake-up costs ten times what it should, a container says \"no CUDA-capable device\", or a new image dies with \"driver version is insufficient\".",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the one-screen table lists the failures"
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "This page takes both layers apart, from zero.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The root page, Topic: operating-systems section 9, gave the intuition in one screen.",
+  "label": "depth",
+  "key": "section 9, gave the intuition in one",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "This page goes down to the code: the Linux kernel at the version that ran here (v5.10) and a current one (v6.12), the hypervisor that ran here (QEMU with Apple's Hypervisor.framework), NVIDIA's open kernel modules at 615.71.09, and the CUDA 13.4 runtime and user-mode driver run for real in a container with no GPU.",
+  "label": "depth",
+  "key": "this page goes down to the code:",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Each mechanism follows one pattern: problem, how it works, what it costs (measured where it can be), when it bites in ML, the command that shows it, the fix.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "method statement; the When it bites boxes remain"
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The virtualization stack this page ran on.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old caption; the hero figure carries it"
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Your process a container on the guest kernel; thinks it has 5 CPUs and 10 GB Guest kernel Linux 5.10, sees virtio devices, a GICv2 and a timer Hypervisor QEMU 5.2 on Apple Hypervisor.framework (a cloud: KVM or Nitro) Hardware M1 Pro: EL2 for the hypervisor, stage-2 page tables The GPU driver stack, one CUDA call down.",
+  "label": "core",
+  "key": "qemu 5.2 on apple",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Python, PyTorch y = x @ w : the dispatcher picks a cuBLAS routine CUDA runtime libcudart.so.13 , shipped with your wheel or image CUDA driver libcuda.so.1 , the user-mode driver, installed with the host's driver Kernel driver nvidia.ko , nvidia-uvm.ko : ioctls on /dev/nvidia* GPU fetches commands by DMA, through the IOMMU in a VM Mechanism What it costs here When it bites in ML Command that shows it VM exit : the guest stops, the hypervisor runs, the guest resumes measured 0.92 µs per exit on this laptop's hypervisor anything that traps often: interrupts, device registers, idle on a KVM host: perf kvm stat Cross-CPU wake-up in a VM measured 25.3 µs, against 2.00 µs on one CPU data-loader hand-offs, thread pools, NCCL proxy threads grep IPI /proc/interrupts Nested page walk derived up to 24 memory reads per TLB miss, against 4 large, random memory access in a VM perf stat -e dTLB-load-misses virtio disk and network measured 1 interrupt per request at queue depth 1, 0.11 at 32 data loading inside a VM grep virtio /proc/interrupts IOMMU and passthrough not run here : no IOMMU in this VM every cloud GPU VM; GPU peer-to-peer and RDMA ls /sys/kernel/iommu_groups Sharing one GPU : time slicing, MPS, MIG, vGPU source isolation differs completely inference and notebooks on shared GPUs nvidia-smi mig -lgi First CUDA call against the millionth measured the search for a driver, call by call; source launches need no system call slow start-up, \"no CUDA-capable device\" strace -f -e trace=openat,ioctl Driver against runtime version measured errors 35, 34 and 100 reproduced a new image on an old host nvidia-smi , torch.version.cuda Six things to remember A VM runs your code directly on the CPU and only stops it (a VM exit ) for the few things the hypervisor must see.",
+  "label": "core",
+  "key": "each layer: what it is, where it comes from",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Each exit cost about 0.92 µs here; virtualization is cheap until something exits thousands of times a second ( section 2 ).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 2"
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Interrupts are the expensive part.",
+  "label": "core",
+  "key": "are the expensive",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Waking a thread on another CPU took 12.7 times as long as on the same CPU in this VM, because the inter-processor interrupt and the sleeping virtual CPU both go through the hypervisor ( section 5 ; this answers the question the Scheduling and Concurrency pages left open).",
+  "label": "core",
+  "key": "a sleeping wake-up",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "A whole GPU in a VM is a real GPU handed to the guest through the IOMMU ( passthrough ), so CUDA itself runs at full speed; what differs is topology, peer-to-peer traffic and pinned memory ( section 7 ).",
+  "label": "core",
+  "key": "once set up, almost nothing on the data path",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Sharing a GPU is a choice of isolation: time slicing and MPS share memory and faults; MIG splits the hardware into up to seven isolated instances ( Sharing a GPU tab).",
+  "label": "core",
+  "key": "three ways to put jobs a and b",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Steady-state CUDA launches make no system call: the driver writes commands into memory and rings a doorbell register; the ioctls happen at start-up and for memory management ( section 9 , One CUDA call tab).",
+  "label": "core",
+  "key": "a launch is plain stores",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Two versions, two places: the runtime comes with your image, the driver with the host.",
+  "label": "core",
+  "key": "what a gpu container borrows from the host",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "A runtime newer than the driver's major family needs the compatibility package or a new driver ( section 10 ).",
+  "label": "core",
+  "key": "newer than the",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "How this page was measured.",
+  "label": "depth",
+  "key": "how this page was",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Linux runs: Docker Desktop's Linux VM on an Apple M1 Pro (Linux 5.10.104-linuxkit, arm64, 5 virtual CPUs, about 10 GB), October 2026, images kb-os-lab:1 (the root's lab image) and kb-os-virt:1 (the CUDA topic's kb-gpu-lab:1 : CUDA 13.4.2 toolkit for arm64, plus strace).",
+  "label": "depth",
+  "key": "linux runs: docker desktop's linux vm on",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Containers were not privileged; strace needed --cap-add SYS_PTRACE , and one CUDA case used --device-cgroup-rule 'c 195:* rwm' , both stated where used. macOS runs, labelled as contrasts: the hypervisor process that runs the VM, and a tiny VM of our own built on Apple's Hypervisor.framework.",
+  "label": "depth",
+  "key": "containers were not privileged; strace needed --cap-add",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "There is no GPU here: everything above the kernel driver was run for real; the kernel driver and the GPU are taught from NVIDIA's open source and documentation and tagged not run here .",
+  "label": "depth",
+  "key": "there is no gpu here: everything above",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Labels: measured ran here; source read from source or documentation.",
+  "label": "depth",
+  "key": "labels: measured ran here; source read from",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Timings on a shared laptop VM vary from run to run, so each is a median of three runs and the raw files show the spread.",
+  "label": "depth",
+  "key": "timings on a shared laptop vm vary",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Scripts and raw outputs: src/exp/ and src/raw/ in the repository.",
+  "label": "depth",
+  "key": "scripts and raw outputs: src/exp/ and src/raw/",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "OSTEP chapter map for this page OSTEP Here What this page adds Appendix B, Virtual Machine Monitors 1 to 4 hardware virtualization (EL2, VMX), KVM's API, VM exits measured, nested paging, the information gap measured as a slow wake-up 6 Limited Direct Execution 1 , 2 the same idea one level down: the guest kernel runs directly, the hypervisor keeps control through traps 19 TLBs, 20 Advanced Page Tables 4 two-dimensional page walks, VMIDs, huge pages in both stages 36 I/O Devices 6 , 7 , 9 virtqueues, DMA and the IOMMU, doorbells and command buffers on a GPU 26 to 28 Concurrency, Locks 5 why a sleeping lock's wake-up is dearer in a VM OSTEP is free at pages.cs.wisc.edu/~remzi/OSTEP ; Appendix B is vmm-intro.pdf .",
+  "label": "depth",
+  "key": "ostep here what this page adds appendix",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Read it alongside sections 1 to 4 here.",
+  "label": "depth",
+  "key": "read it alongside sections 1 to 4",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Why virtual machines, and what makes a CPU virtualizable Appendix B, 6 The problem.",
+  "label": "core",
+  "key": "and what makes a cpu virtualizable appendix",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "A cloud provider owns a big machine and wants to sell slices of it to strangers.",
+  "label": "core",
+  "key": "a cloud provider",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Each customer wants root, their own kernel version, their own drivers, and the certainty that the neighbour cannot read their memory or crash their kernel.",
+  "label": "core",
+  "key": "drivers, and the certainty that the neighbour",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "A container (the Containers and isolation page) cannot promise that: every container shares one kernel, so a kernel bug is everyone's bug.",
+  "label": "core",
+  "key": "cannot promise that: every container shares one",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "A virtual machine (VM) gives each customer a whole kernel of their own.",
+  "label": "core",
+  "key": "a virtual machine (vm) gives each customer",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "The program that makes this possible is the hypervisor (also called a virtual machine monitor , VMM): it does for operating systems what an operating system does for processes.",
+  "label": "core",
+  "key": "does for operating systems what an operating",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "How it works: limited direct execution, one level down.",
+  "label": "core",
+  "key": "how it works: limited direct execution, one",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "The root page explained how a kernel runs your program directly on the CPU and only takes control back on a system call, a fault or a timer interrupt (OSTEP chapter 6).",
+  "label": "core",
+  "key": "a kernel runs your program directly on",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "A hypervisor does the same to a whole kernel: the guest kernel's instructions run directly on the real CPU, at full speed, and the hypervisor only takes over when the guest does something it must not do alone, such as touch a device or reprogram the interrupt controller.",
+  "label": "core",
+  "key": "a hypervisor does the same to a",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "That hand-over is a trap ; in a VM it is called a VM exit .",
+  "label": "core",
+  "key": "that hand-over is a trap ; in",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "OSTEP's appendix calls the key method extending \"the notion of limited direct execution\" so the VMM can \"interpose on key events (such as traps)\" ( OSTEP Appendix B ).",
+  "label": "core",
+  "key": "extending \"the notion of limited direct execution\"",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Privilege levels on this laptop's CPU (arm64), and the x86 equivalent.",
+  "label": "core",
+  "key": "on this laptop's",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Code at a level can only be stopped by the level below it in this list. arm64 Runs x86-64 equivalent EL0 your process (Python, the training job) ring 3 EL1 the (guest) kernel ring 0, VMX non-root mode EL2 the hypervisor (KVM's core, Apple's Hypervisor.framework) VMX root mode (Intel VT-x), or SVM host mode (AMD-V) EL3 firmware (secure monitor) SMM, roughly Which instructions must trap.",
+  "label": "core",
+  "key": "runs x86-64 equivalent el0 your process (python,",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "In 1974 Popek and Goldberg stated the condition (Theorem 1, paraphrased): a VMM can be built for a machine if every sensitive instruction (one that reads or changes the machine's control state) is also privileged (traps when run outside the most privileged mode) ( Popek and Goldberg, CACM 1974 ).",
+  "label": "core",
+  "key": "1, paraphrased): a vmm can be built",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Then the guest kernel can run deprivileged, and every sensitive thing it does traps to the hypervisor, which emulates it on the guest's virtual state.",
+  "label": "core",
+  "key": "trap and emulate",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "This is trap and emulate . x86 broke the rule.",
+  "label": "core",
+  "key": "trap and emulate . x86 broke the",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Robin and Irvine examined the Pentium's instruction set in 2000 and \"found that seventeen instructions violate\" the requirement, for example POPF , which in user mode silently ignores a change to the interrupt flag instead of trapping, and SGDT / SIDT , which reveal where the real descriptor tables are ( Robin and Irvine, USENIX Security 2000 ).",
+  "label": "depth",
+  "key": "robin and irvine examined the pentium's instruction",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "A guest kernel that executes POPF thinking it disabled interrupts would be wrong, and the hypervisor would never know.",
+  "label": "depth",
+  "key": "a guest kernel that executes popf thinking",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Three answers followed: Binary translation VMware's approach: scan the guest kernel's code before it runs and rewrite the problem instructions into safe sequences.",
+  "label": "depth",
+  "key": "the guest kernel's code before it runs",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Works on any x86; complex.",
+  "label": "core",
+  "key": "any x86; complex.",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Paravirtualization Xen's approach: change the guest kernel so it calls the hypervisor directly (a hypercall ) instead of executing sensitive instructions.",
+  "label": "core",
+  "key": "the hypervisor directly (a hypercall )",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Fast; needs a modified guest.",
+  "label": "core",
+  "key": "fast; needs a modified guest.",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "OSTEP: such a system \"can be made to be nearly as efficient a system without a VMM\".",
+  "label": "depth",
+  "key": "such a system \"can be made to",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Hardware support Intel VT-x and AMD-V added a new mode for the hypervisor (VMX root) and made the guest's sensitive instructions exit to it; ARM added EL2.",
+  "label": "core",
+  "key": "hardware support intel vt-x and amd-v added",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Every cloud uses this now, plus paravirtual devices (section 6).",
+  "label": "core",
+  "key": "plus paravirtual devices (section 6).",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Who is the hypervisor?",
+  "label": "core",
+  "key": "who is the hypervisor?",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "In a type 1 (bare-metal) design the hypervisor is the thing that boots (Xen, VMware ESXi).",
+  "label": "core",
+  "key": "boots (xen, vmware esxi).",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "In a type 2 (hosted) design it is a program on an ordinary OS: here, QEMU running on macOS and asking the macOS kernel, through Hypervisor.framework, to enter the guest (section 3).",
+  "label": "core",
+  "key": "asking the macos kernel, through hypervisor.framework, to",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Linux's KVM blurs the two: a kernel module turns Linux itself into the hypervisor, and a user-space program (QEMU, Firecracker, cloud-hypervisor) provides the virtual devices.",
+  "label": "core",
+  "key": "linux's kvm blurs the two: a kernel",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "AWS's Nitro System uses \"a custom-developed, minimized hypervisor based on KVM\" with device work moved onto dedicated cards ( AWS Nitro whitepaper ).",
+  "label": "core",
+  "key": "aws's nitro system uses \"a custom-developed, minimized",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Inside a hardware-virtualized VM, which loop slows down more against bare metal: a million getpid() system calls, or a million 4 KiB disk reads?",
+  "label": "core",
+  "key": "inside a hardware-virtualized vm, which loop slows",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "The system calls: the hypervisor must handle each one The disk reads Both the same A system call goes from EL0 to the guest kernel at EL1 without involving the hypervisor at all: hardware virtualization exists so that this path does not exit.",
+  "label": "core",
+  "key": "the system calls: the hypervisor must handle",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "A disk read touches a (virtual) device: the guest writes a device register to say \"go\", which exits to the hypervisor, and the completion arrives as an interrupt the hypervisor injects.",
+  "label": "core",
+  "key": "a disk read touches a (virtual) device:",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "1. why virtual machines, and what makes a cpu virtualizable",
+  "text": "Sections 2, 5 and 6 measure those exits.",
+  "label": "core",
+  "key": "sections 2, 5 and 6 measure those",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "A VM exit, measured Appendix B What an exit is.",
+  "label": "core",
+  "key": "a vm exit, measured appendix b what",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "When the guest does something the hypervisor asked to see, the CPU stops the guest, saves its registers, switches to the hypervisor's privilege level and jumps to the hypervisor's handler with a syndrome describing why (on arm64 the exception class, EC ; on x86 the exit reason).",
+  "label": "core",
+  "key": "when the guest does something the hypervisor",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "The handler emulates the effect, then resumes the guest.",
+  "label": "core",
+  "key": "the handler emulates the",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "Everything a guest does is either free (runs directly) or costs one of these round trips.",
+  "label": "core",
+  "key": "everything a guest does is either free",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "The hypervisor's API, as a program.",
+  "label": "depth",
+  "key": "a minimal kvm monitor",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "KVM exposes all of this to an ordinary Linux process through one device file.",
+  "label": "depth",
+  "key": "kvm exposes all of this to an",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "The shape of every VMM (QEMU, Firecracker) is this loop; LWN's Using the KVM API builds a complete one in about 100 lines. a minimal KVM monitor (C; the calls of LWN's example; not run here : this VM has no /dev/kvm) int kvm = open( \"/dev/kvm\" , O_RDWR); int vm = ioctl(kvm, KVM_CREATE_VM, 0 ); // a VM is a file descriptor void *mem = mmap( NULL , 0x1000 , PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, - 1 , 0 ); // guest \"physical\" memory is ordinary memory of this process struct kvm_userspace_memory_region r = { .guest_phys_addr = 0x1000 , .memory_size = 0x1000 , .userspace_addr = ( long )mem }; ioctl(vm, KVM_SET_USER_MEMORY_REGION, &r); int vcpu = ioctl(vm, KVM_CREATE_VCPU, 0 ); // a virtual CPU is another fd struct kvm_run *run = mmap( NULL , mmap_size, PROT_READ|PROT_WRITE, MAP_SHARED, vcpu, 0 ); for (;;) { ioctl(vcpu, KVM_RUN, 0 ); // enter the guest; returns on an exit switch (run->exit_reason) { case KVM_EXIT_IO: /* the guest touched an I/O port: emulate the device */ break ; case KVM_EXIT_MMIO: /* a device register in memory: emulate it */ break ; case KVM_EXIT_HLT: return 0 ; // the guest idled } } Kernel side, Linux v6.12: case KVM_RUN , KVM_CREATE_VCPU , KVM_SET_USER_MEMORY_REGION ; the exit codes KVM_EXIT_IO 2, KVM_EXIT_HLT 5, KVM_EXIT_MMIO 6 .",
+  "label": "depth",
+  "key": "the shape of every vmm (qemu, firecracker)",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "Only exits the kernel cannot finish itself come back to user space; many (timer, some interrupt work) are handled inside KVM.",
+  "label": "depth",
+  "key": "only exits the kernel cannot finish itself",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "Measured: our own tiny VM on this laptop.",
+  "label": "core",
+  "key": "measured: our own tiny vm on this",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "This VM cannot run KVM (no /dev/kvm : the M1 Pro has no nested virtualization, see section 3).",
+  "label": "core",
+  "key": "this vm cannot run kvm (no /dev/kvm",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "But macOS can be asked directly: Apple's Hypervisor.framework has the same shape (create a VM, map memory, create a vCPU, hv_vcpu_run until an exit). src/exp/hvf_exits.c builds a VM with one vCPU and two instructions of guest code, an instruction that exits and a branch back to it, and times one exit round trip out of the guest into our process and back, 20,000 times.",
+  "label": "core",
+  "key": "hypervisor.framework has the same shape (create a",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "Guest instruction Why it exits Exception class Median per exit measured hvc #0 a hypercall: the guest asks the hypervisor for something 0x16 0.88 µs str x1, [x2] to an address with no memory a device register ( MMIO ): the hypervisor must emulate the device 0x24 0.92 µs wfi \"wait for interrupt\": the guest kernel's idle instruction 0x01 0.88 µs (another host thread calls hv_vcpus_exit ) a forced exit, how a VMM interrupts a running vCPU canceled 1.08 µs from the call to the exit measured macOS host, not the VM: Apple M1 Pro, Hypervisor.framework, 3 runs of 20,000 exits (2,000 kicks), median of the three run medians; timer resolution 0.042 µs.",
+  "label": "core",
+  "key": "guest instruction why it exits exception class",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "About 0.9 µs per exit, whatever the reason, is the floor: the hardware switch to EL2, Apple's kernel code, the return to our user-space loop, and back.",
+  "label": "core",
+  "key": "about 0.9 µs per exit, whatever the",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "That is roughly three system calls' worth (the root measured a read system call at 0.316 µs).",
+  "label": "core",
+  "key": "that is roughly three system calls' worth",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "It is cheap once, and the whole design of a fast VM is about keeping it rare: the guest's own system calls, page faults and arithmetic never exit.",
+  "label": "core",
+  "key": "the guest's own system calls, page faults",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "What does exit in practice: Exit KVM on arm64 (v6.12) KVM on Intel (v6.12) Typical cause Idle ESR_ELx_EC_WFx EXIT_REASON_HLT a guest CPU has nothing to run Device register ESR_ELx_EC_DABT_LOW IO_INSTRUCTION, EPT_VIOLATION emulated devices, virtio \"kicks\" (section 6) System register ESR_ELx_EC_SYS64 MSR_WRITE, CPUID timers, interrupt controller, feature probing Hypercall ESR_ELx_EC_HVC64 VMCALL paravirtual services (steal time, power off) Interrupt for the host (IRQ exit) EXTERNAL_INTERRUPT a device of the host's fired while the guest ran When it bites in ML A GPU's work does not exit: with passthrough the GPU's registers are mapped straight into the guest, so writing a doorbell is an ordinary store (sections 7 and 9).",
+  "label": "depth",
+  "key": "exit kvm on arm64 (v6.12) kvm on",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "The CUDA kernel itself never notices the VM.",
+  "label": "core",
+  "key": "the cuda kernel itself never notices the",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "What exits is the CPU side: interrupts, idle and wake-ups (section 5), disk and network I/O (section 6).",
+  "label": "core",
+  "key": "what exits is the cpu side: interrupts,",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "2. a vm exit, measured",
+  "text": "A data loader with many threads handing work to each other is the part of a training job that pays. perf kvm stat live On a KVM host (not inside the guest): exits per second by reason, and the time each took.",
+  "label": "core",
+  "key": "a data loader with many threads handing",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "The VM you are running in, seen from both sides The problem.",
+  "label": "depth",
+  "key": "from both sides",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "Every number measured on these OS pages came from inside a virtual machine.",
+  "label": "core",
+  "key": "on these os pages came from inside",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "To read them correctly, and to recognise a VM when you are inside one on a cloud, you need to know what this one is made of.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "From the host side.",
+  "label": "core",
+  "key": "side.",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "On macOS, Docker Desktop 4.11 starts the Linux VM as an ordinary process: QEMU, accelerated by Hypervisor.framework.",
+  "label": "core",
+  "key": "on macos, docker desktop 4.11 starts the",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "Its command line (disk path, console pipe, MAC address and network token removed) says almost everything: measured ps -o args= of the VM process and qemu-system-aarch64 --version on the macOS host ( src/exp/host_qemu.sh ; raw: src/raw/host_qemu.txt ).",
+  "label": "depth",
+  "key": "command line (disk path, console pipe, mac",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "Argument Means -accel hvf run guest code directly on the CPU through Apple's Hypervisor.framework (the exits of section 2), instead of emulating every instruction in software -cpu host -smp 5 -m 10240 the guest sees this CPU's features, 5 virtual CPUs (each a thread of the QEMU process) and 10 GiB of \"physical\" memory, which is ordinary memory of the QEMU process -machine virt,highmem=off QEMU's generic arm64 board: a PL011 serial port, a PL031 clock, a PCIe host bridge, and, when no version is asked for and KVM is not in use, a GICv2 interrupt controller emulated by QEMU itself ( finalize_gic_version, hw/arm/virt.c L1802-1806, QEMU v6.2.0 ) -device virtio-blk-pci , virtio-net-device a paravirtual disk on PCI and a paravirtual network card on a memory-mapped bus (section 6) -kernel ... -append ... mitigations=off boot the linuxkit kernel directly, with CPU side-channel mitigations off From the guest side.",
+  "label": "depth",
+  "key": "argument means -accel hvf run guest code",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "Inside, nothing says \"you are in a VM\" in so many words (arm64 has no equivalent of x86's CPUID \"hypervisor\" bit), but the hardware gives it away: PCI devices: vendor:device, class, driver 1b36:0008 is QEMU's PCIe host bridge (Red Hat's vendor ID); 1af4:1001 is a virtio block device. virtio devices: device ID, vendor, driver Device 1 is network, 2 is block; vendor 0x554d4551 is the ASCII bytes \"QEMU\" read as a little-endian number. /proc/interrupts (the lines that matter) What the guest sees What it tells you GIC-0 on every line the interrupt controller driver is Linux's GICv2 driver ( irq-gic.c names its chip \"GIC-%d\" ); its CPU interface is a set of memory-mapped registers that QEMU emulates.",
+  "label": "depth",
+  "key": "pci devices: vendor:device, class, driver 1b36:0008 is",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "Section 5 shows why that matters.",
+  "label": "depth",
+  "key": "section 5 shows why that matters.",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "IPI0 , IPI1 counts in the millions inter-processor interrupts, the subject of section 5 virtio1-req.0 to .4 , one per CPU the virtual disk has one request queue per vCPU (multi-queue), each with its own interrupt (section 6) clock source , cpuidle driver none time comes from the CPU's own counter (virtualized by the hardware, no exit to read it); idle is a plain wfi , which exits steal time on every CPU this hypervisor offers no paravirtual steal clock, so the guest cannot see time stolen by macOS (section 5) no /dev/kvm , no /sys/class/iommu no nested virtualization (KVM inside this guest is impossible) and no virtual IOMMU (section 7 is from sources) measured src/exp/vmid.sh in an unprivileged container; raw: src/raw/vmid.txt , which also lists the kernel's virtualization config ( CONFIG_PARAVIRT=y , CONFIG_VIRTIO_BALLOON=y , CONFIG_KVM=y compiled in but unusable here).",
+  "label": "depth",
+  "key": "ipi0 , ipi1 counts in the millions",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "On a cloud instance, the same questions systemd-detect-virt names the hypervisor (kvm, amazon, microsoft, xen) from firmware tables; lspci -nn shows virtio or vendor-specific devices next to the passed-through GPU. grep -c ^processor /proc/cpuinfo counts vCPUs, which on many instance types are hyperthreads, not cores; lscpu shows threads per core. top 's st column is steal time where the hypervisor reports it; a large value means your vCPUs wait for the host.",
+  "label": "core",
+  "key": "systemd-detect-virt names the hypervisor (kvm, amazon, microsoft,",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "The QEMU process on the Mac has 5 vCPU threads.",
+  "label": "core",
+  "key": "the qemu process on the mac has",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "While your training job in this VM is idle, what are those threads doing on macOS?",
+  "label": "core",
+  "key": "while your training job in this vm",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "Spinning at 100% in the guest's idle loop Sleeping in the host kernel, waiting to be signalled Exited; QEMU recreates them on demand The guest's idle loop executes wfi , which exits to QEMU; QEMU then puts the vCPU thread to sleep in pselect until the guest's timer is due or another thread signals it ( hvf_wfi and hvf_wait_for_ipi, QEMU v6.2.0 ).",
+  "label": "core",
+  "key": "spinning at 100% in the guest's idle",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "That is OSTEP's \"information gap\" handled well: the VMM notices the guest went idle and gives the CPU back.",
+  "label": "core",
+  "key": "that is ostep's \"information gap\" handled well:",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "3. the vm you are running in, seen from both sides",
+  "text": "Section 5 shows what it costs to wake such a thread.",
+  "label": "core",
+  "key": "section 5 shows what it costs to",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Memory: two translations, and the 24-step page walk Appendix B, 19, 20 The problem.",
+  "label": "core",
+  "key": "memory: two translations, and the 24-step page",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "The guest kernel believes it owns \"physical\" memory starting at address 0, and builds page tables that map its processes' virtual addresses onto it.",
+  "label": "core",
+  "key": "the guest kernel believes it owns \"physical\"",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "But that memory is really part of the hypervisor's process (QEMU's 10 GiB here), scattered across the host's real memory.",
+  "label": "core",
+  "key": "that memory is really part of the",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "So every guest memory access needs two translations: guest virtual to guest physical (the guest's page tables), then guest physical to host physical (tables the hypervisor owns, which the guest cannot see or touch).",
+  "label": "core",
+  "key": "access needs two translations: guest virtual to",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "The Virtual memory page explained one translation, the TLB and huge pages; this section is the second layer.",
+  "label": "core",
+  "key": "translation, the tlb and huge pages; this",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "The old way: shadow page tables.",
+  "label": "core",
+  "key": "shadow page table",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Before hardware help, the hypervisor kept a shadow page table mapping guest virtual straight to host physical, installed it whenever the guest switched page tables, and write-protected the guest's own tables so that every change to them exited and could be mirrored ( OSTEP Appendix B ).",
+  "label": "core",
+  "key": "before hardware help, the hypervisor kept a",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Correct, but every page-table update and many page faults cost an exit.",
+  "label": "depth",
+  "key": "correct, but every page-table update and many",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "The new way: nested paging.",
+  "label": "core",
+  "key": "paging.",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "The CPU walks both sets of tables itself: Intel calls the second set EPT (extended page tables), AMD NPT, ARM stage 2 .",
+  "label": "core",
+  "key": "the cpu walks both sets",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "The guest edits its own page tables freely, with no exits.",
+  "label": "core",
+  "key": "the guest edits its",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "The TLB caches the final guest-virtual to host-physical result, tagged with a VM identifier (VMID on arm64, VPID on Intel) so switching VMs does not flush it.",
+  "label": "core",
+  "key": "tagged with a vm identifier (vmid on",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "The price is paid on a TLB miss: every pointer in the guest's walk is a guest-physical address that must itself be translated by a host walk.",
+  "label": "core",
+  "key": "tlb miss: every pointer in the guest's",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "One TLB miss, walked step by step: every box is one memory reference.",
+  "label": "core",
+  "key": "every box is one",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Native: 4 guest levels.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "caption of the walk restated by the stepper"
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Nested: each guest level's table address goes through the host's levels first.",
+  "label": "core",
+  "key": "goes through the",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Toggle the page sizes to see huge pages shorten both walks.",
+  "label": "core",
+  "key": "toggle the page sizes to see huge",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Native (no VM) VM, 4 KiB pages both stages VM, host 2 MiB pages VM, 2 MiB pages both stages derived from the structure of the walk: with g guest levels and h host levels, each of the g guest table pointers needs a host walk (h reads) plus the read of the guest entry itself, and the final data address needs one more host walk: g(h+1) + h = (g+1)(h+1) - 1 references.",
+  "label": "core",
+  "key": "native (no vm) vm, 4 kib pages",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Analysed in Bhargava et al., ASPLOS 2008 , which also proposed the page-walk caches that keep most misses far shorter in practice.",
+  "label": "core",
+  "key": "analysed in bhargava et al., asplos 2008",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Configuration Memory references on a full TLB miss No VM, 4-level page table 4 VM, 4 KiB pages in both stages (4 x 4 levels) 24 VM, host backs the guest with 2 MiB pages (4 x 3) 19 VM, host backs with 1 GiB pages (4 x 2) 14 VM, 2 MiB pages in both stages (3 x 3) 15 VM, five-level tables in both stages (5 x 5) 35 Cost measured here, inside the VM : the root page measured a TLB miss at 7.6 ns against 1.1 ns for a hit, and the Virtual memory page measured what huge pages save.",
+  "label": "core",
+  "key": "configuration memory references on a full tlb",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Both numbers already include the stage-2 walk; separating it needs the same test on bare metal, which this setup cannot run.",
+  "label": "core",
+  "key": "the stage-2 walk; separating it needs the",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Most misses are far shorter than the worst case because the walk's upper levels are cached.",
+  "label": "core",
+  "key": "most misses are far shorter than the",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "When it bites in ML Large, random memory access: embedding tables, a shuffled in-memory dataset, a hash join in a data pipeline.",
+  "label": "core",
+  "key": "when it bites in ml large, random",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Sequential tensor work hits the TLB and barely notices.",
+  "label": "core",
+  "key": "sequential tensor work hits the tlb and",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Huge pages help twice in a VM, and only if both layers use them: transparent huge pages in the guest, and huge pages backing the guest on the host (the cloud's choice, not yours).",
+  "label": "core",
+  "key": "huge pages help twice in a vm,",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Memory overcommit, and why GPU VMs cannot do it.",
+  "label": "core",
+  "key": "memory overcommit, and why gpu vms cannot",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "Because guest memory is just memory of the hypervisor's process, a host can promise its VMs more than it has: a balloon driver in the guest (this kernel has CONFIG_VIRTIO_BALLOON=y ) gives pages back on request, KSM merges identical pages across VMs ( KSM, kernel docs ), and the host can swap.",
+  "label": "core",
+  "key": "memory of the hypervisor's process, a host",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "A VM with a passed-through device cannot play these games: the device writes to guest memory by DMA at any moment, so every guest page it might touch must stay put.",
+  "label": "core",
+  "key": "a vm with a passed-through device cannot",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "VFIO pins the pages it maps for a device, charging them against the locked-memory limit ( vfio_pin_map_dma checks RLIMIT_MEMLOCK, Linux v6.12 ).",
+  "label": "core",
+  "key": "vfio pins the pages it maps for",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. memory: two translations, and the 24-step page walk",
+  "text": "QEMU, for one, maps every RAM region of the guest for the device as the region appears ( vfio_listener_region_add calls vfio_dma_map, hw/vfio/common.c L864 and L1063, QEMU v6.2.0 ), so a GPU VM's whole memory is pinned when it starts: one reason large GPU VMs take long to boot and cannot be overcommitted.",
+  "label": "depth",
+  "key": "maps every ram region of the guest",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Interrupts, and why a cross-CPU wake-up costs ten times more here Appendix B, 26 to 28 The question the sibling pages left open.",
+  "label": "core",
+  "key": "interrupts, and why a cross-cpu wake-up costs",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "The Scheduling page measured a context switch on one CPU at 1.30 to 1.56 µs but a hand-off between two CPUs at 25.6 to 51.4 µs in this VM; the Concurrency page found the same when a futex woke a thread on another CPU.",
+  "label": "core",
+  "key": "measured a context switch on one cpu",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Both suspected the hypervisor.",
+  "label": "core",
+  "key": "both suspected the hypervisor.",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "This section measures it and follows the path through the hypervisor's source.",
+  "label": "core",
+  "key": "this section measures it and follows the",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "An interrupt is a signal that makes a CPU stop what it is doing and run a handler.",
+  "label": "core",
+  "key": "one cpu interrupting another",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "An inter-processor interrupt ( IPI ) is one CPU interrupting another.",
+  "label": "core",
+  "key": "is one cpu interrupting another.",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Linux uses two kinds all the time: a reschedule IPI (\"a thread you should run just woke up\") and a function-call IPI (\"run this function on your CPU now\").",
+  "label": "core",
+  "key": "function-call ipis",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "When thread A on CPU 1 writes to a pipe and thread B, asleep on it, last ran on CPU 2, the kernel marks B runnable on CPU 2's run queue and calls resched_curr , which sends CPU 2 a reschedule IPI ( smp_send_reschedule ).",
+  "label": "core",
+  "key": "when thread a on cpu 1 writes",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "The only way to skip it is a CPU that is idle but polling a flag ( set_nr_if_polling ); an arm64 CPU idles in wfi ( __cpu_do_idle ), so it always needs the interrupt.",
+  "label": "depth",
+  "key": "the only way to skip it is",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Two processes pass one byte back and forth through two pipes (the root's method), and a third test uses membarrier() , a system call that sends a function-call IPI to every CPU running a thread of the caller and waits for each to answer ( membarrier.c L170 and L264, Linux v5.10 ): a direct way to time an IPI round trip from user space.",
+  "label": "core",
+  "key": "to every cpu running a thread of",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "After each test the program reads /proc/interrupts and divides the IPI counts it added by the number of operations.",
+  "label": "core",
+  "key": "after each test the program reads /proc/interrupts",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Test (CPUs of the VM) One way, µs measured IPIs per operation Pipe hand-off, both processes on CPU 1 2.00 0 (a context switch on one CPU) Pipe hand-off, CPUs 1 and 2, idle between hand-offs 25.3 1 reschedule IPI to each side per round trip Same, with a nice 19 busy loop keeping both CPUs awake 15.4 1 reschedule IPI to each side per round trip Spin on one shared cache line, CPUs 1 and 2 (nobody sleeps) 0.054 0 membarrier with no other thread running 0.54 per call 0 (just the system call) membarrier , one thread spinning on CPU 2 15.0 per call 1 function-call IPI to CPU 2 membarrier , threads spinning on CPUs 2, 3, 4 91.1 per call 1 function-call IPI to each measured src/exp/ipi.c in a container with --cpuset-cpus 1,2,3,4 ; medians of 3 runs (raw: src/raw/ipi.txt ).",
+  "label": "core",
+  "key": "test (cpus of the vm) one way,",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "The sibling pages' numbers came from other runs on the same VM at other times; the spread between runs is itself a property of a laptop VM shared with other work.",
+  "label": "core",
+  "key": "the sibling pages' numbers came from other",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Moving the byte between CPUs through memory costs 0.054 µs, so the cache-coherence hardware is fast.",
+  "label": "core",
+  "key": "moving the byte between cpus through memory",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "What is slow is the interrupt: one IPI round trip costs about 14.5 µs (membarrier with one peer, minus the bare system call), and a sleeping wake-up 12.7 times a same-CPU switch.",
+  "label": "core",
+  "key": "one ipi round trip costs about 14.5",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Three IPIs at once cost 30.2 µs each, 2.1 times what three independent ones would: they queue behind each other somewhere.",
+  "label": "core",
+  "key": "three ipis at once cost 30.2 µs",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Where the time goes: the path through this hypervisor.",
+  "label": "core",
+  "key": "where the time",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Section 3 found that this guest's interrupt controller is a GICv2, emulated by QEMU.",
+  "label": "depth",
+  "key": "interrupt controller is",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "On a GICv2, sending an IPI is a store to a distributor register ( gic_ipi_send_mask writes GIC_DIST_SOFTINT ), and taking one is a load from the CPU interface to acknowledge it and a store to end it ( gic_handle_irq: GIC_CPU_INTACK, GIC_CPU_EOI ).",
+  "label": "core",
+  "key": "gicv2, sending an ipi is a store",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "All three are device registers, so all three are VM exits into QEMU, which emulates the controller while holding its one global lock ( hv_vcpu_run between unlocking and relocking the global lock; MMIO exits become address_space_write, hvf.c L1119-1175, QEMU v6.2.0 ).",
+  "label": "core",
+  "key": "all three are device registers, so all",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "If the target vCPU was idle, its host thread is asleep in pselect and must be woken with a signal ( hvf_wait_for_ipi, hvf_kick_vcpu_thread ).",
+  "label": "core",
+  "key": "if the target vcpu was idle, its",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Step through it, against the same hand-off on bare hardware: This VM, target vCPU idle This VM, target vCPU busy Bare hardware Steps from the Linux v5.10 GICv2 driver and QEMU v6.2.0's HVF code (the upstream form of the patches in Docker's QEMU 5.2).",
+  "label": "core",
+  "key": "step through it, against the same hand-off",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Times: the totals are the one-way medians measured above; the per-step costs shown are measured separately on the macOS host (section 2's exits and kick, and a host thread woken from pselect the way QEMU does it).",
+  "label": "core",
+  "key": "times: the totals are the one-way medians",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Bare hardware: macOS's own pipe hand-off on the same laptop, cores chosen by macOS; bare-metal Linux was not measured here.",
+  "label": "core",
+  "key": "bare hardware: macos's own pipe hand-off on",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Piece of the path Cost measured on the macOS host One VM exit (MMIO), three per wake-up (send, acknowledge, end) 0.92 µs each, 2.7 µs for three Forcing a running vCPU out ( hv_vcpus_exit ) 1.08 µs Waking an idle host thread from pselect with a signal 29.2 µs median (the fastest tenth under 14.4 µs, the slowest tenth over 157.1 µs) The same pipe hand-off natively on macOS 1.80 µs one way So.",
+  "label": "depth",
+  "key": "piece of the path cost measured on",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "With the target idle, the wake-up is dominated by the host waking a sleeping vCPU thread: about 29 µs for an idle host thread on this laptop, the same size as the 25.3 µs measured inside (the host's idle cores sleep deeply, and a woken thread may land on a core that was asleep).",
+  "label": "core",
+  "key": "with the target idle, the wake-up is",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "With the target kept busy, no host thread sleeps, and 15.4 µs remain: exits and the kick explain 3.8 µs; the other 11.5 µs are QEMU's emulation of the interrupt controller and the guest's scheduler work, not measured separately.",
+  "label": "core",
+  "key": "and 15.4 µs remain: exits and the",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "The superlinear cost of three IPIs fits exits queuing on QEMU's single global lock (likely, not traced).",
+  "label": "core",
+  "key": "the superlinear cost of three ipis fits",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "A hand-off inside the VM was 14.0 times the same hand-off natively on the host.",
+  "label": "core",
+  "key": "a hand-off inside the vm was 14.0",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "How real hypervisors avoid most of this source Interrupt controller in the hypervisor's kernel, helped by hardware.",
+  "label": "core",
+  "key": "how real hypervisors avoid most of this",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "KVM emulates the interrupt controller in the kernel (no trip to user space), and with GICv3's virtual CPU interface (arm64), APICv and posted interrupts (Intel) or AVIC (AMD), the guest acknowledges and ends interrupts without exiting at all.",
+  "label": "depth",
+  "key": "in the kernel (no trip to user",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "KVM can poll briefly before putting an idle vCPU to sleep, \"at least saving us a trip through the scheduler, normally on the order of a few micro-seconds\" ( halt-polling.rst, Linux v6.12 ); and a guest can poll before halting, so that \"a remote vCPU [can] avoid sending an IPI\" and \"the VM-exit cost can be avoided\" ( guest-halt-polling.rst ).",
+  "label": "depth",
+  "key": "kvm can poll briefly before putting an",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Cloud instances that pin each vCPU to its own physical core never wait for the host scheduler; small or burstable instances share cores and do.",
+  "label": "depth",
+  "key": "instances that pin each vcpu to its",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Steal time: the part you cannot see here.",
+  "label": "core",
+  "key": "steal time",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "When the host runs something else while your vCPU wants to run, the guest only learns of it if the hypervisor reports it through a paravirtual clock ( steal time accounting, cputime.c L237-243 ; arm64 asks the hypervisor through a firmware call, has_pv_steal_clock ).",
+  "label": "core",
+  "key": "when the host runs something else while",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "This hypervisor does not, so the steal column here is 0 on every CPU even while macOS runs other programs.",
+  "label": "core",
+  "key": "so the steal column here is 0",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "KVM reports it; on a cloud VM, top 's st or the 8th number of the cpu lines in /proc/stat is the noisy neighbour made visible ( Scheduling page, CPU accounting).",
+  "label": "core",
+  "key": "kvm reports it; on a cloud vm,",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "When it bites in ML Fine-grained hand-offs between threads: DataLoader workers handing batches to the main process, a pin-memory thread, thread pools that sleep between tasks (OpenMP, Python's ThreadPoolExecutor ), the futex wake-ups of the Concurrency page.",
+  "label": "depth",
+  "key": "fine-grained hand-offs between threads: dataloader workers handing",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Each hand-off pays a cross-CPU wake-up; in a VM, each is 10 to 30 µs instead of 1 to 2.",
+  "label": "depth",
+  "key": "is 10 to 30 µs instead of",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Step-time jitter on small or shared instances: steal time and slow wake-ups show up as a long tail, not a mean shift.",
+  "label": "core",
+  "key": "step-time jitter on small or shared instances:",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "NCCL's proxy threads busy-poll while work is in flight, which sidesteps the wake-up cost at the price of a CPU each (the Concurrency page, NCCL threads).",
+  "label": "core",
+  "key": "nccl's proxy threads busy-poll while work is",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Fixes for the training job Hand off less often: bigger work items per queue message (a batch, not a sample), prefetch_factor so a worker is never woken for one item.",
+  "label": "depth",
+  "key": "hand off less often: bigger work items",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Keep communicating threads near each other and let short waits spin (glibc's adaptive mutexes, OpenMP's wait policy) where a core can be spared.",
+  "label": "depth",
+  "key": "keep communicating threads near each other and",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Prefer instance types with dedicated physical cores for latency-sensitive input pipelines; watch st . grep -E 'IPI0|IPI1|Rescheduling|Function call' /proc/interrupts Run it twice, a second apart: the difference is IPIs per second per CPU (x86 names them RES and CAL).",
+  "label": "depth",
+  "key": "prefer instance types with dedicated physical cores",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "The VM's vCPU 2 is running a busy loop when vCPU 1 sends it an IPI.",
+  "label": "core",
+  "key": "the vm's vcpu 2 is running a",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "Which of these does not happen in this VM? vCPU 1 exits when it writes the distributor register QEMU forces vCPU 2 out of the guest to inject the interrupt macOS wakes vCPU 2's host thread from pselect vCPU 2 exits to acknowledge the interrupt vCPU 2 is running, so its host thread is inside hv_vcpu_run , not asleep in pselect : QEMU forces it out with hv_vcpus_exit (about 1.1 µs).",
+  "label": "core",
+  "key": "which of these does not happen in",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "5. interrupts, and why a cross-cpu wake-up costs ten times more here",
+  "text": "That is why the busy case (15.4 µs) is faster than the idle one (25.3 µs): the idle case adds a host thread wake-up.",
+  "label": "core",
+  "key": "that is why the busy case (15.4",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "Devices without the exits: virtio 36 The problem.",
+  "label": "core",
+  "key": "devices without the exits: virtio 36 the",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "The simplest way to give a guest a disk is to emulate a real one: the guest's normal driver pokes the device's registers, and every poke exits to the hypervisor, which pretends to be the hardware.",
+  "label": "core",
+  "key": "registers, and every poke exits to the",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "A real disk controller's driver touches several registers per request, so one 4 KiB read costs several exits, plus an emulated interrupt with its own exits (section 5).",
+  "label": "core",
+  "key": "plus an emulated interrupt with its own",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "How virtio works. virtio is a device interface designed for VMs, where both sides know the other is software ( Russell, virtio, 2008 ; OASIS VIRTIO 1.2 specification ).",
+  "label": "core",
+  "key": "how virtio works. virtio is a device",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "The guest and the hypervisor share a virtqueue in guest memory, made of three parts ( include/uapi/linux/virtio_ring.h, Linux v5.10 ): Descriptor table entries of (guest address, length, flags, next): \"here is a buffer\" ( struct vring_desc ) Available ring written by the guest: \"these descriptor chains are ready for you\" ( struct vring_avail ) Used ring written by the device: \"I finished these, this many bytes\" ( struct vring_used ) A request is three descriptors (a header saying \"read sector N\", the data buffer, a status byte).",
+  "label": "core",
+  "key": "hypervisor share a virtqueue in guest memory,",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "The guest adds them, bumps the available index, and only then kicks the device: one register write, one exit.",
+  "label": "core",
+  "key": "the guest adds them, bumps the available",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "The device side reads the request straight out of guest memory (for QEMU, its own memory), does the I/O, writes the used ring, and injects one interrupt.",
+  "label": "core",
+  "key": "reads the request straight out of guest",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "Both directions can be suppressed: with the event index feature ( VIRTIO_RING_F_EVENT_IDX , bit 29), each side publishes \"notify me only when your index passes N\", so a busy queue needs neither a kick per request nor an interrupt per completion ( vring_need_event , used by virtqueue_kick_prepare_split ).",
+  "label": "core",
+  "key": "\"notify me only when your index passes",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "Both of this VM's virtio devices offer it (section 3's feature bits).",
+  "label": "depth",
+  "key": "both of this vm's virtio devices offer",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "Four 4 KiB reads through one virtqueue: one at a time, then posted together.",
+  "label": "core",
+  "key": "four 4 kib reads through one virtqueue:",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "Watch the exit and interrupt counters.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old caption"
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "One request at a time (queue depth 1) Four requests together An illustration of the protocol with four requests; the measured ratios are in the table below.",
+  "label": "core",
+  "key": "one request at a time (queue depth",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "4 KiB random O_DIRECT reads, 20,000 each Queue depth 1 Queue depth 32 Requests per second 15748 60975 ( 3.9 times) Time per request 63.5 µs (1 / rate) 508.6 µs mean completion latency (Little's law: 32 / rate = 524.8 µs) virtio-blk interrupts per request 1.0 0.11 : 8.9 completions per interrupt measured fio 3.33 with libaio on a 256 MiB file on the VM's virtio-blk disk, interrupts counted from the virtio1-req.* lines of /proc/interrupts and requests from /sys/block/vda/stat ( src/exp/virtio.sh ; raw: src/raw/virtio.txt ).",
+  "label": "core",
+  "key": "4 kib random o_direct reads, 20,000 each",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "The disk image is a file on the Mac's SSD that macOS caches, so absolute times are not a real NVMe drive's; the Storage page measured the disk side in depth.",
+  "label": "core",
+  "key": "the disk image is a file on",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "At queue depth 1, every request pays its own kick and its own interrupt, each with its exits; at depth 32, the event index lets one interrupt report about nine completions and the rate nearly quadruples.",
+  "label": "core",
+  "key": "at queue depth 1, every request pays",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "This is the I/O version of section 5's lesson: in a VM, notifications are the expensive part, and batching is how you buy them back.",
+  "label": "core",
+  "key": "this is the i/o version of section",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "Device in QEMU (here) The kick exits to QEMU in user space, which does the I/O with ordinary system calls on the disk image. vhost The device's data path moves into the host kernel ( vhost-net ; this kernel builds it as a module, CONFIG_VHOST_NET=m ): the kick wakes a kernel thread, no trip to QEMU. vhost-user The data path runs in another user-space process polling the rings (DPDK for networks, SPDK for storage): no notifications at all while busy. vDPA, passthrough The NIC itself implements virtqueues (vDPA), or the guest gets a real device or a slice of one (sections 7, 8): the hypervisor leaves the data path.",
+  "label": "core",
+  "key": "device in qemu (here) the kick exits",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "When it bites in ML Small random reads from a virtual disk at queue depth 1 (a dataset of millions of small files read one at a time) pay the notification costs on every file.",
+  "label": "core",
+  "key": "when it bites in ml small random",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "Shards read sequentially with several outstanding requests do not.",
+  "label": "core",
+  "key": "shards read sequentially with several outstanding requests",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "6. devices without the exits: virtio",
+  "text": "The network of a cloud VM is a virtio or vendor paravirtual NIC unless RDMA NICs are passed through: the data path for checkpoints to object storage, not for NCCL on GPU clusters (section 7). grep virtio /proc/interrupts; cat /sys/block/vda/queue/scheduler",
+  "label": "core",
+  "key": "the network of a cloud vm is",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "The IOMMU and device passthrough: giving a VM a real GPU 36 not run here: this VM has no IOMMU and no device to pass through; taught from the kernel's VFIO documentation and source, and NVIDIA's NCCL guide.",
+  "label": "core",
+  "key": "the iommu and device passthrough: giving a",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "The problem. virtio is fast enough for disks and ordinary networks, but a GPU cannot be emulated at any useful speed: its driver talks to thousands of registers, and its whole point is raw throughput.",
+  "label": "core",
+  "key": "a gpu cannot be emulated at any",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "The fastest answer is to give the guest the real device.",
+  "label": "core",
+  "key": "device.",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "But a device writes to memory by DMA (direct memory access: the device itself reads and writes RAM, without the CPU), using physical addresses.",
+  "label": "core",
+  "key": "but a device writes to memory by",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "A guest driver programs the GPU with guest-physical addresses, which are wrong on the host; worse, a malicious guest could program it to write anywhere in the host's memory.",
+  "label": "core",
+  "key": "a guest driver programs the gpu with",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "How it works: an MMU for devices.",
+  "label": "core",
+  "key": "how it works: an mmu for devices.",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "The IOMMU (Intel VT-d, AMD-Vi, ARM SMMU) sits between devices and memory and translates every DMA address through page tables of its own, one set per device domain.",
+  "label": "core",
+  "key": "the iommu (intel vt-d, amd-vi, arm smmu)",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "The hypervisor fills them so that the device's addresses are the guest's physical addresses and map to exactly the host pages backing that guest, and nothing else.",
+  "label": "core",
+  "key": "the device's addresses are the guest's physical",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "The device sees the guest's world; the host stays safe.",
+  "label": "core",
+  "key": "to exactly the host pages backing that guest",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "The same unit remaps the device's interrupts so they reach the right guest.",
+  "label": "core",
+  "key": "the same unit remaps the device's interrupts",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "VFIO: the Linux interface. \"The VFIO driver is an IOMMU/device agnostic framework for exposing direct device access to userspace, in a secure, IOMMU protected environment\", and \"from a device and host perspective, this simply turns the VM into a userspace driver\" ( VFIO documentation, Linux v6.12 ).",
+  "label": "depth",
+  "key": "\"the vfio driver is an iommu/device agnostic",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "The steps of its own example: int container = open( \"/dev/vfio/vfio\" , O_RDWR); // an IOMMU context int group = open( \"/dev/vfio/26\" , O_RDWR); // the device's IOMMU group ioctl(group, VFIO_GROUP_SET_CONTAINER, &container); ioctl(container, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU); ioctl(container, VFIO_IOMMU_MAP_DMA, &dma_map); // \"device address X is this memory\": pins it int device = ioctl(group, VFIO_GROUP_GET_DEVICE_FD, \"0000:06:0d.0\" ); // then mmap the device's registers (BARs) and hand them to the guest From vfio.rst lines 177-213 .",
+  "label": "depth",
+  "key": "the steps of its own example: int",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "Mapping pins the pages ( vfio_pin_pages_remote ), which is section 4's \"a GPU VM cannot overcommit memory\".",
+  "label": "depth",
+  "key": "mapping pins the pages ( vfio_pin_pages_remote ),",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "Newer kernels add iommufd , a general replacement for the container.",
+  "label": "depth",
+  "key": "newer kernels add iommufd , a general",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "IOMMU groups and ACS.",
+  "label": "core",
+  "key": "iommu groups and acs.",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "The IOMMU can only isolate what it can tell apart.",
+  "label": "core",
+  "key": "the iommu can only isolate what it",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "Devices behind a bridge that lets them talk to each other directly, without passing the IOMMU, are inseparable: \"a group is a set of devices which is isolatable from all other devices in the system.",
+  "label": "core",
+  "key": "devices behind a bridge that lets them",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "Groups are therefore the unit of ownership used by VFIO\" ( vfio.rst lines 55-71 ).",
+  "label": "core",
+  "key": "groups are therefore the unit of ownership",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "PCIe switches use Access Control Services (ACS) to force device-to-device traffic up through the IOMMU, which makes small groups possible.",
+  "label": "core",
+  "key": "pcie switches use access control services (acs)",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "That is exactly the tension with GPU clusters: Peer-to-peer GPU traffic against isolation NCCL's guide: on bare metal, \"IO virtualization (also known as VT-d or IOMMU) can interfere with GPU Direct by redirecting all PCI point-to-point traffic to the CPU root complex, causing a significant performance reduction or even a hang\", so bare-metal clusters disable ACS on their PCIe switches.",
+  "label": "core",
+  "key": "that is exactly the tension with gpu",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "In a VM that is not an option: \"Virtual machines require ACS to function, hence disabling ACS is not an option.",
+  "label": "core",
+  "key": "in a vm that is not an",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "To run with maximum performance inside virtual machines, ATS needs to be enabled in network adapters\" (ATS, Address Translation Services, lets the device cache IOMMU translations itself).",
+  "label": "core",
+  "key": "to run with maximum performance inside virtual",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "And NCCL reads the PCI topology from /sys : \"Having /sys expose a virtual PCI topology can result in sub-optimal performance\" ( NCCL GPU troubleshooting ).",
+  "label": "core",
+  "key": "and nccl reads the pci topology from",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "Once set up, almost nothing on the data path: the GPU's registers are mapped into the guest by stage-2 page tables, so a doorbell write is an ordinary store, and the GPU's DMA goes through the IOMMU's translation cache.",
+  "label": "core",
+  "key": "once set up, almost nothing on the",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "The costs are at the edges: pinning all guest memory at boot, IOTLB misses for scattered DMA, interrupts that must be remapped, and a guest that sees whatever PCI topology the hypervisor chose to show it.",
+  "label": "core",
+  "key": "the costs are at the edges: pinning",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "When it bites in ML Multi-GPU training inside VMs: whether GPU-to-GPU and GPU-to-NIC traffic goes peer to peer or through the CPU decides all-reduce bandwidth.",
+  "label": "core",
+  "key": "when it bites in ml multi-gpu training",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "Check what NCCL saw ( NCCL_DEBUG=INFO ) and the topology ( nvidia-smi topo -m ); a VM's real topology can be given to NCCL as an XML file ( NCCL_TOPO_FILE ; \"by default, NCCL will load /var/run/nvidia-topologyd/virtualTopology.xml if present\", NCCL environment variables ).",
+  "label": "core",
+  "key": "check what nccl saw ( nccl_debug=info )",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "Slow or failing peer-to-peer with \"OK\" from nvidia-smi topo -p2p on bare metal: IOMMU settings or ACS, per the NCCL guide.",
+  "label": "core",
+  "key": "slow or failing peer-to-peer with \"ok\" from",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "A GPU VM that takes minutes to boot: its memory is being pinned and mapped. ls /sys/kernel/iommu_groups/; lspci -nnk | grep -A3 -i nvidia On a host, a passed-through GPU shows Kernel driver in use: vfio-pci ; inside the guest the same GPU shows nvidia .",
+  "label": "core",
+  "key": "a gpu vm that takes minutes to",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "A VM with a passed-through GPU is given 512 GiB of memory.",
+  "label": "core",
+  "key": "a vm with a passed-through gpu is",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "Why can the host not lend 200 GiB of it to another VM while this one is idle?",
+  "label": "core",
+  "key": "why can the host not lend 200",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "The GPU driver in the guest refuses The pages are pinned for DMA: the GPU may write to any of them at any time, so the host cannot move, swap or reclaim them KVM does not support memory overcommit Overcommit (balloon, KSM, host swap) relies on the host being able to take a page away and fault it back later.",
+  "label": "core",
+  "key": "the gpu driver in the guest refuses",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "7. the iommu and device passthrough: giving a vm a real gpu",
+  "text": "A device doing DMA cannot take a fault the way a CPU can, so VFIO pins every page it maps into the IOMMU, and QEMU maps all of guest RAM for the device.",
+  "label": "core",
+  "key": "a device doing dma cannot take a",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "SR-IOV and the ways to share one GPU not run here: no GPU; from NVIDIA's MIG, MPS, vGPU and GPU Operator documentation and the kernel's SR-IOV documentation.",
+  "label": "core",
+  "key": "sr-iov and the ways to share one",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "Passthrough gives one guest a whole device.",
+  "label": "core",
+  "key": "passthrough gives one guest a whole device.",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "An 80 GB data-centre GPU is far more than a notebook, a small model's inference server or a CI job needs, and an idle GPU is expensive.",
+  "label": "core",
+  "key": "an 80 gb data-centre gpu is far",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "The question is how to split one GPU between several processes, containers or VMs, and what each split gives up.",
+  "label": "core",
+  "key": "the question is how to split one",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "SR-IOV first, because NICs use it.",
+  "label": "core",
+  "key": "sr-iov first, because nics use it.",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "Single Root I/O Virtualization lets one PCIe device present a physical function (PF, the full device, managed by the host) and many lightweight virtual functions (VFs), each with its own PCI identity, so each can be passed through to a different VM with section 7's machinery.",
+  "label": "core",
+  "key": "single root i/o virtualization lets one pcie",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "On Linux you create them by writing a number to /sys/bus/pci/devices/<address>/sriov_numvfs ( pci-iov-howto.rst, Linux v6.12 ).",
+  "label": "core",
+  "key": "on linux you create them by writing",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "This is how a GPU VM gets its own slice of an InfiniBand or RoCE NIC for RDMA.",
+  "label": "core",
+  "key": "this is how a gpu vm gets",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "Why GPUs are harder: how the GPU itself schedules.",
+  "label": "core",
+  "key": "why gpus are harder: how the gpu",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "A GPU runs work from one CUDA context (the per-process state: address space, loaded kernels, streams) concurrently, but \"work launched to the compute engine from work queues belonging to different CUDA contexts cannot execute concurrently\": between processes the GPU time-slices ( MPS architecture ).",
+  "label": "core",
+  "key": "a gpu runs work from one cuda",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "Every sharing scheme is a different answer to that: Time slicing MPS MIG vGPU Passthrough What it is several processes or pods use the same GPU; the GPU switches between their contexts a server process merges clients' work so it runs concurrently the hardware is cut into up to 7 instances, each with its own SMs, L2 slices and memory a hypervisor-side manager gives each VM a virtual GPU, time-sliced or backed by a MIG instance one whole GPU per VM Concurrency between users no, one context at a time yes yes, physically separate time-sliced or MIG-backed n/a Memory isolation no: any replica can use all the memory address spaces isolated (\"MPS client processes have fully isolated GPU address spaces\") yes, dedicated memory per instance yes whole GPU Memory bandwidth and cache QoS no no yes per mode whole GPU Error isolation no (time slicing has \"no memory or fault-isolation between replicas\") no (limited containment on Volta and later) yes yes yes Max partitions configurable replicas 48 7 per vGPU profile 1 Reconfigure any time at process launch when the GPU is idle per VM per VM Streams, MPS and MIG columns from the MIG user guide's table \"CUDA Concurrency Mechanisms\" ( MIG concepts ): MPS \"does not offer error isolation between clients\", and with MIG \"each instance's processors have separate and isolated paths through the entire memory system - the on-chip crossbar ports, L2 cache banks, memory controllers, and DRAM address busses\" ( MIG introduction ); MPS's limited containment from the MPS documentation .",
+  "label": "core",
+  "key": "every sharing scheme is a different answer",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "Time slicing from the GPU Operator guide : \"A request for more than one time-sliced GPU does not guarantee that the pod receives access to a proportional amount of GPU compute power.\" vGPU's time-sliced schedulers are \"best effort\" (the default), \"equal share\" and \"fixed share\" ( vGPU scheduling policies ).",
+  "label": "depth",
+  "key": "time slicing from the gpu operator guide",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "A MIG-capable GPU (A100 and later data-centre parts) is enabled once (on A100 and A30, \"setting MIG mode ... requires a GPU reset\"), then carved into GPU instances from fixed profiles, each named by its compute slices and memory: on an H100 80GB, 1g.10gb (1/7 of the SMs, 1/8 of the memory, up to 7 of them), 2g.20gb , 3g.40gb , 4g.40gb , 7g.80gb ( MIG supported profiles ).",
+  "label": "core",
+  "key": "a mig-capable gpu (a100 and later data-centre",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "Profiles can only sit at certain positions, so the order you create them in matters; the Sharing a GPU tab lets you place them on an A100 40GB with NVIDIA's published placement rules.",
+  "label": "core",
+  "key": "profiles can only sit at certain positions,",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "Each instance then appears to CUDA as its own device: CUDA_VISIBLE_DEVICES=MIG-<uuid> .",
+  "label": "core",
+  "key": "each instance then appears to cuda as",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "When it bites in ML Training wants whole GPUs.",
+  "label": "core",
+  "key": "when it bites in ml training wants",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "Sharing is for inference, notebooks, small fine-tunes and CI.",
+  "label": "core",
+  "key": "sharing is for inference, notebooks, small fine-tunes",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "A training job on a time-sliced GPU shares memory with strangers and can be slowed or killed by their faults. \"My job got slower and nothing changed\" on a shared node: another pod was scheduled on the same time-sliced GPU. nvidia-smi on the node lists every process on the GPU.",
+  "label": "core",
+  "key": "a training job on a time-sliced gpu",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "8. sr-iov and the ways to share one gpu",
+  "text": "MIG memory is a hard wall: a 1g.10gb instance is a 10 GB GPU to PyTorch, and NCCL between MIG instances is limited (\"only P2P between MIG instances on the same GPU is supported\" with R570, MIG deployment considerations ). nvidia-smi mig -lgip; nvidia-smi mig -lgipp; nvidia-smi -L",
+  "label": "core",
+  "key": "mig memory is a hard wall: a",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "One CUDA call down: from Python to the GPU 36 The problem. y = x @ w on CUDA tensors returns in a few microseconds and the GPU does the work later.",
+  "label": "core",
+  "key": "one cuda call down: from python to",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Between the two sits a stack of libraries and a kernel driver that you normally never see, until it fails.",
+  "label": "core",
+  "key": "between the two",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "This section names every layer, shows what each one does when there is no GPU (all run for real here), and reads the open part of NVIDIA's driver to see how work reaches the GPU without a system call.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section intro restated"
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Writing kernels and the GPU's hardware are other pages' subjects: Topic: cuda-and-gpu-programming (its Compiler explorer has the same CUDA 13.4 toolchain) and Topic: hardware .",
+  "label": "core",
+  "key": "(its compiler explorer has the same cuda",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Layer What it is, where it comes from Its job in y = x @ w PyTorch your wheel or image the dispatcher picks the CUDA implementation of matmul , which calls cuBLAS; elementwise ops launch PyTorch's own kernels CUDA runtime libcudart.so.13 part of the toolkit; PyTorch's CUDA wheels load it from the nvidia-cuda-runtime wheel ( _preload_cuda_deps, torch/__init__.py L351-362, v2.14.1 ) the convenient API: creates a context implicitly, registers the program's kernels, turns cudaLaunchKernel into driver calls CUDA driver libcuda.so.1 the user-mode driver , installed with the host's driver package, not with the toolkit; a container gets the host's copy mounted in the real work in user space: contexts, memory, module loading, JIT compiling PTX, building command buffers and submitting them Kernel driver nvidia.ko , nvidia-uvm.ko the host's kernel modules; NVIDIA's open-gpu-kernel-modules are the open-source version owns the hardware: memory allocation and mapping, channels, interrupts, faults, power, reset; reached by ioctl on /dev/nvidia* GPU a PCIe device (passed through in a VM) fetches commands from memory by DMA and runs them What happens with no GPU: four cases, run for real.",
+  "label": "depth",
+  "key": "layer what it is, where it comes",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "A small CUDA program ( src/exp/cuda/rt_probe.cu , built with the runtime as a shared library) and a driver-API probe ( drv_probe.c , which dlopen s libcuda.so.1 the way the runtime does) were run in the CUDA 13.4.2 image under strace and LD_DEBUG .",
+  "label": "core",
+  "key": "a small cuda program ( src/exp/cuda/rt_probe.cu ,",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "The One CUDA call tab steps through every trace line by line.",
+  "label": "core",
+  "key": "line.",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Case cudaGetDeviceCount returns measured Why 1.",
+  "label": "core",
+  "key": "case cudagetdevicecount returns measured why 1.",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "No driver at all (any container started without the NVIDIA runtime) 35 cudaErrorInsufficientDriver : \"CUDA driver version is insufficient for CUDA runtime version\"; cudaDriverGetVersion gives 0 the runtime looked for libcuda.so.1 in five directories and found none; \"insufficient\" here means \"absent\" 2.",
+  "label": "core",
+  "key": "no driver at all (any container started",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "The toolkit's stub libcuda.so found as libcuda.so.1 34 cudaErrorStubLibrary : \"CUDA driver is a stub library\" the stub exists so programs can be linked on machines without a driver; it refuses to run 3.",
+  "label": "core",
+  "key": "the toolkit's stub libcuda.so found as libcuda.so.1",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "The real user-mode driver 615.71.09, no kernel module 100 cudaErrorNoDevice : \"no CUDA-capable device is detected\"; driver version 13040 libcuda loaded, then failed to open /dev/nvidiactl (details below) 4.",
+  "label": "core",
+  "key": "the real user-mode driver 615.71.09, no kernel",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "As 3, with the container's device cgroup opened for major 195 100, and open now fails with ENXIO the kernel has no driver registered for character major 195 Case 3, line by line.",
+  "label": "core",
+  "key": "as 3, with the container's device cgroup",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "The user-mode driver came from the image's forward-compatibility directory ( /usr/local/cuda/compat , section 10).",
+  "label": "depth",
+  "key": "the user-mode driver came from the image's",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Its cuInit did, in order: read /proc/driver/nvidia/params (the kernel module's parameters: absent), look for /usr/bin/nvidia-modprobe (a setuid helper that loads the module and creates device files: absent), then, running as root, delete whatever was at /dev/nvidiactl and create it itself: The node is character device 195:255, exactly the kernel driver's numbers ( NV_MAJOR_DEVICE_NUMBER 195, NV_MINOR_DEVICE_NUMBER_CONTROL_DEVICE 255 ).",
+  "label": "depth",
+  "key": "its cuinit did, in order: read /proc/driver/nvidia/params",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Creating it worked (Docker grants CAP_MKNOD ); opening it failed with EPERM , because the container's device cgroup only allows a short list of devices (the Containers and isolation page covers the device controller). libcuda retried eight times, scanned /sys/bus/pci/devices/*/config for an NVIDIA device, read /proc/modules for a loaded nvidia module, and finally sent one ioctl to the file descriptor -1 it never got: 0xc020462a .",
+  "label": "depth",
+  "key": "creating it worked (docker grants cap_mknod );",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "That number decodes, with Linux's _IOC layout, into the whole protocol: Bits Field Value Meaning, from the open driver 30-31 direction 3 read and write: the kernel copies the argument in and back out 16-29 size 32 bytes the size of NVOS54_PARAMETERS : client handle, object handle, command, flags, a pointer to the command's own parameters, their size, a status 8-15 type 'F' NV_IOCTL_MAGIC , every NVIDIA ioctl 0-7 number 0x2A NV_ESC_RM_CONTROL : \"run control command cmd on object hObject \" How the kernel side is organised. nvidia.ko registers one set of file operations for all its device files: open , unlocked_ioctl , mmap , poll , release ( nvidia_fops, nv.c L259-269 ).",
+  "label": "depth",
+  "key": "that number decodes, with linux's _ioc layout,",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "A handful of ioctls are handled in the Linux layer, such as the version handshake (below); everything else goes to the resource manager (RM), the OS-independent core of the driver ( default: rm_ioctl, nv.c L2981-2982 ).",
+  "label": "depth",
+  "key": "a handful of ioctls are handled in",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "In RM everything is an object with a handle : a client (your process), a device, a subdevice, a memory allocation, a channel.",
+  "label": "depth",
+  "key": "in rm everything is an object with",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "The escapes allocate objects ( NV_ESC_RM_ALLOC 0x2B ), free them, run control calls on them ( NV_ESC_RM_CONTROL ), and map them into the process ( NV_ESC_RM_MAP_MEMORY , followed by an mmap of the device file, nvidia_mmap ).",
+  "label": "depth",
+  "key": "the escapes allocate objects ( nv_esc_rm_alloc 0x2b",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Unified memory has its own device, /dev/nvidia-uvm , with ioctls such as UVM_REGISTER_GPU and UVM_MIGRATE .",
+  "label": "core",
+  "key": "unified memory has its own device, /dev/nvidia-uvm",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Among the first things a client sends on /dev/nvidiactl is NV_ESC_CHECK_VERSION_STR .",
+  "label": "core",
+  "key": "among the first things a client sends",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "The kernel compares the client's version string with its own, exactly, or only up to the first dot if the client asks for \"relaxed\" checking; on a mismatch it logs \"NVRM: API mismatch: the client ... has the version ..., but this kernel module has the version ...",
+  "label": "core",
+  "key": "the kernel compares the client's version string",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Please make sure that this kernel module and all NVIDIA driver components have the same version\" ( RmPerformVersionCheck, osapi.c L1199-1302 ).",
+  "label": "core",
+  "key": "please make sure that this kernel module",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "That is the message in dmesg after a driver upgrade without a reboot: the new user-mode libraries meet the old module still loaded.",
+  "label": "depth",
+  "key": "that is the message in dmesg after",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Launching work without a system call.",
+  "label": "core",
+  "key": "launching work without a system call.",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "A GPU channel is a queue of work: a pushbuffer in memory holds the commands (\"methods\": launch this kernel with these parameters, copy this, wait for that semaphore), a ring called the GPFIFO holds pointers to pushbuffer segments, and a doorbell register tells the GPU's host interface that the ring moved.",
+  "label": "core",
+  "key": "a gpu channel is a queue of",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "The open driver's own unified-memory module submits work exactly like this, and its code shows each step: fill a GPFIFO entry pointing at the pushbuffer, a memory barrier, write the new put pointer, a write barrier, and ring the doorbell by storing a token into the doorbell register ( internal_channel_submit_work, uvm_channel.c L984-1015 ; write_gpu_put, uvm_turing_host.c L222-236 ).",
+  "label": "depth",
+  "key": "the open driver's own unified-memory module submits",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "The doorbell lives in a \"usermode\" register page, the class VOLTA_USERMODE_A with NOTIFY_CHANNEL_PENDING at offset 0x90 ( clc361.h ), an object any RM client can allocate and map.",
+  "label": "depth",
+  "key": "the doorbell lives in a \"usermode\" register",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Every piece is ordinary memory once mapped, so a process holding the mappings can launch with plain stores: no system call, no exit even in a VM.",
+  "label": "depth",
+  "key": "every piece is ordinary memory once mapped,",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "What is verified and what is inferred Verified from the open source: the device files, the ioctl protocol, the RM object model, the channel, GPFIFO and doorbell mechanism, and that kernel-side code (UVM) submits work with stores alone.",
+  "label": "core",
+  "key": "what is verified and what is inferred",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Inferred: that the closed libcuda launches kernels the same way, by mapping its channels and the usermode page at context creation; it is the design the open interface supports, and the root page's description, but libcuda itself cannot be read.",
+  "label": "core",
+  "key": "inferred: that the closed libcuda launches kernels",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "On a GPU machine, strace -f -c over a steady training loop confirms or refutes it in a minute.",
+  "label": "core",
+  "key": "on a gpu machine, strace -f -c",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "This replaces the root page's \"not verified from a primary source\" with this narrower statement.",
+  "label": "core",
+  "key": "this replaces the root page's \"not verified",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "The first CUDA call of a process against the millionth launch: what enters the kernel, and what is plain memory writes.",
+  "label": "core",
+  "key": "the first cuda call of a process",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Steps from the open driver's interface; the order inside the closed libcuda is simplified.",
+  "label": "core",
+  "key": "steps from the open driver's interface; the",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "First call in a process A launch in the training loop Inside the binary: what the driver loads.",
+  "label": "core",
+  "key": "first call in a process a launch",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Your program's GPU code is not in the CPU part of the executable.",
+  "label": "depth",
+  "key": "your program's gpu code is not in",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "It sits in a section called .nv_fatbin , a container ( fatbin ) holding machine code for specific GPUs ( cubin , SASS) and the portable intermediate form ( PTX ).",
+  "label": "depth",
+  "key": "it sits in a section called .nv_fatbin",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "The test program was built for sm_80 and sm_90 plus PTX for compute_90 : measured cuobjdump -lelf -lptx and readelf -S on the built executable (raw: src/raw/cuda.txt ; the tab shows the cubin sizes and the PTX).",
+  "label": "depth",
+  "key": "the test program was built for sm_80",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "The executable carries two cubins per architecture: the two holding vadd come from this file; the object file alone has one per architecture, so the two small cubins with no kernels were added when nvcc linked the program (most likely by its device-link step).",
+  "label": "depth",
+  "key": "the executable carries two cubins per architecture:",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "At load time the driver picks, for the GPU it finds: a cubin for the same major compute capability and an equal or lower minor (\"a cubin with code compiled for compute capability 8.6 ... can be loaded and executed on GPUs with compute capability 8.6 or 8.9\"); otherwise it JIT-compiles the PTX, which works on any equal or newer GPU, and caches the result in the \"compute cache\" ( ~/.nv/ComputeCache , CUDA_CACHE_PATH ) ( CUDA Programming Guide 1.3.4 ; environment variables ).",
+  "label": "depth",
+  "key": "at load time the driver picks, for",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "Since CUDA 12.3 modules load lazily by default: a kernel is loaded at its first launch, not at start-up ( CUDA_MODULE_LOADING , Lazy Loading ).",
+  "label": "depth",
+  "key": "since cuda 12.3 modules load lazily by",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "When it bites in ML A slow first step on a new GPU: the libraries had no cubin for it and the driver is JIT-compiling PTX (watch the compute cache grow); or lazy loading is loading hundreds of kernels at first use. \"no CUDA-capable device is detected\" in a container: case 3 or 4.",
+  "label": "core",
+  "key": "when it bites in ml a slow",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "The driver is there but the device files are not, or the cgroup forbids them: the container was started without the NVIDIA runtime or without --gpus . \"Found no NVIDIA driver on your system\": PyTorch's message for case 1 ( device_count_impl, c10/cuda/CUDAFunctions.cpp L17-64, v2.14.1 ); torch.cuda.is_available() returns False for cases 1 and 3 without raising, because it calls cudaGetDeviceCount ( torch/cuda/__init__.py L209-228 ).",
+  "label": "core",
+  "key": "the driver is there but the device",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "The CPU-only wheel used here never even looks for a driver.",
+  "label": "core",
+  "key": "the cpu-only wheel used here never even",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "CUDA initialised before fork() : the child inherits a driver state it cannot use; PyTorch avoids touching CUDA in is_available() only if PYTORCH_NVML_BASED_CUDA_CHECK=1 (same file).",
+  "label": "core",
+  "key": "cuda initialised before fork() : the child",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "9. one cuda call down: from python to the gpu",
+  "text": "See the Processes page on start methods. strace -f -e trace=openat,ioctl,mmap -o trace.txt python train.py; LD_DEBUG=libs python -c \"import torch; torch.cuda.init()\" 2>&1 | grep libcuda",
+  "label": "core",
+  "key": "see the processes page on start methods.",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "Two versions: the driver and the runtime The problem.",
+  "label": "core",
+  "key": "the driver and",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "A CUDA program depends on two independently installed things: the runtime it was built with (inside your image or wheel: torch.version.cuda ) and the driver on the machine it runs on (host: nvidia-smi prints its version and the newest CUDA version it supports).",
+  "label": "core",
+  "key": "a cuda program depends on two independently",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "Clusters upgrade drivers rarely and carefully; images change every week. \"CUDA driver version is insufficient for CUDA runtime version\" is the result of the two drifting apart.",
+  "label": "core",
+  "key": "clusters upgrade drivers rarely and carefully; images",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "The runtime reported 13040 (CUDA 13.4) in every case.",
+  "label": "depth",
+  "key": "the runtime reported 13040 (cuda 13.4) in",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "The driver version was 0 with no libcuda (case 1 of section 9), and 13040 with the 615.71.09 user-mode driver from the image's /usr/local/cuda/compat .",
+  "label": "depth",
+  "key": "the driver version was 0 with no",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "The image also declares what it needs, for the NVIDIA container toolkit to check before starting it: NVIDIA_REQUIRE_CUDA=cuda>=13.4 plus a list of accepted driver branches for data-centre GPUs ( brand=tesla,driver>=535,driver<536 , and likewise 570, 580, 590, 595, 610). \"If the version of the NVIDIA driver is insufficient to run this version of CUDA, the container does not start\" ( container toolkit, NVIDIA_REQUIRE_CUDA ).",
+  "label": "depth",
+  "key": "the image also declares what it needs,",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "The driver (libcuda) is Compatibility Requirements newer than the runtime backward compatibility none older than the runtime, same major version minor version compatibility no PTX (needs SASS for the GPU), the target architecture given to nvcc; some new features return cudaErrorCallRequiresNewerDriver older than the runtime's major version forward compatibility the cuda-compat package; data-centre GPUs (and some RTX and Jetson) only From CUDA Compatibility: why and minor version compatibility : minimum drivers CUDA 13.x \">= 580\", 12.x \">= 525\", 11.x \">= 450\"; \"Applications that compile device code to PTX will not work on older drivers\".",
+  "label": "volatile",
+  "key": "13.x: 580",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "Forward compatibility : \"the cuda-compat-13-4 package is built using the NVIDIA driver libraries version 615\", installed into /usr/local/cuda-13.4/compat/ , and \"This package only provides the libraries, and does not configure the system to find such libraries\" (you set LD_LIBRARY_PATH ); errors 803 CUDA_ERROR_SYSTEM_DRIVER_MISMATCH and 804 CUDA_ERROR_COMPAT_NOT_SUPPORTED_ON_DEVICE .",
+  "label": "volatile",
+  "key": "forward compatibility : \"the cuda-compat-13-4 package is",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "Since CUDA 13.4 the Linux driver is no longer bundled with the toolkit.",
+  "label": "volatile",
+  "key": "since cuda 13.4 the linux driver is",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "Why forward compatibility can work at all.",
+  "label": "core",
+  "key": "why forward compatibility can work at all.",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "Section 9's version handshake is between the user-mode driver and the kernel module.",
+  "label": "core",
+  "key": "section 9's version handshake is between the",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "Forward compatibility swaps only the user-mode half: a newer libcuda (from the compat package) talks to an older nvidia.ko .",
+  "label": "core",
+  "key": "forward compatibility swaps only the user-mode half:",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "NVIDIA: \"forward compatibility is defined between the kernel driver and the CUDA driver\", which is also why it can JIT PTX where minor version compatibility cannot (the compat package brings its own PTX compiler, libnvidia-ptxjitcompiler , visible in this image's compat directory).",
+  "label": "core",
+  "key": "nvidia: \"forward compatibility is defined between the",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "Pick the host's driver branch and what your application was built with.",
+  "label": "core",
+  "key": "pick the host's driver branch and what",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "The rules and the forward-compatibility matrix are NVIDIA's (Table 3 of the forward compatibility page, driver branches 535 to 615).",
+  "label": "core",
+  "key": "the rules and the forward-compatibility matrix are",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "Host driver branch Application built with CUDA GPU data-centre GPU GeForce / most RTX GPU code in the binary SASS (cubin) for this GPU PTX only (needs JIT) cuda-compat package for the app's CUDA version not installed installed and on LD_LIBRARY_PATH When it bites in ML A new PyTorch wheel on an old cluster: PyTorch's CUDA wheels ship the runtime; the cluster's driver is older.",
+  "label": "core",
+  "key": "host driver branch application built with cuda",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "Within the same CUDA major and with SASS for your GPU it runs (minor version compatibility); across a major version it needs the compat package or an older wheel.",
+  "label": "core",
+  "key": "within the same cuda major and with",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "PyTorch's own error for an old driver: \"The NVIDIA driver on your system is too old (found version ...)\" ( CUDAFunctions.cpp ).",
+  "label": "core",
+  "key": "pytorch's own error for an old driver:",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "Custom kernels compiled to PTX only (a JIT extension, some Triton or third-party builds) fail under minor version compatibility even when everything else works.",
+  "label": "core",
+  "key": "custom kernels compiled to ptx only (a",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "10. two versions: the driver and the runtime",
+  "text": "A driver upgraded without a reboot: user-mode libraries and module disagree: section 9's \"API mismatch\" in dmesg . nvidia-smi | head -4; python -c \"import torch; print(torch.version.cuda, torch.cuda.is_available())\"; ls /usr/local/cuda/compat",
+  "label": "core",
+  "key": "a driver upgraded without a reboot: user-mode",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "GPU memory and the driver, from the operating system's side not run here except where marked: no GPU; from the open kernel modules at 615.71.09 and NVIDIA's documentation.",
+  "label": "core",
+  "key": "gpu memory and the driver, from the",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "GPU memory is not Linux's memory.",
+  "label": "core",
+  "key": "gpu memory is not linux's memory.",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "The kernel's page allocator, page cache, swap and OOM killer (the Virtual memory page) know nothing about the GPU's own memory.",
+  "label": "core",
+  "key": "the kernel's page allocator, page cache, swap",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "The driver's resource manager hands it out in response to RM allocation ioctls; above it, PyTorch's caching allocator keeps freed blocks for reuse (the Memory allocators page).",
+  "label": "core",
+  "key": "the driver's resource manager hands it out",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "So \"CUDA out of memory\" is never solved by the host's swap, and GPU memory a crashed process held comes back only when the driver tears its client down.",
+  "label": "core",
+  "key": "so \"cuda out of memory\" is never",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "Kind of memory What the OS does Where on these pages Device memory ( cudaMalloc ) nothing: RM allocates it; the CPU can reach parts of it through a PCIe window (BAR1) mapped by mmap on the device file ( nvidia_mmap ) here; Memory allocators Pinned host memory ( pin_memory=True ) ordinary RAM, locked so the GPU's DMA can target it; counts against RLIMIT_MEMLOCK Virtual memory , section 9 Managed memory ( cudaMallocManaged ) pages migrate between CPU and GPU on page faults, serviced by nvidia-uvm.ko here System memory used by the GPU directly (HMM, Grace Hopper) the GPU uses the process's own page tables, through Linux's HMM or hardware coherence here Unified memory: page faults on the GPU.",
+  "label": "core",
+  "key": "kind of memory what the os does",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "With managed memory, one pointer works on both sides.",
+  "label": "depth",
+  "key": "with managed memory, one pointer works on",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "On systems where CPU and GPU each have their own page tables, a fault means the page must be unmapped from its owner, mapped for the requester, and \"the physical page backing this virtual page must be moved/migrated to the processor requesting access: this can be an expensive operation, and the amount of work is proportional to the page size\" ( CUDA Programming Guide, unified memory ).",
+  "label": "depth",
+  "key": "on systems where cpu and gpu each",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "The GPU records its faults in a buffer and the UVM driver services them in batches ( uvm_parent_gpu_service_replayable_faults ).",
+  "label": "depth",
+  "key": "the gpu records its faults in a",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "With Linux's HMM (heterogeneous memory management), even plain malloc memory becomes reachable from the GPU; it \"requires Linux kernel version 6.1.24+, 6.2.11+ or 6.3+, devices with compute capability 7.5 or higher and a CUDA driver version 535+ installed with Open Kernel Modules\" (same guide; the open module's support starts at uvm_hmm.c ).",
+  "label": "depth",
+  "key": "with linux's hmm (heterogeneous memory management), even",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "GPUDirect RDMA: the NIC writes into GPU memory.",
+  "label": "depth",
+  "key": "gpudirect rdma: the nic writes into gpu",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "For multi-node training the network card should move data straight to and from GPU memory.",
+  "label": "depth",
+  "key": "for multi-node training the network card should",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "The nvidia-peermem module lets the InfiniBand stack pin GPU pages for the NIC ( nvidia_p2p_get_pages ); \"GDRDMA can also be enabled by using the DMA-BUF feature of recent Linux kernels combined with the open source Nvidia GPU driver.",
+  "label": "core",
+  "key": "the nvidia-peermem module lets the infiniband stack",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "In this case, NCCL will automatically detect and enable DMA-BUF so the nvidia-peermem module will not be necessary\" ( NCCL GPU troubleshooting ).",
+  "label": "depth",
+  "key": "in this case, nccl will automatically detect",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "In a VM, both devices sit behind the IOMMU and section 7's ACS and ATS rules apply.",
+  "label": "depth",
+  "key": "in a vm, both devices sit behind",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "Driver state lives as long as someone holds it open.",
+  "label": "core",
+  "key": "driver state lives as long as someone",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "The kernel module \"tears down the device on the last file close\" ( nv_stop_device, nv.c L2216 ).",
+  "label": "depth",
+  "key": "the kernel module \"tears down the device",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "Without a long-lived client, every short CUDA job re-initialises the GPU, which \"leads to long load times for each CUDA job, on the order of seconds\" ( driver persistence ).",
+  "label": "depth",
+  "key": "without a long-lived client, every short cuda",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "The old fix, persistence mode ( nvidia-smi -pm 1 ), now logs \"Persistence mode is deprecated and will be removed in a future release.",
+  "label": "depth",
+  "key": "the old fix, persistence mode ( nvidia-smi",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "Please use nvidia-persistenced instead\" ( nv.c L2259-2265 ): a daemon that simply keeps the device files open.",
+  "label": "depth",
+  "key": "please use nvidia-persistenced instead\" ( nv.c l2259-2265",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "When the GPU fails, the kernel log says so.",
+  "label": "depth",
+  "key": "when the gpu fails, the kernel log",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "GPU errors (a kernel's illegal memory access, a fallen-off-the-bus GPU, ECC errors) are logged by the kernel driver as Xid messages: \"Under Linux, the Xid error messages are logged in the kernel log buffer ...",
+  "label": "depth",
+  "key": "gpu errors (a kernel's illegal memory access,",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "Grep for 'NVRM: Xid'\" ( Xid errors ).",
+  "label": "depth",
+  "key": "grep for 'nvrm: xid'\" ( xid errors",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "A training job that dies with a vague CUDA error should be read together with dmesg on the host; inside a container or a VM you may not be allowed to read it (this page's containers could not), so ask whoever runs the host.",
+  "label": "depth",
+  "key": "a training job that dies with a",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "Which GPUs a process sees.",
+  "label": "depth",
+  "key": "which gpus a process sees.",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "CUDA_VISIBLE_DEVICES filters and reorders devices for the CUDA runtime: \"setting CUDA_VISIBLE_DEVICES=2,1 makes device 0 not visible and enumerates device 2 before device 1\", accepts UUIDs and MIG instance names, and cudaGetDeviceCount() \"includes only the visible devices\" ( CUDA environment variables ).",
+  "label": "depth",
+  "key": "cuda_visible_devices filters and reorders devices for the",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "Below it, a container only sees the device files it was given, and its device cgroup decides which it may open (section 9, cases 3 and 4).",
+  "label": "depth",
+  "key": "below it, a container only sees the",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "When it bites in ML GPU memory \"used\" with no process running: a zombie or a process in another container still holds the device open; the driver frees its memory when the last handle closes.",
+  "label": "core",
+  "key": "when it bites in ml gpu memory",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "Each job's first CUDA call takes seconds on a node without nvidia-persistenced .",
+  "label": "core",
+  "key": "each job's first cuda call takes seconds",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "Managed memory \"works\" but is slow: pages migrate back and forth on faults; prefetch ( cudaMemPrefetchAsync ) or use device memory.",
+  "label": "core",
+  "key": "managed memory \"works\" but is slow: pages",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "11. gpu memory and the driver, from the operating system's side",
+  "text": "Ranks pick the wrong GPUs: a launcher sets CUDA_VISIBLE_DEVICES and the code also indexes devices by local rank, or CUDA_DEVICE_ORDER differs from nvidia-smi 's PCI order. nvidia-smi -q -d MEMORY,ECC; dmesg | grep -i \"NVRM: Xid\"; systemctl status nvidia-persistenced; ls -l /dev/nvidia*",
+  "label": "core",
+  "key": "ranks pick the wrong gpus: a launcher",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Belief What is true \"A VM is slow because it emulates the CPU.\" Guest code runs directly on the CPU; only exits cost (about 0.92 µs each here).",
+  "label": "depth",
+  "key": "belief what is true \"a vm is",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Interrupts, idle and device access are where the time goes (sections 2, 5). \"GPU passthrough adds overhead to every kernel.\" The GPU's registers and DMA go through stage-2 tables and the IOMMU, not through the hypervisor; launches do not exit.",
+  "label": "depth",
+  "key": "interrupts, idle and device access are where",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The costs are pinned memory, topology and peer-to-peer (section 7). \"Containers isolate GPUs like VMs do.\" A container sees device files the host passed in; the GPU is shared with whatever else uses it unless MIG or exclusive scheduling separates them (section 8). \"Time-sliced GPUs give each pod a fair share.\" \"A request for more than one time-sliced GPU does not guarantee that the pod receives access to a proportional amount of GPU compute power\", and there is no memory or fault isolation (section 8). \" nvidia-smi shows CUDA 13.0, so I cannot run a CUDA 13.4 build.\" That is the newest CUDA the driver was released with; minor version compatibility runs any 13.x build with SASS for the GPU (section 10). \"The CUDA toolkit in my image includes the driver.\" The image has the runtime and a stub libcuda ; the real driver comes from the host (section 9, cases 1 and 2). \" torch.cuda.is_available() is False, so there is no GPU.\" It is False with no driver library, with no device files, and with a forbidden device cgroup: four different fixes (section 9). \"Steal time is zero, so nothing else runs on my host.\" Only if the hypervisor reports it; this one does not (section 5).",
+  "label": "depth",
+  "key": "the costs are pinned memory, topology and",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Interview questions What is a VM exit, and name three things that cause one.",
+  "label": "depth",
+  "key": "what is a vm exit, and name",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The CPU stopping the guest and handing control to the hypervisor with the reason (exception class or exit reason), which emulates the effect and resumes the guest.",
+  "label": "core",
+  "key": "the cpu stopping the guest and handing",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Causes: accessing an emulated device register (MMIO, port I/O), the idle instruction ( wfi , hlt ), accessing interrupt-controller or timer registers that are not virtualized in hardware, hypercalls, and host interrupts.",
+  "label": "depth",
+  "key": "causes: accessing an emulated device register (mmio,",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Guest system calls and page faults do not exit with hardware virtualization and nested paging.",
+  "label": "depth",
+  "key": "guest system calls and page faults do",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "About 0.9 µs per exit was measured on an M1 Pro's hypervisor.",
+  "label": "depth",
+  "key": "about 0.9 µs per exit was measured",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why can a TLB miss cost up to 24 memory reads in a VM?",
+  "label": "depth",
+  "key": "why can a tlb miss cost up",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "With nested paging the guest's page-table pointers are guest-physical addresses, so each of the 4 guest levels needs a 4-level host walk plus its own read (20), and the final guest-physical address needs one more host walk (4): (4+1)(4+1)-1 = 24.",
+  "label": "depth",
+  "key": "with nested paging the guest's page-table pointers",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Huge pages in either stage shorten it (19 with 2 MiB host pages); page-walk caches make most misses much cheaper.",
+  "label": "depth",
+  "key": "huge pages in either stage shorten it",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A thread hand-off between CPUs is 10 times slower in a VM than on bare metal.",
+  "label": "depth",
+  "key": "a thread hand-off between cpus is 10",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why, and what would you do?",
+  "label": "depth",
+  "key": "why, and what would you do?",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The wake-up needs an inter-processor interrupt.",
+  "label": "depth",
+  "key": "the wake-up needs an inter-processor interrupt.",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Sending it, acknowledging it and ending it can each exit to the hypervisor if the interrupt controller is emulated, and if the target vCPU was idle its host thread must be woken by the host scheduler.",
+  "label": "depth",
+  "key": "sending it, acknowledging it and ending it",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Fixes at the platform level: in-kernel and hardware-assisted interrupt virtualization (vGIC on GICv3/v4, APICv and posted interrupts, AVIC), halt polling, dedicated cores.",
+  "label": "depth",
+  "key": "fixes at the platform level: in-kernel and",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "In the application: fewer, larger hand-offs, brief spinning where a core can be spared.",
+  "label": "depth",
+  "key": "in the application: fewer, larger hand-offs, brief",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What does the IOMMU do in GPU passthrough, and why do GPU VMs pin all their memory?",
+  "label": "depth",
+  "key": "what does the iommu do in gpu",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "It translates and checks every DMA address the device issues, so a guest's GPU sees guest-physical addresses mapped to that guest's host pages and nothing else; it also remaps interrupts.",
+  "label": "core",
+  "key": "it translates and checks every dma address",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Because a device cannot take page faults like a CPU, the pages it may DMA into must stay resident: VFIO pins every page it maps, and QEMU maps all guest RAM, so balloon, KSM or swap-based overcommit cannot apply.",
+  "label": "depth",
+  "key": "because a device cannot take page faults",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Compare time slicing, MPS and MIG for sharing a GPU between two inference services.",
+  "label": "depth",
+  "key": "compare time slicing, mps and mig for",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Time slicing: contexts take turns; no concurrency, no memory limit or fault isolation between users.",
+  "label": "depth",
+  "key": "time slicing: contexts take turns; no concurrency,",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "MPS: one server merges the clients' work so it runs concurrently; separate address spaces but shared memory bandwidth and caches and no full error isolation.",
+  "label": "depth",
+  "key": "mps: one server merges the clients' work",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "MIG: hardware partitions with their own SMs, L2 slices, memory controllers and DRAM; predictable latency and fault isolation, up to 7 instances, reconfigured only when idle.",
+  "label": "depth",
+  "key": "mig: hardware partitions with their own sms,",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "For two latency-sensitive services from different teams, MIG.",
+  "label": "depth",
+  "key": "for two latency-sensitive services from different teams,",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Walk me through what happens below cudaMalloc on the first call in a process.",
+  "label": "depth",
+  "key": "walk me through what happens below cudamalloc",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The runtime loads libcuda.so.1 (the user-mode driver, from the host), which initialises: opens /dev/nvidiactl , checks versions with the kernel module, allocates RM objects (client, device, subdevice) by ioctl, opens /dev/nvidiaN , creates a context with its channels and maps them; then the allocation itself is an RM allocation ioctl plus a mapping into the GPU's address space.",
+  "label": "depth",
+  "key": "the runtime loads libcuda.so.1 (the user-mode driver,",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Later kernel launches write into mapped command buffers and ring a doorbell without a system call.",
+  "label": "depth",
+  "key": "later kernel launches write into mapped command",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A container prints \"no CUDA-capable device is detected\" on a GPU node.",
+  "label": "depth",
+  "key": "a container prints \"no cuda-capable device is",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How do you debug it?",
+  "label": "depth",
+  "key": "how do you debug it?",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Check, in order: is libcuda.so.1 present (the NVIDIA container runtime or CDI injects it; without it the error is \"driver version is insufficient\"), do /dev/nvidiactl and /dev/nvidiaN exist in the container, may the container open them (device cgroup: EPERM ), is CUDA_VISIBLE_DEVICES empty or wrong, and does the host see the GPU ( nvidia-smi , dmesg Xid). strace -f -e openat,ioctl shows which step fails.",
+  "label": "depth",
+  "key": "check, in order: is libcuda.so.1 present (the",
+  "where": ""
+ },
+ {
+  "id": 381,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Your image is built with CUDA 13.4 and the cluster runs driver 570.",
+  "label": "depth",
+  "key": "your image is built with cuda 13.4",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Driver 570 belongs to CUDA 12.8, a different major version, so minor version compatibility does not apply; the toolkit's minimum for 13.x is 580.",
+  "label": "depth",
+  "key": "driver 570 belongs to cuda 12.8, a",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "On data-centre GPUs, install cuda-compat-13-4 in the image and put /usr/local/cuda/compat on LD_LIBRARY_PATH : NVIDIA's matrix marks that combination compatible.",
+  "label": "depth",
+  "key": "on data-centre gpus, install cuda-compat-13-4 in the",
+  "where": ""
+ },
+ {
+  "id": 384,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "On consumer GPUs, use a 12.x build or upgrade the driver.",
+  "label": "depth",
+  "key": "on consumer gpus, use a 12.x build",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-cuda",
+  "section": "",
+  "text": "Every line below was recorded in the CUDA 13.4.2 image ( kb-os-virt:1 ) on this page's Linux VM, which has no GPU.",
+  "label": "depth",
+  "key": "every line below was recorded in the",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-cuda",
+  "section": "",
+  "text": "Pick a case, then step through the trace: each step highlights the real line and says what it means, with the source that explains it.",
+  "label": "depth",
+  "key": "pick a case, then step through the",
+  "where": ""
+ },
+ {
+  "id": 387,
+  "tab": "t-cuda",
+  "section": "",
+  "text": "The Reading tab (section 9) has the summary; this tab is the evidence. ◀◀ Previous Next ▶▶ Inside the binary What the driver would load on a GPU: the test program built with nvcc -cudart shared -gencode arch=compute_80,code=sm_80 -gencode arch=compute_90,code=sm_90 -gencode arch=compute_90,code=compute_90 .",
+  "label": "depth",
+  "key": "is the evidence. ◀◀ previous next ▶▶",
+  "where": ""
+ },
+ {
+  "id": 388,
+  "tab": "t-cuda",
+  "section": "",
+  "text": "The CUDA topic's Compiler explorer shows the SASS and PTX of many kernels for four GPU generations; here the point is only what the driver receives. ldd rt_probe: the runtime is linked, the driver is not cubins in the executable: size and kernels the PTX the driver would JIT for a newer GPU (first lines) measured src/exp/cuda/run.sh and run_dev.sh ; raw: src/raw/cuda.txt , src/raw/cuda_dev.txt .",
+  "label": "depth",
+  "key": "the cuda topic's compiler explorer shows the",
+  "where": ""
+ },
+ {
+  "id": 389,
+  "tab": "t-cuda",
+  "section": "",
+  "text": "Containers ran unprivileged with --cap-add SYS_PTRACE for strace; case 4 added --device-cgroup-rule 'c 195:* rwm' .",
+  "label": "depth",
+  "key": "containers ran unprivileged with --cap-add sys_ptrace for",
+  "where": ""
+ },
+ {
+  "id": 390,
+  "tab": "t-share",
+  "section": "",
+  "text": "MIG cuts a GPU into instances from fixed profiles, and each profile may only start at certain positions on the GPU's 8 memory slices.",
+  "label": "core",
+  "key": "instances from fixed profiles,",
+  "where": ""
+ },
+ {
+  "id": 391,
+  "tab": "t-share",
+  "section": "",
+  "text": "Pick a profile, then one of its highlighted positions; click a placed instance to remove it.",
+  "label": "core",
+  "key": "pick a profile, then one of its",
+  "where": ""
+ },
+ {
+  "id": 392,
+  "tab": "t-share",
+  "section": "",
+  "text": "The placements are NVIDIA's, for an A100 40GB , from nvidia-smi mig -lgipp in the MIG user guide ; nothing here ran on a GPU.",
+  "label": "core",
+  "key": "placements are nvidia's, for an a100 40gb",
+  "where": ""
+ },
+ {
+  "id": 393,
+  "tab": "t-share",
+  "section": "",
+  "text": "Section 8 of the Reading tab compares MIG with time slicing, MPS and vGPU.",
+  "label": "depth",
+  "key": "time slicing, mps and",
+  "where": ""
+ },
+ {
+  "id": 394,
+  "tab": "t-share",
+  "section": "",
+  "text": "Examples from the guide: The rules this uses $ nvidia-smi mig -lgipp (A100-SXM4-40GB, from the MIG user guide) GPU 0 Profile ID 19 Placements: {0,1,2,3,4,5,6}:1 1g.5gb GPU 0 Profile ID 20 Placements: {0,1,2,3,4,5,6}:1 1g.5gb+me (1 instance at most) GPU 0 Profile ID 15 Placements: {0,2,4,6}:2 1g.10gb GPU 0 Profile ID 14 Placements: {0,2,4}:2 2g.10gb GPU 0 Profile ID 9 Placements: {0,4}:4 3g.20gb GPU 0 Profile ID 5 Placement : {0}:4 4g.20gb GPU 0 Profile ID 0 Placement : {0}:8 7g.40gb \"The syntax of the placement is {<index>}:<GPU Slice Count>\".",
+  "label": "depth",
+  "key": "$ nvidia-smi mig -lgipp (a100-sxm4-40gb, from the",
+  "where": ""
+ },
+ {
+  "id": 395,
+  "tab": "t-share",
+  "section": "",
+  "text": "Instances may not overlap, and the compute slices (the number before \"g\") add up to at most 7.",
+  "label": "depth",
+  "key": "instances may not overlap, and the compute",
+  "where": ""
+ },
+ {
+  "id": 396,
+  "tab": "t-share",
+  "section": "",
+  "text": "The guide warns: \"As GPU Instances are created and destroyed at different locations, fragmentation can occur, and the physical position of one GPU Instance will play a role in which other GPU Instances can be instantiated next to it\" ( MIG concepts ); and \"due to a known issue with the APIs, the profile ID 9 or 3g.20gb must be specified first\", because the driver's automatic placement of smaller instances can take the positions a 3g.20gb needs.",
+  "label": "depth",
+  "key": "the guide warns: \"as gpu instances are",
+  "where": ""
+ },
+ {
+  "id": 397,
+  "tab": "t-share",
+  "section": "",
+  "text": "Try the \"1-1-2, then 3g\" example to see it.",
+  "label": "depth",
+  "key": "try the \"1-1-2, then 3g\" example to",
+  "where": ""
+ },
+ {
+  "id": 398,
+  "tab": "t-share",
+  "section": "",
+  "text": "The H100 80GB has the same seven profiles at twice the memory ( 1g.10gb , 1g.10gb+me , 1g.20gb , 2g.20gb , 3g.40gb , 4g.40gb , 7g.80gb ) ( supported profiles ); its placement listing is not reproduced here.",
+  "label": "depth",
+  "key": "the h100 80gb has the same seven",
+  "where": ""
+ },
+ {
+  "id": 399,
+  "tab": "t-share",
+  "section": "",
+  "text": "After creating GPU instances you create compute instances inside them ( nvidia-smi mig -cgi 9,3g.20gb -C does both), and each appears to CUDA as its own device: CUDA_VISIBLE_DEVICES=MIG-<uuid> . \"The created MIG devices are not persistent across system reboots.\"",
+  "label": "depth",
+  "key": "after creating gpu instances you create compute",
+  "where": ""
+ },
+ {
+  "id": 400,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 5 October 2026.",
+  "label": "core",
+  "key": "links checked on 5 october",
+  "where": ""
+ },
+ {
+  "id": 401,
+  "tab": "t-more",
+  "section": "",
+  "text": "Times are estimates for the part worth reading.",
+  "label": "core",
+  "key": "times are estimates for the part worth",
+  "where": ""
+ },
+ {
+  "id": 402,
+  "tab": "t-more",
+  "section": "",
+  "text": "Suggested order: this page's Reading tab with OSTEP's Appendix B beside it; the One CUDA call tab; then the KVM and VFIO documentation for the virtualization half, or NVIDIA's open kernel modules and the CUDA compatibility guide for the GPU half, depending on what you are debugging.",
+  "label": "core",
+  "key": "suggested order: this page's reading tab with",
+  "where": ""
+ },
+ {
+  "id": 403,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's other tabs One CUDA call 10 min The CUDA runtime and user-mode driver looking for a GPU that is not there: five recorded cases, every trace line explained with its source.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed One CUDA call tab; its content is in section 9"
+ },
+ {
+  "id": 404,
+  "tab": "t-more",
+  "section": "",
+  "text": "Sharing a GPU 5 min MIG placement on an A100 40GB with NVIDIA's published rules, including the fragmentation that makes creation order matter.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed Sharing a GPU tab; the lab is in section 8"
+ },
+ {
+  "id": 405,
+  "tab": "t-more",
+  "section": "",
+  "text": "The parent page and its tabs Topic: operating-systems 50 min Section 9 is this page's intuition; the root measured the costs this page builds on (system call 0.316 µs, context switch 1.33 µs, TLB miss 7.6 ns).",
+  "label": "core",
+  "key": "the parent page and its tabs topic:",
+  "where": ""
+ },
+ {
+  "id": 406,
+  "tab": "t-more",
+  "section": "",
+  "text": "Debug lab tab 10 min On the root page, the cases that meet this page: \"CUDA out of memory (from source; not run here: no GPU)\" and \"A worker hangs forever: fork while another thread holds a lock\" (the same reason CUDA must not be initialised before fork).",
+  "label": "core",
+  "key": "debug lab tab 10 min on the",
+  "where": ""
+ },
+ {
+  "id": 407,
+  "tab": "t-more",
+  "section": "",
+  "text": "Syscall tracer tab 10 min On the root page: the CPU training job traced; the \"language to kernel\" view this page extends below the CUDA runtime.",
+  "label": "core",
+  "key": "syscall tracer tab 10 min on the",
+  "where": ""
+ },
+ {
+  "id": 408,
+  "tab": "t-more",
+  "section": "",
+  "text": "Sibling pages Processes and the system-call API 46 min The system call mechanism, ioctl as a system call, file descriptors for devices, and multiprocessing start methods (CUDA and fork).",
+  "label": "core",
+  "key": "sibling pages processes and the system-call api",
+  "where": ""
+ },
+ {
+  "id": 409,
+  "tab": "t-more",
+  "section": "",
+  "text": "Scheduling and CPU time 40 min Context switches and cross-CPU wake-ups measured (section 5 here explains the VM's share), CPU accounting and steal time.",
+  "label": "core",
+  "key": "scheduling and cpu time 40 min context",
+  "where": ""
+ },
+ {
+  "id": 410,
+  "tab": "t-more",
+  "section": "",
+  "text": "Virtual memory 36 min Page tables, the TLB and huge pages (the first dimension of section 4's walk), pinned memory and memlock for GPU copies.",
+  "label": "core",
+  "key": "virtual memory 36 min page tables, the",
+  "where": ""
+ },
+ {
+  "id": 411,
+  "tab": "t-more",
+  "section": "",
+  "text": "Memory allocators 34 min PyTorch's CUDA caching allocator: what sits on top of section 11's GPU memory.",
+  "label": "core",
+  "key": "memory allocators 34 min pytorch's cuda caching",
+  "where": ""
+ },
+ {
+  "id": 412,
+  "tab": "t-more",
+  "section": "",
+  "text": "Concurrency 37 min Futexes and wake-ups (section 5's cost in practice), NCCL's progress threads.",
+  "label": "core",
+  "key": "concurrency 37 min futexes and wake-ups (section",
+  "where": ""
+ },
+ {
+  "id": 413,
+  "tab": "t-more",
+  "section": "",
+  "text": "Storage and file systems 42 min The virtio disk of section 6 measured from the storage side, and GPUDirect Storage.",
+  "label": "core",
+  "key": "storage and file systems 42 min the",
+  "where": ""
+ },
+ {
+  "id": 414,
+  "tab": "t-more",
+  "section": "",
+  "text": "Containers and isolation 45 min Containers against VMs, the device cgroup that returned EPERM in section 9, GPU containers (NVIDIA container toolkit, CDI), and sandboxes built on microVMs (gVisor, Firecracker).",
+  "label": "core",
+  "key": "containers and isolation 45 min containers against",
+  "where": ""
+ },
+ {
+  "id": 415,
+  "tab": "t-more",
+  "section": "",
+  "text": "Related topics Topic: cuda-and-gpu-programming varies Writing kernels; its Compiler explorer shows real SASS and PTX for four GPU generations, built with the same CUDA 13.4 image used here.",
+  "label": "core",
+  "key": "related topics topic: cuda-and-gpu-programming varies writing kernels;",
+  "where": ""
+ },
+ {
+  "id": 416,
+  "tab": "t-more",
+  "section": "",
+  "text": "Topic: hardware varies The chips, memory and interconnects (PCIe, NVLink) under this page's driver and IOMMU.",
+  "label": "core",
+  "key": "topic: hardware varies the chips, memory and",
+  "where": ""
+ },
+ {
+  "id": 417,
+  "tab": "t-more",
+  "section": "",
+  "text": "Topic: ml-infra-and-orchestration varies Kubernetes GPU scheduling, the device plugin, time slicing and MIG in clusters.",
+  "label": "core",
+  "key": "topic: ml-infra-and-orchestration varies kubernetes gpu scheduling, the",
+  "where": ""
+ },
+ {
+  "id": 418,
+  "tab": "t-more",
+  "section": "",
+  "text": "Topic: pytorch-ecosystem varies The dispatcher and CUDA backend at the top of section 9's stack.",
+  "label": "core",
+  "key": "topic: pytorch-ecosystem varies the dispatcher and cuda",
+  "where": ""
+ },
+ {
+  "id": 419,
+  "tab": "t-more",
+  "section": "",
+  "text": "Distributed Training varies NCCL and the collectives whose peer-to-peer paths section 7 is about.",
+  "label": "core",
+  "key": "distributed training varies nccl and the collectives",
+  "where": ""
+ },
+ {
+  "id": 420,
+  "tab": "t-more",
+  "section": "",
+  "text": "Fault tolerance at scale 40 min GPU health checks (DCGM levels, the action for each Xid) and recovery at scale.",
+  "label": "core",
+  "key": "fault tolerance at scale 40 min gpu",
+  "where": ""
+ },
+ {
+  "id": 421,
+  "tab": "t-more",
+  "section": "",
+  "text": "Topic: agentic-harnesses varies Running untrusted code: where microVMs (section 1's KVM) are the sandbox.",
+  "label": "core",
+  "key": "topic: agentic-harnesses varies running untrusted code: where",
+  "where": ""
+ },
+ {
+  "id": 422,
+  "tab": "t-more",
+  "section": "",
+  "text": "Virtualization: the best sources OSTEP Appendix B: Virtual Machine Monitors 40 min Limited direct execution for a whole OS, shadow page tables, the information gap.",
+  "label": "core",
+  "key": "virtualization: the best sources ostep appendix b:",
+  "where": ""
+ },
+ {
+  "id": 423,
+  "tab": "t-more",
+  "section": "",
+  "text": "The textbook view of sections 1 to 4.",
+  "label": "core",
+  "key": "the textbook view of sections 1 to",
+  "where": ""
+ },
+ {
+  "id": 424,
+  "tab": "t-more",
+  "section": "",
+  "text": "LWN: Using the KVM API 25 min A complete virtual machine monitor in about a hundred lines of C; run it on any Linux machine with /dev/kvm.",
+  "label": "core",
+  "key": "lwn: using the kvm api 25 min",
+  "where": ""
+ },
+ {
+  "id": 425,
+  "tab": "t-more",
+  "section": "",
+  "text": "The KVM API, kernel docs (v6.12) reference Every ioctl and exit reason; read KVM_RUN and struct kvm_run first.",
+  "label": "core",
+  "key": "the kvm api, kernel docs (v6.12) reference",
+  "where": ""
+ },
+ {
+  "id": 426,
+  "tab": "t-more",
+  "section": "",
+  "text": "VFIO, kernel docs (v6.12) 25 min Why device assignment needs the IOMMU, groups, and the example of section 7.",
+  "label": "core",
+  "key": "vfio, kernel docs (v6.12) 25 min why",
+  "where": ""
+ },
+ {
+  "id": 427,
+  "tab": "t-more",
+  "section": "",
+  "text": "Popek and Goldberg, 1974 30 min The formal requirement for trap-and-emulate virtualization.",
+  "label": "core",
+  "key": "popek and goldberg, 1974 30 min the",
+  "where": ""
+ },
+ {
+  "id": 428,
+  "tab": "t-more",
+  "section": "",
+  "text": "Robin and Irvine, 2000 30 min The seventeen x86 instructions that broke it.",
+  "label": "core",
+  "key": "robin and irvine, 2000 30 min the",
+  "where": ""
+ },
+ {
+  "id": 429,
+  "tab": "t-more",
+  "section": "",
+  "text": "Bhargava et al., ASPLOS 2008 40 min Two-dimensional page walks and the caches that make them affordable. virtio 1.2 specification reference Virtqueues, notifications and the event index (section 6); Russell's 2008 paper is the short version.",
+  "label": "core",
+  "key": "bhargava et al., asplos 2008 40 min",
+  "where": ""
+ },
+ {
+  "id": 430,
+  "tab": "t-more",
+  "section": "",
+  "text": "AWS Nitro System whitepaper 30 min A production hypervisor: KVM-based, with device work moved to dedicated cards.",
+  "label": "core",
+  "key": "aws nitro system whitepaper 30 min a",
+  "where": ""
+ },
+ {
+  "id": 431,
+  "tab": "t-more",
+  "section": "",
+  "text": "Firecracker, NSDI 2020 40 min A minimal KVM-based VMM for serverless and sandboxes.",
+  "label": "core",
+  "key": "firecracker, nsdi 2020 40 min a minimal",
+  "where": ""
+ },
+ {
+  "id": 432,
+  "tab": "t-more",
+  "section": "",
+  "text": "QEMU's HVF backend (v6.2.0) 30 min The exit loop, WFI handling and vCPU kicks of section 5, in about 1,300 lines.",
+  "label": "core",
+  "key": "qemu's hvf backend (v6.2.0) 30 min the",
+  "where": ""
+ },
+ {
+  "id": 433,
+  "tab": "t-more",
+  "section": "",
+  "text": "KVM halt polling , guest halt polling 10 min How KVM trades CPU for wake-up latency.",
+  "label": "core",
+  "key": "kvm halt polling , guest halt polling",
+  "where": ""
+ },
+ {
+  "id": 434,
+  "tab": "t-more",
+  "section": "",
+  "text": "The GPU driver stack: the best sources NVIDIA open-gpu-kernel-modules, 615.71.09 browse Start at kernel-open/nvidia/nv.c (file operations, ioctl), then nvidia-uvm/uvm_channel.c (work submission).",
+  "label": "core",
+  "key": "the gpu driver stack: the best sources",
+  "where": ""
+ },
+ {
+  "id": 435,
+  "tab": "t-more",
+  "section": "",
+  "text": "CUDA Compatibility 25 min Backward, minor version and forward compatibility, with the matrix behind section 10's checker.",
+  "label": "core",
+  "key": "cuda compatibility 25 min backward, minor version",
+  "where": ""
+ },
+ {
+  "id": 436,
+  "tab": "t-more",
+  "section": "",
+  "text": "CUDA Programming Guide: the CUDA platform 20 min Cubins, fatbins, binary and PTX compatibility, JIT and the compute cache.",
+  "label": "core",
+  "key": "cuda programming guide: the cuda platform 20",
+  "where": ""
+ },
+ {
+  "id": 437,
+  "tab": "t-more",
+  "section": "",
+  "text": "CUDA Programming Guide: unified memory 40 min Page faults, migration, HMM and hardware coherence.",
+  "label": "core",
+  "key": "cuda programming guide: unified memory 40 min",
+  "where": ""
+ },
+ {
+  "id": 438,
+  "tab": "t-more",
+  "section": "",
+  "text": "MIG user guide 40 min Concepts, profiles, placements, and the streams, MPS and MIG comparison.",
+  "label": "core",
+  "key": "mig user guide 40 min concepts, profiles,",
+  "where": ""
+ },
+ {
+  "id": 439,
+  "tab": "t-more",
+  "section": "",
+  "text": "MPS 20 min How contexts are time-sliced and how MPS merges them.",
+  "label": "core",
+  "key": "mps 20 min how contexts are time-sliced",
+  "where": ""
+ },
+ {
+  "id": 440,
+  "tab": "t-more",
+  "section": "",
+  "text": "GPU Operator: time-slicing 15 min Sharing GPUs in Kubernetes and what it does not isolate.",
+  "label": "core",
+  "key": "gpu operator: time-slicing 15 min sharing gpus",
+  "where": ""
+ },
+ {
+  "id": 441,
+  "tab": "t-more",
+  "section": "",
+  "text": "NCCL GPU troubleshooting 15 min IOMMU, ACS, ATS, virtual topologies and GPUDirect RDMA.",
+  "label": "core",
+  "key": "nccl gpu troubleshooting 15 min iommu, acs,",
+  "where": ""
+ },
+ {
+  "id": 442,
+  "tab": "t-more",
+  "section": "",
+  "text": "Driver persistence , Xid errors 15 min Why the first CUDA call can take seconds; how the driver reports GPU faults.",
+  "label": "core",
+  "key": "driver persistence , xid errors 15 min",
+  "where": ""
+ },
+ {
+  "id": 443,
+  "tab": "t-more",
+  "section": "",
+  "text": "NVIDIA container toolkit 15 min NVIDIA_VISIBLE_DEVICES, NVIDIA_DRIVER_CAPABILITIES and NVIDIA_REQUIRE_CUDA.",
+  "label": "core",
+  "key": "nvidia container toolkit 15 min nvidia_visible_devices, nvidia_driver_capabilities",
+  "where": ""
+ },
+ {
+  "id": 444,
+  "tab": "t-read",
+  "section": "rebuilt",
+  "text": "GSP: on Turing and later GPUs the resource manager runs as firmware (GSP-RM) on the GPU, booted by nvidia.ko and reached by RPC; libcuda, nvidia.ko and the firmware must share a version; check with nvidia-smi -q, disable with NVreg_EnableGpuFirmware=0",
+  "label": "core",
+  "key": "gsp-rm",
+  "where": ""
+ },
+ {
+  "id": 445,
+  "tab": "t-read",
+  "section": "rebuilt",
+  "text": "GSP README quotes and open-source anchors (_kgspBootGspRm kernel_gsp.c L5429, _kgspRpcSendMessage L525; open modules need GSP firmware from the same release)",
+  "label": "depth",
+  "key": "_kgspbootgsprm",
+  "where": ""
+ },
+ {
+  "id": 446,
+  "tab": "t-read",
+  "section": "rebuilt",
+  "text": "GSP before/after figure: resource manager on the CPU (GSP off) against on the GPU (default); GSP-disabled mode has slower GPU initialisation, mitigated by nvidia-persistenced",
+  "label": "core",
+  "key": "two places the resource manager can run",
+  "where": ""
+ },
+ {
+  "id": 447,
+  "tab": "t-read",
+  "section": "rebuilt",
+  "text": "The container toolkit at the driver level: the image brings PyTorch and the runtime; the host lends libcuda, device files and cgroup permission; each missing piece is a measured failure case; mechanism owned by the containers page",
+  "label": "core",
+  "key": "the container toolkit at the driver level",
+  "where": ""
+ },
+ {
+  "id": 448,
+  "tab": "t-read",
+  "section": "rebuilt",
+  "text": "Image against host figure with the error for each missing piece (35, 34, 100 EPERM, 100 ENXIO, API mismatch)",
+  "label": "core",
+  "key": "what comes from the image, what must come from the host",
+  "where": ""
+ },
+ {
+  "id": 449,
+  "tab": "t-read",
+  "section": "rebuilt",
+  "text": "VMs against containers: one shared kernel against a kernel per guest; the boundary is the kernel's checks against the CPU's virtualization hardware",
+  "label": "core",
+  "key": "where the isolation boundary sits",
+  "where": ""
+ },
+ {
+  "id": 450,
+  "tab": "t-read",
+  "section": "rebuilt",
+  "text": "Version facts as of October 2026: minimum drivers, CUDA 13.4 with branch 615, cuda-compat-13-4 targets 535 to 610",
+  "label": "volatile",
+  "key": "version facts, as of october 2026",
+  "where": ""
+ },
+ {
+  "id": 451,
+  "tab": "t-read",
+  "section": "rebuilt",
+  "text": "A VM exit against a system call, privilege levels over time",
+  "label": "core",
+  "key": "a system call never leaves the guest",
+  "where": ""
+ },
+ {
+  "id": 452,
+  "tab": "t-read",
+  "section": "rebuilt",
+  "text": "The IOMMU figure: DMA to a guest-physical address translated by the domain table, an address outside it blocked",
+  "label": "core",
+  "key": "the iommu makes it land in this guest only",
+  "where": ""
+ },
+ {
+  "id": 453,
+  "tab": "t-read",
+  "section": "rebuilt",
+  "text": "Time slicing, MPS and MIG drawn as SMs over time and memory",
+  "label": "core",
+  "key": "take turns, merge, or cut",
+  "where": ""
+ },
+ {
+  "id": 454,
+  "tab": "t-read",
+  "section": "script",
+  "text": "Cross-CPU wake-up stepper: idle, busy and bare-hardware paths with exits and host wake-ups counted",
+  "label": "core",
+  "key": "three exits, and a sleeping host thread",
+  "where": ""
+ },
+ {
+  "id": 455,
+  "tab": "t-read",
+  "section": "script",
+  "text": "First CUDA call against a launch in the training loop stepper",
+  "label": "core",
+  "key": "the first call enters the kernel at every set-up step",
+  "where": ""
+ },
+ {
+  "id": 456,
+  "tab": "t-read",
+  "section": "script",
+  "text": "Version checker over NVIDIA's compatibility rules and Table 3 matrix (792 combinations checked)",
+  "label": "core",
+  "key": "will it run? the rules interact",
+  "where": ""
+ },
+ {
+  "id": 457,
+  "tab": "t-read",
+  "section": "script",
+  "text": "MIG placement lab with the guide's example geometries and the failing creation order",
+  "label": "core",
+  "key": "creation order matters",
+  "where": ""
+ },
+ {
+  "id": 458,
+  "tab": "t-read",
+  "section": "script",
+  "text": "Trace explorer: the four no-GPU cases and CPU-only PyTorch, every recorded line explained",
+  "label": "depth",
+  "key": "every recorded trace line, stepped",
+  "where": ""
+ },
+ {
+  "id": 459,
+  "tab": "t-read",
+  "section": "script",
+  "text": "Two-dimensional page walk stepper (native, 4x4, 4x3, 3x3)",
+  "label": "core",
+  "key": "each guest level waits for a host walk",
+  "where": ""
+ },
+ {
+  "id": 460,
+  "tab": "t-read",
+  "section": "script",
+  "text": "Virtqueue stepper: four reads one at a time against posted together",
+  "label": "core",
+  "key": "batching buys them back",
+  "where": ""
+ }
+]

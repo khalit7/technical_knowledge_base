@@ -24,5 +24,5 @@
   }
   build();
   const a=RD.anim({card:'pw-card',ctl:'pw-ctl',n:seq.length+1,draw,ms:900,label:'Page walk step'});
-  RD.seg(document.getElementById('pw-mode'),m=>{mode=m;build();a.reset(seq.length+1);a.play()});
+  RD.seg(document.getElementById('pw-mode'),m=>{mode=m;build();a.reset(seq.length+1)});
 })();

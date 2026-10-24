@@ -16,7 +16,7 @@
     while(j<8){if(u[j]!==null){const x=inst[u[j]],q=prof(x.id);h+='<div class="inst" style="grid-column:'+(j+1)+' / span '+q.s+'" data-k="'+u[j]+'" title="Click to remove"><b>'+q.n+'</b><span>'+x.at+':'+q.s+'</span></div>';j+=q.s;continue}
       if(p&&fr.indexOf(j)>=0){h+='<button class="cand" style="grid-column:'+(j+1)+' / span '+p.s+'" data-at="'+j+'">place at '+j+'</button>';j+=p.s;continue}
       h+='<div class="sl">free</div>';j++}
-    $('mg-gpu').innerHTML=h;$('mg-axis').innerHTML=[0,1,2,3,4,5,6,7].map(k=>'<span>slice '+k+'</span>').join('');
+    $('mg-gpu').innerHTML=h;$('mg-axis').innerHTML=[0,1,2,3,4,5,6,7].map(k=>'<span>'+k+'</span>').join('');
     if(p&&!fr.length&&!bad){msg='No valid position for '+p.n+' now: '+(comp()+p.c>7?'it would need '+(comp()+p.c)+' compute slices of 7.':p.max&&inst.some(x=>x.id===p.id)?'only one may exist.':'its allowed starts {'+p.at.join(',')+'} are all blocked by placed instances (fragmentation).');bad=true}
     const m=$('mg-msg');m.textContent=msg;m.className='msg'+(bad?' bad':'');
     const mem=inst.reduce((a,x)=>a+prof(x.id).gb,0),ms=u.filter(x=>x!==null).length;

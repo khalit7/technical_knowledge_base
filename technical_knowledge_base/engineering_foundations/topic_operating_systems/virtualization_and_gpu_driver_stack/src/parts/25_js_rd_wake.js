@@ -43,5 +43,5 @@
     document.getElementById('wk-cnt').innerHTML=RD.stat('VM exits',exits,mode==='bm'?'none on hardware':'each about '+ex+' µs')+RD.stat('Host thread wake-ups',wakes+kicks,wakes?'idle vCPU woken':kicks?'running vCPU kicked':'')+RD.stat('One way, measured',i===st.length-1?f1(TOT[mode])+' µs':'...','median of 3 runs');
     document.getElementById('wk-cap').innerHTML='<div class="t">'+st[i][1]+'</div><p>'+st[i][2]+'</p>';bars()}
   const a=RD.anim({card:'wk-card',ctl:'wk-ctl',n:S.idle.length,draw,ms:1800,label:'Wake-up step'});
-  RD.seg(document.getElementById('wk-mode'),m=>{mode=m;a.reset(S[m].length);a.play()});
+  RD.seg(document.getElementById('wk-mode'),m=>{mode=m;a.reset(S[m].length)});
 })();

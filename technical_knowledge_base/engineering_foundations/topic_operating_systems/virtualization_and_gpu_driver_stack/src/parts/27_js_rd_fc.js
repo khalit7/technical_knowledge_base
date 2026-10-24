@@ -29,5 +29,5 @@
     document.getElementById('fc-cnt').innerHTML=RD.stat('Steps that enter the kernel',d.filter(s=>s[0]==='sys').length,'each one or more system calls')+RD.stat('Steps in user space',d.filter(s=>s[0]!=='sys'&&s[0]!=='gpu').length,'plain stores')+RD.stat('Step',(i+1)+' / '+st.length,mode==='first'?'first call':'steady state');
     document.getElementById('fc-cap').innerHTML='<div class="t">'+st[i][1].replace(/</g,'&lt;')+'</div><p>'+st[i][2]+'</p>'}
   const a=RD.anim({card:'fc-card',ctl:'fc-ctl',n:S.first.length,draw,ms:1700,label:'CUDA call step'});
-  RD.seg(document.getElementById('fc-mode'),m=>{mode=m;a.reset(S[m].length);a.play()});
+  RD.seg(document.getElementById('fc-mode'),m=>{mode=m;a.reset(S[m].length)});
 })();

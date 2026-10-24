@@ -26,3 +26,15 @@ Scores: teaching value (1 to 5) x data reality (1 to 3), minus clutter.
 | Steal-time chart | This hypervisor reports none (always 0), so there is nothing to plot |
 
 What the methodology lacked for this page: guidance for a measurement that must be split across two machines (guest and host). Rule used: show totals measured where they happen, show host-side pieces measured separately and labelled as such, never apportion a total into invented per-step times.
+
+## Added 2026-10-24 (teaching-contract rebuild)
+| Idea | Kind | Placement | Data | Why it earns its place |
+|---|---|---|---|---|
+| Hero: the VM stack and the CUDA stack side by side, direct paths in blue, boundary crossings dashed | static annotated diagram | top of Reading | this VM's measured identity; open kernel modules 615.71.09 | the whiteboard picture the page elaborates: the hot path never asks permission |
+| VMs against containers: where the isolation boundary sits | static, two panels | section 1 | structure | the page owns VMs against containers; one look replaces a paragraph |
+| A VM exit against a system call: privilege levels over time | static diagram | section 2 | 0.92 µs measured | shows why getpid does not slow down in a VM and an MMIO store does |
+| The IOMMU: one DMA allowed, one blocked | static diagram | section 7 | structure, addresses illustrative | DMA remapping is spatial |
+| Time slicing, MPS and MIG: SMs over time and memory | static, three panels | section 8 | proportions illustrative | the isolation table becomes visible |
+| GSP off against GSP on | before/after, static | section 9 | NVIDIA README and kernel_gsp.c | where the resource manager runs changed with Turing |
+| What comes from the image, what from the host, and the error when it is missing | static annotated diagram | section 10 | errors measured in section 9 | the container toolkit at the driver level in one picture |
+Moved: the MIG placement lab (Sharing a GPU tab) into section 8; the trace explorer (One CUDA call tab) into a closed block in section 9. No real photographs: the page teaches software paths, and no licensed photo shows a hypervisor, an IOMMU table or a GSP; the hardware itself is the hardware topic's.

@@ -27,5 +27,5 @@
     document.getElementById('vq-cap').innerHTML='<div class="t">'+s.t+'</div><p>'+s.p+'</p>'}
   build();
   const a=RD.anim({card:'vq-card',ctl:'vq-ctl',n:steps.length,draw,ms:1300,label:'Virtqueue step'});
-  RD.seg(document.getElementById('vq-mode'),m=>{mode=m;build();a.reset(steps.length);a.play()});
+  RD.seg(document.getElementById('vq-mode'),m=>{mode=m;build();a.reset(steps.length)});
 })();
