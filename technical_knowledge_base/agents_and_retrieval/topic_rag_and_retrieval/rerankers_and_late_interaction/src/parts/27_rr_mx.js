@@ -1,4 +1,4 @@
-// ---- MaxSim lab (t-rrmax): one claim and one abstract, token by token, against the single-vector cosine ----
+// ---- Reading section 8 (moved from the MaxSim lab tab, 2026-10-24): one claim and one abstract, token by token, against the single-vector cosine ----
 (function(){
   const R=window.RR;if(!R)return;const $=id=>document.getElementById(id),esc=RRL.esc;
   const sel=$('rr-mx-pair');R.mx.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent='Claim '+p.qid+': '+p.claim.slice(0,50)+(p.claim.length>50?'...':'');sel.appendChild(o)});
@@ -25,7 +25,6 @@
     else $('rr-mx-rank').innerHTML='<tr><td class="small mute">The ranking of the claim\'s top 10 appears at the last step.</td></tr>'}
   function rank(m){const p=P(),k=m==='maxsim'?(useMask()?'maxsim':'maxsim_real'):'cos';return p.cands.slice().sort((a,b)=>b[k]-a[k]).findIndex(c=>c.rel)}
   const A=RD.anim({card:'rr-mx-card',ctl:'rr-mx-ctl',n:nsteps(),ms:900,draw,label:'Step'});
-  const reset=()=>{A.reset(nsteps());A.play()};
+  const reset=()=>{A.reset(nsteps())};
   RD.seg($('rr-mx-mode'),m=>{mode=m;reset()});sel.addEventListener('change',reset);$('rr-mx-mask').addEventListener('change',reset);
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-rrmax']=[()=>A.redraw()];
 })();

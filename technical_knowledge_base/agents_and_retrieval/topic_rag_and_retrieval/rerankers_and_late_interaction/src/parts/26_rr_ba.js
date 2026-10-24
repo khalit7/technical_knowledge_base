@@ -1,8 +1,8 @@
-// ---- Before/after lab (t-rrba): one real candidate list, reranked; rows slide to their new places ----
+// ---- Reading section 4 (moved from the Before/after lab tab, 2026-10-24): one real candidate list, reranked; rows slide to their new places when the reader presses After ----
 (function(){
   const R=window.RR;if(!R)return;const ORD=["rescued","hurt","disagree","multi","ceiling","maxsim-1"];R.ex.claims.sort((a,b)=>ORD.indexOf(a.why)-ORD.indexOf(b.why));const E=R.ex,$=id=>document.getElementById(id),esc=RRL.esc;
   const WHY={rescued:'Rescued: the relevant abstract sits deep in BM25\'s list.',hurt:'Hurt: BM25 had the relevant abstract first.',disagree:'Disagreement: on the hybrid list MiniLM pushes the relevant abstract down while Qwen3-Reranker puts it first.',
-    ceiling:'Ceiling: no first stage has a relevant abstract in its top 30, so no reranker can help.',multi:'Several relevant abstracts.','maxsim-1':'Claim 1180, the pair used in the Reading tab and the MaxSim lab.'};
+    ceiling:'Ceiling: no first stage has a relevant abstract in its top 30, so no reranker can help.',multi:'Several relevant abstracts.','maxsim-1':'Claim 1180, the pair used in sections 1 and 8.'};
   const sel=$('rr-ba-claim');E.claims.forEach((c,i)=>{const o=document.createElement('option');o.value=i;o.textContent=c.qid+' ('+c.why+'): '+c.claim.slice(0,60)+(c.claim.length>60?'...':'');sel.appendChild(o)});
   const RH=28;let phase='before';
   const RNM=['MiniLM-L6 CE','bge-reranker-v2-m3','Qwen3-Reranker-0.6B','ColBERT MaxSim'];
@@ -25,10 +25,10 @@
     $('rr-ba-why').innerHTML='<b>Claim '+c.qid+':</b> "'+esc(c.claim)+'" '+c.n_rel+' relevant abstract'+(c.n_rel>1?'s':'')+'. '+esc(WHY[c.why]||'');
     $('rr-ba-stats').innerHTML=RD.stat('First relevant, before',rk(O.before),RRL.FS[s.fs])+RD.stat('First relevant, after',rk(O.after),RNM[s.rr]+', K '+s.K)+
       RD.stat('nDCG@10, before',ndcg(O.before,c).toFixed(3),'this claim')+RD.stat('nDCG@10, after',ndcg(O.after,c).toFixed(3),'this claim')}
-  function go(){phase='before';$('rr-ba-ph').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m==='before'));draw();
-    if(!RD.RM)setTimeout(()=>{phase='after';$('rr-ba-ph').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m==='after'));draw()},700)}
+  // a new claim, first stage or reranker starts again from Before; nothing moves until the reader presses After
+  function go(){phase='before';$('rr-ba-ph').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m==='before'));draw()}
   RD.seg($('rr-ba-ph'),m=>{phase=m;draw()});RD.seg($('rr-ba-fs'),go);RD.seg($('rr-ba-rr'),go);
   sel.addEventListener('change',go);$('rr-ba-k').addEventListener('input',draw);
-  let first=true;(window.TAB_RENDER=window.TAB_RENDER||{})['t-rrba']=[()=>{if(first){first=false;go()}else draw()}];
+  RD.onRender(draw);
   draw();
 })();

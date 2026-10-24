@@ -36,6 +36,8 @@ ok(all(e["sim"] == [[int(round(100 * x)) for x in row] for row in p["sim"]] and 
 ok(emb["timings"] == (D("timings.json") if os.path.exists(os.path.join(H, "data", "timings.json")) else {}), "embedded timings equal data/timings.json")
 ok(emb["llm"] == (D("llm.json") if os.path.exists(os.path.join(H, "data", "llm.json")) else None), "embedded LLM results equal data/llm.json")
 ok(emb["train"] == (D("train.json") if os.path.exists(os.path.join(H, "data", "train.json")) else None), "embedded training runs equal data/train.json")
+spr = json.load(open(os.path.join(H, "inputs", "sparse_rp.json")))
+ok(emb["sparse"]["ex"] == spr["scifact"]["example_doc"], "embedded SPLADE-style example equals inputs/sparse_rp.json (the Retrieval pipeline page's run)")
 ok(js in html, "index.html carries 22_rr_data.js verbatim")
 rest = html.replace(js, "")
 ok("@@" not in rest, "no unfilled @@key@@ in index.html")

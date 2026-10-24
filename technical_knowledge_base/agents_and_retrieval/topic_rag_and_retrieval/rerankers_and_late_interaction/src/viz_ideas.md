@@ -36,3 +36,10 @@ Existing visuals checked first so nothing is repeated: the root's Pipeline lab (
 ## What the methodology lacked for this page
 
 A rule for **scores that live on different scales**: the three rerankers' default outputs are a raw logit, a sigmoid and a log-odds. Every chart that compares scores maps them to one scale first and says how.
+
+## 2026-10-24 rebuild (teaching contract)
+- **Built: hero** (static annotated figure): bi-encoder, learned sparse, late interaction and cross-encoder by what is stored per abstract, what is paid per candidate, and SciFact nDCG@10; orange marks where the query meets the document. The ColBERT paper's Figure 2 idea, redrawn with this page's numbers (`28_rr_hero.js`). Kind: structure, so static.
+- **Built: a real sparse document vector** (section 10): the 20 heaviest terms of SciFact abstract 4983 from the Retrieval pipeline page's SPLADE-style run, expansion terms in orange. Kind: structure of one real object, static bar chart.
+- **Moved inline**: the Before/after lab (idea 2) into section 4, the MaxSim lab (idea 3) into section 8, beside the claims they prove; both wait for the reader (no auto-flip to After, no play on mode switch).
+- **Kept as a tab**: the Depth chooser (idea 5), a tool used by sections 1, 4, 5 and 11.
+- **Rejected**: an embedded copy of the ColBERT paradigm figure (the redrawn hero carries it with the page's own numbers); a SPLADE expansion stepper (a static vector says it; no change over time is the point); a photo (nothing physical to show).

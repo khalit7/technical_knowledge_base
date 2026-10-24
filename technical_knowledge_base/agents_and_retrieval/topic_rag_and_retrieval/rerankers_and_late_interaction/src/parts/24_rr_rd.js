@@ -52,7 +52,7 @@
     $('rr-be-ctr').innerHTML=mode==='bi'?'<span>Model passes per query: <b>'+(st>=2?1:0)+'</b> (the claim)</span><span>Precomputed vectors: <b>5,183</b></span><span>Work per candidate: <b>'+(st>=3?'1 dot product of 1,024 numbers':'none yet')+'</b></span>'
       :'<span>Model passes per query: <b>'+(st>=4?10:1)+'</b> (one per candidate)</span><span>Tokens processed: <b>'+(st>=4?ntok.toLocaleString('en-US'):relCE.n_tokens)+'</b></span><span>Precomputed: <b>nothing</b></span>'}
   const beA=RD.anim({card:'rr-be-card',ctl:'rr-be-ctl',n:5,ms:2600,draw:drawBE,label:'Step'});
-  RD.seg($('rr-be-mode'),m=>{mode=m;beA.reset(5);beA.play()});
+  RD.seg($('rr-be-mode'),m=>{mode=m;beA.reset(5)});
   RD.onResize(()=>beA.redraw());
   // ---------- what the cross-encoder sees
   reg(()=>{const el=$('rr-tokview');el.innerHTML=tok.slice(0,60).map((t,i)=>'<span class="rr-tok'+(segm[i]===0?' q':'')+(SPECIAL(t)?' sp':'')+'">'+esc(t)+'</span>').join('')+' <span class="small mute">... '+(tok.length-60)+' more</span>'});

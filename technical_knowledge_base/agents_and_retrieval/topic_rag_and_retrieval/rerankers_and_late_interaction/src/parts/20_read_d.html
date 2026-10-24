@@ -1,14 +1,40 @@
-
 <section id="rr-s6">
-<h2>6. LLM rerankers: pointwise, pairwise, listwise</h2>
-<p>A decoder language model can rerank in three ways, which differ in what one call sees.</p>
-<div class="grid">
-<div class="card"><b>Pointwise</b>: one call per candidate, "is this document relevant? yes or no", read the probability of "yes". Scores are independent, so calls run in parallel and the scores can be thresholded. K calls.</div>
-<div class="card"><b>Pairwise</b>: one call per pair of candidates, "which of A and B is more relevant?", used inside a sort. Robust to score scale, but many calls: all pairs is K(K-1), a sliding bubble sort is about 2 x passes x K with both orders asked.</div>
-<div class="card"><b>Listwise</b>: one call sees many candidates and writes an order, "[3] > [1] > [2]". Sees the competition, but long prompts, a parseable output to hope for, and position bias; long lists go through a sliding window.</div>
+<h2>6. What a reranker score means: calibration, thresholds, abstaining</h2>
+<p>A RAG system often has to decide <i>whether</i> anything relevant was found, to say "I could not find it" instead of answering from the wrong abstract. A threshold on the reranker score needs the score to mean the same thing across queries. The three models here return three quantities (MiniLM a raw logit, bge a sigmoid, Qwen3 log-odds of "yes" over "no"); mapped onto one logit scale (bge: log(p / (1 - p))), their distributions on the same @@pool_pairs@@ pairs are:</p>
+<div class="card" id="rr-hist-card">
+<h4>Relevant and unlabelled pairs overlap, and the raw top scores are over-confident</h4>
+<div class="seg" id="rr-hist-m"><button data-m="ce-minilm-l6">MiniLM-L6 CE</button><button data-m="bge-reranker-v2-m3">bge-reranker-v2-m3</button><button data-m="qwen3-reranker-0.6b" class="on">Qwen3-Reranker-0.6B</button></div>
+<div class="rr-chart" id="rr-hist-svg"></div>
+<div class="small" id="rr-hist-txt"></div>
+<p class="small mute">Pool: each test claim's BM25 top 30 plus Qwen3-Embedding top 30 (@@pool_pairs@@ pairs, @@pool_rel@@ labelled relevant). "Unlabelled" includes some relevant abstracts nobody marked. <span class="meas">measured here</span> (<code>e_scores.py</code>)</p>
 </div>
-<h3>Pointwise done properly: Qwen3-Reranker</h3>
-<p>Qwen3-Reranker-0.6B is a Qwen3 decoder fine-tuned to answer one question. Its chat template (shipped with the model, <code>chat_template.jinja</code>) puts the task in a fixed frame and pre-fills an empty thinking block, so the very next token must be the answer:</p>
+<p><dfn>Calibration</dfn> means that among pairs scored 0.7, about 70% are relevant. Of the pairs whose raw sigmoid is above 0.9, only @@top_ce@@%, @@top_bge@@% and @@top_qw@@% are labelled relevant (MiniLM, bge, Qwen3; the truth is somewhat higher because of missing labels). <b>Thresholds do not transfer</b> either: the same MiniLM puts relevant pairs at a median logit of @@sf_rel_med@@ on SciFact and @@nf_rel_med@@ on NFCorpus (medical questions, graded labels); @@sf_above0@@% against @@nf_above0@@% score above 0. Recalibrate on a labelled sample of the target data.</p>
+<details class="dp"><summary>Expected calibration error before and after Platt scaling <span class="mute">(measured)</span></summary><div class="b"><p>Reading each logit through a sigmoid, the expected calibration error (ECE: the average gap between predicted and observed relevance over ten score bins) is @@ece_ce@@, @@ece_bge@@ and @@ece_qw@@; after <dfn>Platt scaling</dfn> (fitting p = sigmoid(a &middot; score + b) on half the claims, testing on the other half) it drops to @@ece_ce_p@@, @@ece_bge_p@@ and @@ece_qw_p@@. Those ECEs look small only because @@base_rate@@% of the pairs are relevant; the top bin above is the real story.</p></div></details>
+<h3>Abstaining when nothing relevant was retrieved</h3>
+<p>A constructed test: each claim is ranked twice, once with its candidate pool as is (@@n_ans@@ claims have a relevant abstract in it) and once with every relevant abstract removed, so the best remaining candidate is a near miss. A good "nothing here" signal gives the top candidate a lower score in the second case; AUROC is the chance that a random answerable claim's top score beats a random unanswerable one's. Predict: is the reranker's top score a better signal than the retriever's cosine?</p>
+<div class="card" id="rr-abst-card">
+<h4>A strong reranker's top score is the best "nothing here" signal, and still far from clean</h4>
+<div class="rr-chart" id="rr-abst-bars"></div>
+<div class="seg" id="rr-abst-m"><button data-m="ce-minilm-l6">MiniLM-L6 CE</button><button data-m="bge-reranker-v2-m3">bge-reranker-v2-m3</button><button data-m="qwen3-reranker-0.6b" class="on">Qwen3-Reranker-0.6B</button></div>
+<label class="small">Abstain when the top score is below <b id="rr-abst-tv"></b> <input type="range" id="rr-abst-t" min="0" max="44" step="1" value="24" aria-label="Threshold"></label>
+<div class="small" id="rr-abst-out"></div>
+<p class="small mute">AUROC: Qwen3-Reranker @@abst_qw@@, MiniLM @@abst_ce@@, cosine @@abst_cos@@, BM25 @@abst_bm25@@. Thresholds on each model's logit scale. <span class="meas">measured here</span> (<code>e_scores.py</code>)</p>
+</div>
+<p>The large rerankers beat the first stage's scores; the small MiniLM is no better than the cosine. At a threshold that keeps 90% of answerable claims, @@abst_at90@@% of the "nothing relevant" claims are still answered (Qwen3-Reranker). Use the score as one input to abstaining, together with a check that the passage supports the answer (groundedness: {{RAG and retrieval evaluation|n:3ef5c17b0d0d8194a914d1843ee26f13}}).</p>
+</section>
+
+<section id="rr-s7">
+<h2>7. LLM rerankers: pointwise, pairwise, listwise</h2>
+<p>A decoder language model can rerank in three ways, which differ in what one call sees:</p>
+<div class="grid">
+<div class="card"><b>Pointwise</b>: one call per candidate, "relevant? yes or no", read P(yes). Independent scores: parallel calls, thresholdable. <b>K calls.</b></div>
+<div class="card"><b>Pairwise</b>: "which of A and B is more relevant?" inside a sort. Robust to score scale, but all pairs is <b>K(K-1)</b> calls; a sliding bubble sort is about 2 &times; passes &times; K with both orders asked.</div>
+<div class="card"><b>Listwise</b>: one call sees many candidates and writes "[3] &gt; [1] &gt; [2]". Sees the competition; long prompts, output to parse, position bias; long lists go through a sliding window. <b>A few long calls.</b></div>
+</div>
+<p><b>Pointwise done properly: Qwen3-Reranker.</b> A Qwen3 decoder fine-tuned to answer one question in a fixed chat template, with an empty thinking block pre-filled so the very next token is the answer. The score is the difference of two next-token logits, because a softmax restricted to the two tokens gives</p>
+<div class="fm"><div class="eq">P(yes) = e<sup>y</sup> / (e<sup>y</sup> + e<sup>n</sup>) = sigmoid(y &minus; n), &nbsp; score = logit("yes") &minus; logit("no")</div></div>
+<p>so the stored score is the log-odds of "yes" against "no". The idea is <a href="https://arxiv.org/abs/2003.06713" target="_blank" rel="noopener noreferrer">monoT5's (Nogueira et al., 2020)</a>, which ranked by the softmax over only "true" and "false". Load it as its model card says (sentence-transformers <code>CrossEncoder</code> with <code>prompts</code>): a raw (query, document) pair through a generic causal-LM path, without the instruction and template, gives different scores.</p>
+<details class="dp"><summary>The template and the scoring code <span class="mute">(Qwen3-Reranker <code>chat_template.jinja</code>, sentence-transformers 6.1.0)</span></summary><div class="b">
 <div class="rr-src">&lt;|im_start|&gt;system
 Judge whether the Document meets the requirements based on the Query and the Instruct provided. Note that the answer can only be "yes" or "no".&lt;|im_end|&gt;
 &lt;|im_start|&gt;user
@@ -19,7 +45,7 @@ Judge whether the Document meets the requirements based on the Query and the Ins
 &lt;think&gt;
 
 &lt;/think&gt;</div>
-<p class="rr-srch">sentence-transformers 6.1.0, <code>cross_encoder/modules/logit_score.py</code>, lines 42-54 (abridged)</p>
+<p class="rr-srch"><code>cross_encoder/modules/logit_score.py</code>, lines 42-54 (abridged)</p>
 <div class="rr-src">    def forward(self, features, **kwargs):
         logits = features[self.module_input_name][:, -1]          <span class="c"># next-token logits at the last position</span>
         if self.false_token_id is None:
@@ -27,33 +53,21 @@ Judge whether the Document meets the requirements based on the Query and the Ins
         else:
             scores = logits[:, self.true_token_id] - logits[:, self.false_token_id]   <span class="c"># "yes" (9693) minus "no" (2152)</span>
         features["scores"] = scores.unsqueeze(1)</div>
-<p>Why the difference of two logits: a softmax restricted to the two tokens gives P(yes) = e<sup>y</sup> / (e<sup>y</sup> + e<sup>n</sup>) = sigmoid(y - n), so the stored score is the log-odds of "yes" against "no", and sigmoid(score) is that probability. The idea is from <a href="https://arxiv.org/abs/2003.06713" target="_blank" rel="noopener noreferrer">monoT5 (Nogueira et al., 2020)</a>, which trained T5 to emit "true" or "false" and ranked by the softmax over only those two logits. The Qwen3 report says the reranker gets supervised fine-tuning and model merging, with no weakly supervised pre-training stage, unlike the embedding models (<a href="https://arxiv.org/abs/2506.05176" target="_blank" rel="noopener noreferrer">Qwen3 Embedding report</a>: "the reranking model's training process does not include a first-stage weakly supervised training phase").</p>
+<p>The Qwen3 report says the reranker gets supervised fine-tuning and model merging, with no weakly supervised pre-training stage, unlike the embedding models (<a href="https://arxiv.org/abs/2506.05176" target="_blank" rel="noopener noreferrer">Qwen3 Embedding report</a>: "the reranking model's training process does not include a first-stage weakly supervised training phase").</p>
+</div></details>
 <h3>A general LLM, prompted: measured</h3>
-<p>The same three styles with a general model that was never trained to rerank: Qwen3-4B (Q4_K_M, llama-server on this laptop's GPU, temperature 0, thinking off). Pointwise uses Qwen3-Reranker's exact template and reads the "yes" and "no" log-probabilities; pairwise uses the PRP prompt (<a href="https://arxiv.org/abs/2306.17563" target="_blank" rel="noopener noreferrer">Qin et al., 2023</a>) asked in both orders, swapping two passages only when both orders agree, @@pair_passes@@ bubble passes over the top 10; listwise uses the RankGPT prompt (<a href="https://arxiv.org/abs/2304.09542" target="_blank" rel="noopener noreferrer">Sun et al., 2023</a>) with a window of 10 sliding by 5 from the back of the top 20 to the front. Passages in the pairwise and listwise prompts are cut to 80 words. First stage: BM25. <span class="meas">measured here</span> (<code>e_llm.py</code>, bench lock)</p>
-<div class="card" id="rr-llm-tab"></div>
-<p class="small mute" id="rr-llm-note">@@llm_note@@</p>
-<p><b>What it shows.</b> A 4 B general model, about seven times the trained reranker's parameters, ranks worse than the 0.6 B model fine-tuned for the job, in every style, and costs several times more time per claim. Listwise with a 10-candidate window did not beat BM25 here; pointwise yes/no, the trained reranker's own format, gained little without the training; pairwise comparisons were the best prompted style but disagreed with themselves when the two passages swapped places in about 40% of comparisons (position bias), which is why PRP asks both orders. The training, not the architecture or the size, is what makes Qwen3-Reranker good.</p>
+<p>Predict first: does a general 4 B model, about seven times the trained reranker's parameters, rank better in any of the three styles? The run: Qwen3-4B (Q4_K_M, llama-server on this laptop's GPU, temperature 0, thinking off). Pointwise uses Qwen3-Reranker's exact template and reads the "yes" and "no" log-probabilities; pairwise uses the PRP prompt (<a href="https://arxiv.org/abs/2306.17563" target="_blank" rel="noopener noreferrer">Qin et al., 2023</a>) in both orders, swapping two passages only when both orders agree, @@pair_passes@@ bubble passes over the top 10; listwise uses the RankGPT prompt (<a href="https://arxiv.org/abs/2304.09542" target="_blank" rel="noopener noreferrer">Sun et al., 2023</a>), a window of 10 sliding by 5 from the back of the top 20 to the front. Passages in pairwise and listwise prompts cut to 80 words; first stage BM25. <span class="meas">measured here</span> (<code>e_llm.py</code>)</p>
+<div class="card"><h4>The trained 0.6 B reranker beats the prompted 4 B model in every style, at a fraction of the time</h4><div id="rr-llm-tab"></div>
+<p class="small mute" id="rr-llm-note">@@llm_summary@@.</p>
+<details class="dp"><summary>Run details: failures, repairs, position bias, timing <span class="mute">(measured)</span></summary><div class="b"><p class="small">@@llm_note@@</p></div></details></div>
+<p>Listwise with a 10-candidate window did not beat BM25 here; pointwise yes/no gained little without the training; pairwise was the best prompted style but the two orders disagreed in about 40% of comparisons (position bias), which is why PRP asks both. <b>The training, not the architecture or the size, makes Qwen3-Reranker good.</b> Parse listwise output with a fallback: models skip or repeat identifiers, so deduplicate, append missing candidates in input order, and count it (@@list_missing@@ here).</p>
 <div class="card" id="rr-sw-card">
+<h4>Listwise reranking slides a window from the back, so a good candidate can climb one window at a time</h4>
 <div class="rr-chart" id="rr-sw-svg"></div>
 <div class="rr-cap" id="rr-sw-cap"></div>
 <div class="an-ctl" id="rr-sw-ctl"></div>
-<p class="small mute">The listwise sliding window on one real claim (@@sw_claim_id@@): each step is one call to Qwen3-4B with ten candidates; the bars are the BM25 order going in and the model's returned order coming out, the relevant abstract highlighted. Back to front, so a good candidate near the bottom can climb one window at a time. <span class="meas">measured here</span></p>
+<p class="small mute">One real claim (@@sw_claim_id@@): each step is one call to Qwen3-4B with ten candidates; bars are the BM25 order going in and the model's returned order coming out, the relevant abstract highlighted. <span class="meas">measured here</span></p>
 </div>
-<p><b>Published at scale.</b> In RankGPT's Table 1, GPT-4 listwise reranking of BM25's top 100 reached 75.59 nDCG@10 on TREC DL 2019 against 71.83 for the trained monoT5-3B and 50.58 for BM25; gpt-3.5-turbo reached 65.80, below monoT5 (<span class="pub">published, academic, 2023</span>). PRP with the open FLAN-UL2 (20 B) reached 72.42 to 72.65 depending on the variant. So a frontier LLM can beat a trained reranker, and a mid-size one usually does not; the trained small reranker is far cheaper per pair either way. Two later ideas cut LLM reranking cost: <b>Setwise</b> (<a href="https://arxiv.org/abs/2310.09497" target="_blank" rel="noopener noreferrer">Zhuang et al.</a>) picks the best of three per call inside a sort (about 62% fewer inferences than pairwise heapsort in their Table 2), and <b>FIRST</b> (<a href="https://arxiv.org/abs/2406.15657" target="_blank" rel="noopener noreferrer">Reddy et al., 2024</a>) reads the order from the logits of the <i>first</i> generated identifier instead of generating the whole permutation ("accelerates inference by 50%").</p>
-</section>
-
-<section id="rr-s7">
-<h2>7. Distillation: how small rerankers get good</h2>
-<p><b>The problem.</b> The best judge (a large cross-encoder ensemble, GPT-4) is too slow for production; labelled data is sparse and full of false negatives. <dfn>Distillation</dfn> trains a small student to reproduce a strong teacher's scores or orderings on many unlabelled (query, candidate) pairs, which also smooths over missing labels: the teacher says "this unmarked passage is quite relevant".</p>
-<div class="tw"><table>
-<thead><tr><th>Student</th><th>Teacher and signal</th><th>Loss</th><th>Reported result</th></tr></thead>
-<tbody>
-<tr><td>BERT-dot, ColBERT, TK, PreTT (6-layer DistilBERT students)</td><td>ensemble of BERT-base, BERT-large and ALBERT-large cross-encoders (scores averaged)</td><td><b>Margin-MSE</b>: (s(q, d<sup>+</sup>) - s(q, d<sup>-</sup>)) of the student should equal that of the teacher</td><td>"significantly improves re-ranking effectiveness without compromising their efficiency"; teacher scores released (<a href="https://arxiv.org/abs/2010.02666" target="_blank" rel="noopener noreferrer">Hofst&auml;tter et al., 2020</a>)</td></tr>
-<tr><td>MiniLM cross-encoders (sentence-transformers)</td><td>the same teacher ensemble's logits</td><td>pointwise MSE on logits (training script)</td><td>MiniLM-L6-v2 74.30 DL19 at 1,800 docs/s (model card, vendor)</td></tr>
-<tr><td>ColBERTv2</td><td>a 22 M MiniLM cross-encoder reranking ColBERT's own top k, 64 passages per example</td><td>KL divergence between score distributions, plus in-batch negatives</td><td>MS MARCO dev MRR@10 39.7 (<a href="https://arxiv.org/abs/2112.01488" target="_blank" rel="noopener noreferrer">Santhanam et al.</a>, Table 4)</td></tr>
-<tr><td>DeBERTa 70 M to 435 M</td><td>GPT permutations of BM25's top 20 for 10,000 MS MARCO queries</td><td>listwise ranking losses on the teacher's order</td><td>435 M student 53.03 BEIR average against 51.36 for monoT5-3B (RankGPT, Table 13)</td></tr>
-<tr><td>RankVicuna 7 B, RankZephyr 7 B</td><td>RankGPT-3.5 orders (about 100 K queries), then RankGPT-4 (up to 5 K) for RankZephyr</td><td>next-token loss on the permutation text, shuffled inputs</td><td>RankZephyr 0.7420 / 0.7086 nDCG@10 on DL19 / DL20 over BM25's top 100 (<a href="https://arxiv.org/abs/2312.02724" target="_blank" rel="noopener noreferrer">Pradeep et al.</a>, Table 5)</td></tr>
-<tr><td>answerai-colbert-small-v1 (33 M)</td><td>BGE-M3 reranker scores (JaColBERTv2.5 recipe), three runs averaged</td><td>score distillation</td><td>BEIR average 53.79 against 50.02 for the 110 M ColBERTv2 (<a href="https://www.answer.ai/posts/2024-08-13-small-but-mighty-colbert.html" target="_blank" rel="noopener noreferrer">Answer.AI blog</a>; ColBERTv2 is still ahead on Touche2020)</td></tr>
-</tbody></table></div>
-<p class="small mute">All rows <span class="pub">published</span> by the authors (academic or vendor); none of these trainings were run here. The Qwen3 report's own reranker table (MTEB-R, the authors' runs over Qwen3-Embedding-0.6B's top 100) puts Qwen3-Reranker-0.6B at 65.80 against 57.03 for bge-reranker-v2-m3; on SciFact here, independently, the two score @@qw30_hy@@ and @@bge30_hy@@ at K = 30 on the hybrid list: the same order, a smaller gap.</p>
+<p><b>Published at scale</b>, RankGPT Table 1 (<span class="pub">published, academic, 2023</span>): GPT-4 listwise over BM25's top 100 reached 75.59 nDCG@10 on TREC DL 2019, against 71.83 for the trained monoT5-3B and 50.58 for BM25; gpt-3.5-turbo reached 65.80, below monoT5. A frontier LLM can beat a trained reranker; a mid-size one usually does not; the trained small reranker is far cheaper per pair either way.</p>
+<details class="dp"><summary>More published LLM reranking: PRP, Setwise, FIRST <span class="mute">(published)</span></summary><div class="b"><p>PRP with the open FLAN-UL2 (20 B) reached 72.42 to 72.65 on TREC DL 2019 depending on the variant. <b>Setwise</b> (<a href="https://arxiv.org/abs/2310.09497" target="_blank" rel="noopener noreferrer">Zhuang et al.</a>) picks the best of three per call inside a sort (about 62% fewer inferences than pairwise heapsort in their Table 2). <b>FIRST</b> (<a href="https://arxiv.org/abs/2406.15657" target="_blank" rel="noopener noreferrer">Reddy et al., 2024</a>) reads the order from the logits of the <i>first</i> generated identifier instead of generating the whole permutation ("accelerates inference by 50%").</p></div></details>
 </section>
