@@ -1,4 +1,4 @@
-// Storage and data movement: click every control in every tab at 390 px dark and 920 px light; fail on page errors,
+// Storage and data movement (tabs since 2026-10-24: Reading, Sizing calculator, Further reading): click every control in every tab at 390 px dark and 920 px light; fail on page errors,
 // NaN, undefined, Infinity or sideways scroll; check the page's sizing JS against recompute.py's cases;
 // screenshot every card with an id. Usage (repo root): node <this file> <page folder> [shots dir]
 import {createRequire} from 'module';
@@ -18,7 +18,12 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   await p.setViewport({width:w,height:900});
   await p.goto('file://'+path.join(folder,'index.html'),{waitUntil:'load'});
   await p.evaluate(()=>{try{localStorage.clear()}catch(e){}});
-  for(const tab of ['t-read','t-sdstripe','t-sdmeta','t-sdsize','t-more']){
+  // no animation may move before the reader acts (2026-10-24): load, scroll the Reading tab end to end, wait, then look
+  const playing=await p.evaluate(async()=>{for(let y=0;y<document.body.scrollHeight;y+=600){scrollTo(0,y);await new Promise(r=>setTimeout(r,60))}
+    await new Promise(r=>setTimeout(r,1500));return [...document.querySelectorAll('button[aria-label="Pause"]')].length+[...document.querySelectorAll('input[type=range][id$="-s"]')].filter(e=>+e.value>0).length});
+  ok(playing===0,`${w} ${scheme}: nothing autoplays after a full scroll (${playing} moved)`);
+  await p.evaluate(()=>scrollTo(0,0));
+  for(const tab of ['t-read','t-sdsize','t-more']){
     await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);
     await new Promise(r=>setTimeout(r,200));
     const n=await p.evaluate(async t=>{const root=document.getElementById(t);let c=0;
@@ -33,7 +38,7 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
       }
       // walk every animation through all its steps in every mode
       for(const seg of root.querySelectorAll('.seg')){for(const sb of seg.querySelectorAll('button')){sb.click();
-        const card=seg.closest('.card,.rd-card');const fwd=card&&card.querySelector('button[aria-label="Next step"]');
+        const card=seg.closest('.card,.rd-card,.io-card');const fwd=card&&card.querySelector('button[aria-label="Next step"]');
         if(fwd)for(let k=0;k<20;k++){fwd.click();c++}}}
       return c},tab);
     const bad=await p.evaluate(t=>{const s=document.getElementById(t).innerText;return (s.match(/\bNaN\b|\bundefined\b|Infinity|\bnull\b/g)||[])},tab);

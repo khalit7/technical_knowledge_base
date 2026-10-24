@@ -1,32 +1,57 @@
 <section id="rd-s2">
 <h2>2. How a parallel file system works: Lustre, piece by piece</h2>
-<p>Lustre is the reference design (open source, on most of the largest supercomputers, and underneath managed services such as Amazon FSx for Lustre), so it is taught in full here; section 3 shows how the others differ. Current release: 2.17.0, tagged 2025-12-30 ({{lustre.org|https://www.lustre.org/}}; {{lustre-release tag 2.17.0|https://github.com/lustre/lustre-release/tree/2.17.0}}). Quotes are from the {{Lustre Operations Manual|https://doc.lustre.org/lustre_manual.xhtml}} unless marked.</p>
-<h3>The parts</h3>
+<p>Lustre is the reference design (open source, on most of the largest supercomputers, and underneath managed services such as Amazon FSx for Lustre), so it is taught in full; section 3 shows how the others differ. Current release 2.17.0, tagged 2025-12-30 ({{lustre.org|https://www.lustre.org/}}; {{lustre-release tag 2.17.0|https://github.com/lustre/lustre-release/tree/2.17.0}}). Quotes are from the {{Lustre Operations Manual|https://doc.lustre.org/lustre_manual.xhtml}} unless marked.</p>
 <div class="tw sd-tw"><table>
 <thead><tr><th>Part</th><th>What it does (the manual's words where quoted)</th></tr></thead>
 <tbody>
 <tr><td><b>MGS</b>, management server</td><td>"stores configuration information for all the Lustre file systems in a cluster and provides this information to other Lustre components."</td></tr>
-<tr><td><b>MDS</b> and <b>MDT</b>, metadata server and target</td><td>The MDS "manages the names and directories"; the MDT, its disk, "stores metadata (such as filenames, directories, permissions and file layout)". The manual sizes MDTs at "1-2% of file system capacity".</td></tr>
+<tr><td><b>MDS</b> and <b>MDT</b>, metadata server and target</td><td>The MDS "manages the names and directories"; the MDT, its disk, "stores metadata (such as filenames, directories, permissions and file layout)", sized at "1-2% of file system capacity".</td></tr>
 <tr><td><b>OSS</b> and <b>OST</b>, object storage server and target</td><td>"Typically, an OSS serves between two and eight OSTs"; "User file data is stored in one or more objects, each object on a separate OST".</td></tr>
 <tr><td><b>Client</b></td><td>A kernel module on every compute node, with "a metadata client (MDC), and multiple object storage clients (OSCs), one corresponding to each OST"; the LOV (logical object volume) stitches the OSCs into one file.</td></tr>
 <tr><td><b>LNet</b></td><td>Lustre's own network layer over InfiniBand, RoCE or TCP, carrying both metadata and data.</td></tr>
 </tbody></table></div>
+<figure class="ph"><img src="img/storage_enclosure_e5700.webp" alt="A rack-mount storage enclosure with one drawer pulled out, showing rows of drive carriers inside" loading="lazy" width="800" height="450">
+<figcaption>What sits behind an OSS: a box of drives, here one drawer of a NetApp E5700 enclosure pulled out at a trade show. The server exports its drives as a few targets (OSTs); a file system is dozens to hundreds of such boxes, and striping is what lets one file use many of them.<span class="cr">Photo: KorP, {{CC BY-SA 4.0|https://creativecommons.org/licenses/by-sa/4.0/}}, {{Wikimedia Commons|https://commons.wikimedia.org/wiki/File:NetApp_E5700.jpg}}.</span></figcaption></figure>
 <p><b>The one idea.</b> A file's entry on the MDT holds its <dfn>layout</dfn>: a list of objects, each on one OST, plus the stripe size. "When a client wants to read from or write to a file, it first fetches the layout EA from the MDT object for the file. The client then uses this information to perform I/O on the file, directly interacting with the OSS nodes where the objects are stored." The metadata server is asked once per open; the bytes never pass through it.</p>
 
 <div class="rd-card" id="sd-life-card">
-<h4>The same 8 MiB write, through one NFS server and through Lustre</h4>
-<p class="small">An illustrative sequence built from the manual's description of the I/O path and from <code>nfs(5)</code>'s close-to-open rule; drawn to scale in bytes (each square is 1 MiB), not in time. Toggle the system, then step.</p>
+<h4>The same 8 MiB write, through one NFS server and through Lustre: the bytes stop passing through the server that holds the names</h4>
+<p class="small">Illustrative, built from the manual's I/O path and from <code>nfs(5)</code>'s close-to-open rule; drawn to scale in bytes (each square is 1 MiB), not in time. Toggle the system, then step. Predict first: how many requests does the Lustre metadata server see for this write?</p>
 <div class="seg" id="sd-life-mode"><button data-m="nfs">One NFS server</button><button data-m="lus" class="on">Lustre, stripe count 4</button></div>
 <div class="rd-svg" id="sd-life-svg"></div>
 <div class="an-cap" id="sd-life-cap"></div>
 <div class="an-cnt" id="sd-life-cnt"></div>
 <div class="an-ctl" id="sd-life-ctl"></div>
+<p class="small mute">Lustre: two metadata requests in all (create and close), for any file size; NFS: one server takes the name and every byte, and close() flushes and reports write errors.</p>
 </div>
 
 <h3>Striping: which server holds byte X</h3>
-<p>A layout is <dfn>RAID 0</dfn> across its objects: "If the MDT file points to more than one object, the file data is striped across the objects using RAID 0, and each object is stored on a different OST." With <dfn>stripe size</dfn> S (bytes written to one object before moving to the next) and <dfn>stripe count</dfn> C (how many objects), byte offset X of the file lands in</p>
+<p><b>A concrete case first.</b> A file with 1 MiB stripes over 4 objects: MiB 0 goes to object 0, MiB 1 to object 1, ..., MiB 4 back to object 0. So the byte at 5 MiB lands in object 1, at offset 1 MiB inside it <span class="der">derived</span>. A layout is <dfn>RAID 0</dfn> across its objects: "If the MDT file points to more than one object, the file data is striped across the objects using RAID 0, and each object is stored on a different OST."</p>
+<div class="rd-card" id="sds-anim-card">
+<h4>The same 128 MiB file, written with stripe count 1, 2 and 4: each server added is another 25 MB/s</h4>
+<p class="small">Run on <b>tpfs</b>, a toy parallel file system built for this page: one metadata server, four object servers in containers, each held to 25 MB/s by a token bucket standing in for its disks (real code, not Lustre; locks, caches and failures not modelled). Each square is 1 MiB, coloured by the server that received it, filled at the rate the real run achieved, on one clock for all three. Predict the stripe-count-4 rate before you press play.</p>
+<div class="seg" id="sds-mode"><button data-m="1">Stripe count 1 (the default)</button><button data-m="2">Stripe count 2</button><button data-m="4" class="on">Stripe count 4</button></div>
+<div class="sv" id="sds-svg"></div>
+<div class="an-cap" id="sds-cap"></div>
+<div class="an-cnt" id="sds-cnt"></div>
+<div class="an-ctl" id="sds-ctl"></div>
+<p class="small">One client wrote the file at 22.2 MB/s with stripe count 1, 44.8 with 2 and 88.7 with 4 <span class="meas">measured</span>, medians of 3: linear, because nothing else was in the way. The manual: "Striping can be used to improve performance when the aggregate bandwidth to a single file exceeds the bandwidth of a single OST."</p>
+</div>
+<p>With stripe size S (bytes to one object before moving on) and stripe count C (how many objects), byte X of the file lands in</p>
 <div class="fm"><div class="eq">stripe = &lfloor;(X mod S&middot;C) / S&rfloor; &nbsp;&nbsp; object offset = &lfloor;X / (S&middot;C)&rfloor;&middot;S + (X mod S)</div>
-<dl><dt>S</dt><dd>stripe size, default 1 MiB ("the default value for stripe_size is 1MB"; must be a multiple of 64 KB)</dd><dt>C</dt><dd>stripe count, default 1 ("The default value for stripe_count is 1 stripe for file"); -1 means every OST</dd><dt>stripe</dt><dd>index into the layout's object list; the MDS chose which OST each object lives on when the file was created</dd></dl></div>
+<dl><dt>S</dt><dd>stripe size, default 1 MiB ("the default value for stripe_size is 1MB"; a multiple of 64 KB)</dd><dt>C</dt><dd>stripe count, default 1 ("The default value for stripe_count is 1 stripe for file"); -1 means every OST</dd><dt>stripe</dt><dd>index into the layout's object list; the MDS chose each object's OST when the file was created</dd></dl></div>
+<p><b>What striping costs.</b> More objects mean "more locks and extra network operations during common operations such as stat and unlink", and "when files are striped across all servers and one of the servers breaks down, a small part of each striped file is lost." "Small files do not benefit from striping." The manual's rule: "stripe over as few objects as will meet those needs and no more", bounded by "the I/O rate of the clients/jobs divided by the performance per OSS".</p>
+
+<div class="pr"><div class="q">Predict. Four ranks each write their own 64 MiB checkpoint shard to the toy, stripe count 1, and the MDS spreads the four files over the four servers. Then the same four shards go into one shared file striped over all four servers. Which is faster?</div>
+<div class="opts"><button data-a="0">The striped shared file, about 4 times faster</button><button data-a="1">About the same: both keep all four servers busy</button><button data-a="0">File per rank, about 4 times faster</button></div>
+<div class="ans" hidden>About the same: 88.9 MB/s for four files with one stripe each, 97.8 MB/s for one file striped four ways <span class="meas">measured</span>, medians of 3. Striping matters when few files must use many servers; when every rank writes its own file and the files are spread, the servers are already all busy. What hurts is when they are not spread: the same four files forced onto OST 0 (<code>lfs setstripe -i 0</code> copied from an example) or one shared file left at stripe count 1 ran at 25.0 and 24.9 MB/s, a quarter. The manual: the default start index of -1 "allows the MDS to choose the starting index. This setting is strongly recommended"; and with 100 clients and 100 servers, one object per file means "no contention", while 100 objects per file means "the clients all compete with one another for the attention of the servers".
+<div class="bars sds-bars" id="sds-np"></div>
+<p class="small">Aggregate MB/s for 256 MiB from four writers in one client container, from the first start to the last finish <span class="meas">measured</span>.</p></div></div>
+
+<h3>Locks: why many writers in one stripe are slow</h3>
+<p>Each OST runs its own lock manager (the LDLM) for the byte ranges of its objects, and a client caches data only while it holds the lock. "When writing to a single file from multiple nodes, having more than one client writing to a stripe can lead to issues with lock exchange, where clients contend over writing to that stripe, even if their I/Os do not overlap. This can be avoided if I/O can be stripe aligned so that each stripe is accessed by only one client." The toy has no locks, so on real Lustre an N-to-1 shared checkpoint with unaligned writes does much worse than the toy shows. DCP's one file per rank sidesteps it.</p>
+
+<details class="dp" id="sds-calc"><summary>Where does byte X live: Lustre's own code, and a calculator over plain and PFL layouts <span class="mute">(depth)</span></summary><div class="b">
 <div class="sd-src"><div class="f">lustre/lov/lov_offset.c, lines 273-288, lustre-release tag 2.17.0</div>
 <pre class="rd-code">/* compute which stripe number "lov_off" will be written into */
 int lov_stripe_number(struct lov_stripe_md *lsm, int index, u64 lov_off)
@@ -44,25 +69,25 @@ int lov_stripe_number(struct lov_stripe_md *lsm, int index, u64 lov_off)
 
 	return (int) stripe_off;
 }</pre>
-<p class="small"><code>stripe_width()</code> (lines 20-30) returns stripe size times stripe count; <code>index</code> picks the layout component (below). <code>lov_stripe_offset()</code> (lines 121-152) computes the object offset, <code>*obdoff = lov_off * ssize + stripe_off</code>. The {{Striping lab|#t-sdstripe}} has a calculator that runs exactly this arithmetic and our toy file system uses it too.</p></div>
-<p><b>What it buys.</b> "Striping can be used to improve performance when the aggregate bandwidth to a single file exceeds the bandwidth of a single OST." On our toy parallel file system (four object servers in containers, each held to 25 MB/s by a token bucket standing in for its disks; real code, not Lustre), one client wrote a 128 MiB file at 22.2 MB/s with stripe count 1, 44.8 with 2 and 88.7 with 4 <span class="meas">measured</span>, medians of 3: linear, because nothing else was in the way. The {{Striping lab|#t-sdstripe}} animates both runs.</p>
-<p><b>What it costs.</b> More objects mean "more locks and extra network operations during common operations such as stat and unlink", and "when files are striped across all servers and one of the servers breaks down, a small part of each striped file is lost." Small files gain nothing: "Small files do not benefit from striping". The manual's rule: "stripe over as few objects as will meet those needs and no more", bounded by "the I/O rate of the clients/jobs divided by the performance per OSS".</p>
+<p class="small"><code>stripe_width()</code> (lines 20-30) returns stripe size times stripe count; <code>index</code> picks the layout component. <code>lov_stripe_offset()</code> (lines 121-152) computes the object offset, <code>*obdoff = lov_off * ssize + stripe_off</code>. The calculator below runs exactly this arithmetic, and so does the toy file system.</p></div>
+<p class="small">Pick a plain layout or a PFL layout; the strip shows which OST holds each of the first stripe units.</p>
+<div class="seg" id="sds-lay"><button data-m="plain" class="on">Plain layout</button><button data-m="pfl">PFL: the manual's example on 8 OSTs</button><button data-m="fsx">PFL: FSx default</button></div>
+<div class="calc">
+<label>File offset, MiB <input type="number" id="sds-off" min="0" step="1" value="5"></label>
+<label id="sds-l-s">Stripe size <select id="sds-s"><option value="64">64 KiB</option><option value="1024" selected>1 MiB</option><option value="4096">4 MiB</option></select></label>
+<label id="sds-l-c">Stripe count <input type="number" id="sds-c" min="1" max="64" step="1" value="4"></label>
+<label id="sds-l-i">Starting OST <input type="number" id="sds-i" min="0" max="63" step="1" value="0"></label>
+<label>OSTs in the file system <input type="number" id="sds-n" min="1" max="64" step="1" value="8"></label>
+</div>
+<div class="out" id="sds-out"></div>
+<div class="sv" id="sds-map"></div>
+<p class="small mute" id="sds-lnote"></p>
+</div></details>
 
-<div class="pr"><div class="q">Predict. Four ranks each write their own 64 MiB checkpoint shard to the toy file system, stripe count 1, and the MDS spreads the four files over the four servers. Then the same four shards go into one shared file striped over all four servers. Which is faster?</div>
-<div class="opts"><button data-a="0">The striped shared file, about 4 times faster</button><button data-a="1">About the same: both keep all four servers busy</button><button data-a="0">File per rank, about 4 times faster</button></div>
-<div class="ans" hidden>About the same: 88.9 MB/s for four files with one stripe each, 97.8 MB/s for one file striped four ways <span class="meas">measured</span>, medians of 3. Striping matters when few files must use many servers; when every rank writes its own file and the files are spread, the servers are already all busy. What hurts is when they are not spread: the same four files all forced onto OST 0 (<code>lfs setstripe -i 0</code>, the mistake) or one shared file with stripe count 1 ran at 25.0 and 24.9 MB/s, a quarter. The manual makes the same argument with 100 clients and 100 servers: one object per file means "no contention", while 100 objects per file means "the clients all compete with one another for the attention of the servers".</div></div>
-
-<h3>Locks: why many writers in one stripe are slow</h3>
-<p>Each OST runs its own lock manager (the LDLM) for the byte ranges of its objects, so a client caches data only while it holds the lock. "When writing to a single file from multiple nodes, having more than one client writing to a stripe can lead to issues with lock exchange, where clients contend over writing to that stripe, even if their I/Os do not overlap. This can be avoided if I/O can be stripe aligned so that each stripe is accessed by only one client." Our toy has no locks, so this cost is <b>not modelled</b> there; on Lustre it makes an N-to-1 shared checkpoint file with unaligned writes much worse than the toy shows. DCP's one file per rank sidesteps it.</p>
-
-<h3>Layouts that adapt: PFL and Data on MDT</h3>
-<p>A <dfn>Progressive File Layout</dfn> (PFL, since 2.10) gives one file several components by offset, so small files stay on one OST and big ones spread out without anyone choosing in advance. The manual's example on 8 OSTs: <code>lfs setstripe -E 4M -c 1 -E 64M -c 4 -E -1 -c -1 -i 4 /mnt/testfs/create_comp</code>: "The first component has 1 stripe and covers [0, 4M), the second component has 4 stripes and covers [4M, 64M), and the last component stripes start at OST4, cross over all available OSTs and covers [64M, EOF)." Components after the first are created only when a write reaches them. Amazon FSx for Lustre file systems created after August 25, 2023 default to <code>lfs setstripe -E 100M -c 1 -E 10G -c 8 -E 100G -c 16 -E -1 -c 32</code> ({{FSx performance guide|https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html}}) <span class="vend">vendor</span>.</p>
-<p><dfn>Data on MDT</dfn> (DoM, since 2.11) puts the first part of a file on the metadata server itself, so a small file costs one server instead of two: "improves small file IO by placing small files directly on the MDT". The default maximum is 1 MB (<code>dom_stripesize</code>). Example: <code>lfs setstripe -E 1M -L mdt -E -1 -S 4M -c -1 /mnt/lustre/domfile</code>.</p>
-<h3>More than one metadata server: DNE</h3>
-<p>One MDS serves a whole file system until <dfn>DNE</dfn> (Distributed Namespace) adds more: a directory can live on another MDT (<code>lfs mkdir -i mdt_index</code>), or one huge directory can be spread over several with <code>lfs mkdir -c mdt_count</code>, "indended [sic] for specific applications where many output files are being created in one large directory (over 50k entries)". On our toy, two metadata servers instead of one served 16 clients at 2,635 operations per second against 1,603 <span class="meas">measured</span>: the {{Metadata storm|#t-sdmeta}} tab has the full curve.</p>
-
-<h3>What you type on a real Lustre client</h3>
-<p class="small">Not run here: Lustre needs its kernel modules on the client, which Docker Desktop's VM does not have. The output below is copied from the manual (section 19.3.5), not from a run.</p>
+<details class="dp"><summary>Layouts that adapt (PFL, Data on MDT) and what you type on a real client <span class="mute">(depth)</span></summary><div class="b">
+<p>A <dfn>Progressive File Layout</dfn> (PFL, since 2.10) gives one file several components by offset, so small files stay on one OST and big ones spread out without anyone choosing in advance. The manual's example on 8 OSTs: <code>lfs setstripe -E 4M -c 1 -E 64M -c 4 -E -1 -c -1 -i 4 /mnt/testfs/create_comp</code>: "The first component has 1 stripe and covers [0, 4M), the second component has 4 stripes and covers [4M, 64M), and the last component stripes start at OST4, cross over all available OSTs and covers [64M, EOF)." Components after the first are created only when a write reaches them. Amazon FSx for Lustre file systems created after August 25, 2023 default to <code>lfs setstripe -E 100M -c 1 -E 10G -c 8 -E 100G -c 16 -E -1 -c 32</code> ({{FSx performance guide|https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html}}) <span class="vend">vendor</span>. The trap: appending to a file with a wide last component instantiates every component, and "an operation such as reading the file length will send a request in parallel to every OST" (FSx guide), so FSx gives files opened in append mode a stripe count of 1.</p>
+<p><dfn>Data on MDT</dfn> (DoM, since 2.11) puts the first part of a file on the metadata server itself, so a small file costs one server instead of two: "improves small file IO by placing small files directly on the MDT". The default maximum is 1 MB (<code>dom_stripesize</code>). Example: <code>lfs setstripe -E 1M -L mdt -E -1 -S 4M -c -1 /mnt/lustre/domfile</code>. On DoM layouts without an end-of-file component, "writes beyond the end of the last existing component will fail with error ENODATA".</p>
+<p class="small">Not run here: Lustre needs its kernel modules on the client, which Docker Desktop's VM does not have. Output copied from the manual (section 19.3.5), not from a run.</p>
 <pre class="rd-code">$ lfs setstripe --stripe-count 1 --index 0 file1
 $ lfs getstripe file1
 /mnt/testfs/file1
@@ -73,5 +98,26 @@ lmm_layout_gen:    0
 lmm_stripe_offset: 0
 	obdidx		 objid		 objid		 group
 	     0	         37364	       0x91f4	             0</pre>
-<p class="small">Set a directory default so every new checkpoint shard inherits it: <code>lfs setstripe -c 4 -S 4M /lustre/ckpt</code> (the manual's guidance: "A good stripe size for sequential I/O using high-speed networks is between 1 MB and 4 MB"); see how full each server is: <code>lfs df -h /lustre</code>. A layout is fixed when the file is created; <code>lfs migrate</code> rewrites an existing file.</p>
+<p class="small">Set a directory default so every new checkpoint shard inherits it: <code>lfs setstripe -c 4 -S 4M /lustre/ckpt</code> ("A good stripe size for sequential I/O using high-speed networks is between 1 MB and 4 MB"); see how full each server is: <code>lfs df -h /lustre</code>. A layout is fixed when the file is created; <code>lfs migrate</code> rewrites an existing file.</p>
+</div></details>
+
+<details class="dp"><summary>The toy file system: how it is built, smaller stripes, and what transfers to a real cluster <span class="mute">(provenance)</span></summary><div class="b">
+<p class="small"><code>src/runs/tpfs.py</code>, standard-library Python: one metadata server that hands out layouts and four object servers that store the bytes, each in its own container (0.5 CPU, 256 MB), each held to 25 MB/s by a token bucket. The client gets a file's layout once and then talks to the object servers directly, using Lustre's RAID 0 arithmetic. The per-server limit is an input; the scaling, the hot spots and the slowdowns are what happened (Apple M1 Pro, Docker Desktop VM, shared machine, 2026-10-16; medians of 3).</p>
+<p class="small" id="sds-note"></p>
+<p class="small" id="sds-64"></p>
+<pre class="sd-pre" id="sds-code">docker network create sd-net
+for i in 0 1 2 3; do
+  docker run -d --rm --name sd-ost$i --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \
+    --memory 256m --cpus 0.5 python:3.12-slim python3 /tpfs.py ost --mbps 25
+done
+docker run -d --rm --name sd-mds0 --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \
+  --memory 256m --cpus 0.5 python:3.12-slim \
+  python3 /tpfs.py mds --osts sd-ost0:9000,sd-ost1:9000,sd-ost2:9000,sd-ost3:9000
+docker run -d --rm --name sd-cli --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \
+  --memory 768m --cpus 2 python:3.12-slim sleep 3600
+docker exec sd-cli python3 /tpfs.py bench stripe --mds sd-mds0:8000 --mib 128 --counts 1,2,4</pre>
+<p class="small">The whole run is <code>src/runs/run_tpfs.sh</code>; one output line (layout shortened):</p>
+<pre class="sd-pre" id="sds-out1"></pre>
+<p class="small">What transfers to a real cluster: the arithmetic (one file's bandwidth is its stripe count times one server's, until the client's network card or the job's other files get in the way), the hot spot when files share a server, and the cost of small stripes. What does not: the absolute numbers (25 MB/s per server is a choice, a real OST does gigabytes), locks, and the client-side caching and RPC pipelining that make Lustre's per-request costs far lower than Python's.</p>
+</div></details>
 </section>
