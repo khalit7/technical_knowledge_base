@@ -1,6 +1,6 @@
-// ---- Steps ladder (t-fmsteps): every tiny model and sampler at equal NFE; same-noise grid; before/after by NFE ----
+// ---- Reading section 10 (was the Steps ladder tab until 2026-10-24): every tiny model and sampler at equal NFE; same-noise grid; before/after by NFE ----
 (function(){
-  const X=window.FMX,$=X.$,D=X.D;if(!$('t-fmsteps'))return;const I=D.img;
+  const X=window.FMX,$=X.$,D=X.D;if(!$('fms-chart'))return;const I=D.img;
   const C=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','#c2508a','#7a8a3a','var(--mute)'];
   // series: [name, color, rows [[nfe, fd, acc, div]], tile prefix and steps-per-nfe]
   const fromRows=(rows,key,mult)=>rows.filter(r=>r[0]===key).map(r=>[r[1]*(mult||1),r[3],r[4],r[5],r[1]]);
@@ -43,5 +43,5 @@
     if(key)X.tiles($(stripId),key,10,X.CLS);else $(stripId).innerHTML='<span class="small mute">'+(has?'scored, images not recorded':'not run at this budget')+'</span>'}
   const bc=X.anim({card:'fms-bc',ctl:'fms-ctl',n:BN.length,ms:1100,hold:2000,label:'Evaluations',draw:i=>{side('fms-l','fms-ls','fms-lt',BN[i]);side('fms-r','fms-rs','fms-rt',BN[i]);$('fms-cap').textContent='Network evaluations: '+BN[i]+'. Same ten starting noises on both sides.'}});
   ['fms-l','fms-r'].forEach(id=>$(id).addEventListener('change',()=>bc.redraw()));
-  X.onRender('t-fmsteps',()=>{chart();grid()});
+  X.onRender('t-read',()=>{chart();grid()});
 })();

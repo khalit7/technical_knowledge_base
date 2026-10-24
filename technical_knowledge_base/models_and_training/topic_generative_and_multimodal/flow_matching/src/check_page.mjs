@@ -12,7 +12,7 @@ const page_=path.resolve(here,'../index.html');
 const shots=process.argv[2]||path.resolve(here,'../.shots_fm');fs.mkdirSync(shots,{recursive:true});
 const b=await puppeteer.launch({headless:'shell'});
 let bad=0;
-const TABS=['t-read','t-fmpath','t-fmsteps','t-fmts','t-more'];
+const TABS=['t-read','t-fmpath','t-more'];
 try{
 for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   const p=await b.newPage();const errs=[];

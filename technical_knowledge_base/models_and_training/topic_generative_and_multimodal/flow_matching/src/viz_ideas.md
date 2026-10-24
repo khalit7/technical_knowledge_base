@@ -35,3 +35,8 @@ Scores: parameter to move / reproduces a source / computable / beyond prose / co
 
 ## What the methodology lacked here
 - A rule for "the exact answer is computable": when the data are a Gaussian mixture or a finite set, the optimal network output has a closed form, and comparing against it separates learning error from everything else. It produced four of this page's best visuals (sections 1 to 3 and the playground). Worth adding: for any regression-trained generator, check whether the Bayes-optimal output is computable on the toy before training anything.
+
+## 2026-10-24 rebuild
+- Built: static three-panel hero (structure); solver error by NFE from the root's recording (parameter: NFE); the clock of section 6, lambda = a/(a + b) at four uniform steps per path (derived; shows "choosing a path is choosing a grid" in one picture); one-step against fifty-step strips behind a predict prompt; the root's convention-bug strips (real bad outputs).
+- Moved inline: the Steps ladder (section 10) and the Timestep explorer (section 11); the playground engine also drives a before/after reflow card in section 8.
+- Rejected: an animated hero (the change is not the point; a static diagram carries structure); a second flow-against-diffusion animation (the root's Flow lab had one; section 10's same-noise before/after replaces it); embedding Liu et al.'s Figure 1 (no open licence; redrawn as hero panel 3).

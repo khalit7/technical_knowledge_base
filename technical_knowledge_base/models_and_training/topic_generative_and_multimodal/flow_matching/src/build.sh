@@ -4,6 +4,7 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/
 # HTML: 01_head, 10_header (title and tab bar), 20_read.html then 20_read_*.html (Reading tab), then 3x_tab_*.html (one per tab, in file-name order).
 # A part may carry its own <style> (deep tabs keep their CSS scoped under their tab id).
 # JS: every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js (the tab wiring) last.
+# Then fill_static.py writes the recorded numbers, tables and code into the page as static text.
 # Links may be written {{text|url}} (url may be n:<notion id>, or #t-<tab> for a link to a tab); plain <a> tags pass through.
 cd "$(dirname "$0")"
 { cat parts/01_head.html parts/10_header.html parts/20_read_*.html
@@ -15,6 +16,7 @@ cd "$(dirname "$0")"
   echo '</body></html>'; } | perl -CSD -pe '
 s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a href=\"#\" data-tab=\"$1\">$t<\/a>"}else{$u=~s{^n:}{https:\/\/app.notion.com\/p\/};"<a href=\"$u\" target=\"_blank\" rel=\"noopener noreferrer\">$t<\/a>"}/ge;
 ' > ../index.html
+python3 fill_static.py || echo "FILL_STATIC FAILED"
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
 if grep -q '—' ../index.html; then echo "EM DASH FOUND"; grep -n -o '.\{30\}—.\{30\}' ../index.html | head; fi
 wc -c ../index.html
