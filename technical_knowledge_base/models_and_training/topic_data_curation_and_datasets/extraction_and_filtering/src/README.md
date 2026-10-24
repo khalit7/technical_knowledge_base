@@ -94,3 +94,6 @@ demand.
 383 units drafted by `ledger.py init` from the 2026-10-19 page: core 259, depth 108, fat 16 (headings, wind-ups, the
 old reading-time line, pointers to the removed Language ID tab, control labels; each fat unit has a `note`). Keys were
 chosen by script as the most distinctive number or phrase of each unit still on the built page, then checked by hand.
+
+## Topic close (2026-10-24)
+The root was rebuilt as a map; this page's Further reading now quotes the root as "31 min, plus 7" and siblings as their headers, and its ledger keys that quoted old times were re-keyed. The correction to the Pipeline lab's caption now says the root was fixed.
