@@ -1,6 +1,22 @@
 <section id="sec-debug">
-<h2>10. Debugging auth: symptom, first command, fix</h2>
-<p>Auth failures are noisy (every call fails) but usually quick to pin down, because the server tells you which check failed if you read the whole response. Habits: always print the status <i>and</i> the <code>WWW-Authenticate</code> header (<code>curl -sS -D - -o /dev/null ...</code>); decode tokens to read them but never trust what they say about themselves until a signature check has run; print key and token <i>hints</i> (first characters, last four, <code>jti</code>), never the values.</p>
+<h2>10. Choosing, and debugging</h2>
+<div class="fig">
+<h4>Which credential for which job</h4>
+<div class="tw"><table>
+<thead><tr><th>Situation</th><th>Use</th><th>Avoid</th></tr></thead>
+<tbody>
+<tr><td>Your backend calls an LLM provider</td><td>an API key per service and environment, from a secrets manager</td><td>one shared key; keys in notebooks or images</td></tr>
+<tr><td>Users sign in to your web app</td><td>OIDC code flow with PKCE via a managed identity provider; server-side session or a BFF</td><td>tokens in browser storage for sensitive apps</td></tr>
+<tr><td>A CLI or desktop agent acts for a user</td><td>code flow with PKCE and a loopback redirect; device grant for headless boxes</td><td>asking for the user's password; long-lived personal tokens</td></tr>
+<tr><td>Service to service inside one cloud</td><td>the platform's workload identity (IAM roles); mTLS inside a mesh</td><td>static keys copied between services</td></tr>
+<tr><td>Service to service across organisations</td><td>client credentials with <code>private_key_jwt</code> or mTLS client auth</td><td>shared client secrets emailed around</td></tr>
+<tr><td>CI deploying to a cloud</td><td>OIDC federation with an exact subject condition</td><td>cloud keys stored as CI secrets</td></tr>
+<tr><td>A remote MCP server</td><td>OAuth 2.1 per the MCP spec: CIMD, PKCE, resource, audience check; token exchange for upstreams</td><td>token passthrough; one omnibus scope</td></tr>
+<tr><td>A local MCP server (stdio)</td><td>credentials from its own environment, only what it needs</td><td>inheriting your whole shell environment</td></tr>
+</tbody></table></div>
+</div>
+<p>Debugging habits: always print the status <i>and</i> the <code>WWW-Authenticate</code> header (<code>curl -sS -D - -o /dev/null ...</code>); the server usually names the check that failed. Decode tokens to read them, but trust nothing they say about themselves until a signature check has run. Print key and token <i>hints</i> (first characters, last four, <code>jti</code>), never the values.</p>
+<details class="dp"><summary>Symptom, first command, fix <span class="mute">(twelve auth failures)</span></summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>Symptom</th><th>First command</th><th>Usual cause and fix</th></tr></thead>
 <tbody>
@@ -17,26 +33,20 @@
 <tr><td>AWS: signature or request-time errors on one machine</td><td><code>date -u</code>; any proxy rewriting signed headers</td><td>clock skew or header rewriting (section 7).</td></tr>
 <tr><td>CI cannot assume the cloud role after a repository move</td><td>print the OIDC token's <code>sub</code> in the job (it is not secret, but do not print the token)</td><td>the subject format changed (immutable IDs); update the trust condition.</td></tr>
 </tbody></table></div>
-
-<h3>Choosing, quickly</h3>
-<div class="tw"><table>
-<thead><tr><th>Situation</th><th>Use</th><th>Avoid</th></tr></thead>
-<tbody>
-<tr><td>Your backend calls an LLM provider</td><td>an API key per service and environment, from a secrets manager</td><td>one shared key; keys in notebooks or images</td></tr>
-<tr><td>Users sign in to your web app</td><td>OIDC code flow with PKCE via a managed identity provider; server-side session or a BFF</td><td>tokens in browser storage for sensitive apps</td></tr>
-<tr><td>A CLI or desktop agent acts for a user</td><td>code flow with PKCE and a loopback redirect; device grant for headless boxes</td><td>asking for the user's password; long-lived personal tokens</td></tr>
-<tr><td>Service to service inside one cloud</td><td>the platform's workload identity (IAM roles); mTLS inside a mesh</td><td>static keys copied between services</td></tr>
-<tr><td>Service to service across organisations</td><td>client credentials with <code>private_key_jwt</code> or mTLS client auth</td><td>shared client secrets emailed around</td></tr>
-<tr><td>CI deploying to a cloud</td><td>OIDC federation with an exact subject condition</td><td>cloud keys stored as CI secrets</td></tr>
-<tr><td>A remote MCP server</td><td>OAuth 2.1 per the MCP spec: CIMD, PKCE, resource, audience check; token exchange for upstreams</td><td>token passthrough; one omnibus scope</td></tr>
-<tr><td>A local MCP server (stdio)</td><td>credentials from its own environment, only what it needs</td><td>inheriting your whole shell environment</td></tr>
-</tbody></table></div>
-
-<h3>Common mistakes</h3>
-<details class="mist"><summary>Using an ID token to call an API</summary><div class="b">The ID token is addressed to your app. APIs need access tokens; check <code>typ</code> so they cannot be confused (section 5).</div></details>
-<details class="mist"><summary>Letting the token choose its algorithm or key</summary><div class="b">Pin algorithms per issuer; look keys up by <code>kid</code> in the issuer's JWKS only; ignore <code>jku</code> and <code>x5u</code> (section 6, {{JWT lab|#t-jwt}}).</div></details>
-<details class="mist"><summary>Skipping the audience check "because it is our own issuer"</summary><div class="b">The same issuer mints tokens for every API you own. Without <code>aud</code>, a token for the least important one opens all of them.</div></details>
-<details class="mist"><summary>Long-lived access tokens to avoid refresh logic</summary><div class="b">A leaked hour-long or day-long bearer token is an incident you cannot stop (JWTs cannot be revoked early). Keep minutes, add refresh.</div></details>
-<details class="mist"><summary>Logging Authorization headers</summary><div class="b">Access logs, proxy debug logs and tracing spans are where bearer tokens most often leak. Redact the header at the logger, and prefer bound tokens where logs are widely readable.</div></details>
-<details class="mist"><summary>Forwarding the token you received</summary><div class="b">Token passthrough (section 9). Exchange it instead (section 8).</div></details>
+</div></details>
+<details class="dp"><summary>Interview rehearsal <span class="mute">(eleven questions, model answers)</span></summary><div class="b">
+<details class="mist"><summary>What is the difference between authentication and authorization, and how does HTTP show it?</summary><div class="b">Authentication establishes who the caller is; authorization decides whether that caller may perform this action. A failed or missing credential is 401 with a <code>WWW-Authenticate</code> challenge; a valid credential without permission is 403 (with OAuth, <code>error="insufficient_scope"</code>).</div></details>
+<details class="mist"><summary>Walk me through the authorization code flow with PKCE. What does PKCE protect against?</summary><div class="b">Client creates a random verifier and sends its S256 hash in the authorization request with state, redirect URI, scope and resource; the user authenticates and consents; the AS redirects back with a one-time code (and iss); the client checks state and iss, then redeems the code with the verifier at the token endpoint over a direct TLS call. PKCE stops an intercepted or injected code from being redeemed by anyone who does not hold the verifier, which matters most for public clients that have no secret.</div></details>
+<details class="mist"><summary>Why did OAuth 2.1 remove the implicit grant?</summary><div class="b">It returned the access token in the redirect URL, where it leaks through history, referrers, extensions and logs, cannot be sender-constrained, and can be injected. The code flow with PKCE gives browser apps the same result with the token delivered on a back channel.</div></details>
+<details class="mist"><summary>How would you validate a JWT access token?</summary><div class="b">Pin the expected algorithm; pick the key by kid from the issuer's cached JWKS (never from jku/x5u or a kid path); verify the signature; check typ (at+jwt), iss, aud (contains me), exp/nbf with small leeway; then authorize on scopes and the resource. Refetch JWKS on unknown kid, rate-limited.</div></details>
+<details class="mist"><summary>JWT or opaque token with introspection? Trade-offs.</summary><div class="b">JWT: offline verification in microseconds, no AS on the hot path, but no early revocation and contents visible to anyone. Opaque with introspection: revocable immediately and private, but every call (or cache window) hits the AS. Common answer: short-lived JWTs plus refresh, with introspection or a denylist for high-value operations.</div></details>
+<details class="mist"><summary>What is refresh token rotation and what does reuse detection buy you?</summary><div class="b">Each refresh returns a new refresh token and invalidates the old one. If an invalidated one is presented, two parties hold copies, so the AS revokes the whole grant: a stolen refresh token becomes detectable and short-lived, at the cost of logging the real user out too.</div></details>
+<details class="mist"><summary>How do bearer tokens differ from DPoP or mTLS-bound tokens?</summary><div class="b">Bearer tokens work for whoever holds them. Bound tokens carry a confirmation (cnf) of a key; each request must prove possession (a signed DPoP proof covering method, URL, time and the token hash, or the TLS client certificate). A token stolen from a log is useless without the key.</div></details>
+<details class="mist"><summary>Your service received a user's token and needs to call another service for them. What do you do?</summary><div class="b">Not forward it. Use token exchange (RFC 8693): authenticate as the service, present the received token as subject_token, request the downstream audience and narrower scopes, and prefer a delegation token with an act claim so the downstream sees both the user and the service.</div></details>
+<details class="mist"><summary>How does a remote MCP server authorize clients, and what must the server check?</summary><div class="b">It is an OAuth resource server: 401 with resource_metadata, protected resource metadata naming its AS, the client discovers the AS, identifies itself (pre-registered, CIMD, or deprecated DCR), runs code + PKCE S256 with the resource parameter, checks iss, and sends Bearer tokens on every request. The server must validate each token including that its audience is this server, must not accept tokens for other resources, and must not pass tokens through to upstream APIs.</div></details>
+<details class="mist"><summary>How do you give a CI job cloud access without storing a cloud secret?</summary><div class="b">Workload identity federation: the CI platform issues an OIDC token for the job; the cloud's token service exchanges it for short-lived credentials if a trust policy matches iss, aud and an exact sub (repository plus protected branch or environment). Watch for wildcards and for subject format changes.</div></details>
+<details class="mist"><summary>Why is an API key acceptable for calling an LLM provider but not for a third-party integration?</summary><div class="b">Server to server under one owner, the key's lack of user context and consent does not matter, and secrets management plus rotation handle its risks. A third party acting for your users needs per-user consent, limited scopes, expiry and revocation per grant: OAuth.</div></details>
+</div></details>
+<div class="foot">Sources: every specific fact links its source inline. Recorded values come from this page's lab (<code>src/lab/</code>, rerun with <code>src/run_all.sh</code>), run on 5 October 2026 on an Apple M1 Pro with Python 3.13.5, PyJWT 2.15.1, cryptography 50.0.2 and the MCP Python SDK 2.3.0; the authorization server, upstream APIs and the browser and user are the lab's own (stated where they appear). Real provider documents were fetched read-only on the same day.</div>
 </section>
+</div>

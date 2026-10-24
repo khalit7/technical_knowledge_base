@@ -12,6 +12,8 @@ const puppeteer = require('puppeteer');
 const OUT = process.argv[2] || '/tmp/auth-ui'; fs.mkdirSync(OUT, { recursive: true });
 const file = 'file://' + path.resolve(here, '..', 'index.html');
 const b = await puppeteer.launch({ headless: 'shell' });
+// nothing may move before the reader acts: check every controller is paused after load, with normal motion
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const problems = []; let clicks = 0; let values = null;
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
@@ -32,7 +34,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     if (r.side) problems.push(`${scheme} ${where}: sideways scroll`);
     if (r.box) problems.push(`${scheme} ${where}: error box shown`);
   };
-  for (const tab of ['t-read', 't-mcpflow', 't-jwt', 't-more']) {
+  for (const tab of ['t-read', 't-more']) {
     await p.click(`button[data-t=${tab}]`); await sleep(250); await check(tab);
     const n = await p.$$eval(`#${tab} button, #${tab} input[type=checkbox], #${tab} select, #${tab} input[type=range]`, els => els.length);
     for (let i = 0; i < n; i++) {
@@ -61,14 +63,12 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       await p.click(`#oaA [data-m=${m}]`); await p.evaluate(() => { const s = document.querySelector('#oaA [data-a=scrub]'); s.value = s.max; s.dispatchEvent(new Event('input')); });
       await sleep(900); await shot('#oaA', 'oauth-' + m);
     }
-    await shot('#sgCalc', 'sigv4'); await shot('#rdRot', 'rotation'); await shot('#rdDev', 'device'); await shot('#rdDisc2', 'discovery'); await shot('#rdAlgs', 'algs'); await shot('#rdPass', 'passthrough');
-    await p.click('button[data-t=t-mcpflow]'); await sleep(200);
+    await shot('#sgCalc', 'sigv4'); await shot('#rotSvg', 'rotation'); await shot('#devSvg', 'device'); await shot('#heroCard', 'hero'); await shot('#dpSvg', 'dpop'); await shot('#wiSvg', 'workload'); await shot('#rdDisc2', 'discovery'); await shot('#rdAlgs', 'algs'); 
     await p.evaluate(() => { const s = document.querySelector('#mfA [data-a=scrub]'); s.value = 3; s.dispatchEvent(new Event('input')); }); await shot('#mfA', 'mf-step4');
     for (const m of ['strict', 'naive', 'xchg']) {
       await p.click(`#mfB [data-p=${m}]`); await p.evaluate(() => { const s = document.querySelector('#mfB [data-a=scrub]'); s.value = s.max - 1; s.dispatchEvent(new Event('input')); });
       await sleep(300); await shot('#mfB', 'mf-' + m);
     }
-    await p.click('button[data-t=t-jwt]'); await sleep(200);
     for (const m of ['strict', 'noaud', 'naive']) { await p.click(`[data-pre=${m}]`); await sleep(100); await shot('#jl', 'jwt-' + m); }
     values = await p.evaluate(() => ({
       tamperToken: AU.tamperToken, sigOk: AU.sigOk, pkce: document.getElementById('rdPkceC').textContent,

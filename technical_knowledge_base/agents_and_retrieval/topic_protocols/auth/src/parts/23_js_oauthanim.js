@@ -43,7 +43,7 @@
   };
   let mode = 'pkce';
   const colors = { ok: 'var(--c1)', leak: 'var(--c5)', bad: 'var(--bad)', good: 'var(--good)', note: 'var(--mute)' };
-  function draw(i) {
+  function draw(i, touched) {
     const S = M[mode], W = Math.max(300, root.clientWidth - 28), rowH = 30, top = 40, H = top + S.length * rowH + 10;
     const xs = [0.12, 0.38, 0.64, 0.89].map(f => f * W);
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
@@ -55,13 +55,13 @@
     S.forEach((s, k) => {
       if (k > i) return;
       const y = top + k * rowH + 14, cur = k === i, op = cur ? 1 : 0.45, c = colors[s[4]];
-      const fs = W < 480 ? 10 : 11.5;
+      const fs = W < 480 ? 11 : 11.5;
       if (s[0] === s[1]) {
         const x = xs[s[0]], tw = Math.min(W - 8, s[2].length * fs * 0.56 + 14), x0 = Math.max(4, Math.min(W - tw - 4, x - tw / 2));
         o += `<g opacity="${op}"><rect x="${x0}" y="${y - 11}" width="${tw}" height="19" rx="5" fill="var(--soft)" stroke="${c}"/><text x="${x0 + tw / 2}" y="${y + 3}" text-anchor="middle" font-size="${fs}">${AU.esc(s[2])}</text></g>`;
       } else {
         const x1 = xs[s[0]], x2 = xs[s[1]], mid = (x1 + x2) / 2;
-        o += `<g opacity="${op}"><line class="${cur && !AU.reduced() ? 'oa-cur' : ''}" x1="${x1}" y1="${y + 6}" x2="${x2}" y2="${y + 6}" stroke="${c}" stroke-width="${cur ? 2.4 : 1.6}" marker-end="url(#oaAr)"/>`;
+        o += `<g opacity="${op}"><line class="${cur && touched && !AU.reduced() ? 'oa-cur' : ''}" x1="${x1}" y1="${y + 6}" x2="${x2}" y2="${y + 6}" stroke="${c}" stroke-width="${cur ? 2.4 : 1.6}" marker-end="url(#oaAr)"/>`;
         const tx = Math.max(4 + 40, Math.min(W - 44, mid));
         o += `<text x="${tx}" y="${y}" text-anchor="middle" font-size="${fs}" fill="${s[4] === 'bad' ? 'var(--bad)' : 'var(--ink)'}">${AU.esc(s[2])}</text></g>`;
       }
@@ -78,8 +78,8 @@
   document.head.appendChild(st);
   const A = AU.anim({ root, count: () => M[mode].length, draw, dwell: 2300 });
   root.querySelectorAll('[data-m]').forEach(b => b.addEventListener('click', () => {
-    mode = b.dataset.m; root.querySelectorAll('[data-m]').forEach(x => x.classList.toggle('on', x === b)); A.go(0);
+    mode = b.dataset.m; root.querySelectorAll('[data-m]').forEach(x => x.classList.toggle('on', x === b)); A.go(0, true);
   }));
-  addEventListener('resize', () => A.redraw());
+  let lw = 0; addEventListener('resize', () => { if (root.clientWidth !== lw) { lw = root.clientWidth; A.redraw(); } });
   (TAB_RENDER['t-read'] = TAB_RENDER['t-read'] || []).push(() => A.redraw());
 })();

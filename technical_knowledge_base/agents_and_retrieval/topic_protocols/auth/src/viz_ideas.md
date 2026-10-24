@@ -23,3 +23,7 @@ Scores: teaching value (T), honesty of data (D), cost (C, lower is cheaper), eac
 
 ## What the methodology lacked
 Nothing structural. For protocol pages, "recorded bytes from the official SDK, replayed with a spec rule per step" proved a stronger default than a hand-drawn sequence diagram; worth adding as an idea pattern.
+
+## 2026-10-24 rebuild
+Built: hero (recorded delegated call), sessions/JWT/BFF panels, refresh rotation and device grant drawn from the recordings, ID token against access token, DPoP proof structure, workload identity sequence; the MCP flow stepper and passthrough/exchange before/after moved inline; JWT lab moved inline.
+Rejected: a step-by-step drawing of the confused-deputy attack (attack routes stay text, per the skill); an SVG for API-key rotation with overlap (one sentence says it); a real photo (nothing physical to show; the recorded wire bytes are the real artefacts).
