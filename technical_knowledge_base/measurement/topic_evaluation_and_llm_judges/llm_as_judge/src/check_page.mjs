@@ -74,6 +74,18 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   near(est.est, c35.seed1_m100.est, 1e-4, 'anim est'); near(est.lo, c35.seed1_m100.lo, 1e-4, 'anim lo'); near(est.hi, c35.seed1_m100.hi, 1e-4, 'anim hi');
   near(est.tp, c35.seed1_m100.tp, 0, 'anim tp'); near(est.fp, c35.seed1_m100.fp, 0, 'anim fp');
   if (!animTxt.includes((100 * c35.seed1_m100.est).toFixed(1) + '%')) problems.push('anim counter does not show the corrected estimate: ' + animTxt.replace(/\n/g, ' '));
+  // Reading figures: every figure drawn, and the computed numbers agree with recompute.json and the static captions
+  const figs = await p.evaluate(() => ['lj-hero','lj-modes','lj-prompt','lj-order','lj-null','lj-kappa','lj-rv','lj-jury','lj-jb','lj-list'].map(id => [id, !!document.querySelector('#' + id + ' svg')]));
+  for (const [id, ok] of figs) if (!ok) problems.push(`${scheme}${width}: figure ${id} not drawn`);
+  const kt = await p.$eval('#lj-kappa', e => e.textContent);
+  near(+(kt.match(/= (0\.\d{3})\s*$/) || [0, NaN])[1], +R.lab.all_S1_all.P.kappa.toFixed(3), 0, 'kappa figure');
+  const ot = await p.$eval('#lj-order', e => e.textContent);
+  for (const x of ['F', 'B', 'FB']) { const v = R.lab.g35_S1_all[x]; if (!ot.includes(v.kappa.toFixed(3).slice(0, 4))) problems.push('order figure kappa ' + x); if (!ot.includes(v.ties.toFixed(1) + '%')) problems.push('order figure ties ' + x) }
+  const ht = await p.$eval('#lj-hero', e => e.textContent);
+  if (!ht.includes((100 * c35.seed1_m100.est).toFixed(1) + '%')) problems.push('hero corrected estimate');
+  const lt = await p.$$eval('#lj-list svg text', ts => ts.map(t => t.textContent).join(' | '));
+  const pairs = [...lt.matchAll(/(\d+\.\d) \u2192 (\d+\.\d)/g)].map(m => [+m[1], +m[2]]);
+  for (const [m, [h, j]] of Object.entries(R.list_P_all.win_rates)) if (!pairs.some(([a, b]) => Math.abs(a - h) <= 0.051 && Math.abs(b - j) <= 0.051)) problems.push('list figure ' + m);
   // Protocol lab
   await tab('t-proto'); await audit('proto');
   for (const sc of ['all', 'nov', 'g35']) {
@@ -93,8 +105,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const rho = await p.evaluate(() => { const L = window.LJ, W = L.winRates('P', { scope: 'all' }); return L.spearman(W.map(w => w.h), W.map(w => w.j)) });
   near(rho, R.list_P_all.spearman, 1e-4, 'spearman');
   await p.screenshot({ path: `${shots}/chk-proto-${scheme}-${width}.png`, fullPage: true });
-  // Calibration lab
-  await tab('t-cal'); await audit('cal');
+  // Slice-size lab (Reading, Calibration; moved from the Calibration lab tab on 2026-10-24)
+  await tab('t-read'); await audit('cal');
   for (const j of ['P', 'S']) { await p.select('#cl-j', j); actions++;
     await selectAll('#cl-t', async () => { await click('#cl-new'); await audit('cal ' + j) }); }
   await p.select('#cl-j', 'P'); await p.select('#cl-t', '2'); await click('#cl-reset');
@@ -110,7 +122,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     await audit('cal run ' + key);
   }
   await p.select('#cl-t', '2'); await click('#cl-run'); await click('#cl-curve');
-  await p.screenshot({ path: `${shots}/chk-cal-${scheme}-${width}.png`, fullPage: true });
+  await p.$eval('#cl-card', e => e.scrollIntoView()); await p.screenshot({ path: `${shots}/chk-cal-${scheme}-${width}.png` });
   await tab('t-more'); await audit('more');
   // tab links from the Reading tab
   await tab('t-read'); const n = await p.$$eval('#t-read a[data-tab]', as => as.length);

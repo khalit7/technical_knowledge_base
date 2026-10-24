@@ -16,6 +16,23 @@ Scores 0 to 2 on: reader control moves the quantity; reproduces a published figu
 
 Defaults that reproduce published figures: Zheng et al. Table 5 (GPT-4 pair vs experts and expert vs expert, both turns, S1 and S2): every vote count exact, every percentage rounds to the paper's, independently from the released files. Not reproduced: Table 5's pointwise row (60%, 1,280 votes), because the released single-grading file is a later run grading Vicuna v1.3. Lee et al.'s own Arena numbers are not reproduced (their GPT-4.1-mini judgments are not in our data); the page runs their estimator on MT-Bench instead and finds, like them on Arena, that the labels alone give narrower intervals for a GPT-4-era judge.
 
+## Added at the 2026-10-24 rebuild (teaching contract)
+
+| # | Visual | Kind | Data | Placement |
+|---|---|---|---|---|
+| V6 | Hero: the judge as an instrument (prompt, judge, verdicts, raw rate; gold slice, error rates, corrected rate; trust averages), biases leaking in | static annotated diagram | GPT-3.5-turbo, seed 1, 100 labels, computed with LJ | Reading, top |
+| V7 | Four modes: what the judge sees and returns | static diagram | Zheng et al. Table 4 counts; RocketEval checklist sizes | Reading, Modes |
+| V8 | Prompt anatomy: four blocks, one defence each | static diagram | none | Reading, Prompt |
+| V9 | One order against both orders: kappa and tie rate | bar pair (before/after of the fix) | Protocol lab data, g35 scope, computed with LJ | Reading, Biases |
+| V10 | Null model against the best real model on three leaderboards | bars | X. Zheng et al. 2024 | Reading, Exploits |
+| V11 | Kappa worked on the real 3x3 confusion matrix | annotated table figure | all 3,355 votes, computed with LJ | Reading, Calibration (replaces the "Kappa animation" rejection below: this page now owns kappa for judges) |
+| V12 | Reliability against validity: two targets | schematic (illustrative positions) | Norman et al. numbers in caption | Reading, Calibration |
+| V13 | Jury: mean against median as jurors collapse | number line, illustrative scores | illustrative, labelled | Reading, Juries (the earlier rejection was of a simulator claiming RoPoLL's numbers; this is a labelled illustration of the mechanism only) |
+| V14 | JudgeBench accuracy by judge family | bars | atlas readings, dated there | Reading, Judge models |
+| V15 | List against instance: win rates humans against judge | dumbbell | computed with LJ (recompute.json list_P_all) | Reading, List vs item |
+
+V3 (the Calibration lab) moved into Reading's Calibration section beside the stepper it extends; the tab was removed.
+
 ## Rejected
 
 | Idea | Why not |
@@ -26,7 +43,7 @@ Defaults that reproduce published figures: Zheng et al. Table 5 (GPT-4 pair vs e
 | A jury simulator (PoLL vs RoPoLL with a corrupted juror) | No released per-juror judgments on shared items were found; a simulation with invented juror behaviour would be illustrative only and the RoPoLL numbers are on its own corruption setups. Text instead. |
 | Calling a judge offline to test mitigations (CoT, reference, rubric) on MT-Bench | No API calls in this build; the released GPT-4 runs already give one-order, both-order and pointwise verdicts, which is what the protocol lab varies. |
 | Length-controlled rate inside the protocol lab | Would require fitting AlpacaEval's GLM to MT-Bench, a method its authors never applied there; the lab reports the raw length preference of judge and humans instead and links the LC discussion. |
-| Kappa animation | The parent's Calibration section has the worked example; linked. |
+| Kappa animation | An animation adds nothing over the static worked matrix (V11). |
 
 ## What the methodology lacked for this page
 
