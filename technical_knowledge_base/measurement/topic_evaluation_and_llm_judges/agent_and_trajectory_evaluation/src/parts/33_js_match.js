@@ -1,4 +1,4 @@
-// Tab t-match: agentevals trajectory matching ported to JS (same logic as src/match_port.py), run on the five cases;
+// Reading, section Steps (closed block aj-match; a tab until 2026-10-24): agentevals trajectory matching ported to JS (same logic as src/match_port.py), run on the five cases;
 // the 400-trial grid comes from window.ATJ.meta.match (computed offline by the Python port).
 (function(){
 const $=id=>document.getElementById(id);const D=window.ATJ;if(!D||!$('mt-grid'))return;

@@ -37,6 +37,10 @@ const tk={};R.forEach(r=>(tk[r.task]=tk[r.task]||[]).push(r.reward));
 out.tasks_0_of_8=Object.keys(tk).filter(t=>tk[t].reduce((a,b)=>a+b,0)===0).sort((a,b)=>a-b);
 out.tasks_8_of_8=Object.keys(tk).filter(t=>tk[t].reduce((a,b)=>a+b,0)===8).length;
 out.tasks_mixed=Object.keys(tk).length-out.tasks_0_of_8.length-out.tasks_8_of_8;
+// failure taxonomy: symptoms read from the writes (same order and rules as recompute.py)
+const FC=r=>r.gold_w===0&&r.w_extra>0?'acted':r.gold_w>0&&r.agent_w===0?'nowrite':r.w_matched<r.gold_w&&r.w_extra>0?'wrongwrite':r.w_matched<r.gold_w?'missing':r.w_extra>0?'extra':'info';
+out.fail_cats=['acted','nowrite','wrongwrite','missing','extra','info'];
+out.fail_tax={};['gpt52','opus45'].forEach(m=>out.fail_tax[m]=out.fail_cats.map(c=>R.filter(r=>r.model===m&&r.reward===0&&FC(r)===c).length));
 out.devai_cost_share=Math.round(10000*30.58/1297.50)/100;out.devai_time_share=Math.round(10000*118.43/5190)/100;
 out.statem_after_flags=[420,415,411].map(x=>Math.round(10000*x/445)/100);
 window.ATJ_OUT=out;window.ATJ_R=R;window.ATJ_grade=grade;window.ATJ_NULLS=NULLS;

@@ -1,4 +1,4 @@
-// Click every control on every tab at 390 dark and 920 light; fail on script errors, NaN/undefined text, sideways scroll;
+// Click every control on every tab at 390 dark and 920 light (and check nothing plays before a click, reduced motion included); fail on script errors, NaN/undefined text, sideways scroll;
 // compare the page's computations (window.ATJ_OUT, window.ATJ_MATCH5) with src/recompute.json; save screenshots.
 // Run from the repo root: node technical_knowledge_base/measurement/topic_evaluation_and_llm_judges/agent_and_trajectory_evaluation/src/checks/check_ui.mjs [shotdir]
 import { createRequire } from 'module';
@@ -34,12 +34,15 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   if (w === 390) {
     const o = await pg.evaluate(() => ({ out: window.ATJ_OUT, m5: window.ATJ_MATCH5 }));
     for (const k of ['gpt52', 'opus45']) for (const f of Object.keys(REF[k])) if (JSON.stringify(o.out[k][f]) !== JSON.stringify(REF[k][f])) problems.push(`calc ${k}.${f}: page ${JSON.stringify(o.out[k][f])} python ${JSON.stringify(REF[k][f])}`);
-    for (const f of ['agree_msg_state', 'agree_state_steps', 'agree_msg_steps', 'agree_state_writes', 'tasks_0_of_8', 'tasks_8_of_8', 'tasks_mixed', 'devai_cost_share', 'devai_time_share', 'statem_after_flags'])
+    for (const f of ['agree_msg_state', 'agree_state_steps', 'agree_msg_steps', 'agree_state_writes', 'tasks_0_of_8', 'tasks_8_of_8', 'tasks_mixed', 'devai_cost_share', 'devai_time_share', 'statem_after_flags', 'fail_tax'])
       if (JSON.stringify(o.out[f]) !== JSON.stringify(REF[f])) problems.push(`calc ${f}: page ${JSON.stringify(o.out[f])} python ${JSON.stringify(REF[f])}`);
     let n = 0; for (const k of Object.keys(REF.match5)) { n++; if (o.m5[k] !== REF.match5[k]) problems.push(`match5 ${k}: page ${o.m5[k]} python ${REF.match5[k]}`) }
     console.log('compared', n, 'matcher verdicts and', Object.keys(REF.gpt52).length * 2 + 10, 'computed values');
   }
   await scan('load');
+  { const a = await pg.evaluate(() => [document.getElementById('an-scrub').value, document.getElementById('an-play').textContent]); await wait(2500);
+    const b = await pg.evaluate(() => [document.getElementById('an-scrub').value, document.getElementById('an-play').textContent]);
+    if (a[0] !== '0' || b[0] !== '0' || b[1] !== 'Play') problems.push(`${w}: animation moved before any click (${a} -> ${b})`); }
   await pg.screenshot({ path: path.join(shots, `read_top_${w}.png`) });
   // animation: every case, every lens, step to the end
   const cases = await pg.$$eval('#an-case option', os => os.map(o => o.value));
@@ -59,7 +62,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await pg.$eval('#an-scrub', e => { e.value = 3; e.dispatchEvent(new Event('input')) }); await scan('anim scrub');
   // task strip
   const tasks = await pg.$$('#taskStrip button'); for (const b of tasks.slice(0, 50)) { await b.click(); actions++ } await scan('task strip');
-  for (const id of ['nullBars', 'taskStrip', 'costBars']) { const e = await pg.$('#' + id); await e.screenshot({ path: path.join(shots, `${id}_${w}.png`) }) }
+  for (const id of ['aj-hero-svg', 'aj-null-svg', 'aj-m22-svg', 'aj-ladder-svg', 'aj-judge-svg', 'aj-passk-svg', 'taskStrip', 'aj-tax-svg', 'aj-env-svg', 'aj-cost-svg']) { const e = await pg.$('#' + id); await e.screenshot({ path: path.join(shots, `${id}_${w}.png`) }) }
   // grade tab
   await pg.click('#tabs button[data-t="t-grade"]'); await scan('grade');
   await pg.screenshot({ path: path.join(shots, `grade_${w}.png`), fullPage: true });
@@ -76,14 +79,14 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   // jump from a case to the animation
   await pg.select('#gr-a', 'state'); await pg.select('#gr-b', 'msg'); await pg.click('#gr-m22 button[data-c="01"]');
   const cs = await pg.$('#gr-list .tlist button.cs'); if (cs) { await cs.click(); const go = await pg.$('#gr-go'); if (go) { await go.click(); await scan('jump to anim') } else problems.push('no jump button'); } else problems.push('no case trial in state 0 / msg 1 cell');
-  // match tab
-  await pg.click('#tabs button[data-t="t-match"]'); await scan('match');
+  // path-matcher grid (inside a closed block in Reading since 2026-10-24): open every details block first
+  await pg.click('#tabs button[data-t="t-read"]'); await pg.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true)); await scan('details open');
   for (const m of ['gpt52', 'opus45']) for (const wr of ['0', '1']) for (const s of ['agree', 'pass']) {
     await pg.select('#mt-m', m); await pg.select('#mt-w', wr); await pg.select('#mt-s', s);
     const nc = (await pg.$$('#mt-grid td[data-m]')).length; for (let q = 0; q < nc; q++) { const c = (await pg.$$('#mt-grid td[data-m]'))[q]; await c.click(); actions++ }
     await scan(`match ${m} ${wr} ${s}`);
   }
-  await pg.screenshot({ path: path.join(shots, `match_${w}.png`), fullPage: true });
+  { const e = await pg.$('#aj-match'); await e.screenshot({ path: path.join(shots, `match_${w}.png`) }) }
   await pg.click('#tabs button[data-t="t-more"]'); await scan('more');
   await pg.screenshot({ path: path.join(shots, `more_${w}.png`), fullPage: true });
   // internal links
