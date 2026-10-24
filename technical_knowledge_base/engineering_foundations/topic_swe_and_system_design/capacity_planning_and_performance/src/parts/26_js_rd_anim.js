@@ -40,7 +40,7 @@
       $('la-cap').innerHTML='<div class="t">'+cap[0]+'</div><p>'+cap[1]+'</p>';
     }
     const A=RD.anim({card:'la-card',ctl:'la-ctl',n:FR.length,draw,ms:420,label:'Animation step'});
-    RD.seg($('la-seg'),m=>{pol=m;A.reset(FR.length);A.play()});
+    RD.seg($('la-seg'),m=>{pol=m;A.reset(FR.length)});
     RD.onResize(()=>A.redraw());
   })();
 
@@ -82,7 +82,7 @@
       $('sa-cap').innerHTML='<div class="t">'+cap[0]+'</div><p>'+cap[1]+'</p>';
     }
     const A=RD.anim({card:'sa-card',ctl:'sa-ctl',n:FR.length,draw,ms:380,label:'Animation step'});
-    RD.seg($('sa-seg'),m=>{mode=m;A.reset(FR.length);A.play()});
+    RD.seg($('sa-seg'),m=>{mode=m;A.reset(FR.length)});
     RD.onResize(()=>A.redraw());
   })();
 })();

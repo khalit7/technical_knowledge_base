@@ -1,72 +1,48 @@
-<section id="s-prod">
-<h2>What pros run in production today</h2>
-<div class="tw"><table>
-<thead><tr><th>Concern</th><th>Typical choice (2026)</th><th>Why</th></tr></thead>
-<tbody>
-<tr><td>Latency targets</td><td>p99 (and p99.9 for fan-out dependencies) per endpoint, from histograms, with error and rejection rates next to them</td><td>The tail is the experience; averages cannot be merged into percentiles</td></tr>
-<tr><td>Utilisation target</td><td>About 60 to 80% at peak for request-serving tiers, lower for small pools, near 100% for batch</td><td>The 1 / (1 &minus; &rho;) curve plus failures and peaks inside the window</td></tr>
-<tr><td>Edge balancing</td><td>A managed L4 or L7 balancer (AWS ALB or NLB, Google Cloud Load Balancing) across zones</td><td>Someone else runs the redundancy</td></tr>
-<tr><td>Internal balancing</td><td>Envoy (service mesh sidecar or gateway) with <code>LEAST_REQUEST</code>, or gRPC client-side balancing; HAProxy <code>random(2)</code> or <code>leastconn</code>; nginx <code>random two least_conn</code></td><td>Per-request, load-aware, two choices by default</td></tr>
-<tr><td>Affinity</td><td>Consistent hashing (ring hash, Maglev) with bounded loads, only where a warm per-server state pays</td><td>Moves 1/N of keys on a change; bounded loads stop hot keys</td></tr>
-<tr><td>Shared cache</td><td>Redis or Valkey with <code>maxmemory</code> and <code>allkeys-lru</code> (or LFU), cache-aside, versioned keys, TTLs with jitter</td><td>Simple, fast, survives forgotten invalidations</td></tr>
-<tr><td>Stampede protection</td><td>Coalescing in the loader (single-flight), stale-while-revalidate at proxies and CDNs, XFetch for very hot keys</td><td>A popular expiry must cost one rebuild, not sixty</td></tr>
-<tr><td>Database connections</td><td>Small per-process pools (SQLAlchemy, psycopg_pool) behind PgBouncer in transaction mode or a managed proxy</td><td>Postgres is process-per-connection with a default cap of 100</td></tr>
-<tr><td>Python services</td><td>Uvicorn or Gunicorn with about one worker process per core, async endpoints for I/O, CPU work in processes or native code</td><td>The GIL; free-threading is supported but not default</td></tr>
-<tr><td>Profiling</td><td>Continuous sampling in production (py-spy, or a continuous profiler), plus tracing for waits</td><td>CPU profiles do not show waiting</td></tr>
-<tr><td>Load testing</td><td>k6 arrival-rate executors (or wrk2) in staging and before launches; step tests to find the knee; soak tests for leaks</td><td>Open model, no coordinated omission</td></tr>
-<tr><td>Capacity</td><td>Forecast peaks (organic plus events) beyond the lead time; N+1 or N+2 and zone-loss headroom; autoscaling with floors and ceilings</td><td>The SRE book's three requirements</td></tr>
-</tbody></table></div>
-</section>
+<section id="s-cap">
+<h2>Capacity planning</h2>
+<p><dfn id="g-capplan">Capacity planning</dfn> decides how much hardware to have, and when, so the peak is served with the required reliability at the lowest cost. Google's SRE book lists what it needs: "An accurate organic demand forecast, which extends beyond the lead time required for acquiring capacity", "An accurate incorporation of inorganic demand sources into the demand forecast", and "Regular load testing of the system to correlate raw capacity (servers, disks, and so on) to service capacity" ({{SRE book, ch. 1|https://sre.google/sre-book/introduction/}}). Organic demand is steady growth; inorganic is a launch or a viral post. The load test gives per-server capacity; the rest turns the forecast into servers.</p>
 
-<section id="s-mist">
-<h2>Common mistakes</h2>
-<details class="mist"><summary>Reporting the average latency</summary><div class="b">It hides the tail that users feel and cannot be combined across servers. Report p50, p99 and p99.9 from merged histograms.</div></details>
-<details class="mist"><summary>Planning to run at 90% to "use what we pay for"</summary><div class="b">At 90% a single queue's wait is 9 service times and the p99 is 46; one failure or a 10% burst pushes it past 100%. Experiment 1's runs aimed at 90% actually ran at 101% because the real service time was 12% longer than assumed.</div></details>
-<details class="mist"><summary>Load testing closed-loop and quoting the p99</summary><div class="b">The tool stops sending when the server stalls, so the stall is missing from the data: Experiment 2's closed-loop p99 was 89 ms against 1,400 ms for the same server measured open-loop. Use arrival-rate executors and measure from the scheduled time.</div></details>
-<details class="mist"><summary>Load testing one URL with one key</summary><div class="b">100% cache hits measures the cache. Use production's key spread and endpoint mix.</div></details>
-<details class="mist"><summary>Random or round-robin balancing in front of uneven work</summary><div class="b">Both keep sending a slow server its full share. In Experiment 3, with one server three times slower, random and round robin had p99s of 28 seconds (the slow server's queue grew all run); two choices kept the p99 at 280 ms.</div></details>
-<details class="mist"><summary>Treating the cache as optional when the database is sized for the misses</summary><div class="b">A cold cache sends ten times the reads to a database sized for 10% of them. Warm caches before traffic, keep spare cache capacity (Facebook's Gutter), and protect hot keys from stampedes.</div></details>
-<details class="mist"><summary>Updating the cache on write instead of deleting it</summary><div class="b">Concurrent writers can leave the older value cached for the full TTL. Delete after the database commit; keep a TTL as the backstop.</div></details>
-<details class="mist"><summary>Every process opening its own big pool</summary><div class="b">Pools multiply across processes and servers; the database's 100 connections run out. Size from the database's side; add PgBouncer.</div></details>
-<details class="mist"><summary>Holding a database connection across a model call</summary><div class="b">The hold time becomes seconds and Little's law asks for thousands of connections. Release before calling out.</div></details>
-<details class="mist"><summary>Adding threads to speed up CPU-bound Python</summary><div class="b">Under the GIL four threads took as long as running the jobs one after another (Experiment 4). Use processes, native code, or the free-threaded build with its dependencies checked.</div></details>
-<details class="mist"><summary>Profiling only the CPU</summary><div class="b">A request waiting 400 ms on the network shows nothing in a CPU flame graph. Use wall-clock profiling or tracing for waits.</div></details>
-<details class="mist"><summary>Sizing for the daily average, or for a per-hour peak when per-second bursts matter</summary><div class="b">Size for the busy hour with headroom for bursts; plan known events separately. Real peak factors range from 1.2 (global Wikipedia, hourly) to 25 (Twitter, per second).</div></details>
-</section>
+<h3 id="s-peak">Peak factors: the root's 2&times; explained</h3>
+<p>Capacity is sized for the peak: the <dfn id="g-peak">peak factor</dfn> is the busiest period's rate over the average. The root assumed 2&times; (busy hour over daily average) and labelled it illustrative. Real hourly traffic says it is sensible for one region and too high for a global product: Wikipedia's hourly page views by human users, September 2026:</p>
+<div class="card" id="pk-card"><div class="chart" id="pk-chart"></div><div class="leg" id="pk-leg"></div>
+<div class="tw"><table id="pk-table"></table></div>
+<p class="small mute">Busy hour over its day's average: German 1.92, Japanese 1.63, English 1.24; busiest hour of the month: Japanese 2.85. German's quietest hour is 0.21 of its average: one region sleeps at once, while worldwide English is flat. Source: {{Wikimedia REST API, hourly aggregate page views, agent "user", 2026-09-01 to 2026-09-30 UTC|https://wikimedia.org/api/rest_v1/metrics/pageviews/aggregate/de.wikipedia/all-access/user/hourly/2026090100/2026093023}} (fetched 2026-10-04 by src/fetch_peaks.py; 720 hours per project). Curves: the average September day, each hour's mean over the month's mean. Table: busy hour over its day's average (median day), quietest hour of the average day over the mean, busiest hour of the month over the month's mean.</p></div>
+<details class="dp"><summary>What the three Wikipedias show <span class="mute">(depth)</span></summary><div class="b"><p id="pk-text"></p></div></details>
+<p>The window matters as much as the product. Per second, peaks are far sharper: Twitter's busiest second in August 2013 was 143,199 Tweets against an average of about 5,700, a factor of 25 (root Case files: "A peak 25 times the average"). Servers absorb second-scale bursts with queues and headroom; hour-scale peaks need capacity; known events need a separate inorganic forecast.</p>
 
-<section id="s-gl">
-<h2>Glossary</h2>
-<div class="gl">
-<div><b><a href="#g-cache">Cache</a></b>: a faster copy of an answer; hit rate is the share of reads it serves.</div>
-<div><b><a href="#g-capplan">Capacity planning</a></b>: forecast, peak factor, headroom and spares turned into hardware and dates.</div>
-<div><b><a href="#g-cdn">CDN</a></b>: a cache run in many cities near users.</div>
-<div><b><a href="#g-closed">Closed workload</a></b>: a fixed set of users, each waiting for an answer before sending again.</div>
-<div><b><a href="#g-co">Coordinated omission</a></b>: a load tester missing the requests it failed to send during a stall.</div>
-<div><b><a href="#g-coalesce">Coalescing</a></b>: many identical requests in flight served by one backend call.</div>
-<div><b><a href="#g-chash">Consistent hashing</a></b>: key-to-server mapping that moves about 1/N of keys when a server changes.</div>
-<div><b><a href="#g-conn">Connection</a></b> and <b><a href="#g-pool">pool</a></b>: an open, logged-in channel to a database; a set kept open and lent out.</div>
-<div><b><a href="#g-cv">Coefficient of variation</a></b>: standard deviation divided by mean; 0 constant, 1 exponential.</div>
-<div><b><a href="#g-flame">Flame graph</a></b>: sampled call stacks; width is time share, not a timeline.</div>
-<div><b><a href="#g-gil">GIL</a></b>: CPython's lock letting one thread run Python code at a time.</div>
-<div><b><a href="#g-hedge">Hedged request</a></b>: a backup copy sent after a delay; the first answer wins.</div>
-<div><b><a href="#g-hit">Hit rate</a></b>: share of reads answered by the cache; backend load is (1 &minus; h) &times; reads.</div>
-<div><b><a href="#g-knee">Knee</a></b>: where latency starts to rise steeply with load.</div>
-<div><b><a href="#g-l4">L4</a></b> / <b><a href="#g-l7">L7</a></b> balancer: picks per connection without reading HTTP / reads each HTTP request.</div>
-<div><b><a href="#g-lat">Latency</a></b>: time for one request, sent to answered.</div>
-<div><b><a href="#g-lb">Load balancer</a></b>: picks a server for each piece of work.</div>
-<div><b><a href="#g-loadtest">Load test</a></b>: synthetic traffic to learn behaviour under load.</div>
-<div><b><a href="#g-mm1">M/M/1</a></b>, <b><a href="#g-mmc">M/M/c</a></b>: random arrivals, random (exponential) service, 1 or c servers sharing one queue.</div>
-<div><b><a href="#g-open">Open workload</a></b>: requests arrive at a rate regardless of answers.</div>
-<div><b><a href="#g-p2c">Power of two choices</a></b>: sample two servers, use the less loaded.</div>
-<div><b><a href="#g-peak">Peak factor</a></b>: busiest period's rate over the average.</div>
-<div><b><a href="#g-pct">Percentile</a></b>: the value a given share of requests beat (p50, p99).</div>
-<div><b><a href="#g-poisson">Poisson process</a></b>: independent random arrivals at a steady average rate.</div>
-<div><b><a href="#g-profiler">Profiler</a></b>: measures where a program spends its time; sampling or tracing.</div>
-<div><b><a href="#g-queue">Queue</a></b>: work waiting for a busy resource.</div>
-<div><b><a href="#g-sat">Saturation</a></b>: work queued because a resource is fully busy.</div>
-<div><b><a href="#g-stampede">Stampede</a></b>: many requests rebuilding the same expired cache entry at once.</div>
-<div><b><a href="#g-tail">Tail</a></b>: the slow end of the latency distribution.</div>
-<div><b><a href="#g-thr">Throughput</a></b>: requests finished per second.</div>
-<div><b><a href="#g-util">Utilisation</a></b> (&rho;): share of time a resource is busy.</div>
+<h3 id="s-nplus">Headroom, N+1 and N+2</h3>
+<p>Let N be the servers needed to carry the peak at the target utilisation. <b>N+1</b> adds one spare so losing any single server still serves the peak; <b>N+2</b> adds two, so one can be down for maintenance while another fails. Google's capacity tool states requirements this way: "I want to meet service Foo's demand in each geographic region, and have N + 2 redundancy" ({{SRE book, ch. 18|https://sre.google/sre-book/software-engineering-in-sre/}}). The same logic covers bigger failure units: across Z availability zones, losing one loses 1/Z of capacity, so the fleet must be Z/(Z &minus; 1) times the peak need: 1.5&times; with 3 zones, 2&times; with 2.</p>
+<p><b>Autoscaling</b> (AWS target tracking, Kubernetes' Horizontal Pod Autoscaler) does not remove the need to plan: it needs a floor that survives a failure, a ceiling the database behind it can take, a signal that tracks real load (Slack's autoscaler removed servers that looked idle because they were waiting on a saturated network: root Case files, "The first Monday of the year: autoscaling made it worse"), and it is too slow for the first minutes of a spike. GPU replicas take minutes to start: {{LLM serving in production, sections 2 and 3|n:3f35c17b0d0d818aa406da1f7a784c62}}.</p>
+
+<h3 id="s-planner">The plan for the chat API, and cost per request</h3>
+<p>Set the lead time to 6 months and growth to 10% before you look: how many servers?</p>
+<div class="card" id="pl-card">
+<div class="ctl">
+<label>Average requests/s today: <b id="pl-av"></b><input type="range" id="pl-a" min="50" max="20000" step="1" value="579" aria-label="Average requests per second"></label>
+<label>Growth per month: <b id="pl-gv"></b><input type="range" id="pl-g" min="0" max="50" step="1" value="0" aria-label="Monthly growth"></label>
+<label>Months ahead (lead time): <b id="pl-mv"></b><input type="range" id="pl-m" min="0" max="24" step="1" value="0" aria-label="Months ahead"></label>
+<label>Peak factor: <b id="pl-pv"></b><input type="range" id="pl-p" min="10" max="50" step="1" value="20" aria-label="Peak factor"></label>
+<label>Target utilisation at peak: <b id="pl-uv"></b><input type="range" id="pl-u" min="30" max="100" step="5" value="60" aria-label="Target utilisation"></label>
+<label>Spares (N+k): <b id="pl-kv"></b><input type="range" id="pl-k" min="0" max="3" step="1" value="1" aria-label="Spares"></label>
 </div>
+<div class="chips" id="pl-pre"></div>
+<div class="out" id="pl-out"></div>
+<p class="small mute">One server: an m7i.xlarge (4 vCPU, $0.2016 an hour on demand in us-east-1, 730 hours a month, the root's price) carrying 769 requests a second at 100% (4 cores / 5.2 ms of CPU per request, the Scale simulator's figure with background jobs on a queue). Defaults: 1 million daily users &times; 10 messages &times; 5 requests per message / 86,400 s = 579 requests a second on average. Servers = ceil(peak / (769 &times; target)) + spares. Checked in src/recompute.py.</p>
+</div>
+<p>With the defaults: peak 1,157 requests a second, 769 &times; 0.6 = 462 per server, so 3 servers carry the peak at 50% each, and N+1 makes 4 ($589 a month). With all 4 up the peak runs at 38%; with one down, 50%, the same as the root's Scale simulator after its fixes (3 app servers at 50%). Growing 10% a month for 6 months multiplies the load by 1.77, which needs 6 servers.</p>
+<p><b>Cost per request</b> = the fleet's cost per hour / requests served per hour. The app tier: 4 &times; $0.2016 = $0.81 an hour over 2.08 million requests an hour on average = <b>$0.39 per million requests</b>, about $0.0000019 per message (5 requests). The model is a different scale: the root's estimate sizes 56 GPUs for the busy hour (400 output tokens per reply, 2,000 tokens a second per GPU, 20% headroom); at $3.99 per GPU-hour (Lambda on demand, the root's figure) running all day, that is $223 an hour over 416,667 replies an hour, <b>$0.00054 per reply</b>, about 280 times the app tier's cost per message (derived; src/README.md has the arithmetic). So spend the planning effort, and the autoscaling, where the money is; the app tier's servers autoscale in minutes, so plan their floor and limits rather than a year of growth, and forecast where lead times are long (GPUs, database instances, reserved capacity).</p>
+</section>
+
+<section id="s-llm">
+<h2>Capacity for an LLM-backed service</h2>
+<p>When the model is called through a provider, the capacity you plan is not servers but <b>tokens per minute, requests per minute and open streams</b>, and the provider's limits are the ceiling. The same three steps as above (demand at the peak, Little's law for what is held at once, headroom against the limit) apply, in the provider's units. Inside a self-hosted serving engine the capacity question becomes KV-cache memory and batching, which {{Batching, KV cache and scheduling|n:3c65c17b0d0d819db53bd2c48909e5b2}} and {{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}} own.</p>
+<div class="card" id="llm-card"><h4>The chat assistant's busy hour against one provider tier's limits</h4>
+<div class="rd-svg" id="llm-svg"></div>
+<p class="small mute">Demand (derived from the root's estimate inputs: 231 model calls a second at the busy hour, 1,000 input and 400 output tokens each): 13,889 requests a minute (RPM), 13.9 million input tokens a minute (ITPM), 5.56 million output tokens a minute (OTPM). Limit: Anthropic's Scale tier for one model class such as Claude Sonnet 5.5, 10,000 RPM, 10,000,000 ITPM and 2,000,000 OTPM ({{Anthropic rate limits|https://platform.claude.com/docs/en/api/rate-limits}}, read 2026-10-24; tiers change, so treat the limits as a dated example). Output tokens are 2.8 times over, the binding limit.</p></div>
+<ul>
+<li><b>Output tokens bind first.</b> Every axis is over at the busy hour, output most of all; the fixes are a custom tier, spreading traffic over providers or model classes (each row has its own limits), shorter replies, or self-hosting. A gateway that spreads and budgets the traffic is {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}.</li>
+<li><b>Cached input is free capacity.</b> For most Claude models "only uncached input tokens count toward your ITPM rate limits"; if 80% of each request's input is cached conversation history (illustrative), uncached input falls to 2.8 million a minute, under the limit. Prompt caching is on {{Caching, section 11|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}.</li>
+<li><b>Per minute is really per second.</b> "a rate of 60 requests per minute (RPM) might be enforced as 1 request per second. Short bursts of requests can exceed the limit", and the limiter is a token bucket ("continuously replenished up to your maximum limit, rather than being reset at fixed intervals"). Size against the busiest seconds, not the busy hour's average; a burst returns <code>429</code> with a <code>retry-after</code> header, and naive retries add load (retry budgets on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}).</li>
+<li><b>Open streams are a concurrency limit.</b> By Little's law, 231 calls a second streaming for 10 s means 2,315 calls open at once. httpx, the client under the Anthropic and OpenAI Python SDKs, defaults to <code>max_connections</code> 100 per client ({{httpx resource limits|https://www.python-httpx.org/advanced/resource-limits/}}), and a sync FastAPI endpoint holds one of 40 threads for the whole call; spread the streams over enough processes, use async endpoints, and set the client pool explicitly.</li>
+</ul>
 </section>

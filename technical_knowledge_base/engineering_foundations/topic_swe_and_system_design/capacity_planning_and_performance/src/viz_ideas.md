@@ -37,3 +37,13 @@ Scores: teaching value (T), uses real data (R), interaction adds over a static v
 
 ## What the methodology lacked for this page
 - Guidance for local load experiments whose nominal parameters differ from the realised ones (sleep overshoot): the rule adopted here is to log the realised service time server-side and report measured utilisation everywhere.
+
+## Added 2026-10-24 (teaching-contract rebuild)
+| Idea | Placement | Why |
+|---|---|---|
+| Hero: mean time in the system at 50/80/90/95% busy, work against waiting to scale | Reading, top | The core sentence as a picture; static, from W = S/(1 - rho) |
+| Little's law sizing three holders (cores 29, connections 3.5, model streams 2,315), log bars | Reading, Queueing 2 | Little's law had no visual; shows the same law across six orders of magnitude |
+| Busy-hour LLM demand against one provider tier (RPM, ITPM, ITPM cached, OTPM) | Reading, LLM-backed services | Shows output tokens bind first and caching frees input; dated limits |
+| Real images: Wikipedia production flame graph (CC BY-SA 4.0), one request in time order (CC0) | Reading, Profiling | A real profile teaches what to look for; the pair shows x is not time against x is time |
+
+Rejected 2026-10-24: a latency-budget waterfall for the chat request (no sourced per-hop numbers for the model call; the fan-out widget carries the budget rule); moving the Load-test lab inline (a workbench used by three sections). The illustrative 640 px SVG flame graph became HTML bars in a closed block (legible at phone width).
