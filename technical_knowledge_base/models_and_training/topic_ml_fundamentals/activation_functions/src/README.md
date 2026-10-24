@@ -39,3 +39,5 @@ Why about 22 minutes is right: the core grew by under a minute although about 60
 
 ## Knowledge ledger (`ledger.json`, check: problems 0)
 206 units: core 162, depth 34, fat 10. 201 drafted by `ledger.py init`, 5 added by hand for the new visuals and terms. Fat units carry a `note`.
+
+- 2026-10-24, topic close: Further reading times set to headers (root 23 min, plus 1); root card's mention of "activations and normalisation compared" updated to the rebuilt root.
