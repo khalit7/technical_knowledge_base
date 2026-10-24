@@ -13,7 +13,7 @@
       note:'The language model never sees pixels and never writes them; what crosses between models is text or a narrow vector.'},
     {id:'xattn',n:'Late fusion: cross-attention',ex:'Flamingo, IDEFICS, Llama 3.2 Vision',has:i=>KIND(i)==='t',x:(r,c)=>KIND(c)==='i'&&(r===6||r===7),mask:causal,loss:i=>'T',
       inn:'features from a frozen or separately trained encoder, read through extra cross-attention layers',out:'text only',calls:'none',
-      note:'Image features are not positions in the sequence; text after the image reads them through gated cross-attention layers inserted into the frozen language model (Flamingo\'s gate is "initialized to 0", root VLM lab).'},
+      note:'Image features are not positions in the sequence; text after the image reads them through gated cross-attention layers inserted into the frozen language model (Flamingo\'s gate is "initialized to 0"; see the Vision-language models page).'},
     {id:'proj',n:'Late fusion: encoder + projector',ex:'LLaVA, SmolVLM, most open VLMs',has:i=>KIND(i)!=='o',mask:causal,loss:i=>KIND(i)==='t'&&i>5?'T':'',
       inn:'soft tokens: encoder vectors through a projector (1,088 per image in SmolVLM-500M)',out:'text only',calls:'none',
       note:'Image vectors are positions in the sequence but are never predicted: the loss is on the answer text only.'},

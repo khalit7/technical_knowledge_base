@@ -50,3 +50,10 @@ Why 33 minutes is right: the Reading tab now holds what two lab tabs used to car
 
 ## Departures from the child-page method
 The Reading tab is organised by the subject's logic; one tool tab (Token economics) remains. The old Notion page could not be read (Notion disconnected): see `coverage.md`.
+
+## 2026-10-24, topic close
+- Section 9 keeps the Moshi frame diagram only for the native-against-cascade point: its caption and the Moshi bullet no longer teach the streams (inner monologue, temporal and depth transformers, acoustic delay); they link Video and audio generation section 8, which owns them. Ledger: units 202, 218 and 351 are `owned:` Video and audio generation; 352 and 353 added for the trimmed bullet and caption.
+- The root's Diffusion, Flow, Latent and VLM labs are retired or slimmed: references that read as places to visit now name the owning child (SmolVLM's 1,088 tokens and Flamingo's gate: Vision-language models; DDPM recipe: Diffusion from zero; VQ training: Autoencoders and VAEs); the reused DDPM, flow and VQ-128 numbers keep their provenance as "root ... lab recordings" (root `src/diff/out`, `src/flow/out`). The generated `22_js_nm_0data.js` still labels two equal-compute rows "(Diffusion lab)" and "(Flow lab)" as provenance; regenerating it needs the scratch sample files, so it was left.
+- The pointer to Autoencoders and VAEs' tokenizer table now says its section 10 (was 8).
+- Further reading: root card rewritten (no Reading section number, no lab tabs); every quoted time matches its target's header (`html_utils/check_times.py`: 0 stale).
+- Reading time unchanged (7,491 core and 2,694 closed words: 33 min, plus 12).
