@@ -29,7 +29,7 @@ for f in glob.glob(os.path.join(ROOT, "src", "parts", "36_*")) + glob.glob(os.pa
     if os.path.isdir(f) or f.endswith(".png") or os.path.abspath(f) == os.path.abspath(__file__): continue
     t = open(f, encoding="utf-8", errors="replace").read()
     if "—" in t: fails.append("em dash in " + f)
-    for bad in ("/Users/", "Users-", "khalid", "glpat", "sk-ant", "/private/tmp"):
+    for bad in ("/Users/", "Users-", "glpat", "sk-ant", "/private/tmp"):
         if bad in t: fails.append(f"'{bad}' in {f}")
 for x in fails: print("FAIL", x)
 print("validate:", "fail" if fails else "ok", len(PAIRS), "pairs checked")

@@ -2,7 +2,7 @@
 Writes inputs/wiki_hourly.json: per project, the hourly user pageviews for September 2026 (UTC),
 and the peak-hour / mean-hour ratio computed day by day and over the month."""
 import json, urllib.request
-UA = {"User-Agent": "KB-capacity-page/1.0 (khalid knowledge base; research)"}
+UA = {"User-Agent": "KB-capacity-page/1.0 (knowledge base research)"}
 out = {"source": "https://wikimedia.org/api/rest_v1/metrics/pageviews/aggregate/{project}/all-access/user/hourly/2026090100/2026093023",
        "fetched": "2026-10-04", "projects": {}}
 for p in ["en.wikipedia", "de.wikipedia", "ja.wikipedia"]:
