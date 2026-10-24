@@ -1,30 +1,28 @@
 # Visual ideas built and rejected (Building a backend API)
 
-The page's question: *what exactly goes over the wire when a client calls a backend, and which design rules make that contract safe to call, retry and change?* The reader has never built a backend API, so the strongest visuals are **real bytes** (captured from a FastAPI service run for the page) and **before/after animations of one request** with the server's database state at every step. All Reading animations use `RD.anim` (play, pause, step, scrub, speed; on screen only; paused under reduced motion), copied from the root.
+Rebuilt 2026-10-24. The page's question: *what happens to a request inside the service, and which choices decide how many requests it can hold, how it treats the database, and whether it stops cleanly?* The strongest visuals are therefore measurements of a real FastAPI and uvicorn process (`src/service/run_experiments.py`) and steppers over real recorded order and real handler code. All steppers use `RD.anim` from the skill template and wait on step 0.
 
-## Built
-| # | Where | Idea | Before / after | Why it earns its place | Data |
-|---|---|---|---|---|---|
-| B1 | Reading s-http | One real exchange, four outcomes (201, 422, 401, 404); click any line of request or response for its meaning | n/a | HTTP stops being abstract: the reader sees every header, the blank line, the body | captured, `inputs/exchanges.json` |
-| B2 | Reading s-svc, s-val, s-idem, s-auth | Code excerpts rendered from the real `app.py` by marker, with real line numbers, each followed by a line-by-line walk | n/a | The code shown is the code that produced the captures, so they cannot drift apart | `service/app.py` |
-| B3 | Reading s-val | FastAPI's default 422 beside the RFC 9457 version of the same failure | default vs problem details | One glance shows why a custom handler is worth 12 lines | captured |
-| B4 | Reading s-page | Measured offset vs keyset time for one page at 6 depths, log bars | offset vs cursor | Turns "offset is slow at depth" into 0.03 ms vs about 200 ms on a real Postgres | `service/measure_pagination.py` -> `inputs/pagination_pg.json` (Postgres 16.2, 1M rows, median of 7 EXPLAIN ANALYZE runs) |
-| B5 | Reading s-page | Page drift animation: the same user paging while one chat is created and one deleted | offset (F shown twice, C never shown, 17 rows read) vs cursor (each chat once, 8 rows read) | The correctness argument for cursors, which no measurement shows | illustrative 8 rows, checked in recompute.py |
-| B6 | Reading s-idem | **Main animation**: one message, a lost reply and a retry, with messages, credits and idempotency_keys tables step by step; three scenarios (reply lost, concurrent retry, same key different body) | no key (20 credits, two messages) vs Idempotency-Key (10 credits, replay; 409; 422) | The suggested before/after; ends on the real captured 201 replay, 409 and 422 bodies | demo code paths; captured bodies |
-| B7 | Reading s-auth | A real HS256 JWT decoded and verified in the page (SHA-256 and HMAC in plain JS); tampered payload and "alg: none" forgery, judged by a careless and a correct verifier | careless vs correct verifier | Shows that a JWT is readable, and why pinning the algorithm matters (RFC 8725) | token made by `gen_data.py` with the standard library |
-| B8 | Reading s-hook | Live webhook signature verifier: edit the body or timestamp and the HMAC fails | signed vs tampered | Signing stops being a word; the raw-bytes rule becomes obvious | signature made by the demo's `sign_webhook`, recomputed in Python and JS (match) |
-| B9 | Reading s-sse | Replay of the captured SSE stream at its real arrival times: raw chunked bytes beside the text the user sees | n/a | Shows chunked encoding and SSE framing that a browser hides | captured arrival times (about 50 ms apart) |
-| B10 | Reading s-ver | Stripe-style dated versions: one core response walked back through change modules for three pinned dates | newest vs older pins | The mechanism of the "gold standard" in one picture | illustrative versions, labelled |
-| T1 | Wire lab tab | All 20 captured exchanges grouped by topic, every line explained, the equivalent curl command | n/a | A reference the reader returns to; too big for the Reading tab | captured |
-| T2 | Breaking or not? tab | 15 proposed changes to the chat API; answer, then see the rule and source | n/a | Compatibility is judgement; a quiz trains it faster than a list | AIP-180, Anthropic, Stripe, Zalando |
+## Built (2026-10-24)
+| # | Section | Visual | Kind | Data |
+|---|---|---|---|---|
+| H | Top | The service figure: seven stages in a worker process, what the handler borrows, what the process shares, the process's life | static annotated diagram (hero) | the demo's design |
+| 1 | 2 | One recorded request stage by stage, with the real ASGI scope and the logged order | stepper | recorded, `inputs/service_runs.json` |
+| 2 | 4 | Middleware onion drawn from the recorded order | static diagram | recorded order |
+| 3 | 5 | Holding a connection across the model call against borrowing twice; slider on the model call's duration; Little's law counters | before/after with one slider | derived; defaults reproduce Capacity planning's 11,570 by construction |
+| 4 | 5 | N+1 against one query, 21 bars against 1, four round-trip presets | before/after with one slider | derived from Query planning and the root's Numbers to know |
+| 5 | 6 | 50 requests x 500 ms under async+blocking, async+await, plain def, four workers; per-request bars plus one common-scale summary | before/after toggle, measured | recorded |
+| 6 | 7 | Settings precedence ladder | static diagram, measured | recorded with pydantic-settings 2.16.1 |
+| 7 | 8 | Inline against BackgroundTasks against a queue, on one time axis | static timeline, two rows measured, one drawn | recorded |
+| 8 | 9 | SIGTERM with three things in flight, default against a 1 s graceful timeout | stepper over a recorded timeline | recorded |
+| 9 | 10 | The message handler step by step, real code with line numbers, the service figure highlighting the stage | stepper | `service/app.py` |
+| 10 | 10 | Replay of the captured stream at its real arrival times | animation with controls (kept) | captured 2026-10-04 |
+| 11 | 2 (closed) | The 20 captured exchanges, every line explained (the old Wire lab) | explorer | captured 2026-10-04 |
+
+## Removed in the rebuild (owned elsewhere)
+HTTP anatomy (HTTP), offset against keyset bars and the drift animation (Service APIs carries the measurement), the idempotency animation (Service APIs), the JWT verifier (Auth's twelve-token lab), the webhook verifier (Service APIs and Streaming), Stripe-style dated versions and the Breaking or not? quiz (Service APIs; quizzes are out under the teaching contract).
 
 ## Rejected
-- A TCP/TLS handshake waterfall: the root's Step 1 and Topic: protocols own it.
-- A rate-limiter token bucket animation: the root's Step 5 owns the algorithm; this page covers the client-facing headers with real captures.
-- A load test of the demo with many workers: belongs to Capacity planning and performance; only a single-connection latency measurement is shown, to make the "framework is not the bottleneck" point.
-- An OAuth authorisation-code flow sequence animation: tempting, but the reader's job as a resource server is token verification; the JWT verifier teaches that directly. Candidate for a later deep page if Khalid wants it.
-- A gRPC vs JSON payload size comparison: would need a protobuf toolchain for one number; Topic: protocols is the place.
-- Resumable streams (Last-Event-ID) demo: most LLM APIs do not resume; described in text only.
-
-## What the methodology lacked here
-Most API design rules have no published number to reproduce. The substitute was real artefacts: bytes captured from a running service, a local Postgres measurement, and cryptographic checks recomputed in two languages (`recompute.py` and `check_page.mjs` agree on every value).
+- A load test of the demo across worker counts: Capacity planning owns load testing and the GIL experiment; section 6 shows only the handler-style mechanism.
+- Measuring connection cost and N+1 again here: Running Postgres and Query planning already measured them on the same laptop; this page reuses their numbers.
+- A Kubernetes shutdown run (kind or minikube with a preStop hook): minutes of setup for a result the Kubernetes docs state; the uvicorn run shows the part the service controls.
+- A free-threaded Python comparison: Capacity planning's experiment 4 covers it.
