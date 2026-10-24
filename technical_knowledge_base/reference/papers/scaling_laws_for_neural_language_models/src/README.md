@@ -6,7 +6,7 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Headline card with verdict; Problem, Method, Three power laws (Figure 1 rebuilt from Eq. 1.1 to 1.3), Overfitting (Figure 9 rebuilt from Table 2), Training curves (critical-batch explorer), Spending compute (before/after animation "big model stopped early" against "small model converged", Figure 15 rebuilt with exponent sliders), Results, How much of this to believe, Why it matters, Connections; three predict questions. |
+| The paper | `t-read` | Headline card with verdict; the core idea in one sentence, the hero (learning curves of five sizes against compute and their lower envelope, from Eq. 1.6), You need and New terms; Problem, Method, Three power laws (Figure 1 rebuilt from Eq. 1.1 to 1.3), Overfitting (Figure 9 rebuilt from Table 2), Training curves (critical-batch explorer in a closed block), Spending compute (before/after animation "big model stopped early" against "small model converged", Figure 15 rebuilt with exponent sliders), Results, How much of this to believe, Why it matters, Connections; three predict questions. |
 | Refit the laws | `t-run` | A real toy sweep (27 runs, 1.5k to 2.7M parameters, 32 CPU minutes): L(N) refitted live with residuals and extrapolation, learning curves with the compute frontier and three compute accountings, checkpoint against matched-schedule runs (plus a learning-rate probe), the "bigger and stopped early" comparison, seed noise, every run. |
 | The paper's tables, rebuilt | `t-tables` | Table 1 calculator, Tables 2 to 6, and "every derived number, checked" (34 rows from `recompute.py`). |
 | Then and now | `t-then` | Animation spending the same budgets (10^21, GPT-3, Gopher, Llama 3 405B) by Kaplan's and Chinchilla's rules in (N, D) space with real models; Porian et al.'s step-by-step reconciliation; Chinchilla Table 2; changed and survived. |
@@ -40,8 +40,19 @@ Numbers (inputs/results.json, model/*.json):
 ## Files
 
 `paper.json`, `tables.json`, `mk_paper.py` (card, Further reading, `window.PAPER`), `recompute.py` (every derived number, `inputs/recompute.json`), `train.py`, `prep_data.py`, `mk_results.py`, `model/*.json` (run logs, small; no checkpoints are saved), `check_page.mjs` (every control, both themes and widths, animations stepped), `mk_coverage.py` (51 items from `live.md`), `save_live.py`, `extract_paper.py`, `inputs/` (paper text and table extracts, recompute and results JSON), `viz_ideas.md`.
-Parts: `00_top`, `01_css` (reference CSS plus a few additions), `02_header`, `03_paper`, `04_run`, `05_tables`, `06_then`, generated `_gen_card`, `_gen_more`, `_gen_data.js`, `_gen_runs.js`; JS `10_js_common`, `11_js_ui` (shared), `13_js_read`, `23_js_run`, `24_js_tables`, `25_js_then`, `90_js_tabs`.
+Parts (99_js_tabs.js is the explainer-page template, storage key `sl-tab`, plus `data-to` scrolling that opens a closed block): `00_top`, `01_css` (reference CSS plus a few additions), `02_header`, `03_paper`, `04_run`, `05_tables`, `06_then`, generated `_gen_card`, `_gen_more`, `_gen_data.js`, `_gen_runs.js`; JS `10_js_common`, `11_js_ui` (shared), `13_js_read`, `23_js_run`, `24_js_tables`, `25_js_then`, `99_js_tabs`. `label_ledger.py` labels `ledger.json`; `reading.json` holds the measured reading time for the header.
+
+## Light pass, 2026-10-24 (teaching contract)
+
+- **Top**: the core sentence, a hero figure (learning curves of 10^6 to 10^10 parameters against compute, with the lower envelope that is the compute-efficient frontier, drawn from the paper's fitted Eq. 1.6 with the batch at B_crit, the same constants as the animation; labelled fitted equations, not runs), You need and New terms (power law, non-embedding N, critical batch, C_min). The paper is under arXiv's non-exclusive licence, not CC BY, so its figures are redrawn, not embedded.
+- **Owned elsewhere** (one sentence each, linked): why compute is 6 FLOPs per parameter per token (Pretraining); McCandlish's steps-against-examples trade-off and batch-size rules (Optimisers and learning-rate schedulers); compute-optimal allocation today and over-training (Pretraining). The paper's own results (Eq. 5.3, the frontier, L(N, D)) stay.
+- **Moved into closed `<details>`** (nothing deleted but fat): LSTM and recurrent comparisons, where the overfitting fit fails, the Eq. 5.1 slider and the "1-2 million tokens" check, the small internal slips and data reuse, and the practical recipe in detail.
+- **No autoplay**: `makeAnim` (11_js_ui.js, the GPT-3 page's fixed copy) waits on step 1; `check_page.mjs` now fails if `cvx` or `thx` draws a frame before play or on a mode switch. Header: "Reading: 17 min, plus 2 in closed details."
+- **Length**: core 17 min before (3,826 words), 17 after (3,825) plus 2 in closed details, with the new top section absorbed by what moved into details. The remainder is the paper's argument, every law with its constants and the verdict, which this page owns; the toy sweep, tables and Then and now tabs are tools used across the page and are unchanged.
+- **Ledger** (`ledger.json`): 248 units, core 203, depth 38, owned 3, fat 4; `ledger.py check` problems 0.
 
 ## Checks (2 October 2026)
 
 `sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 174 KB. `node src/check_page.mjs`: 236 actions, 0 problems (both themes and widths, every control, both animations stepped and played). `mk_coverage.py`: 51 of 51 items verified. Reading time of The paper tab: 16 minutes (the old page said 8; the paper page owns every detail, and the toy and table material is in other tabs).
+
+Rechecked 2026-10-24 after the light pass: `checkpage.sh` 5 tabs, 182.1 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 236 actions, 0 problems (including the no-autoplay checks); `mk_coverage.py` 51 of 51.

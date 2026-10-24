@@ -19,6 +19,8 @@ Scored 1 to 5 on: teaches more than text (T), faithful to a source (F), cost (C,
 | P-scaling_laws_for_neural_language_models.11 | **Table 1 calculator** with presets (GPT-2, Figure 5/6 shapes, GPT-3, the toy) showing embedding share, context share and the uncounted output-layer share | 3 | 5 | 5 | Tables tab | Table 1, Eq. 2.1, 2.2 |
 | P-scaling_laws_for_neural_language_models.12 | **Every derived number, checked** (34 rows: reproduces / partly / does not) | 4 | 5 | 4 | Tables tab | `recompute.py` |
 | P-scaling_laws_for_neural_language_models.13 | Three predict-then-reveal questions: doubling N (5%), converge vs stop early (a third of the compute), 10x compute (5x model) | 4 | 5 | 5 | The paper tab | Eq. 1.1, B.14, Table 6 |
+| P-scaling_laws_for_neural_language_models.14 | Hero (2026-10-24): learning curves of five sizes against compute from Eq. 1.6 at B_crit, with their lower envelope computed from the same equation | 4 | 4 | 5 | The paper tab, top | Eq. 1.6, Eq. 5.3, Appendix B constants as the animation |
+| P-scaling_laws_for_neural_language_models.15 | The paper's own Figure 1 or 2 as an image | rejected | | | | arXiv non-exclusive licence, not CC BY; redrawn from the fitted equations instead |
 
 ## Rejected
 

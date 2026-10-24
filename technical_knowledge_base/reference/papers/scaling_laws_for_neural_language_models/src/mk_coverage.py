@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header and properties
- ('Reading time line "8 min read, +~4h resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "8 min read, +~4h resources"', 'dropped: replaced by the measured reading time in the header (2026-10-24 light pass)', ['Reading: ', 'in closed details']),
  ('Authors: Kaplan, McCandlish (equal contribution), Henighan, Brown, Chess, Child, Gray, Radford, Wu, Amodei', R + ', headline card', ['Jared Kaplan, Sam McCandlish (equal contribution)', 'Tom Henighan', 'Tom B. Brown', 'Benjamin Chess', 'Rewon Child', 'Scott Gray', 'Alec Radford', 'Jeffrey Wu', 'Dario Amodei']),
  ('Lab: OpenAI / Johns Hopkins', R + ', headline card', ['OpenAI, Johns Hopkins University']),
  ('Date: January 2020', R + ', headline card', ['January 2020']),
@@ -28,7 +28,7 @@ C = [
  ('Decoder-only Transformers on WebText2 (22.9B BPE tokens, vocab 50257, context 1024); loss = test cross-entropy in nats/token', R + ', Method (2.29 × 10^10 tokens as §2.3 prints)', ['decoder-only Transformers', 'vocabulary 50,257', 'cross-entropy in nats per token over a 1024-token context', '2.29 × 10 10 tokens']),
  ('Sweep: N 768 to 1.5B non-embedding, D 22M to 23B, depth/width/heads, context, batch; LSTMs for comparison', R + ', Method', ['N from 768 to 1.5B non-embedding parameters', 'D from 22M to 23B tokens', 'LSTMs and Universal Transformers for comparison']),
  ('N counts non-embedding params only, N ~= 12 n_layer d_model^2; including embeddings obscures trends (depth appears to matter)', R + ', Method; toy sweep "all parameters" toggle', ['counts non-embedding parameters only', 'depth seems to matter', '12 n layer d model 2']),
- ('C ~= 6NBS non-embedding FLOPs (2N forward, 4N backward); C ~= 6ND for one epoch', R + ', Method', ['C ≈ 6 NBS', '= 6 ND for one pass', '2 N per token forward, twice that backward']),
+ ('C ~= 6NBS non-embedding FLOPs (2N forward, 4N backward); C ~= 6ND for one epoch', R + ', Method (why 6 FLOPs per parameter per token: Pretraining, linked)', ['C ≈ 6 NBS', '= 6 ND for one pass', 'standard 6 FLOPs per parameter per token']),
  ('Constants N_c, D_c, C_c tokenizer-dependent; exponents the transferable content', R + ', Three power laws', ['the exponents are the transferable content', 'no fundamental meaning']),
  ('L(N) = (N_c/N)^0.076, N_c ~= 8.8e13; doubling N multiplies loss by 2^-0.076 ~= 0.95', R + ', Three power laws; predict question; card', ['8.8 × 10 13 parameters', 'doubling N multiplies the loss by 0.95']),
  ('L(D) = (D_c/D)^0.095, D_c ~= 5.4e13 tokens (large model, early stopping)', R + ', Three power laws', ['5.4 × 10 13 tokens', 'stopped when test loss stops falling']),

@@ -12,6 +12,24 @@ const pth=(d,c,o)=>{o=o||{};return '<path d="'+d+'" fill="none" stroke="'+c+'" s
 const dot=(x,y,r,c,o)=>{o=o||{};return '<circle cx="'+(+x).toFixed(1)+'" cy="'+(+y).toFixed(1)+'" r="'+r+'" fill="'+(o.f||c)+'" stroke="'+c+'" stroke-width="'+(o.sw||1.5)+'"'+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
 const geo=(a,b,n)=>{const r=[];for(let i=0;i<=n;i++)r.push(a*Math.pow(b/a,i/n));return r};
 
+// ---- Hero: learning curves of five sizes against compute and their lower envelope (Eq. 1.6 with the batch at B_crit, as Appendix B) ----
+(function(){const Bc=L=>K.Bs/Math.pow(L,1/K.aB),Lc=N=>Math.pow(K.Nc/N,K.aN),LS=(N,S)=>Lc(N)+Math.pow(K.Sc/S,K.aS),CofNS=(N,S)=>6*N*Bc(LS(N,S))*S/K.PFD;
+  const X=[1e-5,1e3],Y=[2,6],sizes=[[1e6,'10'+sup(6)],[1e7,'10'+sup(7)],[1e8,'10'+sup(8)],[1e9,'10'+sup(9)],[1e10,'10'+sup(10)]],cols=['var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--c2)'];
+  // lower envelope: the lowest loss any size reaches at each compute, over a dense grid of sizes and steps
+  const nb=120,env=new Array(nb+1).fill(Infinity),bin=C=>Math.round(nb*(lg10(C)-lg10(X[0]))/(lg10(X[1])-lg10(X[0])));
+  geo(3e5,3e11,160).forEach(N=>geo(50,3e7,240).forEach(S=>{const b=bin(CofNS(N,S));if(b>=0&&b<=nb)env[b]=Math.min(env[b],LS(N,S))}));
+  function draw(w){const H=Math.min(330,Math.max(260,w*.55));
+    const F=logFrame({W:w,H,pl:44,pr:w<520?40:56,pt:12,pb:40,x:X,y:Y,xt:decTicks(X[0],X[1],w<520?2:1),yt:linTicks([2,2.5,3,4,5,6]),xl:'training compute (PF-days, batch at B'+SB('crit')+')',yl:'test loss (nats/token)'});
+    let s=F.s;
+    sizes.forEach(([N,lab],i)=>{const pts=geo(50,3e7,200).map(S=>[CofNS(N,S),LS(N,S)]).filter(p=>p[0]>=X[0]&&p[0]<=X[1]&&p[1]<=Y[1]&&p[1]>=Y[0]);
+      s+=pth(pathOf(pts.map(p=>[F.lx(p[0]),F.ly(p[1])])),cols[i],{sw:1.8});
+      const e=pts[pts.length-1];if(e)s+=tx(Math.min(F.lx(e[0])+4,w-4),F.ly(e[1])+4,lab,{fs:11,c:cols[i],a:F.lx(e[0])+30>w?'end':'start'})});
+    const ep=[];env.forEach((L,b)=>{if(isFinite(L)&&L<=Y[1])ep.push([F.lx(10**(lg10(X[0])+b*(lg10(X[1])-lg10(X[0]))/nb)),F.ly(L)])});
+    s+=pth(pathOf(ep),'var(--c1)',{sw:3.2,da:'7 4'});
+    s+=tx(F.lx(X[0])+6,F.ly(2.3),'dashed: the best size',{fs:11,c:'var(--c1)',w:600})+tx(F.lx(X[0])+6,F.ly(2.3)+15,'for each budget',{fs:11,c:'var(--c1)',w:600});
+    $('heroSvg').innerHTML=svgW(w,H,s,'Learning curves of five model sizes against compute, with their lower envelope')}
+  onTab('t-read',()=>fit($('heroSvg'),draw));fit($('heroSvg'),draw)})();
+
 // ---- Predict: doubling N ----
 PRED_REVEAL['pr-dbl']=()=>{$('dblV').textContent=Math.pow(2,-K.aN).toFixed(4)};
 PRED_REVEAL['pr-tenx']=()=>{$('tenxK').textContent=Math.pow(10,K.pN).toFixed(1);$('tenxD').textContent=Math.pow(10,1-K.pN).toFixed(1)};
