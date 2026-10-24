@@ -44,3 +44,6 @@ Child-page method (topic_pages.md Part B): Reading by the subject's own logic (w
 `01_head.html`, `10_header.html`, `20_read_a` (top, s1) to `20_read_e` (checklist, depth), `21_js_rd_common.js` (template), `22_js_data.js` (generated), `23_js_mx2_rd.js`, `24_js_mx2_rd2.js`, `25_js_mx2_dr.js` (DoReMi measured run and toy), `25_js_mx2_fit.js` (fitter), `25_js_mx2_hero.js`, `26_js_cpt_data.js` (generated), `27_js_cp_plot.js`, `28_js_cp_*.js` (forgetting, frontier, toy grid, schedules, CMR and D-CPT, prose fill), `34_tab_plan.html` + `35_js_mx2_plan.js`, `36_tab_rcp.html` + `37_js_cp_rcp.js`, `39_tab_more.html`, `99_js_tabs.js` (template, storage key `mx2-tab`). `shot_el.mjs` screenshots single cards.
 
 Page size about 505 KB (with the CPT data, 47 KB): RegMix's runs (needed for the in-browser fits) and the measured DoReMi trajectory.
+
+## Topic close (2026-10-24)
+The root was rebuilt as a map; this page's Further reading now quotes the root as "31 min, plus 7" and siblings as their headers, and its ledger keys that quoted old times were re-keyed.
