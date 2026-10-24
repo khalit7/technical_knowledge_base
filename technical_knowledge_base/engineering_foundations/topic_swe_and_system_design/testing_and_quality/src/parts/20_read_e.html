@@ -1,97 +1,106 @@
-<section id="s-prop"><h2>7. Property-based testing: let the computer pick the inputs</h2>
-<p>An example-based test checks the inputs you thought of. Bugs live in the inputs you did not think of: the empty string, the one-character document, the emoji, the negative number. A <dfn id="g-property">property</dfn> is a statement that must hold for <i>every</i> valid input, such as "cutting a document into chunks and gluing them back gives the document". A <dfn id="g-pbt">property-based test</dfn> states the property, and a library generates hundreds of inputs trying to break it. The idea comes from Haskell's QuickCheck (Claessen and Hughes, 2000); in Python the library is {{Hypothesis|https://hypothesis.readthedocs.io/}}.</p>
-<div class="cvh"><span class="real">real</span> <code>experiments/hyp/test_chunking_property.py</code></div>
-<pre class="cv py">from hypothesis import given, strategies as st
-from chunking import chunk, unchunk
+<section id="s-llm"><h2>7. Testing code that calls an LLM</h2>
+<p>An LLM feature is ordinary code wrapped around a call whose answer varies. Split it accordingly: the code around the call (building the prompt, parsing the answer, retrying, falling back) is tested like any code, fast and exactly, with the model replaced; the model's quality is measured by evals. Mixing the two gives slow, flaky, expensive unit tests that still do not tell you whether the model is good.</p>
+<div class="fig"><div class="ft">One LLM feature, four checks: three exact tests on our code, one eval on the model</div><div class="rd-svg" id="tq-llm"></div>
+<p class="cap">The highlighted box is the <b>seam</b>: the HTTP client is passed in, so a test can put a fake server or a recorded cassette behind it without editing the code. Everything left and right of it is our code and gets exact tests on every push; only the model's quality needs a statistical eval.</p></div>
+<p><b>Deterministic seams.</b> Make every source of variation something the caller passes in: the HTTP or SDK client (so a test supplies a fake), the clock as a function (so a test advances it instantly instead of sleeping), the random generator seeded (<a href="#s-flaky">section 9</a>'s jitter fix). With all three injected, a test of the code around the model is as deterministic as a test of a pure function.</p>
 
-@st.composite
-def chunk_args(draw):                       # a custom strategy: valid (size, overlap) pairs
-    size = draw(st.integers(min_value=1, max_value=50))
-    overlap = draw(st.integers(min_value=0, max_value=size - 1))
-    return size, overlap
+<h3>Contract tests on structured output</h3>
+<p>When model output feeds other code, the boundary needs a <b>contract</b>: a schema the output must satisfy, checked on every response. In Python that is a pydantic model. Structured-output modes (JSON mode, JSON schema, tool calling) and constrained decoding make valid output much more likely; validate anyway. Put semantic rules in the schema too: enum fields really in the enum, numbers within bounds, ids that resolve, citation indices in range.</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/llm/extract.py</code> with pydantic <span data-v="env.pydantic"></span>, httpx <span data-v="env.httpx"></span></div>
+<pre class="cv py">class Ticket(BaseModel):
+    category: Literal["billing", "bug", "account", "other"]
+    priority: int = Field(ge=1, le=4)
+    summary: str = Field(min_length=1, max_length=200)
 
-@given(text=st.text(), args=chunk_args())
-def test_round_trip_loses_nothing(text, args):
-    size, overlap = args
-    assert unchunk(chunk(text, size, overlap), overlap) == text</pre>
-<div class="term">$ pytest -q test_chunking_property.py
-E       AssertionError: assert '' == '0'
-E       Failing test case: test_round_trip_loses_nothing(
-E           text='0',
-E           args=(2, 0),
-E       )
-<span class="r">1 failed in 1.81s</span></div>
-<p>Two words to learn. A <dfn id="g-strategy">strategy</dfn> describes how to generate one kind of value (<code>st.text()</code>, <code>st.integers(1, 50)</code>, your own with <code>@st.composite</code>). <dfn id="g-shrink">Shrinking</dfn> is what happens after a failure: Hypothesis keeps trying simpler versions of the failing input (shorter strings, smaller numbers, simpler characters) and keeps any that still fail, so the report is <code>text='0', size=2, overlap=0</code> instead of a random 30-character unicode string. A one-character document with a two-character window: the bug, in one line.</p>
+def extract_ticket(client: httpx.Client, message: str, retries: int = 1) -&gt; Ticket:
+    prompt = f"Return JSON with category, priority (1-4) and summary for: {message}"
+    for attempt in range(retries + 1):
+        r = client.post("/v1/chat/completions", json={
+            "model": "small", "temperature": 0,
+            "response_format": {"type": "json_object"},
+            "messages": [{"role": "user", "content": prompt}]})
+        r.raise_for_status()
+        text = r.json()["choices"][0]["message"]["content"]
+        try:
+            return Ticket.model_validate_json(text)
+        except ValidationError as e:              # repair: one retry with the error appended
+            prompt += f"\nYour last answer was invalid: {e.errors()[0]['msg']}. Return valid JSON only."
+    raise ValueError("model output failed validation after retries")</pre>
+<p>The <b>repair loop</b> retries once with the validation error in the prompt, then gives up and lets the caller fall back. Count how often it fires: a rising repair rate is an early signal that a model or prompt change has regressed.</p>
 
-<div class="card" id="pb-card">
-<h3 style="margin-top:0">Same bug, two kinds of test</h3>
-<p class="small mute">The buggy <code>chunk()</code> from section 3. "Examples" runs the three hand-written tests. "Property" replays the real Hypothesis run (seed <span data-v="hyp.seed"></span>, every one of its <span data-v="calc.hypCalls"></span> calls to the test logged). "Property, fixed code" is the same property on the corrected function. Green boxes are characters that survive the round trip; red ones are lost.</p>
-<div class="seg" id="pb-mode"><button data-m="ex" class="on">Examples (3 tests)</button><button data-m="pb">Property (Hypothesis)</button><button data-m="fx">Property, fixed code</button></div>
-<div class="an-ctl" id="pb-ctl"></div>
-<div id="pb-wrap">
-<div class="an-cnt" id="pb-cnt"></div>
-<div class="small mute" id="pb-in"></div>
-<div class="chars" id="pb-chars"></div>
-<div class="tlist" id="pb-out"></div>
-<div class="small mute" style="margin-top:6px">Every call so far (green passed, red failed; outlined: this step; highlighted: smallest failure found so far)</div>
-<div class="strip" id="pb-strip"></div>
-</div>
-<div class="an-cap" id="pb-cap"></div>
-</div>
+<h3>A fake model server</h3>
+<p><code>httpx.MockTransport</code> routes requests to a Python function in the same process: a fake chat-completions server that returns scripted replies and records what it was sent (a fake and a spy at once).</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/llm/test_extract.py</code> (3 passed in 0.18 s)</div>
+<pre class="cv py">def fake_llm(*replies):
+    """A fake chat-completions server: returns the given replies in order and records requests."""
+    seen = []
+    def handler(request: httpx.Request) -&gt; httpx.Response:
+        seen.append(json.loads(request.content))
+        content = replies[min(len(seen) - 1, len(replies) - 1)]
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+    return httpx.Client(base_url="http://fake-llm", transport=httpx.MockTransport(handler)), seen
 
-<p><b>Across runs.</b> Hypothesis is random, so the search differs from run to run. Over <span data-v="hyp.nseeds"></span> fixed seeds it found the bug in every run, always within the first <span data-v="calc.hypMaxTries"></span> generated inputs, because most random documents trip it. Shrinking ended at the true minimum (<code>'0'</code>, size 2, overlap 0) in <span data-v="calc.hypMinimal"></span> of <span data-v="hyp.nseeds"></span> runs; the others stopped at slightly larger inputs such as <code>'0000'</code> with size 3, which are just as readable. Shrinking is a local search: it guarantees that no simpler variant it tried still fails, not that no smaller failing input exists.</p>
-<p><b>The fix</b> starts a window wherever there is text the previous window did not cover: <code>range(0, max(len(text) - overlap, 1), step)</code>, plus an early return for empty text. The same property then passed 5,000 generated cases (<code>experiments/hyp/test_fixed_property.py</code>, 2.3 s). The fix also cures a second symptom the examples never hit: the tail of any document whose length does not line up with the step, such as the last character of "abcde" with size 4 and overlap 1.</p>
+def test_out_of_range_priority_is_repaired_once():
+    client, seen = fake_llm('{"category": "bug", "priority": 7, "summary": "App crashes"}',
+                            '{"category": "bug", "priority": 4, "summary": "App crashes"}')
+    assert extract_ticket(client, "the app crashes on login").priority == 4
+    assert len(seen) == 2 and "invalid" in seen[1]["messages"][0]["content"]
 
-<h3>The example database, and determinism in CI</h3>
-<p>When a test fails, Hypothesis saves the failing input in a local <dfn id="g-hdb">example database</dfn> (<code>.hypothesis/examples</code>) and replays it first on the next run, so a bug found once is not lost to randomness. On a CI machine that folder starts empty, so Hypothesis {{now defaults|https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.settings}} to <code>derandomize=True</code> when it detects CI ("If running on CI, the default is True"): every CI run tries the same inputs, so a red build reproduces, and new inputs are explored on developers' machines. The alternative is to keep randomness in CI and cache the database between runs. Add <code>@example(text="0", args=(2, 0))</code> above <code>@given</code> to pin a found bug as a permanent regression case.</p>
+def test_gives_up_after_one_repair():
+    client, seen = fake_llm('not json at all')
+    with pytest.raises(ValueError):
+        extract_ticket(client, "hello")
+    assert len(seen) == 2</pre>
+<p>These tests pin what matters to the rest of the system (valid output passes through, one repair, then a clean failure, <code>temperature=0</code> and JSON mode are actually sent) and run in milliseconds with no API key. The same fake can be a small local HTTP server (FastAPI or <code>http.server</code>) when the code under test builds its own client.</p>
 
-<h3>Stateful testing: random sequences of operations</h3>
-<p>Some bugs need a particular <i>sequence</i> of calls. A <dfn id="g-stateful">stateful test</dfn> lists the operations (rules), and Hypothesis runs random sequences of them against your code and a simple trusted model, comparing after each step. Here it tests the least-recently-used cache that holds embeddings by text hash: it should keep the two most recently <i>used</i> keys, but <code>get</code> forgets to mark a key as used.</p>
-<div class="cvh"><span class="real">real</span> <code>experiments/hyp/test_lru_stateful.py</code></div>
-<pre class="cv py">class LRUMatchesModel(RuleBasedStateMachine):
-    def __init__(self):
-        super().__init__()
-        self.cache = LRUCache(capacity=2)
-        self.model = OrderedDict()            # the obviously-correct reference
+<h3>Record and replay (VCR)</h3>
+<p>A fake returns what <i>you</i> think the provider returns. A <dfn id="g-vcr">recorded response</dfn> test captures what it really returned once: {{vcrpy|https://vcrpy.readthedocs.io/en/latest/usage.html}} intercepts HTTP, saves request and response to a YAML <i>cassette</i>, and replays it on later runs without a network; {{pytest-recording|https://pypi.org/project/pytest-recording/}} wraps it as a marker. Here the "provider" is a local server so the run is self-contained; with a real provider the steps are the same.</p>
+<p><b>Costs:</b> cassettes go stale when the provider changes its API, so re-record on a schedule and when upgrading the SDK; they can capture secrets and user data, so filter headers and use synthetic inputs; and a cassette replays one sample of a nondeterministic model, so assert on structure, not on exact wording. Record modes decide what happens on a miss: <code>once</code> (vcrpy's default) records if the cassette does not exist and replays otherwise; <code>none</code> never touches the network, which pytest-recording uses by default "to prevent unintentional network requests"; <code>new_episodes</code> and <code>all</code> record more.</p>
+<details class="dp"><summary>The recorded test and its three runs <span class="mute">(record, replay offline, fail without the cassette)</span></summary><div class="b">
+<div class="cvh"><span class="real">real</span> <code>experiments/llm/test_vcr.py</code> with vcrpy <span data-v="env.vcrpy"></span>, pytest-recording <span data-v="env.pytest_recording"></span></div>
+<pre class="cv py">@pytest.fixture(scope="module")
+def vcr_config():
+    return {"filter_headers": ["authorization"]}     # never write API keys into the cassette
 
-    @rule(k=keys, v=st.integers())
-    def put(self, k, v):
-        self.cache.put(k, v)
-        self.model[k] = v
-        self.model.move_to_end(k)
-        if len(self.model) &gt; 2:
-            self.model.popitem(last=False)
+@pytest.mark.vcr
+def test_password_reset_is_an_account_ticket(provider_url):
+    with httpx.Client(base_url=provider_url, headers={"authorization": "Bearer sk-secret"}) as client:
+        t = extract_ticket(client, "I can't reset my password")
+    assert t.category == "account"</pre>
+<div class="term">$ pytest --record-mode=once test_vcr.py              <b># provider up: records the cassette</b>
+<span class="g">1 passed in 1.29s</span>
+$ PROVIDER_DOWN=1 pytest --record-mode=none test_vcr.py   <b># nothing listening: replays it</b>
+<span class="g">1 passed in 0.14s</span>
+$ (cassette deleted) PROVIDER_DOWN=1 pytest --record-mode=none test_vcr.py
+<span class="r">1 failed in 0.14s</span>
+<i># the saved cassette: method, URL, request body, response body, no authorization header</i></div>
+</div></details>
 
-    @rule(k=keys)
-    def get(self, k):
-        expected = self.model.get(k)
-        if k in self.model:
-            self.model.move_to_end(k)
-        assert self.cache.get(k) == expected
+<h3>Golden outputs: snapshot the prompt</h3>
+<p>Some outputs are too big to write by hand in a test: the full message list sent to the model, a rendered email, a transformed data frame. A <dfn id="g-snapshot">snapshot test</dfn> (also <dfn id="g-golden">golden test</dfn>) records the output once into a file, you review that file like code, and every later run compares against it; any difference fails and shows a diff. Here it pinned the exact prompt the chat product sends; someone changed <code>max_turns=2</code> to <code>max_turns=1</code>, and the snapshot failed with a diff.</p>
+<details class="dp"><summary>The snapshot test and its failing diff <span class="mute">(syrupy)</span></summary><div class="b">
+<div class="cvh"><span class="real">real</span> <code>experiments/snap/</code> with {{syrupy|https://github.com/syrupy-project/syrupy}} <span data-v="env.syrupy"></span></div>
+<pre class="cv py">SYSTEM = "You are a helpful assistant for Acme. Answer briefly."
 
-TestLRU = LRUMatchesModel.TestCase</pre>
-<div class="term">E       AssertionError: assert 0 == None
-E       Failing test case:
-E       state = LRUMatchesModel()
-E       state.put(k='b', v=0)
-E       state.put(k='a', v=0)
-E       state.get(k='b')          <b># b is now the most recently used</b>
-E       state.put(k='c', v=0)     <b># so a should be evicted, but the cache evicts b</b>
-E       state.get(k='a')
-<span class="r">1 failed in 0.14s</span></div>
-<p>Five steps, shrunk from random sequences: the exact recipe for the bug. Writing that sequence by hand requires already knowing the bug.</p>
+def build_messages(history, user_msg, max_turns=2):
+    """The exact message list sent to the model: system prompt, the last few turns, the new message."""
+    return [{"role": "system", "content": SYSTEM}] + history[-2 * max_turns:] + [{"role": "user", "content": user_msg}]
 
-<h3>Properties that pay off, especially in ML code</h3>
-<ul>
-<li><b>Round trip</b>: decode(encode(x)) == x; config to YAML and back; a tokenizer where it promises it.</li>
-<li><b>Invariants</b>: shape and dtype preserved; row count preserved (or changed by exactly the filtered rows); no NaN introduced; output vocabulary within the expected set; probabilities sum to 1.</li>
-<li><b>Idempotence</b>: normalising twice equals normalising once, <code>f(f(x)) == f(x)</code>.</li>
-<li><b>Equivalence to a slow reference</b>: the vectorised implementation equals a plain loop on every input (a <dfn id="g-oracle">test oracle</dfn>).</li>
-<li><b>Monotonicity</b>: a higher score never ranks lower.</li>
-<li><b>Never crashes</b>: a parser for model output returns a value or raises your own error type, for any string.</li>
-</ul>
-<p><code>hypothesis.extra.numpy</code> and <code>hypothesis.extra.pandas</code> generate arrays and data frames directly. Build domain objects with <code>st.builds</code> or <code>@st.composite</code> and reuse them across tests as a library of typed inputs.</p>
-<div class="corr"><div class="t">Checked: the old page's NumPy example, run as written</div>
-The old page's example property, <code>@given(hnp.arrays(dtype=np.float32, shape=st.integers(1, 1000)))</code> asserting that min-max normalisation produces no NaN, fails at once. Two reasons. First, by default the float strategy also generates NaN and infinity, so the test partly checks its own inputs; restrict them with <code>elements=st.floats(-1e6, 1e6, width=32)</code>. Second, with finite inputs it still fails, and Hypothesis shrinks to <code>x = array([0.])</code>: a constant column makes <code>max - min</code> zero, and 0/0 is NaN. A real bug in every naive min-max scaler, found in under a second (<code>experiments/mlt/test_normalize.py</code>).</div>
-<p><b>What it costs, and when not to use it.</b> Each property runs 100 examples by default, so it is slower than one example (seconds, not milliseconds). Thinking of a true property is the hard part; a property that restates the implementation proves nothing. A strategy narrower than real inputs gives false confidence. Keep a few readable example tests as documentation, and add properties where the input space is large: parsers, serialisers, numeric transforms, data structures, anything with an inverse.</p>
+def test_prompt_is_stable(snapshot):      # syrupy's fixture
+    assert build_messages(HISTORY, "refund?") == snapshot</pre>
+<div class="term">$ pytest --snapshot-update      <b># first run: writes __snapshots__/test_prompt_snapshot.ambr</b>
+1 snapshot generated.
+<i># someone changes max_turns=2 to max_turns=1</i>
+$ pytest
+E       AssertionError: assert [+ received] == [- snapshot]
+E         -   dict({
+E         -     'content': 'price?',
+E         -     'role': 'user',...
+<span class="r">1 snapshot failed.</span></div>
+</div></details>
+<p>The change dropped a whole turn of conversation from every prompt; a snapshot makes that visible in review, where an assertion on "the last message is the user's" would not. Use it for prompt assembly, rendered templates, API response shapes and data transforms checked against a reviewed <i>golden file</i>; never for live model output, which needs an eval with a tolerance, not equality. <b>The danger</b> is the update flag: <code>--snapshot-update</code> and commit, and the test now blesses the bug, so read a snapshot diff like a code change.</p>
+<details class="dp"><summary>Snapshot hygiene <span class="mute">(scrubbing, size, inline snapshots)</span></summary><div class="b"><p>Treat a snapshot diff as a code change and read it in review. Scrub values that change on every run (timestamps, generated ids) or the test is flaky. Snapshot a small, meaningful view, not huge outputs nobody will read. {{inline-snapshot|https://15r10nk.github.io/inline-snapshot/}} writes the value into the test file itself, which keeps small snapshots next to the code that checks them.</p></div></details>
+
+<h3>When an eval replaces a test</h3>
+<p>A unit test asks "is this exactly right?" and expects yes every time. For model quality ("are tickets categorised correctly?") the honest answer is a rate ("on 94% of cases", say), so the check is an eval: a versioned set of cases, scored, compared with the current production configuration, with a threshold and per-slice results ({{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}, {{Eval harnesses|n:3c65c17b0d0d81ea9cd5eb65795ff5c9}}). The split: <b>tests</b> (exact, every push, fake model) for prompt assembly, output parsing, schema validation, repair and fallback logic, retries, streaming, token counting, cost accounting and the gateway's routing rules; <b>evals</b> (statistical, on merge or nightly, real model) for answer quality, categorisation accuracy, refusal behaviour, tone and groundedness, run on every model, prompt, temperature or provider change. A few deterministic assertions sit in between and can run on real model output in the eval job: the output parses, the tool call is valid, no forbidden string appears. Treat prompts as code: versioned, reviewed, and every edit runs the eval. Runtime checks on live traffic are {{Guardrails|n:3c65c17b0d0d819bbfa5dffa9246c297}}.</p>
 </section>

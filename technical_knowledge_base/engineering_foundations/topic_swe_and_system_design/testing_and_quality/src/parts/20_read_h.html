@@ -1,77 +1,79 @@
-<section id="s-llm"><h2>12. Testing LLM features</h2>
-<p>An LLM feature is ordinary code wrapped around a call whose answer varies. Split it accordingly: the code around the call (building the prompt, parsing the answer, retrying, falling back) is tested like any code, fast and exactly, with the model replaced; the model's quality is measured by evals. Mixing the two gives slow, flaky, expensive unit tests that still do not tell you whether the model is good.</p>
-<h3>Contract tests on structured output</h3>
-<p>When model output feeds other code, the boundary needs a <b>contract</b>: a schema the output must satisfy, checked on every response. In Python that is a pydantic model. Structured-output modes (JSON mode, JSON schema, tool calling) and constrained decoding make valid output much more likely; validate anyway. Put semantic rules in the schema too: enum fields really in the enum, numbers within bounds, ids that resolve, citation indices in range.</p>
-<div class="cvh"><span class="real">real</span> <code>experiments/llm/extract.py</code> with pydantic <span data-v="env.pydantic"></span>, httpx <span data-v="env.httpx"></span></div>
-<pre class="cv py">class Ticket(BaseModel):
-    category: Literal["billing", "bug", "account", "other"]
-    priority: int = Field(ge=1, le=4)
-    summary: str = Field(min_length=1, max_length=200)
+<section id="s-mut"><h2>10. Coverage and mutation testing: is the suite any good?</h2>
+<p><dfn id="g-coverage">Code coverage</dfn> measures which code ran during the tests: <b>line coverage</b> counts executed lines; <b>branch coverage</b> also checks that every <code>if</code> went both ways. {{coverage.py|https://coverage.readthedocs.io/}} measures both (<code>coverage run --branch -m pytest</code>, then <code>coverage report -m</code> lists the lines that never ran). That list is valuable: code no test executes is certainly untested. The reverse does not hold: coverage records that a line <i>ran</i>, not that any test <i>checked</i> what it did.</p>
+<p><dfn id="g-mutation">Mutation testing</dfn> asks the better question: if the code had a bug, would a test fail? A tool makes many small changes to the code, one at a time (each change is a <dfn id="g-mutant">mutant</dfn>: <code>&gt;=</code> becomes <code>&gt;</code>, <code>2</code> becomes <code>3</code>, <code>- 1</code> becomes <code>+ 1</code>), and runs the tests against each. A mutant is <b>killed</b> if some test fails and <b>survives</b> if every test still passes: a bug your suite would not notice. The <dfn id="g-mscore">mutation score</dfn> is the share killed.</p>
+<div class="pr"><div class="q">Predict: the weak suite below calls every function of the retry policy, so line and branch coverage are 100%. Of the 23 mutants mutmut makes, how many does it kill?</div>
+<div class="opts"><button>All 23: every line is covered</button><button data-ok="1">16: about seven in ten</button><button>Under 5</button></div>
+<div class="ans" hidden>16 of 23. All 7 survivors are wrong values (base delay 0.5 changed to 1.5, cap 8 to 9, doubling to tripling, off-by-one exponents, a negative <code>Retry-After</code> floored at 1 instead of 0), and 10 of the 16 kills are mutants that simply crash, which any test that runs the line kills. The figure shows coverage saturating at the third test.</div></div>
+<div class="fig"><div class="ft">Coverage hits 100% at the third test; the mutation score keeps climbing</div><div class="rd-svg" id="tq-cvm"></div>
+<p class="cap">Tests added one at a time: the weak suite's 3 test functions, then the improved suite's 7. Statements covered out of 15 and mutants killed out of 23, from the real per-test coverage (coverage.py dynamic contexts) and kill matrix (every mutant run against every test case, <code>src/experiments/killmatrix.py</code>), measured on 2026-10-04 with mutmut 3.8.0.</p></div>
+<div class="cvh"><span class="real">real</span> <code>experiments/mut/tests/test_weak.py</code></div>
+<pre class="cv py">def test_should_retry():
+    assert should_retry(503, attempt=1)
+    assert not should_retry(503, attempt=3)
 
-def extract_ticket(client: httpx.Client, message: str, retries: int = 1) -&gt; Ticket:
-    prompt = f"Return JSON with category, priority (1-4) and summary for: {message}"
-    for attempt in range(retries + 1):
-        r = client.post("/v1/chat/completions", json={
-            "model": "small", "temperature": 0,
-            "response_format": {"type": "json_object"},
-            "messages": [{"role": "user", "content": prompt}]})
-        r.raise_for_status()
-        text = r.json()["choices"][0]["message"]["content"]
-        try:
-            return Ticket.model_validate_json(text)
-        except ValidationError as e:              # repair: one retry with the error appended
-            prompt += f"\nYour last answer was invalid: {e.errors()[0]['msg']}. Return valid JSON only."
-    raise ValueError("model output failed validation after retries")</pre>
-<p>The <b>repair loop</b> retries once with the validation error in the prompt, then gives up and lets the caller fall back. Count how often it fires: a rising repair rate is an early signal that a model or prompt change has regressed.</p>
-<h3>A fake model server</h3>
-<p>To test that code without a real model, replace the HTTP layer. <code>httpx.MockTransport</code> routes requests to a Python function in the same process: a fake chat-completions server that returns scripted replies and records what it was sent (a fake and a spy at once, <a href="#s-dbl">section 5</a>).</p>
-<div class="cvh"><span class="real">real</span> <code>experiments/llm/test_extract.py</code> (3 passed in 0.18 s)</div>
-<pre class="cv py">def fake_llm(*replies):
-    """A fake chat-completions server: returns the given replies in order and records requests."""
-    seen = []
-    def handler(request: httpx.Request) -&gt; httpx.Response:
-        seen.append(json.loads(request.content))
-        content = replies[min(len(seen) - 1, len(replies) - 1)]
-        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
-    return httpx.Client(base_url="http://fake-llm", transport=httpx.MockTransport(handler)), seen
+def test_backoff_delay():
+    assert backoff_delay(1) &gt; 0
 
-def test_out_of_range_priority_is_repaired_once():
-    client, seen = fake_llm('{"category": "bug", "priority": 7, "summary": "App crashes"}',
-                            '{"category": "bug", "priority": 4, "summary": "App crashes"}')
-    assert extract_ticket(client, "the app crashes on login").priority == 4
-    assert len(seen) == 2 and "invalid" in seen[1]["messages"][0]["content"]
+def test_parse_retry_after():
+    assert parse_retry_after("2") == 2.0
+    assert parse_retry_after(None) is None
+    assert parse_retry_after("soon") is None</pre>
+<details class="dp"><summary>The coverage report and mutmut's survivors <span class="mute">(terminal output)</span></summary><div class="b">
+<div class="term" id="cov-out"></div>
+<div class="term" id="mut-out"></div></div></details>
+<p>The weak suite has 100% line and branch coverage and lets <span data-v="calc.mutSurvValue"></span> planted bugs through, every one a wrong value; <span data-v="calc.mutWeakCrash"></span> of its <span data-v="calc.mutWeak"></span> kills were mutants that crash (<code>min(None, ...)</code>). The improved suite (exact delays for attempts 1 to 6, a custom cap, every retryable and non-retryable status, the boundary at the last allowed attempt, negative and zero headers) kills all <span data-v="calc.mutN"></span>. Try it below.</p>
 
-def test_gives_up_after_one_repair():
-    client, seen = fake_llm('not json at all')
-    with pytest.raises(ValueError):
-        extract_ticket(client, "hello")
-    assert len(seen) == 2</pre>
-<p>These tests pin the behaviour that matters to the rest of the system (valid output passes through, one repair, then a clean failure, <code>temperature=0</code> and JSON mode are actually sent) and run in milliseconds with no API key. The same fake can be a small local HTTP server (FastAPI or <code>http.server</code>) when the code under test builds its own client.</p>
-<h3>Recorded responses (VCR)</h3>
-<p>A fake returns what <i>you</i> think the provider returns. A <dfn id="g-vcr">recorded response</dfn> test captures what it really returned once: {{vcrpy|https://vcrpy.readthedocs.io/en/latest/usage.html}} intercepts HTTP, saves request and response to a YAML <i>cassette</i>, and replays it on later runs without a network. {{pytest-recording|https://pypi.org/project/pytest-recording/}} wraps it as a marker. Here the "provider" is a local server so the run is self-contained; with a real provider the steps are the same.</p>
-<div class="cvh"><span class="real">real</span> <code>experiments/llm/test_vcr.py</code> with vcrpy <span data-v="env.vcrpy"></span>, pytest-recording <span data-v="env.pytest_recording"></span></div>
-<pre class="cv py">@pytest.fixture(scope="module")
-def vcr_config():
-    return {"filter_headers": ["authorization"]}     # never write API keys into the cassette
-
-@pytest.mark.vcr
-def test_password_reset_is_an_account_ticket(provider_url):
-    with httpx.Client(base_url=provider_url, headers={"authorization": "Bearer sk-secret"}) as client:
-        t = extract_ticket(client, "I can't reset my password")
-    assert t.category == "account"</pre>
-<div class="term">$ pytest --record-mode=once test_vcr.py              <b># provider up: records the cassette</b>
-<span class="g">1 passed in 1.29s</span>
-$ PROVIDER_DOWN=1 pytest --record-mode=none test_vcr.py   <b># nothing listening: replays it</b>
-<span class="g">1 passed in 0.14s</span>
-$ (cassette deleted) PROVIDER_DOWN=1 pytest --record-mode=none test_vcr.py
-<span class="r">1 failed in 0.14s</span>
-<i># the saved cassette: method, URL, request body, response body, no authorization header</i></div>
-<p>Record modes decide what happens on a miss: <code>once</code> (vcrpy's default) records if the cassette does not exist and replays otherwise; <code>none</code> never touches the network, which pytest-recording uses by default "to prevent unintentional network requests"; <code>new_episodes</code> and <code>all</code> record more. <b>Costs:</b> cassettes go stale when the provider changes its API, so re-record on a schedule and when upgrading the SDK; they can capture secrets and user data, so filter headers and use synthetic inputs; and a cassette replays one sample of a nondeterministic model, so assert on structure, not on exact wording.</p>
-<h3>When an eval replaces a test</h3>
-<p>A unit test asks "is this exactly right?" and expects the answer yes every time. For model quality ("are tickets categorised correctly?") the honest answer is a rate ("on 94% of cases", say), so the check is an eval: a versioned set of cases, scored, compared with the current production configuration, with a threshold and per-slice results. Use the split:</p>
-<div class="two">
-<div><h4>Test (exact, every push, fake model)</h4><p class="small">Prompt assembly, output parsing, schema validation, repair and fallback logic, retries, streaming, token counting, cost accounting, the gateway's routing rules.</p></div>
-<div><h4>Eval (statistical, on merge or nightly, real model)</h4><p class="small">Answer quality, categorisation accuracy, refusal behaviour, tone, groundedness. Every model, prompt, temperature or provider change runs it. See {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}} and {{Eval harnesses|n:3c65c17b0d0d81ea9cd5eb65795ff5c9}}.</p></div>
+<style>
+#ml-card .ml-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:12px;margin:10px 0}
+#ml-card .ml-top>div{min-width:0}
+#ml-card .tl label{display:flex;gap:6px;align-items:flex-start;font-size:13px;padding:3px 0;border-bottom:1px solid var(--line)}
+#ml-card .tl label code{font-size:12px;overflow-wrap:anywhere}#ml-card .tl .c{color:var(--mute);font-size:11.5px;margin-left:auto;white-space:nowrap}
+#ml-card .tl .grp{font-size:11.5px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;margin:8px 0 2px}
+#ml-card .src{font:12px/1.55 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:6px 0;overflow-x:auto;max-width:100%}
+#ml-card .src .l{display:block;white-space:pre;padding:0 10px 0 0;border-left:4px solid transparent}
+#ml-card .src .l .g{display:inline-block;width:2.4em;text-align:right;color:var(--mute);padding-right:.6em;user-select:none}
+#ml-card .src .l.cov{border-left-color:var(--good)}#ml-card .src .l.unc{border-left-color:var(--bad)}#ml-card .src .l.hot{background:var(--hl)}
+#ml-card .src .kw{color:var(--c4)}#ml-card .src .s{color:var(--c3)}#ml-card .src .cm{color:var(--mute)}
+#ml-card .mrow{display:grid;grid-template-columns:9.5em minmax(0,1fr) 5.6em;gap:8px;align-items:start;padding:5px 6px;border-bottom:1px solid var(--line);font-size:12.5px;cursor:pointer;border-radius:4px}
+#ml-card .mrow:hover{background:var(--soft)}#ml-card .mrow.sel{outline:2px solid var(--acc);outline-offset:-2px}
+#ml-card .mrow code{font-size:11.5px;overflow-wrap:anywhere;display:block}#ml-card .mrow .o{color:var(--mute);text-decoration:line-through}
+#ml-card .st{font-weight:600;text-align:right}#ml-card .st.k{color:var(--good)}#ml-card .st.s{color:var(--bad)}
+#ml-card .mrow .id{overflow-wrap:anywhere;min-width:0}#ml-card .mk{font-size:10.5px;color:var(--mute);display:block;font-weight:400}
+#ml-card .why{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;background:var(--soft)}
+#ml-card pre.tc{font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 10px;overflow-x:auto;white-space:pre;max-width:100%;margin:6px 0}
+@media (max-width:520px){#ml-card .mrow{grid-template-columns:minmax(0,1fr) 5em}#ml-card .mrow .id{grid-column:1/3}}
+</style>
+<div class="card" id="ml-card">
+<h3 style="margin-top:0">Mutation lab: which tests notice which bugs?</h3>
+<p class="small mute">The retry policy, its two real suites, and all <span data-v="calc.mutN"></span> mutants mutmut <span data-v="env.mutmut"></span> generated for it. Tick tests on and off and watch both numbers; click a mutant for its line and a test that kills it. The challenge: the fewest tests that kill everything.</p>
+<div class="chips" id="ml-pre"><button data-m="weak" class="on">Weak suite</button><button data-m="strong">Improved suite</button><button data-m="all">Both</button><button data-m="none">None</button><button data-m="min">Challenge: fewest tests that kill all</button></div>
+<div id="ml-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px;margin:10px 0"></div>
+<div class="ml-top">
+<div><div class="tl" id="ml-tests"></div></div>
+<div><div class="small mute">src/retrypolicy.py: green edge, a line some selected test runs; red, a line none runs; yellow, the selected mutant's line.</div><div class="src" id="ml-src"></div></div>
 </div>
-<p>A few deterministic assertions sit in between and can run on real model output in the eval job: the output parses, the tool call is valid, no forbidden string appears. Treat prompts as code: versioned, reviewed, and every edit runs the eval. Runtime checks on live traffic are {{Guardrails|n:3c65c17b0d0d819bbfa5dffa9246c297}}.</p>
+<div class="why" id="ml-why"></div>
+<details class="dp"><summary>All 23 mutants <span class="mute">(kind, original and mutated line, killed or survived under your selection; click one)</span></summary><div class="b">
+<div class="small mute">Kind: <b>crash</b> mutants raise an error (any test that runs the line kills them); <b>value</b> mutants return a wrong value (only a test that checks the value kills them).</div>
+<div id="ml-list"></div></div></details>
+<p class="cap">mutmut's own verdicts (weak <span data-v="calc.mutWeak"></span>/<span data-v="calc.mutN"></span>, improved <span data-v="calc.mutStrong"></span>/<span data-v="calc.mutN"></span>) match the per-test matrix. Module-level lines (the import, the <code>RETRYABLE</code> constant and the <code>def</code> lines) run on import and count as covered for any selection.</p>
+</div>
+
+<div class="corr"><div class="t">A gap measured here: what mutmut 3 does not mutate</div>mutmut 3 only mutates code inside functions; its README says to use mutmut 2 "if you want to mutate code outside of functions". The module-level <code>RETRYABLE = frozenset({408, 429, 500, 502, 503, 504})</code> produced no mutants at all, so mutmut could not tell you that the weak suite never checks which statuses are retryable. The improved suite covers it by naming every status explicitly. Keep important constants inside functions or test them directly.</div>
+<h3>What the research and practice say</h3>
+<ul>
+<li>Inozemtseva and Holmes measured 31,000 test suites over five Java systems and found "a low to moderate correlation between coverage and effectiveness when the number of test cases in the suite is controlled for", effectiveness being mutants killed ({{ICSE 2014|https://www.cs.ubc.ca/~rtholmes/papers/icse_2014_inozemtseva.pdf}}). Coverage is a floor detector, not a goal.</li>
+<li>Google's guidance treats "60% as 'acceptable', 75% as 'commendable' and 90% as 'exemplary'", while adding "There is no 'ideal code coverage number' that universally applies to all products" and "We should not be obsessing on how to get from 90% code coverage to 95%" ({{Google Testing Blog, 2020|https://testing.googleblog.com/2020/08/code-coverage-best-practices.html}}).</li>
+<li>Google runs mutation testing incrementally, "mutating only changed code during code review", showing at most one mutant per line as a review comment; "82% of all surfaced mutants with feedback were labeled as productive by developers" ({{Petrović et al., 2021|https://arxiv.org/abs/2102.11378}}). Developers exposed to it "write more tests, and actively improve their test suites" ({{Petrović et al., ICSE 2021|https://arxiv.org/abs/2103.07189}}).</li>
+</ul>
+<p><b>What it costs.</b> One run of the suite per mutant: here <span data-v="calc.mutN"></span> mutants at <span data-v="mut.rate_weak"></span> mutants per second, under a second, but a large service has tens of thousands of mutants and a suite that takes minutes. So run it on changed code only (as Google does), nightly, or on the modules that matter most (pricing, permissions, retries). Some mutants are <b>equivalent</b>: they change the code but not its behaviour, cannot be killed, and need a human to dismiss them. Skip it for glue code and prototypes; use it where a silent wrong value is expensive.</p>
+<details class="dp"><summary>Running mutmut <span class="mute">(configuration and commands)</span></summary><div class="b">
+<div class="cvh"><span class="real">real</span> {{mutmut|https://github.com/boxed/mutmut}} <span data-v="env.mutmut"></span>, configured in <code>pyproject.toml</code></div>
+<pre class="cv py">[tool.mutmut]
+source_paths = ["src/"]
+pytest_add_cli_args_test_selection = ["tests/test_weak.py"]
+
+$ mutmut run            # generate mutants, run the suite against each
+$ mutmut results        # list survivors
+$ mutmut show retrypolicy.x_backoff_delay__mutmut_9    # the diff of one mutant</pre></div></details>
 </section>

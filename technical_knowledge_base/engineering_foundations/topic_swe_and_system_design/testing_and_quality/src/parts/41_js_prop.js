@@ -67,7 +67,8 @@
     document.getElementById('pb-cnt').innerHTML=cnt.map(c=>RD.stat(c[0],c[1])).join('');
     document.getElementById('pb-strip').innerHTML=strip;
     document.getElementById('pb-cap').innerHTML=cap;
+    if(window.TQF)window.TQF.pbPlot(mode,i);
   }
   const O={card:'pb-card',ctl:'pb-ctl',n:steps(),draw,ms:1500,label:'Call'};const A=RD.anim(O);
-  RD.seg(document.getElementById('pb-mode'),m=>{mode=m;O.ms=m==='fx'?350:1500;A.reset(steps());A.play()});
+  RD.seg(document.getElementById('pb-mode'),m=>{mode=m;O.ms=m==='fx'?350:1500;A.reset(steps())});
 })();

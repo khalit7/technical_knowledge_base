@@ -27,5 +27,11 @@ out = {
  'pgRatio': f"{tm['pg_conn']['median_ms'] / tm['sqlite_conn']['median_ms']:.0f}", 'pg500': f"{500 * tm['pg_conn']['median_ms'] / 1000:.1f}",
  'minSet': minset,
 }
+# coverage and mutation score as tests are added one at a time, weak suite first (the section 10 figure)
+import ast
+E = os.path.join(os.path.dirname(I), 'experiments', 'mut', 'tests')
+order = [f[:-3] + '.' + n.name for f in ('test_weak.py', 'test_strong.py') for n in ast.parse(open(os.path.join(E, f)).read()).body if isinstance(n, ast.FunctionDef) and n.name.startswith('test_')]
+out['curveCov'] = ','.join(str(len([l for l in stm if l in covered(order[:i])])) for i in range(len(order) + 1))
+out['curveKill'] = ','.join(str(len(killed(order[:i]))) for i in range(len(order) + 1))
 json.dump(out, open(os.path.join(os.path.dirname(I), 'recompute_out.json'), 'w'), indent=1)
 print(json.dumps(out))

@@ -1,48 +1,98 @@
-<section id="s-dbl"><h2>5. Test doubles: fakes, stubs, mocks, and why over-mocking lies</h2>
-<p>Real dependencies (the model provider, a payment API, a database) can be slow, cost money, need network access or fail at random. A <dfn id="g-double">test double</dfn> stands in for one during a test, the way a stunt double stands in for an actor. Gerard Meszaros named the kinds in <i>xUnit Test Patterns</i> (2007); Martin Fowler's {{Mocks Aren't Stubs|https://martinfowler.com/articles/mocksArentStubs.html}} (2004, revised 2007) is the classic explanation.</p>
-<div class="tw"><table><thead><tr><th>Double</th><th>What it is</th><th>Example in the chat product</th></tr></thead><tbody>
-<tr><td><dfn id="g-dummy">Dummy</dfn></td><td>Passed in to fill a parameter, never used.</td><td>A <code>logger=None</code> argument in a test that never logs.</td></tr>
-<tr><td><dfn id="g-stub">Stub</dfn></td><td>Returns canned answers.</td><td>A model client whose <code>complete()</code> always returns <code>"Hello"</code>.</td></tr>
-<tr><td><dfn id="g-spy">Spy</dfn></td><td>A stub that also records how it was called.</td><td>The fake LLM server below keeps every request so the test can check <code>temperature == 0</code>.</td></tr>
-<tr><td><dfn id="g-mock">Mock</dfn></td><td>Pre-programmed with expected calls; the test fails if the calls differ (Python's <code>unittest.mock</code>, <code>pytest-mock</code>).</td><td><code>client.complete.assert_called_once_with(...)</code></td></tr>
-<tr><td><dfn id="g-fake">Fake</dfn></td><td>A small working implementation with shortcuts.</td><td>An in-memory chat store; an HTTP handler that answers like a chat-completions API.</td></tr>
-</tbody></table></div>
-<p><b>Prefer real, then fake, then mock.</b> Google's testing book recommends using the real implementation whenever it is fast and deterministic, a fake when it is not, and mocks sparingly ({{Software Engineering at Google, ch. 13|https://abseil.io/resources/swe-book/html/ch13.html}}: "A real implementation should be preferred over a test double. A fake is often the ideal solution if a real implementation can't be used"). The reason is what a mock checks: that your code <i>called</i> something in a particular way, not that the result is right. A test made of mocks restates the implementation, so it passes when the code is wrong and fails when the code is refactored correctly. {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}'s Review lab has a real example: a mock-only test that still passes with the function it claims to test broken.</p>
-<div class="two">
-<div><h4>Where a mock is the right tool</h4><p class="small">The interaction <i>is</i> the behaviour: "a payment is charged exactly once", "the alert is sent", "we never call the provider when the cache hits". Mock at the boundary you own (your <code>PaymentGateway</code> wrapper), not deep inside third-party libraries.</p></div>
-<div><h4>Where a mock lies</h4><p class="small">Mocking the database, then asserting the SQL string was passed. Mocking <code>requests.post</code> to return a dict that the real API never returns. Mocking a function in the same module you are testing. Each passes forever while production breaks.</p></div>
+<section id="s-prop"><h2>6. Property-based testing: let the computer pick the inputs</h2>
+<p>An example-based test checks the inputs you thought of; bugs live in the ones you did not (the empty string, the one-character document, the emoji, the negative number). A <dfn id="g-property">property</dfn> is a statement that must hold for <i>every</i> valid input, such as "cutting a document into chunks and gluing them back gives the document". A <dfn id="g-pbt">property-based test</dfn> states the property, and a library generates hundreds of inputs trying to break it. The idea comes from Haskell's QuickCheck (Claessen and Hughes, 2000); in Python the library is {{Hypothesis|https://hypothesis.readthedocs.io/}}.</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/hyp/test_chunking_property.py</code></div>
+<pre class="cv py">from hypothesis import given, strategies as st
+from chunking import chunk, unchunk
+
+@st.composite
+def chunk_args(draw):                       # a custom strategy: valid (size, overlap) pairs
+    size = draw(st.integers(min_value=1, max_value=50))
+    overlap = draw(st.integers(min_value=0, max_value=size - 1))
+    return size, overlap
+
+@given(text=st.text(), args=chunk_args())
+def test_round_trip_loses_nothing(text, args):
+    size, overlap = args
+    assert unchunk(chunk(text, size, overlap), overlap) == text</pre>
+<div class="term">$ pytest -q test_chunking_property.py
+E       AssertionError: assert '' == '0'
+E       Failing test case: test_round_trip_loses_nothing(
+E           text='0',
+E           args=(2, 0),
+E       )
+<span class="r">1 failed in 1.81s</span></div>
+<p>A <dfn id="g-strategy">strategy</dfn> describes how to generate one kind of value (<code>st.text()</code>, <code>st.integers(1, 50)</code>, your own with <code>@st.composite</code>). <dfn id="g-shrink">Shrinking</dfn> is what happens after a failure: Hypothesis keeps trying simpler versions of the failing input (shorter strings, smaller numbers, simpler characters) and keeps any that still fail, so the report is <code>text='0', size=2, overlap=0</code> instead of a random 30-character unicode string. A one-character document with a two-character window: the bug, in one line.</p>
+
+<div class="card" id="pb-card">
+<h3 style="margin-top:0">Same bug, two kinds of test</h3>
+<p class="small mute">Predict before you step: the three examples pass; how many generated inputs does the property need before its first failure? The buggy <code>chunk()</code> from section 3. "Examples" runs the three hand-written tests. "Property" replays the real Hypothesis run (seed <span data-v="hyp.seed"></span>, every one of its <span data-v="calc.hypCalls"></span> calls to the test logged). "Property, fixed code" is the same property on the corrected function. Green boxes are characters that survive the round trip; red ones are lost.</p>
+<div class="seg" id="pb-mode"><button data-m="ex" class="on">Examples (3 tests)</button><button data-m="pb">Property (Hypothesis)</button><button data-m="fx">Property, fixed code</button></div>
+<div class="an-ctl" id="pb-ctl"></div>
+<div id="pb-wrap">
+<div class="an-cnt" id="pb-cnt"></div>
+<div class="small mute" id="pb-in"></div>
+<div class="chars" id="pb-chars"></div>
+<div class="tlist" id="pb-out"></div>
+<div class="small mute" style="margin-top:6px">Every call so far (green passed, red failed; outlined: this step; highlighted: smallest failure found so far)</div>
+<div class="strip" id="pb-strip"></div>
+<div class="rd-svg" id="pb-plot"></div>
+<p class="cap">Text length of each call in the property run (bars, red failed); the line is the smallest failing input found so far: it steps down from 2 characters with a 16-character window to 1 character with a 2-character window while shrinking.</p>
 </div>
-<h3>Contract tests: keeping fakes honest</h3>
-<p>A fake drifts: the real service changes a field name and your fake does not. A <dfn id="g-contract">contract test</dfn> checks the agreement between two sides directly. In <b>consumer-driven contract testing</b> ({{Pact|https://docs.pact.io/}}, "a code-first consumer-driven contract testing tool"; pact-python 3.4.1, 2026-09-17), the consumer's tests run against a Pact mock server and write down every request they make and the response they rely on (the <i>pact</i> file); the provider's CI then replays those requests against the real provider and fails if any expectation breaks. Each side tests alone, yet a breaking change is caught before deploy.</p>
-<p><b>Cost and when not to:</b> it needs a place to share pacts (the Pact Broker or PactFlow) and buy-in from both teams. For a third-party API you do not control (a model provider), the provider will never run your pacts; use recorded responses and schema checks instead (<a href="#s-llm">section 12</a>), and an OpenAPI document as the contract when one exists ({{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}, section 16).</p>
-</section>
+<div class="an-cap" id="pb-cap"></div>
+</div>
 
-<section id="s-int"><h2>6. Integration tests with real dependencies</h2>
-<p>An <dfn id="g-integration">integration test</dfn> runs your code together with a real dependency: the actual database engine, a real Redis, a real HTTP stack. It catches the bugs that live <i>between</i> components: SQL a different engine reads differently, a transaction that does not roll back, a type the driver converts. A common shortcut is to test against SQLite in memory while production runs PostgreSQL. Here is what that shortcut cost, measured.</p>
-<div class="cvh"><span class="real">real</span> <code>experiments/integ/</code>: the same test against SQLite and PostgreSQL <span data-v="env.postgres"></span></div>
-<pre class="cv py">def search_chats(conn, owner, text):
-    """Chats of this owner whose title contains `text`, ignoring case (the product spec)."""
-    rows = conn.execute(q(conn, "SELECT id FROM chats WHERE owner = ? AND title LIKE ? ORDER BY id"),
-                        (owner, f"%{text}%")).fetchall()
-    return [r[0] for r in rows]
+<p><b>Across runs.</b> Hypothesis is random, so the search differs from run to run. Over <span data-v="hyp.nseeds"></span> fixed seeds it found the bug in every run, always within the first <span data-v="calc.hypMaxTries"></span> generated inputs, because most random documents trip it. Shrinking ended at the true minimum (<code>'0'</code>, size 2, overlap 0) in <span data-v="calc.hypMinimal"></span> of <span data-v="hyp.nseeds"></span> runs; the others stopped at slightly larger inputs such as <code>'0000'</code> with size 3, which are just as readable. Shrinking is a local search: it guarantees that no simpler variant it tried still fails, not that no smaller failing input exists.</p>
+<p><b>The fix</b> starts a window wherever there is text the previous window did not cover: <code>range(0, max(len(text) - overlap, 1), step)</code>, plus an early return for empty text. The same property then passed 5,000 generated cases (<code>experiments/hyp/test_fixed_property.py</code>, 2.3 s). It also cures a second symptom the examples never hit: the tail of any document whose length does not line up with the step, such as the last character of "abcde" with size 4 and overlap 1.</p>
+<p><b>Determinism in CI.</b> Hypothesis saves each failing input in a local <dfn id="g-hdb">example database</dfn> (<code>.hypothesis/examples</code>) and replays it first next time. A CI machine starts with that folder empty, so Hypothesis {{now defaults|https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.settings}} to <code>derandomize=True</code> on CI ("If running on CI, the default is True"): every CI run tries the same inputs, so a red build reproduces, and new inputs are explored on developers' machines (or keep randomness in CI and cache the database between runs). Pin a found bug as a permanent regression case with <code>@example(text="0", args=(2, 0))</code> above <code>@given</code>.</p>
 
-@pytest.mark.parametrize("db", ["sqlite_conn", "pg_conn"])
-def test_search_ignores_case(db, request):
-    conn = request.getfixturevalue(db)
-    seed(conn)   # "Trip planning for Lisbon", "trip budget spreadsheet" (ada); "Trip ideas" (bob)
-    assert search_chats(conn, "ada", "trip") == [1, 2]</pre>
-<div class="term">test_search.py .F
-<span class="r">FAILED test_search.py::test_search_ignores_case[pg_conn] - assert [2] == [1, 2]</span>
-1 failed, 1 passed</div>
-<p>SQLite's <code>LIKE</code> ignores case for ASCII letters by default ({{SQLite docs|https://www.sqlite.org/lang_expr.html#like}}); PostgreSQL's <code>LIKE</code> is case-sensitive and offers <code>ILIKE</code> for the other behaviour ({{PostgreSQL docs|https://www.postgresql.org/docs/16/functions-matching.html#FUNCTIONS-LIKE}}). So the SQLite suite was green while production users searching "trip" never saw "Trip planning for Lisbon". The fix, <code>lower(title) LIKE lower(?)</code>, passes on both; at scale you would add a trigram index ({{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}} owns that depth).</p>
-<div class="term" id="int-cost"></div>
-<p>The usual objection is speed. Measured on this laptop, a real PostgreSQL costs about a second of startup per test run and a couple of milliseconds per test. A suite of 500 such tests would add roughly a second. That is the trade: a little time for tests that use the engine you ship.</p>
-<h3>Three ways to get the real thing</h3>
-<div class="tw"><table><thead><tr><th>Option</th><th>How</th><th>Cost</th></tr></thead><tbody>
-<tr><td>{{pgserver|https://pypi.org/project/pgserver/}} (used here)</td><td>PostgreSQL binaries inside a pip wheel; <code>pgserver.get_server(dir)</code> starts one. No Docker.</td><td>PostgreSQL only; version fixed by the wheel (<span data-v="env.postgres"></span> in <span data-v="env.pgserver"></span>).</td></tr>
-<tr><td>{{testcontainers-python|https://testcontainers-python.readthedocs.io/}}</td><td>Starts a throwaway Docker container per session: <code>with PostgresContainer("postgres:17") as pg:</code>. Also Kafka, Redis, MinIO, LocalStack.</td><td>Needs Docker; first pull is slow; seconds per start. Any image and version, so it can match production exactly.</td></tr>
-<tr><td>CI service containers</td><td>The CI system starts the database next to the job (<code>services:</code> in GitHub Actions, <a href="#s-ci">section 15</a>).</td><td>Only in CI; locally you still need one of the above.</td></tr>
-</tbody></table></div>
-<p><b>Keeping tests independent.</b> Tests sharing a database leak state into each other. The cheapest isolation is the one above: each test runs inside a transaction that is rolled back at the end. When code under test commits on its own, truncate the tables after each test, or clone a prepared database per test with <code>CREATE DATABASE t1 TEMPLATE base</code>. With parallel workers (<code>pytest-xdist</code>), give each worker its own database.</p>
-<p><b>When not to:</b> logic that does not touch the dependency (pricing rules, parsing, retry decisions) belongs in fast unit tests. Integration tests are for the seams: queries, transactions, migrations, serialisation, configuration.</p>
+<h3>Stateful testing: random sequences of operations</h3>
+<p>Some bugs need a particular <i>sequence</i> of calls. A <dfn id="g-stateful">stateful test</dfn> lists the operations (rules), and Hypothesis runs random sequences of them against your code and a simple trusted model, comparing after each step. Here it tests the least-recently-used cache that holds embeddings by text hash: it should keep the two most recently <i>used</i> keys, but <code>get</code> forgets to mark a key as used. Hypothesis shrank random sequences to this five-step recipe:</p>
+<div class="term">E       AssertionError: assert 0 == None
+E       Failing test case:
+E       state = LRUMatchesModel()
+E       state.put(k='b', v=0)
+E       state.put(k='a', v=0)
+E       state.get(k='b')          <b># b is now the most recently used</b>
+E       state.put(k='c', v=0)     <b># so a should be evicted, but the cache evicts b</b>
+E       state.get(k='a')
+<span class="r">1 failed in 0.14s</span></div>
+<p>Writing that sequence by hand requires already knowing the bug.</p>
+<details class="dp"><summary>The stateful test's code <span class="mute">(a RuleBasedStateMachine against an OrderedDict model)</span></summary><div class="b">
+<div class="cvh"><span class="real">real</span> <code>experiments/hyp/test_lru_stateful.py</code></div>
+<pre class="cv py">class LRUMatchesModel(RuleBasedStateMachine):
+    def __init__(self):
+        super().__init__()
+        self.cache = LRUCache(capacity=2)
+        self.model = OrderedDict()            # the obviously-correct reference
+
+    @rule(k=keys, v=st.integers())
+    def put(self, k, v):
+        self.cache.put(k, v)
+        self.model[k] = v
+        self.model.move_to_end(k)
+        if len(self.model) &gt; 2:
+            self.model.popitem(last=False)
+
+    @rule(k=keys)
+    def get(self, k):
+        expected = self.model.get(k)
+        if k in self.model:
+            self.model.move_to_end(k)
+        assert self.cache.get(k) == expected
+
+TestLRU = LRUMatchesModel.TestCase</pre></div></details>
+
+<h3>Properties that pay off, especially in ML code</h3>
+<ul>
+<li><b>Round trip</b>: decode(encode(x)) == x; config to YAML and back; a tokenizer where it promises it.</li>
+<li><b>Invariants</b>: shape and dtype preserved; row count preserved (or changed by exactly the filtered rows); no NaN introduced; output vocabulary within the expected set; probabilities sum to 1.</li>
+<li><b>Idempotence</b>: normalising twice equals normalising once, <code>f(f(x)) == f(x)</code>.</li>
+<li><b>Equivalence to a slow reference</b>: the vectorised implementation equals a plain loop on every input (a <dfn id="g-oracle">test oracle</dfn>).</li>
+<li><b>Monotonicity</b>: a higher score never ranks lower.</li>
+<li><b>Never crashes</b>: a parser for model output returns a value or raises your own error type, for any string.</li>
+</ul>
+<p><b>What it costs, and when not to use it.</b> Each property runs 100 examples by default, so it is slower than one example (seconds, not milliseconds). Thinking of a true property is the hard part; a property that restates the implementation proves nothing, and a strategy narrower than real inputs gives false confidence. Keep a few readable example tests as documentation, and add properties where the input space is large: parsers, serialisers, numeric transforms, data structures, anything with an inverse.</p>
+<details class="dp"><summary>Checked: the old page's NumPy example, run as written <span class="mute">(it fails, twice)</span></summary><div class="b">
+<p>The old page's example property, <code>@given(hnp.arrays(dtype=np.float32, shape=st.integers(1, 1000)))</code> asserting that min-max normalisation produces no NaN, fails at once. Two reasons. First, by default the float strategy also generates NaN and infinity, so the test partly checks its own inputs; restrict them with <code>elements=st.floats(-1e6, 1e6, width=32)</code>. Second, with finite inputs it still fails, and Hypothesis shrinks to <code>x = array([0.])</code>: a constant column makes <code>max - min</code> zero, and 0/0 is NaN. A real bug in every naive min-max scaler, found in under a second (<code>experiments/mlt/test_normalize.py</code>).</p>
+<p><code>hypothesis.extra.numpy</code> and <code>hypothesis.extra.pandas</code> generate arrays and data frames directly. Build domain objects with <code>st.builds</code> or <code>@st.composite</code> and reuse them across tests as a library of typed inputs.</p></div></details>
 </section>
