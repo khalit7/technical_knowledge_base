@@ -1,9 +1,8 @@
 // ---- Flow matching page, Reading tab: inline visuals. Data: window.FMD (22_js_fm_0data.js). ----
 (function(){
   const X=window.FMX,Fd=window.FMF,D=X.D,$=X.$;if(!$('t-read'))return;
-  X.facts();X.quiz();X.nav('fmr-nav');
-  if(D.code&&$('fmr-code-exact'))$('fmr-code-exact').textContent=D.code.exact;
-  if(D.sched_demo&&$('fmr-sched-out'))$('fmr-sched-out').textContent=D.sched_demo;
+  // recorded numbers, tables and code are static text written by src/fill_static.py at build time
+  X.quiz();X.nav('fmr-nav');const Y=window.FMY||{};
   const pc=v=>(100*v).toFixed(v>=0.1||v===0?0:1)+'%';
   const C=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)'];
 
@@ -60,51 +59,35 @@
         X.stat('exact field: median distance to nearest training image',(s.exact_nn_rms_median||0).toFixed(4),'RMS per pixel, range [-1, 1]')+
         X.stat('network: median distance',(s.net_nn_rms_median||0).toFixed(3),'held-out real test images: '+D.memo.nn.test_rms_median.toFixed(3))}
     X.seg($('fmr-memo-n'),m=>show(m));show('50')})();
-  // ---------- 4. paths table
-  (function(){const tb=$('fmr-paths');if(!tb)return;const E=D.exact;const g=(a,n)=>{const r=a.find(q=>q[0]===n);return r?pc(r[1]):'n/a'};
-    tb.innerHTML=[['straight (rectified flow)','linear'],['cosine VP (SiT\'s GVP)','cos'],['DDPM-style VP (beta 0.1 to 20)','vp']].map(([nm,k])=>'<tr><td>'+nm+'</td><td class="num">'+E[k].straightness.toFixed(3)+'</td><td class="num">'+g(E[k].euler,2)+'</td><td class="num">'+g(E[k].euler,4)+'</td><td class="num">'+g(E[k].euler,8)+'</td><td class="num">'+(k==='linear'?'= Euler':g(E[k].ddim,4))+'</td></tr>').join('')})();
   // ---------- 5. OT cost
   function ot(){if(!$('fmr-ot'))return;const O=D.ot;const n2=O.cost2d[0][1],ni=O.costimg[0][1];
     const ser=[{name:'2-D toy',color:C[0],pts:O.cost2d.map(r=>[r[0],r[1]/n2])},{name:'Fashion-MNIST pixels',color:C[1],pts:O.costimg.map(r=>[r[0],r[1]/ni])}];
     X.chart($('fmr-ot'),ser,{logx:true,xticks:[1,4,16,64,256,1024,4096],xlab:'batch size B (log)',ylab:'travel vs random pairs',ymin:0,ymax:1.05,h:210,label:'Minibatch OT travel distance by batch size'});
     X.leg($('fmr-ot-leg'),ser.map(s=>[s.name,s.color]))}
-  // ---------- 6. rounds on images
-  (function(){const tb=$('fmr-rounds-img');if(!tb)return;const I=D.img;
-    const fe=(rows,n)=>{const r=rows.find(q=>q[0]==='euler'&&q[1]===n);return r?r[3].toFixed(1):'n/a'};
-    const fdiv=(rows,n)=>{const r=rows.find(q=>q[0]==='euler'&&q[1]===n);return r?r[5].toFixed(1):'n/a'};
-    let h='<tr><td>1-RF (root)</td><td class="num">'+fe(I.fm,1)+'</td><td class="num">'+fe(I.fm,2)+'</td><td class="num">'+fe(I.fm,4)+'</td><td class="num">'+fe(I.fm,50)+'</td><td class="num">'+fdiv(I.fm,50)+'</td><td class="num">'+I.fm_straight.toFixed(4)+'</td></tr>';
-    h+='<tr><td>2-RF (root)</td><td class="num">'+fe(I.rf2,1)+'</td><td class="num">'+fe(I.rf2,2)+'</td><td class="num">'+fe(I.rf2,4)+'</td><td class="num">'+fe(I.rf2,50)+'</td><td class="num">'+fdiv(I.rf2,50)+'</td><td class="num">'+I.rf2_straight.toFixed(4)+'</td></tr>';
-    const m3=(I.new||{}).rf3_2000;
-    if(m3){const g=n=>{const r=m3.euler.find(q=>q.steps===n);return r?r.fd.toFixed(1):'n/a'},gd=n=>{const r=m3.euler.find(q=>q.steps===n);return r?r.div.toFixed(1):'n/a'};
-      h+='<tr><td>3-RF (here)</td><td class="num">'+g(1)+'</td><td class="num">'+g(2)+'</td><td class="num">'+g(4)+'</td><td class="num">'+g(50)+'</td><td class="num">'+gd(50)+'</td><td class="num">'+(m3.straightness!=null?m3.straightness.toFixed(4):'')+'</td></tr>'}
-    else h+='<tr><td>3-RF (here)</td><td colspan="6" class="small mute">run pending</td></tr>';
-    tb.innerHTML=h})();
-  // ---------- 8. timestep table
-  (function(){const tb=$('fmr-ts');if(!tb)return;const T=D.tsched;
-    function show(b){tb.innerHTML=Object.keys(T.hist).map(s=>{const r=T.runs[b+'|'+s];return '<tr><td>'+s+'</td><td class="num">'+r.err[0].toFixed(3)+'</td><td class="num">'+r.err[5].toFixed(3)+'</td><td class="num">'+pc(r.e4_on)+'</td><td class="num">'+r.e64_w2.toFixed(3)+' &plusmn; '+r.e64_w2_sd.toFixed(3)+'</td></tr>'}).join('')}
-    X.seg($('fmr-ts-b'),m=>show(m));show('12000')})();
-  // ---------- 9. SDE on images
-  (function(){const tb=$('fmr-sde-rows');if(!tb)return;const s=D.img.sde||[],sd=D.img.sde_decay||[];
-    if(!s.length){tb.innerHTML='<tr><td colspan="4" class="small mute">not recorded</td></tr>';return}
-    const cell=(a,e,n)=>{const r=a.find(q=>q.eps===e&&q.steps===n);return '<td class="num">'+(r?r.fd.toFixed(1):'not run')+'</td>'};
-    let h='<tr><td>&epsilon; = 0 (ODE)</td>'+[10,50,250].map(n=>cell(s,0,n)).join('')+'</tr>';
-    [0.5,1].forEach(e=>{h+='<tr><td>constant &epsilon; = '+e+'</td>'+[10,50,250].map(n=>cell(s,e,n)).join('')+'</tr>'});
-    [0.5,1,2].forEach(e=>{h+='<tr><td>decaying &epsilon; = '+e+' (1 &minus; t)</td>'+[10,50,250].map(n=>cell(sd,e,n)).join('')+'</tr>'});
-    tb.innerHTML=h;X.tiles($('fmr-sde-s0'),'sde_0_50',10,X.CLS);X.tiles($('fmr-sde-s5'),'sde_0p5_50',10,X.CLS)})();
-  // ---------- 11. production table
-  (function(){const tb=$('fmr-prod');if(!tb)return;const S=D.sched||{};const c=k=>S[k]||{};
-    const dyn=k=>{const q=c(k);return q.use_dynamic_shifting?'dynamic shift, &mu; '+q.base_shift+' at '+q.base_image_seq_len+' to '+q.max_shift+' at '+q.max_image_seq_len+' tokens (shift e<sup>&mu;</sup> = '+Math.exp(q.base_shift).toFixed(2)+' to '+Math.exp(q.max_shift).toFixed(2)+')'+(q.shift_terminal?', shift_terminal '+q.shift_terminal:''):'fixed shift '+q.shift};
-    const rows=[
-      ['Stable Diffusion 3 (paper, Mar 2024)','straight path (rectified flow), logit-normal(0, 1) chosen from 61 formulations','not read (gated); paper: shift 3.0 at 1024 px','MMDiT; LADD distils it to SD3-Turbo, 4 steps'],
-      ['FLUX.1 [dev], [schnell] (2024-07-31)','"rectified flow transformer", 12B (card)','not read (gated); FLUX pipeline defaults: dynamic shift, &mu; 0.5 to 1.15 (shift 1.65 to 3.16)','schnell: LADD, 1 to 4 steps; dev: guidance as an input'],
-      ['FLUX.2 [klein] 4B (repo 2026-01-14)','flow matching (Model map)','FlowMatchEuler, '+dyn('black-forest-labs/FLUX.2-klein-4B')+'; rev '+c('black-forest-labs/FLUX.2-klein-4B').sha,'Apache 2.0'],
-      ['Qwen-Image (2025-08-02)','flow matching (Model map)','FlowMatchEuler, '+dyn('Qwen/Qwen-Image')+'; rev '+c('Qwen/Qwen-Image').sha,'MMDiT 20.43B'],
-      ['Z-Image-Turbo (repo 2025-11-25)','flow matching (Model map)','FlowMatchEuler, '+dyn('Tongyi-MAI/Z-Image-Turbo')+'; rev '+c('Tongyi-MAI/Z-Image-Turbo').sha,'6.155B'],
-      ['Wan 2.1 (paper Mar 2025; 1.3B shown)','"x_t = t x_1 + (1 - t) x_0", logit-normal t','UniPC multistep, flow_prediction, flow_shift '+c('Wan-AI/Wan2.1-T2V-1.3B-Diffusers').flow_shift+'; rev '+c('Wan-AI/Wan2.1-T2V-1.3B-Diffusers').sha,'video; 1.3B and 14B'],
-      ['HunyuanVideo (paper Dec 2024)','Flow Matching, logit-normal t','FlowMatchEuler, '+dyn('hunyuanvideo-community/HunyuanVideo')+' (community diffusers repo, rev '+c('hunyuanvideo-community/HunyuanVideo').sha+')','video, 13B; larger shift for fewer steps'],
-      ['LTX-Video (repo read 2026-10-17)','flow matching (config)','FlowMatchEuler, '+dyn('Lightricks/LTX-Video')+'; rev '+c('Lightricks/LTX-Video').sha,'video'],
-      ['Movie Gen (paper Oct 2024; not released)','Flow Matching, logit-normal(0, 1), 30B','linear-quadratic grid, 50 steps "emulating 250 linear steps"','video and audio']];
-    tb.innerHTML=rows.map(r=>'<tr>'+r.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('')})();
-  function all(){floorCharts();dec();ot()}
+  // ---------- 11. timestep table (closed block): both budgets are static; the toggle shows one
+  (function(){const b=$('fmr-ts-b');if(!b)return;X.seg(b,m=>{['2000','12000'].forEach(k=>{const t=$('fmr-ts-'+k);if(t)t.hidden=k!==m})})})();
+  // ---------- 12. SDE strips (the table is static)
+  (function(){if(!$('fmr-sde-s0'))return;X.tiles($('fmr-sde-s0'),'sde_0_50',10,X.CLS);X.tiles($('fmr-sde-s5'),'sde_0p5_50',10,X.CLS)})();
+  // ---------- 1. one Euler step against fifty, same noise (the root's strips)
+  (function(){if(!$('fmr-one-1'))return;X.tiles($('fmr-one-1'),'fm_e1',10,X.CLS.map(c=>c+', 1 Euler step'));X.tiles($('fmr-one-50'),'fm_e50',10,X.CLS.map(c=>c+', 50 Euler steps'))})();
+  // ---------- 14. convention bugs, from the root's sprite sheet in window.FMY (first five classes)
+  (function(){if(!$('fmr-bug-ok')||!Y.sheet)return;const im=new Image();im.src=Y.sheet;
+    function put(el,key){const t0=Y.tiles[key];el.innerHTML='';for(let i=0;i<5;i++){const c=X.canv(X.CLS[i]+', '+key);el.appendChild(c);
+      const go=()=>{const j=t0+i;c.getContext('2d').drawImage(im,(j%Y.cols)*28,Math.floor(j/Y.cols)*28,28,28,0,0,28,28)};if(im.complete&&im.naturalWidth)go();else im.addEventListener('load',go,{once:true})}}
+    put($('fmr-bug-ok'),'fm_50');put($('fmr-bug-a'),'bug_rev');put($('fmr-bug-b'),'bug_t1000')})();
+  // ---------- 5. solver error against a fine answer, by evaluations (the root's recording)
+  function solv(){const el=$('fmr-solv');if(!el||!Y.err)return;const nm={euler:'Euler',heun:'Heun (plain)',midpoint:'midpoint',heun_last_euler:'Heun, last step Euler'};
+    const ser=Object.keys(nm).map((k,i)=>({name:nm[k],color:[C[0],C[1],C[2],C[3]][i],dash:k==='heun',pts:Y.err.filter(r=>r.solver===k).map(r=>[r.nfe,r.rms])}));
+    X.chart(el,ser,{logx:true,logy:true,xticks:[1,2,4,10,20,50,100],xlab:'network evaluations (log)',ylab:'RMS from fine answer (log)',h:230,label:'Solver error by network evaluations'});
+    X.leg($('fmr-solv-leg'),ser.map(q=>[q.name,q.color]))}
+  // ---------- 6. where four evenly spaced steps land on the straight path's clock, lambda = a / (a + b)
+  function clock(){const el=$('fmr-clock');if(!el)return;const W=X.width(el),H=150,ml=Math.min(110,W*0.3),mr=14,xx=v=>ml+v*(W-ml-mr);
+    const P=[['straight','linear'],['cosine VP','cos'],['DDPM-style VP','vp']];let g='';
+    [0,.25,.5,.75,1].forEach(v=>{g+='<line x1="'+xx(v)+'" x2="'+xx(v)+'" y1="18" y2="122" stroke="var(--line)"/><text x="'+xx(v)+'" y="138" text-anchor="middle" font-size="11" fill="var(--mute)">'+v+'</text>'});
+    g+='<text x="'+ml+'" y="12" font-size="11" fill="var(--mute)">&#955; = a/(a + b): 0 noise, 1 data</text>';
+    P.forEach((p,r)=>{const y=40+r*34;g+='<line x1="'+xx(0)+'" x2="'+xx(1)+'" y1="'+y+'" y2="'+y+'" stroke="var(--mute)"/><text x="'+(ml-12)+'" y="'+(y+4)+'" text-anchor="end" font-size="11" fill="var(--ink)">'+p[0]+'</text>';
+      [0,.25,.5,.75,1].forEach(t=>{const c=Fd.coef(p[1],t);const l=t===1?1:c[0]/(c[0]+c[1]);g+='<circle cx="'+xx(l).toFixed(1)+'" cy="'+y+'" r="5" fill="'+(p[1]==='vp'?'var(--bad)':'var(--acc)')+'"><title>'+p[0]+', t = '+t+': &#955; = '+l.toFixed(3)+'</title></circle>'})});
+    el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Where four uniform steps land on each path">'+g+'</svg>'}
+  function all(){floorCharts();dec();ot();solv();clock()}
   X.onRender('t-read',all);all();
 })();

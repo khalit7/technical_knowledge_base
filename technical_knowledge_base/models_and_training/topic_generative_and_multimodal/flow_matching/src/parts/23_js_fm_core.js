@@ -47,7 +47,8 @@ window.FMX=(function(){
     el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="'+esc(o.label||'chart')+'">'+g+'</svg>';
     return {X,Y,W,H}}
   const leg=(el,items)=>{el.innerHTML=items.map(i=>'<span><i style="background:'+i[1]+(i[2]?';height:2px;margin-top:5px':'')+'"></i>'+i[0]+'</span>').join('')};
-  // step animation with play, pause, step, scrub and speed; only runs on screen in the visible tab; paused under reduced motion
+  // step animation with play, pause, step, scrub and speed; only runs on screen in the visible tab. Never autoplays (2026-10-23):
+  // it waits on step 0 until the reader presses play or steps; a mode change resets it to step 0
   function anim(o){const card=$(o.card),ctl=$(o.ctl);const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};const p=o.ctl+'-';
     ctl.classList.add('fmx-anim');
     ctl.innerHTML='<button id="'+p+'b" aria-label="Previous step">&#9664;&#9664;</button><button id="'+p+'p" aria-label="Play">&#9654; Play</button><button id="'+p+'f" aria-label="Next step">&#9654;&#9654;</button>'+
@@ -63,11 +64,11 @@ window.FMX=(function(){
     q('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
     q('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     q('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;if(st.vis&&!st.started&&shown(card)){st.started=true;if(!RM)setPlay(true)}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
-    const tab=tabOf(card);if(tab)onRender(tab.id,()=>{show();if(!st.started&&st.vis&&shown(card)){st.started=true;if(!RM)setPlay(true)}kick()});
+    const tab=tabOf(card);if(tab)onRender(tab.id,()=>{show();kick()});
     show();
-    return {reset(n){setPlay(false);st.n=n;st.i=Math.min(st.i,n-1);show()},redraw(){o.draw(st.i)},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},get i(){return st.i},play:setPlay}}
+    return {reset(n){setPlay(false);st.n=n;st.i=0;show()},redraw(){o.draw(st.i)},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},get i(){return st.i},play:setPlay}}
   function quiz(){document.querySelectorAll('.fmx-q').forEach(q=>{const right=+(q.dataset.right||1);q.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
     q.querySelectorAll('.opts button').forEach(x=>x.classList.remove('right','wrong'));b.classList.add(+b.dataset.a===right?'right':'wrong');
     q.querySelector('.opts button[data-a="'+right+'"]').classList.add('right');q.querySelector('.ans').hidden=false}))})}

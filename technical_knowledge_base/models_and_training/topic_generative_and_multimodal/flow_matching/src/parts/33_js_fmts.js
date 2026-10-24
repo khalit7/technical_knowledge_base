@@ -1,6 +1,6 @@
-// ---- Timestep explorer (t-fmts): training densities, recorded toy runs, the resolution shift, SD3's table ----
+// ---- Reading section 11 (was the Timestep explorer tab until 2026-10-24): training densities, recorded toy runs, the resolution shift. SD3's table is static (fill_static.py) ----
 (function(){
-  const X=window.FMX,$=X.$,D=X.D;if(!$('t-fmts'))return;
+  const X=window.FMX,$=X.$,D=X.D;if(!$('fmt-dens'))return;
   const C=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)'];
   // ---------- 1. densities, computed in SD3's convention (sigma: 0 data, 1 noise), shown in ours unless flipped
   const M=20000,B=50;
@@ -51,7 +51,6 @@
     $('fmt-shout').innerHTML=X.stat('tokens','('+px+'/16)&sup2; = '+Math.round(tok).toLocaleString('en-US'),'8&times; VAE and 2&times;2 patches')+(mu!=null?X.stat('&mu; (linear in tokens)',mu.toFixed(3),'calculate_shift'):'')+X.stat('shift',sh.toFixed(2),mu!=null?'e<sup>&mu;</sup>':'fixed')+X.stat('evaluations in the noisier half',noisy+' of '+nSteps,'&sigma; above 0.5');
     $('fmt-shnote').innerHTML='Grid as the FLUX and Qwen-Image pipelines build it: <code>np.linspace(1.0, 1 / n, n)</code>, then &sigma;&prime; = shift &sigma; / (1 + (shift &minus; 1) &sigma;)'+(R.term?', then stretched so the last level is '+R.term+' (shift_terminal)':'')+' <span class="der">derived</span> from diffusers v0.41.0. Dynamic rules extrapolate linearly outside their token range, as diffusers does. HunyuanVideo and Wan are video models: their token counts are not (px/16)&sup2;, so only their fixed shift is meaningful here.'}
   // ---------- 4. SD3 table
-  (function(){const S=D.sd3;if(!S)return;$('fmt-sd3').innerHTML=S.table1.map(r=>{const t2=S.table2[r[0]];return '<tr><td>'+r[0]+'</td><td class="num">'+r[1].toFixed(2)+'</td><td class="num">'+r[2].toFixed(2)+'</td><td class="num">'+r[3].toFixed(2)+'</td><td class="num">'+(t2?t2[1].toFixed(2):'')+'</td><td class="num">'+(t2?t2[0].toFixed(3):'')+'</td></tr>'}).join('')})();
   function all(){dens();err();shift()}
-  X.onRender('t-fmts',all);
+  X.onRender('t-read',all);
 })();
