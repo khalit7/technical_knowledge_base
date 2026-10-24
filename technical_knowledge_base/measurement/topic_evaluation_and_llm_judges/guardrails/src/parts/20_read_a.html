@@ -1,33 +1,74 @@
 <div class="tab" id="t-read" role="tabpanel">
-<nav class="nav" id="rd-nav"><a href="#rd-one">In one screen</a><a href="#rd-why">A rail is a classifier</a><a href="#rd-pre">Before the call</a><a href="#rd-during">During the call</a><a href="#rd-post">After the call</a><a href="#rd-pipe">With and without</a><a href="#rd-arch">Architecture</a><a href="#rd-fw">Frameworks</a><a href="#rd-models">Guard models</a><a href="#rd-lat">Latency and cost</a><a href="#rd-eval">Evaluating rails</a><a href="#rd-fail">Failure modes</a><a href="#rd-check">Checklist</a></nav>
+<style>
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4,#t-read .card h4{margin:0 0 4px;font-size:14.5px}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px}
+#t-read .meas{font-size:11.5px;color:var(--good);font-weight:600}
+#t-read .vend{font-size:11.5px;color:var(--c4);font-weight:600}
+#t-read .indep{font-size:11.5px;color:var(--c6);font-weight:600}
+#t-read td{overflow-wrap:anywhere}
+#t-read table.ros td{font-size:12.5px}#t-read table.ros td:first-child{white-space:normal}
+</style>
+<nav class="nav" id="rd-nav"><a href="#rd-one">The idea</a><a href="#rd-why">1. A classifier</a><a href="#rd-pre">2. Before</a><a href="#rd-during">3. During</a><a href="#rd-post">4. After</a><a href="#rd-pipe">5. 450 conversations</a><a href="#rd-arch">6. Architecture</a><a href="#rd-models">7. Guard models</a><a href="#rd-lat">8. Latency and cost</a><a href="#rd-eval">9. Evaluating</a><a href="#rd-depth">Depth</a></nav>
 
 <section id="rd-one">
-<h2>In one screen</h2>
-<p class="lead">A guardrail is an evaluation that runs at request time and is allowed to act: a classifier or a policy in the request path that can block, rewrite, redact, regenerate or ask a human. Because it acts on live traffic, every guardrail trades two errors against each other (harm let through, and legitimate work blocked) and pays for the trade in latency and compute. One checkpoint cannot strike that balance for every risk, so production systems stage their rails by where a risk becomes visible and what blocking it costs at that point.</p>
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">A guardrail is <span class="hl">a classifier with a threshold</span>, put in the request path where a risk first becomes visible and allowed to act (block, rewrite, redact, regenerate, ask a human). Every one trades harm let through against legitimate work blocked and pays in latency; an attacker needs only one path through the stack, so in an agent the rails that hold are the ones that remove a capability rather than score text.</p>
+<div class="hero" id="rd-hero-card"><h4>Three stages of rails around one call, and the boundary that does not depend on any of them</h4>
+<div class="rd-svg" id="rd-hero"></div>
+<p class="small">Left to right, blocking gets more expensive: an input rail stops a request before anything is generated; an output rail costs a second model pass; in an agent, a rail that reads the final answer arrives after the tool calls already happened. Latencies are published figures (section 8). The dashed box is {{Agent security|n:3f15c17b0d0d81ad9fb7d1dd74217335}}'s territory: controls with no false-negative rate because they do not classify.</p></div>
+<p><b>You need:</b> what an agent loop and a tool call are ({{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}), the agent threat model (the lethal trifecta, direct and indirect prompt injection, permission gates and sandboxes, all on {{Agent security|n:3f15c17b0d0d81ad9fb7d1dd74217335}}), and precision, recall and ROC curves ({{Evaluation metrics|n:3c65c17b0d0d81a29acef722e842a29b}}). This page assumes the threat and measures the classifiers that screen for it.</p>
+<dl class="terms">
+<dt>Rail</dt><dd>one check in the request path: a scoring function, a threshold, an action when the score crosses it.</dd>
+<dt>Operating point</dt><dd>the (miss rate, over-block rate) pair one threshold fixes.</dd>
+<dt>Over-block rate</dt><dd>share of benign traffic a rail blocks; users feel it as refusals.</dd>
+<dt>Guard model</dt><dd>a small language model fine-tuned to label a prompt, a response or both against a hazard taxonomy or a written policy.</dd>
+<dt>Action rail</dt><dd>a check on a proposed tool call (tool, arguments, provenance) before it executes.</dd>
+<dt>Streaming rail</dt><dd>a check on a partial answer that can cut it off mid-stream.</dd>
+<dt>Cascade</dt><dd>a cheap high-recall screen on all traffic that escalates only flagged items to an expensive classifier.</dd>
+<dt>Conformal risk control</dt><dd>choosing a threshold on held-out data so an expected loss stays under a target, with a finite-sample guarantee.</dd>
+</dl>
+<p class="small mute">Who owns what nearby: the agent threat model, permissions, sandboxing and egress are {{Agent security|n:3f15c17b0d0d81ad9fb7d1dd74217335}}'s; the benchmarks that measure a <i>model's</i> refusals and harms (XSTest, HarmBench, refusal graders, MOLE's insider-threat corpus) are {{Safety and honesty benchmarks|n:3ef5c17b0d0d818da9d5efda1a443166}}'s; LLM judges are {{LLM-as-judge|n:3c65c17b0d0d810ba2a2ecc08c4c233b}}'s; gateways, where rails often run, are {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}'s; PII in training data is {{Decontamination, PII and data governance|n:3f95c17b0d0d8100b7e4e0f96074c309}}'s; grading an agent's actions offline is {{Agent and trajectory evaluation|n:3ef5c17b0d0d81fdbabaf3582bff37f2}}'s; regression gates are {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}'s. The {{evaluation topic's Judge atlas|n:3c65c17b0d0d8181b351e1b8fc6a1546}} lists guard models as "a judge specialised for one question and run in the request path"; this page is where that row points.</p>
+<details class="dp"><summary>The three stages in one table <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table class="rd-t stack" id="rd-onetab">
 <thead><tr><th>Stage</th><th>What it can see</th><th>What it catches</th><th>Typical guard and cost</th><th>What it wrongly does</th></tr></thead>
 <tbody>
-<tr><td>Before the call (input rails)</td><td>The user's message, attachments, retrieved documents before they enter the prompt</td><td>Jailbreak and injection attempts, clearly harmful requests, out-of-scope topics, personal data in the input</td><td>Encoder classifiers of 22M to 184M parameters, about 8 to 92 ms on a GPU (published, <a href="#rd-lat">Latency and cost</a>); blocking here costs no generation</td><td>Blocks benign requests that look dangerous; blind to anything that only appears in the output</td></tr>
+<tr><td>Before the call (input rails)</td><td>The user's message, attachments, retrieved documents before they enter the prompt</td><td>Jailbreak and injection attempts, clearly harmful requests, out-of-scope topics, personal data in the input</td><td>Encoder classifiers of 22M to 184M parameters, about 8 to 92 ms on a GPU (published, section 8); blocking here costs no generation</td><td>Blocks benign requests that look dangerous; blind to anything that only appears in the output</td></tr>
 <tr><td>During the call (dialog, tool and action rails)</td><td>The plan, each proposed tool call and its arguments, tool results, the answer as it streams</td><td>Injected instructions arriving in tool output, tool calls outside the user's intent, harmful text mid-stream</td><td>Policy checks in code (near zero), streaming classifier heads, LLM auditors of the agent's trace (hundreds of ms and a large model)</td><td>Cuts off a good answer; halts an agent on a benign tool result that reads like an instruction</td></tr>
 <tr><td>After the call (output rails)</td><td>The finished answer, with its sources</td><td>Harm that only shows in the answer, ungrounded claims, leaked personal data or secrets</td><td>A guard model over the whole output, often 8B parameters: a second model pass, a few hundred ms</td><td>Blocks or rewrites correct answers; on an agent it arrives after the action already happened</td></tr>
-</tbody></table></div>
-<p>What changed since this page was last written (September 2026), each covered below: action rails for agents have become the stage that matters most, with Microsoft's Foundry guardrails now intervening at four points: input, tool call, tool response, output ({{Microsoft Learn, 31 Jul 2026|https://learn.microsoft.com/en-us/azure/foundry/guardrails/guardrails-overview}}); the cheapest strong design in production is a <b>cascade</b>, a small high-recall screen in front of an expensive classifier, which took Anthropic's classifier overhead from 23.7% of inference compute ({{Sharma et al. 2025|https://arxiv.org/abs/2501.18837}}) to "roughly 1%" ({{Anthropic, Jan 2026|https://www.anthropic.com/research/next-generation-constitutional-classifiers}}); three of the 2023 to 2025 open frameworks were archived, shut down or replaced after acquisitions (LLM Guard, Guardrails AI's hub, Llama Stack's shields: <a href="#rd-fw">Frameworks</a>); and new guard models keep arriving (IBM Granite Guardian 4.1, NVIDIA Nemotron 3.5 Content Safety, Mistral Shieldstral), each with a scorecard run by its own makers (<a href="#rd-models">Guard models</a>).</p>
-<div class="co key"><div class="t">The rule this page keeps returning to</div><p>A guardrail number means nothing without its operating point. Every guard has a threshold; every threshold fixes one pair (share of harm missed, share of benign traffic blocked). Report both, at your traffic's base rate, on your own policy, through the whole pipeline. The {{Pipeline lab|#t-pipe}} lets you move that point on 450 real conversations.</p></div>
-<p class="small mute">Scope. This page owns runtime safety: the stages, the guard models, frameworks, latency and cost, and how to evaluate a rail. The benchmarks that measure a <i>model's</i> refusals and harms (XSTest, HarmBench, refusal graders, MOLE's insider-threat corpus) are owned by {{Safety and honesty benchmarks|n:3ef5c17b0d0d818da9d5efda1a443166}}; how to grade an agent's actions offline is {{Agent and trajectory evaluation|n:3ef5c17b0d0d81fdbabaf3582bff37f2}}; regression gates and promotion paths are {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}. The parent's {{Judge atlas tab|n:3c65c17b0d0d8181b351e1b8fc6a1546}} lists guard models as "a judge specialised for one question and run in the request path"; this page is where that row points.</p>
+</tbody></table></div></div></details>
 </section>
 
 <section id="rd-why">
-<h2>A rail is a classifier with a threshold</h2>
-<p>Strip away the framework and every rail is the same object: a scoring function over some text or action, a threshold, and an action taken when the score crosses it. That makes a guardrail a binary classifier, and everything known about measuring classifiers applies (the definitions are on the {{Evaluation metrics|n:3c65c17b0d0d81a29acef722e842a29b}} page). Two error rates matter, and they pull against each other:</p>
+<h2>1. A rail is a classifier with a threshold</h2>
+<p>Strip away the framework and every rail is the same object: a score over some text or action, a threshold, and an action when the score crosses it. So everything known about measuring binary classifiers applies, with two error rates that pull against each other:</p>
 <div class="fm"><div class="eq">miss rate = FN / (TP + FN) &nbsp;&nbsp;&nbsp; over-block rate = FP / (FP + TN)</div>
 <dl><dt>FN</dt><dd>harmful items the rail let through (a leak)</dd><dt>FP</dt><dd>benign items the rail blocked (an over-block, which users feel as a refusal)</dd><dt>threshold</dt><dd>moving it up lowers FP and raises FN; there is no setting that lowers both</dd></dl></div>
-<p>Two consequences decide how rails are designed. First, <b>base rates</b>: attacks are rare in real traffic, so even a small over-block rate produces more false blocks than true ones. Second, <b>severity sets the stage</b>: a risk that is cheap to detect and expensive to let through (a known jailbreak string, a credit card number) is caught early, where blocking costs nothing; a risk that only exists once the answer is written (an ungrounded medical claim) can only be caught late, where catching it costs a second model pass. The old version of this page put it as "severity determines where you pay the cost"; that still holds.</p>
+<div class="card" id="pl-cvcard">
+<h4>Every threshold is one point: the same guard can be lenient or strict</h4>
+<p class="try"><b>Predict, then drag:</b> Qwen3Guard-Gen-0.6B as an input rail on XSTest's 450 prompts (this page's run). How low must the threshold go before no harmful answer gets through, and what share of the 250 safe prompts does that block? Then switch to the output rail, which sees the answer too.</p>
+<div class="seg" id="pl-cv-mode" role="group" aria-label="Which rail"></div>
+<div class="rd-sl" id="pl-cv-sl"></div>
+<div id="pl-cv" class="rd-svg"></div>
+<div class="out" id="pl-cv-out"></div>
+<p class="small mute">Each point is one threshold on the guard's score, the probability that its first label token is not "Safe". Across: share of the 250 safe prompts blocked. Up: harmful answers still delivered, of the 128 full compliances with unsafe prompts by Mistral-7B-Instruct-v0.1 (XSTest's human labels). The marked points are the guard's own <b>loose</b> (block Unsafe) and <b>strict</b> (also block Controversial) labels; the ring is your threshold. <span id="pl-cv-note"></span></p>
+</div>
+<p>Two consequences decide how rails are designed. First, <b>base rates</b>: attacks are rare in real traffic, so even a small over-block rate produces more false blocks than true ones. Second, <b>severity sets the stage</b>: a risk that is cheap to detect and expensive to let through (a known jailbreak string, a credit card number) is caught early, where blocking costs nothing; a risk that only exists once the answer is written (an ungrounded medical claim) can only be caught late, where catching it costs a second model pass. The old version of this page put it as "severity determines where you pay the cost".</p>
 <div class="card" id="rd-br">
-<h3 style="margin-top:0">What share of blocks are mistakes?</h3>
-<p class="try"><b>Try:</b> keep the defaults, then lower the attack share to 1 in 10,000 (an illustrative value: no lab publishes the attack share of its traffic). The defaults are this page's own measurement of Qwen3Guard-Gen-0.6B as an input rail on XSTest (loose mode, <a href="#" data-tab="t-pipe">Pipeline lab</a>).</p>
+<h4>At a realistic attack share, most blocks are mistakes</h4>
+<p class="try"><b>Predict, then drag:</b> keep the defaults (this page's loose input rail: 79.0% recall, 5.6% over-block) and lower the attack share to 1 in 10,000, an illustrative value: no lab publishes the attack share of its traffic. What share of blocks are benign requests?</p>
 <div class="rd-sl" id="rd-br-sl"></div>
 <div class="out" id="rd-br-out"></div>
 <p class="small mute" id="rd-br-fm"></p>
 </div>
-<div class="deepnote"><b>Go deeper (optional):</b> error bars on a measured over-block rate, and how many labelled items you need to tell 2% from 4%, are on {{Eval statistics|n:3ef5c17b0d0d8187a7b4e5b4ec4a546d}}; labelling your own benign and attack sets is {{Human evaluation and annotation|n:3ef5c17b0d0d819485bcc54a45d49420}}.</div>
+<div class="co key"><div class="t">The rule this page keeps returning to</div><p>A guardrail number means nothing without its operating point. Every guard has a threshold; every threshold fixes one pair (share of harm missed, share of benign traffic blocked). Report both, at your traffic's base rate, on your own policy, through the whole pipeline.</p></div>
+<p class="small mute">Error bars on a measured over-block rate, and how many labelled items you need to tell 2% from 4%, are on {{Eval statistics|n:3ef5c17b0d0d8187a7b4e5b4ec4a546d}}; labelling your own benign and attack sets is {{Human evaluation and annotation|n:3ef5c17b0d0d819485bcc54a45d49420}}.</p>
 </section>

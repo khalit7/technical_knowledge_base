@@ -27,3 +27,6 @@ Scores: 0 to 2 on moving quantity, reproduces a source, computable from public d
 What the methodology lacked for this page: a rule for **who ran a number** as a first-class field next to the metric (guard-model tables are almost all rival re-runs under the runner's own threshold and mapping); and a rule for **content withheld from released data** (answers to unsafe prompts are labels only, as on the Safety and honesty page).
 
 Inspiration: the Safety and honesty page's XSTest before/after (same data, benchmark side); NVIDIA's layered-rails table; the Granite Guardian paper's TPR-at-fixed-FPR table; GuardBench's leaderboard.
+
+## 2026-10-24 rebuild
+Built: hero (static request-path diagram), AgentDojo defence arrows (before/after per row, published), ShieldGemma by runner (one model, four runners). Moved inline from the Pipeline lab: trade-off curve, injection set, configurator, refusal cross-tab, conformal threshold. Rejected: an animated hero (structure, not change over time); a chart of the roster (categorical, volatile: a dated table instead).

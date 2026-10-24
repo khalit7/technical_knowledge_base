@@ -21,7 +21,7 @@ window.SC=(function(){
     apr:['AprielGuard model card (ServiceNow, Nov 2025)','https://huggingface.co/ServiceNow-AI/AprielGuard'],
     pg2:['Llama Prompt Guard 2 model card (Meta, Apr 2025)','https://github.com/meta-llama/PurpleLlama/blob/main/Llama-Prompt-Guard-2/86M/MODEL_CARD.md'],
     pint:['PINT benchmark README (Lakera)','https://github.com/lakeraai/pint-benchmark'],
-    page:['This page: Pipeline lab runs (Oct 2026)','#t-pipe']
+    page:['This page: runs on XSTest, deepset and Nemotron-PII (Oct 2026)','#t-read']
   };
   const R=[];
   const add=(src,kind,runner,bench,task,metric,rows,note)=>rows.forEach(([m,v,n])=>R.push([m,bench,task,metric,v,kind,runner,src,n||note||'']));

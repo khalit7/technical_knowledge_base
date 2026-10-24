@@ -2,7 +2,7 @@
 (function(){
   const esc=RD.esc,TAB='t-card';
   const R=SC.R.slice(),S=SC.S;
-  // this page's own runs, computed from the Pipeline lab data (F1 x 100)
+  // this page's own runs, computed from the same data as the Reading tab's runs (F1 x 100)
   const f1=(tp,fp,fn)=>tp?200*tp/(2*tp+fp+fn):0;
   const X=GR.X;
   [['loose',l=>l==='U'],['strict',l=>l!=='S']].forEach(([m,b])=>{
@@ -33,7 +33,7 @@
     const sp=Object.entries(g).filter(([,v])=>new Set(v.map(r=>r[6])).size>1).map(([k,v])=>{const lo=Math.min(...v.map(r=>r[4])),hi=Math.max(...v.map(r=>r[4]));return [k,lo,hi,v]}).sort((a,b)=>(b[2]-b[1])-(a[2]-a[1]));
     document.getElementById('sc-spread').innerHTML='<div class="t">Same model, same set, different runners</div>'+(sp.length?'<p>'+sp.map(([k,lo,hi,v])=>'<b>'+esc(k)+'</b>: '+lo+' to '+hi+' ('+v.map(r=>esc(r[6])+' '+r[4]).join(', ')+')').join('; ')+'.</p>':'<p>No model on this benchmark was run by more than one party.</p>');
     const used=[...new Set(rows.map(r=>r[7]))];
-    document.getElementById('sc-src').innerHTML='Sources for this view: '+used.map(k=>S[k][1].startsWith('#')?'<a href="#" data-tab="t-pipe">'+esc(S[k][0])+'</a>':'<a href="'+S[k][1]+'" target="_blank" rel="noopener noreferrer">'+esc(S[k][0])+'</a>').join('; ')+'.';
+    document.getElementById('sc-src').innerHTML='Sources for this view: '+used.map(k=>S[k][1].startsWith('#')?'<a href="#" data-tab="t-read">'+esc(S[k][0])+'</a>':'<a href="'+S[k][1]+'" target="_blank" rel="noopener noreferrer">'+esc(S[k][0])+'</a>').join('; ')+'.';
     window.SC.view={k:st.k,n:rows.length,spread:sp.map(s=>[s[0],s[1],s[2]])};
   }
   const models=[...new Set(R.map(r=>base(r[0])))].sort();
