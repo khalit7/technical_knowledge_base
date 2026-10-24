@@ -1,6 +1,7 @@
 // Click every control of every tab at 390 dark and 920 light; report page errors, NaN/undefined text and
 // sideways scroll; screenshot every section and card. Run from the repo root:
 //   node technical_knowledge_base/engineering_foundations/topic_operating_systems/processes_and_syscalls/src/check_ui.mjs <outdir>
+// Also checks that no animation moves before the reader acts (2026-10-23 rule).
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -21,6 +22,12 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto('file://' + page);
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
+  // never autoplay: scroll every animation into view, wait, and check that none has left step 0
+  for (const c of await p.$$eval('.an-ctl[id]', cs => cs.map(c => c.id))) {
+    await p.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await sleep(700);
+    const v = await p.$eval('#' + c + '-s', e => +e.value).catch(() => 0);
+    if (v !== 0) errs.push(c + ': moved to step ' + v + ' before the reader acted');
+  }
   const checkText = async (tab, label) => {
     const t = await p.$eval('#' + tab, e => e.innerText);
     for (const w of ['NaN', 'undefined', 'Infinity', '[object', 'null']) {

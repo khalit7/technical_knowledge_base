@@ -52,7 +52,7 @@
     cap.innerHTML='<div class="t">Step '+(i+1)+' of '+s.length+': '+st.t+'</div><p>'+st.p+'</p>';
   }
   const A=RD.anim({card:'rd-sc-card',ctl:'rd-sc-ctl',n:seqs.ok.length,draw,ms:2200,label:'Step of the system call'});
-  RD.seg(document.getElementById('rd-sc-mode'),m=>{mode=m;A.reset(seqs[m].length);A.play()});
+  RD.seg(document.getElementById('rd-sc-mode'),m=>{mode=m;A.reset(seqs[m].length)});
 
   // cost ladder (log scale): root's measurements plus this page's
   const el=document.getElementById('rd-sc-chart');

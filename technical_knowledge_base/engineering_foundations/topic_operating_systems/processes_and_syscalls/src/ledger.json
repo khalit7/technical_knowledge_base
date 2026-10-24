@@ -1,0 +1,3957 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Processes and the system-call API: fork, exec, signals, file descriptors Processes and the system-call API: fork, exec, signals, file descriptors How a program becomes a process, how it asks the kernel for anything, how processes are created, replaced, signalled and reaped, and what a file descriptor really is; taught from zero to OSTEP depth and beyond, with the kernel source (Linux v6.12) where it explains something and real runs on a Linux 5.10 kernel.",
+  "label": "core",
+  "key": "processes and the system-call api: fork, exec, signals, file",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "The running example is the training job of Topic: operating-systems .",
+  "label": "core",
+  "key": "the running example is the training job of topic:",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026.",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Process lab Shutdown lab Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar of the old page (four tabs; the two labs moved into Reading)"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "One screen 1 The process 2 System calls 3 fork and friends 4 exec 5 wait, exit, PID 1 6 Signals 7 File descriptors 8 Groups, limits, ids 9 In a training job 10 Mistakes, questions",
+  "label": "core",
+  "key": "1 the process 2 system calls 3 fork",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "In one screen A process is a running program plus everything the kernel keeps for it: its memory, its open files, its signal settings, its identity.",
+  "label": "core",
+  "key": "is a record the kernel keeps for a running program",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "A program can do almost nothing by itself: to open a file, start a worker, or hear that it is being shut down, it must ask the kernel, and the only way to ask is a system call .",
+  "label": "core",
+  "key": "only by asking through a system call",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "This page is about that interface, the few dozen calls that every training script, launcher and container runtime is built from, and the failures that come from misunderstanding them.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up: restates the core sentence"
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The running example is the training job of the root page : a CPU-only PyTorch run with a memory-mapped dataset, two DataLoader worker processes, a SIGTERM handler and a safe checkpoint.",
+  "label": "core",
+  "key": "the running example is the training job of",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "On a real GPU node the same job is a small tree of processes: torchrun (the launcher, \"elastic agent\": starts, watches and stops the trainers) ├─ python train.py rank 0 (one trainer per GPU, in its own session) │ ├─ threads : OpenMP/ATen workers, pin_memory thread, NCCL threads (same process) │ ├─ pt_data_worker 0 (DataLoader worker process: fork, spawn or forkserver) │ └─ pt_data_worker 1 └─ python train.py rank 1 ...",
+  "label": "core",
+  "key": "torchrun (the launcher, \"elastic agent\": starts, watches and stops",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "(and so on, --nproc-per-node of them) Everything on this page is a question about that tree: how each box was created, what it inherited, how they talk, who is told when one dies, and what happens to all of them when the cluster says \"stop\".",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restatement; the hero figure and its caption now carry the tree"
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Call What it does Cost measured here Where it bites in ML work See it with read , any syscall Enter the kernel through one instruction, get a number back (or -1 and errno ) about 270 ns for the cheapest call; about 124 µs each under strace Millions of tiny reads in a data loader; profiling with strace distorts timings 460-fold strace -c -f , perf trace fork Copy the calling process (memory shared copy-on-write, page tables copied) 0.25 ms empty; 17 ms with 1 GiB in 4 KiB pages; flat with huge pages DataLoader workers under the fork start method; fork after CUDA or threads strace -e clone , /proc/<pid>/status VmPTE posix_spawn , vfork Start a new program without copying the parent's page tables about 0.39 ms, whatever the parent's size subprocess from a big trainer (Python already uses it) strace -e clone,clone3,execve execve Replace the program in this process; keep PID and non-CLOEXEC descriptors part of spawn: a fresh Python with torch is about 0.9 s spawn and forkserver workers re-import torch strace -e execve wait4 , exit Collect a child's exit status; until then it is a zombie a zombie costs a PID and a little kernel memory Zombie workers when the script is PID 1 in a container ps -o stat (Z) kill , rt_sigaction Send a signal; choose what it does on arrival Python handler runs 0.2 ms after kill , or only after a long C++ call returns (1.2 s measured) Graceful preemption: SIGTERM, 30 s, SIGKILL /proc/<pid>/status SigCgt pipe , dup2 , close Make and rewire descriptors; a pipe holds 64 KiB a leaked write end delayed EOF by 2.0 s (until the leaker exited) Hangs waiting for EOF; \"Too many open files\" with tensor sharing ls -l /proc/<pid>/fd , lsof Measured on Docker Desktop's Linux VM (kernel 5.10.104, arm64, Apple M1 Pro), 2026-10-05, inside the root page's lab image (Debian 12, glibc 2.36, Python 3.11.2, torch 2.14.1+cpu); scripts and raw outputs in this page's src/runs/ .",
+  "label": "depth",
+  "key": "call what it does cost measured here where it",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Each number is explained, with its spread, in the section that owns it.",
+  "label": "depth",
+  "key": "each number is explained, with its spread, in the",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "What this page adds to the root The root's section 2 gives the process API in one screen and measures the start methods (0.021 s fork, 0.836 s spawn, 0.763 s forkserver to the first batch).",
+  "label": "owned:engineering_foundations/topic_operating_systems",
+  "key": "0.021 s",
+  "where": "",
+  "note": "the root owns the start-method timings; this page quotes 0.836 s and 0.763 s in section 3"
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Here: what the kernel stores for a process and how a system call enters it (with the real instructions), the full family of process-creation calls and what each costs, exactly what survives fork and exec, the rules of signals (masks, coalescing, PID 1, async-signal safety, Python's deferred handlers), the three tables behind a file descriptor, process groups and sessions, limits and credentials, and how torchrun and the DataLoader use all of it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "table of contents of the old page; the nav and section headings carry it"
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The Process lab lets you run these calls yourself on a simulated kernel; the Shutdown lab shows eight real ways of starting the job in a container and what docker stop did to each.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the old lab tabs, now inline"
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "The process, as the kernel sees it ch.",
+  "label": "core",
+  "key": "the process, as the kernel sees it ch.",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "4 The Abstraction: The Process The problem.",
+  "label": "core",
+  "key": "4 the abstraction: the process",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "A program is a file: instructions and initial data.",
+  "label": "core",
+  "key": "a program is a file: instructions and initial data.",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "Running it needs much more: memory to hold it, a CPU pointed at its first instruction, a record of every file it opens, and a way to stop it, resume it, and clean up after it, while dozens of other programs do the same.",
+  "label": "core",
+  "key": "memory to hold it, a cpu pointed at its",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "OSTEP calls the bundle a process's machine state : its memory (the address space ), its registers (including the program counter and stack pointer), and its I/O state (open files).",
+  "label": "core",
+  "key": "ostep calls the bundle a process's machine state :",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "The kernel keeps one record per process holding or pointing to all of it. task_struct: one record per thread In Linux that record is struct task_struct ( include/linux/sched.h line 778 ), a structure of several kilobytes.",
+  "label": "core",
+  "key": "record is struct task_struct ( include/linux/sched.h line 778 ),",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "The surprise for most people: there is one per thread , not one per process.",
+  "label": "core",
+  "key": "there is one per thread , not one per",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "Linux calls each a task .",
+  "label": "core",
+  "key": "linux calls each a task",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "A \"process\" is a group of tasks that point at the same memory, the same file table and the same signal handlers.",
+  "label": "core",
+  "key": "a \"process\" is a group of tasks that point",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "The fields that this page keeps coming back to: Field (v6.12 line) What it holds Shared by threads?",
+  "label": "depth",
+  "key": "field (v6.12 line) what it holds shared by threads?",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "Section __state (786) Running, sleeping, stopped...; the letter ps shows no, per task below mm (921) The address space: page tables and mappings yes 3, and the virtual memory page exit_state, exit_code (925 to 926) Zombie or dead; the status the parent will collect no 5 pid, tgid (1018 to 1019) This task's id; the id of its thread group tgid yes below real_parent , children (1032, 1040) The process tree per task 5 cred (1114) User and group ids, capabilities usually 8 comm (1128) The 15-character name ps shows ( pt_data_worker ) no 9 fs, files (1141, 1144) Current directory and root; the file descriptor table yes 7 nsproxy (1151) Namespaces: which PIDs, mounts, network it sees yes containers page signal, sighand, blocked, pending (1154 to 1160) Process-wide signal state, the handler table, this thread's mask and private pending set signal and sighand yes; blocked and pending no 6 thread (1602) The CPU registers saved while the task is not running no scheduling page PID and TGID.",
+  "label": "depth",
+  "key": "section __state (786) running, sleeping, stopped...; the letter ps",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "Because every thread is a task, every thread has its own id, stored in pid .",
+  "label": "core",
+  "key": "every thread has its own id, stored in pid",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "What user space calls the process id is the thread group id tgid , the id of the first thread. getpid() returns the tgid; gettid() (Python's threading.get_native_id() ) returns the task's own id. top -H and /proc/<pid>/task/ show the threads one by one.",
+  "label": "core",
+  "key": "what user space calls the process id is the",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "The running job, read from /proc Here is the job with two fork DataLoader workers, captured from inside its container while it trained ( src/runs/in_container_proc.sh ). /proc is not on any disk: the kernel writes this text when you read it ( proc(5) ).",
+  "label": "core",
+  "key": "the job with two fork dataloader workers, captured from",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "Main process: /proc/<main>/status (selected lines) A DataLoader worker Read it line by line.",
+  "label": "core",
+  "key": "/status (selected lines) a dataloader worker",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "Tgid equals Pid for both: these are the leaders of their thread groups.",
+  "label": "core",
+  "key": "tgid equals pid for both:",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "The main process has 8 threads (the root's Syscall tracer tab shows the clone calls that create them); each worker has 4 even though DataLoader sets torch.set_num_threads(1) inside it, because a forked child inherits only the thread that called fork and starts new ones as it imports and computes.",
+  "label": "core",
+  "key": "the main process has 8 threads (the root's syscall",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "The worker's PPid is the main process; the main process's PPid is 1, the container's shell.",
+  "label": "core",
+  "key": "the worker's ppid is the main process; the main",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "SigIgn and SigCgt are bit masks of ignored and caught signals: section 6 decodes them, and they show that torch caught different signals in the worker than in the main process.",
+  "label": "core",
+  "key": "sigign and sigcgt are bit masks of ignored and",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "Seccomp: 2 means a seccomp filter is active (Docker's default profile); the ctxt_switches counters are how often this task gave up the CPU voluntarily (blocking) or was preempted.",
+  "label": "core",
+  "key": "seccomp: 2 means a seccomp filter is active (docker's",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "Process states The one-letter state comes from a table in fs/proc/array.c line 126 : Letter Kernel name Meaning Where you meet it in training R running On a CPU or ready to run (OSTEP separates running from ready; Linux shows both as R) The training loop computing; a busy worker S sleeping Waiting for an event; a signal can wake it (interruptible) Workers waiting on their index queue; main waiting for a batch D disk sleep Waiting inside the kernel, uninterruptible: not even SIGKILL acts until the wait ends Page faults on a slow network file system; a hung NFS or Lustre mount (the root's Debug lab case \"Slow storage: workers sleep in D state on page faults\") T, t stopped, tracing stop Stopped by SIGSTOP or Ctrl-Z; stopped by a debugger or strace A job paused by kill -STOP ; every system call under strace Z zombie Exited; its parent has not collected the status yet Section 5 X dead Being removed; you will almost never see it I idle A kernel thread with nothing to do (not counted in the load average) Hundreds of them in ps on any host A lowercase s , l or + after the letter in ps means session leader, multi-threaded, and in the foreground process group (section 8).",
+  "label": "core",
+  "key": "process states the one-letter state comes from a table",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "So Sl is \"sleeping, has threads\": exactly the workers above.",
+  "label": "core",
+  "key": "so sl is \"sleeping, has threads\": exactly the workers",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. the process, as the kernel sees it",
+  "text": "Go deeper: the root's Syscall tracer tab shows the clone flags that made these threads and workers; how a task is chosen to run on a CPU, and what is saved when it stops, is the scheduling child page .",
+  "label": "core",
+  "key": "the root's syscall tracer tab shows the clone",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "System calls: the one door into the kernel ch.",
+  "label": "core",
+  "key": "system calls: the one door into the kernel ch.",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "6 Limited Direct Execution The problem.",
+  "label": "core",
+  "key": "6 limited direct execution",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "Your program runs directly on the CPU at full speed, but in user mode , where the hardware refuses anything that could harm other programs: touching a device, changing the memory map, disabling interrupts.",
+  "label": "core",
+  "key": "your program runs directly on the cpu at full",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "The kernel runs in kernel mode .",
+  "label": "core",
+  "key": "the kernel runs in kernel mode .",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "A program that wants something privileged must ask, and the request has to be a controlled jump into kernel code at a place the kernel chose, never at an address the program picks.",
+  "label": "core",
+  "key": "a program that wants something privileged must ask, and",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "That jump is a system call.",
+  "label": "core",
+  "key": "that jump is a system",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "The root page's section 1 introduced it; here is exactly how it works.",
+  "label": "core",
+  "key": "section 1 introduced it; here is exactly how it",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "The contract: a number, six registers, one instruction Every system call has a number.",
+  "label": "core",
+  "key": "the contract: a number, six registers, one instruction",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "The program puts the number and up to six arguments in fixed registers and executes one trapping instruction; the kernel puts the result back in a register.",
+  "label": "core",
+  "key": "number and up to six arguments in fixed registers",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "That register convention is the system-call ABI (application binary interface), and it differs by CPU: arm64 (this page's runs, Graviton, Grace) x86-64 (most GPU servers) Instruction svc #0 (\"supervisor call\") syscall Call number in x8 rax Arguments in x0 to x5 rdi, rsi, rdx, r10, r8, r9 Result in x0 rax (the CPU also overwrites rcx and r11 ) Number of read 63 ( unistd.h line 172 ) 0 ( syscall_64.tbl ) A fork system call? none: the generic table has only clone (220), so glibc's fork() calls clone yes (57), but glibc's fork() calls clone anyway Registers and instructions: syscall(2), \"Architecture calling conventions\" . glibc 2.36 makes fork a clone with CLONE_CHILD_SETTID | CLONE_CHILD_CLEARTID | SIGCHLD ( arch-fork.h line 37 ), which is why every strace of a fork, including the root's Syscall tracer tab, shows clone .",
+  "label": "depth",
+  "key": "arm64 (this page's runs, graviton, grace) x86-64 (most gpu",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "The wrapper you actually call.",
+  "label": "depth",
+  "key": "the wrapper you actually call.",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "Nobody writes svc by hand.",
+  "label": "depth",
+  "key": "nobody writes svc by hand.",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "The C library (glibc) has one small function per system call.",
+  "label": "depth",
+  "key": "the c library (glibc) has one small function per",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "Here is glibc's real read() on this page's machine, disassembled with gdb, with the lines that matter: Four things to notice.",
+  "label": "depth",
+  "key": "here is glibc's real read() on this page's machine,",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "(1) The single-threaded fast path: glibc checks __libc_single_threaded (gdb names the variable) and, if other threads exist, takes a second path that wraps the same svc in calls that make read a thread cancellation point ( SYSCALL_CANCEL in sysdep.h line 118 ; read.c line 26 ).",
+  "label": "depth",
+  "key": "(1) the single-threaded fast path: glibc checks __libc_single_threaded (gdb",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "After import torch your process is multi-threaded, so it always takes the slower path.",
+  "label": "depth",
+  "key": "after import torch your process is multi-threaded, so it",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "(2) mov x8, #63 , then svc #0 : the door.",
+  "label": "depth",
+  "key": "(2) mov x8, #63 , then svc #0 :",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "(3) cmn x0, #0x1, lsl #12 compares the result with -4096: the kernel reports failure by returning a negative error number between -4095 and -1, never by setting a variable.",
+  "label": "depth",
+  "key": "(3) cmn x0, #0x1, lsl #12 compares the result",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "(4) On failure the wrapper negates it, stores it in errno (a per-thread variable, reached through the thread pointer register tpidr_el0 ) and returns -1.",
+  "label": "depth",
+  "key": "(4) on failure the wrapper negates it, stores it",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "CPython then turns -1 plus errno into an exception: errno 9 (EBADF) becomes OSError: [Errno 9] Bad file descriptor , errno 2 becomes FileNotFoundError .",
+  "label": "depth",
+  "key": "cpython then turns -1 plus errno into an exception:",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "Inside the kernel On arm64, svc raises a synchronous exception: the CPU switches to EL1 (kernel mode), saves the return address and status, and jumps to the exception vector the kernel installed at boot.",
+  "label": "depth",
+  "key": "on arm64, svc raises a synchronous exception: the cpu",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "From there it is ordinary C, at a pinned version ( Linux v6.12 ): el0t_64_sync_handler reads the exception class; ESR_ELx_EC_SVC64 (line 729) means \"a system call\". el0_svc calls do_el0_svc , which passes regs->regs[8] , your x8 , as the call number. el0_svc_common handles tracing (this is where strace and seccomp hook in), then invoke_syscall looks the number up in sys_call_table with array_index_nospec (line 48), a bounds check that a speculating CPU cannot skip (a Spectre defence), and calls the function, here sys_read .",
+  "label": "depth",
+  "key": "from there it is ordinary c, at a pinned",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "The return value is stored back into the saved x0 , and eret drops the CPU back to EL0 at the instruction after svc . x86-64 is the same shape: syscall jumps to entry_SYSCALL_64 , which calls do_syscall_64 .",
+  "label": "depth",
+  "key": "the return value is stored back into the saved",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "One os.read(fd, 4096) , step by step real instructions and kernel functions fd is open: returns 27 bytes fd was closed: EBADF the same call under strace Where the CPU is Registers Register values for the open case are the ones a 27-byte hello.txt gives (the root's language-to-kernel experiment); addresses are shown symbolically.",
+  "label": "core",
+  "key": "one os.read(fd, 4096) , step by step real instructions",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "Under strace the tracee stops twice per call (entry and exit) and the tracer runs in between, which is where the 460-fold slowdown measured below comes from.",
+  "label": "core",
+  "key": "under strace the tracee stops twice per call (entry",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "What a crossing costs The root measured the ladder on this machine: a function call about 1.3 ns, clock_gettime about 24 ns because the vDSO serves it without entering the kernel ( vdso(7) ), the cheapest real call ( getppid ) about 281 ns, a 1-byte read about 316 ns.",
+  "label": "core",
+  "key": "what a crossing costs the root measured the ladder",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "This page repeated getppid through glibc's generic syscall() : 269 ns per call, and Python's os.getppid() came out about the same (250 ns, best of 5 against a median of 5, so treat them as equal: the kernel crossing dominates and Python's call overhead is small beside it).",
+  "label": "core",
+  "key": "(250 ns, best of 5 against a median of",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "Under strace the same loop took 124 µs per call, about 460 times slower.",
+  "label": "core",
+  "key": "about 460 times slower.",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "Why strace is so slow, and what to use instead strace uses ptrace(2) : at every system call entry and exit the kernel stops your thread, wakes the strace process, which reads your registers (more system calls), prints, and resumes you.",
+  "label": "core",
+  "key": "why strace is so slow, and what to use",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "Tracing the tracer shows the bill: for each extra call traced, strace itself made 4 wait4 , 4 ptrace and 2 write calls (the difference between tracing 5,000 and 10,000 getppid calls, src/runs/out/strace_meta.txt ), plus two stops of your thread, each a round trip through the scheduler.",
+  "label": "depth",
+  "key": "for each extra call traced, strace itself made 4",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "Counts and order from strace are exact; durations are not (the root's job ran about 170 s under strace against about 2 s without).",
+  "label": "core",
+  "key": "counts and order from strace are exact; durations are",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "For timing use perf trace or perf stat -e 'syscalls:sys_enter_*' (kernel tracepoints, no stops), or strace --seccomp-bpf -e trace=... , which uses a seccomp filter so the tracee stops only on the calls you asked for.",
+  "label": "core",
+  "key": "for timing use perf trace or perf stat -e",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "Predict: a data loader makes 2 million small read calls per epoch and takes 10 s.",
+  "label": "core",
+  "key": "predict: a data loader makes 2 million small read",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "You run it under strace -f to find out why.",
+  "label": "core",
+  "key": "you run it under strace -f to find out",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "About how long will the epoch take? about 10 s about 20 s about 4 minutes or more At about 124 µs per traced call (measured here, against 269 ns untraced), 2,000,000 calls add about 2,000,000 × 124 µs ≈ 248 s. strace turns a syscall-heavy program into a different program; use it to see which calls happen, then measure without it.",
+  "label": "core",
+  "key": "about how long will the epoch take? about 10",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "Interrupted calls: EINTR and restarting A call that blocks (a read from a pipe that is empty, a wait , a sleep ) can be interrupted by a signal whose handler runs (section 6).",
+  "label": "core",
+  "key": "interrupted calls: eintr and restarting a call that blocks",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "The kernel then either restarts the call after the handler returns, if the handler was installed with SA_RESTART and the call is restartable, or fails it with EINTR (\"interrupted system call\") and leaves the retry to you ( signal(7), \"Interruption of system calls\" ).",
+  "label": "core",
+  "key": "restarts the call after the handler returns, if the",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "C code that forgets this has a bug that only shows when a signal arrives, for example on preemption.",
+  "label": "core",
+  "key": "c code that forgets this has a bug that",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "Python retries for you since 3.5: \"System call wrappers provided in the standard library should be retried automatically when they fail with EINTR\", and \"the system call is only retried if the signal handler does not raise an exception\" ( PEP 475 ); that is why the handler-latency experiment in section 6 sees time.sleep keep sleeping after its handler ran.",
+  "label": "depth",
+  "key": "\"system call wrappers provided in the standard library should",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "2. system calls: the one door into the kernel",
+  "text": "Go deeper: the root's Syscall tracer tab (every call the job makes, and five languages down to the same three calls); seccomp, the filter that decides which numbers a container may call, is on the containers child page .",
+  "label": "core",
+  "key": "seccomp, the filter that decides which numbers a container",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Creating processes: fork, vfork, clone, posix_spawn ch.",
+  "label": "core",
+  "key": "creating processes: fork,",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "5 Interlude: Process API The problem.",
+  "label": "core",
+  "key": "5 interlude: process api",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "A new process needs everything a process has: an address space, a descriptor table, signal settings, an identity.",
+  "label": "core",
+  "key": "a new process needs everything a process has: an",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Unix's answer, from 1970 and still the default, is to copy the caller: fork() .",
+  "label": "core",
+  "key": "unix's answer, from 1970 and still the default, is",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "The copy is then free to change itself (redirect its output, drop privileges) and, usually, to replace its program with exec (section 4). pid_t pid = fork(); /* one call, two returns */ if (pid == 0) { /* in the child: fork returned 0 */ execlp( \"python\" , \"python\" , \"train.py\" , NULL); /* only returns on failure */ _exit(127); } int status; waitpid(pid, &status, 0); /* in the parent: pid is the child's PID */ What the child gets The kernel side of every way of making a task is one function, copy_process in kernel/fork.c .",
+  "label": "core",
+  "key": "the copy is then free to change itself (redirect",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "It allocates a new task_struct and then, for each resource, either shares the parent's or copies it, decided by clone flags : Resource Copy function (v6.12) Shared if this flag is set Plain fork (no flags) Address space copy_mm then dup_mm and dup_mmap CLONE_VM Copied: every mapping, and the page tables of private memory, with writable pages marked read-only so the first write copies the page ( copy-on-write ) Descriptor table copy_files then dup_fd CLONE_FILES Copied table; the entries point to the same open files (section 7) Current directory, root, umask copy_fs CLONE_FS Copied Signal handlers copy_sighand CLONE_SIGHAND Copied: same handlers, same ignored set Thread group (the tgid) CLONE_THREAD New group: a new process The kernel refuses inconsistent combinations: CLONE_THREAD without CLONE_SIGHAND , and CLONE_SIGHAND without CLONE_VM ( fork.c lines 2145 and 2153 ).",
+  "label": "core",
+  "key": "it allocates a new task_struct and then, for each",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "The child also does not inherit: its parent's PID, pending signals, timers, record locks, memory locks ( mlock ), and resource counters, which copy_mm resets to zero (page-fault and context-switch counts, line 1701); the full list is in fork(2) .",
+  "label": "depth",
+  "key": "its parent's pid, pending signals, timers, record locks, memory",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "And only the thread that called fork exists in the child.",
+  "label": "depth",
+  "key": "and only the thread that called fork exists in",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "So a thread and a process are the same system call with different flags.",
+  "label": "core",
+  "key": "the same call with different flags",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Recorded with strace in this page's runs ( src/runs/out/clone_flags.txt ): CLONE_VFORK in the first line is subprocess : Python 3.11's subprocess starts children with vfork semantics ( _USE_VFORK = True in Lib/subprocess.py ); it uses posix_spawn only when close_fds=False and a few other conditions hold (lines 1774 to 1779 in the same file). vfork and posix_spawn: start a program without copying the parent If the child is going to call exec straight away, copying the parent's page tables is wasted work. vfork ( clone with CLONE_VM | CLONE_VFORK ) lets the child borrow the parent's memory and suspends the parent until the child calls exec or _exit (the kernel waits in wait_for_vfork_done ).",
+  "label": "core",
+  "key": "recorded with strace in this page's runs ( src/runs/out/clone_flags.txt",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "It is fast and dangerous: the child must not return from the function that called vfork or touch the parent's variables, because it is running on the parent's memory. posix_spawn wraps that danger in a safe API: glibc 2.36 implements it with CLONE_VM | CLONE_VFORK on a separate stack ( spawni.c line 385 ), and lets you list the descriptor and signal changes to apply in the child.",
+  "label": "core",
+  "key": "it is fast and dangerous: the child must not",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Predict: a C program holds 1 GiB of memory it has written to (ordinary 4 KiB pages).",
+  "label": "core",
+  "key": "predict: a c program holds 1 gib of memory",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "It runs fork() , and the child exits immediately.",
+  "label": "core",
+  "key": "it runs fork() , and the child exits immediately.",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "How long does fork plus wait take, compared with the same program holding no memory (0.25 ms)? about the same about 70 times longer about 4,000 times longer (it copies the 1 GiB) Measured: 17.1 ms against 0.25 ms.",
+  "label": "core",
+  "key": "how long does fork plus wait take, compared with",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Fork does not copy the gigabyte; it copies the page tables that describe it (the parent's VmPTE grew from 48 KiB to 2,100 KiB: 262,144 entries of 8 bytes) and takes a reference on each page, about 64 ns per 4 KiB page, (17.08 - 0.25) ms / 262,144, including the child's exit tearing the copy down.",
+  "label": "core",
+  "key": "fork does not copy the gigabyte; it copies the",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Copying the data itself would have taken longer still.",
+  "label": "core",
+  "key": "copying the data itself would have taken longer still.",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Starting a child as the parent grows measured, median of 41 Parent with 0 to 1,024 MiB of touched anonymous memory in 4 KiB pages; time from the call to waitpid returning, so it includes the child's start and exit. fork_exit : fork, child _exit . fork_exec : fork, child execve(\"/bin/true\") , what a shell does. vfork_exit and spawn_exec (posix_spawn of /bin/true ) borrow the parent's memory.",
+  "label": "core",
+  "key": "measured, median of 41 parent with 0 to 1,024",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Source src/runs/c/spawn_cost.c , one CPU, kernel 5.10; bars show the median, whiskers the 10th to 90th percentile.",
+  "label": "core",
+  "key": "source src/runs/c/spawn_cost.c , one cpu, kernel 5.10; bars show",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "The pattern is the point: anything built on fork scales with the parent's memory; vfork and posix_spawn do not.",
+  "label": "core",
+  "key": "anything built on fork scales with the parent's memory;",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "A trainer with tens of gigabytes resident that shells out ( os.system , a fork-based multiprocessing child, a monitoring script started with fork) pays milliseconds to tens of milliseconds per child, and the copy-on-write faults afterwards on top.",
+  "label": "core",
+  "key": "a trainer with tens of gigabytes resident that shells",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Python's own subprocess is already on the fast path.",
+  "label": "core",
+  "key": "python's own subprocess is already on the fast path.",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "The same question from Python, with torch loaded Three things come out of this table.",
+  "label": "core",
+  "key": "the same question from python, with torch loaded",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "First , os.fork() from a process that imported torch costs about 6 ms even with no big arrays, and subprocess.run stays under 1 ms because of vfork.",
+  "label": "core",
+  "key": "first , os.fork() from a process that imported torch",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Second , adding 1 GiB of NumPy did not slow fork down at all, because NumPy asked the kernel for transparent huge pages on that array ( AnonHugePages 1,022 MiB): one page-table entry covers 2 MiB instead of 4 KiB, so there are 512 times fewer entries to copy.",
+  "label": "core",
+  "key": "second , adding 1 gib of numpy did not",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "With NUMPY_MADVISE_HUGEPAGE=0 (NumPy's switch, numpy docs ) the same fork took 22.5 ms.",
+  "label": "core",
+  "key": "with numpy_madvise_hugepage=0 (numpy's switch, numpy docs ) the same",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "This VM's THP setting is madvise , so only memory that asks for huge pages gets them; PyTorch's CPU tensors use a different allocator (the allocators page ).",
+  "label": "core",
+  "key": "this vm's thp setting is madvise , so only",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Third , the start methods: a spawn or forkserver child is a fresh interpreter that imports torch again, about 0.65 to 0.94 s here, matching the root's 0.836 s and 0.763 s to the first batch.",
+  "label": "core",
+  "key": "a spawn or forkserver child is a fresh interpreter",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Fork in a multi-threaded process Only the calling thread survives fork, but all of memory is copied, including every lock.",
+  "label": "core",
+  "key": "fork in a multi-threaded process only the calling thread",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "If another thread held a lock at that instant (the allocator's, a logging handler's, an OpenMP runtime's), the child has a lock that no thread will ever release, and the first time the child needs it, it hangs forever.",
+  "label": "core",
+  "key": "if another thread held a lock at that instant",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "POSIX says that after fork in a multi-threaded process the child may only call async-signal-safe functions until it calls exec ( fork(2), NOTES ). pthread_atfork handlers let libraries reset their locks around fork, and CPython does this for its own locks, but not every library does.",
+  "label": "core",
+  "key": "posix says that after fork in a multi-threaded process",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Python 3.12 started warning: \"if Python is able to detect that your process has multiple threads, os.fork() now raises a DeprecationWarning\" ( os.fork docs ), and Python 3.14 moved the Linux default start method to forkserver for this reason.",
+  "label": "core",
+  "key": "python 3.12 started warning: \"if python is able to",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "The root's Debug lab reproduces the hang (\"A worker hangs forever: fork while another thread holds a lock\"), and the root covers fork after CUDA.",
+  "label": "core",
+  "key": "the root's debug lab reproduces the hang (\"a worker",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Go deeper: what happens to the pages after fork (copy-on-write faults, the reference-count problem that makes DataLoader workers grow) is the virtual memory child page and the root's OS simulators tab (copy-on-write, page by page).",
+  "label": "core",
+  "key": "what happens to the pages after fork (copy-on-write faults,",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "3. creating processes: fork, vfork, clone, posix_spawn",
+  "text": "Threads in depth are the concurrency child page .",
+  "label": "core",
+  "key": "threads as a programming model",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "4. exec: replacing the program, keeping the process ch.",
+  "label": "core",
+  "key": "4. exec: replacing the program, keeping the process ch.",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "5 Interlude: Process API The problem. fork gives you a second copy of the same program.",
+  "label": "core",
+  "key": "fork gives you a second copy of the same",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "To run a different one, the process must throw away its code and memory and load a new program, while staying the same process: same PID, same parent, same place in the tree.",
+  "label": "core",
+  "key": "a new program, while staying the same process: same",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "That is execve(path, argv, envp) , the one system call behind execl , execvp , os.execv and every shell command.",
+  "label": "core",
+  "key": "that is execve(path, argv, envp) , the one system",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "On success it never returns, because the code that called it no longer exists.",
+  "label": "core",
+  "key": "on success it never returns, because the code that",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "What the kernel does do_execveat_common opens the file and builds a linux_binprm , the description of the program to load; bprm_execve checks permissions and asks each binary format handler whether it recognises the first bytes.",
+  "label": "depth",
+  "key": "do_execveat_common opens the file and builds a linux_binprm ,",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "An ELF executable (the format of compiled programs on Linux) is mapped by binfmt_elf ; a file starting with #! is a script, handled by binfmt_script , which restarts exec with the interpreter named on that line and the script as an argument.",
+  "label": "depth",
+  "key": "an elf executable (the format of compiled programs on",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "That is how ./train.py with #!/usr/bin/env python3 runs. begin_new_exec is the point of no return.",
+  "label": "depth",
+  "key": "that is how ./train.py with #!/usr/bin/env python3 runs. begin_new_exec",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "It drops the old address space and installs a new one, kills other threads of the process, closes every descriptor marked close-on-exec ( do_close_on_exec, line 1318 ), and resets every caught signal to its default action ( flush_signal_handlers, line 1355 ): the handler functions lived in the memory that was just discarded.",
+  "label": "depth",
+  "key": "it drops the old address space and installs a",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "For a dynamically linked program, the kernel maps the program and its dynamic loader ( ld-linux-aarch64.so.1 here) and jumps to the loader, which maps libc and every shared library and then calls the program's entry point.",
+  "label": "depth",
+  "key": "for a dynamically linked program, the kernel maps the",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "The root's Syscall tracer tab shows this storm of openat and mmap calls for import torch .",
+  "label": "depth",
+  "key": "the root's syscall tracer tab shows this storm of",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "What survives exec: measured Before exec, the test program opened fd 5 without O_CLOEXEC and fd 6 with it, installed a handler for SIGUSR1, ignored SIGUSR2, and blocked SIGHUP.",
+  "label": "core",
+  "key": "what survives exec: measured before exec, the test program",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "Then it exec'd a small program that only prints its own state ( src/runs/c/exec_keep.c , showself.c ): State After execve Seen above as PID, parent, process group, session kept same pid before and after Descriptors without close-on-exec kept, same offsets fd 5 still open Descriptors with O_CLOEXEC closed fd 6 gone Caught signals (handlers) reset to default SigCgt all zero Ignored signals stay ignored SigIgn 0x800 = signal 12, SIGUSR2 Blocked signals (the mask) kept SigBlk 0x1 = signal 1, SIGHUP Memory, threads, atexit handlers, stdio buffers gone Environment, argv whatever you pass to execve Current directory, umask, rlimits, user ids (unless set-user-ID) kept Two rows cause real bugs.",
+  "label": "core",
+  "key": "then it exec'd a small program that only prints",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "Ignored stays ignored: a launcher that ignores SIGTERM or SIGINT (or a non-interactive shell that starts a job in the background, which by POSIX sets SIGINT and SIGQUIT to ignored, visible in the job's SigIgn decoded in section 6) passes that on to everything it execs, and a program that never installs its own handler cannot be stopped with that signal.",
+  "label": "core",
+  "key": "ignored stays ignored: a launcher that ignores sigterm or",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "Blocked stays blocked: a signal blocked by a parent is still blocked in the new program, and a pending one waits.",
+  "label": "core",
+  "key": "blocked stays blocked: a signal blocked by a parent",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "Python's subprocess undoes only its own part: with the default restore_signals=True it resets the signals CPython itself ignores (\"Currently this includes the SIGPIPE, SIGXFZ and SIGXFSZ signals\", subprocess docs ); anything else a launcher ignored or blocked reaches the child unchanged.",
+  "label": "core",
+  "key": "python's subprocess undoes only its own part: with the",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "The first version of this experiment exec'd /bin/sh to print its state and saw an empty mask and two caught signals: Debian's dash clears the mask and installs its own handlers when it starts.",
+  "label": "depth",
+  "key": "the first version of this experiment exec'd /bin/sh to",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "Measuring what a mechanism does through a program that changes the thing you measure is a classic trap; the version above uses a program that changes nothing.",
+  "label": "depth",
+  "key": "measuring what a mechanism does through a program that",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "Why fork and exec are separate Splitting \"make a process\" from \"run a program\" means the child can set itself up with ordinary calls in between: dup2 a log file onto fd 1, chdir , setsid , drop privileges, set rlimits, close descriptors.",
+  "label": "core",
+  "key": "why fork and exec are separate splitting \"make a",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "No special API needed.",
+  "label": "core",
+  "key": "no special api needed.",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "OSTEP's chapter 5 makes this argument, and it is why a shell can implement python train.py > log 2>&1 & in a few lines.",
+  "label": "core",
+  "key": "ostep's chapter 5 makes this argument, and it is",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "The cost is the fork itself (section 3), which is why posix_spawn takes those set-up steps as a list of \"file actions\" instead.",
+  "label": "core",
+  "key": "the cost is the fork itself (section 3), which",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "4. exec: replacing the program, keeping the process",
+  "text": "Go deeper: the Process lab runs fork, dup2, close and exec on simulated descriptor tables (including 2>&1 in both orders); how a program's file is mapped into memory is the virtual memory child page .",
+  "label": "core",
+  "key": "how a program's file is mapped into memory is",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "5. wait, exit, zombies, orphans and PID 1 ch.",
+  "label": "core",
+  "key": "5. wait, exit, zombies, orphans and pid 1 ch.",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "5 Interlude: Process API The problem.",
+  "label": "core",
+  "key": "5 interlude: process api",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "When a process ends, someone usually needs to know how: did the worker finish, crash, or get killed?",
+  "label": "core",
+  "key": "when a process ends, someone usually needs to know",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "The kernel keeps the answer until the parent asks for it.",
+  "label": "core",
+  "key": "the kernel keeps the answer until the parent asks",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Between \"ended\" and \"asked\" the process is a zombie ; a process whose parent ends first is an orphan and needs a new parent.",
+  "label": "core",
+  "key": "between \"ended\" and \"asked\" the process is a zombie",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Containers make PID 1 your problem.",
+  "label": "core",
+  "key": "containers make pid 1 your problem.",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Three ways to end Call What it does Use it exit(n) (C), sys.exit(n) (Python) Runs atexit handlers, flushes stdio buffers (Python also runs finally blocks and finalizers), then the system call exit_group Normal end of a program _exit(n) , os._exit(n) The system call exit_group directly: all threads end now; nothing in user space runs In a forked child that must not run the parent's cleanup the exit system call Ends one thread ; what a returning thread function becomes Never directly Why _exit in a child matters: after fork the child has a copy of everything the parent buffered but has not written yet.",
+  "label": "core",
+  "key": "three ways to end call what it does use",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "If both call exit , both flush, and the text is written twice.",
+  "label": "core",
+  "key": "if both call exit , both flush, and the",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Measured with stdout going to a file ( src/runs/c/fdshare.c ): Predict: printf(\"buffered line from pid %d \", getpid()); with no newline, then fork() ; the child prints \"(child)\\n\" and calls exit , the parent prints \"(parent)\\n\" and returns. stdout is a file.",
+  "label": "core",
+  "key": "measured with stdout going to a file ( src/runs/c/fdshare.c",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "How many times does \"buffered line\" appear in the file? once twice it depends on which process runs first Twice, with the parent's PID both times: the text was in the parent's stdio buffer in user memory when fork copied it, and each process flushed its own copy at exit.",
+  "label": "core",
+  "key": "how many times does \"buffered line\" appear in the",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "On a terminal stdout is line-buffered and you might see it once, which is why this bug appears only when output is redirected to a log file.",
+  "label": "core",
+  "key": "on a terminal stdout is line-buffered and you might",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Python's multiprocessing ends every forked child with os._exit(code) ( popen_fork.py line 73 ) for this reason; sys.stdout.flush() before forking is the habit to keep.",
+  "label": "core",
+  "key": "python's multiprocessing ends every forked child with os._exit(code) (",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Exit status, and where 137 and 143 come from wait4 (or waitpid , waitid ) gives the parent a status word.",
+  "label": "core",
+  "key": "exit status, and where 137 and 143 come from",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "WIFEXITED(s) and WEXITSTATUS(s) say it exited and with which number (0 to 255); WIFSIGNALED(s) and WTERMSIG(s) say a signal killed it ( wait(2) ).",
+  "label": "core",
+  "key": "wifexited(s) and wexitstatus(s) say it exited and with which",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Shells, Docker and Kubernetes fold the two into one number: an exit code below 128 is the program's own; 128 + n means \"killed by signal n\".",
+  "label": "core",
+  "key": "shells, docker and kubernetes fold the two into one",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Code Means Typical training cause 0 exited normally finished, or caught SIGTERM and checkpointed 1 exited with 1 an uncaught Python exception; torchrun after a worker failure or a death signal 137 = 128 + 9 SIGKILL the OOM killer, or the grace period ran out after SIGTERM 143 = 128 + 15 SIGTERM, default action stopped with no handler installed 139 = 128 + 11, 135 = 128 + 7 SIGSEGV, SIGBUS a crash in native code; a full /dev/shm in a DataLoader worker Python's subprocess reports a signal death as a negative returncode (-9, -15) instead.",
+  "label": "core",
+  "key": "code means typical training cause 0 exited normally finished,",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Zombies: ended, not yet collected When a process exits, the kernel frees its memory and descriptors but keeps its task_struct , its PID and its exit status, and sends SIGCHLD to the parent.",
+  "label": "core",
+  "key": "zombies: ended, not yet collected when a process exits,",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "The entry stays until the parent waits ( wait_task_zombie releases it).",
+  "label": "core",
+  "key": "the entry stays until the parent waits ( wait_task_zombie",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Measured ( src/runs/c/lifecycle.c ): A zombie costs no CPU and almost no memory, but it holds a PID, and PIDs are limited: per container by the cgroup's pids.max , which counts threads too (the root's Debug lab case \"BlockingIOError on fork: the pids limit counts threads too\").",
+  "label": "core",
+  "key": "a zombie costs no cpu and almost no memory,",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "A parent that never waits, in a long run that starts many short-lived children, eventually cannot fork.",
+  "label": "core",
+  "key": "a parent that never waits, in a long run",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Orphans: who adopts a child whose parent died When a process exits, forget_original_parent gives each of its children a new parent chosen by find_new_reaper : the nearest ancestor that marked itself a subreaper with prctl(PR_SET_CHILD_SUBREAPER) , otherwise PID 1 of the PID namespace.",
+  "label": "core",
+  "key": "orphans: who adopts a child whose parent died when",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Only the direct children move; grandchildren keep their own parents.",
+  "label": "core",
+  "key": "only the direct children move; grandchildren keep their own",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Measured, the second run with this process marked as a subreaper, and then a chain me, b, c, d in which b exits: c (pid 14) moved to PID 1, while d (pid 15) stayed c's child.",
+  "label": "core",
+  "key": "a chain me, b, c, d in which b",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "OSTEP's homework simulator fork.py by default moves every descendant of an exiting process to the root, a simplification; its -R flag moves orphans to their grandparent instead.",
+  "label": "core",
+  "key": "ostep's homework simulator fork.py by default moves every descendant",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "The Process lab runs all three rules on the same action list and is checked against fork.py .",
+  "label": "core",
+  "key": "run linux's rule and ostep's on the same actions",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "PID 1 is special, twice Inside a container, the first process gets PID 1 of its PID namespace, and it inherits two duties it may not know about.",
+  "label": "core",
+  "key": "pid 1 is special, twice inside a container, the",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "It must reap orphans.",
+  "label": "core",
+  "key": "it must reap orphans.",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Every orphan in the container becomes its child.",
+  "label": "core",
+  "key": "every orphan in the container becomes its child.",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "A Python training script as PID 1 waits only for children it started through subprocess or multiprocessing ; orphans of crashed workers or of shell scripts it ran pile up as zombies (root Debug lab case \"Zombies pile up when the training script is PID 1\").",
+  "label": "core",
+  "key": "a python training script as pid 1 waits only",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Signals with no handler do nothing to it.",
+  "label": "core",
+  "key": "signals with no handler do nothing to it.",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "The kernel marks a namespace's init SIGNAL_UNKILLABLE , and sig_task_ignored drops any signal whose action is the default (lines 92 to 93).",
+  "label": "core",
+  "key": "the kernel marks a namespace's init signal_unkillable , and",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "SIGTERM's default is \"terminate\", so a PID 1 with no SIGTERM handler simply ignores docker stop , and is SIGKILLed after the grace period: exit 137, no checkpoint.",
+  "label": "core",
+  "key": "sigterm's default is \"terminate\", so a pid 1 with",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "SIGKILL from outside the namespace still works (the comment at line 2838 ).",
+  "label": "core",
+  "key": "sigkill from outside the namespace still works (the comment",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "With a handler installed, as in the running job, PID 1 receives SIGTERM normally.",
+  "label": "core",
+  "key": "with a handler installed, as in the running job,",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "The usual fix is a tiny init as PID 1 that reaps and forwards signals: docker run --init (Docker ships tini ), or tini / dumb-init in the image.",
+  "label": "core",
+  "key": "the usual fix is a tiny init as pid",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "But the Shutdown lab found the trap in that fix: tini forwards SIGTERM to its one child, so when that child is a shell running python train.py; ... , the shell dies at once, tini exits with 143, and the kernel kills the rest of the container, Python included, before it can checkpoint.",
+  "label": "core",
+  "key": "tini exits with 143, and the kernel kills the",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Knowing when your parent dies A child can ask to be signalled when its parent dies: prctl(PR_SET_PDEATHSIG, SIGTERM) ( kernel/sys.c line 2470 ; note that \"parent\" means the parent thread , so a child started from a short-lived thread gets the signal when that thread exits, PR_SET_PDEATHSIG(2const) ).",
+  "label": "depth",
+  "key": "a child can ask to be signalled when its",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "PyTorch's DataLoader workers do not use it; they poll instead: a ManagerWatchdog checks whether os.getppid() still returns the original parent, between waits of MP_STATUS_CHECK_INTERVAL = 5.0 seconds (torch 2.14 torch/utils/data/_utils/worker.py and _utils/__init__.py line 19).",
+  "label": "depth",
+  "key": "pytorch's dataloader workers do not use it; they poll",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "So after the trainer is SIGKILLed, its workers notice within about 5 s and exit (root Debug lab case \"The main process is SIGKILLed: what happens to its workers\").",
+  "label": "depth",
+  "key": "so after the trainer is sigkilled, its workers notice",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "5. wait, exit, zombies, orphans and pid 1",
+  "text": "Go deeper: PID namespaces, and why the container's PID 1 is a different process from the host's, are on the containers child page .",
+  "label": "core",
+  "key": "pid namespaces, and why the container's pid 1 is",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Signals: interrupting a process from outside ch.",
+  "label": "core",
+  "key": "signals: interrupting a process from outside ch.",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "5 (signals in brief); beyond OSTEP: signal(7) The problem.",
+  "label": "core",
+  "key": "5 (signals in brief); beyond ostep: signal(7)",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "A process is busy running its own code.",
+  "label": "core",
+  "key": "a process is busy running its own code.",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Sometimes the outside world must interrupt it: the user pressed Ctrl-C, a child died, it touched memory it does not own, the cluster wants the node back.",
+  "label": "core",
+  "key": "sometimes the outside world must interrupt it: the user",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "A signal is that interruption: a small number delivered asynchronously, which the process can ignore, let the default action happen, or catch with a function of its own, the handler .",
+  "label": "core",
+  "key": "a signal is that interruption: a small number delivered",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "The signals a training job meets No.",
+  "label": "core",
+  "key": "the signals a training job meets no.",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Name Default Sent by In training 2 SIGINT terminate the terminal on Ctrl-C, to the whole foreground process group Python turns it into KeyboardInterrupt 9 SIGKILL terminate anyone; the OOM killer; the end of every grace period cannot be caught, blocked or ignored: no checkpoint 15 SIGTERM terminate kill , docker stop , the kubelet, Slurm, torchrun \"please stop\": the one to handle 17 SIGCHLD ignore the kernel, when a child exits or stops the DataLoader uses it to notice dead workers 7, 11 SIGBUS, SIGSEGV core dump the kernel, on a bad memory access a full /dev/shm ; a native crash 13 SIGPIPE terminate the kernel, on a write to a pipe with no reader CPython ignores it, so you get BrokenPipeError instead 10, 12 SIGUSR1, SIGUSR2 terminate you, or Slurm's --signal \"checkpoint now\" or \"dump stacks\" conventions 19, 18 SIGSTOP, SIGCONT stop, continue job control, debuggers, Slurm before SIGTERM SIGSTOP, like SIGKILL, cannot be caught Numbers are Linux's on arm64 and x86-64; default actions from the table in include/linux/signal.h .",
+  "label": "core",
+  "key": "name default sent by in training 2 sigint terminate",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Signals 34 to 64 are real-time signals (glibc keeps 32 and 33 for its threads library).",
+  "label": "core",
+  "key": "signals 34 to 64 are real-time signals (glibc keeps",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Generated, pending, delivered A signal has a life in three stages, and most bugs live between them.",
+  "label": "core",
+  "key": "generated, pending, delivered a signal has a life in",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Generated. kill(pid, SIGTERM) enters __send_signal_locked . prepare_signal drops it at once if the target ignores it (and for PID 1, if no handler is installed: section 5).",
+  "label": "core",
+  "key": "generated. kill(pid, sigterm) enters __send_signal_locked . prepare_signal drops it",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "It is recorded in a pending set: the thread's own (for a signal aimed at one thread, such as a SIGSEGV caused by that thread) or the process's shared one (for kill to a PID).",
+  "label": "core",
+  "key": "it is recorded in a pending set: the thread's",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "A standard signal that is already pending is not recorded again: legacy_queue returns true for \" sig < SIGRTMIN and already a member\", and the second one is lost.",
+  "label": "core",
+  "key": "a standard signal that is already pending is not",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Real-time signals are queued one by one, each with its sender's information, up to the RLIMIT_SIGPENDING limit (39,345 here). complete_signal then picks a thread that is not blocking it and wakes it.",
+  "label": "core",
+  "key": "real-time signals are queued one by one, each with",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Only when that thread is about to return to user mode (after a system call, an interrupt, or being scheduled) does get_signal take it off the pending set and act.",
+  "label": "core",
+  "key": "only when that thread is about to return to",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "For a handler, the kernel writes a frame on the user stack with the interrupted registers, points the program counter at the handler, and when the handler returns, a trampoline calls rt_sigreturn to restore everything.",
+  "label": "core",
+  "key": "for a handler, the kernel writes a frame on",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "A thread that has the signal blocked (in its mask, set with sigprocmask or pthread_sigmask ) leaves it pending until it unblocks.",
+  "label": "core",
+  "key": "a thread that has the signal blocked (in its",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Predict: a process blocks SIGUSR1 and SIGRTMIN, sends itself 1,000 of each, then unblocks them.",
+  "label": "core",
+  "key": "predict: a process blocks sigusr1 and sigrtmin, sends itself",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Its handler counts arrivals.",
+  "label": "core",
+  "key": "its handler counts arrivals.",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "What does it count?",
+  "label": "core",
+  "key": "what does it count?",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "1,000 and 1,000 1 and 1,000 1 and 1 A standard signal is one bit in a set: \"at least one arrived\".",
+  "label": "core",
+  "key": "1,000 and 1,000 1 and 1,000 1 and 1",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Real-time signals are a queue.",
+  "label": "core",
+  "key": "real-time signals are a queue.",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "So never count events with standard signals; a SIGCHLD handler, for example, must loop on waitpid(-1, ..., WNOHANG) until no child is left, because three children dying together may produce one SIGCHLD.",
+  "label": "core",
+  "key": "so never count events with standard signals; a sigchld",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Reading them through a signalfd (part B) gives the same counts: it changes how you receive signals, not how they are queued.",
+  "label": "core",
+  "key": "reading them through a signalfd (part b) gives the",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "What a handler may do: async-signal safety A handler runs in the middle of whatever the thread was doing, possibly halfway through malloc with the allocator's lock held, or halfway through printf with stdout's lock held.",
+  "label": "core",
+  "key": "what a handler may do: async-signal safety a handler",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "If the handler then calls malloc or printf , it waits for a lock its own thread holds: a deadlock that happens once in a thousand runs.",
+  "label": "core",
+  "key": "if the handler then calls malloc or printf ,",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "POSIX lists the functions that are safe to call from a handler, the async-signal-safe ones ( write , _exit , kill , sigaction and a few dozen more; not malloc , printf , or anything that takes a lock; signal-safety(7) ).",
+  "label": "core",
+  "key": "posix lists the functions that are safe to call",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "The safe patterns are: set a volatile sig_atomic_t flag and return; write one byte to a pipe that the main loop watches (the \"self-pipe trick\"); or block the signal and receive it as data, with sigwaitinfo or a signalfd , a descriptor you can read and put in epoll like any other ( signalfd(2) ).",
+  "label": "core",
+  "key": "the safe patterns are: set a volatile sig_atomic_t flag",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Python's handlers run later, and only in the main thread CPython installs one C handler for every signal you register.",
+  "label": "core",
+  "key": "python's handlers run later, and only in the main",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "It does the async-signal-safe minimum: it records the signal number and sets a flag (and writes to the wakeup descriptor if one was set).",
+  "label": "core",
+  "key": "it does the async-signal-safe minimum: it records the signal",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Your Python function runs later: \"the low-level signal handler sets a flag which tells the virtual machine to execute the corresponding Python signal handler at a later point (for example, at the next bytecode instruction)\", and \"Python signal handlers are always executed in the main Python thread of the main interpreter, even if the signal was received in another thread\" ( signal docs ).",
+  "label": "depth",
+  "key": "\"the low-level signal handler sets a flag which tells",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "So the question that matters for preemption is: how long until the main thread next executes bytecode?",
+  "label": "core",
+  "key": "so the question that matters for preemption is: how",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Measured: a timer thread sent SIGTERM 0.2 s into each kind of work ( src/runs/py/handler_latency.py ): When the main thread is running Python or is blocked in an interruptible wait ( sleep , a lock with a timeout), the handler runs within a fraction of a millisecond: the C handler interrupts the wait (which PEP 475 then resumes).",
+  "label": "core",
+  "key": "measured: a timer thread sent sigterm 0.2 s into",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "When the main thread is inside one long call into C or C++, the handler waits for the call to return: about 1.2 s for one torch.linalg.solve on 4,000 × 4,000 matrices, the whole remaining duration.",
+  "label": "core",
+  "key": "when the main thread is inside one long call",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "The np.sort row shows the same in two of three runs; in one run the handler ran after 70 ms, which these runs do not explain.",
+  "label": "core",
+  "key": "the np.sort row shows the same in two of",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "On a GPU node the long calls are a torch.cuda.synchronize() , a blocking .item() , or a collective waiting for a peer that will never answer: the handler cannot run until it returns, which is why preemption-safe training sets collective timeouts and keeps the grace period longer than the slowest step.",
+  "label": "core",
+  "key": "on a gpu node the long calls are a",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "(GPU not run here.) Reading a process's signal state /proc/<pid>/status shows five masks in hex: SigPnd and ShdPnd (pending for this thread, and for the whole process), SigBlk (blocked), SigIgn (ignored), SigCgt (caught by a handler).",
+  "label": "core",
+  "key": "(gpu not run here.) reading a process's signal state",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Bit n - 1 stands for signal n .",
+  "label": "core",
+  "key": "bit n - 1 stands for signal n .",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Decode the real masks of the running job and its worker, or paste your own: main: SigIgn main: SigCgt worker: SigCgt worker: SigIgn Mask (hex) One SIGTERM, three endings The scheduler's \"please stop\" reaches the job.",
+  "label": "core",
+  "key": "decode the real masks of the running job and",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "The same SIGTERM, three situations: a handler and a main thread running Python (the running job, started directly as PID 1); a handler, but the main thread inside a long C++ call; and no handler reachable, because PID 1 is a shell that does not forward it.",
+  "label": "core",
+  "key": "the same sigterm, three situations: a handler and a",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Times are the Shutdown lab's measurements and the latency table above.",
+  "label": "core",
+  "key": "and the latency table above.",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "6. signals: interrupting a process from outside",
+  "text": "Handler, main thread in Python Handler, main thread in a 1.2 s C++ call PID 1 is sh -c (no handler) Go deeper: the Shutdown lab has all ten start-up variants, their process trees and logs; signals inside event loops ( set_wakeup_fd , loop.add_signal_handler ) are on the concurrency child page .",
+  "label": "core",
+  "key": "handler, main thread in python handler, main thread in",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "File descriptors: three tables, pipes and sockets ch.",
+  "label": "core",
+  "key": "file descriptors: three tables, pipes and sockets ch.",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "39 Files and Directories (open file table, fork and dup) The problem.",
+  "label": "core",
+  "key": "39 files and directories (open file table, fork and",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "A process uses files, pipes, sockets, terminals and devices, and the kernel must not hand it raw pointers to any of them.",
+  "label": "core",
+  "key": "a process uses files, pipes, sockets, terminals and devices,",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "So it hands out small integers, file descriptors , that index a table the kernel keeps for that process. \"Everything is a file\" in Unix really means \"everything is reached through a descriptor\": the same read , write , close and poll work on all of them.",
+  "label": "core",
+  "key": "so it hands out small integers, file descriptors ,",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Three tables, not one 1.",
+  "label": "core",
+  "key": "three tables, not one",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Per process: the fd table struct files_struct holds an array of pointers indexed by fd number, plus a close-on-exec bit per fd.",
+  "label": "core",
+  "key": "an array of pointers indexed by fd",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "The first 64 slots are built in ( NR_OPEN_DEFAULT is the word size, line 24); it grows as needed.",
+  "label": "depth",
+  "key": "the first 64 slots are built in ( nr_open_default",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "System-wide: open file descriptions One struct file per open() call: a reference count ( f_count , line 1033), the flags you opened with ( f_flags , 1040) and the current offset ( f_pos , 1051).",
+  "label": "depth",
+  "key": "line 1033), the flags you opened with",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "The object The inode of a file on disk, a pipe's buffer, a socket, a terminal: what the description reads from and writes to.",
+  "label": "core",
+  "key": "the inode of a file on disk, a pipe's",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Everything that confuses people about descriptors follows from where each piece of state lives. open() creates a new description and gives it the lowest free fd number; that rule is what makes close(1); open(\"log\") redirect stdout, and it is why fd numbers in the listings below are reused. dup(fd) and dup2(old, new) create a second fd pointing to the same description. fork copies table 1 ( dup_fd , section 3), so parent and child point to the same descriptions too, and share the offset.",
+  "label": "core",
+  "key": "everything that confuses people about descriptors follows from where",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Measured ( src/runs/c/fdshare.c , parent writes \"PARENT\", child writes \"child\", three times each): Case 1 is why a parent and its workers can all write to an inherited log file without destroying each other's lines (with O_APPEND each write also lands at the current end, atomically).",
+  "label": "core",
+  "key": "measured ( src/runs/c/fdshare.c , parent writes \"parent\", child writes",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Case 2 is two descriptions with two offsets: each process writes from offset 0 and they overwrite each other, leaving \"NT\" from a \"PARENT\" line at the end.",
+  "label": "core",
+  "key": "case 2 is two descriptions with two offsets: each",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "The real tables of the running job Here are the descriptor tables of the job's main process and one DataLoader worker from the same snapshot as section 1 ( ls -l /proc/<pid>/fd shows what each fd refers to; pipes and sockets are named by their inode number): Main process Worker Read them together. fds 4 to 8 are identical in both: the same pipes (inodes 1066456 and 1066457), because the worker got them by fork. fd 5 is the memory-mapped dataset, inherited too.",
+  "label": "depth",
+  "key": "here are the descriptor tables of the job's main",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "The worker's fd 9 is /dev/null : multiprocessing points a child's stdin there.",
+  "label": "depth",
+  "key": "the worker's fd 9 is /dev/null : multiprocessing points",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "The interesting ones are the /dev/shm/torch_* files.",
+  "label": "depth",
+  "key": "the interesting ones are the /dev/shm/torch_* files.",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "A worker puts each batch in shared memory: it creates a file in /dev/shm , maps it, deletes its name at once (the listing of /dev/shm below is empty: the files exist only through open descriptors and mappings), and sends the descriptor to the main process over a Unix domain socket (multiprocessing's resource sharer listens on one in the sending process; the worker's fd 15 is a socket).",
+  "label": "depth",
+  "key": "a worker puts each batch in shared memory: it",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "The main process's fds 14 and 15 are files whose names say torch_29_... : they were created by the worker with PID 29 and arrived through that socket.",
+  "label": "depth",
+  "key": "the main process's fds 14 and 15 are files",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Two descriptors in the main process were closed while ls was reading the table; the listing shows the moment, not a stable state.",
+  "label": "depth",
+  "key": "two descriptors in the main process were closed while",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Passing a descriptor between processes uses sendmsg with an SCM_RIGHTS control message on a Unix socket: the kernel installs a new fd in the receiver pointing to the same description ( unix(7) ).",
+  "label": "core",
+  "key": "passing a descriptor between processes uses sendmsg with an",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "PyTorch calls this the file_descriptor sharing strategy, the default on Linux, and it warns that it keeps one descriptor open per shared tensor, so code that keeps many batches alive can hit the open-file limit; the alternative file_system strategy names files instead and can leak them if a process dies ( torch.multiprocessing, sharing strategies ).",
+  "label": "core",
+  "key": "pytorch calls this the file_descriptor sharing strategy, the default",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "The root's Debug lab reproduces \"OSError: [Errno 24] Too many open files\".",
+  "label": "core",
+  "key": "the root's debug lab reproduces \"oserror: [errno 24] too",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Pipes: a 64 KiB buffer, and EOF that needs every writer gone A pipe is a kernel buffer with a read end and a write end, each a description.",
+  "label": "core",
+  "key": "pipes: a 64 kib buffer, and eof that needs",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Measured on this kernel ( src/runs/c/pipes.c ): A writer that fills the 65,536-byte buffer blocks (or gets EAGAIN if non-blocking) until the reader drains it; that is how a slow consumer slows the producer, the back-pressure every pipeline relies on.",
+  "label": "core",
+  "key": "a writer that fills the 65,536-byte buffer blocks (or",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Writes of up to PIPE_BUF (4,096) bytes are atomic: they never interleave with another writer's ( pipe(7) ); bigger writes can.",
+  "label": "core",
+  "key": "writes of up to pipe_buf (4,096) bytes are atomic:",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "The default size comes from PIPE_DEF_BUFFERS = 16 pages ( pipe_fs_i.h line 5 ) and can be raised per pipe to pipe-max-size (1 MiB here) with F_SETPIPE_SZ .",
+  "label": "core",
+  "key": "the default size comes from pipe_def_buffers = 16 pages",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Writing to a pipe whose read ends are all closed raises SIGPIPE, or EPIPE where SIGPIPE is ignored, as in Python, where it becomes BrokenPipeError ( python train.py | head ).",
+  "label": "core",
+  "key": "writing to a pipe whose read ends are all",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "The rule that causes hangs: a reader sees end of file only when no descriptor anywhere still refers to a write end.",
+  "label": "core",
+  "key": "a reader sees end of file only when no",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Every process that inherited a write end and forgot to close it keeps the reader waiting.",
+  "label": "core",
+  "key": "every process that inherited a write end and forgot",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Before and after, on the same program: pipe() (no close-on-exec) pipe2(O_CLOEXEC) The tables are simulated by this page's model of the kernel's rules (the same one the Process lab uses); the program and its timings are real: src/runs/c/cloexec.c .",
+  "label": "core",
+  "key": "the tables are simulated by this page's model of",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Python made the fix the default: since 3.4 \"newly created file descriptors are non-inheritable\" ( PEP 446 ), and subprocess closes everything except 0, 1 and 2 in the child ( close_fds=True ).",
+  "label": "core",
+  "key": "python made the fix the default: since 3.4 \"newly",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "C, C++ and Rust code, and libraries that call fork and exec themselves, still need O_CLOEXEC , pipe2(O_CLOEXEC) , SOCK_CLOEXEC and accept4(SOCK_CLOEXEC) .",
+  "label": "core",
+  "key": "c, c++ and rust code, and libraries that call",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Rust's standard library sets close-on-exec on everything it opens.",
+  "label": "core",
+  "key": "rust's standard library sets close-on-exec on everything it opens.",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Unix domain sockets A Unix domain socket is a socket whose address is a path (or an abstract name) on the same machine: no network stack, no checksums, two-way, and it can carry descriptors and the sender's credentials. multiprocessing's forkserver talks to its server over one and passes the new worker's pipes through it; Docker's API is /var/run/docker.sock ; NCCL and many inference servers use them for local control channels.",
+  "label": "core",
+  "key": "unix domain sockets a unix domain socket is a",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Network sockets are the protocols topic .",
+  "label": "core",
+  "key": "network sockets are",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "7. file descriptors: three tables, pipes and sockets",
+  "text": "Go deeper: the Process lab has the shell pipeline python train.py 2>&1 | tee log and both orders of 2>&1 step by step; how read and write on a file reach the disk (page cache, fsync) is the storage child page ; waiting on many descriptors at once ( epoll ) is the concurrency child page .",
+  "label": "core",
+  "key": "how read and write on a file reach the",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "Process groups, sessions, limits and identity beyond OSTEP: credentials(7) , getrlimit(2) Process groups and sessions: who gets signalled together Every process belongs to a process group (identified by a PGID, the PID of its first member) and every group to a session (SID).",
+  "label": "core",
+  "key": "process groups, sessions, limits and identity beyond ostep: credentials(7)",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "A child inherits both.",
+  "label": "core",
+  "key": "a child inherits both.",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "They exist for job control: a shell puts each pipeline in its own group, and the terminal sends Ctrl-C's SIGINT to every process in the foreground group at once. kill(-pgid, sig) (Python os.killpg ) does the same from code. setsid() starts a new session and group, detached from any terminal: what daemons do, and what start_new_session=True does in subprocess ( credentials(7) describes both).",
+  "label": "core",
+  "key": "they exist for job control: a shell puts each",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "Two consequences for training: Ctrl-C reaches the workers too.",
+  "label": "core",
+  "key": "two consequences for training: ctrl-c reaches the workers too.",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "In a terminal, the trainer and its DataLoader workers are one foreground group, so all of them get SIGINT.",
+  "label": "core",
+  "key": "in a terminal, the trainer and its dataloader workers",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "The workers catch the resulting KeyboardInterrupt and exit quietly (\"Main process will raise KeyboardInterrupt anyways\", torch 2.14 _utils/worker.py line 396), and the main process unwinds. torchrun signals groups, not processes. torchrun starts each trainer with start_new_session=True ( subprocess_handler.py ), so each trainer leads its own session and group, and its DataLoader workers join that group.",
+  "label": "core",
+  "key": "the workers catch the resulting keyboardinterrupt and exit quietly",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "To stop a trainer it calls os.killpg(trainer_pid, SIGTERM) .",
+  "label": "core",
+  "key": "to stop a trainer it calls os.killpg(trainer_pid, sigterm) .",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "In the Shutdown lab's process tree under torchrun, PGID and SID of the trainer and its two workers are all the trainer's PID; the SIGTERM therefore reaches the workers directly, which section 9 shows has a cost.",
+  "label": "core",
+  "key": "pgid and sid of the trainer and its two",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "Resource limits Each process carries soft and hard resource limits : the soft one is enforced, and a process may raise it up to the hard one (only a privileged process can raise the hard one).",
+  "label": "core",
+  "key": "resource limits each process carries soft and hard resource",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "They are inherited across fork and exec, which is why ulimit -n 65536 in a launcher script applies to everything it starts.",
+  "label": "core",
+  "key": "they are inherited across fork and exec, which is",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "The job's limits, from the snapshot: Limit Here Why it matters in training Max open files ( RLIMIT_NOFILE ) 1,048,576 Docker here sets it high; many hosts and Slurm jobs start with a soft limit of 1,024, which the file_descriptor tensor-sharing strategy and many-shard data loaders exceed: Errno 24 Max core file size 0 soft No core dump when a worker segfaults until you raise it ( ulimit -c unlimited ) Max locked memory ( RLIMIT_MEMLOCK ) 64 KiB RDMA (InfiniBand, RoCE) registers and pins buffers, which counts against this limit; NVIDIA's container guide runs its framework images with --ulimit memlock=-1 (unlimited) ( NGC containers user guide ); not run here Max processes ( RLIMIT_NPROC ) unlimited Counts threads per user; in containers the cgroup's pids.max usually bites first Max pending signals 39,345 The real-time signal queue limit of section 6 Max stack size 8 MiB The main thread's stack; deep recursion in C extensions Change them with ulimit in a shell, prlimit --pid <pid> for a running process, resource.setrlimit in Python, docker run --ulimit , or Slurm's --propagate .",
+  "label": "depth",
+  "key": "limit here why it matters in training max open",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "Identity: user ids and capabilities A process has a real user id (who started it), an effective user id (whose permissions it uses), a saved id (so a privileged program can drop and regain privilege), and group ids likewise; the Uid: line in status lists real, effective, saved and file-system ids, all 0 for the job.",
+  "label": "depth",
+  "key": "a process has a real user id (who started",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "Root inside a container is not all of root: the effective capability set CapEff 00000000a80425fb is Docker's reduced default set, and Seccomp: 2 shows a filter on system calls.",
+  "label": "depth",
+  "key": "root inside a container is not all of root:",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "Capabilities, user namespaces and seccomp are the containers child page .",
+  "label": "depth",
+  "key": "capabilities, user namespaces and seccomp are the containers child",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "8. process groups, sessions, limits and identity",
+  "text": "One flag belongs here because it is inherited like a limit: prctl(PR_SET_NO_NEW_PRIVS) makes sure no exec'd program can gain privileges (no set-user-ID), and once set it cannot be cleared; sandboxes for untrusted code rely on it.",
+  "label": "depth",
+  "key": "one flag belongs here because it is inherited like",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "In a training job: start methods, the DataLoader, torchrun, preemption Everything above, assembled into the processes a training node actually runs.",
+  "label": "core",
+  "key": "in a training job: start methods, the dataloader, torchrun,",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "Start methods, by Python version Python Linux default macOS default Notes 3.7 and earlier fork fork 3.8 to 3.11 fork spawn macOS changed because \"macOS system libraries may start threads\" ( 3.11 docs ) 3.12, 3.13 fork spawn os.fork() warns (DeprecationWarning) when it detects other threads 3.14 forkserver spawn \"the default start method was changed from fork to forkserver\" on POSIX ( 3.14 docs ) The DataLoader uses the multiprocessing default unless you pass multiprocessing_context .",
+  "label": "core",
+  "key": "start methods, by python version python linux default macos",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "Costs on this machine (section 3 and the root): a fork worker is ready in milliseconds; a spawn or forkserver worker needs a fresh interpreter that imports torch, about 0.65 to 0.94 s, paid again at every epoch unless persistent_workers=True .",
+  "label": "core",
+  "key": "costs on this machine (section 3 and the root):",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "With forkserver, multiprocessing.set_forkserver_preload([\"torch\"]) pays the import once in the server (the root measured 0.035 s per new iterator after a 0.703 s first one).",
+  "label": "core",
+  "key": "with forkserver, multiprocessing.set_forkserver_preload([\"torch\"]) pays the import once in the",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "Name the start method in code; do not let a Python upgrade choose it.",
+  "label": "core",
+  "key": "name the start method in code; do not let",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "The DataLoader's worker processes, from the source Read from torch 2.14's torch/utils/data/dataloader.py and _utils/worker.py inside the lab image: Start. iter(loader) creates one index queue per worker and one shared result queue, then starts each worker as a multiprocessing.Process with daemon = True (line 1168), so it is killed if the main process exits normally without shutting it down.",
+  "label": "core",
+  "key": "the dataloader's worker processes, from the source read from",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "The main process installs its SIGCHLD handler ( _set_SIGCHLD_handler ).",
+  "label": "depth",
+  "key": "the main process installs its sigchld handler ( _set_sigchld_handler",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "In _worker_loop each worker installs C-level handlers for SIGBUS, SIGSEGV, SIGFPE and SIGTERM that print an error and die (exactly the worker SigCgt decoded in section 6), names its thread pt_data_worker (the comm in section 1), sets torch.set_num_threads(1) , seeds its random generators with base_seed + worker_id , and calls your worker_init_fn .",
+  "label": "depth",
+  "key": "in _worker_loop each worker installs c-level handlers for sigbus,",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "While the ManagerWatchdog sees the original parent (section 5), it waits up to MP_STATUS_CHECK_INTERVAL = 5.0 s for an index, builds the batch, and puts it on the result queue; tensors travel as shared-memory descriptors (section 7).",
+  "label": "depth",
+  "key": "while the managerwatchdog sees the original parent (section 5),",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "If a worker dies, the main process gets SIGCHLD; its handler calls _error_if_any_worker_fails() , which uses waitid to find a worker that died and raises RuntimeError: DataLoader worker (pid N) is killed by signal: ... in the main thread, wherever it is (the NOTE at the top of signal_handling.py ).",
+  "label": "depth",
+  "key": "if a worker dies, the main process gets sigchld;",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "When the iterator is deleted or exhausted, _shutdown_workers sets a done event, sends each worker a stop message, joins each with a timeout of 5.0 s, and terminates any that remain.",
+  "label": "depth",
+  "key": "when the iterator is deleted or exhausted, _shutdown_workers sets",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "Workers are re-created for the next epoch unless persistent_workers=True . torchrun, and the trap in its shutdown torchrun runs an elastic agent that starts one trainer process per GPU (environment variables RANK , LOCAL_RANK , WORLD_SIZE , MASTER_ADDR , MASTER_PORT tell each who it is), each in its own session (section 8), then polls them.",
+  "label": "depth",
+  "key": "workers are re-created for the next epoch unless persistent_workers=true",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "If one fails it stops the others and, up to --max-restarts , starts the group again.",
+  "label": "core",
+  "key": "if one fails it stops the others and, up",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "For a stop request it registers handlers for SIGTERM, SIGINT, SIGHUP and SIGQUIT (overridable with TORCHELASTIC_SIGNALS_TO_HANDLE ); the handler raises SignalException , the agent sends SIGTERM to each trainer's process group, waits up to 30 s, then sends SIGKILL, and finally re-raises, so torchrun itself exits 1 (torch 2.14 torch/distributed/elastic/multiprocessing/api.py lines 76 to 86 and 1023 to 1068; elastic agent docs ).",
+  "label": "core",
+  "key": "for a stop request it registers handlers for sigterm,",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "Predict: the running job, whose SIGTERM handler sets a flag and checkpoints after the step, is launched with torchrun --nproc-per-node 1 and two DataLoader workers. docker stop sends SIGTERM to torchrun.",
+  "label": "core",
+  "key": "predict: the running job, whose sigterm handler sets a",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "Does the trainer write its checkpoint? yes: torchrun forwards SIGTERM and the handler checkpoints no: it crashes with a RuntimeError first no: torchrun SIGKILLs it at once No, in all three runs. torchrun's killpg delivers SIGTERM to the trainer and to its two DataLoader workers, which are in the trainer's process group.",
+  "label": "core",
+  "key": "does the trainer write its checkpoint? yes: torchrun forwards",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "The trainer's handler sets its flag, but the workers' C handlers kill them immediately; the trainer gets SIGCHLD, and the DataLoader's handler raises RuntimeError: DataLoader worker (pid ...) is killed by signal: Terminated. in the middle of the forward pass, before the loop can reach its checkpoint.",
+  "label": "core",
+  "key": "the trainer's handler sets its flag, but the workers'",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "The fix that worked in all three runs: make the workers ignore SIGTERM in worker_init_fn (which runs after torch installs its handler), so only the trainer reacts and then shuts its workers down itself.",
+  "label": "core",
+  "key": "the fix that worked in all three runs: make",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "See the Shutdown lab , variants \"torchrun\" and \"torchrun, workers ignore SIGTERM\". def ignore_term(worker_id): # runs in each worker, after torch's own handlers signal.signal(signal.SIGTERM, signal.SIG_IGN) loader = DataLoader(ds, num_workers=2, worker_init_fn=ignore_term, multiprocessing_context= \"forkserver\" , persistent_workers=True) The runs used a wrapper ( src/runs/py/ignore_term_in_workers.py ) that adds this worker_init_fn to the root's unchanged train.py .",
+  "label": "core",
+  "key": ", variants \"torchrun\" and \"torchrun, workers ignore sigterm\". def",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "The same group-signal effect appears without torchrun when anything signals the whole group ( pkill -f train.py , kill -- -PGID ): the root's Debug lab case \"pkill -TERM also hits the workers\".",
+  "label": "core",
+  "key": "the same group-signal effect appears without torchrun when anything",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "Graceful preemption, end to end Kubernetes Slurm Who gets SIGTERM PID 1 of each container (\"send a TERM signal to process 1 inside each container\", Pod Lifecycle ) scancel sends \"first a SIGCONT to all steps to eventually wake them up followed by a SIGTERM, then wait the KillWait duration\" before SIGKILL ( scancel(1) ) Grace period terminationGracePeriodSeconds , default 30 s; a preStop hook runs first, inside the same period KillWait in slurm.conf Warning before a time limit none built in --signal=B:USR1@120 : \"Use the \"B:\" option to signal only the batch shell\", so the batch script must forward it; without B:, \"all job steps will be signaled, but not the batch shell itself\" ( sbatch(1) ) Classic failure PID 1 is a shell ( sh -c ) that neither forwards nor exits: 30 s, then SIGKILL The batch shell catches the signal with trap while blocked in a foreground command; bash runs the trap only after that command finishes ( Bash manual, Signals ), so start the job in the background and wait The checklist Make the trainer PID 1 or have PID 1 forward signals: the exec form in the Dockerfile, exec python ... in scripts, or a real init ( --init , tini) whose child is Python itself, not a shell (Shutdown lab).",
+  "label": "core",
+  "key": "graceful preemption, end to end kubernetes slurm who gets",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "Install a SIGTERM handler that only sets a flag; checkpoint in the loop, after the step, with the write-fsync-rename pattern of the storage page .",
+  "label": "core",
+  "key": "install a sigterm handler that only sets a flag;",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "Make DataLoader workers ignore SIGTERM when anything may signal the whole group (torchrun does).",
+  "label": "core",
+  "key": "make dataloader workers ignore sigterm when anything may signal",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "Keep the slowest step, plus the checkpoint, shorter than the grace period; set collective timeouts so a dead peer cannot hold the main thread past it (section 6).",
+  "label": "core",
+  "key": "keep the slowest step, plus the checkpoint, shorter than",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "Exit 0 after a requested stop, so the scheduler does not count it as a failure and restart it in a loop; check how your launcher reports it (torchrun exits 1).",
+  "label": "core",
+  "key": "exit 0 after a requested stop, so the scheduler",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "9. in a training job: start methods, the dataloader, torchrun, preemption",
+  "text": "Go deeper: Kubernetes resources and their cgroups are the containers child page and Topic: ml-infra-and-orchestration ; collectives, timeouts and elastic training are Distributed Training and Fault tolerance at scale ; DataLoader APIs are Topic: pytorch-ecosystem .",
+  "label": "core",
+  "key": "kubernetes resources and their cgroups are the containers child",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Common mistakes, interview questions, and the OSTEP map Common mistakes Starting the job with sh -c \"python train.py\" in a container Debian's dash stays as PID 1 and drops SIGTERM; the job is SIGKILLed after the grace period (10.3 to 10.4 s and exit 137 in all runs here).",
+  "label": "core",
+  "key": "10.3 to 10.4 s, exit 137",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Use the exec form, or exec python ... .",
+  "label": "core",
+  "key": "the exec form,",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Bash happens to exec a single simple command, which is why the same line works on some images and not others.",
+  "label": "core",
+  "key": "a single simple command, which is why the same",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Checkpointing inside the signal handler In C it is not async-signal-safe; in Python the handler runs between bytecodes in the main thread, possibly in the middle of an optimizer step, and cannot run at all while a long C++ call is in progress.",
+  "label": "core",
+  "key": "only sets a flag; checkpoint in the loop",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Set a flag; checkpoint in the loop.",
+  "label": "core",
+  "key": "a flag; checkpoint in the",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Expecting one SIGCHLD (or SIGUSR1) per event Standard signals coalesce: 1,000 sent, 1 handled (section 6).",
+  "label": "core",
+  "key": "1,000 sent, 1 handled",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Loop on waitpid(-1, WNOHANG) ; use real-time signals or a descriptor if you need counts.",
+  "label": "core",
+  "key": "loop on waitpid(-1,",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Calling exit() in a forked child It flushes the parent's buffered output a second time and runs the parent's atexit handlers.",
+  "label": "core",
+  "key": "before forking is the habit to keep",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Use _exit / os._exit , and flush before forking.",
+  "label": "core",
+  "key": "before forking is the habit to keep",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Forgetting a write end, or a descriptor without close-on-exec The reader never sees EOF while any copy is open anywhere (2.0 s here, forever in practice).",
+  "label": "core",
+  "key": "every process that inherited a write end and forgot to close it keeps the reader waiting",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Close unused ends after fork; open with O_CLOEXEC .",
+  "label": "depth",
+  "key": "close unused ends after",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Writing 2>&1 > log Redirections apply left to right: stderr is copied from stdout before stdout moves to the log, so tracebacks go to the terminal.",
+  "label": "core",
+  "key": "before stdout moves to the log,",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Write > log 2>&1 .",
+  "label": "core",
+  "key": "is the right order",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Forking a large trainer for small jobs fork scales with the parent's page tables: 17 ms per GiB of 4 KiB pages here, plus copy-on-write faults afterwards.",
+  "label": "core",
+  "key": "fork scales with the parent's",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Use subprocess (vfork) or a forkserver started early.",
+  "label": "core",
+  "key": "already on the fast path",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Profiling with strace Each traced call costs about 124 µs here against 269 ns.",
+  "label": "core",
+  "key": "124 µs per call under strace",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Use strace for which calls happen; time with perf trace or without a tracer.",
+  "label": "core",
+  "key": "counts and order from strace are exact",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Assuming the script is the only one to hear a signal Ctrl-C, pkill -f , Slurm steps and torchrun signal whole process groups, DataLoader workers included.",
+  "label": "core",
+  "key": "when anything signals the whole group",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Interview questions, with model answers What happens, step by step, when a program calls read() ?",
+  "label": "depth",
+  "key": "what happens, step by step, when a program calls",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "The libc wrapper puts the call number and arguments in registers and executes the trap instruction ( svc on arm64, syscall on x86-64).",
+  "label": "depth",
+  "key": "the libc wrapper puts the call number and arguments",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "The CPU switches to kernel mode and jumps to the kernel's entry; the kernel saves registers, looks the number up in the system-call table, runs sys_read (fd table, then the file's read method, often a copy from the page cache), stores the result in the return register and returns to user mode.",
+  "label": "depth",
+  "key": "the cpu switches to kernel mode and jumps to",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "The wrapper turns a negative result into errno and -1.",
+  "label": "depth",
+  "key": "the wrapper turns a negative result into errno and",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "A few hundred nanoseconds when nothing blocks.",
+  "label": "depth",
+  "key": "a few hundred nanoseconds when nothing blocks.",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "What is the difference between a process and a thread on Linux?",
+  "label": "depth",
+  "key": "what is the difference between a process and a",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Both are tasks made by clone .",
+  "label": "depth",
+  "key": "both are tasks made by clone .",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Threads share the address space, descriptor table, signal handlers and thread group id (flags CLONE_VM | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD ...); a process gets copies.",
+  "label": "depth",
+  "key": "threads share the address space, descriptor table, signal handlers",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Threads share memory cheaply and crash together; processes are isolated and each has its own GIL in CPython.",
+  "label": "depth",
+  "key": "threads share memory cheaply and crash together; processes are",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Why does fork return twice, and what does the child inherit?",
+  "label": "depth",
+  "key": "why does fork return twice, and what does the",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "The kernel creates a second task that resumes from the same point; it sets the return register to 0 in the child and the child's PID in the parent.",
+  "label": "depth",
+  "key": "the kernel creates a second task that resumes from",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "The child gets copies of the address space (copy-on-write), the descriptor table (same open file descriptions, shared offsets), signal handlers and mask, credentials, limits and current directory; not pending signals, timers, locks or other threads.",
+  "label": "depth",
+  "key": "the child gets copies of the address space (copy-on-write),",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "What is a zombie, and how do you get rid of one?",
+  "label": "depth",
+  "key": "what is a zombie, and how do you get",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "A process that has exited but whose parent has not yet called wait ; only its PID and exit status remain.",
+  "label": "depth",
+  "key": "a process that has exited but whose parent has",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "You cannot kill it (it is already dead): the parent must wait, or die so that init or a subreaper adopts and reaps it.",
+  "label": "depth",
+  "key": "you cannot kill it (it is already dead): the",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "In containers, make sure PID 1 reaps (an init such as tini).",
+  "label": "depth",
+  "key": "in containers, make sure pid 1 reaps (an init",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Why might docker stop take 10 seconds and end with 137?",
+  "label": "depth",
+  "key": "why might docker stop take 10 seconds and end",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "SIGTERM went to PID 1, which ignored it: either PID 1 has no handler (a namespace's init drops default-action signals) or it is a shell that does not forward.",
+  "label": "depth",
+  "key": "sigterm went to pid 1, which ignored it: either",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "After the grace period Docker sent SIGKILL: 128 + 9 = 137.",
+  "label": "depth",
+  "key": "after the grace period docker sent sigkill: 128 +",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Can a signal handler call printf or malloc ?",
+  "label": "depth",
+  "key": "can a signal handler call printf or malloc ?",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "No: they are not async-signal-safe.",
+  "label": "depth",
+  "key": "no: they are not async-signal-safe.",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "The handler may have interrupted the same function holding the same lock, and would deadlock.",
+  "label": "depth",
+  "key": "the handler may have interrupted the same function holding",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Set a sig_atomic_t flag, write to a pipe, or receive signals synchronously with signalfd or sigwaitinfo .",
+  "label": "depth",
+  "key": "set a sig_atomic_t flag, write to a pipe, or",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "What is the difference between a file descriptor and an open file description?",
+  "label": "depth",
+  "key": "what is the difference between a file descriptor and",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "The descriptor is an index in one process's table; the description is the kernel object created by open , holding the offset and flags. dup and fork create new descriptors for the same description (shared offset); a second open creates a new description.",
+  "label": "depth",
+  "key": "the descriptor is an index in one process's table;",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Why can a reader of a pipe hang even after the writer closed it?",
+  "label": "depth",
+  "key": "why can a reader of a pipe hang even",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "EOF requires every write-end descriptor in every process to be closed.",
+  "label": "depth",
+  "key": "eof requires every write-end descriptor in every process to",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "A forked or exec'd process that inherited a write end keeps the pipe open.",
+  "label": "depth",
+  "key": "a forked or exec'd process that inherited a write",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "Close unused ends after fork and use O_CLOEXEC .",
+  "label": "depth",
+  "key": "close unused ends after fork and use o_cloexec .",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "How would you make a PyTorch job survive preemption?",
+  "label": "depth",
+  "key": "how would you make a pytorch job survive preemption?",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "The trainer receives SIGTERM directly (exec form or a forwarding init); its handler sets a flag; the loop checkpoints atomically after the step and exits 0; DataLoader workers ignore SIGTERM so a group signal cannot crash the trainer first; steps and collectives are bounded so the grace period is enough; resume from the last checkpoint on restart.",
+  "label": "depth",
+  "key": "the trainer receives sigterm directly (exec form or a",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "OSTEP map for this page OSTEP Here What this page adds ch.",
+  "label": "depth",
+  "key": "ostep here what this page adds ch.",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "4 The Abstraction: The Process (and its homework process-run.py ) section 1 task_struct , threads as tasks, real /proc of a training job, Linux's state letters ch.",
+  "label": "depth",
+  "key": "4 the abstraction: the process (and its homework process-run.py",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "5 Interlude: Process API (homework fork.py ) sections 3 to 5, Process lab clone flags, vfork and posix_spawn with measured costs, what exec keeps, reaping and PID 1; the lab is checked against fork.py ch.",
+  "label": "depth",
+  "key": "5 interlude: process api (homework fork.py ) sections 3",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "6 Limited Direct Execution section 2 the real arm64 instructions, kernel entry functions, errno, strace's cost ch.",
+  "label": "depth",
+  "key": "6 limited direct execution section 2 the real arm64",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "39 Files and Directories (fork and dup sharing) section 7 the three tables in the kernel source, pipes, close-on-exec, descriptors passed between processes not in OSTEP sections 6, 8, 9 signals in depth, sessions and process groups, limits, credentials, the DataLoader, torchrun and preemption OSTEP chapter numbers from the v1.10 table of contents ( OSTEP ).",
+  "label": "depth",
+  "key": "39 files and directories (fork and dup sharing) section",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "10. common mistakes, interview questions, and the ostep map",
+  "text": "The classic deeper reference for everything on this page is Michael Kerrisk's The Linux Programming Interface (chapters 20 to 28, 34, 44 and 61), listed under Further reading.",
+  "label": "depth",
+  "key": "the classic deeper reference for everything on this page",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-lab",
+  "section": "",
+  "text": "Two small simulators of the kernel's process rules, to run the calls of sections 3 to 7 yourself.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old Process lab tab introduction; the simulators now sit inline in sections 5 and 7"
+ },
+ {
+  "id": 350,
+  "tab": "t-lab",
+  "section": "",
+  "text": "The first follows descriptors through pipe , fork , dup2 , close and exec ; the second follows the process tree through fork, exit and wait, with Linux's rules and OSTEP's, and is checked against OSTEP's own homework simulator.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old Process lab tab introduction"
+ },
+ {
+  "id": 351,
+  "tab": "t-lab",
+  "section": "",
+  "text": "Both are models: they apply the rules this page states, they do not run a kernel.",
+  "label": "core",
+  "key": "a model of the rules this page states",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-lab",
+  "section": "",
+  "text": "Where a preset matches a real run, the measured result is quoted.",
+  "label": "core",
+  "key": "their timings are real",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-lab",
+  "section": "1. descriptor tables, step by step",
+  "text": "Descriptor tables, step by step Example python train.py 2>&1 | tee log > log 2>&1 (right order) 2>&1 > log (wrong order) leaked write end: pipe() the fix: pipe2(O_CLOEXEC) fork shares the file offset your own script (below) Write your own script One operation per line, processes by number: proc 1 sh , tty 1 , pipe 1 or pipe 1 O_CLOEXEC , open 1 log O_WRONLY|O_CREAT|O_TRUNC (add |O_CLOEXEC ), fork 1 2 name , dup2 2 4 1 (pid, old, new), close 2 3 4 , exec 2 python , write 2 1 text\\n , read 3 0 , exit 2 .",
+  "label": "core",
+  "key": "python train.py 2>&1 | tee log > log 2>&1",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-lab",
+  "section": "1. descriptor tables, step by step",
+  "text": "Then pick \"your own script\" above. proc 1 sh tty 1 pipe 1 fork 1 2 producer close 2 3 dup2 2 4 1 close 2 4 exec 2 python fork 1 3 consumer close 3 4 dup2 3 3 0 close 3 3 exec 3 wc close 1 3 4 write 2 1 batch 1\\n read 3 0 exit 2 read 3 0 Run my script",
+  "label": "depth",
+  "key": "then pick \"your own script\" above. proc 1 sh",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-lab",
+  "section": "2. the process tree: fork, exit, wait, and who adopts orphans",
+  "text": "The process tree: fork, exit, wait, and who adopts orphans Actions, comma-separated, in OSTEP's fork.py notation: a+b means a forks b, b- means b exits.",
+  "label": "core",
+  "key": "actions, comma-separated, in ostep's fork.py notation: a+b means a",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-lab",
+  "section": "2. the process tree: fork, exit, wait, and who adopts orphans",
+  "text": "Added for Linux mode: a* means a calls wait and reaps its exited children.",
+  "label": "core",
+  "key": "added for linux mode: a* means a calls wait",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-lab",
+  "section": "2. the process tree: fork, exit, wait, and who adopts orphans",
+  "text": "Process a is PID 1.",
+  "label": "core",
+  "key": "process a is pid 1.",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-lab",
+  "section": "2. the process tree: fork, exit, wait, and who adopts orphans",
+  "text": "Linux OSTEP fork.py (default) fork.py -R fork.py -L PID 1 reaps orphans (like tini) b is a subreaper Random actions Run Process tree What happened The rules.",
+  "label": "core",
+  "key": "linux ostep fork.py (default) fork.py -r fork.py -l pid",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-lab",
+  "section": "2. the process tree: fork, exit, wait, and who adopts orphans",
+  "text": "Linux : an exiting process becomes a zombie (Z) until its parent waits; its direct children move to the nearest subreaper ancestor, or to PID 1; grandchildren stay where they are; a zombie whose parent is PID 1 stays until PID 1 waits, unless PID 1 reaps (tini does). fork.py default : every descendant of the exiting process moves directly under the root. fork.py -R : the exiting process's children move to its parent. fork.py -L : only leaves may exit.",
+  "label": "core",
+  "key": "linux : an exiting process becomes a zombie (z)",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-lab",
+  "section": "2. the process tree: fork, exit, wait, and who adopts orphans",
+  "text": "The real reparenting run in section 5 of the Reading tab shows Linux's rule.",
+  "label": "core",
+  "key": "the real reparenting run",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-lab",
+  "section": "2. the process tree: fork, exit, wait, and who adopts orphans",
+  "text": "Check against OSTEP's fork.py Predict: in Linux mode with nothing ticked, run a+b,b+c,c+d,b-,c-,d- .",
+  "label": "core",
+  "key": "3 zombies under pid 1",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-lab",
+  "section": "2. the process tree: fork, exit, wait, and who adopts orphans",
+  "text": "How many zombies are left at the end? none 1 3 b's zombie waits for a; when c exits it has been adopted by a, so it is a's zombie too; d was adopted by a when c exited, so its zombie is a's as well.",
+  "label": "core",
+  "key": "3 zombies under pid 1",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-lab",
+  "section": "2. the process tree: fork, exit, wait, and who adopts orphans",
+  "text": "Three zombies under PID 1, which never waits: exactly the training-script-as-PID-1 problem.",
+  "label": "core",
+  "key": "which never waits: exactly the training-script-as-pid-1 problem.",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-lab",
+  "section": "2. the process tree: fork, exit, wait, and who adopts orphans",
+  "text": "Tick \"PID 1 reaps\" and run again.",
+  "label": "core",
+  "key": "tick \"pid 1 reaps\" and run again.",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-stop",
+  "section": "",
+  "text": "Ten ways to start the same training job in a container, and what docker stop did to each. docker stop -t 10 sends SIGTERM to the container's PID 1, waits 10 s, then sends SIGKILL: the same sequence as a Kubernetes pod deletion or a Slurm cancellation, with a shorter grace period.",
+  "label": "core",
+  "key": "ten ways to start the same training job in",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-stop",
+  "section": "",
+  "text": "The job is the root's running example ( src/trace/job/train.py : SIGTERM handler that sets a flag, checkpoint after the step, exit 0) with 2 fork DataLoader workers, 2 CPUs, in kb-os-lab:1 (Debian 12: dash 0.5.12 as sh , bash 5.2.15; Docker 20.10.17, whose --init is tini).",
+  "label": "depth",
+  "key": "the job is the root's running example ( src/trace/job/train.py",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-stop",
+  "section": "",
+  "text": "Each variant ran 3 times, 2026-10-05: started, waited for training step 5, recorded the process tree with ps , then timed docker stop and read the exit code and the log.",
+  "label": "depth",
+  "key": "each variant ran 3 times, 2026-10-05: started, waited for",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-stop",
+  "section": "",
+  "text": "Script: src/runs/run_shutdown.sh ; raw records: src/runs/out/shutdown/ .",
+  "label": "depth",
+  "key": "script: src/runs/run_shutdown.sh ; raw records: src/runs/out/shutdown/ .",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-stop",
+  "section": "what the ten runs teach",
+  "text": "What the ten runs teach Whether your process is PID 1 decides everything.",
+  "label": "core",
+  "key": "is pid 1 decides everything.",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-stop",
+  "section": "what the ten runs teach",
+  "text": "Same image, same script: the exec form, sh -c \"exec ...\" , and bash -c (bash replaces itself with a single simple command) made Python PID 1 and stopped cleanly in under a second; plain sh -c left dash as PID 1, which neither forwards SIGTERM nor dies from it (section 5 of the Reading tab), so every run waited out the 10 s and was killed.",
+  "label": "core",
+  "key": "and bash -c (bash replaces itself with a single",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-stop",
+  "section": "what the ten runs teach",
+  "text": "An init process is not a fix by itself. --init forwards the signal to its one child.",
+  "label": "core",
+  "key": "is not a fix by itself. --init forwards",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-stop",
+  "section": "what the ten runs teach",
+  "text": "When that child is a shell, the shell dies at once (it is not PID 1, so the default action applies), tini exits with the shell's status 143, and the kernel kills everything left in the namespace: no checkpoint, in a third of a second.",
+  "label": "core",
+  "key": "dies at once (it is not pid 1, so",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-stop",
+  "section": "what the ten runs teach",
+  "text": "Signalling the whole group ( TINI_KILL_PROCESS_GROUP=1 ) does not help, because the shell still dies first.",
+  "label": "core",
+  "key": "does not help, because the shell still dies first.",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-stop",
+  "section": "what the ten runs teach",
+  "text": "With Python as tini's direct child, everything works, and orphans are reaped too. torchrun signals process groups.",
+  "label": "core",
+  "key": "everything works, and orphans are reaped too. torchrun signals",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-stop",
+  "section": "what the ten runs teach",
+  "text": "Its SIGTERM reaches the DataLoader workers, whose torch-installed handlers kill them; the trainer's SIGCHLD handler then raises before the checkpoint.",
+  "label": "core",
+  "key": "the workers' c handlers kill them immediately",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-stop",
+  "section": "what the ten runs teach",
+  "text": "Ignoring SIGTERM in the workers fixed it in all three runs; torchrun still exits 1 after a death signal by design.",
+  "label": "core",
+  "key": "ignoring sigterm in the workers fixed it in all",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-stop",
+  "section": "what the ten runs teach",
+  "text": "Predict: docker run --init image sh -c \"python train.py; echo done\" , then docker stop .",
+  "label": "core",
+  "key": "predict: docker run --init image sh -c \"python train.py;",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-stop",
+  "section": "what the ten runs teach",
+  "text": "The Python script has a correct SIGTERM handler.",
+  "label": "core",
+  "key": "the python script has a correct sigterm handler.",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-stop",
+  "section": "what the ten runs teach",
+  "text": "Checkpoint written? yes, in under a second no, after 10 s (SIGKILL) no, in under a second Measured 0.28 to 0.41 s, exit 143, no checkpoint in 3 of 3 runs (variant \"--init, sh -c with two commands\"). tini forwarded SIGTERM to the shell; the shell died; tini exited; the kernel SIGKILLed Python with the namespace.",
+  "label": "core",
+  "key": "checkpoint written? yes, in under a second no, after",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-more",
+  "section": "",
+  "text": "Every link was checked on 5 October 2026.",
+  "label": "depth",
+  "key": "every link was checked on 5 october 2026.",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 381,
+  "tab": "t-more",
+  "section": "",
+  "text": "Times are reading-time estimates for the part worth reading.",
+  "label": "depth",
+  "key": "times are reading-time estimates for the part worth reading.",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 382,
+  "tab": "t-more",
+  "section": "",
+  "text": "Suggested order: this page's Reading tab with the two labs; OSTEP chapters 4 to 6 and the fork.py homework; then The Linux Programming Interface's chapters for whichever call you are debugging.",
+  "label": "depth",
+  "key": "ostep chapters 4 to 6 and the fork.py homework;",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 383,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's tabs Process lab 20 min Descriptor tables through pipe, fork, dup2, close and exec (shell pipeline, both orders of 2>&1, the leaked write end, shared offsets, your own script); the process tree under Linux's and OSTEP's rules, checked against fork.py.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading entry for the removed Process lab tab"
+ },
+ {
+  "id": 384,
+  "tab": "t-more",
+  "section": "",
+  "text": "Shutdown lab 10 min Ten real ways to start the job in a container and what docker stop did to each: PID 1, init, shells, torchrun, and the fix.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading entry for the removed Shutdown lab tab"
+ },
+ {
+  "id": 385,
+  "tab": "t-more",
+  "section": "",
+  "text": "The parent topic and the other child pages Topic: operating-systems 50 min The root: the whole OS around one training job.",
+  "label": "depth",
+  "key": "the parent topic and the other child pages topic:",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 386,
+  "tab": "t-more",
+  "section": "",
+  "text": "Its Syscall tracer tab (every call the job makes; start methods; SIGTERM in the trace), OS simulators tab (copy-on-write after fork) and Debug lab (zombies, ignored SIGTERM, fork with a held lock, too many open files) are the companions of this page.",
+  "label": "depth",
+  "key": "its syscall tracer tab (every call the job makes;",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 387,
+  "tab": "t-more",
+  "section": "",
+  "text": "Scheduling and CPU time 40 min What happens to these tasks on the CPU: context switches, CFS and EEVDF, cgroup CPU limits.",
+  "label": "depth",
+  "key": "scheduling and cpu time 40 min what happens to",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 388,
+  "tab": "t-more",
+  "section": "",
+  "text": "Virtual memory 36 min The address space fork copies: page tables, copy-on-write, mmap, huge pages, the OOM killer.",
+  "label": "depth",
+  "key": "virtual memory 36 min the address space fork copies:",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 389,
+  "tab": "t-more",
+  "section": "",
+  "text": "Memory allocators 34 min malloc, arenas and PyTorch's caching allocator.",
+  "label": "depth",
+  "key": "memory allocators 34 min malloc, arenas and pytorch's caching",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 390,
+  "tab": "t-more",
+  "section": "",
+  "text": "Concurrency 37 min Threads, futexes, deadlock, and event loops over descriptors (epoll, io_uring), including signals in event loops.",
+  "label": "depth",
+  "key": "concurrency 37 min threads, futexes, deadlock, and event loops",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 391,
+  "tab": "t-more",
+  "section": "",
+  "text": "Storage and file systems 42 min What read and write do below the descriptor: page cache, fsync, the safe checkpoint.",
+  "label": "depth",
+  "key": "storage and file systems 42 min what read and",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 392,
+  "tab": "t-more",
+  "section": "",
+  "text": "Containers and isolation 45 min PID namespaces (why PID 1 is special), cgroups, capabilities and seccomp.",
+  "label": "depth",
+  "key": "containers and isolation 45 min pid namespaces (why pid",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 393,
+  "tab": "t-more",
+  "section": "",
+  "text": "Virtualization and the GPU driver stack 51 min One CUDA call down to an ioctl on a device descriptor.",
+  "label": "depth",
+  "key": "virtualization and the gpu driver stack 51 min one",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 394,
+  "tab": "t-more",
+  "section": "",
+  "text": "Related pages in the knowledge base Python varies The GIL, threads and multiprocessing from the language side.",
+  "label": "depth",
+  "key": "related pages in the knowledge base python varies the",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 395,
+  "tab": "t-more",
+  "section": "",
+  "text": "C++ , Rust , JavaScript and TypeScript varies The other runtimes that end in the same system calls (libstdc++, Rust std and tokio, libuv).",
+  "label": "depth",
+  "key": "c++ , rust , javascript and typescript varies the",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 396,
+  "tab": "t-more",
+  "section": "",
+  "text": "Distributed Training , Fault tolerance at scale varies Launchers, collectives, timeouts and elastic restarts at scale.",
+  "label": "depth",
+  "key": "distributed training , fault tolerance at scale varies launchers,",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 397,
+  "tab": "t-more",
+  "section": "",
+  "text": "Topic: pytorch-ecosystem , Topic: ml-infra-and-orchestration , Topic: protocols varies DataLoader and torchrun APIs; Kubernetes and Slurm; network sockets.",
+  "label": "depth",
+  "key": "varies dataloader and torchrun apis; kubernetes and slurm; network",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 398,
+  "tab": "t-more",
+  "section": "",
+  "text": "Books and courses OSTEP ch.",
+  "label": "depth",
+  "key": "books and courses ostep ch.",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 399,
+  "tab": "t-more",
+  "section": "",
+  "text": "4 The Process , ch.",
+  "label": "depth",
+  "key": "4 the process , ch.",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 400,
+  "tab": "t-more",
+  "section": "",
+  "text": "5 Process API , ch.",
+  "label": "depth",
+  "key": "5 process api , ch.",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 401,
+  "tab": "t-more",
+  "section": "",
+  "text": "6 Limited Direct Execution 60 min The textbook chapters this page follows, free.",
+  "label": "depth",
+  "key": "6 limited direct execution 60 min the textbook chapters",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 402,
+  "tab": "t-more",
+  "section": "",
+  "text": "Do the cpu-api homework (fork.py and the C exercises).",
+  "label": "depth",
+  "key": "do the cpu-api homework (fork.py and the c exercises).",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 403,
+  "tab": "t-more",
+  "section": "",
+  "text": "39 Files and Directories 40 min The open file table, fork and dup sharing, as in section 7.",
+  "label": "depth",
+  "key": "39 files and directories 40 min the open file",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 404,
+  "tab": "t-more",
+  "section": "",
+  "text": "The Linux Programming Interface (Kerrisk) reference The definitive book for this page: chapters 20 to 22 (signals), 24 to 28 (process creation, exec, exit, wait), 34 (process groups and sessions), 44 (pipes), 61 (passing descriptors).",
+  "label": "depth",
+  "key": "the linux programming interface (kerrisk) reference the definitive book",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 405,
+  "tab": "t-more",
+  "section": "",
+  "text": "Papers and articles A fork() in the road (Baumann et al., HotOS 2019) 30 min The case against fork: its cost with large address spaces, its interaction with threads, and why posix_spawn should be the default.",
+  "label": "depth",
+  "key": "papers and articles a fork() in the road (baumann",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 406,
+  "tab": "t-more",
+  "section": "",
+  "text": "Section 3's measurements in research form.",
+  "label": "depth",
+  "key": "section 3's measurements in research form.",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 407,
+  "tab": "t-more",
+  "section": "",
+  "text": "Anatomy of a system call, part 1 and part 2 (LWN) 40 min The kernel side of section 2 on x86-64, including the vDSO (2014, older kernels; the shape is unchanged). tini README 10 min Why a container needs an init, and its options (subreaper mode, signalling the group).",
+  "label": "depth",
+  "key": "anatomy of a system call, part 1 and part",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 408,
+  "tab": "t-more",
+  "section": "",
+  "text": "Reference documentation Man pages as needed fork(2) , clone(2) , execve(2) , wait(2) , signal(7) , signal-safety(7) , signalfd(2) , pipe(7) , unix(7) , credentials(7) , pid_namespaces(7) , syscall(2) .",
+  "label": "depth",
+  "key": "reference documentation man pages as needed fork(2) , clone(2)",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 409,
+  "tab": "t-more",
+  "section": "",
+  "text": "Kernel source, v6.12 as needed kernel/fork.c , kernel/exit.c , kernel/signal.c , fs/exec.c , arch/arm64/kernel/syscall.c .",
+  "label": "depth",
+  "key": "kernel source, v6.12 as needed kernel/fork.c , kernel/exit.c ,",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 410,
+  "tab": "t-more",
+  "section": "",
+  "text": "Python and PyTorch 20 min multiprocessing start methods , signal (execution of handlers) , subprocess , torch.utils.data (multi-process loading) , torchrun , torch.multiprocessing sharing strategies .",
+  "label": "depth",
+  "key": "python and pytorch 20 min multiprocessing start methods ,",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 411,
+  "tab": "t-more",
+  "section": "",
+  "text": "Schedulers 15 min Kubernetes pod termination , sbatch --signal , scancel , Dockerfile shell and exec form .",
+  "label": "depth",
+  "key": "schedulers 15 min kubernetes pod termination , sbatch --signal",
+  "where": "",
+  "note": "Further reading"
+ },
+ {
+  "id": 412,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "latency table: pure Python loop, handler after 0.1 to 0.2 ms",
+  "label": "core",
+  "key": "0.1 to 0.2 ms in a python loop",
+  "where": ""
+ },
+ {
+  "id": 413,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "latency table: lock wait 0.2 to 0.3 ms, time.sleep 0.3 to 2.8 ms",
+  "label": "core",
+  "key": "0.3 to 2.8 ms in",
+  "where": ""
+ },
+ {
+  "id": 414,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "latency table: torch.linalg.solve 4000x4000, handler after 1,175 to 1,287 ms (the whole remaining call)",
+  "label": "core",
+  "key": "about 1.2 s for one torch.linalg.solve",
+  "where": ""
+ },
+ {
+  "id": 415,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "latency table: np.sort of 60M floats, 1,277 and 1,313 ms, one run 70 ms unexplained",
+  "label": "core",
+  "key": "the handler ran after 70 ms",
+  "where": ""
+ },
+ {
+  "id": 416,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "Python spawn table: os.fork from a torch process about 6 ms (5.93)",
+  "label": "core",
+  "key": "costs about 6 ms",
+  "where": ""
+ },
+ {
+  "id": 417,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "Python spawn table: subprocess.run under 1 ms (0.39 to 0.78 ms) because of vfork",
+  "label": "core",
+  "key": "stays under 1 ms because of vfork",
+  "where": ""
+ },
+ {
+  "id": 418,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "Python spawn table: 1 GiB NumPy with huge pages, AnonHugePages 1,022 MiB, fork 5.96 ms; without, 22.5 ms",
+  "label": "core",
+  "key": "22.5 ms",
+  "where": ""
+ },
+ {
+  "id": 419,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "Python spawn table: mp spawn 886 to 943 ms, forkserver 655 to 822 ms",
+  "label": "core",
+  "key": "about 0.65 to 0.94 s",
+  "where": ""
+ },
+ {
+  "id": 420,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "fork-cost chart: fork 0.25 ms empty, 17.1 ms at 1 GiB; VmPTE 48 to 2,100 KiB",
+  "label": "core",
+  "key": "17.1 ms against 0.25 ms",
+  "where": ""
+ },
+ {
+  "id": 421,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "fork-cost chart: vfork and posix_spawn flat (about 0.09 to 0.39 ms) at every parent size",
+  "label": "core",
+  "key": "vfork and posix_spawn stay flat",
+  "where": ""
+ },
+ {
+  "id": 422,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "syscall cost chart: root ladder 1.3 ns, 24 ns, 281 ns, 316 ns, pread 4 KiB 607 ns; here 269, 250 ns, 124 us",
+  "label": "core",
+  "key": "about 316 ns",
+  "where": ""
+ },
+ {
+  "id": 423,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "syscall stepper: two mode switches per call; under strace two stops and 10 tracer calls per call",
+  "label": "core",
+  "key": "the tracee stops twice per call",
+  "where": ""
+ },
+ {
+  "id": 424,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "syscall stepper: error path, kernel returns -9, glibc stores errno 9 and returns -1, CPython raises OSError",
+  "label": "core",
+  "key": "[errno 9] bad file descriptor",
+  "where": ""
+ },
+ {
+  "id": 425,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "mask decoder: main SigIgn = SIGINT, SIGQUIT (background start), SIGPIPE, SIGXFSZ; worker SigCgt = SIGBUS, SIGFPE, SIGSEGV, SIGTERM from torch",
+  "label": "core",
+  "key": "sigint ignored by a background start",
+  "where": ""
+ },
+ {
+  "id": 426,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "three endings: exec form exit 0 after 0.72 to 0.82 s, checkpoint 5 to 9 ms",
+  "label": "core",
+  "key": "5 to 9 ms in the three logs",
+  "where": ""
+ },
+ {
+  "id": 427,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "three endings: sh -c exit 137 after 10.30 to 10.38 s, no checkpoint",
+  "label": "core",
+  "key": "10.30 to 10.38 s",
+  "where": ""
+ },
+ {
+  "id": 428,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "three endings: busy main thread, derived sum of the measured C++ call and the exec-form stop",
+  "label": "core",
+  "key": "derived, not one run",
+  "where": ""
+ },
+ {
+  "id": 429,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "shutdown table: exec form, sh -c exec, bash -c stop in under a second with a checkpoint",
+  "label": "core",
+  "key": "clean stop in under a second",
+  "where": ""
+ },
+ {
+  "id": 430,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "shutdown table: sh -c one or two commands, 10.3 to 10.4 s, exit 137, no checkpoint",
+  "label": "core",
+  "key": "10.3 to 10.4 s, exit 137",
+  "where": ""
+ },
+ {
+  "id": 431,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "shutdown table: --init with a shell child, 0.28 to 0.41 s, exit 143, no checkpoint; group signal variant never logged got signal",
+  "label": "core",
+  "key": "tini exits with 143",
+  "where": ""
+ },
+ {
+  "id": 432,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "shutdown table: torchrun, workers killed, exit 1, no checkpoint; fixed variant checkpoints, still exit 1",
+  "label": "core",
+  "key": "torchrun still exits 1",
+  "where": ""
+ },
+ {
+  "id": 433,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "shutdown variant 9: two workers of the previous epoch caught as zombies for a moment",
+  "label": "depth",
+  "key": "two workers of the previous epoch as zombies",
+  "where": ""
+ },
+ {
+  "id": 434,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "tree simulator: reproduces all 36 recorded fork.py final trees and the real reparenting run",
+  "label": "core",
+  "key": "all 36 recorded",
+  "where": ""
+ },
+ {
+  "id": 435,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered",
+  "text": "descriptor stepper: shared offset run, 39 bytes with every line intact; separate opens 21 bytes, NT left over",
+  "label": "core",
+  "key": "leaving \"nt\" from a \"parent\" line",
+  "where": ""
+ }
+]

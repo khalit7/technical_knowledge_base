@@ -76,7 +76,7 @@ window.SIGNAMES=(function(){const n=['','SIGHUP','SIGINT','SIGQUIT','SIGILL','SI
   }
   if(document.getElementById('rd-term-card')){
     const A=RD.anim({card:'rd-term-card',ctl:'rd-term-ctl',n:ok.length,draw,ms:2300,label:'Step of the SIGTERM path'});
-    RD.seg(document.getElementById('rd-term-mode'),m=>{mode=m;A.reset(seqs[m].length);A.play()});
+    RD.seg(document.getElementById('rd-term-mode'),m=>{mode=m;A.reset(seqs[m].length)});
     RD.onResize(()=>A.redraw());
   }
 })();

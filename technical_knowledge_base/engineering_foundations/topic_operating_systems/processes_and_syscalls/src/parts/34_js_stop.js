@@ -1,6 +1,6 @@
-// ---- Shutdown lab: the ten recorded variants, a stop-time chart, and per-variant detail ----
+// ---- Reading 9: the ten recorded start-up variants (moved from the old Shutdown lab tab), a stop-time chart, and per-variant detail ----
 (function(){
-  if(!window.PD||!document.getElementById('t-stop'))return;
+  if(!window.PD||!window.RD||!document.getElementById('sd-table'))return;
   const V=[
     ['v1_exec','Exec form','CMD ["python", "train.py"]','python','Python is PID 1 and has a SIGTERM handler, so the kernel delivers the signal (a namespace init only drops signals that have no handler). It checkpoints and exits 0.'],
     ['v2_sh_c','sh -c, one command','sh -c "python train.py ..."','sh (dash)','Debian\'s dash 0.5.12 forks python instead of replacing itself, so PID 1 is the shell. It has no SIGTERM handler, so as a namespace init it drops SIGTERM, and it does not forward it. Python trains on until the SIGKILL at 10 s; the kernel kills the namespace.'],
@@ -19,7 +19,7 @@
   function table(){
     tb.innerHTML='<table class="tbl-sm"><thead><tr><th>Variant</th><th>PID 1</th><th class="num">docker stop, s (3 runs)</th><th class="num">exit code</th><th>Python got SIGTERM</th><th>Checkpoint</th></tr></thead><tbody>'+
       V.map(v=>{const r=runs(v[0]);return '<tr class="sd-row'+(v[0]===sel?' sel':'')+'" data-v="'+v[0]+'" tabindex="0"><td><b>'+v[1]+'</b></td><td>'+v[3]+'</td><td class="num">'+r.map(x=>x.stop_s.toFixed(2)).join(', ')+'</td><td class="num">'+[...new Set(r.map(x=>x.code))].join(', ')+'</td><td>'+r.filter(x=>x.got_signal>0).length+' of '+r.length+'</td><td>'+r.filter(x=>x.ckpt).length+' of '+r.length+'</td></tr>'}).join('')+
-      '</tbody></table><p class="small mute">Click a row for its process tree, log and explanation. "Python got SIGTERM" counts runs whose log has the handler\'s "got signal 15" line.</p>';
+      '</tbody></table><p class="small mute">Click a row, then open the block below for its process tree, log and explanation. "Python got SIGTERM" counts runs whose log has the handler\'s "got signal 15" line.</p>';
   }
   const det=document.getElementById('sd-det');
   function detail(){
@@ -33,11 +33,11 @@
       RD.seg(document.getElementById('sd-rep'),m=>{rep=+m;show()});
     };show();
   }
-  tb.addEventListener('click',e=>{const tr=e.target.closest('.sd-row');if(!tr)return;sel=tr.dataset.v;table();detail();chart()});
+  tb.addEventListener('click',e=>{const tr=e.target.closest('.sd-row');if(!tr)return;sel=tr.dataset.v;table();detail();chart();const dd=det.closest('details');if(dd)dd.open=true});
   tb.addEventListener('keydown',e=>{if(e.key==='Enter'){const tr=e.target.closest('.sd-row');if(tr){sel=tr.dataset.v;table();detail();chart()}}});
   const el=document.getElementById('sd-chart');
   function chart(){
-    const W=Math.max(300,el.clientWidth||Math.min(880,innerWidth-32)),lw=W<520?110:190,pw=W-lw-30,rh=20,h=V.length*rh+30,x=s=>lw+pw*s/11;
+    const W=Math.max(280,RD.width(el)),lw=W<520?110:190,pw=W-lw-30,rh=20,h=V.length*rh+30,x=s=>lw+pw*s/11;
     let b='<line x1="'+x(10)+'" x2="'+x(10)+'" y1="2" y2="'+(h-20)+'" stroke="var(--bad)" stroke-dasharray="4 3"/>'+RD.t(x(10),h-6,'10 s: SIGKILL',{a:'middle',fs:10,fill:'var(--bad)'});
     [0,2,4,6,8].forEach(t=>{b+='<line x1="'+x(t)+'" x2="'+x(t)+'" y1="2" y2="'+(h-20)+'" stroke="var(--line)"/>'+RD.t(x(t),h-6,t+' s',{a:'middle',fs:10,fill:'var(--mute)'})});
     V.forEach((v,i)=>{const y=6+i*rh,r=runs(v[0]),ck=r.every(q=>q.ckpt);
@@ -45,7 +45,5 @@
       r.forEach(q=>{b+='<circle cx="'+x(q.stop_s)+'" cy="'+(y+7)+'" r="4.5" fill="var(--'+(ck?'good':'bad')+')" opacity=".8"><title>'+v[1]+': '+q.stop_s+' s, exit '+q.code+'</title></circle>'})});
     el.innerHTML=RD.svg(W,h,b,'Seconds from docker stop to exit for each variant; green means a checkpoint was written')+'<div class="leg"><span style="--sw:var(--good)">checkpoint written</span><span style="--sw:var(--bad)">no checkpoint</span></div>';
   }
-  table();detail();
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-stop']=window.TAB_RENDER['t-stop']||[]).push(chart);
-  addEventListener('resize',()=>{if(!document.getElementById('t-stop').hidden)chart()});
+  table();detail();chart();RD.onRender(chart);RD.onResize(chart);
 })();

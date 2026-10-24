@@ -23,6 +23,21 @@ Scores: computable from real data (0-3, counts double in spirit), reproduces or 
 | PROC.13 | Processes and syscalls | **Shutdown lab**: ten real start-up variants x 3 runs | table, stop-time dot chart with the 10 s SIGKILL line, per-run process tree and log | Found two non-obvious failures: tini + shell kills Python in 0.3 s with no checkpoint; torchrun's killpg crashes the trainer through its DataLoader workers; and the fix | run_shutdown.sh | Own tab | 3+3+2+2+0 = 10 |
 | PROC.14 | Processes and syscalls | Predict-then-reveal drills (strace epoch, fork 1 GiB, stdio twice, signal coalescing, torchrun checkpoint, tini, zombies) | Answer, then see the measured result | Belief elicitation on the page's most counter-intuitive results | runs/out | Reading, labs | 8 |
 
+## Added and moved in the 2026-10-24 rebuild (teaching contract)
+| # | Idea | Kind (contract rule) | Placement |
+|---|---|---|---|
+| PROC.15 | **Hero**: the job's process tree above the system-call boundary; one trainer's kernel record below it, each part tagged with what fork, exec and a thread do | static annotated diagram (structure) | Reading top |
+| PROC.16 | **Shared or copied**: five resources as rows, fork / thread / vfork as three still frames | static diagram with a mode switch (threads against processes, owned here) | Reading 3 |
+| PROC.17 | **A signal's life**: generated, dropped if ignored, pending (bit or queue), blocked, delivered on return to user mode | static diagram (a process with no motion that matters) | Reading 6 |
+| PROC.18 | **Three tables** after open, fork and a second open, drawn by the FDSIM model so it matches the stepper | static diagram | Reading 7 |
+| PROC.19 | **The DataLoader's processes**: main, two forked workers, queues, SIGCHLD, watchdog, numbered to the five stages | static diagram | Reading 9 |
+| moved | PROC.11 descriptor stepper merged with PROC.10 (one stepper, every preset, your own script) | stepper | Process lab tab to Reading 7 |
+| moved | PROC.12 tree simulator | stepper with a model | Process lab tab to Reading 5 |
+| moved | PROC.13 ten start-up variants | dot chart plus table, per-run detail closed | Shutdown lab tab to Reading 9 |
+| changed | every animation now waits on step 0 (skill template); mode switches no longer start playback | | all |
+
+Real images: none. The page is about mechanisms (kernel records, calls, signals, descriptors); there is no physical object a photo would make concrete, and the real artefacts it shows (/proc text, strace lines, gdb disassembly, container logs) are embedded as text.
+
 ## Rejected
 | Idea | Why |
 |---|---|
