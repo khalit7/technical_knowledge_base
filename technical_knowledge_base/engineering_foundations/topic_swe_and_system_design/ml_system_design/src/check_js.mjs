@@ -1,7 +1,7 @@
 // Compare the page's JS models with recompute_out.json (written by recompute.py). Run from src/: node check_js.mjs
 import fs from 'fs'; import vm from 'vm';
 const ctx={window:{},Math,console,document:{getElementById:()=>null}};vm.createContext(ctx);
-for(const f of ['parts/31_js_gw_model.js','parts/24_js_rd_prefix.js'])vm.runInContext(fs.readFileSync(f,'utf8'),ctx);
+for(const f of ['parts/31_js_gw_model.js','parts/24_js_rd_prefix.js','parts/29_js_rd_lat.js'])vm.runInContext(fs.readFileSync(f,'utf8'),ctx);
 const G=ctx.window.MSD_GW,R=JSON.parse(fs.readFileSync('recompute_out.json','utf8'));
 let n=0,bad=0;
 function cmp(a,b,path){if(typeof b==='object'&&b!==null){for(const k of Object.keys(b))cmp(a==null?undefined:a[k],b[k],path+'.'+k);return}
@@ -10,5 +10,6 @@ function cmp(a,b,path){if(typeof b==='object'&&b!==null){for(const k of Object.k
 cmp(G.run(G.D),R.gw.default,'gw.default');
 for(const k of Object.keys(G.PRESETS)){cmp(G.run(Object.assign({},G.D,G.PRESETS[k])),R.gw[k],'gw.'+k)}
 for(const md of ['before','after'])cmp(ctx.window.MSD_PREFIX.turns(md),R.prefix[md],'prefix.'+md);
+for(const n of Object.keys(R.latency))cmp(ctx.window.MSD_LAT.e2e(+n),R.latency[n],'latency.'+n);
 R.gw_random.forEach((x,i)=>cmp(G.run(x.p),x.r,'gw_random.'+i));
 console.log('compared',n,'numbers; differences',bad);process.exit(bad?1:0);

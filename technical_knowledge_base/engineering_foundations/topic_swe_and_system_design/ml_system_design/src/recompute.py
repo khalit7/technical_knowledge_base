@@ -23,6 +23,8 @@ out['interview'] = m.interview_example()
 print('interview example:', out['interview'])
 out['cost_compare'] = m.cost_per_request_compare()
 out['self_cost_per_m_out'] = m.self_cost_per_out_token() * 1e6
+out['latency'] = {str(n): m.latency_e2e(n) for n in (1, 2, 100, 400, 800, 1500)}
+print('latency e2e:', out['latency'])
 json.dump(out, open('recompute_out.json', 'w'), indent=0)
 print('gateway:')
 for k, v in out['gw'].items():

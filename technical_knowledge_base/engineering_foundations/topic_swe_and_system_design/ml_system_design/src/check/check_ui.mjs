@@ -15,7 +15,16 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const bad = async (where) => { const r = await p.evaluate(() => { const t = document.body.innerText; return { nan: /\bNaN\b|undefined|Infinity/.test(t), side: document.documentElement.scrollWidth > innerWidth } });
     if (r.nan || r.side) { problems++; console.log('PROBLEM', scheme, width, where, JSON.stringify(r)) } };
   const shot = async (sel, name) => { const el = await p.$(sel); if (el) { await el.scrollIntoView(); await el.screenshot({ path: path.join(out, name + '-' + scheme + '-' + width + '.png') }) } };
-  await shot('#rd-arch', 'arch');
+  for (const id of ['rd-hero', 'rd-ladder', 'rd-gaps', 'rd-llmlad', 'rd-arch']) await shot('#' + id, id.slice(3));
+  await shot('#rd-one', 'top');
+  for (const m of ['before', 'after']) { await p.click(`#rd-skew-seg button[data-m=${m}]`); await bad('skew ' + m); await shot('#rd-skew-card', 'skew-' + m) }
+  for (const v of [1, 400, 1500]) { await p.$eval('#rd-lat-n', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); await bad('lat ' + v) }
+  await shot('#rd-lat-svg', 'lat'); await p.$eval('#rd-lat-n', e => { e.value = 400; e.dispatchEvent(new Event('input')) });
+  // nothing may move before the reader acts: the stepper and the prefix animation sit on step 0
+  const s0 = await p.evaluate(() => [document.getElementById('rd-fb-ctl-s').value, document.getElementById('rd-pc-ctl-s').value]);
+  if (s0.join() !== '0,0') { problems++; console.log('PROBLEM autoplay', s0) }
+  for (let i = 0; i < 4; i++) { await p.$eval('#rd-fb-ctl-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i); await bad('fb ' + i); if (i === 2 || i === 3) await shot('#rd-fb-card', 'fb-' + i) }
+  await p.$$eval('details.dp', ds => ds.forEach(d => d.open = true)); await bad('details open'); await p.$$eval('details.dp', ds => ds.forEach(d => d.open = false));
   for (const m of ['before', 'after']) { await p.click(`#rd-pc-seg button[data-m=${m}]`);
     for (const i of [0, 3, 5]) { await p.$eval('#rd-pc-ctl-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i); await bad('pc ' + m + ' ' + i) }
     await shot('#rd-pc-card', 'pc-' + m) }

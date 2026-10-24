@@ -42,6 +42,6 @@ window.MSD_PREFIX=(function(){
       RD.stat('Cost this turn','$'+t.cost.toFixed(4),'input and 400 output tokens')+
       RD.stat('Conversation so far','$'+t.cum.toFixed(4),t.cumTok.toLocaleString('en-US')+' tokens processed')}
   const A=RD.anim({card:'rd-pc-card',ctl:'rd-pc-ctl',n:M.TURNS,draw,ms:1500,label:'Turn'});
-  RD.seg(document.getElementById('rd-pc-seg'),m=>{mode=m;A.reset(M.TURNS);A.play()});
+  RD.seg(document.getElementById('rd-pc-seg'),m=>{mode=m;A.reset(M.TURNS)});
   RD.onResize(()=>A.redraw());
 })();

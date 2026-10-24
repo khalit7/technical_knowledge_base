@@ -286,3 +286,8 @@ def interview_example(tenants=10000, msgs_per_tenant_day=500, peak=3, tin=3000, 
     return dict(msgs_day=msgs_day, avg_rps=avg_rps, peak_rps=peak_rps, peak_out_tps=peak_out_tps, gpus=gpus_even,
                 replicas=gpus_even // 2, self_day=self_day, api_req=api_req, api_day=api_req * msgs_day,
                 api_req_cached=api_req_cached, api_day_cached=api_req_cached * msgs_day, concurrent_peak=concurrent_peak)
+
+
+def latency_e2e(n_out, prefill_s=PREFILL_S, batch=64):
+    """section 4's latency bar: TTFT (prefill, empty queue) plus (n - 1) x TPOT, TPOT = batch / replica tokens per second"""
+    return prefill_s + (n_out - 1) * batch / REP_TPS
