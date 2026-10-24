@@ -34,7 +34,7 @@
   RD.seg($('ev-c-met'),m=>{st.m=m;draw()});RD.seg($('ev-c-y'),m=>{st.y=m;draw()});
   $('ev-c-n').addEventListener('input',e=>{st.ni=+e.target.value;rank()});
   $('ev-c-strips').innerHTML=E.sets.map(s=>'<div><b style="color:'+s.color+'">'+RD.esc(s.label)+'</b><img src="'+s.strip3+'" alt="'+RD.esc(s.label)+'"></div>').join('');
-  $('ev-c-gen').innerHTML='<thead><tr><th>Set</th><th>How it was made</th><th class="num">sampling time, 10,000 images</th><th class="num">FD (classifier), 1,000 balanced, cross-check</th><th class="num">the lab\'s value</th></tr></thead><tbody>'+
+  $('ev-c-gen').innerHTML='<thead><tr><th>Set</th><th>How it was made</th><th class="num">sampling time, 10,000 images</th><th class="num">FD (classifier), 1,000 balanced, cross-check</th><th class="num">the original run\'s value</th></tr></thead><tbody>'+
     E.sets.map(s=>'<tr><td style="color:'+s.color+'">'+RD.esc(s.short)+'</td><td>'+RD.esc(s.what)+'</td><td class="num">'+(s.sec!=null?fmt(s.sec,0)+' s':'n/a')+'</td><td class="num">'+fmt(s.fd1k,1)+'</td><td class="num">'+(s.lab||'')+'</td></tr>').join('')+'</tbody>';
   (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-evcmp']=window.TAB_RENDER['t-evcmp']||[]).push(draw);
   addEventListener('resize',()=>{const tb=$('t-evcmp');if(tb&&!tb.hidden)draw()});
