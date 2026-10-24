@@ -22,6 +22,7 @@ Scores: the methodology's questions, 0 to 2 each: a quantity the reader moves (M
 | P-qlora.14 | Tables 3 and 4 as deltas from the 16-bit reference | Reading, Results | 1 1 2 1 1 2 0 0 | 10 | built | recomputed means: NF4 + DQ 52.99 against BF16 53.04 |
 | P-qlora.15 | Every checkable number checked (memory, Elo arithmetic, table arithmetic, Table 8 weighting, 1833) and every table sortable | Tables tab | 0 2 2 1 2 1 1 0 | 12 | built | recompute.py, recompute_eval.py |
 | P-qlora.16 | Shapiro-Wilk rerun on whole LLaMA-7B matrices | Quantiser tab, Reading NF4 | 0 2 2 1 2 1 2 0 | 13 | built | 5.9 to 6.5% in middle layers (paper 7.5%), 76 to 93% at the first and last |
+| P-qlora.19 | **Hero: the paper's Figure 1** (full finetuning, LoRA, QLoRA; paging to CPU), embedded under CC BY 4.0 | Reading, top | 0 2 2 2 1 2 0 1 | 14 | built 2026-10-25 | img/fig1_finetuning_memory.webp, credited in img/CREDITS.md |
 
 Rejected:
 

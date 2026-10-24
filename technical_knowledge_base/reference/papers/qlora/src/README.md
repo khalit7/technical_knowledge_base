@@ -35,7 +35,7 @@ All commands from `src/`; caches go to `$QLORA_CACHE` (default `/tmp/qlora_cache
 | `node check_page.mjs` (from the repo root) | every control in both themes and widths, a prompt bootstrap per judge, both animations stepped | console |
 | `mk_coverage.py` | every fact of `live.md` checked against the built page | `coverage.json` |
 
-Parts: `00_top`, `01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs` and `build.sh` come from the reference folder (via LoRA); `22_js_engine.js` is the engine (codes, quantise, DQ, tournament decoding, Elo, bootstrap, Table 6), loaded by node for the checks; `13_js_read.js`, `23_js_quant.js`, `24_js_eval.js`, `25_js_tables.js` draw the tabs.
+Parts: `00_top`, `01_css`, `05z_errbox`, `10_js_common`, `11_js_ui` and `build.sh` come from the reference folder (via LoRA); `99_js_tabs.js` is the explainer-page template (storage key `ql-tab`, a `data-to` link opens the closed block that holds its target); `22_js_engine.js` is the engine (codes, quantise, DQ, tournament decoding, Elo, bootstrap, Table 6), loaded by node for the checks; `13_js_read.js`, `23_js_quant.js`, `24_js_eval.js`, `25_js_tables.js` draw the tabs.
 
 ## Honesty notes
 
@@ -43,3 +43,15 @@ Parts: `00_top`, `01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs
 - The paged-optimizer animation's activations are an illustrative formula; only the static parts are the paper's figures.
 - The human Elo uses one match per three-worker comparison (majority, no majority = tie), which reproduces Table 7 more closely than one match per vote; both are selectable.
 - "huggingchat-33b" standing in for the Open Assistant 33B row of Table 6 is our inference from the file name.
+
+## Light pass, 2026-10-25 (teaching contract)
+
+- **Top**: the core sentence, the hero (the paper's own Figure 1, full finetuning against LoRA against QLoRA with paging to CPU; the paper is CC BY 4.0, so the figure is embedded from `img/fig1_finetuning_memory.webp` and credited, see `img/CREDITS.md`), You need (LoRA paper page, PEFT, Quantisation and precision) and New terms (NF4, DQ, paged optimizer, storage and computation type, Guanaco).
+- **Owned elsewhere**: the general blockwise absmax recipe is now one sentence plus a link to Quantisation and precision, keeping what QLoRA did with it (B = 64); LLM-judge biases in general link to LLM-as-judge, while this paper's numbers (τ 0.43, κ 0.25 and 0.42, Elo 1,348 against 1,176) stay.
+- **Moved into closed `<details>`** (nothing deleted but fat): Eq. 4 against the released code with the offset slider (one sentence stays), the Shapiro-Wilk rerun (one sentence stays), the FP8 against dynamic-map correction, the small-model experiments box, the 26 GB Alpaca correction, Table 6's duplicated row, the 1833 correction (joined the lemons block, with a one-sentence summary in the core), Table 8's weighting and the rest of section 9, the list of inconsistencies, the Guanaco 65B script settings, and a dated adoption block (framework support). In the Tables tab, the full claims list and the figure values are closed blocks; the sortable table browser stays open.
+- **No autoplay**: `makeAnim` (11_js_ui.js) waits on step 1, also after a mode switch; `check_page.mjs` fails if `qb` or `pg` draws a frame before play or on a mode switch, and now opens every closed block before auditing a tab. Header: "Reading: 25 min, plus 8 in closed details." (`reading.json`, from audit_pages.mjs).
+- **Length**: Reading core 28 min before (6,374 words) plus 3 closed, 25 after (5,649) plus 8 closed; other tabs 20 min before, 12 core plus 8 closed after (the Tables tab went from 2,106 words open to 295 open and 1,819 closed). What stays open is the paper's argument in its order (problem, the one equation, NF4, DQ, paging, all-layer LoRA, the 4-bit against 16-bit results, Guanaco, how the chatbots were judged, limits, the evidence judgement, use, why it matters), which this page owns; the two live tabs stay because each is a tool the whole Reading tab points into.
+- **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 269 units, core 208, depth 54, owned 3, volatile 1, fat 3 (the old reading-time line, the tab labels, the old "stops off screen" autoplay note); `ledger.py check` problems 0.
+- `mk_coverage.py`: the reading-time item now looks for the new header line; 47 of 47.
+
+Rechecked 2026-10-25: `checkpage.sh` 5 tabs, 305 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 388 actions, 0 problems; `check_engine.mjs` PASS; `mk_coverage.py` 47 of 47.

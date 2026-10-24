@@ -9,7 +9,7 @@ txt = html.unescape(re.sub(r'<[^>]+>', ' ', raw))
 txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
- ('Reading time line "7 min read, +~3h 20m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "7 min read, +~3h 20m resources"', 'dropped: replaced by the measured reading time in the header (2026-10-25)', ['Reading:', 'in closed details']),
  ('Authors/lab: Dettmers, Pagnoni, Holtzman, Zettlemoyer (University of Washington)', R + ', headline card', ['Tim Dettmers*', 'Artidoro Pagnoni*', 'Ari Holtzman', 'Luke Zettlemoyer', 'University of Washington']),
  ('Date: May 2023', R + ', headline card', ['23 May 2023']),
  ('Links: arXiv 2305.14314 (~45 min); code artidoro/qlora (~20 min); bitsandbytes (~20 min)', 'card and Further reading', ['https://arxiv.org/abs/2305.14314', '(45 min)', 'https://github.com/artidoro/qlora', 'bitsandbytes', '(20 min)']),
