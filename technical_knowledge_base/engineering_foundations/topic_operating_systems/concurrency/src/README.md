@@ -51,3 +51,6 @@ Why 34 minutes is right: the page teaches ten mechanisms (threads, races and ato
 - The lost-update stepper's values (41, 42, 43) are illustrative; the root measured the race at full speed.
 - The futex animation's 3 µs time slice and 1 µs adaptive spin limit are illustrative; its other costs are measured.
 - GPU-side threads (NCCL, ProcessGroupNCCL watchdog) are from source only.
+
+## Topic close (2026-10-24)
+Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.
