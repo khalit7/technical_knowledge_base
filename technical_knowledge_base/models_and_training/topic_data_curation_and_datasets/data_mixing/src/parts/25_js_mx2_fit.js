@@ -1,4 +1,4 @@
-// ---- Mixing-law fitter tab (t-fit): linear and exponential mixing laws fitted in the browser on RegMix's released runs ----
+// ---- Reading 3c: the mixing-law fitter (moved from its own tab): linear and exponential mixing laws fitted in the browser on RegMix's released runs ----
 (function(){
   const D=window.MX2.regmix, $=id=>document.getElementById(id), esc=RD.esc, DOM=D.domains, J=DOM.length;
   const NICE={pile_cc:'Pile-CC',github:'GitHub',arxiv:'ArXiv',wikipedia_en:'Wikipedia',stackexchange:'StackExchange',freelaw:'FreeLaw',pubmed_central:'PubMed Central',nih_exporter:'NIH ExPorter',dm_mathematics:'DM Mathematics',philpapers:'PhilPapers',enron_emails:'Enron Emails',gutenberg_pg_19:'Gutenberg',ubuntu_irc:'Ubuntu IRC',europarl:'EuroParl',hackernews:'HackerNews',pubmed_abstracts:'PubMed Abstracts',uspto_backgrounds:'USPTO'};
@@ -75,5 +75,8 @@
   $('mx2-fit-tgt').addEventListener('change',draw);$('mx2-fit-model').addEventListener('change',draw);$('mx2-fit-n').addEventListener('change',draw);
   $('mx2-fit-n').addEventListener('input',()=>{$('mx2-fit-nv').textContent=$('mx2-fit-n').value});
   RD.seg($('mx2-fit-test'),m=>{test=m;draw()});
-  let drawn=false;RD.onRender(()=>{drawn=true;draw()},'t-fit');RD.onResize(draw,'t-fit');
+  // the fits cost a few hundred ms: draw the first time the card comes near the screen, then on tab render and resize
+  let drawn=false;const first=()=>{if(!drawn){drawn=true;draw()}};
+  if('IntersectionObserver' in window){const io=new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting)){io.disconnect();first()}},{rootMargin:'300px'});io.observe($('mx2-fit-card'))}else first();
+  RD.onRender(()=>{if(drawn)draw()});RD.onResize(()=>{if(drawn)draw()});
 })();
