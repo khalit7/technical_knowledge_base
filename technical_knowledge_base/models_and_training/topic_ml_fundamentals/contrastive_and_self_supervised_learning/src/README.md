@@ -1,15 +1,39 @@
 Source of the interactive HTML on the Notion page "Contrastive and self-supervised learning" (child of Topic: ml-fundamentals).
 
-Build: `python3 mk_data.py` (only when `inputs/` change), then `sh build.sh` writes `../index.html`.
+Build: `python3 mk_data.py` (only when `inputs/` change), then `sh build.sh` writes `../index.html`. The header's reading time comes from `rtime.txt` (core minutes, closed minutes), updated by hand from `node html_utils/audit_pages.mjs` after a build.
 
-Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (a child page). Reading follows the subject's own logic: in one screen (families compared), the pairing is the label (pretext tasks to instance discrimination), InfoNCE (gradient, batch and the MI bound, false and hard negatives, the SimCLR recipe), alignment and uniformity (circle animation), without negatives (BYOL, SimSiam, DINO, DINOv2/v3, Barlow Twins, VICReg), masked modelling and JEPA (MAE against I-JEPA animation on a real photo), the objective makes the embedding model (pooling table), family tree, common mistakes. Tabs: One real batch, Collapse lab, Further reading. The parent's comparison and "Everything is cross entropy" thread, the CLIP paper page's toy batch and softmax-against-sigmoid, and the BERT and ViT paper pages' toys are linked, not rebuilt. No departure from the method.
+Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (a child page), rebuilt 2026-10-24 to the teaching contract. Tabs: Reading (every visual inline) and Further reading.
+
+## The 2026-10-24 rebuild: what changed and why
+- **Top**: the core sentence (two views must land close; something must stop the constant answer; the families differ only in that something), a hero (`25_js_rd_hero.js`: the first 8 real STS-B pairs as a cosine matrix, BERT before and SimCSE after, diagonal outlined), You need, new terms, the families table.
+- **Triplet loss in depth (new, this page owns it)**: Hadsell's margin loss, FaceNet's triplet loss with its sourced numbers (margin 0.2, semi-hard definition, about 1,800 exemplars per batch and 40 faces per identity, the collapse quote, LFW 99.63%), and a new lab on the real batch (`26_js_rd_trip.js`: one anchor's 47 negatives on a squared-distance axis with hard, semi-hard and easy zones; margin slider; batch counts: 21 of 2,256 triplets active at 0.2 under BERT, 1 after SimCSE). Then the derived tau to 0 limit (InfoNCE becomes a margin-free hinge on the hardest negative) and the link to Loss functions' ranking section (ListNet top-one = InfoNCE).
+- **Tabs moved inline**: One real batch became the InfoNCE section's lab (temperature, batch, gradient bars); its STS table moved to the CLIP and embeddings section. The Collapse lab became the collapse section's lab, its three-seed table and honesty note in a closed block. Both explained one mechanism each.
+- **New two-branch diagram** (`27_js_rd_arch.js`, a toggle-compare of one static diagram): SimCLR, MoCo, BYOL, SimSiam, DINO, VICReg, with a comparison table; SimCLR's recipe and MoCo (queue, momentum update) sit under it.
+- **CLIP** gets its own paragraph as InfoNCE across modalities (symmetric, 32,768 pairs, learned temperature); CLIP as an encoder is linked to Vision encoders.
+- **No autoplay**: `21_js_rd_common.js` and `99_js_tabs.js` are the skill templates (storage key `cs-tab`); the page's helpers moved to `22_js_rd_fmt.js` (PF); mode switches no longer start an animation. `check_page.mjs` asserts every animation is still on step 0 after scrolling the page (also under reduced motion).
+- **Closed depth**: pretext tasks, SimSiam's batch and epoch numbers, DINO's centre momentum with DINOv2 and DINOv3, V-JEPA and the JEPA origin, the pooling table with the Qwen3 correction and BERT-flow, the family tree, and the collected mistakes (each already shown in the core).
+- **Images**: none added. The page is about mechanisms; the MAE section already uses a real photograph with real reconstructions. Paper figures (DINO attention maps) carry the arXiv default licence, not reusable.
+
+## Length judgement
+| | Before (2026-10-23 audit) | After (2026-10-24) |
+|---|---|---|
+| Reading, core | 22.2 min (5,103 words) | 26.7 min (6,134 words) |
+| Reading, closed details | 1.0 min | 8.1 min |
+| Other tabs, core | One real batch 4.3 + Collapse lab 3.5 = 7.8 min | none |
+| Core total, excluding Further reading | 30.0 min | 26.7 min |
+| Visuals in Reading | 5 | 13 |
+
+Why 27 minutes is right: the core now carries what two lab tabs held, plus two units this page owns and did not teach (the triplet loss in depth, and the six two-branch designs side by side), and still comes out 3 minutes shorter than the old core total. About a fifth of the core words are the labs' own captions, counters and sentence labels. Per-item tables, lineage, published ablation numbers and the mistakes list are closed.
+
+## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
+259 units: core 191, depth 28, fat 40. 238 were drafted from the old page by `ledger.py init`; 21 were added by hand for the new triplet content and for script-rendered tables (STS table, collapse table, family tree), whose keys sit in static captions. Fat units carry a `note` (fragments merged into a neighbour, wind-ups, pointers to removed tabs, instructions replaced by predict prompts).
 
 Files:
-- `parts/`: HTML and one JS part per visual. `20_js_data.js` is generated by `mk_data.py`; `30_js_batch.js` holds the InfoNCE maths (`CSI`).
+- `parts/`: `20_read_a` to `20_read_d` (Reading), `39_tab_more.html`; one JS part per visual. `20_js_data.js` is generated by `mk_data.py`; `30_js_batch.js` holds the InfoNCE maths (`CSI`); `26_js_rd_trip.js` exposes `CS_TRIP` (batch triplet counts) for the check.
 - `real_embeddings.py`: STS-B test cosines, Spearman, alignment, uniformity and mean cosine for BERT-base and unsup-SimCSE-BERT-base under several poolings, and the 48-pair batch. `OMP_NUM_THREADS=2 HF_HUB_OFFLINE=1 uv run --with torch --with transformers --with pandas --with pyarrow python real_embeddings.py` (about 3 minutes).
 - `real_mae.py`: facebook/vit-mae-base on scikit-image's "chelsea" at 50, 75 and 90% masking. `... uv run --with torch --with transformers --with scikit-image --with pillow python real_mae.py`.
 - `train_toy.py`: the digit toys, `sphere` (2-D, three runs) and `collapse` (16-d, eleven runs), three seeds each, 3,000 steps. `OMP_NUM_THREADS=2 uv run --with torch --with scikit-learn --with numpy python train_toy.py sphere|collapse` (about 2 and 10 minutes). `raw_knn.py`: the raw-pixel baseline.
 - `inputs/`: `real_batch.json`, `mae.json`, `toy_sphere.json`, `toy_collapse.json`, `raw_knn.json`, `collapse_about.html` (the Collapse lab's honesty note).
-- `check_core.mjs` + `recompute.py`: the page's InfoNCE losses, top-1, gradients and hardest-negative shares against PyTorch cross_entropy and autograd, every number quoted in the text, the published Spearman figures, derived constants. `node check_core.mjs && OMP_NUM_THREADS=2 uv run --with torch --with numpy --with scipy python recompute.py` (158 checks, 0 failures; results in `check/`).
-- `check_page.mjs`: drives every control and every animation step at 390 and 920 px in headless Chrome; fails on script errors, NaN, undefined or Infinity.
-- `mk_coverage.py` writes `coverage.json` (every fact of `live.md`, checked to appear in the page). `viz_ideas.md`: ranked ideas. `rtime.py`: header reading time.
+- `check_core.mjs` + `recompute.py`: the page's InfoNCE losses, top-1, gradients and hardest-negative shares against PyTorch cross_entropy and autograd, every number quoted in the text, the published Spearman figures, derived constants. `node check_core.mjs && OMP_NUM_THREADS=2 uv run --with torch --with numpy --with scipy python recompute.py` (169 checks, 0 failures, now including the hero means and the triplet counts; results in `check/`).
+- `check_page.mjs`: drives every control and every animation step at 390 px dark with reduced motion and 920 px light; checks no animation moves by itself, the triplet counts against `recompute.py`, sideways scroll; fails on script errors, NaN, undefined or Infinity (258 checks, 0 errors).
+- `mk_coverage.py` writes `coverage.json` (every fact of `live.md`, checked to appear in the page). `viz_ideas.md`: ranked ideas.

@@ -22,3 +22,10 @@ Departures: CS3's toy is not tuned per method except DINO's teacher momentum (0.
 
 Rule proposed for section 2: when a page claims a defence prevents a failure, ablate the defence on one shared toy with several seeds and show the failure's own measure (std, entropy), not a downstream accuracy that a degenerate solution can still partly pass.
 What the methodology lacked here: guidance for pooling conventions that share a name (BERT "first-last avg." is two different poolings in two cited tables); recompute both and say which reproduces which.
+
+## 2026-10-24 rebuild
+- Built: hero cosine matrix, 8 real pairs, BERT against SimCSE (before/after on the same batch; the brief's suggestion). Inline.
+- Built: triplet zones on the real batch with a margin slider (one widget, one variable; defaults on FaceNet's 0.2). Inline.
+- Built: two-branch diagram toggled across six designs (static structure, toggle-compare). Inline.
+- Moved inline: One real batch (InfoNCE lab) and Collapse lab; each explained one mechanism.
+- Rejected: a stepper per design (the six differ in structure, not in order of operations); a real image of a paper figure (arXiv default licence; the MAE section already shows a real photo).

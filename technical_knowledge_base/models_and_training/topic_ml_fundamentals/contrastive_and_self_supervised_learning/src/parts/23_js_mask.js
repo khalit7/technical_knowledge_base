@@ -50,7 +50,7 @@
   const A=RD.anim({card:'mk-card',ctl:'mk-ctl',n:6,draw,ms:2600,label:'Masked modelling step'});
   function seg(id,key){$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st[key]=b.dataset.v;
     [...$(id).querySelectorAll('button')].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});
-    $('mk-r').style.display=st.m==='mae'?'':'none';A.reset(6);A.play()})}
+    $('mk-r').style.display=st.m==='mae'?'':'none';A.reset(6)})}
   seg('mk-m','m');seg('mk-r','r');
   $('mk-losses').textContent=['0.5','0.75','0.9'].map(k=>M.ratios[k].loss.toFixed(4)).join(', ');
 })();

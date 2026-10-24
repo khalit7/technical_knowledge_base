@@ -61,9 +61,9 @@
       '<tr><td>Raw pixels, no training</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">'+(100*T.raw_knn).toFixed(0)+'</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">n/a</td></tr>';
     $('cl-about').innerHTML=T.about;
   }
-  const A=RD.anim({card:'cl-card',ctl:'cl-ctl',n:S.length,draw,ms:900,label:'Training snapshot',tab:'t-collapse'});
+  const A=RD.anim({card:'cl-card',ctl:'cl-ctl',n:S.length,draw,ms:900,label:'Training snapshot'});
   $('cl-pair').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.p=PAIRS[+b.dataset.i];
-    [...$('cl-pair').querySelectorAll('button')].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});A.reset(S.length);A.play()});
+    [...$('cl-pair').querySelectorAll('button')].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});A.reset(S.length)});
   table();
   addEventListener('resize',()=>{if(card.offsetParent)A.redraw()});
 })();
