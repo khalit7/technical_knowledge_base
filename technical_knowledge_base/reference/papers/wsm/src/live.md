@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c7
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"WSM: Decay-Free Learning Rate Schedule via Checkpoint Merging for LLM Pre-training","Takeaway":"Proves checkpoint merging is algebraically equivalent to LR decay (merge weights invert to per-step gradient weights), so a constant LR plus a weighted merge of the last n checkpoints emulates cosine, linear, or 1-sqrt decay with no decay phase at all; beats a matched WSD anneal by \\~1.3 points on a 16.3B MoE, with merge duration the dominant hyperparameter and EMA merging the worst.","Topics":["llm-training-and-post-training","ml-fundamentals"],"Year":"2025","url":"https://app.notion.com/p/3c75c17b0d0d8105b452d2c1bc1d087a"}
+{"Paper":"WSM: Decay-Free Learning Rate Schedule via Checkpoint Merging for LLM Pre-training","Takeaway":"Shows that a weighted merge of the last n checkpoints applies a synthetic decay schedule to the updates since the oldest (exact for the updates taken, only approximately a run that really decayed), so a constant LR plus merging can emulate linear, cosine or 1-sqrt decay with no decay phase; on a 16.3B MoE it beat a WSD anneal by about 1 point (+1.28 best checkpoint against best, +1.18 at matched tokens, one run per arm), with merge duration the dominant hyperparameter and EMA the weakest merge.","Topics":["llm-training-and-post-training","ml-fundamentals"],"Year":"2025","url":"https://app.notion.com/p/3c75c17b0d0d8105b452d2c1bc1d087a"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

@@ -17,6 +17,8 @@ The question the paper keeps returning to: does averaging a flat-LR run's checkp
 | P-wsm.11 | Figures 8 and 9 (condition number, SVD entropy) rebuilt | | | | rejected: secondary claims, not part of the argument; described in one sentence |
 | P-wsm.12 | Figure 6 t-SNE map | | | | rejected: t-SNE coordinates carry no metric meaning; the river-valley animation teaches the same picture honestly |
 | P-wsm.13 | A toy language model (transformer on text) instead of the MLP | | | | rejected: the claim under test is about optimisation noise and averaging, which the MLP shows with eight seeds in 20 s; a toy LM would add cost and no new mechanism. Its limits are stated on the tab |
-| P-wsm.14 | Then and now tab | | | | rejected: a 2025 result paper; "Why it matters" carries the adoption (Ling 2.0) and prior art (DeepSeek-V3 EMA, Llama 3 averaging) |
+| P-wsm.14 | Then and now tab | | | | rejected: a 2025 result paper; "Why it matters" carries the adoption (Ling 2.0, in a dated closed block since 2026-10-25) and prior art (DeepSeek-V3 EMA, Llama 3 averaging) |
+| P-wsm.15 | Hero (2026-10-25): ten equal merge weights drawn as the linear decay they apply, beside the matched-token result (flat 60.32, WSD 62.67, merge 63.85) | static SVG, `14b_js_hero.js`, numbers from window.PAPER.rc | | | built (light pass) |
+| P-wsm.16 | The paper's Figure 1 or 2 embedded as the hero | | | | rejected: arXiv non-exclusive licence (not CC BY); both are redrawn on the page |
 
 What the methodology lacked here: a rule for "best checkpoint" comparisons. When a paper picks each arm's best point on the reported benchmarks, rebuild the curve, count each arm's candidates, and restate the comparison at a matched budget; here the matched restatement reversed one of the paper's rankings. Also useful: a vector figure's tick labels can be too coarse to calibrate on (Figure 10 prints integers twice), in which case only its printed labels are transcribed.

@@ -11,7 +11,7 @@ def txt(x):
     x = html.unescape(x)
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
 a = s.index('<article'); b = s.index('</article>')
-open('inputs/paper_v2.txt', 'w').write('Source: https://arxiv.org/html/2507.17634v2 (extracted by extract_paper.py)\n\n' + txt(s[a:b]))
+open('inputs/paper_v2.txt', 'w').write('Source: https://arxiv.org/html/2507.17634v2 (extracted by extract_paper.py)\n\n' + re.sub(r'[\w.+-]+@[\w-]+(\.[\w-]+)+', '[email removed]', txt(s[a:b])))  # author emails redacted
 for tid in ['S4.T2', 'S4.T3', 'S4.T4', 'S4.T5', 'A1.T6', 'A5.T7', 'A5.T8', 'A5.T9']:
     m = re.search(r'<figure[^>]*id="' + re.escape(tid) + r'".*?</figure>', s, re.S)
     open('inputs/table_' + tid.replace('.', '_') + '.txt', 'w').write('Source: https://arxiv.org/html/2507.17634v2#' + tid + '\n\n' + txt(m.group(0)))

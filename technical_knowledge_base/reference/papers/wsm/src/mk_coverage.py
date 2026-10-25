@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header and links
- ('Reading time line "8 min read, +~1h 30m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "8 min read, +~1h 30m resources"', 'dropped: replaced by the header line "Reading: N min, plus M in closed details" (2026-10-25)', ['Reading:', 'in closed details']),
  ('Authors: Tian, Wang, Zhao, Chen, Liu, Liu, Mao, Zhao, Zhang, Zhou', R + ', headline card', ['Changxin Tian', 'Jiapeng Wang', 'Qian Zhao', 'Kunlong Chen', 'Jia Liu', 'Ziqi Liu', 'Jiaxin Mao', 'Wayne Xin Zhao', 'Zhiqiang Zhang', 'Jun Zhou']),
  ('Affiliations: Ling Team, Ant Group; Gaoling School of AI, Renmin University', R + ', headline card', ['Ling Team, Ant Group', 'Gaoling School of Artificial Intelligence, Renmin University']),
  ('Dates: arXiv 23 July 2025, v2 11 August 2025; added to the KB 2026-08-31 on request', R + ', headline card', ['v1 23 July 2025', 'v2 11 August 2025', '2026-08-31 on request']),
@@ -22,8 +22,8 @@ C = [
  ('Concurrent empirical take: Li et al. 2025 (WMA/SMA/EMA heuristics), reference 36', 'Further reading; Method', ['https://arxiv.org/abs/2505.12082', 'WMA, SMA and EMA']),
  # problem
  ('Every mainstream LR schedule ends in a decay phase, where the scheduling pain lives', R + ', Problem', ['Every mainstream learning-rate (LR) schedule ends in a decay phase, and the decay phase is where the scheduling pain lives']),
- ('Cosine needs the total token count up front; extending means restarting to recalibrate', R + ', Problem; schedule chart', ['Extending a run means restarting to recalibrate the curve']),
- ('WSD inserts a plateau but needs decay start, length, function; extending after decay began needs rollback and redesign', R + ', Problem; schedule chart', ['decay start', 'the decay length and the decay function', 'rolling back to the pre-decay state and redesigning the anneal']),
+ ('Cosine needs the total token count up front; extending means restarting to recalibrate', R + ', Problem; schedule chart', ['extending a run means restarting to recalibrate the curve']),
+ ('WSD inserts a plateau but needs decay start, length, function; extending after decay began needs rollback and redesign', R + ', Problem; schedule chart', ['decay start', 'pick the decay start, length and function', 'rolling back to the pre-decay state and redesigning the anneal']),
  ('So WSD is not a fully autonomous, continuously extendable process', R + ', Problem', ['not a fully autonomous, continuously extendable training process']),
  ('Prior decay-free work (schedule-free, EWA averaging) mostly aimed to match WSD; each averaging scheme hard-codes one path', R + ', Problem', ['schedule-free optimisers, EWA-style weight averaging', 'hard-codes one annealing path']),
  # method
@@ -64,7 +64,7 @@ C = [
  ('Connection: data-anneal switch = mid-training anneal in Pretraining and Data mixing (Dolmino, Llama 3 annealing)', R + ', Connections; Further reading topics', ['Pretraining and Data mixing', 'Dolmino, Llama 3 annealing']),
  ('Connection: complements schedule-free optimisation (Defazio et al. 2024), inside vs outside the optimiser', R + ', Connections; Further reading', ['https://arxiv.org/abs/2405.15682', 'one via iterate averaging inside the optimiser, the other via checkpoint merging outside it']),
  ('Connection: merge machinery is ordinary model merging (model souping in the OLMo 2 recipe), reframed as scheduling', R + ', Connections; Further reading', ['model souping in the', '3c65c17b0d0d81fb9857fb956165ae1c', 'reframed as scheduling rather than as ensembling']),
- ('Database property Takeaway', 'stays in the database; also shown in the headline card', ['Proves checkpoint merging is algebraically equivalent to LR decay']),
+ ('Database property Takeaway', 'stays in the database; also shown in the headline card', ['a weighted merge of the last n checkpoints applies a synthetic decay schedule']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)
 out, miss = [], []
