@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The papers tab'
 C = [
  # header
- ('Reading time line "9 min read, +2h 35m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "9 min read, +2h 35m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['Reading:', 'in closed details', 'Reading time of the resources below']),
  ('Authors of Encoder-Decoder Gemma: Zhang, Moiseev, Ainslie, Suganthan, Ma, Bhupatiraju, Lebron, Firat, Joulin, Dong (Google)', R + ', headline card', ['Biao Zhang, Fedor Moiseev, Joshua Ainslie, Paul Suganthan, Min Ma, Surya Bhupatiraju, Fede Lebron, Orhan Firat, Armand Joulin, Zhe Dong (Google)']),
  ('Authors of T5Gemma 2: Zhang, Suganthan, Liu, Philippov et al. (Google DeepMind)', R + ', headline card; Further reading lists all 20', ['Biao Zhang, Paul Suganthan, Gaël Liu, Ilya Philippov et al. (Google DeepMind', 'Ilya Philippov, Sahil Dua']),
  ('Date: April 2025 (ICML 2025) and December 2025', R + ', headline card', ['ICML 2025', 'April 2025', 'December 2025']),
@@ -25,7 +25,7 @@ C = [
  ('Resource: blog is the fast version for the shape of the result', 'Further reading, Best resources', ['the fast version if you only want the shape of the result']),
  # problem
  ('Decoder-only won, but the argument was never settled on the merits', R + ', Problem', ['never settled on the merits']),
- ('Encoder-decoder splits parameters by function: bidirectional encoder, decoder with cross-attention', R + ', Problem', ['splits parameters by function', 'reads the input with bidirectional attention', 'cross-attention over the encoder']),
+ ('Encoder-decoder splits parameters by function: bidirectional encoder, decoder with cross-attention', R + ', Problem, one sentence; the family itself is owned by Families and objectives (linked)', ['a bidirectional encoder that reads the input', 'reads the encoder through cross-attention', '3fd5c17b0d0d8105b616c17c1439f766']),
  ('Bidirectional attention over input: no autoregressive constraint on something you only read', R + ', Problem', ['no autoregressive constraint on something you only read']),
  ('Independent sizing of the two halves: large encoder, small decoder', R + ', Problem; Why it matters', ['independent sizing of the two halves']),
  ('Summarisation named: deep understanding of input; generation invents nothing', R + ', Problem (quoted from §3.1)', ['summarisation', 'doesn\'t need to generate any new information']),
@@ -40,7 +40,7 @@ C = [
  ('Unbalanced (9B-2B): random cross-attention, warmup K steps with everything else frozen', R + ', Idea; animation unbalanced mode', ['trains alone for a', 'with everything else frozen']),
  ('Warmup: 1,000 steps right, zero costs 0.7, 5,000 costs 2.3', R + ', Idea and Ablations (with the preliminary setup stated)', ['= 1,000 steps', 'none costs 0.7 points and 5,000 steps cost 2.3', '61.8 with none', '60.2 with 5K']),
  ('Objectives: PrefixLM (split in half) with KD from Gemma 2, and UL2', R + ', Objectives and setup', ['split each sequence in half and predict the second half from the first', 'knowledge distillation', 'Gemma 2 teacher']),
- ('UL2: mixture of denoisers varying mean span and corruption rate, mode token; short-span, long-span, prefix LM', R + ', Objectives and setup', ['a mixture of denoisers that varies the mean span length and the corruption rate', 'mode token', 'short-span denoising, long-span denoising and prefix LM together']),
+ ('UL2: mixture of denoisers varying mean span and corruption rate, mode token; short-span, long-span, prefix LM', R + ', Objectives and setup, one sentence; UL2 itself is owned by Families and objectives (linked, "mixes three denoisers in one run")', ['a mixture of span-corruption denoisers and prefix LM', 'mode token', '3fd5c17b0d0d8105b616c17c1439f766']),
  ('Adaptation on up to 2T tokens of the Gemma 2 mixture', R + ', Objectives and setup', ['up to <b>2T tokens</b>', 'Gemma 2 pretraining mixture']),
  # T5Gemma 2 method
  ('T5Gemma 2 repeats on Gemma 3, drops distillation (UL2 and UL2+KD within 0.4 points; data-loading overhead)', R + ', T5Gemma 2', ['repeats the adaptation on Gemma 3', 'within 0.4 points, not worth the data-loading overhead']),
@@ -81,7 +81,7 @@ C = [
  ('LCLM: compressing context into latents for a decoder', 'Connections; Further reading', ['3d45c17b0d0d81eb90a8d70a5ce84d19', 'compressing the context into latents for a decoder']),
  ('GPT-3: why the field went the other way; capability neither paper tests', 'Connections; Further reading; How much to believe', ['3c65c17b0d0d8193ac92c7648cfaca12', 'the capability neither T5Gemma paper tests']),
  ('Topics: llms, llm-training-and-post-training, rag-and-retrieval', 'Connections; Further reading', ['3c65c17b0d0d812d9e00f6ec89965286', '3c65c17b0d0d81b6876ee72b7056793b', '3c65c17b0d0d81b89145c37dfe8a3b0b']),
- ('Database property Takeaway', 'stays in the database; also shown verbatim in the headline card', ['Adapts pretrained decoder-only checkpoints into encoder-decoder models by copying weights across']),
+ ('Database property Takeaway', 'stays in the database; also shown verbatim in the headline card', ['Adapts pretrained decoder-only Gemma checkpoints into encoder-decoder models by copying weights']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)
 out, miss = [], []

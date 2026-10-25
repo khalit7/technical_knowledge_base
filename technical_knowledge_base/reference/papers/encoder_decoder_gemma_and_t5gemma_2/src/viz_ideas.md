@@ -27,3 +27,4 @@ Scored on the Methodology in `.claude/skills/explainer-page/visuals/choosing.md`
 
 - A page covering **two papers** needs two anchor namespaces: `build.sh` here adds `bx:` links and `[[B:...|...]]` margin labels for the second paper.
 - Reading time: the paper method has no rule for opt-in detail. Here three `<details>` blocks (benchmark lists, two minor §6 findings, T5Gemma 2's sizes and training setup) are excluded from the reading-time count, since a reader must open them.
+- 2026-10-25 light pass: hero is an HTML redraw of Figure 1 and §3 (papers not CC BY); rejected: embedding the paper's own Figure 1 (licence), a third animation for the hero (the Idea animation already steps the recipe).
