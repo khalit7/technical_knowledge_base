@@ -11,11 +11,11 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, F = 'The paper tab', 'Wrap a world yourself tab', 'Tables tab', 'Further reading tab'
 C = [
  # properties (they stay in Notion; the card repeats the takeaway)
- ('Takeaway property (verbatim on the card)', R + ', headline card "In one line"', ['An agent harness for environments: wrap frozen training environments with composable Stage/Contract/Chain components at the reset/step interface', 'beating static and generated environments for skill learning and GRPO RL and still scaling where they flatten']),
+ ('Takeaway property (verbatim on the card)', R + ', headline card "In one line"', ['An agent harness for environments: wrap frozen training environments with composable Stage/Contract/Chain components at the reset/step interface', 'GRPO RL won 3 of 4 metrics with one run per arm']),
  ('Topics property: rl, llm-training-and-post-training', F + ', Topics; ' + R + ', Connections', ['https://app.notion.com/p/3c65c17b0d0d8195a6c6c11ad093c16e', 'https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b']),
  ('Year property: 2026', 'crumb line', ['Papers', '· 2026 ·']),
  # header
- ('Reading time line "8 min read, +~1h 15m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "8 min read, +~1h 15m resources"', 'dropped: replaced by the header line "Reading: N min, plus M in closed details" (2026-10-25)', ['Reading:', 'in closed details']),
  ('Authors/lab: Chengsong Huang (WashU, work done at Google), Zifeng Wang, Rujun Han, Jun Yan, Yanfei Chen, Chen-Yu Lee et al.; Google Cloud AI Research with Google Cloud and UNC Chapel Hill', R + ', headline card (all 17 authors)', ['Chengsong Huang', 'Zifeng Wang', 'Rujun Han', 'Jun Yan', 'Yanfei Chen', 'Chen-Yu Lee', 'Google Cloud AI Research', 'Washington University in St. Louis', 'UNC Chapel Hill', 'the work was done during his internship at Google Cloud AI Research']),
  ('Date: August 2026 (arXiv 2608.19880, v1 20 Aug 2026)', R + ', headline card', ['20 August 2026 (arXiv v1', 'arXiv 2608.19880']),
  ('Links: arXiv (~45 min), GitHub repo (~20 min for the README and entry path), project page (~10 min)', 'card and Further reading (project page now timed at 15 min with its playground)', ['https://arxiv.org/abs/2608.19880', '(45 min)', 'https://github.com/google-research/envharness', 'The README and the entry path take about 20 minutes', 'https://www.envharness.com']),

@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"EnvHarness: Awakening Static Worlds for Agent Learning","Takeaway":"An agent harness for environments: wrap frozen training environments with composable Stage/Contract/Chain components at the reset/step interface (keeping the trusted human-built verifier) while EnvRigger auto-customizes them against the target policy's diagnosed weaknesses, beating static and generated environments for skill learning and GRPO RL and still scaling where they flatten.","Topics":["rl","llm-training-and-post-training"],"Year":"2026","url":"https://app.notion.com/p/3c65c17b0d0d81e88ab9c396a160f813"}
+{"Paper":"EnvHarness: Awakening Static Worlds for Agent Learning","Takeaway":"An agent harness for environments: wrap frozen training environments with composable Stage/Contract/Chain components at the reset/step interface (keeping the original verifier) while EnvRigger customizes them against the target policy's diagnosed weaknesses; skills learned this way scored above skills from the original environments on all five benchmarks (+1.0 to +9.0 points, mostly within three-run noise) and above generated environments on the three that have a generator, GRPO RL won 3 of 4 metrics with one run per arm, and in the scaling figure the original environments gained as many tasks as EnvHarness after the first 100 environments (only the generated ones flatten).","Topics":["rl","llm-training-and-post-training"],"Year":"2026","url":"https://app.notion.com/p/3c65c17b0d0d81e88ab9c396a160f813"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

@@ -18,6 +18,7 @@ The question the paper keeps returning to: does reshaping a frozen environment a
 | P-envharness.12 | Port the release's Toy24 24-game environment instead of a household | 3 | `bridges/toy24` | none | rejected: the authors' project page already has a live Toy24 playground (Pyodide); the household follows the paper's own running example and shows all three components, including Chain |
 | P-envharness.13 | Replay real EnvRigger trajectories (designer reasoning, rollouts) | 4 | none released | none | rejected: no traces are released; the appendices give components and skills only |
 | P-envharness.14 | Skill-bank timeline per co-evolution round (components to skills, F.2) as an animation | 2 | Appendix F.2 | none | rejected: a list reads as well; no numbers per round are given |
+| P-envharness.15 | Hero (2026-10-25): the paper's own Figure 2, agent harness against EnvHarness, credited (CC BY 4.0) | 2 | `img/fig2_envharness.webp` (44 KB), `img/CREDITS.md` | Reading, top | built (light pass): the analogy the paper is built on in one picture; Table 1 moved into a closed block beside it |
 
 Methodology notes:
 - For agent and environment papers whose code is released but whose traces are not, porting the released wrapper semantics onto a toy world small enough to animate lets the reader see the mechanism (and its failure modes, such as layer order) without inventing any of the paper's numbers. Check the port against the release's stated contracts in a script.

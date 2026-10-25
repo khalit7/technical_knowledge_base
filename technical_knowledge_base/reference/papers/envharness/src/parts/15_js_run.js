@@ -116,7 +116,7 @@
   function rebuild() {
     compute();
     if (!anim) { const o = { id: 'ew', modes: { x: steps }, mode: 'x', draw, counters, dur: 1400 }; anim = makeAnim(o); anim.o = o }
-    else { anim.o.modes.x = steps; anim.st.k = 0; anim.st.t = RM ? 1 : 0; anim.st.lk = -1; anim.draw() }
+    else { anim.o.modes.x = steps; anim.st.k = 0; anim.st.t = 1; anim.st.play = false; anim.st.lk = -1; anim.draw() }
   }
   // controls
   segBind('ewStage', m => { cfg.stage = m; press('ewStage', m); rebuild() });
