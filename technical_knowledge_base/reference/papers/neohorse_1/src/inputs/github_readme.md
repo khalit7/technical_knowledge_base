@@ -59,7 +59,7 @@ Scores are on a 0–100 scale; higher is better. **Bold scores** mark the best r
 
 ![NeoHorse-Jev decision demos](jev/assets/jev-six-demo-grid.gif)
 
-*Tetris, Snake, robot manipulation, Mahjong, four-player bomb arena, and autonomous driving — left to right, top to bottom.*
+*Tetris, Snake, robot manipulation, Mahjong, four-player bomb arena, and autonomous driving -- left to right, top to bottom.*
 
 ### NeoHorse-1
 

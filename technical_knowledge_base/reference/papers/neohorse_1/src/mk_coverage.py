@@ -11,13 +11,13 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, F = 'The paper tab', 'Schedule the curriculum tab', 'Tables tab', 'Further reading tab'
 C = [
  # properties (they stay in Notion; the card repeats the takeaway, corrected)
- ('Takeaway property (on the card, with "11 benchmarks" corrected to ten and the teacher step made precise)', R + ', headline card "In one line"', ['Makes the serving harness the source of the training curriculum rather than downstream infrastructure', 'a router over a heterogeneous model pool predicts each request\'s capability demand', 'structural validation plus six-dimensional semantic evaluation plus subscene-level labelling', 'evaluation feedback feeds back into the training mixture', 'goes 58.94 to 64.87 at 4B and 65.60 to 69.04 at 9B']),
+ ('Takeaway property (on the card, with "11 benchmarks" corrected to ten and the teacher step made precise; softened 2026-10-25: allocation is designed, not measured, the parts are not isolated, the loop ran once, the 4B beats the base 9B on 5 of 10)', R + ', headline card "In one line"', ['Makes the serving harness a source of the training curriculum rather than only downstream infrastructure', 'a router over a heterogeneous model pool predicts each request\'s capability demand', 'structural validation, six-dimensional semantic evaluation and subscene-level labelling', 'evaluation feedback is designed to steer the next training mixture', 'from 58.94 to 64.87 at 4B (up on all ten) and from 65.60 to 69.04 at 9B']),
  ('Topics property: agentic-harnesses, llm-training-and-post-training, rl', F + ', Topics', ['https://app.notion.com/p/3c65c17b0d0d81d881a8fe98b4cff7bb', 'https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b', 'https://app.notion.com/p/3c65c17b0d0d8195a6c6c11ad093c16e']),
  ('Year property: 2026', 'crumb line', ['Papers', '· 2026 ·']),
  # header
- ('Reading time line "5 min read, +45m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "5 min read, +45m resources"', 'dropped: replaced by the measured reading line (Reading: N min, plus M in closed details; 2026-10-25)', ['Reading:', 'in closed details']),
  ('TokenRhythm; submitted 8 September 2026', R + ', headline card and note under the nav', ['TokenRhythm Technologies', '8 September 2026 (arXiv v1', 'TokenRhythm, submitted 8 September 2026']),
- ('412 Hugging Face upvotes', R + ', note under the nav (kept as the count at the time, with the dated re-count)', ['412 Hugging Face upvotes then', 'by the Hugging Face API']),
+ ('412 Hugging Face upvotes', R + ', About this page block (kept as the count at the time, with the dated re-count)', ['412 Hugging Face upvotes then', 'by the Hugging Face API']),
  ('Models on Hugging Face, code on GitHub', R + ', What it takes (the GitHub repository has no training code); card', ['https://huggingface.co/TokenRhythm/NeoHorse-1-4B', 'https://github.com/TokenRhythm/NeoHorse', 'nothing of it is released: no training code']),
  ('arXiv 2609.08183 (45 min); best resource: the paper (45 min)', 'card and Further reading', ['https://arxiv.org/abs/2609.08183', 'https://arxiv.org/html/2609.08183v1', '(45 min)']),
  # problem
@@ -48,7 +48,7 @@ C = [
  # connections
  ('Topic: agentic-harnesses, harness-scaling section: the sixth strategy, first where the harness is a training-data source', R + ', Connections; Further reading', ['the sixth strategy, and the first where the harness is a training-data source rather than a runtime wrapper']),
  ('Topic: llm-training-and-post-training: subscene-level labelling and routing-derived curricula next to distillation and curriculum material', R + ', Connections', ['subscene-level labelling and routing-derived curricula belong next to the existing distillation and curriculum material']),
- ('Dwarkesh decomposition: data improvements 3.24x more compute-efficiency gain than model improvements 2019 to 2025; small models gain most from data quality; NeoHorse-1 a mechanism for that gain at that scale', R + ', Connections', ['3.24x more compute-efficiency gain than model improvements between 2019 and 2025', 'small models gain most from data quality', 'NeoHorse-1 is a mechanism for producing exactly that kind of gain at exactly that scale']),
+ ('Dwarkesh decomposition: data improvements 3.24x more compute-efficiency gain than model improvements 2019 to 2025; small models gain most from data quality; NeoHorse-1 a mechanism for that gain at that scale', R + ', Why it matters, dated Since the paper block', ['3.24x more compute-efficiency gain than model improvements between 2019 and 2025', 'small models gain most from data quality', 'NeoHorse-1 is a mechanism for producing exactly that kind of gain at exactly that scale']),
  ('Topic: rl: capability-guided allocation as an allocation policy, same shape as SA-MRPO\'s saturation-aware reweighting, from the serving side', R + ', Connections; Further reading', ['https://app.notion.com/p/3c65c17b0d0d81e38b0fe72f3daf44bc', "saturation-aware reweighting, arrived at from the serving side"]),
  ('Reads against Φ-Bench (can a model build its own infrastructure: mostly not) and MOLE (what the loop does when subverted)', R + ', Connections; Further reading', ['https://app.notion.com/p/3db5c17b0d0d81029236da6c38f5891f', 'https://app.notion.com/p/3db5c17b0d0d818b9680c7b91baaf7e9', 'which measures whether a model can build its own infrastructure and finds it mostly cannot', 'which asks what such a loop does when it is subverted']),
  ('Parent: Papers database', 'crumb line and Further reading', ['https://app.notion.com/p/3c65c17b0d0d81549dbedb27e8f2a26f']),
@@ -67,7 +67,7 @@ json.dump({'source': 'live.md (Notion page as of 2026-09-20)', 'items': len(out)
                          '"NeoHorse-1 runs the loop": it ran one pass of evaluation, selection and update; the authors say compounding is untested (Why it matters, How much to believe, card)',
                          '"Closing most of the gap to the base 9B": 89% of the macro-average gap, but the post-trained 4B beats the base 9B on only 5 of 10 benchmarks (predict question 3)',
                          '"The routing-derived curriculum buys a large fraction of a size step": the gain is the whole recipe\'s; no experiment isolates the curriculum (Results, How much to believe)',
-                         '412 Hugging Face upvotes: 326 by the Hugging Face API on 2026-10-03; both shown (note under the nav)'],
+                         '412 Hugging Face upvotes: 326 by the Hugging Face API on 2026-10-03; both shown (About this page block)'],
            'items_list': out}, open('coverage.json', 'w'), indent=1, ensure_ascii=False)
 print('coverage items', len(out), 'verified', sum(o['verified'] for o in out))
 for f, m in miss: print('MISSING', f[:70], m)
