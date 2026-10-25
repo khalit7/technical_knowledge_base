@@ -11,7 +11,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header and links
- ('Reading-time line "12 min read, +~3h 45m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading-time line "12 min read, +~3h 45m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['Reading:', 'in closed details']),
  ('Authors/lab: Qwen Team (Alibaba)', R + ', headline card', ['Qwen Team (An Yang', 'Alibaba (Qwen Team)']),
  ('Date: May 2025 (arXiv v1 2025-05-14; models released 2025-04-29)', R + ', headline card', ['arXiv v1 14 May 2025', 'models released 29 April 2025']),
  ('Link arXiv 2505.09388 (~1h 30m, technical report)', 'card and Further reading', ['https://arxiv.org/abs/2505.09388', '(1h 30m)']),
@@ -27,7 +27,7 @@ C = [
  # problem
  ('Open ecosystem split into chat models (Qwen2.5-Instruct, GPT-4o class) and reasoners (QwQ-32B, R1 class); users route between models, no control over reasoning tokens', R + ', Problem', ['Chat models such as Qwen2.5-Instruct', 'reasoning models such as QwQ-32B and DeepSeek-R1', 'no control over how many reasoning tokens to pay for']),
  ('Small open models expensive: per-size reasoning-RL pipeline does not amortize', R + ', Problem', ['running a full reasoning-RL pipeline for every size does not amortise']),
- ('Targets three gaps: one model both modes under a budget; ladder trained cheaply from flagship teachers; multilingual 29 to 119', R + ', Problem', ['One model, two modes, a budget.', 'A ladder of sizes built cheaply.', "From Qwen2.5's 29 languages and dialects to 119"]),
+ ('Targets three gaps: one model both modes under a budget; ladder trained cheaply from flagship teachers; multilingual 29 to 119', R + ', Problem', ['one model, two modes, a budget', 'a ladder of sizes built cheaply', "from Qwen2.5's 29 languages and dialects to 119"]),
  # family and architecture
  ('Six dense (0.6B-32B) and two MoE (30B-A3B; 235B-A22B, 235B total / 22B activated), all Apache 2.0', R + ', Family', ['six dense (0.6B, 1.7B, 4B, 8B, 14B, 32B) and two mixture-of-experts', '235B parameters in total with 22B active']),
  ('Dense architecture Qwen2.5-like: GQA, SwiGLU, RoPE, pre-norm RMSNorm', R + ', Family', ['grouped-query attention, SwiGLU, rotary position embeddings, RMSNorm before each sub-layer']),
@@ -105,7 +105,7 @@ C = [
  ('RoFormer: RoPE extended via ABF plus YaRN and DCA', 'Connections; Further reading', ['3c65c17b0d0d81cfa5e9f54459720098', 'ABF base scaling plus YaRN and Dual Chunk Attention']),
  ('Llama 3: competing open-family report; Llama-4 comparisons mark the open-weight lead moving east', 'Connections; Further reading', ['3c65c17b0d0d81aca58ccb9d720b474e', 'the open-weight lead moving east']),
  ('Topics: llms, llm-training-and-post-training, rl, data-curation-and-datasets', 'Connections; Further reading', ['3c65c17b0d0d812d9e00f6ec89965286', '3c65c17b0d0d81b6876ee72b7056793b', '3c65c17b0d0d8195a6c6c11ad093c16e', '3c65c17b0d0d811fa5ecda8d365ab00f']),
- ('Database property Takeaway', 'stays in the database; also shown verbatim on the headline card', ['fusing thinking and non-thinking modes with a token-budget dial']),
+ ('Database property Takeaway', 'stays in the database; also shown verbatim on the headline card', ['fusing thinking and non-thinking modes in one checkpoint with a token-budget dial']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)
 out, miss = [], []

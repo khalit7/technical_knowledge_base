@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Qwen3 Technical Report","Takeaway":"One open Apache 2.0 family (0.6B dense to 235B-A22B MoE) fusing thinking and non-thinking modes with a token-budget dial, trained on 36T tokens plus 4-stage post-training, with on-policy distillation beating RL for small models at 1/10 the GPU hours.","Topics":["llms","llm-training-and-post-training","rl","data-curation-and-datasets"],"Year":"2025","url":"https://app.notion.com/p/3c65c17b0d0d81a19006e6b096a6e14b"}
+{"Paper":"Qwen3 Technical Report","Takeaway":"One open Apache 2.0 family (0.6B dense to 235B-A22B MoE) fusing thinking and non-thinking modes in one checkpoint with a token-budget dial, trained on 36T tokens; the two flagships get 4-stage post-training and the smaller models strong-to-weak distillation, which in one Qwen3-8B comparison on math and code beat RL from the same checkpoint at about 1/10 the GPU hours (one run each).","Topics":["llms","llm-training-and-post-training","rl","data-curation-and-datasets"],"Year":"2025","url":"https://app.notion.com/p/3c65c17b0d0d81a19006e6b096a6e14b"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

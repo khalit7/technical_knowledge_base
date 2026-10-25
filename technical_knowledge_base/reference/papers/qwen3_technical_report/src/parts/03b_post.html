@@ -14,15 +14,16 @@
 </div>
 <h3>Stage 1: a deliberately small long chain-of-thought cold start</h3>
 [[S4.SS1|§4.1]]
-<p>A dataset of math, code, logical reasoning and general STEM problems, each with a verified reference answer or test cases, filtered twice ({{§4.1|ax:S4.SS1}}):</p>
+<p>A dataset of math, code, logical reasoning and general STEM problems, each with a verified reference answer or test cases, filtered twice ({{§4.1|ax:S4.SS1}}): a query filter drops what is not verifiable or is answerable without chain-of-thought, and a response filter keeps only QwQ-32B answers that are right, reasoned and consistent.</p>
+<details class="mist"><summary>The two filters in full</summary><div class="b">
 <ul>
 <li><b>Query filter</b> (by Qwen2.5-72B-Instruct): drop queries that are not easily verifiable (several sub-questions, general text generation) and queries it answers correctly <i>without</i> chain-of-thought, "to prevent the model from relying on superficial guessing". It also labels each query's domain to keep the mix balanced.</li>
 <li><b>Response filter</b>: after reserving a validation set, QwQ-32B generates <i>N</i> candidates per query; when it keeps failing, human annotators judge the responses. For queries with a positive Pass@<i>N</i>, responses are dropped if they (1) reach a wrong answer, (2) repeat themselves substantially, (3) guess without adequate reasoning, (4) think one thing and summarise another, (5) mix languages or shift style inappropriately, or (6) look too similar to validation items.</li>
-</ul>
+</ul></div></details>
 <p>Only "a carefully selected subset" is used, with as few samples and steps as possible: the aim is to instil the reasoning format "without overly emphasizing immediate reasoning performance", so as not to cap what RL can add later. No sizes are given.</p>
 <h3>Stage 2: reasoning RL on 3,995 problems</h3>
 [[S4.SS2|§4.2]]
-<p>The query-verifier pairs must be unused in stage 1, learnable for the cold-start model, as hard as possible and spread over sub-domains: 3,995 in all. The algorithm is GRPO (the {{DeepSeekMath page|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}} runs it live), with large batches, many rollouts per query and off-policy reuse of samples, and the entropy kept "to increase steadily or remain stable". Training improved steadily "without any manual intervention on hyperparameters": Qwen3-235B-A22B went from 70.1 to 85.1 on AIME'24 in 170 RL steps ({{§4.2|ax:S4.SS2}}).</p>
+<p>The query-verifier pairs must be unused in stage 1, learnable for the cold-start model, as hard as possible and spread over sub-domains: 3,995 in all. The algorithm is GRPO (taught on {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}; the {{DeepSeekMath page|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}} runs it live), with large batches, many rollouts per query and off-policy reuse of samples, and the entropy kept "to increase steadily or remain stable". Training improved steadily "without any manual intervention on hyperparameters": Qwen3-235B-A22B went from 70.1 to 85.1 on AIME'24 in 170 RL steps ({{§4.2|ax:S4.SS2}}).</p>
 </section>
 
 <section id="s-fuse"><h2>Stage 3: thinking mode fusion, one checkpoint for both modes</h2>
@@ -79,19 +80,20 @@
 <li><b>Even 1K tokens of thinking beats not thinking</b>, on all four benchmarks (AIME'24 42.1 against 40.1; LiveCodeBench 45.1 against 35.3). The real model, cut off early, does at least as well as answering directly. That is the property the toy lacks, and it is what makes the dial safe to turn down.</li>
 <li><b>The 32K points are not Table 11's numbers</b> for the same model and mode: AIME'24 86.7 against 85.7, AIME'25 81.7 against 81.5, GPQA 72.0 against 71.1 and LiveCodeBench 67.8 against 70.7. The figure is a separate run, with settings the report does not give (Table 11's runs may allow longer outputs: the model card recommends 38,912 output tokens for competition math).</li>
 </ul>
-<p>The report expects scores to keep rising "if we further extend the output length beyond 32K" and leaves that as future work ({{§4.7|ax:S4.SS7.SSS0.Px1}}). The general mechanism and how other labs expose the same dial are on {{Topic: llm-landscape|n:3c65c17b0d0d812d9e00f6ec89965286}} (Deeper: test-time compute), and the {{lab page|n:3c65c17b0d0d81fd8c36ce06672bb235}} has a strip showing where a budget cuts a chain.</p>
+<p>The report expects scores to keep rising "if we further extend the output length beyond 32K" and leaves that as future work ({{§4.7|ax:S4.SS7.SSS0.Px1}}). The general mechanism (budget forcing) and how other labs expose the same dial are on {{Test-time compute and reasoning|n:4035c17b0d0d813f9fb2d62cff1f09ef}}, and the {{lab page|n:3c65c17b0d0d81fd8c36ce06672bb235}} has a strip showing where a budget cuts a chain.</p>
 </section>
 
 <section id="s-g4"><h2>Stage 4: general RL</h2>
 [[S4.SS4|§4.4]]
-<p>A reward system over more than 20 tasks, each with its own scoring criteria, aimed at five capabilities ({{§4.4|ax:S4.SS4}}):</p>
+<p>A reward system over more than 20 tasks, each with its own scoring criteria, aimed at five capabilities ({{§4.4|ax:S4.SS4}}): instruction following, format following (the mode flags and think tags), preference alignment, agent ability with real tool environments, and specialised scenarios such as RAG.</p>
+<details class="mist"><summary>The five capabilities in detail</summary><div class="b">
 <ul>
 <li><b>Instruction following</b>: content, format, length, structured output.</li>
 <li><b>Format following</b>: switching modes on <code>/think</code> and <code>/no_think</code>, and keeping <code>&lt;think&gt;</code> and <code>&lt;/think&gt;</code> where they belong.</li>
 <li><b>Preference alignment</b> on open-ended queries: helpfulness, engagement, style.</li>
 <li><b>Agent ability</b>: tool calls through designated interfaces, with complete multi-turn rollouts against real environments that execute them.</li>
 <li><b>Specialised scenarios</b>, for example retrieval-augmented generation, rewarded for accurate, grounded answers to curb hallucination.</li>
-</ul>
+</ul></div></details>
 <p>Three kinds of reward: <b>rule-based</b> (as in reasoning RL, also for instruction and format following; hard to hack), <b>model-based with a reference answer</b> (Qwen2.5-72B-Instruct scores the response against it, avoiding the false negatives of strict rules) and <b>model-based without one</b> (a reward model trained on human preference data, for the widest range of queries).</p>
 </section>
 
@@ -103,7 +105,7 @@
 <li><b>On-policy distillation.</b> The student samples its own responses to sampled prompts, in either mode, and is trained to align its logits with the teacher's (Qwen3-32B or Qwen3-235B-A22B) by minimising the KL divergence.</li>
 </ol>
 <div class="fm"><div class="eq m">ℒ = Σ<sub><i>t</i></sub> KL( <i>p</i><sub>student</sub>(· | <i>y</i><sub>&lt;<i>t</i></sub>) ‖ <i>p</i><sub>teacher</sub>(· | <i>y</i><sub>&lt;<i>t</i></sub>) ),&nbsp;&nbsp; <i>y</i> ∼ <i>p</i><sub>student</sub></div>
-<p class="wh">The student is graded at every position of its own response on the teacher's whole next-token distribution, where RL gets one reward per response. The report does not say which direction of KL it uses; the toy uses the student-first (reverse) one written here.</p></div>
+<p class="wh">The student is graded at every position of its own response on the teacher's whole next-token distribution, where RL gets one reward per response. The report does not say which direction of KL it uses; the toy uses the student-first (reverse) one written here. Why on-policy and why reverse KL in general is on {{Distillation and small language models|n:3c65c17b0d0d81efa2a8c3b3b623eb09}}.</p></div>
 <p>The report's evidence is one comparison ({{Table 21|ax:S4.T21}}): from the same off-policy-distilled Qwen3-8B, on math and code queries only, on-policy distillation reached AIME'24 74.4 and AIME'25 65.5 for 1,800 GPU hours; reinforcement learning reached 67.6 and 55.5 for 17,920 (1,800 ÷ 17,920 = 10.0%). Distillation also raised pass@64 (AIME'24 90.0 to 93.3, AIME'25 83.3 to 86.7) where RL left it unchanged, which the report reads as distillation expanding "the exploration space" while RL does not ({{§4.7|ax:S4.SS7.SSS0.Px2}}). The lab page draws these as {{bars|n:3c65c17b0d0d81fd8c36ce06672bb235}}.</p>
 <div class="pred" id="pr-p64" data-ans="1"><div class="q">AIME'24 has 30 questions. How many more questions does on-policy distillation solve at least once in 64 tries than RL does?</div>
 <div class="opts"><button>About ten</button><button>One</button><button>None: pass@64 is the same</button></div>
@@ -117,13 +119,14 @@
 
 <section id="s-stages"><h2>What stages 3 and 4 each buy</h2>
 [[S4.SS7.SSS0.Px3|§4.7, Table 22]]
-<p>{{Table 22|ax:S4.T22}} scores Qwen3-32B after stage 2, 3 and 4, in both modes, on public benchmarks and four in-house ones ({{§4.7|ax:S4.SS7.SSS0.Px3}}):</p>
+<p>{{Table 22|ax:S4.T22}} scores Qwen3-32B after stage 2, 3 and 4, in both modes, on public benchmarks and four in-house ones ({{§4.7|ax:S4.SS7.SSS0.Px3}}): CounterFactQA, LengthCtrl, ThinkFollow and ToolUse.</p>
+<details class="mist"><summary>What the four in-house benchmarks measure</summary><div class="b">
 <ul>
 <li><b>CounterFactQA</b>: counterfactual questions the model should recognise as non-factual instead of answering.</li>
 <li><b>LengthCtrl</b>: creative writing to a target length, scored by the difference.</li>
 <li><b>ThinkFollow</b>: multi-turn dialogues with randomly inserted flags; did the model switch correctly?</li>
 <li><b>ToolUse</b>: single-turn, multi-turn and multi-step tool calling, scored on intent, format and parameters.</li>
-</ul>
+</ul></div></details>
 <div class="card" id="stC">
 <div class="seg" id="stM" role="group" aria-label="Mode"><button class="on" data-m="t" aria-pressed="true">Thinking mode</button><button data-m="n" aria-pressed="false">Non-thinking mode</button></div>
 <div id="stSvg"></div></div>

@@ -12,7 +12,8 @@ def txt(x):
     x = html.unescape(x)
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
 a = s.index('<article'); b = s.index('</article>')
-open('inputs/paper_v1.txt', 'w').write('Source: https://arxiv.org/html/2505.09388v1 (extracted by extract_paper.py)\n\n' + txt(s[a:b]))
+EM = lambda t: re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}', '[email removed]', t)  # author emails are redacted in saved text (2026-10-25)
+open('inputs/paper_v1.txt', 'w').write(EM('Source: https://arxiv.org/html/2505.09388v1 (extracted by extract_paper.py)\n\n' + txt(s[a:b])))
 tids = sorted(set(re.findall(r'<figure[^>]*id="((?:S|A)\d+\.(?:SS\d+\.)?T\d+)"', s)))
 for tid in tids:
     m = re.search(r'<figure[^>]*id="' + re.escape(tid) + r'".*?</figure>', s, re.S)

@@ -37,3 +37,5 @@ Scores: R reproduces a published figure (0 to 2, counts double), C computable fr
 ## What the methodology lacked here
 
 A claim that a capability "emerges" from a training stage has no number to reproduce; the useful visual was a controlled toy with and without the stage (and with explicit training), which the scoring does not reward directly. Decoding the figure's SVG (P-qwen3_technical_report.4) took minutes and exposed the Table 11 mismatch, as the ReAct and InstructGPT lessons predicted.
+
+- P-qwen3_technical_report.hero (2026-10-25, built): Figure 1 and §4.3 redrawn as a static HTML diagram (two routes, two modes, the budget); the report is not CC BY, so its figure is not embedded. The animated route view stays in Post-training.
