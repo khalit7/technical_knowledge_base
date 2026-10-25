@@ -11,7 +11,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R, U, T, F = 'The paper tab', 'Follow the router tab', 'Tables tab', 'Further reading tab'
 C = [
  # header
- ('Reading time line "6 min read, +45m resources"', 'replaced by the build-computed reading time and resources total (more resources now)', ['min to read', 'of resources']),
+ ('Reading time line "6 min read, +45m resources"', 'replaced by the measured reading time in the header (2026-10-25)', ['Reading: ', 'in closed details']),
  ('Authors: Jianlyu Chen, Yuyang Hu, Hongjin Qian, Jiawei Liu, Wenqing Wei, Xiaolong Chen, Defu Lian, Zhicheng Dou, Chaozhuo Li, Qiwei Ye, Zheng Liu', R + ', headline card', ['Jianlyu Chen', 'Yuyang Hu', 'Hongjin Qian', 'Jiawei Liu', 'Wenqing Wei', 'Xiaolong Chen', 'Defu Lian', 'Zhicheng Dou', 'Chaozhuo Li', 'Qiwei Ye', 'Zheng Liu']),
  ('Date: 2026-09-02', R + ', headline card', ['2 September 2026']),
  ('Links: arXiv 2609.02749 (45 min)', 'card and Further reading', ['https://arxiv.org/abs/2609.02749', '(45 min)']),
@@ -26,7 +26,7 @@ C = [
  ('Skills have been written by hand, one at a time, which does not scale', R + ', Problem', ['Today an expert turns it into agent skills by hand', 'scales with expert labor and with the domain, stack, and release']),
  # method
  ('DisCo is an agent system that distils operational knowledge out of repositories into reusable skills', R + ', Method', ['DisCo</b> is one agent'.replace('</b>', ''), 'creator mode']),
- ('"in two modes": task-agnostic and task-oriented', 'corrected: these are the two forms; the paper\'s modes are creator and researcher (Method)', ['The old page called these "modes"; the paper\'s modes are creator and researcher']),
+ ('"in two modes": task-agnostic and task-oriented', 'corrected: these are the two forms; the paper\'s modes are creator and researcher (Corrections to the old summary, Why it matters)', ['the paper\'s modes are creator and researcher']),
  ('Task-agnostic distillation mines an existing repository for whatever it knows how to do, producing skills before any task is known', R + ', Method and its animation', ['the anchor is a source', 'ahead of any task']),
  ('Task-oriented distillation generates skills targeted at the task currently in front of the agent', R + ', Method and its animation', ['the anchor is a problem', 'what solving it demands']),
  ('Distillation converts material written for humans into compact, machine-actionable procedures; distinguishes it from retrieval over documentation', R + ', Problem and Idea (the paper says verification is what separates distillation from summarisation)', ['written for human readers and is far too large to load during a task', 'What makes this distillation rather than summarisation is verification']),
@@ -38,7 +38,7 @@ C = [
  ('+34.4% on PaperBench', R + ', Result 2', ['34.4% relative']),
  ('+9.2% on FrontierCS', R + ', Result 3', ['+6.51 points (9.22%)']),
  ('+14.0% on PassNet', R + ', Result 4', ['+0.1883, 14.0%']),
- ('"The fixed budget is the important qualifier: not more compute buying more attempts, the same compute spent less wastefully because the agent stops rediscovering how to run things"', 'corrected: How much to believe (MLE-bench construction is up to 24 GPU-hours of trials on each competition; FrontierCS skill runs used 1.82 times the tokens)', ['The old page\'s "this is not more compute buying more attempts" does not hold for MLE-bench', 'The budget held fixed is the five-hour limit, not the spend']),
+ ('"The fixed budget is the important qualifier: not more compute buying more attempts, the same compute spent less wastefully because the agent stops rediscovering how to run things"', 'corrected: How much to believe (MLE-bench construction is up to 24 GPU-hours of trials on each competition; FrontierCS skill runs used 1.82 times the tokens)', ['Its "this is not more compute buying more attempts" does not hold for MLE-bench', 'The budget held fixed is the five-hour limit, not the spend']),
  # why it matters
  ('MLE-bench figure is the largest single-intervention gain the KB records on that benchmark', 'kept as the old page\'s claim about the knowledge base, with its caveat (Why it matters)', ['the largest single-intervention gain the KB currently records on that benchmark']),
  ('It comes from supplying procedure rather than capability', R + ', Why it matters', ['procedural anchors (steps, checks, pitfalls) rather than as knowledge injection']),
@@ -56,7 +56,7 @@ C = [
  ('EnvHarness and Prime Agent: Prime Agent lets the agent version its own skills inline and finds the policy underuses it; Repo-To-Skill removes the authoring burden, a different answer to the same complaint', R + ', Connections; Further reading', ['https://app.notion.com/p/3c65c17b0d0d81e88ab9c396a160f813', 'https://app.notion.com/p/3cd5c17b0d0d81579a02f0431f24c6cb', 'finds the policy underuses the affordance', 'a different answer to the same complaint']),
  ('Topic: agentic-harnesses, harness-scaling section', R + ', Connections; Further reading', ['https://app.notion.com/p/3c65c17b0d0d81d881a8fe98b4cff7bb', 'harness-scaling section']),
  # database properties carried on the card
- ('Takeaway property (verbatim on the card) with corrections', R + ', headline card', ['Names the thing agent skills usually lack', 'none of the four benchmark gains uses the 1,000-repository library']),
+ ('Takeaway property, softened on the card (2026-10-25) with a note on what changed', R + ', headline card', ['Names the thing agent skills usually lack', 'none of the four results uses the library']),
  ('Topics property: agentic-harnesses, agentic-frameworks, ml-infra-and-orchestration', F + ', Topics', ['https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7', 'https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)

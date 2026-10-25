@@ -19,6 +19,7 @@ Scores follow the Methodology (0 to 2 each; reproduce and computable count doubl
 | P-repo_to_skill.11 | Simulated with-skill and without-skill MLE-bench run | Rejected: no trajectories are released for either arm; any trace would be invented | | | | rejected |
 | P-repo_to_skill.12 | Library-wide quality audit (sample graphs, run their usability cases) | Rejected for this page: needs an agent and GPUs per graph; the page instead quotes the one released verification report and two index rows | | | | rejected |
 | P-repo_to_skill.13 | FrontierCS per-task gain distribution | Rejected: the paper prints only stratum means, not per-task scores; drawing a distribution would mean inventing it | | | | rejected |
+| P-repo_to_skill.14 | Hero: the four benchmark results as dumbbells, each row labelled with where its skills came from (none from the library) | Built 2026-10-25 (light pass), `15_js_hero.js`, top of The paper | | | | built |
 
 ## Inspiration and what the Methodology lacked
 
