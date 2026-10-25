@@ -24,3 +24,9 @@ Kind of paper: a method-on-top-of-a-model pilot with no code, no weights and no 
 ## What the methodology lacked
 
 The paper-kind table has no row for "fully specified mechanism with no training on one side": a simulation of the untrained half (here the write rule) is a cheap, exact live ingredient whenever a paper freezes part of its own method.
+
+## Added 2026-10-25 (light pass)
+
+| id | idea | ratings | where | data |
+|---|---|---|---|---|
+| P-trained_persistent_memory.9 | **Hero**: a static redraw of Eq. 2 with the trained read (blue) and the untrained, decaying write (orange), plus a 20-turn decay strip (`mk_hero.py`); the paper is arXiv non-exclusive, so its Figure 1 is not embedded | built | Reading, top | Eq. 2, §5, §6.2 |

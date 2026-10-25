@@ -41,7 +41,7 @@ C = [
  ('Text-level memory in personal agents: OpenClaw MEMORY.md, Hermes memory providers and skills; retrieval generally', R + ', Connections; Further reading', ['OpenClaw', 'MEMORY.md', 'Hermes', 'https://docs.openclaw.ai/concepts/memory']),
  ('Related compression-into-latents: context distillation, KV-cache compression, Gist tokens', R + ', Connections; Further reading', ['context distillation', 'KV-cache compression', 'Gist tokens']),
  ('Adjacent in batch: Bitune and LLM Modules, frozen-backbone-plus-adapter designs', R + ', Connections; Further reading', ['3ce5c17b0d0d8173af14ed0caa19d6db', '3ce5c17b0d0d810191d0ebcffc54f608']),
- ('Database property Takeaway', 'stays in the database; also shown in the headline card', ['Proof-of-concept pilot putting memory in a frozen encoder-decoder']),
+ ('Database property Takeaway', 'stays in the database; also shown in the headline card', ['Proof-of-concept pilot putting memory in a frozen Flan-T5-XL']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)
 out, miss = [], []
