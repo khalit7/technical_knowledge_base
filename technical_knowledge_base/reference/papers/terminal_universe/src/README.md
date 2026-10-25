@@ -40,3 +40,30 @@ python3 fetch_sample.py <dir> && python3 replay.py <dir> && node check_replay.mj
 sh build.sh && python3 mk_coverage.py
 sh ../../../../../html_utils/checkpage.sh ..     # from src/; or from the repo root with the page folder
 ```
+
+## The 2026-10-25 light pass (teaching contract)
+
+What changed and why:
+- **Top**: the core sentence, then a hero redrawn as static SVG (`mk_hero.py` writes `parts/03a_hero.svg.html`): rebuild (trajectories, replay, completion agent, LLM judge) and re-query (query types, teacher with its own tests, SFT) with the paper's printed counts, above the Table 4 bars that carry the verdict. The paper is under arXiv's non-exclusive licence, so none of its own figures is embedded. Then "You need" (Harnesses for training and evaluation, Agentic benchmarks) and the new terms.
+- **Owned elsewhere, a sentence kept and linked**: what an environment for a coding agent contains and how SWE-Gym-style environments are built (Harnesses for training and evaluation), how Terminal-Bench is run (Agentic benchmarks), the unpaired standard error (Eval statistics); a link to Distillation and Small Language Models beside the distillation caveat.
+- **Closed**: the three existing routes (one sentence stays open), the RSA cross-workspace example, the rollout settings, seed rules and per-type record sizes, the training and evaluation setup (a one-sentence summary with the MT@4 definition stays open), Cross-WS by category (Figure 6), the small inconsistencies, and the bullets of What it takes to use this (one summary sentence stays open).
+- **Volatile**: the Mercor and SkyRL guide and the Terminal-Bench 4.0 leaderboard reading now sit in one dated closed block, "Since the paper (dated: checked 3 October 2026)"; Connections points to it instead of repeating the date.
+- **No autoplay**: `makeAnim` patched as on the EnvHarness page (the Idea animation and the replay wait on step 1; a mode or trace change resets paused); `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `tu-tab`). `check_page.mjs` fails if an animation draws a frame before a click and opens every closed block.
+- **Takeaway scoped** (paper.json, so the card, `live.md` and `mk_coverage.py`): "37,300 runnable environments" became 37,273 judged task-sufficient (on context, not shown to build or run); the gains are kept with their numbers, with the decisive re-solve against imitate comparison, the ablations within noise and the distillation share named; the flywheel is the motivation, not something the paper ran. The Notion property needs the same edit.
+- Em-dashes in `inputs/paper_v1.txt` and `inputs/tables_v1.txt` written as `--` (no author emails were present); `extract_paper.py` now does both. Header: "Reading: 22 min, plus 4 in closed details." from `reading.json`.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After |
+|---|---|---|
+| The paper, core | 23.5 min (5,396 words) | 21.7 min (5,001) |
+| The paper, closed | 0 | 4.0 min (913) |
+| Replay; tables; Further reading | 3.1 (+1.0 closed); 10.1; 3.2 min | unchanged |
+| Visuals in Reading (audit) | 5 | 6 (the hero added) |
+
+Why about 22 minutes is right: the paper is a three-step pipeline with four query mechanisms, a headline result and seven ablations, and its evidence section turns on the noise of each ablation and on what "environment" means. The open text keeps every step, every result with its number and every evidence point the verdict uses; setup, examples, per-category detail and inconsistencies closed. Shorter would mean closing ablations whose noise the verdict rests on.
+
+## Knowledge ledger (`ledger.json`, labelled by `label_ledger.py`)
+317 units: core 276, depth 35, owned 3, volatile 3, fat 0. 303 drafted by `ledger.py init` from the page before the pass; 14 added (top, three owner links, script-drawn charts keyed to their static captions). Nothing was deleted. `ledger.py check`: problems 0.
+
+## Checks (25 October 2026)
+`checkpage.sh`: tabs 4, 239 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 928 actions, 0 problems (no frame before a click). `check_replay.mjs` passes in the build. `mk_coverage.py`: 32 of 32.

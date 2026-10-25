@@ -12,7 +12,7 @@
     o.modes.early=R.events.map((e,k)=>({t:'command '+(k+1)+' (turn '+e.t+'): <code>'+esc(e.cmd.slice(0,90))+'</code>',c:cap(e,'early')}));
     o.modes.late=R.events.map((e,k)=>({t:'command '+(k+1)+' (turn '+e.t+'): <code>'+esc(e.cmd.slice(0,90))+'</code>',c:cap(e,'late')}));
     document.querySelectorAll('#rtPick button').forEach((b,j)=>{b.classList.toggle('on',j===i);b.setAttribute('aria-pressed',j===i?'true':'false')});
-    files();if(AN){AN.st.k=0;AN.st.t=RM?1:0;AN.st.lk=-1;AN.draw()}}
+    files();if(AN){AN.st.play=false;AN.st.k=0;AN.st.t=1;AN.st.lk=-1;AN.draw()}}
   function cap(e,m){const p=e.path?'<code>'+esc(short(e.path))+'</code>':'';
     switch(e.kind){
       case 'read-pre':return 'The terminal shows '+e.n+' lines of '+p+(e.t&&R.snaps&&!R.snaps[R.events.indexOf(e)].mut?' before the agent has changed anything':' (listed before any change, never written by the agent)')+', so it is pre-existing: '+(m==='early'?'it enters Ê<sub>0</sub> at this version.':'replaying to the end also keeps it, but at its last version.');

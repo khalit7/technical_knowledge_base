@@ -31,3 +31,9 @@ The question the paper keeps returning to: **how much of a usable training envir
 ## What the methodology lacked for this page
 
 A rule for **re-implementing an unreleased pipeline stage on the paper's own public inputs**: when the paper's data source is public but its code is not, rebuild the cheapest deterministic stage, run it on a seeded sample of the real source, and compare its statistics with the paper's table (here the median replayed file count reproduced; line counts did not). It also surfaced a source-audit step worth making routine for data papers: sample the source corpus and report who produced it (here one model and one harness on generated tasks), since "public trajectories" can mean something much narrower than it sounds.
+
+## Added 2026-10-25 (light pass)
+
+| id | idea | status | where | data |
+|---|---|---|---|---|
+| P-terminal_universe.11 | **Hero**: the pipeline as a static redraw with its printed counts (traces, files after replay and completion, judged-sufficient workspaces, records by query type, TB2.1 before and after) above the Table 4 bars (imitate 36.7, base 47.0, re-solve 52.1); `mk_hero.py`. The paper is arXiv non-exclusive, so Figure 1 is not embedded | built | Reading, top | Tables 3, 4, 12, 13, 19; Figures 1, 7 |
