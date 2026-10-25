@@ -24,3 +24,5 @@ The question the paper keeps returning to: **does a trained model that writes a 
 **Inspiration.** GDPO's own argument (sum-then-normalise collapses distinct reward combinations) set the before/after of idea 1; the DeepSeek MLA explainer set the animation pattern; the ReAct and HarnessDev pages set the agent-paper treatment (trace replay replaced here by an update-rule ingredient, because nothing runnable is released for traces).
 
 **What the methodology lacked for this page.** A rule for checking whether training data was built on the test cases' own environments when the queries themselves differ (workspace names and per-case databases gave it away); and a rule that a figure only in the PDF e-print (Figures 4 and 6 are missing from the HTML) must be fetched from the e-print, not skipped.
+
+**Light pass 2026-10-25.** Built: the hero, the paper's Figure 1 (CC BY 4.0) over Table 2 averages and Table 3 cost bars (`mk_hero.py`); the paper's Figure C.3 beside the illustrative Turnstile animation. Rejected: redrawing Figure 1 by hand (the original is licensed for reuse and is the figure people cite).

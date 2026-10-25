@@ -40,8 +40,18 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   };
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
+  // no autoplay (2026-10-25): scroll the protocol animation into view, wait: it must not have drawn a frame; nor after a mode switch
+  {
+    await p.$eval('#pt', e => e.scrollIntoView()); await wait(1200);
+    let fr = await p.$eval('#pt', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: pt played before the reader acted (${fr} frames)`);
+    await clk('#ptM button:not(.on)'); await wait(1000);
+    fr = await p.$eval('#pt', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: pt played after a mode switch (${fr} frames)`);
+    await clk('#ptM button[data-m=react]');
+  }
   for (const t of tabs) {
-    await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
+    await p.click(`#tabs button[data-t=${t}]`); await wait(250);
+    await p.$$eval(`#${t} details`, ds => ds.forEach(d => { d.open = true })); await wait(250); // closed blocks are audited too
+    await audit(t + ' open');
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }

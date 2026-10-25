@@ -20,5 +20,5 @@ echo; echo "## https://huggingface.co/JIT-Agent/jit-27b (model card, selected li
 curl -sL https://huggingface.co/JIT-Agent/jit-27b/raw/main/README.md | grep -nE "license|base_model|initial research release|distillation|Parameters|context|three candidate|description references"
 echo; echo "## https://huggingface.co/datasets/JIT-Agent/jit-meta-harness (dataset card, selected lines)"
 curl -sL https://huggingface.co/datasets/JIT-Agent/jit-meta-harness/raw/main/README.md | grep -nE "subset of the training data|Training examples|Unique task|Harnesses per"
-} > $O
+} | python3 -c "import re,sys; s=sys.stdin.read(); sys.stdout.write(re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][a-z]{2,}', '[email removed]', s).replace(chr(0x2014), '--'))" > $O   # emails redacted, long dashes saved as -- (2026-10-25)
 wc -l $O

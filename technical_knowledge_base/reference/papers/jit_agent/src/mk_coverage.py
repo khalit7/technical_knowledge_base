@@ -11,11 +11,11 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, F = 'The paper tab', 'Score a group of harnesses tab', 'Tables tab', 'Further reading tab'
 C = [
  # properties (they stay in Notion; the card repeats the takeaway)
- ('Takeaway property (verbatim on the card)', R + ', headline card "In one line"', ['Makes harness construction a trained capability: factor any harness into (Memory, Planning, Action, Capability orchestration)', 'at 14.9-54.1% lower cost than fixed harnesses']),
+ ('Takeaway property (verbatim on the card)', R + ', headline card "In one line"', ['Makes harness construction a trained capability: a 27B model', 'beats bare GPT-5.6 on five of nine benchmarks but not on average']),
  ('Topics property: agentic-harnesses, agentic-frameworks, rl', F + ', Topics', ['https://app.notion.com/p/3c65c17b0d0d81d881a8fe98b4cff7bb', 'https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7', 'https://app.notion.com/p/3c65c17b0d0d8195a6c6c11ad093c16e']),
  ('Year property: 2026', 'crumb line', ['Papers', '· 2026 ·']),
  # header
- ('Reading time line "5 min read, +~45 min resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "5 min read, +~45 min resources"', 'dropped: replaced by the build-computed reading time and resources total', ['Reading:', 'in closed details']),
  ('Authors: Guibin Zhang ... Shuicheng Yan (NUS and collaborators)', R + ', headline card (v2 adds Chuanrui Hu and Yafeng Deng, and EverMind AI and NTU)', ['Guibin Zhang', 'Leo Lu', 'Fangzhou Xie', 'Kang Zhu', 'Junhao Wang', 'Zhifei Xie', 'Zhaochen Yu', 'Zihang Liu', 'Zhongxiang Sun', 'Qiankun Li', 'Yue Liao', 'Heng Chang', 'Xiaobin Hu', 'Qibing Ren', 'Wangchunshu Zhou', 'Shuicheng Yan', 'National University of Singapore']),
  ('Date: 2026-08-26 (arXiv v1)', R + ', headline card (v2 of 3 September also given)', ['26 August 2026 (arXiv v1)']),
  ('Links: arXiv:2608.25593 (~45 min) and HTML', 'card and Further reading', ['https://arxiv.org/abs/2608.25593', 'https://arxiv.org/html/2608.25593v2', '(45 min)']),
@@ -49,7 +49,7 @@ C = [
  ('Largest single gain +24.8 on DeepPlanning-Shopping, a constraint-tracking task; harness lift concentrates where state management is the bottleneck', R + ', Results 1', ['+24.8', 'sustained state management and constraint tracking', 'harness lift concentrates where state management is the bottleneck']),
  ('JIT-equipped systems rank first in 8 of 9 columns, at 14.9% to 54.1% lower cost than fixed harnesses', 'corrected: 8 of 9 holds (Table 2); the cost range comes from Table 3\'s three benchmarks only (Results 2)', ['eight of nine', '14.9% to 54.1%', 'these three benchmarks only']),
  # why it matters
- ('First attempt to make harness intelligence a trainable axis; economics: lift comes with cost reduction because a task-conditioned harness does not pay for machinery it does not need', R + ', Why it matters', ['the first attempt to make harness intelligence a', 'does not pay for machinery it does not need']),
+ ('First attempt to make harness intelligence a trainable axis; economics: lift comes with cost reduction because a task-conditioned harness does not pay for machinery it does not need', R + ', Why it matters', ['an early attempt to make harness intelligence a', 'does not pay for machinery it does not need']),
  ('Practical consequence: harness becomes a per-task artifact you generate; changes what you cache, version and evaluate', R + ', Why it matters', ['per-task artifact you generate', 'what you cache, what you version and what you evaluate']),
  ('Caveat quote: production harnesses (Codex, Claude Code, DeepSeek harness) "expose substantially richer mechanisms than our four-module instantiation"', R + ', the Position box (v1 only; removed in v2)', ['expose substantially richer mechanisms than our four-module instantiation']),
  ('The generator writes in a deliberately impoverished language, so comparison to OpenCode and Claude Code is closer to parity than dominance', R + ', Why it matters', ['deliberately impoverished language', 'closer to parity than to dominance']),
