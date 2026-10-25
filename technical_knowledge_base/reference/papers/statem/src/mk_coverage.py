@@ -11,10 +11,10 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, F = 'The paper tab', 'Replay tab', 'Tables tab', 'Further reading tab'
 C = [
  # properties (stay in Notion; the card repeats the takeaway)
- ('Takeaway property (on the card)', R + ', headline card "In one line"', ['Names and tests harness scaling: a versioned YAML state-machine runbook with enforced, checked transitions around a fixed CLI agent', 'at about 1/38 the evaluation cost']),
+ ('Takeaway property (on the card)', R + ', headline card "In one line"', ['Names and tests harness scaling: a versioned YAML state-machine runbook with checked transitions around a fixed CLI agent', 'about 1/38 of a different Sol max submission']),
  ('Topics property: agentic-harnesses, benchmarks, agentic-frameworks', F + ', Topics', ['https://app.notion.com/p/3c65c17b0d0d81d881a8fe98b4cff7bb', 'https://app.notion.com/p/3c65c17b0d0d811fb43fece56e40041a', 'https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7']),
  ('Year property: 2026', 'crumb line', ['Papers', '· 2026 ·']),
- ('Reading time line "11 min read, +~1h resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "11 min read, +~1h resources"', 'dropped: replaced by the build-computed reading time and resources total', ['Reading: ', 'in closed details.']),
  # header
  ('Authors: Ziheng Qin, Yaxin Lu, Zhangyang "Atlas" Wang, Kai Wang; independent work in personal time; Qin and Lu equal-first', R + ', headline card', ['Ziheng Qin', 'Yaxin Lu', 'Zhangyang "Atlas" Wang', 'Kai Wang', "personal time", 'equal first authors']),
  ('Date: August 2026, arXiv v1 2026-08-15', R + ', headline card', ['15 August 2026 (arXiv v1']),
@@ -29,7 +29,7 @@ C = [
  ('Dominant fix is more model (pretraining, post-training, test-time reasoning, extra agents); orthogonal question', R + ', Problem', ['The usual fix is more model', 'How much apparent model failure is actually failure of the harness that maintains state, constrains execution, verifies progress, and recovers from errors?']),
  ('Control-signal dilution', R + ', Problem', ['control-signal dilution', 'a short plan and its completion criteria buried under thousands of tokens']),
  ('Mutable-state ambiguity', R + ', Problem', ['mutable-state ambiguity', 'the current state rebuilt from an append-only history']),
- ('Graph runtimes (LangGraph, StateFlow): strong control, developer-owned orchestration, node-local calls', R + ', Problem and Figure 1 rebuilt', ['Graph runtimes (StateFlow, LangGraph)', 'a developer owns the controller and the agent is split into node calls']),
+ ('Graph runtimes (LangGraph, StateFlow): strong control, developer-owned orchestration, node-local calls', R + ', Problem and Figure 1 rebuilt', ['Graph runtimes (StateFlow, LangGraph', 'a developer owns the controller and the agent is split into node calls']),
  ('CLI agents (Codex, Claude Code): autonomy, but plans, TODO lists, memory files, hooks never one authoritative transition-aware control surface', R + ', Problem', ['CLI agents (Codex, Claude Code) keep autonomy', 'never one authoritative, transition-aware control surface']),
  # method
  ('StateM runtime: lightweight agent-native runtime for CLI agents; versioned YAML runbook', R + ', Idea', ['is a small runtime for CLI agents', 'versioned YAML runbook']),
@@ -41,7 +41,7 @@ C = [
  ('Failed pre-commit checks keep the run in the source state for inspection and repair', R + ', Method', ['A failed check leaves the run where it was, with the failure recorded, to repair and retry']),
  ('Graded check strength: command/predicate, manual, checklist/message, llm_review', R + ', Method ladder', ['command, predicate', 'manual', 'llm_review', 'checklist, message', 'self-attestation', 'not deterministic proof']),
  ('Per-run mutable state outside the runbook; one profile many runs; restarted agent resumes from an explicit phase', R + ', Method', ['Per-run state lives outside the runbook', 'One profile serves many runs']),
- ('Stop hooks for Codex/Claude Code refuse premature termination; 22-hour unattended run', R + ', Method and §4.8', ['Stop hooks for Codex and Claude Code refuse to stop a run', 'A 22-hour run']),
+ ('Stop hooks for Codex/Claude Code refuse premature termination; 22-hour unattended run', R + ', Method and §4.8', ['Stop hooks for Codex and Claude Code', 'refuse to stop a run', 'A 22-hour run']),
  ('Failure-driven optimisation: epistemic, procedural-compliance, procedural-memory gaps with their fixes', R + ', Method', ['epistemic', 'procedural compliance', 'procedural memory', 'state-local context in an in_hook', 'versioned prompt, check or activation rule']),
  ('Hyper-agent plus human golden rules (minimal reusable control, route from visible task semantics not identity, separate development feedback from frozen evaluation)', R + ', Method', ['hyper-agent', 'prefer minimal reusable control, route from visible task semantics rather than task identity, keep development feedback apart from frozen evaluation']),
  ('Experience must be filtered before it becomes memory; more remembered procedure is not better memory; BusinessBench improves when profiles get thinner or replaced by the right invariants', R + ', §4.7 and Result 4', ['experience must be filtered before it becomes memory', 'More remembered procedure is not better memory', 'control sat at the wrong boundary']),

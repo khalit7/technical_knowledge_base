@@ -24,7 +24,7 @@ import html, json, re
 P = json.load(open('paper.json'))
 AX = 'https://arxiv.org/pdf/%s%s' % (P['arxiv'], P['arxiv_v'])  # arXiv HTML failed to convert: anchors are PDF pages (ax:p13 -> #page=13)
 HTML = ['00_top.html', '01_css.html', '02_header.html', '03_paper.html', '03b_results.html', '03d_trust.html', '04_run.html', '05_tables.html', '_gen_more.html']
-JS = ['10_js_common.js', '_gen_data.js', '_gen_trials.js', '11_js_ui.js', '12_js_read.js', '13_js_read2.js', '14_js_run.js', '24_js_tables.js', '90_js_tabs.js']
+JS = ['10_js_common.js', '_gen_data.js', '_gen_trials.js', '11_js_ui.js', '12_js_read.js', '13_js_read2.js', '14_js_run.js', '15_js_hero.js', '24_js_tables.js', '99_js_tabs.js']
 rd = lambda f: open('parts/' + f, encoding='utf-8').read()
 body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html'))
 A = lambda u, t: '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>' % (u, t)
@@ -56,7 +56,8 @@ tot = 0
 for x in re.findall(r'class="rt">\(([^)]*)\)', fr):
     h = re.search(r'(\d+)h', x); mm = re.search(r'(\d+) ?m(?:in)?\b', x)
     tot += (int(h.group(1)) * 60 if h else 0) + (int(mm.group(1)) if mm else 0)
-out = out.replace('RT_MIN', str(mins)).replace('RES_TIME', '%dh %02dm' % (tot // 60, tot % 60))
+RDT = json.load(open('reading.json'))  # measured by html_utils/audit_pages.mjs after a build, written by hand
+out = out.replace('RD_CORE', str(RDT['core'])).replace('RD_DET', str(RDT['details'])).replace('RT_MIN', str(mins)).replace('RES_TIME', '%dh %02dm' % (tot // 60, tot % 60))
 open('../index.html', 'w', encoding='utf-8').write(out)
 print('reading words', w, 'minutes', mins, 'resources %dh %02dm' % (tot // 60, tot % 60), 'bytes', len(out.encode()))
 PY

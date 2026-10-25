@@ -9,6 +9,8 @@ n = int(re.search(r'Pages:\s+(\d+)', subprocess.run(['pdfinfo', pdf], capture_ou
 out, idx = ['Source: https://arxiv.org/pdf/2608.15089v1 (extracted by extract_paper.py, one block per PDF page)\n'], []
 for i in range(1, n + 1):
     t = subprocess.run(['pdftotext', '-f', str(i), '-l', str(i), pdf, '-'], capture_output=True, text=True).stdout
+    t = t.replace('\u2014', '--')  # no em-dashes in saved extracts
+    t = re.sub(r'(\{[A-Za-z0-9._,-]+\}|[A-Za-z0-9._%+-]+)@[A-Za-z0-9.-]+\.[a-z]{2,}', '[email removed]', t)  # author emails are not kept
     out.append('\n=== page %d ===\n%s' % (i, t))
     for m in re.finditer(r'^(\d(?:\.\d)? [A-Z$][^\n]{3,80}|[A-C] [A-Z][a-z][^\n]{3,60}|(?:Figure|Table) \d+)', t, re.M):
         idx.append('p%d\t%s' % (i, m.group(1).strip()))

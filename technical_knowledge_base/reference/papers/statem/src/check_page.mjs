@@ -41,7 +41,15 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
-    await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
+    await p.$eval(`#tabs button[data-t=${t}]`, e => e.click()); await wait(250); await audit(t + ' open');
+    // nothing may move before the reader acts (2026-10-25): scroll each animation into view, wait, count frames
+    for (const id of ['gw', 'rp']) {
+      if (!(await p.$(`#${t} #${id}`))) continue;
+      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before a click (${fr} frames)`);
+    }
+    // open every closed block and audit what it shows
+    await p.$$eval(`#${t} details`, ds => ds.forEach(d => d.open = true)); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }

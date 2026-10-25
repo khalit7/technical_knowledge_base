@@ -35,7 +35,7 @@
     counters(m,k){const i=+m.slice(1),r=RP[i],S=r.steps[k],last=k===r.steps.length-1;list(i,k);
       return 'state <b>'+nice(S.cur)+'</b> · '+S.ev[0]+' s of '+r.sec+' s · transitions committed '+S.go+' · refused '+S.bl+(last?' · <b>verifier: '+(r.reward?'pass':'fail')+(r.exc?' ('+r.exc+')':'')+'</b> · cost '+usd(r.cost,3)+' · '+fmt(r.in/1e6,2)+'M input tokens ('+fmt(100*r.cache/r.in,1)+'% cached), '+fmt(r.out)+' output':'')}});
   showMeta(0);
-  sel.addEventListener('change',()=>{const i=+sel.value.slice(1);showMeta(i);A.st.m=sel.value;A.st.k=0;A.st.t=RM?1:0;lastList='';A.draw();A.kick()});
+  sel.addEventListener('change',()=>{const i=+sel.value.slice(1);showMeta(i);A.st.m=sel.value;A.st.k=0;A.st.t=1;A.st.play=false;lastList='';A.draw();A.kick()});
   window.__rpLoad=n=>{const i=RP.findIndex(r=>r.trial===n);if(i<0)return;sel.value='r'+i;sel.dispatchEvent(new Event('change'));$('rp').scrollIntoView({block:'start'})};
 
   // ---- grid of all trials ----
