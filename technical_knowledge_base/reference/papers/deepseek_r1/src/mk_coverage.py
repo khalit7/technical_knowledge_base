@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "16 min read, +~5h 35m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "16 min read, +~5h 35m resources"', 'dropped: replaced by the measured reading time (2026-10-25)', ['Reading:', 'in closed details']),
  ('Authors/lab: DeepSeek-AI, core contributors Daya Guo, Dejian Yang, Junxiao Song, Peiyi Wang, Zhihong Shao', R + ', headline card', ['Daya Guo', 'Dejian Yang', 'Junxiao Song', 'Peiyi Wang', 'Zhihong Shao']),
  ('Date: January 2025 (v1); v2 January 2026 is the expanded Nature version (Nature, September 2025)', R + ', headline card; Two versions', ['arXiv v1 22 January 2025', 'arXiv v2 4 January 2026', 'published 17 September 2025']),
  ('Link arXiv 2501.12948 (~2h, long report)', 'card; Further reading', ['https://arxiv.org/abs/2501.12948', '(2h)']),
@@ -31,7 +31,7 @@ C = [
  ('o1 proved long-CoT test-time scaling, published nothing on how', R + ', Problem', ['published nothing about how it was trained']),
  # R1-Zero
  ('V3-Base (671B MoE, 37B active), no SFT, large-scale GRPO with rule rewards only', R + ', R1-Zero', ['671B-parameter mixture of experts with 37B active']),
- ('GRPO recap: G outputs, z-scored advantage shared across tokens, clipped ratio, k3 KL, no critic', R + ', R1-Zero (linked to DeepSeekMath)', ['divided by the group\'s standard deviation, shared by all its tokens', 'unbiased k3 estimator', 'No value model']),
+ ('GRPO recap: G outputs, z-scored advantage shared across tokens, clipped ratio, k3 KL, no critic', R + ', R1-Zero (short recap; the mechanism linked to RL for LLMs and DeepSeekMath)', ['over the group\'s standard deviation', 'k3 estimator', 'no value model']),
  ('Nature adds PPO vs GRPO: PPO matches only with lambda 1.0; 0.95 much worse; still a value model', R + ', R1-Zero', ['the default value in most open-source PPO implementations', 'with λ = 1.0 it nearly matches GRPO']),
  ('Reference refreshed every 400 steps', R + ', settings', ['replaced by the latest policy every 400 steps']),
  ('Rewards: accuracy (boxed answer, sympy; compiler + tests) + format (think tags), equal weight', R + ', reward', ['accuracy reward', 'format reward', '"combined with the same weight"']),

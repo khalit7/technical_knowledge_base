@@ -17,3 +17,5 @@ Question the page keeps returning to: what did outcome-only RL actually produce,
 | P-deepseek_r1.11 | PPO vs GRPO curve (Figure 4) | Raster image only; PPO vs GRPO is trained live on the DeepSeekMath page | none | | rejected |
 
 Methodology gap found: arXiv HTML can omit figures entirely while the PDF holds them as vectors; decode from the PDF with PyMuPDF (`decode_figs.py`). Full-page puppeteer screenshots repeat after about 16,000 px; review long tabs per section (`shoot.mjs`).
+
+- P-deepseek_r1.hero (2026-10-25, built): the paper's own Figure 2 (Nature, CC BY 4.0) as the hero, a real figure people cite; a hand-drawn pipeline was rejected because the DeepSeek lab page already draws the recipe as a flow.

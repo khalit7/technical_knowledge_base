@@ -19,6 +19,15 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto(file);
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
+  // never autoplay (2026-10-25): each step animation on screen for 1.5 s with nothing pressed, then after a mode switch, must draw no frame
+  await p.$eval('#tabs button[data-t=t-read]', b => b.click());
+  for (const [id, m] of [['grp', 'lc'], ['stg', 'general']]) {
+    await p.$eval('#' + id, e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 1500));
+    if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} autoplayed`);
+    await p.$eval(`#${id}M button[data-m=${m}]`, b => b.click()); await new Promise(r => setTimeout(r, 1000));
+    if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} played on a mode switch`);
+  }
+  await p.evaluate(() => scrollTo(0, 0));
   const audit = async (where) => {
     const r = await p.evaluate(() => {
       const small = [];
@@ -42,6 +51,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
+    await p.$$eval(`#${t} details`, ds => ds.forEach(d => { d.open = true })); await wait(250); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }

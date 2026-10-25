@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning","Takeaway":"Pure GRPO RL with rule-based verifiable rewards on V3-Base makes reasoning (reflection, \"aha moment\", long CoT) emerge without SFT; a cold-start SFT -\\> reasoning RL -\\> rejection-sampling SFT -\\> all-scenario RL pipeline fixes R1-Zero's readability and language mixing to match o1, and 800k R1 samples distill reasoning into 1.5B-70B models by SFT alone.","Topics":["rl","llm-training-and-post-training"],"Year":"2025","url":"https://app.notion.com/p/3c65c17b0d0d813faca4f7a51eaa0c65"}
+{"Paper":"DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning","Takeaway":"Pure GRPO RL with rule-based verifiable rewards on V3-Base, with no SFT, grows long chains of thought and makes self-checking (already present, rarely, in the base) far more frequent, lifting AIME 2024 from 15.6% to 77.9%; a cold-start SFT -\\> reasoning RL -\\> rejection-sampling SFT -\\> all-scenario RL pipeline fixes R1-Zero's readability and language mixing and roughly matches o1-1217 on maths and competitive code (behind it on GPQA, SimpleQA and Aider), and 800k R1 samples distill reasoning into 1.5B-70B models by SFT alone, beating RL on the same 32B base.","Topics":["rl","llm-training-and-post-training"],"Year":"2025","url":"https://app.notion.com/p/3c65c17b0d0d813faca4f7a51eaa0c65"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>
