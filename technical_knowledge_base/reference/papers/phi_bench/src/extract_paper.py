@@ -8,7 +8,8 @@ def txt(x):
     x = re.sub(r'</(p|h\d|div|tr|li|figcaption)>', '\n', x)
     x = re.sub(r'</t[dh]>', '\t', x)
     x = re.sub(r'<[^>]+>', '', x)
-    x = html.unescape(x)
+    x = html.unescape(x).replace('\u2014', '--')  # no em-dashes in saved extracts
+    x = re.sub(r'(\{[A-Za-z0-9._,-]+\}|[A-Za-z0-9._%+-]+)@[A-Za-z0-9.-]+\.[a-z]{2,}', '[email removed]', x)  # author emails are not kept
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
 a = s.index('<article'); b = s.index('</article>')
 open('inputs/paper.txt', 'w').write('Source: https://arxiv.org/html/2609.10226 (extracted by extract_paper.py)\n\n' + txt(s[a:b]))

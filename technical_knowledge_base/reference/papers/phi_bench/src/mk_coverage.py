@@ -11,11 +11,11 @@ txt = re.sub(r'\s+', ' ', txt)
 R, P, S, T, F = 'The paper tab', 'Replay tab', 'Score a submission tab', 'Tables tab', 'Further reading tab'
 C = [
  # properties (they stay in Notion; the card repeats the takeaway)
- ('Takeaway property (verbatim on the card)', R + ', headline card "In one line"', ['85 open-ended infrastructure tasks in nine categories and three escalating formats', 'the behaviours that separate the top of the table being cheap pre-submission validation plus deliberate variable isolation']),
+ ('Takeaway property (on the card; softened 2026-10-25: a mean reward, not tasks resolved; Hardware and Edge on 3 tasks; one-task case study)', R + ', headline card "In one line"', ['85 open-ended infrastructure tasks in nine categories and three formats', 'a mean reward, not a share of tasks solved', 'suggests that cheap pre-submission validation and deliberate variable isolation']),
  ('Topics property: benchmarks, inference-and-serving, cuda-and-gpu-programming, ml-infra-and-orchestration', F + ', Topics', ['https://app.notion.com/p/3c65c17b0d0d811fb43fece56e40041a', 'https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13', 'https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1', 'https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b']),
  ('Year property: 2026', 'crumb line', ['Papers', '· 2026 ·']),
  # header
- ('Reading time line "5 min read, +1h resources"', 'replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "5 min read, +1h resources"', 'replaced by the build-computed reading time and resources total', ['Reading: ', 'in closed details.']),
  ('September 2026; authors and exact submission date not recovered; check the arXiv listing', 'corrected: ' + R + ', card (13 authors, 9 September 2026) and the note under the nav', ['Leilei Ding', 'Yanyong Zhang', '9 September 2026', 'could not find the authors or the submission date']),
  ('arXiv 2609.10226 (1h, 30+ pages)', 'card and Further reading; page count corrected to 10', ['https://arxiv.org/abs/2609.10226', 'Preprint, 10 pages', '(1h)', 'said the paper ran to 30+ pages']),
  ('Best resources: the paper (1h)', F, ['https://arxiv.org/html/2609.10226v1']),

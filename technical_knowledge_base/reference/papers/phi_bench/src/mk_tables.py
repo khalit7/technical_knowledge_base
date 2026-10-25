@@ -60,7 +60,7 @@ out = {
     'lb_high': [{'m': r['name'], 'kfc': r['kfc'], 'lh': r['lh'], 'e2e': r['e2e'], 'total': r['total'], 'n_e2e': r['counts']['e2e']} for r in lb['leaderboard']['high']],
     'lb_rules': {k: lb['meta'][k] for k in ('selection_e2e_perf', 'selection_exception', 'weighting_note', 'formula_perf', 'generated_utc')},
     'lb_effort_n': lb['effort']['n_tasks'],
-    'lb_iter': {'title': it['title'], 'blurb': it['blurb'].replace(' \u2014 ', ': '), 'series': it['series']},
+    'lb_iter': {'title': it['title'], 'blurb': it['blurb'].replace(' \u2014 ', ': ').replace(' -- ', ': '), 'series': it['series']},
     'tasks': tasks,
     'a3': {'baseline_bpb': a3['reward_model']['baseline_bpb'], 'ref': a3['reward_model']['ref_speedup'], 'oracle_bpb': a3['reward_model']['oracle_bpb_median'],
            'baseline_cv': a3['reward_model']['baseline_cv'], 'oracle_cv': a3['reward_model']['oracle_cv'],
