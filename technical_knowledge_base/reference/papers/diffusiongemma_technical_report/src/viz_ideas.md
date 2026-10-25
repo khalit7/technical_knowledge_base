@@ -25,5 +25,6 @@ Scores: quantity the reader moves (0 to 2), reproduces a published figure (x2), 
 | P-diffusiongemma_technical_report.17 | Mercury 2 NNLS refit (Appendix E) | | | rejected: the per-request API data is not released |
 | P-diffusiongemma_technical_report.18 | Then and now tab | | | rejected: a two-month-old report has no "now" yet; its lineage (DDPM, BERT, T5, block diffusion) is linked |
 | P-diffusiongemma_technical_report.19 | Training-bill or GPU-hours tab | | | rejected: a pattern Khalid removed, and the paper gives no compute numbers ("fewer than 10% of the tokens" only) |
+| P-diffusiongemma_technical_report.20 | Hero (light pass 2026-10-25): the encode, denoise, append loop of Figure 4 over one 256-token block drawn to scale against AR (1,254 ms against 176 ms, Eq. 12) | | | built: `parts/15_js_hero.js`, static, at the top of The paper. The paper's own Figure 4 was not embedded: the arXiv listing's licence was not confirmed as CC BY, so it is redrawn |
 
 What the methodology lacked for this page: a rule for **context checks** (recomputed numbers that frame a claim without confirming or refuting a printed value, such as expected experts under uniform routing); the checks table now has a third verdict, "context", for these.

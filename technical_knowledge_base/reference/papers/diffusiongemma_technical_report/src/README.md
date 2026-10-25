@@ -6,7 +6,7 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Headline card with the verdict, then Problem, Idea (Eq. 12 as the whole speed argument, Table 1), Discrete diffusion (Eq. 1, a multinomial-against-masked corruption demo), Block by block (the causal-encoder, bidirectional-decoder inversion), The sampler (Algorithm 1 animated on the trained toy, with the masked twin and AR mode as before/after; a predict question run live), Training (SFT, SD·RL, predict on answer length), Speed (Figure 11 to scale with a TPF slider and what-ifs, predict on distinct experts, Figure 12's ratios with the extrapolated crossover), Results (quality dot plot with standard errors, speed against other systems, Section 9, Section 8, Section 10), Why it matters, How much to believe, What it takes to use this. |
+| The paper | `t-read` | Headline card with the verdict; the core sentence, hero figure (`15_js_hero.js`), You need and New terms; then Problem, Idea (Eq. 12 as the whole speed argument, Table 1), Discrete diffusion (Eq. 1, a multinomial-against-masked corruption demo), Block by block (the causal-encoder, bidirectional-decoder inversion), The sampler (Algorithm 1 animated on the trained toy, with the masked twin and AR mode as before/after; a predict question run live), Training (SFT, SD·RL, predict on answer length), Speed (Figure 11 to scale with a TPF slider and what-ifs, predict on distinct experts, Figure 12's ratios with the extrapolated crossover), Results (quality dot plot with standard errors, speed against other systems, Section 9, Section 8, Section 10), Why it matters, How much to believe, What it takes to use this. |
 | Run the toy | `t-run` | The toy with every sampler knob, three decoders on one problem, an in-browser test on 64 held-out problems, the offline speed-quality sweep, training curves, findings. |
 | The paper's tables, rebuilt | `t-tables` | Table 3 (printed or as differences), Appendix E's Mercury 2 estimate, Table 4 with recomputed columns, 37 checks of the paper's numbers, Figure 11's labels, Tables 1, 2, 5, 6, 7. |
 | Further reading | `t-more` | Generated from `paper.json`. |
@@ -19,6 +19,17 @@
 - **The AR-against-diffusion pass-count animation is not rebuilt**: it is on the 2026-08-24 tech news page and linked.
 - **A third verdict, "context", in the checks table**, for recomputed numbers that frame a claim without testing a printed value.
 - **Reading length**: about 21 minutes against the old page's 13 (the page now owns every detail of the report, including the evidence judgement and the toy's results).
+
+## Light pass to the teaching contract (2026-10-25)
+
+- **Top**: the idea in one sentence; a hero figure (the encode, denoise, append loop of Figure 4 redrawn, plus one 256-token block to scale: 256 x 4.90 ms = 1,254 ms for AR against 13.0 passes x 13.56 ms = 176 ms, Eq. 12 drawn out); You need (Performance math, Speculative decoding, Families and objectives); New terms.
+- **Owned elsewhere, now linked** (what this paper did kept here): memory-bound decoding (Performance math), speculative decoding (Speculative decoding), masked diffusion LMs and block diffusion (Families and objectives), distinct experts against batch (Mixture of experts), LoRA (PEFT), RL length growth (RL for LLMs).
+- **Moved into closed blocks**: the four speed metrics of Section 3.4 and dual mode, what the self-conditioning vectors encode, the vLLM CPU-hiding detail, early uses, the per-benchmark standard-error table, the small inconsistencies, the chat template. Volatile facts (Hugging Face downloads, Unsloth's 2,000+ tokens/s) are in one dated block "Since the paper". "Why it matters" lost its restatements of Idea and Speed.
+- **Never autoplays**: `makeAnim` waits on step 1 until the reader acts (also after a rerun or a mode switch); `check_page.mjs` scrolls each animation into view and fails on any frame drawn before a click, and opens every closed block. Tabs from the skill template (`99_js_tabs.js`, key `diffusiongemma-tab`).
+- **Takeaway softened** (card, `paper.json`, `live.md`): "First open-weights text diffusion model that is fast and genuinely capable" is not a claim the report makes in those words, "under 10%" is never given as a number, and "a real but bounded quality tax" hid a 19-point AIME gap; the new line gives the measured numbers, the gaps and the one-request scope.
+- **Length judgement**: Reading core 23 min before (5,260 words) and 23 after (5,212), plus 2 in closed details (`audit_pages.mjs`, 230 words a minute; header from `reading.json`). The top added about 1.5 minutes and the moves took out as much. The rest is core: the page owns the report, its evidence judgement and the toy that runs its sampler. Other tabs unchanged (Run the toy 10, Tables 9, Further reading 3).
+- **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 238 units; core 217, depth 13, owned 5, volatile 1, fat 2; `ledger.py check` problems 0.
+- Source extracts: em-dashes replaced with `--`; `extract_paper.py` now does that and redacts emails on extraction (none were found).
 
 ## Files
 

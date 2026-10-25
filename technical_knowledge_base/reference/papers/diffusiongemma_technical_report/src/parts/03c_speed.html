@@ -11,7 +11,7 @@
 </div>
 <p>Three operations account for the difference ({{§6 "GPU time breakdown"|ax:S6}}):</p>
 <ul class="lst">
-<li><b>MoE experts, 4.3x</b> (1.08 to 4.66 ms): with one request the MoE layer's time is moving expert weights from HBM. One token activates 8 experts per layer, a 256-token canvas about <b>84</b> (PG-19), so loading them no longer amortises: verification's penalty in speculative decoding, at larger parallelism.</li>
+<li><b>MoE experts, 4.3x</b> (1.08 to 4.66 ms): with one request the MoE layer's time is moving expert weights from HBM. One token activates 8 experts per layer, a 256-token canvas about <b>84</b> (PG-19), so loading them no longer amortises: verification's penalty in speculative decoding, at larger parallelism (distinct experts against batch size on {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}).</li>
 <li><b>Sampling, 5.5x</b> (0.56 to 3.06 ms): a full-precision softmax over the 262k vocabulary at all 256 positions plus the self-conditioning matmul, in torch.compile rather than custom kernels, for extensibility.</li>
 <li><b>Attention, 4.1x</b> (0.45 to 1.84 ms): bidirectional attention over the canvas cannot use single-token decode kernels, so it runs FlashAttention-4 (the text says 4x and "at most 2x" for the rest; the figure prints 2.1x for "Other").</li></ul>
 <div class="pred" id="pr-exp" data-ans="2"><div class="q">each token picks 8 of 128 experts. If the 256 tokens of a canvas chose their experts independently and uniformly, how many distinct experts would one MoE layer have to load?</div>
@@ -19,7 +19,7 @@
 <div class="fb"></div>
 <div class="reveal" hidden><div id="prExpC"></div><div class="out" id="prExpO"></div>
 <p class="small mute">Derived: 128 × (1 − (120/128)<sup><i>n</i></sup>); 84 measured ({{§6|ax:S6}}).</p></div></div>
-<p>Two kinds of pass (denoise, cache update) with different masks can share a batch and stopping is decided on the GPU; the vLLM integration avoids every CPU-GPU synchronisation with asynchronous scheduling and a per-sequence causal-attention flag ({{§6|ax:S6}}; {{vLLM blog|https://vllm.ai/blog/2026-06-10-diffusion-gemma}}).</p>
+<details class="mist"><summary>How the serving code hides the CPU (vLLM)</summary><div class="b"><p>Two kinds of pass (denoise, cache update) with different masks can share a batch and stopping is decided on the GPU; the vLLM integration avoids every CPU-GPU synchronisation with asynchronous scheduling and a per-sequence causal-attention flag ({{§6|ax:S6}}; {{vLLM blog|https://vllm.ai/blog/2026-06-10-diffusion-gemma}}).</p></div></details>
 <h3>More than one user</h3>
 <p>{{Figure 12|ax:S6.F12}} adds concurrent requests (PG-19, DiffusionGemma at 16 TPF, Gemma 4 with an MTP draft of 4). DiffusionGemma leads in per-user and total throughput at low batch sizes; AR begins to win "around 32 concurrent requests", with nothing tuned for batches above 1 (top-<i>k</i> truncation in sampling is expected to help).</p>
 <div class="card" id="bsz"><div id="bszSvg"></div>

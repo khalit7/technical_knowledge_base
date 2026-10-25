@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"DiffusionGemma Technical Report","Takeaway":"First open-weights text diffusion model that is fast and genuinely capable: Gemma 4 26B A4B warm-started from AR weights with under 10% of the AR token budget hits \\~20 tokens per forward pass and \\~1,500 TPS on one H100 (7.1x its AR baseline) via block-AR encoder-decoder decoding plus a unified SD-RL stage, at a real but bounded quality tax.","Topics":["generative-and-multimodal"],"Year":"2026","url":"https://app.notion.com/p/3c65c17b0d0d818390bfd7969757211e"}
+{"Paper":"DiffusionGemma Technical Report","Takeaway":"Gemma 4 26B A4B finetuned from its AR weights into a block-autoregressive text diffusion model (a causal encoder and a bidirectional decoder sharing weights, then one SD·RL stage), with what the report calls under 10% of the AR model's training tokens (never given as a number): about 20 tokens per forward pass and 1,456 to 1,479 tokens/s for one request on one H100 in FP8, 7.1x the same weights decoding autoregressively. The quality cost is real: within noise on GSM8K and IFEval, 4 points on HumanEval, 9 on GPQA-Diamond and 19 on AIME 2026 below the AR parent; the speed lead is measured at one request, and AR is expected to regain it around 32 concurrent users (extrapolated from Figure 12, which stops at 16).","Topics":["generative-and-multimodal"],"Year":"2026","url":"https://app.notion.com/p/3c65c17b0d0d818390bfd7969757211e"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

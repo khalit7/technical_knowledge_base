@@ -11,7 +11,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "13 min read, +~1h 30m resources"', 'dropped: replaced by the build-computed reading time and resources total of the new page', ['min to read', 'of resources']),
+ ('Reading time line "13 min read, +~1h 30m resources"', 'dropped: replaced by the build-computed reading time and resources total of the new page', ['Reading: ', 'in closed details.']),
  ('Authors/lab: DiffusionGemma Team, Google DeepMind', R + ', headline card', ['DiffusionGemma Team', 'Google DeepMind']),
  ('Date: August 2026 (arXiv v1 31 Jul 2026; report dated 2026-08-04)', R + ', headline card (plus the weights release date, 9 June 2026, from Hugging Face)', ['31 July 2026', '4 August 2026', '9 June 2026']),
  ('Link arXiv 2608.00146 (~1h 30m, technical report)', 'card and Further reading', ['https://arxiv.org/abs/2608.00146', '(1h 30m)']),
@@ -19,7 +19,7 @@ C = [
  ('Reference implementations in Hugging Face Transformers and vLLM', R + ', Speed and Using it; Further reading', ['Reference implementations are in Hugging Face Transformers and vLLM']),
  ('Open-source LoRA finetuning toolkit built on Hackable Diffusion', R + ', Results (Finetuning it yourself); Further reading', ['Hackable Diffusion', 'https://github.com/google/hackable_diffusion']),
  # lead paragraph
- ('First open-weights text diffusion model that is simultaneously fast and genuinely capable', 'Takeaway on the headline card; Why it matters', ['First open-weights text diffusion model that is fast and genuinely capable', 'An existence proof for open, fast and smart text diffusion']),
+ ('First open-weights text diffusion model that is simultaneously fast and genuinely capable', 'Why it matters (the Takeaway on the card was softened on 2026-10-25: the paper never states "first")', ['An existence proof for open, fast and smart text diffusion']),
  ('Gemma 4 26B A4B (MoE, 3.85B active) converted from AR to discrete diffusion', R + ', Idea and Table 1', ['Gemma 4 26B A4B', '3.85B']),
  ('With less than 10% of the AR model\'s training token budget', R + ', Idea', ['fewer than 10% of the AR model\'s training tokens']),
  ('~20 tokens per forward pass', 'card (19.74) and Idea', ['19.74', 'about 20 tokens per pass']),
@@ -27,7 +27,7 @@ C = [
  ('7.1x speedup over its own AR baseline; 4.8x over AR with MTP speculative decoding', R + ', Idea; checks; How much to believe (the 4.8x compares different workloads)', ['7.1x AR and 4.8x AR with multi-token prediction (303)', 'The MTP baseline ran on a different workload']),
  ('Broadly competitive in quality; retains thinking mode, multimodality, long context and AR decoding', R + ', Idea and Results (dual mode)', ['keeps Gemma 4\'s thinking mode, multimodal input and long context', 'its weights can still decode autoregressively']),
  # problem
- ('Single-request AR decoding is memory-bound: weights and KV cache streamed through HBM, compute idle, per-user speed capped', R + ', Problem', ['memory-bound', 'every new token needs all the weights and the whole KV cache streamed from GPU memory', 'caps how fast a single user']),
+ ('Single-request AR decoding is memory-bound: weights and KV cache streamed through HBM, compute idle, per-user speed capped', R + ', Problem', ['memory-bound', 'every new token streams all the weights and the KV cache from GPU memory', 'caps how fast a single user']),
  ('Speculative decoding tops out around 3-6 tokens per forward pass', R + ', Problem', ['3 to 6 tokens per forward pass']),
  ('Parallel drafters suffer falling acceptance rates at later draft positions', R + ', Problem', ['parallel drafters (Medusa, DFlash) lose acceptance at later draft positions']),
  ('Text diffusion decodes whole blocks in parallel and shifts execution toward compute-bound', R + ', Problem', ['moving decoding from memory-bound towards compute-bound']),
@@ -95,7 +95,7 @@ C = [
  ('Connection: Mixtral MoE serving; expert transfer becomes the largest overhead (84 vs 8)', 'Connections; Speed', ['3c65c17b0d0d81eba72af0ac91ddc6b3', '84 against 8 unique experts']),
  ('Connection: vLLM PagedAttention, memory-bound serving; vLLM reference implementation with async scheduling', 'Connections; Speed', ['3c65c17b0d0d81bf8b90ca93fee19f5f', 'vLLM reference implementation with asynchronous scheduling']),
  ('Connection: DeepSeek-R1 RLVR baseline; SD-RL its diffusion-native counterpart', 'Connections; Training; Why it matters', ['3c65c17b0d0d813faca4f7a51eaa0c65', 'diffusion-native counterpart']),
- ('Database property Takeaway', 'stays in the database; also on the headline card', ['Gemma 4 26B A4B warm-started from AR weights with under 10% of the AR token budget']),
+ ('Database property Takeaway', 'stays in the database; also on the headline card', ['Gemma 4 26B A4B finetuned from its AR weights into a block-autoregressive text diffusion model']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)
 out, miss = [], []
