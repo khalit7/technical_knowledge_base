@@ -11,11 +11,11 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, F = 'The paper tab', 'Replay the evolution runs tab', 'Tables tab', 'Further reading tab'
 C = [
  # properties (they stay in Notion; the card repeats the takeaway)
- ('Takeaway property (verbatim on the card)', R + ', headline card "In one line"', ['Moves evaluation from task performance to infrastructure construction: Creation (build an execution system from minimal components and sample cases) then Evolution (refine it from feedback)', 'stay strongly dependent on which model executes the harness']),
+ ('Takeaway property, softened on the card (2026-10-25)', 'headline card; the domain split is shown with its executor confound (hero figure) and Evolution with its held-out numbers', ['Moves evaluation from task performance to harness construction', 'so the domain split is not a controlled comparison']),
  ('Topics property: agentic-harnesses, agentic-frameworks, benchmarks', F + ', Topics', ['https://app.notion.com/p/3c65c17b0d0d81d881a8fe98b4cff7bb', 'https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7', 'https://app.notion.com/p/3c65c17b0d0d811fb43fece56e40041a']),
  ('Year property: 2026', 'crumb line', ['Papers', '· 2026 ·']),
  # header
- ('Reading time line "6 min read, +45m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "6 min read, +45m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['Reading: ', 'in closed details']),
  ('Authors: Yuhao Wu ... Wenxuan Zhang (19 names)', R + ', headline card', ['Yuhao Wu', 'Jingyuan Zhang', 'Jiajun Shi', 'Xinping Lei', 'Qingshui Gu', 'Yuxuan Zhang', 'Zexuan Wang', 'Chen He', 'Chen Huang', 'Maojia Song', 'Zhiyuan Zeng', 'Shaowen Wang', 'Jinkai Liu', 'Yunfeng Shi', 'Jiaheng Liu', 'Shen Yan', 'Wenhao Huang', 'Ge Zhang', 'Wenxuan Zhang']),
  ('Date: 2026-09-01', R + ', headline card', ['1 September 2026 (arXiv v1']),
  ('Links: arXiv 2609.01437 (45 min)', 'card and Further reading', ['https://arxiv.org/abs/2609.01437', '(45 min)']),

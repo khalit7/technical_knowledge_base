@@ -21,7 +21,7 @@ COLS = ['swe', 'swe_tok', 'term', 'term_tok', 'mle', 'mle_tok', 'eq', 'eq_tok', 
 
 def num(s):
     s = s.replace('{,}', '').replace('\\textsuperscript{*}', '').replace('\\textsuperscript{\\ddagger}', '').strip()
-    return None if s in ('\u2014', '') else float(s)
+    return None if s in ('\u2014', '--', '') else float(s)  # the saved extract writes the missing-value dash as --
 
 
 def flags(s):
@@ -39,6 +39,7 @@ def score_table(tid):
         for k, v in zip(COLS, vals):
             r[k] = num(v)
             p = v.replace('{,}', ',').replace('\\textsuperscript{*}', '').replace('\\textsuperscript{\\ddagger}', '').strip().replace('\u2014', 'n/a')
+            p = 'n/a' if p == '--' else p
             r[k + '_p'] = p
             if flags(v): r[k + '_f'] = flags(v)
         rows.append(r)

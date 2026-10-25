@@ -14,5 +14,6 @@ Ranked by how much interacting teaches over reading (1 to 5), with data source a
 | P-harnessdev.8 | Cost against score scatter (log tokens), Self and Unified | 3 | Tables 3, 4 (Figure 9) | tables tab | built |
 | P-harnessdev.9 | Figure 5 heat map rebuilt | 2 | raster PNG only, values not printed | none | rejected: cannot be sourced without reading pixels |
 | P-harnessdev.10 | Toy harness evolution simulator (noisy score, selection on a feedback set, measure overfit) | 3 | illustrative only | none | rejected: the paper's own nine real trajectories teach the same point with real numbers |
+| P-harnessdev.11 | Hero: per benchmark, the six creators' range and best against the human reference, each reference labelled with the model it ran | Built 2026-10-25 (light pass), `15_js_hero.js`, top of The paper | | | |
 
 Methodology note: for agent-benchmark papers that print per-version trajectories only as figures, decoding the vector SVG gives exact task counts (check that every point lands on an integer of tasks) and makes recounts of the paper's summary statistics possible.
