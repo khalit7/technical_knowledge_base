@@ -93,7 +93,7 @@ function drawF4(el,opt){opt=opt||{};fit(el,w=>{const rows=RC.f4.slice().sort((a,
     s+=ln2(x(r.lo),yy,x(r.hi),yy,c,{sw:1.4,op:.55})+'<circle cx="'+x(r.v).toFixed(1)+'" cy="'+yy.toFixed(1)+'" r="3.6" fill="'+c+'"><title>'+r.m+': '+r.k+' of 45 = '+r.v.toFixed(3)+'; 95% interval '+r.lo.toFixed(2)+' to '+r.hi.toFixed(2)+'</title></circle>';
     s+=tx(w-pr+4,yy+4,r.k+'/45',{fs:11,c:'var(--mute)'})});
   el.innerHTML=svgW(w,H,s,'R@10/day for 40 monitors')})}
-PRED_REVEAL.pr2=()=>{drawF4($('r2Plot'));$('r2Note').innerHTML='The robust z-score catches 7 of 45 (0.156). Every monitor in Figure 4, as whole account-days of 45, with exact (Clopper-Pearson) 95% intervals computed on this page; classical monitors in amber. Most intervals overlap: only the ends of the ranking are clearly apart. Replay the z-score day by day in <a href="#" data-tab2="t-run">Run the daily audit</a>.';
+PRED_REVEAL.pr2=()=>{drawF4($('r2Plot'));$('r2Note').innerHTML='The robust z-score catches 7 of 45 (0.156). Every monitor in Figure 4, as whole account-days of 45, with exact (Clopper-Pearson) 95% intervals computed on this page (the interval methods are compared on <a href="https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d" target="_blank" rel="noopener noreferrer">Eval statistics</a>); classical monitors in amber. Most intervals overlap: only the ends of the ranking are clearly apart. Replay the z-score day by day in <a href="#" data-tab2="t-run">Run the daily audit</a>.';
   const a=$('r2Note').querySelector('[data-tab2]');a.addEventListener('click',e=>{e.preventDefault();document.querySelector('#tabs button[data-t="t-run"]').click();$('tabs').scrollIntoView({block:'start'})})};
 
 // Table 12 as small multiples: 4 generators x 3 monitors x 5 inputs

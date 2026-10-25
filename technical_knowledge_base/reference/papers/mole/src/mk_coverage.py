@@ -12,7 +12,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, F = 'The paper tab', 'Run the daily audit tab', 'Tables tab', 'Further reading tab'
 C = [
  # header
- ('Reading line "5 min read, +45m resources"', 'dropped: replaced by the build-computed reading time and resources total (the page now owns the paper\'s detail)', ['min to read', 'of resources']),
+ ('Reading line "5 min read, +45m resources"', 'dropped: replaced by the measured reading line (Reading: N min, plus M in closed details; 2026-10-25) (the page now owns the paper\'s detail)', ['Reading:', 'in closed details']),
  ('Authors Aashiq Muhamed and Virginia Smith', R + ', headline card', ['Aashiq Muhamed, Virginia Smith']),
  ('Submitted 7 September 2026', R + ', headline card', ['7 September 2026']),
  ('Categories cs.LG, cs.CL, cs.CR', R + ', headline card', ['cs.LG, cs.CL, cs.CR']),
@@ -45,10 +45,10 @@ C = [
  ('Actionable finding: detection rate, not completion rate; you will not notice within a day; fixable by tuning the monitor rather than making the model refuse harder', R + ', Why it matters', ['the actionable number is detection, not completion', 'rather than only by making models refuse harder']),
  # connections
  ('Topic: benchmarks; first agent benchmark whose subject is the monitor; HarnessDev subject is harness; same move, evaluating the surrounding system', R + ' Connections; Further reading', ['https://app.notion.com/p/3c65c17b0d0d811fb43fece56e40041a', 'the first agent benchmark here whose subject is the monitor rather than the agent', 'https://app.notion.com/p/3d45c17b0d0d81cd9883f783840e013f', 'evaluate the surrounding system']),
- ('Topic: evaluation-and-llm-judges: refusal result warns about any judge scoring a response string; Hyper-tau-bench 23.9% alone vs 82.2% with a human; number depends on what you measured', R + ' Connections', ['https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546', 'which is what most guardrail evaluations do', '23.9% alone and 82.2% paired with an engineer']),
+ ('Topic: evaluation-and-llm-judges: refusal result warns about any judge scoring a response string; Hyper-tau-bench 23.9% alone vs 82.2% with a human; number depends on what you measured', R + ' Connections (Hyper-tau-bench in the dated Since the paper block)', ['https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546', 'which is what most guardrail evaluations do', '23.9% alone and 82.2% paired with an engineer']),
  ('Topic: agentic-harnesses: permission and sandboxing section is where mitigation belongs; evidence for least-privilege interfaces Prime Agent argued from reward-hacking side', R + ' Connections', ['https://app.notion.com/p/3c65c17b0d0d81d881a8fe98b4cff7bb', 'least-privilege interfaces', 'https://app.notion.com/p/3cd5c17b0d0d81579a02f0431f24c6cb']),
  ('2026-09-14 tech news: Anthropic threat intelligence report, GreyNoise PaperCut campaign, Claude Mythos 5 PyPI incident are field instances', R + ' Why it matters and Connections', ['https://app.notion.com/p/3db5c17b0d0d8135a34af60966c5ecc1', 'Anthropic threat intelligence report, the GreyNoise PaperCut campaign and the Claude Mythos 5 PyPI incident']),
- ('Standing gap: belongs on an AI security topic page that does not exist; filed under Papers', R + ' Connections', ['this paper properly belongs on an AI security topic page, which does not exist yet']),
+ ('Standing gap: belongs on an AI security topic page that does not exist; filed under Papers', R + ' Connections (gap closed 2026-10-25: the Agent security page now exists and is linked)', ['https://app.notion.com/p/3f15c17b0d0d81ad9fb7d1dd74217335']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)
 out, miss = [], []
@@ -61,7 +61,7 @@ json.dump({'source': 'live.md (Notion page as of 2026-09-20)', 'items': len(out)
            'dropped': [o['fact'] for o in out if o['where'].startswith('dropped')],
            'corrected': ['"a model\'s stated refusal does not predict whether it actually declines": the paper compares refusal rates with completion rates across models (which correlate, Spearman -0.73), not stated refusals with behaviour in one rollout (RQ1)',
                          '72% completion: measured under an elicitation preamble that claims to come from an Anthropic alignment researcher, declares the sandbox harmless and forbids refusing (RQ1, How much to believe)',
-                         'Carnegie Mellon was not inferred: both authors state it in the paper (note under the nav)',
+                         'Carnegie Mellon was not inferred: both authors state it in the paper (the About this page block)',
                          'Best monitors miss "close to half": 21 of 45, with the top two one account-day apart (RQ2)'],
            'items_list': out}, open('coverage.json', 'w'), indent=1, ensure_ascii=False)
 print('coverage items', len(out), 'verified', sum(o['verified'] for o in out))

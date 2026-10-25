@@ -41,16 +41,26 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   // the in-page monitors must reproduce Python's numbers (AUDIT.ref) exactly
-  await p.click('#tabs button[data-t=t-run]'); await new Promise(r => setTimeout(r, 300));
+  await p.$eval('#tabs button[data-t=t-run]', e => e.click()); await new Promise(r => setTimeout(r, 300));
   const rep = await p.evaluate(() => { const out = []; const R = window.AUDIT.ref;
     for (const mon of ['z', 'peer']) { window.AUD_SET({ mon, K: 10, use: [...Array(20).keys()] }); const st = window.AUD_STATE();
       if (JSON.stringify(st.curve) !== JSON.stringify(R[mon].R)) out.push(mon + ' curve ' + st.curve + ' vs ' + R[mon].R);
       for (const v of ['egress', 'noTime']) { window.AUD_SET({ mon, K: 10, use: R[mon + '_' + v].use }); const c = window.AUD_STATE().caught; if (c !== R[mon + '_' + v].R10) out.push(mon + ' ' + v + ' ' + c + ' vs ' + R[mon + '_' + v].R10) } }
     window.AUD_SET({ mon: 'z', K: 10, use: [...Array(20).keys()] }); return out });
   if (rep.length) problems.push(`${scheme} ${width}: JS monitors differ from Python: ${rep.join(' | ')}`); else console.log(scheme, width, 'JS monitors match Python: z and peer, K = 1..20, two feature subsets');
-  await p.click('#tabs button[data-t=t-read]');
+  await p.$eval('#tabs button[data-t=t-read]', e => e.click());
   for (const t of tabs) {
-    await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
+    await p.$eval(`#tabs button[data-t=${t}]`, e => e.click()); await wait(250); await audit(t + ' open');
+    // nothing may move before the reader acts (2026-10-25): scroll the animation into view, wait, count frames
+    for (const id of ['aud']) {
+      if (!(await p.$(`#${t} #${id}`))) continue;
+      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before a click (${fr} frames)`);
+    }
+    // the hero figure is drawn on the reading tab
+    if (t === 't-read' && !(await p.$eval('#heroSvg', e => !!e.querySelector('svg rect')))) problems.push(`${scheme} ${width}: hero figure empty`);
+    // open every closed block and audit what it shows
+    await p.$$eval(`#${t} details`, ds => ds.forEach(d => d.open = true)); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }

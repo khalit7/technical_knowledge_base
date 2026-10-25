@@ -13,5 +13,6 @@ The question the paper keeps returning to: of the harm agents complete inside an
 | P-mole.7 | **Cost against budget-AUC** for Table 22's strategies per test corpus, with the rarity-gated escalation curve | 3 / 4 / 1 | Tables | built |
 | P-mole.8 | Semantic monitor rerun live (call an LLM per account-day) | rejected: no network in the Notion iframe, and the paper's saved scores are not released |
 | P-mole.9 | Multiday corpus toggle in the live tab | rejected for size (another 3,553 account-days, about 140 KB); its reproduction is reported in the checks instead |
+| P-mole.10 | **Hero: the 45 completed harms as squares**, filled when they land in the daily top 10, for a random queue, GPT-4.1-nano, FACADE, GPT-5.5 and Claude Opus 4.7 (z-score and peer-fit left out so the RQ2 prediction is not given away) | 4 / 5 / 1 | Reading, top (light pass 2026-10-25) | built |
 
 What the methodology lacked for this page: a pattern for a benchmark paper whose raw data is released. The best live ingredient was neither a toy nor a simulation but the paper's own simplest baseline rerun on its own data, which both teaches the metric and verifies the paper; and reading the raw released traces (not only the tables) is where the most important corrections came from.

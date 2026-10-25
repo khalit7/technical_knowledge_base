@@ -60,5 +60,5 @@ for a, d, threat, stealth in EX:
                 'n_attack_events': int(sum(1 for l in lines if l['atk'])), 'n_sessions': int(len(sess)),
                 'attack_task': atk.task_id, 'turns': int(atk.turn_count), 'system': sysm, 'events': lines, 'msgs': msgs, 'marks': marks})
     print(a, d, 'events', len(ev), 'attack events', out[-1]['n_attack_events'], 'sessions', len(sess), 'marks', marks)
-json.dump(out, open('inputs/examples.json', 'w'), ensure_ascii=False, indent=0)
+open('inputs/examples.json', 'w').write(json.dumps(out, ensure_ascii=False, indent=0).replace('\u2014', '--'))  # no em-dashes in saved extracts
 print('bytes', os.path.getsize('inputs/examples.json'))
