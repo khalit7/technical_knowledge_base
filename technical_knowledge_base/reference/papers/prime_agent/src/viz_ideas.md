@@ -19,3 +19,5 @@ Central question: does the harness, rather than the model, explain the scores, a
 | P-prime_agent.13 | Training-bill or cost tab | none | a pattern Khalid removed | rejected |
 
 Lessons for the method: for agent papers on ARC-AGI-3, the scorecard API (`/api/v3/scorecards/<id>`) returns per-level actions and baselines for any linked run, so a released run can be rescored exactly and set beside every community card on the same games. Diff a lab's launch blog against the paper: here it held the run count behind "Best@1", the Best@3 figure, the fork lineage and an earlier version of the main table. Vector figures can hide clipped data behind clip paths.
+
+**Light pass 2026-10-25.** Built: the hero, the paper's Figure 2 state hierarchy (CC BY 4.0, rendered from its SVG) over ARC-AGI-3 bars that put 95.5% beside its reference lines (`mk_hero.py`); the paper's Figure 1 in Method beside the text that described it. Rejected: a Table 1 bar chart in the hero (the pair counts read better in the predict widget).
