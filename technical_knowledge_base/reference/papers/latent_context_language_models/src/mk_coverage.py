@@ -79,7 +79,7 @@ C = [
  ('Connection: Prime Agent, recursive-language-model direction', R + ', Connections', ['3cd5c17b0d0d81579a02f0431f24c6cb', 'recursive-language-model direction']),
  ('Connection: Mamba, fixed-size recurrent state with the same exact-recall cost', R + ', Connections', ['3c65c17b0d0d8179984fc3a1fee4c36a', 'fixed-size recurrent state']),
  ('Topics: inference-and-serving (KV cache, TTFT, memory), rag-and-retrieval (context compression for RAG, REFRAG), agentic-harnesses (skim-then-expand)', R + ', Connections; Further reading', ['3c65c17b0d0d81c08b3bc95ff45c7b13', '3c65c17b0d0d81b89145c37dfe8a3b0b', '3c65c17b0d0d81d881a8fe98b4cff7bb', 'skim-then-expand as a harness pattern']),
- ('Reading time 9 min, resources +3h 45m (recomputed for the new page)', 'header line', ['min to read The paper tab']),
+ ('Reading time 9 min, resources +3h 45m (recomputed for the new page)', 'header line', ['Reading: ', 'in closed details.']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)
 out, miss = [], []
