@@ -7,7 +7,7 @@ raw = open('../index.html', encoding='utf-8').read()
 txt = re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', raw)))
 R = 'The paper tab'
 C = [
- ('Header "14 min read, +~1h 15m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Header "14 min read, +~1h 15m resources"', 'dropped: replaced by the measured reading time in the header (since 2026-10-25 "Reading: N min, plus M in closed details.")', ['Reading:', 'in closed details']),
  ('Authors Tianjun Wei, Wei Wen, Ruizhi Qiao, Xing Sun, Jianghong Ma', R + ', card', ['Tianjun Wei', 'Wei Wen', 'Ruizhi Qiao', 'Xing Sun', 'Jianghong Ma']),
  ('Date 2025-03-07 (arXiv v1); published at ICLR 2025', R + ', card', ['7 March 2025 (arXiv v1', 'ICLR 2025']),
  ('Links: arXiv:2503.05142 (~45 min), HTML full text, OpenReview (~30 min)', 'card and Further reading', ['https://arxiv.org/abs/2503.05142', 'https://arxiv.org/html/2503.05142v1', 'https://openreview.net/forum?id=zJjzNj6QUe', '(45 min)', '(30 min)']),
@@ -16,7 +16,7 @@ C = [
  ('Best resource: the paper; Section 3 and Table 4 load-bearing; Section 2 diagnostics make the method non-obvious', R + ', Diagnosis intro; Further reading', ['the experiments that make the method non-obvious', 'Table 4']),
  ('Best resource: OpenReview reviews press hardest on instance-level agreement', 'Further reading: kept, marked unconfirmed (reviews could not be loaded)', ['press hardest on instance-level agreement is unconfirmed here']),
  ('Read against the KB LLM-as-judge page (bias catalogue)', 'Connections; Further reading', ['3c65c17b0d0d810ba2a2ecc08c4c233b', 'bias catalogue']),
- ('Problem: LLM-as-judge the method that scales; expensive', R + ', Problem', ['it is the method that scales to open-ended tasks']),
+ ('Problem: LLM-as-judge the method that scales; expensive', R + ', Problem', ['a strong proprietary model such as GPT-4o grading open-ended responses']),
  ('Frontier judge costs thousands per sweep; prices out per-commit gates; leaks private prompts; irreproducible moving endpoint', R + ', Problem', ['sends private prompts to a third party', 'irreproducible when the judge is a moving proprietary endpoint', 'nobody gates every commit']),
  ('Small open-weight judge fails badly; the question is why', R + ', Problem', ['fails badly', 'why do small judges fail']),
  ('Lightweight judges fail for two measurable reasons, not a general reasoning deficit', R + ', Diagnosis', ['Why: uncertainty and position bias', 'not scoring']),
@@ -67,7 +67,7 @@ C = [
  ('Does not transfer: acting on a single verdict', R + ', Note to self', ['per-item gating or for generating preference labels']),
  ('Does not transfer: orchestrator must see each input anyway', R + ', Note to self', ['the small model is overhead']),
  ('Neighbours: StateM 1/38 cost runbook, JIT-Agent 27B, Agent Skills 10% misapplication, distillation', R + ', Note to self', ['1/38 the cost', 'trained 27B model', '10% misapplication failure mode', 'distillation moves the capability into the weights']),
- ('Database property Takeaway', 'stays in the database; shown in the headline card', ['Move the judgment out of the judge']),
+ ('Database property Takeaway', 'stays in the database; the headline card carries a softened one-line takeaway (2026-10-25: "5-10" scoped to the released 3 to 25, "killing positional bias" and "preserving calibration" dropped (the independence ablation moves agreement 1.5 points; calibration is not measured), the 0.965 against 0.979 scoped to one ranking of 12 well-separated models, one discordant pair, no error bars)', ['Move the judgment out of the judge', 'one discordant pair of 66, a single ranking']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)
 out, miss = [], []

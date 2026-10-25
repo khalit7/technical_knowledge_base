@@ -16,5 +16,6 @@ Question the page keeps returning to: when can a small judge stand in for a fron
 | P-rocketeval.10 | Figure 1 scatter (agreement against Open LLM Leaderboard average) | none | 5 | rejected | only labels printed, no values; the two legend numbers are quoted instead |
 | P-rocketeval.11 | Recomputing Table 2 from released data | none | 4 | rejected | gradings exist for 3 of 6 human-judged models; the subset check is quoted in How much to believe |
 | P-rocketeval.12 | Running a small judge in the browser | none | 2 | rejected | far over the size limit; released gradings replace it |
+| P-rocketeval.13 | **Hero: the three stages and three outcomes** (static SVG drawn at the measured width, row of three at 800 px and up, stacked below), redrawn from the paper's Figure 2 because the paper is CC BY-NC-SA (light pass 2026-10-25) | Reading, top | 5 | built | the paper's own figure is not copied; numbers from Tables 2 to 4 and recompute.py |
 
 Methodology note: for a judge or benchmark paper, the released per-item grades are the live ingredient; resampling the queries gives the error bars the paper omits, and a "noise plus bias" model separates what averages out from what does not.
