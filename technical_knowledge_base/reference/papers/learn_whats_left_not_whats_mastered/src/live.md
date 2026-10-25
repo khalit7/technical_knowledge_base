@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Learn What's Left, Not What's Mastered: Saturation Aware Advantage Reweighting for Multi-Reward Policy Optimization","Takeaway":"Drop-in advantage reweighting for multi-reward GRPO/RLVR: normalize each objective per group, then down-weight it by (1 - batch saturation)\\^gamma so gradient budget flows to objectives with remaining headroom; beats GDPO (its gamma=0 case) on 12/15 math comparisons and +3.8 avg on adaptive reasoning, with gamma=0.5 the sweet spot.","Topics":["rl","llm-training-and-post-training"],"Year":"2026","url":"https://app.notion.com/p/3c65c17b0d0d81e38b0fe72f3daf44bc"}
+{"Paper":"Learn What's Left, Not What's Mastered: Saturation Aware Advantage Reweighting for Multi-Reward Policy Optimization","Takeaway":"Advantage reweighting for multi-reward GRPO/RLVR: normalize each objective per group, then down-weight it by (1 - batch saturation)\\^gamma so gradient budget flows to objectives with remaining headroom; reports higher accuracy than GDPO (its gamma=0 case) on 12/15 math comparisons and +3.8 avg on adaptive reasoning, but each cell is one training run, several margins are within evaluation noise, gamma=0.5 was picked on the test benchmarks in a 3B-only ablation, and a smaller fixed weight on the easy objective was never compared.","Topics":["rl","llm-training-and-post-training"],"Year":"2026","url":"https://app.notion.com/p/3c65c17b0d0d81e38b0fe72f3daf44bc"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

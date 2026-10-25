@@ -13,7 +13,7 @@ def txt(x):
     x = html.unescape(x)
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
 a = s.index('<article'); b = s.index('</article>')
-open('inputs/paper_%s.txt' % v, 'w').write('Source: https://arxiv.org/html/2608.16072%s (extracted by extract_paper.py)\n\n' % v + txt(s[a:b]))
+open('inputs/paper_%s.txt' % v, 'w').write('Source: https://arxiv.org/html/2608.16072%s (extracted by extract_paper.py)\n\n' % v + re.sub(r'[\w.+-]+@[\w-]+(\.[\w-]+)+', '[email removed]', txt(s[a:b])).replace('\u2014', '--'))  # author emails redacted, em-dashes as --
 if v == 'v1':
     for tid in re.findall(r'<figure[^>]*id="([SA]\d+\.T\d+)"', s):
         m = re.search(r'<figure[^>]*id="' + re.escape(tid) + r'".*?</figure>', s, re.S)

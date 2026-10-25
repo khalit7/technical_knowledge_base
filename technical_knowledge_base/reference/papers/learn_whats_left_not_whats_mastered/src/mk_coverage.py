@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "10 min read, +3h resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "10 min read, +3h resources"', 'dropped: replaced by the header line "Reading: N min, plus M in closed details" (2026-10-25)', ['Reading:', 'in closed details']),
  ('Authors: Yixuan Wang, Yifei Chen, Haichao Zhang, Haozheng Luo, Xander Wu, Jie Ni, Yun Fu, Nuno Vasconcelos, Yijiang Li', R + ', headline card', ['Yixuan Wang', 'Yifei Chen', 'Haichao Zhang', 'Haozheng Luo', 'Xander Wu', 'Jie Ni', 'Yun Fu', 'Nuno Vasconcelos', 'Yijiang Li']),
  ('Lab: University of Florida, UC San Diego, Northeastern, Northwestern, Stanford, Zillion Network, Universitaet Innsbruck', R + ', headline card', ['University of Florida, UC San Diego, Northeastern University, Northwestern University, Stanford University, Zillion Network, Universität Innsbruck']),
  ('Date: August 2026 (arXiv v1, 17 Aug 2026)', R + ', headline card', ['17 August 2026 (arXiv v1, the only version)']),

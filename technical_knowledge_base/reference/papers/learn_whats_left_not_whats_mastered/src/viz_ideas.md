@@ -19,6 +19,7 @@ Scores 0 to 2 on the methodology's questions (parameter to move, reproduces a pu
 | P-learn_whats_left_not_whats_mastered.9 | **The missing baseline: γ sweep against fixed-weight sweep, accuracy against length reward**, re-runnable in the page (288 runs, about 8 s) | In the graded setting the fixed-weight curve lies 1.3 to 2.1 points above SA-MRPO at matched length reward; in the binary budget nothing separates | toy_sweep.mjs | Train tab | 15 |
 | P-learn_whats_left_not_whats_mastered.10 | Share table: groups where each objective varies, and the length objective's share of the advantage, start and end | Measures the "gradient budget" claim directly: under 4% at the start, under 0.3% at the end in the binary-budget setting | toy | Train tab | 9 |
 | P-learn_whats_left_not_whats_mastered.11 | Tables tab: Tables 1 to 4 with differences from GDPO, Figure 1 recomputed in six variants, 13 claims checked | Exceed up in 10 of 15, bug rates equal or higher on all four, Table 4 equals Table 1 cell for cell, the epoch mismatch | tables.json, recompute.py | Own tab | 9 |
+| P-learn_whats_left_not_whats_mastered.12 | **Hero (2026-10-25): the paper's own Figure 1** (CC BY 4.0), credited, at the top | The four rollouts with rollouts 2 and 3 boxed; the caption says what to notice and links to the animation that rebuilds it | The paper's canonical figure and its key idea in one picture; the licence allows reuse with credit | `img/fig1_rollout.webp` (24 KB), `img/CREDITS.md` | Reading, top | built (light pass) |
 
 ## Rejected
 
