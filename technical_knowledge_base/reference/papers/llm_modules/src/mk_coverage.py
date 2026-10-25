@@ -17,8 +17,8 @@ C = [
  ('Topics: llm-training-and-post-training, llms', R + ', meta line; Further reading, Topics', ['Topics: llm-training-and-post-training, llms', '3c65c17b0d0d81b6876ee72b7056793b', '3c65c17b0d0d812d9e00f6ec89965286']),
  ('Read this as a small proof of concept, not as a result: single author, tiny models, one dataset, no baseline sweep; filed for the idea, not the evidence', R + ', warning box at the top; verdict', ['Read this as a small proof of concept, not as a result.', 'Single author, tiny models, one dataset, no baseline sweep', 'worth knowing, not because the evidence is strong']),
  # problem
- ('Distillation: generate teacher outputs, train the student to imitate them', R + ', Problem', ["generate the teacher's outputs, then train the student to imitate them"]),
- ('Distillation needs a large training run; the student is one fused artifact with knowledge baked in irreversibly', R + ', Problem', ['It needs a large training run', "one fused artifact with the teacher's knowledge baked in irreversibly"]),
+ ('Distillation: generate teacher outputs, train the student to imitate them', R + ', Problem: named and linked to its owner, Distillation and small language models (light pass 2026-10-25)', ['the methods compared on Distillation and small language models']),
+ ('Distillation needs a large training run; the student is one fused artifact with knowledge baked in irreversibly', R + ', Problem', ['it needs a large training run', "one fused artifact with the teacher's knowledge baked in irreversibly"]),
  ('Alternative: leave the large model frozen, let a small trainable model read its internal representations directly; two composable modules', R + ', Problem', ['leave the large model frozen and let a small trainable model read its internal representations directly', 'two composable modules rather than one distilled model']),
  # method
  ('Enhanced Cross-Attention between a frozen large model and a trainable small one', R + ', Idea and Method (equation and diagram)', ['Enhanced Cross-Attention', 'Knowledge source', 'Generation module']),
@@ -42,7 +42,7 @@ C = [
  ("Serious versions: Flamingo's frozen-LM cross-attention, CALM, adapter/PEFT literature", R + ', Connections', ['The serious versions of this idea', 'https://arxiv.org/abs/1902.00751']),
  ('Contrast with actual distillation, under llm-training-and-post-training', R + ', Connections', ['Contrast with actual distillation']),
  ('Adjacent in this batch: Bitune and Trained Persistent Memory, also frozen-backbone-plus-adapter designs', R + ', Connections; Further reading', ['3ce5c17b0d0d8173af14ed0caa19d6db', '3ce5c17b0d0d81978137dd8f8cab1c74', 'frozen-backbone-plus-adapter designs']),
- ('Database property Takeaway (frozen Qwen2-1.5B feeding a trainable GPT-Neo-125M through inserted cross-attention; comparable to distillation after 15 epochs; read as a pointer to Flamingo and CALM)', 'stays in the database; the card carries a corrected one-line takeaway and the verdict', ['In one line:', 'How far to trust it:', 'Flamingo and CALM show it working']),
+ ('Database property Takeaway (frozen Qwen2-1.5B feeding a trainable GPT-Neo-125M through inserted cross-attention; comparable to distillation after 15 epochs; read as a pointer to Flamingo and CALM)', 'stays in the database; the card carries a corrected one-line takeaway and the verdict (2026-10-25: "on two arithmetic prompts" softened, since only the 5 plus 5 prompt went to every model, one sample each; the random initialisation and the leak named)', ['In one line:', 'How far to trust it:', 'Flamingo and CALM show it working', 'the second prompt went to the pair only']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)
 out, miss = [], []

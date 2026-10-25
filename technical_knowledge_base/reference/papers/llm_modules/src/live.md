@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3ce
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"LLM Modules: Knowledge Transfer from a Large to a Small Model using Enhanced Cross-Attention","Takeaway":"Frozen Qwen2-1.5B feeding a trainable GPT-Neo-125M through inserted cross-attention layers, as a composable alternative to distillation. Author reports quality comparable to distillation after 15 epochs on Bespoke-Stratos-17k. Single author, tiny scale, qualitative evaluation: read as a pointer to Flamingo and CALM rather than as evidence.","Topics":["llm-training-and-post-training","llms"],"Year":"2025","url":"https://app.notion.com/p/3ce5c17b0d0d810191d0ebcffc54f608"}
+{"Paper":"LLM Modules: Knowledge Transfer from a Large to a Small Model using Enhanced Cross-Attention","Takeaway":"Freeze Qwen2-1.5B and pass its last hidden states through two trainable cross-attention layers with an adapter and a gate into a GPT-Neo-sized decoder (randomly initialised in the released code, not the pretrained GPT-Neo-125M), trained on Bespoke-Stratos-17k reasoning traces. The evidence is qualitative: on the one prompt every model was given (5 plus 5, one sample each, graded by the author) the pair writes R1-style reasoning where GPT-Neo trained alone writes incoherent text; the second prompt went to the pair only, and the reported loss curve cannot show learning because the released cross-attention lets each position see later tokens.","Topics":["llm-training-and-post-training","llms"],"Year":"2025","url":"https://app.notion.com/p/3ce5c17b0d0d810191d0ebcffc54f608"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

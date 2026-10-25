@@ -282,9 +282,9 @@ Alternatively, maybe I can think about it without calculating. If I have 8 quart
 
 For each of the 8 quarters, it has a number of equal parts. Let's say there are N quarters. How many quarters can we have if there are 8 quarters? That's (2+4+5) quarters because 8^2=8*2*1=32, which is 32. So if there are N=8 quarters, it would have 24 quarters. Similarly, for each of the remaining quarters, it has 24 quarters. Therefore, a quarter of 24 might be 8*24=192. So, a quarter of 192 is 8*192=2,400. Yep, same result. So this method gives the same answer.
 
-Therefore, this makes sense. Both methods—summing and counting the number of quarters—result in the same number of quarters, which is 10. So, that confirms it.
+Therefore, this makes sense. Both methods--summing and counting the number of quarters--result in the same number of quarters, which is 10. So, that confirms it.
 
-I think this is solid. Both approaches—summing and counting the quarters, and adding the number of quarters and the number of quarters of different quarters—result in the same number of quarters, which is 10.<|end_of_thought|>
+I think this is solid. Both approaches--summing and counting the quarters, and adding the number of quarters and the number of quarters of different quarters--result in the same number of quarters, which is 10.<|end_of_thought|>
 
 <|begin_of_solution|>
 

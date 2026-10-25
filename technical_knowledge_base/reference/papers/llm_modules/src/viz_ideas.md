@@ -19,6 +19,7 @@ Scores: teaching value (T), faithfulness to sources (F), interactivity worth (I)
 | P-llm_modules.9 | **Toy results, 6 variants × 3 seeds**, logged curves, in-browser test | Run tab; table in Reading | 4 | 5 | 3 | `model/results.json` |
 | P-llm_modules.10 | **The context claim, side by side**: paper 128K, blog 125k, Qwen2 blog 32K, config 131,072, code 2,048 | Evidence tab | 3 | 5 | 1 | conflicting primary sources shown together |
 | P-llm_modules.11 | **The family table**: Flamingo, CALM, adapters, distillation against this paper: what is frozen, what is trained, who generates, gate start, how evaluated | Reading, Why it matters | 4 | 5 | 1 | each paper's own section |
+| P-llm_modules.12 | **Hero: the CombinedModel in four parts with parameter counts** (frozen Qwen2 dashed; 1.76B run per token, 219.5M train), static SVG at the measured width, toy outcomes in the caption (light pass 2026-10-25) | Reading, top | 5 | 5 | 1 | drawn from model.py; the paper has no figure |
 
 ## Rejected
 

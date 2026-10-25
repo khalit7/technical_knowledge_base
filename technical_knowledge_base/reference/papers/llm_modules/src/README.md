@@ -1,12 +1,12 @@
 # LLM Modules: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3ce5c17b0d0d810191d0ebcffc54f608, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's shared pieces, taken from the Bitune page's copies (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs`, `mk_paper.py` with the verdict line, `build.sh`, `check_page.mjs`, `extract_paper.py`; `mk_coverage.py` with this paper's own item list).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3ce5c17b0d0d810191d0ebcffc54f608, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's shared pieces, taken from the Bitune page's copies (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `99_js_tabs` (the skill template since 2026-10-25), `mk_paper.py` with the verdict line, `build.sh`, `check_page.mjs`, `extract_paper.py`; `mk_coverage.py` with this paper's own item list).
 
 ## Tabs
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Card with verdict; warning box; Problem; Idea (the model as model.py builds it, clickable; predict question on inference size); Method (the Enhanced Cross-Attention equation, where the layers really sit, the randomly initialised GPT-Neo); Training (what the code trains on, tiles); The leak (predict question; before/after animation on the trained toy); Results (the two prompts, Table 1, the transcripts' caveats); The toy (6 variants × 3 seeds); How much to believe; What it takes to use this; Why it matters (family table); Connections. |
+| The paper | `t-read` | Card with verdict; the core sentence, hero figure (`14_js_hero.js`), You need and New terms; warning box; Problem; Idea (the model as model.py builds it, clickable; predict question on inference size); Method (the Enhanced Cross-Attention equation, where the layers really sit, the randomly initialised GPT-Neo); Training (what the code trains on, tiles); The leak (predict question; before/after animation on the trained toy); Results (the two prompts, Table 1, the transcripts' caveats); The toy (6 variants × 3 seeds); How much to believe; What it takes to use this; Why it matters (family table); Connections. |
 | Run the modules | `t-run` | The live ingredient: two trained toy bridges (as released, and with a causal mask) on a shared frozen toy model, running in the browser: ask, look inside, results across seeds, logged curves, in-browser test, how it was trained and checked. |
 | The evidence, rebuilt | `t-tables` | Table 1 and the eleven released transcripts graded; the data audit (dataset run through the code's pipeline with Qwen2's tokenizer) with the validation-overlap scenario slider; the parameter recount checked against the checkpoint's size; the context claim against four sources. |
 | Further reading | `t-more` | Generated from `paper.json`. |
@@ -17,6 +17,17 @@
 - **"The paper's tables, rebuilt" became "The evidence, rebuilt".** The paper has one qualitative table and no figures; what carries the argument is the released transcripts, the data pipeline and the parameter count, so the tab rebuilds those.
 - **No "Then and now" tab**: a 2025 preprint with no descendants; the family it belongs to (Flamingo, CALM, adapters, distillation) is one table in "Why it matters".
 - **The card's one-line takeaway is corrected**, not copied from the Takeaway property, which says the cross-attention layers are inserted into GPT-Neo and that GPT-Neo-125M is trained (it is a randomly initialised copy of its architecture). The property itself stays in Notion; Khalid may want to edit it.
+
+## Light pass to the teaching contract (2026-10-25)
+
+- **Top**: the idea in one sentence, a hero figure (the CombinedModel in four parts with parameter counts, drawn from `model.py`; the paper has no figure of its own, so no image is copied and `img/` is not needed; toy outcomes in its caption), You need (Distillation and small language models, The transformer from zero) and New terms.
+- **Owned elsewhere, now linked** (one sentence on what this paper did kept here): distillation as a method (Distillation and small language models), teacher forcing and the causal mask (The transformer from zero), bottleneck adapters and QLoRA memory (PEFT).
+- **Moved into closed blocks**: the freezing line that freezes nothing, the §6 discussion and the blog's framing, the training-memory detail. The repository's last-commit date is one dated block "Since the paper". "Not like for like" in the evidence section now points back to the transcript caveats instead of repeating them.
+- **Never autoplays**: `makeAnim` waits on step 1 until the reader presses play or steps; `check_page.mjs` scrolls the leak animation into view and fails on any frame drawn before a click, and opens every closed block.
+- **Takeaway softened** (card, `paper.json`, `live.md`): "on two arithmetic prompts the pair writes R1-style reasoning that GPT-Neo trained alone does not" overclaimed, since only the 5 plus 5 prompt went to every model (one sample each, temperature 0.9, graded by the author); the random initialisation and the leak are now named in it.
+- **Length judgement**: Reading core 20 min before and 20 after, plus 1 in closed details (`audit_pages.mjs`, 230 words a minute; header from `reading.json`). The top added about 1.5 minutes and the moves and trims took about as much out. The rest is core: the page's value is the code-against-text audit (where the layers sit, random weights, the leak, the data pipeline) and the toy that tests it, which no other page carries. Other tabs unchanged (Run the modules 3 min plus 1 closed, The evidence 4, Further reading 3).
+- **Ledger** (`src/ledger.json`, labelled by `label_ledger.py`): 213 units; core 199, depth 6, owned 5, volatile 1, fat 2; `ledger.py check` problems 0.
+- The author's email in `inputs/paper_v1.txt` is redacted, and `extract_paper.py` now redacts emails on extraction.
 
 ## Files
 
