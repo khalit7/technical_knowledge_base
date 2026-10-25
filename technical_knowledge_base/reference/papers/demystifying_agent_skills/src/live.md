@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Demystifying Agent Skills: Why They Work - Until They Don't","Takeaway":"First mechanistic account of [SKILL.md](http://SKILL.md): identical trajectories distilled into skills beat raw workflow memory by +6.06 points because skills act as procedural anchors (not knowledge injection), but they add a new 10% misapplication failure mode, and retrieval precision decouples from downstream task success.","Topics":["agentic-harnesses","agentic-frameworks","benchmarks","evaluation-and-llm-judges"],"Year":"2026","url":"https://app.notion.com/p/3c65c17b0d0d81249a3cf5fda4de5d92"}
+{"Paper": "Demystifying Agent Skills: Why They Work - Until They Don't", "Takeaway": "With the experience held fixed, the same trajectories distilled into a SKILL.md beat them pasted in as workflow memory by +6.06 points over 528 paired Codex runs (one trial per arm; Gemini on Terminal-Bench-Pro favours workflow memory) but do not clearly beat no prior experience (+2.84, interval spans zero); one LLM judge labels most skill effects procedural anchoring (65.7%) rather than knowledge injection (4.5%), skills add a misapplication failure (10.0% of skill runs against 0.8% raw), and as the pool grows to 100 skills actual-use precision falls to 3.3% while task success holds, a metric that mostly counts how many skills an agent opens.", "Topics": ["agentic-harnesses", "agentic-frameworks", "benchmarks", "evaluation-and-llm-judges"], "Year": "2026", "url": "https://app.notion.com/p/3c65c17b0d0d81249a3cf5fda4de5d92"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

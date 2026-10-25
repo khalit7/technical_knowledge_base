@@ -12,7 +12,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, F = 'The paper tab', 'Replay the paired run tab', 'Tables tab', 'Further reading tab'
 C = [
  # header
- ('Reading time line "10 min read, +~1h 20m resources"', 'dropped: replaced by the build-computed reading time and resources total (more resources now)', ['min to read', 'of resources']),
+ ('Reading time line "10 min read, +~1h 20m resources"', 'dropped: replaced by the build-computed reading time and resources total (more resources now)', ['Reading:', 'in closed details']),
  ('Authors: Jiang, Huang, Xing, Wu, Gao, Cao, Wang, Liu, Li', R + ', headline card', ['Zhiyuan Jiang', 'Fangrui Huang', 'Hanwen Xing', 'Xander Wu', 'Yipeng Gao', 'Rui Cao', 'Mengdi Wang', 'Shilong Liu', 'Yijiang Li']),
  ('Labs: Princeton, UC San Diego, Stanford, USC, Johns Hopkins', R + ', headline card', ['Princeton, UC San Diego, Stanford, USC, Johns Hopkins']),
  ('Date: August 2026 (arXiv v1 2026-08-14)', R + ', headline card', ['August 2026 (arXiv v1, 14 August 2026']),
@@ -22,7 +22,7 @@ C = [
  ('Anthropic engineering: Equipping agents for the real world with Agent Skills (~15 min): canonical SKILL.md description, progressive disclosure, folder layout, when to write one', F + '; Problem', ['https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills', 'progressive disclosure, the folder layout, and when to write a skill', '(15 min)']),
  ('anthropics/skills (~20 min): public skill repository the paper cites as its reference skill-usage protocol; what production skills contain', F + '; What it takes', ['https://github.com/anthropics/skills', 'the public skill repository the paper cites as its reference skill-usage protocol', 'what production skills actually contain']),
  # problem
- ('Skills = SKILL.md-style packaged procedural knowledge, popularised by Anthropic, used across Claude Code, Codex, Gemini CLI', R + ', Problem', ['Anthropic popularised the format', 'Claude Code, Codex and Gemini CLI all load skills this way']),
+ ('Skills = SKILL.md-style packaged procedural knowledge, popularised by Anthropic, used across Claude Code, Codex, Gemini CLI', R + ', Problem', ['the format is Anthropic', '3c65c17b0d0d81db9c7fc54987c1ab65', 'Claude Code, Codex and Gemini CLI all load skills this way']),
  ('Usually evaluated only by aggregate task success: says skills matter, not why', R + ', Problem', ['Skills are usually judged by aggregate task success', 'That says skills matter but not why']),
  ('Does not reveal behaviour change, which parts get stabilised, why same skill helps one task and hurts another, whether gains come from procedure vs outcome labels, retrieval quality, framework coupling', R + ', Problem list', ['what changes in the agent\'s behaviour when a skill is loaded', 'which parts of execution get stabilised', 'why the same skill helps one task and hurts another', 'outcome labels, retrieval quality or coupling to one framework']),
  ('Ask when skills help, why they work, where they fail; skill use as controlled transformation of prior experience, not black-box add-on', R + ', Problem "The question"', ['when do skills help, why do they work, and where do they fail?', 'controlled transformation of prior agent experience, not as a black-box prompt add-on']),
@@ -74,7 +74,7 @@ C = [
  ('Similar distractors main stressor: top-1 similar 70.5 at k=5 to 53.4 at k=100 vs random 97.7 to 84.1', R + ', Result 4', ['Embedding top-1 on similar pools falls from 70.5% at k = 5 to 53.4% at k = 100, against 97.7% to 84.1% for random']),
  ('Exact ground-truth invocation neither sufficient nor necessary: succeed with related non-GT skills, fail with right skill in hand', R + ', Result 4', ['exact ground-truth invocation is neither sufficient nor necessary', 'agents succeed with related non-ground-truth skills and fail with the right one in hand']),
  # why it matters
- ('First mechanistic account of why SKILL.md works; informs writing and managing skills for Claude Code', R + ', Why it matters', ['It is the first mechanistic account of why the SKILL.md pattern works', 'how to write and manage skills for harnesses like Claude Code']),
+ ('First mechanistic account of why SKILL.md works; informs writing and managing skills for Claude Code', R + ', Why it matters (softened 2026-10-25 to an early controlled account: the mechanisms are one judge\'s labels)', ['It is an early controlled account of why the SKILL.md pattern works', 'how to write and manage skills for harnesses like Claude Code']),
  ('Write skills as procedural anchors (setup sequences, checklists, verification steps, pitfalls), not fact sheets', R + ', What it takes (practical reading)', ['write skills as procedural anchors (setup sequences, checklists, verification steps, pitfalls), not fact sheets']),
  ('Distil aggressively rather than paste raw transcripts; verbose traces cause timeouts', R + ', What it takes', ['distil rather than paste raw session transcripts into memory, since verbose traces measurably cause timeouts']),
  ('Keep success/failure labels attached when generating from mixed experience', R + ', What it takes', ['keep success and failure labels attached when generating skills from mixed experience']),

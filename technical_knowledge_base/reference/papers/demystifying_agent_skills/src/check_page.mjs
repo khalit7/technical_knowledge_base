@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const file = 'file://' + path.resolve(here, '../index.html');
 const shots = process.argv[2] || path.resolve(here, '../.shots');
-const b = await puppeteer.launch({ headless: true });
+const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 let problems = [], actions = 0;
 for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
@@ -40,8 +40,18 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   };
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
+  // no autoplay (2026-10-25): scroll the replay into view, wait, and it must not have drawn a frame; nor after an arm switch
+  {
+    await p.$eval('#rp', e => e.scrollIntoView()); await wait(1200);
+    let fr = await p.$eval('#rp', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: rp played before the reader acted (${fr} frames)`);
+    await clk('#rpM button:not(.on)'); await wait(1000);
+    fr = await p.$eval('#rp', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: rp played after an arm switch (${fr} frames)`);
+    await clk('#rpM button[data-m=skill]');
+  }
   for (const t of tabs) {
-    await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
+    await p.click(`#tabs button[data-t=${t}]`); await wait(250);
+    await p.$$eval(`#${t} details`, ds => ds.forEach(d => { d.open = true })); await wait(250); // closed blocks are audited too
+    await audit(t + ' open');
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }
