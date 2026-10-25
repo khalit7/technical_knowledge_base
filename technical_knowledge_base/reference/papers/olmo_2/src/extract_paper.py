@@ -13,7 +13,7 @@ def txt(x):
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
 a = s.index('<article'); b = s.index('</article>')
 out = 'paper_%s.txt' % v if v != 'v3' else 'inputs/paper_v3.txt'
-open(out, 'w').write('Source: https://arxiv.org/html/2501.00656%s (extracted by extract_paper.py)\n\n' % v + txt(s[a:b]))
+open(out, 'w').write('Source: https://arxiv.org/html/2501.00656%s (extracted by extract_paper.py)\n\n' % v + re.sub(r'[\w.+-]+@[\w-]+(\.[\w-]+)+', '[email removed]', txt(s[a:b])))  # author emails redacted
 if v == 'v3':
     for tid in sorted(set(re.findall(r'<figure[^>]*id="([A-Z][A-Za-z0-9.]*T\d+)"', s))):
         m = re.search(r'<figure[^>]*id="' + re.escape(tid) + r'".*?</figure>', s, re.S)

@@ -23,9 +23,11 @@ Existing visuals on the Ai2 OLMo lab page (not repeated): whole-run W&B logs of 
 | P-olmo_2.15 | z-loss fork (Figure 8) and embedding norm (Figure 10 right) re-drawn | Stability tab | 6 | built; corrects the old summary (the custom PyTorch fork was abandoned, not the fused one) |
 | P-olmo_2.16 | Toy model reproducing the stability ablations (scaled init against normal 0.02, pre-norm against reordered + QK-norm) | | | rejected: spikes appear at scale and with long runs; a CPU toy would not spike and would invite over-reading. The paper's own curves are re-measurable instead |
 | P-olmo_2.17 | Live growth-exponent computation in JS at small widths | | | rejected for now: needs a backward pass for the gradient exponent; the extracted Figure 5 carries the claim |
-| P-olmo_2.18 | Whole-run W&B log replay | | | rejected: built on the Ai2 lab page (linked) |
+| P-olmo_2.18 | Whole-run W&B log replay | | | rejected: built on the Ai2 lab page, now the Ai2 OLMo section of Other notable providers (linked) |
 | P-olmo_2.19 | Training-bill or GPU-hours tab | | | rejected: a pattern Khalid removed; one estimate in "What it takes" (labelled this page's) |
 | P-olmo_2.20 | RLVR learning curves (Figures 13 to 15, 18 to 22) re-drawn | | | rejected for now: PDFs exist in the source but the curves are reward and KL traces of single runs; Table 16 carries the stage results |
+| P-olmo_2.21 | Hero (2026-10-25): the 7B's three stages to scale in tokens with what each bought, beside the 7B-to-9B models of Table 6 on average against FLOPs | static SVG, `14b_js_hero.js`, numbers read from window.PAPER | | built (light pass) |
+| P-olmo_2.22 | The paper's Figure 1 embedded as the hero | | | rejected: the paper is CC BY 4.0, so it could be embedded with credit, but Figure 1 is already rebuilt from its vector PDF in Results (with its square-root axis corrected to log), as are Figures 2 to 5 and 7 to 11; a raster copy would only duplicate them |
 
 What the methodology lacked for this page:
 - **Re-measuring a paper's metric on its own figure.** When a paper defines a statistic (here the spike score) and prints its value for runs it also plots as vector graphics, the statistic can be recomputed from the figure. Report both the vertex-based and the per-step-resampled value, since matplotlib simplifies paths on export, and treat the level as indicative and the direction as the test.

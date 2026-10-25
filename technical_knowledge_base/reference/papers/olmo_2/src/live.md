@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"2 OLMo 2 Furious (OLMo 2)","Takeaway":"Fully open 7B/13B/32B recipe: stability fixes (normal init, post-norm+QK-norm, z-loss), Dolmino mid-training anneal with microanneals and souping, Tulu 3 RLVR; Pareto-frontier vs open-weights peers.","Topics":["llm-training-and-post-training","data-curation-and-datasets","llms"],"Year":"2025","url":"https://app.notion.com/p/3c65c17b0d0d81fb9857fb956165ae1c"}
+{"Paper":"2 OLMo 2 Furious (OLMo 2)","Takeaway":"Fully open 7B/13B/32B recipe: stability fixes (normal init, output norm+QK-norm, z-loss), Dolmino mid-training anneal with microanneals and souping, Tülu 3 post-training (SFT, DPO, RLVR); on or near the compute frontier of open-weights peers, by estimated (6ND) FLOPs.","Topics":["llm-training-and-post-training","data-curation-and-datasets","llms"],"Year":"2025","url":"https://app.notion.com/p/3c65c17b0d0d81fb9857fb956165ae1c"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

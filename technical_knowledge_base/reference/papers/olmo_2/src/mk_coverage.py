@@ -10,7 +10,7 @@ txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
  # header
- ('Reading time line "12 min read, +~4h 30m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Reading time line "12 min read, +~4h 30m resources"', 'dropped: replaced by the header line "Reading: N min, plus M in closed details" (2026-10-25)', ['Reading:', 'in closed details']),
  ('Authors/lab: OLMo Team, Ai2 with University of Washington; core contributors Pete Walsh, Luca Soldaini, Dirk Groeneveld, Kyle Lo, Nathan Lambert, Hannaneh Hajishirzi', R + ', headline card', ['OLMo Team', 'Pete Walsh, Luca Soldaini, Dirk Groeneveld, Kyle Lo', 'Nathan Lambert', 'Hannaneh Hajishirzi', 'Allen Institute for AI (Ai2), with the University of Washington']),
  ('Date: December 2024 (arXiv 2501.00656; 32B added March 2025; COLM 2025)', R + ', headline card (versions dated from the arXiv listing)', ['December 2024', 'v1 31 December 2024', 'March 2025', 'COLM 2025', 'arXiv 2501.00656']),
  ('Link arXiv (~2h, long technical report)', 'card and Further reading', ['https://arxiv.org/abs/2501.00656', '(2h)']),
@@ -34,7 +34,7 @@ C = [
  ('Architecture: no biases, SwiGLU, RoPE theta 5e5, RMSNorm instead of nonparametric LayerNorm', R + ', Architecture (Table 1 rebuilt)', ['no biases, SwiGLU', 'RoPE θ = 500,000', 'RMSNorm', 'nonparametric LayerNorm']),
  ('Reordered norm: h = x + RMSNorm(Attn(x)); h_out = h + RMSNorm(MLP(h))', R + ', Architecture (block diagram with toggle)', ['h = x + RMSNorm(Attention( x ))', 'h out = h + RMSNorm(MLP( h ))']),
  ('QK-norm: RMSNorm on queries and keys, prevents attention-logit blowup', R + ', Architecture and Stability', ['normalises queries and keys with RMSNorm before the dot product', 'QK-norm bounds the attention logits']),
- ('z-loss 1e-4 * log^2 Z keeps final logits bounded', R + ', Stability (with the Table 1 10^-5 discrepancy)', ['10 −4 · log 2 Z added to the loss', 'keeps output logits from growing', 'printed as 10 −5 in Table 1']),
+ ('z-loss 1e-4 * log^2 Z keeps final logits bounded', R + ', Stability (with the Table 1 10^-5 discrepancy)', ['10 −4 · log 2 Z added to the loss', 'z-loss</b> on the output logits', 'printed as 10 −5 in Table 1']),
  ("Tokenizer cl100k (GPT-4's) plus OLMo PII masking tokens", R + ', Architecture (Tokenizer)', ['cl100k, the tokenizer of GPT-3.5 and GPT-4', '|||PHONE_NUMBER|||']),
  ('7B/13B MHA; 32B GQA (40 Q / 8 KV)', R + ', Architecture', ['40 query heads sharing 8 key-value heads', 'The 7B and 13B use full multi-head attention']),
  ('Sequence length 4096', R + ', Architecture (Table 3)', ['Sequence Length']),
@@ -47,7 +47,7 @@ C = [
  ('Growth exponent near 0; gradient norms correlate with sqrt(d_model), predicting hyperparameter transfer', R + ', Deep dive 1 (Figure 5 re-drawn)', ['growth exponent', 'grows with √ d', 'transfer across model widths']),
  ('Grad-norm spike score 0.40 to 0.03', R + ', Deep dive 1; card; Replay tab (recounted 0.58 to 0.02)', ['spike score fell from 0.40 to 0.03', '0.40 → 0.03']),
  ('AdamW epsilon 1e-8 instead of 1e-5: larger early updates, grad norm settles faster and stays lower', R + ', Deep dive 1', ['AdamW ε = 10 −8 instead of 10 −5', 'settles much more quickly and remains permanently lower', 'allows larger updates early']),
- ('No weight decay on embeddings: decayed embeddings shrink; small norms inflate early-layer gradients (layer norm Jacobian inversely proportional to input norm)', R + ', Deep dive 1; Replay tab (embedding norm chart)', ['No weight decay on embeddings', 'the Jacobian of layer norm is inversely proportional to the norm of its input']),
+ ('No weight decay on embeddings: decayed embeddings shrink; small norms inflate early-layer gradients (layer norm Jacobian inversely proportional to input norm)', R + ', Deep dive 1; Replay tab (embedding norm chart)', ['No weight decay on embeddings', 'Jacobian scales with one over its input']),
  ("War story: Flash Attention's fused z-loss diverged from a PyTorch implementation in the backward pass; they abandoned the fused version and retrained from before the divergence", R + ', Deep dive 1 and Replay tab (corrected: the abandoned fork was the custom PyTorch one; the fused run was kept)', ['same forward value but behave differently in the backward pass', 'abandoned that fork, the one with the custom implementation', 'the old Notion summary had this the other way round']),
  # data and stages
  ('Stage 1 pretraining (90-95% of FLOPs) on OLMo 2 Mix 1124: 3.9T tokens, >95% web (DCLM-Baseline 3.71T) plus StarCoder, peS2o, arXiv, OpenWebMath, Algebraic Stack, Wikipedia', R + ', The recipe and Mid-training (stack bar)', ['90 to 95% of the training FLOPs', 'OLMo 2 Mix 1124: 3.9T tokens, over 95% of it web text', 'DCLM-Baseline', 'StarCoder', 'Algebraic Stack']),
@@ -102,7 +102,7 @@ C = [
  ('DeepSeekMath/GRPO, DPO, RoFormer, ZeRO, Megatron-LM', 'Connections; Further reading', ['3c65c17b0d0d817f9fc5cb9a9fbcbee5', '3c65c17b0d0d818bb1d8cafd30e20f9e', '3c65c17b0d0d81cfa5e9f54459720098', '3c65c17b0d0d81879a7ed90bca007699', '3c65c17b0d0d8133ae92fbe90a1f308e']),
  ('Tulu 3 supplies the post-training pipeline incl. RLVR; DCLM supplies the web data', 'Connections', ['Tülu 3 (Lambert et al. 2024) supplies the whole post-training pipeline including RLVR; DCLM supplies the pretraining web data']),
  ('KB topics: llm-training-and-post-training, data-curation-and-datasets, llms', 'Connections; Further reading', ['3c65c17b0d0d81b6876ee72b7056793b', '3c65c17b0d0d811fa5ecda8d365ab00f', '3c65c17b0d0d812d9e00f6ec89965286', 'stability, two-stage pretraining, annealing, souping, SFT/DPO/RLVR', 'quality filtering, microannealing, synthetic maths']),
- ('Database property Takeaway', 'stays in the database; also shown verbatim on the headline card', ['Fully open 7B/13B/32B recipe: stability fixes (normal init, post-norm+QK-norm, z-loss), Dolmino mid-training anneal with microanneals and souping, Tulu 3 RLVR; Pareto-frontier vs open-weights peers.']),
+ ('Database property Takeaway', 'stays in the database; also shown verbatim on the headline card', ['Fully open 7B/13B/32B recipe: stability fixes (normal init, output norm+QK-norm, z-loss), Dolmino mid-training anneal with microanneals and souping, Tülu 3 post-training (SFT, DPO, RLVR); on or near the compute frontier of open-weights peers, by estimated (6ND) FLOPs.']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', html.unescape(s))
 out, miss = [], []
