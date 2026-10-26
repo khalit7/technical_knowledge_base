@@ -46,7 +46,7 @@ for root, dirs, files in os.walk(PAGE):
 _m = re.search(r"window\.IO_D=(\{.*?\});\n", html, re.S)
 _ref = json.load(open(os.path.join(SRC, "..", "..", "src", "io", "out", "io_data.json"))); _ref["anatomy"].pop("entry_names_sample", None)
 ok(_m is not None and json.loads(_m.group(1)) == _ref, "page embeds the root's src/io/out/io_data.json exactly (window.IO_D)")
-for _id in ("io-tiers-card", "io-anat-bar", "io-scale-rows", "io-lay-card", "io-as-card", "io-pf-card", "io-errs"):
+for _id in ("io-tiers-card", "io-anat-bar", "io-scale-rows", "io-lay-card", "io-as-card", "io-errs"):
     ok('id="' + _id + '"' in html, "moved chart present: " + _id)
 ok(not hits, "privacy grep clean " + str(hits[:8]))
 big = [(fn, os.path.getsize(os.path.join(r, fn))) for r, _, fs in os.walk(PAGE) for fn in fs if os.path.getsize(os.path.join(r, fn)) > 1_000_000 and ".shots" not in r]

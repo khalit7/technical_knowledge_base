@@ -437,7 +437,7 @@ docker exec sd-cli python3 /tpfs.py bench stripe --mds sd-mds0:8000 --mib 128 --
 <tr><td>VAST Data</td><td data-h="Metadata">stateless protocol servers (CNodes) over shared flash that holds all metadata</td><td data-h="Placement">"disaggregates (separates) the storage media from the CPUs" (<a href="https://vastdata.com/glossary" target="_blank" rel="noopener noreferrer">VAST glossary</a>): every CNode reaches every SSD over NVMe-oF</td><td data-h="Scale">no dated primary throughput figure found <span class="unc">unconfirmed</span></td></tr>
 <tr><td>DAOS</td><td data-h="Metadata">user-space object store with POSIX emulation on top</td><td data-h="Placement">storage-class memory and NVMe, "full OS bypass" (<a href="https://docs.daos.io/latest/overview/architecture/" target="_blank" rel="noopener noreferrer">DAOS docs</a>)</td><td data-h="Scale">Aurora: "DAOS: 220PB @ 30 TB/s" (Argonne, 2025-09-17, link above) <span class="indep">independent</span></td></tr>
 <tr><td>DeepSeek 3FS</td><td data-h="Metadata">"stateless metadata services backed by a transactional key-value store (e.g., FoundationDB)"</td><td data-h="Placement">files split into equal chunks striped over replication chains (CRAQ); the client computes chunk locations from the layout, like Lustre; FUSE client plus a native zero-copy client (<a href="https://github.com/deepseek-ai/3FS" target="_blank" rel="noopener noreferrer">3FS README and design notes</a>, released February 2025)</td><td data-h="Scale">"approximately 6.6 TiB/s" of aggregate reads from 180 storage nodes, each "2×200Gbps InfiniBand NICs and sixteen 14TiB NVMe SSDs" <span class="pub">authors</span>: about 80% of the nodes' 9 TB/s of network line rate <span class="der">derived</span> (180 x 2 x 25 GB/s)</td></tr>
-<tr><td>Meta Tectonic</td><td data-h="Metadata">"stateless metadata services that construct the filesystem logic over the key-value store" (ZippyDB)</td><td data-h="Placement">a flat Chunk Store; append-only files (<a href="https://www.usenix.org/conference/fast21/presentation/pan" target="_blank" rel="noopener noreferrer">Tectonic, FAST 2021</a>)</td><td data-h="Scale">Llama 3: "240 PB of storage out of 7,500 servers", "2 TB/s" sustained, "7 TB/s" peak (<a href="https://arxiv.org/html/2407.21783v3" target="_blank" rel="noopener noreferrer">Llama 3, section 3.3.1</a>) <span class="pub">authors</span></td></tr>
+<tr><td>Meta Tectonic</td><td data-h="Metadata">"stateless metadata services that construct the filesystem logic over the key-value store" (ZippyDB)</td><td data-h="Placement">a flat Chunk Store; append-only files (<a href="https://www.usenix.org/conference/fast21/presentation/pan" target="_blank" rel="noopener noreferrer">Tectonic, FAST 2021</a>)</td><td data-h="Scale">Llama 3: "240 PB of storage out of 7,500 servers", "2 TB/s" sustained, "7 TB/s" peak; "A major challenge is supporting the highly bursty checkpoint writes that saturate the storage fabric for short durations" (<a href="https://arxiv.org/html/2407.21783v3" target="_blank" rel="noopener noreferrer">Llama 3, section 3.3.1</a>) <span class="pub">authors</span></td></tr>
 </tbody></table></div>
 <p class="small">The 3FS headline matches Fire-Flyer 2's "8 TB/s" quoted on the parent page only loosely (6.6 TiB/s is 7.3 TB/s <span class="der">derived</span>): the paper and the README describe different measurements.</p>
 </section>
@@ -519,11 +519,7 @@ docker exec sd-cli python3 /tpfs.py bench stripe --mds sd-mds0:8000 --mib 128 --
 <div class="io-card"><div class="tw"><table class="io-tbl"><thead><tr><th>Same 64 MiB as</th><th>Store</th><th class="num">Write</th><th class="num">Read, 1 at a time</th><th class="num">Read, 16 threads</th></tr></thead><tbody id="io-dr-rows"></tbody></table></div>
 <p class="small" id="io-dr-text"></p></div>
 <p>Each file costs an open, a metadata lookup and a close; each object costs an HTTP request. At 4 KiB per file those fixed costs are the whole bill, and on a parallel file system they land on the metadata servers (FSx's 2 file create/open/close operations per metadata IOPS <span class="io-tag io-vendor">vendor</span>), so a thousand nodes each opening millions of tiny files saturate it long before the disks are busy, and the whole cluster slows, not only your job.</p>
-<details class="dp" id="io-pf-card"><summary>Prefetch hides the fetch only while fetching is faster than computing <span class="mute">(depth; loaders are owned by Storage and loading)</span></summary><div class="b">
-<p>A loader that fetches the next shard only when it needs it adds the fetch to every step; one that keeps the next shards in flight hides it, as long as fetching is faster than computing. A loop that needs one 4 MiB shard per step and computes for 100 ms (a sleep standing in for the GPU) <span class="io-tag io-measured">measured</span>:</p>
-<div class="seg" id="io-pf-st"><button data-m="s3" class="on">S3 store</button><button data-m="local">Docker volume</button></div>
-<div id="io-pf-svg" class="io-svg"></div><p class="small" id="io-pf-text"></p>
-</div></details>
+<p class="small">A loader that keeps the next shards in flight hides each fetch only while fetching is faster than computing; the measured run (S3 against a Docker volume, 4 MiB shards, 100 ms of compute per step) is section 10 of <a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">Storage and loading at scale</a>.</p>
 </div>
 </section>
 <section id="rd-s5">
@@ -1445,19 +1441,6 @@ window.IOH=function(TAB){
   const sl=g('small','s3',1),bl=g('big','s3',1),sloc=g('small','local',1),bloc=g('big','local',1);
   $('io-dr-text').innerHTML='Medians of '+(sl.n||0)+' runs; the local reads start with the files dropped from the page cache. Same bytes, very different bills: on the S3 store the small files took <b>'+(sl.s/bl.s).toFixed(0)+' times</b> as long to read as the big ones ('+(sl.s/sl.files*1e3).toFixed(2)+' ms per request, one at a time), and '+(wr('small').s3_16threads_s/wr('big').s3_16threads_s).toFixed(0)+' times as long to write; on the volume, '+(sloc.s/bloc.s).toFixed(0)+' times as long to read. Sixteen threads help the store a little and the volume not at all: the per-file cost here is Python and the kernel, not a disk. Measured on Apple M1 Pro, Docker Desktop VM, shared machine.';
 
-  // prefetch: per-step wait for the shard, without and with prefetch
-  const P=D.prefetch;let st='s3';
-  function pf(){
-    const a=P[st+'|none'],b=P[st+'|prefetch2'];if(!a||!b)return;const el=$('io-pf-svg'),Wd=H.width(el);
-    const n=a.wait_ms.length,mx=Math.max(...a.wait_ms,...b.wait_ms,1);const lh=60,top=14;let s='';
-    [[a,'No prefetch','var(--c2)'],[b,'Prefetch 2 shards','var(--c3)']].forEach(([r,name,c],k)=>{const y0=top+k*(lh+30);
-      s+=H.t(0,y0-2,name+': waited '+fS(r.stall_s),{fs:11.5,w:600});
-      const bw=(Wd-4)/n;r.wait_ms.forEach((v,i)=>{const h=v/mx*lh;s+=H.rect(2+i*bw,y0+lh-h+4,Math.max(1,bw-2),h,c,{rx:1})});
-      s+=H.line(2,y0+lh+4,Wd-2,y0+lh+4,'var(--line)');});
-    el.innerHTML=H.svg(Wd,top+2*(lh+30)-10,s,'Wait for data at each step');
-    $('io-pf-text').innerHTML='Over '+n+' steps the runs took '+fS(a.total_s)+' without prefetch and '+fS(b.total_s)+' with it. Each bar is one step’s wait for its shard (median of 3 runs; tallest bar '+mx.toFixed(1)+' ms). Without prefetch, every step pays the fetch; with two shards in flight, only the first step does, because a fetch ('+fS(a.stall_s/n)+' on average) is shorter than the 100 ms of compute. The store here is a container away; a real object store’s tens of milliseconds per request make the first case worse and the second no different, until fetching a shard takes longer than computing on it, and then only more parallel fetches or a local cache help.';
-  }
-  H.seg($('io-pf-st'),m=>{st=m;pf()});H.onRender(pf);pf();
 
   // restore errors
   const E=D.errors;if(E&&E.truncated){
