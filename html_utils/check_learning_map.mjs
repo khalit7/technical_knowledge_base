@@ -159,8 +159,12 @@ const checkFocus = (s, f, where) => {
   (await geometry(p)).forEach(m => bad('overview', m));
   const S = await slugs(p);
   const NAME = Object.fromEntries(await p.evaluate(() => JSON.parse(document.getElementById('lm-data').textContent).T.map(t => [t.slug, t.n])));
+  // each topic view places every page in the column of its global stage, the same stage its card's pills count
+  const viewDrift = await p.evaluate(() => { const D = JSON.parse(document.getElementById('lm-data').textContent), out = [];
+    D.T.forEach((t, k) => { const v = D.V.topic[k]; t.p.forEach(i => { if (v.lay[i] !== D.P[i].g + v.before) out.push(t.slug + ':' + i) }) }); return out });
+  if (viewDrift.length) bad(`topic view stage differs from the card's stage for ${viewDrift.length} pages: ${viewDrift.slice(0, 5).join(', ')}`);
   // cards: one per topic, right layer, right numbers
-  const cards = await p.evaluate(() => [...document.querySelectorAll('#lm-ov .lm-t')].map(g => { const r = g.querySelector('.lm-box').getBBox();
+  const cards =await p.evaluate(() => [...document.querySelectorAll('#lm-ov .lm-t')].map(g => { const r = g.querySelector('.lm-box').getBBox();
     return { k: +g.dataset.k, l: +g.dataset.l, y0: r.y, y1: r.y + r.height, x0: r.x, x1: r.x + r.width, text: [...g.querySelectorAll('text')].map(t => t.textContent).join(' '),
       cells: g.querySelectorAll('.lm-cell').length, sl: [...g.querySelectorAll('.lm-sl')].map(t => t.textContent).join(' '),
       tips: [...g.querySelectorAll('.lm-cell')].map(c => (c.querySelector('title') || {}).textContent || ''), cnts: [...g.querySelectorAll('.lm-cell')].map(c => { const t = c.nextElementSibling; return t && t.matches('.lm-cnt') ? +t.textContent : 0 }),

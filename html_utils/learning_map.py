@@ -579,18 +579,11 @@ def topic_view(P, T, k):
         for a in P[i]["pre"]:
             if a not in ms and a not in ghosts:
                 ghosts.append(a)
+    # the same global stage the topic's card counts (column j = stage j; column 0 = pages from other topics),
+    # so the view and the card's stage pills always agree
     layer = {g: 0 for g in ghosts}
-
-    def f(i):
-        if i not in layer:
-            layer[i] = 1 + max((f(a) for a in P[i]["pre"]), default=0)
-        return layer[i]
-
     for i in mem:
-        f(i)
-    if not ghosts:
-        for i in mem:
-            layer[i] -= 1
+        layer[i] = P[i]["g"] + (1 if ghosts else 0)
     nodes = sorted(ghosts, key=lambda g: (P[g]["c"], g)) + mem
     edges = [(a, i) for i in mem for a in P[i]["pre"]]
     v = view_from(P, nodes, edges, layer, ghost=set(ghosts))
