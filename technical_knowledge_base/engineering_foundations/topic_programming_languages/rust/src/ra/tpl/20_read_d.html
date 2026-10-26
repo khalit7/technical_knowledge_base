@@ -1,0 +1,67 @@
+<section id="ra-mod">
+<h2>6. Modules, crates and visibility</h2>
+<ul>
+<li>A <dfn>package</dfn> is what <code>cargo new</code> makes (one <code>Cargo.toml</code>); it contains a <b>library crate</b> (<code>src/lib.rs</code>), and/or one or more <b>binary crates</b> (<code>src/main.rs</code>, <code>src/bin/*.rs</code>). A crate is the unit the compiler builds at once.</li>
+<li>A <dfn>module</dfn> is a namespace inside a crate: <code>mod tokenize;</code> in <code>lib.rs</code> loads <code>src/tokenize.rs</code>. Paths use <code>::</code> (<code>crate::tokenize::count_tokens</code>); <code>use</code> imports a name, like Python's <code>from x import y</code>.</li>
+<li><b>Everything is private by default</b>, visible only inside its module and its children. <code>pub</code> exports it; <code>pub(crate)</code> exports it within the crate only. Python's leading underscore is a convention; this is enforced: calling a private <code>tokenizer::split</code> from outside its module is E0603, "function <code>split</code> is private".</li>
+</ul>
+<details class="dp"><summary>The program and its E0603</summary>[[code:lang/modvis_err.rs]][[out:l_modvis_err]]</details>
+<p>The root page's running program (count tokens per user in a JSONL chat log, {{the Rosetta tab of Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}) is reorganised here as a library with two modules (<code>tokenize</code>, <code>tally</code>) and a thin binary on top, the shape most Rust projects take, so the logic can be tested and reused (the {{PyO3 child|n:4055c17b0d0d81048311c87e9b76a78a}} turns the same functions into a Python extension):</p>
+[[out:l_tokstat_run]]
+<p>The output matches the root's specification exactly (2000 lines, 8 malformed, u0029 first with 9491). <code>per_user</code> has no <code>pub</code>, so code outside <code>tally</code> can only read the totals through the methods: the invariant "totals are only changed by <code>add_line</code>" is enforced by the compiler.</p>
+<details class="dp"><summary>The crate's <code>lib.rs</code>, <code>main.rs</code> and <code>tally.rs</code></summary>
+<div class="ra-two"><div>[[code:tokstat/src/lib.rs]][[code:tokstat/src/main.rs:1-20]]</div><div>[[code:tokstat/src/tally.rs:1-25]]</div></div>
+</details>
+</section>
+
+<section id="ra-mist">
+<h2>7. Traps that cut across the Rust pages, and the habit that replaces each</h2>
+<p>Each row is a Python habit that compiles, or nearly, and then costs you; the last column is where the mechanism is taught.</p>
+<div class="tw"><table><thead><tr><th>Trap</th><th>What happens</th><th>The habit instead</th><th>Taught on</th></tr></thead><tbody>
+<tr><td><b>Cloning until it compiles.</b></td><td>Each <code>clone()</code> of a <code>String</code> or <code>Vec</code> allocates and copies.</td><td>Ask first whether the callee could borrow (<code>&amp;str</code>, <code>&amp;[T]</code>), whether the value could move, or whether its last use could come earlier. Clone small things freely; never in a hot loop without a reason.</td><td>sections 4 and 5</td></tr>
+<tr><td><b><code>Rc&lt;RefCell&lt;T&gt;&gt;</code> everywhere to recreate Python's object graph.</b></td><td>It compiles and then panics at run time (lab scenario 15).</td><td>Give the data one owner (often a struct holding <code>Vec</code>s) and refer to items by index.</td><td>{{lifetimes child|n:4055c17b0d0d8160aa32df9cda0aef03}}, section 2</td></tr>
+<tr><td><b>Lifetimes in every struct.</b></td><td>The lifetime parameter spreads to every type that holds the struct (lab scenario 13).</td><td>Store owned data first; borrow in structs only when a profile says the copies matter.</td><td>{{lifetimes child|n:4055c17b0d0d8160aa32df9cda0aef03}}, section 1</td></tr>
+<tr><td><b><code>&amp;String</code> or <code>&amp;Vec&lt;T&gt;</code> parameters.</b></td><td>Fewer callers can use the function.</td><td>Take <code>&amp;str</code> and <code>&amp;[T]</code>: they accept more callers and are what clippy suggests (section 2).</td><td>{{enums child|n:4055c17b0d0d8129b199c18b4bd56935}}, section 1</td></tr>
+<tr><td><b>Byte indexes on text.</b></td><td><code>s.len()</code> is bytes and <code>&amp;s[0..n]</code> panics inside a character.</td><td>Use <code>chars()</code>, <code>char_indices()</code>, or a byte-level algorithm on purpose (the token counter works on bytes because tokens are ASCII).</td><td>{{enums child|n:4055c17b0d0d8129b199c18b4bd56935}}, section 1</td></tr>
+<tr><td><b><code>unwrap()</code> in library code.</b></td><td>A panic where the caller could have handled an error.</td><td>Return <code>Result</code> and use <code>?</code>; reserve <code>expect("reason")</code> for states you can prove impossible.</td><td>{{enums child|n:4055c17b0d0d8129b199c18b4bd56935}}, section 3</td></tr>
+<tr><td><b>Expecting dict order from <code>HashMap</code>.</b></td><td>Its order changes between runs.</td><td>Sort, or use <code>BTreeMap</code>, or a <code>Vec</code> of pairs.</td><td>{{enums child|n:4055c17b0d0d8129b199c18b4bd56935}}, section 6</td></tr>
+<tr><td><b>Timing a debug build.</b></td><td><code>cargo run</code> is unoptimised; and a release build silently wraps on overflow.</td><td>Measure with <code>--release</code>; use <code>checked_*</code> where overflow matters.</td><td>sections 2 and 3</td></tr>
+<tr><td><b>Blocking inside async code.</b></td><td>A long computation or a blocking file read inside an <code>async fn</code> stalls every task on that thread.</td><td>Move it to <code>spawn_blocking</code>.</td><td>{{async child|n:4055c17b0d0d8148b863faa050cf5456}}, "Blocking the runtime"</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="ra-cpp">
+<h2>8. If you know some C++</h2>
+<p>Rust's ownership is C++'s RAII plus move semantics, with the compiler enforcing what the C++ Core Guidelines only recommend ({{C++: the essentials|n:3cd5c17b0d0d81ceadcee44fe9c023a0}} and {{C++: ownership, moves and object lifetimes|n:4055c17b0d0d81819d74fa010e68ac2a}} teach the C++ side).</p>
+<details class="dp"><summary>Nine C++ constructs and their Rust counterparts</summary>
+<div class="tw"><table><thead><tr><th>C++</th><th>Rust</th><th>The difference</th></tr></thead><tbody>
+<tr><td><code>auto b = std::move(a);</code></td><td><code>let b = a;</code></td><td>Moves are the default and the moved-from variable is unusable (a compile error), not "valid but unspecified".</td></tr>
+<tr><td>destructor</td><td><code>impl Drop</code></td><td>Same deterministic order (reverse of declaration).</td></tr>
+<tr><td><code>const T&amp;</code>, <code>T&amp;</code></td><td><code>&amp;T</code>, <code>&amp;mut T</code></td><td>Aliasing XOR mutation is checked, so iterator invalidation and dangling references do not compile.</td></tr>
+<tr><td><code>std::string_view</code> into a temporary</td><td><code>&amp;str</code> with a lifetime</td><td>Undefined behaviour in C++; E0515 or E0597 in Rust.</td></tr>
+<tr><td>templates, concepts</td><td>generics with trait bounds</td><td>Both monomorphise; Rust checks the generic body against the bounds once, at definition, so errors are short.</td></tr>
+<tr><td><code>virtual</code></td><td><code>dyn Trait</code></td><td>Opt-in at the use site, no inheritance; the vtable pointer lives in the fat pointer, not in the object.</td></tr>
+<tr><td><code>unique_ptr</code>, <code>shared_ptr</code></td><td><code>Box</code>, <code>Rc</code>/<code>Arc</code></td><td><code>Rc</code> is a non-atomic <code>shared_ptr</code>, allowed only on one thread (not <code>Send</code>).</td></tr>
+<tr><td>exceptions, <code>std::expected</code></td><td><code>Result</code> and <code>?</code></td><td>Panics exist but are for bugs.</td></tr>
+<tr><td>everything</td><td><code>unsafe { }</code></td><td>C++'s rules apply only inside the block, and the block is searchable.</td></tr>
+</tbody></table></div>
+<p>No function overloading and no implicit conversions; prefer indexes and arenas to pointer graphs, because self-referential structs are the design Rust refuses.</p>
+</details>
+</section>
+
+<section id="ra-kids">
+<h2>9. The child pages</h2>
+<p>Each assumes this page and stands alone otherwise. Times are measured (230 words a minute), with the closed blocks counted apart; much of each child's core is recorded code and output, which is scanned rather than read.</p>
+<div class="ra-kids">
+<div class="ra-kid"><h3>{{Rust: enums, traits, errors and iterators|n:4055c17b0d0d8129b199c18b4bd56935}}</h3><div class="m">Reading: 33 min, plus 13 in closed details</div>
+<p>Rust turns what a Python program discovers while running into types the compiler checks before running. Strings as UTF-8 bytes, enums with data and exhaustive <code>match</code>, <code>Option</code>, <code>Result</code> and <code>?</code>, traits and generics, iterators that cost nothing (measured), collections, <code>cargo test</code>; nine Python to Rust predictions inline.</p></div>
+<div class="ra-kid"><h3>{{Rust: lifetimes, smart pointers, threads and unsafe|n:4055c17b0d0d8160aa32df9cda0aef03}}</h3><div class="m">Reading: 16 min, plus 14 in closed details</div>
+<p>Where one owner and compile-time borrows are not enough. Lifetimes as a contract checked at every call, <code>Box</code>, <code>Rc</code>, <code>RefCell</code> and <code>Arc</code>, threads without data races (<code>Send</code> and <code>Sync</code>), and <code>unsafe</code> checked with Miri.</p></div>
+<div class="ra-kid"><h3>{{Rust: speeding up Python with PyO3 and maturin|n:4055c17b0d0d81048311c87e9b76a78a}}</h3><div class="m">Reading: 34 min, plus 13 in closed details</div>
+<p>Port the whole pipeline, not one function. Profiling first, PyO3 and maturin, what each conversion costs, NumPy without copies, releasing the GIL with rayon, free-threaded 3.14t, abi3 wheels, and the root's token counter from 1.36 s to 0.059 s step by step.</p></div>
+<div class="ra-kid"><h3>{{Rust: async with tokio, services with axum, and CLIs|n:4055c17b0d0d8148b863faa050cf5456}}</h3><div class="m">Reading: 27 min, plus 19 in closed details</div>
+<p>Futures are lazy and the runtime is a library you choose. Async Rust from zero with tokio, blocking the runtime (measured), <code>Send + 'static</code> errors, an axum service measured against FastAPI, a CLI with clap, shipping a binary.</p></div>
+</div>
+<p><b>Three ways through.</b> "I have slow Python and want it fast": this page, then the enums child's sections 1 to 3, then the PyO3 child in order; profile first, because its section 1 shows when porting does not help. "I want to write a service or a CLI": this page, the enums child, then the async child. "I just want to understand Rust": the children in the order above, with the Borrow-checker lab here.</p>
+<p>Elsewhere: how Rust compares with Python, C++ and TypeScript, with the same program written in all four, is on the parent page {{Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}. The sibling language pages are {{Python: the essentials|n:3cd5c17b0d0d81b28acdea39e7a4d998}}, {{C++: the essentials|n:3cd5c17b0d0d81ceadcee44fe9c023a0}} and {{JavaScript and TypeScript: the essentials|n:3cd5c17b0d0d81dbac7be3b8686be023}}; Rust on the GPU (cutile-rs, cuda-oxide, CubeCL) belongs to {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}}.</p>
+</section>

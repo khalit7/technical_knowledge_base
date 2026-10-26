@@ -1,4 +1,4 @@
-// ---- Part 1 (ra) tab "Borrow-checker lab": pick a scenario, predict, reveal the real rustc output, how to read it, the fix ----
+// ---- Reading section 5, the Borrow-checker lab: pick a scenario, predict, reveal the real rustc output, how to read it, the fix ----
 (function(){
   const D=window.RA_DATA&&window.RA_DATA.bc;const pick=document.getElementById('ra-bc-pick');if(!D||!pick)return;
   const esc=RA.esc,body=document.getElementById('ra-bc-body'),score=document.getElementById('ra-bc-score');

@@ -1,4 +1,4 @@
-// ---- Part 1 (ra) helpers: highlighting, recorded-output blocks, redraw registration on this part's own tab ids ----
+// ---- helpers: highlighting, recorded-output blocks, run verdicts (shared by the hero, the timeline and the lab) ----
 window.RA=(function(){
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const KW=new Set('as async await break const continue crate dyn else enum extern false fn for if impl in let loop match mod move mut pub ref return self Self static struct super trait true type unsafe use where while def import from print lambda None True False try except yield class'.split(' '));

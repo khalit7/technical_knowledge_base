@@ -1,4 +1,4 @@
-"""Hand-written text for the borrow-checker lab and the Python-to-Rust drill.
+"""Hand-written text for the Borrow-checker lab and the three Python-to-Rust predictions on Rust: the essentials.
 Sources, outputs and errors come from code/ and out/ (gen.py joins them)."""
 
 # kind: what really happens to the first version ("compile" = refused by rustc, "panic" = compiles, fails at run time)
@@ -19,7 +19,7 @@ BC = [
     {"id": "03_push_while_borrowed", "group": "Borrows", "title": "Push while a reference is alive", "code": "E0502", "kind": "compile",
      "py": "Python lists also reallocate when they grow, but a Python reference points at the element object, never into the list's buffer, so nothing dangles.",
      "read": "The classic three-label shape: <i>immutable borrow occurs here</i> (the start of <code>best</code>), <i>mutable borrow occurs here</i> (<code>push</code> needs <code>&amp;mut</code>), <i>immutable borrow later used here</i> (the reason the first borrow is still alive). Remove any one of the three and it compiles.",
-     "why": "<code>push</code> may move the buffer to a bigger block (see the Ownership tab, step 3), which would leave <code>best</code> pointing at freed memory. Copying the <code>f64</code> out ends the borrow at once. Moving the <code>println!</code> above the <code>push</code> would also work."},
+     "why": "<code>push</code> may move the buffer to a bigger block (the hero at the top of the page, step 3), which would leave <code>best</code> pointing at freed memory. Copying the <code>f64</code> out ends the borrow at once. Moving the <code>println!</code> above the <code>push</code> would also work."},
     {"id": "04_two_mut", "group": "Borrows", "title": "Two &mut into one Vec", "code": "E0499", "kind": "compile",
      "py": "Python has no such rule: any number of names may change the same list.",
      "read": "<i>first mutable borrow</i>, <i>second mutable borrow</i>, <i>first borrow later used</i>. The help line names the standard tool: <code>split_at_mut</code>.",
@@ -68,12 +68,9 @@ BC = [
      "why": "End the shared borrow before taking the mutable one (compute <code>greet</code> first). Use <code>RefCell</code> only when the compiler cannot see the pattern; a panic is the price of the run-time check."}
 ]
 
-# answer: the letter whose behaviour matches Python; notes per candidate
+# answer: the letter whose behaviour matches Python; notes per candidate.
+# The other nine items live on Rust: enums, traits, errors and iterators, beside the section each teaches.
 DRILL = [
-    {"id": "d01", "title": "Count words in a dict", "answer": "c",
-     "notes": {"a": "<code>HashMap</code> implements <code>Index</code> (read) but not <code>IndexMut</code>, so <code>counts[w] += 1</code> cannot insert or update: E0594.",
-               "b": "Compiles, then panics on the first word: <code>get</code> returns <code>None</code> for a new key and <code>unwrap</code> on <code>None</code> panics.",
-               "c": "The entry API: one lookup, insert 0 if absent, then add. This is the idiom for counting."}},
     {"id": "d02", "title": "Two names for one list", "answer": "c",
      "notes": {"a": "<code>let mut b = a</code> moves the vector; <code>a</code> is dead: E0382.",
                "b": "Compiles, but <code>clone</code> made a second vector, so <code>a</code> is unchanged: <code>[1, 2]</code>.",
@@ -82,39 +79,6 @@ DRILL = [
      "notes": {"a": "Rust's <code>/</code> on integers truncates toward zero: <code>-3</code>.",
                "b": "The truncation already happened in integer <code>-7 / 2</code>; flooring <code>-3.0</code> changes nothing.",
                "c": "<code>div_euclid</code> rounds so that the remainder is never negative, which for a positive divisor is Python's <code>//</code>."}},
-    {"id": "d04", "title": "Length of a string", "answer": "b",
-     "notes": {"a": "<code>len()</code> is the number of UTF-8 bytes; <code>ï</code> takes 2.",
-               "b": "Python's <code>len</code> counts code points, which are Rust's <code>char</code>s.",
-               "c": "The same as <code>len()</code>: bytes."}},
-    {"id": "d05", "title": "A default argument", "answer": "c",
-     "notes": {"a": "Rust has no default parameter values: a syntax error, then E0061 for the call with no argument.",
-               "b": "Compiles, then panics on <code>greet(None)</code>: <code>unwrap</code> on <code>None</code>.",
-               "c": "<code>Option&lt;&amp;str&gt;</code> plus <code>unwrap_or</code> is the direct translation (a builder or two functions are the other usual answers)."}},
-    {"id": "d06", "title": "try / except around int()", "answer": "a",
-     "notes": {"a": "<code>parse</code> returns a <code>Result</code>; <code>unwrap_or(0)</code> is the except branch.",
-               "b": "<code>unwrap</code> on an <code>Err</code> panics: Rust's uncaught exception, but you cannot catch it as routine control flow.",
-               "c": "<code>?</code> needs the function to return a <code>Result</code> or <code>Option</code>; <code>main</code> returns <code>()</code>: E0277."}},
-    {"id": "d07", "title": "A list comprehension", "answer": "b",
-     "notes": {"a": "Compiles and prints the iterator itself, not its values: adapters are lazy and nothing ran. You need <code>collect</code>.",
-               "b": "<code>filter</code>, <code>map</code>, <code>collect</code> into a <code>Vec</code>: the comprehension.",
-               "c": "<code>1..5</code> starts at 1, so 0 is missing. Ranges are half-open like Python's <code>range</code>, but the start matters."}},
-    {"id": "d08", "title": "Update a list in place", "answer": "c",
-     "notes": {"a": "The loop holds a shared borrow of <code>nums</code> while the body writes to it: E0502.",
-               "b": "Compiles (with a warning), but each <code>x</code> is a copy in a clone; <code>nums</code> is unchanged.",
-               "c": "<code>iter_mut</code> yields <code>&amp;mut i32</code>; <code>*x</code> writes through it."}},
-    {"id": "d09", "title": "Dictionary order", "answer": "c",
-     "extra": [["dr_d09_a_again", "Candidate a, run three more times"]],
-     "notes": {"a": "<code>HashMap</code> iterates in arbitrary order, and the hasher is randomly seeded per process: the order changed between runs.",
-               "b": "<code>BTreeMap</code> is ordered by key (alphabetical here), not by insertion.",
-               "c": "Python dicts keep insertion order (guaranteed since 3.7). Rust's standard library has no insertion-ordered map; a <code>Vec</code> of pairs (or the <code>indexmap</code> crate) keeps it."}},
-    {"id": "d10", "title": "sorted with a key", "answer": "b",
-     "notes": {"a": "Tuples compare field by field, so this sorts by name: a different order.",
-               "b": "A comparator: count descending (<code>b</code> against <code>a</code>), then name ascending. This is how the root's token counter sorts.",
-               "c": "<code>sort_by_key</code> cannot return a key that borrows from the element (<code>&amp;u.0</code>): a lifetime error. <code>sort_by_cached_key</code> with a cloned name, or <code>sort_by</code>, works."}},
-    {"id": "d11", "title": "Sort floats", "answer": "c",
-     "notes": {"a": "<code>f64</code> is not <code>Ord</code> (NaN is not comparable), so <code>sort</code> is refused: E0277.",
-               "b": "Refused before any sorting: the float literals' type is not known yet when <code>total_cmp</code> is looked up (E0599). Annotating <code>Vec&lt;f64&gt;</code> fixes that, and then it would sort descending.",
-               "c": "<code>partial_cmp</code> plus <code>unwrap</code> sorts ascending (and panics if a NaN appears; <code>total_cmp</code> orders NaN instead)."}},
     {"id": "d12", "title": "2 ** 64", "answer": "c",
      "notes": {"a": "2<sup>64</sup> does not fit in <code>u64</code> (max 2<sup>64</sup> minus 1): a debug build panics.",
                "b": "Wraps around to 0, silently.",

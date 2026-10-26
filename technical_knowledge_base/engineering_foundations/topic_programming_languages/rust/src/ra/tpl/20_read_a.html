@@ -1,0 +1,65 @@
+<section id="ra-top">
+<p class="core">Every Rust value has <span class="hl">exactly one owner</span>, and the compiler checks every borrow of it <span class="hl">before the program runs</span>: nothing may use a value after its owner has freed it, or while someone else is changing it. So use after free, dangling references, iterator invalidation and data races become compile errors, with no garbage collector and no reference counts; the price is that you decide who owns what.</p>
+<div class="hero" id="ra-own-card"><h4>One Vec, at its real addresses: a borrow copies nothing, growth moves the buffer, a move copies 24 bytes, drop frees at a known line</h4>
+<p class="small">One small program, stepped line by line. A Rust <code>Vec</code> is a 24-byte header on the stack (pointer, capacity, length) and a buffer on the heap. Every address and number below was printed by the program itself when it ran (rustc 1.99.0). <b>Predict first:</b> after <code>let w = v;</code>, which address changes, the stack slot or the heap block? Then step. Switch to <b>Python</b> for the same steps in Python's model: names pointing at one object, and a reference count.</p>
+<div class="seg" id="ra-own-seg"><button data-m="rs" class="on">Rust</button><button data-m="py">The same steps in Python</button></div>
+<div class="ra-ctl" id="ra-own-ctl"></div>
+<div class="ra-cap" id="ra-own-cap"></div>
+<div class="ra-og"><div class="ra-lc" id="ra-own-code"></div><div class="ra-mem" id="ra-own-svg"></div></div>
+<div class="ra-cnt" id="ra-own-cnt"></div>
+<p class="small">The captions name what changes at each step, and the counters under the figure keep the score: allocations, live blocks, bytes copied by moves, elements copied.</p>
+<details class="dp"><summary>What the run shows, in six lines</summary>
+<ul>
+<li><b>Borrowing never copies.</b> <code>r</code> and <code>m</code> are 8-byte pointers to <code>v</code>'s stack slot (the same address the program printed for <code>v</code>).</li>
+<li><b>Growth moves the buffer.</b> <code>push</code> on a full vector allocated a new block (capacity 3 to [[g:l_own_anim|^3 v .* cap=(\d+)]]) and freed the old one. That is exactly why the borrow checker refuses a reference into the buffer across a <code>push</code> (section 5).</li>
+<li><b>A move copies 24 bytes, not the data.</b> <code>w</code> has a new stack address but the same heap address as <code>v</code> had; <code>v</code> is unusable afterwards.</li>
+<li><b>Clone allocates.</b> <code>c</code> got its own buffer; on this run the allocator handed it the block freed at step 3 (heap [[g:l_own_anim|^6 c .* heap=(0x[0-9a-f]+)]], the same as step 1). Reusing freed memory is normal, and is why a dangling pointer can read someone else's data in C++.</li>
+<li><b>Drop frees at a known line.</b> <code>drop(w)</code> released the second buffer immediately; <code>c</code> is freed at the closing brace of <code>main</code>.</li>
+<li><b>In Python</b> every step after the first only adds a name to one object (the count rises to 4); <code>copy()</code> is the only new allocation; <code>del w</code> removes a name, not the object.</li>
+</ul>
+</details>
+<details class="dp"><summary>The source and the two recorded runs</summary>
+[[code:lang/own_anim.rs]]
+[[out:l_own_anim]]
+[[code:lang/own_anim.py]]
+[[out:l_own_anim_py]]
+</details>
+</div>
+<p><b>You need:</b> everyday Python. Nothing else: this page starts from zero for a Python programmer, and the four child pages assume it. If you know C++, section 8 maps its ownership onto Rust's.</p>
+<dl class="terms">
+<dt>Owner, drop</dt><dd>the variable (or field, or vector slot) responsible for a value; when it goes out of scope the value is dropped and its memory freed.</dd>
+<dt>Move</dt><dd>assignment or passing hands ownership over; the old name may not be used again.</dd>
+<dt><code>Copy</code>, <code>clone()</code></dt><dd>small plain values (numbers, <code>bool</code>) are copied bit for bit; <code>clone()</code> is the explicit deep copy of anything else.</dd>
+<dt>Borrow: <code>&amp;T</code>, <code>&amp;mut T</code></dt><dd>a reference that uses a value without owning it: any number of shared (read-only) borrows, or one exclusive (mutable) borrow.</dd>
+<dt>Borrow checker</dt><dd>the part of the compiler that proves every borrow ends before its value is freed or changed by someone else.</dd>
+<dt>Crate, cargo</dt><dd>a crate is a unit of compiled Rust (a library or a program); cargo builds, tests, lints and fetches them.</dd>
+</dl>
+<nav class="nav" id="rd-nav" aria-label="Sections"><a href="#ra-one">1 In one screen</a><a href="#ra-cargo">2 Cargo</a><a href="#ra-num">3 Variables, numbers</a><a href="#ra-own">4 Ownership</a><a href="#ra-borrow">5 Borrowing</a><a href="#ra-mod">6 Modules</a><a href="#ra-mist">7 Traps</a><a href="#ra-cpp">8 From C++</a><a href="#ra-kids">9 Child pages</a></nav>
+</section>
+
+<section id="ra-one">
+<h2>1. Rust in one screen, for a Python programmer</h2>
+<p>Rust is the language under much of the Python tooling you already use (uv, ruff, ty, pydantic-core, Hugging Face tokenizers, polars). Python gets memory safety from reference counting and a garbage collector at run time; C++ trusts you. Rust checks a set of rules at compile time and then runs with no collector at all. Everything else follows from that:</p>
+<div class="tw"><table>
+<thead><tr><th>In Python</th><th>In Rust</th><th>Why Rust does it this way</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td><code>python app.py</code>, pip or uv for packages</td><td><b>cargo</b> builds, runs, tests, lints and fetches packages ("crates") in one tool</td><td>A compiled language needs a build; one standard tool means every project looks the same</td><td><a href="#ra-cargo">2</a></td></tr>
+<tr><td>Any variable can be rebound or changed</td><td>Variables are immutable unless declared <code>mut</code>; integers have fixed widths and overflow is checked</td><td>Changes are visible in the code; the machine's real number types</td><td><a href="#ra-num">3</a></td></tr>
+<tr><td><code>b = a</code> adds a second name for one object</td><td><code>let b = a;</code> <b>moves</b> it: <code>a</code> may not be used again</td><td>One owner means the compiler always knows who frees it, and when</td><td><a href="#ra-own">4</a></td></tr>
+<tr><td>Any number of names may read and change an object</td><td><b>Borrowing</b>: many readers (<code>&amp;T</code>) or one writer (<code>&amp;mut T</code>), never both at once</td><td>Rules out dangling references, iterator invalidation and data races at compile time</td><td><a href="#ra-borrow">5</a>; lifetimes: {{lifetimes child|n:4055c17b0d0d8160aa32df9cda0aef03}}</td></tr>
+<tr><td><code>None</code> anywhere; exceptions for errors</td><td><code>Option&lt;T&gt;</code> and <code>Result&lt;T, E&gt;</code> are ordinary values you must handle; <code>?</code> passes errors up</td><td>The type says what can be missing or fail, and the compiler checks you handled it</td><td>{{enums child|n:4055c17b0d0d8129b199c18b4bd56935}}</td></tr>
+<tr><td>Duck typing, Protocols, classes with inheritance</td><td><b>Traits</b> and generics, compiled to one specialised copy per type; no inheritance</td><td>Abstraction that costs nothing at run time</td><td>{{enums child|n:4055c17b0d0d8129b199c18b4bd56935}}</td></tr>
+<tr><td>Threads share everything; the GIL (or locks) keeps it sane</td><td>The type system knows what may cross threads (<code>Send</code>, <code>Sync</code>); a data race does not compile</td><td>"Fearless concurrency": the checks of section 5 extended to threads</td><td>{{lifetimes child|n:4055c17b0d0d8160aa32df9cda0aef03}}</td></tr>
+</tbody></table></div>
+<p>The rule you will meet most, in one line, from {{the Rust Book|https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html}}: <i>"At any given time, you can have either one mutable reference or any number of immutable references."</i> The root page shows it on one example ({{Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}, Reading sections 4 and 5); sections 4 and 5 here teach it, and the Borrow-checker lab in section 5 lets you practise on fifteen real compiler errors.</p>
+<h3>Five things the runs showed, and the child that measures each</h3>
+<div class="tw"><table>
+<thead><tr><th>Finding</th><th>Where</th></tr></thead><tbody>
+<tr><td>A while loop, a for loop, an iterator chain and a generic closure all compiled to the same speed, about 0.29 ns per element; CPython took 71.4 ns for the same loop.</td><td>{{Rust: enums, traits, errors and iterators|n:4055c17b0d0d8129b199c18b4bd56935}}, section 5</td></tr>
+<tr><td>Moving only the counting into Rust took the root's token counter from 1.358 s to 0.466 s; moving the JSON parsing too took it to 0.112 s, and releasing the GIL with 8 threads to 0.059 s (23 times faster). Port the whole pipeline, not one function.</td><td>{{Rust: speeding up Python with PyO3 and maturin|n:4055c17b0d0d81048311c87e9b76a78a}}, section 10</td></tr>
+<tr><td>On free-threaded 3.14t, a Rust class with a <code>&amp;mut self</code> method shared by 8 threads raised "Already borrowed" on 13% of calls; a frozen class with a <code>Mutex</code> fixes it.</td><td>The same child, section 9</td></tr>
+<tr><td>The same service in axum and FastAPI (4 workers each): 4,804 against 206 requests/s counting a 391 KB log, and 27 against 281 MB of memory.</td><td>{{Rust: async with tokio, services with axum, and CLIs|n:4055c17b0d0d8148b863faa050cf5456}}, "Measured"</td></tr>
+<tr><td>CPU work inside an async handler slowed every other request (<code>/health</code> median 10.7 ms); moving it to <code>spawn_blocking</code> brought it back to 0.44 ms.</td><td>The same child, "Blocking the runtime"</td></tr>
+</tbody></table></div>
+<p class="small">How to read the code on this page: each block is a file in this page's <code>src/ra/code/</code>, then the command that ran and its real output (green border) or error (orange border). Dashed boxes are predictions: guess, then open. Every program was compiled with rustc 1.99.0 (edition 2024) and run on an Apple M1 Pro (macOS 27) on 2026-10-05; the children's runs also used PyO3 0.29.3, tokio 1.53.2, axum 0.8.9 and clap 4.6.7.</p>
+</section>

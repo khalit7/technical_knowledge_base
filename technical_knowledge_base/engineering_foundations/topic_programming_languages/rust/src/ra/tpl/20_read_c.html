@@ -1,0 +1,64 @@
+<section id="ra-own">
+<h2>4. Ownership and moves</h2>
+<p>First, where values live. Each function call gets a <dfn>stack frame</dfn>, a block of memory for its local variables, released automatically when the function returns. Data whose size is only known at run time (a growing vector, a string read from a file) goes on the <dfn>heap</dfn>, which someone must release explicitly. A Rust <code>String</code> or <code>Vec</code> is a small fixed-size <b>header on the stack</b> (three machine words: a pointer to the heap buffer, the capacity, the length; 24 bytes) plus <b>a buffer on the heap</b>, as the hero at the top draws. Python hides all of this: every object is on the heap and names are references to it.</p>
+<p>The ownership rules ({{Rust Book 4.1|https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html}}): each value has one <dfn>owner</dfn> (a variable, a field, a vector slot); when the owner goes out of scope the value is <dfn>dropped</dfn> (its heap memory freed); assigning or passing a value <b>moves</b> ownership.</p>
+[[code:lang/move.rs]]
+[[out:l_move]]
+<p>After <code>let b = a;</code> the 24-byte header was copied into <code>b</code> and <code>a</code> became unusable. The heap buffer was not copied and not freed: it now has exactly one owner again. Using <code>a</code> afterwards is refused with E0382, "borrow of moved value: <code>a</code>", and the error names the cause: <code>String</code> does not implement the <code>Copy</code> trait.</p>
+<details class="dp"><summary>The full E0382</summary>[[out:l_move_err]]</details>
+<div class="ra-py"><div class="t">The Python bridge</div>In Python, <code>b = a</code> makes two names for one object, kept alive by a reference count. Rust refuses the second name, so it never needs a count: the single owner frees the buffer at a point the compiler knows. Think of a move as handing over the only key.</div>
+<ul>
+<li><b><code>Copy</code> types</b> (integers, floats, <code>bool</code>, <code>char</code>, and tuples or arrays of them) have no heap part, so assignment copies the bits and both stay usable (<code>n</code> and <code>m</code> above).</li>
+<li><b><code>clone()</code></b> is the explicit deep copy: a second heap buffer. It is visible in the code on purpose, so you can see every place that copies data.</li>
+<li><b>Passing to a function moves</b> too (<code>shout(b)</code>); returning moves ownership back out.</li>
+</ul>
+<h3>Drop: cleanup at a known moment</h3>
+<p>A type can run code when it is dropped by implementing the <code>Drop</code> trait, which is how files close, locks release and buffers free themselves. There is no garbage collector, so the order is fixed:</p>
+[[code:lang/drop.rs]]
+[[pr:l_drop|In what order are the four <code>drop</code> lines printed?]]
+<p>Locals drop at the end of their scope in reverse order of declaration; a value moved into a function drops at the end of that function. This is C++'s RAII (resource acquisition is initialisation) made the default; Python's equivalent is <code>with</code>, which you have to remember to write.</p>
+<div class="ra-cost"><div><b>Solves</b>Use after free and double free, with no garbage collector and no reference counts.</div><div><b>Costs</b>You must decide who owns each value; sharing needs borrowing (section 5) or explicit shared ownership (<code>Rc</code>, <code>Arc</code>: the {{lifetimes child|n:4055c17b0d0d8160aa32df9cda0aef03}}, section 2).</div><div><b>Common mistake</b>Sprinkling <code>.clone()</code> until it compiles. Fine for small values; in a hot loop it allocates on every iteration. Borrow first.</div></div>
+<p>The Python habit that a move breaks first, as a prediction:</p>
+[[drill:d02]]
+</section>
+
+<section id="ra-borrow">
+<h2>5. Borrowing: many readers or one writer</h2>
+<p>Moving everything everywhere would be unbearable, so you lend a value instead: a <dfn>reference</dfn> <code>&amp;v</code> borrows it without taking ownership. Two kinds:</p>
+<ul>
+<li><code>&amp;T</code>, a <dfn>shared</dfn> reference: read only; any number at once.</li>
+<li><code>&amp;mut T</code>, an <dfn>exclusive</dfn> (mutable) reference: may change the value; while it is in use, no other reference to that value may be.</li>
+</ul>
+[[code:lang/borrow.rs]]
+[[out:l_borrow]]
+<p>The part of the compiler that enforces this is the <dfn>borrow checker</dfn>. A borrow lasts from where it is created <b>to its last use</b>, not to the end of the block (the Book: "a reference's scope starts from where it is introduced and continues through the last time that reference is used"). That is why <code>add_one(&amp;mut v)</code> is accepted above: <code>a</code> and <code>b</code> are never used again.</p>
+<h3>The canonical error, and why it is a real bug</h3>
+<p>The old page's "gate" question: why does this fail to compile?</p>
+[[code:lang/gate_err.rs]]
+[[out:l_gate_err]]
+<p><code>first</code> points <i>into</i> the vector's heap buffer. <code>push</code> may find the buffer full, allocate a bigger one, copy the elements and free the old one (step 3 of the hero); <code>first</code> would then point at freed memory. In C++ the same code compiles and reads freed memory (the root page runs it: Reading section 5).</p>
+<div class="ra-fig" id="ra-nll-card"><h4>A borrow lives until its last use: the checker refuses only when a shared bar and the push overlap</h4>
+<p class="small"><b>Predict first:</b> which of the three versions compile? Then step through each; every bar runs from a borrow's creation to its last use, and red is an overlap.</p>
+<div class="seg" id="ra-nll-seg"><button data-m="err" class="on">As written (refused)</button><button data-m="reorder">Last use moved up</button><button data-m="fix">Copy the value</button></div>
+<div class="ra-ctl" id="ra-nll-ctl"></div>
+<div class="ra-tl" id="ra-nll-code"></div>
+<div class="ra-leg"><span><i style="background:var(--c1)"></i>shared borrow <code>&amp;v</code> alive</span><span><i style="background:var(--c2)"></i>exclusive borrow <code>&amp;mut v</code> (push)</span><span><i style="background:var(--ra-red)"></i>conflict</span></div>
+<div class="ra-cap" id="ra-nll-cap"></div>
+<pre class="ra-out" id="ra-nll-out"></pre>
+</div>
+<p>Two fixes, both recorded: use the reference before mutating (its last use moves up, so the bars no longer overlap), or copy the <code>i32</code> out (no borrow at all). Both are what you would do in Python if you knew the list might move.</p>
+<h3>How to read a borrow error</h3>
+<ol>
+<li><b>The code and headline</b> (<code>error[E0502]</code>, "cannot borrow <code>v</code> as mutable because it is also borrowed as immutable") say which rule broke; <code>--&gt; gate_err.rs:4:5</code> is the file, line and column of the main conflict.</li>
+<li><b>The labels are a story in source order:</b> where the first borrow starts (<i>immutable borrow occurs here</i>), where the conflicting use happens (<i>mutable borrow occurs here</i>, the <code>^^^</code> span), and where the first borrow is <i>later used</i>. That third label is the key: it is the reason the first borrow is still alive.</li>
+<li><b>The fix is nearly always one of four:</b> end the first borrow earlier (move its last use up), copy or clone the small value out, restructure into "read first, then write", or give the data a different owner. <code>help:</code> lines often propose one, as a concrete edit (<code>+++</code> marks inserted text, <code>~</code> changed lines); they are usually right for the code as written, and not always right for your design.</li>
+<li><code>rustc --explain E0502</code> prints a full explanation with examples (also online in the {{error code index|https://doc.rust-lang.org/error_codes/error-index.html}}).</li>
+</ol>
+<div class="ra-fig" id="ra-bc-card"><h4>Borrow-checker lab: fifteen first-week mistakes, each with the compiler's real answer and a fix that ran</h4>
+<p class="small">Pick a scenario, decide what you think happens, then reveal the real rustc 1.99.0 output, how to read it, and the fix. Fourteen are refused at compile time (one of them wrongly: the code is safe), and one compiles and fails at run time. The lifetime, thread and <code>RefCell</code> scenarios are taught in depth on the {{lifetimes child|n:4055c17b0d0d8160aa32df9cda0aef03}}.</p>
+<div class="ra-pick" id="ra-bc-pick"></div>
+<div id="ra-bc-body"></div>
+<p class="small mute">Score: <span id="ra-bc-score">0 of 0</span> predicted right in this visit. Sources: every file is in <code>src/ra/code/bc/</code> and every output in <code>src/ra/out/</code>, recorded by <code>src/ra/run_all.sh</code>.</p>
+</div>
+<div class="ra-cost"><div><b>Solves</b>Dangling references, iterator invalidation, and (on the lifetimes child) data races, all before the program runs.</div><div><b>Costs</b>Some correct programs are refused (scenario 8 above), and graph-shaped data (doubly linked lists, object graphs with back pointers) needs indexes or <code>Rc</code> and <code>RefCell</code>.</div><div><b>When it fights you</b>Fighting usually means two parts of the code both want to own or change the same data. Make one the owner and have the other ask it, or store indexes instead of references.</div></div>
+</section>

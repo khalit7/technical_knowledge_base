@@ -7,10 +7,9 @@ done
 rec bc_13_polonius bc 'rustc +nightly --edition 2024 -Zpolonius=next 13_map_get_insert_err.rs && ./13_map_get_insert_err'
 rec bc_05_py bc 'python3.14 05_mutate_while_iterating.py'
 rec bc_explain bc 'rustc --explain E0502 | head -n 12'
-# Python-to-Rust drill: the Python original and three Rust candidates each
+# The three Python-to-Rust predictions this page keeps (d02 moves, d03 floor division, d12 2 ** 64): the Python and three Rust candidates
 for p in "$W"/drill/d*.py; do
   d=$(basename "$p" .py)
   rec "dr_${d}_py" drill "python3.14 $d.py"
   for c in a b c; do run "dr_${d}_$c" drill "${d}_$c"; done
 done
-rec dr_d09_a_again drill './d09_a; ./d09_a; ./d09_a'

@@ -1,4 +1,4 @@
-// ---- Part 1 (ra) tab "Ownership, animated": one Vec moved, borrowed, grown, cloned, dropped, at the addresses a real run printed; Python's version as the "before" ----
+// ---- Reading, the hero: one Vec moved, borrowed, grown, cloned, dropped, at the addresses a real run printed; Python's version as the "before" ----
 (function(){
   const D=window.RA_DATA&&window.RA_DATA.own;if(!D||!document.getElementById('ra-own-card'))return;
   const esc=RA.esc;
@@ -109,6 +109,7 @@
     else{const s=k+1;cnt.innerHTML='<span>heap allocations so far: <b>'+(s>=6?3:s>=3?2:1)+'</b></span><span>live heap blocks: <b>'+sc.B.filter(b=>b.st!=='freed').length+'</b></span><span>bytes copied by moves: <b>'+(s>=5?24:0)+'</b></span><span>elements copied: <b>'+(s>=6?7:s>=3?3:0)+'</b> (growth 3, clone 4)</span>'}
   }
   const A=RD.anim({card:'ra-own-card',ctl:'ra-own-ctl',n:9,draw,ms:2600,label:'Step'});
-  RD.seg(document.getElementById('ra-own-seg'),v=>{mode=v;A.reset(v==='py'?8:9);A.play()});
-  RA.onTab('t-ra-own',()=>A.redraw());RA.onResize('t-ra-own',()=>A.redraw());
+  // a mode switch shows the other language at step 1; nothing moves until the reader presses play or steps
+  RD.seg(document.getElementById('ra-own-seg'),v=>{mode=v;A.reset(v==='py'?8:9)});
+  RD.onRender(()=>A.redraw());RD.onResize(()=>A.redraw());
 })();

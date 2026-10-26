@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Generate Part 1's parts/ files from tpl/ templates, code/ sources and out/ recordings.
+"""Generate the parts/ files of Rust: the essentials from tpl/ templates, code/ sources and out/ recordings.
 
 Template directives (all replaced by HTML):
   [[code:PATH]] or [[code:PATH:A-B]]   source file under code/ (lines A..B), highlighted
   [[out:NAME]]                          recorded output out/NAME.txt (long ones folded after 22 lines)
   [[pr:NAME|QUESTION]]                  predict, then reveal: the output hidden in a <details>
   [[g:NAME|REGEX]]                      the first regex group found in out/NAME.txt (inline value)
-Also writes parts/34_js_ra_data.js (ownership logs, borrow-checker lab, drill) from content.py.
+  [[drill:ID]]                          a Python-to-Rust prediction prompt: the Python, three Rust candidates,
+                                        and their recorded results in a closed block (notes from content.py)
+Also writes parts/34_js_ra_data.js (the ownership stepper's two runs, the borrow timeline's three programs, the
+Borrow-checker lab's fifteen scenarios with content.py's notes) from the recordings.
 Run: python3 src/ra/gen.py  (then sh src/build.sh)
 """
 import html, json, re, sys
@@ -108,11 +111,48 @@ def grab(arg):
     return esc(m.group(1))
 
 
-DIRECT = re.compile(r"\[\[(code|out|pr|g):(.+?)\]\]", re.S)
+VERB = {"compile": "refused by the compiler", "panic": "compiles, panics at run time",
+        "warn": "compiles (with a warning) and runs", "ok": "compiles and runs"}
+
+
+def verdict(t):
+    if re.search(r"^error(\[E\d+\])?:", t, re.M):
+        return "compile"
+    if "panicked at" in t:
+        return "panic"
+    if re.search(r"^warning", t, re.M):
+        return "warn"
+    return "ok"
+
+
+DRILL = {d["id"]: d for d in content.DRILL}
+
+
+def drill(k):
+    d = DRILL[k]
+    h = [f'<div class="ra-dq" id="ra-dq-{k}" data-ans="{d["answer"]}">',
+         f'<div class="ra-dqh"><b>Predict:</b> {esc(d["title"])}. Which Rust version prints what the Python prints?</div>',
+         f'<div class="ra-two"><div>{code("drill/" + k + ".py")}</div><div>{out("dr_" + k + "_py")}</div></div>',
+         '<div class="ra-dc">']
+    for c in "abc":
+        h.append(f'<div class="ra-cand" data-c="{c}"><div class="h"><span>{c.upper()}</span>'
+                 f'<button type="button" data-pick="{c}">This one</button></div>{code("drill/" + k + "_" + c + ".rs")}</div>')
+    h.append('</div><details class="ra-drv"><summary>What the three really did (rustc 1.99.0, debug builds)</summary>')
+    for c in "abc":
+        t = read_out(f"dr_{k}_{c}")
+        mark = "matches Python" if c == d["answer"] else "differs"
+        h.append(f'<div class="ra-res"><b>{c.upper()}: {VERB[verdict(t)]}, {mark}.</b> {d["notes"][c]}</div>{out("dr_" + k + "_" + c)}')
+    for name, label in d.get("extra", []):
+        h.append(f'<div class="ra-res"><b>{esc(label)}</b></div>{out(name)}')
+    h.append("</details></div>")
+    return "".join(h)
+
+
+DIRECT = re.compile(r"\[\[(code|out|pr|g|drill):(.+?)\]\]", re.S)
 
 
 def render(text):
-    return DIRECT.sub(lambda m: {"code": code, "out": out, "pr": pr, "g": grab}[m.group(1)](m.group(2)), text)
+    return DIRECT.sub(lambda m: {"code": code, "out": out, "pr": pr, "g": grab, "drill": drill}[m.group(1)](m.group(2)), text)
 
 
 def data():
@@ -120,7 +160,6 @@ def data():
                  "rs_log": read_out("l_own_anim"), "py_log": read_out("l_own_anim_py")},
          "gate": {k: {"src": src(f"lang/{f}.rs"), "out": read_out(o)} for k, f, o in
                   [("err", "gate_err", "l_gate_err"), ("fix", "gate_fix", "l_gate_fix"), ("reorder", "gate_reorder", "l_gate_reorder")]}}
-    d["bench"] = {"rs": read_out("t_iterbench"), "py": read_out("t_iterbench_py")}
     bc = []
     for s in content.BC:
         k = s["id"]
@@ -133,17 +172,6 @@ def data():
             e.setdefault("extras", []).append({"label": extra[1], "out": read_out(extra[0])})
         bc.append(e)
     d["bc"] = bc
-    dr = []
-    for it in content.DRILL:
-        k = it["id"]
-        e = dict(it)
-        e["py_src"] = src(f"drill/{k}.py")
-        e["py_out"] = read_out(f"dr_{k}_py")
-        e["cands"] = [{"src": src(f"drill/{k}_{c}.rs"), "out": read_out(f"dr_{k}_{c}")} for c in "abc"]
-        for extra in it.get("extra", []):
-            e.setdefault("extras", []).append({"label": extra[1], "out": read_out(extra[0])})
-        dr.append(e)
-    d["drill"] = dr
     return d
 
 
