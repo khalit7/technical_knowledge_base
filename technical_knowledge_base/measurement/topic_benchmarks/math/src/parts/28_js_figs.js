@@ -77,7 +77,7 @@
 
   // FrontierMath Tiers 1-3: the same two models on v1 and v2
   reg(function(){const el=document.getElementById('mf-slope');if(!el)return;
-    const W=Math.min(RD.width(el),620),H=170,xa=96,xb=W-128,top=22,bot=H-22,sc=v=>bot-(bot-top)*v/60;let b='';
+    const W=Math.min(RD.width(el),620),H=170,xa=96,xb=W-144,top=22,bot=H-22,sc=v=>bot-(bot-top)*v/60;let b='';
     [0,20,40,60].forEach(v=>{b+=L(xa,sc(v),xb,sc(v),'var(--line)');b+=T(0,sc(v)+4,v+'%',{fill:'var(--mute)'})});
     b+=T(xa,H-6,'v1 private set',{a:'middle',fill:'var(--mute)'})+T(xb,H-6,'v2 (12 June 2026)',{a:'middle',fill:'var(--mute)'});
     [['GPT-5 (high)',32.41,55.44,'var(--acc)'],['o4-mini (high)',24.83,36.14,'var(--c2)']].forEach(([n,a,c,col])=>{

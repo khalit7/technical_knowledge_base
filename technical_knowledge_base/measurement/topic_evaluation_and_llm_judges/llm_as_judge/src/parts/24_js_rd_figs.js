@@ -50,7 +50,7 @@
       s+=T(W/2,y+16,biasTxt.length*6.2<W?biasTxt:'biases: order, length, own family, names',{a:'middle',fs:11,fill:'var(--bad)'});
       s+=arrow(W/2,y+20,W/2,y+30,'var(--bad)');y+=30;
       s+=box(1,y,full,bh,B.judge,hi);s+=arrow(W/2,y+bh,W/2,y+bh+18);y+=bh+18;
-      s+=box(1,y,full,bh,B.verd);s+=arrow(c/2,y+bh,c/2,y+bh+18);s+=arrow(1+c+g+c/2,y+bh,1+c+g+c/2,y+bh+18);s+=T(1+c+g+c/2+6,y+bh+13,'random subset',{fs:11,fill:'var(--mute)'});y+=bh+18;
+      s+=box(1,y,full,bh,B.verd);s+=arrow(c/2,y+bh,c/2,y+bh+18);s+=arrow(1+c+g+c/2,y+bh,1+c+g+c/2,y+bh+18);s+=T(1+c+g+c/2-6,y+bh+13,'random subset',{a:'end',fs:11,fill:'var(--mute)'});y+=bh+18;
       s+=box(1,y,c,bh,B.raw)+box(1+c+g,y,c,bh,B.gold);s+=arrow(c/2,y+bh,c/2,y+bh+18,'var(--acc)');s+=arrow(1+c+g+c/2,y+bh,1+c+g+c/2,y+bh+18,'var(--acc)');y+=bh+18;
       s+=box(1,y,full,58,B.corr,{fill:'var(--bg)',stroke:'var(--acc)',sw:1.5});y+=58+12;
       s+=box(1,y,full,bh,B.trust);y+=bh;H=y+2;
