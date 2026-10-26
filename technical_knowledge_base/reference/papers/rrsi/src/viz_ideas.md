@@ -16,5 +16,6 @@ The question the page keeps returning to: does regularising the harness search b
 | P-rrsi.10 | Champion diff viewer (the released patches) | none | rejected: 16 to 32 KB of diff per run would push the page past 300 KB and the project page already shows them |
 | P-rrsi.11 | Toy tuned until RRSI transfers better (e.g. making expensive edits benchmark-specific) | none | rejected: tuning a toy to agree with the paper; the honest toy result is shown instead |
 | P-rrsi.12 | Counterfactual greedy path through the recorded runs | none | rejected: later candidates were drafted on RRSI's incumbent, so a greedy path would invent data; the replay compares one round at a time |
+| P-rrsi.hero | Hero (2026-10-26): the loop with RRSI's additions over Table 2's evolve / OOD / tokens dumbbells | static SVG, Reading top | built (`mk_hero.py`) |
 
 What the methodology lacked here: a rule for papers that release run records whose numbers differ from the printed ones. This page shows both side by side, labels which is which, and treats the records as the more primary source for what the code did.

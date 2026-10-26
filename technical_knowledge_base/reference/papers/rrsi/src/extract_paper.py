@@ -1,4 +1,4 @@
-"""Extract the arXiv HTML (v1) of RRSI to plain text, its tables to text, and its anchor list.
+"""Extract the arXiv HTML (v2) of RRSI to plain text, its tables to text, and its anchor list.
 usage: curl -sL https://arxiv.org/html/2609.24972v2 -o $SCRATCH/hd.html; python3 extract_paper.py $SCRATCH/hd.html  (writes into inputs/)"""
 import re, sys, html, os
 s = open(sys.argv[1]).read()
@@ -10,6 +10,8 @@ def txt(x):
     x = re.sub(r'</t[dh]>', '\t', x)
     x = re.sub(r'<[^>]+>', '', x)
     x = html.unescape(x)
+    x = x.replace('\u2014', '--')  # no em-dashes in saved extracts
+    x = re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', '[email removed]', x)  # no author emails
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
 a = s.index('<article'); b = s.index('</article>')
 open('inputs/paper_v2.txt', 'w').write('Source: https://arxiv.org/html/2609.24972v2 (extracted by extract_paper.py)\n\n' + txt(s[a:b]))

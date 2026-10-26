@@ -11,17 +11,17 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, F = 'The paper tab', 'Replay tab', 'Tables tab', 'Further reading tab'
 C = [
  # properties (stay in Notion; the card repeats the takeaway)
- ('Takeaway property (verbatim on the card, with a correction note)', R + ', headline card', ['Regularising recursive harness evolution with an annealed edit budget, a critic and a pruner buys +14.1 points in distribution, +4.7 out of distribution and 30% fewer policy tokens, which is the first evidence the loop\'s gains survive leaving the benchmark it was scored on.', 'Read with care:']),
+ ('Takeaway property (scoped on the card on 2026-10-26, the old wording quoted in the correction note)', R + ', headline card', ['Regularising recursive harness evolution (an annealed edit budget, a leakage critic', 'Scoped on 26 October 2026 from the earlier database Takeaway', 'buys +14.1 points in distribution, +4.7 out of distribution and 30% fewer policy tokens', 'Read with care:']),
  ('Topics property: agentic-harnesses, llm-training-and-post-training, benchmarks', F + ', Topics', ['https://app.notion.com/p/3c65c17b0d0d81d881a8fe98b4cff7bb', 'https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b', 'https://app.notion.com/p/3c65c17b0d0d811fb43fece56e40041a']),
  ('Year property: 2026', 'crumb line', ['Papers', '· 2026 ·']),
  # header
- ('Reading time "6 min read, +45m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time "6 min read, +45m resources"', 'dropped: replaced by the measured reading time (core and closed details)', ['Reading:', 'in closed details']),
  ('Authors: Peng Xia ... Chen-Yu Lee (14 names)', R + ', headline card', ['Peng Xia', 'Rujun Han', 'Zifeng Wang', 'Yanfei Chen', 'Yufan Zhuang', 'Yoonho Lee', 'Chengsong Huang', 'Han Yu', 'Zhongying CuiZhu', 'Yifei Ming', 'Huaxiu Yao', 'Burak Gokturk', 'Tomas Pfister', 'Chen-Yu Lee']),
  ('Submitted 21 September 2026, revised 23 September 2026', R + ', headline card', ['Submitted 21 September 2026 (v1), revised 23 September 2026']),
  ('arXiv 2609.24972 (45 min)', 'card and Further reading', ['https://arxiv.org/abs/2609.24972', '(45 min)']),
  ('regularized-rsi.com', 'card, Replay tab and Further reading', ['https://regularized-rsi.com/']),
  # framing
- ('Capability largely magnified by the harness: prompts, control flow, tooling, memory, context management around a frozen backbone', R + ', Problem', ["An LLM agent's capability is largely magnified by its harness", 'the tool interfaces, the memory and skill files, and the context management']),
+ ('Capability largely magnified by the harness: prompts, control flow, tooling, memory, context management around a frozen backbone', R + ', Problem', ['is everything around the frozen weights', 'tools, memory and skill files, context management']),
  ('Recursive evolution of the harness looks like free capability', R + ', Problem', ['it looks like free capability']),
  ('The obvious objection: the loop overfits the benchmark it is scored against', R + ', Problem', ['The obvious objection is overfitting']),
  ('Every earlier system measures only whether the loop improved what it was pointed at; this is the first to ask whether gains survive leaving it', R + ', Why it matters (corrected: the paper itself cites concurrent work asking the same question)', ['The paper itself claims to be the first to ask whether the gains survive leaving the benchmark', 'so "first" belongs to the question being asked widely at once']),
@@ -30,10 +30,10 @@ C = [
  ('So a late-stage proposal cannot rewrite the harness wholesale and claim the result', R + ', Method', ['so a late-stage proposal cannot rewrite the harness wholesale and take credit for the result']),
  ('Proposer pushed toward trajectories absent from the evolution history', R + ', Method (structured exploration and the edit ledger)', ['Structured exploration.', 'reserved for components the run has never touched']),
  ('A critic screens proposals specific to the benchmark rather than the task', R + ', Method (leakage screening, with the released critic records)', ['Leakage screening.', 'rejects edits that encode task names, entity names, task-specific values']),
- ('A pruner removes edits too small to matter, too expensive to keep, or redundant once later edits landed', R + ', Method (corrected: the cost part is the acceptance rule; the pruner marks components with no positive gain)', ['Structural pruning.', 'Old summary, corrected.', 'too small to matter, too expensive to keep, or made redundant once later edits landed']),
+ ('A pruner removes edits too small to matter, too expensive to keep, or redundant once later edits landed', R + ', Method (corrected: the cost part is the acceptance rule; the pruner marks components with no positive gain)', ['Structural pruning.', 'Old summary, corrected: what the pruner does', 'too small to matter, too expensive to keep, or made redundant once later edits landed']),
  # results
  ('Eight benchmarks spanning coding, agentic workspace and engineering-design tasks', R + ', Setup table', ['Setup: three domains, eight benchmarks', 'Terminal-Bench 2.1', 'Frontier-Eng']),
- ('+14.1 points in distribution', R + ', card note, Ablations (corrected: evolve split, Gemini 3.5 Flash); Tables tab', ['+14.1, the abstract\'s "up to 14.1"', 'the +14.1 is the gain on the split the search was scored on']),
+ ('+14.1 points in distribution', R + ', card note, Ablations (corrected: evolve split, Gemini 3.5 Flash); Tables tab', ['+14.1, the abstract\'s "up to 14.1"', 'The +14.1 is the gain on the split the search was scored on']),
  ('+4.7 points across five out-of-distribution benchmarks', R + ', card (corrected: the best of five, mean 3.6)', ['+4.7 is the best of five out-of-distribution gains', 'gains 1.8, 4.7, 3.5, 3.7, 4.3; mean 3.60']),
  ('30% fewer policy tokens than unregularised evolution', R + ', card and How much to believe (corrected: Table 2 gives 36%)', ['36% fewer (the abstract says 30%)', 'the abstract\'s "30% fewer policy tokens" is 36% by Table 2']),
  ('Read the three numbers as one result; OOD gain about a third of the in-distribution gain, the honest shape of a generalisation claim', R + ', "The three numbers, read together" (corrected: different settings; within one setting the ratio is above one)', ['The three numbers, read together.', 'about a third of the in-distribution gain, the honest shape of a generalisation claim', 'so their ratio means nothing']),
