@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"ZeRO: Memory Optimizations Toward Training Trillion Parameter Models","Takeaway":"ZeRO shards optimizer states, gradients, and parameters across data-parallel ranks (16 bytes/param for mixed-precision Adam down to 16 Psi/N_d at stage 3, at most 1.5x DP communication), making memory scale with cluster size and spawning DeepSpeed and FSDP.","Topics":["llm-training-and-post-training","pytorch-ecosystem"],"Year":"2019","url":"https://app.notion.com/p/3c65c17b0d0d81879a7ed90bca007699"}
+{"Paper":"ZeRO: Memory Optimizations Toward Training Trillion Parameter Models","Takeaway":"ZeRO shards optimizer states, gradients and parameters across data-parallel ranks; by the paper's analysis mixed-precision Adam's 16 bytes/param falls to 16 Psi/N_d at stage 3 for at most 1.5x DP communication, but only stages 1 and 2 (plus ZeRO-R) were built and run, training models up to 170B parameters with Megatron model parallelism; it shipped in DeepSpeed and became the model for FSDP.","Topics":["llm-training-and-post-training","pytorch-ecosystem"],"Year":"2019","url":"https://app.notion.com/p/3c65c17b0d0d81879a7ed90bca007699"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>
