@@ -117,6 +117,29 @@ sc['N_floor'] = (fb['A'] / (o0['L'] - fb['E'])) ** (1 / fb['al'])
 sc['six_nd'] = {'l405': 6 * lN * lD, 'smol': 6 * 3075098624 * 11.2e12, 'dsv3_active': 6 * 37e9 * 14.8e12, 'dsv3_total': 6 * 671e9 * 14.8e12,
                 'smol_tpp': 11.2e12 / 3075098624, 'smol_vs_chin': 11.2e12 / 3075098624 / 20,
                 'smol_mfu': 6 * 3075098624 * 11.2e12 / (384 * 24 * 3600 * 24 * 989.5e12)}
+# Sardana et al. 2024 (arXiv 2401.00448), Eq. 3: at the loss of a Chinchilla-optimal model of size Nc, minimise 6ND + 2N*D_inf
+# along the iso-loss curve (ternary search on log N). Their examples use Hoffmann et al.'s constants: 'hoff' (unrounded) reproduces them.
+def chin_ref(f, Nc):
+    a = f['be'] / (f['al'] + f['be']); G = (f['al'] * f['A'] / (f['be'] * f['B'])) ** (1 / (f['al'] + f['be']))
+    D = (Nc / G) ** ((1 - a) / a) / G
+    return Nc, D, loss(f, Nc, D)
+def iso_d(f, L0, N):
+    r = L0 - f['E'] - f['A'] / N ** f['al']
+    return (f['B'] / r) ** (1 / f['be']) if r > 0 else float('inf')
+def sardana(f, Nc, Dinf):
+    cN, cD, L0 = chin_ref(f, Nc)
+    tot = lambda N: 6 * N * iso_d(f, L0, N) + 2 * N * Dinf
+    lo, hi = math.log(Nc * 0.05), math.log(Nc)
+    for _ in range(200):
+        m1 = lo + (hi - lo) / 3; m2 = hi - (hi - lo) / 3
+        if tot(math.exp(m1)) < tot(math.exp(m2)): hi = m2
+        else: lo = m1
+    N = math.exp(lo); D = iso_d(f, L0, N); T0 = 6 * cN * cD + 2 * cN * Dinf; T = tot(N)
+    return {'N': N, 'D': D, 'D_ratio': D / cD, 'chin_N': cN, 'chin_D': cD, 'saving': T0 - T, 'saving_frac': 1 - T / T0}
+# their reported answers: 13B quality, 2e12 inference tokens -> 7B, saves 1.7e22 FLOPs (17%); 7B, 1e11 -> 6B on 1.18x the data;
+# 30B, 1e13 -> 13.6B on 2.84x the data, 28% fewer FLOPs (section 2). With the rounded constants the answers move by 10 to 40%.
+sc['sardana'] = {'%.0fB_%.0e' % (Nc / 1e9, Di): {k: sardana(FITS[k], Nc, Di) for k in ('hoff', 'besi')}
+                 for Nc, Di in ((13e9, 2e12), (7e9, 1e11), (30e9, 1e13))}
 out['scale'] = sc
 
 json.dump(out, open('data/recompute.json', 'w'), indent=1)

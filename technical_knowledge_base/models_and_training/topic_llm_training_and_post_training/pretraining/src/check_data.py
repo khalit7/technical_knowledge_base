@@ -18,6 +18,7 @@ const P=window.PTS,o={};
 for(const C of [1e21,5.76e23,3.8e25]){o[C.toPrecision(3)]={};for(const k of ['hoff','hoffr','besi'])o[C.toPrecision(3)][k]=P.opt(P.FITS[k],C);o[C.toPrecision(3)].kaplan_N=P.kaplan(C)}
 o.over={};for(const k of [20,100,1868,3642])o.over[k]=P.over(P.FITS.besi,5.76e23,k);
 o.floor=P.floorN(P.FITS.besi,P.opt(P.FITS.besi,5.76e23).L);
+o.sard={};for(const [Nc,Di] of [[13e9,2e12],[7e9,1e11],[30e9,1e13]])for(const k of ['hoff','besi'])o.sard[(Nc/1e9).toFixed(0)+'B_'+Di.toExponential(0)+'_'+k]=P.sardana(P.FITS[k],Nc,Di);
 console.log(JSON.stringify(o));"""
 out = json.loads(subprocess.run(['node', '-e', 'const window={};' + prog], capture_output=True, text=True, check=True).stdout)
 sc = rc['scale']
@@ -37,6 +38,12 @@ for k, v in sc['over'].items():
         if not close(out['over'][k][f], v[f], 1e-6): print('OVER', k, f, v[f], out['over'][k][f]); bad += 1
 n += 1
 if not close(out['floor'], sc['N_floor']): print('FLOOR', sc['N_floor'], out['floor']); bad += 1
+for key, byfit in sc['sardana'].items():
+    for k, v in byfit.items():
+        j = out['sard'][key + '_' + k]
+        for a, b in ((v['N'], j['N']), (v['D'], j['D']), (v['saving'], j['saving']), (v['saving_frac'], j['saving_frac'])):
+            n += 1
+            if not close(b, a, 1e-6): print('SARDANA', key, k, a, b); bad += 1
 print(f'engine: {n} values compared, {bad} differences')
 
 # 2. prose numbers

@@ -29,6 +29,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await steps('ty-ctl'); await clickAll('#ty-br button');
   await clickAll('#sl-iso-pre button'); await range('sl-iso-c', [20, 21.5, 23, 24.2, 25.5798, 26]);
   await range('sl-over-k', [1, 1.301, 2, 2.5, 3.2715, 3.5614, 3.7]);
+  await clickAll('#sa-mode button', async () => { for (const q of ['7e9', '13e9', '30e9', '70e9']) for (const f of ['hoff', 'besi']) { await p.select('#sa-q', q); await p.select('#sa-fit', f); await steps('sa-ctl'); await wait(800); } });
+  await p.select('#sa-q', '13e9'); await p.select('#sa-fit', 'hoff');
   await clickAll('#sl-q1 button'); await clickAll('#sl-q2 button');
   await clickAll('#as-mode button'); await clickAll('#as-q button');
   await clickAll('#ty-met button', async () => { await clickAll('#ty-view button'); await clickAll('#ty-seed button'); });
@@ -49,9 +51,10 @@ for (const rm of ['no-preference', 'reduce']) {
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
   await p.goto(file); await wait(300); await p.click('#tabs button[data-t="t-read"]'); await wait(100);
   const moved = [];
-  for (const [card, ctl] of [['ob-card', 'ob-ctl'], ['ty-card', 'ty-ctl'], ['rn-card', 'rn-ctl']]) {
+  for (const [card, ctl] of [['ob-card', 'ob-ctl'], ['ty-card', 'ty-ctl'], ['rn-card', 'rn-ctl'], ['sa-card', 'sa-ctl']]) {
     await p.$eval('#' + card, e => e.scrollIntoView()); await wait(3200);
     const v = await p.$eval('#' + ctl + '-s', s => +s.value); if (v !== 0) moved.push(card + ' at step ' + v);
+    if (card === 'sa-card') { await p.click('#sa-mode button[data-m="sard"]'); await wait(2600); const v2 = await p.$eval('#sa-ctl-s', s => +s.value); if (v2 !== 0) moved.push('sa-card after a mode switch at step ' + v2); }
   }
   console.log('autoplay', rm, moved.length ? moved : 'none'); bad += moved.length; await p.close();
 }
