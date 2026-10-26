@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Language Models are Few-Shot Learners (GPT-3)","Takeaway":"Scaling a plain GPT decoder to 175B params (300B tokens, \\~3640 pfs-days) makes in-context learning emerge: tasks specified by prompt alone, no fine-tuning, often near fine-tuned SOTA.","Topics":["llms","llm-training-and-post-training","data-curation-and-datasets"],"Year":"2020","url":"https://app.notion.com/p/3c65c17b0d0d8193ac92c7648cfaca12"}
+{"Paper":"Language Models are Few-Shot Learners (GPT-3)","Takeaway":"Scaling a plain GPT decoder to 175B params (300B tokens, ~3640 pfs-days) makes in-context learning strong: tasks specified by prompt and a few examples alone, no fine-tuning, with the gain from examples growing with size; sometimes at or past fine-tuned SOTA (TriviaQA closed-book, LAMBADA), near chance on others (WiC, ANLI).","Topics":["llms","llm-training-and-post-training","data-curation-and-datasets"],"Year":"2020","url":"https://app.notion.com/p/3c65c17b0d0d8193ac92c7648cfaca12"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>
