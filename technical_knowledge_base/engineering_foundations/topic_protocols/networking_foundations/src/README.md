@@ -48,3 +48,6 @@ Why about 41 minutes is right: the page owns fifteen mechanisms that each explai
 
 ## Final sweep (2026-10-26)
 The closed block "The three RDMA fabrics in one paragraph" moved to its owner, Interconnects and scaling (section 4, closed block); section 14 keeps the one-line list of fabrics and links there. Ledger units 341 to 344 are labelled `owned:systems_and_performance/topic_hardware/interconnects_and_scaling`.
+
+## 2026-10-26 ownership sweep
+The network-hang checklist moved to Launching distributed training, section 6 (Khalid's decision); section 14 keeps one sentence plus a link and the TCP mechanics behind each cause (ledger 349 to 359 owned there).
