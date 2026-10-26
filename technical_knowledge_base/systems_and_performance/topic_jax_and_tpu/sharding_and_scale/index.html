@@ -455,25 +455,7 @@ dot(...), sharding={devices=[2,1,4]&lt;=[8]}</pre>
 <p>The useful test of a cost model is whether it predicts the compiled program. Two-line predictions for each layout (<code>src/runs/ss_formulas.py</code>; P is the parameter bytes, L the layers, A one [batch per data group, sequence, d_model] activation), against the bytes XLA actually emitted at both model sizes:</p>
 <div class="ss-card"><h4>The formulas predict the compiler within 0.4%, except where the heads do not divide</h4><div class="tw"><table id="ss-fc-t"><thead><tr><th>Model</th><th>Layout</th><th>Formula (CPU form)</th><th class="num">Predicted</th><th class="num">Compiled</th><th class="num">Ratio</th></tr></thead><tbody></tbody></table></div>
 <p class="ss-src">Bytes are logical bytes per train step (see the first table). On TPU or GPU two terms change: FSDP's gradient all-reduce becomes a reduce-scatter of the same logical size, and tensor parallelism's backward has 2LA instead of 4LA. The one miss, tensor parallel over 8 devices on the 4-head running example, is the heads problem from the previous section; with 8 heads the prediction is exact.</p></div>
-<p>Bytes become time through the link: for large messages a ring all-gather over a TPU axis takes about V / W whatever the number of devices, and an all-reduce about twice that; for small ones a per-hop latency dominates. The algorithms behind those two sentences (ring, 2-D torus, tree) are <a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a>'s subject; the scaling book's TPU forms and a calculator are in the closed block.</p>
-<details class="dp"><summary>The latency and bandwidth model, ring against 2-D torus against tree, with a calculator <span class="mute">(3 min)</span></summary><div class="b">
-<p><b>The model.</b> A collective's time has a latency part, paid per step of the algorithm whatever the size (call it &alpha;, about 1 &micro;s per ICI hop: "This is typically around 1us", <a href="https://jax-ml.github.io/scaling-book/sharding/" target="_blank" rel="noopener noreferrer">scaling book, part 3</a>, 2025-02-04), and a bandwidth part, bytes over link bandwidth W. The algorithm decides how many latency steps there are and how many links share the bytes:</p>
-<div class="tw"><table><thead><tr><th>Algorithm</th><th>All-gather of V bytes over n devices</th><th>All-reduce</th><th>Where it is used</th></tr></thead><tbody>
-<tr><td><b>Ring</b> (1-D, both directions, wraparound)</td><td>max(&alpha;&middot;n/2, V / W<sub>bidi</sub>)</td><td>twice the all-gather (reduce-scatter, then all-gather)</td><td>One axis of a TPU torus; NCCL rings inside a server</td></tr>
-<tr><td><b>2-D torus</b> (X &times; Y, gather over both axes)</td><td>max(&alpha;&middot;(X+Y)/2, V / (2 W<sub>bidi</sub>))</td><td>twice that</td><td>A collective over two mesh axes of a slice; the 2-D all-reduce of <a href="https://arxiv.org/abs/1811.06992" target="_blank" rel="noopener noreferrer">Ying et al. 2018</a> on TPU v3 pods</td></tr>
-<tr><td><b>Tree</b> (double binary tree)</td><td>not used for gathers</td><td>about 2&middot;log<sub>2</sub>(n)&middot;&alpha; + 2V/W</td><td>NCCL across many nodes: "latency scales linearly with the number of GPUs" for rings, trees give "full bandwidth and logarithmic latency" (<a href="https://developer.nvidia.com/blog/massively-scale-deep-learning-training-nccl-2-4/" target="_blank" rel="noopener noreferrer">NVIDIA, 2019-02-04</a>)</td></tr></tbody></table></div>
-<p>The ring and torus rows are the scaling book's: a bidirectional ring all-gather takes "T<sub>total</sub> = V / W<sub>ici</sub>", which "doesn't depend on X!", and gathering over several axes "increases the available bandwidth by a factor of N<sub>axes</sub>"; "an AllReduce is twice as expensive as an AllGather"; an all-to-all on a 1-D ring is "1/4 the cost of an AllGather". The tree row is the usual &alpha;-&beta; estimate, <span class="der">derived</span>. The calculator puts them side by side; the crossover is the point of it: for small messages latency dominates and a ring over many devices loses, for large ones bandwidth dominates and the ring's latency is irrelevant.</p>
-<div class="ss-card" id="ss-cc-card">
-<h4>All-reduce time against message size: flat while latency dominates, then rising with the bytes <span class="der">derived</span></h4>
-<div class="ctl">
-<label>Devices on the axis: <b id="ss-cc-nv"></b><input type="range" id="ss-cc-n" min="2" max="10" step="1" value="6" aria-label="Devices, as a power of two"></label>
-<label>Link (one way, per scaling book) <select id="ss-cc-link"><option value="4.5e10">v4 / v5e: 45 GB/s</option><option value="9e10" selected>v5p / v6e / TPU7x: 90 GB/s</option></select></label>
-</div>
-<div class="ss-svg" id="ss-cc-svg"></div>
-<div class="ss-leg" id="ss-cc-leg"></div>
-<div class="ss-src" id="ss-cc-note"></div>
-</div>
-</div></details>
+<p>Bytes become time through the link: for large messages a ring all-gather over a TPU axis takes about V / W whatever the number of devices, and an all-reduce about twice that; for small ones a per-hop latency dominates. The algorithms behind those two sentences are <a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a>'s section 7: the latency and bandwidth model (about 1 &micro;s per ICI hop), ring against 2-D torus against double binary tree in the scaling book's TPU forms, and an all-reduce time calculator, flat while latency dominates and then rising with the bytes.</p>
 </section>
 
 <section id="s-choose">
@@ -888,32 +870,6 @@ window.SSU=(function(){
     $('ss-cp-meas').innerHTML='<div class="tw"><table><thead><tr><th>Method</th><th>Forward collectives</th><th>Backward collectives</th><th class="num">Error</th><th class="num">Temp per device, 128 tokens</th><th class="num">Temp per device, 8,192 tokens</th></tr></thead><tbody>'+
       Object.keys(nm).map(k=>'<tr><td>'+nm[k]+'</td><td>'+cs(R[k].collectives)+'</td><td>'+cs(R[k].grad_collectives)+'</td><td class="num">'+U.sci(R[k].max_abs_err)+' / '+U.sci(R[k].grad_max_abs_err)+'</td><td class="num">'+U.MB(R[k].temp_bytes_per_device)+'</td><td class="num">'+U.MB(Lg[k].temp_bytes_per_device)+'</td></tr>').join('')+
       '</tbody></table></div><p class="ss-src"><span class="meas">measured</span> Error: largest difference from one-device attention, output / gradients. The 8,192-token input is random (1 sequence, 4 heads, head dimension 32). Note the backward of the hand-written all-gather: JAX transposes <code>all_gather</code> into <code>psum_scatter</code>, so a true reduce-scatter appears even on CPU, which never forms one from an all-reduce by itself.</p>';
-  })();
-
-  // ---------- collective cost calculator ----------
-  (function(){
-    const al=1e-6, SZ=[['running example gradients',3305472],['scaled-up gradients',101670912],['Llama 3 8B, bfloat16 gradients',8030261248*2]];
-    function draw(){
-      const k=+$('ss-cc-n').value,n=Math.pow(2,k),Wl=+$('ss-cc-link').value,Wb=2*Wl;
-      $('ss-cc-nv').textContent=n;
-      const X=Math.pow(2,Math.ceil(k/2)),Y=n/X;
-      const ring=V=>2*Math.max(al*n/2,V/Wb),tor=V=>2*Math.max(al*(X+Y)/2,V/(2*Wb)),tree=V=>2*Math.log2(n)*al+2*V/Wb;
-      const el=$('ss-cc-svg'),W=U.width(el),H=230,ml=52,mr=10,mt=10,mb=34,pw=W-ml-mr,ph=H-mt-mb;
-      const x0=3,x1=11,ys=[-6,1];  // log10 bytes 1 KB..100 GB, log10 seconds 1us..10s
-      const px=v=>ml+(Math.log10(v)-x0)/(x1-x0)*pw,py=t=>mt+(1-(Math.log10(t)-ys[0])/(ys[1]-ys[0]))*ph;
-      let s='';for(let e=x0;e<=x1;e++){const x=px(Math.pow(10,e));s+='<line x1="'+x+'" x2="'+x+'" y1="'+mt+'" y2="'+(mt+ph)+'" stroke="var(--line)"/>'+RD.t(x,H-18,['1 KB','','100 KB','','10 MB','','1 GB','','100 GB'][e-3],{a:e===x1?'end':'middle',fs:10.5})}
-      for(let e=ys[0];e<=ys[1];e++){const y=py(Math.pow(10,e));s+='<line x1="'+ml+'" x2="'+(ml+pw)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/>'+RD.t(ml-4,y+4,{'-6':'1 &micro;s','-5':'10 &micro;s','-4':'100 &micro;s','-3':'1 ms','-2':'10 ms','-1':'100 ms','0':'1 s','1':'10 s'}[e],{a:'end',fs:10.5})}
-      s+=RD.t(ml+pw/2,H-3,'message size (bytes all-reduced)',{a:'middle',fs:11});
-      const curves=[['ring (1 axis)',ring,'var(--c2)'],['2-D torus ('+X+' x '+Y+')',tor,'var(--c1)'],['tree (&alpha;-&beta;)',tree,'var(--c4)']];
-      curves.forEach(c=>{let d='';for(let i=0;i<=80;i++){const v=Math.pow(10,x0+(x1-x0)*i/80);const t=Math.min(Math.max(c[1](v),1e-6),10);d+=(i?'L':'M')+px(v).toFixed(1)+','+py(t).toFixed(1)}s+='<path d="'+d+'" fill="none" stroke="'+c[2]+'" stroke-width="2"/>'});
-      SZ.forEach((z,i)=>{const x=px(z[1]);s+='<line x1="'+x+'" x2="'+x+'" y1="'+mt+'" y2="'+(mt+ph)+'" stroke="var(--mute)" stroke-dasharray="3 3"/>'+RD.t(x+3,mt+12+i*13,String.fromCharCode(97+i),{fs:11,w:600})});
-      el.innerHTML=RD.svg(W,H,s,'All-reduce time against message size for ring, 2-D torus and tree');
-      $('ss-cc-leg').innerHTML=curves.map(c=>'<span><i style="background:'+c[2]+'"></i>'+c[0]+'</span>').join('');
-      const V=SZ[1][1];
-      $('ss-cc-note').innerHTML='Marked: '+SZ.map((z,i)=>'<b>'+String.fromCharCode(97+i)+'</b> '+z[0]+' ('+U.MB(z[1])+')').join(', ')+'. At (b) on '+n+' devices: ring '+fmt(ring(V))+', 2-D torus '+fmt(tor(V))+', tree '+fmt(tree(V))+'. Assumptions: &alpha; = 1 &micro;s per hop, W<sub>bidi</sub> = 2 &times; the one-way link ('+(Wl/1e9)+' GB/s, scaling book table), a full ring with wraparound, no overlap with compute. <span class="der">derived</span>: a calculation, not a measurement.';
-    }
-    const fmt=t=>t<1e-3?(t*1e6).toFixed(1)+' &micro;s':t<1?(t*1e3).toFixed(2)+' ms':t.toFixed(2)+' s';
-    $('ss-cc-n').addEventListener('input',draw);$('ss-cc-link').addEventListener('change',draw);RD.onRender(draw);RD.onResize(draw);draw();
   })();
 
   // ---------- formula check table ----------

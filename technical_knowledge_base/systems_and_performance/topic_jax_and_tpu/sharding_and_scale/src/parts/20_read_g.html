@@ -3,25 +3,7 @@
 <p>The useful test of a cost model is whether it predicts the compiled program. Two-line predictions for each layout (<code>src/runs/ss_formulas.py</code>; P is the parameter bytes, L the layers, A one [batch per data group, sequence, d_model] activation), against the bytes XLA actually emitted at both model sizes:</p>
 <div class="ss-card"><h4>The formulas predict the compiler within 0.4%, except where the heads do not divide</h4><div class="tw"><table id="ss-fc-t"><thead><tr><th>Model</th><th>Layout</th><th>Formula (CPU form)</th><th class="num">Predicted</th><th class="num">Compiled</th><th class="num">Ratio</th></tr></thead><tbody></tbody></table></div>
 <p class="ss-src">Bytes are logical bytes per train step (see the first table). On TPU or GPU two terms change: FSDP's gradient all-reduce becomes a reduce-scatter of the same logical size, and tensor parallelism's backward has 2LA instead of 4LA. The one miss, tensor parallel over 8 devices on the 4-head running example, is the heads problem from the previous section; with 8 heads the prediction is exact.</p></div>
-<p>Bytes become time through the link: for large messages a ring all-gather over a TPU axis takes about V / W whatever the number of devices, and an all-reduce about twice that; for small ones a per-hop latency dominates. The algorithms behind those two sentences (ring, 2-D torus, tree) are {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}'s subject; the scaling book's TPU forms and a calculator are in the closed block.</p>
-<details class="dp"><summary>The latency and bandwidth model, ring against 2-D torus against tree, with a calculator <span class="mute">(3 min)</span></summary><div class="b">
-<p><b>The model.</b> A collective's time has a latency part, paid per step of the algorithm whatever the size (call it &alpha;, about 1 &micro;s per ICI hop: "This is typically around 1us", {{scaling book, part 3|https://jax-ml.github.io/scaling-book/sharding/}}, 2025-02-04), and a bandwidth part, bytes over link bandwidth W. The algorithm decides how many latency steps there are and how many links share the bytes:</p>
-<div class="tw"><table><thead><tr><th>Algorithm</th><th>All-gather of V bytes over n devices</th><th>All-reduce</th><th>Where it is used</th></tr></thead><tbody>
-<tr><td><b>Ring</b> (1-D, both directions, wraparound)</td><td>max(&alpha;&middot;n/2, V / W<sub>bidi</sub>)</td><td>twice the all-gather (reduce-scatter, then all-gather)</td><td>One axis of a TPU torus; NCCL rings inside a server</td></tr>
-<tr><td><b>2-D torus</b> (X &times; Y, gather over both axes)</td><td>max(&alpha;&middot;(X+Y)/2, V / (2 W<sub>bidi</sub>))</td><td>twice that</td><td>A collective over two mesh axes of a slice; the 2-D all-reduce of {{Ying et al. 2018|https://arxiv.org/abs/1811.06992}} on TPU v3 pods</td></tr>
-<tr><td><b>Tree</b> (double binary tree)</td><td>not used for gathers</td><td>about 2&middot;log<sub>2</sub>(n)&middot;&alpha; + 2V/W</td><td>NCCL across many nodes: "latency scales linearly with the number of GPUs" for rings, trees give "full bandwidth and logarithmic latency" ({{NVIDIA, 2019-02-04|https://developer.nvidia.com/blog/massively-scale-deep-learning-training-nccl-2-4/}})</td></tr></tbody></table></div>
-<p>The ring and torus rows are the scaling book's: a bidirectional ring all-gather takes "T<sub>total</sub> = V / W<sub>ici</sub>", which "doesn't depend on X!", and gathering over several axes "increases the available bandwidth by a factor of N<sub>axes</sub>"; "an AllReduce is twice as expensive as an AllGather"; an all-to-all on a 1-D ring is "1/4 the cost of an AllGather". The tree row is the usual &alpha;-&beta; estimate, <span class="der">derived</span>. The calculator puts them side by side; the crossover is the point of it: for small messages latency dominates and a ring over many devices loses, for large ones bandwidth dominates and the ring's latency is irrelevant.</p>
-<div class="ss-card" id="ss-cc-card">
-<h4>All-reduce time against message size: flat while latency dominates, then rising with the bytes <span class="der">derived</span></h4>
-<div class="ctl">
-<label>Devices on the axis: <b id="ss-cc-nv"></b><input type="range" id="ss-cc-n" min="2" max="10" step="1" value="6" aria-label="Devices, as a power of two"></label>
-<label>Link (one way, per scaling book) <select id="ss-cc-link"><option value="4.5e10">v4 / v5e: 45 GB/s</option><option value="9e10" selected>v5p / v6e / TPU7x: 90 GB/s</option></select></label>
-</div>
-<div class="ss-svg" id="ss-cc-svg"></div>
-<div class="ss-leg" id="ss-cc-leg"></div>
-<div class="ss-src" id="ss-cc-note"></div>
-</div>
-</div></details>
+<p>Bytes become time through the link: for large messages a ring all-gather over a TPU axis takes about V / W whatever the number of devices, and an all-reduce about twice that; for small ones a per-hop latency dominates. The algorithms behind those two sentences are {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}'s section 7: the latency and bandwidth model (about 1 &micro;s per ICI hop), ring against 2-D torus against double binary tree in the scaling book's TPU forms, and an all-reduce time calculator, flat while latency dominates and then rising with the bytes.</p>
 </section>
 
 <section id="s-choose">

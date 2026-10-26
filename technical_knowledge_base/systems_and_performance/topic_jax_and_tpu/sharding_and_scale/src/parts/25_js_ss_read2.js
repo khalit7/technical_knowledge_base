@@ -43,32 +43,6 @@
       '</tbody></table></div><p class="ss-src"><span class="meas">measured</span> Error: largest difference from one-device attention, output / gradients. The 8,192-token input is random (1 sequence, 4 heads, head dimension 32). Note the backward of the hand-written all-gather: JAX transposes <code>all_gather</code> into <code>psum_scatter</code>, so a true reduce-scatter appears even on CPU, which never forms one from an all-reduce by itself.</p>';
   })();
 
-  // ---------- collective cost calculator ----------
-  (function(){
-    const al=1e-6, SZ=[['running example gradients',3305472],['scaled-up gradients',101670912],['Llama 3 8B, bfloat16 gradients',8030261248*2]];
-    function draw(){
-      const k=+$('ss-cc-n').value,n=Math.pow(2,k),Wl=+$('ss-cc-link').value,Wb=2*Wl;
-      $('ss-cc-nv').textContent=n;
-      const X=Math.pow(2,Math.ceil(k/2)),Y=n/X;
-      const ring=V=>2*Math.max(al*n/2,V/Wb),tor=V=>2*Math.max(al*(X+Y)/2,V/(2*Wb)),tree=V=>2*Math.log2(n)*al+2*V/Wb;
-      const el=$('ss-cc-svg'),W=U.width(el),H=230,ml=52,mr=10,mt=10,mb=34,pw=W-ml-mr,ph=H-mt-mb;
-      const x0=3,x1=11,ys=[-6,1];  // log10 bytes 1 KB..100 GB, log10 seconds 1us..10s
-      const px=v=>ml+(Math.log10(v)-x0)/(x1-x0)*pw,py=t=>mt+(1-(Math.log10(t)-ys[0])/(ys[1]-ys[0]))*ph;
-      let s='';for(let e=x0;e<=x1;e++){const x=px(Math.pow(10,e));s+='<line x1="'+x+'" x2="'+x+'" y1="'+mt+'" y2="'+(mt+ph)+'" stroke="var(--line)"/>'+RD.t(x,H-18,['1 KB','','100 KB','','10 MB','','1 GB','','100 GB'][e-3],{a:e===x1?'end':'middle',fs:10.5})}
-      for(let e=ys[0];e<=ys[1];e++){const y=py(Math.pow(10,e));s+='<line x1="'+ml+'" x2="'+(ml+pw)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/>'+RD.t(ml-4,y+4,{'-6':'1 &micro;s','-5':'10 &micro;s','-4':'100 &micro;s','-3':'1 ms','-2':'10 ms','-1':'100 ms','0':'1 s','1':'10 s'}[e],{a:'end',fs:10.5})}
-      s+=RD.t(ml+pw/2,H-3,'message size (bytes all-reduced)',{a:'middle',fs:11});
-      const curves=[['ring (1 axis)',ring,'var(--c2)'],['2-D torus ('+X+' x '+Y+')',tor,'var(--c1)'],['tree (&alpha;-&beta;)',tree,'var(--c4)']];
-      curves.forEach(c=>{let d='';for(let i=0;i<=80;i++){const v=Math.pow(10,x0+(x1-x0)*i/80);const t=Math.min(Math.max(c[1](v),1e-6),10);d+=(i?'L':'M')+px(v).toFixed(1)+','+py(t).toFixed(1)}s+='<path d="'+d+'" fill="none" stroke="'+c[2]+'" stroke-width="2"/>'});
-      SZ.forEach((z,i)=>{const x=px(z[1]);s+='<line x1="'+x+'" x2="'+x+'" y1="'+mt+'" y2="'+(mt+ph)+'" stroke="var(--mute)" stroke-dasharray="3 3"/>'+RD.t(x+3,mt+12+i*13,String.fromCharCode(97+i),{fs:11,w:600})});
-      el.innerHTML=RD.svg(W,H,s,'All-reduce time against message size for ring, 2-D torus and tree');
-      $('ss-cc-leg').innerHTML=curves.map(c=>'<span><i style="background:'+c[2]+'"></i>'+c[0]+'</span>').join('');
-      const V=SZ[1][1];
-      $('ss-cc-note').innerHTML='Marked: '+SZ.map((z,i)=>'<b>'+String.fromCharCode(97+i)+'</b> '+z[0]+' ('+U.MB(z[1])+')').join(', ')+'. At (b) on '+n+' devices: ring '+fmt(ring(V))+', 2-D torus '+fmt(tor(V))+', tree '+fmt(tree(V))+'. Assumptions: &alpha; = 1 &micro;s per hop, W<sub>bidi</sub> = 2 &times; the one-way link ('+(Wl/1e9)+' GB/s, scaling book table), a full ring with wraparound, no overlap with compute. <span class="der">derived</span>: a calculation, not a measurement.';
-    }
-    const fmt=t=>t<1e-3?(t*1e6).toFixed(1)+' &micro;s':t<1?(t*1e3).toFixed(2)+' ms':t.toFixed(2)+' s';
-    $('ss-cc-n').addEventListener('input',draw);$('ss-cc-link').addEventListener('change',draw);RD.onRender(draw);RD.onResize(draw);draw();
-  })();
-
   // ---------- formula check table ----------
   (function(){
     const FM={dp:'AR = P',fsdp:'AG = P; AR (TPU: RS) = P',hsdp:'AG = P; AR = P + P/f',tp:'AR = 2LA + 4LA + P<sub>dev</sub>',tp8:'AR = 2LA + 4LA'};
