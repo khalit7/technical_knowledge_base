@@ -6,7 +6,7 @@ description: Publish the Technical knowledge base from this repository (the sour
 # sync-kb-github
 
 **This repository is the source of truth. The reading site shows it; Notion links to it.** Since 2026-10-23:
-- **The site**: https://khalit7.github.io/technical_knowledge_base/ is built from `main` by `.github/workflows/site.yml` on every push that touches a page (`html_utils/build_site.py` plus Pagefind search). Public to read; only Khalid can push. Details: [site.md](site.md).
+- **The site**: https://khalit7.github.io/technical_knowledge_base/ is built from `main` by `.github/workflows/site.yml` on every push that touches a page (`html_utils/build_site.py` plus Pagefind search). Its landing page carries the learning map, built from each topic page's `"prereqs"` in `pages.json` by `html_utils/learning_map.py`; an unknown prerequisite id or a cycle fails the build, so run `python3 html_utils/learning_map.py check` before every push (`sync_status.py` reports its errors too). Public to read; only Khalid can push. Details: [site.md](site.md).
 - **Notion**: the same tree of pages under "Technical knowledge base" (`3c65c17b-0d0d-81c7-b646-e548e65d9446`). Each knowledge-base page holds exactly one link line to its site page, then its video (if it has one) and its child pages. Nothing else. Notion never holds knowledge.
 
 ## The link line
