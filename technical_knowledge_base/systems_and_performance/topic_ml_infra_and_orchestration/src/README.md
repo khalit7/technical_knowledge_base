@@ -47,3 +47,6 @@ Why about 26 minutes: the topic is taught from zero, so the root holds the vocab
 
 ## The topic close (2026-10-24): other pages of the topic
 Every child's Further reading quotes the root as "26 min, plus 10" (child ledgers re-keyed). The children's own stale references (removed tab names, sibling section numbers and times, the follow-ups of the close) were fixed in the same pass; each child's `src/README.md` has a dated line.
+
+## 2026-10-26 ownership sweep
+Slurm from zero owns Slurm on Kubernetes. The Tool map merges the Slinky and SUNK rows into one row "Slurm on Kubernetes (Slinky, SUNK)" (id slinky; 60 tools now) whose first source links Slurm from zero section 12; the 2023 slot, picker and lineage point at it. validate.py and check_tab.mjs pass.

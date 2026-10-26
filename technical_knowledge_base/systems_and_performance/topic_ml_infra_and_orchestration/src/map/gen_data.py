@@ -107,13 +107,13 @@ ev = sorted(AP.EV, key=lambda e: e[0])
 
 # lineage lifespans: start = first PyPI release, repository creation or an override; end = today, or last activity if quiet/archived
 LIN_ROWS = [("Kubernetes training APIs", ["mpiop", "trainerv1", "trainer", "jobset", "kueue", "volcano", "kai", "runai"]),
-            ("Slurm and clusters", ["openpbs", "slurm", "slinky", "sunk", "hyperpod", "pcluster"]),
+            ("Slurm and clusters", ["openpbs", "slurm", "slinky", "hyperpod", "pcluster"]),
             ("Runtimes and platforms", ["ray", "kuberay", "skypilot", "determined", "nomad"]),
             ("Storage", ["minio", "juicefs", "alluxio"]),
             ("Tracking", ["neptune", "wandb", "mlflow", "clearml"])]
-START = {"slurm": ["2002", "initial release 2002 (Slurm FAQ, slurm.schedmd.com/faq.html)"], "sunk": ["2023-03", "CoreWeave release notes, March 2023"],
+START = {"slurm": ["2002", "initial release 2002 (Slurm FAQ, slurm.schedmd.com/faq.html)"], "slinky": ["2023-03", "SUNK, CoreWeave release notes, March 2023; Slinky open-sourced 2024-11"],
          "hyperpod": ["2023-11", "launch post, 2023-11-29"], "runai": ["2024-12", "as an NVIDIA product (acquisition closed 2024-12-30); the company is older"],
-         "slinky": ["2024-11", "open-source release"], "trainer": ["2025-07", "v2.0 release"]}
+         "trainer": ["2025-07", "v2.0 release"]}
 lin = []
 byid = {t["id"]: t for t in tools}
 for g, rows in LIN_ROWS:

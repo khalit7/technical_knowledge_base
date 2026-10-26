@@ -7,7 +7,7 @@ SLOTS = [
  ["k8sgpu", "GPU quotas and fractions on Kubernetes", "Run:ai (independent, commercial)", "runai"],
  ["k8sdev", "How a pod asks for a GPU", "device plugin: nvidia.com/gpu: 1", "gpuop"],
  ["slurm", "Slurm, the HPC scheduler", "Slurm (SchedMD, independent)", "slurm"],
- ["slurmk8s", "Slurm on a Kubernetes cluster", "SUNK (CoreWeave only)", "sunk"],
+ ["slurmk8s", "Slurm on a Kubernetes cluster", "SUNK (CoreWeave only)", "slinky"],
  ["aws", "Resilient training cluster on AWS", "ParallelCluster (you run Slurm)", "pcluster"],
  ["ray", "Python distributed runtime", "Ray (Anyscale)", "ray"],
  ["platform", "All-in-one training platform", "Determined (HPE, releasing)", "determined"],
@@ -83,7 +83,7 @@ P = [
       why="A workflow tool runs the steps around training on a schedule (ingest, filter, tokenise, train, evaluate, register) and submits the heavy steps to Slurm, Kubernetes or Ray. Pick by where you run and who writes the pipelines.",
       hw={"onprem": "Airflow submitting sbatch jobs.", "k8s": "Flyte, Kubeflow Pipelines or Argo; Airflow with the KubernetesExecutor.", "cloud": "The cloud's managed Airflow or Vertex Pipelines; Metaflow on AWS.", "laptop": "Prefect or Metaflow locally."}),
  dict(id="slurmk8s", label="Give researchers sbatch on a Kubernetes platform",
-      stack=["slinky", "sunk", "k8s"], avoid=[],
+      stack=["slinky", "k8s"], avoid=[],
       why="Researchers want sbatch and srun; the platform team wants one Kubernetes estate. Slinky (open source) and SUNK (CoreWeave) run Slurm's daemons as pods so both share the GPUs.",
       hw={"onprem": "Usually unnecessary: plain Slurm.", "k8s": "Slinky's slurm-operator.", "cloud": "CoreWeave SUNK, or Slinky on GKE or EKS.", "laptop": "Not applicable."}),
 ]

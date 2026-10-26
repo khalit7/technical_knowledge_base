@@ -66,7 +66,7 @@
     const bh=narrow?8:12,byOf=ry=>ry+(narrow?RH-bh-3:(RH-bh)/2);
     rows.forEach(r=>{if(r.g){b+='<text x="2" y="'+(r.y+15)+'" font-weight="600" fill="var(--mute)">'+esc(r.g)+'</text>';return}
       const t=byId[r.id],l=LIN[r.id],early=yr(l.s)<X0,x1=sx(yr(l.s)),x2=Math.max(x1+4,sx(yr(l.e))),by=byOf(r.y);
-      const SHORT={trainerv1:'Training Operator v1',trainer:'Trainer v2 (TrainJob)',hyperpod:'SageMaker HyperPod',pcluster:'ParallelCluster',sunk:'SUNK (CoreWeave)',nomad:'Nomad',openpbs:'OpenPBS',kai:'KAI Scheduler',runai:'NVIDIA Run:ai',minio:'MinIO'};
+      const SHORT={trainerv1:'Training Operator v1',trainer:'Trainer v2 (TrainJob)',hyperpod:'SageMaker HyperPod',pcluster:'ParallelCluster',slinky:'Slurm on K8s (Slinky, SUNK)',nomad:'Nomad',openpbs:'OpenPBS',kai:'KAI Scheduler',runai:'NVIDIA Run:ai',minio:'MinIO'};
       const lab=esc(SHORT[r.id]||t.name.replace(/ \(.*\)$/,''))+(early?' (since '+esc(l.s.slice(0,4))+')':'');
       b+='<g data-c="'+r.id+'"'+(lsel===r.id?' class="on"':'')+' role="button" tabindex="0" aria-label="'+lab+', '+t.status+'"><rect x="0" y="'+r.y+'" width="'+W+'" height="'+RH+'" fill="transparent"/>'+
         '<rect class="bar" x="'+x1+'" y="'+by+'" width="'+(x2-x1)+'" height="'+bh+'" rx="3" fill="'+COL[t.status]+'"'+(t.status==='archived'?' fill-opacity=".35"':'')+'/>'+
