@@ -11,7 +11,7 @@ def txt(x):
     x = re.sub(r'<[^>]+>', '', x)
     x = html.unescape(x)
     x = x.replace('\u2014', '--')   # no em-dashes in saved extracts (writing rule)
-    x = re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}', '[email redacted]', x)   # privacy rule
+    x = re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}', '[email removed]', x)   # privacy rule
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
 a = s.index('<article'); b = s.index('</article>')
 art = s[a:b]

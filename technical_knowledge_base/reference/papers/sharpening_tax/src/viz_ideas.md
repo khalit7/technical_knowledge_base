@@ -17,3 +17,4 @@ Scored 0 to 2 per criterion of `visuals/choosing.md` (quantity that moves, defau
 | P-sharpening_tax.11 | Tax-guided routing rebuilt from the counts (Appendix D.4) | 9 | rejected for now: the pilot split and the decision rule are under-specified in the paper; described, not run |
 | P-sharpening_tax.12 | Reading Figure 8/9 entropy curves | - | rejected: PNG figures only, no data released for the RL runs |
 | P-sharpening_tax.13 | Figure 7 scatter rebuilt | 9 | folded into a "Checked" box (the split check), a scatter would repeat the map |
+| P-sharpening_tax.14 | The paper's Figure 1 as the hero and Figure 7 beside PTGS (CC BY 4.0, embedded and credited) | 8 | built 2026-10-26 (light pass): the canonical figures, licensed for reuse |

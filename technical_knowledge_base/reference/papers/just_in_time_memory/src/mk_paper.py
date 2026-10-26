@@ -26,6 +26,7 @@ def card():
          '<div class="au">%s</div>' % html.escape(P['authors']),
          '<div class="au mute">%s · %s</div>' % (html.escape(P['lab']), html.escape(P['date'])),
          '<p class="tk"><b>In one line:</b> %s</p>' % html.escape(P['takeaway']),
+         ('<p class="small mute">%s</p>' % html.escape(P['takeaway_note'])) if P.get('takeaway_note') else '',
          '<div class="hn">']
     for x in P['headline']:
         h.append('<div class="stat"><div class="v">%s <span class="u">%s</span></div><div class="k">%s</div><div class="d">%s · %s</div></div>'

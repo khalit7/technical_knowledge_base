@@ -1,0 +1,6482 @@
+Source: https://arxiv.org/html/2609.14858v2 (extracted by extract_paper.py)
+
+
+\uselogo
+
+Dream-RSI: Recursive Self-Improvement through Evolving Worlds
+
+Tong Zheng
+
+Affiliation: \thepa
+
+Affiliation: University of Maryland, College Park
+
+Xidong Wu
+
+Affiliation: \thepa
+
+Zheng Zhang
+
+Affiliation: \thepa
+
+Zhankui He
+
+Affiliation: Google Deepmind
+
+Chaoyi Zhang
+
+Affiliation: \thepa
+
+Benjamin Coleman
+
+Affiliation: Google Deepmind
+
+Ruoqiao Wei
+
+Affiliation: \thepa
+
+Di Bai
+
+Affiliation: Google Deepmind
+
+Haolin Liu
+
+Affiliation: University of Virginia
+
+Rui Liu
+
+Affiliation: University of Maryland, College Park
+
+Xue Wang
+
+Affiliation: \thepa
+
+Yue Zhuan
+
+Affiliation: \thepa
+
+Wang-Cheng Kang
+
+Affiliation: Google Deepmind
+
+Renkai Xiang
+
+Affiliation: \thepa
+
+Heng Huang
+
+Affiliation: University of Maryland, College Park
+
+Xinwu Cheng
+
+Affiliation: \thepa
+
+Yunsong Guo
+
+Affiliation: \thepa
+
+Abstract
+
+Recursive self-improvement is becoming essential for autonomous AI agents, whose progress depends on discovering high-value solutions across complex domains. Effective exploration drives this process, yet managing and improving exploration strategies remains a major bottleneck. Current systems face a fundamental dilemma: fixed strategies fail to adapt as search spaces scale, while online policy optimization must navigate vast meta-search spaces under delayed, expensive feedback from long-horizon rollouts. We introduce Dream-RSI, a framework for scalable, recursively self-improving exploration. A lightweight orchestration layer makes exploration explicit and programmable while leaving the underlying base agent unchanged. Our key insight is that accumulated discovery history can act as a replay simulator over the realized search space. By dreaming within this simulator built from historical discovery trees, Dream-RSI obtains immediate, low-cost off-policy feedback to evaluate and refine exploration policies without repeated, expensive online evaluation. The improved policy is then redeployed online to drive further discovery, continuously expanding the simulator pool in a self-improving loop. Across 9 tasks in 4 domains, Dream-RSI
+achieves competitive quality and improves discovery efficiency in several settings.
+
+ github.com/zhengkid/Dream-RSI
+  |  
+
+ dream-rsi.com
+
+1 Introduction
+
+Recursive self-improvement (RSI) has emerged as an ambitious goal for autonomous AI systems (Liu et al., 2026c). A common mechanism underlying RSI is an iterative loop wherein agents propose candidate solutions, evaluate outcomes, and fold the resulting feedback into subsequent iterations. Such loops have driven substantial progress across algorithm design (Novikov et al., 2025; Romera-Paredes et al., 2024), open-ended mathematical optimization (Georgiev et al., 2025; Anthropic, 2026), systems design (Jaber and Jaber, 2026; Cao et al., 2026), and agent self-improvement (Zhang et al., 2026b; Zhang et al., 2026c; Lee et al., 2026; Zheng et al., 2026a). As agents grow stronger and self-improvement targets grow harder, discovery demands long-horizon exploration over vast search spaces, often spanning thousands of proposal-evaluation cycles (Ye et al., 2026; OpenAI, 2026). At this scale, orchestrating exploration becomes critical (Zheng et al., 2026b): poor exploration wastes computation and time, sharply limiting the efficiency and scalability of RSI.
+
+Existing approaches largely rely on manually designed exploration strategies that stay fixed throughout discovery (Novikov et al., 2025; Yan et al., 2026b; Du et al., 2026; Jiang et al., 2026; Ye et al., 2026). Such strategies cannot learn from accumulated experience and may repeatedly spend computation on unproductive search directions. Recent work therefore attempts to optimize exploration policies online (Liu et al., 2026a), but this faces two fundamental bottlenecks. First, meta-level feedback is delayed and expensive. Unlike evaluating a single candidate, assessing an exploration policy requires observing how it shapes discovery over many proposal–evaluation cycles. Second, the meta-policy space is vast, so many alternatives must be tried before a good one is found. Together, these make meta-level improvement costly. Each policy demands a long online rollout before yielding useful signal, making the self-improvement loop hard to close at the exploration layer.
+
+To address these bottlenecks, we want to design a fast and cheap simulator of discovery to prune exploration policies before costly online deployment. Surprisingly, completed discovery histories already provide such a simulator. Prior work treats past history merely as static textual context (Hu et al., 2025; Ouyang et al., 2026b) or as training data for fine-tuning (Yuksekgonul et al., 2026; Wang et al., 2025). Yet a completed discovery process inherently records a structured tree of exploration decisions and their realized code-execution outcomes. By analogy to model-based reinforcement learning and World Models (Ha and Schmidhuber, 2018; Hafner et al., 2023) (§2), this discovery history can serve as a replay simulator11
+ 1
+
+ We use replay simulator and world interchangeably.. Figure 2 shows an alternative strategy can navigate this pre-recorded tree, traversing different subsets of branches in different orders, with different parallel groupings and stopping decisions. Since all execution results are locally stored, evaluating a new strategy requires only reading past records. This turns meta-policy improvement from expensive online trial-and-error into a fast, simulation-based “dreaming” procedure.
+
+Figure 1: Overview of Dream-RSI. The system runs a recursive self-improvement loop. ① Online Exploration: the current policy drives a base agent to expand a discovery tree, logging its execution traces. ② Replay Simulator Construction: the discovery tree is distilled into a pool of reusable simulators. ③ Dreaming-based Policy Improvement: the same base agent dreams, generating many candidate policies internally and replaying them in the simulator for fast, low-cost feedback (see the zoom-in box). The refined policy is redeployed for the next round of exploration.
+
+Building on this insight, we introduce Dream-RSI, a framework for scalable, recursively self-improving meta-exploration in agent-driven discovery. We first make exploration programmable through a lightweight orchestration layer that controls branching, parallelism, and stopping while leaving the underlying base agent unchanged. To improve this policy, Dream-RSI follows a self-improvement loop (Figure 1): (1) Online Exploration, where the current policy drives real-world discovery and logs execution traces; (2) Replay Simulator Construction, where recorded discovery trees become a reusable replay simulator pool; and (3) Dreaming-based Policy Improvement, where candidate policies are cheaply evaluated by dreaming over the simulator. The updated policy is redeployed online, generating new experience that expands the simulator pool and closing an RSI loop at the meta-exploration layer. We evaluate Dream-RSI on 9 discovery tasks across four domains. On algorithm engineering (Lasso path solver), it outperforms sklearn and strong baselines while using up to $162\times$ fewer agent calls than SimpleTES. On mathematical optimization, it matches or exceeds the best results among the compared baselines on two of three tasks. On GPU kernel engineering (KernelBench), it reaches similar speeds with $1.79\times$ – $2.43\times$ fewer generations, or improves kernel performance by up to $2.09\times$ under a comparable budget. On harness optimization, it improves the seed harness by over 8 points on Terminal-Bench 2.1.
+
+Our contributions are: 1) History as Replay Simulator. We recast completed discovery histories as replay simulators, making delayed exploration feedback reusable for cheap meta-exploration policy evaluation. 2) Meta-Layer RSI Loop. We introduce Dream-RSI, to our knowledge the first framework to close a meta-layer RSI loop using discovery history as a replay simulator. 3) Empirical Validation. Across nine tasks in four domains, Dream-RSI
+achieves competitive discovery quality and improves
+discovery-agent-call efficiency in several settings.
+
+Figure 2: Discovery history as a replay simulator.
+A deployed policy first explores online, recording its execution traces as a discovery tree where each node is one attempt plus its full observation. This tree then acts as a simulator: a large number of candidate policies can be tested inside it, varying which branches to search, in what order, with how much concurrency, and when to stop. Because every node’s outcome is already stored, one expensive online run can yield a large number of fast, low-cost off-policy evaluations. The agent can therefore "dream" over many alternative exploration strategies via historical replay, and redeploy only the improved policy.
+
+2 Motivation: Discovery History as a Replay Simulator
+
+Consider an agent navigating an unfamiliar environment. On its first attempt it wanders, hits dead ends, and backtracks -- but in doing so it builds a map. That map is reusable: a new policy can plan over it, skip known dead ends, revisit earlier choices, and compare routes without physically walking them again (Gupta et al., 2017).
+This is the logic of model-based reinforcement learning (Sutton, 1990; M. Moerland et al., 2023). A model of how the environment responds to actions lets policies be trained or evaluated in simulation instead of through repeated real interaction (Ha and Schmidhuber, 2018). The Dreamer family (Hafner et al., 2019; Hafner et al., 2020; Hafner et al., 2023; Hafner et al., 2025) is the clearest example: learn a compact dynamics model from collected experience, then improve the policy by imagining trajectories inside it.
+
+Long-horizon discovery has the same structure. An exploration policy decides which directions to pursue, which candidates to refine, what to branch on in parallel, and when to stop. Running it online leaves behind a structured history -- branches explored, decisions made, costs incurred, outcomes observed. As shown in Figure 2, we treat this history as an empirical replay simulator: a grounded model of the part of the discovery space already seen.
+Inside this simulator, a different exploration policy simply traces a different path through the recorded discovery tree, choosing other branches, another ordering, a different degree of parallelism, or an earlier stopping point. Scoring that path only requires revealing outcomes already stored along it; no rerun of the coding agent or evaluator is needed. One expensive online run therefore funds many cheap evaluations of alternative strategies.
+
+3 Dream-RSI: RSI through Evolving Worlds
+
+As shown in Figure 1, Dream-RSI alternates between online exploration and offline “dreaming” for policy evaluation to improve the exploration policy that allocates discovery computation. For online rollout, the exploration policy directs a fixed discovery agent to generate a tree-structure discovery trace, where each node in the tree is an discovery attempt and is scored by a fixed evaluator. The discovery tree then becomes a replay world: alternative policies can be re-evaluated against stored outcomes. In the offline dreaming phase, a fixed agent iteratively revises the code for the exploration policy, and every revision is evaluated in all stored replay worlds. The best version is then deployed for the next online rollout. Only the policy code changes; the models, evaluator, and execution interfaces stay fixed.
+
+Discovery trees and the shared decision interface.
+
+A discovery tree is rooted at $r$ , the initial workspace state. Every non-root node $v$ has exactly one primary parent (root or a previous node), which decides where its attempt begins: the discovery agent resumes the parent’s saved workspace and inherits its accumulated observations as context to generate the attempt in $v$ . Node $v$ keeps all previous generation history for it, and its own filesystem snapshot, together with an evaluation score $s_{v}$ . Scores are generated from a fixed protocol, and larger values are better. We define the root score $s_{r}=0$ . In both online rollout and offline evaluation, the exploration policy observes a tree $\mathcal{T}$ , initially
+containing only the root, and selects nodes in $\mathcal{T}$ to continue exploration. The eligible nodes are $A(\mathcal{T})=\{r\}\cup\{v\in\mathcal{T}:v\text{ is a leaf}\}$ , which contains the root and all leave node in the current tree. We assume there are $W\geq 1$ parallel workers, each running one generation–evaluation request at a time (e.g. concurrent API calls). For the current tree $\mathcal{T}$ , the exploration policy’s action is a batch $C\in A(\mathcal{T};W)$ , where $A(\mathcal{T};W)=\{C\subseteq A(\mathcal{T}):|C|\leq W\}$ is the feasible batch set. The batch determines both where exploration continues and how many attempts run concurrently. Both the online and offline phase use this
+decision interface, and differ only in how state transitions after an action: one executes for real, the other replays.
+
+Online rollout.
+
+Let $t=1,2,\ldots$ index iterations of online rollout, starting from policy $\pi_{1}$ and empty history $\mathcal{H}_{0}=()$ . At iteration $t$ , the fixed policy $\pi_{t}$ guides the discovery agent to generate a new online rollout with access to the
+completed discovery history $\mathcal{H}_{t-1}$ as context. The history informs exploration but is kept separate from the tree under construction.
+Let $\mathcal{T}_{t}^{k}$ be the discovery tree after $k$ completed rounds at iteration $t$ , with $\mathcal{T}_{t}^{0}=\{r\}$ , and allow at most $K_{1}$ rounds. At round $k
+
+Offline evaluation.
+
+With $\mathcal{H}_{t}$ fixed, our method constructs and evaluates
+ $M\geq 1$ policy versions $\pi_{t}^{0},\ldots,\pi_{t}^{M-1}$ , where
+ $\pi_{t}^{0}=\pi_{t}$ . Each version is evaluated on every historical tree
+ $\mathcal{T}_{i}$ , $i=1,\ldots,t$ , under budget-control parameters
+ $\rho\in\mathcal{R}:=\{0,0.25,0.5,0.75,1\}$ , where $\rho$ controls the
+policy’s budget preference. The resulting feedback drives the next
+policy version. We index policy versions by $m$ , replay worlds by $i$ ,
+budget preferences by $\rho$ , and decision rounds within one replay by
+ $k$ . The outer index $t$ is fixed and omitted below. For each $(m,i,\rho)$ , replay starts from
+ $\mathcal{T}_{i,\rho}^{m,0}=\{r\}$ , where
+ $\mathcal{T}_{i,\rho}^{m,k}\subseteq\mathcal{T}_{i}$ is the subtree revealed
+after $k$ completed rounds. The recorded tree $\mathcal{T}_{i}$ never
+changes; only the observed portion grows. At round $k
+
+Replay objective.
+
+The replay objective balances discovery quality and generation cost
+across budget preferences while also favoring parallel execution.
+For each replay world $\mathcal{T}_{i}$ used for evaluation, define
+ $B_{i}:=|\mathcal{T}_{i}|-1>0$ and
+ $S_{i}:=\max_{v\in\mathcal{T}_{i}\setminus\{r\}}s_{v}>0$ , the total number of
+evaluated non-root nodes and the best recorded score, respectively.
+For each $\rho\in\mathcal{R}$ , let
+ $n_{i,\rho}^{m}:=|\mathcal{T}_{i,\rho}^{m,k_{i,\rho}^{m,\star}}|-1$ 
+be the number of discovery-agent calls represented by the replay.
+Let $s_{i,\rho}^{m}$ be the best score among the revealed non-root nodes,
+i.e.,
+ $s_{i,\rho}^{m}:=\max_{v\in\mathcal{T}_{i,\rho}^{m,k_{i,\rho}^{m,\star}}\setminus\{r\}}s_{v}$ 
+when $n_{i,\rho}^{m}>0$ , and set $s_{i,\rho}^{m}:=0$ otherwise.
+We normalize the attained quality as
+ $a_{i,\rho}^{m}:=\operatorname{clip}(s_{i,\rho}^{m}/S_{i},0,1)$ . The budget sweep produces the quality–cost points
+ $\{(n_{i,\rho}^{m},a_{i,\rho}^{m}):\rho\in\mathcal{R}\}$ .
+A point is dominated if another point uses no more calls and attains no
+lower quality, with at least one strict improvement.
+Let
+ $(\bar{n}_{i,j}^{m},\bar{a}_{i,j}^{m})_{j=1}^{L_{i}^{m}}$ 
+be the distinct nondominated points ordered by increasing call count,
+and set $\bar{a}_{i,0}^{m}:=0$ .
+The replay score is
+
+ $V_{i}^{m}:=\underbrace{\frac{1}{B_{i}}\sum_{j=1}^{L_{i}^{m}}\bigl(\bar{a}_{i,j}^{m}-\bar{a}_{i,j-1}^{m}\bigr)\bigl(B_{i}-\bar{n}_{i,j}^{m}\bigr)}_{\text{normalized hypervolume}}-\lambda\underbrace{\frac{1}{|\mathcal{R}|}\sum_{\begin{subarray}{c}\rho\in\mathcal{R}\\
+n_{i,\rho}^{m}>0\end{subarray}}\frac{k_{i,\rho}^{m,\star}}{n_{i,\rho}^{m}}}_{\text{parallelism penalty}}.$ 	
+
+(1)	
+
+Here, $\lambda$ controls the strength of the parallelism penalty.
+The first term measures the normalized area dominated by the
+quality–cost Pareto frontier, rewarding policies that attain higher
+quality with fewer discovery-agent calls. The second term measures the
+average number of completed sequential rounds per call across the budget
+sweep, thereby favoring policies that execute more calls in parallel;
+replays with zero calls contribute zero to this term.
+
+Policy improvement and selection.
+
+A policy version $\pi_{t}^{m}$ is evaluated by its average replay score over $\mathcal{H}_{t}$ , denoted by $V^{m}=\frac{1}{t}\sum_{i=1}^{t}V_{i}^{m}$ . The offline phase starts $\pi_{t}^{0}=\pi_{t}$ . At each step $m=0,\ldots,M-2$ , a policy-development agent inspects the replay trajectories and scores of $\pi_{t}^{m}$ , along with feedback from earlier revisions, to identify successful decisions and recurring failures. It then rewrites the executable policy code into $\pi_{t}^{m+1}$ , which is evaluated on the same $t$ replay worlds. The next online policy is the best-scoring candidate, $\pi_{t+1}=\pi_{t}^{m^{\star}}$ with $m^{\star}\in\operatorname*{arg\,max}_{m\in\{0,\cdots,M-1\}}V^{m}$ . Since the current rollout policy $\pi_{t}=\pi_{t}^{0}$ is included among the candidates,
+ $V^{m^{\star}}\geq V^{0}$ , so $\pi_{t+1}$ is never worse than $\pi_{t}$ on the average
+replay score over $H_{t}$ .
+
+4 Experiments
+
+We evaluate Dream-RSI on algorithm engineering, kernel optimization, mathematical optimization, and harness optimization. We primarily use Gemini-3.1-Pro for scientific discovery experiments, with additional Lasso experiments using Gemini-3.7-Flash to assess applicability across backbones. For harness optimization, we use Claude Opus 4.8 with Claude Code. On the scientific discovery tasks, our main controlled baseline is Recursive Fixed Exploration. Both methods use identical discovery agents, evaluators, initialization, per-round budget limits, and the same hand-designed starting policy. From the second round onward, Recursive Fixed Exploration keeps its policy fixed, while Dream-RSI updates it through replay-based dreaming over accumulated discovery history. For harness optimization, we focus on end-to-end performance and omit the fixed-policy comparison due to its substantial cost: an additional full search is estimated to cost over $100,000. We measure discovery cost as the cumulative number of discovery-agent calls.
+
+4.1 Kernel Engineering
+
+The goal of kernel engineering is to discover high-performance kernel implementations while preserving numerical correctness. We use four representative KernelBench tasks (Ouyang et al., 2025): VGG16, LayerNorm, ConvDiv, and ConvMax. Candidates are scored by execution performance, measured as inverse runtime ( $1/\mathrm{ms}$ ), subject to correctness checks against the reference implementation. With Gemini-3.1 Pro as the coding agent, we compare Dream-RSI against Recursive Fixed Exploration under an identical evaluation protocol and initialization, and against the strong PaceEvolve baseline (Yan et al., 2026b), whose maximum discovery time we cap at two days for fairness.
+
+Results.
+
+Figure 3 shows discovery trajectories as the number of generations increases. On VGG16 and LayerNorm, Dream-RSI matches final performance with $2.43\times$ and $1.79\times$ fewer generations. On ConvDiv and ConvMax, under comparable budgets, it achieves $2.09\times$ and $1.44\times$ higher performance. Adapting the exploration policy across recursive rounds thus improves both the efficiency and the effectiveness of long-horizon discovery, and Dream-RSI surpasses PACEvolve in kernel performance (Detailed PACEvolve scaling curves are provided in Appendix C.). Appendix E.2 gives the discovered ConvDiv kernel. Rather than optimizing convolution in isolation, it restructures the operator chain around downstream pooling and reduction. Adjacent convolution outputs are max-pooled immediately, while width pooling and subsequent reductions run directly on register-resident values, avoiding materialization of convolution and pooled feature maps. Linear operations, such as scaling, averaging, and bias accumulation, are deferred to a lightweight final reduction.
+
+ $0.35$ $0.4$ $0.45$ $0.5$ $0.55$ 
+
+ $2.43\times$ fewer discovery-agent calls	
+
+(comparable performance)	
+
+0.2002Performance ( $1/\mathrm{ms}$ )VGG16 $1.05$ $1.1$ $1.15$ 
+
+ $1.79\times$ fewer discovery-agent calls	
+
+(comparable performance)	
+
+0.8264LayerNorm $0$ $250$ $500$ $750$ $1{,}000$ $0.4$ $0.8$ $1.2$ $1.6$ $2$ 0.6452
+
+ $2.09\times$ higher score	
+
+(Similar Budget)	
+
+Number of GenerationsPerformance ( $1/\mathrm{ms}$ )ConvDiv $0$ $250$ $500$ $750$ $1{,}000$ $0.25$ $0.3$ $0.35$ $0.4$ $0.45$ 
+
+ $1.44\times$ higher score	
+
+(Similar Budget)	
+
+0.2654Number of GenerationsConvMaxDream-RSIRecursive Fixed ExplorationPaceEvolve
+Figure 3: 
+GPU kernel engineering results.
+Discovery performance of Dream-RSI and Recursive Fixed Exploration as a function of the number of generations.
+On VGG16 and LayerNorm, Dream-RSI reaches comparable performance with $2.43\times$ and $1.79\times$ fewer generations, respectively.
+On ConvDiv and ConvMax, it achieves $2.09\times$ and $1.44\times$ higher performance under comparable discovery budgets.
+Higher is better for all tasks.
+
+Table 1: 
+Performance comparison on mathematical discovery tasks.
+Higher is better for Sum Diff and Circle Packing, while lower is better for Auto Correlation.
+Best results are shown in bold.
+
+Method	
+LLM	
+Sum Diff ( $\uparrow$ )	
+Auto Correlation ( $\downarrow$ )	
+Circle Packing ( $\uparrow$ )	
+
+AlphaEvolve	
+Gemini-2.0 Pro + Flash	
+–	
+1.455700	
+2.635862	
+
+AlphaEvolveV2	
+Gemini-2.0 Pro + Flash	
+1.121936	
+–	
+2.635983	
+
+OpenEvolve	
+-	
+–	
+1.460000	
+-	
+
+CodeEvolve	
+-	
+–	
+–	
+2.635980	
+
+ShinkaEvolve	
+Mixed	
+–	
+1.457800	
+2.635982	
+
+TTS-Discovery	
+Qwen3-8B	
+–	
+–	
+2.635983	
+
+ThetaEvolve	
+Distilled-Qwen3-8B	
+–	
+1.493000	
+2.635983	
+
+EvoX	
+Gemini-3.0-Pro	
+–	
+1.458900	
+2.635900	
+
+SimpleTES	
+GPT-OSS-120B	
+1.143975	
+1.453675	
+2.635983	
+
+Our System	
+
+Recursive Fixed Exploration	
+Gemini-3.1-Pro	
+1.144047	
+1.456001	
+2.635983	
+
+Dream-RSI	
+Gemini-3.1-Pro	
+1.145427	
+1.456375	
+2.635983	
+
+4.2 Mathematics Optimization
+
+We further evaluate Dream-RSI on three mathematical discovery tasks spanning discrete combinatorial optimization, geometric optimization, and functional optimization: the Sum–Difference Problem, Circle Packing, and Autocorrelation Inequalities. Formal definitions of the three tasks are provided in Appendix B.3. We use Gemini-3.1 Pro via the Gemini CLI as the discovery agent for both methods for 10 rounds. For each task, the agent iteratively proposes and evaluates candidate constructions or optimization procedures according to the task-specific objective.
+
+Results.
+
+Table 1 summarizes the results.
+Dream-RSI achieves a Sum–Difference score of $1.145427$ , outperforming SimpleTES and Recursive Fixed Exploration.
+On Circle Packing, it reaches $2.635983$ , matching the strongest reported result among the compared methods.
+For Autocorrelation, Dream-RSI obtains $1.456375$ , remaining competitive with existing discovery systems.
+
+Method	
+Model	
+Compute	
+Non-biological	
+Biological	
+Avg.	
+
+Gisette	
+RCV1	
+DNA	
+Leukemia	
+Colon	
+Duke Breast	
+
+Previous solvers	
+
+sklearn	
+–	
+–	
+11275.2	
+252881.7	
+93.8	
+227.2	
+229.8	
+374.0	
+44180.3	
+
+glmnet	
+–	
+–	
+9063.6	
+73072.8	
+351.9	
+45.0	
+24.2	
+47.7	
+13767.5	
+
+SimpleTES	
+gpt-oss-120b	
+51,200	
+3141.9	
+19625.6	
+15.9	
+15.5	
+11.6	
+18.1	
+3804.8	
+
+SimpleTES $\dagger$ 	
+gpt-oss-120b	
+51,200	
+8651.0	
+41143.1	
+37.6	
+28.2	
+19.5	
+31.1	
+8318.4	
+
+Our System	
+
+Recursive Fixed Exploration	
+Gemini-3.1-Pro	
+550	
+1861.8	
+19550.1	
+41.5	
+26.1	
+14.5	
+28.4	
+3587.1	
+
+Gemini-3.7-Flash	
+3200	
+1133.1	
+13873.0	
+29.8	
+24.1	
+15.7	
+24.4	
+2516.7	
+
+Dream-RSI	
+Gemini-3.1-Pro	
+317	
+2841.0	
+14616.0	
+49.9	
+30.2	
+16.4	
+32.5	
+2931.0	
+
+Gemini-3.7-Flash	
+1879	
+1091.9	
+12923.4	
+31.4	
+21.0	
+12.2	
+23.6	
+2350.6	
+
+(a) Final performance of running time (ms).
+
+ $100$ $300$ $500$ $3,000$ $4,000$ $5,000$ $6,000$ 1234512345Discovery ComputeAvg. Runtime (ms)Gemini-3.1-Pro $1,000$ $2,000$ $3,000$ $2,250$ $2,500$ $2,750$ $3,000$ 1234512345Discovery ComputeGemini-3.7-Flash
+
+Recursive Fixed ExplorationDream-RSI
+
+(b) Recursive Discovery Dynamics.
+
+Figure 4: 
+Lasso regularization-path discovery.
+(a) Final wall-clock runtime on six held-out tasks (lower is better). Compute is the cumulative number of discovery-agent calls.
+(b) Recursive discovery dynamics. Average runtime on the same six tasks versus cumulative discovery compute for Gemini 3.1-Pro/3.7-Flash; marker labels give the round. $\dagger$ denotes results reproduced by us.
+
+4.3 Algorithm Engineering
+
+In this task, we consider Lasso Regularization Path as our algorithm-engineering task, a fundamental computational primitive in high-dimensional statistics that is widely used in model selection and cross-validation across domains such as genomics and finance. We follow the benchmark setting of SimpleTES (Ye et al., 2026), where the goal is to discover efficient implementations of the complete Lasso regularization path while preserving numerical correctness. During discovery, we use the same 17 synthetic instances as SimpleTES, which cover diverse problem regimes in terms of dimensionality, sparsity, feature correlation, and active-set structure. To evaluate whether the discovered algorithms generalize beyond the search distribution, we additionally evaluate them on six held-out downstream datasets spanning biological and non-biological domains. We compare against standard Lasso solvers
+sklearn (Pedregosa et al., 2011) and
+glmnet (Friedman et al., 2010),
+as well as SimpleTES (Ye et al., 2026). We run both controlled baseline and Dream-RSI for 5 rounds.
+
+Main Results.
+
+Figure 4(a) summarizes the Lasso discovery results.
+Across both discovery-agent backbones, Dream-RSI achieves a better
+downstream quality–compute trade-off than Recursive Fixed Exploration.
+With Gemini-3.1 Pro, it reduces the average runtime across the six held-out
+datasets from 3587.1 ms to 2931.0 ms while using only 317 discovery-agent
+calls, compared with 550 calls for fixed exploration.
+With Gemini-3.7-Flash, Dream-RSI further reduces the average runtime
+from 2516.7 ms to 2350.6 ms using 1879 calls instead of 3200. Despite using substantially less discovery compute, the resulting solvers also
+outperform the standard sklearn and glmnet implementations on all six held-out
+datasets. Relative to SimpleTES’s reported 51,200 generations, our Pro
+and Flash runs use approximately 162 $\times$ and 27 $\times$ 
+fewer discovery-agent calls, respectively, with lower average
+downstream runtime, although these comparisons use different
+model backbones. For 3.1 Pro, the average improvement over fixed exploration is
+driven by RCV1, despite slower runtimes on the other five datasets.
+For 3.7 Flash, runtime improves on five of the six datasets.
+
+Recursive Discovery Dynamics.
+
+Figure 4(b) shows the trajectory of downstream performance across recursive discovery rounds against cumulative discovery compute. By design, both methods behave identically in the first round. Afterward, Recursive Fixed Exploration keeps a static exploration policy, while Dream-RSI iteratively refines and redeploys its policy by dreaming over accumulated discovery history. By the final round, Dream-RSI achieves lower average downstream runtime with fewer discovery-agent calls than Recursive Fixed Exploration on both backbones. We further examine the discovered solver, whose implementation appears in Appendix E.1. Unlike SimpleTES, which switches between LARS and coordinate descent by problem dimension, the discovered solver makes the active-set optimization itself adaptive. It pairs strong-rule screening with Cauchy–Schwarz KKT pruning, computing exact gradients only when necessary and falling back to a full refresh once pruning loses effectiveness.
+
+4.4 Harness Optimization
+
+ $0$ $10$ $20$ $30$ $40$ $50$ $60$ $0.72$ $0.74$ $0.76$ $0.78$ $0.8$ Seed: 0.7247 $0.7247\rightarrow 0.8090$ Number of GenerationsTB2.1 Score
+(a) Discovery Process
+
+CCTKMHDream-RSI $0.7$ $0.74$ $0.78$ $0.82$ $0.75$ $0.72$ $0.79$ $0.81$ MethodTB2.1 Score
+(b) Detailed Comparison
+
+Figure 5: 
+Harness optimization results of Dream-RSI.
+(a) Best-so-far TerminalBench2.1 score over the discovery process, improving the seed harness from 0.7247 to 0.8090.
+(b) Full-suite comparison against Claude Code (CC), Terminus-Kira (TK), and Meta-Harness (MH).
+
+We further evaluate Dream-RSI on the harness optimization task, where the goal is to improve the program surrounding a fixed language model, including how information is stored, retrieved, and presented during agent execution. We follow the setting of Meta-Harness (Lee et al., 2026) and initialize the discovery from Terminus-Kira as the seed harness. Each discovered harness is evaluated on the full Terminal-Bench 2.1 (Merrill et al., 2026) suite of 89 tasks, with two independent runs per task. We use Claude Opus 4.8 with Claude Code as both the discovery agent and the policy-development agent, while harness evaluation is also performed with Claude Opus 4.8. We reproduce Meta-Harness following its original search protocol, using Opus 4.8 for both search and evaluation.
+
+Results.
+
+Figure 5 shows that Dream-RSI improves the harness throughout the discovery process, increasing the full-suite score from 0.7247 to 0.8090. The discovered harness also outperforms Claude Code (0.75) and Meta-Harness (0.79) under the same evaluation setting.
+
+5 Further Analysis
+
+Analysis of Replay World Accumulation
+
+Table 2: Effect of accumulated discovery history on ConvDiv.
+
+Method	
+Performance $\uparrow$ 	
+Compute $\downarrow$ 	
+
+Dream-RSI (All History)	
+1.90	
+786	
+
+Current History Only	
+1.59	
+430	
+
+We study the effect of accumulating replay worlds across recursive rounds.
+Table 2 shows that Dream-RSI achieves a performance of 1.90 using the full discovery history, compared with 1.59 when replay is restricted to the current round. Accumulating replay worlds may help learn a more general exploration policy and avoid overly conservative exploration associated with fitting to a single world.
+
+Analysis of Historical Inductive Biases in Long-Horizon Discovery
+
+ $0$ $250$ $500$ $750$ $1{,}000$ $0.4$ $0.8$ $1.2$ $1.6$ $2$ Number of GenerationsPerformance ( $1/\mathrm{ms}$ )Dream-RSIFixed ExplorationDream-RSI + GuidanceFixed + Guidance
+Figure 6: 
+ConvDiv discovery results. Replaying history beats simply using it as guidance.
+
+We further investigate how the nature of the historical inductive bias affects long-horizon discovery. A natural alternative for utilizing history is to abstract prior trajectories into high-level directional insights, which are directly injected into the prompt as explicit semantic guidance for subsequent rounds. To evaluate the efficacy of this prompt-level semantic guidance, we apply it to both Recursive Fixed Exploration and Dream-RSI. As illustrated in Figure 6, explicit directional guidance yields lower final performance for both methods on ConvDiv. This suggests that such guidance may constrain exploration.
+
+Analysis of Evolution of Exploration Behavior
+
+E0E1E2E3E4E5E6E7E8 $0.5$ $1$ $1.5$ $2$ 0.4270.6250.8551.4031.4881.4991.7701.8801.898Performance (1/ms)
+
+(a) Round-best performance
+
+E0E1E2E3E4E5E6E7E8 $0$ $50$ $100$ 11011087805092809186Recursive execution roundEvaluated attempts
+
+(b) Exploration effort
+
+Figure 7: 
+Evolution of exploration behavior on ConvDiv.
+(a) Round-best performance across recursive execution rounds.
+(b) The number of evaluated attempts in each round.
+
+Figure 7 illustrates how the learned exploration policy evolves across recursive rounds on ConvDiv. The exploration policy exhibits an adaptive pattern: as performance improves, it initially conserves discovery compute (e.g., reducing the number of evaluated attempts from 110 to 50). When progress subsequently plateaus, it increases exploration effort again, coinciding with further performance gains.
+
+6 Related Work
+
+AI-Driven Scientific and Algorithmic Discovery.
+
+LLM-based discovery systems iteratively generate, evaluate, and refine candidate solutions using prior artifacts and feedback, as in AlphaEvolve (Novikov et al., 2025), OpenEvolve (Sharma, 2025), CodeEvolve (Assumpção et al., 2025), ShinkaEvolve (Lange et al., 2026), PACEvolve (Yan et al., 2026b), DeltaEvolve (Jiang et al., 2026) and MLEvolve Du et al. (2026). More recent work emphasizes the importance of exploration itself: SkyDiscover provides adaptive discovery infrastructure (Liu et al., 2026b), SwarmResearch dynamically orchestrates multiple search branches (Virk et al., 2026), and EvoX (Liu et al., 2026a) explicitly optimizes search strategies rather than only candidate solutions. This shift makes exploration a meta-level optimization problem, but useful supervision for exploration strategies is expensive and delayed because their quality often becomes apparent only after long discovery rollouts.
+
+Self-Evolving Agents.
+
+A broader line of work studies agents that improve their own components during interaction. Prior methods evolve model weights (Huang et al., 2026c; Huang et al., 2026a; Li et al., 2026a), agent harnesses (Lee et al., 2026; Zhang et al., 2026b), contexts (Zhang et al., 2026d), skills (Zhang et al., 2026a; Ouyang et al., 2026a; Wu et al., 2026b), model behavior through test-time learning (Wang et al., 2025; Yuksekgonul et al., 2026; Yan et al., 2026a; Wu et al., 2026a), rubrics (Xiong et al., 2026), environments (Huang et al., 2026b; Li et al., 2026c; Li et al., 2026b) and other applications (Dai et al., 2026). Most operate at the object level, improving components used for task execution or reasoning. Recent work has begun to optimize meta-level mechanisms, including search strategies and self-improvement procedures (Liu et al., 2026a; Yan et al., 2026a; Wang et al., 2026; Zhang et al., 2026c; Kim et al., 2026). However, such meta-level strategies are difficult to improve because their quality is often revealed only after costly long-horizon rollouts. Dream-RSI turns accumulated discovery history into replay simulators for off-policy evaluation and refinement of exploration policies, then redeploys the selected policy for new online discovery, closing a recursive self-improvement loop.
+
+Memory, History, and Experience Reuse.
+
+Prior work reuses agent experience as search history, context, memory, reusable skills, or training signals. DeltaEvolve structures evolutionary history through semantic deltas (Jiang et al., 2026); SwarmResearch and MLEvolve use cross-branch or retrospective information to guide subsequent search (Virk et al., 2026; Du et al., 2026); and other work improves how agents access and retain experience through evolving contexts, broader harness state, libraries, or skills (Zhang et al., 2026d; Lee et al., 2026; Xu et al., 2026; Ouyang et al., 2026a). We take a different view: rather than using exploration history only as context or memory for the next decision, we organize it as a replay simulator in which many alternative exploration controllers can be evaluated cheaply. This turns previously collected discovery experience into reusable feedback for meta-level optimization, alleviating the scarcity and high cost of training signals.
+
+7 Conclusion
+
+We presented Dream-RSI, a framework for the recursive self-improvement of exploration policies in long-horizon discovery. The central idea in Dream-RSI is to convert accumulated discovery history from static context into an active, replayable simulator, directly targeting the core bottleneck of meta-optimization: delayed and expensive feedback. By "dreaming" within replay simulators constructed from historical discovery trees, Dream-RSI evaluates candidate exploration policies rapidly and at negligible execution cost. Improved policies are then redeployed online, driving further discovery and expanding the simulator pool -- closing the recursive self-improvement loop. Our experiments demonstrate competitive discovery quality across diverse domains and improved discovery-agent-call efficiency in several settings.
+
+References
+
+Anthropic (2026)
+
+Anthropic.
+
+Learning more about claude’s mathematical capabilities.
+
+https://www.anthropic.com/research/riemann-zeta, Aug. 2026.
+
+Accessed: 2026-08-13.
+
+Assumpção et al. (2025)
+
+H. Assumpção, D. Ferreira, L. Campos, and F. Murai.
+
+Codeevolve: an open source evolutionary coding agent for algorithmic discovery and optimization.
+
+arXiv preprint arXiv:2510.14150, 2025.
+
+Cao et al. (2026)
+
+S. Cao, Z. Mao, J. E. Gonzalez, and I. Stoica.
+
+K-search: Llm kernel generation via co-evolving intrinsic world model.
+
+arXiv preprint arXiv:2602.19128, 2026.
+
+Dai et al. (2026)
+
+R. Dai, K. Huang, C. Kang, and C. Liao.
+
+It takes two to match: Co-evolving generative retriever with reinforcement learning.
+
+arXiv preprint arXiv:2609.00638, 2026.
+
+Du et al. (2026)
+
+S. Du, X. Yan, J. Shi, Z. Cao, S. Feng, Z. Liang, B. Sun, T. Peng, Y. Zhou, X. Li, et al.
+
+Mlevolve: A self-evolving framework for automated machine learning algorithm discovery.
+
+arXiv preprint arXiv:2606.06473, 2026.
+
+Friedman et al. (2010)
+
+J. H. Friedman, T. Hastie, and R. Tibshirani.
+
+Regularization paths for generalized linear models via coordinate descent.
+
+Journal of statistical software, 33:1–22, 2010.
+
+Georgiev et al. (2025)
+
+B. Georgiev, J. Gómez-Serrano, T. Tao, and A. Z. Wagner.
+
+Mathematical exploration and discovery at scale.
+
+arXiv preprint arXiv:2511.02864, 2025.
+
+Gupta et al. (2017)
+
+S. Gupta, J. Davidson, S. Levine, R. Sukthankar, and J. Malik.
+
+Cognitive mapping and planning for visual navigation.
+
+In Proceedings of the IEEE conference on computer vision and pattern recognition, pages 2616–2625, 2017.
+
+Ha and Schmidhuber (2018)
+
+D. Ha and J. Schmidhuber.
+
+World models.
+
+arXiv preprint arXiv:1803.10122, 2(3):440, 2018.
+
+Hafner et al. (2019)
+
+D. Hafner, T. Lillicrap, J. Ba, and M. Norouzi.
+
+Dream to control: Learning behaviors by latent imagination.
+
+arXiv preprint arXiv:1912.01603, 2019.
+
+Hafner et al. (2020)
+
+D. Hafner, T. Lillicrap, M. Norouzi, and J. Ba.
+
+Mastering atari with discrete world models.
+
+arXiv preprint arXiv:2010.02193, 2020.
+
+Hafner et al. (2023)
+
+D. Hafner, J. Pasukonis, J. Ba, and T. Lillicrap.
+
+Mastering diverse domains through world models.
+
+arXiv preprint arXiv:2301.04104, 2023.
+
+Hafner et al. (2025)
+
+D. Hafner, W. Yan, and T. Lillicrap.
+
+Training agents inside of scalable world models.
+
+arXiv preprint arXiv:2509.24527, 2025.
+
+Hu et al. (2025)
+
+Y. Hu, S. Liu, Y. Yue, G. Zhang, B. Liu, F. Zhu, J. Lin, H. Guo, S. Dou, Z. Xi, et al.
+
+Memory in the age of ai agents.
+
+arXiv preprint arXiv:2512.13564, 2025.
+
+Huang et al. (2026a)
+
+C. Huang, H. Liu, T. Zheng, R. Dai, L. Huang, J. Li, Z. Li, Z. Wei, Y. Meng, and J. Huang.
+
+G-zero: Self-play for open-ended generation from zero data.
+
+arXiv preprint arXiv:2605.09959, 2026a.
+
+Huang et al. (2026b)
+
+C. Huang, Z. Wang, R. Han, J. Yan, Y. Chen, Z. CuiZhu, K. Jiang, P. Xia, H. Yu, Y. Zhuang, et al.
+
+Envharness: Awakening static worlds for agent learning.
+
+arXiv preprint arXiv:2608.19880, 2026b.
+
+Huang et al. (2026c)
+
+C. Huang, W. Yu, X. Wang, H. Zhang, Z. Li, R. Li, J. Huang, H. Mi, and D. Yu.
+
+R-zero: Self-evolving reasoning llm from zero data.
+
+In International Conference on Learning Representations, volume 2026, pages 130770–130790, 2026c.
+
+Jaber and Jaber (2026)
+
+J. Jaber and O. Jaber.
+
+Autokernel: Autonomous gpu kernel optimization via iterative agent-driven search.
+
+arXiv preprint arXiv:2603.21331, 2026.
+
+Jiang et al. (2026)
+
+J. Jiang, T. Ding, and Z. Zhu.
+
+Deltaevolve: Accelerating scientific discovery through momentum-driven evolution.
+
+arXiv preprint arXiv:2602.02919, 2026.
+
+Kim et al. (2026)
+
+Z. M. Kim, Y.-J. Lee, S. Jwa, and D. Kang.
+
+Metan: Recursive self-improvement through emergent depth.
+
+arXiv preprint arXiv:2608.24735, 2026.
+
+Lange et al. (2026)
+
+R. Lange, Y. Imajuku, and E. Cetin.
+
+Shinkaevolve: Towards open-ended and sample-efficient program evolution.
+
+In International Conference on Learning Representations, volume 2026, pages 74026–74078, 2026.
+
+Lee et al. (2026)
+
+Y. Lee, R. Nair, Q. Zhang, K. Lee, O. Khattab, and C. Finn.
+
+Meta-harness: End-to-end optimization of model harnesses.
+
+arXiv preprint arXiv:2603.28052, 2026.
+
+Li et al. (2026a)
+
+Z. Li, H. Du, C. Huang, X. Wu, L. Yu, Y. He, J. Xie, X. Wu, Z. Liu, J. Zhang, et al.
+
+Mm-zero: Self-evolving multi-model vision language models from zero data.
+
+arXiv preprint arXiv:2603.09206, 2026a.
+
+Li et al. (2026b)
+
+Z. Li, Z. Li, Y. Shi, R. Wang, J. Yang, Z. Liu, X. Wu, A. Li, Y. Yu, N. Liu, et al.
+
+Long-horizon-terminal-bench: Testing the limits of agents on long-horizon terminal tasks with dense reward-based grading.
+
+arXiv preprint arXiv:2607.08964, 2026b.
+
+Li et al. (2026c)
+
+Z. Li, Y. Shi, Z. Li, R. Wang, A. Li, Z. Huang, J. Yang, L. Ke, N. Liu, H. Mi, et al.
+
+Recursive synthesis for long-horizon terminal tasks.
+
+arXiv preprint arXiv:2608.05466, 2026c.
+
+Liu et al. (2026a)
+
+S. Liu, S. Agarwal, M. Maheswaran, M. Cemri, Z. Li, Q. Mang, A. Naren, E. Boneh, A. Cheng, M. Z. Pan, et al.
+
+Evox: Meta-evolution for automated discovery.
+
+arXiv preprint arXiv:2602.23413, 2026a.
+
+Liu et al. (2026b)
+
+S. Liu, M. Cemri, S. Agarwal, A. Krentsel, A. Naren, Q. Mang, Z. Li, A. Gupta, M. Maheswaran, A. Cheng, M. Pan, E. Boneh, K. Ramchandran, K. Sen, M. Zaharia, A. G. Dimakis, and I. Stoica.
+
+Skydiscover: A flexible, adaptive framework for ai-driven scientific and algorithmic discovery.
+
+In Proceedings of the ACM Conference on AI and Agentic Systems, CAIS ’26, pages 1223–1227. Association for Computing Machinery, 2026b.
+
+10.1145/3786335.3813221.
+
+URL https://doi.org/10.1145/3786335.3813221.
+
+Liu et al. (2026c)
+
+S. Liu, Z. Lin, Y. Zhang, Y. Ren, Y. Wu, Y. Li, Z. Wang, Z. Fu, and J. Ye.
+
+The path to recursive self-improving agents: Foundation, framework, and future directions.
+
+Preprints, August 2026c.
+
+10.20944/preprints202608.0051.v1.
+
+URL https://doi.org/10.20944/preprints202608.0051.v1.
+
+M. Moerland et al. (2023)
+
+T. M. Moerland, J. Broekens, A. Plaat, and C. M. Jonker.
+
+Model-based reinforcement learning: A survey.
+
+Foundations and Trends in Machine Learning, 16(1):1–118, 2023.
+
+Merrill et al. (2026)
+
+M. Merrill, A. Shaw, N. Carlini, B. Li, H. Raj, I. Bercovich, L. Shi, J. Shin, T. Walshe, E. K. Buchanan, et al.
+
+Terminal-bench: Benchmarking agents on hard, realistic tasks in command line interfaces.
+
+In International Conference on Learning Representations, volume 2026, pages 40903–40986, 2026.
+
+Novikov et al. (2025)
+
+A. Novikov, N. Vũ, M. Eisenberger, E. Dupont, P.-S. Huang, A. Z. Wagner, S. Shirobokov, B. Kozlovskii, F. J. Ruiz, A. Mehrabian, et al.
+
+Alphaevolve: A coding agent for scientific and algorithmic discovery.
+
+arXiv preprint arXiv:2506.13131, 2025.
+
+OpenAI (2026)
+
+OpenAI.
+
+On the navier–stokes millennium prize problem.
+
+https://openai.com/index/navier-stokes-solution/, Sept. 2026.
+
+Accessed: 2026-09-10.
+
+Ouyang et al. (2025)
+
+A. Ouyang, S. Guo, S. Arora, A. L. Zhang, W. Hu, C. Ré, and A. Mirhoseini.
+
+Kernelbench: Can llms write efficient gpu kernels?
+
+arXiv preprint arXiv:2502.10517, 2025.
+
+Ouyang et al. (2026a)
+
+S. Ouyang, J. Yan, Y. Chen, R. Han, Z. Wang, B. D. Mishra, R. Meng, C.-L. Li, Y. Jiao, K. Zha, et al.
+
+Skillos: Learning skill curation for self-evolving agents.
+
+arXiv preprint arXiv:2605.06614, 2026a.
+
+Ouyang et al. (2026b)
+
+S. Ouyang, J. Yan, I. Hsu, Y. Chen, K. Jiang, Z. Wang, R. Han, L. Le, S. Daruki, X. Tang, et al.
+
+Reasoningbank: Scaling agent self-evolving with reasoning memory.
+
+In International Conference on Learning Representations, volume 2026, pages 94327–94354, 2026b.
+
+Pedregosa et al. (2011)
+
+F. Pedregosa, G. Varoquaux, A. Gramfort, V. Michel, B. Thirion, O. Grisel, M. Blondel, P. Prettenhofer, R. Weiss, V. Dubourg, et al.
+
+Scikit-learn: Machine learning in python.
+
+the Journal of machine Learning research, 12:2825–2830, 2011.
+
+Romera-Paredes et al. (2024)
+
+B. Romera-Paredes, M. Barekatain, A. Novikov, M. Balog, M. P. Kumar, E. Dupont, F. J. Ruiz, J. S. Ellenberg, P. Wang, O. Fawzi, et al.
+
+Mathematical discoveries from program search with large language models.
+
+Nature, 625(7995):468–475, 2024.
+
+Sharma (2025)
+
+A. Sharma.
+
+Openevolve: an open-source evolutionary coding agent, 2025.
+
+URL https://github.com/algorithmicsuperintelligence/openevolve.
+
+Sutton (1990)
+
+R. S. Sutton.
+
+Integrated architectures for learning, planning, and reacting based on approximating dynamic programming.
+
+In B. Porter and R. Mooney, editors, Machine Learning Proceedings 1990, pages 216–224. Morgan Kaufmann, San Francisco (CA), 1990.
+
+ISBN 978-1-55860-141-3.
+
+https://doi.org/10.1016/B978-1-55860-141-3.50030-4.
+
+URL https://www.sciencedirect.com/science/article/pii/B9781558601413500304.
+
+Virk et al. (2026)
+
+Y. Virk, Z. Edds, C. S. Xia, and L. Zhang.
+
+Swarmresearch: Orchestrating coding agents for open-ended discovery.
+
+arXiv preprint arXiv:2607.02807, 2026.
+
+Wang et al. (2025)
+
+Y. Wang, S.-R. Su, Z. Zeng, E. Xu, L. Ren, X. Yang, Z. Huang, X. He, L. Ma, B. Peng, et al.
+
+Thetaevolve: Test-time learning on open problems.
+
+arXiv preprint arXiv:2511.23473, 2025.
+
+Wang et al. (2026)
+
+Z. Wang, M. Yan, J. Bi, S. Yan, V. Tresp, and Y. Ma.
+
+Metaskill-evolve: Recursive self-improvement of llm agents via two-timescale meta-skill evolution.
+
+arXiv preprint arXiv:2607.05297, 2026.
+
+Wu et al. (2026a)
+
+S. Wu, C. Qian, X. Chen, and H. Ji.
+
+Teaching llms to self-evolve: Cultivating core meta-skills with reinforcement learning.
+
+arXiv preprint arXiv:2607.21971, 2026a.
+
+Wu et al. (2026b)
+
+X. Wu, Y. Zhuan, R. Wei, H. Chen, D. Bai, J. Liu, X. Wang, X. Wang, L. Wang, and X. Cheng.
+
+Agenticrectune: Multi-agent with self-evolving skillhub for recommendation system optimization.
+
+arXiv preprint arXiv:2604.26969, 2026b.
+
+Xiong et al. (2026)
+
+T. Xiong, Z. Yang, X. Wang, C.-C. Lin, R. Ma, K. Lin, Z. Wang, L. Li, C. Liu, R. Chen, et al.
+
+Rubrics as visual-repair context for self-evolving ui-to-code generation.
+
+arXiv preprint arXiv:2608.24138, 2026.
+
+Xu et al. (2026)
+
+W. Xu, A. Sordoni, C. Singh, Z. Gero, M. Galley, X. Yuan, and J. Gao.
+
+Test-time learning with an evolving library.
+
+arXiv preprint arXiv:2605.14477, 2026.
+
+Yan et al. (2026a)
+
+M. Yan, B. Peng, B. Coleman, Z. Chen, Z. Xie, S. Chen, Z. He, N. Sachdeva, W. Wang, E. H. Chi, et al.
+
+Pacevolve++: Improving test-time learning for evolutionary search agents.
+
+arXiv preprint arXiv:2605.07039, 2026a.
+
+Yan et al. (2026b)
+
+M. Yan, B. Peng, B. Coleman, Z. Chen, Z. Xie, S. Chen, Z. He, N. Sachdeva, I. Ye, W. Wang, et al.
+
+Pacevolve: Enabling long-horizon progress-aware consistent evolution.
+
+arXiv preprint arXiv:2601.10657, 2026b.
+
+Ye et al. (2026)
+
+H. Ye, H. Lin, J. Tang, Y. Luo, C. Yang, C. Su, R. Thapa, R. Yang, R. Liu, Z. Li, et al.
+
+Evaluation-driven scaling for scientific discovery.
+
+arXiv preprint arXiv:2604.19341, 2026.
+
+Yuksekgonul et al. (2026)
+
+M. Yuksekgonul, D. Koceja, X. Li, F. Bianchi, J. McCaleb, X. Wang, J. Kautz, Y. Choi, J. Zou, C. Guestrin, et al.
+
+Learning to discover at test time.
+
+arXiv preprint arXiv:2601.16175, 2026.
+
+Zhang et al. (2026a)
+
+H. Zhang, S. Fan, H. P. Zou, Y. Chen, Z. Wang, J. Zhou, C. Li, W.-C. Huang, Y. Yao, K. Zheng, et al.
+
+Coevoskills: Self-evolving agent skills via co-evolutionary verification.
+
+arXiv preprint arXiv:2604.01687, 2026a.
+
+Zhang et al. (2026b)
+
+J. Zhang, S. Hu, C. Lu, R. Lange, and J. Clune.
+
+Darwin gödel machine: open-ended evolution of self-improving agents.
+
+In International Conference on Learning Representations, volume 2026, pages 104223–104294, 2026b.
+
+Zhang et al. (2026c)
+
+J. Zhang, B. Zhao, W. Yang, J. Foerster, J. Clune, M. Jiang, S. Devlin, and T. Shavrina.
+
+Hyperagents.
+
+arXiv preprint arXiv:2603.19461, 2026c.
+
+Zhang et al. (2026d)
+
+Q. Zhang, C. Hu, S. Upasani, B. Ma, F. Hong, V. Kamanuru, J. Rainton, C. Wu, M. Ji, H. Li, et al.
+
+Agentic context engineering: Evolving contexts for self-improving language models.
+
+In International Conference on Learning Representations, volume 2026, pages 86069–86100, 2026d.
+
+Zheng et al. (2026a)
+
+T. Zheng, H. Liu, C. Huang, H. Bao, S. Zhang, R. Liu, R. Dai, R. Chen, C. Liu, T. Xiong, et al.
+
+Llms improving llms: Agentic discovery for test-time scaling.
+
+arXiv preprint arXiv:2605.08083, 2026a.
+
+Zheng et al. (2026b)
+
+T. Zheng, H. Zhang, W. Yu, X. Wang, H. Xing, R. Dai, R. Liu, H. Bao, C. Huang, H. Huang, et al.
+
+Parallel-r1: Towards parallel thinking via reinforcement learning.
+
+In International Conference on Learning Representations, volume 2026, pages 121144–121166, 2026b.
+
+Appendix A AI Use Statement
+
+In this work, we used generative AI tools as the API in the experiments, as described in the paper: we use Gemini 3.1 Pro in the Section 4.1,4.2,4.3, Gemini 3.7 Flash in Section 4.3 and Claude Opus 4.8 with Claude Code in the Section4.4. Additionally, we used Gemini 3.8 Flash for writing and grammar correction. We have reviewed all AI-assisted work. We take responsibility for the final content of this work, including text, claims or artifacts produced with the aid of generative AI.
+
+Appendix B Detailed Experimental Settings
+
+B.1 Evaluation Environments
+
+Lasso regularization-path discovery.
+
+We evaluate candidate solvers in a KVM virtual machine with an AMD EPYC 7B12 processor, 8 vCPUs, and 32 GB RAM, running Debian-based Linux. The evaluation protocol follows Ye et al. (2026).
+
+GPU kernel engineering.
+
+We evaluate candidate kernels on an NVIDIA L40S GPU. Numerical correctness is checked against the reference PyTorch implementation following the official KernelBench protocol (Ouyang et al., 2025).
+
+Mathematical optimization.
+
+We use the same hardware environment as for Lasso regularization-path discovery.
+
+Harness optimization.
+
+We evaluate candidate harnesses on a CPU server with 96 physical cores (192 logical CPUs) and 708 GiB RAM, using Docker to provide isolated task execution environments.
+
+B.2 Discovery Configuration
+
+Table 3 summarizes the discovery configurations. Each offline phase evaluates the current policy and three newly generated policy versions ( $M=4$ ). The parenthesized budget decomposition specifies the maximum number of branches and attempts per branch, including the initial attempt. These budgets are upper limits; actual discovery-agent calls depend on the policy’s allocation and stopping decisions.
+
+Table 3: 
+Discovery configurations.
+ $T$ denotes the number of online discovery rounds,
+ $W$ the maximum number of parallel workers,
+ $B$ the maximum discovery-agent calls per online round,
+and $M$ the number of candidate policies evaluated per offline phase,
+including the current policy.
+
+Task	
+Discovery Model	
+ $\boldsymbol{T}$ 	
+ $\boldsymbol{W}$ 	
+ $\boldsymbol{B}$ 	
+ $\boldsymbol{M}$ 	
+
+Lasso	
+Gemini-3.1-Pro	
+5	
+10	
+ $110\;(10\times 11)$ 	
+4	
+
+Lasso	
+Gemini-3.7-Flash	
+5	
+32	
+ $640\;(32\times 20)$ 	
+4	
+
+VGG16	
+Gemini-3.1-Pro	
+9	
+10	
+ $110\;(10\times 11)$ 	
+4	
+
+LayerNorm	
+Gemini-3.1-Pro	
+9	
+10	
+ $110\;(10\times 11)$ 	
+4	
+
+ConvDiv	
+Gemini-3.1-Pro	
+9	
+10	
+ $110\;(10\times 11)$ 	
+4	
+
+ConvMax	
+Gemini-3.1-Pro	
+9	
+10	
+ $110\;(10\times 11)$ 	
+4	
+
+Sum–Difference	
+Gemini-3.1-Pro	
+10	
+10	
+ $110\;(10\times 11)$ 	
+4	
+
+Autocorrelation	
+Gemini-3.1-Pro	
+10	
+10	
+ $110\;(10\times 11)$ 	
+4	
+
+Circle Packing	
+Gemini-3.1-Pro	
+10	
+10	
+ $110\;(10\times 11)$ 	
+4	
+
+Harness Optimization	
+Claude Opus 4.8	
+9	
+4	
+ $16\;(4\times 4)$ 	
+4	
+
+B.3 Detailed Task Description
+
+Problem 1 (Lasso Regularization Path)
+
+Given a feature matrix
+ $X\in\mathbb{R}^{n\times p}$ ,
+response $y\in\mathbb{R}^{n}$ ,
+and a decreasing sequence
+ $\lambda_{1}>\cdots>\lambda_{K}$ ,
+define
+
+ $F_{k}(w):=\frac{1}{2n}\|y-Xw\|_{2}^{2}+\lambda_{k}\|w\|_{1},\qquad w_{k}^{\star}\in\arg\min_{w\in\mathbb{R}^{p}}F_{k}(w).$ 
+
+A candidate solver returns approximate coefficients
+ $\widetilde{W}=(\widetilde{w}_{1},\ldots,\widetilde{w}_{K})$ .
+It passes the benchmark’s objective-value check if
+
+ $F_{k}(\widetilde{w}_{k})\leq F_{k}(w_{k,\mathrm{sklearn}})+10^{-6},\qquad\text{for every }k,$ 
+
+where correctness is checked on fresh instances distinct from the timing
+instances. If any required check fails, the search score is zero.
+Otherwise, letting $\mathcal{I}$ denote the timing instances and $t_{i}$ the
+time required to compute the complete regularization path on instance $i$ ,
+the search score is
+
+ $R_{\mathrm{search}}=\left(\prod_{i\in\mathcal{I}}t_{i}\right)^{-1/|\mathcal{I}|}.$ 
+
+Problem 2 (Sum–Difference Problem)
+
+The Sum–Difference Problem asks for a finite set
+ $A\subset\mathbb{Z}$ 
+whose normalized sumset is large relative to its normalized difference set.
+The objective is
+
+ $\Gamma(A):=\frac{\log\!\left(|A+A|/|A|\right)}{\log\!\left(|A-A|/|A|\right)},$ 
+
+where
+
+ $A+A:=\{a+a^{\prime}:a,a^{\prime}\in A\},\hskip 18.49988ptA-A:=\{a-a^{\prime}:a,a^{\prime}\in A\}.$ 
+
+The goal is to construct a finite set $A\subset\mathbb{Z}$ that maximizes
+ $\Gamma(A)$ .
+
+Problem 3 (Circle Packing in a Unit Square)
+
+For $n\in\{26,32\}$ , the circle-packing task asks for centers
+ $(x_{i},y_{i})\in[0,1]^{2}$ 
+and radii $r_{i}\geq 0$ such that every circle lies inside the unit square
+and no two circles overlap:
+
+ $r_{i}\leq x_{i}\leq 1-r_{i},\hskip 18.49988ptr_{i}\leq y_{i}\leq 1-r_{i},$ 
+
+ $(x_{i}-x_{j})^{2}+(y_{i}-y_{j})^{2}\geq(r_{i}+r_{j})^{2},\hskip 18.49988pt1\leq i
+
+The objective is to maximize
+
+ $\sum_{i}r_{i}.$ 
+
+Problem 4 (Autocorrelation Inequalities)
+
+For an integrable function $f:\mathbb{R}\to\mathbb{R}$ , define the
+autoconvolution
+
+ $(f*f)(t):=\int_{\mathbb{R}}f(t-x)f(x)\,dx,\hskip 18.49988ptt\in\left[-\frac{1}{2},\frac{1}{2}\right].$ 
+
+First Autocorrelation Inequality.
+Find a non-negative integrable function
+ $f:\mathbb{R}\to\mathbb{R}$ 
+supported on
+ $\left[-\frac{1}{4},\frac{1}{4}\right]$ 
+such that
+
+ $\int_{-1/4}^{1/4}f(x)\,dx=1.$ 
+
+The objective is to minimize
+
+ $\Phi_{1}(f):=\max_{t\in[-1/2,\,1/2]}(f*f)(t).$ 
+
+Second Autocorrelation Inequality.
+Find a non-negative integrable function
+ $f:\mathbb{R}\to\mathbb{R}$ 
+supported on
+ $\left[-\frac{1}{4},\frac{1}{4}\right]$ 
+such that
+
+ $\int_{-1/4}^{1/4}f(x)\,dx=1.$ 
+
+The objective is to maximize
+
+ $\Phi_{2}(f):=\frac{\|f*f\|_{2}^{2}}{\|f*f\|_{1}\|f*f\|_{\infty}}.$ 
+
+Third Autocorrelation Inequality.
+Find an integrable (possibly signed) function
+ $f:\mathbb{R}\to\mathbb{R}$ 
+supported on
+ $\left[-\frac{1}{4},\frac{1}{4}\right]$ 
+such that
+
+ $\int_{-1/4}^{1/4}f(x)\,dx=1.$ 
+
+The objective is to minimize
+
+ $\Phi_{3}(f):=\max_{t\in[-1/2,\,1/2]}\left|(f*f)(t)\right|.$ 
+
+Problem 5 (VGG16)
+
+The VGG16 task asks for an efficient implementation of the forward pass of a
+VGG16 network. The input is
+
+ $x\in\mathbb{R}^{10\times 3\times 224\times 224},$ 
+
+and the network consists of five convolutional blocks. Each convolution uses a
+ $3\times 3$ kernel with stride $1$ and padding $1$ , followed by a ReLU
+activation. The channel configurations of the five blocks are
+
+ $(64,64),\hskip 9.24994pt(128,128),\hskip 9.24994pt(256,256,256),\hskip 9.24994pt(512,512,512),\hskip 9.24994pt(512,512,512),$ 
+
+with a $2\times 2$ max-pooling operation of stride $2$ after each block.
+After the final pooling layer, the resulting
+ $512\times 7\times 7$ feature map is flattened and passed through three fully
+connected layers,
+
+ $512\cdot 7\cdot 7\;\rightarrow\;4096\;\rightarrow\;4096\;\rightarrow\;1000,$ 
+
+with ReLU activations after the first two layers. Dropout is disabled
+( $p=0$ ). The final output is
+
+ $y\in\mathbb{R}^{10\times 1000}.$ 
+
+The goal is to produce an implementation numerically equivalent to the
+reference PyTorch computation while minimizing GPU execution time.
+
+Problem 6 (ConvDiv)
+
+The ConvDiv task applies a sequence of 3D convolution, scaling, pooling, and
+reduction operations. The input is
+
+ $x\in\mathbb{R}^{128\times 8\times 16\times 64\times 64}.$ 
+
+First, a 3D convolution with $8$ input channels, $16$ output channels, and a
+ $3\times 3\times 3$ kernel is applied without padding:
+
+ $z=\operatorname{Conv3D}(x)\in\mathbb{R}^{128\times 16\times 14\times 62\times 62}.$ 
+
+The convolution output is divided by $2$ and then passed through
+ $2\times 2\times 2$ max pooling:
+
+ $u=\operatorname{MaxPool}_{2\times 2\times 2}\left(\frac{z}{2}\right)\in\mathbb{R}^{128\times 16\times 7\times 31\times 31}.$ 
+
+Global average pooling is subsequently applied over the three spatial
+dimensions,
+
+ $v_{b,c}=\frac{1}{7\cdot 31\cdot 31}\sum_{d,h,w}u_{b,c,d,h,w},$ 
+
+giving
+
+ $v\in\mathbb{R}^{128\times 16\times 1\times 1\times 1}.$ 
+
+A learnable channel-wise bias
+
+ $\beta\in\mathbb{R}^{16\times 1\times 1\times 1}$ 
+
+is then added, followed by summation over the channel dimension:
+
+ $y_{b}=\sum_{c=1}^{16}\left(v_{b,c}+\beta_{c}\right).$ 
+
+The output has shape
+
+ $y\in\mathbb{R}^{128\times 1\times 1\times 1}.$ 
+
+The goal is to compute this operator chain exactly up to the benchmark’s
+numerical tolerance while minimizing GPU execution time.
+
+Problem 7 (ConvMax)
+
+The ConvMax task consists of a 3D convolution followed by max pooling,
+channel-wise log-sum-exp reduction, and ReLU. The input is
+
+ $x\in\mathbb{R}^{4\times 32\times 32\times 128\times 128}.$ 
+
+A 3D convolution maps $32$ input channels to $64$ output channels using a
+ $3\times 3\times 3$ kernel with stride $1$ and padding $1$ :
+
+ $z=\operatorname{Conv3D}(x)\in\mathbb{R}^{4\times 64\times 32\times 128\times 128}.$ 
+
+This is followed by $2\times 2\times 2$ max pooling with stride $2$ ,
+
+ $u=\operatorname{MaxPool}_{2\times 2\times 2}(z)\in\mathbb{R}^{4\times 64\times 16\times 64\times 64}.$ 
+
+The channel dimension is then reduced using log-sum-exp:
+
+ $s_{b,1,d,h,w}=\log\left(\sum_{c=1}^{64}\exp(u_{b,c,d,h,w})\right),$ 
+
+and the final output is
+
+ $y=\operatorname{ReLU}(s)\in\mathbb{R}^{4\times 1\times 16\times 64\times 64}.$ 
+
+The goal is to produce an implementation numerically equivalent to the
+reference computation while minimizing GPU execution time.
+
+Problem 8 (Layer Normalization)
+
+The LayerNorm task applies layer normalization to an input tensor
+
+ $x\in\mathbb{R}^{16\times 64\times 256\times 256}.$ 
+
+Normalization is performed independently for each batch element over the
+remaining three dimensions. Let
+
+ $M=64\cdot 256\cdot 256.$ 
+
+For each batch element $b$ , define
+
+ $\mu_{b}=\frac{1}{M}\sum_{c,h,w}x_{b,c,h,w},$ 
+
+and
+
+ $\sigma_{b}^{2}=\frac{1}{M}\sum_{c,h,w}\left(x_{b,c,h,w}-\mu_{b}\right)^{2}.$ 
+
+The normalized output is
+
+ $y_{b,c,h,w}=\gamma_{c,h,w}\frac{x_{b,c,h,w}-\mu_{b}}{\sqrt{\sigma_{b}^{2}+\epsilon}}+\beta_{c,h,w},$ 
+
+where
+
+ $\gamma,\beta\in\mathbb{R}^{64\times 256\times 256}$ 
+
+are learnable affine parameters and
+ $\epsilon=10^{-5}$ .
+The output has the same shape as the input,
+
+ $y\in\mathbb{R}^{16\times 64\times 256\times 256}.$ 
+
+The goal is to match the reference LayerNorm computation within the
+benchmark’s numerical tolerance while minimizing GPU execution time.
+
+Appendix C Results of PACEvolve (Yan et al., 2026b) on KernelBench
+
+ $0.16$ $0.17$ $0.18$ $0.19$ $0.2$ $0.21$ Performance ( $1/\mathrm{ms}$ )VGG16 $0.6$ $0.7$ $0.8$ $0.9$ $1$ $1.1$ LayerNorm $0$ $100$ $200$ $300$ $400$ $0.2$ $0.3$ $0.4$ $0.5$ $0.6$ $0.7$ Number of GenerationsPerformance ( $1/\mathrm{ms}$ )ConvDiv $0$ $100$ $200$ $300$ $400$ $0.16$ $0.2$ $0.24$ $0.28$ Number of GenerationsConvMax
+Figure 8: Evolution of the best-so-far kernel performance discovered by PACEvolve on four KernelBench tasks under a 48-hour wall-clock budget. Performance is measured as inverse runtime ( $1/\mathrm{ms}$ ), with higher values indicating faster kernels.
+
+We present the detailed discovery process of PACEvolve (Yan et al., 2026b) on KernelBench in Figure 8. For a controlled comparison, we allow PACEvolve a 48-hour wall-clock budget on each task and report its best-so-far performance throughout the search.
+
+Appendix D Prompts
+
+For reproducibility, we provide the prompts used for online exploration and
+replay-based exploration-policy improvement.
+Variables enclosed by dollar signs or braces are instantiated by the runtime
+system before execution.
+
+D.1 Exploration Prompt
+
+The following prompt is used to guide the discovery agent during online
+exploration. It requires the agent to inspect the complete available discovery
+history before proposing a new solution, explicitly reason about both successful
+and failed attempts, and avoid repeatedly exploiting a locally saturated
+direction.
+
+Listing 1: Prompt used for online exploration.
+
+⬇
+
+ 1
+
+ You must read every historical proposal before proposing or implementing a new solution.
+
+ 2
+
+ 3
+
+ $direction_guidance
+
+ 4
+
+ 5
+
+ Variables (‘$node_dir‘, ‘$history_dir‘, ‘$baseline_dir‘, ‘$eval_program‘, ‘$problem_file‘) are filled in by the calling system. ‘$node_dir‘ is your own attempt directory --- exclude it when scanning sibling ‘attempt_*/‘ dirs.
+
+ 6
+
+ 7
+
+ ## 1. Read the complete history first
+
+ 8
+
+ 9
+
+ Before proposing anything, read every ‘proposal.md‘ under sibling ‘attempt_*/‘ dirs, ‘$history_dir‘, and ‘$baseline_dir‘ in full --- not a sample, not just recent cycles or the current branch. For each, read its matching ‘eval/score.json‘ (and ‘error.txt‘ if it failed). Trust the measured result over what the proposal claims about itself.
+
+ 10
+
+ 11
+
+ ## 2. Learn from both successes and failures
+
+ 12
+
+ 13
+
+ For every past attempt, note the mechanism and how it did. For failures, figure out *why*: a flawed core idea, or a good idea let down by a bug, bad parameters, or an implementation slip? Don’t repeat the former. The latter is worth retrying --- but only once you’ve actually located the bug in the code (not just guessed from the proposal), and only with a specific fix in hand.
+
+ 14
+
+ 15
+
+ ## 3. Don’t converge into a local optimum
+
+ 16
+
+ 17
+
+ Look at the shape of what’s been tried. If most attempts cluster around small variations of one mechanism with flattening returns, that’s a local optimum - resist proposing another small tweak there. Deliberately favor a structurally different mechanism or an untried combination over a safer marginal refinement. Exploration diversity matters as much as the next incremental gain.
+
+ 18
+
+ 19
+
+ ## 4. Propose and implement
+
+ 20
+
+ 21
+
+ The new idea must be a genuinely new mechanism, a new combination of previously-successful pieces, or a targeted fix to a specific bug found in step 2 - never a repeat or rename of something already tried. Implement it in ‘$eval_program‘. Don’t claim it compiles, is correct, or beats SOTA until it’s actually evaluated.
+
+ 22
+
+ 23
+
+ ## Files
+
+ 24
+
+ 25
+
+ Write only ‘$node_dir/proposal.md‘ (mechanism, evidence from history, why it’s not a repeat, expected benefit/risk) and ‘$node_dir/$eval_program‘. Everything else is read-only.
+
+ 26
+
+ 27
+
+ ## Note:
+
+ 28
+
+ Never execute pkill, kill, killall, or terminate unrelated processes.
+
+D.2 Replay-Based Policy Improvement Prompt
+
+The following prompt is used by the controller-development agent during
+historical replay. The agent modifies the exploration policy using feedback
+obtained from replay over previously collected discovery trajectories while
+remaining restricted to prefix-observable information.
+
+Listing 2: Prompt used for replay-based improvement of the exploration policy.
+
+⬇
+
+ 1
+
+ You are improving one **prefix-only exploration policy**. Edit only
+
+ 2
+
+ ‘‘{method_file}‘‘ and implement ‘‘OptimalPolicy.solve(self, question, budget=None)‘‘.
+
+ 3
+
+ Do not solve the scientific task and do not edit any other program.
+
+ 4
+
+ 5
+
+ ## Objective: quality, work, and parallelism
+
+ 6
+
+ 7
+
+ The environment is a frozen, irregular branch×attempt grid. A policy opens a root
+
+ 8
+
+ or refines the next cell of an already-open branch. Each revealed cell costs one
+
+ 9
+
+ probe. The policy sees only the cells it has revealed so far; unrevealed scores are
+
+ 10
+
+ unknown.
+
+ 11
+
+ 12
+
+ The evaluator sweeps your single ‘‘beta‘‘ knob and ranks the resulting curve by:
+
+ 13
+
+ 14
+
+ pareto.reward = pareto.auc - lambda * parallel_penalty
+
+ 15
+
+ 16
+
+ ‘‘pareto.auc‘‘ rewards reaching high per-trace attainment with few **total probes**.
+
+ 17
+
+ ‘‘parallel_penalty‘‘ is the mean of
+
+ 18
+
+ ‘‘effective_sequential_rounds / total_probes‘‘ over the sweep. For a batch of size
+
+ 19
+
+ ‘‘k‘‘ with ‘‘W = question.max_parallelism‘‘ workers, it costs one decision round and
+
+ 20
+
+ ‘‘ceil(k / W)‘‘ effective sequential rounds. A serial policy has penalty near 1;
+
+ 21
+
+ useful full batches approach ‘‘1/W‘‘. Therefore choose only promising probes, but
+
+ 22
+
+ batch independent promising probes whenever possible.
+
+ 23
+
+ 24
+
+ A local implementation failure does not by itself prove that its parent direction
+
+ 25
+
+ is poor. Weigh recovery value against new roots and ordinary refinements while
+
+ 26
+
+ keeping batches parallel.
+
+ 27
+
+ 28
+
+ ## API
+
+ 29
+
+ 30
+
+ question.reset()
+
+ 31
+
+ question.observed() -> dict[str, Observation] # revealed prefix only
+
+ 32
+
+ question.legal_actions() -> list[str] # roots + opened-branch frontiers
+
+ 33
+
+ question.legal_roots() -> list[str] # unopened roots only
+
+ 34
+
+ question.opened_branches() -> list[int]
+
+ 35
+
+ question.meta(cell_id) -> CellMeta # .branch .attempt .parent_id .seq .tags
+
+ 36
+
+ question.probe_batch(cells, on_reveal=...) -> list[Observation]
+
+ 37
+
+ question.baseline_score
+
+ 38
+
+ question.max_parallelism
+
+ 39
+
+ 40
+
+ ‘‘Observation‘‘ supplies ‘‘branch‘‘, ‘‘attempt‘‘, ‘‘score‘‘, ‘‘evaluated‘‘, ‘‘valid‘‘,
+
+ 41
+
+ ‘‘fail_class‘‘, ‘‘error‘‘, ‘‘delta_vs_baseline‘‘, ‘‘delta_vs_parent‘‘, ‘‘n_valid‘‘, and
+
+ 42
+
+ ‘‘n_total‘‘.
+
+ 43
+
+ Use the helpers in ‘‘see.policy.observation_signal‘‘ when useful:
+
+ 44
+
+ ‘‘branch_promising‘‘, ‘‘branch_failed_hard‘‘, ‘‘probe_improved_vs_parent‘‘, and
+
+ 45
+
+ ‘‘probe_improved_vs_baseline‘‘.
+
+ 46
+
+ 47
+
+ **Success semantics:** an evaluated observation with ‘‘error is None‘‘ and
+
+ 48
+
+ ‘‘fail_class == "ok"‘‘ is a successful evaluation, even when ‘‘valid == False‘‘ or
+
+ 49
+
+ ‘‘n_valid‘‘/‘‘n_total‘‘ are unavailable. Never label it repairable solely because
+
+ 50
+
+ ‘‘valid‘‘ is false. A *successful anchor* below means the best historical score
+
+ 51
+
+ from such a successful evaluation.
+
+ 52
+
+ 53
+
+ Do **not** use ‘‘question.best_so_far‘‘ or ‘‘question.budget_spent‘‘ to decide what
+
+ 54
+
+ to explore; they are bookkeeping only. Derive any decision statistic from
+
+ 55
+
+ ‘‘question.observed()‘‘ instead.
+
+ 56
+
+ 57
+
+ ## Required branch trajectory and failure interpretation
+
+ 58
+
+ 59
+
+ For each opened branch, reconstruct its ordered prefix trajectory, not only its
+
+ 60
+
+ latest observation or best score: successful anchor, score trend, regressions,
+
+ 61
+
+ failure/repair sequence, and explored versus remaining depth.
+
+ 62
+
+ 63
+
+ Before closing or deprioritizing a failed frontier, classify it as
+
+ 64
+
+ hard-unrecoverable, repairable implementation failure, weak-but-underexplored, or
+
+ 65
+
+ repeatedly unpromising after sufficient valid evidence. Output/correctness mismatch,
+
+ 66
+
+ shared-memory/resource limits, and variable/code, mask/layout/shape errors are
+
+ 67
+
+ normally repairable. Do not infer algorithmic failure from one such error.
+
+ 68
+
+ ‘‘n_valid == 0‘‘ and ‘‘branch_failed_hard(obs)‘‘ are signals, not unconditional
+
+ 69
+
+ closure: use ‘‘fail_class‘‘ and ‘‘error‘‘ to distinguish a repairable zero-valid
+
+ 70
+
+ failure from an environment/dependency failure. ‘‘compile_other‘‘ alone is not
+
+ 71
+
+ permanently hard. Classify the current failure episode: a later successful result
+
+ 72
+
+ reopens the branch and cancels closure based only on an earlier failure.
+
+ 73
+
+ 74
+
+ ## Required batch decision loop
+
+ 75
+
+ 76
+
+ At each decision round:
+
+ 77
+
+ 78
+
+ 1. Read the prefix, reconstruct trajectories, and close only branches with
+
+ 79
+
+ cumulative evidence of being hard-unrecoverable or repeatedly unpromising.
+
+ 80
+
+ 2. Rank legal roots and legal branch frontiers using only prefix-derived signals:
+
+ 81
+
+ successful anchor, parent $\rightarrow$ child gain, complete branch trajectory, actual success
+
+ 82
+
+ versus failure evidence,
+
+ 83
+
+ failure recoverability, prior repair outcomes, remaining depth, and cross-branch
+
+ 84
+
+ comparison.
+
+ 85
+
+ 3. Rank actual repairable failures and underexplored frontiers in deterministic
+
+ 86
+
+ queues using trajectory, recoverability, remaining depth, repeated failures, and
+
+ 87
+
+ beta. A repairable failure retains eligibility unless cumulative evidence lowers
+
+ 88
+
+ its relative priority.
+
+ 89
+
+ 4. Build one **dynamic portfolio** batch of independent candidates, up to
+
+ 90
+
+ ‘‘question.max_parallelism‘‘: exploitation (strong normal refinements),
+
+ 91
+
+ exploration (new roots or underexplored branches), and at most one recovery
+
+ 92
+
+ (an actual repairable failure). When multiple roles are eligible, give
+
+ 93
+
+ exploration and justified recovery representation before filling remaining slots
+
+ 94
+
+ by priority; adapt this to prefix evidence rather than fixed quotas. Recovery
+
+ 95
+
+ must not displace normal successful refinements or leave workers idle. Never
+
+ 96
+
+ sample randomly, and do not default to a singleton merely because its top
+
+ 97
+
+ candidate is clear.
+
+ 98
+
+ 5. Stop only after considering the whole revealed portfolio: active, underexplored,
+
+ 99
+
+ recoverable, unopened, and remaining legal candidates. Do not stop while an
+
+ 100
+
+ eligible high-priority recovery or underexplored candidate remains; every
+
+ 101
+
+ remaining action needs an evidence-based decision to continue, reserve, or close.
+
+ 102
+
+ 103
+
+ A batch must contain distinct cells that are all legal *before* the call. It may
+
+ 104
+
+ contain several roots and/or one frontier from each opened branch. It must never
+
+ 105
+
+ contain a parent and its child together. Do not use a fixed widen-all / deepen-all
+
+ 106
+
+ wave schedule: adapt batch composition after every revealed prefix.
+
+ 107
+
+ 108
+
+ Minimal structure:
+
+ 109
+
+ 110
+
+ from see.policy.api import (
+
+ 111
+
+ LLMDesignedMethod, SimResult, _budget_done, _record_curve, finalize_result,
+
+ 112
+
+ )
+
+ 113
+
+ 114
+
+ def solve(self, question, budget=None):
+
+ 115
+
+ question.reset()
+
+ 116
+
+ res, closed = SimResult(), set()
+
+ 117
+
+ while not _budget_done(question, budget):
+
+ 118
+
+ prefix = question.observed()
+
+ 119
+
+ update_closed(closed, prefix, question)
+
+ 120
+
+ batch = select_batch(prefix, question, closed)
+
+ 121
+
+ if not batch:
+
+ 122
+
+ break
+
+ 123
+
+ question.probe_batch(
+
+ 124
+
+ batch,
+
+ 125
+
+ on_reveal=lambda _: _record_curve(res, question),
+
+ 126
+
+ )
+
+ 127
+
+ return finalize_result(question, res)
+
+ 128
+
+ 129
+
+ ## Hard constraints
+
+ 130
+
+ 131
+
+ - Keep ‘‘NAME = "OptimalPolicy"‘‘ and implement
+
+ 132
+
+ ‘‘class OptimalPolicy(LLMDesignedMethod)‘‘ in ‘‘{method_file}‘‘ only.
+
+ 133
+
+ - **Prefix-only:** decisions may use revealed observations, ‘‘baseline_score‘‘, legal
+
+ 134
+
+ sets, structural ‘‘meta‘‘, and helper signals. Never use unrevealed scores, a true
+
+ 135
+
+ optimum, hardcoded winning cell ids, absolute score targets, or internal trace data.
+
+ 136
+
+ - Every prune, widen, deepen, batch, and stop decision must be explainable from the
+
+ 137
+
+ current prefix. Shallow weak scores are not enough to discard a branch: deeper
+
+ 138
+
+ attempts can recover. A repairable latest failure must not erase its historical
+
+ 139
+
+ successful anchor or by itself cause permanent starvation.
+
+ 140
+
+ - Replay calls with ‘‘budget=None‘‘. Always terminate when no batch is selected; do
+
+ 141
+
+ not assume a budget cap exists.
+
+ 142
+
+ - A selected batch must be legal, have no duplicate ids, and contain at most
+
+ 143
+
+ ‘‘question.max_parallelism‘‘ cells.
+
+ 144
+
+ 145
+
+ ## Beta: fixed per run, adaptive across cycles
+
+ 146
+
+ 147
+
+ Read exactly one scalar in ‘‘__init__‘‘:
+
+ 148
+
+ 149
+
+ beta = float(self.config.get("beta", <sensible_default>))
+
+ 150
+
+ 151
+
+ Beta has three distinct roles. Do not conflate them:
+
+ 152
+
+ 153
+
+ 1. **Within one replay or live episode:** beta is fixed. Route every behavioral
+
+ 154
+
+ threshold through one ‘‘_schedule(beta) -> dict‘‘. High beta means more width,
+
+ 155
+
+ deeper patience, and weaker pruning. Low beta means fewer probes, earlier
+
+ 156
+
+ stagnation stops, and stronger pruning. Never change beta from observations inside
+
+ 157
+
+ ‘‘solve()‘‘. Route recovery eligibility, reserve threshold, and waiting through
+
+ 158
+
+ the same schedule: high beta is more patient; low beta remains selective without
+
+ 159
+
+ treating one repairable failure as automatic closure.
+
+ 160
+
+ 2. **During offline evaluation:** eval sweeps a fixed beta grid. This measures whether
+
+ 161
+
+ the policy exposes a real attainment/work/parallelism trade-off; it is not online
+
+ 162
+
+ beta adaptation.
+
+ 163
+
+ 3. **When proposing the next policy version:** choose the baked-in default beta once,
+
+ 164
+
+ using evidence from earlier *live* cycles and their beta sweeps. That default will
+
+ 165
+
+ remain fixed throughout the next live exploration episode.
+
+ 166
+
+ 167
+
+ Keep all thresholds relative to the prefix; never use absolute score cutoffs.
+
+ 168
+
+ 169
+
+ Use the following cross-cycle default-beta rule. Read the most recent 2--3
+
+ 170
+
+ **live** ‘‘trace_pool/iter*/live_cycle_manifest.json‘‘ sidecars (and ‘‘_current‘‘
+
+ 171
+
+ when present) for each iteration’s final best score and actual baked-in beta. Read
+
+ 172
+
+ the matching archived ‘‘beta_sweep.json‘‘ values (‘‘pareto.reward‘‘, AUC, parallel
+
+ 173
+
+ penalty, and the per-beta frontier). Scores alone do not establish that beta caused a
+
+ 174
+
+ change, so always use both sources:
+
+ 175
+
+ 176
+
+ - live best is still improving: keep the prior default beta unless its sweep clearly
+
+ 177
+
+ shows a better nearby beta;
+
+ 178
+
+ - live best has plateaued, and higher beta reaches higher attainment for a reasonable
+
+ 179
+
+ work/parallelism cost in the sweep: raise the default by a small step (about
+
+ 180
+
+ 0.1--0.2, clamped to [0, 1]);
+
+ 181
+
+ - a high default beta has already been tried through a plateau, and high-beta sweep
+
+ 182
+
+ points add work without higher attainment: lower it by a small step;
+
+ 183
+
+ - history is insufficient or evidence conflicts: use a moderately exploratory default
+
+ 184
+
+ (about 0.6), rather than pretending the replay ceiling is a live stopping signal.
+
+ 185
+
+ 186
+
+ The beta sweep is non-degenerate only if beta changes the attainment/work trade-off.
+
+ 187
+
+ It also reveals whether the policy batches. Do not select the default simply as the
+
+ 188
+
+ smallest beta that reaches a frozen trace’s known ceiling.
+
+ 189
+
+ 190
+
+ ## Required next-cycle grid planning
+
+ 191
+
+ 192
+
+ Every proposed policy **must** implement this deterministic method:
+
+ 193
+
+ 194
+
+ from see.policy.api import GridPlan, GridPlanningContext
+
+ 195
+
+ 196
+
+ def plan_grid(self, context: GridPlanningContext) -> GridPlan:
+
+ 197
+
+ ...
+
+ 198
+
+ 199
+
+ This method runs **before** a new live grid is created. It does not make a
+
+ 200
+
+ within-episode decision and must never inspect a current episode’s outcomes.
+
+ 201
+
+ It must always return a non-‘‘None‘‘ ‘‘GridPlan‘‘: do not inherit the template
+
+ 202
+
+ stub and do not delegate grid choice to the runner’s fallback. When history is
+
+ 203
+
+ empty or insufficient, still return an explicit conservative bootstrap plan
+
+ 204
+
+ derived from the context’s fallback/hard-cap fields, with a factual reason.
+
+ 205
+
+ 206
+
+ ‘‘GridPlan(branch_count=W, refine_count=R)‘‘ accepts arbitrary integers, not a
+
+ 207
+
+ fixed set of presets. It creates branches ‘‘0..W-1‘‘ and attempts ‘‘0..R‘‘; ‘‘R‘‘ is
+
+ 208
+
+ the number of refinements allowed after each root. The runner validates
+
+ 209
+
+ ‘‘1 <= W <= context.hard_max_branch_count‘‘ and
+
+ 210
+
+ ‘‘0 <= R <= context.hard_max_refine_count‘‘. In replay, a requested plan beyond the
+
+ 211
+
+ frozen trace’s ‘‘context.trace_branch_count‘‘ or ‘‘context.trace_refine_count‘‘ is
+
+ 212
+
+ out of support and cannot earn replay reward.
+
+ 213
+
+ 214
+
+ Use only the prefix-safe facts in ‘‘context‘‘:
+
+ 215
+
+ 216
+
+ - ‘‘history‘‘: completed earlier live manifests, including prior planned/effective
+
+ 217
+
+ grids, actual opened width/depth, probe work, decision rounds, scores, and beta;
+
+ 218
+
+ - fallback/hard caps and worker cap;
+
+ 219
+
+ - replay structural support fields. Do not read raw trace outcomes or a current
+
+ 220
+
+ cycle result inside ‘‘plan_grid‘‘.
+
+ 221
+
+ 222
+
+ Choose width versus depth from evidence, not a default preference:
+
+ 223
+
+ 224
+
+ - many semantically distinct roots improve early while deeper refinements stall:
+
+ 225
+
+ increase width and reduce/hold depth;
+
+ 226
+
+ - high gains arrive late on a small, repeatable set of directions: reduce/hold width
+
+ 227
+
+ and increase depth;
+
+ 228
+
+ - all explored directions plateau after sufficient depth while meaningful direction
+
+ 229
+
+ classes remain uncovered: increase width;
+
+ 230
+
+ - repeated hard, unrecoverable failures or strongly redundant directions: reduce
+
+ 231
+
+ width and depth conservatively;
+
+ 232
+
+ - conflicting or insufficient history: return an explicit conservative bootstrap
+
+ 233
+
+ plan derived from the context, and state that evidence is insufficient.
+
+ 234
+
+ 235
+
+ Include a short, factual ‘‘reason‘‘ in every plan. ‘‘plan_grid‘‘ answers
+
+ 236
+
+ how many directions to make available; the direction provider assigns those new
+
+ 237
+
+ roots their directions, and ‘‘solve‘‘ still decides which legal roots/frontiers to
+
+ 238
+
+ open, refine, prune, or stop. Do not choose roots merely because their branch id is
+
+ 239
+
+ small. The runtime grid is the hard bound: controller thresholds may use less, but
+
+ 240
+
+ can never create branches or attempts beyond the effective plan. Before finishing,
+
+ 241
+
+ verify that the edited ‘‘method.py‘‘ contains an override of ‘‘plan_grid‘‘ that
+
+ 242
+
+ returns ‘‘GridPlan(branch_count=..., refine_count=..., reason=...)‘‘ on every path.
+
+ 243
+
+ 244
+
+ ## Learn from history without leaking outcomes
+
+ 245
+
+ 246
+
+ Earlier rounds are in ‘‘{history_dir}/r####_*/‘‘. Read their policy code and
+
+ 247
+
+ ‘‘proposal_results/beta_sweep.json‘‘. Start from a strong recent policy, retain
+
+ 248
+
+ mechanisms that raised ‘‘pareto.reward‘‘, and make a concrete change when progress
+
+ 249
+
+ stalls. A legacy AUC-only sweep is useful code history but is not numerically
+
+ 250
+
+ comparable to the current reward. The baseline under ‘‘{history_dir}/baseline/‘‘ is
+
+ 251
+
+ a parallel-refine floor to beat.
+
+ 252
+
+ 253
+
+ Each current-objective round also archives
+
+ 254
+
+ ‘‘proposal_results/policy_execution_traces.jsonl‘‘: one replay episode per
+
+ 255
+
+ ‘‘(frozen trace, beta)‘‘. Use it to diagnose general behavior --- serial batches,
+
+ 256
+
+ premature stops, over-pruning, or wasted probes --- from the prefix state, selected
+
+ 257
+
+ batch, and revealed outcomes at each decision round. It is **between-round feedback
+
+ 258
+
+ only**: never read it inside ‘‘solve()‘‘, and never copy a trace-specific branch,
+
+ 259
+
+ cell id, score, or target into policy logic.
+
+ 260
+
+ 261
+
+ ‘‘{trace_pool}‘‘, if present, may be read only outside ‘‘solve()‘‘. Prefer the
+
+ 262
+
+ ‘‘live_cycle_manifest.json‘‘ sidecars over raw replay outcomes for the per-iteration
+
+ 263
+
+ live trend. Never copy trace scores, targets, or cell ids into policy logic.
+
+ 264
+
+ 265
+
+ ## Deliverable
+
+ 266
+
+ 267
+
+ Write a complete adaptive policy in ‘‘{method_file}‘‘. Include a short module
+
+ 268
+
+ docstring describing its prefix signals, batch rule, beta schedule, default-beta
+
+ 269
+
+ rationale, grid-planning rule (if implemented), and safeguards against
+
+ 270
+
+ over-pruning, over-stopping, permanent starvation after repairable failures, and
+
+ 271
+
+ serial probes. Before finishing, verify trajectory-based ranking, the stated
+
+ 272
+
+ success semantics, non-automatic zero-valid closure, deterministic recovery
+
+ 273
+
+ competition, and portfolio-level stop.
+
+Appendix E Discovered Programs
+
+E.1 Lasso Regularization Path
+
+We provide the complete implementation of the Lasso-path solver discovered by
+Dream-RSI. As discussed in Section 4.3, the solver combines
+strong-rule screening with adaptive Cauchy–Schwarz KKT pruning, disjoint
+active-set bookkeeping, lazy Gram-matrix construction, and hardware-aware
+optimizations.
+
+Listing 3: Complete Lasso-path solver discovered by Dream-RSI.
+
+⬇
+
+ 1
+
+ # EVOLVE-BLOCK-START
+
+ 2
+
+ 3
+
+ CPP_CODE = r’’’
+
+ 4
+
+ #define EIGEN_NO_DEBUG
+
+ 5
+
+ #define EIGEN_MPL2_ONLY
+
+ 6
+
+ #define EIGEN_UNROLL_LOOPS
+
+ 7
+
+ 8
+
+ #include <Eigen/Dense>
+
+ 9
+
+ #include <vector>
+
+ 10
+
+ #include <cstdio>
+
+ 11
+
+ #include <cmath>
+
+ 12
+
+ #include <algorithm>
+
+ 13
+
+ #include <numeric>
+
+ 14
+
+ #include <omp.h>
+
+ 15
+
+ #include <cstdlib>
+
+ 16
+
+ #include <cstring>
+
+ 17
+
+ 18
+
+ using Eigen::MatrixXd;
+
+ 19
+
+ using Eigen::VectorXd;
+
+ 20
+
+ 21
+
+ #if defined(_MSC_VER)
+
+ 22
+
+ #define RESTRICT __restrict
+
+ 23
+
+ #elif defined(__GNUC__) || defined(__clang__)
+
+ 24
+
+ #define RESTRICT __restrict__
+
+ 25
+
+ #else
+
+ 26
+
+ #define RESTRICT
+
+ 27
+
+ #endif
+
+ 28
+
+ 29
+
+ // High-performance alignment assumption
+
+ 30
+
+ #if defined(__GNUC__) || defined(__clang__)
+
+ 31
+
+ #define ASSUME_ALIGNED(ptr, alignment) (double*)__builtin_assume_aligned((ptr), (alignment))
+
+ 32
+
+ #else
+
+ 33
+
+ #define ASSUME_ALIGNED(ptr, alignment) (ptr)
+
+ 34
+
+ #endif
+
+ 35
+
+ 36
+
+ // High-performance branch-free soft-thresholding using std::abs and std::copysign
+
+ 37
+
+ static inline double soft_thresh(double z, double gamma) {
+
+ 38
+
+ double abs_z = std::abs(z);
+
+ 39
+
+ double val = abs_z - gamma;
+
+ 40
+
+ return std::copysign(val > 0.0 ? val : 0.0, z);
+
+ 41
+
+ }
+
+ 42
+
+ 43
+
+ // ============================================================================
+
+ 44
+
+ // DISJOINT-PARTITION ACTIVE-SET LASSO PATH SOLVER WITH ALIGNED COLUMN PADDING
+
+ 45
+
+ // ============================================================================
+
+ 46
+
+ void solve_active_set(
+
+ 47
+
+ const double* RESTRICT X_padded,
+
+ 48
+
+ int n_padded,
+
+ 49
+
+ int n,
+
+ 50
+
+ int p,
+
+ 51
+
+ const VectorXd& y,
+
+ 52
+
+ const VectorXd& lam_path,
+
+ 53
+
+ const VectorXd& xv,
+
+ 54
+
+ const VectorXd& grad_init,
+
+ 55
+
+ MatrixXd& coef_path, // (p, n_lam) output, pre-zeroed
+
+ 56
+
+ double thresh, // convergence threshold
+
+ 57
+
+ int maxit) // max inner loop iterations
+
+ 58
+
+ {
+
+ 59
+
+ const double fn = static_cast<double>(n);
+
+ 60
+
+ const double inv_fn = 1.0 / fn;
+
+ 61
+
+ const double tol = thresh;
+
+ 62
+
+ const int nlam = lam_path.size();
+
+ 63
+
+ 64
+
+ // Workload-Aware flag for activating Cauchy-Schwarz KKT Pruning
+
+ 65
+
+ const bool use_cs = (p >= 500 && n >= 150);
+
+ 66
+
+ 67
+
+ // Initial capacity for active set structures - optimized to completely avoid reallocations on almost all problems
+
+ 68
+
+ int current_capacity = ((std::max(128, std::min(512, p)) + 7) / 8) * 8;
+
+ 69
+
+ 70
+
+ // Declare raw pointers for 64-byte aligned structures
+
+ 71
+
+ double* G_data = nullptr;
+
+ 72
+
+ double* c_data = nullptr;
+
+ 73
+
+ double* beta_active_data = nullptr;
+
+ 74
+
+ double* xv_active_data = nullptr;
+
+ 75
+
+ double* inv_xv_active_data = nullptr;
+
+ 76
+
+ double* grad_init_active_data = nullptr;
+
+ 77
+
+ double* beta_old_at_start = nullptr;
+
+ 78
+
+ 79
+
+ double* y_padded = nullptr;
+
+ 80
+
+ double* r_padded = nullptr;
+
+ 81
+
+ double* r_ref_padded = nullptr;
+
+ 82
+
+ 83
+
+ bool oom = false;
+
+ 84
+
+ 85
+
+ // Allocate 64-byte aligned arrays
+
+ 86
+
+ if (posix_memalign((void**)&G_data, 64, static_cast<size_t>(current_capacity) * current_capacity * sizeof(double)) != 0) goto cleanup;
+
+ 87
+
+ if (posix_memalign((void**)&c_data, 64, static_cast<size_t>(current_capacity) * sizeof(double)) != 0) goto cleanup;
+
+ 88
+
+ if (posix_memalign((void**)&beta_active_data, 64, static_cast<size_t>(current_capacity) * sizeof(double)) != 0) goto cleanup;
+
+ 89
+
+ if (posix_memalign((void**)&xv_active_data, 64, static_cast<size_t>(current_capacity) * sizeof(double)) != 0) goto cleanup;
+
+ 90
+
+ if (posix_memalign((void**)&inv_xv_active_data, 64, static_cast<size_t>(current_capacity) * sizeof(double)) != 0) goto cleanup;
+
+ 91
+
+ if (posix_memalign((void**)&grad_init_active_data, 64, static_cast<size_t>(current_capacity) * sizeof(double)) != 0) goto cleanup;
+
+ 92
+
+ if (posix_memalign((void**)&beta_old_at_start, 64, static_cast<size_t>(current_capacity) * sizeof(double)) != 0) goto cleanup;
+
+ 93
+
+ 94
+
+ if (posix_memalign((void**)&y_padded, 64, static_cast<size_t>(n_padded) * sizeof(double)) != 0) goto cleanup;
+
+ 95
+
+ if (posix_memalign((void**)&r_padded, 64, static_cast<size_t>(n_padded) * sizeof(double)) != 0) goto cleanup;
+
+ 96
+
+ if (posix_memalign((void**)&r_ref_padded, 64, static_cast<size_t>(n_padded) * sizeof(double)) != 0) goto cleanup;
+
+ 97
+
+ 98
+
+ std::fill(G_data, G_data + static_cast<size_t>(current_capacity) * current_capacity, 0.0);
+
+ 99
+
+ std::fill(c_data, c_data + current_capacity, 0.0);
+
+ 100
+
+ std::fill(beta_active_data, beta_active_data + current_capacity, 0.0);
+
+ 101
+
+ std::fill(xv_active_data, xv_active_data + current_capacity, 0.0);
+
+ 102
+
+ std::fill(inv_xv_active_data, inv_xv_active_data + current_capacity, 0.0);
+
+ 103
+
+ std::fill(grad_init_active_data, grad_init_active_data + current_capacity, 0.0);
+
+ 104
+
+ std::fill(beta_old_at_start, beta_old_at_start + current_capacity, 0.0);
+
+ 105
+
+ 106
+
+ std::memcpy(y_padded, y.data(), n * sizeof(double));
+
+ 107
+
+ for (int i = n; i < n_padded; ++i) y_padded[i] = 0.0;
+
+ 108
+
+ 109
+
+ std::memcpy(r_padded, y_padded, n_padded * sizeof(double));
+
+ 110
+
+ 111
+
+ // Consistently initialize r_ref_padded to y_padded (instead of all zeros) to guarantee 100% tight bounds at start
+
+ 112
+
+ std::memcpy(r_ref_padded, y_padded, n_padded * sizeof(double));
+
+ 113
+
+ 114
+
+ // Run the solver in a nested block to make goto compile-safe
+
+ 115
+
+ {
+
+ 116
+
+ VectorXd beta = VectorXd::Zero(p);
+
+ 117
+
+ 118
+
+ std::vector<char> screened(p, 0); // 1 if screened, 0 otherwise
+
+ 119
+
+ std::vector<int> active; // indices of active features (beta != 0)
+
+ 120
+
+ std::vector<int> feat_to_idx(p, -1); // maps feature to index in active set
+
+ 121
+
+ 122
+
+ // Disjoint tracking partition vectors
+
+ 123
+
+ std::vector<int> unscreened_list(p);
+
+ 124
+
+ std::vector<int> screened_list(p);
+
+ 125
+
+ std::vector<int> screened_to_idx(p, -1);
+
+ 126
+
+ 127
+
+ int unscreened_size = p;
+
+ 128
+
+ int screened_size = 0;
+
+ 129
+
+ for (int j = 0; j < p; ++j) {
+
+ 130
+
+ unscreened_list[j] = j;
+
+ 131
+
+ }
+
+ 132
+
+ 133
+
+ VectorXd grad = grad_init; // grad can be modified/overwritten
+
+ 134
+
+ 135
+
+ // Reference state for Cauchy-Schwarz KKT pruning
+
+ 136
+
+ VectorXd grad_ref;
+
+ 137
+
+ std::vector<double> s;
+
+ 138
+
+ int lambdas_since_reset = 0;
+
+ 139
+
+ 140
+
+ if (use_cs) {
+
+ 141
+
+ grad_ref = grad_init;
+
+ 142
+
+ s.resize(p);
+
+ 143
+
+ for (int j = 0; j < p; ++j) {
+
+ 144
+
+ s[j] = std::sqrt(xv(j) * inv_fn);
+
+ 145
+
+ }
+
+ 146
+
+ }
+
+ 147
+
+ 148
+
+ auto add_active = [&](int j) {
+
+ 149
+
+ if (feat_to_idx[j] != -1) return;
+
+ 150
+
+ 151
+
+ // O(1) swap-deletion from screened_list to maintain partition disjointness
+
+ 152
+
+ int idx_in_screened = screened_to_idx[j];
+
+ 153
+
+ if (idx_in_screened >= 0) {
+
+ 154
+
+ int last_j = screened_list[screened_size - 1];
+
+ 155
+
+ screened_list[idx_in_screened] = last_j;
+
+ 156
+
+ screened_to_idx[last_j] = idx_in_screened;
+
+ 157
+
+ --screened_size;
+
+ 158
+
+ screened_to_idx[j] = -1;
+
+ 159
+
+ }
+
+ 160
+
+ 161
+
+ int old_k = static_cast<int>(active.size());
+
+ 162
+
+ feat_to_idx[j] = old_k;
+
+ 163
+
+ active.push_back(j);
+
+ 164
+
+ int new_k = old_k + 1;
+
+ 165
+
+ 166
+
+ if (new_k > current_capacity) {
+
+ 167
+
+ int new_capacity = current_capacity * 2;
+
+ 168
+
+ 169
+
+ double* G_data2 = nullptr;
+
+ 170
+
+ double* c_data2 = nullptr;
+
+ 171
+
+ double* beta_active_data2 = nullptr;
+
+ 172
+
+ double* xv_active_data2 = nullptr;
+
+ 173
+
+ double* inv_xv_active_data2 = nullptr;
+
+ 174
+
+ double* grad_init_active_data2 = nullptr;
+
+ 175
+
+ double* beta_old_at_start2 = nullptr;
+
+ 176
+
+ 177
+
+ if (posix_memalign((void**)&G_data2, 64, static_cast<size_t>(new_capacity) * new_capacity * sizeof(double)) != 0) { oom = true; return; }
+
+ 178
+
+ if (posix_memalign((void**)&c_data2, 64, static_cast<size_t>(new_capacity) * sizeof(double)) != 0) { free(G_data2); oom = true; return; }
+
+ 179
+
+ if (posix_memalign((void**)&beta_active_data2, 64, static_cast<size_t>(new_capacity) * sizeof(double)) != 0) { free(G_data2); free(c_data2); oom = true; return; }
+
+ 180
+
+ if (posix_memalign((void**)&xv_active_data2, 64, static_cast<size_t>(new_capacity) * sizeof(double)) != 0) { free(G_data2); free(c_data2); free(beta_active_data2); oom = true; return; }
+
+ 181
+
+ if (posix_memalign((void**)&inv_xv_active_data2, 64, static_cast<size_t>(new_capacity) * sizeof(double)) != 0) { free(G_data2); free(c_data2); free(beta_active_data2); free(xv_active_data2); oom = true; return; }
+
+ 182
+
+ if (posix_memalign((void**)&grad_init_active_data2, 64, static_cast<size_t>(new_capacity) * sizeof(double)) != 0) { free(G_data2); free(c_data2); free(beta_active_data2); free(xv_active_data2); free(inv_xv_active_data2); oom = true; return; }
+
+ 183
+
+ if (posix_memalign((void**)&beta_old_at_start2, 64, static_cast<size_t>(new_capacity) * sizeof(double)) != 0) { free(G_data2); free(c_data2); free(beta_active_data2); free(xv_active_data2); free(inv_xv_active_data2); free(grad_init_active_data2); oom = true; return; }
+
+ 184
+
+ 185
+
+ std::fill(G_data2, G_data2 + static_cast<size_t>(new_capacity) * new_capacity, 0.0);
+
+ 186
+
+ 187
+
+ if (old_k > 0) {
+
+ 188
+
+ int old_k_padded = (old_k + 7) & ~7;
+
+ 189
+
+ for (int col = 0; col < old_k; ++col) {
+
+ 190
+
+ double* dest_col = G_data2 + col * new_capacity;
+
+ 191
+
+ const double* src_col = G_data + col * current_capacity;
+
+ 192
+
+ #pragma omp simd aligned(dest_col, src_col: 64)
+
+ 193
+
+ for (int row = 0; row < old_k_padded; ++row) {
+
+ 194
+
+ dest_col[row] = src_col[row];
+
+ 195
+
+ }
+
+ 196
+
+ }
+
+ 197
+
+ 198
+
+ #pragma omp simd aligned(c_data2, c_data: 64)
+
+ 199
+
+ for (int i = 0; i < old_k_padded; ++i) c_data2[i] = c_data[i];
+
+ 200
+
+ 201
+
+ #pragma omp simd aligned(beta_active_data2, beta_active_data: 64)
+
+ 202
+
+ for (int i = 0; i < old_k_padded; ++i) beta_active_data2[i] = beta_active_data[i];
+
+ 203
+
+ 204
+
+ #pragma omp simd aligned(xv_active_data2, xv_active_data: 64)
+
+ 205
+
+ for (int i = 0; i < old_k_padded; ++i) xv_active_data2[i] = xv_active_data[i];
+
+ 206
+
+ 207
+
+ #pragma omp simd aligned(inv_xv_active_data2, inv_xv_active_data: 64)
+
+ 208
+
+ for (int i = 0; i < old_k_padded; ++i) inv_xv_active_data2[i] = inv_xv_active_data[i];
+
+ 209
+
+ 210
+
+ #pragma omp simd aligned(grad_init_active_data2, grad_init_active_data: 64)
+
+ 211
+
+ for (int i = 0; i < old_k_padded; ++i) grad_init_active_data2[i] = grad_init_active_data[i];
+
+ 212
+
+ 213
+
+ #pragma omp simd aligned(beta_old_at_start2, beta_old_at_start: 64)
+
+ 214
+
+ for (int i = 0; i < old_k_padded; ++i) beta_old_at_start2[i] = beta_old_at_start[i];
+
+ 215
+
+ }
+
+ 216
+
+ 217
+
+ free(G_data);
+
+ 218
+
+ free(c_data);
+
+ 219
+
+ free(beta_active_data);
+
+ 220
+
+ free(xv_active_data);
+
+ 221
+
+ free(inv_xv_active_data);
+
+ 222
+
+ free(grad_init_active_data);
+
+ 223
+
+ free(beta_old_at_start);
+
+ 224
+
+ 225
+
+ G_data = G_data2;
+
+ 226
+
+ c_data = c_data2;
+
+ 227
+
+ beta_active_data = beta_active_data2;
+
+ 228
+
+ xv_active_data = xv_active_data2;
+
+ 229
+
+ inv_xv_active_data = inv_xv_active_data2;
+
+ 230
+
+ grad_init_active_data = grad_init_active_data2;
+
+ 231
+
+ beta_old_at_start = beta_old_at_start2;
+
+ 232
+
+ current_capacity = new_capacity;
+
+ 233
+
+ }
+
+ 234
+
+ 235
+
+ // SIMD 4x Register-Blocked Lazy Gram Precomputation (reduces column loads by 75%)
+
+ 236
+
+ const double* RESTRICT col_j = ASSUME_ALIGNED(X_padded + j * n_padded, 64);
+
+ 237
+
+ const bool run_parallel_lazy = (old_k >= 64 && static_cast<size_t>(n_padded) * old_k >= 150000);
+
+ 238
+
+ 239
+
+ #pragma omp parallel for schedule(static) if(run_parallel_lazy)
+
+ 240
+
+ for (int i = 0; i < (old_k / 4) * 4; i += 4) {
+
+ 241
+
+ const double* RESTRICT col0 = ASSUME_ALIGNED(X_padded + active[i] * n_padded, 64);
+
+ 242
+
+ const double* RESTRICT col1 = ASSUME_ALIGNED(X_padded + active[i+1] * n_padded, 64);
+
+ 243
+
+ const double* RESTRICT col2 = ASSUME_ALIGNED(X_padded + active[i+2] * n_padded, 64);
+
+ 244
+
+ const double* RESTRICT col3 = ASSUME_ALIGNED(X_padded + active[i+3] * n_padded, 64);
+
+ 245
+
+ 246
+
+ double sum0 = 0.0, sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
+
+ 247
+
+ #pragma omp simd reduction(+:sum0, sum1, sum2, sum3) aligned(col_j, col0, col1, col2, col3: 64)
+
+ 248
+
+ for (int k = 0; k < n_padded; ++k) {
+
+ 249
+
+ double vj = col_j[k];
+
+ 250
+
+ sum0 += vj * col0[k];
+
+ 251
+
+ sum1 += vj * col1[k];
+
+ 252
+
+ sum2 += vj * col2[k];
+
+ 253
+
+ sum3 += vj * col3[k];
+
+ 254
+
+ }
+
+ 255
+
+ 256
+
+ double r0 = sum0 * inv_fn;
+
+ 257
+
+ double r1 = sum1 * inv_fn;
+
+ 258
+
+ double r2 = sum2 * inv_fn;
+
+ 259
+
+ double r3 = sum3 * inv_fn;
+
+ 260
+
+ 261
+
+ G_data[old_k * current_capacity + i] = r0;
+
+ 262
+
+ G_data[i * current_capacity + old_k] = r0;
+
+ 263
+
+ 264
+
+ G_data[old_k * current_capacity + i + 1] = r1;
+
+ 265
+
+ G_data[(i + 1) * current_capacity + old_k] = r1;
+
+ 266
+
+ 267
+
+ G_data[old_k * current_capacity + i + 2] = r2;
+
+ 268
+
+ G_data[(i + 2) * current_capacity + old_k] = r2;
+
+ 269
+
+ 270
+
+ G_data[old_k * current_capacity + i + 3] = r3;
+
+ 271
+
+ G_data[(i + 3) * current_capacity + old_k] = r3;
+
+ 272
+
+ }
+
+ 273
+
+ 274
+
+ for (int i = (old_k / 4) * 4; i < old_k; ++i) {
+
+ 275
+
+ const double* RESTRICT col_act = ASSUME_ALIGNED(X_padded + active[i] * n_padded, 64);
+
+ 276
+
+ double dot_val = 0.0;
+
+ 277
+
+ #pragma omp simd reduction(+:dot_val) aligned(col_j, col_act: 64)
+
+ 278
+
+ for (int k = 0; k < n_padded; ++k) {
+
+ 279
+
+ dot_val += col_j[k] * col_act[k];
+
+ 280
+
+ }
+
+ 281
+
+ dot_val *= inv_fn;
+
+ 282
+
+ G_data[old_k * current_capacity + i] = dot_val;
+
+ 283
+
+ G_data[i * current_capacity + old_k] = dot_val;
+
+ 284
+
+ }
+
+ 285
+
+ G_data[old_k * current_capacity + old_k] = xv(j); // xv(j) is already scaled by inv_fn
+
+ 286
+
+ 287
+
+ // Zero-O(n) initial correlation computation
+
+ 288
+
+ double sum_val = 0.0;
+
+ 289
+
+ const double* RESTRICT G_col = ASSUME_ALIGNED(G_data + old_k * current_capacity, 64);
+
+ 290
+
+ const double* RESTRICT beta_act = ASSUME_ALIGNED(beta_active_data, 64);
+
+ 291
+
+ #pragma omp simd reduction(+:sum_val) aligned(G_col, beta_act: 64)
+
+ 292
+
+ for (int i = 0; i < old_k; ++i) {
+
+ 293
+
+ sum_val += G_col[i] * beta_act[i];
+
+ 294
+
+ }
+
+ 295
+
+ c_data[old_k] = grad_init(j) - sum_val;
+
+ 296
+
+ 297
+
+ xv_active_data[old_k] = xv(j);
+
+ 298
+
+ inv_xv_active_data[old_k] = 1.0 / xv(j);
+
+ 299
+
+ grad_init_active_data[old_k] = grad_init[j];
+
+ 300
+
+ beta_active_data[old_k] = 0.0;
+
+ 301
+
+ };
+
+ 302
+
+ 303
+
+ double prev_lam = 0.0;
+
+ 304
+
+ 305
+
+ // Preallocate vectors to avoid repeated heap allocation
+
+ 306
+
+ std::vector<int> to_activate;
+
+ 307
+
+ std::vector<int> screened_violators;
+
+ 308
+
+ std::vector<int> unscreened_violators;
+
+ 309
+
+ std::vector<int> to_compute;
+
+ 310
+
+ 311
+
+ to_activate.reserve(p);
+
+ 312
+
+ screened_violators.reserve(p);
+
+ 313
+
+ unscreened_violators.reserve(p);
+
+ 314
+
+ if (use_cs) {
+
+ 315
+
+ to_compute.reserve(p);
+
+ 316
+
+ }
+
+ 317
+
+ 318
+
+ for (int li = 0; li < nlam; ++li) {
+
+ 319
+
+ const double lam = lam_path(li);
+
+ 320
+
+ const double tlam = 2.0 * lam - prev_lam;
+
+ 321
+
+ 322
+
+ // ---- Step 1: Strong-rule screening (with O(1) swap-deletion) ----
+
+ 323
+
+ double* RESTRICT grad_ptr = grad.data();
+
+ 324
+
+ for (int i = 0; i < unscreened_size; ) {
+
+ 325
+
+ int j = unscreened_list[i];
+
+ 326
+
+ if (std::abs(grad_ptr[j]) > tlam) {
+
+ 327
+
+ screened[j] = 1;
+
+ 328
+
+ screened_to_idx[j] = screened_size;
+
+ 329
+
+ screened_list[screened_size++] = j;
+
+ 330
+
+ unscreened_list[i] = unscreened_list[--unscreened_size];
+
+ 331
+
+ } else {
+
+ 332
+
+ ++i;
+
+ 333
+
+ }
+
+ 334
+
+ }
+
+ 335
+
+ 336
+
+ // ---- Step 2: Outer loop ----
+
+ 337
+
+ int nlp = 0;
+
+ 338
+
+ while (true) {
+
+ 339
+
+ // 2a. Identify violating features among screened features
+
+ 340
+
+ to_activate.clear();
+
+ 341
+
+ const double KKT_bound_screen = lam * (1.0 + 1e-9);
+
+ 342
+
+ for (int i = 0; i < screened_size; ++i) {
+
+ 343
+
+ int j = screened_list[i];
+
+ 344
+
+ // At this point, screened_list only contains non-active screened features.
+
+ 345
+
+ // Absolutely no feat_to_idx branches needed!
+
+ 346
+
+ if (std::abs(grad_ptr[j]) > KKT_bound_screen) {
+
+ 347
+
+ to_activate.push_back(j);
+
+ 348
+
+ }
+
+ 349
+
+ }
+
+ 350
+
+ 351
+
+ // If some screened features violate KKT, add them to active set
+
+ 352
+
+ if (!to_activate.empty()) {
+
+ 353
+
+ for (int j : to_activate) {
+
+ 354
+
+ add_active(j);
+
+ 355
+
+ if (oom) goto cleanup;
+
+ 356
+
+ }
+
+ 357
+
+ }
+
+ 358
+
+ 359
+
+ // 2b. CD over active set until convergence
+
+ 360
+
+ int active_size = static_cast<int>(active.size());
+
+ 361
+
+ 362
+
+ // Save beta at the start of the outer iteration to track changes
+
+ 363
+
+ if (active_size > 0) {
+
+ 364
+
+ int active_size_padded = (active_size + 7) & ~7;
+
+ 365
+
+ #pragma omp simd aligned(beta_old_at_start, beta_active_data: 64)
+
+ 366
+
+ for (int i = 0; i < active_size_padded; ++i) {
+
+ 367
+
+ beta_old_at_start[i] = beta_active_data[i];
+
+ 368
+
+ }
+
+ 369
+
+ }
+
+ 370
+
+ 371
+
+ if (active_size > 0) {
+
+ 372
+
+ double dmax = tol; // Ensure at least one sweep
+
+ 373
+
+ while (dmax >= tol && nlp < maxit) {
+
+ 374
+
+ ++nlp;
+
+ 375
+
+ dmax = 0.0;
+
+ 376
+
+ for (int idx = 0; idx < active_size; ++idx) {
+
+ 377
+
+ const double bj_old = beta_active_data[idx];
+
+ 378
+
+ // Division-free gradient calculation
+
+ 379
+
+ const double gj = c_data[idx] + bj_old * xv_active_data[idx];
+
+ 380
+
+ const double bj_new = soft_thresh(gj, lam) * inv_xv_active_data[idx];
+
+ 381
+
+ if (bj_new == bj_old) continue;
+
+ 382
+
+ const double delta = bj_new - bj_old;
+
+ 383
+
+ beta_active_data[idx] = bj_new;
+
+ 384
+
+ 385
+
+ // Extremely fast SIMD cache update (padded up to a multiple of 8)
+
+ 386
+
+ int active_size_padded = (active_size + 7) & ~7;
+
+ 387
+
+ double* RESTRICT c_ptr = ASSUME_ALIGNED(c_data, 64);
+
+ 388
+
+ const double* RESTRICT G_col_ptr = ASSUME_ALIGNED(G_data + idx * current_capacity, 64);
+
+ 389
+
+ #pragma omp simd aligned(c_ptr, G_col_ptr: 64)
+
+ 390
+
+ for (int i = 0; i < active_size_padded; ++i) {
+
+ 391
+
+ c_ptr[i] -= delta * G_col_ptr[i];
+
+ 392
+
+ }
+
+ 393
+
+ 394
+
+ const double ch = xv_active_data[idx] * delta * delta;
+
+ 395
+
+ if (ch > dmax) dmax = ch;
+
+ 396
+
+ }
+
+ 397
+
+ }
+
+ 398
+
+ }
+
+ 399
+
+ 400
+
+ // Safety limit check
+
+ 401
+
+ if (nlp >= maxit) break;
+
+ 402
+
+ 403
+
+ // Incremental O(n) residual update & any_changed check (Raw-Pointer hand-vectorized loop)
+
+ 404
+
+ bool any_changed = false;
+
+ 405
+
+ if (active_size > 0) {
+
+ 406
+
+ double* RESTRICT r_ptr = ASSUME_ALIGNED(r_padded, 64);
+
+ 407
+
+ for (int idx = 0; idx < active_size; ++idx) {
+
+ 408
+
+ const double delta = beta_active_data[idx] - beta_old_at_start[idx];
+
+ 409
+
+ if (delta != 0.0) {
+
+ 410
+
+ const double* RESTRICT col_ptr = ASSUME_ALIGNED(X_padded + active[idx] * n_padded, 64);
+
+ 411
+
+ #pragma omp simd aligned(r_ptr, col_ptr: 64)
+
+ 412
+
+ for (int i = 0; i < n_padded; ++i) {
+
+ 413
+
+ r_ptr[i] -= delta * col_ptr[i];
+
+ 414
+
+ }
+
+ 415
+
+ any_changed = true;
+
+ 416
+
+ }
+
+ 417
+
+ }
+
+ 418
+
+ }
+
+ 419
+
+ 420
+
+ // O(k^2) exact re-sync of correlation cache c (Sparse-Skipping Custom Loop)
+
+ 421
+
+ if (any_changed && active_size > 0) {
+
+ 422
+
+ int active_size_padded = (active_size + 7) & ~7;
+
+ 423
+
+ #pragma omp simd aligned(c_data, grad_init_active_data: 64)
+
+ 424
+
+ for (int i = 0; i < active_size_padded; ++i) {
+
+ 425
+
+ c_data[i] = grad_init_active_data[i];
+
+ 426
+
+ }
+
+ 427
+
+ for (int j = 0; j < active_size; ++j) {
+
+ 428
+
+ const double bj = beta_active_data[j];
+
+ 429
+
+ if (bj != 0.0) {
+
+ 430
+
+ const double* RESTRICT G_col = ASSUME_ALIGNED(G_data + j * current_capacity, 64);
+
+ 431
+
+ double* RESTRICT c_ptr = ASSUME_ALIGNED(c_data, 64);
+
+ 432
+
+ #pragma omp simd aligned(c_ptr, G_col: 64)
+
+ 433
+
+ for (int i = 0; i < active_size_padded; ++i) {
+
+ 434
+
+ c_ptr[i] -= bj * G_col[i];
+
+ 435
+
+ }
+
+ 436
+
+ }
+
+ 437
+
+ }
+
+ 438
+
+ }
+
+ 439
+
+ 440
+
+ // 2c. Robust Two-Stage KKT check
+
+ 441
+
+ bool screened_kkt_ok = true;
+
+ 442
+
+ screened_violators.clear();
+
+ 443
+
+ const double KKT_bound = lam * (1.0 + 1e-9);
+
+ 444
+
+ 445
+
+ // SIMD 4x Register-Blocked Screened KKT Checks (reduces residual vector loads by 75%)
+
+ 446
+
+ const double* RESTRICT r_ptr = ASSUME_ALIGNED(r_padded, 64);
+
+ 447
+
+ const bool run_parallel_screened = (static_cast<size_t>(n_padded) * screened_size >= 150000);
+
+ 448
+
+ 449
+
+ #pragma omp parallel for schedule(static) if(run_parallel_screened)
+
+ 450
+
+ for (int i = 0; i < (screened_size / 4) * 4; i += 4) {
+
+ 451
+
+ int j0 = screened_list[i];
+
+ 452
+
+ int j1 = screened_list[i+1];
+
+ 453
+
+ int j2 = screened_list[i+2];
+
+ 454
+
+ int j3 = screened_list[i+3];
+
+ 455
+
+ 456
+
+ const double* RESTRICT col0 = ASSUME_ALIGNED(X_padded + j0 * n_padded, 64);
+
+ 457
+
+ const double* RESTRICT col1 = ASSUME_ALIGNED(X_padded + j1 * n_padded, 64);
+
+ 458
+
+ const double* RESTRICT col2 = ASSUME_ALIGNED(X_padded + j2 * n_padded, 64);
+
+ 459
+
+ const double* RESTRICT col3 = ASSUME_ALIGNED(X_padded + j3 * n_padded, 64);
+
+ 460
+
+ 461
+
+ double sum0 = 0.0, sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
+
+ 462
+
+ #pragma omp simd reduction(+:sum0, sum1, sum2, sum3) aligned(r_ptr, col0, col1, col2, col3: 64)
+
+ 463
+
+ for (int k = 0; k < n_padded; ++k) {
+
+ 464
+
+ double rk = r_ptr[k];
+
+ 465
+
+ sum0 += rk * col0[k];
+
+ 466
+
+ sum1 += rk * col1[k];
+
+ 467
+
+ sum2 += rk * col2[k];
+
+ 468
+
+ sum3 += rk * col3[k];
+
+ 469
+
+ }
+
+ 470
+
+ grad_ptr[j0] = sum0 * inv_fn;
+
+ 471
+
+ grad_ptr[j1] = sum1 * inv_fn;
+
+ 472
+
+ grad_ptr[j2] = sum2 * inv_fn;
+
+ 473
+
+ grad_ptr[j3] = sum3 * inv_fn;
+
+ 474
+
+ }
+
+ 475
+
+ 476
+
+ for (int i = (screened_size / 4) * 4; i < screened_size; ++i) {
+
+ 477
+
+ int j = screened_list[i];
+
+ 478
+
+ const double* RESTRICT col_ptr = ASSUME_ALIGNED(X_padded + j * n_padded, 64);
+
+ 479
+
+ double dot_val = 0.0;
+
+ 480
+
+ #pragma omp simd reduction(+:dot_val) aligned(r_ptr, col_ptr: 64)
+
+ 481
+
+ for (int k = 0; k < n_padded; ++k) {
+
+ 482
+
+ dot_val += col_ptr[k] * r_ptr[k];
+
+ 483
+
+ }
+
+ 484
+
+ grad_ptr[j] = dot_val * inv_fn;
+
+ 485
+
+ }
+
+ 486
+
+ 487
+
+ for (int i = 0; i < screened_size; ++i) {
+
+ 488
+
+ int j = screened_list[i];
+
+ 489
+
+ if (std::abs(grad_ptr[j]) > KKT_bound) {
+
+ 490
+
+ screened_violators.push_back(j);
+
+ 491
+
+ screened_kkt_ok = false;
+
+ 492
+
+ }
+
+ 493
+
+ }
+
+ 494
+
+ 495
+
+ if (!screened_kkt_ok) {
+
+ 496
+
+ // Add screened violators to active set and run CD again
+
+ 497
+
+ for (int j : screened_violators) {
+
+ 498
+
+ add_active(j);
+
+ 499
+
+ if (oom) goto cleanup;
+
+ 500
+
+ }
+
+ 501
+
+ continue; // Skip full KKT check, go back to CD
+
+ 502
+
+ }
+
+ 503
+
+ 504
+
+ // Only perform full KKT check on unscreened features if screened is 100% OK
+
+ 505
+
+ bool full_kkt_ok = true;
+
+ 506
+
+ unscreened_violators.clear();
+
+ 507
+
+ 508
+
+ if (use_cs) {
+
+ 509
+
+ // Dual-Phase Adaptive Cauchy-Schwarz KKT Pruning!
+
+ 510
+
+ double d2 = 0.0;
+
+ 511
+
+ const double* RESTRICT r_curr_ptr = ASSUME_ALIGNED(r_padded, 64);
+
+ 512
+
+ const double* RESTRICT r_ref_ptr = ASSUME_ALIGNED(r_ref_padded, 64);
+
+ 513
+
+ #pragma omp simd reduction(+:d2) aligned(r_curr_ptr, r_ref_ptr: 64)
+
+ 514
+
+ for (int k = 0; k < n_padded; ++k) {
+
+ 515
+
+ double diff = r_curr_ptr[k] - r_ref_ptr[k];
+
+ 516
+
+ d2 += diff * diff;
+
+ 517
+
+ }
+
+ 518
+
+ double d = std::sqrt(d2);
+
+ 519
+
+ 520
+
+ const double* RESTRICT grad_ref_ptr = grad_ref.data();
+
+ 521
+
+ const double* RESTRICT s_ptr = s.data();
+
+ 522
+
+ const int* RESTRICT unscreened_ptr = unscreened_list.data();
+
+ 523
+
+ 524
+
+ to_compute.clear();
+
+ 525
+
+ for (int i = 0; i < unscreened_size; ++i) {
+
+ 526
+
+ int j = unscreened_ptr[i];
+
+ 527
+
+ double bound = std::abs(grad_ref_ptr[j]) + s_ptr[j] * d;
+
+ 528
+
+ if (bound > KKT_bound) {
+
+ 529
+
+ to_compute.push_back(j);
+
+ 530
+
+ }
+
+ 531
+
+ }
+
+ 532
+
+ 533
+
+ int num_to_compute = to_compute.size();
+
+ 534
+
+ bool did_reset = false;
+
+ 535
+
+ 536
+
+ if (num_to_compute > 0.3 * p || lambdas_since_reset >= 8) {
+
+ 537
+
+ // Drift is too large or reset interval reached, do a full reset (SIMD 4x Register-Blocked)
+
+ 538
+
+ const bool run_parallel_reset = (static_cast<size_t>(n_padded) * unscreened_size >= 150000);
+
+ 539
+
+ #pragma omp parallel for schedule(static) if(run_parallel_reset)
+
+ 540
+
+ for (int i = 0; i < (unscreened_size / 4) * 4; i += 4) {
+
+ 541
+
+ int j0 = unscreened_list[i];
+
+ 542
+
+ int j1 = unscreened_list[i+1];
+
+ 543
+
+ int j2 = unscreened_list[i+2];
+
+ 544
+
+ int j3 = unscreened_list[i+3];
+
+ 545
+
+ 546
+
+ const double* RESTRICT col0 = ASSUME_ALIGNED(X_padded + j0 * n_padded, 64);
+
+ 547
+
+ const double* RESTRICT col1 = ASSUME_ALIGNED(X_padded + j1 * n_padded, 64);
+
+ 548
+
+ const double* RESTRICT col2 = ASSUME_ALIGNED(X_padded + j2 * n_padded, 64);
+
+ 549
+
+ const double* RESTRICT col3 = ASSUME_ALIGNED(X_padded + j3 * n_padded, 64);
+
+ 550
+
+ const double* RESTRICT r_ptr_exact = ASSUME_ALIGNED(r_padded, 64);
+
+ 551
+
+ 552
+
+ double sum0 = 0.0, sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
+
+ 553
+
+ #pragma omp simd reduction(+:sum0, sum1, sum2, sum3) aligned(r_ptr_exact, col0, col1, col2, col3: 64)
+
+ 554
+
+ for (int k = 0; k < n_padded; ++k) {
+
+ 555
+
+ double rk = r_ptr_exact[k];
+
+ 556
+
+ sum0 += rk * col0[k];
+
+ 557
+
+ sum1 += rk * col1[k];
+
+ 558
+
+ sum2 += rk * col2[k];
+
+ 559
+
+ sum3 += rk * col3[k];
+
+ 560
+
+ }
+
+ 561
+
+ grad_ptr[j0] = sum0 * inv_fn;
+
+ 562
+
+ grad_ptr[j1] = sum1 * inv_fn;
+
+ 563
+
+ grad_ptr[j2] = sum2 * inv_fn;
+
+ 564
+
+ grad_ptr[j3] = sum3 * inv_fn;
+
+ 565
+
+ }
+
+ 566
+
+ 567
+
+ for (int i = (unscreened_size / 4) * 4; i < unscreened_size; ++i) {
+
+ 568
+
+ int j = unscreened_list[i];
+
+ 569
+
+ const double* RESTRICT col_ptr = ASSUME_ALIGNED(X_padded + j * n_padded, 64);
+
+ 570
+
+ const double* RESTRICT r_ptr_exact = ASSUME_ALIGNED(r_padded, 64);
+
+ 571
+
+ double sum = 0.0;
+
+ 572
+
+ #pragma omp simd reduction(+:sum) aligned(r_ptr_exact, col_ptr: 64)
+
+ 573
+
+ for (int k = 0; k < n_padded; ++k) {
+
+ 574
+
+ sum += r_ptr_exact[k] * col_ptr[k];
+
+ 575
+
+ }
+
+ 576
+
+ grad_ptr[j] = sum * inv_fn;
+
+ 577
+
+ }
+
+ 578
+
+ 579
+
+ std::memcpy(r_ref_padded, r_padded, n_padded * sizeof(double));
+
+ 580
+
+ 581
+
+ double* RESTRICT grad_ref_ptr_writable = grad_ref.data();
+
+ 582
+
+ #pragma omp parallel for schedule(static) if(unscreened_size >= 2048)
+
+ 583
+
+ for (int i = 0; i < unscreened_size; ++i) {
+
+ 584
+
+ int j = unscreened_ptr[i];
+
+ 585
+
+ grad_ref_ptr_writable[j] = grad_ptr[j];
+
+ 586
+
+ }
+
+ 587
+
+ lambdas_since_reset = 0;
+
+ 588
+
+ did_reset = true;
+
+ 589
+
+ } else {
+
+ 590
+
+ // Compute exact gradients only for the tiny unpruned subset (SIMD 4x Register-Blocked)
+
+ 591
+
+ const bool run_parallel_comp = (num_to_compute >= 32 && static_cast<size_t>(n_padded) * num_to_compute >= 150000);
+
+ 592
+
+ #pragma omp parallel for schedule(static) if(run_parallel_comp)
+
+ 593
+
+ for (int k = 0; k < (num_to_compute / 4) * 4; k += 4) {
+
+ 594
+
+ int j0 = to_compute[k];
+
+ 595
+
+ int j1 = to_compute[k+1];
+
+ 596
+
+ int j2 = to_compute[k+2];
+
+ 597
+
+ int j3 = to_compute[k+3];
+
+ 598
+
+ 599
+
+ const double* RESTRICT col0 = ASSUME_ALIGNED(X_padded + j0 * n_padded, 64);
+
+ 600
+
+ const double* RESTRICT col1 = ASSUME_ALIGNED(X_padded + j1 * n_padded, 64);
+
+ 601
+
+ const double* RESTRICT col2 = ASSUME_ALIGNED(X_padded + j2 * n_padded, 64);
+
+ 602
+
+ const double* RESTRICT col3 = ASSUME_ALIGNED(X_padded + j3 * n_padded, 64);
+
+ 603
+
+ const double* RESTRICT r_ptr_exact = ASSUME_ALIGNED(r_padded, 64);
+
+ 604
+
+ 605
+
+ double sum0 = 0.0, sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
+
+ 606
+
+ #pragma omp simd reduction(+:sum0, sum1, sum2, sum3) aligned(r_ptr_exact, col0, col1, col2, col3: 64)
+
+ 607
+
+ for (int m = 0; m < n_padded; ++m) {
+
+ 608
+
+ double rk = r_ptr_exact[m];
+
+ 609
+
+ sum0 += rk * col0[m];
+
+ 610
+
+ sum1 += rk * col1[m];
+
+ 611
+
+ sum2 += rk * col2[m];
+
+ 612
+
+ sum3 += rk * col3[m];
+
+ 613
+
+ }
+
+ 614
+
+ grad_ptr[j0] = sum0 * inv_fn;
+
+ 615
+
+ grad_ptr[j1] = sum1 * inv_fn;
+
+ 616
+
+ grad_ptr[j2] = sum2 * inv_fn;
+
+ 617
+
+ grad_ptr[j3] = sum3 * inv_fn;
+
+ 618
+
+ }
+
+ 619
+
+ 620
+
+ for (int k = (num_to_compute / 4) * 4; k < num_to_compute; ++k) {
+
+ 621
+
+ int j = to_compute[k];
+
+ 622
+
+ const double* RESTRICT col_ptr = ASSUME_ALIGNED(X_padded + j * n_padded, 64);
+
+ 623
+
+ const double* RESTRICT r_ptr_exact = ASSUME_ALIGNED(r_padded, 64);
+
+ 624
+
+ double sum = 0.0;
+
+ 625
+
+ #pragma omp simd reduction(+:sum) aligned(r_ptr_exact, col_ptr: 64)
+
+ 626
+
+ for (int m = 0; m < n_padded; ++m) {
+
+ 627
+
+ sum += r_ptr_exact[m] * col_ptr[m];
+
+ 628
+
+ }
+
+ 629
+
+ grad_ptr[j] = sum * inv_fn;
+
+ 630
+
+ }
+
+ 631
+
+ }
+
+ 632
+
+ 633
+
+ for (int i = 0; i < unscreened_size; ) {
+
+ 634
+
+ int j = unscreened_list[i];
+
+ 635
+
+ if (std::abs(grad_ptr[j]) > KKT_bound) {
+
+ 636
+
+ screened[j] = 1;
+
+ 637
+
+ unscreened_violators.push_back(j);
+
+ 638
+
+ screened_to_idx[j] = screened_size;
+
+ 639
+
+ screened_list[screened_size++] = j;
+
+ 640
+
+ unscreened_list[i] = unscreened_list[--unscreened_size];
+
+ 641
+
+ full_kkt_ok = false;
+
+ 642
+
+ } else {
+
+ 643
+
+ ++i;
+
+ 644
+
+ }
+
+ 645
+
+ }
+
+ 646
+
+ 647
+
+ if (full_kkt_ok) {
+
+ 648
+
+ if (!did_reset) {
+
+ 649
+
+ lambdas_since_reset++;
+
+ 650
+
+ }
+
+ 651
+
+ }
+
+ 652
+
+ } else {
+
+ 653
+
+ // Standard, clean KKT check without CS pruning overhead on small/medium problems (SIMD 4x Register-Blocked)
+
+ 654
+
+ const bool run_parallel_uns_std = (static_cast<size_t>(n_padded) * unscreened_size >= 150000);
+
+ 655
+
+ #pragma omp parallel for schedule(static) if(run_parallel_uns_std)
+
+ 656
+
+ for (int i = 0; i < (unscreened_size / 4) * 4; i += 4) {
+
+ 657
+
+ int j0 = unscreened_list[i];
+
+ 658
+
+ int j1 = unscreened_list[i+1];
+
+ 659
+
+ int j2 = unscreened_list[i+2];
+
+ 660
+
+ int j3 = unscreened_list[i+3];
+
+ 661
+
+ 662
+
+ const double* RESTRICT col0 = ASSUME_ALIGNED(X_padded + j0 * n_padded, 64);
+
+ 663
+
+ const double* RESTRICT col1 = ASSUME_ALIGNED(X_padded + j1 * n_padded, 64);
+
+ 664
+
+ const double* RESTRICT col2 = ASSUME_ALIGNED(X_padded + j2 * n_padded, 64);
+
+ 665
+
+ const double* RESTRICT col3 = ASSUME_ALIGNED(X_padded + j3 * n_padded, 64);
+
+ 666
+
+ const double* RESTRICT r_ptr = ASSUME_ALIGNED(r_padded, 64);
+
+ 667
+
+ 668
+
+ double sum0 = 0.0, sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
+
+ 669
+
+ #pragma omp simd reduction(+:sum0, sum1, sum2, sum3) aligned(r_ptr, col0, col1, col2, col3: 64)
+
+ 670
+
+ for (int k = 0; k < n_padded; ++k) {
+
+ 671
+
+ double rk = r_ptr[k];
+
+ 672
+
+ sum0 += rk * col0[k];
+
+ 673
+
+ sum1 += rk * col1[k];
+
+ 674
+
+ sum2 += rk * col2[k];
+
+ 675
+
+ sum3 += rk * col3[k];
+
+ 676
+
+ }
+
+ 677
+
+ grad_ptr[j0] = sum0 * inv_fn;
+
+ 678
+
+ grad_ptr[j1] = sum1 * inv_fn;
+
+ 679
+
+ grad_ptr[j2] = sum2 * inv_fn;
+
+ 680
+
+ grad_ptr[j3] = sum3 * inv_fn;
+
+ 681
+
+ }
+
+ 682
+
+ 683
+
+ for (int i = (unscreened_size / 4) * 4; i < unscreened_size; ++i) {
+
+ 684
+
+ int j = unscreened_list[i];
+
+ 685
+
+ const double* RESTRICT col_ptr = ASSUME_ALIGNED(X_padded + j * n_padded, 64);
+
+ 686
+
+ const double* RESTRICT r_ptr = ASSUME_ALIGNED(r_padded, 64);
+
+ 687
+
+ double sum = 0.0;
+
+ 688
+
+ #pragma omp simd reduction(+:sum) aligned(r_ptr, col_ptr: 64)
+
+ 689
+
+ for (int k = 0; k < n_padded; ++k) {
+
+ 690
+
+ sum += r_ptr[k] * col_ptr[k];
+
+ 691
+
+ }
+
+ 692
+
+ grad_ptr[j] = sum * inv_fn;
+
+ 693
+
+ }
+
+ 694
+
+ 695
+
+ for (int i = 0; i < unscreened_size; ) {
+
+ 696
+
+ int j = unscreened_list[i];
+
+ 697
+
+ if (std::abs(grad_ptr[j]) > KKT_bound) {
+
+ 698
+
+ screened[j] = 1;
+
+ 699
+
+ unscreened_violators.push_back(j);
+
+ 700
+
+ screened_to_idx[j] = screened_size;
+
+ 701
+
+ screened_list[screened_size++] = j;
+
+ 702
+
+ unscreened_list[i] = unscreened_list[--unscreened_size];
+
+ 703
+
+ full_kkt_ok = false;
+
+ 704
+
+ } else {
+
+ 705
+
+ ++i;
+
+ 706
+
+ }
+
+ 707
+
+ }
+
+ 708
+
+ }
+
+ 709
+
+ 710
+
+ if (full_kkt_ok) {
+
+ 711
+
+ break; // Converged completely!
+
+ 712
+
+ }
+
+ 713
+
+ 714
+
+ // Add unscreened violators to active set
+
+ 715
+
+ for (int j : unscreened_violators) {
+
+ 716
+
+ add_active(j);
+
+ 717
+
+ if (oom) goto cleanup;
+
+ 718
+
+ }
+
+ 719
+
+ }
+
+ 720
+
+ 721
+
+ // Synchronize beta with beta_active and save coefficients
+
+ 722
+
+ for (size_t idx = 0; idx < active.size(); ++idx) {
+
+ 723
+
+ beta(active[idx]) = beta_active_data[idx];
+
+ 724
+
+ }
+
+ 725
+
+ coef_path.col(li) = beta;
+
+ 726
+
+ prev_lam = lam;
+
+ 727
+
+ }
+
+ 728
+
+ }
+
+ 729
+
+ 730
+
+ cleanup:
+
+ 731
+
+ if (G_data) free(G_data);
+
+ 732
+
+ if (c_data) free(c_data);
+
+ 733
+
+ if (beta_active_data) free(beta_active_data);
+
+ 734
+
+ if (xv_active_data) free(xv_active_data);
+
+ 735
+
+ if (inv_xv_active_data) free(inv_xv_active_data);
+
+ 736
+
+ if (grad_init_active_data) free(grad_init_active_data);
+
+ 737
+
+ if (beta_old_at_start) free(beta_old_at_start);
+
+ 738
+
+ if (y_padded) free(y_padded);
+
+ 739
+
+ if (r_padded) free(r_padded);
+
+ 740
+
+ if (r_ref_padded) free(r_ref_padded);
+
+ 741
+
+ }
+
+ 742
+
+ 743
+
+ int main() {
+
+ 744
+
+ int32_t n, p, n_lambda;
+
+ 745
+
+ if (fread(&n, sizeof(int32_t), 1, stdin) != 1) return 1;
+
+ 746
+
+ if (fread(&p, sizeof(int32_t), 1, stdin) != 1) return 1;
+
+ 747
+
+ if (fread(&n_lambda, sizeof(int32_t), 1, stdin) != 1) return 1;
+
+ 748
+
+ 749
+
+ // X arrives row-major. Allocate RowMajor matrix to read the bytes directly!
+
+ 750
+
+ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> X_row(n, p);
+
+ 751
+
+ if (fread(X_row.data(), sizeof(double), static_cast<size_t>(n) * p, stdin)
+
+ 752
+
+ != static_cast<size_t>(n) * p) return 1;
+
+ 753
+
+ 754
+
+ // Pad row dimension of X to the multiple of 8 (guarantees perfect alignment for each column)
+
+ 755
+
+ int n_padded = ((n + 7) / 8) * 8;
+
+ 756
+
+ double* X_padded = nullptr;
+
+ 757
+
+ if (posix_memalign((void**)&X_padded, 64, static_cast<size_t>(n_padded) * p * sizeof(double)) != 0) return 1;
+
+ 758
+
+ 759
+
+ VectorXd y(n);
+
+ 760
+
+ if (fread(y.data(), sizeof(double), n, stdin) != static_cast<size_t>(n)) return 1;
+
+ 761
+
+ 762
+
+ VectorXd lam_path(n_lambda);
+
+ 763
+
+ if (fread(lam_path.data(), sizeof(double), n_lambda, stdin)
+
+ 764
+
+ != static_cast<size_t>(n_lambda)) return 1;
+
+ 765
+
+ 766
+
+ MatrixXd coef_path = MatrixXd::Zero(p, n_lambda);
+
+ 767
+
+ 768
+
+ VectorXd xv(p);
+
+ 769
+
+ VectorXd grad_init(p);
+
+ 770
+
+ 771
+
+ const double* RESTRICT y_ptr = y.data();
+
+ 772
+
+ const double inv_fn = 1.0 / n;
+
+ 773
+
+ 774
+
+ // 2D Cache-Blocked parallel Fused Transposition-Precomputation-Padding (FTPP)
+
+ 775
+
+ // Avoids separate allocation/std::fill overhead of X_padded and completely saves a full pass reading X!
+
+ 776
+
+ #pragma omp parallel
+
+ 777
+
+ {
+
+ 778
+
+ int nthreads = omp_get_num_threads();
+
+ 779
+
+ int tid = omp_get_thread_num();
+
+ 780
+
+ 781
+
+ // Static partition of columns j to completely prevent thread false-sharing
+
+ 782
+
+ int j_per_thread = (p + nthreads - 1) / nthreads;
+
+ 783
+
+ int sj = tid * j_per_thread;
+
+ 784
+
+ int ej = std::min(sj + j_per_thread, p);
+
+ 785
+
+ 786
+
+ if (sj < ej) {
+
+ 787
+
+ const int col_block = 64;
+
+ 788
+
+ const int row_block = 64;
+
+ 789
+
+ for (int bj = sj; bj < ej; bj += col_block) {
+
+ 790
+
+ int lim_j = std::min(bj + col_block, ej);
+
+ 791
+
+ 792
+
+ double local_xx[64] = {0.0};
+
+ 793
+
+ double local_xy[64] = {0.0};
+
+ 794
+
+ 795
+
+ for (int bi = 0; bi < n; bi += row_block) {
+
+ 796
+
+ int lim_i = std::min(bi + row_block, n);
+
+ 797
+
+ for (int j = bj; j < lim_j; ++j) {
+
+ 798
+
+ int local_j = j - bj;
+
+ 799
+
+ double* RESTRICT dest = X_padded + j * n_padded;
+
+ 800
+
+ const double* RESTRICT src = X_row.data() + j;
+
+ 801
+
+ 802
+
+ double sum_xx = 0.0;
+
+ 803
+
+ double sum_xy = 0.0;
+
+ 804
+
+ #pragma omp simd reduction(+:sum_xx, sum_xy)
+
+ 805
+
+ for (int i = bi; i < lim_i; ++i) {
+
+ 806
+
+ double val = src[i * p];
+
+ 807
+
+ dest[i] = val;
+
+ 808
+
+ sum_xx += val * val;
+
+ 809
+
+ sum_xy += val * y_ptr[i];
+
+ 810
+
+ }
+
+ 811
+
+ local_xx[local_j] += sum_xx;
+
+ 812
+
+ local_xy[local_j] += sum_xy;
+
+ 813
+
+ }
+
+ 814
+
+ }
+
+ 815
+
+ 816
+
+ // Set the padded elements of each column to 0.0, and store precomputed xv and grad_init
+
+ 817
+
+ for (int j = bj; j < lim_j; ++j) {
+
+ 818
+
+ double* RESTRICT dest = X_padded + j * n_padded;
+
+ 819
+
+ for (int i = n; i < n_padded; ++i) {
+
+ 820
+
+ dest[i] = 0.0;
+
+ 821
+
+ }
+
+ 822
+
+ xv(j) = local_xx[j - bj] * inv_fn;
+
+ 823
+
+ grad_init(j) = local_xy[j - bj] * inv_fn;
+
+ 824
+
+ }
+
+ 825
+
+ }
+
+ 826
+
+ }
+
+ 827
+
+ }
+
+ 828
+
+ 829
+
+ // Immediately free memory of X_row to minimize memory footprint
+
+ 830
+
+ X_row.resize(0, 0);
+
+ 831
+
+ 832
+
+ const double thresh = 1e-9;
+
+ 833
+
+ const int maxit = 100000;
+
+ 834
+
+ 835
+
+ solve_active_set(X_padded, n_padded, n, p, y, lam_path, xv, grad_init, coef_path, thresh, maxit);
+
+ 836
+
+ 837
+
+ fwrite(coef_path.data(), sizeof(double),
+
+ 838
+
+ static_cast<size_t>(p) * n_lambda, stdout);
+
+ 839
+
+ 840
+
+ free(X_padded);
+
+ 841
+
+ return 0;
+
+ 842
+
+ }
+
+ 843
+
+ ’’’
+
+ 844
+
+ 845
+
+ COMPILE_FLAGS = ["-fopenmp", "-ffast-math"]
+
+ 846
+
+ 847
+
+ # EVOLVE-BLOCK-END
+
+E.2 ConvDiv
+
+Listing 4: Complete ConvDiv Kernel discovered by Dream-RSI.
+
+⬇
+
+ 1
+
+ # EVOLVE-BLOCK-START
+
+ 2
+
+ import torch
+
+ 3
+
+ import torch.nn as nn
+
+ 4
+
+ import triton
+
+ 5
+
+ import triton.language as tl
+
+ 6
+
+ import importlib.util
+
+ 7
+
+ import os
+
+ 8
+
+ import sys
+
+ 9
+
+ 10
+
+ def generate_kernel_code():
+
+ 11
+
+ code = """
+
+ 12
+
+ import triton
+
+ 13
+
+ import triton.language as tl
+
+ 14
+
+ 15
+
+ @triton.jit
+
+ 16
+
+ def fused_conv_pool_kernel_optimized(
+
+ 17
+
+ X_ptr, W_ptr, Out_ptr,
+
+ 18
+
+ B: tl.constexpr
+
+ 19
+
+ ):
+
+ 20
+
+ pid_h = tl.program_id(0)
+
+ 21
+
+ pid_w = tl.program_id(1)
+
+ 22
+
+ pid_b = tl.program_id(2)
+
+ 23
+
+ 24
+
+ h_conv_0 = 2 * pid_h
+
+ 25
+
+ 26
+
+ w_start = pid_w * 32
+
+ 27
+
+ w_out_idx = w_start + tl.arange(0, 32)
+
+ 28
+
+ # W is physically 64, but kernel is 3, so valid output is 62.
+
+ 29
+
+ mask_w = (w_out_idx < 62)[None, :]
+
+ 30
+
+ 31
+
+ # 99.6% of the execution takes the safe path
+
+ 32
+
+ is_safe = (pid_w == 0) or (pid_b != B - 1)
+
+ 33
+
+ 34
+
+ w_ptrs_base = W_ptr + tl.arange(0, 16)[:, None] * 80 + tl.arange(0, 16)[None, :]
+
+ 35
+
+ 36
+
+ """
+
+ 37
+
+ for i in range(14):
+
+ 38
+
+ code += f" acc_{i}_0 = tl.zeros((16, 32), dtype=tl.float32)\n"
+
+ 39
+
+ code += f" acc_{i}_1 = tl.zeros((16, 32), dtype=tl.float32)\n"
+
+ 40
+
+ 41
+
+ code += """
+
+ 42
+
+ X_spatial_base_0 = pid_b * 524288 + h_conv_0 * 64 + w_out_idx
+
+ 43
+
+ X_base_ptr_0 = X_ptr + X_spatial_base_0[None, :]
+
+ 44
+
+ 45
+
+ for k_start in range(0, 80, 16):
+
+ 46
+
+ k_idx = k_start + tl.arange(0, 16)
+
+ 47
+
+ k_idx_clamped = tl.minimum(k_idx, 71)
+
+ 48
+
+ ic = k_idx_clamped // 9
+
+ 49
+
+ kh = (k_idx_clamped % 9) // 3
+
+ 50
+
+ kw = k_idx_clamped % 3
+
+ 51
+
+ k_off_vec = ic * 65536 + kh * 64 + kw
+
+ 52
+
+ 53
+
+ x_ptrs_0 = X_base_ptr_0 + k_off_vec[:, None]
+
+ 54
+
+ 55
+
+ w_ptrs = w_ptrs_base + k_start
+
+ 56
+
+ w0 = tl.load(w_ptrs)
+
+ 57
+
+ w1 = tl.load(w_ptrs + 1280)
+
+ 58
+
+ w2 = tl.load(w_ptrs + 2560)
+
+ 59
+
+ 60
+
+ # --- H = 0 Pass ---
+
+ 61
+
+ # Branch intentionally kept inside loop to prevent cp.async and preserve SM occupancy
+
+ 62
+
+ if is_safe:
+
+ 63
+
+ """
+
+ 64
+
+ for d in range(16):
+
+ 65
+
+ code += f" x{d} = tl.load(x_ptrs_0 + {d * 4096}).to(tl.float16)\n"
+
+ 66
+
+ code += " else:\n"
+
+ 67
+
+ for d in range(16):
+
+ 68
+
+ code += f" x{d} = tl.load(x_ptrs_0 + {d * 4096}, mask=mask_w, other=0.0).to(tl.float16)\n"
+
+ 69
+
+ 70
+
+ code += "\n # Perfect Wide-ILP sequences (14-instruction dependency gap)\n"
+
+ 71
+
+ for w_idx in range(3):
+
+ 72
+
+ for d in range(14):
+
+ 73
+
+ code += f" acc_{d}_0 = tl.dot(w{w_idx}, x{d + w_idx}, acc_{d}_0)\n"
+
+ 74
+
+ 75
+
+ code += """
+
+ 76
+
+ # --- H = 1 Pass (Registers completely reused) ---
+
+ 77
+
+ if is_safe:
+
+ 78
+
+ """
+
+ 79
+
+ for d in range(16):
+
+ 80
+
+ code += f" x{d} = tl.load(x_ptrs_0 + {64 + d * 4096}).to(tl.float16)\n"
+
+ 81
+
+ code += " else:\n"
+
+ 82
+
+ for d in range(16):
+
+ 83
+
+ code += f" x{d} = tl.load(x_ptrs_0 + {64 + d * 4096}, mask=mask_w, other=0.0).to(tl.float16)\n"
+
+ 84
+
+ 85
+
+ code += "\n"
+
+ 86
+
+ for w_idx in range(3):
+
+ 87
+
+ for d in range(14):
+
+ 88
+
+ code += f" acc_{d}_1 = tl.dot(w{w_idx}, x{d + w_idx}, acc_{d}_1)\n"
+
+ 89
+
+ 90
+
+ code += "\n # Pool D and H passes simultaneously\n"
+
+ 91
+
+ for d in range(7):
+
+ 92
+
+ code += f" max_h_d{d} = tl.maximum(tl.maximum(acc_{d*2}_0, acc_{d*2+1}_0), tl.maximum(acc_{d*2}_1, acc_{d*2+1}_1))\n"
+
+ 93
+
+ 94
+
+ code += "\n # Deferred W-pooling outside the loop on 16x32 registers\n"
+
+ 95
+
+ for d in range(7):
+
+ 96
+
+ code += f" max_pool_d{d} = tl.max(tl.reshape(max_h_d{d}, (16, 16, 2)), axis=2)\n"
+
+ 97
+
+ 98
+
+ code += """
+
+ 99
+
+ # Balanced Tree Reduction
+
+ 100
+
+ s0 = max_pool_d0 + max_pool_d1
+
+ 101
+
+ s1 = max_pool_d2 + max_pool_d3
+
+ 102
+
+ s2 = max_pool_d4 + max_pool_d5
+
+ 103
+
+ s01 = s0 + s1
+
+ 104
+
+ s26 = s2 + max_pool_d6
+
+ 105
+
+ sum_all = s01 + s26
+
+ 106
+
+ 107
+
+ # Deferred W-Masking: Zero out garbage from unpredicated reads on the right boundary.
+
+ 108
+
+ if pid_w == 1:
+
+ 109
+
+ w_pool_idx = tl.arange(0, 16)[None, :]
+
+ 110
+
+ sum_all = tl.where(w_pool_idx < 15, sum_all, 0.0)
+
+ 111
+
+ 112
+
+ total_sum = tl.sum(sum_all, axis=1)
+
+ 113
+
+ 114
+
+ # Unscaled block sum
+
+ 115
+
+ out_val = tl.sum(total_sum, axis=0)
+
+ 116
+
+ 117
+
+ out_idx = pid_b * 62 + pid_w * 31 + pid_h
+
+ 118
+
+ tl.store(Out_ptr + out_idx, out_val)
+
+ 119
+
+ 120
+
+ @triton.jit
+
+ 121
+
+ def reduce_scale_bias_kernel(
+
+ 122
+
+ Out_buf_ptr,
+
+ 123
+
+ Out_ptr,
+
+ 124
+
+ scale,
+
+ 125
+
+ bias,
+
+ 126
+
+ B: tl.constexpr
+
+ 127
+
+ ):
+
+ 128
+
+ pid_b = tl.program_id(0)
+
+ 129
+
+ if pid_b >= B:
+
+ 130
+
+ return
+
+ 131
+
+ 132
+
+ offsets = tl.arange(0, 64)
+
+ 133
+
+ mask = offsets < 62
+
+ 134
+
+ vals = tl.load(Out_buf_ptr + pid_b * 62 + offsets, mask=mask, other=0.0)
+
+ 135
+
+ 136
+
+ sum_val = tl.sum(vals)
+
+ 137
+
+ final_val = sum_val * scale + bias
+
+ 138
+
+ 139
+
+ tl.store(Out_ptr + pid_b, final_val)
+
+ 140
+
+ """
+
+ 141
+
+ return code
+
+ 142
+
+ 143
+
+ _KERNEL_CODE = generate_kernel_code()
+
+ 144
+
+ 145
+
+ _kernel_file = "/tmp/fused_kernel_kb8_fp16_optimized_v4.py"
+
+ 146
+
+ with open(_kernel_file, "w") as f:
+
+ 147
+
+ f.write(_KERNEL_CODE)
+
+ 148
+
+ 149
+
+ spec = importlib.util.spec_from_file_location("fused_kernel_kb8_fp16_optimized_v4", _kernel_file)
+
+ 150
+
+ mod = importlib.util.module_from_spec(spec)
+
+ 151
+
+ sys.modules["fused_kernel_kb8_fp16_optimized_v4"] = mod
+
+ 152
+
+ spec.loader.exec_module(mod)
+
+ 153
+
+ fused_conv_pool_kernel_optimized = mod.fused_conv_pool_kernel_optimized
+
+ 154
+
+ reduce_scale_bias_kernel = mod.reduce_scale_bias_kernel
+
+ 155
+
+ 156
+
+ 157
+
+ class ModelNew(nn.Module):
+
+ 158
+
+ def __init__(self, in_channels, out_channels, kernel_size, divisor, pool_size, bias_shape, sum_dim):
+
+ 159
+
+ super(ModelNew, self).__init__()
+
+ 160
+
+ self.conv = nn.Conv3d(in_channels, out_channels, kernel_size)
+
+ 161
+
+ self.divisor = divisor
+
+ 162
+
+ self.max_pool = nn.MaxPool3d(pool_size)
+
+ 163
+
+ self.global_avg_pool = nn.AdaptiveAvgPool3d((1, 1, 1))
+
+ 164
+
+ self.bias = nn.Parameter(torch.randn(bias_shape))
+
+ 165
+
+ self.sum_dim = sum_dim
+
+ 166
+
+ 167
+
+ self._cached_W = None
+
+ 168
+
+ self._cached_scale = None
+
+ 169
+
+ self._total_bias = None
+
+ 170
+
+ self._cached_Out_buf = None
+
+ 171
+
+ 172
+
+ def forward(self, x):
+
+ 173
+
+ B = x.shape[0]
+
+ 174
+
+ # Guard: Ensure input is exactly the expected shape
+
+ 175
+
+ if x.shape[1:] != (8, 16, 64, 64) or not x.is_cuda or not x.is_contiguous() or self.sum_dim not in (1, -4):
+
+ 176
+
+ x = self.conv(x)
+
+ 177
+
+ x = x / self.divisor
+
+ 178
+
+ x = self.max_pool(x)
+
+ 179
+
+ x = self.global_avg_pool(x)
+
+ 180
+
+ x = x + self.bias
+
+ 181
+
+ x = torch.sum(x, dim=self.sum_dim)
+
+ 182
+
+ return x
+
+ 183
+
+ 184
+
+ device = x.device
+
+ 185
+
+ 186
+
+ if self._cached_W is None:
+
+ 187
+
+ W = self.conv.weight
+
+ 188
+
+ W_permuted = W.permute(2, 0, 1, 3, 4).contiguous()
+
+ 189
+
+ W_flat = W_permuted.view(3, 16, 72)
+
+ 190
+
+ 191
+
+ W_padded = torch.zeros((3, 16, 80), dtype=torch.float16, device=device)
+
+ 192
+
+ W_padded[:, :, :72] = W_flat.to(torch.float16)
+
+ 193
+
+ self._cached_W = W_padded
+
+ 194
+
+ 195
+
+ # The spatial dimensions before global average pooling are:
+
+ 196
+
+ # Depth = 7, Height = 31, Width = 31.
+
+ 197
+
+ # 7 * 31 * 31 = 6727.
+
+ 198
+
+ self._cached_scale = float(1.0 / (6727.0 * self.divisor))
+
+ 199
+
+ bias_per_channel = (self.conv.bias / self.divisor + self.bias.view(-1)).to(torch.float32)
+
+ 200
+
+ self._total_bias = float(bias_per_channel.sum().item())
+
+ 201
+
+ 202
+
+ if self._cached_Out_buf is None or self._cached_Out_buf.shape[0] != B:
+
+ 203
+
+ self._cached_Out_buf = torch.empty((B, 62), dtype=torch.float32, device=device)
+
+ 204
+
+ 205
+
+ Out_buf = self._cached_Out_buf
+
+ 206
+
+ Out = torch.empty((B, 1, 1, 1), dtype=torch.float32, device=device)
+
+ 207
+
+ 208
+
+ # Launching on 2D grid packed perfectly to valid H values: (31, 2, B)
+
+ 209
+
+ grid = (31, 2, B)
+
+ 210
+
+ # Using num_stages=4 to preserve original execution profile
+
+ 211
+
+ fused_conv_pool_kernel_optimized[grid](
+
+ 212
+
+ x, self._cached_W, Out_buf,
+
+ 213
+
+ B=B,
+
+ 214
+
+ num_warps=4,
+
+ 215
+
+ num_stages=4
+
+ 216
+
+ )
+
+ 217
+
+ 218
+
+ reduce_grid = (B,)
+
+ 219
+
+ reduce_scale_bias_kernel[reduce_grid](
+
+ 220
+
+ Out_buf, Out,
+
+ 221
+
+ self._cached_scale, self._total_bias,
+
+ 222
+
+ B=B,
+
+ 223
+
+ num_warps=2
+
+ 224
+
+ )
+
+ 225
+
+ 226
+
+ return Out
+
+ 227
+
+ # EVOLVE-BLOCK-END
+

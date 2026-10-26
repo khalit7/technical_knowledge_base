@@ -1,4 +1,4 @@
-"""Memory Agent V3 — Multi-Turn Tool Use Architecture.
+"""Memory Agent V3 -- Multi-Turn Tool Use Architecture.
 
 Key design:
 - Phase 1: LLM call with tools → bank management (save/delete/update)
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Tool Definitions — Phase 1 only (bank management)
+# Tool Definitions -- Phase 1 only (bank management)
 # =============================================================================
 
 BANK_TOOLS = [
@@ -131,7 +131,7 @@ class MemoryAgentResult:
 
 
 # =============================================================================
-# System Prompts — with_strategy variant
+# System Prompts -- with_strategy variant
 # =============================================================================
 
 PHASE1_SYSTEM = '''You are a Memory Bank Manager. Your job is to maintain a lean, accurate knowledge bank.
@@ -145,7 +145,7 @@ PHASE1_SYSTEM = '''You are a Memory Bank Manager. Your job is to maintain a lean
 ## Guidelines
 1. **Be selective**: Only save information that would be LOST if the action agent's context window scrolls past it
 2. **Prioritize task requirements**: API signatures, output formats, specific constraints from the task description
-3. **Record failures**: What was tried, why it failed, what the error was — so it's not repeated
+3. **Record failures**: What was tried, why it failed, what the error was -- so it's not repeated
 4. **Keep it lean**: Delete entries that are superseded by newer information
 5. **Don't save obvious things**: Terminal output the agent just saw, general knowledge about tools
 
@@ -164,7 +164,7 @@ PHASE1_SYSTEM = '''You are a Memory Bank Manager. Your job is to maintain a lean
 
 PHASE2_SYSTEM = '''You are a Selective Attention module for an Action Agent working on a coding task.
 
-Your role is like selective attention — when the agent's working memory (context window) has scrolled past important information, you can restore that context. But you also know when things are fine and the agent doesn't need help.
+Your role is like selective attention -- when the agent's working memory (context window) has scrolled past important information, you can restore that context. But you also know when things are fine and the agent doesn't need help.
 
 ## PROCESS:
 1. Review the memory bank contents
@@ -198,13 +198,13 @@ If no intervention needed, write:
 <no_intervention/>
 
 ## GUIDELINES:
-- Your DEFAULT is <no_intervention/> — only intervene when you see a real gap
+- Your DEFAULT is <no_intervention/> -- only intervene when you see a real gap
 - When you do intervene, be thoughtful: synthesize, don't just dump memory entries
 - Frame as observations: "The task requires X" not "You MUST do X"
 - Don't include information already visible in the recent trajectory
 - Be calibrated: don't pass things you're not sure about
-- You CAN connect dots and highlight patterns — not limited to verbatim copies from bank
-- The action agent is a strong model — help it remember, don't try to control it
+- You CAN connect dots and highlight patterns -- not limited to verbatim copies from bank
+- The action agent is a strong model -- help it remember, don't try to control it
 '''
 
 
@@ -213,7 +213,7 @@ If no intervention needed, write:
 # =============================================================================
 
 class MemoryAgent:
-    """Memory Agent V3 — Multi-turn tool use architecture.
+    """Memory Agent V3 -- Multi-turn tool use architecture.
 
     Each step is a multi-turn conversation:
       Turn 1 (Phase 1): System=PHASE1_SYSTEM, tools=BANK_TOOLS → model returns tool calls
@@ -306,7 +306,7 @@ class MemoryAgent:
 {observation}
 
 ## Your Task
-Analyze the trajectory and update the memory bank. Save important facts, record experiences, delete outdated entries. Be selective — only save what would be lost as the agent's context scrolls.
+Analyze the trajectory and update the memory bank. Save important facts, record experiences, delete outdated entries. Be selective -- only save what would be lost as the agent's context scrolls.
 """
 
     def _build_phase2_prompt(self, observation: str, step_count: int) -> str:

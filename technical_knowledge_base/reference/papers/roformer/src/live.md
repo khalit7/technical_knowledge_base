@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"RoFormer: Enhanced Transformer with Rotary Position Embedding","Takeaway":"Rotate each query/key 2D pair by a position-proportional angle (theta_i = 10000\\^(-2i/d)) so the QK dot product depends only on relative offset; became the universal LLM positional encoding and the substrate for all context-extension methods (PI, NTK, YaRN, iRoPE).","Topics":["llm-training-and-post-training","llms"],"Year":"2021","url":"https://app.notion.com/p/3c65c17b0d0d81cfa5e9f54459720098"}
+{"Paper":"RoFormer: Enhanced Transformer with Rotary Position Embedding","Takeaway":"Rotate each query/key 2D pair by a position-proportional angle (theta_i = 10000^(-2i/d)) so the QK dot product depends only on relative offset; became the default LLM positional encoding and the substrate for the main context-extension methods (PI, NTK, YaRN, iRoPE).","Topics":["llm-training-and-post-training","llms"],"Year":"2021","url":"https://app.notion.com/p/3c65c17b0d0d81cfa5e9f54459720098"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

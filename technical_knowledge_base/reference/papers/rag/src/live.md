@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks","Takeaway":"Coined RAG: DPR retriever + BART generator trained end-to-end with retrieved documents as marginalised latent variables (RAG-Sequence vs RAG-Token), setting SOTA on open-domain QA and proving knowledge can be updated by swapping the index, not the weights.","Topics":["rag-and-retrieval"],"Year":"2020","url":"https://app.notion.com/p/3c65c17b0d0d816c889decc342a7ad39"}
+{"Paper":"Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks","Takeaway":"Coined RAG: a DPR retriever and a BART generator fine-tuned jointly (query encoder and generator; the document encoder and index stay fixed), the retrieved documents treated as a latent variable and marginalised (RAG-Sequence against RAG-Token); state of the art on three of four open-domain QA sets (Natural Questions, WebQuestions, CuratedTrec), and knowledge updated by swapping the index, not the weights.","Topics":["rag-and-retrieval"],"Year":"2020","url":"https://app.notion.com/p/3c65c17b0d0d816c889decc342a7ad39"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

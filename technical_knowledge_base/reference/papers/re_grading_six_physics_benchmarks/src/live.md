@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3e2
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Re-grading six physics benchmarks: most model failures were the test's fault","Takeaway":"Domain experts re-graded six popular physics benchmarks and found wrong answer keys, ambiguous questions and grader bugs behind most reported model failures; corrected, frontier models look near-saturated, and the authors argue the next bar has to be harder human-written exams rather than another leaderboard on a broken quiz.","Topics":["benchmarks","evaluation-and-llm-judges","llms"],"Year":"2026","url":"https://app.notion.com/p/3e25c17b0d0d8165b0c8d15600421259"}
+{"Paper":"Re-grading six physics benchmarks: most model failures were the test's fault","Takeaway":"Physicists re-checked six physics benchmarks: of 250 answers GPT-5.6-Sol had been marked wrong on four of them, only 12 were real model mistakes (143 were defective questions or answer keys, 95 graders rejecting correct answers), and 13% to 60% of each benchmark's items were found defective. On the filtered or repaired question sets its scores rise to 78.7% to 94.6% (mean@4), upper estimates since no answer marked right was ever checked; the authors call for new, hard, verified physics tasks rather than another leaderboard on the same pipeline.","Topics":["benchmarks","evaluation-and-llm-judges","llms"],"Year":"2026","url":"https://app.notion.com/p/3e25c17b0d0d8165b0c8d15600421259"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

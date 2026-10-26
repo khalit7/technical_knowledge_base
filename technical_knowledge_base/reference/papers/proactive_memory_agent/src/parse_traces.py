@@ -79,8 +79,15 @@ for t in TASKS:
               'mem': agent(os.path.join(d, 'memory-v3-opus/trajectory_agent.html')),
               'ma': memory(os.path.join(d, 'memory-v3-opus/trajectory_memory.html')),
               'bank': bank(os.path.join(d, 'memory-v3-opus/memory.html'))}
-json.dump({'_source': 'https://github.com/yifannnwu/proactive-memory-agent/tree/main/examples (parsed by parse_traces.py)', 'tasks': out},
-          open('inputs/traces.json', 'w'), ensure_ascii=False, separators=(',', ':'))
+# saved data carries no literal em-dash (2026-10-26): each is stored JSON-escaped, so character counts stay exact; emails are redacted
+def _clean(o):
+    if isinstance(o, str): return re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}', '[email removed]', o)
+    if isinstance(o, list): return [_clean(x) for x in o]
+    if isinstance(o, dict): return {k: _clean(v) for k, v in o.items()}
+    return o
+out = _clean(out)
+open('inputs/traces.json', 'w').write(json.dumps({'_source': 'https://github.com/yifannnwu/proactive-memory-agent/tree/main/examples (parsed by parse_traces.py)', 'tasks': out},
+          ensure_ascii=False, separators=(',', ':')).replace('\u2014', '\\u2014'))
 for t, v in out.items():
     print(t, 'base', v['base']['steps'], v['base']['prompt'], 'mem', v['mem']['steps'], v['mem']['prompt'], v['mem'].get('max_ctx'),
           'trig', v['ma']['triggers'], len(v['ma']['trig']), 'inj', v['ma']['inject'], sum(x['inj'] for x in v['ma']['trig']), 'bank', len(v['bank']['entries']),

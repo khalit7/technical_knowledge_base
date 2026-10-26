@@ -55,7 +55,7 @@ const A=makeAnim({id:'ss',modes,mode:'pi',draw,counters,dur:2600});
 const seg=$('ssM');
 // build the mode buttons once (makeAnim binds them when it starts, so add them before it binds: rebind here)
 SIM_MODES.forEach(([m,n],i)=>{const b=document.createElement('button');b.dataset.m=m;b.textContent=m==='pi'?'Pi':n.replace('+ ','');if(!i)b.classList.add('on');b.setAttribute('aria-pressed',i?'false':'true');seg.appendChild(b);
-  b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});A.st.m=m;A.st.k=0;A.st.t=RM?1:0;if(!RM)A.st.play=true;A.st.lk=-1;A.draw();A.kick()})});
+  b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});A.st.m=m;A.st.k=0;A.st.t=1;A.st.play=false;A.st.lk=-1;A.draw();A.kick()})});
 function rerun(){run();A.st.lk=-1;A.draw();totals()}
 $('ssSeed').addEventListener('change',e=>{seed=+e.target.value;rerun()});
 $('ssWin').addEventListener('change',e=>{SIM_K.WINDOW=+e.target.value;rerun()});

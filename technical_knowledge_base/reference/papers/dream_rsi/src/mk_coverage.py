@@ -11,15 +11,15 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, F = 'The paper tab', 'Dream over a recorded tree tab', 'Tables tab', 'Further reading tab'
 C = [
  # properties (they stay in Notion; the card repeats the takeaway)
- ('Takeaway property (verbatim on the card)', R + ', headline card "In one line"', ["Treat an agent's accumulated discovery history as a replay simulator over the search space already explored", 'competitive or better solution quality at substantially lower discovery cost across algorithm engineering, mathematical optimisation and GPU kernel engineering']),
+ ('Takeaway property (on the card, scoped 2026-10-25 with a note)', R + ', headline card "In one line"', ["Treat an agent's accumulated discovery history as a replay simulator over the search space already explored", 'Scoped on 25 October 2026']),
  ('Topics property: rl, agentic-harnesses, llm-training-and-post-training', F + ', Topics', ['https://app.notion.com/p/3c65c17b0d0d8195a6c6c11ad093c16e', 'https://app.notion.com/p/3c65c17b0d0d81d881a8fe98b4cff7bb', 'https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b']),
  ('Year property: 2026', 'crumb line', ['Papers', '· 2026 ·']),
  # header
- ('Reading time line "4 min read, +40m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "4 min read, +40m resources"', 'dropped: replaced by the measured reading time (header format of 2026-10-25); each resource keeps its time in Further reading', ['in closed details', 'Reading: ']),
  ('Authors: Tong Zheng ... Yunsong Guo (17)', R + ', headline card', ['Tong Zheng', 'Xidong Wu', 'Zheng Zhang', 'Zhankui He', 'Chaoyi Zhang', 'Benjamin Coleman', 'Ruoqiao Wei', 'Di Bai', 'Haolin Liu', 'Rui Liu', 'Xue Wang', 'Yue Zhuan', 'Wang-Cheng Kang', 'Renkai Xiang', 'Heng Huang', 'Xinwu Cheng', 'Yunsong Guo']),
  ('arXiv 2609.14858, 14 September 2026', R + ', headline card', ['arXiv 2609.14858', '14 September 2026']),
  ('12 pages, cs.CL', R + ', headline card', ['arXiv cs.CL, 12 pages']),
- ('"The most-upvoted paper of the week on Hugging Face"', 'corrected: R, note under the nav (250 upvotes, sixth of its week and fourth of its day on 3 October 2026; the original claim marked unconfirmed)', ['250 upvotes', 'sixth in its week', 'most-upvoted paper of the week', 'unconfirmed now']),
+ ('"The most-upvoted paper of the week on Hugging Face"', 'corrected: R, closed note under the nav and the dated block in What it takes to use this (250 upvotes on 3 October, 334 on 25 October 2026; the original claim marked unconfirmed)', ['250 upvotes', 'sixth in its week', 'most-upvoted paper of its week', 'unconfirmed on 3 October']),
  # problem
  ('Discovery loops (propose, evaluate, learn) are bounded by evaluation cost', R + ', Problem', ['proposes a candidate', 'evaluates it, learns from the result', 'costs a model call plus an evaluation']),
  ('Compiling and benchmarking a GPU kernel, or running an optimisation to convergence, is expensive', R + ', Problem', ['compiling and benchmarking a GPU kernel, or running an optimisation to convergence']),
@@ -36,7 +36,7 @@ C = [
  # limit
  ('A replay simulator is only valid inside the region the history covers', R + ', How much to believe, The limit', ['A replay simulator is only valid inside the region the history covers']),
  ('So it sharpens exploitation of a mapped space rather than expanding exploration into an unmapped one', R + ', The limit; ' + S, ['sharpens how a mapped space is exploited', 'cannot by itself push exploration into unmapped territory']),
- ('Opposite failure mode from Agora: population converged prematurely, a human restored diversity', R + ', The limit; ' + F, ['the population converged prematurely and a human had to restore diversity', 'https://app.notion.com/p/3e25c17b0d0d81399738c3e65f4bf900']),
+ ('Opposite failure mode from Agora: population converged prematurely, a human restored diversity (softened 2026-10-25 to match the Agora page: concentration on one lineage, intervention untested)', R + ', The limit; ' + F, ['the agents concentrated on one lineage', 'whether that helped is untested there', 'https://app.notion.com/p/3e25c17b0d0d81399738c3e65f4bf900']),
  ('Both point at the same risk: the cheap signal is always the one describing where you have already been', R + ', The limit', ['the cheap signal is always the one that describes where you have already been']),
  # connections
  ('Third of the week\'s three auto-research papers, with Agora and SoL-Pi', R + ', Connections; ' + F, ['Third of the week\'s three auto-research papers', 'https://app.notion.com/p/3e25c17b0d0d81a0bb77f16cbc898bb5']),

@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3fe
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Context Language Models","Takeaway":"Letting the model rewrite its own context as a file beats harness-side context management (BrowseComp-Plus +11.4% accuracy with 21.5% fewer FLOPs zero-shot; +47.6% for Qwen3.5-9B after online RL) and makes context management learnable model behaviour.","Topics":["agentic-harnesses","llm-training-and-post-training"],"Year":"2026","url":"https://app.notion.com/p/3fe5c17b0d0d8118b076cd2bacb61c0d"}
+{"Paper":"Context Language Models","Takeaway":"Handing the model its own context as a file to rewrite makes context management model behaviour that a prompt can steer and RL can train. Zero-shot it pays off with a strong model: Qwen3.6-27B on BrowseComp-Plus scores 59.4% against 53.3% for summarisation (+11.4% relative) with 21.5% fewer calculated FLOPs and ties on TerminalBench 2.1, in single runs; with a 9B model it is not the best method. After RL the clear gain is cost (38.8% fewer FLOPs): accuracy is 0.4 points above an equally trained summary harness, and the abstract's +47.6% is against CLM's own untrained start.","Topics":["agentic-harnesses","llm-training-and-post-training"],"Year":"2026","url":"https://app.notion.com/p/3fe5c17b0d0d8118b076cd2bacb61c0d"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

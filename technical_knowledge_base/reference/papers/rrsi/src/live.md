@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3e9
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"RRSI: Regularized Recursive Self-Improvement of Agent Harnesses","Takeaway":"Regularising recursive harness evolution with an annealed edit budget, a critic and a pruner buys +14.1 points in distribution, +4.7 out of distribution and 30% fewer policy tokens, which is the first evidence the loop's gains survive leaving the benchmark it was scored on.","Topics":["agentic-harnesses","llm-training-and-post-training","benchmarks"],"Year":"2026","url":"https://app.notion.com/p/3e95c17b0d0d81dbb1a5e660ed019c8a"}
+{"Paper":"RRSI: Regularized Recursive Self-Improvement of Agent Harnesses","Takeaway":"Regularising recursive harness evolution (an annealed edit budget, a leakage critic, a noise-band floor, a cost rule and a pruner) trades evolve-set score for transfer: on the agentic workspace it reached 43.6 out of distribution against 39.7 for the unevolved harness and 40.3 for unregularised evolution, on 36% fewer policy tokens than unregularised evolution (2.42M against 3.80M, still 55% more than the unevolved harness), and all six held-out and out-of-distribution splits across three domains moved up, by 1.8 to 4.7 points. Every arm is a single run and each gain alone is within about one standard error; the abstract's +14.1 is an evolve-set gain with a secondary policy, from a run that predates the method as described.","Topics":["agentic-harnesses","llm-training-and-post-training","benchmarks"],"Year":"2026","url":"https://app.notion.com/p/3e95c17b0d0d81dbb1a5e660ed019c8a"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

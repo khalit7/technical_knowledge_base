@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3e9
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Bounding the memory bottlenecks of large mixture-of-experts training","Takeaway":"Bounds the four main memory bottlenecks of large-MoE training inside a fixed GPU memory budget by scheduling rather than by approximating the computation, across expert dispatch, vocabulary projection, activation checkpointing and optimiser state.","Topics":["llm-training-and-post-training","ml-infra-and-orchestration"],"Year":"2026","url":"https://app.notion.com/p/3e95c17b0d0d8148a1f3d412918234fc"}
+{"Paper":"Bounding the memory bottlenecks of large mixture-of-experts training","Takeaway":"Bounds four memory peaks of large-MoE training that common parallelism plans leave free to grow (expert dispatch, the vocabulary logits, checkpoint boundaries, and the time of an offloaded AdamW step) by changing only the order and granularity of the work, so the arithmetic stays exact and each term is known before launch. The component savings are measured against the authors' own LLEP (dispatch peak 56.9 to 59.3% lower) and a projection that materialises full logits (82.8 to 86.6% lower), not against fused cross-entropy kernels; the end-to-end 1M-token context on 120B to 667B models is a single-run result for the whole MoP stack against a weak FSDP2 baseline, with no ablation of which operator buys what.","Topics":["llm-training-and-post-training","ml-infra-and-orchestration"],"Year":"2026","url":"https://app.notion.com/p/3e95c17b0d0d8148a1f3d412918234fc"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

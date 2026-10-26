@@ -9,11 +9,11 @@ txt = html.unescape(re.sub(r'<[^>]+>', ' ', raw))
 txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
- ('Reading-time line "6 min read, +45m resources"', 'dropped: replaced by the build-computed reading time and resources total of the new page', ['min to read The paper tab', 'of resources']),
+ ('Reading-time line "6 min read, +45m resources"', 'dropped: replaced by the measured reading line of the new page (2026-10-26)', ['Reading: ', 'in closed details']),
  ('Authors: "Wenfeng Liang with more than 99 co-authors from DeepSeek"', 'corrected: headline card lists the first author and 131 authors (16 marked DSec developers); checks table', ['Jialiang Huang (first author)', '131 authors', 'Wenfeng Liang', '131 names']),
  ('Date: 19 September 2026', R + ', headline card', ['19 September 2026 (arXiv v1)']),
  ('Link arXiv 2609.22978 (45 min)', 'headline card and Further reading', ['https://arxiv.org/abs/2609.22978', '(45 min)']),
- ('Takeaway property (shown on the card, kept in the database)', R + ', headline card "In one line"', ['four isolation levels behind one SDK, about 3 million sandboxes a day and 5,000 created per second on roughly 160 nodes']),
+ ('Takeaway property (shown on the card, kept in the database)', R + ', headline card "In one line" (scoped on 26 October 2026, takeaway_note)', ['four isolation levels behind one SDK, with self-reported production figures of about 3 million sandboxes a day']),
  ('One SDK exposing FnCall, container, microVM and full-VM backends', R + ', Idea (with Table 1)', ['libdsec', 'FnCall', 'Firecracker microVMs', 'Full VMs']),
  ('A rollout pays only for the isolation its task needs rather than the strongest available', R + ', Idea: the caller chooses; Why it matters', ['the caller stays responsible for picking the one that matches the task', 'isolation is a per-task cost, not a platform decision']),
  ('Sandbox images loaded on demand from 3FS instead of staged per node', R + ', Mechanisms 2; Results; figures tab Figure 10', ['DSec serves images from 3FS', 'reads are on demand and in bulk']),

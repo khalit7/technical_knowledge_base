@@ -1,5 +1,5 @@
 """Save short verbatim extracts of the sources beyond the paper to inputs/extracts.txt (em dashes in sources
-are marked [dash], not kept): the SoL-Pi blog, the repository README and config, the EdgeBench README,
+become --, author emails become [email removed]): the SoL-Pi blog, the repository README and config, the EdgeBench README,
 a summary of the Z.ai Infra Agent post (z.ai renders its blog with script, so the text was read from explainx.ai).  usage: python3 fetch_extracts.py   (needs network; run 2026-10-03)"""
 import html, re, urllib.request
 def get(u):
@@ -15,7 +15,7 @@ KEEP = {
 }
 out = ['Extracts fetched 2026-10-03 by fetch_extracts.py. Each line: the source URL, then the sentence around a key phrase.\n']
 for u, keys in KEEP.items():
-    try: t = text(get(u)).replace('\u2014', '[dash]')
+    try: t = re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}', '[email removed]', text(get(u)).replace('\u2014', '--'))
     except Exception as e: out.append('%s FAILED %s\n' % (u, e)); continue
     for k in keys:
         i = t.find(k)

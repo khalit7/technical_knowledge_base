@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3fe
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"On-Policy or Off-Policy Learning? A Systematic Study of Distillation Dynamics","Takeaway":"In controlled strong-to-weak distillation, the token-level KL direction, not who wrote the rollouts, shapes performance and coverage: forward KL is robust to rollout policy, reverse KL favours student rollouts, and the on-policy generalisation edge does not reliably survive later RLVR.","Topics":["llm-training-and-post-training","rl"],"Year":"2026","url":"https://app.notion.com/p/3fe5c17b0d0d8136888ff145ba3a7bbb"}
+{"Paper":"On-Policy or Off-Policy Learning? A Systematic Study of Distillation Dynamics","Takeaway":"In controlled strong-to-weak distillation of 1B students on short answers (about 100 tokens, three seeds), the KL direction and the learning rate matter more than who wrote the rollouts: forward KL reaches 71 to 73% whoever writes them, reverse KL needs the student's own rollouts at the lower learning rate (72% against 35%) and is erratic at the higher one, and forgetting and update sparsity follow the learning rate. The on-policy edge in pass@10 on a harder task did not carry into a later RLVR stage (one RL seed), and long reasoning traces were not tested at scale.","Topics":["llm-training-and-post-training","rl"],"Year":"2026","url":"https://app.notion.com/p/3fe5c17b0d0d8136888ff145ba3a7bbb"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

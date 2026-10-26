@@ -1,6 +1,6 @@
 # Sharpening Tax in Post-Training: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3fe5c17b0d0d81efa2a9f532c14c87a3, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row had no old body ("Being built in the technical_knowledge_base repository."), no child pages, databases or video, so coverage runs against the paper's own claims. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `90_js_tabs`, `mk_paper.py`, `build.sh`) via the SA-MRPO page's copies; `check_page.mjs` and `mk_coverage.py` rewritten for this paper.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3fe5c17b0d0d81efa2a9f532c14c87a3, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row had no old body ("Being built in the technical_knowledge_base repository."), no child pages, databases or video, so coverage runs against the paper's own claims. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `90_js_tabs` (replaced on 2026-10-26 by the skill template `99_js_tabs.js`), `mk_paper.py`, `build.sh`) via the SA-MRPO page's copies; `check_page.mjs` and `mk_coverage.py` rewritten for this paper.
 
 ## Tabs
 
@@ -18,7 +18,7 @@
 - **No "Then and now"**: the paper is three weeks old. The debate it joins lives in the RL for LLMs page, section 9, which is linked rather than rebuilt (that page already has an illustrative sharpening against expansion chart; this page uses only real counts).
 - **Table and figure numbers follow the PDF**: the arXiv HTML drops the numbers of the two main-text wrap tables and renumbers the appendix tables and figures from 5 on; the paper's text uses the PDF numbers. Links go to the HTML anchors (`inputs/anchors.txt`); the two wrap tables and wrap figure have no anchor, so their links go to §3 or §5.
 - **The toy differs from the authors' in its random generator only** (mulberry32 instead of numpy's PCG64), so runs agree in distribution, not draw for draw; 10 seeds instead of 5.
-- **Reading time** 24 minutes (counted by the build, predict reveals included).
+- **Reading time**: see the light pass below; the header shows the measured minutes from `reading.json`.
 
 ## Corrections and findings
 
@@ -41,3 +41,29 @@
 ## Checks (19 October 2026)
 
 `checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 297 KB. `check_page.mjs`: 0 problems. `check_toy.py`: PASS. `mk_coverage.py`: 43 of 43. Measured on a Linux cloud container (4 CPUs, no GPU); everything here is deterministic CPU work.
+
+## The 2026-10-26 light pass (teaching contract)
+
+What changed and why:
+- **Top**: the core sentence, then the paper's own Figure 1 as the hero (arXiv lists the paper under CC BY 4.0; `img/sharpening_tax_fig1_overview.webp`, credited under it and in `img/CREDITS.md`; panel (c)'s bars checked as the means of Table 2 over the two games), then "You need" (the pass@k debate, PPO and GRPO, temperature) and the new terms.
+- **Figure 7 inline** beside PTGS's equations (the paper's loop: posterior, temperature, rollouts, update; `img/sharpening_tax_fig7_ptgs.webp`).
+- **Owned elsewhere, a sentence kept and linked**: the pass@1 against pass@k debate on math and code (RL for LLMs, section 9); what temperature does (Sampling and Decoding).
+- **Closed**: the three benchmarks as run, the harness prompt's contents, the identity on recorded attempts and Corollary 4, the six negative-tax cells, routing (Appendix D.4), the Figure 7 split check (an open one-line result stays), the RL recipe's hyperparameters, PTGS at test time (Appendix E.4), and the HTML-against-PDF numbering.
+- **Volatile**: none beyond the card's version line; arXiv still lists only v1 (checked 26 October 2026).
+- **Tabs kept**: Replay the 42 cells, Train with PTGS and the tables are tools with several controls each, used by the trust section; none explains a single mechanism.
+- **No autoplay**: `makeAnim` patched as on DSec (the polarisation and two-sampler animations wait for a click; a mode switch pauses on step 1); `90_js_tabs.js` replaced by the template `99_js_tabs.js` (storage key `st-tab`, keeping `data-to`). `check_page.mjs` fails if an animation draws a frame before a click, audits every closed block opened, and no longer clicks Play after a mode switch.
+- **Takeaway scoped** (`paper.json` takeaway and new `takeaway_note`, the card, the Takeaway in `live.md`, `mk_coverage.py`): "because post-training pushes tasks to the extremes" became "with tasks polarising" (the paper shows the two together, observationally); the 26-of-42 count now names the decoding set-up it depends on; PTGS's evidence is stated (five runs, two grid games, tax reductions within noise). The Notion property needs the same edit.
+- Source extracts already had author emails as "[email removed]" and no em-dashes; `extract_paper.py` already enforced both.
+
+## Length judgement
+| | Before (audit 2026-10-23) | After |
+|---|---|---|
+| The paper, core | 24.6 min (5,654 words) | 24.8 min (5,708) |
+| The paper, closed | 0.3 min (77) | 3.0 min (698) |
+| Replay; Train with PTGS; Tables; Further reading | 2.2; 5.3; 7.5 + 1.5 closed; 2.2 min | unchanged |
+| Visuals in Reading (audit) | 4 | 5 (Figure 1 hero, Figure 7; the audit counts the Theorem 2 lab once in both) |
+
+Why about 25 minutes is right: the top added about 470 words (core sentence, hero caption, terms, the takeaway note) and about 620 words of benchmark, harness, recipe, routing and provenance detail closed, so the core stayed level. What stays open is the argument with its evidence: the metrics, the crossover with its predict question, polarisation, the tax's definition and Proposition 1, where it is charged and what it is not, Theorem 2, PTGS and its results, and an evidence section whose points change the reading (two counts, one split, decoding set-up, PTGS within noise). Shorter would mean closing results the takeaway rests on.
+
+## Knowledge ledger (`ledger.json`, labelled by `label_ledger.py`)
+302 units: core 269, depth 27, owned 2, fat 4 (the old reading-time header, the tab-bar labels, two citation fragments split off by the sentence splitter). 290 drafted by `ledger.py init` from the page before the pass; 12 added. `ledger.py check`: problems 0.

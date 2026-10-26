@@ -11,15 +11,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 page = open(os.path.join(HERE, '..', 'index.html'), encoding='utf-8').read()
 text = re.sub(r'\s+', ' ', html.unescape(re.sub(r'<script.*?</script>|<style.*?</style>|<[^>]+>', ' ', page, flags=re.S)))
 data = page  # numbers drawn by scripts live in the embedded data
-NEW = "Letting the model rewrite its own context as a file beats harness-side context management at lower cost in zero-shot runs (BrowseComp-Plus +11.4% accuracy with 21.5% fewer FLOPs) and makes context management learnable; after online RL the solid gain is cost (38.8% fewer FLOPs), since the +47.6% is measured against CLM's own untrained start and an equally trained summary harness is within noise."
+NEW = "Handing the model its own context as a file to rewrite makes context management model behaviour that a prompt can steer and RL can train. Zero-shot it pays off with a strong model: Qwen3.6-27B on BrowseComp-Plus scores 59.4% against 53.3% for summarisation (+11.4% relative) with 21.5% fewer calculated FLOPs and ties on TerminalBench 2.1, in single runs; with a 9B model it is not the best method. After RL the clear gain is cost (38.8% fewer FLOPs): accuracy is 0.4 points above an equally trained summary harness, and the abstract's +47.6% is against CLM's own untrained start."  # scoped 26 October 2026 (paper.json takeaway_note); live.md carries it too
 ITEMS = [
  # live.md: the row's properties and body
  # the Takeaway property: live.md holds the version fetched on 19 October 2026; the coordinator rewrote the property the
  # same day (after this page found the RL comparison), and the card carries the new text verbatim
- ('live.takeaway', 'Takeaway property, current text, verbatim on the headline card', [NEW], 'Notion property (rewritten 19 October 2026)'),
- ('live.takeaway.bcp', 'zero-shot: BrowseComp-Plus +11.4% accuracy with 21.5% fewer FLOPs', ['+11.4%', '21.5% fewer'], 'Takeaway'),
+ ('live.takeaway', 'Takeaway property, current text, verbatim on the headline card', [NEW, 'Scoped on 26 October 2026'], 'Notion property (rewritten 19 October 2026, scoped 26 October 2026)'),
+ ('live.takeaway.bcp', 'zero-shot with a strong model: BrowseComp-Plus +11.4% accuracy with 21.5% fewer FLOPs; a tie on TerminalBench 2.1; not the best method with a 9B model', ['+11.4%', '21.5% fewer', 'ties on TerminalBench 2.1', 'with a 9B model it is not the best method'], 'Takeaway'),
  ('live.takeaway.rl', 'after RL the solid gain is cost (38.8% fewer FLOPs); +47.6% is against CLM\'s own start; trained summary harness within noise', ['38.8% fewer', '47.6%', '0.4 points'], 'Takeaway'),
- ('live.takeaway.learn', 'context management becomes learnable', ['makes context management learnable'], 'Takeaway'),
+ ('live.takeaway.learn', 'context management becomes learnable', ['a prompt can steer and RL can train'], 'Takeaway'),
  ('live.takeaway.old', 'the fetched Takeaway\'s "+47.6% for Qwen3.5-9B after online RL" (live.md), explained on the page', ['47.6%', 'own untrained start'], 'live.md Takeaway (superseded)'),
  # the paper's claims
  ('abs.def', 'CLMs natively manage their own context, implemented as a file the model may update without restriction', ['context as a file', 'unrestricted updates'], 'Abstract, §4.1'),

@@ -18,6 +18,7 @@ Scores: 0 to 2 on the Methodology's questions (reader-controlled quantity, repro
 | P-schrodingers_code_repository.8 | McNemar limits for the stars | For each Pass@1 drop of k instances, the most fail-to-pass flips a paired test can absorb at p<0.05 | Table I | Tables tab | 8 | built |
 | P-schrodingers_code_repository.9 | Level panel with Figure 4's renamings | Original / Level 1 / 2 / 3 / 4 applied to the real issue and path (Levels 1 and 4 described, not run) | port, Figure 4 | Reading, four levels | 7 | built |
 | P-schrodingers_code_repository.10 | Command flow diagram | Agent, translator, real container, patch recovery | §III-A, §III-C, Figure 2 | Reading, Idea | 5 | built |
+| P-schrodingers_code_repository.hero | Hero (2026-10-26) | The familiar and the seeded view of the Django case with the translator, over Table I's Pass@1 and actions, baseline against full setting, four models | Figure 4 paths, §III-A, Table I (`tables.json`) | Reading top | static SVG | built (`mk_hero.py`) |
 
 ## Rejected
 

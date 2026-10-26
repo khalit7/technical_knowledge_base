@@ -23,7 +23,7 @@ def card():
          ('<h1>%s</h1>' % html.escape(P['title'])) if P['title'].startswith(P['short']) else '<h1>%s <span class="mute">(%s)</span></h1>' % (html.escape(P['title']), html.escape(P['short'])),
          '<div class="au">%s</div>' % html.escape(P['authors']),
          '<div class="au mute">%s · %s</div>' % (html.escape(P['lab']), html.escape(P['date'])),
-         '<p class="tk"><b>In one line</b> <span class="mute small">(the database\'s Takeaway)</span>: %s</p>' % html.escape(P['takeaway']),
+         '<p class="tk"><b>In one line</b> <span class="mute small">(the database\'s Takeaway, scoped 26 October 2026)</span>: %s</p>' % html.escape(P['takeaway']),
          ('<p class="small" style="margin:-4px 0 8px"><b>Read with care:</b> %s</p>' % P['takeaway_note']) if P.get('takeaway_note') else '',
          '<div class="hn">']
     for x in P['headline']:

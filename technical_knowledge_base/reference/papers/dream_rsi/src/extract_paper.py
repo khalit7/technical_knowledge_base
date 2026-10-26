@@ -1,6 +1,6 @@
 """Extract the arXiv HTML of Dream-RSI (v1) to plain text, its tables to text, and its anchor list.
 usage: curl -sL https://arxiv.org/html/2609.14858v1 -o $SCRATCH/dream1.html; python3 extract_paper.py $SCRATCH/dream1.html v1  (writes into inputs/)
-Only v1 exists (checked 2026-10-03)."""
+Only v1 existed on 2026-10-03; v2 appeared on 6 October 2026 (extracted 2026-10-25 for the dated block only; the page follows v1)."""
 import re, sys, html, os
 s = open(sys.argv[1]).read(); v = sys.argv[2]
 URL = 'https://arxiv.org/html/2609.14858' + v
@@ -12,7 +12,8 @@ def txt(x):
     x = re.sub(r'</t[dh]>', '\t', x)
     x = re.sub(r'<[^>]+>', '', x)
     x = html.unescape(x)
-    return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
+    x = re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x)).replace('\u2014', '--')  # em-dashes as -- (2026-10-25)
+    return re.sub(r'(\{[^{}@\s]*\}|[\w.+-]+)@[\w-]+(\.[\w-]+)+', '[email removed]', x)  # author emails redacted (2026-10-25)
 a = s.index('<article'); b = s.index('</article>')
 open(f'inputs/paper_{v}.txt', 'w').write(f'Source: {URL} (extracted by extract_paper.py)\n\n' + txt(s[a:b]))
 ids = re.findall(r'id="((?:S|A|Sx)[0-9A-Za-z.]+)"', s)

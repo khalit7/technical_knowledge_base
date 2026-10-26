@@ -37,7 +37,9 @@
 <div class="fb"></div>
 <div class="reveal" hidden><div id="accOut"></div><p class="small mute">{{Table 3|ax:S4.T3}}; gigabytes read = share × image size, computed here.</p></div></div>
 <p>Rather than a registry plus peer-to-peer delivery, DSec serves images from 3FS, the distributed filesystem its training already uses. 3FS is fast for large sequential I/O and poor at small random I/O, which sets three rules: <b>writes stay local</b> (the writable layer on the node's disk), <b>reads are on demand and in bulk</b>, and <b>metadata is kept local</b> where the format allows ({{§5.3|ax:S5.SS3}}). For containers, EROFS's multi-device mode separates metadata from data: the metadata is downloaded to local disk, file data stays in 3FS and is read through the page cache with kernel readahead, close to Nydus's design but without a registry or FUSE backend. Consecutive layers under a size threshold (for example 3 GB) are collapsed offline into one metadata and one data image, keeping overlayfs whiteouts, and file-backed mounts skip the loop device ({{§5.3|ax:S5.SS3}}).</p>
+<details class="mist"><summary>The microVM storage path (OverlayBD over ublk) and the 3FS hardware</summary><div class="b">
 <p>MicroVMs need a different path: Docker's overlay2 cannot sit on an overlayfs data directory, and Firecracker does not support virtio-fs. Read-only layers still use EROFS, while writable ext4 disks (including one mounted at Docker's data root for Docker-in-microVM) are OverlayBD images exposed through ublk; because ext4 metadata lives inside the block image, the ublk path fetches 256 KiB chunks and keeps them in a second-level local cache, so a chunk evicted from the page cache is not fetched from 3FS again ({{§5.3|ax:S5.SS3}}). This Rust OverlayBD and ublk code is the part the authors released ({{§7|ax:S7}}). Each 3FS storage server has 20 × 15 TB SSDs and 2 × 400 Gbps RDMA NICs; tens of them serve a cluster of hundreds of thousands of CPU cores through 3FS's FUSE client ({{§7|ax:S7}}).</p>
+</div></details>
 
 <h3>3. Memory: share the page cache, return free pages</h3>
 <p>MicroVMs waste memory twice: image data read through a virtual block device is cached by the host and again by every guest, and a guest does not return free pages to the host unless told to; requested memory usually exceeds demand, so guests feel little pressure to reclaim, and long lifetimes make retained memory expensive ({{§4.3|ax:S4.SS3}}). DSec uses two complementary fixes ({{§5.2|ax:S5.SS2.SSS0.Px1}}):</p>
@@ -54,6 +56,7 @@
 <div class="fb"></div>
 <div class="reveal" hidden><div id="qosOut"></div><p class="small mute">Points and error bars decoded from {{Figure 13|ax:S8.F13}}'s vector data, calibrated on its own tick marks. The paper does not say what the error bars are (standard deviation, range?) or how many runs they summarise.</p></div></div>
 
-<h3>Other implementation details</h3>
+<details class="mist"><summary>Other implementation details: GPU FnCall</summary><div class="b">
 <p>GPU FnCall for operator benchmarking uses NVIDIA Multi-Instance GPU partitions for isolated concurrent benchmarks, compiles on CPU FnCall first so GPUs are not held during compilation, and keeps a warm pool of Python processes with libraries already imported; a shared-GPU mode raises concurrency for work that is not performance-sensitive ({{§7|ax:S7}}).</p>
+</div></details>
 </section>

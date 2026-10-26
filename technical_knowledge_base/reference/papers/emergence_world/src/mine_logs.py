@@ -204,7 +204,7 @@ def main():
             'events', {k: len(v) for k, v in W['ev'].items()}, 'stim', W['stim'], 'seen', {k: W.get('stim_seen_' + k) for k in SCHED})
     out['tools'] = sorted(TOOLS, key=TOOLS.get)
     os.makedirs(os.path.join(HERE, 'model'), exist_ok=True)
-    json.dump(out, open(os.path.join(HERE, 'model', 'logs.json'), 'w'), separators=(',', ':'), ensure_ascii=False)
+    open(os.path.join(HERE, 'model', 'logs.json'), 'w').write(json.dumps(out, separators=(',', ':'), ensure_ascii=False).replace('\u2014', '--'))  # no em-dashes in saved extracts
     open(os.path.join(HERE, 'model', 'mine_log.txt'), 'w').write('\n'.join(LOG) + '\n')
     log('bytes', os.path.getsize(os.path.join(HERE, 'model', 'logs.json')))
 

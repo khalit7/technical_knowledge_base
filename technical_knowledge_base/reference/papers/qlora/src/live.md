@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"QLoRA: Efficient Finetuning of Quantized LLMs","Takeaway":"NF4 + double quantization + paged optimizers + all-layer LoRA over a frozen 4-bit base matches 16-bit finetuning quality, fitting 65B finetuning on one 48GB GPU (Guanaco: 99.3% of ChatGPT on Vicuna).","Topics":["llm-training-and-post-training","evaluation-and-llm-judges"],"Year":"2023","url":"https://app.notion.com/p/3c65c17b0d0d815a8f4edc33f9583671"}
+{"Paper":"QLoRA: Efficient Finetuning of Quantized LLMs","Takeaway":"NF4 + double quantization + paged optimizers + all-layer LoRA over a frozen 4-bit base matches 16-bit LoRA on MMLU (LLaMA 7B to 65B) and 16-bit full finetuning up to 3B (T5-11B trails by 1.1 RougeL), fitting 65B finetuning on one 48GB GPU (Guanaco 65B: 99.3% of ChatGPT on the 80-prompt Vicuna benchmark as judged by GPT-4, 95% CI 4.4 points).","Topics":["llm-training-and-post-training","evaluation-and-llm-judges"],"Year":"2023","url":"https://app.notion.com/p/3c65c17b0d0d815a8f4edc33f9583671"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

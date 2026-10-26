@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity","Takeaway":"Simplified MoE to top-1 routing with a single balancing loss and selective fp32, getting 7x faster pretraining than T5-Base at equal FLOPs and the first 1.6T-parameter model.","Topics":["llm-training-and-post-training","llms"],"Year":"2021","url":"https://app.notion.com/p/3c65c17b0d0d81a8b541c9babbf40c94"}
+{"Paper":"Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity","Takeaway":"Simplified MoE to top-1 routing with a single balancing loss and selective fp32, reaching T5-Base quality up to 7x faster at equal FLOPs per token (64-expert Switch-Base) and scaling to the 1.6T-parameter Switch-C, 4x faster than T5-XXL to a fixed perplexity and the first trillion-parameter model with reported results.","Topics":["llm-training-and-post-training","llms"],"Year":"2021","url":"https://app.notion.com/p/3c65c17b0d0d81a8b541c9babbf40c94"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

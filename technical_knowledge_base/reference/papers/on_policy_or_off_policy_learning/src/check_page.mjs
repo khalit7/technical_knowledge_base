@@ -42,6 +42,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const shot = async (sel, name) => { const el = await p.$(sel); if (!el) { problems.push('missing ' + sel); return } await el.evaluate(e => e.scrollIntoView()); await wait(150); await el.screenshot({ path: `${shots}/${name}-${scheme}-${width}.png` }) };
   for (const t of await p.$$eval('#tabs button', bs => bs.map(x => x.dataset.t))) {
     await p.$eval(`#tabs button[data-t=${t}]`, e => e.click()); await wait(300); await audit(t + ' open');
+    // nothing may move before the reader acts, with or without reduced motion (2026-10-26)
+    if (await p.$(`#${t} #ba`)) { await p.$eval('#ba', e => e.scrollIntoView()); await wait(1200); const fr = await p.$eval('#ba', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ba moved before a click (${fr} frames)`) }
+    // the hero figure is drawn on the reading tab
+    if (t === 't-read' && !(await p.$eval('#heroSvg', e => !!e.querySelector('svg rect')))) problems.push(`${scheme} ${width}: hero figure empty`);
+    // open every closed block and audit what it shows
+    await p.$$eval(`#${t} details`, ds => ds.forEach(d => d.open = true)); await audit(t + ' details open');
     for (const pr of await p.$$(`#${t} .pred`)) { const bs = await pr.$$('.opts button'); await bs[bs.length - 1].evaluate(x => x.click()); await bs[0].evaluate(x => x.click()); actions += 2 }
     for (const id of await p.$$eval(`#${t} input[type=range]`, xs => xs.map(x => x.id))) {
       for (const f of [0, .5, 1, .25]) { await p.evaluate((id, f) => { const e = document.getElementById(id); e.value = +e.min + (e.max - e.min) * f; e.dispatchEvent(new Event('input', { bubbles: true })) }, id, f); actions++ }
@@ -56,7 +62,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     for (const s of segs) { if (await s.evaluate(x => x.offsetParent !== null)) { await s.evaluate(x => x.click()); actions++; await wait(40) } }
     await audit(t + ' segments');
     for (const s of segs) { if (await s.evaluate(x => x.offsetParent !== null && x === x.parentElement.firstElementChild)) { await s.evaluate(x => x.click()); await wait(40) } }
-    if (t === 't-read') { for (const c of ['#pairs', '#f1', '#gr', '#f3', '#f5', '#f6']) await shot(c, 'read' + c.slice(1)); await shot('#hero', 'hero') }
+    if (t === 't-read') { for (const c of ['#heroFig', '#f1', '#gr', '#f3', '#f5', '#f6']) await shot(c, 'read' + c.slice(1)); await shot('#hero', 'hero') }
     if (t === 't-run') {
       // the four before/after modes, each stepped to its last checkpoint
       for (const m of ['f-1', 'f1', 'r-1', 'r1']) {

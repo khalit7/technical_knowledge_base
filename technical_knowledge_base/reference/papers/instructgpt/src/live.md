@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Training language models to follow instructions with human feedback (InstructGPT)","Takeaway":"Defined the 3-stage RLHF recipe (SFT -\\> reward model -\\> PPO with KL penalty, plus PPO-ptx to cut the alignment tax) that made a 1.3B model preferred over 175B GPT-3 and became the ChatGPT-era industry standard.","Topics":["llm-training-and-post-training","rl"],"Year":"2022","url":"https://app.notion.com/p/3c65c17b0d0d8180b958d8299996a063"}
+{"Paper":"Training language models to follow instructions with human feedback (InstructGPT)","Takeaway":"Took the 3-stage RLHF recipe of earlier summarization work (SFT -> reward model -> PPO with KL penalty) to general instruction following, adding PPO-ptx to cut the alignment tax; labelers preferred the 1.3B model's outputs over 175B GPT-3's on the API prompt distribution, and the recipe became the ChatGPT-era industry standard.","Topics":["llm-training-and-post-training","rl"],"Year":"2022","url":"https://app.notion.com/p/3c65c17b0d0d8180b958d8299996a063"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

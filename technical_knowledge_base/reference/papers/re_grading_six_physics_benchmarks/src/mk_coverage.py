@@ -11,11 +11,11 @@ txt = re.sub(r'\s+', ' ', txt)
 R, P, T, F = 'The paper tab', 'Follow the audit tab', 'Tables tab', 'Further reading tab'
 C = [
  # properties (they stay in Notion; the card repeats the takeaway)
- ('Takeaway property (verbatim on the card)', R + ', headline card "In one line"', ['Domain experts re-graded six popular physics benchmarks and found wrong answer keys, ambiguous questions and grader bugs behind most reported model failures', 'rather than another leaderboard on a broken quiz']),
+ ('Takeaway property (on the card; softened 2026-10-25: most of the audited failures of one model, not most reported failures; corrected scores are upper estimates on filtered sets; the authors ask for new verified tasks, not human-written exams)', R + ', headline card "In one line"', ['of 250 answers GPT-5.6-Sol had been marked wrong on four of them, only 12 were real model mistakes', 'rather than another leaderboard on the same pipeline']),
  ('Topics property: benchmarks, evaluation-and-llm-judges, llms', F + ', Topics', ['https://app.notion.com/p/3c65c17b0d0d811fb43fece56e40041a', 'https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546', 'https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286']),
  ('Year property: 2026', 'crumb line', ['Papers', '· 2026 ·']),
  # header
- ('Reading time line "3 min read, +25m resources"', 'replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "3 min read, +25m resources"', 'replaced by the build-computed reading time and resources total', ['Reading: ', 'in closed details.']),
  ('arXiv 2609.13009, 14 September 2026', 'card (submitted 11 September, announced 14 September) and the note under the nav', ['https://arxiv.org/abs/2609.13009', 'announced 14 September 2026', 'submitted on Friday 11 September']),
  ("Surfaced through TLDR AI's edition of the same day", R + ', note under the nav', ["surfaced through TLDR AI's edition of 14 September"]),
  # the claim

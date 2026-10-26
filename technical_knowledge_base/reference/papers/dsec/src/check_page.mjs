@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const file = 'file://' + path.resolve(here, '../index.html');
-const shots = process.argv[2] || path.resolve(here, '../.shots');
+const shots = process.argv[2] || path.resolve(here, '../.shots'); (await import('node:fs')).mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined, args: ['--no-sandbox'] });
 let problems = [], actions = 0;
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -43,6 +43,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
   for (const t of tabs) {
     await clk(`#tabs button[data-t=${t}]`); await wait(300); await audit(t + ' open');
+    // nothing may move before the reader acts (2026-10-26): scroll each animation into view and wait
+    for (const id of await p.$$eval(`#${t} .card`, cs => cs.filter(c => c.querySelector('.an-play')).map(c => c.id))) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`) }
+    // closed details hold text too: open them all
+    await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(300); await audit(t + ' details open');
     for (const pr of await p.$$(`#${t} .pred`)) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2; await wait(100) } }
     await audit(t + ' predicts');
     for (const id of await p.$$eval(`#${t} input[type=range]`, xs => xs.map(x => x.id))) {
@@ -66,7 +71,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     for (const card of await p.$$eval(`#${t} .card`, cs => cs.filter(c => c.querySelector('.an-play')).map(c => c.id))) {
       const modes = await p.$$eval(`#${card}M button`, bs => bs.map(b => b.dataset.m));
       for (const m of modes) {
-        await clk(`#${card}M button[data-m="${m}"]`); await wait(50); await clk(`#${card}Play`); // pause
+        await clk(`#${card}M button[data-m="${m}"]`); await wait(50); // a mode switch pauses on step 1 (no autoplay since 2026-10-26)
         for (let i = 0; i < 12; i++) { await clk(`#${card}Fwd`); actions++ }
         await audit(`${t} ${card} ${m} end`);
         const step = await p.$eval(`#${card}Step`, e => e.textContent);

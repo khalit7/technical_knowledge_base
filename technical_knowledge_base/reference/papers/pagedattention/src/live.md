@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Efficient Memory Management for Large Language Model Serving with PagedAttention","Takeaway":"PagedAttention pages the KV cache into fixed 16-token blocks with OS-style block tables, copy-on-write sharing, and swap/recompute preemption, lifting KV memory utilization from \\~20-38% to 96% and serving throughput 2-4x over Orca; it became the industry-standard KV layout and the foundation of vLLM.","Topics":["inference-and-serving","cuda-and-gpu-programming","swe-and-system-design"],"Year":"2023","url":"https://app.notion.com/p/3c65c17b0d0d81bf8b90ca93fee19f5f"}
+{"Paper":"Efficient Memory Management for Large Language Model Serving with PagedAttention","Takeaway":"PagedAttention pages the KV cache into fixed 16-token blocks with OS-style block tables, copy-on-write sharing, and swap/recompute preemption, lifting KV memory utilization from about 20 to 38% to 96% and the sustainable request rate 1.7 to 2.7x over the authors' own Orca reimplementation with oracle allocation (ShareGPT; 2 to 4x across the paper's baselines); it became the industry-standard KV layout and the foundation of vLLM.","Topics":["inference-and-serving","cuda-and-gpu-programming","swe-and-system-design"],"Year":"2023","url":"https://app.notion.com/p/3c65c17b0d0d81bf8b90ca93fee19f5f"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

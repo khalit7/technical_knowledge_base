@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Mamba: Linear-Time Sequence Modeling with Selective State Spaces","Takeaway":"Made SSM parameters (B, C, delta) input-dependent, breaking LTI so the model selectively remembers or forgets per token, and paired it with a fused parallel-scan GPU kernel; first attention-free model to match Transformer++ quality with linear-time training and 5x inference throughput, seeding today's hybrid attention-SSM production models.","Topics":["ml-fundamentals","llms","inference-and-serving","cuda-and-gpu-programming"],"Year":"2023","url":"https://app.notion.com/p/3c65c17b0d0d8179984fc3a1fee4c36a"}
+{"Paper":"Mamba: Linear-Time Sequence Modeling with Selective State Spaces","Takeaway":"Made SSM parameters (B, C, delta) input-dependent, breaking LTI so the model selectively remembers or forgets per token, and paired it with a fused parallel-scan GPU kernel; in the paper's scaling runs (the Pile, 125M to 1.3B) the first attention-free model to match Transformer++ perplexity, with linear-time training and 5x generation throughput, seeding today's hybrid attention-SSM production models.","Topics":["ml-fundamentals","llms","inference-and-serving","cuda-and-gpu-programming"],"Year":"2023","url":"https://app.notion.com/p/3c65c17b0d0d8179984fc3a1fee4c36a"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>
