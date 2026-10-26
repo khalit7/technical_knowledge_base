@@ -11,8 +11,8 @@
 | Training job's threads by torch thread count (gdb + py-spy + strace) | 4 / 5 / 5 | Reading s10, selectable recorded output | built |
 | One process, three threads (shared vs per-thread state) | 3 / 2 / 2 | Reading s1 static SVG | built |
 | Lost update stepper, deadlock ABBA stepper | 4 / 3 / 1 | link to the root's OS simulators | rejected 2026-10-05 (the root owned them); built 2026-10-24 as a stepper and a static cycle, since this page now owns races and deadlock |
-| Memory-order message-passing litmus test | 4 / 4 / 1 | link to the C++ page Part 2 | rejected here: the C++ page measured it on this chip; Peterson's lock covers the OS angle |
-| Free-threaded Python scaling | 3 / 4 / 1 | link to the Python page | rejected as a run (the Python page owns the measurement); built 2026-10-24 as a GIL against free-threaded before/after with the Python page's totals |
+| Memory-order message-passing litmus test | 4 / 4 / 1 | link to C++: the machine underneath, section 8 | rejected here: the C++ page measured it on this chip; Peterson's lock covers the OS angle |
+| Free-threaded Python scaling | 3 / 4 / 1 | link to Python: concurrency, asyncio and the GIL | rejected as a run (the Python page owns the measurement); built 2026-10-24 as a GIL against free-threaded before/after with the Python page's totals |
 | Futex hash-table picture with buckets and keys | 3 / 2 / 3 | | rejected: the prose plus the Interleaving lab's wait queues teach it; a static picture added little |
 | io_uring ring animation as its own tab | 3 / 3 / 3 | | folded into the Event loop lab's io_uring mode |
 
