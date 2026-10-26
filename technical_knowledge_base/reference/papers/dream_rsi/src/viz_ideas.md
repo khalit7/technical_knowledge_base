@@ -24,3 +24,11 @@ Scores: quantity the reader controls / reproduces a published figure (×2) / com
 | P-dream_rsi.14 | Training-bill or cost tab | none | | rejected: a pattern Khalid removed; the paper gives no cost beyond call counts |
 
 What the methodology lacked for this page: a rule for **ratios chosen at a favourable point** (budget ratio at worse final performance, or a comparison against the other curve's intermediate round). Suggested rule: for any "x× fewer at comparable performance" or "x× better at similar budget" claim, show the matched-performance and matched-budget versions beside it, computed from the decoded curves.
+
+## 2026-10-25 light pass
+| id | idea | score | placement | status |
+|---|---|---|---|---|
+| P-dream_rsi.h1 | **Hero, redrawn** (`mk_hero.py`): record, dream, redeploy on an illustrative 6 × 6 grid (same best in 18 of 36 attempts, the ceiling), with the Lasso and VGG16 numbers and their caveats | 5 / 5 (printed numbers only; grid labelled illustrative) / 1 | Reading, top | built |
+| P-dream_rsi.h2 | Replay stepper moved from the Dream tab into Method | 5 / 4 / 1 | Reading, Method | moved |
+| P-dream_rsi.h3 | The paper's Figure 1 embedded as the hero | rejected: arXiv non-exclusive licence; the repository's figures carry no licence |
+
