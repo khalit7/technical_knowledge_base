@@ -1,0 +1,60 @@
+
+<section id="s-agent"><h2>A real agentic harness: Branching on competition math</h2>
+[[S5|§5, Appendix E]]
+<p><b>Setup</b> ({{§5|ax:S5}}). Base model Qwen3-1.7B with thinking off; problems from DAPO-Math-17k, graded by math-verify on the last boxed answer. Traces come from a pool of 1,500 problems (pass@1 about 0.30), evaluation from 500 other problems (about 0.31; the base bar in Figure 5a reads 28.0).</p>
+<p><b>The Branching harness</b> ({{Bateni et al., 2025|https://arxiv.org/abs/2512.04923}}) is a tree with <i>d</i> children per node and depth <i>L</i>: each leaf answers the question at temperature 1.0, each internal node reads its children's solutions and writes a new one. It costs 1 + <i>d</i> + <i>d</i>² + ... + <i>d</i><sup><i>L</i></sup> calls: 3 for (2,1), 13 for the canonical (3,2) tree (9 leaves, 3 aggregators, 1 root), 85 for (4,3) ({{Appendix E.1|ax:A5.SS1}}). The student is the same backbone, LoRA fine-tuned to write the whole flattened tree (each attempt, then the final solution) in one rollout, trained only on runs whose root answer was right.</p>
+<div class="pred" id="pr-tree" data-ans="3"><p class="q">the 85-call tree (4,3) scores 43.6%. What does the same-size student trained on its traces score?</p>
+<div class="opts"><button>about 42%</button><button>about 36%</button><button>below the base model's 28%</button><button>it is not reported</button></div><div class="fb"></div>
+<div class="reveal" hidden><div class="fig"><div class="ttl">The teacher improves as the tree grows; the student peaks at 35.8% and falls below the base model at depth three</div><div id="f5Svg"></div>
+<div class="cap">Figure 5a printed labels, shapes ordered by the teacher's score, calls from Figure 12d. The (4,3) student bar reads "n/a". The abstract's "a single-pass student saturates near 36%" is the best student of any shape, (2,2) with 7 calls.</div></div></div></div>
+<p>With 500 test problems and one run, each bar has a binomial standard error of about 2.1 points, so a teacher-student difference needs about 6 points to be clearly real. The gaps at (2,1), (3,1) and (2,2) (1.0 to 2.2 points) are within noise: the student recovers small trees, as simple BT was recovered. The gaps at (4,1) and (3,2) (4.0 and 5.2 points) are under 2 standard errors. The gaps at (2,3), (4,2) and (3,3) (8.0, 9.6 and 16.0 points, 2.7 to 5.4 standard errors) are not ({{recomputed|tab:t-tables:tb-checks}}). The (3,3) student, at 26.8%, ends below the untouched base model's 28.0%.</p>
+<p><b>Better recipes do not close it</b> on the (3,1) tree (teacher line 36.0, base 28.0): clean-data shares of 0 to 100% give 34.2, 35.0, 34.6, 31.4, 29.2; 134, 267 or 535 traces give 33.2, 35.2, 34.2; 1, 2 or 4 epochs give 30.6, 34.2, 34.4 ({{Figure 12|ax:A1.F12}}). The training sets are a few hundred traces.</p>
+<p><b>More capacity does, but only from a bigger model</b> ({{Figure 13|ax:A1.F13}}). On the (4,2) tree (teacher 41.4%) the student scores 31.8% with LoRA rank 16, 33.6% with rank 64 and 34.0% with full fine-tuning: +1.8 points from rank, +2.2 from training every weight. The abstract's "LoRA rank improves the student by only 2.2 percentage points" is the full fine-tune. On the (3,2) tree a 4B backbone scores 41.6% against the teacher's 40.0% and the 1.7B student's 35.2%. "Surpasses the teacher" is 1.6 points, half a standard error; and the 4B model's own score without any distillation is not given, so the figure cannot separate absorbing the harness from simply being a stronger model.</p>
+<h3>A strong prover: what fits in context buys nothing measurable</h3>
+<p>QED-Nano is a 4B model for olympiad proofs: Qwen3-4B-Thinking, fine-tuned on proofs from DeepSeek-Math-V2, then trained by reinforcement learning on the 5,227 FineProofs-RL problems ({{Appendix E.2|ax:A5.SS2}}). Its own harness (Recursive Self-Aggregation, 39 calls) raises IMO-ProofBench from 40.0% to 56.9% at about 22 times the tokens, with traces of about 1.5M tokens, far too long to distil. So the authors try small Branching trees on 300 medium-difficulty problems from the RL set (base reward between 0.10 and 0.60 over 128 attempts), graded out of 7 by a local gpt-oss-20b judge with 6 or more counted correct, one run, a paired bootstrap for the interval ({{Appendix E.3 to E.5|ax:A5.SS3}}).</p>
+<div class="fig" id="f13c"><div class="ttl">Only the 40-call tree clearly helps, and its trace is five times the context window</div><div id="f13cSvg"></div>
+<div class="cap">Figure 13c: gain of the harness over the first call on the same problems, points, with the 95% interval decoded from the error bars. Blue: median trace fits the 262k-token window; orange: it does not ((1,6) at 309k and (3,3) at about 1.4M in Table 3; the figure also marks (2,2) as exceeding, though Table 3 gives no length for it). Shapes here are (rounds, branching), so (3,3) is 27 proofs merged in threes.</div></div>
+<p>The four shapes of 5 to 7 calls show gains of −1.8 to +2.3 points, with intervals 11 to 12 points wide: the experiment cannot tell "nothing" from "a few points". Figure 5b adds a (1,3) shape (gain +0.1, trace about 164k tokens) that is in neither Table 3 nor Figure 13c.</p>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+<p><b>What holds up.</b> The direction is the same in four settings and three kinds of harness: same-size students trained on traces stayed below teachers that search, and bigger students narrowed or closed the gap (Figures 1, 2b, 9, 13a). On the controlled tasks the ablations are broad (data share, steps, trace count, source mix, seeds), and on Qwen3 the gaps at the larger trees are 2.7 to 5.4 standard errors. The authors state their own caveats on QED-Nano (one run, no length filtering, no student trained) ({{Appendix E.6|ax:A5.SS6}}), and the theorem is correct as stated and properly conditional.</p>
+<p><b>What to discount.</b></p>
+<ul>
+<li><b>The theorem does not cover the students that were trained.</b> It rules out students with an O(log <i>n</i>) chain of thought; every distilled student writes a long trace, a class that can run BFS in principle. The theory motivates the experiments rather than explaining them ({{§4.2|ax:S4.SS2}}).</li>
+<li><b>The headline compares different trees.</b> 43.6% is the (4,3) teacher, which has no student; "near 36%" is the best student of any shape, at 7 calls ({{Figure 5|ax:S5.F5}}).</li>
+<li><b>Single runs, no error bars on Qwen3.</b> Small-tree gaps (1 to 2 points), rank against full fine-tuning (+0.4) and the 4B student "surpassing" (+1.6) are all within noise.</li>
+<li><b>One wording does not match its figure.</b> The +2.2 points attributed to LoRA rank is full fine-tuning; rank gives +1.8 ({{Figure 13b|ax:A1.F13}}).</li>
+<li><b>The 4B comparison lacks its baseline.</b> Without the 4B model's own score, closing the gap may owe more to the stronger model than to the traces.</li>
+<li><b>The teachers have more than a loop.</b> Oracle verifiers (Sokoban's BFS solvability check, Dyck's prefix check, the modular-arithmetic answer key), 1,000 rollouts per step for VGB at evaluation, and for A* a classical optimal planner ({{Appendix B|ax:A2}}).</li>
+<li><b>Best-of selection in the size sweeps.</b> Each size reports its best run over clean ratios and checkpoints on the evaluation split; at teacher size this student is 0.016 below the teacher in distribution, against 0.10 in Figure 1 ({{Figure 2b|ax:S2.F2}}).</li>
+<li><b>"Match and eventually exceed" is only "match".</b> Greedy decoding never passes the scaffold in Figures 3 or 11, and that experiment trains on the true chain, not on traces.</li>
+<li><b>Bookkeeping slips.</b> Section 3.1 says 12 scales up to 11.5M, Appendix C.1 says up to 5.65M, Table 1's caption says VGB ran 8 scales "from tiny to m_plus" (11 rows), and the figures plot 8 VGB and 5 A* sizes; the (3,2) teacher is 40.4 in Figure 5a and 40.0 in Figure 13a; Figure 5b has a shape no table lists. None changes a conclusion.</li>
+<li><b>Nothing is released</b>: no code, traces or checkpoints, so none of this can be rerun.</li>
+</ul>
+<p class="co"><b>Verdict.</b> Believe that a same-size student trained by supervised fine-tuning on the traces of a deep, stateful harness fell short in these setups, and that more student capacity closed the gap; the effect is clear at large trees and absent at small ones. Treat the theorem as a clean statement about short-chain students that suggests why, not as a proof that these students could not have learned the harness, and treat the 4B and LoRA-rank claims as within noise.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<ul>
+<li><b>Nothing to install.</b> No code, traces or checkpoints are released (checked 26 October 2026); the recipes are described in the appendices only.</li>
+<li><b>Before distilling a harness into the model it wraps</b>, measure the student against the teacher at the same harness size, with the eval set large enough to see a 5-point gap (about 500 problems gives a standard error near 2 points per arm).</li>
+<li><b>Shallow, bounded harnesses distil; deep, stateful ones did not.</b> Simple backtracking and trees of up to 7 calls were recovered by a same-size student; trees of 15 calls and more were not.</li>
+<li><b>Three ways out</b>, each tested here: a larger student (1.7B to 4B on Qwen3), a simpler harness, or a longer chain of thought; or keep the harness at inference and pay its calls (85 per problem for the best tree here).</li>
+<li><b>Check the trace fits.</b> Proof traces of 5 to 7 calls already reach 208k to 309k tokens against a 262k window; the 40-call tree is about 1.4M. A harness whose traces cannot be trained on cannot be distilled this way at all.</li>
+</ul>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="mute small">(beyond the paper)</span></h2>
+<p>It gives a reason, beyond engineering convenience, why a harness's gains belong to the model-plus-harness pair: some of them come from depth the loop supplies, which a same-size model has no room for. The practical consequence on {{Harnesses for training and evaluation, section 1|n:3f15c17b0d0d815ea579d6c80065aa36}} (the score belongs to the pair) and section 6 (trajectories as training data) is to compare distilled students against the harness at matched size. It also sits next to the more optimistic line in which models trained on serialised search traces learn to search within one rollout ({{Stream of Search, 2024|https://arxiv.org/abs/2404.03683}}; {{Beyond A*, 2024|https://arxiv.org/abs/2402.14083}}): those students write long traces, which is exactly the escape route the theorem leaves open. And it is one more instance of the chain-of-thought-as-depth view taught on {{Test-time compute and reasoning, section 1|n:4035c17b0d0d813f9fb2d62cff1f09ef}}.</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul>
+<li>{{Harnesses for training and evaluation|n:3f15c17b0d0d815ea579d6c80065aa36}}: scaffold sensitivity and trajectories as training data, the practice this paper puts a limit on.</li>
+<li>{{Distillation and Small Language Models|n:3c65c17b0d0d81efa2a8c3b3b623eb09}}: what distillation is and its recipes; this paper uses the simplest (supervised fine-tuning on the teacher's outputs).</li>
+<li>{{Test-time compute and reasoning|n:4035c17b0d0d813f9fb2d62cff1f09ef}}: why a chain of thought adds serial computation, and the search and verifier methods these harnesses are built from.</li>
+<li>Papers: {{Sharpening Tax in Post-Training|n:3fe5c17b0d0d81efa2a9f532c14c87a3}} (a light harness around a base model reaches tasks the post-trained model stopped reaching), {{On-Policy or Off-Policy Learning?|n:3fe5c17b0d0d8136888ff145ba3a7bbb}} (distillation dynamics), {{StateM|n:3c65c17b0d0d81899098d8153e100691}} (gains bought with a large harness).</li>
+</ul>
+</section>
+</section>

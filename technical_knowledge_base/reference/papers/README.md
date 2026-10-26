@@ -71,3 +71,4 @@ Not an HTML page: in Notion it is a one-line description followed by the Papers 
 - `on_policy_or_off_policy_learning/`: On-Policy or Off-Policy Learning? A Systematic Study of Distillation Dynamics
 - `context_language_models/`: Context Language Models
 - `sharpening_tax/`: Sharpening Tax in Post-Training
+- `scaffold_computational_separations/`: Understanding the Benefits of Scaffolds through Computational Separations
