@@ -71,3 +71,5 @@ Why about 29 minutes is right: The paper plus the two lab tabs was 33.9 minutes 
 
 ## Checks (25 October 2026)
 `checkpage.sh`: tabs 3, 190 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 308 actions, 0 problems (no frame before a click). `check_fp8.mjs`: 283 numbers compared, 0 mismatches. `mk_coverage.py`: 77 of 77.
+
+2026-10-26 (final follow-up sweep): Further reading notes (paper.json) no longer name the merged Check the bill tab; they point at the Reading tab's bill section.
