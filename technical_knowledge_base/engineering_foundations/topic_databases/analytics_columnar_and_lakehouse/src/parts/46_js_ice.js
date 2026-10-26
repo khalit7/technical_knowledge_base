@@ -37,7 +37,7 @@
       b+=RD.t(x,y+12,ln[0]+' ('+fs.length+')',{fs:11.5,w:600});y+=18;
       fs.forEach(f=>{const isNew=f.step===st.k,isLive=state.live.has(f.path),on=st.sel===f.path;
         b+='<g data-p="'+RD.esc(f.path)+'" style="cursor:pointer"><rect x="'+(x+1)+'" y="'+y+'" width="'+(laneW-2)+'" height="'+bh+'" rx="4" fill="'+(on?'var(--acc2)':'var(--bg)')+'" stroke="'+(isNew?'var(--c2)':'var(--line)')+'" stroke-width="'+(isNew?2.5:1)+'" opacity="'+(isLive?1:0.4)+'"/>'+
-          RD.t(x+6,y+14,RD.esc(short(f.path,Math.max(14,Math.floor(laneW/6.6)))),{fs:11})+RD.t(x+6,y+28,FMT.mb(f.bytes)+(isLive?'':' (not in current snapshot)')+(isNew?' new':''),{fs:11,fill:'var(--mute)'})+'</g>';
+          RD.t(x+6,y+14,RD.esc(short(f.path,Math.max(14,Math.floor(laneW/6.9)))),{fs:11})+RD.t(x+6,y+28,FMT.mb(f.bytes)+(isLive?'':' (not in current snapshot)')+(isNew?' new':''),{fs:11,fill:'var(--mute)'})+'</g>';
         y+=bh+gap});
       maxY=Math.max(maxY,y);if(narrow)y0=y+8;});
     el.innerHTML=RD.svg(W,Math.max(60,narrow?y0:maxY),b,'Files of the table');

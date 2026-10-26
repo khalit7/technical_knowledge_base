@@ -43,7 +43,7 @@
     const sh=118;
     const srv=(x,title,sub,last)=>{let s=box(x,y,cw,sh,{stroke:'var(--acc)'});
       s+=T(x+8,y+16,esc(title),{fs:11.5,w:600});s+=T(x+8,y+31,esc(sub),{fs:11,fill:'var(--mute)'});
-      [['tools','the model decides'],['resources','the app decides'],['prompts','the user decides']].forEach(([k,v],i)=>{s+=T(x+8,y+52+i*16,k,{fs:11,w:600,fill:'var(--acc)'});s+=T(x+8+(nw?62:70),y+52+i*16,esc(v),{fs:11})});
+      [['tools','the model decides'],['resources','the app decides'],['prompts','the user decides']].forEach(([k,v],i)=>{s+=T(x+8,y+52+i*16,k,{fs:11,w:600,fill:'var(--acc)'});s+=T(x+8+(nw?62:70),y+52+i*16,esc(nw?v.replace('the ',''):v),{fs:11})});
       s+=T(x+8,y+sh-10,esc(last),{fs:11,fill:'var(--mute)'});return s};
     b+=srv(xl,nw?'Local server':'Local server (child process)',nw?'a child process':'e.g. a code editor\'s tools',nw?'user\'s rights, env creds':'runs with the user\'s rights');
     b+=srv(xr,nw?'Remote: ckpt-tools':'Remote server: ckpt-tools',nw?'a web service':'an ordinary web service, many replicas',nw?'OAuth resource server':'an OAuth resource server');

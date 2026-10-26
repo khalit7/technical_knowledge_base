@@ -58,7 +58,7 @@ window.TLF=(function(){
     s=s.replace('</defs>','</defs><line x1="'+cx+'" y1="48" x2="'+cx+'" y2="'+(y-4)+'" stroke="var(--line)" stroke-width="2"/><line x1="'+sx+'" y1="48" x2="'+sx+'" y2="'+(y-4)+'" stroke="var(--line)" stroke-width="2"/>');
     // one round trip bracket on the far right of the server column
     const bx=sx+colW/2-10,y0=ys[0],y1=ys[4];
-    s+='<path d="M'+(bx-6)+' '+y0+' H'+bx+' V'+y1+' H'+(bx-6)+'" fill="none" stroke="var(--mute)"/>'+'<text transform="translate('+(bx+5)+','+((y0+y1)/2)+') rotate(90)" text-anchor="middle" font-size="11" fill="var(--mute)">1 round trip</text>';
+    s+='<path d="M'+(bx-6)+' '+y0+' H'+bx+' V'+y1+' H'+(bx-6)+'" fill="none" stroke="var(--mute)"/>'+'<text transform="translate('+(bx+3)+','+((y0+y1)/2)+') rotate(90)" text-anchor="middle" font-size="11" fill="var(--mute)">1 round trip</text>';
     // legend
     y+=6;s+=F.line(m,y,m+26,y,id,'k',{dash:'5 3',noarrow:true})+F.text(m+32,y+4,'readable by anyone',{fs:11,fill:'var(--mute)'});
     const lx=Math.min(W/2,m+170);s+=F.line(lx,y,lx+26,y,id,'b',{noarrow:true})+F.text(lx+32,y+4,'encrypted',{fs:11,fill:'var(--mute)'});

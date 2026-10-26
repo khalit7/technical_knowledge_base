@@ -34,7 +34,7 @@
       const order=st===0?S.start:S.windows[st-1].after;const win=st===0?null:S.windows[st-1];
       let s='';if(win){const y0=top+win.start*rh-2;s+='<rect x="2" y="'+y0+'" width="'+(W-4)+'" height="'+(win.size*rh+2)+'" fill="var(--acc2)" rx="4"/>';}
       order.forEach((d,i)=>{const y=top+i*rh;const r=S.rel.includes(d);
-        s+=RD.t(6,y+12,String(i+1),{fs:10.5,fill:'var(--mute)'})+'<rect x="30" y="'+(y+3)+'" width="'+Math.max(10,(W-160)*(1-i/n))+'" height="11" rx="3" fill="'+(r?'var(--good)':'var(--dim)')+'"/>'+RD.t(W-124,y+12,esc((S.titles[d]||d).slice(0,22)),{fs:10,fill:r?'var(--good)':'var(--mute)'})});
+        s+=RD.t(6,y+12,String(i+1),{fs:10.5,fill:'var(--mute)'})+'<rect x="30" y="'+(y+3)+'" width="'+Math.max(10,(W-160)*(1-i/n))+'" height="11" rx="3" fill="'+(r?'var(--good)':'var(--dim)')+'"/>'+RD.t(W-124,y+12,esc((S.titles[d]||d).slice(0,20)),{fs:10,fill:r?'var(--good)':'var(--mute)'})});
       s+=RD.t(6,12,st===0?'BM25 order (input)':'after call '+st+' of '+S.windows.length,{fs:11,fill:'var(--ink)'});
       el.innerHTML=RD.svg(W,Hh,s,'sliding window');
       $('rr-sw-cap').textContent=st===0?'Claim '+S.qid+': "'+S.claim+'". BM25 put the relevant abstract at rank '+(1+S.start.findIndex(d=>S.rel.includes(d)))+'.':

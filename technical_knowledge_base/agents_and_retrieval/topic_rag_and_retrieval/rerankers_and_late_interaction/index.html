@@ -476,6 +476,7 @@ Judge whether the Document meets the requirements based on the Query and the Ins
 <div class="card" id="rr-cb-card"><h4>ColBERT alone beats the 0.6 B bi-encoder; as a reranker it peaks on the hybrid top 20</h4><div class="rr-chart" id="rr-cb-svg"></div>
 <p class="small mute">nDCG@10, 300 test claims. Exhaustive = MaxSim against every abstract (recomputed in float32 from the stored float16 vectors: 0.744; the setup's GPU run 0.743). Rerank = MaxSim over a first stage's top K. <span class="meas">measured here</span> (<code>e_colbert.py</code>)</p></div>
 <p>Because document vectors are precomputed, ColBERT does both jobs. As a first stage ColBERT-small (0.743, 33 M parameters) beats Qwen3-Embedding-0.6B (0.700). Reranking BM25's top 100 (0.745) matches exhaustive late interaction (0.744), because that list already holds 0.913 of the relevant abstracts; the hybrid top 20 is ColBERT's best setting here (0.758), and the cross-encoder Qwen3-Reranker still beats it (0.782).</p>
+<p><b>Different encoders for documents and queries.</b> The two sides of late interaction run at different times: documents are encoded once, offline, and queries on every request, inside the latency budget. If two models write token vectors into one shared space, each side can get its own size. Perplexity's pplx-embed-v2-late does this: a 0.6 B and a 9 B multilingual, multimodal late-interaction model, both distilled from an 18 B teacher into one embedding space, so "documents can be indexed with the 9B model and queried with the low-latency 0.6B model" (<a href="https://arxiv.org/abs/2610.29523" target="_blank" rel="noopener noreferrer">arXiv 2610.29523</a>). It buys the large model's document vectors at the small model's query latency, and costs a pair trained together: a query model from another family cannot read the index. The report claims state-of-the-art results within each size class on text, image and visual-document retrieval <span class="vend">vendor</span>; not run here.</p>
 </section>
 
 <section id="rr-s9">
@@ -828,7 +829,7 @@ window.RRL=(function(){
       const order=st===0?S.start:S.windows[st-1].after;const win=st===0?null:S.windows[st-1];
       let s='';if(win){const y0=top+win.start*rh-2;s+='<rect x="2" y="'+y0+'" width="'+(W-4)+'" height="'+(win.size*rh+2)+'" fill="var(--acc2)" rx="4"/>';}
       order.forEach((d,i)=>{const y=top+i*rh;const r=S.rel.includes(d);
-        s+=RD.t(6,y+12,String(i+1),{fs:10.5,fill:'var(--mute)'})+'<rect x="30" y="'+(y+3)+'" width="'+Math.max(10,(W-160)*(1-i/n))+'" height="11" rx="3" fill="'+(r?'var(--good)':'var(--dim)')+'"/>'+RD.t(W-124,y+12,esc((S.titles[d]||d).slice(0,22)),{fs:10,fill:r?'var(--good)':'var(--mute)'})});
+        s+=RD.t(6,y+12,String(i+1),{fs:10.5,fill:'var(--mute)'})+'<rect x="30" y="'+(y+3)+'" width="'+Math.max(10,(W-160)*(1-i/n))+'" height="11" rx="3" fill="'+(r?'var(--good)':'var(--dim)')+'"/>'+RD.t(W-124,y+12,esc((S.titles[d]||d).slice(0,20)),{fs:10,fill:r?'var(--good)':'var(--mute)'})});
       s+=RD.t(6,12,st===0?'BM25 order (input)':'after call '+st+' of '+S.windows.length,{fs:11,fill:'var(--ink)'});
       el.innerHTML=RD.svg(W,Hh,s,'sliding window');
       $('rr-sw-cap').textContent=st===0?'Claim '+S.qid+': "'+S.claim+'". BM25 put the relevant abstract at rank '+(1+S.start.findIndex(d=>S.rel.includes(d)))+'.':

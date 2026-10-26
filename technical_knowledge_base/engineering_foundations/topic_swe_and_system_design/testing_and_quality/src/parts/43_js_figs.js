@@ -141,7 +141,7 @@ window.TQF=(function(){
     const pl=(a,c)=>'<polyline points="'+a.map(q=>x(q[0])+','+y(q[1])).join(' ')+'" fill="none" stroke="'+c+'" stroke-width="2.2"/>'+a.map(q=>'<circle cx="'+x(q[0])+'" cy="'+y(q[1])+'" r="3" fill="'+c+'"/>').join('');
     b+=pl(pc,'var(--c3)')+pl(pk,'var(--acc)');
     const lc=cv[n],l3=cv[3];
-    b+=S.T(w-R+8,y(100)+4,'line coverage',{fs:11.5,w:600,fill:'var(--c3)'})+S.T(w-R+8,y(100)+18,lc.cov+' of '+ns+' statements',{fs:11,fill:'var(--c3)'});
+    b+=S.T(w-R+8,y(100)+4,'line coverage',{fs:11.5,w:600,fill:'var(--c3)'})+S.T(w-R+8,y(100)+18,lc.cov+' of '+ns+(w<520?' lines':' statements'),{fs:11,fill:'var(--c3)'});
     b+=S.T(w-R+8,y(100)+40,'mutation score',{fs:11.5,w:600,fill:'var(--acc)'})+S.T(w-R+8,y(100)+54,lc.kill+' of '+nm+' mutants',{fs:11,fill:'var(--acc)'});
     b+=S.T(x(3)+6,y(100*l3.kill/nm)+16,l3.kill+' of '+nm+' at 100% coverage',{fs:11,fill:'var(--acc)',w:600});
     b+=S.T(L,top+ph+30,'test functions added',{fs:11,fill:'var(--mute)'});
