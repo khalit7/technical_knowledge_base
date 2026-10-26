@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3e9
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale","Takeaway":"The sandbox layer under agentic reinforcement learning, published with production numbers for the first time: four isolation levels behind one SDK, about 3 million sandboxes a day and 5,000 created per second on roughly 160 nodes, co-designed so stateful rollouts survive preemptible GPU training.","Topics":["llm-training-and-post-training","ml-infra-and-orchestration","rl","agentic-harnesses"],"Year":"2026","url":"https://app.notion.com/p/3e95c17b0d0d81bd927be047bb0d7b0b"}
+{"Paper":"DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale","Takeaway":"The sandbox layer under DeepSeek's agentic reinforcement learning, described in rare detail: four isolation levels behind one SDK, with self-reported production figures of about 3 million sandboxes a day and over 5,000 created per second on roughly 160 nodes per unit (no measurement method given). Its four storage, memory and CPU mechanisms are measured on a 10-node test cluster; the co-design that lets stateful rollouts survive preemptible GPU training is described but not evaluated.","Topics":["llm-training-and-post-training","ml-infra-and-orchestration","rl","agentic-harnesses"],"Year":"2026","url":"https://app.notion.com/p/3e95c17b0d0d81bd927be047bb0d7b0b"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

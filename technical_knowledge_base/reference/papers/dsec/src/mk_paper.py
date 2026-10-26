@@ -24,6 +24,7 @@ def card():
          '<div class="au">%s</div>' % html.escape(P['authors']),
          '<div class="au mute">%s · %s</div>' % (html.escape(P['lab']), html.escape(P['date'])),
          '<p class="tk"><b>In one line:</b> %s</p>' % html.escape(P['takeaway']),
+         ('<p class="small mute">%s</p>' % html.escape(P['takeaway_note'])) if P.get('takeaway_note') else '',
          '<p class="vd"><b>How far to trust it:</b> %s <a href="#" data-tab="t-read" data-to="s-believe">The evidence, judged</a>.</p>' % html.escape(P['verdict']),
          '<div class="hn">']
     for x in P['headline']:

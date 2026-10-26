@@ -20,3 +20,10 @@ Scores: computable from public data (0 to 2, doubled), reproduces a stated figur
 | P-dsec.12 | Misbehaviour catalogue as an attack tree | rejected: a table carries the eight incidents and mitigations verbatim; a tree would add structure the paper does not give | | | none | rejected |
 
 What the methodology lacked here: a rule for papers whose most original contribution is explicitly unevaluated (the RL co-design). The page animates it as a labelled scenario and says in the verdict that it is described, not measured.
+
+## Light pass, 2026-10-26
+
+| id | Idea | Placement | Status |
+|---|---|---|---|
+| P-dsec.hero | Hero: five rows of workload pressure (§1, §4), mechanism (§5, §6) and measured effect (§8), the unevaluated RL co-design dashed, the self-reported scale beneath | Reading, top | built (mk_hero.py) |
+| P-dsec.fig1 | Embed the paper's Figure 1 (architecture) | | rejected: arXiv non-exclusive licence; the request-path animation already redraws it |
