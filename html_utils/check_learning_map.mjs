@@ -2,7 +2,8 @@
 // at 920 px light and 390 px dark in headless Chrome.
 // usage: node html_utils/check_learning_map.mjs <scratch dir> [screenshot dir, default <scratch dir>]
 // Checks: no script errors, no sideways scroll, every map node links to a built page, every topic page is on the map,
-// node labels fit their boxes and nodes never overlap, "path to" for three sample pages lists exactly the prerequisite
+// node labels fit their boxes and nodes never overlap, each overview bar spans exactly its topic's earliest and latest
+// page stage (stage = longest prerequisite chain, recomputed here), "path to" for three sample pages lists exactly the prerequisite
 // closure in a valid order, and nothing changes or animates before a click. Ends "learning map: fail=0" when clean.
 import puppeteer from 'puppeteer';
 import { execFileSync } from 'node:child_process';
@@ -27,6 +28,14 @@ const urlOf = p => '/' + p.path.replace(/^technical_knowledge_base\//, '') + '/'
 const pre = p => (p.prereqs || []).map(r => byId[r.replace(/-/g, '')]).filter(Boolean);
 const closure = (p, s = new Set()) => { for (const q of pre(p)) if (!s.has(q)) { s.add(q); closure(q, s) } return s };
 const topicPages = pages.filter(p => p.status === 'html_only' && !p.path.includes('/reference/') && fs.existsSync(path.join(ROOT, p.path, 'index.html')));
+// page stage (0 = needs nothing) and topic (top-most ancestor in pages.json) -> expected bar per topic slug
+const byPath = Object.fromEntries(pages.map(p => [p.path, p]));
+const stageMemo = new Map();
+const stage = p => { if (!stageMemo.has(p)) stageMemo.set(p, 1 + Math.max(-1, ...pre(p).map(stage))); return stageMemo.get(p) };
+const rootOf = p => { let r = p.path, q = p.path; while (q.includes('/')) { q = q.slice(0, q.lastIndexOf('/')); if (byPath[q]) r = q } return r };
+const wantBar = {};
+for (const p of topicPages) { const slug = rootOf(p).split('/').pop().replace(/^topic_/, ''), g = stage(p);
+  const w = wantBar[slug] ??= { a: g, b: g, n: 0 }; w.a = Math.min(w.a, g); w.b = Math.max(w.b, g); w.n++ }
 
 const server = http.createServer((req, res) => {
   let f = path.join(OUT, decodeURIComponent(req.url.split(/[?#]/)[0]));
@@ -93,6 +102,41 @@ const state = p => p.evaluate(() => document.getElementById('lm').innerHTML + '|
   if (await p.$('#lm .cur,#lm .todo')) bad('a step is highlighted on load');
   if (await sideways(p)) bad('920: sideways scroll');
   (await geometry(p)).forEach(m => bad('overview', m));
+  // each bar spans exactly its pages' min and max stage, in data and on screen
+  const bars = await p.evaluate(() => {
+    const D = JSON.parse(document.getElementById('lm-data').textContent);
+    const heads = [...document.querySelectorAll('#lm-ov .lm-col')].map(t => { const b = t.getBBox(); return b.x + b.width / 2 });
+    const cw = heads.length > 1 ? heads[1] - heads[0] : 0;
+    return { cols: heads.length, bars: [...document.querySelectorAll('#lm-ov .lm-t')].map(g => { const r = g.querySelector('.lm-span').getBBox(), k = +g.dataset.t;
+      const a = +g.dataset.a, b = +g.dataset.b;
+      return { slug: D.T[k].slug, a, b, n: D.T[k].p.length, x0: r.x, x1: r.x + r.width, c0: heads[a] - cw / 2, c1: heads[b] + cw / 2 } }) };
+  });
+  const maxStage = Math.max(...topicPages.map(stage));
+  if (bars.cols !== maxStage + 1) bad('overview has', bars.cols, 'stage columns, want', maxStage + 1);
+  for (const bar of bars.bars) {
+    const w = wantBar[bar.slug];
+    if (!w) { bad('bar for an unknown topic', bar.slug); continue }
+    if (bar.a !== w.a || bar.b !== w.b) bad(`bar ${bar.slug} spans stages ${bar.a + 1}--${bar.b + 1}, its pages span ${w.a + 1}--${w.b + 1}`);
+    if (bar.n !== w.n) bad(`bar ${bar.slug} has ${bar.n} pages, want ${w.n}`);
+    if (Math.abs(bar.x0 - bar.c0) > 5 || Math.abs(bar.x1 - bar.c1) > 5) bad(`bar ${bar.slug} drawn from x ${bar.x0.toFixed(0)} to ${bar.x1.toFixed(0)}, its stage cells run ${bar.c0.toFixed(0)} to ${bar.c1.toFixed(0)}`);
+    w.seen = true;
+  }
+  Object.entries(wantBar).forEach(([s, w]) => { if (!w.seen) bad('topic without a bar', s) });
+  console.log(`overview: ${bars.bars.length} bars on ${bars.cols} stages`);
+  // hover lights up the topics a bar's pages build on, and only them
+  {
+    const k = await p.$eval('#lm-ov .lm-t[data-dep]:not([data-dep=""])', g => g.dataset.t).catch(() => null);
+    if (k != null) {
+      await p.hover(`#lm-ov .lm-t[data-t="${k}"] .lm-span`); await wait(40);
+      const r = await p.evaluate(k => { const g = document.querySelector(`#lm-ov .lm-t[data-t="${k}"]`), ds = g.dataset.dep.split(' ');
+        const lit = [...document.querySelectorAll('#lm-ov .lm-t.dep')].map(x => x.dataset.t);
+        return lit.length === ds.length && ds.every(d => lit.includes(d)) && g.classList.contains('me') }, k);
+      if (!r) bad('hover does not light up exactly the topics a bar depends on');
+      await shot(p, 'lm_920_light_overview_hover.png');
+      await p.mouse.move(5, 5); await wait(40);
+      if (await p.$('#lm-ov.hov')) bad('hover highlight stays after the pointer leaves');
+    }
+  }
   await shot(p, 'lm_920_light_overview.png');
   // every topic view: links exist, every topic page appears, geometry
   const nT = await p.$$eval('#lm-ov .lm-t', g => g.length);

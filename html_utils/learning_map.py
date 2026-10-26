@@ -11,9 +11,11 @@ Graph rules (check):
            a transitively redundant edge, a prereq the page's own "You need" line no longer links (staleness)
 Layout (all at build time, no runtime layout library):
   page stage  = longest prerequisite chain below the page (stage 1 needs nothing)
-  topic stage = longest chain in the topic graph (topic A before B when a page of B needs a page of A); topics that
-                need each other (a cycle at topic level, although the page graph has none) are condensed into one
-                group drawn side by side in a dashed box
+  overview    = one bar per topic on the shared stage axis, from the stage of its earliest page to the stage of its
+                latest page, with the number of its pages in each stage and a ring on the root page's stage when that
+                is later than the earliest page; rows sorted by start stage, then mean page stage, then end stage. Hovering or
+                focusing a bar lights up the topics its pages directly need (no topic-level arrows).
+  topic and path views: pages in columns by stage;
   order       = barycenter sweeps over layers with dummy nodes for long edges, keeping the order with fewest crossings
   y           = repeated least-squares pulls toward neighbours under order and spacing constraints (isotonic fit)
 The overview is an inline SVG; topic views and "path to" views are a small JSON of coordinates that the page's
@@ -555,139 +557,67 @@ def path_view(P, t, clo):
 
 
 def overview(P, T):
-    """topic graph -> inline SVG (and the phone list)"""
+    """topics as bars on the page-stage axis -> inline SVG (and the phone list)"""
     nT = len(T)
-    tof = {i: P[i]["c"] for i in range(len(P))}
-    cnt = defaultdict(int)
-    for i, p in enumerate(P):
-        for a in p["pre"]:
-            if tof[a] != tof[i]:
-                cnt[(tof[a], tof[i])] += 1
-    succ = defaultdict(set)
-    for a, b in cnt:
-        succ[a].add(b)
-    # strongly connected components (Tarjan)
-    idx, low, st, on, comp, c = {}, {}, [], set(), {}, [0]
-    sccs = []
-
-    def sc(v):
-        idx[v] = low[v] = c[0]; c[0] += 1; st.append(v); on.add(v)
-        for w in succ[v]:
-            if w not in idx:
-                sc(w); low[v] = min(low[v], low[w])
-            elif w in on:
-                low[v] = min(low[v], idx[w])
-        if low[v] == idx[v]:
-            s = []
-            while True:
-                w = st.pop(); on.discard(w); s.append(w)
-                if w == v:
-                    break
-            sccs.append(sorted(s))
-
-    for v in range(nT):
-        if v not in idx:
-            sc(v)
-    for k, s in enumerate(sccs):
-        for v in s:
-            comp[v] = k
-    groups = [s for s in sccs if len(s) > 1]
-    csucc = defaultdict(set)
-    for a, b in cnt:
-        if comp[a] != comp[b]:
-            csucc[comp[a]].add(comp[b])
-    cpred = defaultdict(list)
-    for a, bs in csucc.items():
-        for b in bs:
-            cpred[b].append(a)
-    cl = longest_layers(set(comp.values()), cpred)
-    # transitive reduction at the condensed level
-    reach = {}
-
-    def rch(a):
-        if a not in reach:
-            r = set()
-            for b in list(csucc.get(a, ())):
-                r |= {b} | rch(b)
-            reach[a] = r
-        return reach[a]
-
-    keep = {(a, b) for a, bs in list(csucc.items()) for b in bs if not any(b in rch(x) for x in bs if x != b)}
-    # node sizes
-    lines = {k: wrap(T[k]["n"], BW - 12, FS, bold=True, maxlines=3) for k in range(nT)}
-    th = {k: 8 + len(lines[k]) * LH + 16 for k in range(nT)}
-    GL = 20
-    ch = {}
-    for k, s in enumerate(sccs):
-        ch[k] = th[s[0]] if len(s) == 1 else GL + sum(th[v] for v in s) + 8 * (len(s) - 1) + 8
-    cnodes = sorted(range(len(sccs)), key=lambda k: min(sccs[k]))
-    cedges = sorted(keep)
-    ncol = max(cl.values()) + 1
-    cx = columns(ncol)
-    tops, pts, H = layout(cnodes, cedges, cl, ch, cx, gap=16)
-    # members of a group: ordered by where their neighbours sit
-    box = {}
-    for k in cnodes:
-        s = sccs[k]
-        x, y0 = cx[cl[k]], TOP + tops[k]
-        if len(s) == 1:
-            box[s[0]] = (x, y0, BW, th[s[0]])
-            continue
-        def nbmean(v):
-            ys = [TOP + tops[comp[a]] for (a, b) in cnt if b == v and comp[a] != k] + \
-                 [TOP + tops[comp[b]] for (a, b) in cnt if a == v and comp[b] != k]
-            return sum(ys) / len(ys) if ys else 0
-        s.sort(key=nbmean)
-        yy = y0 + GL
-        for v in s:
-            box[v] = (x, yy, BW, th[v])
-            yy += th[v] + 8
-    # drawn edges: actual topic pairs whose condensed pair survived the reduction
-    dedges = sorted((a, b) for (a, b) in cnt if (comp[a], comp[b]) in keep)
-    dpts = {(a, b): [(l, TOP + y) for l, y in pts[(comp[a], comp[b])]] for (a, b) in dedges}
-    sy, ty = ports(dedges, box, dpts)
-    Hs = round(TOP + H + 10)
-    o = [f'<svg id="lm-ov" class="lm-svg" width="{cx[-1] + BW + 6}" height="{Hs}" viewBox="-2 0 {cx[-1] + BW + 6} {Hs}" '
-         f'role="group" aria-label="Topics in study order, left to right">']
-    for l in range(ncol):
-        o.append(f'<text class="lm-col" x="{cx[l] + BW / 2:.0f}" y="14" text-anchor="middle">Stage {l + 1}</text>')
-    o.append('<g class="lm-edges">')
-    for (a, b) in dedges:
-        mids = [(cx[l], cx[l] + BW, y) for l, y in dpts[(a, b)]]
-        d = edge_d(box[a][0] + BW, sy[(a, b)], mids, box[b][0] - 1, ty[(a, b)])
-        sw = 1 + min(2.5, cnt[(a, b)] ** 0.5 / 2)
-        o.append(f'<path class="lm-e" data-a="{a}" data-b="{b}" d="{d}" stroke-width="{sw:.1f}" marker-end="url(#lm-ar)">'
-                 f'<title>{html.escape(T[a]["n"])} before {html.escape(T[b]["n"])}: {cnt[(a, b)]} page link{"s" if cnt[(a, b)] > 1 else ""}</title></path>')
-    o.append("</g>")
-    for s in groups:
-        x, y0 = box[s[0]][0], min(box[v][1] for v in s) - GL
-        y1 = max(box[v][1] + box[v][3] for v in s) + 4
-        o.append(f'<rect class="lm-grp" x="{x - 5}" y="{y0 - 2:.0f}" width="{BW + 10}" height="{y1 - y0 + 2:.0f}" rx="9"/>'
-                 f'<text class="lm-grpl" x="{x + BW / 2:.0f}" y="{y0 + 12:.0f}" text-anchor="middle">Need each other</text>')
+    ncol = max(p["g"] for p in P) + 1
+    span = {k: (min(P[i]["g"] for i in T[k]["p"]), max(P[i]["g"] for i in T[k]["p"])) for k in range(nT)}
+    per = {k: defaultdict(int) for k in range(nT)}
     for k in range(nT):
-        x, y, w, hh = box[k]
-        t = T[k]
-        np_ = len(t["p"])
-        o.append(f'<g class="lm-t s{t["s"]}" data-t="{k}" role="button" tabindex="0" aria-label="Open {html.escape(t["n"])}: {np_} pages">'
-                 f'<title>{html.escape(t["n"])}: {np_} pages, {t["m"]} min core reading. Click to open its pages.</title>'
-                 f'<rect class="lm-box" x="{x}" y="{y:.0f}" width="{w}" height="{hh}" rx="6"/>'
-                 f'<rect class="lm-bar" x="{x}" y="{y:.0f}" width="4" height="{hh}" rx="2"/>')
-        for j, ln in enumerate(lines[k]):
-            o.append(f'<text class="lm-tl" x="{x + 9}" y="{y + 6 + LH * (j + 1) - 3:.0f}">{html.escape(ln)}</text>')
-        o.append(f'<text class="lm-m" x="{x + 9}" y="{y + hh - 7:.0f}">{np_} pages, {t["m"]} min</text></g>')
-    o.append('<defs><marker id="lm-ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">'
-             '<path d="M0 0L8 4L0 8z" class="lm-arh"/></marker></defs></svg>')
-    # phone list
-    lst = []
+        for i in T[k]["p"]:
+            per[k][P[i]["g"]] += 1
+    deps = {k: sorted({P[a]["c"] for i in T[k]["p"] for a in P[i]["pre"]} - {k}) for k in range(nT)}
+    mean = {k: sum(P[i]["g"] for i in T[k]["p"]) / len(T[k]["p"]) for k in range(nT)}
+    rows = sorted(range(nT), key=lambda k: (span[k][0], round(mean[k], 6), span[k][1], T[k]["s"], k))
+    meta = {k: f'{len(T[k]["p"])} pages' for k in range(nT)}
+    LW = round(max(text_w(T[k]["n"], 12.5, True) for k in range(nT)) + 10
+               + max(text_w(meta[k], 11) for k in range(nT)) + 22)
+    cw = (W - LW) / ncol
+    cx = [LW + l * cw for l in range(ncol)]
+    RH, BH, top = 30, 20, TOP + 2
+    Hs = top + RH * nT + 6
+    o = [f'<svg id="lm-ov" class="lm-svg" width="{W}" height="{Hs}" viewBox="0 0 {W} {Hs}" '
+         f'role="group" aria-label="Topics as bars from the stage of their first page to the stage of their last page">']
     for l in range(ncol):
-        ks = sorted((v for k in cnodes if cl[k] == l for v in sccs[k]), key=lambda v: box[v][1])
-        lst.append(f'<h4>Stage {l + 1}</h4><div class="lm-chips">' + "".join(
-            f'<button class="lm-chip s{T[v]["s"]}" data-t="{v}">{html.escape(T[v]["n"])}<span>{len(T[v]["p"])} pages</span></button>'
-            for v in ks) + "</div>")
-        gs = [s for s in groups if cl[comp[s[0]]] == l]
-        for s in gs:
-            lst.append(f'<p class="lm-note">{", ".join(html.escape(T[v]["n"]) for v in s)} need pages from each other: open them to see which pages come first.</p>')
-    return "".join(o), "".join(lst), [[T[v]["n"] for v in s] for s in groups]
+        o.append(f'<rect class="lm-band{l % 2}" x="{cx[l]:.1f}" y="{TOP - 6}" width="{cw:.1f}" height="{Hs - TOP + 6}"/>'
+                 f'<text class="lm-col" x="{cx[l] + cw / 2:.1f}" y="14" text-anchor="middle">Stage {l + 1}</text>')
+    for r, k in enumerate(rows):
+        t, (a, b) = T[k], span[k]
+        y = top + r * RH
+        rs = P[t["r"]]["g"]
+        dn = ", ".join(T[d]["n"] for d in deps[k]) or "no other topic"
+        tip = (f'{t["n"]}: {len(t["p"])} pages, {t["m"]} min core reading; stages {a + 1} to {b + 1}'
+               + (f', root page at stage {rs + 1}' if rs != a else '') + f'. Its pages build on {dn}. Click to open its pages.')
+        o.append(f'<g class="lm-t s{t["s"]}" data-t="{k}" data-a="{a}" data-b="{b}" data-r="{rs}" data-dep="{" ".join(map(str, deps[k]))}" '
+                 f'role="button" tabindex="0" aria-label="Open {html.escape(t["n"])}: {len(t["p"])} pages, stages {a + 1} to {b + 1}">'
+                 f'<title>{html.escape(tip)}</title>'
+                 f'<rect class="lm-box" x="0" y="{y}" width="{W}" height="{RH}" rx="4"/>'
+                 f'<text class="lm-tl" x="8" y="{y + RH / 2 + 4.5:.1f}">{html.escape(t["n"])}</text>'
+                 f'<text class="lm-m" x="{LW - 10}" y="{y + RH / 2 + 4:.1f}" text-anchor="end">{meta[k]}</text>'
+                 f'<rect class="lm-span" x="{cx[a] + 3:.1f}" y="{y + (RH - BH) / 2}" width="{cx[b] + cw - cx[a] - 6:.1f}" height="{BH}" rx="5"/>')
+        for l in range(a, b + 1):
+            n = per[k].get(l, 0)
+            mx = cx[l] + cw / 2
+            if l == rs and rs != a:
+                o.append(f'<circle class="lm-root" cx="{mx:.1f}" cy="{y + RH / 2}" r="8.5"/>')
+            if n:
+                o.append(f'<text class="lm-cnt" x="{mx:.1f}" y="{y + RH / 2 + 4}" text-anchor="middle">{n}</text>')
+        o.append('</g>')
+    o.append('</svg>')
+    # phone list: the same order, grouped by the stage a topic can start at
+    lst, cur = [], None
+    for k in rows:
+        a, b = span[k]
+        if a != cur:
+            if cur is not None:
+                lst.append('</div>')
+            lst.append(f'<h4>Start at stage {a + 1}</h4><div class="lm-chips">')
+            cur = a
+        rs = P[T[k]["r"]]["g"]
+        st = f"stage {a + 1}" if a == b else f"stages {a + 1} to {b + 1}"
+        lst.append(f'<button class="lm-chip s{T[k]["s"]}" data-t="{k}">{html.escape(T[k]["n"])}<span>{st}, {meta[k]}'
+                   + (f', root at {rs + 1}' if rs != a else '') + '</span></button>')
+    lst.append('</div>')
+    return "".join(o), "".join(lst), []
 
 
 # ---------------------------------------------------------------- HTML
@@ -716,7 +646,15 @@ CSS = """
 .lm-tl{font-size:12px;fill:var(--ink);font-weight:600}.lm-pl{font-size:12px;fill:var(--ink)}.lm-m{font-size:11px;fill:var(--mute)}
 .lm-t,.lm-pb{cursor:pointer}.lm-t:hover .lm-box,.lm-t:focus .lm-box{stroke-width:2.6}.lm-t:focus{outline:none}
 .lm-t.dim,.lm-n.dim{opacity:.35}
-.lm-grp{fill:none;stroke:var(--mute);stroke-dasharray:4 3}.lm-grpl{font-size:11px;fill:var(--mute)}
+#lm-ov .lm-box{fill:transparent;stroke:none}#lm-ov .lm-tl{font-size:12.5px}
+#lm-ov .lm-t:hover .lm-box,#lm-ov .lm-t:focus .lm-box{fill:var(--card2);stroke:none}
+.lm-band0{fill:var(--card2)}.lm-band1{fill:none}
+.lm-span{fill:var(--sc);fill-opacity:.2;stroke:var(--sc);stroke-width:1.3}
+.lm-cnt{font-size:11.5px;font-weight:600;fill:var(--ink)}.lm-root{fill:var(--card);stroke:var(--ink);stroke-width:1.3}
+#lm-ov.hov .lm-t{opacity:.28}#lm-ov.hov .lm-t.me,#lm-ov.hov .lm-t.dep{opacity:1}
+#lm-ov .lm-t.dep .lm-span{stroke-width:2.6;fill-opacity:.32}#lm-ov .lm-t.me .lm-span{stroke-width:2.6}
+.lm-ovkey{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;color:var(--mute);margin:6px 0 0}
+.lm-ovkey svg{vertical-align:-4px;margin-right:5px}
 .lm-n a:hover .lm-box,.lm-n a:focus .lm-box{stroke-width:2.6}.lm-n a{text-decoration:none}
 .lm-n.ghost .lm-box{stroke-dasharray:4 3;fill:var(--card2)}
 .lm-n.tgt .lm-box{stroke-width:3}
@@ -803,9 +741,11 @@ root.addEventListener('click',e=>{const t=e.target.closest('[data-t],[data-p],#l
   const adv=()=>{if(document.hidden)return;step++;paint();if(step>=cur.order.length-1)stopPlay()};adv();timer=setInterval(adv,1300);return}
  e.preventDefault();if(t.dataset.p!=null)go('path='+P[+t.dataset.p].id);else go('topic='+T[+t.dataset.t].slug)});
 root.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role=button]')){e.preventDefault();e.target.dispatchEvent(new MouseEvent('click',{bubbles:true}))}});
-root.addEventListener('mouseover',e=>{const g=e.target.closest('.lm-t');if(!g||cur)return;const k=g.dataset.t;
- view.querySelectorAll('.lm-e').forEach(x=>{const on=x.dataset.a===k||x.dataset.b===k;x.classList.toggle('on',on);x.classList.toggle('off',!on)})});
-root.addEventListener('mouseout',e=>{if(e.target.closest('.lm-t')&&!cur)view.querySelectorAll('.lm-e').forEach(x=>x.classList.remove('on','off'))});
+// hover or focus on a topic bar: light up the topics its pages build on
+function hov(g){const ov=$('#lm-ov');if(!ov)return;const ds=g?g.dataset.dep.split(' ').filter(Boolean):[];
+ ov.classList.toggle('hov',!!g);ov.querySelectorAll('.lm-t').forEach(x=>{x.classList.toggle('me',x===g);x.classList.toggle('dep',ds.includes(x.dataset.t))})}
+['mouseover','focusin'].forEach(ev=>root.addEventListener(ev,e=>{const g=e.target.closest('#lm-ov .lm-t');if(g)hov(g)}));
+['mouseout','focusout'].forEach(ev=>root.addEventListener(ev,e=>{const g=e.target.closest('#lm-ov .lm-t');if(g&&!(e.relatedTarget&&g.contains(e.relatedTarget)))hov(null)}));
 // search over titles
 const q=$('#lm-q'),sug=$('#lm-sug');let hits=[],hi=0;
 function drawSug(){sug.hidden=!hits.length;sug.innerHTML=hits.map((i,r)=>`<li><button class="${r===hi?'on':''}" data-p="${i}">${esc(P[i].t)} <span class="lm-m" style="color:var(--mute)">${esc(T[P[i].c].n)}</span></button></li>`).join('')}
@@ -825,22 +765,21 @@ D.OV=view.innerHTML;route()})();
 
 def section(url, kb=None):
     """the learning map block for the home page"""
-    P, T, views, ov_svg, ov_list, groups, _ = build(url, kb)
+    P, T, views, ov_svg, ov_list, _, _ = build(url, kb)
     data = {"P": P, "T": T, "V": {"topic": views["topic"], "path": views["path"]}}
     js_data = json.dumps(data, separators=(",", ":"), ensure_ascii=False).replace("</", "<\\/")
     leg = "".join(f'<span><i style="background:var(--s{k})"></i>{html.escape(s)}</span>' for k, s in enumerate(SECTIONS))
     npages, nedges = len(P), sum(len(p["pre"]) for p in P)
-    gnote = ""
-    if groups:
-        gnote = (" Topics in a dashed box need pages from each other (the pages themselves never form a loop), "
-                 "so they share a stage; open one to see which of its pages come first.")
+    key = ('<div class="lm-ovkey"><span><svg width="34" height="16" aria-hidden="true"><rect class="lm-span s0" x="1" y="2" width="32" height="12" rx="4"/>'
+           '<text class="lm-cnt" x="17" y="12" text-anchor="middle">3</text></svg>pages of the topic in that stage</span>'
+           '<span><svg width="18" height="18" aria-hidden="true"><circle class="lm-root" cx="9" cy="9" r="7.5"/></svg>its root page, when it comes later</span></div>')
     return f"""<section id="lm" class="lm" data-pagefind-ignore>
 <h2>Learning map</h2>
-<p class="lm-sub">The order to study in, from each page's strict prerequisites ({npages} pages, {nedges} links). Stages run left to right on the map (top to bottom on a phone): everything in a stage needs only earlier stages.</p>
+<p class="lm-sub">The order to study in, from each page's strict prerequisites ({npages} pages, {nedges} links). A page's stage is its longest chain of prerequisites: stage 1 needs nothing, and every page needs only pages in earlier stages.</p>
 <div class="lm-bar0"><div class="lm-qw"><input id="lm-q" type="search" placeholder="Path to a page: type a title, e.g. FlashAttention" aria-label="Path to a page" autocomplete="off"><ul id="lm-sug" class="lm-sug" hidden></ul></div></div>
 <div class="lm-leg">{leg}</div>
 <div class="lm-head" id="lm-head"><b>All topics</b><span>Pick a topic to see its pages in order</span></div>
-<div class="lm-map" id="lm-view"><div class="lm-scroll">{ov_svg}</div><p class="lm-cap">A topic sits after every topic it borrows from, even when only one of its pages does; arrows are thicker when more pages are linked, and implied arrows are left out.{gnote}</p></div>
+<div class="lm-map" id="lm-view"><div class="lm-scroll">{ov_svg}</div>{key}<p class="lm-cap">Each bar runs from the stage where a topic's first pages can be read to the stage of its deepest page, so you see when you can start it and how far it goes. Hover a topic to light up the topics its pages build on; click it for its pages in order.</p></div>
 <div class="lm-list"><div id="lm-ovl">{ov_list}</div><div id="lm-plist"></div></div>
 <div class="lm-path" id="lm-path" hidden></div>
 <script type="application/json" id="lm-data">{js_data}</script>
