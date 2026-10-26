@@ -104,3 +104,6 @@ sits inside a closed block), then the 39 units without one were labelled by hand
 
 ## Topic close (2026-10-24)
 The root was rebuilt as a map; this page's Further reading now quotes the root as "31 min, plus 7" and siblings as their headers, and its ledger keys that quoted old times were re-keyed.
+
+## Final sweep (2026-10-26)
+The closed block "How much contamination inflates a score" (Yang et al., GPT-3, Llama 2 and 3, PaLM, DCLM, Magar and Schwartz, Singh et al.) moved to its owner, Topic: benchmarks ("Contamination and score inflation"); this page keeps the one-paragraph range (54.8 to 85.9 against nothing) and links there. Units 26 to 36 are labelled `owned:measurement/topic_benchmarks`. Core time unchanged; the closed-details figure was remeasured at 21 (was 23); the eight pages that quote 23 need the next time sweep.
