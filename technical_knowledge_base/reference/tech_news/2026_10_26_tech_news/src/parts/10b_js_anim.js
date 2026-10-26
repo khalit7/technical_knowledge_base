@@ -26,7 +26,7 @@ function makeAnim(o){
   $(P+'Scrub').addEventListener('input',e=>{pause();const v=+e.target.value,steps=S();st.k=Math.min(steps.length-1,Math.floor(v/100));st.t=cl(v/100-st.k);if(v>=steps.length*100)st.t=1;draw()});
   $(P+'Spd').addEventListener('change',e=>{st.spd=+e.target.value});
   const seg=$(P+'M');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;pause();if(!RM)st.play=true;draw();kick()}));
+    st.m=b.dataset.m;st.k=0;st.t=1;pause();draw()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=card.clientWidth;addEventListener('resize',()=>{const w=card.clientWidth;if(w&&w!==rw){rw=w;draw()}});
