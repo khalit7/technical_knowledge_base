@@ -54,3 +54,6 @@ The core fell by 14 minutes while gaining 13 figures. It stays at 31 minutes bec
 
 ## Topic close (2026-10-24)
 New closed block at the end of Reading ("The root page's agentic runs in detail"): the root's retired Agentic lab units this page did not carry (run provenance, the second-hop examples, the 4B strategies' tokens and seconds, tokens per step, lost in the middle on 20 paragraphs, the router on a mixed set, published tables, mistakes and a design). References to the root's Agentic lab, its section 7 and its replay now name its shared runs and section 5. Header remeasured: 31 min, plus 20 in closed details. Every quoted sibling time now matches its header (`html_utils/check_times.py`); the ledger keys that quoted old times or tab names were re-pointed to the current text (problems 0).
+
+## 2026-10-26 absorbs
+Section 8 absorbed Jin et al. (2410.05983) and LaRA (2502.09977) from RAG and retrieval evaluation, checked against both abstracts; section 9's Mem0 figures moved to Context engineering section 8 (one sentence plus a link remains; ledger 266 re-keyed). Reading 31 to 32 min.
