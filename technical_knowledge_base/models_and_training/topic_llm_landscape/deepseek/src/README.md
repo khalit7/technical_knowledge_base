@@ -37,3 +37,5 @@ Why 23 minutes is right: the page owns about fifteen DeepSeek-specific choices (
 ## Departures from the page-kind shape
 - The lineage is not a section or tab of its own: the hero carries the order (it explains the design: each release attacks the next cost) and the dated detail is a closed block.
 - The Sinkhorn toy is kept in a closed block rather than removed, because the owner (Normalisation, residuals and stability) does not draw the projection; proposed for absorption there.
+
+2026-10-26 (final follow-up sweep): What it cost links the DeepSeek-V3 paper page's bill section (#s-bill).
