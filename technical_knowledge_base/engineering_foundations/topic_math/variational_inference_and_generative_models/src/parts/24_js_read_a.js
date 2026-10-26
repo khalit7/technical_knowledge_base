@@ -1,4 +1,4 @@
-// ---- Reading visuals, part A: CAVI animation, estimator variances, VAE curves, beta sweep, schedules ----
+// ---- Reading visuals, part A: CAVI animation, estimator variances, schedules ----
 (function(){
   const $=id=>document.getElementById(id),f=(v,d)=>Number(v).toFixed(d==null?3:d);
   const N=window.VIN;
@@ -53,24 +53,6 @@
       ser.forEach((se,k)=>{const v=N.est[d][se[1]],y=y0+k*16;s+='<rect x="'+L+'" y="'+y+'" width="'+Math.max(1,X(v)-L).toFixed(1)+'" height="12" fill="'+se[2]+'" rx="2"/>'+RD.t(X(v)+4,y+10,v>=1000?Math.round(v).toLocaleString('en-US'):v.toFixed(v<10?2:1),{fs:10.5})})});
     el.innerHTML=RD.svg(W,H,s,'Estimator variance by dimension')+'<div class="leg">'+ser.map(se=>'<span style="--sw:'+se[2]+'">'+se[0]+'</span>').join('')+'</div>'}
   est();RD.onResize(est);
-  // ===== VAE training curves =====
-  function curves(){const el=$('vi-curve-svg');if(!el)return;const V=window.VIVAE,c=V.curve,W=Math.min(RD.width(el),680),H=230,L=44,R=40,T=10,B=30;
-    const xmax=c[c.length-1][0],X=v=>L+v/xmax*(W-L-R),Y1=v=>T+(1-(v-130)/(230-130))*(H-T-B),Y2=v=>T+(1-(v-4)/(8-4))*(H-T-B);
-    let s='';[130,150,170,190,210,230].forEach(v=>{s+='<line x1="'+L+'" y1="'+Y1(v)+'" x2="'+(W-R)+'" y2="'+Y1(v)+'" stroke="var(--line)"/>'+RD.t(L-4,Y1(v)+4,v,{a:'end',fs:10,fill:'var(--c1)'})});
-    [4,5,6,7,8].forEach(v=>{s+=RD.t(W-R+4,Y2(v)+4,v,{fs:10,fill:'var(--c2)'})});
-    for(let e=0;e<=30;e+=5){const x=X(e*V.spe);s+=RD.t(x,H-12,e===0?'0':String(e),{a:'middle',fs:10})}
-    s+=RD.t((L+W-R)/2,H-1,'epoch',{a:'middle',fs:10.5});
-    const pl=(k,Y)=>c.map((r,i)=>(i?'L':'M')+X(r[0]).toFixed(1)+' '+Y(r[k]).toFixed(1)).join('');
-    s+='<path d="'+pl(1,Y1)+'" fill="none" stroke="var(--c1)" stroke-width="1.8"/><path d="'+pl(2,Y2)+'" fill="none" stroke="var(--c2)" stroke-width="1.8"/>';
-    el.innerHTML=RD.svg(W,H,s,'VAE reconstruction and KL over training')+'<div class="leg"><span style="--sw:var(--c1)">reconstruction (left axis, nats)</span><span style="--sw:var(--c2)">KL to the prior (right axis, nats)</span></div>'}
-  curves();RD.onResize(curves);
-  // ===== beta sweep =====
-  (function(){const el=$('vi-beta-out');if(!el)return;const B=window.VIVAE.beta;
-    let h='<div class="tw"><table class="mini"><tr><th>β</th><th>rec.</th><th>KL</th><th>active</th><th>log p</th><th>KL per dim.</th></tr>';
-    B.forEach(b=>{const kd=b.kd.slice().sort((a,c)=>c-a);const mx=2.7;
-      const bars='<svg width="112" height="22" viewBox="0 0 112 22">'+kd.map((v,i)=>'<rect x="'+(i*7).toFixed(1)+'" y="'+(21-Math.max(0.6,v/mx*20)).toFixed(1)+'" width="5.6" height="'+Math.max(0.6,v/mx*20).toFixed(1)+'" fill="'+(v<0.01?'var(--dim)':'var(--c4)')+'"/>').join('')+'</svg>';
-      h+='<tr><td class="num">'+b.beta+'</td><td class="num">'+b.rec.toFixed(1)+'</td><td class="num">'+b.kl.toFixed(1)+'</td><td class="num">'+b.active+'</td><td class="num">'+b.iwae1000.toFixed(1)+'</td><td>'+bars+'</td></tr>'});
-    el.innerHTML=h+'</table></div><p class="small mute">Grey bars: dimensions with KL below 0.01 nats (unused). The best log-likelihood is near β = 1, the only value that trains on a bound of it.</p>'})();
   // ===== schedules =====
   (function(){const el=$('vi-sch-svg');if(!el)return;let sched='linear';const D=VI.moons(400,3);const r=VI.rng(4);const EPS=new Float64Array(800);for(let i=0;i<800;i++)EPS[i]=r.g();
     function draw(){const t=+$('vi-sch-t').value;$('vi-sch-tv').textContent=t;const W0=RD.width(el),W=Math.min(W0,760),narrow=W<560;

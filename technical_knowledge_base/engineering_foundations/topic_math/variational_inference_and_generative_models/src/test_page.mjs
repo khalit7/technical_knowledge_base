@@ -1,5 +1,6 @@
 // Click every control on the page at 390 dark and 920 light, with every closed block opened; fail on page errors,
 // NaN, undefined or Infinity in visible text, sideways scroll, or an animation that moves before the reader acts.
+// (The two-moons, sampler-lab and MNIST VAE checks moved with those blocks to Diffusion from zero and Autoencoders and VAEs, 2026-10-26.)
 // Screenshots each card into <outdir>. Usage (from html_utils, so puppeteer resolves):
 //   node ../technical_knowledge_base/engineering_foundations/topic_math/variational_inference_and_generative_models/src/test_page.mjs <index.html> <outdir>
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';
@@ -27,10 +28,8 @@ for (const [scheme, width, motion] of [['dark', 390, 'reduce'], ['light', 920, '
   for (const id of ['vi-hero-card', 'el-card', 'vi-iw-card', 'vi-cavi-card', 'vi-gap-card', 'vi-est-card', 'vi-two-card']) await shot('#' + id, id);
   // open every closed block
   await p.$$eval('#t-read details', ds => ds.forEach(d => { d.open = true })); await sleep(600);
-  await p.$eval('#vi-fr-card', e => e.scrollIntoView()); await sleep(9000);
-  { const v = await p.$eval('#vi-fr-ctl-s', e => +e.value); if (v !== 0) { problems++; console.log('AUTOPLAY', scheme, 'vi-fr', v) } }
   await bad('all open');
-  for (const id of ['vi-cavi', 'vi-fr']) {
+  for (const id of ['vi-cavi']) {
     await p.$eval('#' + id + '-card', e => e.scrollIntoView()); await sleep(300);
     const n = await p.$eval('#' + id + '-ctl-s', e => +e.max);
     for (let i = 0; i < n; i++) { await p.click('#' + id + '-ctl-f'); clicks++ }
@@ -40,12 +39,9 @@ for (const [scheme, width, motion] of [['dark', 390, 'reduce'], ['light', 920, '
     await p.click('#' + id + '-ctl-p'); clicks++; await sleep(200); await p.click('#' + id + '-ctl-p'); clicks++;
     await p.select('#' + id + '-ctl-v', '2'); clicks++;
   }
-  for (const m of ['ddim', 'flow', 'ddpm']) { await p.click(`#vi-fr-seg button[data-m=${m}]`); clicks++; await sleep(m === 'ddpm' ? 300 : 2500);
-    if (m !== 'ddpm') { const n = await p.$eval('#vi-fr-ctl-s', e => +e.max); await setv(p, 'vi-fr-ctl-s', n); await sleep(300); await bad('fr ' + m); await shot('#vi-fr-card', 'vi-fr-' + m) } }
   for (const m of ['cosine', 'linear']) { await p.click(`#vi-sch-seg button[data-m=${m}]`); clicks++ }
   for (const v of [1, 500, 1000]) { await setv(p, 'vi-sch-t', v); clicks++; await bad('sch ' + v) }
-  await p.$eval('#vi-st-card', e => e.scrollIntoView()); await sleep(2500);
-  for (const id of ['vi-curve-card', 'vi-beta-card', 'vi-sch-card', 'vi-st-card', 'vi-two-card']) await shot('#' + id, id);
+  for (const id of ['vi-sch-card', 'vi-two-card']) await shot('#' + id, id);
   // the ELBO widget (section 3) and the optimiser (section 5)
   for (const m of ['B', 'A']) { await p.click(`#el-model button[data-m=${m}]`); clicks++; await sleep(100);
     for (const [id, v] of [['el-x', 3], ['el-m', -1], ['el-q', 0.05], ['el-s', 1.5], ['el-x', -1]]) { await setv(p, id, v); clicks++ }
@@ -53,18 +49,6 @@ for (const [scheme, width, motion] of [['dark', 390, 'reduce'], ['light', 920, '
     for (const e of ['sf', 'rep']) { await p.click(`#el-est button[data-m=${e}]`); clicks++; await p.click('#el-run'); clicks++; await sleep(1800); await bad('elbo run ' + m + e) } }
   await p.click(`#el-model button[data-m=A]`); await p.select('#el-ns', '1'); await p.select('#el-lr', '0.03'); await p.click(`#el-est button[data-m=sf]`); await p.click('#el-run'); clicks += 5; await sleep(1800);
   await shot('#el-card', 'el-card-after'); await shot('#el-opt-card', 'el-opt-card');
-  // sampler lab (block M3)
-  for (const [m, s, n, c, w] of [['ddim', 'cosine', '20', '0', 2], ['flow', 'linear', '5', '1', 4], ['ddpm', 'linear', '1000', '2', 0], ['ddpm', 'cosine', '10', '0', 8]]) {
-    await p.click(`#df-m button[data-m=${m}]`); if (m !== 'flow') await p.click(`#df-s button[data-m=${s}]`); await p.select('#df-n', n); await p.click(`#df-c button[data-m="${c}"]`);
-    await setv(p, 'df-w', w); clicks += 5;
-    await p.click('#df-go'); clicks++; await p.waitForFunction(() => !document.getElementById('df-go').disabled, { timeout: 120000 }); await sleep(200); await bad('diff ' + m + n);
-    const t = await p.$eval('#df-out', e => e.innerText.replace(/\s+/g, ' ')); console.log(scheme, m, s, n, c, w, '|', t.slice(0, 160)) }
-  await p.select('#df-p', '800'); await p.select('#df-seed', '3'); clicks += 2;
-  await shot('#vi-lab-card', 'vi-lab-card');
-  // VAE explorer (block M1)
-  for (const d of ['3', '7', '-1']) { await p.click(`#va-chips button[data-d="${d}"]`); clicks++ }
-  const g = await p.$('#va-grid'); await g.evaluate(e => e.scrollIntoView()); const bb = await g.boundingBox(); await p.mouse.click(bb.x + bb.width * 0.15, bb.y + bb.height * 0.85); clicks++; await sleep(100);
-  await bad('vae'); await shot('#vi-vae-card', 'vi-vae-card');
   // links that open a closed block
   await p.$$eval('#t-read details', ds => ds.forEach(d => { d.open = false }));
   await p.click('a[href="#vi-d-flow"]'); await sleep(200);

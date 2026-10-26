@@ -2,11 +2,11 @@
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/.
 # HTML: 01_head, 10_header (title and tab bar), 20_read_*.html (Reading tab, in file-name order), then 3x_tab_*.html (one per tab).
-# JS: 23_js_data.js is generated here from inputs/numbers.json (recompute.py), inputs/vae.json and inputs/dm.json (data/extract.py);
+# JS: 23_js_data.js is generated here from inputs/numbers.json (recompute.py) and inputs/vae.json (data/extract.py: the gap split);
 # then every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js (the tab wiring) last.
 # Links may be written {{text|url}} (url may be n:<notion id>, or #t-<tab> for a link to a tab); plain <a> tags pass through.
 cd "$(dirname "$0")"
-{ printf 'window.VIN='; cat inputs/numbers.json; printf ';\nwindow.VIVAE='; cat inputs/vae.json; printf ';\nwindow.VIDM='; cat inputs/dm.json; printf ';\n'; } > parts/23_js_data.js
+{ printf 'window.VIN='; cat inputs/numbers.json; printf ';\nwindow.VIVAE='; cat inputs/vae.json; printf ';\n'; } > parts/23_js_data.js
 { cat parts/01_head.html parts/10_header.html parts/20_read_*.html
   for f in parts/3*_tab_*.html; do cat "$f"; done
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
