@@ -50,6 +50,13 @@ def main():
     for f in (REPO / "technical_knowledge_base").rglob("index.html"):
         if f.parent not in listed and "video" not in f.parts:
             problems.append(f"not in pages.json: {f.parent.relative_to(REPO)}")
+    # the learning map (landing page): an unknown prerequisite or a cycle fails the site build, so report it here first
+    sys.path.insert(0, str(REPO / "html_utils"))
+    import learning_map
+    lm_err, lm_warn, _ = learning_map.check(quiet=True)
+    problems += [f"learning map: {e}" for e in lm_err]
+    for w in lm_warn:
+        print("WARNING learning map:", w)
     dirty = git("status", "--porcelain", "--", "technical_knowledge_base").splitlines()
     for e in m["pages"]:
         if any(line[3:].startswith(e["path"] + "/") and not any(line[3:].startswith(o["path"] + "/") and len(o["path"]) > len(e["path"]) for o in m["pages"]) for line in dirty):

@@ -9,7 +9,7 @@ An MSc-level AI engineer with production LLM experience ([../understand/reader.m
 1. **Top, about two minutes.**
    - **The core idea in one sentence**, the sentence the whole subject hangs on (`curriculum.md` already asks for it; now it is on the page).
    - **One hero figure** that the rest of the page elaborates: the picture you would draw on a whiteboard first.
-   - **"You need"**: links to the pages this one assumes, only when it assumes something he may not have.
+   - **"You need"**: links to the pages this one assumes, only when it assumes something he may not have. Its strict subset (pages he cannot understand this one without, transitively reduced) is the page's `prereqs` in `pages.json`, which orders the learning map on the site's landing page; every prerequisite must appear in "You need" (`python3 html_utils/learning_map.py check` warns when one does not).
    - **New terms**: a short list, only the terms this page introduces, each with a few words.
 2. **Core.** The explanation, in the subject's own order.
    - **Concrete, then picture, then formula.** A small instance with real numbers, the diagram of the same thing, then the equation with the same names and colours (concreteness fading).

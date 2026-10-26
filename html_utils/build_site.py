@@ -1,5 +1,6 @@
 """Build the private reading site from the repo: every page's index.html (and img/), a home page with the whole tree,
 links between pages rewritten from Notion URLs to site paths, and a small bar on each page (home, breadcrumb, search).
+The home page carries the learning map (html_utils/learning_map.py): the build fails when the prerequisite graph has an error.
 
 usage: python3 html_utils/build_site.py [out dir, default site/] [base path, default /]
        the GitHub Pages site lives under /technical_knowledge_base/, so CI passes that as the base path
@@ -8,6 +9,9 @@ The site is a build output (gitignored); CI builds and deploys it (.github/workf
 """
 import html, json, re, shutil, sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import learning_map
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "site"
@@ -103,7 +107,9 @@ def home():
     for sec in SECTIONS:
         rs = [p for p in roots if p.get("section") == sec]
         if rs:
-            body += f"<h2>{html.escape(sec)}</h2><ul>" + "".join(tree(r) for r in rs) + "</ul>"
+            body += f"<h3>{html.escape(sec)}</h3><ul>" + "".join(tree(r) for r in rs) + "</ul>"
+    body = learning_map.section(url, KB) + f'<details class="all"><summary>All pages by section</summary>{body}</details>'
+
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Technical knowledge base</title><link href="{BASE}pagefind/pagefind-ui.css" rel="stylesheet"><script src="{BASE}pagefind/pagefind-ui.js"></script>
 <style>:root{{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--acc:#2f6fb5;--pagefind-ui-scale:.85}}
@@ -111,13 +117,21 @@ def home():
 body{{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}}
 .w{{max-width:920px;margin:0 auto;padding:18px 16px 40px}}h1{{font-size:23px;margin:0 0 12px}}h2{{font-size:18px;margin:28px 0 4px}}
 a{{color:var(--acc);text-decoration:none}}a:hover{{text-decoration:underline}}ul{{padding-left:20px;margin:4px 0}}li{{margin:3px 0}}
-summary{{color:var(--mute);font-size:12.5px;cursor:pointer}}</style></head>
+summary{{color:var(--mute);font-size:12.5px;cursor:pointer}}h3{{font-size:16px;margin:20px 0 4px}}
+details.all{{margin:26px 0 0;border-top:1px solid var(--line);padding-top:10px}}details.all>summary{{font-size:18px;font-weight:600;color:var(--ink)}}
+{learning_map.CSS}</style></head>
 <body><div class="w"><h1>Technical knowledge base</h1><div id="search"></div>{body}</div>
 <script>window.addEventListener('DOMContentLoaded',()=>{{try{{new PagefindUI({{element:'#search',showSubResults:true,showImages:false,baseUrl:'{BASE}',bundlePath:'{BASE}pagefind/'}})}}catch(e){{}}}})</script>
 </body></html>"""
 
 
+KB = learning_map.KB(pages)
+
+
 def main():
+    err, _, _ = learning_map.check(KB)
+    if err:
+        sys.exit(f"build stopped: {len(err)} learning map error(s) in technical_knowledge_base/pages.json (see above)")
     if OUT.exists():
         shutil.rmtree(OUT)
     OUT.mkdir(parents=True)

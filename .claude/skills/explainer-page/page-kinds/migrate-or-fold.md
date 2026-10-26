@@ -43,7 +43,7 @@ Map every old page of the topic (the root and every old child) to the new plan b
 ## A new topic with no Notion page
 - **Where it goes**: ask Khalid which section the new `Topic: *` page belongs under and where among its siblings. Operating-systems went under Engineering foundations, after Topic: math.
 - **Who creates it**: the lead creates the Notion page (and child placeholders) when the plan is approved. Placeholder pages hold no content, so `replace_content` is fine on them.
-- **Registering it**: add it to `pages.json` with its folder ([../orchestration/topic-pipeline.md](../orchestration/topic-pipeline.md)).
+- **Registering it**: add it to `pages.json` with its folder and its strict `prereqs` (ids) ([../orchestration/topic-pipeline.md](../orchestration/topic-pipeline.md)); a folded page's id becomes an alias, so rewrite `prereqs` that named it to the survivor.
 
 ## Publishing migrated pages
 Publishing is the `sync-kb-github` skill: commit and push; the old Notion page's body becomes the link line.

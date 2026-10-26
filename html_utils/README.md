@@ -13,6 +13,7 @@ Runtime tools the knowledge base pages are checked and published with. How pages
 | `ledger.py` | The knowledge ledger: `init` drafts a page's units, `check` proves no non-fat unit was lost in a rebuild. |
 | `check_times.py` | Lists reading times quoted for other pages that no longer match those pages' headers (`--page` for one page). |
 | `build_site.py` | Builds the reading site (GitHub Pages) from every page, with links rewritten and `p/<id>/` redirects. |
+| `learning_map.py`, `check_learning_map.mjs` | The home page's learning map from the strict `prereqs` in `pages.json`: `learning_map.py check` validates the graph (the build fails on an error); the `.mjs` builds to a scratch folder and checks the map in a browser. |
 | `cloud_setup.sh` | Sets up a cloud sandbox (the weekly routine) to build and check pages. |
 
 Setup: `cd html_utils && NPM_CONFIG_USERCONFIG= npm ci` (puppeteer with its own Chrome).
