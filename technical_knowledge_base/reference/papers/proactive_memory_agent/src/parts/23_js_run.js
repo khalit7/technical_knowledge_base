@@ -48,7 +48,7 @@
   // task chips
   $('rpT').innerHTML=NAMES.map(n=>'<button data-m="'+n+'"'+(n===task?' class="on"':'')+'>'+n+'</button>').join('');
   function info(){const R=RCT[task],T=TR[task];$('rpInfo').textContent=R.base_turns+' turns alone, '+R.mem_turns+' with memory; reminders at '+R.inject+' of '+R.triggers+' memory steps'}
-  segBind('rpT',n=>{task=n;modes.mem=mkSteps(n,'mem');modes.base=mkSteps(n,'base');an.st.k=0;an.st.t=RM?1:0;an.st.lk=-1;lastKey='';an.draw();info()});
+  segBind('rpT',n=>{task=n;modes.mem=mkSteps(n,'mem');modes.base=mkSteps(n,'base');an.st.k=0;an.st.t=1;an.st.play=false;an.st.lk=-1;lastKey='';an.draw();info()});
   info();
   // totals table and cost bars
   const tot=window.PAPER.rc.traces_total;

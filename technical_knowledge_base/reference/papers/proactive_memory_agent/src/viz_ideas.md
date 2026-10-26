@@ -14,3 +14,7 @@ Central question: does the memory agent help because it chooses *when* to speak,
 | P-proactive_memory_agent.8 | Re-running the agent on a task | rejected: needs API calls and containers; not possible in a sandboxed page |
 
 Reusable lesson: for an agent paper whose ablation compares "selective" with "always", count how often the released agent actually speaks; and turn one-run percentages back into task counts, then compare the gap with any duplicated configuration in the paper's own tables.
+
+## Light pass (2026-10-26)
+
+- Hero, built: the actor loop with the memory agent beside it (window and bank in, Phase 1 edits, Phase 2 reminder or no-op into the next call) and the task counts of Table 1 and the always-remind row of Table 2 (static, top of Reading).
