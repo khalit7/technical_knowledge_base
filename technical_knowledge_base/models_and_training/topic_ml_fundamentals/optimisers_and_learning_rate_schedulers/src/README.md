@@ -39,3 +39,5 @@ No real-model data beyond configs and one real gradient's singular values: the s
 - 2026-10-24, topic close: the root card no longer describes the retired update-geometry and schedule widgets (Muon's Newton-Schulz now lives only in section 4 here); times set to headers. Ledger units 13 and 295 re-keyed, 300 to 307 keys without the old times.
 
 2026-10-26 (final follow-up sweep): section 4 adds one line on Kimi K3's Per-Head Muon, linking the Kimi page that owns it.
+
+2026-10-26 (final follow-up sweep, second batch): the "You need" pointer to Calculus and optimisation names its sections 4 (momentum's rate, 0.519 on diag(1, 10)), 10 (noise floor) and 11 (edge of stability).
