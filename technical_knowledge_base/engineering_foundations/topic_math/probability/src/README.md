@@ -36,3 +36,6 @@ What changed and why (`.claude/skills/explainer-page/teaching/teaching-contract.
 
 ## Topic close (2026-10-24)
 A closed block in section 3 now carries two results from the root's retired Practice drills that no child had: birthday collisions (0.5073 for 23 people; about 77,163 items for even odds of a collision among \(2^{32}\) ids) and the coupon collector (\(10 H_{10} = 29.29\) draws), both recomputed in Python at the close. Header: 42 min, plus 31 in closed details. Stale pointers to the root's old sections and to Numerical computing's old section 9 were updated.
+
+## 2026-10-26: ownership of MLE, losses and the logit gradient
+Khalid's decision: this page owns maximum likelihood as the recipe (a distribution gives a loss); Loss functions owns each loss and what the logit gradient means; Calculus owns the derivation steps. Section 7 keeps the recipe, the five-row table and the exponential-family reason; the squared-error-through-a-sigmoid sentence is now one sentence and a link to Loss functions (ledger unit 282 relabelled owned:). Further reading: Statistics no longer lists double descent (Regularisation owns it); quoted times updated. Reading unchanged.
