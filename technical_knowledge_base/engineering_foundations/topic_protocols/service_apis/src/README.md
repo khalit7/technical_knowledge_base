@@ -62,3 +62,5 @@ Why 46 minutes is right: the page absorbed six concepts it now owns (REST design
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 473 units: core 301, depth 133, fat 39. 452 were drafted from the old page by `ledger.py init` (old Reading, One gRPC call and Balancer lab tabs, Further reading); 14 were added by hand for script-rendered tables and widgets (keys in static captions); 7 record what was absorbed from Building a backend API. Fat units carry a `note` (headings, pointers to removed tabs, restatements, button labels).
+
+2026-10-26 (final follow-up sweep): absorbed the last contract units Building a backend API kept in a closed block: PUT against PATCH with RFC 7396, about:blank and Stripe-Should-Retry (section 2, errors), AIP-158's empty end token, allow-listed filters, filters bound into the cursor, descending keysets and Winand's article (section 2, pagination), Hyrum's law (section 2, versioning), Brandur Leach's atomic phases (section 4); and GitHub's "does not automatically redeliver failed deliveries" from Queues (section 6). Ten ledger units added.
