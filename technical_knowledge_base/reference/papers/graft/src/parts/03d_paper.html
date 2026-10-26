@@ -1,0 +1,60 @@
+<section id="s-mech"><h2>Why it works, and when it should not</h2>
+[[S7|§7 Discussion]]
+<p>Detected hacks never touch θ<sub>R</sub>. Undetected hacks are rewarded like anything else and update both adapters. So what π<sub>R</sub> learns from them depends on how often they are sampled and how much of each update reaches θ<sub>R</sub>. The authors name three mechanisms ({{§7|ax:S7}}) and say their evidence on the last two is limited:</p>
+<ul>
+<li><b>Preempting exploration</b> (fewer undetected hacks sampled). Once π<sub>R+F</sub> does the detected hack, an undetected one gains little advantage over it, so it is rarely tried. This is what happened on Countdown. It is specific to RL: in SFT the data are fixed.</li>
+<li><b>Inoculation</b> (smaller updates). If what θ<sub>F</sub> learned from detected hacks also makes undetected ones likely under π<sub>R+F</sub>, those samples already have high probability and move θ<sub>R</sub> less.</li>
+<li><b>Absorption</b> (a smaller share of each update goes to θ<sub>R</sub>). If θ<sub>F</sub> already holds features for hacking, an undetected hack's gradient strengthens those instead of building new ones in θ<sub>R</sub>. In exploratory toy runs (not reported) gradient norms did not separate by adapter.</li>
+</ul>
+<p>A toy can separate the first from the other two. The {{Train the toy|tab:t-toy}} tab runs Algorithm 1 literally (groups of 16, the routed baseline, the ×2, anchor groups) on a tabular policy: one Countdown-like prompt, four answer types (a real solution that is right with a learned probability, and the three hacks), and adapters that are full copies of the logits. Such adapters share nothing, so only preemption can help; inoculation and absorption need shared features, which the toy does not have by construction.</p>
+<div class="pred" id="gfPr3" data-ans="0"><div class="q">In that toy the monitor sees hack 1 only. Under GRAFT, π<sub>R+F</sub> settles on hack 1 (about 97% of answers) and samples the undetected hacks about 3% of the time. After deleting the forget adapter, how much does the deployed policy hack?</div>
+<div class="opts"><button>About 40%, mostly the undetected hacks</button><button>About 3%, what π<sub>R+F</sub> sampled</button><button>The base rate, 4.7%</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p><span id="gfPr3Out"></span> Each unflagged hack-2 sample beats every failed real solution in its group, so the retain adapter learns "hack 2 over a real attempt" from the few it sees, and with the real task capped below 100% that never stops paying. Preemption slowed it (the penalty run hacks 99.8% undetectably) but did not stop it. The paper's own failure mode, in its words: GRAFT "can also fail to remove hacking. This happens if what θ<sub>F</sub> learns from detected hacks does not generalize to undetected hacks" ({{§7|ax:S7}}). Countdown's clean result therefore says something about the real network that the toy lacks: either undetected hacks were sampled far less, or shared features carried them into the forget adapter. The paper cannot yet say which.</p></div></div>
+<p><b>Failure modes the paper lists</b> ({{§7|ax:S7}}): GRAFT is on the Pareto frontier in its experiments but does not dominate, and often learns the task less well than the penalty; if π<sub>R+F</sub> converges to hacking only, the task behaviour is never sampled and cannot be learned (the pathological sort environment, {{Appendix D.4|ax:A4.SS4}}); useful task features may be learned in θ<sub>F</sub> and deleted with it; and undetected hacks survive when θ<sub>F</sub>'s knowledge does not transfer to them. Monitor and routing are not exclusive: with several monitors some can shape reward and others route.</p>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[S7|§7 Limitations, Appendices D, F and G]]
+<p><b>What holds up.</b></p>
+<ul>
+<li><b>The Countdown result is in the released data.</b> The per-seed evaluations reproduce every point of Figure 2 and GRAFT's row of Table 4, independently. The penalty-against-GRAFT gap in hacking is 24.3 points, about 18 standard errors; eight GRAFT seeds range from 0.0% to 3.5% hacking.</li>
+<li><b>The ablations isolate routing.</b> "Without routing" keeps the adapters, the anchor and the deletion and differs only in that no sample is routed (the code sets monitor recall to 0): it hacks 21.9% on Countdown and 79.1% in the SFT experiment under elicitation.</li>
+<li><b>The toy environments replay too.</b> From the released logs, deployed GRAFT hacks at most 3.4% in all six environments while the penalty hides 25% to 96% undetectable hacking, and the penalty strengths match Appendix G.2's stated choices.</li>
+<li><b>The authors state the main limits themselves</b> ({{§7, Limitations|ax:S7}}): heuristic monitors with simple blind spots, no LLM judges; environments chosen so that penalties fail; single-turn RL up to 8B; one SFT seed; labels in the SFT run drawn at random rather than by content. That counts in their favour.</li>
+</ul>
+<p><b>What to hold loosely.</b></p>
+<ul>
+<li><b>The setups were chosen for the penalty to fail</b> ({{§2|ax:S2}}, {{Appendix F.1|ax:A6.SS1}}): toy hack and detectability conditions were tuned until no intervention learned the detectable hack and the penalty failed on the undetectable one. The splits were not tuned against GRAFT, but in addition, swapping the detectable and undetectable sets left GRAFT hacking about 60%.</li>
+<li><b>Few seeds.</b> Three per baseline (eight for GRAFT) on Countdown, three per toy arm, one per SFT method. The 32B claims rest on 99 tasks and one training run each.</li>
+<li><b>Task performance usually goes the other way.</b> On Countdown the penalty solves 77.2% against GRAFT's 74.8%; in the toy environments deployed GRAFT is below the better baseline in all six; without the elicitation prompt the SFT model solves 39.5% against oracle filtering's 49.7%. "Competitive" is fair for Countdown, generous elsewhere.</li>
+<li><b>The baseline configurations matter.</b> Per the figure script's comment, a reward penalty chosen by ground truth (penalty 5) hacked 7.7% with a higher task score than GRAFT's; the paper shows the practitioner's pick (25.9%) and calls the result "qualitatively similar regardless of penalty size". Both are fair framings; the gap is smaller than the headline suggests.</li>
+<li><b>Mechanism unknown.</b> Countdown looks like preemption, the toy environments like generalisation from θ<sub>F</sub>, and our tabular toy shows that routing without either leaves an undetected hack in θ<sub>R</sub>.</li>
+<li><b>Small text mismatches</b>, none changing a conclusion: the blog rounds the penalty's undetected hacking to "about 30%" (paper 26%, released data 25.9%) and pre-ablation hacking to "up to 35%" (paper 38%, figure 38.5%); Table 2 gives standard deviations where Table 3 gives standard errors for the same numbers (they agree once divided by √8).</li>
+</ul>
+<p><b>Verdict.</b> Believe that routing flagged samples, instead of penalising them, avoided the monitor-evading policy in these settings, and that deleting the forget adapter took the detected hack with it. Treat "removes hacks the monitor never saw" as shown in small toy environments and in one SFT run, not as a property to rely on, and expect to give up some task performance for it.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+[[A1|Appendix A, Appendix G]]
+<ul>
+<li><b>Code</b>: {{jnward/GRAFT|https://github.com/jnward/GRAFT}}, MIT (modified vLLM files Apache-2.0): the GRPO trainer (TRL 0.29 with patches for vLLM 0.17.0) with GRAFT and all baselines, environments, monitors, sweep files, the SFT pipeline, figure scripts and the figure inputs. No trained checkpoints are listed.</li>
+<li><b>What you add</b>: two SwiGLU branches per MLP (0.4% to 1.2% extra parameters at the sizes tested), a monitor with decent precision, the routed advantage, a ×2 on θ<sub>F</sub>, the split-moment Adam, and an anchor environment you trust to be hack-free, or the target environment with a penalty as the toy runs used.</li>
+<li><b>Hardware</b>: as in the paper, H200s (above). The method itself adds little compute beyond adapter training.</li>
+<li><b>When it pays</b>: when a monitor sees some forms of a hack but you fear the policy will find the rest, and when you can accept some task performance for not training the model to evade it. When hacks are rare on most prompts (Countdown with half the prompts hackable), inoculation prompting did as well. With full-parameter training the base model's weights replace θ<sub>R</sub> and θ<sub>F</sub> is kept (blog).</li>
+</ul>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="mute small">(beyond the paper)</span></h2>
+<p>Every lab that trains on verifiable rewards uses monitors, and the standing advice is not to optimise against them because the model learns to hide ({{Baker et al., 2025|https://arxiv.org/abs/2503.11926}}). GRAFT offers a third option between ignoring a monitor and rewarding against it: let it steer where learning goes. It also extends gradient routing ({{Cloud et al., 2024|https://arxiv.org/abs/2410.04332}}), so far shown at most at 5B parameters, to 8B in RL and 32B in SFT ({{§6|ax:S6}}). The open questions are the ones the blog lists: LLM-judge monitors, multi-turn RL at scale, and whether a hack-free anchor can be built in practice.</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul>
+<li>{{Reward Hacking|n:3c65c17b0d0d8196a6f1f29a817aa974}} owns the problem, the coding-agent hacks, monitors and inoculation prompting; this page owns gradient routing as a mitigation.</li>
+<li>{{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}} owns GRPO; GRAFT changes its baseline and its gradient masks. {{DeepSeekMath|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}} is GRPO's paper.</li>
+<li>{{LoRA|n:3c65c17b0d0d81018f15edd19fa5c28a}}: the adapter GRAFT rejected, for the reason in Appendix G.</li>
+<li>The same family of "induce the bad behaviour at train time, remove it at test time": inoculation prompting ({{Wichers et al., 2025|https://arxiv.org/abs/2510.05024}}), preventative steering with persona vectors ({{Chen et al., 2025|https://arxiv.org/abs/2507.21509}}), inoculation adapters; GRAFT's forget adapter is an inoculation adapter learned online ({{§6|ax:S6}}).</li>
+</ul>
+</section>
+</section>
