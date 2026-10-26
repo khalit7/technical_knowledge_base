@@ -37,3 +37,5 @@ Why about 22 minutes is right: the core is the lab's own design choices with the
 
 ## Sources and supporting files
 - `viz_ideas.md`: scored candidates, rejections, and the 2026-10-24 changes.
+
+2026-10-26 (final follow-up sweep): two links called Test-time compute and reasoning a tab of the landscape root; it is a child page now.
