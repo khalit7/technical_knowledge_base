@@ -11,6 +11,8 @@ def txt(x):
     x = re.sub(r'<[^>]+>', '', x)
     x = html.unescape(x)
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x)).replace('\u2014', '--')
+def txt(x, _t=txt):  # author emails redacted (2026-10-25), including the {a,b}@host form
+    return re.sub(r'(\{[^{}@\s]*\}|[\w.+-]+)@[\w-]+(\.[\w-]+)+', '[email removed]', _t(x))
 a = s.index('<article'); b = s.index('</article>')
 open('inputs/paper_v4.txt', 'w').write('Source: https://arxiv.org/html/2609.18094v4 (extracted by extract_paper.py)\n\n' + txt(s[a:b]))
 ids = re.findall(r'id="((?:S|A|Sx)[0-9A-Za-z.]+)"', s)
