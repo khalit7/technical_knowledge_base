@@ -15,7 +15,7 @@ for w, W in L['worlds'].items():
         for e in W['ev'][k]:
             key = (e[1], e[2]); seen[key] = seen.get(key, 0) + 1
             txt = e[4] if (e[4] and (seen[key] == 1 or (e[2] in ('fetch', 'act', 'store', 'pass', 'warn') and seen[key] <= 2))) else ''
-            txt = re.sub(r'https?://\S+', lambda m: m.group(0)[:48], txt)[:110].replace('\u2014', '-')  # the page carries no em-dashes; quoted agents' em-dashes become hyphens
+            txt = re.sub(r'https?://\S+', lambda m: m.group(0)[:48], txt)[:110].replace('\u2014', '-')  # the page carries no em-dashes (logs.json already stores quoted agents' em-dashes as --)
             rows.append([round(e[0], 2), e[1], e[2], e[3], txt])
         ev[k] = rows
     o['ev'] = ev

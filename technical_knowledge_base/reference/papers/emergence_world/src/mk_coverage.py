@@ -9,8 +9,8 @@ txt = html.unescape(re.sub(r'<[^>]+>', ' ', raw))
 txt = re.sub(r'\s+', ' ', txt)
 R = 'The paper tab'
 C = [
- ('Reading-time line "5 min read, +45m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read The paper tab', 'of resources']),
- ('Properties: Paper, Takeaway, Topics, Year (database row)', 'stay in Notion; the Takeaway is on the headline card, verbatim, with corrections noted', ['Eight parallel worlds of ten agents run 16 days, 850,000 LLM calls and 50 billion tokens', 'model-level alignment proved not to be compositional', 'its properties (Paper, Takeaway, Topics, Year)']),
+ ('Reading-time line "5 min read, +45m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['Reading: ', 'in closed details.']),
+ ('Properties: Paper, Takeaway, Topics, Year (database row)', 'stay in Notion; the Takeaway is on the headline card, softened 2026-10-25 (run lengths, the 46 hours as one retry, non-compositionality as the authors\' interpretation)', ['run for 4 to 21 days with more than 850,000 LLM calls and nearly 50 billion tokens', 'the authors\' reading that model-level alignment does not compose', 'its properties (Paper, Takeaway, Topics, Year)']),
  ('Authors: Akkil, Abuelsaad, Vikram, Pace, Vempaty, Beotra, Kokku, Nitta (Emergence AI)', R + ', headline card', ['Deepak Akkil', 'Tamer Abuelsaad', 'Karthik Vikram', 'Matthew Pace', 'Aditya Vempaty', 'Saahir Beotra', 'Ravi Kokku', 'Satya Nitta', 'Emergence AI']),
  ('arXiv 2609.17320, September 2026', R + ', headline card and Further reading', ['arXiv 2609.17320', 'September 2026']),
  ('Code at https://github.com/EmergenceAI/Emergence-World', 'headline card, What it takes to use this, Further reading (now described: data and docs, not the platform code)', ['https://github.com/EmergenceAI/Emergence-World', 'Not the platform']),
