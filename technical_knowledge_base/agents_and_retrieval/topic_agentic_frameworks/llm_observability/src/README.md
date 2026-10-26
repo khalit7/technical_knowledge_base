@@ -56,3 +56,5 @@ Ledger (`src/ledger.json`, 348 units): core 234, depth 48, volatile 15, fat 51; 
 
 ## Update pass 2026-10-26 (update-kb)
 Core 29.9 to 30.0 min, closed details 8.4 to 8.9 (header now "plus 9"). Integrated in the runtime table of section 5: ADK 2.13.0's switch to the GenAI conventions v2 and the `call_llm` span going away (release notes read 26 Oct 2026; they say removed in one place and deprecated in another, and the page says so), and Claude Code's `claude_code.safety_event` (2.1.307). The Langfuse ADK screenshot's caption and alt text now say it predates ADK 2.13. Further reading's time for Claude Code, taken apart is now 37 min.
+
+2026-10-26 (final follow-up sweep): section 2's metrics paragraph names the token counters, notes that `gen_ai.client.token.usage` is no longer defined, and names the server-side `gen_ai.server.time_to_first_token` and `time_per_output_token` (checked against `token-metrics.yaml` and `metrics.yaml` at the pinned commit cb10b70), absorbed from ML system design. Two ledger units added.
