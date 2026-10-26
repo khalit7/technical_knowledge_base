@@ -1,0 +1,61 @@
+
+<section id="ra-trait">
+<h2>4. Traits and generics: duck typing, checked</h2>
+<p>A <dfn>trait</dfn> names a set of methods a type promises to provide, like a Python <code>Protocol</code>, except that a type must say so explicitly (<code>impl Tokenizer for Whitespace</code>) and the compiler checks it before the program runs. A trait may have default methods written in terms of the others. A <dfn>generic</dfn> function takes a type parameter with a <dfn>bound</dfn>: <code>fn total&lt;T: Tokenizer&gt;</code> accepts any <code>T</code> that implements <code>Tokenizer</code>.</p>
+[[code:lang/traits.rs]]
+[[out:l_traits]]
+<p>There are two ways to call through a trait, and the choice is a real trade-off:</p>
+<div class="ra-fig"><h4>A generic is copied per type and called directly; a trait object is one copy called through a table</h4>
+<div class="ra-boxes">
+<div><b class="small">Generic <code>total&lt;T: Tokenizer&gt;</code></b>
+<div class="ra-bx"><span class="lb">your source</span>fn total&lt;T: Tokenizer&gt;(t: &amp;T, ...)</div>
+<div class="ra-arrow">&#8595; compiled once per type used (monomorphisation)</div>
+<div class="ra-bx acc"><span class="lb">machine code</span>total::&lt;Whitespace&gt; &nbsp;calls Whitespace::count directly, inlined</div>
+<div class="ra-bx acc"><span class="lb">machine code</span>total::&lt;Chars&gt; &nbsp;calls Chars::count directly, inlined</div>
+<div class="small">The argument is a plain reference: <b>8 bytes</b> (<code>&amp;Whitespace</code>, recorded above).</div>
+</div>
+<div><b class="small">Trait object <code>&amp;dyn Tokenizer</code></b>
+<div class="ra-ptr"><span>data pointer</span><span>vtable pointer</span></div>
+<div class="small">A "fat" pointer: <b>16 bytes</b> (recorded above).</div>
+<div class="ra-arrow">&#8595; the vtable for Chars (one per type, built by the compiler)</div>
+<div class="ra-bx"><span class="lb">vtable</span>drop, size, align<br>name &#8594; Chars::name<br>count &#8594; Chars::count<br>report &#8594; the default method</div>
+<div class="ra-bx"><span class="lb">machine code</span>total_dyn &nbsp;one copy; each <code>t.count(d)</code> loads the address from the table, then calls it</div>
+</div>
+</div>
+</div>
+<div class="tw"><table><thead><tr><th></th><th>Generic <code>&lt;T: Tokenizer&gt;</code></th><th>Trait object <code>&amp;dyn Tokenizer</code></th></tr></thead><tbody>
+<tr><td>How it is compiled</td><td><dfn>monomorphisation</dfn>: one copy of the function per concrete type, each optimised (inlined) for that type</td><td>one copy; each call looks the method up in a table of function pointers (a <dfn>vtable</dfn>)</td></tr>
+<tr><td>Costs</td><td>compile time and binary size grow with each type used</td><td>an indirect call per method; no inlining across it</td></tr>
+<tr><td>Use when</td><td>the type is known at compile time (most code)</td><td>you need a mixed collection (<code>Vec&lt;Box&lt;dyn Tokenizer&gt;&gt;</code>) or a plug-in boundary</td></tr>
+</tbody></table></div>
+<p>Monomorphisation is visible in the compiled program: one generic function used with four types becomes four functions in the symbol table (<code>biggest</code> called on <code>u8</code>, <code>i64</code>, <code>f64</code> and <code>char</code> slices, release build, symbols listed with <code>nm</code>).</p>
+[[out:l_mono]]
+<details class="dp"><summary>The program, <code>mono.rs</code></summary><div>[[code:lang/mono.rs]]</div></details>
+<p>Section 5 measures what the vtable costs in a hot loop. Two real errors worth recognising. Use an operator the bound does not promise, and you get E0369, "binary operation <code>&gt;</code> cannot be applied to type <code>&amp;T</code>", with the help "consider restricting type parameter <code>T</code> with trait <code>PartialOrd</code>". Pass a type that does not implement the trait, and you get E0277, "the trait bound <code>Whitespace: Tokenizer</code> is not satisfied", pointing at the call and at the bound; Python would fail at run time, on the first call to the missing method.</p>
+<details class="dp"><summary>The two errors in full</summary><div>[[out:l_bound_err]][[out:l_notimpl_err]]</div></details>
+<ul>
+<li><b>No inheritance.</b> Share behaviour with default methods and generic functions, and share data by putting one struct inside another. Python programmers rarely miss class hierarchies after a week.</li>
+<li><b>The standard traits matter:</b> <code>Debug</code>, <code>Clone</code>, <code>Copy</code>, <code>PartialEq</code>, <code>Eq</code>, <code>Hash</code>, <code>Ord</code>, <code>Default</code>, <code>Display</code>, <code>From</code>/<code>Into</code>, <code>Iterator</code>. Most are derivable; implementing <code>Display</code> is Rust's <code>__str__</code>, <code>Add</code> its <code>__add__</code> (Python's side of these hooks: {{Python: the data model and protocols|n:4055c17b0d0d816a8705e4d3f20b3da7}}). A missing standard trait is a common surprise, as in the prompt below: floats are not <code>Ord</code>.</li>
+<li><b>The orphan rule:</b> you may implement a trait for a type only if your crate defines the trait or the type. To add a foreign trait to a foreign type, wrap the type in a one-field struct of your own (the "newtype" pattern).</li>
+</ul>
+[[drill:d11]]
+</section>
+
+<section id="ra-iter">
+<h2>5. Iterators and closures: lazy pipelines that cost nothing</h2>
+<p>An <dfn>iterator</dfn> in Rust is any type with a <code>next()</code> method returning <code>Option&lt;Item&gt;</code>, the same protocol as Python's <code>__next__</code> raising <code>StopIteration</code>. Adapters such as <code>map</code>, <code>filter</code>, <code>zip</code>, <code>enumerate</code>, <code>take</code> build a lazy pipeline, like a generator expression; a <dfn>consumer</dfn> (<code>collect</code>, <code>sum</code>, <code>count</code>, <code>fold</code>, a <code>for</code> loop) runs it. A <dfn>closure</dfn> is an anonymous function that can capture variables from where it is written: <code>|x| x * 2</code> is Python's <code>lambda x: x * 2</code>, but with any number of statements.</p>
+<p>What is new for a Python programmer is the cost, so it comes first. Rust's claim is that the iterator chain compiles to the same machine code as the hand-written loop. The same work five ways (sum of <code>x*x</code> over the even values in 10 million <code>u64</code>, release build, best of 9) and in CPython 3.14 (best of 3):</p>
+<div class="ra-fig"><h4>The chain runs as fast as the loop; only a closure hidden behind <code>&amp;dyn Fn</code> is slower, and CPython's generator about 150 times slower than the chain</h4>
+<div class="bars ra-bench" id="ra-bench-bars"></div>
+<p class="small"><span class="ra-meas">measured</span> All four statically dispatched versions take the same time, about <b>[[g:t_iterbench|iter\(\)\.filter\(\)\.map\(\)\.fold\(\)\s+([0-9.]+)]] ns per element</b>: the closures were inlined and the loop vectorised, so the chain really is free. Calling the closure through <code>&amp;dyn Fn</code>, with the target hidden from the optimiser, blocks inlining and takes [[g:t_iterbench|&dyn Fn closure\s+([0-9.]+)]] ns, about three times slower: still far below CPython's [[g:t_iterbench_py|sum\(generator\)\s+([0-9.]+)]] ns per element for the generator expression ([[g:t_iterbench_py|for loop\s+([0-9.]+)]] for the plain loop). The machine was busy (load average around 16 on 10 cores, recorded before and after), so take the ratios, not the absolute values; all seven results agree (1662703719376).</p>
+</div>
+<details class="dp"><summary>The benchmark code, the raw recordings and the load average</summary><div>[[code:lang/iterbench.rs:1-31]][[out:t_iterbench]][[out:t_iterbench_py]][[out:t_load]][[out:t_load_after]]</div></details>
+<p>The laziness is Python's, so one recorded program covers the rest of the API:</p>
+[[code:lang/iters.rs]]
+[[pr:l_iters|Which line comes first: "built the iterator" or "computing 1"? And how many times does "computing" print?]]
+<p>Closures capture in the least demanding way that works, and the compiler records which in the closure's type: <code>Fn</code> (reads captured values: <code>short</code> above), <code>FnMut</code> (changes them: <code>count</code>), <code>FnOnce</code> (moves them out, so it can run once). <code>move</code> before a closure makes it take ownership of what it captures (<code>consume</code>), needed when the closure outlives the current function, as a thread's does ({{Rust: lifetimes, smart pointers, threads and unsafe|n:4055c17b0d0d8160aa32df9cda0aef03}}). A type with a <code>next()</code> method (<code>Countdown</code>) is Rust's generator: any struct can be an iterator.</p>
+[[drill:d07]]
+[[drill:d08]]
+[[drill:d10]]
+<div class="ra-cost"><div><b>Solves</b>Readable pipelines with no speed penalty; laziness means no intermediate lists.</div><div><b>Costs</b>Long chains have long type names in errors; <code>collect</code> sometimes needs a type hint (<code>collect::&lt;Vec&lt;_&gt;&gt;()</code>).</div><div><b>Common mistake</b>Building a chain and never consuming it: nothing runs (clippy warns, and candidate A of the comprehension prompt above prints the unconsumed iterator).</div></div>
+</section>

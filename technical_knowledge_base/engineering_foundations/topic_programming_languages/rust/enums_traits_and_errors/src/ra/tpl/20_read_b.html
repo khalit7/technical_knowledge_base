@@ -1,0 +1,60 @@
+
+<section id="ra-enum">
+<h2>2. Structs, enums and match: make illegal states unrepresentable</h2>
+<p>A <dfn>struct</dfn> is a record with named fields, like a dataclass. An <dfn>enum</dfn> in Rust is far more than Python's <code>Enum</code>: each <dfn>variant</dfn> can carry its own data, so one type says "a message is <i>either</i> text from a user, <i>or</i> a tool call with arguments, <i>or</i> an image of some size". This is called a sum type or tagged union. <code>match</code> takes it apart, and must cover every variant.</p>
+<p>The design habit this enables matters more than the syntax. Python code often models state as one class with optional fields and a status string, and every method checks that the fields agree with the status. In Rust, give each state exactly the data it has. "Connected but no session id" or "failed with no error" then cannot be written at all:</p>
+<div class="ra-fig" id="ra-states-card"><h4>The same connection, two ways: 32 states you can write, 4 that make sense</h4>
+<div class="seg" id="ra-states-seg"><button data-m="py" class="on">Python: status string plus optional fields</button><button data-m="rs">Rust: one enum</button></div>
+<div id="ra-states"></div>
+<p class="small" id="ra-states-cap"></p>
+<p class="small mute">Counting only the four status strings the code uses, a class with <code>status</code> and three optional fields (<code>attempt</code>, <code>session_id</code>, <code>error</code>) can hold 4 &times; 2 &times; 2 &times; 2 = 32 combinations; 4 are legal. The Rust enum is <code>code/lang/states.rs</code> below; the Python class is illustrative, not run.</p>
+</div>
+[[code:lang/states.rs:1-20]]
+[[out:l_states]]
+<p>The last three lines show a related point: <code>Option&lt;u64&gt;</code> needs 16 bytes (8 for the number, plus a tag, padded), but <code>Option&lt;&amp;u64&gt;</code> and <code>Option&lt;Box&lt;u64&gt;&gt;</code> fit in 8, because a reference is never null and the compiler uses the null value to mean <code>None</code> (the "niche" optimisation). Safety without null costs nothing there.</p>
+<h3>The syntax, on a chat message</h3>
+[[code:lang/enums.rs]]
+[[out:l_enums]]
+<ul>
+<li><code>#[derive(Debug, Clone, PartialEq)]</code> asks the compiler to write the code for printing with <code>{:?}</code>, cloning and <code>==</code>, as <code>@dataclass</code> writes <code>__repr__</code> and <code>__eq__</code>.</li>
+<li><code>impl Message { ... }</code> holds the methods. <code>&amp;self</code> is a borrowed <code>self</code>; <code>&amp;mut self</code> may change it; plain <code>self</code> consumes it.</li>
+<li>Patterns can destructure fields, add guards (<code>if text.is_empty()</code>), match ranges (<code>1..=9</code>) and use <code>_</code> for "anything else". <code>if let</code> handles one variant and ignores the rest.</li>
+</ul>
+<p>Forget a variant and the program does not compile. Add a <code>Tool</code> role a year from now, and the compiler lists every <code>match</code> that must learn about it:</p>
+[[out:l_match_err]]
+<div class="ra-cost"><div><b>Solves</b>Whole classes of "this field should not be None here" bugs; adding a case shows every place to update.</div><div><b>Costs</b>An enum is as big as its largest variant (box a huge rarely used one); exhaustive matching makes public enums hard to extend without breaking users (<code>#[non_exhaustive]</code> exists for that).</div><div><b>Python today</b>The same idea is available as a union of dataclasses plus <code>match</code> and a type checker's exhaustiveness check (<code>assert_never</code>; Python's type checkers are on {{Python: typing, uv, packaging and the toolchain|n:4055c17b0d0d8192878fce7505cc612f}}); Rust enforces it always.</div></div>
+</section>
+
+<section id="ra-err">
+<h2>3. Option, Result and ?: errors as values</h2>
+<p>Rust has no <code>None</code> that can appear anywhere and no exceptions for expected failures. Two enums from the standard library carry them, written like any other enum:</p>
+<ul>
+<li><code>Option&lt;T&gt;</code> is <code>Some(value)</code> or <code>None</code>: maybe missing. <code>dict.get</code>, <code>str.find</code> and "first element" return one.</li>
+<li><code>Result&lt;T, E&gt;</code> is <code>Ok(value)</code> or <code>Err(error)</code>: may fail. Parsing, I/O and network calls return one.</li>
+</ul>
+<p>You cannot use the value inside without deciding what happens in the other case. The <code>?</code> operator is the common decision: "if this is an <code>Err</code>, return it from my function now; otherwise give me the value". It is the explicit, typed version of letting an exception propagate. Step through the recorded program on its three configurations:</p>
+<div class="ra-fig" id="ra-q-card"><h4>Where an error goes: <code>?</code> returns it one level up, and the rest of the function never runs</h4>
+<div class="seg" id="ra-q-seg"><button data-m="bad" class="on">context = "8k"</button><button data-m="missing">max_output missing</button><button data-m="good">both present</button></div>
+<div class="ra-ctl"><button type="button" id="ra-q-b" aria-label="Previous step">&#9664; Back</button><button type="button" id="ra-q-f" aria-label="Next step">Next &#9654;</button><span class="small" id="ra-q-pos"></span></div>
+<div class="ra-tl" id="ra-q-code"></div>
+<div class="ra-cap" id="ra-q-cap"></div>
+<p class="small mute">Lines 22 to 43 of <code>code/lang/errors.rs</code> (the whole file is below); each configuration's last step prints the line the recorded run printed.</p>
+</div>
+<details class="dp"><summary>The whole program, <code>errors.rs</code> (the error type and <code>main</code>)</summary><div>[[code:lang/errors.rs]]</div></details>
+[[out:l_errors]]
+<ul>
+<li><code>ok_or</code> turns an <code>Option</code> into a <code>Result</code>; <code>map_err</code> converts one error type into another; <code>unwrap_or</code> supplies a default.</li>
+<li><code>unwrap()</code> and <code>expect("why")</code> say "this cannot fail; if it does, it is a bug": they <b>panic</b>, as the last line shows. Fine in tests and prototypes; in libraries prefer returning the error.</li>
+<li>A custom error type is an enum with a <code>Display</code> implementation (the message) and the <code>Error</code> trait (<code>ConfigError</code> above). That is boilerplate, which is why two crates are everywhere (below).</li>
+</ul>
+<p><code>?</code> only works in a function that returns <code>Result</code> or <code>Option</code>, which catches people in <code>main</code>: E0277, "the <code>?</code> operator can only be used in a function that returns <code>Result</code> or <code>Option</code>", and the compiler proposes the fix, <code>fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt;</code> plus <code>Ok(())</code> at the end.</p>
+<details class="dp"><summary>The full error</summary><div>[[out:l_qmark_err]]</div></details>
+[[drill:d06]]
+[[drill:d05]]
+<h3>thiserror and anyhow</h3>
+<p>The common split ({{thiserror|https://docs.rs/thiserror}}, {{anyhow|https://docs.rs/anyhow}}): <b>libraries</b> define typed error enums so callers can <code>match</code> on them, and <code>thiserror</code> writes the <code>Display</code> and <code>Error</code> code from attributes; <b>applications</b> mostly report errors, and <code>anyhow::Result</code> holds any error plus a chain of context messages. Versions used here: thiserror 2.0.21, anyhow 1.0.104.</p>
+[[code:errs/src/main.rs]]
+[[out:l_errs]]
+<p>The second line is what a user wants to read: what the program was doing (parsing usage file), where (line 2), and the root cause, all from <code>{:#}</code> on the chain. The CLI and the service on {{Rust: async with tokio, services with axum, and CLIs|n:4055c17b0d0d8148b863faa050cf5456}} use this pattern, and a PyO3 extension turns these errors into Python exceptions ({{Rust: speeding up Python with PyO3 and maturin|n:4055c17b0d0d81048311c87e9b76a78a}}).</p>
+<div class="ra-cost"><div><b>Solves</b>Every failure is visible in the signature; nothing is thrown past a caller that did not expect it.</div><div><b>Costs</b>More words than <code>try</code>/<code>except</code> at the top, and error types to design; <code>?</code> keeps the middle short.</div><div><b>Common mistake</b><code>unwrap()</code> everywhere in library code; or one giant error enum for a whole crate. Prefer one enum per module boundary (error design as a craft: {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}).</div></div>
+</section>

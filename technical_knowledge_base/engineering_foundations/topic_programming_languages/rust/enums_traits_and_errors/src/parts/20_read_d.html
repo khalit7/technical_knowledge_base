@@ -1,0 +1,307 @@
+
+<section id="ra-coll">
+<h2>6. Collections</h2>
+<div class="tw"><table><thead><tr><th>Python</th><th>Rust (<code>std::collections</code>)</th><th>Notes</th></tr></thead><tbody>
+<tr><td><code>list</code></td><td><code>Vec&lt;T&gt;</code></td><td>contiguous elements of one type, not pointers to objects; <code>v[i]</code> panics out of range, <code>v.get(i)</code> returns an <code>Option</code></td></tr>
+<tr><td><code>dict</code></td><td><code>HashMap&lt;K, V&gt;</code></td><td><b>arbitrary iteration order</b>, randomly seeded per process</td></tr>
+<tr><td>sorted dict (no built-in)</td><td><code>BTreeMap&lt;K, V&gt;</code></td><td>kept sorted by key; range queries</td></tr>
+<tr><td><code>set</code></td><td><code>HashSet&lt;T&gt;</code>, <code>BTreeSet&lt;T&gt;</code></td><td>union, intersection, difference</td></tr>
+<tr><td><code>collections.deque</code></td><td><code>VecDeque&lt;T&gt;</code></td><td>ring buffer, cheap at both ends</td></tr>
+<tr><td><code>heapq</code></td><td><code>BinaryHeap&lt;T&gt;</code></td><td>a max-heap (wrap items in <code>Reverse</code> for a min-heap)</td></tr>
+</tbody></table></div>
+<p>The habit to change first is counting into a dict. Predict before reading on:</p>
+<div class="ra-dq" id="ra-dq-d01" data-ans="c"><div class="ra-dqh"><b>Predict:</b> Count words in a dict. Which Rust version prints what the Python prints?</div><div class="ra-two"><div><div class="ra-src"><div class="ra-fn">d01.py</div><pre class="ra-code">text = <span class="ra-st">"the cat and the hat"</span>
+counts = &#123;&#125;
+<span class="ra-kw">for</span> w <span class="ra-kw">in</span> text.split():
+    counts[w] = counts.get(w, 0) + 1
+<span class="ra-kw">print</span>(counts[<span class="ra-st">"the"</span>], counts[<span class="ra-st">"cat"</span>])</pre></div></div><div><pre class="ra-out" data-ra-out="dr_d01_py">
+<span class="ra-cmd">$ python3.14 d01.py</span>
+2 1</pre></div></div><div class="ra-dc"><div class="ra-cand" data-c="a"><div class="h"><span>A</span><button type="button" data-pick="a">This one</button></div><div class="ra-src"><div class="ra-fn">d01_a.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::collections::HashMap;
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> text = <span class="ra-st">"the cat and the hat"</span>;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> counts: HashMap&lt;&amp;str, i32&gt; = HashMap::new();
+    <span class="ra-kw">for</span> w <span class="ra-kw">in</span> text.split_whitespace() &#123;
+        counts[w] += 1;
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125; &#123;&#125;"</span>, counts[<span class="ra-st">"the"</span>], counts[<span class="ra-st">"cat"</span>]);
+&#125;</pre></div></div><div class="ra-cand" data-c="b"><div class="h"><span>B</span><button type="button" data-pick="b">This one</button></div><div class="ra-src"><div class="ra-fn">d01_b.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::collections::HashMap;
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> text = <span class="ra-st">"the cat and the hat"</span>;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> counts: HashMap&lt;&amp;str, i32&gt; = HashMap::new();
+    <span class="ra-kw">for</span> w <span class="ra-kw">in</span> text.split_whitespace() &#123;
+        counts.insert(w, counts.get(w).unwrap() + 1);
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125; &#123;&#125;"</span>, counts[<span class="ra-st">"the"</span>], counts[<span class="ra-st">"cat"</span>]);
+&#125;</pre></div></div><div class="ra-cand" data-c="c"><div class="h"><span>C</span><button type="button" data-pick="c">This one</button></div><div class="ra-src"><div class="ra-fn">d01_c.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::collections::HashMap;
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> text = <span class="ra-st">"the cat and the hat"</span>;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> counts: HashMap&lt;&amp;str, i32&gt; = HashMap::new();
+    <span class="ra-kw">for</span> w <span class="ra-kw">in</span> text.split_whitespace() &#123;
+        *counts.entry(w).or_insert(0) += 1;
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125; &#123;&#125;"</span>, counts[<span class="ra-st">"the"</span>], counts[<span class="ra-st">"cat"</span>]);
+&#125;</pre></div></div></div><details class="ra-drv"><summary>What the three really did (rustc 1.99.0, debug builds)</summary><div class="ra-res"><b>A: refused by the compiler, differs.</b> <code>HashMap</code> implements <code>Index</code> (read) but not <code>IndexMut</code>, so <code>counts[w] += 1</code> cannot insert or update: E0594.</div><pre class="ra-out ra-bad" data-ra-out="dr_d01_a">
+<span class="ra-cmd">$ rustc --edition 2024 d01_a.rs &amp;&amp; ./d01_a</span>
+warning: variable does not need to be mutable
+ --&gt; d01_a.rs:4:9
+  |
+4 |     let mut counts: HashMap&lt;&amp;str, i32&gt; = HashMap::new();
+  |         ----^^^^^^
+  |         |
+  |         help: remove this `mut`
+  |
+  = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+error[E0594]: cannot assign to data in an index of `HashMap&lt;&amp;str, i32&gt;`
+ --&gt; d01_a.rs:6:9
+  |
+6 |         counts[w] += 1;
+  |         ^^^^^^^^^^^^^^ cannot assign
+  |
+  = help: trait `IndexMut` is required to modify indexed content, but it is not implemented for `HashMap&lt;&amp;str, i32&gt;`
+  = help: to modify a `HashMap&lt;&amp;str, i32&gt;`, use `.get_mut()`, `.insert()` or the entry API</pre><details class="ra-more"><summary>show the remaining 5 lines</summary><pre class="ra-out ra-bad" data-ra-rest="dr_d01_a">
+
+error: aborting due to 1 previous error; 1 warning emitted
+
+For more information about this error, try `rustc --explain E0594`.
+[exit code 1]</pre></details><div class="ra-res"><b>B: compiles, panics at run time, differs.</b> Compiles, then panics on the first word: <code>get</code> returns <code>None</code> for a new key and <code>unwrap</code> on <code>None</code> panics.</div><pre class="ra-out ra-bad" data-ra-out="dr_d01_b">
+<span class="ra-cmd">$ rustc --edition 2024 d01_b.rs &amp;&amp; ./d01_b</span>
+
+thread 'main' (16603753) panicked at d01_b.rs:6:40:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[exit code 101]</pre><div class="ra-res"><b>C: compiles and runs, matches Python.</b> The entry API: one lookup, insert 0 if absent, then add. This is the idiom for counting.</div><pre class="ra-out" data-ra-out="dr_d01_c">
+<span class="ra-cmd">$ rustc --edition 2024 d01_c.rs &amp;&amp; ./d01_c</span>
+2 1</pre></details></div>
+<p>The <b>entry API</b> (<code>*counts.entry(w).or_insert(0) += 1</code>) is the idiom for "update or insert" with one lookup; the two tempting alternatives fail as shown. The tour of the other collections, in one program:</p>
+<div class="ra-src"><div class="ra-fn">colls.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::collections::&#123;BTreeMap, HashMap, HashSet, VecDeque&#125;;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-cm">// Vec: a growable array. Capacity grows by doubling, so push is cheap on average.</span>
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> v = Vec::new();
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> caps = <span class="ra-mac">vec!</span>[];
+    <span class="ra-kw">for</span> i <span class="ra-kw">in</span> 0..20 &#123; v.push(i); <span class="ra-kw">if</span> caps.last() != Some(&amp;v.capacity()) &#123; caps.push(v.capacity()); &#125; &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"Vec capacities seen while pushing 20 items: &#123;caps:?&#125;"</span>);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"v.get(99) = &#123;:?&#125;  (v[99] would panic)"</span>, v.get(99));
+
+    <span class="ra-cm">// HashMap: the entry API does "get or insert" with one lookup</span>
+    <span class="ra-kw">let</span> text = <span class="ra-st">"the cat and the hat and the bat"</span>;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> counts: HashMap&lt;&amp;str, u32&gt; = HashMap::new();
+    <span class="ra-kw">for</span> w <span class="ra-kw">in</span> text.split(<span class="ra-st">' '</span>) &#123; *counts.entry(w).or_insert(0) += 1; &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"HashMap iteration order: &#123;:?&#125;"</span>, counts.iter().collect::&lt;Vec&lt;_&gt;&gt;());
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> sorted: Vec&lt;(&amp;str, u32)&gt; = counts.into_iter().collect();
+    sorted.sort_by(|a, b| b.1.cmp(&amp;a.1).then(a.0.cmp(b.0))); <span class="ra-cm">// count desc, then word asc</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"sorted: &#123;sorted:?&#125;"</span>);
+
+    <span class="ra-cm">// BTreeMap: kept sorted by key, so iteration order is deterministic</span>
+    <span class="ra-kw">let</span> bt: BTreeMap&lt;&amp;str, u32&gt; = text.split(<span class="ra-st">' '</span>).map(|w| (w, w.len() <span class="ra-kw">as</span> u32)).collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"BTreeMap: &#123;bt:?&#125;"</span>);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"range \"b\"..\"d\": &#123;:?&#125;"</span>, bt.range(<span class="ra-st">"b"</span>..<span class="ra-st">"d"</span>).collect::&lt;Vec&lt;_&gt;&gt;());
+
+    <span class="ra-cm">// HashSet: membership and set algebra</span>
+    <span class="ra-kw">let</span> a: HashSet&lt;u32&gt; = [1, 2, 3, 4].into();
+    <span class="ra-kw">let</span> b: HashSet&lt;u32&gt; = [3, 4, 5].into();
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> inter: Vec&lt;_&gt; = a.intersection(&amp;b).copied().collect();
+    inter.sort();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"intersection &#123;inter:?&#125;, contains 5? &#123;&#125;"</span>, a.contains(&amp;5));
+
+    <span class="ra-cm">// VecDeque: a ring buffer, O(1) at both ends (Python's collections.deque)</span>
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> q: VecDeque&lt;u32&gt; = VecDeque::new();
+    q.push_back(1); q.push_back(2); q.push_front(0);
+    <span class="ra-kw">let</span> front = q.pop_front();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"deque after pop_front: &#123;q:?&#125;, popped &#123;front:?&#125;"</span>);
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_colls">
+<span class="ra-cmd">$ rustc --edition 2024 colls.rs &amp;&amp; ./colls</span>
+Vec capacities seen while pushing 20 items: [4, 8, 16, 32]
+v.get(99) = None  (v[99] would panic)
+HashMap iteration order: [("bat", 1), ("the", 3), ("cat", 1), ("and", 2), ("hat", 1)]
+sorted: [("the", 3), ("and", 2), ("bat", 1), ("cat", 1), ("hat", 1)]
+BTreeMap: &#123;"and": 3, "bat": 3, "cat": 3, "hat": 3, "the": 3&#125;
+range "b".."d": [("bat", 3), ("cat", 3)]
+intersection [3, 4], contains 5? false
+deque after pop_front: [1, 2], popped Some(0)</pre>
+<p>The same binary, run three more times. Same input, different order each run:</p>
+<pre class="ra-out" data-ra-out="l_colls2">
+<span class="ra-cmd">$ for i in 1 2 3; do ./colls | sed -n 3p; done</span>
+HashMap iteration order: [("bat", 1), ("cat", 1), ("the", 3), ("and", 2), ("hat", 1)]
+HashMap iteration order: [("hat", 1), ("and", 2), ("the", 3), ("bat", 1), ("cat", 1)]
+HashMap iteration order: [("cat", 1), ("the", 3), ("bat", 1), ("and", 2), ("hat", 1)]</pre>
+<p>Python dicts keep insertion order (guaranteed since 3.7); Rust's <code>HashMap</code> does not, and its default hasher (SipHash 1-3) is randomly seeded so that an attacker who controls the keys cannot force collisions ("HashDoS"), as the {{HashMap documentation|https://doc.rust-lang.org/std/collections/struct.HashMap.html}} explains. Sort before printing (as the root's token counter does) or use a <code>BTreeMap</code>. For integer keys in a hot loop a faster non-DoS-resistant hasher (the <code>rustc-hash</code> or <code>ahash</code> crates) is a common swap.</p>
+<div class="ra-dq" id="ra-dq-d09" data-ans="c"><div class="ra-dqh"><b>Predict:</b> Dictionary order. Which Rust version prints what the Python prints?</div><div class="ra-two"><div><div class="ra-src"><div class="ra-fn">d09.py</div><pre class="ra-code">d = &#123;<span class="ra-st">"b"</span>: 1, <span class="ra-st">"a"</span>: 2, <span class="ra-st">"c"</span>: 3, <span class="ra-st">"e"</span>: 4, <span class="ra-st">"d"</span>: 5, <span class="ra-st">"f"</span>: 6&#125;
+<span class="ra-kw">print</span>(list(d))</pre></div></div><div><pre class="ra-out" data-ra-out="dr_d09_py">
+<span class="ra-cmd">$ python3.14 d09.py</span>
+['b', 'a', 'c', 'e', 'd', 'f']</pre></div></div><div class="ra-dc"><div class="ra-cand" data-c="a"><div class="h"><span>A</span><button type="button" data-pick="a">This one</button></div><div class="ra-src"><div class="ra-fn">d09_a.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::collections::HashMap;
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> d = HashMap::<span class="ra-kw">from</span>([(<span class="ra-st">"b"</span>, 1), (<span class="ra-st">"a"</span>, 2), (<span class="ra-st">"c"</span>, 3), (<span class="ra-st">"e"</span>, 4), (<span class="ra-st">"d"</span>, 5), (<span class="ra-st">"f"</span>, 6)]);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;:?&#125;"</span>, d.keys().collect::&lt;Vec&lt;_&gt;&gt;());
+&#125;</pre></div></div><div class="ra-cand" data-c="b"><div class="h"><span>B</span><button type="button" data-pick="b">This one</button></div><div class="ra-src"><div class="ra-fn">d09_b.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::collections::BTreeMap;
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> d = BTreeMap::<span class="ra-kw">from</span>([(<span class="ra-st">"b"</span>, 1), (<span class="ra-st">"a"</span>, 2), (<span class="ra-st">"c"</span>, 3), (<span class="ra-st">"e"</span>, 4), (<span class="ra-st">"d"</span>, 5), (<span class="ra-st">"f"</span>, 6)]);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;:?&#125;"</span>, d.keys().collect::&lt;Vec&lt;_&gt;&gt;());
+&#125;</pre></div></div><div class="ra-cand" data-c="c"><div class="h"><span>C</span><button type="button" data-pick="c">This one</button></div><div class="ra-src"><div class="ra-fn">d09_c.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> d = <span class="ra-mac">vec!</span>[(<span class="ra-st">"b"</span>, 1), (<span class="ra-st">"a"</span>, 2), (<span class="ra-st">"c"</span>, 3), (<span class="ra-st">"e"</span>, 4), (<span class="ra-st">"d"</span>, 5), (<span class="ra-st">"f"</span>, 6)];
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;:?&#125;"</span>, d.iter().map(|(k, _)| k).collect::&lt;Vec&lt;_&gt;&gt;());
+&#125;</pre></div></div></div><details class="ra-drv"><summary>What the three really did (rustc 1.99.0, debug builds)</summary><div class="ra-res"><b>A: compiles and runs, differs.</b> <code>HashMap</code> iterates in arbitrary order, and the hasher is randomly seeded per process: the order changed between runs.</div><pre class="ra-out" data-ra-out="dr_d09_a">
+<span class="ra-cmd">$ rustc --edition 2024 d09_a.rs &amp;&amp; ./d09_a</span>
+["d", "b", "c", "f", "a", "e"]</pre><div class="ra-res"><b>B: compiles and runs, differs.</b> <code>BTreeMap</code> is ordered by key (alphabetical here), not by insertion.</div><pre class="ra-out" data-ra-out="dr_d09_b">
+<span class="ra-cmd">$ rustc --edition 2024 d09_b.rs &amp;&amp; ./d09_b</span>
+["a", "b", "c", "d", "e", "f"]</pre><div class="ra-res"><b>C: compiles and runs, matches Python.</b> Python dicts keep insertion order (guaranteed since 3.7). Rust's standard library has no insertion-ordered map; a <code>Vec</code> of pairs (or the <code>indexmap</code> crate) keeps it.</div><pre class="ra-out" data-ra-out="dr_d09_c">
+<span class="ra-cmd">$ rustc --edition 2024 d09_c.rs &amp;&amp; ./d09_c</span>
+["b", "a", "c", "e", "d", "f"]</pre><div class="ra-res"><b>Candidate a, run three more times</b></div><pre class="ra-out" data-ra-out="dr_d09_a_again">
+<span class="ra-cmd">$ ./d09_a; ./d09_a; ./d09_a</span>
+["b", "c", "a", "d", "e", "f"]
+["a", "e", "d", "f", "c", "b"]
+["b", "c", "e", "d", "a", "f"]</pre></details></div>
+</section>
+
+<section id="ra-test">
+<h2>7. Testing: unit, integration, documentation</h2>
+<p>Testing is built into the language and cargo, with no framework to install. Where a test lives decides what it can see; here are the three kinds in the root's token counter crate (<code>tokstat</code>, the library-plus-binary layout taught under modules on {{Rust: the essentials|n:3c65c17b0d0d8156bed9ead8a22f33b0}}):</p>
+<div class="ra-fig"><h4>Three kinds of test, three levels of access</h4>
+<div class="ra-tree">tokstat/
+  Cargo.toml
+  src/lib.rs            <span class="mute">pub mod tally; pub mod tokenize;</span>
+  src/main.rs           <span class="mute">the binary, a thin layer on the library</span>
+  src/tokenize.rs
+    /// ```  assert_eq!(count_tokens("x86_64 is 2 tokens"), 5);  ```<span class="ra-tag d">doc test: run as a user of the crate</span>
+    #[cfg(test)] mod tests { use super::*; ... }<span class="ra-tag u">unit tests: may call private is_token_byte</span>
+  tests/cli.rs<span class="ra-tag i">integration: a separate crate, public API and the built binary</span></div>
+</div>
+<ul>
+<li><b>Unit tests</b> live next to the code in a <code>#[cfg(test)] mod tests</code> (compiled only for <code>cargo test</code>) and may test private functions.</li>
+<li><b>Integration tests</b> are files in <code>tests/</code>, compiled as a separate crate, so they see only the public API; they can also run the built binary.</li>
+<li><b>Documentation tests</b>: code blocks inside <code>///</code> doc comments are compiled and run, so the examples in the docs cannot rot.</li>
+</ul>
+<details class="dp"><summary>The two test files: <code>src/tokenize.rs</code> (a doc test and two unit tests) and <code>tests/cli.rs</code> (two integration tests)</summary><div><div class="ra-two"><div><div class="ra-src"><div class="ra-fn">tokenize.rs (lines 1 to 44)</div><pre class="ra-code"><span class="ra-cm">//! What counts as a token.</span>
+
+<span class="ra-cm">/// Number of maximal runs of ASCII letters and digits.</span>
+<span class="ra-cm">///</span>
+<span class="ra-cm">/// ```</span>
+<span class="ra-cm">/// use tokstat::count_tokens;</span>
+<span class="ra-cm">/// assert_eq!(count_tokens("x86_64 is 2 tokens"), 5);</span>
+<span class="ra-cm">/// assert_eq!(count_tokens("café"), 1); // 'é' is not ASCII, so it separates</span>
+<span class="ra-cm">/// ```</span>
+<span class="ra-kw">pub</span> <span class="ra-kw">fn</span> count_tokens(text: &amp;str) -&gt; u64 &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> n = 0;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> inside = <span class="ra-kw">false</span>;
+    <span class="ra-kw">for</span> b <span class="ra-kw">in</span> text.bytes() &#123;
+        <span class="ra-kw">let</span> tok = is_token_byte(b);
+        <span class="ra-kw">if</span> tok &amp;&amp; !inside &#123;
+            n += 1;
+        &#125;
+        inside = tok;
+    &#125;
+    n
+&#125;
+
+<span class="ra-cm">// Private: not visible outside this module.</span>
+<span class="ra-kw">fn</span> is_token_byte(b: u8) -&gt; bool &#123;
+    b.is_ascii_alphanumeric()
+&#125;
+
+<span class="ra-at">#[cfg(test)]</span>
+<span class="ra-kw">mod</span> tests &#123;
+    <span class="ra-kw">use</span> <span class="ra-kw">super</span>::*; <span class="ra-cm">// unit tests may see private items</span>
+
+    <span class="ra-at">#[test]</span>
+    <span class="ra-kw">fn</span> private_helper() &#123;
+        <span class="ra-mac">assert!</span>(is_token_byte(<span class="ra-st">b'a'</span>));
+        <span class="ra-mac">assert!</span>(!is_token_byte(<span class="ra-st">b'_'</span>));
+    &#125;
+
+    <span class="ra-at">#[test]</span>
+    <span class="ra-kw">fn</span> edge_cases() &#123;
+        <span class="ra-mac">assert_eq!</span>(count_tokens(<span class="ra-st">""</span>), 0);
+        <span class="ra-mac">assert_eq!</span>(count_tokens(<span class="ra-st">"日本語"</span>), 0);
+        <span class="ra-mac">assert_eq!</span>(count_tokens(<span class="ra-st">"v2.1"</span>), 2);
+    &#125;
+&#125;</pre></div></div><div><div class="ra-src"><div class="ra-fn">cli.rs</div><pre class="ra-code"><span class="ra-cm">// Integration tests: compiled as a separate crate, so they see only the public API.</span>
+<span class="ra-kw">use</span> tokstat::tally::Tally;
+
+<span class="ra-at">#[test]</span>
+<span class="ra-kw">fn</span> malformed_lines_are_counted_not_fatal() &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> t = Tally::default();
+    <span class="ra-kw">for</span> l <span class="ra-kw">in</span> [r#"&#123;"user":"a","text":"one two"&#125;"#, "not json", r#"&#123;"user":"b","text":"x"&#125;"#, r#"&#123;"user":17,"text":"x"&#125;"#] &#123;
+        t.add_line(l);
+    &#125;
+    <span class="ra-mac">assert_eq!</span>((t.lines, t.ok, t.malformed, t.first_bad), (4, 2, 2, Some(2)));
+    <span class="ra-mac">assert_eq!</span>(t.top(5), <span class="ra-mac">vec!</span>[(<span class="ra-st">"a"</span>, 2), (<span class="ra-st">"b"</span>, 1)]);
+&#125;
+
+<span class="ra-at">#[test]</span>
+<span class="ra-kw">fn</span> binary_matches_the_root_spec() &#123;
+    <span class="ra-kw">let</span> out = std::process::Command::new(<span class="ra-mac">env!</span>(<span class="ra-st">"CARGO_BIN_EXE_tokstat"</span>))
+        .arg(<span class="ra-st">"../chat.jsonl"</span>)
+        .output()
+        .unwrap();
+    <span class="ra-kw">let</span> s = String::from_utf8(out.stdout).unwrap();
+    <span class="ra-mac">assert!</span>(s.starts_with(<span class="ra-st">"lines 2000  ok 1992  malformed 8 (first at line 53)"</span>), <span class="ra-st">"&#123;s&#125;"</span>);
+&#125;</pre></div></div></div></div></details>
+<pre class="ra-out" data-ra-out="l_tokstat_test_full">
+<span class="ra-cmd">$ cargo test 2&gt;&amp;1 | grep -E "Running|Doc-tests|^test |test result"</span>
+     Running unittests src/lib.rs (target/debug/deps/tokstat-c8b30a7fcc644835)
+test tokenize::tests::edge_cases ... ok
+test tokenize::tests::private_helper ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in &lt;time&gt;
+     Running unittests src/main.rs (target/debug/deps/tokstat-59f844e4a80c39dc)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in &lt;time&gt;
+     Running tests/cli.rs (target/debug/deps/cli-19823db216c0559e)
+test malformed_lines_are_counted_not_fatal ... ok
+test binary_matches_the_root_spec ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in &lt;time&gt;
+   Doc-tests tokstat
+test src/tokenize.rs - tokenize::count_tokens (line 5) ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in &lt;time&gt;</pre>
+<p>A failing test, to see what <code>assert_eq!</code> reports (it prints both sides and your message; <code>#[should_panic]</code> tests that a panic happens):</p>
+<div class="ra-src"><div class="ra-fn">failing_test.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> count_tokens(text: &amp;str) -&gt; usize &#123;
+    text.split(<span class="ra-st">' '</span>).count() <span class="ra-cm">// bug: two spaces in a row make an empty "token"</span>
+&#125;
+
+<span class="ra-at">#[cfg(test)]</span>
+<span class="ra-kw">mod</span> tests &#123;
+    <span class="ra-kw">use</span> <span class="ra-kw">super</span>::*;
+
+    <span class="ra-at">#[test]</span>
+    <span class="ra-kw">fn</span> single_spaces() &#123;
+        <span class="ra-mac">assert_eq!</span>(count_tokens(<span class="ra-st">"a b c"</span>), 3);
+    &#125;
+
+    <span class="ra-at">#[test]</span>
+    <span class="ra-kw">fn</span> double_space() &#123;
+        <span class="ra-mac">assert_eq!</span>(count_tokens(<span class="ra-st">"a  b"</span>), 2, <span class="ra-st">"two words separated by two spaces"</span>);
+    &#125;
+
+    <span class="ra-at">#[test]</span>
+    <span class="ra-at">#[should_panic(expected = "index out of bounds")]</span>
+    <span class="ra-kw">fn</span> out_of_bounds_panics() &#123;
+        <span class="ra-kw">let</span> v: Vec&lt;u32&gt; = <span class="ra-mac">vec!</span>[];
+        <span class="ra-kw">let</span> _ = v[0];
+    &#125;
+&#125;</pre></div>
+<pre class="ra-out ra-bad" data-ra-out="l_failing_test">
+<span class="ra-cmd">$ rustc --edition 2024 --test failing_test.rs -o failing_test &amp;&amp; ./failing_test</span>
+
+running 3 tests
+test tests::single_spaces ... ok
+test tests::double_space ... FAILED
+test tests::out_of_bounds_panics - should panic ... ok
+
+failures:
+
+---- tests::double_space stdout ----
+
+thread 'tests::double_space' (16491396) panicked at failing_test.rs:16:9:
+assertion `left == right` failed: two words separated by two spaces
+  left: 3
+ right: 2
+
+
+failures:
+    tests::double_space
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in &lt;time&gt;
+
+[exit code 101]</pre>
+<p>The equivalents of pytest's extras: <code>cargo test name_filter</code> runs matching tests; <code>-- --nocapture</code> shows <code>println!</code> output; {{proptest|https://docs.rs/proptest}} does property-based testing like Hypothesis; {{insta|https://insta.rs}} does snapshot tests. Benchmarks use {{criterion|https://docs.rs/criterion}}. What to test, and why, is on {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}}.</p>
+</section>

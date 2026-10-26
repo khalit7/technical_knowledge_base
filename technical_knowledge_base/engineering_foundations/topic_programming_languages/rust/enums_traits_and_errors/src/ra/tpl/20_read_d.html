@@ -1,0 +1,47 @@
+
+<section id="ra-coll">
+<h2>6. Collections</h2>
+<div class="tw"><table><thead><tr><th>Python</th><th>Rust (<code>std::collections</code>)</th><th>Notes</th></tr></thead><tbody>
+<tr><td><code>list</code></td><td><code>Vec&lt;T&gt;</code></td><td>contiguous elements of one type, not pointers to objects; <code>v[i]</code> panics out of range, <code>v.get(i)</code> returns an <code>Option</code></td></tr>
+<tr><td><code>dict</code></td><td><code>HashMap&lt;K, V&gt;</code></td><td><b>arbitrary iteration order</b>, randomly seeded per process</td></tr>
+<tr><td>sorted dict (no built-in)</td><td><code>BTreeMap&lt;K, V&gt;</code></td><td>kept sorted by key; range queries</td></tr>
+<tr><td><code>set</code></td><td><code>HashSet&lt;T&gt;</code>, <code>BTreeSet&lt;T&gt;</code></td><td>union, intersection, difference</td></tr>
+<tr><td><code>collections.deque</code></td><td><code>VecDeque&lt;T&gt;</code></td><td>ring buffer, cheap at both ends</td></tr>
+<tr><td><code>heapq</code></td><td><code>BinaryHeap&lt;T&gt;</code></td><td>a max-heap (wrap items in <code>Reverse</code> for a min-heap)</td></tr>
+</tbody></table></div>
+<p>The habit to change first is counting into a dict. Predict before reading on:</p>
+[[drill:d01]]
+<p>The <b>entry API</b> (<code>*counts.entry(w).or_insert(0) += 1</code>) is the idiom for "update or insert" with one lookup; the two tempting alternatives fail as shown. The tour of the other collections, in one program:</p>
+[[code:lang/colls.rs]]
+[[out:l_colls]]
+<p>The same binary, run three more times. Same input, different order each run:</p>
+[[out:l_colls2]]
+<p>Python dicts keep insertion order (guaranteed since 3.7); Rust's <code>HashMap</code> does not, and its default hasher (SipHash 1-3) is randomly seeded so that an attacker who controls the keys cannot force collisions ("HashDoS"), as the {{HashMap documentation|https://doc.rust-lang.org/std/collections/struct.HashMap.html}} explains. Sort before printing (as the root's token counter does) or use a <code>BTreeMap</code>. For integer keys in a hot loop a faster non-DoS-resistant hasher (the <code>rustc-hash</code> or <code>ahash</code> crates) is a common swap.</p>
+[[drill:d09]]
+</section>
+
+<section id="ra-test">
+<h2>7. Testing: unit, integration, documentation</h2>
+<p>Testing is built into the language and cargo, with no framework to install. Where a test lives decides what it can see; here are the three kinds in the root's token counter crate (<code>tokstat</code>, the library-plus-binary layout taught under modules on {{Rust: the essentials|n:3c65c17b0d0d8156bed9ead8a22f33b0}}):</p>
+<div class="ra-fig"><h4>Three kinds of test, three levels of access</h4>
+<div class="ra-tree">tokstat/
+  Cargo.toml
+  src/lib.rs            <span class="mute">pub mod tally; pub mod tokenize;</span>
+  src/main.rs           <span class="mute">the binary, a thin layer on the library</span>
+  src/tokenize.rs
+    /// ```  assert_eq!(count_tokens("x86_64 is 2 tokens"), 5);  ```<span class="ra-tag d">doc test: run as a user of the crate</span>
+    #[cfg(test)] mod tests { use super::*; ... }<span class="ra-tag u">unit tests: may call private is_token_byte</span>
+  tests/cli.rs<span class="ra-tag i">integration: a separate crate, public API and the built binary</span></div>
+</div>
+<ul>
+<li><b>Unit tests</b> live next to the code in a <code>#[cfg(test)] mod tests</code> (compiled only for <code>cargo test</code>) and may test private functions.</li>
+<li><b>Integration tests</b> are files in <code>tests/</code>, compiled as a separate crate, so they see only the public API; they can also run the built binary.</li>
+<li><b>Documentation tests</b>: code blocks inside <code>///</code> doc comments are compiled and run, so the examples in the docs cannot rot.</li>
+</ul>
+<details class="dp"><summary>The two test files: <code>src/tokenize.rs</code> (a doc test and two unit tests) and <code>tests/cli.rs</code> (two integration tests)</summary><div><div class="ra-two"><div>[[code:tokstat/src/tokenize.rs:1-44]]</div><div>[[code:tokstat/tests/cli.rs]]</div></div></div></details>
+[[out:l_tokstat_test_full]]
+<p>A failing test, to see what <code>assert_eq!</code> reports (it prints both sides and your message; <code>#[should_panic]</code> tests that a panic happens):</p>
+[[code:lang/failing_test.rs]]
+[[out:l_failing_test]]
+<p>The equivalents of pytest's extras: <code>cargo test name_filter</code> runs matching tests; <code>-- --nocapture</code> shows <code>println!</code> output; {{proptest|https://docs.rs/proptest}} does property-based testing like Hypothesis; {{insta|https://insta.rs}} does snapshot tests. Benchmarks use {{criterion|https://docs.rs/criterion}}. What to test, and why, is on {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}}.</p>
+</section>

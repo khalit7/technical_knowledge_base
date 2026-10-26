@@ -1,0 +1,61 @@
+<section id="ra-top">
+<p class="core">Rust turns what a Python program discovers while it runs into <span class="hl">types the compiler checks before it runs</span>: an enum says exactly which data each case carries and <code>match</code> must handle every case, <code>Result</code> puts every failure in the signature, a trait says what a type can do, and the iterator chains built on all of this compile to the same machine code as the loop you would have written by hand.</p>
+<div class="hero" id="ra-hero-card"><h4>The same four mistakes: Python finds them while running, Rust before running</h4>
+<div id="ra-hero" class="ra-lane"></div>
+<p class="small">The Rust side of each row is a recorded run on this page: a missing <code>match</code> arm is error <b>E0004</b> (section 2); a maybe-missing value is an <code>Option</code> and a failed parse of <code>"8k"</code> a <code>Result</code>, and you get the value inside only by deciding what happens in the other case (section 3); a type without the trait is <b>E0277</b> at the call (section 4). The Python side is what the same mistake does in plain Python with no type checker. One exception stays a run-time failure in Rust too: a string slice that cuts a character panics (section 1). And the price of all this checking in a hot loop is none: an iterator chain ran at <b>0.293 ns per element</b>, the hand-written loop at 0.290 (section 5) <span class="ra-meas">measured</span>.</p>
+</div>
+<p><b>You need:</b> Cargo, ownership, moves and borrowing (<code>&amp;</code> and <code>&amp;mut</code>) from {{Rust: the essentials|n:3c65c17b0d0d8156bed9ead8a22f33b0}}. Lifetimes, <code>Box</code>, <code>Rc</code> and threads are on {{Rust: lifetimes, smart pointers, threads and unsafe|n:4055c17b0d0d8160aa32df9cda0aef03}}; this page mentions them only where a type here needs one.</p>
+<dl class="terms">
+<dt>Slice, <code>&amp;str</code></dt><dd>a borrowed view (pointer and length) into elements or UTF-8 text owned by someone else.</dd>
+<dt>Enum, variant</dt><dd>a type that is exactly one of several cases (variants), each carrying its own fields: a sum type or tagged union.</dd>
+<dt><code>match</code></dt><dd>takes a value apart by pattern; it must cover every variant (exhaustive).</dd>
+<dt><code>Option</code>, <code>Result</code></dt><dd>the standard enums for "maybe missing" (<code>Some</code>, <code>None</code>) and "may fail" (<code>Ok</code>, <code>Err</code>).</dd>
+<dt><code>?</code></dt><dd>"if this is an error, return it from my function now; otherwise give me the value".</dd>
+<dt>Trait, bound</dt><dd>a named set of methods a type promises; <code>T: Tokenizer</code> limits a generic to types that implement it.</dd>
+<dt>Monomorphisation, vtable</dt><dd>one compiled copy of a generic per type, against one copy that calls through a table of function pointers.</dd>
+<dt>Closure, <code>Fn</code>, <code>FnMut</code>, <code>FnOnce</code></dt><dd>an anonymous function that captures variables; the three traits say whether it reads, changes or consumes them.</dd>
+</dl>
+<nav class="nav" id="rd-nav" aria-label="Sections"><a href="#ra-s0">In one screen</a><a href="#ra-str">1 Strings</a><a href="#ra-enum">2 Enums, match</a><a href="#ra-err">3 Errors</a><a href="#ra-trait">4 Traits</a><a href="#ra-iter">5 Iterators</a><a href="#ra-coll">6 Collections</a><a href="#ra-test">7 Testing</a></nav>
+</section>
+
+<section id="ra-s0">
+<h2>In one screen</h2>
+<div class="tw"><table><thead><tr><th>In Python</th><th>In Rust</th><th>What changes for you</th><th>Section</th></tr></thead><tbody>
+<tr><td><code>str</code>, <code>len</code> in code points</td><td><code>String</code> (owned) and <code>&amp;str</code> (borrowed), lengths in <b>bytes</b></td><td>slice at character boundaries; iterate with <code>chars()</code></td><td>1</td></tr>
+<tr><td>a class with optional fields and a status string</td><td>an <code>enum</code> whose variants carry their own data</td><td>impossible states cannot be written; a new case lists every <code>match</code> to update</td><td>2</td></tr>
+<tr><td><code>None</code> anywhere, exceptions</td><td><code>Option</code>, <code>Result</code>, <code>?</code>; <code>panic!</code> for bugs</td><td>every failure is in the signature</td><td>3</td></tr>
+<tr><td>duck typing, <code>Protocol</code></td><td>traits, generics with bounds, <code>dyn Trait</code></td><td>checked at compile time; generics cost nothing, <code>dyn</code> an indirect call</td><td>4</td></tr>
+<tr><td>generators, comprehensions, <code>lambda</code></td><td>iterator adapters, <code>collect</code>, closures</td><td>the same laziness, at the speed of a hand-written loop</td><td>5</td></tr>
+<tr><td><code>list</code>, <code>dict</code>, <code>set</code>, <code>deque</code>, <code>heapq</code></td><td><code>Vec</code>, <code>HashMap</code>, <code>HashSet</code>, <code>VecDeque</code>, <code>BinaryHeap</code></td><td><code>HashMap</code> order is random per run</td><td>6</td></tr>
+<tr><td>pytest</td><td><code>cargo test</code>: unit, integration and doc tests</td><td>nothing to install; doc examples are compiled and run</td><td>7</td></tr>
+</tbody></table></div>
+<p class="small">How to read the code: each block is a file in this page's <code>src/ra/code/</code>, followed by the command that ran and its real output (green border) or error (orange border). Dashed boxes are predictions: the Python and three Rust translations a newcomer might write; pick one, then see what all three did. Recorded 2026-10-05 with rustc 1.99.0 (edition 2024) and CPython 3.14.8.</p>
+</section>
+
+<section id="ra-str">
+<h2>1. Strings and slices: String against &amp;str, and UTF-8</h2>
+<p>A <dfn>slice</dfn> is a borrowed view into a run of elements owned by someone else: a pointer and a length. <code>&amp;[u64]</code> is a slice of numbers (borrowed from a <code>Vec</code>, an array or part of either); <code>&amp;str</code> is a slice of text. Rust has two main string types:</p>
+<div class="tw"><table><thead><tr><th></th><th><code>String</code></th><th><code>&amp;str</code></th></tr></thead><tbody>
+<tr><td>What</td><td>owned, growable text on the heap</td><td>a borrowed view of text (in a <code>String</code>, a literal, a file buffer)</td></tr>
+<tr><td>Size on the stack</td><td>24 bytes (pointer, capacity, length)</td><td>16 bytes (pointer, length)</td></tr>
+<tr><td>Use for</td><td>struct fields, return values, building text</td><td>function parameters that only read</td></tr>
+<tr><td>Make one</td><td><code>String::from("x")</code>, <code>"x".to_string()</code>, <code>format!(...)</code></td><td><code>&amp;s</code>, <code>&amp;s[a..b]</code>, <code>"literal"</code></td></tr>
+</tbody></table></div>
+<p>Both are always valid <b>UTF-8</b>, and lengths and indexes are in <b>bytes</b>; Python's <code>str</code> counts code points. The text below is the one the recorded program uses: 10 characters, 20 bytes.</p>
+<div class="ra-fig" id="ra-bytes-card"><h4>A slice must end on a character boundary: drag the end and watch which cuts are allowed</h4>
+<p class="small"><b>Predict first:</b> of the 21 possible end offsets (0 to 20), how many can <code>&amp;s[0..end]</code> use without panicking?</p>
+<div class="ra-bytes" id="ra-bytes"></div>
+<div class="ra-ctl"><label for="ra-bytes-s" class="small">end byte</label><input type="range" id="ra-bytes-s" min="0" max="20" value="4" step="1"><span id="ra-bytes-v" class="small"></span></div>
+<div id="ra-bytes-out"></div>
+<p class="small">Cells are the 20 UTF-8 bytes of <code>"café 日本語 🦀"</code>, grouped under the character they encode: <code>é</code> takes 2 bytes, each of <code>日本語</code> 3, the crab 4. The allowed ends are exactly the 10 offsets <code>char_indices()</code> printed (0, 1, 2, 3, 5, 6, 9, 12, 15, 16) plus 20, the end of the string: 11 of 21. At end 4 the message is the one the recorded program printed; the other positions apply the same rule in your browser.</p>
+</div>
+[[code:lang/strings.rs]]
+<div class="ra-two"><div>[[out:l_strings]]</div><div>[[out:l_strings_py]]</div></div>
+<ul>
+<li><code>len()</code> is 20 bytes for 10 characters; Python's <code>len</code> is 10. Slicing takes byte offsets and panics if one lands inside a character, as the last line shows. Iterate with <code>chars()</code> (code points) or <code>char_indices()</code> (code points with their byte offsets).</li>
+<li><code>s[0]</code> does not compile at all, because a byte index would not give a character: E0277, "the type <code>str</code> cannot be indexed by <code>{integer}</code>", with the hint to use <code>.chars().nth()</code> or <code>.bytes().nth()</code>.</li>
+</ul>
+<details class="dp"><summary>The full E0277 error for <code>s[0]</code></summary><div>[[out:l_index_err]]</div></details>
+<p>Take <code>&amp;str</code> in parameters (<code>count_words(text: &amp;str)</code> accepts <code>&amp;owned</code> and a literal alike; clippy's <code>ptr_arg</code> lint flags <code>&amp;String</code> parameters) and return <code>String</code> when you build new text. A "character" a user sees may be several code points (an emoji with a skin tone); neither language's <code>len</code> counts those.</p>
+[[drill:d04]]
+</section>

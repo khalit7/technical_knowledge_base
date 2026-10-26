@@ -1,0 +1,453 @@
+
+<section id="ra-trait">
+<h2>4. Traits and generics: duck typing, checked</h2>
+<p>A <dfn>trait</dfn> names a set of methods a type promises to provide, like a Python <code>Protocol</code>, except that a type must say so explicitly (<code>impl Tokenizer for Whitespace</code>) and the compiler checks it before the program runs. A trait may have default methods written in terms of the others. A <dfn>generic</dfn> function takes a type parameter with a <dfn>bound</dfn>: <code>fn total&lt;T: Tokenizer&gt;</code> accepts any <code>T</code> that implements <code>Tokenizer</code>.</p>
+<div class="ra-src"><div class="ra-fn">traits.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::fmt::Display;
+
+<span class="ra-cm">// A trait: a named set of methods a type promises to have (like a Protocol).</span>
+<span class="ra-kw">trait</span> Tokenizer &#123;
+    <span class="ra-kw">fn</span> name(&amp;<span class="ra-kw">self</span>) -&gt; String;
+    <span class="ra-kw">fn</span> count(&amp;<span class="ra-kw">self</span>, text: &amp;str) -&gt; usize;
+    <span class="ra-cm">// a default method, written once in terms of the others</span>
+    <span class="ra-kw">fn</span> report(&amp;<span class="ra-kw">self</span>, text: &amp;str) -&gt; String &#123;
+        <span class="ra-mac">format!</span>(<span class="ra-st">"&#123;&#125; -&gt; &#123;&#125; tokens"</span>, <span class="ra-kw">self</span>.name(), <span class="ra-kw">self</span>.count(text))
+    &#125;
+&#125;
+
+<span class="ra-kw">struct</span> Whitespace;
+<span class="ra-kw">struct</span> Chars &#123; per_token: usize &#125;
+
+<span class="ra-kw">impl</span> Tokenizer <span class="ra-kw">for</span> Whitespace &#123;
+    <span class="ra-kw">fn</span> name(&amp;<span class="ra-kw">self</span>) -&gt; String &#123; <span class="ra-st">"whitespace"</span>.into() &#125;
+    <span class="ra-kw">fn</span> count(&amp;<span class="ra-kw">self</span>, text: &amp;str) -&gt; usize &#123; text.split_whitespace().count() &#125;
+&#125;
+
+<span class="ra-kw">impl</span> Tokenizer <span class="ra-kw">for</span> Chars &#123;
+    <span class="ra-kw">fn</span> name(&amp;<span class="ra-kw">self</span>) -&gt; String &#123; <span class="ra-mac">format!</span>(<span class="ra-st">"chars/&#123;&#125;"</span>, <span class="ra-kw">self</span>.per_token) &#125;
+    <span class="ra-kw">fn</span> count(&amp;<span class="ra-kw">self</span>, text: &amp;str) -&gt; usize &#123; text.chars().count().div_ceil(<span class="ra-kw">self</span>.per_token) &#125;
+&#125;
+
+<span class="ra-cm">// Generic: one copy of this function is compiled per concrete T (monomorphisation).</span>
+<span class="ra-kw">fn</span> total&lt;T: Tokenizer&gt;(t: &amp;T, docs: &amp;[&amp;str]) -&gt; usize &#123;
+    docs.iter().map(|d| t.count(d)).sum()
+&#125;
+
+<span class="ra-cm">// Trait object: one compiled copy; the call goes through a table of function pointers.</span>
+<span class="ra-kw">fn</span> total_dyn(t: &amp;<span class="ra-kw">dyn</span> Tokenizer, docs: &amp;[&amp;str]) -&gt; usize &#123;
+    docs.iter().map(|d| t.count(d)).sum()
+&#125;
+
+<span class="ra-cm">// impl Trait in argument position is shorthand for a generic</span>
+<span class="ra-kw">fn</span> show_all(items: &amp;[<span class="ra-kw">impl</span> Display]) -&gt; String &#123;
+    items.iter().map(|x| x.to_string()).collect::&lt;Vec&lt;_&gt;&gt;().join(<span class="ra-st">", "</span>)
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> docs = [<span class="ra-st">"the cat sat"</span>, <span class="ra-st">"on the mat today"</span>];
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125;"</span>, Whitespace.report(docs[0]));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125;"</span>, Chars &#123; per_token: 4 &#125;.report(docs[0]));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"generic: &#123;&#125; &#123;&#125;"</span>, total(&amp;Whitespace, &amp;docs), total(&amp;Chars &#123; per_token: 4 &#125;, &amp;docs));
+    <span class="ra-kw">let</span> toks: Vec&lt;Box&lt;<span class="ra-kw">dyn</span> Tokenizer&gt;&gt; = <span class="ra-mac">vec!</span>[Box::new(Whitespace), Box::new(Chars &#123; per_token: 3 &#125;)];
+    <span class="ra-kw">for</span> t <span class="ra-kw">in</span> &amp;toks &#123;
+        <span class="ra-mac">println!</span>(<span class="ra-st">"dyn: &#123;&#125; = &#123;&#125;"</span>, t.name(), total_dyn(t.as_ref(), &amp;docs));
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125;"</span>, show_all(&amp;[1.5, 2.25]));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"size_of &amp;Whitespace = &#123;&#125;, &amp;dyn Tokenizer = &#123;&#125;"</span>,
+        std::mem::size_of::&lt;&amp;Whitespace&gt;(), std::mem::size_of::&lt;&amp;<span class="ra-kw">dyn</span> Tokenizer&gt;());
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_traits">
+<span class="ra-cmd">$ rustc --edition 2024 traits.rs &amp;&amp; ./traits</span>
+whitespace -&gt; 3 tokens
+chars/4 -&gt; 3 tokens
+generic: 7 7
+dyn: whitespace = 7
+dyn: chars/3 = 10
+1.5, 2.25
+size_of &amp;Whitespace = 8, &amp;dyn Tokenizer = 16</pre>
+<p>There are two ways to call through a trait, and the choice is a real trade-off:</p>
+<div class="ra-fig"><h4>A generic is copied per type and called directly; a trait object is one copy called through a table</h4>
+<div class="ra-boxes">
+<div><b class="small">Generic <code>total&lt;T: Tokenizer&gt;</code></b>
+<div class="ra-bx"><span class="lb">your source</span>fn total&lt;T: Tokenizer&gt;(t: &amp;T, ...)</div>
+<div class="ra-arrow">&#8595; compiled once per type used (monomorphisation)</div>
+<div class="ra-bx acc"><span class="lb">machine code</span>total::&lt;Whitespace&gt; &nbsp;calls Whitespace::count directly, inlined</div>
+<div class="ra-bx acc"><span class="lb">machine code</span>total::&lt;Chars&gt; &nbsp;calls Chars::count directly, inlined</div>
+<div class="small">The argument is a plain reference: <b>8 bytes</b> (<code>&amp;Whitespace</code>, recorded above).</div>
+</div>
+<div><b class="small">Trait object <code>&amp;dyn Tokenizer</code></b>
+<div class="ra-ptr"><span>data pointer</span><span>vtable pointer</span></div>
+<div class="small">A "fat" pointer: <b>16 bytes</b> (recorded above).</div>
+<div class="ra-arrow">&#8595; the vtable for Chars (one per type, built by the compiler)</div>
+<div class="ra-bx"><span class="lb">vtable</span>drop, size, align<br>name &#8594; Chars::name<br>count &#8594; Chars::count<br>report &#8594; the default method</div>
+<div class="ra-bx"><span class="lb">machine code</span>total_dyn &nbsp;one copy; each <code>t.count(d)</code> loads the address from the table, then calls it</div>
+</div>
+</div>
+</div>
+<div class="tw"><table><thead><tr><th></th><th>Generic <code>&lt;T: Tokenizer&gt;</code></th><th>Trait object <code>&amp;dyn Tokenizer</code></th></tr></thead><tbody>
+<tr><td>How it is compiled</td><td><dfn>monomorphisation</dfn>: one copy of the function per concrete type, each optimised (inlined) for that type</td><td>one copy; each call looks the method up in a table of function pointers (a <dfn>vtable</dfn>)</td></tr>
+<tr><td>Costs</td><td>compile time and binary size grow with each type used</td><td>an indirect call per method; no inlining across it</td></tr>
+<tr><td>Use when</td><td>the type is known at compile time (most code)</td><td>you need a mixed collection (<code>Vec&lt;Box&lt;dyn Tokenizer&gt;&gt;</code>) or a plug-in boundary</td></tr>
+</tbody></table></div>
+<p>Monomorphisation is visible in the compiled program: one generic function used with four types becomes four functions in the symbol table (<code>biggest</code> called on <code>u8</code>, <code>i64</code>, <code>f64</code> and <code>char</code> slices, release build, symbols listed with <code>nm</code>).</p>
+<pre class="ra-out" data-ra-out="l_mono">
+<span class="ra-cmd">$ rustc --edition 2024 -O mono.rs &amp;&amp; ./mono &amp;&amp; nm mono | c++filt | grep biggest | cut -c 18- | sort</span>
+7 3 1.5 z
+2
+t mono::biggest::&lt;char&gt;
+t mono::biggest::&lt;f64&gt;
+t mono::biggest::&lt;i64&gt;
+t mono::biggest::&lt;u8&gt;
+t mono::biggest_dyn</pre>
+<details class="dp"><summary>The program, <code>mono.rs</code></summary><div><div class="ra-src"><div class="ra-fn">mono.rs</div><pre class="ra-code"><span class="ra-cm">// Count how many machine-code copies a generic function gets.</span>
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> biggest&lt;T: PartialOrd + Copy&gt;(xs: &amp;[T]) -&gt; T &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> b = xs[0];
+    <span class="ra-kw">for</span> &amp;x <span class="ra-kw">in</span> xs &#123; <span class="ra-kw">if</span> x &gt; b &#123; b = x; &#125; &#125;
+    b
+&#125;
+
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> biggest_dyn(xs: &amp;[&amp;<span class="ra-kw">dyn</span> Fn() -&gt; f64]) -&gt; f64 &#123;
+    xs.iter().map(|f| f()).fold(f64::MIN, f64::max)
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">use</span> std::hint::black_box; <span class="ra-cm">// hide the inputs so the optimiser cannot precompute the answers</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125; &#123;&#125; &#123;&#125; &#123;&#125;"</span>, biggest(black_box(&amp;[1u8, 7, 3])), biggest(black_box(&amp;[1i64, -7, 3])),
+        biggest(black_box(&amp;[1.5f64, 0.5])), biggest(black_box(&amp;[<span class="ra-st">'a'</span>, <span class="ra-st">'z'</span>])));
+    <span class="ra-kw">let</span> one = || 1.0; <span class="ra-kw">let</span> two = || 2.0;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125;"</span>, biggest_dyn(&amp;[&amp;one, &amp;two]));
+&#125;</pre></div></div></details>
+<p>Section 5 measures what the vtable costs in a hot loop. Two real errors worth recognising. Use an operator the bound does not promise, and you get E0369, "binary operation <code>&gt;</code> cannot be applied to type <code>&amp;T</code>", with the help "consider restricting type parameter <code>T</code> with trait <code>PartialOrd</code>". Pass a type that does not implement the trait, and you get E0277, "the trait bound <code>Whitespace: Tokenizer</code> is not satisfied", pointing at the call and at the bound; Python would fail at run time, on the first call to the missing method.</p>
+<details class="dp"><summary>The two errors in full</summary><div><pre class="ra-out ra-bad" data-ra-out="l_bound_err">
+<span class="ra-cmd">$ rustc --edition 2024 bound_err.rs</span>
+error[E0369]: binary operation `&gt;` cannot be applied to type `&amp;T`
+ --&gt; bound_err.rs:4:14
+  |
+4 |         if x &gt; best &#123;
+  |            - ^ ---- &amp;T
+  |            |
+  |            &amp;T
+  |
+help: consider restricting type parameter `T` with trait `PartialOrd`
+  |
+1 | fn largest&lt;T: std::cmp::PartialOrd&gt;(items: &amp;[T]) -&gt; &amp;T &#123;
+  |             ++++++++++++++++++++++
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0369`.
+[exit code 1]</pre><pre class="ra-out ra-bad" data-ra-out="l_notimpl_err">
+<span class="ra-cmd">$ rustc --edition 2024 notimpl_err.rs</span>
+error[E0277]: the trait bound `Whitespace: Tokenizer` is not satisfied
+  --&gt; notimpl_err.rs:12:26
+   |
+12 |     println!("&#123;&#125;", total(&amp;Whitespace, &amp;["a b"]));
+   |                    ----- ^^^^^^^^^^^ unsatisfied trait bound
+   |                    |
+   |                    required by a bound introduced by this call
+   |
+help: the trait `Tokenizer` is not implemented for `Whitespace`
+  --&gt; notimpl_err.rs:5:1
+   |
+ 5 | struct Whitespace;
+   | ^^^^^^^^^^^^^^^^^
+help: this trait has no implementations, consider adding one
+  --&gt; notimpl_err.rs:1:1
+   |
+ 1 | trait Tokenizer &#123;
+   | ^^^^^^^^^^^^^^^</pre><details class="ra-more"><summary>show the remaining 10 lines</summary><pre class="ra-out ra-bad" data-ra-rest="l_notimpl_err">
+note: required by a bound in `total`
+  --&gt; notimpl_err.rs:7:13
+   |
+ 7 | fn total&lt;T: Tokenizer&gt;(t: &amp;T, docs: &amp;[&amp;str]) -&gt; usize &#123;
+   |             ^^^^^^^^^ required by this bound in `total`
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0277`.
+[exit code 1]</pre></details></div></details>
+<ul>
+<li><b>No inheritance.</b> Share behaviour with default methods and generic functions, and share data by putting one struct inside another. Python programmers rarely miss class hierarchies after a week.</li>
+<li><b>The standard traits matter:</b> <code>Debug</code>, <code>Clone</code>, <code>Copy</code>, <code>PartialEq</code>, <code>Eq</code>, <code>Hash</code>, <code>Ord</code>, <code>Default</code>, <code>Display</code>, <code>From</code>/<code>Into</code>, <code>Iterator</code>. Most are derivable; implementing <code>Display</code> is Rust's <code>__str__</code>, <code>Add</code> its <code>__add__</code> (Python's side of these hooks: {{Python: the data model and protocols|n:4055c17b0d0d816a8705e4d3f20b3da7}}). A missing standard trait is a common surprise, as in the prompt below: floats are not <code>Ord</code>.</li>
+<li><b>The orphan rule:</b> you may implement a trait for a type only if your crate defines the trait or the type. To add a foreign trait to a foreign type, wrap the type in a one-field struct of your own (the "newtype" pattern).</li>
+</ul>
+<div class="ra-dq" id="ra-dq-d11" data-ans="c"><div class="ra-dqh"><b>Predict:</b> Sort floats. Which Rust version prints what the Python prints?</div><div class="ra-two"><div><div class="ra-src"><div class="ra-fn">d11.py</div><pre class="ra-code"><span class="ra-kw">print</span>(sorted([0.3, 0.1, 0.2]))</pre></div></div><div><pre class="ra-out" data-ra-out="dr_d11_py">
+<span class="ra-cmd">$ python3.14 d11.py</span>
+[0.1, 0.2, 0.3]</pre></div></div><div class="ra-dc"><div class="ra-cand" data-c="a"><div class="h"><span>A</span><button type="button" data-pick="a">This one</button></div><div class="ra-src"><div class="ra-fn">d11_a.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> v = <span class="ra-mac">vec!</span>[0.3, 0.1, 0.2];
+    v.sort();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;v:?&#125;"</span>);
+&#125;</pre></div></div><div class="ra-cand" data-c="b"><div class="h"><span>B</span><button type="button" data-pick="b">This one</button></div><div class="ra-src"><div class="ra-fn">d11_b.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> v = <span class="ra-mac">vec!</span>[0.3, 0.1, 0.2];
+    v.sort_by(|a, b| b.total_cmp(a));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;v:?&#125;"</span>);
+&#125;</pre></div></div><div class="ra-cand" data-c="c"><div class="h"><span>C</span><button type="button" data-pick="c">This one</button></div><div class="ra-src"><div class="ra-fn">d11_c.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> v: Vec&lt;f64&gt; = <span class="ra-mac">vec!</span>[0.3, 0.1, 0.2];
+    v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;v:?&#125;"</span>);
+&#125;</pre></div></div></div><details class="ra-drv"><summary>What the three really did (rustc 1.99.0, debug builds)</summary><div class="ra-res"><b>A: refused by the compiler, differs.</b> <code>f64</code> is not <code>Ord</code> (NaN is not comparable), so <code>sort</code> is refused: E0277.</div><pre class="ra-out ra-bad" data-ra-out="dr_d11_a">
+<span class="ra-cmd">$ rustc --edition 2024 d11_a.rs &amp;&amp; ./d11_a</span>
+error[E0277]: the trait bound `&#123;float&#125;: Ord` is not satisfied
+ --&gt; d11_a.rs:3:7
+  |
+3 |     v.sort();
+  |       ^^^^ the trait `Ord` is not implemented for `&#123;float&#125;`
+  |
+  = help: the following other types implement trait `Ord`:
+            i128
+            i16
+            i32
+            i64
+            i8
+            isize
+            u128
+            u16
+          and 4 others
+note: required by a bound in `slice::&lt;impl [T]&gt;::sort`
+ --&gt; /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/alloc/src/slice.rs:131:4</pre><details class="ra-more"><summary>show the remaining 5 lines</summary><pre class="ra-out ra-bad" data-ra-rest="dr_d11_a">
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0277`.
+[exit code 1]</pre></details><div class="ra-res"><b>B: refused by the compiler, differs.</b> Refused before any sorting: the float literals' type is not known yet when <code>total_cmp</code> is looked up (E0599). Annotating <code>Vec&lt;f64&gt;</code> fixes that, and then it would sort descending.</div><pre class="ra-out ra-bad" data-ra-out="dr_d11_b">
+<span class="ra-cmd">$ rustc --edition 2024 d11_b.rs &amp;&amp; ./d11_b</span>
+error[E0599]: no method named `total_cmp` found for reference `&amp;&#123;float&#125;` in the current scope
+ --&gt; d11_b.rs:3:24
+  |
+3 |     v.sort_by(|a, b| b.total_cmp(a));
+  |                        ^^^^^^^^^
+  |
+help: there is a method `partial_cmp` with a similar name
+  |
+3 -     v.sort_by(|a, b| b.total_cmp(a));
+3 +     v.sort_by(|a, b| b.partial_cmp(a));
+  |
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0599`.
+[exit code 1]</pre><div class="ra-res"><b>C: compiles and runs, matches Python.</b> <code>partial_cmp</code> plus <code>unwrap</code> sorts ascending (and panics if a NaN appears; <code>total_cmp</code> orders NaN instead).</div><pre class="ra-out" data-ra-out="dr_d11_c">
+<span class="ra-cmd">$ rustc --edition 2024 d11_c.rs &amp;&amp; ./d11_c</span>
+[0.1, 0.2, 0.3]</pre></details></div>
+</section>
+
+<section id="ra-iter">
+<h2>5. Iterators and closures: lazy pipelines that cost nothing</h2>
+<p>An <dfn>iterator</dfn> in Rust is any type with a <code>next()</code> method returning <code>Option&lt;Item&gt;</code>, the same protocol as Python's <code>__next__</code> raising <code>StopIteration</code>. Adapters such as <code>map</code>, <code>filter</code>, <code>zip</code>, <code>enumerate</code>, <code>take</code> build a lazy pipeline, like a generator expression; a <dfn>consumer</dfn> (<code>collect</code>, <code>sum</code>, <code>count</code>, <code>fold</code>, a <code>for</code> loop) runs it. A <dfn>closure</dfn> is an anonymous function that can capture variables from where it is written: <code>|x| x * 2</code> is Python's <code>lambda x: x * 2</code>, but with any number of statements.</p>
+<p>What is new for a Python programmer is the cost, so it comes first. Rust's claim is that the iterator chain compiles to the same machine code as the hand-written loop. The same work five ways (sum of <code>x*x</code> over the even values in 10 million <code>u64</code>, release build, best of 9) and in CPython 3.14 (best of 3):</p>
+<div class="ra-fig"><h4>The chain runs as fast as the loop; only a closure hidden behind <code>&amp;dyn Fn</code> is slower, and CPython's generator about 150 times slower than the chain</h4>
+<div class="bars ra-bench" id="ra-bench-bars"></div>
+<p class="small"><span class="ra-meas">measured</span> All four statically dispatched versions take the same time, about <b>0.293 ns per element</b>: the closures were inlined and the loop vectorised, so the chain really is free. Calling the closure through <code>&amp;dyn Fn</code>, with the target hidden from the optimiser, blocks inlining and takes 0.954 ns, about three times slower: still far below CPython's 45.8 ns per element for the generator expression (71.4 for the plain loop). The machine was busy (load average around 16 on 10 cores, recorded before and after), so take the ratios, not the absolute values; all seven results agree (1662703719376).</p>
+</div>
+<details class="dp"><summary>The benchmark code, the raw recordings and the load average</summary><div><div class="ra-src"><div class="ra-fn">iterbench.rs (lines 1 to 31)</div><pre class="ra-code"><span class="ra-cm">// Is an iterator chain really as fast as a hand-written loop? Same work, five ways:</span>
+<span class="ra-cm">// sum of x*x over the even numbers in a Vec&lt;u64&gt; of 10 million pseudo-random values.</span>
+<span class="ra-kw">use</span> std::hint::black_box;
+<span class="ra-kw">use</span> std::time::Instant;
+
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> index_loop(v: &amp;[u64]) -&gt; u64 &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> s = 0u64;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> i = 0;
+    <span class="ra-kw">while</span> i &lt; v.len() &#123; <span class="ra-kw">let</span> x = v[i]; <span class="ra-kw">if</span> x % 2 == 0 &#123; s = s.wrapping_add(x * x); &#125; i += 1; &#125;
+    s
+&#125;
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> for_loop(v: &amp;[u64]) -&gt; u64 &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> s = 0u64;
+    <span class="ra-kw">for</span> &amp;x <span class="ra-kw">in</span> v &#123; <span class="ra-kw">if</span> x % 2 == 0 &#123; s = s.wrapping_add(x * x); &#125; &#125;
+    s
+&#125;
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> chain(v: &amp;[u64]) -&gt; u64 &#123;
+    v.iter().filter(|&amp;&amp;x| x % 2 == 0).map(|&amp;x| x * x).fold(0u64, |a, b| a.wrapping_add(b))
+&#125;
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> generic_closure&lt;F: Fn(u64) -&gt; u64&gt;(v: &amp;[u64], f: F) -&gt; u64 &#123;
+    v.iter().fold(0u64, |a, &amp;x| a.wrapping_add(f(x)))
+&#125;
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> dyn_closure(v: &amp;[u64], f: &amp;<span class="ra-kw">dyn</span> Fn(u64) -&gt; u64) -&gt; u64 &#123;
+    v.iter().fold(0u64, |a, &amp;x| a.wrapping_add(f(x)))
+&#125;
+</pre></div><pre class="ra-out" data-ra-out="t_iterbench">
+<span class="ra-cmd">$ rustc --edition 2024 -C opt-level=3 iterbench.rs &amp;&amp; ./iterbench</span>
+while loop with v[i]           0.290 ns/element  result 1662703719376
+for x in v                     0.297 ns/element  result 1662703719376
+iter().filter().map().fold()   0.293 ns/element  result 1662703719376
+generic closure F: Fn          0.289 ns/element  result 1662703719376
+&amp;dyn Fn closure                0.954 ns/element  result 1662703719376</pre><pre class="ra-out" data-ra-out="t_iterbench_py">
+<span class="ra-cmd">$ python3.14 iterbench.py</span>
+for loop                         71.4 ns/element  result 1662703719376
+sum(generator)                   45.8 ns/element  result 1662703719376</pre><pre class="ra-out" data-ra-out="t_load">
+<span class="ra-cmd">$ sysctl -n vm.loadavg; sysctl -n machdep.cpu.brand_string</span>
+&#123; 16.52 15.93 12.08 &#125;
+Apple M1 Pro</pre><pre class="ra-out" data-ra-out="t_load_after">
+<span class="ra-cmd">$ sysctl -n vm.loadavg</span>
+&#123; 17.03 16.06 12.18 &#125;</pre></div></details>
+<p>The laziness is Python's, so one recorded program covers the rest of the API:</p>
+<div class="ra-src"><div class="ra-fn">iters.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> words = [<span class="ra-st">"Rust"</span>, <span class="ra-st">"is"</span>, <span class="ra-st">"fast"</span>, <span class="ra-st">"and"</span>, <span class="ra-st">"safe"</span>, <span class="ra-st">"and"</span>, <span class="ra-st">"fun"</span>];
+    <span class="ra-cm">// An iterator chain: lazy until something consumes it (collect, sum, for).</span>
+    <span class="ra-kw">let</span> long: Vec&lt;String&gt; = words.iter()
+        .filter(|w| w.len() &gt; 2)
+        .map(|w| w.to_lowercase())
+        .collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;long:?&#125;"</span>);
+    <span class="ra-cm">// Laziness, visible: nothing is printed until next() is called.</span>
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> it = (1..=3).map(|x| &#123; <span class="ra-mac">println!</span>(<span class="ra-st">"  computing &#123;x&#125;"</span>); x * 10 &#125;);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"built the iterator"</span>);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"first = &#123;:?&#125;"</span>, it.next());
+    <span class="ra-cm">// Python's enumerate, zip, sum, any, max_by_key all exist</span>
+    <span class="ra-kw">for</span> (i, w) <span class="ra-kw">in</span> words.iter().enumerate().skip(5) &#123; <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;i&#125; &#123;w&#125;"</span>); &#125;
+    <span class="ra-kw">let</span> lens: usize = words.iter().map(|w| w.len()).sum();
+    <span class="ra-kw">let</span> pairs: Vec&lt;(char, usize)&gt; = <span class="ra-st">"abc"</span>.chars().zip(1..).collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"lens &#123;lens&#125;, pairs &#123;pairs:?&#125;, any 'fun' &#123;&#125;"</span>, words.contains(&amp;<span class="ra-st">"fun"</span>));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"longest &#123;:?&#125;"</span>, words.iter().max_by_key(|w| w.len()));
+    <span class="ra-kw">let</span> (even, odd): (Vec&lt;u32&gt;, Vec&lt;u32&gt;) = (1..=6).partition(|n| n % 2 == 0);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"even &#123;even:?&#125; odd &#123;odd:?&#125;"</span>);
+    <span class="ra-cm">// Closures capture their environment: by reference, by mutable reference, or by value</span>
+    <span class="ra-kw">let</span> limit = 4;
+    <span class="ra-kw">let</span> short = |w: &amp;str| w.len() &lt; limit; <span class="ra-cm">// borrows limit (Fn)</span>
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> seen = 0;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> count = |_w: &amp;str| seen += 1; <span class="ra-cm">// mutably borrows seen (FnMut)</span>
+    <span class="ra-kw">for</span> w <span class="ra-kw">in</span> words &#123; count(w); &#125;
+    <span class="ra-kw">let</span> name = String::<span class="ra-kw">from</span>(<span class="ra-st">"owner"</span>);
+    <span class="ra-kw">let</span> consume = <span class="ra-kw">move</span> || name.len(); <span class="ra-cm">// moves name into the closure</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"short &#123;&#125;, seen &#123;seen&#125;, consume() &#123;&#125;"</span>, words.iter().filter(|w| short(w)).count(), consume());
+    <span class="ra-cm">// A generator-like iterator: implement next()</span>
+    <span class="ra-kw">struct</span> Countdown(u32);
+    <span class="ra-kw">impl</span> Iterator <span class="ra-kw">for</span> Countdown &#123;
+        <span class="ra-kw">type</span> Item = u32;
+        <span class="ra-kw">fn</span> next(&amp;<span class="ra-kw">mut</span> <span class="ra-kw">self</span>) -&gt; Option&lt;u32&gt; &#123;
+            <span class="ra-kw">if</span> <span class="ra-kw">self</span>.0 == 0 &#123; <span class="ra-kw">None</span> &#125; <span class="ra-kw">else</span> &#123; <span class="ra-kw">self</span>.0 -= 1; Some(<span class="ra-kw">self</span>.0 + 1) &#125;
+        &#125;
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;:?&#125;"</span>, Countdown(3).collect::&lt;Vec&lt;_&gt;&gt;());
+&#125;</pre></div>
+<details class="ra-pr"><summary><b>Predict, then reveal:</b> Which line comes first: "built the iterator" or "computing 1"? And how many times does "computing" print?</summary><pre class="ra-out" data-ra-out="l_iters">
+<span class="ra-cmd">$ rustc --edition 2024 iters.rs &amp;&amp; ./iters</span>
+["rust", "fast", "and", "safe", "and", "fun"]
+built the iterator
+  computing 1
+first = Some(10)
+5 and
+6 fun
+lens 23, pairs [('a', 1), ('b', 2), ('c', 3)], any 'fun' true
+longest Some("safe")
+even [2, 4, 6] odd [1, 3, 5]
+short 4, seen 7, consume() 5
+[3, 2, 1]</pre></details>
+<p>Closures capture in the least demanding way that works, and the compiler records which in the closure's type: <code>Fn</code> (reads captured values: <code>short</code> above), <code>FnMut</code> (changes them: <code>count</code>), <code>FnOnce</code> (moves them out, so it can run once). <code>move</code> before a closure makes it take ownership of what it captures (<code>consume</code>), needed when the closure outlives the current function, as a thread's does ({{Rust: lifetimes, smart pointers, threads and unsafe|n:4055c17b0d0d8160aa32df9cda0aef03}}). A type with a <code>next()</code> method (<code>Countdown</code>) is Rust's generator: any struct can be an iterator.</p>
+<div class="ra-dq" id="ra-dq-d07" data-ans="b"><div class="ra-dqh"><b>Predict:</b> A list comprehension. Which Rust version prints what the Python prints?</div><div class="ra-two"><div><div class="ra-src"><div class="ra-fn">d07.py</div><pre class="ra-code"><span class="ra-kw">print</span>([x * x <span class="ra-kw">for</span> x <span class="ra-kw">in</span> range(5) <span class="ra-kw">if</span> x % 2 == 0])</pre></div></div><div><pre class="ra-out" data-ra-out="dr_d07_py">
+<span class="ra-cmd">$ python3.14 d07.py</span>
+[0, 4, 16]</pre></div></div><div class="ra-dc"><div class="ra-cand" data-c="a"><div class="h"><span>A</span><button type="button" data-pick="a">This one</button></div><div class="ra-src"><div class="ra-fn">d07_a.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> v = (0..5).filter(|x| x % 2 == 0).map(|x| x * x);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;v:?&#125;"</span>);
+&#125;</pre></div></div><div class="ra-cand" data-c="b"><div class="h"><span>B</span><button type="button" data-pick="b">This one</button></div><div class="ra-src"><div class="ra-fn">d07_b.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> v: Vec&lt;i32&gt; = (0..5).filter(|x| x % 2 == 0).map(|x| x * x).collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;v:?&#125;"</span>);
+&#125;</pre></div></div><div class="ra-cand" data-c="c"><div class="h"><span>C</span><button type="button" data-pick="c">This one</button></div><div class="ra-src"><div class="ra-fn">d07_c.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> v: Vec&lt;i32&gt; = (1..5).filter(|x| x % 2 == 0).map(|x| x * x).collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;v:?&#125;"</span>);
+&#125;</pre></div></div></div><details class="ra-drv"><summary>What the three really did (rustc 1.99.0, debug builds)</summary><div class="ra-res"><b>A: compiles and runs, differs.</b> Compiles and prints the iterator itself, not its values: adapters are lazy and nothing ran. You need <code>collect</code>.</div><pre class="ra-out" data-ra-out="dr_d07_a">
+<span class="ra-cmd">$ rustc --edition 2024 d07_a.rs &amp;&amp; ./d07_a</span>
+Map &#123; iter: Filter &#123; iter: 0..5 &#125; &#125;</pre><div class="ra-res"><b>B: compiles and runs, matches Python.</b> <code>filter</code>, <code>map</code>, <code>collect</code> into a <code>Vec</code>: the comprehension.</div><pre class="ra-out" data-ra-out="dr_d07_b">
+<span class="ra-cmd">$ rustc --edition 2024 d07_b.rs &amp;&amp; ./d07_b</span>
+[0, 4, 16]</pre><div class="ra-res"><b>C: compiles and runs, differs.</b> <code>1..5</code> starts at 1, so 0 is missing. Ranges are half-open like Python's <code>range</code>, but the start matters.</div><pre class="ra-out" data-ra-out="dr_d07_c">
+<span class="ra-cmd">$ rustc --edition 2024 d07_c.rs &amp;&amp; ./d07_c</span>
+[4, 16]</pre></details></div>
+<div class="ra-dq" id="ra-dq-d08" data-ans="c"><div class="ra-dqh"><b>Predict:</b> Update a list in place. Which Rust version prints what the Python prints?</div><div class="ra-two"><div><div class="ra-src"><div class="ra-fn">d08.py</div><pre class="ra-code">nums = [1, 2, 3]
+<span class="ra-kw">for</span> i, x <span class="ra-kw">in</span> enumerate(nums):
+    nums[i] = x * 10
+<span class="ra-kw">print</span>(nums)</pre></div></div><div><pre class="ra-out" data-ra-out="dr_d08_py">
+<span class="ra-cmd">$ python3.14 d08.py</span>
+[10, 20, 30]</pre></div></div><div class="ra-dc"><div class="ra-cand" data-c="a"><div class="h"><span>A</span><button type="button" data-pick="a">This one</button></div><div class="ra-src"><div class="ra-fn">d08_a.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> nums = <span class="ra-mac">vec!</span>[1, 2, 3];
+    <span class="ra-kw">for</span> (i, x) <span class="ra-kw">in</span> nums.iter().enumerate() &#123;
+        nums[i] = x * 10;
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;nums:?&#125;"</span>);
+&#125;</pre></div></div><div class="ra-cand" data-c="b"><div class="h"><span>B</span><button type="button" data-pick="b">This one</button></div><div class="ra-src"><div class="ra-fn">d08_b.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> nums = <span class="ra-mac">vec!</span>[1, 2, 3];
+    <span class="ra-kw">for</span> <span class="ra-kw">mut</span> x <span class="ra-kw">in</span> nums.clone() &#123;
+        x *= 10;
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;nums:?&#125;"</span>);
+&#125;</pre></div></div><div class="ra-cand" data-c="c"><div class="h"><span>C</span><button type="button" data-pick="c">This one</button></div><div class="ra-src"><div class="ra-fn">d08_c.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> nums = <span class="ra-mac">vec!</span>[1, 2, 3];
+    <span class="ra-kw">for</span> x <span class="ra-kw">in</span> nums.iter_mut() &#123;
+        *x *= 10;
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;nums:?&#125;"</span>);
+&#125;</pre></div></div></div><details class="ra-drv"><summary>What the three really did (rustc 1.99.0, debug builds)</summary><div class="ra-res"><b>A: refused by the compiler, differs.</b> The loop holds a shared borrow of <code>nums</code> while the body writes to it: E0502.</div><pre class="ra-out ra-bad" data-ra-out="dr_d08_a">
+<span class="ra-cmd">$ rustc --edition 2024 d08_a.rs &amp;&amp; ./d08_a</span>
+error[E0502]: cannot borrow `nums` as mutable because it is also borrowed as immutable
+ --&gt; d08_a.rs:4:9
+  |
+3 |       for (i, x) in nums.iter().enumerate() &#123;
+  |       -             -----------------------
+  |       |             |
+  |       |             immutable borrow occurs here
+  |  _____|             immutable borrow later used here
+  | |
+4 | |         nums[i] = x * 10;
+  | |         ^^^^ mutable borrow occurs here
+5 | |     &#125;
+  | |_____- this for loop borrows `nums` immutably, preventing mutation within its body
+  |
+  = help: consider using an index-based loop instead, or collecting modifications into a separate collection
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0502`.
+[exit code 1]</pre><div class="ra-res"><b>B: compiles (with a warning) and runs, differs.</b> Compiles (with a warning), but each <code>x</code> is a copy in a clone; <code>nums</code> is unchanged.</div><pre class="ra-out" data-ra-out="dr_d08_b">
+<span class="ra-cmd">$ rustc --edition 2024 d08_b.rs &amp;&amp; ./d08_b</span>
+warning: unused variable: `x`
+ --&gt; d08_b.rs:3:9
+  |
+3 |     for mut x in nums.clone() &#123;
+  |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_x`
+  |
+  = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: 1 warning emitted
+
+[1, 2, 3]</pre><div class="ra-res"><b>C: compiles and runs, matches Python.</b> <code>iter_mut</code> yields <code>&amp;mut i32</code>; <code>*x</code> writes through it.</div><pre class="ra-out" data-ra-out="dr_d08_c">
+<span class="ra-cmd">$ rustc --edition 2024 d08_c.rs &amp;&amp; ./d08_c</span>
+[10, 20, 30]</pre></details></div>
+<div class="ra-dq" id="ra-dq-d10" data-ans="b"><div class="ra-dqh"><b>Predict:</b> sorted with a key. Which Rust version prints what the Python prints?</div><div class="ra-two"><div><div class="ra-src"><div class="ra-fn">d10.py</div><pre class="ra-code">users = [(<span class="ra-st">"cy"</span>, 5), (<span class="ra-st">"bob"</span>, 9), (<span class="ra-st">"ada"</span>, 5)]
+<span class="ra-kw">print</span>(sorted(users, key=<span class="ra-kw">lambda</span> u: (-u[1], u[0])))</pre></div></div><div><pre class="ra-out" data-ra-out="dr_d10_py">
+<span class="ra-cmd">$ python3.14 d10.py</span>
+[('bob', 9), ('ada', 5), ('cy', 5)]</pre></div></div><div class="ra-dc"><div class="ra-cand" data-c="a"><div class="h"><span>A</span><button type="button" data-pick="a">This one</button></div><div class="ra-src"><div class="ra-fn">d10_a.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> users = <span class="ra-mac">vec!</span>[(<span class="ra-st">"cy"</span>, 5), (<span class="ra-st">"bob"</span>, 9), (<span class="ra-st">"ada"</span>, 5)];
+    users.sort();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;users:?&#125;"</span>);
+&#125;</pre></div></div><div class="ra-cand" data-c="b"><div class="h"><span>B</span><button type="button" data-pick="b">This one</button></div><div class="ra-src"><div class="ra-fn">d10_b.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> users = <span class="ra-mac">vec!</span>[(<span class="ra-st">"cy"</span>, 5), (<span class="ra-st">"bob"</span>, 9), (<span class="ra-st">"ada"</span>, 5)];
+    users.sort_by(|a, b| b.1.cmp(&amp;a.1).then(a.0.cmp(b.0)));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;users:?&#125;"</span>);
+&#125;</pre></div></div><div class="ra-cand" data-c="c"><div class="h"><span>C</span><button type="button" data-pick="c">This one</button></div><div class="ra-src"><div class="ra-fn">d10_c.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> users = <span class="ra-mac">vec!</span>[(<span class="ra-st">"cy"</span>.to_string(), 5), (<span class="ra-st">"bob"</span>.to_string(), 9), (<span class="ra-st">"ada"</span>.to_string(), 5)];
+    users.sort_by_key(|u| (-u.1, &amp;u.0));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;users:?&#125;"</span>);
+&#125;</pre></div></div></div><details class="ra-drv"><summary>What the three really did (rustc 1.99.0, debug builds)</summary><div class="ra-res"><b>A: compiles and runs, differs.</b> Tuples compare field by field, so this sorts by name: a different order.</div><pre class="ra-out" data-ra-out="dr_d10_a">
+<span class="ra-cmd">$ rustc --edition 2024 d10_a.rs &amp;&amp; ./d10_a</span>
+[("ada", 5), ("bob", 9), ("cy", 5)]</pre><div class="ra-res"><b>B: compiles and runs, matches Python.</b> A comparator: count descending (<code>b</code> against <code>a</code>), then name ascending. This is how the root's token counter sorts.</div><pre class="ra-out" data-ra-out="dr_d10_b">
+<span class="ra-cmd">$ rustc --edition 2024 d10_b.rs &amp;&amp; ./d10_b</span>
+[("bob", 9), ("ada", 5), ("cy", 5)]</pre><div class="ra-res"><b>C: refused by the compiler, differs.</b> <code>sort_by_key</code> cannot return a key that borrows from the element (<code>&amp;u.0</code>): a lifetime error. <code>sort_by_cached_key</code> with a cloned name, or <code>sort_by</code>, works.</div><pre class="ra-out ra-bad" data-ra-out="dr_d10_c">
+<span class="ra-cmd">$ rustc --edition 2024 d10_c.rs &amp;&amp; ./d10_c</span>
+error: lifetime may not live long enough
+ --&gt; d10_c.rs:3:27
+  |
+3 |     users.sort_by_key(|u| (-u.1, &amp;u.0));
+  |                        -- ^^^^^^^^^^^^ returning this value requires that `'1` must outlive `'2`
+  |                        ||
+  |                        |return type of closure is (i32, &amp;'2 String)
+  |                        has type `&amp;'1 (String, i32)`
+
+error: aborting due to 1 previous error
+
+[exit code 1]</pre></details></div>
+<div class="ra-cost"><div><b>Solves</b>Readable pipelines with no speed penalty; laziness means no intermediate lists.</div><div><b>Costs</b>Long chains have long type names in errors; <code>collect</code> sometimes needs a type hint (<code>collect::&lt;Vec&lt;_&gt;&gt;()</code>).</div><div><b>Common mistake</b>Building a chain and never consuming it: nothing runs (clippy warns, and candidate A of the comprehension prompt above prints the unconsumed iterator).</div></div>
+</section>
