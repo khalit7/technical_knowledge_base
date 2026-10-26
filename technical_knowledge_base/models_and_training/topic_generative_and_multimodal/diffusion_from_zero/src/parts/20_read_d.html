@@ -107,4 +107,63 @@ x_t = (
 <p><b>Test 2: add noise back in steps.</b> If fresh noise is what helps, FD should improve steadily as DDIM's &eta; goes from 0 to 1. <span id="dz-eta-txt"></span></p>
 <p><b>Test 3: train longer.</b> If the gap comes from the model's error, it should shrink as the model improves. This page resumed the lab's 4,000-step model for 4,000 more with the same recipe (<code>src/runs/dz_train.py more</code>; optimiser state and EMA restarted, so not identical to an uninterrupted 8,000-step run). <span id="dz-m8-txt"></span></p>
 <p><b>The rule that transfers.</b> <span id="dz-rule-txt"></span></p>
+<style>
+#t-read .dzm .card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+#t-read .dzm .card h4,#t-read .dzm h4{margin:10px 0 4px;font-size:14.5px}
+#t-read .dzm .small{font-size:13px}#t-read .dzm .mute{color:var(--mute)}
+#t-read .dzm .codew{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+#t-read .dzm .nums{border:1px solid var(--line);border-left:4px solid var(--c5);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:14px}
+#t-read .dzm .nums .t{font-weight:600;font-size:13px}
+#t-read .dzm .tw{overflow-x:auto;max-width:100%;margin:8px 0}
+#t-read .dzm .mini{font-size:12.5px;border-collapse:collapse;width:auto;min-width:0}
+#t-read .dzm .mini th,#t-read .dzm .mini td{padding:3px 8px;border:1px solid var(--line);white-space:nowrap}
+#t-read .dzm .mini th{background:var(--soft);color:var(--ink);font-weight:600}
+#t-read .dzm .mini td.num{text-align:right}
+#t-read .dzm .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .dzm .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-read .dzm .an-svg{width:100%;overflow:hidden}
+#t-read .dzm .out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+#t-read .dzm .ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+#t-read .dzm .ctl label{font-size:13px;display:block;min-width:0}
+#t-read .dzm .ctl input[type=range]{width:100%}
+#t-read .dzm .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
+#t-read .dzm .grp{font-size:11.5px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;margin:8px 0 0}
+#t-read .dzm .seg button:disabled{opacity:.4;cursor:default}
+</style>
+<details class="qa dzm" id="dzm-blk"><summary>A second model you can run: two tiny networks on 2-D two moons (inversion, step positions, straightness, a sampler lab) <span class="mute">(measured, runs in your browser)</span></summary><div>
+<p>The tiny image model above shows the sampler results; this toy lets you run them. The models were trained for the Math page and moved here (<span class="codew">src/moons/diffusion.py</span>): a 3-hidden-layer network of width 64 (9,858 weights, shipped as 8-bit integers with one scale per row), trained for 30,000 Adam steps on two-moons data with L<sub>simple</sub>. Two choices differ from Ho et al. and are said here: the network is told the noise level as the log-SNR &lambda;<sub>t</sub> instead of the step index, so one network serves both schedules; and it also gets the moon label, dropped 15% of the time, for guidance (section 6). A second network of the same size is trained with flow matching ({{Flow matching and rectified flow|n:3fc5c17b0d0d8136a1efc73aaa446ceb}}). Both samplers clip their guess of the clean point to the data range, as Ho et al.'s released code does (the "dividing by &radic;&#257;" mistake on {{the Math page|n:3f05c17b0d0d81aa9857eb5fa1bac530}}, section 9, shows why). Everything below runs live in your browser.</p>
+<div class="card" id="dzm-fr-card">
+<div class="seg" id="dzm-fr-seg"><button data-m="ddpm" class="on">DDPM: noise, then sample (1,000 steps)</button><button data-m="ddim">DDIM: encode, then decode (50 steps)</button><button data-m="flow">Flow matching: encode, then decode (50 steps)</button></div>
+<div class="an-svg" id="dzm-fr-svg"></div>
+<div class="leg"><span style="--sw:var(--c1)">started on the upper moon</span><span style="--sw:var(--c2)">started on the lower moon</span></div>
+<div class="an-cap" id="dzm-fr-cap"></div>
+<div class="an-cnt" id="dzm-fr-cnt"></div>
+<div class="an-ctl" id="dzm-fr-ctl"></div>
+</div>
+<p><b>What to notice.</b> With DDPM the forward process is a random walk and the reverse process draws fresh noise at every step, so the points come back to <i>the moons</i> but not to <i>their own places</i>: the colours end up mixed across both moons. The model learned the distribution, not a code for each point. With DDIM (&sigma;<sub>t</sub> = 0) and with flow matching, both directions are deterministic ODE steps, so running the encoder and then the decoder returns each point close to where it started: these samplers define an invertible map between noise and data, which is what image editing by inversion relies on.</p>
+<h4>Steps: which noise levels the steps visit decides few-step quality</h4><div class="nums"><div class="t">Measured on the toy (600 samples per cell, <span class="codew">src/moons/sampler_ref.py</span>; "on data": within 0.2 of a moon's centre line, where 98% of real data points lie)</div>
+<div class="tw"><table class="mini"><tr><th>Unconditional</th><th>1,000 steps</th><th>100</th><th>20</th><th>5</th></tr>
+<tr><td>DDPM (stochastic), linear schedule</td><td class="num">94.0%</td><td class="num">94.5%</td><td class="num">84.3%</td><td class="num">n/a</td></tr>
+<tr><td>DDIM (&sigma; = 0), linear schedule</td><td class="num">n/a</td><td class="num">90.0%</td><td class="num">83.8%</td><td class="num">27.0%</td></tr>
+<tr><td>DDIM (&sigma; = 0), cosine schedule</td><td class="num">n/a</td><td class="num">n/a</td><td class="num">95.3%</td><td class="num">78.7%</td></tr>
+<tr><td>Flow matching (Euler, uniform in t)</td><td class="num">n/a</td><td class="num">88.0%</td><td class="num">86.7%</td><td class="num">75.5%</td></tr></table></div>
+<p>"n/a": not run. The same trained network gives 27% or 79% at 5 steps depending only on <i>which</i> noise levels the steps visit. Five evenly spaced t on the linear schedule sit at log-SNR &lambda; = 9.2, 0.1, &minus;2.5, &minus;5.7, &minus;10.1: three of the five network calls see almost pure noise, and the last call has to jump from &lambda; = 0.1 (half signal, half noise) straight to clean data. The cosine schedule and the flow model's uniform t (&lambda; = 2 log((1 &minus; t)/t): &plusmn;2.8, &plusmn;0.8) spend their steps in the middle, where the picture is decided. Change steps, sampler and schedule yourself in the sampler lab below; its bottom strip draws where each step lands.</p></div>
+<h4>Are flow-matching paths straight?</h4><div class="card" id="dzm-st-card"><div class="small"><b>Trajectories of 40 samples from the same starting noise</b>, deterministic in both cases (50 steps, unconditional). Left: DDIM with the noise-prediction network. Right: Euler on the flow-matching network. Straightness = straight-line distance from start to end divided by the path length (1 = perfectly straight); the lines bend where they must choose a moon.</div><div id="dzm-st-svg"></div><div class="out" id="dzm-st-out"></div></div>
+<p><b>What the measurement says.</b> On the 40 paths drawn, the flow-matching paths are <i>less</i> straight than DDIM's (0.55 against 0.73; recomputed in <span class="codew">src/runs/check_moons.mjs</span>). Each training line is straight, but lines from different (data, noise) pairs cross, and the network learns their average direction, which bends as a path has to commit to one moon; on two well-separated modes that bend is large. So the claim "flow matching gives straight paths" holds for each conditional path, not automatically for the learned ones (the same finding as Flow matching's exact field, its section 2). The flow model's good 5-step result in the table above comes from where its steps fall in noise level, not from straightness. Rectified flow's <i>reflow</i> step retrains on the model's own (noise, sample) pairs, which no longer cross, to straighten the learned paths (Liu et al. 2022, section 2.1: "This reflow procedure not only decreases transport cost, but also has the important effect of straightening paths"); distillation then needs very few steps.</p><h4>Sampler lab</h4><div class="card" id="dzm-lab-card"><p>Sample from the two networks above: a noise-prediction (DDPM) network and a flow-matching network, each 9,858 weights, on 2-D two-moons data. Every sample is computed in your browser; the same seed gives the same points as the NumPy reference sampler (<span class="codew">src/moons/sampler.py</span>, checked to 10<sup>&minus;9</sup>).</p>
+<div class="grp">Sampler</div><div class="seg" id="dzm-meth"><button data-m="ddpm" class="on">DDPM (stochastic, Ho et al. Algorithm 2)</button><button data-m="ddim">DDIM (deterministic)</button><button data-m="flow">Flow matching (Euler)</button></div>
+<div class="grp">Noise schedule (diffusion samplers)</div><div class="seg" id="dzm-sch"><button data-m="linear" class="on">Linear (Ho et al.)</button><button data-m="cosine">Cosine (Nichol and Dhariwal)</button></div>
+<div class="grp">Ask for</div><div class="seg" id="dzm-cond"><button data-m="2" class="on">Anything (unconditional)</button><button data-m="0">Upper moon</button><button data-m="1">Lower moon</button></div>
+<div class="ctl">
+<label>Steps (network calls per sample, doubled with guidance): <select id="dzm-n"><option>5</option><option>10</option><option>20</option><option selected>50</option><option>100</option><option>250</option><option>1000</option></select></label>
+<label>Guidance w: <b id="dzm-wv">0</b> <span class="small mute">(library scale s = 1 + w)</span><input type="range" id="dzm-w" min="0" max="8" step="0.5" value="0" aria-label="Guidance w"></label>
+<label>Points: <select id="dzm-p"><option>200</option><option selected>400</option><option>800</option></select> Seed: <select id="dzm-seed"><option>1</option><option>2</option><option>3</option></select></label>
+</div>
+<div class="row"><button id="dzm-go">Sample</button><span class="small mute" id="dzm-stat"></span></div>
+<div id="dzm-svg"></div>
+<div class="leg"><span style="--sw:var(--dim)">real data (for reference)</span><span style="--sw:var(--c1)">samples</span></div>
+<div class="out" id="dzm-out"></div>
+<div id="dzm-lam"></div>
+<p class="small mute">Bottom strip: where the chosen steps sit on the log-SNR axis &lambda; = log(&#257;/(1 &minus; &#257;)) (for flow matching, &lambda; = 2 log((1 &minus; t)/t)). Steps spent at very negative &lambda; see almost pure noise; a large jump near the data end is where few-step samplers lose quality. "On data": within 0.2 of a moon's centre line (98% of real points are). Both diffusion samplers clip the predicted x<sub>0</sub> to [&minus;3, 3] (the data range), as Ho et al.'s code does with [&minus;1, 1] for images: DDPM then takes the posterior mean &mu;&#771;<sub>t</sub>(x<sub>t</sub>, x&#770;<sub>0</sub>), and DDIM re-derives the noise from the clipped x&#770;<sub>0</sub>, as GLIDE and diffusers do. Without the clip, large w or the end of the cosine schedule throws samples far off (20-step DDIM on the cosine schedule: 1.2% of 600 samples on the data without it, 95.3% with it).</p>
+</div>
+</div></details>
 </section>
