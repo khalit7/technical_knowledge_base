@@ -56,3 +56,5 @@ Why about 29 minutes is right: the page owns some twenty coding benchmarks acros
 - The pass@k estimator's bias stays on this page, closed: OWNERS gives pass@k estimation to Test-time compute and reasoning, but that page carries the unbiased form only, not the plug-in's bias or the animation. Move it there, or record this page as the owner of the estimator's bias.
 - Verified's status: an independent run (Vals AI, 1 Sep 2026) has Claude Opus 5 at 97.0%; the parent atlas still cites Epoch AI's 83.5% (April 2026). The parent atlas row could be updated.
 - OpenAI's Verified post refused automated reading; the "more than two thirds filtered" share is from secondary summaries and is labelled so.
+
+2026-10-26 (final follow-up sweep): the SWE-bench flaws section adds OpenAI's audit (material problems in 59.4% of 138 Verified tasks; about 30% of SWE-bench Pro broken), absorbed from Re-grading six physics benchmarks, which cites it.
