@@ -1,0 +1,17 @@
+<section id="rs-s-ml"><h2>Rust in ML serving</h2>
+<p>The pattern above (a fast, small HTTP front end in Rust around heavy compute) is how Hugging Face built its servers. Text Generation Inference's router is a Rust crate on axum (its <code>router/Cargo.toml</code> lists <code>axum = 0.7</code>), with the model code in Python; its README now says "text-generation-inference is now in maintenance mode" ({{TGI|https://github.com/huggingface/text-generation-inference}}). Text Embeddings Inference is mostly Rust (1.0 MB of Rust against 0.13 MB of Python by GitHub's language count, 2026-10-05: {{TEI|https://github.com/huggingface/text-embeddings-inference}}). Model-side Rust libraries (candle, burn, ort, mistral.rs) and serving concepts (batching, KV cache) belong to {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}; GPU kernels in Rust to {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}}.</p>
+<details class="dp"><summary>Checklist: the mistakes this page shows, in one place</summary><div class="b"><ul class="tight">
+<li><b>Blocking inside async code</b> (<code>std::thread::sleep</code>, <code>std::fs</code>, a synchronous HTTP client, a long CPU loop): it hides on a multi-threaded runtime until load arrives. Use the async API, <code>spawn_blocking</code>, or rayon.</li>
+<li><b>Forgetting that futures are lazy</b>: an async fn called without <code>.await</code> does nothing; do not silence the "futures do nothing unless you .await or poll them" warning.</li>
+<li><b>Holding a lock or a non-Send value across .await</b>: scope the guard so it drops before the await; use <code>Arc</code>; <code>tokio::sync::Mutex</code> only when the lock must be held across an await.</li>
+<li><b>Assuming a dropped JoinHandle cancels the task</b>: it detaches it. Use <code>abort()</code> or a <code>JoinSet</code>.</li>
+<li><b>Code that is not cancel safe inside select!</b>: the losing branch is dropped mid-way. Keep buffers outside the future.</li>
+<li><b>println! in a CLI that may be piped</b>: a closed pipe makes it panic (exit 101). Write through a locked stdout and treat <code>BrokenPipe</code> as success.</li>
+<li><b>Progress and logs on stdout</b>: they corrupt the output for the next program in the pipe. Progress only when <code>is_terminal()</code>.</li>
+<li><b>Measuring a debug build</b>: benchmark and ship <code>--release</code>.</li>
+<li><b>Two body limits</b>: decide on one (<code>DefaultBodyLimit</code>) and test the 413 path.</li>
+<li><b>Dying on SIGTERM</b>: wire <code>with_graceful_shutdown</code> to SIGTERM and Ctrl-C.</li>
+<li><b>Comparing frameworks on a hello-world endpoint</b>: measure your real handler, open loop, with the percentiles you care about.</li>
+</ul></div></details>
+</section>
+<p class="foot">Every output above is recorded by <code>src/rs/run_all.sh</code> on an Apple M1 Pro (macOS 27) on 2026-10-05; toolchain versions in <code>src/rs/versions.txt</code>, sources checked in <code>src/rs/sources.md</code>.</p>

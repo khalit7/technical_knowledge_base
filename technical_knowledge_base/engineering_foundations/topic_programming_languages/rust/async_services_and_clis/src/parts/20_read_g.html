@@ -1,0 +1,81 @@
+<section id="rs-s-pkg"><h2>Shipping a binary, and a container image</h2>
+<p>Giving a Python tool to someone means giving them a Python, a virtual environment and the right wheels. A Rust tool is one executable with its dependencies compiled in. Three ways onto a machine: <b><code>cargo install --path .</code></b> (or <code>cargo install &lt;crate&gt;</code> from crates.io) builds in release mode into <code>~/.cargo/bin</code>, like <code>uv tool install</code> but from source, so the user needs a Rust toolchain; <b>copy the file</b> from <code>target/release/</code> to a machine with the same OS, CPU architecture and (on Linux) a compatible C library; or <b>release prebuilt binaries</b> per platform (GitHub releases, Homebrew, a container image), built by CI or cross-compiled. That last is how uv and ruff ship.</p>
+<h3>Profiles: speed, size and build time</h3>
+<p>A <dfn>profile</dfn> is a named set of compiler settings in <code>Cargo.toml</code>. The same code built from scratch under each (wall-clock build times on a shared laptop: compare them, do not quote them):</p>
+<div class="tw"><table><thead><tr><th>Profile</th><th>Settings</th><th class="num">tokcount</th><th class="num">tokserve</th><th class="num">clean build</th><th>Trade-off</th></tr></thead><tbody><tr><td><code>dev</code></td><td><code>cargo build</code>: no optimisation, debug info</td><td class="num">6.05</td><td class="num">22.59</td><td class="num">15</td><td>fast edit-compile loop only</td></tr><tr><td><code>release</code></td><td><code>--release</code>: opt-level 3, 16 codegen units, no LTO</td><td class="num">1.18</td><td class="num">3.79</td><td class="num">20</td><td>the default for shipping</td></tr><tr><td><code>release-strip</code></td><td>+ <code>strip = true</code>: symbol names removed</td><td class="num">0.93</td><td class="num">2.84</td><td class="num">21</td><td>panics still print a message, but backtraces lose function names</td></tr><tr><td><code>release-lto</code></td><td>+ <code>lto = "fat"</code>, <code>codegen-units = 1</code>: whole-program optimisation</td><td class="num">0.86</td><td class="num">2.66</td><td class="num">37</td><td>slower builds, often a little faster and smaller</td></tr><tr><td><code>release-small</code></td><td>+ strip, <code>panic = "abort"</code>, <code>opt-level = "z"</code>: optimise for size</td><td class="num">0.49</td><td class="num">1.19</td><td class="num">24</td><td>smallest; slower code, a panic kills the process without unwinding</td></tr></tbody></table></div>
+<p class="small mute">Sizes in MB (10<sup>6</sup> bytes) of the macOS arm64 executables; <span class="rs-meas">measured</span> by <code>src/rs/pkg.sh</code>, load average 13 at the start. The release defaults (<code>lto = false</code>, 16 codegen units) are in the {{Cargo profiles reference|https://doc.rust-lang.org/cargo/reference/profiles.html}}.</p>
+<details class="dp"><summary>The profiles in Cargo.toml</summary><div class="b"><div class="rs-src"><div class="rs-fn">tok/Cargo.toml (lines 24 to 40)</div><pre class="rs-code"><span class="rs-cm"># Size experiments (Packaging section): each profile builds the same code.</span>
+[profile.release-lto]
+inherits = <span class="rs-st">"release"</span>
+lto = <span class="rs-st">"fat"</span>
+codegen-units = 1
+
+[profile.release-small]
+inherits = <span class="rs-st">"release"</span>
+lto = <span class="rs-st">"fat"</span>
+codegen-units = 1
+strip = <span class="rs-kw">true</span>
+panic = <span class="rs-st">"abort"</span>
+opt-level = <span class="rs-st">"z"</span>
+
+[profile.release-strip]
+inherits = <span class="rs-st">"release"</span>
+strip = <span class="rs-kw">true</span></pre></div></div></details>
+<p>Debug builds are large and slow and never for measuring or shipping (<code>cargo run</code> builds without optimisation); <code>release</code> is a good default; stripping and LTO are cheap wins for distributed binaries; <code>opt-level = "z"</code> is for when size matters more than speed (embedded, WebAssembly, a CLI downloaded millions of times).</p>
+<h3>Static binaries and cross-compilation</h3>
+<p>A <dfn>dynamically linked</dfn> binary loads shared libraries (the C library, at least) when it starts; a <dfn>statically linked</dfn> one contains everything. Rust links its own crates statically always; the question is only the C library. On <b>macOS</b> every binary links Apple's <code>libSystem</code> dynamically (tokserve also links <code>libiconv</code>, which ships with macOS), and Apple supports nothing else ("Apple does not support statically linked binaries on Mac OS X": {{QA1118|https://developer.apple.com/library/archive/qa/qa1118/_index.html}}); fine, libSystem is on every Mac. On <b>Linux</b> the usual target links glibc dynamically, so a binary built on a new distribution can fail on an old one; the <code>*-unknown-linux-musl</code> targets link musl statically: one file that runs on any Linux kernel of that architecture.</p>
+<p><dfn>Cross-compiling</dfn> means building for another OS or CPU. <code>rustup target add</code> downloads the standard library for the target; you also need a linker. For a pure-Rust crate (no C code, as here: no TLS library), the <code>rust-lld</code> linker that ships with rustup was enough on this Mac (the rustc docs show a cross gcc and do not promise this); crates with C dependencies need a real cross toolchain, which {{cargo-zigbuild|https://github.com/rust-cross/cargo-zigbuild}} (zig as the linker) and {{cross|https://github.com/cross-rs/cross}} (builds in a container) provide. The static arm64 tokserve came out at 4582976 bytes, "statically linked".</p>
+<details class="dp"><summary>The cross-build session <span class="mute">(both musl targets, file, otool)</span></summary><div class="b"><pre class="rs-out" data-rs-out="cross">
+<span class="rs-cmd">$ cargo build --release --bin tokserve --target aarch64-unknown-linux-musl</span>
+    Finished `release` profile [optimized] target(s) in 16.33s
+$ file tokserve
+ELF 64-bit LSB executable, ARM aarch64, version 1 (SYSV), statically linked, not stripped
+size: 4582976 bytes
+
+$ cargo build --release --bin tokserve --target x86_64-unknown-linux-musl
+    Finished `release` profile [optimized] target(s) in 13.86s
+$ file tokserve
+ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), static-pie linked, not stripped
+size: 4515056 bytes
+
+$ file target/release/tokserve   (the macOS build, for comparison)
+Mach-O 64-bit executable arm64
+$ otool -L target/release/tokserve
+  /usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)
+  /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1319.0.0)</pre></div></details>
+<h3>A container image</h3>
+<p>A Rust service image needs the binary and, at most, a C library: compile in a full Rust image, copy only the binary into a minimal one (a <dfn>multi-stage build</dfn>). For a normally linked binary, Google's <b>distroless</b> <code>cc-debian12</code> adds glibc and libgcc and no shell or package manager (its <code>:nonroot</code> tag runs unprivileged: {{GoogleContainerTools/distroless|https://github.com/GoogleContainerTools/distroless}}); for the static musl build, <b>scratch</b>, the empty image, is enough. How images, layers and isolation work is {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}.</p>
+<div class="tw"><table><thead><tr><th>Image for this service</th><th class="num">Base (compressed, linux/arm64)</th><th class="num">+ the service</th><th>Source</th></tr></thead><tbody>
+<tr><td>FastAPI on <code>python:3.14-slim</code></td><td class="num">47.1 MB</td><td class="num">+ fastapi, pydantic, uvicorn and deps</td><td>{{Docker Hub tag API|https://hub.docker.com/v2/repositories/library/python/tags/3.14-slim}}</td></tr>
+<tr><td>tokserve on <code>distroless/cc-debian12</code></td><td class="num">9.0 MB</td><td class="num">+ 2.84 MB binary (glibc build)</td><td>gcr.io registry manifest</td></tr>
+<tr><td>tokserve on <code>distroless/static-debian12</code> or <code>scratch</code></td><td class="num">0.7 MB / 0</td><td class="num">+ 4582976 bytes (static musl build, arm64, not stripped)</td><td>gcr.io registry manifest; measured binary</td></tr>
+</tbody></table></div>
+<div class="co warn"><div class="t">Not built here</div>The Docker daemon on this laptop was not running and was not started for this page, so the two Dockerfiles are shown as written and the image sizes are base-image sizes from the registries (compressed layer sums, checked 2026-10-05) plus the binaries measured on this machine. The binary in the middle row is the macOS build; the Linux glibc build will differ slightly. To verify: <code>docker build -t tokserve . &amp;&amp; docker images tokserve</code>.</div>
+<details class="dp"><summary>The two Dockerfiles</summary><div class="b"><div class="rs-src"><div class="rs-fn">tok/Dockerfile</div><pre class="rs-code"><span class="rs-cm"># Multi-stage build: compile in a full Rust image, ship only the binary.</span>
+<span class="rs-cm"># Stage 1: the builder (about 1.5 GB of compilers and headers; thrown away).</span>
+<span class="rs-kw">FROM</span> rust:1.99-slim-bookworm <span class="rs-kw">AS</span> build
+<span class="rs-kw">WORKDIR</span> /src
+<span class="rs-cm"># Cache dependencies: build once with a dummy main so code edits do not refetch crates.</span>
+<span class="rs-kw">COPY</span> Cargo.toml Cargo.lock ./
+<span class="rs-kw">RUN</span> mkdir -p src/bin &amp;&amp; echo 'fn main()&#123;&#125;' &gt; src/bin/tokserve.rs &amp;&amp; echo '' &gt; src/lib.rs \
+ &amp;&amp; cargo build --release --bin tokserve &amp;&amp; rm -rf src
+<span class="rs-kw">COPY</span> src ./src
+<span class="rs-kw">RUN</span> touch src/lib.rs src/bin/tokserve.rs &amp;&amp; cargo build --release --bin tokserve
+
+<span class="rs-cm"># Stage 2: distroless "cc" = glibc + libgcc + CA certs, no shell, no package manager, non-root user.</span>
+<span class="rs-kw">FROM</span> gcr.io/distroless/cc-debian12:nonroot
+<span class="rs-kw">COPY</span> --from=build /src/target/release/tokserve /tokserve
+<span class="rs-kw">ENV</span> TOK_ADDR=0.0.0.0:3000
+<span class="rs-kw">EXPOSE</span> 3000
+<span class="rs-kw">ENTRYPOINT</span> [<span class="rs-st">"/tokserve"</span>]</pre></div>
+<div class="rs-src"><div class="rs-fn">tok/Dockerfile.scratch</div><pre class="rs-code"><span class="rs-cm"># The smallest image: a static musl binary in an empty image.</span>
+<span class="rs-cm"># Build the binary first (on any machine): see ../../cross.sh, or in a builder stage with</span>
+<span class="rs-cm">#   rustup target add x86_64-unknown-linux-musl &amp;&amp; cargo build --release --target x86_64-unknown-linux-musl</span>
+<span class="rs-kw">FROM</span> scratch
+<span class="rs-kw">COPY</span> tokserve /tokserve
+<span class="rs-kw">ENV</span> TOK_ADDR=0.0.0.0:3000
+<span class="rs-kw">USER</span> 65532:65532
+<span class="rs-kw">EXPOSE</span> 3000
+<span class="rs-kw">ENTRYPOINT</span> [<span class="rs-st">"/tokserve"</span>]</pre></div></div></details>
+<p class="small">What else production needs (health endpoint, SIGTERM, logs on stdout, configuration from the environment, TLS in front) is the backend API page's; the Rust-specific part is matching the worker count to the CPUs the container is given (tokserve takes <code>--workers</code> or <code>TOK_WORKERS</code>), and TLS in-process, when wanted, with rustls. Load balancing and capacity: {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}.</p>
+</section>

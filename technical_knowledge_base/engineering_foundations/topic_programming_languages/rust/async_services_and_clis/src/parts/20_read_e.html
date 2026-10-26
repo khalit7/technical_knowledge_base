@@ -1,0 +1,85 @@
+<section id="rs-s-meas"><h2>Measured: the same service in axum and in FastAPI</h2>
+<p>The FastAPI twin (<code>code/py/app.py</code>) has the same routes and rules and returns byte-identical JSON; it uses the root page's reference token function and FastAPI's advice for blocking work (the log count runs in a worker thread). <code>tokserve</code> is axum 0.8.9 on tokio 1.53.2 (release build); the twin is FastAPI 0.142.2 on uvicorn 0.54.0 with uvloop and httptools, pydantic 2.13.5, CPython 3.14.8. Same load generator (oha 1.16.0, 2 threads), same machine (Apple M1 Pro, 10 cores, in normal use), four configurations (1 or 4 async worker threads for axum, 1 or 4 uvicorn worker processes for FastAPI), three rounds of 3 s per load in alternating order.</p>
+<div class="rs-vis">
+<h4>Tiny requests: both fast; CPU work and memory: where the gap is</h4>
+<p class="small">Predict first: on <code>/count_log</code> (391 KB of counting), how many times more requests per second does axum with 4 workers serve than FastAPI with 4? Then switch to "/health" and to memory.</p>
+<div class="seg" id="rs-bm-load" role="group" aria-label="Load"></div>
+<div class="seg" id="rs-bm-metric" role="group" aria-label="Metric" style="margin-top:6px"><button data-m="rps" class="on">Requests per second</button><button data-m="p50_ms">Latency p50</button><button data-m="p99_ms">Latency p99</button><button data-m="peak_rss_mb">Memory (peak RSS)</button></div>
+<div id="rs-bm-chart" style="margin-top:8px"></div><div class="rs-cap" id="rs-bm-cap"></div>
+<p class="small mute">Bars: median of three rounds; whiskers: lowest and highest round. <span class="rs-meas">measured</span>; method and raw runs in <code>src/rs/bench/</code>.</p>
+</div>
+<p><b>How to read it.</b> For tiny requests both are fast in absolute terms, and a real service's time goes to its database or model call, not the framework: at a steady 1,000 requests per second every configuration answered <code>/count</code> with a median under half a millisecond. The gaps that matter are <b>CPU work in Python</b> (counting 391 KB costs about 14 ms in Python and 1.3 ms in Rust, and in one uvicorn worker the GIL lets only one count run at a time, even on worker threads) and <b>memory per worker</b>: Python scales across cores with processes, each holding its own interpreter and imports, where tokio scales with threads in one process. How to load-test properly (open against closed loop, coordinated omission) is {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}; the root page's {{Benchmark tab|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} measures the same program as a batch job.</p>
+<details class="dp"><summary>The medians as a table</summary><div class="b">
+<div class="tw"><table><thead><tr><th>Load</th><th class="num">axum, 1 worker</th><th class="num">axum, 4</th><th class="num">FastAPI, 1</th><th class="num">FastAPI, 4</th></tr></thead><tbody>
+<tr><td>GET /health, 32 connections (req/s)</td><td class="num">52,031</td><td class="num">78,284</td><td class="num">15,476</td><td class="num">48,552</td></tr>
+<tr><td>POST /count, 1 KB JSON (req/s)</td><td class="num">29,504</td><td class="num">79,535</td><td class="num">7,075</td><td class="num">26,610</td></tr>
+<tr><td>POST /count_log, 391 KB (req/s)</td><td class="num">4,385</td><td class="num">4,804</td><td class="num">75</td><td class="num">206</td></tr>
+<tr><td>/count_log at a steady 20/s: p50 latency (ms)</td><td class="num">1.5</td><td class="num">1.3</td><td class="num">14.1</td><td class="num">14.7</td></tr>
+<tr><td>Memory idle, after start (MB)</td><td class="num">3.4</td><td class="num">3.4</td><td class="num">57</td><td class="num">281</td></tr>
+<tr><td>Memory peak under the /count load (MB)</td><td class="num">27</td><td class="num">27</td><td class="num">61</td><td class="num">281</td></tr>
+</tbody></table></div></div></details>
+<details class="dp"><summary>Every run of the selected load</summary><div class="b"><div class="tw" id="rs-bm-runs"></div></div></details>
+<details class="dp"><summary>What this does not show <span class="mute">(caveats)</span></summary><div class="b"><ul class="tight">
+<li>Laptop in normal use: load average <span id="rs-bm-load1">7 to 13</span> during the runs (10 cores). The load generator shares the machine; numbers are lower and noisier than on a quiet server.</li>
+<li>Closed-loop loads (32 or 8 connections, as fast as possible) measure capacity; their latency excludes queueing that a real arrival process would see. The "@1000/s" and "@20/s" loads are open loop with oha's latency correction.</li>
+<li>oha with 2 threads can be the bottleneck for axum's fastest loads; the /health and /count gaps are lower bounds.</li>
+<li>axum "1 worker" still runs /count_log on tokio's blocking pool, so it used more than one core there; FastAPI's count runs on a thread but the GIL serialises it within a worker.</li>
+<li>Memory: resident set of the server process and its children (uvicorn's supervisor plus workers), sampled every 0.25 s.</li>
+<li>Production Python services often move CPU work out of the request path (a queue, or a Rust extension: {{the PyO3 page|n:4055c17b0d0d81048311c87e9b76a78a}}), which removes most of the /count_log gap. No TLS, no database, loopback networking.</li>
+<li>Every response in these runs was a 200: <code>bench.py</code> records each run's status codes, because a benchmark can silently measure rejections (the 2 MB body limit above).</li>
+</ul></div></details>
+</section>
+<section id="rs-s-test"><h2>Testing a service</h2>
+<p>Three levels, all run by one <code>cargo test</code> (test strategy in general is {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}}):</p>
+<ul class="tight"><li><b>Unit tests</b> of the logic in <code>src/lib.rs</code>, with no async and no HTTP: the token rules from the root page's spec, and malformed lines being counted rather than fatal.</li>
+<li><b>Router tests without a network.</b> An axum <code>Router</code> is a tower <code>Service</code>: call it with a request object and await the response with <code>tower::ServiceExt::oneshot</code>. No sockets, and it exercises extractors, layers and status codes. <code>#[tokio::test]</code> gives each test its own runtime.</li>
+<li><b>A real server on a real port.</b> Bind port 0 (the OS picks a free one, so tests run in parallel), spawn the server, talk TCP to it: catches what in-process tests cannot (the listener, HTTP framing).</li></ul>
+<details class="dp"><summary>The two router tests and the run</summary><div class="b">
+<div class="rs-src"><div class="rs-fn">tok/tests/service.rs (lines 13 to 26)</div><pre class="rs-code"><span class="rs-at">#[tokio::test]</span>
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> count_without_a_network() &#123;
+    <span class="rs-kw">let</span> req = Request::post(<span class="rs-st">"/count"</span>)
+        .header(<span class="rs-st">"content-type"</span>, <span class="rs-st">"application/json"</span>)
+        .body(Body::<span class="rs-kw">from</span>(r#"&#123;"text":"x86_64 and v2.1"&#125;"#))
+        .unwrap();
+    <span class="rs-kw">let</span> resp = app(cfg()).oneshot(req).<span class="rs-kw">await</span>.unwrap();
+    <span class="rs-mac">assert_eq!</span>(resp.status(), StatusCode::OK);
+    <span class="rs-kw">let</span> bytes = resp.into_body().collect().<span class="rs-kw">await</span>.unwrap().to_bytes();
+    <span class="rs-kw">let</span> body: CountResp = serde_json::from_slice(&amp;bytes).unwrap();
+    <span class="rs-mac">assert_eq!</span>(body.tokens, 5); <span class="rs-cm">// x86, 64, and, v2, 1</span>
+&#125;
+
+<span class="rs-at">#[tokio::test]</span></pre></div>
+<div class="rs-src"><div class="rs-fn">tok/tests/service.rs (lines 42 to 57)</div><pre class="rs-code">
+<span class="rs-cm">/// A real server on port 0 (the OS picks a free port), talked to over TCP.</span>
+<span class="rs-at">#[tokio::test]</span>
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> real_server_over_tcp() &#123;
+    <span class="rs-kw">let</span> listener = tokio::net::TcpListener::bind(<span class="rs-st">"127.0.0.1:0"</span>).<span class="rs-kw">await</span>.unwrap();
+    <span class="rs-kw">let</span> addr = listener.local_addr().unwrap();
+    tokio::spawn(<span class="rs-kw">async</span> <span class="rs-kw">move</span> &#123; axum::serve(listener, app(cfg())).<span class="rs-kw">await</span>.unwrap() &#125;);
+
+    <span class="rs-kw">use</span> tokio::io::&#123;AsyncReadExt, AsyncWriteExt&#125;;
+    <span class="rs-kw">let</span> <span class="rs-kw">mut</span> s = tokio::net::TcpStream::connect(addr).<span class="rs-kw">await</span>.unwrap();
+    s.write_all(b<span class="rs-st">"GET /health HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"</span>).<span class="rs-kw">await</span>.unwrap();
+    <span class="rs-kw">let</span> <span class="rs-kw">mut</span> raw = String::new();
+    s.read_to_string(&amp;<span class="rs-kw">mut</span> raw).<span class="rs-kw">await</span>.unwrap();
+    <span class="rs-mac">assert!</span>(raw.starts_with(<span class="rs-st">"HTTP/1.1 200 OK"</span>), <span class="rs-st">"&#123;raw&#125;"</span>);
+    <span class="rs-mac">assert!</span>(raw.ends_with(<span class="rs-st">"\r\n\r\nok"</span>), <span class="rs-st">"&#123;raw&#125;"</span>);
+&#125;</pre></div>
+<pre class="rs-out" data-rs-out="test">
+
+running 2 tests
+test tests::tokens_follow_the_rules ... ok
+test tests::malformed_lines_are_counted_not_fatal ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 4 tests
+test missing_field_is_422 ... ok
+test count_without_a_network ... ok
+test real_server_over_tcp ... ok
+test slow_request_times_out ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s</pre></div></details>
+<p class="small mute">The timeout test runs the real 500 ms timeout; for longer timers, <code>tokio::time::pause()</code> lets a test advance a fake clock instantly.</p>
+</section>
