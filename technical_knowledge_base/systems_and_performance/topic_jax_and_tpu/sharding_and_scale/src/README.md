@@ -79,3 +79,5 @@ Why 38 minutes is right: the page now carries, inline, everything that used to s
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 343 units: core 242, depth 78, fat 23 (no owned or volatile units). 325 drafted by `ledger.py init` from the old page; 18 added by hand (the ten removed mistakes and eight script-rendered tables and visuals), each with a key in static text. Fat units carry a `note`; units labelled or keyed by hand carry `manual`.
+
+2026-10-26 (final follow-up sweep): the v5p 4x4x4 create_device_mesh placement in section 11 now cites its owner, TPU programming and performance section 7 and its Slice planner, instead of the root's TPU and Pallas lab.
