@@ -12,7 +12,7 @@ R, RUN, TB = 'The paper tab', 'Move the rollout policy tab', 'Figures rebuilt ta
 C = [
  # the Notion row
  ('live.md body: "Being built in the technical_knowledge_base repository."', 'replaced: the page is the built body', []),
- ('Takeaway property: KL direction, not who wrote the rollouts, shapes performance and coverage; forward KL robust, reverse KL favours student rollouts; on-policy generalisation edge does not reliably survive later RLVR', R + ', headline card (verbatim)', ['the token-level KL direction, not who wrote the rollouts, shapes performance and coverage']),
+ ('Takeaway property: KL direction, not who wrote the rollouts, shapes performance and coverage; forward KL robust, reverse KL favours student rollouts; on-policy generalisation edge does not reliably survive later RLVR', R + ', headline card (softened 2026-10-26; the original in src/README.md)', ['the KL direction and the learning rate matter more than who wrote the rollouts']),
  ('Authors Julianna Piskorz, Antonin Berthon (equal contribution), Mihaela van der Schaar; University of Cambridge; 28 September 2026', R + ', headline card', ['Julianna Piskorz*, Antonin Berthon*, Mihaela van der Schaar', 'University of Cambridge', '28 September 2026']),
  # problem and framing
  ('On-policy learning claimed to reduce forgetting, give sparser updates and generalise better (Shenfeld, Chen, Mukherjee, Chu)', R + ', Problem', ['forgets less of what the model already knew', 'changes fewer parameters', 'generalises better']),
