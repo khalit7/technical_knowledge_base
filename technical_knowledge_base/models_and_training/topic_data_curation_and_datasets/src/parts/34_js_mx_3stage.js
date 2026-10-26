@@ -32,7 +32,7 @@
     if(S.step>=3){let p='';for(let i=0;i<=160;i++){const x=x0+(x1-x0)*i/160;p+=(i?'L':'M')+xs(x).toFixed(1)+','+ys(lr(x)*.95).toFixed(1)}
       b+='<path d="'+p+'" fill="none" stroke="var(--ink)" stroke-width="2.2"/>'+X.t(w-pr-2,pt+12,'learning rate (sketch)',{a:'end',fs:10.5,w:600})}
     const ticks=[];const span=x1-x0,stp=span>1e12?1e12:span>3e11?1e11:5e10;for(let v=Math.ceil(x0/stp)*stp;v<=x1+1;v+=stp)ticks.push(v);
-    ticks.forEach(v=>{b+=X.t(xs(v),h-pb+14,X.tok(v),{a:v===x0?'start':Math.abs(v-x1)<1?'end':'middle',fs:10,fill:'var(--mute)'})});
+    ticks.forEach(v=>{b+=X.t(xs(v),h-pb+14,X.tok(v),{a:v===x0?'start':xs(x1)-xs(v)<16?'end':'middle',fs:10,fill:'var(--mute)'})});
     b+=X.t(pl+W/2,h-4,'tokens trained (position in the run)',{a:'middle',fs:10.5,fill:'var(--mute)'});
     el.innerHTML=X.svg(w,h,b,'Mixture over the run, OLMo 2 7B');
     $('mx-st-cap').innerHTML='<b>Step '+(S.step+1)+' of 5.</b> '+CAP[S.mode][S.step];

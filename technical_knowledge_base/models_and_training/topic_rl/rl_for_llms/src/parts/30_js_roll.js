@@ -24,7 +24,7 @@
     const x0=Math.min(...all.map(a=>a.rm)),x1=Math.max(...all.map(a=>a.rm)),y1=Math.max(...all.map(a=>a.L));
     const X=v=>l+(W-l-r)*(v-x0)/((x1-x0)||1),Y=v=>t+(H-t-b)*(1-v/y1);let s='';
     [0,Math.round(y1/2),y1].forEach(v=>s+=RD.t(l-4,Y(v)+4,String(v),{a:'end',fs:9.5,fill:'var(--mute)'}));
-    [x0,(x0+x1)/2,x1].forEach(v=>s+=RD.t(X(v),H-10,RD.n(v,1),{a:'middle',fs:9.5,fill:'var(--mute)'}));
+    [x0,(x0+x1)/2,x1].forEach((v,i)=>s+=RD.t(X(v),H-10,RD.n(v,1),{a:i===2?'end':'middle',fs:9.5,fill:'var(--mute)'}));
     all.forEach(a=>s+='<circle cx="'+X(a.rm).toFixed(1)+'" cy="'+Y(a.L).toFixed(1)+'" r="3.2" fill="'+(a.v?'var(--c3)':'none')+'" stroke="'+(a.v?'var(--c3)':'var(--c2)')+'" stroke-width="1.2"/>');
     P.innerHTML=RD.svg(W,H,s,'Reward score against length')+'<div class="leg"><span><i style="background:var(--c3)"></i>passes the strict verifier</span><span><i style="border:1.5px solid var(--c2);background:none"></i>fails</span><span>across: reward-model score; up: length in tokens</span></div>'}
   document.getElementById('ro-st').innerHTML=RD.stat('Pairs ranked right (AUC)',RD.pct(auc,0),'chance a correct answer outscores a wrong one')+RD.stat('Wrong answers above the correct mean',fp+' of '+neg.length,'')+RD.stat('Score against length','r = '+RD.n(rL,2),'Pearson, all 160')+RD.stat('Pass rate, strict',RD.pct(pos.length/all.length,0),pos.length+' of '+all.length);

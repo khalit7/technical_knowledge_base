@@ -9,7 +9,7 @@ window.AVP=(function(){
     const y0=o.ymin,y1=o.ymax;const X=v=>ml+(lx(v)-x0)/(x1-x0||1)*(W-ml-mr),Y=v=>mt+(1-(v-y0)/(y1-y0))*(H-mt-mb);
     let b='';const yt=o.yt||[y0,(y0+y1)/2,y1];
     for(const t of yt)b+='<line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+Y(t)+'" y2="'+Y(t)+'" stroke="var(--line)"/>'+RD.t(ml-4,Y(t)+4,(o.yf||String)(t),{a:'end',fill:'var(--mute)'});
-    const xt=o.xt||[...new Set(xs)];for(const t of xt)b+=RD.t(X(t),H-mb+14,(o.xf||String)(t),{a:'middle',fill:'var(--mute)'});
+    const xt=o.xt||[...new Set(xs)];for(const t of xt){const xx=X(t);b+=RD.t(xx,H-mb+14,(o.xf||String)(t),{a:xx>W-mr-14?'end':'middle',fill:'var(--mute)'})}
     b+=RD.t((ml+W-mr)/2,H-4,esc(o.xlab||''),{a:'middle',fill:'var(--mute)'});
     for(const s of series){const d=s.pts.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(Math.max(y0,Math.min(y1,p[1]))).toFixed(1)).join(' ');
       b+='<path d="'+d+'" fill="none" stroke="'+s.color+'" stroke-width="2"'+(s.dash?' stroke-dasharray="4 3"':'')+'/>';

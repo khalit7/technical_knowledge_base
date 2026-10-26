@@ -19,7 +19,7 @@
     const N=nar?16:24,sw=W-xs-(nar?4:190),cw=Math.min(22,Math.floor((sw-14)/(N+1))-1),gap=1;
     let s='',y=nar?32:34;
     s+=RD.t(x0,12,nar?'entry, 1 square':'entry per token per layer',{fill:'var(--mute)'})+(nar?RD.t(x0,24,'= 64 numbers',{fill:'var(--mute)'}):RD.t(x0+0,24,'(1 square = 64 numbers)',{fill:'var(--mute)'}));
-    s+=RD.t(xs,12,'last '+N+' tokens, then the new one',{fill:'var(--mute)'});
+    s+=RD.t(xs,12,nar?'last '+N+' tokens, then new':'last '+N+' tokens, then the new one',{fill:'var(--mute)'});
     const WIN=nar?4:6,TOP=nar?[1,6,10]:[0,4,9,15,21],BLK=4,HB=nar?8:12;
     for(const r of R){
       let n=0;for(const [k] of r.sq)n+=k;const rows=Math.max(1,Math.ceil(n/16)),gh=rows*p,rh=Math.max(gh,cw,22)+(nar?14:10);

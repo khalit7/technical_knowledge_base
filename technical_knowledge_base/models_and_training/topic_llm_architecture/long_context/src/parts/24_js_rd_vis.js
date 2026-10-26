@@ -46,7 +46,7 @@
     s+=T(W-R,H-3,'context (tokens, log scale)',{a:'end',fill:'var(--mute)'})+'<line x1="'+(L+8)+'" x2="'+(L+30)+'" y1="'+(H-7)+'" y2="'+(H-7)+'" stroke="var(--acc)" stroke-width="2.5"/>'+T(L+34,H-3,'decode',{})+'<line x1="'+(L+84)+'" x2="'+(L+106)+'" y1="'+(H-7)+'" y2="'+(H-7)+'" stroke="var(--c4)" stroke-width="2.5" stroke-dasharray="6 4"/>'+T(L+110,H-3,'prefill',{});
     const line=(k,col,dash)=>'<path d="'+d.map((r,i)=>(i?'L':'M')+X(r[0]).toFixed(1)+' '+Y(r[k]).toFixed(1)).join('')+'" fill="none" stroke="'+col+'" stroke-width="2.5"'+(dash?' stroke-dasharray="6 4"':'')+'/>';
     s+=line(1,'var(--acc)')+line(2,'var(--c4)',1);
-    s+='<circle cx="'+X(28600)+'" cy="'+Y(.5)+'" r="4" fill="var(--acc)"/>'+T(X(28600)+8,Y(.5)+16,'decode: half at about 28,600',{fill:'var(--acc)',w:600});
+    s+='<circle cx="'+X(28600)+'" cy="'+Y(.5)+'" r="4" fill="var(--acc)"/>'+T(X(28600)-8,Y(.5)+16,'decode: half at about 28,600',{fill:'var(--acc)',w:600,a:'end'});
     const p=d.find(r=>r[0]===131072);s+='<circle cx="'+X(131072)+'" cy="'+Y(p[2])+'" r="4" fill="var(--c4)"/>'+T(X(131072)+8,Y(p[2])+16,'prefill: '+Math.round(p[2]*100)+'% at 131,072',{a:W<520?'middle':'start',fill:'var(--c4)',w:600});
     el.innerHTML=RD.svg(W,H,s,'Attention share of FLOPs against context');
   }

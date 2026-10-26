@@ -114,7 +114,7 @@
     let xmax=0;series.forEach(s=>J[s[0]].eval.forEach(e=>{xmax=Math.max(xmax,xv(s,e))}));
     const y0=2.2,y1=3.0,X=v=>l+(W-l-r)*v/xmax,Y=v=>tp+(H-tp-bt)*(1-(Math.min(Math.max(v,y0),y1)-y0)/(y1-y0));let b='';
     for(let v=2.2;v<=3.001;v+=0.2){b+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+t(l-5,Y(v)+4,v.toFixed(1),{a:'end'})}
-    const nt=W<500?3:5;for(let i=0;i<=nt;i++){const v=xmax*i/nt;b+=t(X(v),H-14,jx==='tok'?v.toFixed(0)+'M':v.toFixed(2),{a:'middle'})}
+    const nt=W<500?3:5;for(let i=0;i<=nt;i++){const v=xmax*i/nt;b+=t(X(v),H-14,jx==='tok'?v.toFixed(0)+'M':v.toFixed(2),{a:i===nt?'end':'middle'})}
     b+=t(W-r,H-1,jx==='tok'?'training tokens (millions)':'training FLOPs (PFLOP, derived)',{a:'end',fs:11,fill:'var(--mute)'});
     series.forEach(s=>{const pts=J[s[0]].eval.filter(e=>e[1]<=3.2).map(e=>X(xv(s,e))+','+Y(e[1])).join(' ');b+='<polyline points="'+pts+'" fill="none" stroke="'+s[2]+'" stroke-width="2"/>'});
     el.innerHTML=RD.svg(W,H,b,'held-out loss of the main model')+'<div class="fo-leg">'+series.map(s=>'<span style="--sw:'+s[2]+'">'+s[1]+': '+J[s[0]].final.toFixed(4)+'</span>').join('')+'</div>';

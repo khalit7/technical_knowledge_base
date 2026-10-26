@@ -17,7 +17,7 @@
     g+='<rect x="'+X(0)+'" y="18" width="'+(X(W8)-X(0))+'" height="40" fill="var(--c2)" opacity=".85"/>';
     const n=Math.min(fit,32);for(let j=0;j<fit;j++){const x0=W8+j*seq;g+='<rect x="'+X(x0)+'" y="'+(j<32?18:18)+'" width="'+Math.max(1,X(seq)-X(0)-0.6)+'" height="40" fill="'+(j<32?'var(--acc)':'var(--c3)')+'" opacity=".85"/>'}
     g+='<line x1="'+X(CAP)+'" x2="'+X(CAP)+'" y1="12" y2="64" stroke="var(--bad)" stroke-dasharray="4 3" stroke-width="2"/>';
-    g+=RD.t(X(0),12,'weights 16.06 GB',{fs:11})+RD.t(X(80),12,'80 GB',{fs:11,a:'end'})+RD.t(X(CAP),78,'92% usable',{fs:11,a:'middle',fill:'var(--bad)'});
+    g+=RD.t(X(0),12,'weights 16.06 GB',{fs:11})+RD.t(X(80),12,'80 GB',{fs:11,a:'end'})+RD.t(X(CAP),78,'92% usable',{fs:11,a:'end',fill:'var(--bad)'});
     el.innerHTML=RD.svg(W,H,g,'GPU memory with 128K requests');
     document.getElementById('lc-dz-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+S.length+': '+S[i][1]+'</div><p>'+S[i][2]+'</p>';
     document.getElementById('lc-dz-cnt').innerHTML=RD.stat('Cache per request',seq+' GB','128K tokens')+RD.stat('Requests that fit',fit+(fit>=32?' (goal met)':' of 32'),'each blue block is one')+RD.stat('Attention share of prefill',F['w_'+k+'_attn']+'%','FLOPs of one 128K prompt');
