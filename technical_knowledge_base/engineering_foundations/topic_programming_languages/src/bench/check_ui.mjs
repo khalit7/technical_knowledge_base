@@ -45,11 +45,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const ids = await page.$$eval('#bm-chart .bm-row', gs => gs.map(g => g.dataset.id));
   for (const id of ids) { await page.$eval(`#bm-chart .bm-row[data-id="${id}"]`, g => g.dispatchEvent(new MouseEvent('click', { bubbles: true }))); }
   await check('rows clicked');
-  for (const m of ['py', 'nat', 'both']) { await page.click(`#bm-an-mode button[data-m="${m}"]`); await check('anim ' + m); }
-  for (let i = 0; i < 12; i++) { await page.click('#bm-an-ctl-f'); }
-  await check('anim stepped');
-  await page.click('#bm-an-ctl-b'); await page.click('#bm-an-ctl-p'); await new Promise(r => setTimeout(r, 400)); await page.click('#bm-an-ctl-p');
-  await page.select('#bm-an-ctl-v', '2'); await check('anim play');
+  // box 1's interpreter stepper was removed on 2026-10-26 (the Reading tab's section 2 stepper carries it)
   await page.$eval('details.mist', d => d.open = true); await check('details');
   await page.screenshot({ path: OUT + `bench_${w}_${scheme}.png`, fullPage: true });
   if (errs.length) { problems++; console.log(w, scheme, errs.join('\n')); }

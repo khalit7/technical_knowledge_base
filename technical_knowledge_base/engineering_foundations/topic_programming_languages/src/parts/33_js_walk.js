@@ -60,7 +60,7 @@
   $('ta-wsel').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
     $('ta-wsel').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));st.w=+b.dataset.m;go(0)});
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-    if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!T.RM){st.i=0;draw(true);setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+    kick()},{threshold:.2}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   T.viewHooks.walk=()=>{kick()};
   T.onRender(()=>kick());
