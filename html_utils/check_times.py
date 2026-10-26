@@ -48,13 +48,13 @@ TIME = re.compile(r"(?:about\s+)?(\d+)\s*min(?:utes)?\b(?:,?\s*plus\s*(\d+))?")
 
 
 def header(p):
-    f = ROOT / p["path"] / "src/parts/10_header.html"
-    if not f.exists():
-        f = ROOT / p["path"] / "index.html"
-        if not f.exists():
-            return None
-    m = HDR.search(f.read_text(errors="ignore")[:20000])
-    return (int(m.group(1)), int(m.group(2) or 0)) if m else None
+    # the header part first; pages whose header is generated (papers from reading.json, some roots) only have it in index.html
+    for f in (ROOT / p["path"] / "src/parts/10_header.html", ROOT / p["path"] / "index.html"):
+        if f.exists():
+            m = HDR.search(f.read_text(errors="ignore"))
+            if m:
+                return (int(m.group(1)), int(m.group(2) or 0))
+    return None
 
 
 def rekey(path, swaps):
