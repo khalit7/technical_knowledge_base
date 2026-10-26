@@ -35,3 +35,6 @@ The core of the subject fell from 31 to 26 minutes of Reading (30 with the optio
 
 ## Ledger
 `ledger.json`: 208 units: 186 carried from the root's t-ttc units (`source_id` is the root ledger id, `tab` `absorbed:landscape t-ttc`) and 22 added by hand (script-drawn captions and the new content). core 164, depth 36, owned 1 (the PPO critic paragraph, RL for LLMs), fat 7 (old tab navigation and lead-ins). Problems 0.
+
+## 2026-10-26: in-context learning and the few-shot protocol
+Khalid's ownership decision: this page owns in-context learning and the few-shot protocol; the GPT-3 paper page keeps its own results (the scaling of few minus zero, task by task, its Figure 2.1 before/after animation) and links here. New section 10 (`parts/20_read_f.html`): what ICL is and why it is test-time compute spent on reading, a static figure of zero-, one- and few-shot prompts on GPT-3's Figure 2.1 example, many-shot ICL (Agarwal et al. 2024), learning or recognising (Min et al. 2022; induction heads, Olsson et al. 2022), the protocol's fragility and shot counts in benchmark scores (Zhao et al. 2021), and the bridge to chains of thought (Wei et al. 2022, Kojima et al. 2022); every number checked against the abstracts or the GPT-3 page. New term and nav entry. Ledger: 12 units added. Reading 26 to 29 min core, closed 7 unchanged (audit_pages.mjs).
