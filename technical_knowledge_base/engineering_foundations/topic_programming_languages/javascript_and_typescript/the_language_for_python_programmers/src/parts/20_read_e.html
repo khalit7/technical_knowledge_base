@@ -1,0 +1,62 @@
+
+<section id="s8"><h2>8. How V8 runs it: tiers, speculation and shapes</h2>
+<p>V8 does not interpret your code forever. It parses it to bytecode run by the <b>Ignition</b> interpreter, then compiles functions that get hot: <b>Sparkplug</b> (a fast baseline compiler), <b>Maglev</b> (a mid-tier optimising compiler, shipped in Chrome 117 in 2023) and <b>TurboFan</b> (the top tier) ({{V8 blog, Maglev|https://v8.dev/blog/maglev}}). The optimising tiers <b>speculate</b> from what they have seen: "this argument has always been a small integer", "this object always has this shape". When a guess breaks, the code <b>deoptimises</b> back to the interpreter and may be recompiled later. You can watch it with <code>node --trace-opt --trace-deopt</code>; step through a real trace:</p>
+<div class="fig" id="jl-v8-card"><h4>A function compiled for small integers is thrown away the first time it sees strings</h4>
+<svg class="jl-svg" id="jl-v8-svg" viewBox="0 0 360 140" role="img" aria-label="V8's four tiers: Ignition, Sparkplug, Maglev, TurboFan; hot code moves right, a failed guess deoptimises back to Ignition"></svg>
+<div class="jl-capstep" id="jl-v8-cap"></div>
+<div class="jl-ctl" id="jl-v8-ctl"></div>
+<pre id="jl-v8-trace" aria-label="the recorded trace"></pre>
+<p class="cap">The trace lines are the real output of <code>n3_deopt.mjs</code> (Node 24.21.0, <code>--trace-opt --trace-deopt</code>, addresses removed); which tier is reached before the string call varies with load. "Not a Smi": a Smi is V8's small-integer representation (31 or 32 bits, stored without allocating). The positions in the diagram are this page's explanation of each line.</p>
+<details class="mist"><summary>The code: n3_deopt.mjs</summary><div class="b"><div class="jl-snip"><div class="jl-file">n3_deopt.mjs</div><pre class="jl-code"><span class="cm">// Run with: node --trace-opt --trace-deopt n3_deopt.mjs | grep add   (V8 tells you when it optimises and when it gives up)</span>
+<span class="kw">function</span> add(a, b) &#123; <span class="kw">return</span> a + b; &#125;
+<span class="kw">let</span> s = 0;
+<span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; 200_000; i++) s = add(i, 1);       <span class="cm">// only small integers: V8 compiles add for that</span>
+console.log(<span class="st">"now call it with strings"</span>);
+add(<span class="st">"a"</span>, <span class="st">"b"</span>);                                         <span class="cm">// assumption broken: deoptimise, back to the interpreter</span>
+<span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; 200_000; i++) s = add(i, 2);
+console.log(s);</pre></div></div></details></div>
+<p>The second lever is the <b>hidden class</b> (V8 calls it a "map"): objects with the same property names added in the same order share one, and each property access site caches the shapes it has seen ("inline caches"). A site that sees one shape is monomorphic and fast; past four it is megamorphic and does a slow lookup.</p>
+<div class="jl-snip"><div class="jl-olab">real output of n1_shapes.mjs, Node 24.21.0</div><pre class="jl-out" data-jl-src="n1_shapes.txt">a and b share a hidden class: true
+a and c (same keys, other order): false
+a and d after adding z: false
+after delete, e is in dictionary mode: true</pre><details class="mist"><summary>The code: n1_shapes.mjs</summary><div class="b"><div class="jl-file">n1_shapes.mjs</div><pre class="jl-code"><span class="cm">// Run with: node --allow-natives-syntax n1_shapes.mjs  (the % functions are V8 internals, for learning only)</span>
+<span class="cm">// V8 gives every object a hidden class ("map"): its property names in insertion order. Same order, same map.</span>
+<span class="kw">const</span> a = &#123; x: 1, y: 2 &#125;, b = &#123; x: 5, y: 6 &#125;, c = &#123; y: 2, x: 1 &#125;;
+console.log(<span class="st">"a and b share a hidden class:"</span>, %HaveSameMap(a, b));
+console.log(<span class="st">"a and c (same keys, other order):"</span>, %HaveSameMap(a, c));
+<span class="kw">const</span> d = &#123; x: 1, y: 2 &#125;; d.z = 3;
+console.log(<span class="st">"a and d after adding z:"</span>, %HaveSameMap(a, d));
+<span class="kw">const</span> e = &#123; x: 1, y: 2, z: 3 &#125;; <span class="kw">delete</span> e.z;
+console.log(<span class="st">"after delete, e is in dictionary mode:"</span>, !%HasFastProperties(e));</pre></div></details></div>
+<div class="fig"><h4>The same property read gets about 5 times slower when the site sees 8 shapes instead of 1</h4>
+<div class="bars">
+<div class="row hl"><span class="nm">1 shape (monomorphic)</span><span class="track"><span class="fill" style="width:19.3%;background:var(--good)"></span></span><span class="val">1.6 ms</span></div>
+<div class="row"><span class="nm">4 shapes (polymorphic)</span><span class="track"><span class="fill" style="width:38.6%;background:var(--c4)"></span></span><span class="val">3.2 ms</span></div>
+<div class="row"><span class="nm">8 shapes (megamorphic)</span><span class="track"><span class="fill" style="width:100%;background:var(--bad)"></span></span><span class="val">8.3 ms</span></div>
+</div>
+<p class="cap">Median of 7 timed passes, 2,000,000 reads of <code>o.x</code> each, measured on an Apple M1 Pro with Node 24.21.0 in normal use (timings move with load; the ratio is the point). Each object gets k extra properties before <code>x</code>, so k sets its hidden class.</p></div>
+<div class="jl-snip"><div class="jl-olab">real output of n2_shapes_bench.mjs, Node 24.21.0</div><pre class="jl-out" data-jl-src="n2_shapes_bench.txt">1 shape (monomorphic call site)      median 1.6 ms per 2,000,000 property reads
+4 shapes (polymorphic)               median 3.2 ms per 2,000,000 property reads
+8 shapes (megamorphic)               median 8.3 ms per 2,000,000 property reads</pre><details class="mist"><summary>The code: n2_shapes_bench.mjs</summary><div class="b"><div class="jl-file">n2_shapes_bench.mjs</div><pre class="jl-code"><span class="cm">// The cost of shapes: the same loop over objects of 1 shape and of 8 shapes (V8 inline caches, measured).</span>
+<span class="kw">function</span> sumX(objs) &#123; <span class="kw">let</span> s = 0; <span class="kw">for</span> (<span class="kw">let</span> r = 0; r &lt; 200; r++) <span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; objs.length; i++) s += objs[i].x; <span class="kw">return</span> s; &#125;
+<span class="kw">function</span> make(nShapes, n) &#123;
+  <span class="kw">const</span> out = [];
+  <span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; n; i++) &#123;
+    <span class="kw">const</span> o = &#123;&#125;; <span class="kw">const</span> k = i % nShapes;
+    <span class="kw">for</span> (<span class="kw">let</span> j = 0; j &lt; k; j++) o[<span class="st">"p"</span> + j] = j;    <span class="cm">// k extra properties BEFORE x: a different hidden class per k</span>
+    o.x = 1; out.push(o);
+  &#125;
+  <span class="kw">return</span> out;
+&#125;
+<span class="kw">function</span> time(label, objs) &#123;
+  sumX(objs); sumX(objs);                          <span class="cm">// warm up: let the JIT compile sumX for what it has seen</span>
+  <span class="kw">const</span> t = []; <span class="kw">for</span> (<span class="kw">let</span> k = 0; k &lt; 7; k++) &#123; <span class="kw">const</span> t0 = performance.now(); sumX(objs); t.push(performance.now() - t0); &#125;
+  t.sort((p, q) =&gt; p - q);
+  console.log(<span class="st">`$&#123;label.padEnd(36)&#125; median $&#123;t[3].toFixed(1)&#125; ms per 2,000,000 property reads`</span>);
+&#125;
+time(<span class="st">"1 shape (monomorphic call site)"</span>, make(1, 10_000));
+time(<span class="st">"4 shapes (polymorphic)"</span>, make(4, 10_000));
+time(<span class="st">"8 shapes (megamorphic)"</span>, make(8, 10_000));</pre></div></details></div>
+<div class="jl-cost"><div><div class="t">What to do with this</div>Create objects of one kind in one place (a constructor, a class, or one literal shape), with all fields set, in the same order; do not add properties later; do not <code>delete</code> (set to <code>undefined</code> instead); keep arrays of one element type.</div><div><div class="t">What not to do</div>Do not micro-tune before profiling: <code>node --cpu-prof app.mjs</code> writes a profile that Chrome DevTools opens, and <code>node --prof</code> is the lower-level option. Most slow Node services are slow because something blocks the event loop or waits serially, not because of shapes.</div></div>
+<p class="small">The root's {{Reading, How code runs|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} compares V8's tiers with CPython's interpreter and with ahead-of-time compilers; {{Python: CPython internals and performance|n:4055c17b0d0d8111872ad7101b7e3c22}} is the CPython side in depth.</p>
+</section>

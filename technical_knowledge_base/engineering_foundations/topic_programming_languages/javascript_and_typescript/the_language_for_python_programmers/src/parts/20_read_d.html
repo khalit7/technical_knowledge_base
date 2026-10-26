@@ -1,0 +1,199 @@
+
+<section id="s4"><h2>4. Classes and prototypes</h2>
+<p><code>class</code> looks like Python's: a <code>constructor</code> is <code>__init__</code>, <code>this</code> is <code>self</code> (implicit, never a parameter), <code>extends</code> and <code>super</code> work as expected, <code>get</code> defines a property. Differences: fields can be declared in the body; <code>#name</code> fields are truly private, enforced by the parser (Python's <code>_name</code> is a convention); there is single inheritance only; and there is no operator overloading (no <code>__eq__</code>, <code>__add__</code>, <code>__len__</code>).</p>
+<div class="jl-snip"><div class="jl-olab">real output of e1_classes.mjs, Node 24.21.0</div><pre class="jl-out" data-jl-src="e1_classes.txt">demo: 8 8 1 true
+[ 'name', 'k' ] undefined function</pre><details class="mist"><summary>The code: e1_classes.mjs</summary><div class="b"><div class="jl-file">e1_classes.mjs</div><pre class="jl-code"><span class="cm">// class: syntax over prototypes. Fields, #private fields, static members, getters, extends and super.</span>
+<span class="kw">class</span> Counter &#123;
+  #counts = <span class="kw">new</span> Map();                          <span class="cm">// # = truly private (Python's _ is only a convention)</span>
+  <span class="kw">static</span> created = 0;
+  constructor(name) &#123; <span class="kw">this</span>.name = name; Counter.created++; &#125;   <span class="cm">// Python's __init__; `this` is self</span>
+  add(user, n = 1) &#123; <span class="kw">this</span>.#counts.set(user, (<span class="kw">this</span>.#counts.get(user) ?? 0) + n); <span class="kw">return</span> <span class="kw">this</span>; &#125;
+  get total() &#123; <span class="kw">let</span> t = 0; <span class="kw">for</span> (<span class="kw">const</span> v <span class="kw">of</span> <span class="kw">this</span>.#counts.values()) t += v; <span class="kw">return</span> t; &#125;   <span class="cm">// like @property</span>
+  toString() &#123; <span class="kw">return</span> <span class="st">`$&#123;this.name&#125;: $&#123;this.total&#125;`</span>; &#125;   <span class="cm">// like __str__ (used by template strings)</span>
+&#125;
+<span class="kw">class</span> TopCounter <span class="kw">extends</span> Counter &#123;
+  constructor(name, k) &#123; <span class="kw">super</span>(name); <span class="kw">this</span>.k = k; &#125;
+  add(user, n) &#123; <span class="kw">return</span> <span class="kw">super</span>.add(user, Math.min(n, <span class="kw">this</span>.k)); &#125;
+&#125;
+<span class="kw">const</span> c = <span class="kw">new</span> TopCounter(<span class="st">"demo"</span>, 5).add(<span class="st">"u1"</span>, 3).add(<span class="st">"u2"</span>, 9);
+console.log(<span class="st">`$&#123;c&#125;`</span>, c.total, Counter.created, c <span class="kw">instanceof</span> Counter);
+console.log(Object.keys(c), c.counts, <span class="kw">typeof</span> Counter);   <span class="cm">// private fields are invisible; a class is a function</span></pre></div></details></div>
+<p>Reading a <code>#private</code> field from outside the class is not even a run-time error; the file does not parse:</p>
+<div class="jl-snip"><div class="jl-file">e1b_private.mjs</div><pre class="jl-code"><span class="cm">// Reading a #private field from outside its class is not a run-time error: the file does not even start.</span>
+<span class="kw">class</span> Box &#123; #secret = 42; &#125;
+console.log(<span class="st">"this line never runs"</span>);
+console.log(<span class="kw">new</span> Box().#secret);</pre><div class="jl-olab">real output, Node 24.21.0</div><pre class="jl-out" data-jl-src="e1b_private.txt">e1b_private.mjs:4
+console.log(new Box().#secret);
+                     ^
+
+SyntaxError: Private field '#secret' must be declared in an enclosing class
+
+Node.js v24.21.0
+[exit code 1]</pre></div>
+<p>Under the syntax, there are no classes at all: every object has a <b>prototype</b>, another object where missing properties are looked up, and so on up a chain ending at <code>Object.prototype</code> (the hero figure at the top draws it). A class is a function whose <code>prototype</code> object holds the methods; <code>new</code> makes an object whose prototype is that object. Python's attribute lookup through the MRO is the same idea with more rules ({{Python: the data model and protocols|n:4055c17b0d0d816a8705e4d3f20b3da7}}). Knowing the chain explains <code>instanceof</code>, method sharing, and why changing a prototype changes every instance; <code>Object.create(proto)</code> makes an object with a chosen prototype and no class at all.</p>
+<div class="jl-snip"><div class="jl-olab">real output of e2_prototype.mjs, Node 24.21.0</div><pre class="jl-out" data-jl-src="e2_prototype.txt">true true
+true false true
+hello from the prototype []
+patched at run time</pre><details class="mist"><summary>The code: e2_prototype.mjs</summary><div class="b"><div class="jl-file">e2_prototype.mjs</div><pre class="jl-code"><span class="cm">// Under the class syntax: every object has a prototype; a missing property is looked up along the chain.</span>
+<span class="kw">class</span> Animal &#123; speak() &#123; <span class="kw">return</span> <span class="st">`$&#123;this.name&#125; makes a sound`</span>; &#125; &#125;
+<span class="kw">class</span> Dog <span class="kw">extends</span> Animal &#123; speak() &#123; <span class="kw">return</span> <span class="st">`$&#123;this.name&#125; barks`</span>; &#125; &#125;
+<span class="kw">const</span> d = <span class="kw">new</span> Dog(); d.name = <span class="st">"Rex"</span>;
+console.log(Object.getPrototypeOf(d) === Dog.prototype, Object.getPrototypeOf(Dog.prototype) === Animal.prototype);
+console.log(Object.hasOwn(d, <span class="st">"name"</span>), Object.hasOwn(d, <span class="st">"speak"</span>), <span class="st">"speak"</span> <span class="kw">in</span> d);
+<span class="kw">const</span> base = &#123; greet() &#123; <span class="kw">return</span> <span class="st">"hello from the prototype"</span>; &#125; &#125;;
+<span class="kw">const</span> child = Object.create(base);              <span class="cm">// an object whose prototype is base: no class needed</span>
+console.log(child.greet(), Object.keys(child));
+Dog.prototype.speak = <span class="kw">function</span> () &#123; <span class="kw">return</span> <span class="st">"patched at run time"</span>; &#125;;   <span class="cm">// monkey-patching works on every Dog</span>
+console.log(d.speak());</pre></div></details></div>
+<details class="dp"><summary>Depth: the few hooks instead of dunder methods, and Proxy</summary><div class="b">
+<p>The few hooks JavaScript offers instead of dunder methods are keyed by well-known symbols: <code>Symbol.iterator</code> (<code>__iter__</code>), <code>Symbol.asyncIterator</code> (<code>__aiter__</code>), <code>Symbol.toPrimitive</code> (roughly <code>__int__</code> and <code>__str__</code>), plus <code>toString</code> and <code>toJSON</code>. With no <code>__eq__</code> or <code>__add__</code>, <code>==</code> on two objects is identity and <code>+</code> goes through <code>toPrimitive</code>.</p>
+<div class="jl-snip jl-pred"><div class="jl-file">e3_dunders.mjs</div><pre class="jl-code"><span class="cm">// Python's dunder methods have a few JavaScript counterparts, keyed by well-known Symbols.</span>
+<span class="kw">class</span> Range &#123;
+  constructor(n) &#123; <span class="kw">this</span>.n = n; &#125;
+  *[Symbol.iterator]() &#123; <span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; <span class="kw">this</span>.n; i++) <span class="kw">yield</span> i; &#125;   <span class="cm">// __iter__</span>
+  [Symbol.toPrimitive](hint) &#123; <span class="kw">return</span> hint === <span class="st">"number"</span> ? <span class="kw">this</span>.n : <span class="st">`Range($&#123;this.n&#125;)`</span>; &#125;
+&#125;
+<span class="kw">const</span> r = <span class="kw">new</span> Range(3);
+console.log([...r], <span class="st">`$&#123;r&#125;`</span>, +r, r * 2);
+<span class="kw">const</span> a = <span class="kw">new</span> Range(1), b = <span class="kw">new</span> Range(1);
+console.log(a == b, a + b);                     <span class="cm">// no __eq__ or __add__ overloading: == is identity, + uses toPrimitive</span></pre><details><summary>Predict the output, then reveal</summary><div class="jl-olab">real output, Node 24.21.0</div><pre class="jl-out" data-jl-src="e3_dunders.txt">[ 0, 1, 2 ] Range(3) 3 6
+false Range(1)Range(1)</pre></details></div>
+<p>For the rest of Python's attribute hooks (<code>__getattr__</code>, <code>__setattr__</code>), JavaScript has <code>Proxy</code>: a wrapper that intercepts reads, writes and more on any object. Libraries use it for reactivity, mocks and lazy clients. Reach for it rarely: it is slower than plain objects and surprising to readers.</p>
+<div class="jl-snip"><div class="jl-file">e4_proxy.mjs</div><pre class="jl-code"><span class="cm">// Proxy: intercept property reads and writes on an object (Python's __getattr__ and __setattr__, for any object).</span>
+<span class="cm">// Libraries use it for reactivity, mocks and lazy clients; it is slower than plain objects.</span>
+<span class="kw">const</span> config = <span class="kw">new</span> Proxy(&#123; model: <span class="st">"small"</span> &#125;, &#123;
+  get(target, key) &#123; <span class="kw">if</span> (!(key <span class="kw">in</span> target)) <span class="kw">throw</span> <span class="kw">new</span> Error(<span class="st">`unknown setting: $&#123;String(key)&#125;`</span>); <span class="kw">return</span> target[key]; &#125;,
+  set(target, key, value) &#123; <span class="kw">if</span> (key === <span class="st">"temperature"</span> &amp;&amp; (value &lt; 0 || value &gt; 2)) <span class="kw">throw</span> <span class="kw">new</span> RangeError(<span class="st">"temperature must be in [0, 2]"</span>); target[key] = value; <span class="kw">return</span> <span class="kw">true</span>; &#125;,
+&#125;);
+config.temperature = 0.7;
+console.log(config.model, config.temperature);
+<span class="kw">try</span> &#123; config.temprature; &#125; <span class="kw">catch</span> (e) &#123; console.log(e.message); &#125;      <span class="cm">// a typo is now an error, not undefined</span>
+<span class="kw">try</span> &#123; config.temperature = 5; &#125; <span class="kw">catch</span> (e) &#123; console.log(e.name, e.message); &#125;</pre><div class="jl-olab">real output, Node 24.21.0</div><pre class="jl-out" data-jl-src="e4_proxy.txt">small 0.7
+unknown setting: temprature
+RangeError temperature must be in [0, 2]</pre></div>
+</div></details>
+</section>
+
+<section id="s5"><h2>5. Modules: ES modules and CommonJS</h2>
+<p>JavaScript has two module systems, and Node runs both. <b>ES modules</b> (ESM, the standard since 2015): <code>import</code> and <code>export</code>, loaded and linked before any code runs, asynchronous, with top-level <code>await</code>. <b>CommonJS</b> (CJS, Node's original): <code>require()</code> and <code>module.exports</code>, synchronous, still in many packages. Python has one system; its <code>import</code> is closest to <code>require</code> (synchronous, runs the module once, caches it).</p>
+<div class="fig"><h4>Node picks the system per file, and the two meet in one place that can fail</h4>
+<div class="jl-flow">
+<div class="esm"><b><code>.mjs</code></b>always an ES module</div>
+<div class="cjs"><b><code>.cjs</code></b>always CommonJS</div>
+<div><b><code>.js</code></b>the <code>"type"</code> field of the nearest <code>package.json</code>: <code>"module"</code> gives ESM, missing or <code>"commonjs"</code> gives CJS</div>
+</div>
+<div class="jl-flow">
+<div class="esm"><b>ESM <code>import</code> of CJS</b>works: <code>module.exports</code> arrives as the default export</div>
+<div class="cjs"><b>CJS <code>require()</code> of ESM</b>works since Node 22.12 and 20.19, without a flag; stable in 25.4</div>
+<div class="err"><b>unless the ESM graph uses top-level <code>await</code></b><code>ERR_REQUIRE_ASYNC_MODULE</code>, because <code>require</code> must finish synchronously</div>
+</div>
+<p class="cap">All three cases ran in the real output below ({{Node docs, Loading ECMAScript modules using require()|https://nodejs.org/api/modules.html#loading-ecmascript-modules-using-require}}).</p></div>
+<p>In ESM, relative imports need the file extension, and <code>require</code>, <code>__filename</code> and <code>__dirname</code> do not exist (use <code>import.meta.url</code>, <code>import.meta.filename</code>, <code>import.meta.dirname</code>). A module's body runs once, however many times it is imported.</p>
+<div class="jl-snip"><div class="jl-olab">real output, Node 24.21.0: the folder's package.json says "type": "module"</div><pre class="jl-out" data-jl-src="f_mod.txt">$ node main.js
+tokens.js evaluated (once, however many times it is imported)
+5 true OK
+[ [ 'u2', 9 ] ]
+module
+undefined string main.js
+$ node old.cjs
+tokens.js evaluated (once, however many times it is imported)
+CJS 3 function
+object old.cjs
+$ node old_tla.cjs
+ERR_REQUIRE_ASYNC_MODULE: require() cannot be used on an ESM graph with top-level await. Use import() instead. To see where the top-level await comes from, use --experimental-print-required-tla.</pre></div>
+<details class="mist"><summary>The code: f_mod/tokens.js, main.js, old.cjs</summary><div class="b">
+<div class="jl-snip"><div class="jl-file">f_mod/tokens.js</div><pre class="jl-code"><span class="cm">// tokens.js: an ES module (this folder's package.json says "type": "module")</span>
+<span class="kw">export</span> <span class="kw">const</span> TOKEN = /[A-Za-z0-9]+/g;
+<span class="kw">export</span> <span class="kw">function</span> countTokens(text) &#123; <span class="kw">return</span> (text.match(TOKEN) ?? []).length; &#125;
+<span class="kw">export</span> <span class="kw">default</span> <span class="kw">function</span> top(map, k) &#123; <span class="kw">return</span> [...map].sort((a, b) =&gt; b[1] - a[1]).slice(0, k); &#125;
+console.log(<span class="st">"tokens.js evaluated (once, however many times it is imported)"</span>);</pre></div>
+<div class="jl-snip"><div class="jl-file">f_mod/main.js</div><pre class="jl-code"><span class="cm">// main.js: named imports, a default import, a CommonJS import, a dynamic import and top-level await</span>
+<span class="kw">import</span> top, &#123; countTokens &#125; <span class="kw">from</span> <span class="st">"./tokens.js"</span>;     <span class="cm">// the extension is required in Node ESM</span>
+<span class="kw">import</span> &#123; countTokens as again &#125; <span class="kw">from</span> <span class="st">"./tokens.js"</span>; <span class="cm">// a second import does not re-run the module</span>
+<span class="kw">import</span> legacy <span class="kw">from</span> <span class="st">"./legacy.cjs"</span>;                   <span class="cm">// CommonJS: module.exports arrives as the default</span>
+<span class="kw">const</span> &#123; readFile &#125; = <span class="kw">await</span> <span class="kw">import</span>(<span class="st">"node:fs/promises"</span>); <span class="cm">// dynamic import returns a promise; top-level await is fine in ESM</span>
+console.log(countTokens(<span class="st">"x86_64 is 2 tokens"</span>), again === countTokens, legacy.shout(<span class="st">"ok"</span>));
+console.log(top(<span class="kw">new</span> Map([[<span class="st">"u1"</span>, 3], [<span class="st">"u2"</span>, 9]]), 1));
+console.log(JSON.parse(<span class="kw">await</span> readFile(<span class="kw">new</span> URL(<span class="st">"./package.json"</span>, <span class="kw">import</span>.meta.url), <span class="st">"utf8"</span>)).type);
+console.log(<span class="kw">typeof</span> require, <span class="kw">typeof</span> <span class="kw">import</span>.meta.url, <span class="kw">import</span>.meta.filename.split(<span class="st">"/"</span>).pop());</pre></div>
+<div class="jl-snip"><div class="jl-file">f_mod/old.cjs</div><pre class="jl-code"><span class="cm">// old.cjs: CommonJS uses require() and module.exports; require is synchronous</span>
+<span class="kw">const</span> &#123; shout &#125; = require(<span class="st">"./legacy.cjs"</span>);
+<span class="kw">const</span> tokens = require(<span class="st">"./tokens.js"</span>);               <span class="cm">// require() of an ES module: allowed since Node 22.12 and 20.19</span>
+console.log(shout(<span class="st">"cjs"</span>), tokens.countTokens(<span class="st">"a b c"</span>), <span class="kw">typeof</span> tokens.<span class="kw">default</span>);
+console.log(<span class="kw">typeof</span> module, __filename.split(<span class="st">"/"</span>).pop());</pre></div>
+</div></details>
+<div class="jl-cost"><div><div class="t">What to do</div>New code: <code>"type": "module"</code> in <code>package.json</code> and <code>import</code> everywhere. Dynamic <code>await import("x")</code> for lazy loading (Python's import inside a function).</div><div><div class="t">Libraries</div>A library's <code>package.json</code> <code>"exports"</code> map says which file each runtime gets; publishing with types is on {{TypeScript: the type system, narrowing and runtime validation|n:4055c17b0d0d81519278df19753ab5ec}}.</div></div>
+</section>
+
+<section id="s6"><h2>6. Errors</h2>
+<p><code>throw</code>, <code>try</code>/<code>catch</code>/<code>finally</code> work like Python's <code>raise</code>, <code>try</code>/<code>except</code>/<code>finally</code>, with three differences. There is one <code>catch</code> per <code>try</code>, with no type filter: test <code>e instanceof X</code> or <code>e.code</code> inside it and rethrow what you do not handle. Anything can be thrown, but only <code>Error</code> objects carry a <code>stack</code>, so always throw <code>Error</code> or a subclass. And chaining is explicit: <code>new Error(msg, { cause: e })</code> is Python's <code>raise ... from e</code>.</p>
+<div class="jl-snip"><div class="jl-olab">real output of g1_errors.mjs, Node 24.21.0</div><pre class="jl-out" data-jl-src="g1_errors.txt">true true ParseError 53
+bad JSON on line 53 | cause: SyntaxError - Expected property name or '&#125;' in JSON at position 1 (line 1 column 2)
+finally always runs
+string undefined
+TypeError</pre><details class="mist"><summary>The code: g1_errors.mjs</summary><div class="b"><div class="jl-file">g1_errors.mjs</div><pre class="jl-code"><span class="cm">// throw, try/catch/finally, Error subclasses and error chaining with &#123; cause &#125; (Python's raise ... from ...).</span>
+<span class="kw">class</span> ParseError <span class="kw">extends</span> Error &#123;
+  constructor(line, options) &#123; <span class="kw">super</span>(<span class="st">`bad JSON on line $&#123;line&#125;`</span>, options); <span class="kw">this</span>.name = <span class="st">"ParseError"</span>; <span class="kw">this</span>.line = line; &#125;
+&#125;
+<span class="kw">function</span> parseLine(s, n) &#123;
+  <span class="kw">try</span> &#123; <span class="kw">return</span> JSON.parse(s); &#125;
+  <span class="kw">catch</span> (e) &#123; <span class="kw">throw</span> <span class="kw">new</span> ParseError(n, &#123; cause: e &#125;); &#125;      <span class="cm">// keep the original error as the cause</span>
+&#125;
+<span class="kw">try</span> &#123; parseLine(<span class="st">"&#123;oops"</span>, 53); &#125;
+<span class="kw">catch</span> (e) &#123;
+  console.log(e <span class="kw">instanceof</span> ParseError, e <span class="kw">instanceof</span> Error, e.name, e.line);
+  console.log(e.message, <span class="st">"| cause:"</span>, e.cause.name, <span class="st">"-"</span>, e.cause.message);
+&#125; <span class="kw">finally</span> &#123; console.log(<span class="st">"finally always runs"</span>); &#125;
+<span class="kw">try</span> &#123; <span class="kw">throw</span> <span class="st">"a bare string"</span>; &#125; <span class="kw">catch</span> (e) &#123; console.log(<span class="kw">typeof</span> e, e?.stack); &#125;   <span class="cm">// anything can be thrown; only Errors carry a stack</span>
+<span class="kw">try</span> &#123; <span class="kw">null</span>.x; &#125; <span class="kw">catch</span> (e) &#123; console.log(e.name); &#125;            <span class="cm">// no except TypeError: one catch, then test the type</span></pre></div></details></div>
+<p>An uncaught error prints the stack (innermost call first, the reverse of a Python traceback) and ends the process with exit code 1. Node errors from the system carry a stable <code>code</code> (<code>ENOENT</code>, <code>ECONNREFUSED</code>, <code>ERR_REQUIRE_ASYNC_MODULE</code>): match on the code, not on the message text.</p>
+<div class="jl-snip"><div class="jl-olab">real output of g2_uncaught.mjs, Node 24.21.0</div><pre class="jl-out" data-jl-src="g2_uncaught.txt">starting
+&lt;anonymous_script&gt;:1
+&#123;"path": "/etc/app.json", "debug": tru&#125;
+                                      ^
+
+SyntaxError: Unexpected token '&#125;', ..."ebug": tru&#125;" is not valid JSON
+    at JSON.parse (&lt;anonymous&gt;)
+    at loadConfig (g2_uncaught.mjs:2:41)
+    at g2_uncaught.mjs:4:1
+
+Node.js v24.21.0
+[exit code 1]</pre><details class="mist"><summary>The code: g2_uncaught.mjs</summary><div class="b"><div class="jl-file">g2_uncaught.mjs</div><pre class="jl-code"><span class="cm">// An uncaught error ends the process with exit code 1 and a stack trace, like a Python traceback.</span>
+<span class="kw">function</span> loadConfig(path) &#123; <span class="kw">return</span> JSON.parse(<span class="st">`&#123;"path": "$&#123;path&#125;", "debug": tru&#125;`</span>); &#125;
+console.log(<span class="st">"starting"</span>);
+loadConfig(<span class="st">"/etc/app.json"</span>);</pre></div></details></div>
+<p>Errors in asynchronous code are the hard part: a rejected promise that nobody awaits or catches does not reach any <code>try</code>, and Node ends the process. The sibling {{JavaScript: the event loop, promises and streams|n:4055c17b0d0d81fe857de8b34db109ea}} shows it (section 4).</p>
+</section>
+
+<section id="s7"><h2>7. Iteration: iterators and generators</h2>
+<p><code>for (const x of xs)</code> is Python's <code>for x in xs</code>: it works on anything iterable (arrays, strings, maps, sets, generators). <code>for...in</code> is a different, older loop over an object's <b>keys as strings</b>, including inherited ones; it is almost never what you want on an array. The iterator protocol is Python's in disguise: <code>xs[Symbol.iterator]()</code> is <code>iter(xs)</code>, and <code>it.next()</code> returns <code>{ value, done }</code> instead of raising <code>StopIteration</code>.</p>
+<div class="jl-snip jl-pred"><div class="jl-file">h1_iter.mjs</div><pre class="jl-code"><span class="cm">// for...of walks VALUES (Python's for x in xs). for...in walks KEYS, as strings, and is rarely what you want.</span>
+<span class="kw">const</span> xs = [<span class="st">"a"</span>, <span class="st">"b"</span>];
+<span class="kw">for</span> (<span class="kw">const</span> x <span class="kw">of</span> xs) console.log(<span class="st">"of:"</span>, x);
+<span class="kw">for</span> (<span class="kw">const</span> k <span class="kw">in</span> xs) console.log(<span class="st">"in:"</span>, k, <span class="kw">typeof</span> k);
+<span class="kw">for</span> (<span class="kw">const</span> [k, v] <span class="kw">of</span> Object.entries(&#123; u1: 3, u2: 9 &#125;)) console.log(k, v);   <span class="cm">// dict.items()</span>
+<span class="kw">for</span> (<span class="kw">const</span> ch <span class="kw">of</span> <span class="st">"h🚀"</span>) console.log(ch, ch.length);                         <span class="cm">// strings iterate by code point</span>
+<span class="kw">const</span> it = xs[Symbol.iterator]();               <span class="cm">// the iterator protocol, by hand: iter(xs) and next()</span>
+console.log(it.next(), it.next(), it.next());</pre><details><summary>Predict the output, then reveal</summary><div class="jl-olab">real output, Node 24.21.0</div><pre class="jl-out" data-jl-src="h1_iter.txt">of: a
+of: b
+in: 0 string
+in: 1 string
+u1 3
+u2 9
+h 1
+🚀 2
+&#123; value: 'a', done: false &#125; &#123; value: 'b', done: false &#125; &#123; value: undefined, done: true &#125;</pre></details></div>
+<p><code>function*</code> defines a <b>generator</b>, exactly Python's function-with-<code>yield</code>: lazy, paused between values, able to describe infinite sequences. Since Node 22 (ES2025 "iterator helpers"), iterators also have lazy <code>map</code>, <code>filter</code>, <code>take</code>, <code>drop</code>, <code>flatMap</code> and <code>toArray</code> methods, which make generator pipelines read like method chains (the last line below).</p>
+<div class="jl-snip"><div class="jl-olab">real output of h2_generators.mjs, Node 24.21.0</div><pre class="jl-out" data-jl-src="h2_generators.txt">[ 0, 1, 4, 9, 16 ]
+&#123; value: 0, done: false &#125; &#123; value: 1, done: false &#125; function
+[ 1, 9, 25, 49 ]</pre><details class="mist"><summary>The code: h2_generators.mjs</summary><div class="b"><div class="jl-file">h2_generators.mjs</div><pre class="jl-code"><span class="cm">// function* makes a generator, exactly like a Python function with yield: lazy, paused between values.</span>
+<span class="kw">function</span>* naturals() &#123; <span class="kw">let</span> n = 0; <span class="kw">while</span> (<span class="kw">true</span>) <span class="kw">yield</span> n++; &#125;
+<span class="kw">function</span>* take(it, k) &#123; <span class="kw">for</span> (<span class="kw">const</span> x <span class="kw">of</span> it) &#123; <span class="kw">if</span> (k-- &lt;= 0) <span class="kw">return</span>; <span class="kw">yield</span> x; &#125; &#125;
+<span class="kw">function</span>* map(it, f) &#123; <span class="kw">for</span> (<span class="kw">const</span> x <span class="kw">of</span> it) <span class="kw">yield</span> f(x); &#125;
+console.log([...take(map(naturals(), n =&gt; n * n), 5)]);
+<span class="kw">const</span> g = naturals();
+console.log(g.next(), g.next(), <span class="kw">typeof</span> g[Symbol.iterator]);
+<span class="cm">// Iterator helpers (ES2025, Node 22+): the same lazy pipeline as methods</span>
+console.log(naturals().map(n =&gt; n * n).filter(n =&gt; n % 2).take(4).toArray());</pre></div></details></div>
+<p>The asynchronous versions (<code>async function*</code>, <code>for await...of</code>) are how streams of LLM tokens are consumed: {{JavaScript: the event loop, promises and streams|n:4055c17b0d0d81fe857de8b34db109ea}}, section 5.</p>
+</section>

@@ -1,0 +1,69 @@
+
+<section id="s2"><h2>2. Objects, arrays, destructuring, copies</h2>
+<p>An <b>object literal</b> <code>{ role: "user", text: "hi" }</code> is what you reach for where Python uses a <code>dict</code>, a dataclass or a <code>SimpleNamespace</code>: a bag of properties you read as <code>msg.role</code> or <code>msg["role"]</code>. Two differences matter. Keys are always strings (or symbols): <code>1</code> and <code>"1"</code> are the same key. And iteration order is insertion order <i>except</i> that integer-like keys come first, in numeric order. For a real hash map with keys of any type, use <code>Map</code>; for a set, <code>Set</code>. Both compare keys by identity for objects (there is no <code>__hash__</code>).</p>
+[[outc:c1_objects]]
+<p><b>Arrays</b> are Python lists. The functional methods (<code>map</code>, <code>filter</code>, <code>reduce</code>, <code>find</code>, <code>some</code>, <code>every</code>, <code>flatMap</code>) return new arrays; <code>push</code>, <code>pop</code>, <code>splice</code>, <code>sort</code> and <code>reverse</code> change the array in place. The newer <code>toSorted</code>, <code>toReversed</code> and <code>with</code> (ES2023) are the non-mutating versions. <code>sort()</code> without a comparator converts every element to a string and compares those, so <code>[1, 10, 2, 3]</code> is "sorted": always pass <code>(a, b) =&gt; a - b</code>.</p>
+[[predict:c2_arrays]]
+<p><b>Destructuring</b> is Python's unpacking, extended to objects and with defaults; <b>spread</b> <code>...</code> is <code>*</code> and <code>**</code>. A function taking one destructured object parameter is the JavaScript way to write keyword arguments, and it is how most SDKs (including LLM clients) take options.</p>
+[[outc:c3_destructure]]
+<p><b>Copying.</b> Assignment never copies, as in Python. Spread (<code>{ ...o }</code>, <code>[...xs]</code>) copies one level, like <code>copy.copy</code>; <code>structuredClone</code> copies deeply, like <code>copy.deepcopy</code>, and keeps dates, maps and cycles.</p>
+<div class="fig"><h4>After one push, the alias and the shallow copy both see 2 messages; the deep copy still has 1</h4>
+<svg class="jl-svg" viewBox="0 0 360 196" role="img" aria-label="conv and alias point at one object; the shallow copy is a second object sharing the same msgs array; the deep copy has its own array">
+<text x="6" y="30" font-size="12" font-weight="600">conv</text><text x="6" y="54" font-size="12" font-weight="600">alias</text>
+<text x="6" y="104" font-size="12" font-weight="600">shallow</text><text x="6" y="164" font-size="12" font-weight="600">deep</text>
+<rect class="bx" x="96" y="14" width="96" height="48" rx="6"/><text x="104" y="31" font-size="11.5">id: 1</text><text x="104" y="45" font-size="11.5">msgs</text><text x="104" y="58" font-size="11.5" class="mu">when: Date</text>
+<rect class="bx" x="96" y="84" width="96" height="40" rx="6"/><text x="104" y="100" font-size="11.5">id: 1</text><text x="104" y="115" font-size="11.5">msgs</text>
+<rect class="bx" x="96" y="144" width="96" height="40" rx="6"/><text x="104" y="160" font-size="11.5">id: 1</text><text x="104" y="175" font-size="11.5">msgs</text>
+<line class="ln" x1="38" y1="26" x2="94" y2="30"/><line class="ln" x1="42" y1="50" x2="94" y2="40"/>
+<line class="ln" x1="56" y1="100" x2="94" y2="100"/><line class="ln" x1="40" y1="160" x2="94" y2="160"/>
+<rect class="bxa" x="206" y="40" width="150" height="64" rx="6"/><text x="214" y="57" font-size="11.5" font-weight="600">one msgs array</text><text x="214" y="73" font-size="11.5">user: "hi"</text><text x="214" y="89" font-size="11.5" class="ac" font-weight="600">+ assistant (pushed)</text>
+<rect class="bx" x="206" y="146" width="150" height="38" rx="6"/><text x="214" y="162" font-size="11.5" font-weight="600">its own array</text><text x="214" y="177" font-size="11.5">user: "hi"</text>
+<line class="lna" x1="146" y1="42" x2="204" y2="60"/><line class="lna" x1="146" y1="112" x2="204" y2="90"/><line class="ln" x1="146" y1="172" x2="204" y2="166"/>
+</svg>
+<p class="cap">The real run prints <code>2 2 1</code>: <code>alias.msgs.length</code>, <code>shallow.msgs.length</code>, <code>deep.msgs.length</code>. Spread copied only the top object, so its <code>msgs</code> is the same array.</p></div>
+[[outc:c4_copy]]
+<p>The old <code>JSON.parse(JSON.stringify(x))</code> trick, the second line above, silently turns dates into strings and drops <code>undefined</code> and functions (and turns <code>NaN</code> into <code>null</code>; it throws on cycles and BigInt). At boundaries, copy deeply with <code>structuredClone</code>; on shared arrays, prefer <code>toSorted</code>, <code>toReversed</code> and <code>with</code> over the in-place methods.</p>
+<p><b>Memory</b> is managed by a garbage collector, as in Python but with no reference counting: objects are freed some time after nothing reaches them, cycles included. A <code>WeakMap</code> attaches data to an object without keeping it alive, a cache that cannot leak.</p>
+</section>
+
+<section id="s3"><h2>3. Functions, closures and <code>this</code></h2>
+<p>Functions are values, as in Python. There are three spellings; the arrow function <code>x =&gt; x * 2</code> is the everyday one (a lambda that may also have a block body). Arguments are not checked: extra ones are ignored, missing ones are <code>undefined</code>. Default values are evaluated <b>on every call</b>, so Python's mutable-default trap does not exist here (it runs in reverse).</p>
+[[predict:d1_functions]]
+<p>A <b>closure</b> is a function that keeps the variables of the scope it was created in, exactly as in Python (without needing <code>nonlocal</code> to assign). Closures are how JavaScript does private state, callbacks and factories. The classic loop trap: <code>var</code> gives every iteration the same variable; <code>let</code> gives each iteration a fresh one.</p>
+[[predict:d2_closures]]
+<div class="fig"><h4>With <code>var</code>, three closures share one <code>i</code>; with <code>let</code>, each gets its own</h4>
+<svg class="jl-svg" viewBox="0 0 360 150" role="img" aria-label="var: three functions point at one binding i equal to 3 and print 3 3 3; let: three functions each point at their own binding j equal to 0, 1 and 2 and print 0 1 2">
+<text x="88" y="14" text-anchor="middle" font-size="12" font-weight="600">for (var i ...)</text>
+<text x="272" y="14" text-anchor="middle" font-size="12" font-weight="600">for (let j ...)</text>
+<g font-size="11.5"><rect class="bx" x="14" y="26" width="44" height="22" rx="5"/><text x="36" y="41" text-anchor="middle">f0</text>
+<rect class="bx" x="66" y="26" width="44" height="22" rx="5"/><text x="88" y="41" text-anchor="middle">f1</text>
+<rect class="bx" x="118" y="26" width="44" height="22" rx="5"/><text x="140" y="41" text-anchor="middle">f2</text>
+<rect class="bxa" x="58" y="84" width="60" height="26" rx="5"/><text x="88" y="101" text-anchor="middle" font-weight="600">i = 3</text>
+<line class="lnb" x1="36" y1="48" x2="78" y2="84"/><line class="lnb" x1="88" y1="48" x2="88" y2="84"/><line class="lnb" x1="140" y1="48" x2="98" y2="84"/>
+<text class="no" x="88" y="134" text-anchor="middle" font-weight="600">prints [ 3, 3, 3 ]</text>
+<rect class="bx" x="198" y="26" width="44" height="22" rx="5"/><text x="220" y="41" text-anchor="middle">f0</text>
+<rect class="bx" x="250" y="26" width="44" height="22" rx="5"/><text x="272" y="41" text-anchor="middle">f1</text>
+<rect class="bx" x="302" y="26" width="44" height="22" rx="5"/><text x="324" y="41" text-anchor="middle">f2</text>
+<rect class="bxa" x="196" y="84" width="48" height="26" rx="5"/><text x="220" y="101" text-anchor="middle">j = 0</text>
+<rect class="bxa" x="248" y="84" width="48" height="26" rx="5"/><text x="272" y="101" text-anchor="middle">j = 1</text>
+<rect class="bxa" x="300" y="84" width="48" height="26" rx="5"/><text x="324" y="101" text-anchor="middle">j = 2</text>
+<line class="lna" x1="220" y1="48" x2="220" y2="84"/><line class="lna" x1="272" y1="48" x2="272" y2="84"/><line class="lna" x1="324" y1="48" x2="324" y2="84"/>
+<text class="ok" x="272" y="134" text-anchor="middle" font-weight="600">prints [ 0, 1, 2 ]</text></g>
+<line x1="180" y1="20" x2="180" y2="140" stroke="var(--line)"/>
+</svg>
+<p class="cap">The second line of the run above. Python's closures behave like the <code>var</code> side (late binding of the loop variable); <code>let</code> is the fix Python does not have.</p></div>
+<h3><code>this</code></h3>
+<p>Inside a function, <code>this</code> is not fixed when the function is written; it is set by the call. <code>obj.method()</code> sets <code>this</code> to <code>obj</code>; calling the same function bare (<code>const f = obj.method; f()</code>) sets it to <code>undefined</code> (in modules and classes, which are always "strict mode"). That is the commonest bug in the language: passing <code>obj.method</code> as a callback loses <code>obj</code>. Arrow functions have no <code>this</code> of their own and use the surrounding one, which is why callbacks inside methods are written as arrows. <code>fn.bind(obj)</code> makes a copy with <code>this</code> fixed (Python makes bound methods for you; JavaScript does not).</p>
+[[predict:d3_this]]
+<div class="fig"><h4>The call decides <code>this</code>: four rules and one exception</h4>
+<div class="tw"><table>
+<thead><tr><th>How it is called</th><th><code>this</code> is</th><th>In the run above</th></tr></thead>
+<tbody>
+<tr><td><code>bot.hello()</code></td><td>the object before the dot</td><td><code>hi from bot</code></td></tr>
+<tr><td><code>loose()</code>, after <code>const loose = bot.hello</code></td><td><span class="hl"><code>undefined</code></span> (strict mode)</td><td><code>hi from undefined</code></td></tr>
+<tr><td><code>new Fn()</code></td><td>a fresh object</td><td>(section 4)</td></tr>
+<tr><td><code>fn.call(o, ...)</code>, <code>fn.apply(o, [...])</code>, <code>fn.bind(o)</code></td><td><code>o</code>, explicitly</td><td><code>hi from other</code></td></tr>
+<tr><td>an arrow function</td><td>no own <code>this</code>: the surrounding one</td><td><code>[ 'bot' ]</code> against <code>[ undefined ]</code></td></tr>
+</tbody></table></div>
+<p class="cap">Those four rules are all there is. Rule of thumb: methods as method syntax inside classes and objects; every callback as an arrow function; never pass <code>obj.method</code> bare, pass <code>() =&gt; obj.method()</code>.</p></div>
+</section>

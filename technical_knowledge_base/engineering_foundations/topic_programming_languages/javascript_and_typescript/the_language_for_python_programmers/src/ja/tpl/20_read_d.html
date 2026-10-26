@@ -1,0 +1,55 @@
+
+<section id="s4"><h2>4. Classes and prototypes</h2>
+<p><code>class</code> looks like Python's: a <code>constructor</code> is <code>__init__</code>, <code>this</code> is <code>self</code> (implicit, never a parameter), <code>extends</code> and <code>super</code> work as expected, <code>get</code> defines a property. Differences: fields can be declared in the body; <code>#name</code> fields are truly private, enforced by the parser (Python's <code>_name</code> is a convention); there is single inheritance only; and there is no operator overloading (no <code>__eq__</code>, <code>__add__</code>, <code>__len__</code>).</p>
+[[outc:e1_classes]]
+<p>Reading a <code>#private</code> field from outside the class is not even a run-time error; the file does not parse:</p>
+[[run:e1b_private]]
+<p>Under the syntax, there are no classes at all: every object has a <b>prototype</b>, another object where missing properties are looked up, and so on up a chain ending at <code>Object.prototype</code> (the hero figure at the top draws it). A class is a function whose <code>prototype</code> object holds the methods; <code>new</code> makes an object whose prototype is that object. Python's attribute lookup through the MRO is the same idea with more rules ({{Python: the data model and protocols|n:4055c17b0d0d816a8705e4d3f20b3da7}}). Knowing the chain explains <code>instanceof</code>, method sharing, and why changing a prototype changes every instance; <code>Object.create(proto)</code> makes an object with a chosen prototype and no class at all.</p>
+[[outc:e2_prototype]]
+<details class="dp"><summary>Depth: the few hooks instead of dunder methods, and Proxy</summary><div class="b">
+<p>The few hooks JavaScript offers instead of dunder methods are keyed by well-known symbols: <code>Symbol.iterator</code> (<code>__iter__</code>), <code>Symbol.asyncIterator</code> (<code>__aiter__</code>), <code>Symbol.toPrimitive</code> (roughly <code>__int__</code> and <code>__str__</code>), plus <code>toString</code> and <code>toJSON</code>. With no <code>__eq__</code> or <code>__add__</code>, <code>==</code> on two objects is identity and <code>+</code> goes through <code>toPrimitive</code>.</p>
+[[predict:e3_dunders]]
+<p>For the rest of Python's attribute hooks (<code>__getattr__</code>, <code>__setattr__</code>), JavaScript has <code>Proxy</code>: a wrapper that intercepts reads, writes and more on any object. Libraries use it for reactivity, mocks and lazy clients. Reach for it rarely: it is slower than plain objects and surprising to readers.</p>
+[[run:e4_proxy]]
+</div></details>
+</section>
+
+<section id="s5"><h2>5. Modules: ES modules and CommonJS</h2>
+<p>JavaScript has two module systems, and Node runs both. <b>ES modules</b> (ESM, the standard since 2015): <code>import</code> and <code>export</code>, loaded and linked before any code runs, asynchronous, with top-level <code>await</code>. <b>CommonJS</b> (CJS, Node's original): <code>require()</code> and <code>module.exports</code>, synchronous, still in many packages. Python has one system; its <code>import</code> is closest to <code>require</code> (synchronous, runs the module once, caches it).</p>
+<div class="fig"><h4>Node picks the system per file, and the two meet in one place that can fail</h4>
+<div class="jl-flow">
+<div class="esm"><b><code>.mjs</code></b>always an ES module</div>
+<div class="cjs"><b><code>.cjs</code></b>always CommonJS</div>
+<div><b><code>.js</code></b>the <code>"type"</code> field of the nearest <code>package.json</code>: <code>"module"</code> gives ESM, missing or <code>"commonjs"</code> gives CJS</div>
+</div>
+<div class="jl-flow">
+<div class="esm"><b>ESM <code>import</code> of CJS</b>works: <code>module.exports</code> arrives as the default export</div>
+<div class="cjs"><b>CJS <code>require()</code> of ESM</b>works since Node 22.12 and 20.19, without a flag; stable in 25.4</div>
+<div class="err"><b>unless the ESM graph uses top-level <code>await</code></b><code>ERR_REQUIRE_ASYNC_MODULE</code>, because <code>require</code> must finish synchronously</div>
+</div>
+<p class="cap">All three cases ran in the real output below ({{Node docs, Loading ECMAScript modules using require()|https://nodejs.org/api/modules.html#loading-ecmascript-modules-using-require}}).</p></div>
+<p>In ESM, relative imports need the file extension, and <code>require</code>, <code>__filename</code> and <code>__dirname</code> do not exist (use <code>import.meta.url</code>, <code>import.meta.filename</code>, <code>import.meta.dirname</code>). A module's body runs once, however many times it is imported.</p>
+[[out:f_mod|real output, Node 24.21.0: the folder's package.json says "type": "module"]]
+<details class="mist"><summary>The code: f_mod/tokens.js, main.js, old.cjs</summary><div class="b">
+[[code:f_mod/tokens.js]]
+[[code:f_mod/main.js]]
+[[code:f_mod/old.cjs]]
+</div></details>
+<div class="jl-cost"><div><div class="t">What to do</div>New code: <code>"type": "module"</code> in <code>package.json</code> and <code>import</code> everywhere. Dynamic <code>await import("x")</code> for lazy loading (Python's import inside a function).</div><div><div class="t">Libraries</div>A library's <code>package.json</code> <code>"exports"</code> map says which file each runtime gets; publishing with types is on {{TypeScript: the type system, narrowing and runtime validation|n:4055c17b0d0d81519278df19753ab5ec}}.</div></div>
+</section>
+
+<section id="s6"><h2>6. Errors</h2>
+<p><code>throw</code>, <code>try</code>/<code>catch</code>/<code>finally</code> work like Python's <code>raise</code>, <code>try</code>/<code>except</code>/<code>finally</code>, with three differences. There is one <code>catch</code> per <code>try</code>, with no type filter: test <code>e instanceof X</code> or <code>e.code</code> inside it and rethrow what you do not handle. Anything can be thrown, but only <code>Error</code> objects carry a <code>stack</code>, so always throw <code>Error</code> or a subclass. And chaining is explicit: <code>new Error(msg, { cause: e })</code> is Python's <code>raise ... from e</code>.</p>
+[[outc:g1_errors]]
+<p>An uncaught error prints the stack (innermost call first, the reverse of a Python traceback) and ends the process with exit code 1. Node errors from the system carry a stable <code>code</code> (<code>ENOENT</code>, <code>ECONNREFUSED</code>, <code>ERR_REQUIRE_ASYNC_MODULE</code>): match on the code, not on the message text.</p>
+[[outc:g2_uncaught]]
+<p>Errors in asynchronous code are the hard part: a rejected promise that nobody awaits or catches does not reach any <code>try</code>, and Node ends the process. The sibling {{JavaScript: the event loop, promises and streams|n:4055c17b0d0d81fe857de8b34db109ea}} shows it (section 4).</p>
+</section>
+
+<section id="s7"><h2>7. Iteration: iterators and generators</h2>
+<p><code>for (const x of xs)</code> is Python's <code>for x in xs</code>: it works on anything iterable (arrays, strings, maps, sets, generators). <code>for...in</code> is a different, older loop over an object's <b>keys as strings</b>, including inherited ones; it is almost never what you want on an array. The iterator protocol is Python's in disguise: <code>xs[Symbol.iterator]()</code> is <code>iter(xs)</code>, and <code>it.next()</code> returns <code>{ value, done }</code> instead of raising <code>StopIteration</code>.</p>
+[[predict:h1_iter]]
+<p><code>function*</code> defines a <b>generator</b>, exactly Python's function-with-<code>yield</code>: lazy, paused between values, able to describe infinite sequences. Since Node 22 (ES2025 "iterator helpers"), iterators also have lazy <code>map</code>, <code>filter</code>, <code>take</code>, <code>drop</code>, <code>flatMap</code> and <code>toArray</code> methods, which make generator pipelines read like method chains (the last line below).</p>
+[[outc:h2_generators]]
+<p>The asynchronous versions (<code>async function*</code>, <code>for await...of</code>) are how streams of LLM tokens are consumed: {{JavaScript: the event loop, promises and streams|n:4055c17b0d0d81fe857de8b34db109ea}}, section 5.</p>
+</section>

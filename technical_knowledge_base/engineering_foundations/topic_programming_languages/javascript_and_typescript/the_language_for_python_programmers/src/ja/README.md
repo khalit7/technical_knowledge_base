@@ -1,0 +1,6 @@
+# Examples, recorded outputs and part templates
+
+- `code/`: every example on the page (`*.mjs`, `f_mod/` for modules, `q/` the 22 playground drills). `run_all.sh` runs each with Node 24.21.0 and writes `outputs/`. Cleaning applied to outputs: paths to `code/` shortened to the file name, Node's internal stack frames dropped, a non-zero exit shown as `[exit code N]`, and for `n3_deopt` addresses and compile timings removed. Nothing else.
+- `outputs/node_versions_diff.txt` is the language page's record of 2026-10-05 (every deterministic example and drill identical on Node 22.22.2 and 26.10.0); a rerun of `run_all.sh` writes `node_versions_diff.here.txt` for this page's subset.
+- `tpl/`: the part sources. `gen.py` expands markers (`[[run:]]`, `[[code:]]`, `[[out:]]`, `[[outc:]]`, `[[predict:]]`, `[[units:]]`, `[[json:]]`) with the real code and recorded outputs and writes `../parts/20_read_*.html`, `22_js_jl_0data.js`, `24_js_jl_read.js`, `31_tab_play_a.html`, `32_js_jl_play.js`. Never edit those parts by hand: edit `tpl/`, run `python3 gen.py`, then `sh ../build.sh`.
+- `coverage.json`: the old written page's claims this page carries (trimmed from the language page's list). `versions.txt`: the toolchain record of the original runs.
