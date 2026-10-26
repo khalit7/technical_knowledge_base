@@ -135,7 +135,7 @@ span.hl{background:var(--hl);border-radius:3px;padding:0 3px}
 </style></head><body><div class="w">
 <div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81d796ccc0a293218c57" target="_blank" rel="noopener noreferrer">Topic: ml-fundamentals</a> · deep dive</div>
 <h1>Loss functions</h1>
-<div class="sub">Reading: 27 min, plus 5 in closed details. What a loss makes a model estimate and what it does to the gradient: regression losses as noise models, outliers and leverage, cross entropy and its gradient on the logits, focal loss and label smoothing, margins, ranking losses, and the adversarial loss. Every curve and fit is computed in your browser and checked against PyTorch. Data as of October 2026.</div>
+<div class="sub">Reading: 28 min, plus 5 in closed details. What a loss makes a model estimate and what it does to the gradient: regression losses as noise models, outliers and leverage, cross entropy and its gradient on the logits, focal loss and label smoothing, margins, ranking losses, and the adversarial loss. Every curve and fit is computed in your browser and checked against PyTorch. Data as of October 2026.</div>
 <div class="tabs" role="tablist" id="tabs">
 <button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-fit" aria-selected="false">Fit a line</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
@@ -194,7 +194,7 @@ span.hl{background:var(--hl);border-radius:3px;padding:0 3px}
 
 <section id="s-reg">
 <h2>Regression: each loss is a noise model, and picks a statistic</h2>
-<p>Every regression loss is a function ρ(<i>u</i>) of the error, and its derivative ψ(<i>u</i>) is the pull. MSE is maximum likelihood for Gaussian noise of fixed variance: &minus;log N(<i>y</i> | ŷ, σ<sup>2</sup>) = (<i>y</i> &minus; ŷ)<sup>2</sup>/(2σ<sup>2</sup>) + log(σ√(2π)), so with σ fixed only the squared error is left <i class="nl d">derived</i>; MAE is the same for Laplace noise.</p>
+<p>Every regression loss is a function ρ(<i>u</i>) of the error, and its derivative ψ(<i>u</i>) is the pull. MSE is maximum likelihood for Gaussian noise of fixed variance and MAE for Laplace noise (the recipe that turns a noise distribution into its loss, with each derivation: <a href="https://app.notion.com/p/3c65c17b0d0d815f9a47d613409b5a0c" target="_blank" rel="noopener noreferrer">Probability for ML</a>, section 7).</p>
 <div class="tw"><table>
 <tr><th>Loss</th><th>Per example, ρ(<i>u</i>)</th><th>Pull ψ(<i>u</i>)</th><th>For</th><th>Against</th></tr>
 <tr><td>MSE</td><td><i>u</i><sup>2</sup></td><td>2<i>u</i>: grows with the error</td><td>smooth, and the gradient shrinks near the minimum, so convergence is clean for small errors</td><td>squaring lets huge errors dominate: drastic update jumps, very sensitive to outliers</td></tr>
@@ -274,6 +274,15 @@ span.hl{background:var(--hl);border-radius:3px;padding:0 3px}
 <li><b>It is entropy plus KL.</b> Against any target distribution <i>P</i>, cross entropy <i>H</i>(<i>P</i>, <i>Q</i>) = <i>H</i>(<i>P</i>) + <i>D</i><sub>KL</sub>(<i>P</i>&#8214;<i>Q</i>). With a one-hot <i>P</i>, <i>H</i>(<i>P</i>) = 0 and the loss <i>is</i> the KL; with a soft target (label smoothing, a teacher) <i>H</i>(<i>P</i>) &gt; 0 is a floor no model goes below. The derivation is on <a href="https://app.notion.com/p/3c65c17b0d0d81c6baf3f778a62e14e5" target="_blank" rel="noopener noreferrer">Information theory for ML</a>.</li>
 <li><b>Its gradient on the logits is just</b> &part;<i>L</i>/&part;<i>z</i><sub><i>k</i></sub> = <i>p</i><sub><i>k</i></sub> &minus; <i>y</i><sub><i>k</i></sub>. Every wrong class is pushed down by its probability, the right class up by what it lacks, and the pushes sum to zero <i class="nl d">derived</i>. For the cat that is &minus;0.257 on the cat logit; for the car, &minus;0.992 on the car logit: a confidently wrong example gets almost the largest push possible (1).</li>
 </ul>
+<p><b>The same gradient for every standard pairing.</b> Pair each output with its matching activation and loss and the gradient in the logit <i>z</i> (the raw score before any squashing, what backprop starts from) is always <b>prediction minus target</b> <i class="nl d">derived</i>:</p>
+<div class="tw"><table>
+<tr><th>Output</th><th>Activation, loss</th><th>&part;<i>L</i>/&part;<i>z</i></th></tr>
+<tr><td>a real number</td><td>identity, &frac12;(ŷ &minus; <i>y</i>)<sup>2</sup></td><td>ŷ &minus; <i>y</i></td></tr>
+<tr><td>yes or no</td><td>sigmoid <i>p</i> = σ(<i>z</i>), binary cross entropy</td><td><i>p</i> &minus; <i>y</i></td></tr>
+<tr><td>one of <i>K</i> classes</td><td>softmax, cross entropy &minus;log <i>p</i><sub><i>t</i></sub></td><td><i>p</i> &minus; <i>e</i><sub><i>t</i></sub> (one-hot <i>e</i><sub><i>t</i></sub>); <i>p</i> &minus; <i>q</i> with soft targets <i>q</i></td></tr>
+<tr><td>a count</td><td>rate μ = e<sup><i>z</i></sup>, Poisson negative log-likelihood</td><td>e<sup><i>z</i></sup> &minus; <i>y</i></td></tr>
+</table></div>
+<p>Each pairing is a generalised linear model: the target's distribution is in the exponential family, the logit is its natural parameter, and the negative log-likelihood has gradient <b>mean minus target</b> (why, from the distribution: <a href="https://app.notion.com/p/3c65c17b0d0d815f9a47d613409b5a0c" target="_blank" rel="noopener noreferrer">Probability for ML</a>, section 7; every derivation step: <a href="https://app.notion.com/p/3c65c17b0d0d81eb8b49ed6a0f897f3b" target="_blank" rel="noopener noreferrer">Calculus and optimisation for ML</a>, section 2). What it means in practice: the push on a logit is bounded by 1 and is largest exactly when the model is most wrong. A squashing activation paired with the <i>wrong</i> loss keeps the activation's slope, which vanishes there: squared error on a sigmoid has gradient 2(<i>p</i> &minus; <i>y</i>)<i>p</i>(1 &minus; <i>p</i>), and at <i>z</i> = &minus;6 with <i>y</i> = 1 that is &minus;0.0049 against cross entropy's &minus;0.9975, about <b>203 times</b> smaller; the softmax case is the 38 times below.</p>
 <p>Every other classification loss is this gradient reshaped: a softer target, a weight per example, or a different function of <i>p</i>. The widget puts each beside cross entropy on the same logits.</p>
 <p class="try"><b>Predict, then look:</b> on the car (confidently wrong), which loss pushes the car logit hardest, and which barely at all? Pick "confidently wrong", then each loss on the right.</p>
 <div class="card" id="lg-card">
