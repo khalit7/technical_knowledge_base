@@ -1,9 +1,9 @@
-"""Build parts/22_js_rd_data.js from the recorded outputs in code/out/ (and the JS/TS page's MCP recording),
+"""Build parts/22_js_rd_data.js from the recorded outputs in code/out/ (and the MCP recording on the TypeScript LLM apps and agents page),
 so the page embeds exactly what was recorded. Redacts secret-looking strings (none expected).
 Usage: python3 gen_data.py"""
 import getpass, json, pathlib, re
 H = pathlib.Path(__file__).parent; O = H / "code" / "out"
-TL = H.parents[3] / "engineering_foundations/topic_programming_languages/javascript_and_typescript/src/tl/outputs"
+TL = H.parents[3] / "engineering_foundations/topic_programming_languages/javascript_and_typescript/llm_apps_and_agents/src/tl/outputs"
 RED = re.compile(r"(glpat-[\w-]+|sk-ant-[\w-]+|Bearer [A-Za-z0-9._-]{20,}|\b2a0a:[0-9a-f:]+)")
 USER = re.compile(r"\b%s\b" % re.escape(getpass.getuser()))  # the login name, looked up at run time; recordings show "dev"
 red = lambda s: USER.sub("dev", RED.sub("[redacted]", s))
