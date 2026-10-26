@@ -58,6 +58,15 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.click('#prM button[data-m=simpo]');
   await (await p.$('#pr')).screenshot({ path: path.join(shots, `x-pair-simpo3-${scheme}.png`) });
   await (await p.$('#mk')).screenshot({ path: path.join(shots, `x-mask-${scheme}.png`) });
+  // 4b. the loss-family push (moved from the DPO paper page, 2026-10-26): both views, every step; numbers equal LFX
+  { const n2 = await p.$eval('#lfxCtl-s', e => +e.max + 1);
+    if (n2 !== 6) { bad++; console.log('lfx steps', n2) }
+    for (const m of ['push', 'loss']) { await p.click(`#lfxM button[data-m=${m}]`);
+      for (let i = 0; i < n2; i++) { await p.$eval('#lfxCtl-s', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, i); await textOk('#lfx', `lfx ${m} ${i}`);
+        const ok = await p.evaluate(i => { const r = window.AL_LFX.F[i].run, z = window.LFX[r], t = document.getElementById('lfxCnt').innerText; return t.includes(z.kl.toFixed(2)) && t.includes(z.top) && document.querySelectorAll('#lfxSvg path').length === i + 1 }, i);
+        if (!ok) { bad++; console.log('lfx counters or curves wrong at', m, i) } } }
+    await p.click('#lfxM button[data-m=push]'); await p.$eval('#lfxCtl-s', e => { e.value = 3; e.dispatchEvent(new Event('input')) });
+    await (await p.$('#lfx')).screenshot({ path: path.join(shots, `x-lfx-ipo-${scheme}.png`) }); }
   // 4b. the static figures and their toggles
   for (const [fig, seg] of [['hero', null], ['sm', 'smM'], ['rmf', null], ['rlf', 'rlM'], ['oof', null], ['rvf', 'rvM'], ['ref', null]]) {
     const modes = seg ? await p.$$eval(`#${seg} button`, bs => bs.map(b => b.dataset.m)) : [''];
@@ -92,7 +101,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
   await p.goto('file://' + page);
   await p.click('button[data-t=t-read]');
-  for (const id of ['pk', 'pr']) {
+  for (const id of ['pk', 'pr', 'lfx']) {
     await p.$eval('#' + id, e => e.scrollIntoView());
     await new Promise(r => setTimeout(r, 3500));
     const v = await p.$eval('#' + id + 'Ctl-s', e => +e.value);

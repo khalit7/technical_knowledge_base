@@ -154,10 +154,11 @@ table.fam td,table.fam th{font-size:12.5px}table.fam td:first-child{font-weight:
 .tr-det{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft);min-height:6em}
 .tr-det h3{margin:0 0 4px}
 @media (max-width:520px){.pr-eq{font-size:13px}.tk{font-size:11px}}
+.lfx-cnt{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--mute);margin:6px 0}.lfx-cnt b{color:var(--ink)}
 </style></head><body><div class="w">
 <div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b" target="_blank" rel="noopener noreferrer">Topic: llm-training-and-post-training</a> · child page</div>
 <h1>Alignment: SFT, RLHF, DPO Family, RLVR</h1>
-<div class="sub">How a base model becomes an assistant: which tokens SFT learns from, how a reward model or a direct loss turns "this answer is better" into a gradient, when online RL beats offline pairs, what changes when a program checks the answer, and how open recipes chain the stages. Sources checked 3 October 2026; data as of October 2026. <span id="rd-time">Reading: 25 min, plus 4 in closed details.</span></div>
+<div class="sub">How a base model becomes an assistant: which tokens SFT learns from, how a reward model or a direct loss turns "this answer is better" into a gradient, when online RL beats offline pairs, what changes when a program checks the answer, and how open recipes chain the stages. Sources checked 3 October 2026; data as of October 2026. <span id="rd-time">Reading: 26 min, plus 4 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
 <button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-tree" aria-selected="false">Method family tree</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
@@ -332,6 +333,18 @@ table.fam td,table.fam th{font-size:12.5px}table.fam td:first-child{font-weight:
 <details class="dp"><summary>How the toy is built <span class="mute">(under 1 min)</span></summary><div class="b"><p class="small">Each token's log-probability is log σ(θ) of its own parameter, the shared prefix sharing one, so the bars move independently; a real model shares parameters across answers, which is where likelihood displacement comes from. Hyperparameters are each paper's defaults: DPO β = 0.1; cDPO ε = 0.1 <i class="nl i">illustrative</i>, the note gives no default; IPO τ = 0.1 <i class="nl i">illustrative</i>; length-normalised DPO β = 5 (Tulu 3); SimPO β = 2, γ = 1 (its Llama-3-Base row); ORPO λ = 0.1 (its Mistral setting); KTO β = 0.1, λ<sub>D</sub> = λ<sub>U</sub> = 1, with its reference point z<sub>0</sub> taken as the clipped mean log-ratio of the two answers (the paper estimates it from mismatched pairs in the batch). Training: 400 steps of plain gradient descent, the step size fixed so that every method's largest first step is the same, so differences afterwards come from each loss's shape. Recomputed in <code>src/recompute.py</code>; the page's JavaScript matches it (<code>check_pair.mjs</code>).</p></div></details>
 </div>
 
+<p><b>Why some losses stop and others do not.</b> Almost every successor keeps DPO's frame (a margin between the chosen and the rejected answer, measured against a reference) and changes one thing: how hard a pair is pushed as a function of its margin. That one curve decides whether training stops. Below, the push −∂ℒ/∂<i>h</i> on one pair against its margin <i>h</i> = log π<sub>θ</sub>/π<sub>ref</sub>(<i>y<sub>w</sub></i>) − log π<sub>θ</sub>/π<sub>ref</sub>(<i>y<sub>l</sub></i>) in nats (before any β), one loss per step, with what each did when trained for 4,000 steps on the same deterministic labels on the <a href="https://app.notion.com/p/3c65c17b0d0d818bb1d8cafd30e20f9e" target="_blank" rel="noopener noreferrer">DPO paper page</a>'s enumerable toy (its Run tab trains them).</p>
+<div class="card" id="lfx">
+<h3 style="margin-top:0">The push on a pair against its margin: only a target or a hinge lets it reach zero</h3>
+<p class="try">Predict before stepping: which losses still push a pair that is already ranked right by 10 nats?</p>
+<div class="seg" id="lfxM" role="group" aria-label="View"><button class="on" data-m="push">push on a pair</button><button data-m="loss">the loss itself</button></div>
+<div id="lfxSvg" class="rd-svg"></div>
+<div class="an-ctl" id="lfxCtl"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="lfxStep"></div><p id="lfxCap" style="margin:2px 0 0"></p></div>
+<div class="lfx-cnt" id="lfxCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Curves at the toy's settings: β = 0.1 for DPO and cDPO (ε = 0.1), β = 0.5 for the hinge, τ = 0.1 for IPO, β = 2 and γ = 1 for SimPO (whose margin is the reference-free, length-averaged log-probability gap), each push scaled to 1 at <i>h</i> = 0. Formulas from each paper; the IPO and cDPO forms are those of the authors' code (<a href="https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py" target="_blank" rel="noopener noreferrer">trainers.py</a>). Answer: DPO, cDPO (until about 22 nats), SimPO and unlikelihood still push; the hinge has stopped at 2 and IPO pushes the pair back towards 5. The margin here is unscaled, so cDPO's stopping point ln 9 / β is 22 nats, the same point as the 2.20 of the pair animation above, which scales by β. <code>mk_lfx_data.py</code> copies the toy outcomes from the DPO page.</p>
+</div>
+
 <div class="tw"><table class="fam">
 <thead><tr><th>Loss</th><th>What it changes</th><th>What it fixes</th><th>Reference model</th><th>Pairs needed</th><th>Defaults and result</th></tr></thead>
 <tbody>
@@ -428,7 +441,7 @@ table.fam td,table.fam th{font-size:12.5px}table.fam td:first-child{font-weight:
 <h3>Paper pages in this knowledge base</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8180b958d8299996a063" target="_blank" rel="noopener noreferrer">InstructGPT</a></div><p>SFT, reward model and PPO; the toy pipeline trains live ("Run the three steps"). <span class="rt">(23 min)</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d818bb1d8cafd30e20f9e" target="_blank" rel="noopener noreferrer">Direct Preference Optimization</a></div><p>DPO and RLHF trained on an enumerable toy; "Then and now" morphs the push on a pair through Unlikelihood, DPO, SLiC, IPO, cDPO and SimPO. <span class="rt">(19 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d818bb1d8cafd30e20f9e" target="_blank" rel="noopener noreferrer">Direct Preference Optimization</a></div><p>The derivation, its results with error bars, and DPO and RLHF trained on an enumerable toy (the toy whose long runs the push animation in section 5 reports). <span class="rt">(19 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817f9fc5cb9a9fbcbee5" target="_blank" rel="noopener noreferrer">DeepSeekMath (GRPO)</a></div><p>PPO against GRPO, animated; six methods trained live from one toy base. <span class="rt">(23 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d815a9b31e9443961c700" target="_blank" rel="noopener noreferrer">Constitutional AI</a></div><p>The two pipelines animated, the released critique chains replayed, refusals counted. <span class="rt">(18 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d813faca4f7a51eaa0c65" target="_blank" rel="noopener noreferrer">DeepSeek-R1</a></div><p>R1-Zero and R1; a tiny R1-Zero trains in the page. <span class="rt">(35 min)</span></p></div>
@@ -989,6 +1002,59 @@ window.AL_FIG=(function(){
     el.innerHTML=F.svg(W,y,g,'Stage order of five open post-training recipes: Tulu 3, Llama 3.1, DeepSeek-R1, Qwen3, Olmo 3 Think');
   }
   RD.onRender(draw);RD.onResize(draw);draw();
+})();
+</script>
+<script>/* 26z_js_lfx_data.js */
+// Generated by src/mk_lfx_data.py from the DPO paper page's toy long runs (reference/papers/dpo/src/parts/_gen_toy.js). Do not edit.
+window.LFX={"DPO β = 0.1":{"steps":4000,"kl":7.4662,"r":0.8936,"g":0.104,"u":0.882,"top":"great is very great","kl1200":2.0601},"IPO τ = 0.1":{"steps":4000,"kl":1.5158,"r":0.8252,"g":0.815,"u":0.175,"top":"film was very good","kl1200":1.2602},"cDPO β = 0.1, ε = 0.1":{"steps":4000,"kl":6.3003,"r":0.9228,"g":0.255,"u":0.732,"top":"great is so great","kl1200":1.6715},"SimPO β = 2, γ = 1":{"steps":4000,"kl":8.9453,"r":0.974,"g":0.002,"u":0.981,"top":"was good very great","kl1200":4.1738},"Hinge (SLiC) β = 0.5":{"steps":4000,"kl":3.0108,"r":0.918,"g":0.72,"u":0.275,"top":"film was very great","kl1200":1.459},"Unlikelihood α = 1":{"steps":4000,"kl":8.8218,"r":0.7663,"g":0.003,"u":0.962,"top":"not cast plot great","kl1200":2.3732}};
+</script>
+<script>/* 27_js_lfx.js */
+// ---- Reading, DPO family: the push on one pair as a function of its margin, one loss per step ----
+// Moved from the DPO paper page's Then and now tab on 2026-10-26 (this page owns the DPO family). A stepper on RD.anim:
+// nothing moves until the reader acts. Toy outcomes in the counters: window.LFX (mk_lfx_data.py, from the DPO page's long runs).
+window.AL_LFX=(function(){
+  const card=document.getElementById('lfx');if(!card)return null;
+  const sg=x=>1/(1+Math.exp(-x)),ls=x=>x>-30?Math.log1p(Math.exp(-x)):-x;   // ls(x) = -log sigma(x)
+  const AX='https://arxiv.org/html/2305.18290v3#A3.SS3';
+  const F=[
+   {n:'Unlikelihood',d:'2019, the DPO paper\'s baseline',run:'Unlikelihood α = 1',c:'var(--c4)',push:h=>1,loss:h=>1-h/5,
+    t:'Unlikelihood: push every pair at full strength',cap:z=>'−log π(<i>y<sub>w</sub></i>) + α log π(<i>y<sub>l</sub></i>) (DPO paper, <a href="'+AX+'" target="_blank" rel="noopener noreferrer">App. C.3</a>). The push does not depend on the margin at all, and nothing ties the policy to π<sub>ref</sub>. On the toy the grammar is gone by 4,000 steps ('+pc(z.g)+' grammatical), the paper\'s "when when when" in miniature.'},
+   {n:'DPO',d:'May 2023',run:'DPO β = 0.1',c:'var(--c1)',push:h=>2*sg(-0.1*h),loss:h=>ls(0.1*h)/Math.LN2,
+    t:'DPO: push fades as the margin grows, but never stops',cap:z=>'−log σ(β<i>h</i>). The weight σ(−β<i>h</i>) is the paper\'s key ingredient; but it only reaches zero at an infinite margin, so with near-deterministic preferences the margins keep growing and the KL penalty is effectively ignored (Azar et al.\'s critique). At β = 0.1 the push is still 75% of its starting value at a margin of 5 nats. On the toy the KL keeps climbing: '+z.kl1200.toFixed(2)+' at 1,200 steps, '+z.kl.toFixed(2)+' at 4,000.'},
+   {n:'Hinge (SLiC-HF)',d:'May 2023, concurrent',run:'Hinge (SLiC) β = 0.5',c:'var(--c5)',push:h=>0.5*h<1?1:0,loss:h=>Math.max(0,1-0.5*h),
+    t:'SLiC-HF\'s hinge: full push until a fixed margin, then none',cap:z=>'max(0, δ − β<i>h</i>), here with δ = 1 and β = 0.5, so the push stops at <i>h</i> = 2 (SLiC-HF calibrates sequence likelihoods this way, with an extra SFT term not run here). A pair that is ordered well enough is left alone.'},
+   {n:'IPO',d:'October 2023',run:'IPO τ = 0.1',c:'var(--c6)',push:h=>1-2*0.1*h,loss:h=>(h-5)*(h-5)/25,
+    t:'IPO: pull every margin to a target, from either side',cap:z=>'(<i>h</i> − 1/(2τ))². The push is linear and changes sign at the target margin 1/(2τ) = 5 nats, so a pair can be pushed back. Azar et al. derive it as the identity case of their ΨPO objective, which needs no Bradley-Terry assumption. On the toy it is the only loss whose KL nearly levels off: '+z.kl1200.toFixed(2)+' at 1,200 steps, '+z.kl.toFixed(2)+' at 4,000, against DPO\'s climb from '+D('DPO β = 0.1').kl1200.toFixed(2)+' to '+D('DPO β = 0.1').kl.toFixed(2)+'.'},
+   {n:'cDPO',d:'November 2023 note; rDPO March 2024',run:'cDPO β = 0.1, ε = 0.1',c:'var(--c3)',push:h=>((0.9)*sg(-0.1*h)-0.1*sg(0.1*h))/0.4,loss:h=>(0.9*ls(0.1*h)+0.1*ls(-0.1*h))/Math.LN2,
+    t:'Conservative DPO: assume ε of the labels are flipped',cap:z=>'(1 − ε) ℒ<sub>DPO</sub>(<i>y<sub>w</sub></i>, <i>y<sub>l</sub></i>) + ε ℒ<sub>DPO</sub>(<i>y<sub>l</sub></i>, <i>y<sub>w</sub></i>): the gradient is zero when σ(β<i>h</i>) = 1 − ε (Mitchell\'s note), at <i>h</i> = ln 9 / β ≈ 22 nats for ε = 0.1, β = 0.1. A finite stopping point, but far away; the toy is still drifting at 4,000 steps.'},
+   {n:'SimPO',d:'May 2024',run:'SimPO β = 2, γ = 1',c:'var(--c2)',push:h=>sg(-(0.5*h-1))/sg(1),loss:h=>ls(0.5*h-1)/ls(-1),
+    t:'SimPO: no reference model, a length-averaged margin and a target gap',cap:z=>'−log σ(β/|<i>y<sub>w</sub></i>| log π(<i>y<sub>w</sub></i>) − β/|<i>y<sub>l</sub></i>| log π(<i>y<sub>l</sub></i>) − γ). Dropping π<sub>ref</sub> saves memory and aligns the reward with how text is generated (average log-probability), but nothing anchors the policy except early stopping: on the toy, where every answer has 4 words so the length fix cannot help, it degenerates fastest ('+pc(z.g)+' grammatical).'}];
+  function D(n){return window.LFX[n]}
+  function pc(v){return (100*v).toFixed(1)+'%'}
+  let mode='push';
+  function draw(k){
+    const el=document.getElementById('lfxSvg'),w=RD.width(el),H=w<500?250:290,key=mode,yr=mode==='push'?[-1.5,2.1]:[0,2.6];
+    const pl=44,pr=10,pt=12,pb=34,x0=-5,x1=25,X=v=>pl+(w-pl-pr)*(v-x0)/(x1-x0),Y=v=>pt+(H-pt-pb)*(1-(v-yr[0])/(yr[1]-yr[0]));
+    const cl=v=>v<yr[0]?yr[0]:v>yr[1]?yr[1]:v;
+    let s='';
+    for(let v=Math.ceil(yr[0]*2)/2;v<=yr[1]+1e-9;v+=0.5)s+='<line x1="'+pl+'" x2="'+(w-pr)+'" y1="'+Y(v).toFixed(1)+'" y2="'+Y(v).toFixed(1)+'" style="stroke:var(--line)"/>'+RD.t(pl-4,(Y(v)+3).toFixed(1),v.toFixed(1),{fs:10,a:'end',fill:'var(--mute)'});
+    for(let v=x0;v<=x1;v+=5)s+=RD.t(X(v).toFixed(1),H-pb+14,String(v),{fs:10,a:'middle',fill:'var(--mute)'});
+    s+='<line x1="'+pl+'" x2="'+(w-pr)+'" y1="'+Y(0).toFixed(1)+'" y2="'+Y(0).toFixed(1)+'" style="stroke:var(--mute)"/><line x1="'+X(0).toFixed(1)+'" x2="'+X(0).toFixed(1)+'" y1="'+pt+'" y2="'+(H-pb)+'" style="stroke:var(--mute);stroke-dasharray:3 3"/>';
+    s+=RD.t((pl+w-pr)/2,H-3,'margin h (nats)',{fs:10.5,a:'middle',fill:'var(--mute)'})+RD.t(w-pr-2,pt+10,mode==='push'?'push on the pair (1 at h = 0)':'loss (1 at h = 0)',{fs:10.5,a:'end',fill:'var(--mute)'});
+    const path=(fn,c,sw,op)=>{let d='';for(let h=x0;h<=x1+1e-9;h+=0.25)d+=(d?'L':'M')+X(h).toFixed(1)+' '+Y(cl(fn(h))).toFixed(1);return '<path d="'+d+'" style="fill:none;stroke:'+c+';stroke-width:'+sw+';opacity:'+op+'"/>'};
+    for(let i=0;i<k;i++)s+=path(F[i][key],F[i].c,1.3,.35);
+    s+=path(F[k][key],F[k].c,2.6,1);
+    const lx=F[k].n==='Hinge (SLiC-HF)'?6:14;s+=RD.t((X(lx)+4).toFixed(1),(Y(cl(F[k][key](lx)))-6).toFixed(1),F[k].n,{fs:12,w:600,fill:F[k].c});
+    el.innerHTML=RD.svg(w,H,s,'The push each preference loss puts on one pair, against the pair\'s margin');
+    const z=D(F[k].run);
+    document.getElementById('lfxStep').innerHTML=F[k].t+' <span class="mute">('+F[k].d+')</span>';
+    document.getElementById('lfxCap').innerHTML=F[k].cap(z);
+    document.getElementById('lfxCnt').innerHTML='<span>on the DPO page\'s toy after '+z.steps.toLocaleString('en')+' steps ('+F[k].run+'):</span> <span>KL <b>'+z.kl.toFixed(2)+'</b></span> <span>true reward <b>'+z.r.toFixed(3)+'</b></span> <span>grammatical <b>'+pc(z.g)+'</b></span> <span>never seen <b>'+pc(z.u)+'</b></span> <span>top review "<b>'+z.top+'</b>"</span>';
+  }
+  const A=RD.anim({card:'lfx',ctl:'lfxCtl',n:F.length,draw,ms:2600,label:'Loss'});
+  RD.seg(document.getElementById('lfxM'),m=>{mode=m;A.redraw()});
+  RD.onResize(()=>A.redraw());
+  return {F,A,draw};
 })();
 </script>
 <script>/* 30_js_tree.js */
