@@ -40,6 +40,20 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await slide('#au-l', 0.35); await scan('#au-card', 'aug lam'); await shot('#au-card', 'au-cutmix'); await p.click('#au-t button[data-v="mix"]'); await shot('#au-card', 'au-mix');
   for (const id of ['mnist', 'zhang', 'imnet', 'c100', 'noise']) { await p.click('#ef-s button[data-v="' + id + '"]'); await scan('#ef-card', 'ef ' + id); if (id === 'c100' || id === 'noise') await shot('#ef-card', 'ef-' + id) }
   for (const m of ['mse', 'err']) { await p.click('#dd-m button[data-v="' + m + '"]'); await scan('#dd-card', 'dd ' + m); await shot('#dd-card', 'dd-' + m) }
+  // weak-features double descent (moved from Statistics 2026-10-26): every signal, ridge strength and a sweep of p; numbers equal check/weak_features_dd.json
+  { const E = JSON.parse(fs.readFileSync(path.join(here, 'check', 'weak_features_dd.json'), 'utf8'));
+    for (const k of ['even', 'decay05', 'decay1']) { await p.click('#wf-beta button[data-m="' + k + '"]');
+      for (const l of ['0', '0.01', '0.1', '1']) { await p.click('#wf-lam button[data-m="' + l + '"]');
+        for (const v of [1, 39, 40, 41, 100]) { await slide('#wf-p', v); await scan('#wf-card', 'wf ' + k + l + v) } }
+      await p.click('#wf-lam button[data-m="0"]'); await slide('#wf-p', 10);
+      const t = await p.$eval('#wf-cnt', e => e.innerText);
+      if (!(t.includes(E['dd_' + k + '_theory_p10'].toFixed(3)) && t.includes(E['dd_' + k + '_sim_p10'].toFixed(3)))) { bad++; console.log('BAD wf p10', k, t) } }
+    await p.click('#wf-beta button[data-m="even"]'); await slide('#wf-p', 40); await shot('#wf-card', 'wf-40');
+    const html = fs.readFileSync(page, 'utf8').replace(/<script[\s\S]*?<\/script>/g, '').replace(/<annotation[^>]*>[\s\S]*?<\/annotation>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const f = (v, d) => (+v).toFixed(d);
+    for (const s of [f(Math.max(E.dd_even_maxgap, E.dd_decay05_maxgap, E.dd_decay1_maxgap) * 100, 1), f(E.ens_rho05, 2), f(E.dd_even_best_over[0], 3), f(E.dd_even_best_under[0], 3), f(E.dd_decay1_best_under[0], 3), f(E.dd_decay1_best_over[0], 3), String(E.dd_decay1_best_under[1]),
+      f(E.dd_samplewise_n30, 3), f(E.dd_samplewise_n55, 2), f(E.dd_samplewise_n80, 2), f(E.dd_samplewise_n200, 2), f(E.dd_smin['40'], 3), f(E.dd_smin['10'], 2), f(E.dd_smin['100'], 2), f(E.dd_even_ridge01_p40, 1)])
+      if (!html.includes(s)) { bad++; console.log('BAD wf text number', s) } }
   // coefficient paths tab
   await p.click('button[data-t="t-path"]'); await wait(300);
   for (const m of ['lasso', 'ridge', 'enet']) for (const x of ['lam', 't']) { await p.click('#pa-m button[data-v="' + m + '"]'); await p.click('#pa-x button[data-v="' + x + '"]');
