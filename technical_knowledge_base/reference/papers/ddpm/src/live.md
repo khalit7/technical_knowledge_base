@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Denoising Diffusion Probabilistic Models (DDPM)","Takeaway":"Reparameterising the diffusion ELBO as noise prediction (L_simple, epsilon-MSE) made diffusion models generate SOTA images (CIFAR-10 FID 3.17) and founded the modern diffusion era.","Topics":["generative-and-multimodal"],"Year":"2020","url":"https://app.notion.com/p/3c65c17b0d0d811481e4e36333454f7a"}
+{"Paper":"Denoising Diffusion Probabilistic Models (DDPM)","Takeaway":"Reparameterising the diffusion ELBO as noise prediction (L_simple, epsilon-MSE) gave diffusion models a state-of-the-art FID on unconditional CIFAR-10 (3.17) and LSUN 256x256 samples on par with ProgressiveGAN, though not competitive log-likelihoods, and founded the modern diffusion era.","Topics":["generative-and-multimodal"],"Year":"2020","url":"https://app.notion.com/p/3c65c17b0d0d811481e4e36333454f7a"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>
