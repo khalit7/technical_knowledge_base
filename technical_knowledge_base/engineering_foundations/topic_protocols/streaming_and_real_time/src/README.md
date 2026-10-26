@@ -51,3 +51,5 @@ Child-page shape as in `.claude/skills/explainer-page/page-kinds/topic-child.md`
 
 ## Not run
 HTTP/2 and HTTP/3 versions of the SSE and cancellation measurements (EventSource over h2 would need the browser to trust the lab CA); RFC 8441/9220 WebSockets; WebTransport; real voice APIs (credentials). Packet captures (no root).
+
+2026-10-26 (final follow-up sweep): section 5 absorbed Vercel's "client-side aborts are treated as disconnects" and OpenAI's background mode (`starting_after`, about 10 minutes of retention) from Queues, which corrects the old line "No LLM API resumes a generation stream today"; its HTTP link now names section 10 (retries), not 9. Section 9 links Service APIs section 6 for webhook design. Ledger unit 222 re-keyed; four units added.
