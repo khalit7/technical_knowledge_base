@@ -70,7 +70,7 @@ window.DSF_H=(function(){
     const AV={'Linearizable':'not available in a partition','Sequential':'not available in a partition','Causal':'sticky available','Read-your-writes':'sticky available','Eventual':'available on any replica'};
     const NM={'Linearizable':'Linearisable','Sequential':'Sequential','Causal':'Causal','Read-your-writes':'Read-your-writes','Eventual':'Eventual'};
     $('hl-vt').innerHTML=rows.map(r=>'<div class="rung '+(r[1]===1?'y':r[1]===0?'n':'q')+'"><div><b>'+NM[r[0]]+'</b><span class="av">'+AV[r[0]]+'</span></div><div>'+V(r[1])+'</div><div>'+r[2]+'</div></div>').join('');
-    $('hl-ord').innerHTML=(lin?'Linearizable order: '+ord(lin):seq?'Sequential order (ignoring real time): '+ord(seq):'No valid order found among all orderings.');
+    $('hl-ord').innerHTML=(lin?'Linearisable order: '+ord(lin):seq?'Sequential order (ignoring real time): '+ord(seq):'No valid order found among all orderings.');
   }
   $('hl-list').addEventListener('click',e=>{const b=e.target.closest('button');if(b)pick(+b.dataset.i)});
   $('hl-svg').addEventListener('click',e=>{const g=e.target.closest('.hl-op');if(!g)return;const op=ops[+g.dataset.i];

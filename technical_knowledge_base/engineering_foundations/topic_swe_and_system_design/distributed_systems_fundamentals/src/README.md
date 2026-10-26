@@ -56,3 +56,5 @@ Why about 40 minutes is right: the page owns ten mechanisms, taught from zero (p
 
 ## Knowledge ledger (`ledger.json`; `ledger.py check`: problems 0)
 563 units: core 376, depth 69, owned 9, fat 109. 552 were drafted by `ledger.py init` from the old page; 11 were added by hand (script-rendered presets and steppers, and the new content). Keys were found by matching word n-grams of each unit against the rebuilt page, then reviewed by hand; fat units carry a `note`.
+
+2026-10-26 (final follow-up sweep): the history checker's result line reads "Linearisable order" (British spelling, as the verdict table already did); quoted sources keep "linearizable".
