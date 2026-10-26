@@ -41,3 +41,5 @@ Why 37 minutes is right: the page owns thirteen design ideas, four of them new (
 ## Departures from the child-page method
 - One standalone tab only (Review lab): it is practice across sections 3 to 13, not the explanation of one mechanism; every animation is inline.
 - Illustrative code is labelled: `before.py`, the rewrite and the review diffs were written for the page; everything shown about them (tests, metrics, failures, timings) was measured.
+
+2026-10-26 (final follow-up sweep): the type-checking block's checker version table moved to Python (Part 2 section 4 now carries pyrefly and the strict settings beside its measured comparison); one sentence links it (ledger units 163 and 164 `owned:`). The tooling table, the real pyproject and pre-commit configuration, PEP 561 in the library example and the measured `model_construct` result stay here: they are this page's worked example and its own benchmark.
