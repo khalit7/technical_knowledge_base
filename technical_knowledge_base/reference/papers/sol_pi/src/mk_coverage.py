@@ -11,11 +11,11 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, F = 'The paper tab', 'Replay a session tab', 'Tables tab', 'Further reading tab'
 C = [
  # properties (they stay in Notion; the card repeats the takeaway)
- ('Takeaway property (verbatim on the card)', R + ', headline card "In one line"', ['Apply recursive self-improvement at the harness layer rather than to the model', 'saving $8.75 to $13.50 per hour against native Codex and Claude Code']),
+ ('Takeaway property (on the card, softened 2026-10-26: "at parity" became 93.7 to 94.3% of Pi\'s score; the hourly saving is marked as derived)', R + ', headline card "In one line"', ['Apply recursive self-improvement at the harness layer rather than to the model', 'saved against native Codex and Claude Code is derived by assuming two-hour tasks']),
  ('Topics property: agentic-harnesses, benchmarks, inference-and-serving', F + ', Topics', ['https://app.notion.com/p/3c65c17b0d0d81d881a8fe98b4cff7bb', 'https://app.notion.com/p/3c65c17b0d0d811fb43fece56e40041a', 'https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13']),
  ('Year property: 2026', 'crumb line', ['Papers', '· 2026 ·']),
  # header
- ('Reading time line "5 min read, +45m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read', 'of resources']),
+ ('Reading time line "5 min read, +45m resources"', 'dropped: replaced by the measured reading time in the header (reading.json)', ['Reading:', 'in closed details']),
  ('Song Han and collaborators including Haozhe Liu, Tian Ye and Sensen Gao', R + ', headline card (all 14 authors)', ['Haozhe Liu', 'Tian Ye', 'Sensen Gao', 'Song Han', 'Qihang Cao', 'Enze Xie']),
  ('"NVIDIA and academic partners"', R + ', headline card (NVIDIA, NTU, MIT)', ['NVIDIA, NTU, MIT']),
  ('arXiv 2609.20519, 17 September 2026', R + ', headline card', ['arXiv 2609.20519', '17 September 2026']),

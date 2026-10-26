@@ -12,6 +12,8 @@ def txt(x):
     x = re.sub(r'</t[dh]>', '\t', x)
     x = re.sub(r'<[^>]+>', '', x)
     x = html.unescape(x)
+    x = x.replace('\u2014', '--')  # no em-dashes in saved extracts
+    x = re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}', '[email removed]', x)  # no author emails
     return re.sub(r'\n\s*\n+', '\n\n', re.sub(r'[  ]+', ' ', x))
 a = s.index('<article'); b = s.index('</article>')
 open(f'inputs/paper_{v}.txt', 'w').write(f'Source: {URL} (extracted by extract_paper.py)\n\n' + txt(s[a:b]))

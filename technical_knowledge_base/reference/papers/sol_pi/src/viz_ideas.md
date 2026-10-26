@@ -15,3 +15,8 @@ Scored 1 to 5 on teaches-more-than-text (T), sourced data (D) and effort (E, 5 =
 Rejected: a reconstruction of the 152-idea funnel as an animation (the blog already has one, and the page cannot add data to it); a swarm cycle-curve replay (only final values are printed, the curves would need curve reading); a toy auto-research loop (nothing released to replay, and an invented loop would teach the method less than the mechanisms it produced).
 
 What the methodology lacked for this page: a rule for harness papers whose mechanisms are released but whose traces are not. The approach here (run the released rules on an illustrative session, port any decision function and check it against the original code, and compare the simulator's direction, not its size, with the paper's table) may generalise.
+
+## Light pass (2026-10-26)
+
+- P-sol_pi.8, built: the hero at the top of Reading (static): the search funnel, where each kept mechanism acts in the agent loop, and the full stack as a share of Pi on both models.
+- P-sol_pi.9, built: the add-one chart inline in "Each mechanism" (Table 4 token cut per mechanism, both models, with each score change); the full table stays in the Tables tab.
