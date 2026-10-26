@@ -12,7 +12,7 @@ Reading-figure data), `make_page_data.py` (runs and prose facts, `facts.json`), 
 | Tab | Parts | What |
 |---|---|---|
 | Reading `t-read` | `20_read_a` (styles) to `20_read_z`; `22_js_rd_0facts.js` (LCF), `22_js_rd_1fill.js`, `23_js_rd_anim.js` (design stepper), `24_js_rd_vis.js` (hero, entry to scale, FLOPs share, key channels, Gemma layer strip), `32_js_ev_*` (eviction map stepper and quality chart), `33_js_ef_*` (position wall, distance slider, pass-key grid) | core idea, hero, nine sections, depth blocks |
-| KV-cache calculator `t-kv` | `34_tab_kv_a.html`, `34_tab_kv_c.html` (static tables, written by the script), `19_js_kc_0data.js` (KCD), `19_js_kc_1core.js` (engine, `window.KC`), `34_js_kc_2ui.js` | 45 presets, context slider, design as the variable |
+| KV-cache calculator `t-kv` | `34_tab_kv_a.html`, `34_tab_kv_c.html` (static tables, written by the script), `19_js_kc_0data.js` (KCD), `19_js_kc_1core.js` (engine, `window.KC`), `34_js_kc_2ui.js` | 48 presets, context slider, design as the variable |
 | Further reading `t-more` | `39_tab_more.html` | |
 `30_js_lc_0core.js` holds `window.LC` (helpers and a tab-aware copy of the step controller).
 
@@ -80,3 +80,6 @@ still go: the levers table at the top (it is the one-screen map, kept) and the p
 `past/out/past.json` and `kv/out/map.json` are reusable as is.
 
 2026-10-26 (final follow-up sweep): the effective-context paragraph names Liu et al.'s lost-in-the-middle U (owned by Long-context and multimodal benchmarks, linked there); the Proactive memory agent paper page sends readers here for it. MiniMax presets for the calculator were proposed and not added.
+
+## 2026-10-26 additions
+KV-cache calculator: three MiniMax presets (Text-01, M2, M3) added in kv_calc/make_kv_data.py from the config.json files the MiniMax page saved (Hugging Face revisions a7351bf2be, 757303d492, f0e1c1e04d): Text-01 10 softmax layers of 80 (40 KiB per token) plus 70 lightning layers of 64 x 128 x 128 state (140 MiB in BF16); M2 62 layers GQA 48/8 (248 KiB); M3 60 layers GQA 64/4 (120 KiB) plus one 128-number index key in each of 57 MSA layers (14.25 KiB, BF16 assumed as on the MiniMax page). 48 presets; check_kv 0 differences, check_controls clean on t-kv.

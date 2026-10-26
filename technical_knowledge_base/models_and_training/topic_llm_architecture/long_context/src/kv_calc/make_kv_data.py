@@ -113,6 +113,16 @@ for nm, rp, lf, kv, ll, hv, par, mc in (("Qwen3.5-397B-A17B", "Qwen3.5-397B-A17B
          **{"from": "Qwen page, Configs and cache (" + str(lf) + " full layers x 2 x " + str(kv) + " x 256; " + str(ll) + " DeltaNet layers x " + str(hv) + " x 128 x 128)"})
 hand(key="kimi-k3", label="Kimi K3", fam="hybrid", groups=[{"n": 24, "e": 576, "win": 0, "idx": 0, "topk": 0}], stateNums=round(414 * 2**20 / 4),
      src="https://huggingface.co/moonshotai", **{"from": "LLM architecture gallery (24 x (512 + 64) MLA layers; KDA state about 414 MiB in FP32, rounded)"})
+MM = "https://huggingface.co/MiniMaxAI/{}/blob/main/config.json"
+hand(key="minimax-text-01", label="MiniMax-Text-01", fam="hybrid", groups=[{"n": 10, "e": 2048, "win": 0, "idx": 0, "topk": 0}], stateNums=70 * 64 * 128 * 128,
+     params=456089655296, paramsNote="Hugging Face safetensors total", maxCtx=10240000, src=MM.format("MiniMax-Text-01"), rev="a7351bf2be",
+     **{"from": "MiniMax page and config.json (attn_type_list: 10 softmax layers of 80, GQA 64/8 x 128, 40 KiB per token; 70 lightning layers x 64 heads x 128 x 128 state, 140 MiB in BF16)"})
+hand(key="minimax-m2", label="MiniMax-M2", fam="dense", groups=[{"n": 62, "e": 2048, "win": 0, "idx": 0, "topk": 0}], shape={"L": 62, "nq": 48, "nkv": 8, "hd": 128},
+     params=228689764864, paramsNote="Hugging Face safetensors total", maxCtx=196608, src=MM.format("MiniMax-M2"), rev="757303d492",
+     **{"from": "MiniMax page and config.json (62 full-attention layers, GQA 48/8 x 128: 248 KiB per token)"})
+hand(key="minimax-m3", label="MiniMax-M3", fam="latent", groups=[{"n": 57, "e": 1024, "win": 0, "idx": 128, "topk": 2048}, {"n": 3, "e": 1024, "win": 0, "idx": 0, "topk": 0}],
+     params=427040140160, paramsNote="Hugging Face safetensors total", maxCtx=1048576, src=MM.format("MiniMax-M3"), rev="f0e1c1e04d",
+     **{"from": "MiniMax page and config.json (60 layers, GQA 64/4 x 128: 120 KiB per token; 57 MSA layers (sparse_attention_freq) with one 128-number index key per token, BF16 assumed: 14.25 KiB; top 16 blocks of 128)"})
 hand(key="deepseek-v4-pro", label="DeepSeek-V4-Pro", fam="latent", tokB=4939.5, fixB=128 * 576 * 61, groups=[],
      src="https://arxiv.org/abs/2606.19348", **{"from": "DeepSeek page (30 CSA x 160 B + 31 HCA x 4.5 B per token; FP8 entries, FP4 indexer; 128-token windows of 576 B in 61 layers)"})
 hand(key="deepseek-v4-flash", label="DeepSeek-V4-Flash", fam="latent", tokB=3450, fixB=128 * 576 * 43, groups=[], pubTokB=3514,
