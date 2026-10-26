@@ -76,3 +76,5 @@ Why 28 minutes is right: the page now teaches seven mechanisms (sharing, latent,
 - **Sparse attention and differential attention are published only**: NSA and DSA need CUDA kernels and long
   contexts; DIFF's gains need scale. The premise of sparse attention (concentration) is measured on SmolLM2.
 - **The gate is added by patching** (`runs/av_model.py`) because `src/data` is read-only for children.
+
+2026-10-26 (final follow-up sweep): section 5 adds QSA and MSA rows to the stored/read table and one paragraph on the same idea at other labs (QSA, MSA, NaiveAI's DSA layout), each linking the lab page that owns it. MoBA (Kimi) is still not covered.
