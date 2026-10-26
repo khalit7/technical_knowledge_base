@@ -8,3 +8,5 @@ Interactive page: `index.html`, built from `src/` (`sh src/build.sh`). One page 
 - Part 2 "Python in 2026" (`src/pb/`, tabs Reading, Version explorer, Runtime lab): packaging layers, uv, ruff, ty against mypy and pyright, pytest, wheels and trusted publishing, 3.12 to 3.15 changes, lazy imports, free-threading, the JIT and subinterpreters, all measured on an M1 Pro on 2026-10-05.
 - Start here (`src/parts/20_tab_start.html`): the map, three routes through, five measured findings.
 Replaces the old written pages "Python: zero to expert" (this Notion page, retitled) and "Python: staying current (3.12 to 3.15)" (marked TO DELETE); their claims are checked in `src/pa/coverage.json` and `src/pb/coverage.json`. No child pages, databases or video.
+
+2026-10-26 (final follow-up sweep): Part 2 section 4 adds pyrefly (stable since 1.0.0, not run here) and the checkers' strict settings (`mypy --strict`, pyright's modes), absorbed from Code design's checker table; Part 1 section 9 links Concurrency section 7 for the GIL as an OS lock, and section 11 links Memory allocators section 7 for what reference counting and the collector do to memory.
