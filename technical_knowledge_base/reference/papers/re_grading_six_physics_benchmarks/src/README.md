@@ -50,3 +50,5 @@
 ## Checks at first build (3 October 2026)
 
 `checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `recompute.py` 27 of 27; `mk_coverage.py` 26 of 26.
+
+2026-10-26 (final follow-up sweep): the ceiling-precision block's sample sizes corrected: 38,200 against 3,100 omitted the power factor; at 80% power and alpha 0.05 it is about 300,000 against 24,600 (ratio 12.2 unchanged). Eval statistics section 7 now carries the example.
