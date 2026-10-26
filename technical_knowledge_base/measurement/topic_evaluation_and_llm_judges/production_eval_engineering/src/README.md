@@ -40,3 +40,5 @@ Why 24 minutes is right: the page owns a whole pipeline (ten stages and practice
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 283 units: core 216, depth 40, fat 21, owned 4 (three by Eval statistics, one by Human evaluation and annotation; each owner's page carries the key), volatile 2 (the OpenAI Evals retirement dates and Anthropic's temperature deprecation, kept in the dated places on this page). 270 drafted by `ledger.py init` from the old page; 13 added by hand for the new content (section "added 2026-10-24").
+
+2026-10-26 (final follow-up sweep): section 8 absorbed the rollout machinery ML system design kept closed: Istio's `mirrorPercentage` (fire and forget), KServe's `canaryTrafficPercent`, Argo Rollouts' analysis steps and `successCondition`, and keying the split by user or tenant. Four ledger units added.
