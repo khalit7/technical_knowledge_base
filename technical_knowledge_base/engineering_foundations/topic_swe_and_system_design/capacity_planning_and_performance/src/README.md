@@ -41,3 +41,5 @@
 
 ## Final sweep (2026-10-26): caching cut to the capacity view
 Caching (Topic: databases) now owns cache layers, the patterns and invalidation, the cache-aside code, eviction, stampedes with their animation and defences, and CDNs (its sections 2, 3, 5, 7 and 9). The "Caching strategy" section here keeps the capacity view: one paragraph on layers and patterns with links, the hit-rate maths and its widget (linking Caching section 6), the three consequences, one paragraph on stampedes (Facebook's 17K against 1.3K queries a second) with links, and "When not to cache". The stampede animation (`sa-card`) and its UI check were removed. Ledger: the removed units are labelled `owned:engineering_foundations/topic_databases/caching` with keys found there; the ML system design pointer became fat. Measured after the cut (230 words a minute): core 36 min, closed details 18 (was 38 and 21); other pages that quote 38 need the next time sweep.
+
+2026-10-26 (final follow-up sweep): Python 3.15 is described as released on 9 October 2026 (PEP 790's actual schedule, checked 26 October 2026), not as scheduled.
