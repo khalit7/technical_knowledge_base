@@ -33,3 +33,6 @@ Why 17 minutes is right: the core now carries only the design story (why the mod
 
 ## Knowledge ledger
 282 units: core 177, depth 28, volatile 58, owned 5, fat 14 (`ledger.py check`: problems 0). 269 drafted by `ledger.py init`; 13 added by hand: three CAI numbers now owned by the paper page (`reference/papers/constitutional_ai`: 182,831, 135,296, 4 revisions) and one unit per script-rendered visual keyed to its static caption. Owned by the root (`models_and_training/topic_llm_landscape`): the AA v4.3 leaderboard (57.6) and Vals AI's Terminal-Bench (65.15). Volatile units stay on this page in dated closed blocks (this is the provider page that holds them).
+
+## 2026-10-26 ownership sweep
+Prompt-caching economics across providers belong to Caching (section 11). This page keeps Claude's own prices; the break-even sentence became a link (ledger 94 owned by Caching), and the Session cost tab names the owners (Caching, Batching KV cache and scheduling, ML system design).
