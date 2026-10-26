@@ -2,7 +2,7 @@
 
 usage: python3 html_utils/check_times.py [--page <page path>] [--json out.json] [--fix]
 Each page's header states "Reading: N min, plus M in closed details." (writing-style.md). This script reads every
-header, then scans every page's src/parts/*.html for links to another page ({{text|n:<id>...}}) and the time
+header, then scans every page's src/parts/*.html for links to another page ({{text|n:<id>...}} or a raw Notion URL) and the time
 written within 160 characters after the link ("28 min", "about 31 min", "28 min, plus 3"). A quoted core time that
 differs from the target's header is printed as: <page part>: <target title> quotes N, header says M.
 Pages without a header in the new format are listed once as "no header" and their quotes are not judged.
@@ -24,7 +24,26 @@ for p in pages:
     for a in p.get("aliases", []):
         by_id[a.replace("-", "")] = p
 HDR = re.compile(r"Reading:\s*(\d+)\s*min(?:,\s*plus\s*(\d+)\s*in closed details)?")
-LINK = re.compile(r"\{\{([^|{}]+)\|n:([0-9a-f]{32})([^}]*)\}\}")
+LINK = re.compile(r"\{\{([^|{}]+)\|n:([0-9a-f]{32})([^}]*)\}\}"
+                  r"|<a\s[^>]*href=\"https://(?:app\.notion\.com|www\.notion\.so)/p/([0-9a-f]{32})([^\"]*)\"[^>]*>(.*?)</a>", re.S)
+
+
+class Link:
+    """One link, written {{Title|n:<id>#anchor}} or as a raw Notion URL in an <a> (the site build rewrites both):
+    group(1) text, group(2) id, group(3) anchor."""
+    def __init__(self, m):
+        self.m = m
+        raw = m.group(2) is None
+        self.g = (None, m.group(6) if raw else m.group(1), m.group(4) if raw else m.group(2), (m.group(5) if raw else m.group(3)) or "")
+
+    def group(self, i):
+        return self.g[i]
+
+    def start(self):
+        return self.m.start()
+
+    def end(self):
+        return self.m.end()
 TIME = re.compile(r"(?:about\s+)?(\d+)\s*min(?:utes)?\b(?:,?\s*plus\s*(\d+))?")
 
 
@@ -71,7 +90,7 @@ def main():
             continue
         for f in sorted((ROOT / p["path"] / "src/parts").glob("*.html")) if (ROOT / p["path"] / "src/parts").is_dir() else []:
             s = f.read_text(errors="ignore")
-            links = list(LINK.finditer(s))
+            links = [Link(m) for m in LINK.finditer(s)]
             edits = []
             for i, m in enumerate(links):
                 tid = m.group(2)
