@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"ReAct: Synergizing Reasoning and Acting in Language Models","Takeaway":"Interleaving free-form thoughts with environment actions in one prompted loop beats reasoning-only and acting-only baselines (HotpotQA/FEVER grounding, 71% ALFWorld, +10% WebShop) and is the template every modern agent loop descends from.","Topics":["agentic-frameworks","agentic-harnesses","rag-and-retrieval"],"Year":"2022","url":"https://app.notion.com/p/3c65c17b0d0d816b9a24c28de8f08ea8"}
+{"Paper":"ReAct: Synergizing Reasoning and Acting in Language Models","Takeaway":"Interleaving free-form thoughts with environment actions in one prompted loop (PaLM-540B) beats acting-only everywhere and reasoning-only on FEVER (60.9 vs 56.3) but not HotpotQA (27.4 vs 29.4 EM), where switching to and from CoT-SC does best; ALFWorld 71% best of 6 prompts (57% on average) and WebShop +10 points of success over imitation and RL; the template most modern agent loops descend from.","Topics":["agentic-frameworks","agentic-harnesses","rag-and-retrieval"],"Year":"2022","url":"https://app.notion.com/p/3c65c17b0d0d816b9a24c28de8f08ea8"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>
