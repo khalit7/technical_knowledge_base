@@ -16,8 +16,14 @@
 //             and topic strip; Step draws the arriving lines before filling the page
 //   reveal    the one-time load reveal runs, ends within 1.3 s, and leaves exactly the layout that reduced motion shows
 //             at once (boxes, lines, opacities); after it nothing moves before a click; frames saved as screenshots
+//   names     every card, phone card and topic view shows the topic's name (from its "Topic: slug" title, acronyms such as
+//             LLM, ML, RAG, GPU in capitals), never the slug
+//   feel      hovering a card grows it to about 1.025 and fades unrelated cards to about .38; leaving restores both; the
+//             wide drawing is used at 1280 px and holds every strong line card to card; after the reveal nothing animates
+//   colour    each section colour against the card and panel in both themes: pill counts (text) at least 4.5:1 on their
+//             pill, the drawn lines (at the opacity they are drawn) and the card's colour bar at least 3:1
 //   manners   no script errors or outside fetches, no sideways scroll, reduced motion runs no animation (also none on
-//             load) and drops Play, phone path rows put topic and minutes under the title
+//             load, nothing moves, no hover growth while the fade stays) and drops Play, phone path rows put topic and minutes under the title
 // Ends "learning map: fail=0" when clean.
 import puppeteer from 'puppeteer';
 import { execFileSync } from 'node:child_process';
@@ -50,6 +56,12 @@ const rootOf = p => { let r = p.path, q = p.path; while (q.includes('/')) { q = 
 const slugOf = p => rootOf(p).split('/').pop().replace(/^topic_/, '');
 const minutesOf = p => { const m = fs.readFileSync(path.join(ROOT, p.path, 'index.html'), 'utf8').match(/Reading:\s*(?:<[^>]+>\s*)*(\d+)\s*min/); return m ? +m[1] : 0 };
 const nst = Math.max(...topicPages.map(stage)) + 1;
+const ACR = { llm: 'LLM', ml: 'ML', rl: 'RL', rag: 'RAG', gpu: 'GPU', cuda: 'CUDA', jax: 'JAX', tpu: 'TPU', swe: 'SWE', pytorch: 'PyTorch', ai: 'AI', api: 'API', os: 'OS' };
+const FIX = { rl: 'Reinforcement learning', 'llm-training-and-post-training': 'LLM training and post-training' };
+const nameOfSlug = {};   // slug -> the name readers should see
+topicPages.forEach(p => { const r = byPath[rootOf(p)], m = r.title.match(/^Topic: (.+)$/); if (!m) return; const sl = m[1].trim();
+  let w = sl.split('-').map(x => ACR[x] || x.toLowerCase()); if (w[0] === w[0].toLowerCase()) w[0] = w[0][0].toUpperCase() + w[0].slice(1);
+  nameOfSlug[slugOf(p)] = FIX[sl] || w.join(' ') });
 const TP = {};   // slug -> {n, m, alone, st, cnt: {slug: pages building on it}}
 for (const p of topicPages) {
   const s = slugOf(p), t = TP[s] ??= { n: 0, m: 0, alone: 0, st: Array(nst).fill(0), cnt: {} };
@@ -98,7 +110,7 @@ async function open(width, scheme, reduced = false) {
   p.on('console', m => { if (m.type() === 'error' && !/pagefind|Failed to load resource/i.test(m.text())) errs.push(m.text()) });
   p.on('requestfailed', r => { if (!/pagefind/.test(r.url())) errs.push('request failed ' + r.url()) });
   await p.setRequestInterception(true);
-  p.on('request', r => r.url().startsWith(BASE) ? r.continue() : (errs.push('outside fetch ' + r.url()), r.abort()));
+  p.on('request', r => r.url().startsWith(BASE) || r.url().startsWith('data:') ? r.continue() : (errs.push('outside fetch ' + r.url()), r.abort()));
   await p.setViewport({ width, height: 1000 });
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: reduced ? 'reduce' : 'no-preference' }]);
   await p.goto(BASE, { waitUntil: 'load' });
@@ -136,6 +148,38 @@ const freezeAt = (p, t) => p.evaluate(t => document.getAnimations().forEach(a =>
 const resume = p => p.evaluate(() => document.getAnimations().forEach(a => a.play()));
 const finishAll = p => p.evaluate(() => document.getAnimations().forEach(a => { try { a.finish() } catch (e) { a.cancel() } }));
 let finalNormal = null;
+// WCAG contrast of two CSS colours (any syntax the browser knows), with fg drawn at opacity op over bg
+const contrast = (p, fg, bg, op = 1) => p.evaluate((fg, bg, op) => {
+  const c = document.createElement('canvas'); c.width = c.height = 1; const x = c.getContext('2d', { willReadFrequently: true });
+  const rgb = (col, base) => { x.globalAlpha = 1; x.fillStyle = base || '#fff'; x.fillRect(0, 0, 1, 1); x.fillStyle = col; x.fillRect(0, 0, 1, 1); return [...x.getImageData(0, 0, 1, 1).data].slice(0, 3) };
+  const b = rgb(bg); x.fillStyle = `rgb(${b})`; x.fillRect(0, 0, 1, 1); x.globalAlpha = op; x.fillStyle = fg; x.fillRect(0, 0, 1, 1); const f = [...x.getImageData(0, 0, 1, 1).data].slice(0, 3);
+  const L = v => { v = v.map(u => u / 255).map(u => u <= .04045 ? u / 12.92 : ((u + .055) / 1.055) ** 2.4); return .2126 * v[0] + .7152 * v[1] + .0722 * v[2] };
+  const a = L(f), d = L(b); return (Math.max(a, d) + .05) / (Math.min(a, d) + .05) }, fg, bg, op);
+async function colours(p, scheme) {
+  const v = await p.evaluate(() => { const lm = document.getElementById('lm'), cs = getComputedStyle(lm), out = [];
+    for (let k = 0; k < 5; k++) { const g = document.querySelector(`#lm-ov .lm-t.s${k}`); if (!g) continue;
+      const cell = g.querySelector('.lm-cell:not(.z)'), cnt = g.querySelector('.lm-cnt'), se = document.querySelector(`#lm-ov .lm-se`);
+      out.push({ k, sc: getComputedStyle(g).getPropertyValue('--sc').trim(), pill: getComputedStyle(cell).fill, txt: getComputedStyle(cnt).fill }) }
+    const se = document.querySelector('#lm-ov .lm-se'), ses = getComputedStyle(se);
+    return { out, card: cs.getPropertyValue('--card').trim(), panel: getComputedStyle(document.getElementById('lm-view')).backgroundColor, edge: +ses.strokeOpacity * +ses.opacity } });
+  for (const c of v.out) {
+    const t = await contrast(p, c.txt, c.pill), ln = await contrast(p, c.sc, v.panel, v.edge), bar = await contrast(p, c.sc, v.card);
+    if (t < 4.5) bad(`${scheme}: section ${c.k} pill count contrast ${t.toFixed(2)} under 4.5`);
+    if (ln < 3) bad(`${scheme}: section ${c.k} line contrast ${ln.toFixed(2)} (at opacity ${v.edge}) under 3`);
+    if (bar < 3) bad(`${scheme}: section ${c.k} colour on the card ${bar.toFixed(2)} under 3`);
+    console.log(`contrast ${scheme} s${c.k} ${c.sc}: pill text ${t.toFixed(2)}, line ${ln.toFixed(2)}, bar ${bar.toFixed(2)}`);
+  }
+}
+const scaleOf = p => p.evaluate(sel => { const t = getComputedStyle(document.querySelector(sel)).transform; if (t === 'none') return 1; return +t.match(/matrix\(([^,]+)/)[1] }, '#lm-ov .lm-t.me');
+const idleCheck = async (p, where) => { for (let i = 0; i < 3; i++) { await wait(600); const n = await p.evaluate(() => document.getAnimations().length); if (n) { bad(where, 'something animates after the reveal with no input', n); return } } };
+const namesCheck = async (p, where) => {
+  const r = await p.evaluate(() => { const D = JSON.parse(document.getElementById('lm-data').textContent);
+    return { T: D.T.map(t => [t.slug, t.n]), cards: [...document.querySelectorAll('#lm-ov .lm-t, #lm-ovl .lm-c')].map(g => [+g.dataset.k, g.matches('.lm-c') ? g.querySelector('b').textContent : [...g.querySelectorAll('.lm-tl')].map(t => t.textContent).join(' '), g.textContent]) } });
+  const T = r.T;
+  T.forEach(([sl, n]) => { if (n !== nameOfSlug[sl]) bad(where, `topic ${sl} named "${n}", want "${nameOfSlug[sl]}"`) });
+  r.cards.forEach(([k, title, all]) => { const [sl, n] = T[k];
+    if (title.replace(/\s+/g, ' ').replace(/- /g, '-').trim() !== n) bad(where, `card shows "${title}", want "${n}"`);
+    if (all.includes(sl) || all.includes(sl.replace(/_/g, '-')) || /Topic:/.test(all)) bad(where, `card ${n} shows slug text`) }) };
 const state = p => p.evaluate(() => document.getElementById('lm').innerHTML + '|' + document.getAnimations().length + '|' + location.hash);
 const focusSets = p => p.evaluate(() => { const D = JSON.parse(document.getElementById('lm-data').textContent), g = c => [...document.querySelectorAll('#lm .lm-t.' + c)].filter(x => x.getBoundingClientRect().width > 0).map(x => D.T[+x.dataset.k].slug);
   return { foc: document.getElementById('lm').classList.contains('foc'), me: g('me'), up: g('up'), dn: g('dn') } });
@@ -155,6 +199,9 @@ const checkFocus = (s, f, where) => {
   const s0 = await state(p); await wait(2000); const s1 = await state(p);
   if (s0 !== s1) bad('the map changed before any click (after the reveal)');
   if (await p.$('#lm .cur,#lm .todo,#lm.foc')) bad('something is highlighted on load');
+  await idleCheck(p, '920');
+  await namesCheck(p, '920');
+  await colours(p, 'light');
   if (await sideways(p)) bad('920: sideways scroll');
   if (!await p.$eval('#lm-ov', e => e.getBoundingClientRect().width > 0)) bad('920: the topic graph is not shown');
   (await geometry(p)).forEach(m => bad('overview', m));
@@ -184,7 +231,8 @@ const checkFocus = (s, f, where) => {
     const wantTips = w.st.map((n, g) => `${n} page${n !== 1 ? 's' : ''} at stage ${g + 1}`);
     if (c.tips.join('|') !== wantTips.join('|')) bad(`card ${s}: pill titles ${c.tips} want ${wantTips}`);
     const wu = weakUses(s).map(x => NAME[x]);
-    if (wu.some(x => !c.wk.includes(x)) || (!wu.length && c.wk)) bad(`card ${s}: "Some pages also use" shows "${c.wk}", want ${wu}`);
+    const nw = x => x.replace(/\s+/g, '');
+    if (wu.some(x => !nw(c.wk).includes(nw(x))) || (!wu.length && c.wk)) bad(`card ${s}: "Some pages also use" shows "${c.wk}", want ${wu}`);
     if (c.wkResting) bad(`card ${s}: the "also use" list sits on the resting card`);
     const isFree = ![...strong.keys()].some(e => e.split('>').includes(s));
     if (c.free !== isFree) bad(`card ${s}: marked ${c.free ? 'without' : 'with'} a strong link, the rule says ${isFree ? 'none' : 'it has one'}`);
@@ -248,6 +296,9 @@ const checkFocus = (s, f, where) => {
   fv.el.forEach(([a, bb, op]) => { const inc = a === fk || bb === fk; if (inc !== op > 0.5) bad('focus: line label', S[a], S[bb], op) });
   const lit = new Set([S[fk], ...upOf(S[fk]), ...dnOf(S[fk])]);
   fv.dim.forEach(([k, op]) => { if (lit.has(S[k]) !== op > 0.5) bad('focus: card opacity', S[k], op) });
+  { const sc = await scaleOf(p); if (Math.abs(sc - 1.025) > .006) bad('hover: the card does not grow to about 1.025, scale', sc);
+    const lift = await p.$eval('#lm-ov .lm-t.me .lm-lift', e => +getComputedStyle(e).opacity); if (lift < .9) bad('hover: the lift shadow does not fade in', lift);
+    const dim = fv.dim.filter(([k]) => !lit.has(S[k])).map(([, op]) => op); if (dim.some(op => Math.abs(op - .38) > .05)) bad('hover: unrelated cards not faded to about .38', dim) }
   const nIn = [...strong.keys()].filter(k => k.endsWith('>' + S[fk])).length;
   await wait(500);
   const dots = await p.$$eval('#lm-ov .lm-dot', ds => ds.length), inf = await infinite(p);
@@ -257,6 +308,8 @@ const checkFocus = (s, f, where) => {
   await p.mouse.move(5, 5); await wait(40);
   if (await p.$('#lm.foc')) bad('focus stays after the pointer leaves');
   if (await infinite(p) || await p.$('#lm-ov .lm-dot')) bad('focus dots keep running after blur');
+  { await wait(450); const back = await p.evaluate(() => [...document.querySelectorAll('#lm-ov .lm-t')].filter(g => getComputedStyle(g).transform !== 'none' || +getComputedStyle(g).opacity < .99).length);
+    if (back) bad('after leaving, cards stay grown or faded', back) }
   await wait(300);
   await shot(p, 'lm_920_light_overview.png');
   // every topic view: grows after the click and settles in time, links exist, every topic page appears, geometry
@@ -272,6 +325,7 @@ const checkFocus = (s, f, where) => {
     hrefs.forEach(h => { seen.add(h); if (!exists(h)) bad('node links to a missing page', h) });
     (await geometry(p)).forEach(m => bad('topic', S[k], m));
     if (S[k] === 'inference_and_serving') await shot(p, 'lm_920_light_topic.png');
+    { const h = await p.$eval('#lm-head b', e => e.textContent); if (h !== nameOfSlug[S[k]]) bad('topic view heading', JSON.stringify(h), 'want', nameOfSlug[S[k]]) }
     await p.click('#lm-back'); await wait(40);
   }
   topicPages.forEach(tp => { if (!seen.has(urlOf(tp))) bad('topic page missing from the map', tp.title) });
@@ -339,12 +393,39 @@ const checkFocus = (s, f, where) => {
   await p.close();
 }
 
+// ---------------- 1280 light: the wide drawing, its geometry and lines, names, hover
+{
+  const { p, errs } = await open(1280, 'light');
+  await wait(1300);
+  if (!await p.$('#lm-ov[data-w="wide"]')) bad('1280: the wide drawing is not used');
+  await idleCheck(p, '1280');
+  if (await sideways(p)) bad('1280: sideways scroll');
+  (await geometry(p)).forEach(m => bad('1280 overview', m));
+  await namesCheck(p, '1280');
+  const S = await slugs(p);
+  const ln = await p.evaluate(() => { const all = [...document.querySelectorAll('#lm-ov .lm-t')].map(g => [+g.dataset.k, g.querySelector('.lm-box').getBBox()]), box = k => all.find(x => x[0] === k)[1];
+    return [...document.querySelectorAll('#lm-ov .lm-se')].map(e => { const L = e.getTotalLength(), a = +e.dataset.a, b = +e.dataset.b, s = e.getPointAtLength(0), t = e.getPointAtLength(L), A = box(a), B = box(b), th = [];
+      for (let i = 1; i < 40; i++) { const q = e.getPointAtLength(L * i / 40); for (const [k, r] of all) if (k !== a && k !== b && q.x > r.x + 2 && q.x < r.x + r.width - 2 && q.y > r.y + 2 && q.y < r.y + r.height - 2) th.push(k) }
+      return { a, b, ok: Math.abs(s.y - (A.y + A.height)) < 3 && Math.abs(t.y - B.y) < 4, th: th.length } }) });
+  const got = new Set(ln.map(e => S[e.a] + '>' + S[e.b]));
+  if (!setEq(got, new Set(strong.keys()))) bad('1280: strong lines differ from the data');
+  ln.forEach(e => { if (!e.ok) bad('1280: line not card to card', S[e.a], S[e.b]); if (e.th) bad('1280: line through a card', S[e.a], S[e.b]) });
+  const cards = await p.$$eval('#lm-ov .lm-t', gs => gs.map(g => [+g.dataset.k, +g.dataset.l]));
+  if (cards.length !== Object.keys(TP).length || cards.some(([k, l]) => l !== layerMemo[S[k]])) bad('1280: cards or layers differ from the rule');
+  await p.hover(`#lm-ov .lm-t .lm-box`); await wait(450);
+  const sc = await scaleOf(p); if (Math.abs(sc - 1.025) > .006) bad('1280 hover: scale', sc);
+  await p.mouse.move(5, 5); await wait(400);
+  await shot(p, 'lm_1280_light_overview.png');
+  errs.forEach(e => bad('1280 error:', e));
+  await p.close();
+}
+
 // ---------------- 920 light and dark: frames of the load reveal, focus with its dots, a topic view, a path mid-step
 for (const scheme of ['light', 'dark']) {
   const { p, errs } = await open(920, scheme);
   for (const t of [120, 330, 560, 800]) { await freezeAt(p, t); await shot(p, `lm_920_${scheme}_reveal_${t}.png`) }
   await finishAll(p); await wait(50);
-  if (scheme === 'dark') await shot(p, 'lm_920_dark_overview.png');
+  if (scheme === 'dark') { await shot(p, 'lm_920_dark_overview.png'); await colours(p, 'dark') }
   const S = await slugs(p), fk = S.indexOf('inference_and_serving') >= 0 ? S.indexOf('inference_and_serving') : 0;
   await p.hover(`#lm-ov .lm-t[data-k="${fk}"] .lm-box`); await wait(1000);
   await shot(p, `lm_920_${scheme}_focus_mid.png`);
@@ -368,7 +449,15 @@ for (const scheme of ['light', 'dark']) {
   if (await p.evaluate(() => document.getAnimations().length)) bad('reduced motion: something animates after load');
   const fr = await finalLayout(p);
   if (fr !== finalNormal) { const a = fr.split('|'), c = (finalNormal || '').split('|'); const i = a.findIndex((x, j) => x !== c[j]); bad('the load reveal does not end in the reduced-motion layout, first difference at', i, a[i], 'vs', c[i]) }
-  await p.hover(`#lm-ov .lm-t .lm-box`); await wait(100);
+  { const r0 = await p.evaluate(() => [...document.querySelectorAll('#lm-ov .lm-t, #lm-ov .lm-se, #lm-ovl > *')].map(e => JSON.stringify(e.getBoundingClientRect())).join());
+    await wait(400); const r1 = await p.evaluate(() => [...document.querySelectorAll('#lm-ov .lm-t, #lm-ov .lm-se, #lm-ovl > *')].map(e => JSON.stringify(e.getBoundingClientRect())).join());
+    if (r0 !== r1) bad('reduced motion: something moves on load') }
+  { const S0 = await slugs(p), k0 = S0.indexOf('inference_and_serving') >= 0 ? S0.indexOf('inference_and_serving') : 0;
+    await p.hover(`#lm-ov .lm-t[data-k="${k0}"] .lm-box`); await wait(20);
+    if (await p.evaluate(() => document.getAnimations().length)) bad('reduced motion: hover animates');
+    const sc = await scaleOf(p); if (sc !== 1) bad('reduced motion: the hovered card grows', sc);
+    const dim = await p.evaluate(() => [...document.querySelectorAll('#lm-ov .lm-t:not(.me):not(.up):not(.dn)')].map(g => +getComputedStyle(g).opacity));
+    if (!dim.length || dim.some(op => Math.abs(op - .38) > .05)) bad('reduced motion: the fade of unrelated cards is lost', dim.slice(0, 4)) }
   if (await p.$('#lm-ov .lm-dot') || await infinite(p)) bad('reduced motion: focus runs dots');
   await p.mouse.move(5, 5);
   const S = await slugs(p);
@@ -398,6 +487,7 @@ for (const scheme of ['light', 'dark']) {
   const small = await p.$$eval('#lm .lm-list *, #lm .lm-sub, #lm-ovcap *', es => es.filter(e => e.offsetParent !== null && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && parseFloat(getComputedStyle(e).fontSize) < 11).length);
   if (small) bad('390: text under 11 px', small);
   const S = await slugs(p);
+  await namesCheck(p, '390');
   // cards: one per topic, under its layer's heading, with "Builds on" naming exactly its strong links
   const nc = await p.evaluate(() => [...document.querySelectorAll('#lm-ovl .lm-c')].map(c => ({ k: +c.dataset.k, head: (c.parentElement.previousElementSibling.matches('p') ? c.parentElement.previousElementSibling.previousElementSibling : c.parentElement.previousElementSibling).textContent,
     cwShown: (c.querySelector('.lm-cw') || { offsetParent: null }).offsetParent !== null,

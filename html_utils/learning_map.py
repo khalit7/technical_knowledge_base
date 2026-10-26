@@ -23,8 +23,10 @@ Layout (all at build time, no runtime layout library):
   y           = repeated least-squares pulls toward neighbours under order and spacing constraints (isotonic fit)
 The overview is an inline SVG (plus HTML cards for narrow screens); topic views and "path to" views are a small JSON of coordinates that the page's
 script draws (it never computes a layout).
-Motion (CSS transforms, opacity and stroke-dashoffset through the Web Animations API, no library; all skipped under
-prefers-reduced-motion): a one-time load reveal (layers rise top to bottom, strong lines draw upper to lower, then the
+Motion (CSS transforms, opacity and stroke-dashoffset through the Web Animations API and CSS transitions, no library;
+all movement skipped under prefers-reduced-motion, colour and opacity states kept): hover or focus grows a card to
+1.025 on a spring with a faded-in shadow layer, press .985, unrelated topics fade to .38 after a 60 ms intent; a one-time
+load reveal when the map is on screen (layers rise top to bottom, strong lines draw upper to lower, then the
 caption; about 1 s, finished at once by any input), focus (lines into the topic draw, dots run along them
 from the topics it builds on until blur), opening a topic (the card's outline grows into the view, pages appear stage by
 stage) and path Step (arriving lines draw with a dot running into the page, then it fills).
@@ -37,7 +39,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SECTIONS = ["Models & training", "Systems & performance", "Agents & retrieval", "Measurement", "Engineering foundations"]
-W = 888            # drawing width: the home page's content column
+W_N = 846          # drawing width at narrow desktop widths (the map panel at 920 px), also the topic and path views
+W_W = 1030         # drawing width of the overview on wide screens (the map panel at 1120 px); the page picks one
+W = W_N
 BW = 110           # node width
 TOP = 30           # room for the stage headings
 
@@ -257,9 +261,27 @@ def wrap(text, maxw, size, bold=False, maxlines=4):
     return out
 
 
+ACRONYMS = {"llm": "LLM", "llms": "LLMs", "ml": "ML", "rl": "RL", "rag": "RAG", "gpu": "GPU", "gpus": "GPUs", "cuda": "CUDA",
+            "jax": "JAX", "tpu": "TPU", "tpus": "TPUs", "swe": "SWE", "ai": "AI", "api": "API", "os": "OS", "pytorch": "PyTorch"}
+NAME_FIX = {"rl": "Reinforcement learning", "llm-training-and-post-training": "LLM training and post-training"}
+
+
+def topic_name(t):
+    """a topic page's title "Topic: llm-architecture" -> the name readers see, "LLM architecture" """
+    if not t.startswith("Topic: "):
+        return t
+    slug = t[7:].strip()
+    if slug in NAME_FIX:
+        return NAME_FIX[slug]
+    words = [ACRONYMS.get(w.lower(), w.lower()) for w in slug.split("-")]
+    if words and words[0] == words[0].lower():
+        words[0] = words[0][:1].upper() + words[0][1:]
+    return " ".join(words)
+
+
 def short_title(t):
     if t.startswith("Topic: "):
-        return t[7:]
+        return topic_name(t)
     head = t.split(":")[0]
     return head if ":" in t and len(head) >= 12 else t
 
@@ -502,7 +524,7 @@ def edge_d(x0, y0, mids, x1, y1):
     return d
 
 
-def columns(n, maxsp=230):
+def columns(n, maxsp=230, W=W_N):
     sp = min(maxsp, (W - 8 - BW) / (n - 1)) if n > 1 else 0
     return [round(i * sp) for i in range(n)]
 
@@ -536,8 +558,9 @@ def build(url, kb=None):
     P = []
     for p in order:
         m, plus = reading(p["path"])
-        lines = wrap(short_title(p["title"]), BW - 12, FS, maxlines=4)
-        P.append({"id": p["id"].replace("-", ""), "t": p["title"], "u": url(p), "m": m, "x": plus,
+        title = topic_name(p["title"]) + ": overview" if p["title"].startswith("Topic: ") else p["title"]
+        lines = wrap(short_title(title), BW - 15, FS, maxlines=4)
+        P.append({"id": p["id"].replace("-", ""), "t": title, "u": url(p), "m": m, "x": plus,
                   "c": tix[kb.root(p["path"])], "l": lines, "h": page_height(lines), "g": glayer[p["path"]],
                   "pre": [pix[a] for a in pre[p["path"]]]})
     T = []
@@ -553,8 +576,9 @@ def build(url, kb=None):
     for i in range(len(P)):
         if clo[i]:
             views["path"][i] = path_view(P, i, clo[i])
-    ov_svg, ov_list, groups = overview(P, T)
-    return P, T, views, ov_svg, ov_list, groups, (err, warn)
+    ov_svg, ov_list, groups = overview(P, T, W_N)
+    ov_wide = overview(P, T, W_W)[0].replace('id="lm-ov"', 'id="lm-ov" data-w="wide"', 1)
+    return P, T, views, (ov_svg, ov_wide), ov_list, groups, (err, warn)
 
 
 def view_from(P, nodes, edges, layer, ghost=()):
@@ -684,7 +708,7 @@ def vcurve(x0, y0, x1, y1):
     return f"C{x0:.0f} {y0 + dy:.0f} {x1:.0f} {y1 - dy:.0f} {x1:.0f} {y1:.0f}"
 
 
-def overview(P, T):
+def overview(P, T, W=W_N):
     """the topic graph: one card per topic in layers top to bottom (study order), solid lines for the strong links;
     returns (inline SVG for wide screens, card rows for narrow screens, cycle note)"""
     nT = len(T)
@@ -709,7 +733,8 @@ def overview(P, T):
     # Topics with no strong link either way are layer 1 too: a compact grid in the upper rows of layer 1, above the
     # linked layer-1 row, so every line leaves from that bottom row and none crosses a card.
     AW = W - GUT - 8
-    per = max(1, int((AW + CG) // (CW_GRID + CG)))
+    cw_max, cw_grid = (CW_MAX, CW_GRID) if W < 960 else (232, 170)
+    per = max(1, int((AW + CG) // (cw_grid + CG)))
     lk = sorted(linked, key=secord)
     free = sorted((k for k in range(nT) if k not in linked), key=secord)
     es = [(b, a) for (b, a) in strong if lay[b] < lay[a]]
@@ -727,10 +752,10 @@ def overview(P, T):
             m = -(-len(free) // nr)
             rows = [free[i:i + m] for i in range(0, len(free), m)]
             for k in free:
-                width[k] = min(CW_MAX, (AW - (m - 1) * CG) / m)
+                width[k] = min(cw_max, (AW - (m - 1) * CG) / m)
         if lr:
             n = len(lr)
-            w = max(CW_MIN, min(CW_MAX, (AW - 4 - (n - 1) * CG - through[l] * (4 + 2 * 12 - CG)) / n))
+            w = max(CW_MIN, min(cw_max, (AW - 4 - (n - 1) * CG - through[l] * (4 + 2 * 12 - CG)) / n))
             for k in lr:
                 width[k] = w
             rows.append(lr)
@@ -832,7 +857,7 @@ def overview(P, T):
         else:
             head = f"L{l + 1}"
         my = (a + b) / 2
-        o.append(f'<g class="lm-bd" data-l="{l}"><rect class="lm-band" x="0.5" y="{a}" width="{W - 1}" height="{b - a}" rx="12"/>'
+        o.append(f'<g class="lm-bd" data-l="{l}"><rect class="lm-band" x="0.5" y="{a}" width="{W - 1}" height="{b - a}" rx="14"/>'
                  f'<text class="lm-lh" x="16" y="{my:.0f}" text-anchor="middle" transform="rotate(-90 16 {my:.0f})">{head}</text></g>')
     grads = []
     o.append('<g class="lm-es">')
@@ -904,6 +929,8 @@ def overview(P, T):
         meta = f'{len(t["p"])} pages, {t["m"] / 60:.1f} h'
         s = (f'<g class="lm-t s{t["s"]}" data-t="{k}" data-k="{k}" data-l="{lay[k]}" data-free="{0 if k in linked else 1}" role="button" tabindex="0" '
              f'aria-label="Open {html.escape(t["n"])}: {meta}"><title>{html.escape(tip_of(k))}</title>'
+             f'<rect class="lm-lift" x="{x:.1f}" y="{y}" width="{w:.1f}" height="{h}" rx="{RX}"/>'
+             f'<rect class="lm-ring" x="{x:.1f}" y="{y}" width="{w:.1f}" height="{h}" rx="{RX}"/>'
              f'<rect class="lm-box" x="{x:.1f}" y="{y}" width="{w:.1f}" height="{h}" rx="{RX}"/>' + accent(x, y, h))
         yy = y + 11
         for ln in c["tl"]:
@@ -947,73 +974,106 @@ def overview(P, T):
 
 # ---------------------------------------------------------------- HTML
 CSS = """
-.lm{position:relative;margin:24px 0 8px;--s0:#2f6fb5;--s1:#b8602a;--s2:#2b8a57;--s3:#8a4fb8;--s4:#1f8585;--card:#fff;--hl:#d99a00;--card2:#f7f7f5;
- --cardln:rgba(31,35,40,.10);--cardln2:rgba(31,35,40,.18);--shc:#1f2328;--sho:.09;--sho2:.16;--band:rgba(31,35,40,.028);--pill0:rgba(31,35,40,.05);--edge:.5}
-@media (prefers-color-scheme:dark){.lm{--s0:#6ea8e6;--s1:#e3925c;--s2:#5cc48d;--s3:#b98ce3;--s4:#4fc1c1;--card:#232323;--hl:#f2c14e;--card2:#262626;
- --cardln:rgba(255,255,255,.08);--cardln2:rgba(255,255,255,.16);--shc:#000;--sho:.5;--sho2:.7;--band:rgba(255,255,255,.025);--pill0:rgba(255,255,255,.06);--edge:.55}}
-.lm h2{margin:0 0 4px;letter-spacing:-.01em}.lm .lm-sub{color:var(--mute);margin:0 0 16px;font-size:14px}
-.lm-bar0{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:0 0 12px}
-.lm-qw{position:relative;flex:1 1 260px;max-width:420px}
-.lm-qw input{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:8px 12px;border:1px solid var(--cardln2);border-radius:10px;background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.04)}
-.lm-qw input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 20%,transparent)}
-.lm-sug{position:absolute;z-index:5;left:0;right:0;top:100%;margin:4px 0 0;padding:4px;list-style:none;background:var(--card);border:1px solid var(--cardln);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14)}
-.lm-sug li{margin:0}.lm-sug button{display:block;width:100%;text-align:left;font:inherit;font-size:13.5px;padding:6px 10px;border:0;border-radius:6px;background:none;color:var(--ink);cursor:pointer}
-.lm-sug button:hover,.lm-sug button.on{background:var(--card2)}
-.lm button.lm-btn{font:inherit;font-size:13px;padding:5px 12px;border:1px solid var(--cardln2);border-radius:8px;background:var(--card);color:var(--ink);cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05);transition:border-color .15s,background .15s}
-.lm button.lm-btn:hover{border-color:var(--acc)}.lm button.lm-btn:disabled{opacity:.45;cursor:default}
-.lm-leg{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;color:var(--mute);margin:0 0 12px}
+:root{--s0:#3072c1;--s1:#b0540e;--s2:#1c8742;--s3:#8559b2;--s4:#ae4976;
+ --ease-out:cubic-bezier(.16,1,.3,1);--ease-std:cubic-bezier(.2,0,0,1);
+ /* a gentle spring (damping ratio .75, about 3 % overshoot), sampled from the closed form */
+ --spring:linear(0,.0066 1.5%,.0263 3.1%,.0589 4.8%,.1062 6.7%,.2098 10.1%,.4509 17.2%,.555 20.3%,.6539 23.7%,.7379 27%,.8062 30%,.8641 33.2%,.9115 36.4%,.9503 39.8%,.9813 43.4%,1.0042 47.3%,1.0191 51.6%,1.0268 56.5%,1.027 64.7%,1.0084 86%,1)}
+@media (prefers-color-scheme:dark){:root{--s0:#7cb4fc;--s1:#ee9a69;--s2:#76c788;--s3:#c39dee;--s4:#ed90b5}}
+.lm{position:relative;margin:40px 0 8px;--card:#fff;--hl:#d99a00;--card2:#f6f6f4;--panel:#fbfbfa;--dot:rgba(31,35,40,.11);
+ --cardln:rgba(31,35,40,.10);--cardln2:rgba(31,35,40,.18);--shc:#1f2a3a;--sho:.08;--sho2:.17;--band:rgba(31,35,40,.026);--bandln:rgba(31,35,40,.06);--pill0:rgba(31,35,40,.05);--edge:.8}
+@media (prefers-color-scheme:dark){.lm{--card:#232326;--hl:#f2c14e;--card2:#27272a;--panel:#1c1c1e;--dot:rgba(255,255,255,.075);
+ --cardln:rgba(255,255,255,.08);--cardln2:rgba(255,255,255,.16);--shc:#000;--sho:.45;--sho2:.75;--band:rgba(255,255,255,.022);--bandln:rgba(255,255,255,.05);--pill0:rgba(255,255,255,.06);--edge:.68}}
+.lm h2{margin:0 0 4px;font-size:22px;letter-spacing:-.015em}.lm .lm-sub{color:var(--mute);margin:0 0 14px;font-size:14.5px;max-width:68ch}
+.lm-bar0{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between;margin:0 0 12px}
+.lm-qw{position:relative;flex:0 1 340px;order:2}
+.lm-qw svg{position:absolute;left:10px;top:50%;margin-top:-7px;width:14px;height:14px;fill:none;stroke:var(--mute);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.lm-qw input{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:6px 10px 6px 31px;border:1px solid var(--cardln);border-radius:8px;background:var(--card2);color:var(--ink);transition:border-color 150ms var(--ease-std),box-shadow 150ms var(--ease-std),background-color 150ms var(--ease-std)}
+.lm-qw input::placeholder{color:var(--mute)}
+.lm-qw input:focus{outline:none;background:var(--card);border-color:var(--acc);box-shadow:0 0 0 4px color-mix(in oklab,var(--acc) 22%,transparent)}
+.lm-sug{position:absolute;z-index:5;left:0;right:0;top:100%;margin:4px 0 0;padding:4px;list-style:none;background:var(--card);border:1px solid var(--cardln);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);animation:lm-in 160ms var(--ease-out)}
+@keyframes lm-in{from{opacity:0;transform:translateY(-4px)}}
+.lm-sug li{margin:0}.lm-sug button{display:block;width:100%;text-align:left;font:inherit;font-size:13.5px;padding:6px 10px;border:0;border-radius:6px;background:none;color:var(--ink);cursor:pointer;box-shadow:inset 0 0 0 transparent}
+.lm-sug button:hover,.lm-sug button.on{background:var(--card2)}.lm-sug button.on{box-shadow:inset 2px 0 0 var(--acc)}
+.lm button.lm-btn{font:inherit;font-size:13px;padding:5px 12px;border:1px solid var(--cardln2);border-radius:8px;background:var(--card);color:var(--ink);cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05);transition:border-color 120ms var(--ease-std),background-color 120ms var(--ease-std),transform 240ms var(--spring)}
+.lm button.lm-btn:hover{border-color:var(--acc);background:color-mix(in oklab,var(--ink) 5%,var(--card))}.lm button.lm-btn:active{transform:scale(.97);transition-duration:80ms}
+.lm button.lm-btn:disabled{opacity:.45;cursor:default;transform:none}
+.lm-leg{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;color:var(--mute);order:1}
 .lm-leg i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
-.lm-head{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;margin:0 0 8px}.lm-head b{font-size:15.5px}.lm-head span{color:var(--mute);font-size:13.5px}
-.lm-scroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
-.lm-svg{display:block;font-family:inherit;font-variant-numeric:tabular-nums;overflow:visible}
+.lm-head{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;margin:0 0 10px}.lm-head b{font-size:15.5px}.lm-head span{color:var(--mute);font-size:13.5px}
+.lm-map{position:relative;isolation:isolate;padding:14px;border:1px solid var(--cardln);border-radius:16px;background:var(--panel)}
+.lm-map::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;
+ background-image:radial-gradient(circle at 1px 1px,var(--dot) 1px,transparent 1.3px);background-size:22px 22px;
+ -webkit-mask-image:radial-gradient(130% 100% at 50% 40%,#000 55%,transparent 100%);mask-image:radial-gradient(130% 100% at 50% 40%,#000 55%,transparent 100%)}
+.lm-scroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;padding:6px}
+.lm-svg{display:block;font-family:inherit;font-variant-numeric:tabular-nums;overflow:visible;max-width:100%;height:auto;margin:0 auto}
 .lm-fs{flood-color:var(--shc);flood-opacity:var(--sho)}.lm-fs2{flood-color:var(--shc);flood-opacity:var(--sho2)}
 .lm-st{stop-color:var(--sc)}
 .lm-col{font-size:11px;fill:var(--mute);font-weight:600;letter-spacing:.06em}
-.lm-e{fill:none;stroke:var(--mute);stroke-opacity:.45;stroke-linecap:round}.lm-arh{fill:var(--mute)}
+.lm-e{fill:none;stroke:var(--mute);stroke-opacity:.5;stroke-linecap:round}.lm-arh{fill:var(--mute)}
 .lm-e.on{stroke:var(--hl);stroke-opacity:1;stroke-width:2.2}.lm-e.off{stroke-opacity:.1}.lm-e.drw{marker-end:none}
-.lm-box{fill:var(--card);stroke:var(--cardln);stroke-width:1;filter:url(#lm-sh);transition:stroke .15s,fill .25s}.lm-bar{fill:var(--sc)}
+.lm-box{fill:var(--card);stroke:var(--cardln);stroke-width:1;filter:url(#lm-sh);transition:stroke 160ms var(--ease-std),fill 250ms var(--ease-std)}.lm-bar{fill:var(--sc)}
+.lm-lift{fill:var(--card);filter:url(#lm-sh2);opacity:0;transition:opacity 200ms var(--ease-std);pointer-events:none}
+.lm-ring,.lm-halo{fill:none;stroke:var(--sc);stroke-width:7;stroke-opacity:.22;opacity:0;transition:opacity 160ms var(--ease-std);pointer-events:none}
+.lm-halo{stroke:var(--hl);stroke-width:9;stroke-opacity:.3;transform-box:fill-box;transform-origin:center}
 .s0{--sc:var(--s0)}.s1{--sc:var(--s1)}.s2{--sc:var(--s2)}.s3{--sc:var(--s3)}.s4{--sc:var(--s4)}
-.lm-tl{font-size:13.5px;fill:var(--ink);font-weight:600;letter-spacing:-.005em}.lm-pl{font-size:12px;fill:var(--ink)}.lm-m{font-size:11.5px;fill:var(--mute)}
+/* section colour as text on its own tinted pill: a little deeper in light so it keeps 4.5:1 */
+.lm-cnt,.lm-strip i{--sct:color-mix(in oklab,var(--sc) 80%,#000)}@media (prefers-color-scheme:dark){.lm-cnt,.lm-strip i{--sct:var(--sc)}}
+.lm-tl{font-size:13.5px;fill:var(--ink);font-weight:600;letter-spacing:-.01em}.lm-pl{font-size:12px;fill:var(--ink)}.lm-m{font-size:11.5px;fill:var(--mute)}
 .lm-pn{fill:var(--ink);font-weight:600}.lm-hr{fill-opacity:.8}
-.lm-t,.lm-pb{cursor:pointer}.lm-t:hover .lm-box,.lm-t:focus-visible .lm-box{stroke:var(--sc);filter:url(#lm-sh2)}.lm-t:focus{outline:none}
-.lm-band{fill:var(--band)}
+.lm-t,.lm-pb{cursor:pointer}.lm-t:focus{outline:none}
+/* cards answer the pointer: a small spring lift with a deeper shadow faded in, a press, and a ring in the section colour */
+#lm-ov .lm-t{transform-box:fill-box;transform-origin:center;transition:transform 200ms var(--ease-std),opacity 220ms var(--ease-std)}
+#lm-ov .lm-t:hover,#lm-ov .lm-t:focus-visible{transform:scale(1.025);transition:transform 340ms var(--spring),opacity 220ms var(--ease-std)}
+#lm-ov .lm-t:active{transform:scale(.985);transition:transform 90ms var(--ease-std),opacity 220ms var(--ease-std)}
+#lm-ov .lm-t:hover .lm-lift,#lm-ov .lm-t:focus-visible .lm-lift,#lm-ov .lm-t.me .lm-lift{opacity:1}
+#lm-ov .lm-t:hover .lm-box,#lm-ov .lm-t:focus-visible .lm-box,#lm-ov .lm-t.me .lm-box{stroke:var(--sc);stroke-width:1.5}
+#lm-ov .lm-t:focus-visible .lm-ring,#lm-ov .lm-t.me .lm-ring{opacity:1}
+.lm-band{fill:var(--band);stroke:var(--bandln);stroke-width:1}
 .lm-lh{font-size:11px;font-weight:600;fill:var(--mute);letter-spacing:.06em}
 .lm-sl{font-size:9px;fill:var(--mute);fill-opacity:.8;font-weight:500}
-.lm-cell{fill:var(--sc);fill-opacity:.15}.lm-cell.z{fill:var(--pill0);fill-opacity:1}
-.lm-cnt{font-size:11px;font-weight:650;fill:var(--sc);pointer-events:none}
+.lm-cell{fill:color-mix(in oklab,var(--sc) 13%,var(--card))}.lm-cell.z{fill:var(--pill0)}
+.lm-cnt{font-size:11px;font-weight:650;fill:var(--sct);pointer-events:none}
 .lm-wk{font-size:11px;fill:var(--mute)}
-.lm-se{fill:none;stroke-linecap:round;stroke-opacity:var(--edge);transition:stroke-opacity .2s}
-.lm-we{fill:none;stroke:var(--mute);stroke-width:1.6;stroke-dasharray:1 5;stroke-linecap:round;opacity:0;pointer-events:none;transition:opacity .25s}
-.lm-wkp{opacity:0;pointer-events:none;transition:opacity .2s}.lm-wkp rect{fill:var(--card);stroke:var(--cardln);filter:url(#lm-sh2)}.lm.foc .lm-wkp.on{opacity:1}
-.lm-el{opacity:0;pointer-events:none;transition:opacity .2s}.lm-el rect{fill:var(--card);stroke:var(--cardln);filter:url(#lm-sh)}.lm-el text{font-size:11px;fill:var(--ink);font-weight:600}
+.lm-se{fill:none;stroke-linecap:round;stroke-opacity:var(--edge);transition:stroke-opacity 200ms var(--ease-std)}
+.lm-we{fill:none;stroke:var(--mute);stroke-width:1.6;stroke-dasharray:1 5;stroke-linecap:round;opacity:0;pointer-events:none;transition:opacity 250ms var(--ease-std)}
+.lm-wkp{opacity:0;pointer-events:none;transition:opacity 200ms var(--ease-std)}.lm-wkp rect{fill:var(--card);stroke:var(--cardln);filter:url(#lm-sh2)}.lm.foc .lm-wkp.on{opacity:1}
+.lm-el{opacity:0;pointer-events:none;transition:opacity 200ms var(--ease-std)}.lm-el rect{fill:var(--card);stroke:var(--cardln);filter:url(#lm-sh)}.lm-el text{font-size:11px;fill:var(--ink);font-weight:600}
 .lm-dot{fill:var(--card);stroke:var(--sc);stroke-width:2;pointer-events:none}
-#lm-ov .lm-t{transition:opacity .2s}
-.lm.foc #lm-ov .lm-t,.lm.foc .lm-c{opacity:.25}
-.lm.foc #lm-ov .lm-t.me,.lm.foc #lm-ov .lm-t.up,.lm.foc #lm-ov .lm-t.dn,.lm.foc .lm-c.me,.lm.foc .lm-c.up,.lm.foc .lm-c.dn{opacity:1}
-.lm.foc #lm-ov .lm-se{stroke-opacity:.07}.lm.foc #lm-ov .lm-se.on{stroke-opacity:1}
+/* depth of field on focus: what is unrelated fades (after a short hover intent), nothing blurs */
+.lm.foc #lm-ov .lm-t:not(.me):not(.up):not(.dn),.lm.foc .lm-c:not(.me):not(.up):not(.dn){opacity:.38;transition:transform 200ms var(--ease-std),opacity 220ms var(--ease-std) 60ms}
+.lm.foc #lm-ov .lm-se{stroke-opacity:.12;transition:stroke-opacity 220ms var(--ease-std) 60ms}.lm.foc #lm-ov .lm-se.on{stroke-opacity:1;transition-delay:0ms}
 .lm.foc .lm-we.on{opacity:.9}.lm.foc .lm-el.on{opacity:1}
-#lm-ov .lm-t.me .lm-box{stroke:var(--sc);stroke-width:1.5;filter:url(#lm-sh2)}
-.lm-ovkey{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12.5px;color:var(--mute);margin:8px 0 0;align-items:center}
+.lm-ovkey{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12.5px;color:var(--mute);margin:12px 0 0;align-items:center}
 .lm-ovkey svg{vertical-align:middle;margin-right:6px}.lm-ovkey .lm-sl,.lm-ovkey .lm-cnt{font-size:11px}
-.lm-n a:hover .lm-box,.lm-n a:focus .lm-box{stroke:var(--sc);filter:url(#lm-sh2)}.lm-n a{text-decoration:none}
-.lm-n.ghost .lm-box{stroke:var(--sc);stroke-opacity:.7;stroke-dasharray:4 3;fill:var(--card2);filter:none}.lm-n.ghost .lm-bar{fill-opacity:.5}
+.lm-how{margin:10px 0 0;font-size:13px;color:var(--mute)}.lm-how>summary{cursor:pointer;font-size:13px;color:var(--mute);width:max-content;list-style:none}
+.lm-how>summary::-webkit-details-marker{display:none}.lm-how>summary::before{content:"";display:inline-block;width:6px;height:6px;margin:0 9px 1px 2px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform 200ms var(--ease-std)}
+.lm-how[open]>summary::before{transform:rotate(45deg)}.lm-how>summary:hover{color:var(--ink)}.lm-how .lm-cap{max-width:68ch}
+.lm-n{transform-box:fill-box;transform-origin:center;transition:opacity 250ms var(--ease-std),transform 200ms var(--ease-std)}
+.lm-n:hover{transform:scale(1.03);transition:opacity 250ms var(--ease-std),transform 320ms var(--spring)}.lm-n:active{transform:scale(.985);transition-duration:90ms}
+.lm-n:hover .lm-lift,.lm-n a:focus-visible .lm-lift{opacity:1}
+.lm-n a:hover .lm-box,.lm-n a:focus .lm-box{stroke:var(--sc)}.lm-n a{text-decoration:none}.lm-n a:focus{outline:none}
+.lm-n.ghost .lm-box{stroke:var(--sc);stroke-opacity:.7;stroke-dasharray:4 3;fill:var(--card2);filter:none;transition:stroke-opacity 150ms var(--ease-std)}.lm-n.ghost .lm-bar{fill-opacity:.5}
+.lm-n.ghost:hover .lm-box{stroke-opacity:1}
 .lm-n.tgt .lm-box{stroke:var(--sc);stroke-width:2}
 .lm-n.done .lm-box{fill:color-mix(in srgb,var(--sc) 14%,var(--card))}
-.lm-n.cur .lm-box{stroke:var(--hl);stroke-width:2.5;fill:color-mix(in srgb,var(--hl) 16%,var(--card))}.lm-n{transition:opacity .25s}.lm-n.todo{opacity:.3}
-.lm-pb circle{fill:var(--card);stroke:var(--acc);stroke-width:1.2}.lm-pb path{fill:none;stroke:var(--acc);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.lm-pb:hover circle,.lm-pb:focus circle{fill:var(--acc)}.lm-pb:hover path,.lm-pb:focus path{stroke:var(--bg)}.lm-pb:focus{outline:none}
+.lm-n.cur .lm-box{stroke:var(--hl);stroke-width:2.5;fill:color-mix(in srgb,var(--hl) 16%,var(--card))}.lm-n.cur .lm-halo{opacity:1}.lm-n.todo{opacity:.3}
+.lm-pb circle{fill:var(--card);stroke:var(--acc);stroke-width:1.2;transition:fill 120ms var(--ease-std)}.lm-pb path{fill:none;stroke:var(--acc);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:stroke 120ms var(--ease-std),transform 160ms var(--ease-std)}
+.lm-pb:hover circle,.lm-pb:focus circle{fill:var(--acc)}.lm-pb:hover path,.lm-pb:focus path{stroke:var(--bg);transform:translateX(1px)}.lm-pb:focus{outline:none}
 .lm-cap{color:var(--mute);font-size:13px;margin:8px 0 0}
 .lm-fly{position:absolute;pointer-events:none;transform-origin:0 0;border:1.5px solid var(--sc);border-radius:12px;background:color-mix(in srgb,var(--sc) 5%,transparent);box-sizing:border-box;z-index:3}
-.lm-list{display:none}.lm-list h4{margin:16px 0 8px;font-size:12px;color:var(--mute);font-weight:600;letter-spacing:.05em}
+.lm-list{display:none}.lm-list h4{margin:18px 0 8px;font-size:12px;color:var(--mute);font-weight:600;letter-spacing:.05em}
 .lm-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
-.lm-c{display:flex;flex-direction:column;gap:4px;padding:10px 10px 10px 13px;border:1px solid var(--cardln);border-radius:10px;background:var(--card);color:var(--ink);cursor:pointer;font-size:12px;line-height:1.35;transition:opacity .2s,box-shadow .2s;min-width:0;
+.lm-c{display:flex;flex-direction:column;gap:4px;padding:10px 10px 10px 13px;border:1px solid var(--cardln);border-radius:10px;background:var(--card);color:var(--ink);cursor:pointer;font-size:12px;line-height:1.35;min-width:0;
+ transition:opacity 200ms var(--ease-std),box-shadow 200ms var(--ease-std),border-color 160ms var(--ease-std),transform 280ms var(--spring);-webkit-tap-highlight-color:transparent;
  box-shadow:inset 3px 0 0 var(--sc),0 1px 3px color-mix(in srgb,var(--shc) calc(var(--sho)*100%),transparent)}
-.lm-c b{font-size:13.5px;font-weight:600;overflow-wrap:anywhere}.lm-c .lm-cm{color:var(--mute);font-variant-numeric:tabular-nums}.lm-c .lm-cw{color:var(--mute);display:none}.lm-c.me .lm-cw{display:block}
-.lm-c.me,.lm-c:focus-visible{outline:none;border-color:var(--sc);box-shadow:inset 3px 0 0 var(--sc),0 4px 14px color-mix(in srgb,var(--shc) calc(var(--sho2)*100%),transparent)}
+.lm-c:active{transform:scale(.985);transition-duration:90ms}
+@media (hover:hover){.lm-c:hover{border-color:var(--sc)}}
+.lm-c b{font-size:13.5px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere}.lm-c .lm-cm{color:var(--mute);font-variant-numeric:tabular-nums}.lm-c .lm-cw{color:var(--mute);display:none}.lm-c.me .lm-cw{display:block}
+.lm-c.me,.lm-c:focus-visible{outline:none;border-color:var(--sc);box-shadow:inset 3px 0 0 var(--sc),0 0 0 3px color-mix(in oklab,var(--sc) 22%,transparent),0 4px 14px color-mix(in srgb,var(--shc) calc(var(--sho2)*100%),transparent)}
 .lm-c .lm-cb{color:var(--mute)}
 .lm-strip{display:flex;gap:3px;margin:2px 0 1px;font-variant-numeric:tabular-nums}.lm-strip>span{display:flex;flex-direction:column;align-items:center;gap:1px}
 .lm-strip em{font-style:normal;font-size:11px;line-height:12px;color:var(--mute);opacity:.8}
-.lm-strip i{font-style:normal;font-weight:650;font-size:11px;width:22px;height:15px;line-height:15px;text-align:center;border-radius:8px;color:var(--sc);background:color-mix(in srgb,var(--sc) 15%,transparent)}
+.lm-strip i{font-style:normal;font-weight:650;font-size:11px;width:22px;height:15px;line-height:15px;text-align:center;border-radius:8px;color:var(--sct);background:color-mix(in oklab,var(--sc) 13%,var(--card))}
 .lm-strip i.z{background:var(--pill0)}
 .lm-c .lm-open{display:none;margin-top:4px;align-self:flex-start}.lm-c.me .lm-open{display:block}
 .lm-fp{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;margin:4px 0 8px}.lm-fp>span:first-child{color:var(--mute)}
@@ -1024,7 +1084,7 @@ CSS = """
 .lm-pl-list li a{flex:1;min-width:0}.lm-pl-list li .mm{color:var(--mute);font-size:12.5px;white-space:nowrap}
 .lm-pl-list li .lm-pbt{margin-left:auto;font:inherit;font-size:12px;padding:1px 8px;border:1px solid var(--cardln2);border-radius:999px;background:none;color:var(--acc);cursor:pointer;white-space:nowrap}
 .lm-path{margin-top:16px}.lm-path ol{padding-left:0;list-style:none;counter-reset:s;margin:8px 0}
-.lm-path ol li{counter-increment:s;display:flex;gap:8px;align-items:baseline;margin:2px 0;padding:5px 8px;border-left:3px solid var(--sc);border-radius:2px 8px 8px 2px;transition:background .25s,opacity .25s}
+.lm-path ol li{counter-increment:s;display:flex;gap:8px;align-items:baseline;margin:2px 0;padding:5px 8px;border-left:3px solid var(--sc);border-radius:2px 8px 8px 2px;transition:background-color 200ms var(--ease-std),opacity 250ms var(--ease-std)}
 .lm-path ol li::before{content:counter(s);color:var(--mute);font-size:12.5px;min-width:1.4em;text-align:right;font-variant-numeric:tabular-nums}
 .lm-path ol li .tx{flex:1;display:flex;gap:8px;align-items:baseline;min-width:0}.lm-path ol li .tx a{min-width:0}
 .lm-path ol li .mm{color:var(--mute);font-size:12.5px;margin-left:auto;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -1032,11 +1092,14 @@ CSS = """
 .lm-path ol li.cur{background:color-mix(in srgb,var(--hl) 14%,transparent);box-shadow:inset 0 0 0 1.5px var(--hl)}.lm-path ol li.todo{opacity:.45}
 .lm-path ol li.tg{font-weight:600}
 .lm-sum{font-size:14px;margin:4px 0}.lm-ctl{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+@media (hover:none){#lm-ov .lm-t:hover{transform:none}#lm-ov .lm-t:hover:not(.me) .lm-lift{opacity:0}.lm-n:hover{transform:none}.lm-n:hover .lm-lift{opacity:0}}
 @media (max-width:899px){.lm.ov .lm-map{display:none}.lm.ov .lm-list{display:block}.lm-ovkey .ln{display:none}}
-@media (max-width:640px){.lm .lm-map{display:none}.lm .lm-list{display:block}.lm-qw{max-width:none}
+@media (max-width:640px){.lm .lm-map{display:none}.lm .lm-list{display:block}.lm-qw{flex:1 1 100%}
  .lm-path ol li .tx{display:block}.lm-path ol li .mm{display:block;margin:1px 0 0;white-space:normal}}
 .lm:not(.ov) #lm-ovcap,.lm:not(.ov) #lm-ovl{display:none}
-@media (prefers-reduced-motion:reduce){.lm *{transition:none!important}}
+/* reduced motion: nothing moves or scales; states (colour, the faded layers, the dimming) change at once */
+@media (prefers-reduced-motion:reduce){.lm *{transition:none!important;animation:none!important}
+ #lm-ov .lm-t:hover,#lm-ov .lm-t:focus-visible,#lm-ov .lm-t:active,.lm-n:hover,.lm-n:active,.lm-c:active,.lm button.lm-btn:active,.lm-pb:hover path,.lm-pb:focus path{transform:none}}
 """
 
 JS = r"""
@@ -1047,7 +1110,11 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const byId={};P.forEach((p,i)=>byId[p.id]=i);
 const mins=p=>p.m==null?'?':p.m;
 const settle=()=>root.getAnimations({subtree:true}).forEach(a=>{try{a.finish()}catch(e){a.cancel()}});
-const NS='http://www.w3.org/2000/svg',EASE='cubic-bezier(.2,.7,.2,1)';
+const NS='http://www.w3.org/2000/svg',EASE='cubic-bezier(.2,0,0,1)',OUT='cubic-bezier(.16,1,.3,1)',SPRING=getComputedStyle(document.documentElement).getPropertyValue('--spring').trim()||EASE;
+// the overview comes in two drawings: the wide one when the map panel has room for it (about 1080 px and up)
+const OVN=view.innerHTML,OVW=($('#lm-ovw')||{}).innerHTML||OVN,WW=+(D.WW||0);
+const wide=()=>{const cs=getComputedStyle(view);return view.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight)-12>=WW*.96};
+const ovHTML=()=>wide()?OVW:OVN;
 const accent=(x,y,h,rx)=>{const w=3,dy=rx-Math.sqrt(rx*rx-(rx-w)*(rx-w));return `<path class="lm-bar" d="M${x+w} ${y+dy}A${rx} ${rx} 0 0 0 ${x} ${y+rx}V${y+h-rx}A${rx} ${rx} 0 0 0 ${x+w} ${y+h-dy}Z"/>`};
 const drawKF=L=>[{strokeDasharray:`${L} ${L}`,strokeDashoffset:L},{strokeDasharray:`${L} ${L}`,strokeDashoffset:0}];
 // keyframes that carry a dot along a path, from its start (the page or topic built on) to its end
@@ -1055,7 +1122,7 @@ function along(e,fade){const L=e.getTotalLength(),n=Math.max(8,Math.round(L/14))
  for(let i=0;i<=n;i++){const q=e.getPointAtLength(L*i/n);kf.push({transform:`translate(${q.x.toFixed(1)}px,${q.y.toFixed(1)}px)`,opacity:fade&&(i===0||i===n)?0:1})}return kf}
 function dot(g,sc,r){const c=document.createElementNS(NS,'circle');c.setAttribute('r',r);c.setAttribute('class','lm-dot s'+sc);g.appendChild(c);return c}
 function nodeSVG(i,x,y,cls){const p=P[i],w=110,h=p.h;let s=`<g class="lm-n s${T[p.c].s} ${cls}" data-i="${i}"><a href="${esc(p.u)}"><title>${esc(p.t)} (${esc(T[p.c].n)}), ${mins(p)} min</title>`+
- `<rect class="lm-box" x="${x}" y="${y}" width="${w}" height="${h}" rx="8"/>`+accent(x,y,h,8);
+ `<rect class="lm-halo" x="${x}" y="${y}" width="${w}" height="${h}" rx="8"/><rect class="lm-lift" x="${x}" y="${y}" width="${w}" height="${h}" rx="8"/><rect class="lm-box" x="${x}" y="${y}" width="${w}" height="${h}" rx="8"/>`+accent(x,y,h,8);
  p.l.forEach((ln,j)=>s+=`<text class="lm-pl" x="${x+10}" y="${y+18+15*j}">${esc(ln)}</text>`);
  s+=`<text class="lm-m" x="${x+10}" y="${y+h-7}">${mins(p)} min</text></a>`;
  s+=`<g class="lm-pb" role="button" tabindex="0" data-p="${i}" aria-label="Path to ${esc(p.t)}"><title>Path to this page</title><circle cx="${x+w-11}" cy="${y+h-11}" r="8"/><path d="M${x+w-15} ${y+h-8}l3-3 2 2 3-4m-2 0h2v2"/></g></g>`;return s}
@@ -1078,28 +1145,30 @@ function focusT(k){if(k===fk&&(k==null||root.classList.contains('foc')))return;f
  root.querySelectorAll('.lm-t[data-k]').forEach(x=>{const j=+x.dataset.k;x.classList.toggle('me',j===k);x.classList.toggle('up',!!t&&t.up.includes(j));x.classList.toggle('dn',!!t&&t.dn.includes(j))});
  root.querySelectorAll('#lm-ov .lm-se,#lm-ov .lm-we,#lm-ov .lm-el').forEach(e=>e.classList.toggle('on',k!=null&&(+e.dataset.a===k||+e.dataset.b===k)));
  root.querySelectorAll('#lm-ov .lm-wkp').forEach(e=>e.classList.toggle('on',+e.dataset.k===k));if(k!=null)dotsOn(k)}
-function showOverview(){stopPlay();dotsOff();settle();cur=null;fk=null;view.innerHTML=D.OV;root.classList.add('ov');focusT(null);plist.innerHTML='';path.hidden=true;
+function showOverview(){stopPlay();dotsOff();settle();cur=null;fk=null;view.innerHTML=ovHTML();root.classList.add('ov');focusT(null);plist.innerHTML='';path.hidden=true;
  $('#lm-head').innerHTML='<b>All topics</b><span>Hover or tap a topic to see what it builds on; click to open its pages</span>'}
 // open a view by growing the clicked card into it, then reveal its pages stage by stage (only after a click)
 function grow(rs){const box=[view,list].find(e=>e.offsetParent!==null);if(!from||RM.matches||!box){from=null;return}
  const [r,sc]=from;from=null;let c=box.getBoundingClientRect();if(c.top<0){scrollBy(0,c.top-12);c=box.getBoundingClientRect()}
  const t=Math.max(0,Math.min(r.top-c.top,c.height-r.height)),l=Math.max(0,r.left-c.left),rt=Math.max(0,c.width-l-r.width),b=Math.max(0,c.height-t-r.height);
- box.animate([{clipPath:`inset(${t}px ${rt}px ${b}px ${l}px round 10px)`},{clipPath:'inset(0px 0px 0px 0px round 12px)'}],{duration:280,easing:EASE});
+ box.animate([{clipPath:`inset(${t}px ${rt}px ${b}px ${l}px round 10px)`},{clipPath:'inset(0px 0px 0px 0px round 12px)'}],{duration:300,easing:EASE});
  // the card's outline grows into the frame of the view (FLIP), then fades
  const R=root.getBoundingClientRect(),f=document.createElement('div');f.className='lm-fly s'+sc;
  Object.assign(f.style,{left:c.left-R.left+'px',top:c.top-R.top+'px',width:c.width+'px',height:Math.min(c.height,innerHeight)+'px'});root.appendChild(f);
  const fa=f.animate([{transform:`translate(${r.left-c.left}px,${r.top-c.top}px) scale(${r.width/c.width},${r.height/Math.min(c.height,innerHeight)})`,opacity:1},{transform:'none',opacity:.9,offset:.75},{transform:'none',opacity:0}],{duration:360,easing:EASE});
  fa.finished.then(()=>f.remove(),()=>f.remove());
  // then the pages appear stage by stage, left to right
- rs.forEach(([el,k])=>el.animate([{opacity:0,transform:'translateX(-8px)'},{opacity:1,transform:'none'}],{duration:180,delay:180+65*Math.min(k,4),easing:EASE,fill:'backwards'}))}
+ rs.forEach(([el,k])=>el.animate([{opacity:0,transform:'translateX(-6px)'},{opacity:1,transform:'none'}],{duration:260,delay:150+50*Math.min(k,5),easing:OUT,fill:'backwards'}))}
 function showTopic(k){stopPlay();dotsOff();settle();cur=null;root.classList.remove('ov');focusT(null);const t=T[k],v=V.topic[k],heads=v.cols.map((_,j)=>v.before?(j?'Stage '+j:'From other topics'):'Stage '+(j+1));
  path.hidden=true;
- $('#lm-head').innerHTML=`<button class="lm-btn" id="lm-back">All topics</button><b><a href="${esc(P[t.r].u)}">${esc(P[t.r].t)}</a></b><span>${t.p.length} pages, ${t.m} min core reading</span>`;
+ $('#lm-head').innerHTML=`<button class="lm-btn" id="lm-back">All topics</button><b><a href="${esc(P[t.r].u)}">${esc(t.n)}</a></b><span>${t.p.length} pages, ${t.m} min core reading</span>`;
  view.innerHTML=`<div class="lm-scroll">${svgOf(v,{},heads)}</div><p class="lm-cap">Each column needs only the columns to its left. ${v.before?'Dashed pages belong to other topics. ':''}Click a page to read it, or its round button for its full path.</p>`;
  const cols=heads.map(()=>[]);v.n.forEach(n=>cols[v.lay[n[0]]].push(n));
  plist.innerHTML=cols.map((c,j)=>c.length?`<div data-j="${j}"><h4>${heads[j]}</h4><ul class="lm-pl-list">${c.sort((a,b)=>a[2]-b[2]).map(n=>pli(n[0],n[3]?`<span class="mm">${esc(T[P[n[0]].c].n)}</span>`:'')).join('')}</ul></div>`:'').join('');
  const rs=[...view.querySelectorAll('.lm-n')].map(g=>[g,v.lay[g.dataset.i]]).concat([...view.querySelectorAll('.lm-e')].map(e=>[e,v.lay[e.dataset.b]]),[...view.querySelectorAll('.lm-col')].map((e,j)=>[e,j]),[...plist.querySelectorAll('[data-j]')].map(e=>[e,+e.dataset.j]));
  grow(rs)}
+// the step that lands gets a soft halo that settles once (no loop)
+function halo(){const h=view.querySelector('.lm-n.cur .lm-halo');if(h&&!RM.matches)h.animate([{transform:'scale(.9)',opacity:0},{transform:'none',opacity:1}],{duration:320,easing:SPRING})}
 function paint(fwd){if(!cur)return;const o=cur.order,rk={},tok=++ptok;o.forEach((j,r)=>rk[j]=r);settle();
  const setN=withCur=>{const cl=(el,r)=>{el.classList.toggle('done',step>=0&&r<step);el.classList.toggle('cur',withCur&&step>=0&&r===step);el.classList.toggle('todo',step>=0&&(r>step||(!withCur&&r===step)))};
   view.querySelectorAll('.lm-n').forEach(g=>cl(g,rk[+g.dataset.i]));path.querySelectorAll('ol li').forEach((li,r)=>cl(li,r));
@@ -1108,7 +1177,7 @@ function paint(fwd){if(!cur)return;const o=cur.order,rk={},tok=++ptok;o.forEach(
  if(fwd&&inc.length&&!RM.matches){setN(false);const g=view.querySelector('.lm-svg>g');
   const as=inc.map(e=>{e.classList.add('drw');const L=e.getTotalLength(),o={duration:380,easing:'cubic-bezier(.4,0,.2,1)'},d=dot(g,T[P[+e.dataset.a].c].s,4),da=d.animate(along(e,false),o);
    da.finished.then(()=>d.remove(),()=>d.remove());return e.animate(drawKF(L),o)});
-  Promise.all(as.map(a=>a.finished)).then(()=>{if(tok===ptok)setN(true)},()=>{})}else setN(true);
+  Promise.all(as.map(a=>a.finished)).then(()=>{if(tok===ptok){setN(true);halo()}},()=>{})}else setN(true);
  $('#lm-prev').disabled=step<=0;$('#lm-next').disabled=step>=o.length-1;
  $('#lm-pos').textContent=step<0?'':`${step+1} of ${o.length}: ${P[o[step]].t}`}
 function showPath(i){stopPlay();dotsOff();settle();root.classList.remove('ov');focusT(null);const p=P[i],v=V.path[i],order=v?v.order:[i];cur={i,order};step=-1;
@@ -1161,32 +1230,37 @@ sug.addEventListener('mousedown',e=>{const b=e.target.closest('[data-p]');if(b){
 document.addEventListener('click',e=>{if(!e.target.closest('.lm-qw')){hits=[];drawSug()}});
 window.addEventListener('hashchange',route);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopPlay()});
-// once per page load (Khalid's explicit choice for the home page): the layers rise in top to bottom, the strong lines
-// draw from the upper topic to the lower, then the caption fades in; about 1 s, then still. Any pointer or
-// key input finishes it at once; reduced motion skips it.
-function reveal(){if(RM.matches||document.hidden||location.hash)return;const A=[],ST=110,FD=620;
+// once per page load (Khalid's explicit choice for the home page), and only when the map is on screen: the layers rise
+// in top to bottom (cards 25 ms apart within a layer, layers 120 ms apart), the strong lines draw from the upper topic to
+// the lower, then the key fades in; about 1.1 s, then still. Any pointer or key input finishes it at once; a reader who
+// lands scrolled past the map sees it finished; returning from a topic never replays it; reduced motion skips it.
+function reveal(){if(RM.matches||document.hidden||location.hash)return;const A=[],LS=120,CS=25;
  const rise=[{opacity:0,transform:'translateY(8px)'},{opacity:1,transform:'none'}],fade=[{opacity:0},{opacity:1}];
- const svg=$('#lm-ov');
- if(svg&&svg.getBoundingClientRect().width){
-  svg.querySelectorAll('.lm-bd,.lm-t').forEach(g=>A.push(g.animate(rise,{duration:320,delay:ST*+g.dataset.l,easing:EASE,fill:'backwards'})));
+ const svg=$('#lm-ov'),onScreen=el=>{const r=el.getBoundingClientRect();return r.width>0&&r.bottom>0&&r.top<innerHeight};
+ if(svg&&svg.getBoundingClientRect().width){if(!onScreen(svg))return;
+  svg.querySelectorAll('.lm-bd').forEach(g=>A.push(g.animate(fade,{duration:420,delay:LS*+g.dataset.l,easing:OUT,fill:'backwards'})));
+  const idx={};svg.querySelectorAll('.lm-t').forEach(g=>{const l=+g.dataset.l,i=idx[l]=(idx[l]||0)+1;
+   A.push(g.animate(rise,{duration:420,delay:LS*l+CS*Math.min(i-1,8),easing:OUT,fill:'backwards'}))});
   svg.querySelectorAll('.lm-se').forEach(e=>{const la=+svg.querySelector(`.lm-t[data-k="${e.dataset.a}"]`).dataset.l;
-   A.push(e.animate(drawKF(e.getTotalLength()),{duration:380,delay:ST*(la+1)+170,easing:'cubic-bezier(.4,0,.2,1)',fill:'backwards'}))});
-  const cap=$('#lm-ovcap');if(cap)A.push(cap.animate(fade,{duration:340,delay:FD,fill:'backwards'}))}
- else{const ov=$('#lm-ovl');if(ov&&ov.offsetParent!==null){let l=0;[...ov.children].forEach(el=>{if(el.matches('h4'))l++;
-   A.push(el.animate(rise,{duration:300,delay:Math.min(l-1,4)*ST,easing:EASE,fill:'backwards'}))})}}
+   A.push(e.animate(drawKF(e.getTotalLength()),{duration:380,delay:LS*(la+1)+120,easing:'cubic-bezier(.4,0,.2,1)',fill:'backwards'}))});
+  const cap=$('#lm-ovcap');if(cap)A.push(cap.animate(fade,{duration:340,delay:700,easing:EASE,fill:'backwards'}))}
+ else{const ov=$('#lm-ovl');if(ov&&ov.offsetParent!==null&&onScreen(ov)){let l=0,i=0;[...ov.children].forEach(el=>{if(el.matches('h4')){l++;i=0}
+   A.push(el.animate(rise,{duration:380,delay:Math.min(l-1,4)*LS+CS*Math.min(i++,6),easing:OUT,fill:'backwards'}))})}}
  if(!A.length)return;const stop=()=>{A.forEach(a=>{try{a.finish()}catch(e){}});['pointerdown','keydown','wheel','mouseover'].forEach(ev=>root.removeEventListener(ev,stop,true))};
  ['pointerdown','keydown','wheel','mouseover'].forEach(ev=>root.addEventListener(ev,stop,true));Promise.all(A.map(a=>a.finished)).then(stop,()=>{})}
-D.OV=view.innerHTML;route();reveal()})();
+// the wide or narrow overview drawing, chosen again when the window is resized across the boundary
+let lastWide=null;const fit=()=>{const w=wide();if(w===lastWide)return;lastWide=w;if(root.classList.contains('ov')&&!cur){dotsOff();fk=null;view.innerHTML=ovHTML();focusT(null)}};
+addEventListener('resize',()=>{if(root.classList.contains('ov'))fit()});
+fit();route();reveal()})();
 """
 
 
 def section(url, kb=None):
     """the learning map block for the home page"""
-    P, T, views, ov_svg, ov_list, note, _ = build(url, kb)
-    data = {"P": P, "T": T, "V": {"topic": views["topic"], "path": views["path"]}, "DEFS": DEFS}
+    P, T, views, (ov_svg, ov_wide), ov_list, note, _ = build(url, kb)
+    data = {"P": P, "T": T, "V": {"topic": views["topic"], "path": views["path"]}, "DEFS": DEFS, "WW": W_W}
     js_data = json.dumps(data, separators=(",", ":"), ensure_ascii=False).replace("</", "<\\/")
     leg = "".join(f'<span><i style="background:var(--s{k})"></i>{html.escape(s)}</span>' for k, s in enumerate(SECTIONS))
-    npages, nedges = len(P), sum(len(p["pre"]) for p in P)
     nst = len(T[0]["st"])
     cells = "".join(f'<text class="lm-sl" x="{10 + g * 21}" y="9" text-anchor="middle">{g + 1}</text>'
                     f'<rect class="lm-cell{" z" if not c else ""}" x="{1 + g * 21}" y="12" width="18" height="{SH}" rx="{SH // 2}"/>'
@@ -1200,15 +1274,16 @@ def section(url, kb=None):
            f'at least {share} of the lower topic\'s pages build on the upper one; thicker, more of them</span>'
            '<span class="ln"><svg width="34" height="14" aria-hidden="true"><path class="lm-we" style="opacity:.9" d="M2 7H32"/></svg>'
            'a few pages (under that share), shown when a topic is focused</span></div>')
+    route = ('<svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="3" cy="11" r="1.6"/><circle cx="11" cy="3" r="1.6"/>'
+             '<path d="M4.6 11H9a2 2 0 0 0 0-4H5a2 2 0 0 1 0-4h4.4"/></svg>')
     return f"""<section id="lm" class="lm ov" data-pagefind-ignore>
 <h2>Learning map</h2>
-<p class="lm-sub">The order to study in, from each page's strict prerequisites ({npages} pages, {nedges} links). A page's stage is its longest chain of prerequisites: stage 1 needs nothing, and every page needs only pages in earlier stages.</p>
-<div class="lm-bar0"><div class="lm-qw"><input id="lm-q" type="search" placeholder="Path to a page: type a title, e.g. FlashAttention" aria-label="Path to a page" autocomplete="off"><ul id="lm-sug" class="lm-sug" hidden></ul></div></div>
-<div class="lm-leg">{leg}</div>
+<p class="lm-sub">The order to study in, built from each page's strict prerequisites. A page's stage is its longest chain of prerequisites: stage 1 needs nothing, and every page needs only pages in earlier stages.</p>
+<div class="lm-bar0"><div class="lm-leg">{leg}</div><div class="lm-qw">{route}<input id="lm-q" type="search" placeholder="Find the path to a page..." aria-label="Path to a page: type a title" autocomplete="off"><ul id="lm-sug" class="lm-sug" hidden></ul></div></div>
 <div class="lm-head" id="lm-head"><b>All topics</b><span>Hover or tap a topic to see what it builds on; click to open its pages</span></div>
-<div class="lm-map" id="lm-view"><div class="lm-scroll">{ov_svg}</div></div>
+<div class="lm-map" id="lm-view"><div class="lm-scroll">{ov_svg}</div></div><template id="lm-ovw"><div class="lm-scroll">{ov_wide}</div></template>
 <div class="lm-list"><div id="lm-ovl">{ov_list}</div><div id="lm-plist"></div></div>
-<div id="lm-ovcap">{key}<p class="lm-cap">Layers order topics, top to bottom: a topic sits below another when at least {share} of its pages build on that topic's pages (directly or through other pages), with a solid line between them, thicker when more of its pages do; layer 1 holds every topic that builds on no other this way, so any of them can come first. Stages order pages: the pills on each card and the columns of a topic view count a page's whole chain of prerequisites across all topics, 1 to {nst}, so a topic in a later layer can still have stage-1 pages. Hover or tap a topic to light up what it builds on and what builds on it, with dotted lines (and the list "Some pages also use") where only a few of its pages do; click it for its pages in order.{html.escape(note)}</p></div>
+<div id="lm-ovcap">{key}<details class="lm-how"><summary>How to read this map</summary><p class="lm-cap">Layers order topics, top to bottom: a topic sits below another when at least {share} of its pages build on that topic's pages (directly or through other pages), with a solid line between them, thicker when more of its pages do; layer 1 holds every topic that builds on no other this way, so any of them can come first. Stages order pages: the pills on each card and the columns of a topic view count a page's whole chain of prerequisites across all topics, 1 to {nst}, so a topic in a later layer can still have stage-1 pages. Hover or tap a topic to light up what it builds on and what builds on it, with dotted lines (and the list "Some pages also use") where only a few of its pages do; click it for its pages in order.{html.escape(note)}</p></details></div>
 <div class="lm-path" id="lm-path" hidden></div>
 <script type="application/json" id="lm-data">{js_data}</script>
 <script>{JS}</script>
